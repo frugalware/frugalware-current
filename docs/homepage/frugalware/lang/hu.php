@@ -36,6 +36,7 @@ $fwstrmwishlist="kívánságlista";
 $fwstrmtodolist="teendõlista";
 $fwstrauthors="fejlesztõk";
 $fwstrforum="fórum";
+$fwstrwiki="wiki";
 
 // news.php
 $fwstrpby="írta:";

@@ -36,6 +36,7 @@ $fwstrmwishlist="wishlist";
 $fwstrmtodolist="todolist";
 $fwstrauthors="people";
 $fwstrforum="forum";
+$fwstrwiki="wiki";
 
 // news.php
 $fwstrpby="posted by";

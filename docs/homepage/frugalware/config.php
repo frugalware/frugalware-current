@@ -31,7 +31,7 @@ $mirrors=array(
 		"Hungary (100 MBit)"),
 	array("ftp4.frugalware.org",
 		"ftp://ftp4.frugalware.org/pub/linux/distributions/frugalware/",
-		"Hungary (2x100 MBit, ftp.fsn.hu, not updated since Feb 6)"),
+		"Hungary (2x100 MBit, ftp.fsn.hu)"),
 	array("ftp5.frugalware.org",
 		"ftp://ftp5.frugalware.org/packages/frugalware/pub/frugalware/",
 		"Belgium (2x1GBit, ftp.belnet.be)")

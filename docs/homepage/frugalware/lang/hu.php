@@ -180,4 +180,17 @@ $shot_titles["blackbox.png"]="Blackbox";
 $shot_titles["blackbox2.png"]="Blackbox munka közben";
 $shot_titles["fluxbox.jpg"]="Fluxbox";
 $shot_titles["fluxbox2.jpg"]="Fluxbox munka közben";
+
+// docs.php
+$fwstrdocs="Dokumentáció";
+$fwstrdocsabout="<p align=\"left\">A leggyakoribb kérdéseket a \"<a href=\"%s\">rólunk</a>\" oldalon gyûjtöttük össze.</p>";
+$fwstrdocsdarcs="<p align=\"left\">A dokumentáció a <a href=\"%s\">-current darcs fában</a> található tex file-okból készül.</p>";
+$fwstrdocsq="<p align=\"left\">Szeretném lefordítani a dokumentáció egy olyan nyelvre, amilyen nyelven még nem érhetõ el, hogyan kezdjek hozzá?<br>";
+$fwstrdocsa="Küldjön egy emailt a <a href=\"%s\">-devel</a> levelezési listára, és ott minden segítséget megadunk a munkához.</p>";
+$fwstrdocsonline="Online olvasás";
+$fwstrdocsen="Angol";
+$fwstrdocshu="Magyar";
+$fwstrdocssk="Szlovák";
+$fwstrdocshtml="HTML";
+$fwstrdocshtmlsingle="HTML (1 darab nagy file)";
 ?>

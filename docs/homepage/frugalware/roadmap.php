@@ -8,7 +8,7 @@ print("
 <tr><td>Apr 25, 2005<td>0.2<td><i>pending
 <tr><td>Apr 11, 2005<td>0.2rc2<td><i>pending
 <tr><td>Mar 28, 2005<td>0.2rc1<td><i>pending
-<tr><td>Feb 28, 2005<td>0.2pre2<td><i>pending
+<tr><td>Feb 24, 2005<td>0.2pre2<td><i>pending
 <tr><td width=30%>Jan 10, 2005<td width=30%>0.2pre1<td width=30%><i>done
 </table>
 ");

@@ -37,6 +37,7 @@ $fwstrmtodolist="teendõlista";
 $fwstrauthors="fejlesztõk";
 $fwstrforum="fórum";
 $fwstrwiki="wiki";
+$fwstrdocsmenu="dokumentáció";
 
 // news.php
 $fwstrpby="írta:";

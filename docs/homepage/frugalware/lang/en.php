@@ -37,6 +37,7 @@ $fwstrmtodolist="todolist";
 $fwstrauthors="people";
 $fwstrforum="forum";
 $fwstrwiki="wiki";
+$fwstrdocsmenu="documentation";
 
 // news.php
 $fwstrpby="posted by";

@@ -181,4 +181,17 @@ $shot_titles["blackbox2.png"]="Blackbox in action";
 $shot_titles["fluxbox.jpg"]="Fluxbox";
 $shot_titles["fluxbox2.jpg"]="Fluxbox in action";
 
+// docs.php
+$fwstrdocs="Documentation";
+$fwstrdocsabout="<p align=\"left\">The most common questions are collected on the <a href=\"%s\">about</a> page.</p>";
+$fwstrdocsdarcs="<p align=\"left\">This documentation is generated from tex files in the <a href=\"%s\">-current darcs tree</a>.</p>";
+$fwstrdocsq="<p align=\"left\">I'd like to translate the documentation into my own language, what do I do to start?<br>";
+$fwstrdocsa="Send email to the <a href=\"%s\">-devel</a> mailing list, and we'll post our instructions.</p>";
+$fwstrdocsonline="View online";
+$fwstrdocsen="English";
+$fwstrdocshu="Hungarian";
+$fwstrdocssk="Slovak";
+$fwstrdocshtml="HTML";
+$fwstrdocshtmlsingle="HTML single file";
+
 ?>

@@ -5,6 +5,7 @@ print("&middot;
 <a class=menu href=\"about.php\">$fwstrabout</a> &middot;
 <a class=menu href=\"changelog.php\">$fwstrchl</a> &middot;
 <a class=menu href=\"mailman/listinfo\">$fwstrlist</a> &middot;
+<a class=menu href=\"http://forums.frugalware.org/\">$fwstrforum</a> &middot;
 <a class=menu href=\"irc.php\">$fwstrirc</a> &middot;
 <a class=menu href=\"screenshot.php\">$fwstrscreenshot</a> &middot;
 <a class=menu href=\"packages.php\">$fwstrpac</a> &middot;

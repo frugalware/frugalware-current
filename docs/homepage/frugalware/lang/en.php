@@ -35,6 +35,7 @@ $fwstrroadmap="roadmap";
 $fwstrmwishlist="wishlist";
 $fwstrmtodolist="todolist";
 $fwstrauthors="people";
+$fwstrforum="forum";
 
 // news.php
 $fwstrpby="posted by";

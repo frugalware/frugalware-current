@@ -35,6 +35,7 @@ $fwstrroadmap="útiterv";
 $fwstrmwishlist="kívánságlista";
 $fwstrmtodolist="teendõlista";
 $fwstrauthors="fejlesztõk";
+$fwstrforum="fórum";
 
 // news.php
 $fwstrpby="írta:";

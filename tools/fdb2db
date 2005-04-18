@@ -1,0 +1,152 @@
+#!/usr/bin/perl -w 
+use strict;
+use Getopt::Std;
+use Data::Dumper;
+use File::Find;
+
+sub untarrepodb{ #repodb
+    my ($repodb) = @_;
+    my $dir = "/tmp/$repodb";
+    die $! unless mkdir $dir;
+    qx"tar xzf $repodb -C $dir";
+    return $dir;
+}
+
+sub rrmdir { #dir
+    qx/rm -rf $_[0]/;
+}
+
+sub getcontents { #file          # puts a textfile to an ARRAY
+    my $d = shift;
+    die "$! $d" unless open FILE, $d;
+    my @lines = <FILE>;
+    close FILE;
+    return @lines;
+}
+
+sub getrepodbdata { #what from      # takes '%foo%' and gives a SCALAR
+    my ($what, $from) = (shift, join '', @_);
+    my ($out) = $from =~ /$what.(.*?).(:?.%|\Z)/s;
+    $out =~ s/\n/ / if $out;
+    return $out;
+}
+
+sub lengthb255{ # SCALAR
+    my $p = shift;
+    return undef unless $p;
+    (length $p > 255) ? undef : $p;
+}
+
+my %opts;
+getopts('r:e:b:', \%opts);
+
+die 'Specify a repositoryname!' unless my $repo = $opts{r};
+die 'Specify a version string!' unless my $fwver = $opts{e};
+die 'Specify the FrugalBuild directory!' unless my $fbdir = $opts{b};
+
+my $pkgdir = untarrepodb $repo.'.fdb';
+opendir DBDIR, $pkgdir;
+while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel 
+    next if $pkg =~ /^\.{1,2}$/;
+    my %pkgdata;
+    ($pkgdata{FWVER}, $pkgdata{REPO}) = ($fwver, $repo);
+    my @contents = getcontents "$pkgdir/$pkg/desc";
+   
+    for my $link (qw/NAME VERSION DESC CSIZE MD5SUM GROUPS REPLACES/){   ##WARNING when undef!
+	$pkgdata{$link} = lengthb255 getrepodbdata '%'.$link.'%', @contents; ## WARN when too long
+    }
+    ($pkgdata{VERSION}, $pkgdata{PKGREL}) = split '-', $pkgdata{VERSION}; # VERSION =~ ver-rel
+    
+    @contents = getcontents "$pkgdir/$pkg/depends";
+    for my $link (qw/PROVIDES CONFLICTS DEPENDS/){
+	$pkgdata{$link} = lengthb255 getrepodbdata '%'.$link.'%', @contents;
+    }
+
+    $pkgdata{FILELIST} = join ' ', qx/tar xzOf $pkg.fpm .FILELIST/; 
+    ($pkgdata{ARCH}) =  qx/tar xzOf $pkg.fpm .PKGINFO/ =~ /^arch = (.*)$/m;
+    
+    my $buildscript;
+    find sub {
+	$buildscript = $File::Find::name if $File::Find::name =~ m"$pkgdata{NAME}/FrugalBuild\Z";
+	}, $fbdir;
+    ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if $buildscript;
+
+    print Dumper \%pkgdata;
+    
+}
+closedir DBDIR;
+rrmdir $pkgdir;
+
+
+__END__
+
+         pkgname   	varchar(255)    NAME r
+	 pkgver  	varchar(255) 	VERSION r
+	 pkgrel  	tinyint(4) 	PKGREL r
+	 groups  	varchar(255) 	GROUPS r
+	 provides  	varchar(255) 	PROVIDES r/d             r/d <=> repodb/depends file
+	 depends  	varchar(255) 	DEPENDS r/d		r <=> repo.db/desc
+	 conflicts  	varchar(255) 	CONFLICTS r/d
+	 replaces  	varchar(255) 	REPLACES r
+	 csize  	int(11) 	CSIZE r
+	 arch  		varchar(255) 	ARCH .PKGINFO
+	 desc  		varchar(255) 	DESC r
+	 maintainer  	varchar(255) 	M8R FrugalBuild
+	 md5  		varchar(32) 	MD5SUM r 
+	 fwver  	varchar(255) 	FWVER Parameter
+	 repo  		varchar(255) 	REPO Parameter
+	 files  	mediumtext 	FILELIST .FILELIST
+	 updated  	timestamp       scalar localtime
+
+
+=head1 NAME
+
+fdb2db - refresh a Frugalware database from a repository
+
+=head1 SYNOPSIS
+
+fdb2db [-v] -r name -e frugalware_version -b dir
+
+=head1 DESCRIPTION
+
+Scans the current directory for packages and a repository database,
+then syncronizes a database. See DATABASE for the structure.
+
+=head1 OPTIONS
+
+
+
+=head1 DATABASE
+
+         pkgname   	varchar(255)    
+	 pkgver  	varchar(255) 	
+	 pkgrel  	tinyint(4) 	
+	 groups  	varchar(255) 	
+	 provides  	varchar(255) 	
+	 depends  	varchar(255) 	
+	 conflicts  	varchar(255) 	
+	 replaces  	varchar(255) 	
+	 csize  	int(11) 	
+	 arch  		varchar(255) 	
+	 desc  		varchar(255) 	
+	 maintainer  	varchar(255) 	
+	 md5  		varchar(32) 	
+	 fwver  	varchar(255) 	
+	 repo  		varchar(255) 	
+	 files  	mediumtext 	
+	 updated  	timestamp       
+
+=head1 AUTHOR
+
+Zsolt Szalai
+
+=head1 REPORTING BUGS
+
+Report bugs to <xbit@frugalware.org>
+
+=head1 COPYRIGHT                                                                
+                                                                                
+May be copied and modified under the terms of the GNU General Public     
+License v2.                                                                     
+                                                                                
+=cut

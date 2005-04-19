@@ -78,6 +78,7 @@ $fwstrpacdl="Letöltés";
 $fwstrreleaseinfo="Kiadások";
 
 // lib.php
+$fwcharset="iso-8859-2";
 $fwstrarrow="Nyíl";
 
 // about.php

@@ -78,6 +78,7 @@ $fwstrserverinfo="Server infos";
 $fwstrreleaseinfo="Releases";
 
 // lib.php
+$fwcharset="utf-8";
 $fwstrarrow="Arrow";
 
 // about.php

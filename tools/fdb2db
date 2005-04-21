@@ -40,6 +40,13 @@ sub lengthb255{ # SCALAR
     (length $p > 255) ? undef : $p;
 }
 
+sub readdata { #string
+    my $str = shift;
+    my $inp = '';
+    while ($inp eq ''){print $str;$inp = <STDIN>; chomp $inp;}
+    return $inp;
+}
+
 my %opts;
 getopts('r:e:b:pu:vi', \%opts);
 
@@ -48,7 +55,7 @@ die 'Specify a version string!' unless my $fwver = $opts{e};
 die 'Specify the FrugalBuild directory!' unless my $fbdir = $opts{b};
 
 my $user;
-$user = $opts{u} or $user = '';               ####OPTIONS!!!!!
+$user = $opts{u} or $user = '';               
 my $passw = read_password('password: ') if $opts{p};
 
 my $db = 'mysqldb';
@@ -85,10 +92,17 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
     find sub {
 	$buildscript = $File::Find::name if $File::Find::name =~ m"$pkgdata{NAME}/FrugalBuild\Z";
 	}, $fbdir;
+
+    if ($opts{i}){
+	if (!$buildscript){
+	    
+	}
+    }
+
     ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if $buildscript; ###ELSE WARN
 
 ##### VERIFY INFO
-    print "|$buildscript|";
+
     ($pkgdata{GROUPS}) = $buildscript =~ m'.*/(.*?)/.*?/FrugalBuild' or $pkgdata{GROUPS} = 'UFO';
 
     #print Dumper \%pkgdata;
@@ -109,12 +123,17 @@ my $dbh;
 sub connect{ # datahash
     my ($self,$datas) = @_;
     $dbh = DBI->connect("DBI:mysql:database=$datas->{database};host=$datas->{host}",
-			   $datas->{user}, $datas->{password},
-			   );
+			$datas->{user}, $datas->{password},
+			);
 }
 
 sub existsindb {
-    0;
+    my($name,$fwver) = @_;
+    my $sth = $dbh->prepare("SELECT id FROM packages where pkgname='$name' and fwver='$fwver'");
+    $sth->execute();
+    do {$sth->finish(); return 1;} if $sth->fetchrow_hashref();
+    $sth->finish();
+    return 0;
 }
 
 sub store{
@@ -126,10 +145,14 @@ sub store{
 	$values .= (($data->{$key}) ? "'$data->{$key}'" : 'NULL') . ',';
     }
     chop $values;
-#    print $values."\n";
 
     if (existsindb($data->{NAME}, $data->{FWVER})){
-	#UPDATE
+	my $set = '`pkgname`=';
+	for my $key (qw/NAME `pkgver` VERSION `pkgrel` PKGREL `groups` GROUPS `provides` PROVIDES `depends` DEPENDS `conflicts` CONFLICTS `replaces` REPLACES `csize` CSIZE `arch` ARCH `desc` DESC `maintainer` M8R `md5` MD5SUM `fwver` FWVER `repo` REPO `files` FILELIST/){
+  	    $set .= ($data->{$key}) ? "'$data->{$key}'," : "$key=";
+	}
+	chop $set;
+	$dbh->do("UPDATE packages set $set where pkgname='$data->{NAME}' and fwver='$data->{FWVER}'");
     } else {
 	$dbh->do("INSERT INTO packages (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
     }

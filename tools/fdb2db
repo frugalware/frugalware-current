@@ -54,6 +54,7 @@ die 'Specify a repositoryname!' unless my $repo = $opts{r};
 die 'Specify a version string!' unless my $fwver = $opts{e};
 die 'Specify the FrugalBuild directory!' unless my $fbdir = $opts{b};
 
+my $warn;
 my $user;
 $user = $opts{u} or $user = '';               
 my $passw = read_password('password: ') if $opts{p};
@@ -68,13 +69,15 @@ $passw = '';
 
 my $pkgdir = untarrepodb $repo.'.fdb';
 opendir DBDIR, $pkgdir;
+
 while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel 
+
     next if $pkg =~ /^\.{1,2}$/;
     my %pkgdata;
     ($pkgdata{FWVER}, $pkgdata{REPO}) = ($fwver, $repo);
     my @contents = getcontents "$pkgdir/$pkg/desc";
    
-    for my $link (qw/NAME VERSION DESC CSIZE MD5SUM GROUPS REPLACES/){   ##WARNING when undef!
+    for my $link (qw/NAME VERSION DESC CSIZE MD5SUM GROUPS REPLACES/){   
 	$pkgdata{$link} = lengthb255 getrepodbdata '%'.$link.'%', @contents; ## WARN when too long
     }
     ($pkgdata{VERSION}, $pkgdata{PKGREL}) = split '-', $pkgdata{VERSION}; # VERSION =~ ver-rel
@@ -93,27 +96,49 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 	$buildscript = $File::Find::name if $File::Find::name =~ m"$pkgdata{NAME}/FrugalBuild\Z";
 	}, $fbdir;
 
-    if ($opts{i}){
-	if (!$buildscript){
-	    
+    if (!$buildscript){
+	if ($opts{i}){
+	    $buildscript = readdata "Full path to the FrugalBuild script of $pkgdata{NAME}:";
+	} else {
+	    $warn .= "No FrugalBuild found to $pkgdata{NAME}\n";
+	    $pkgdata{NVALID} = 1;
 	}
     }
 
-    ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if $buildscript; ###ELSE WARN
+    ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if $buildscript;
 
 ##### VERIFY INFO
 
-    ($pkgdata{GROUPS}) = $buildscript =~ m'.*/(.*?)/.*?/FrugalBuild' or $pkgdata{GROUPS} = 'UFO';
+    if (not $pkgdata{GROUPS}) {
+	do{do{($pkgdata{GROUPS}) = $buildscript =~ m'.*/(.*?)/.*?/FrugalBuild'} if $buildscript} or do{
+	    if ($opts{i}){
+		$pkgdata{GROUPS} = readdata "Groups of $pkgdata{NAME}:";
+	    } else {
+		$warn .= "No groups determined for $pkgdata{NAME}\n";
+		$pkgdata{NVALID} = 1;
+	    }
+	}
+    }
 
-    #print Dumper \%pkgdata;
+    if (not $pkgdata{ARCH}){
+	if ($opts{i}){
+	    $pkgdata{ARCH} = readdata "Architecture of $pkgdata{NAME}:";
+	} else {
+	    $warn .= "No architecture determined for $pkgdata{NAME}\n";
+	    $pkgdata{NVALID} = 1;
+	}
+    }
 
-    $db->store(\%pkgdata);
-    
+    $db->store(\%pkgdata) unless $pkgdata{NVALID};
+
+    %pkgdata = ();
 }
 
 $db->disconnect;
 closedir DBDIR;
 rrmdir $pkgdir;
+
+print $warn;
 
 
 package mysqldb;
@@ -128,8 +153,8 @@ sub connect{ # datahash
 }
 
 sub existsindb {
-    my($name,$fwver) = @_;
-    my $sth = $dbh->prepare("SELECT id FROM packages where pkgname='$name' and fwver='$fwver'");
+    my($name,$fwver,$arch) = @_;
+    my $sth = $dbh->prepare("SELECT id FROM packages where pkgname='$name' and fwver='$fwver' and arch='$arch'");
     $sth->execute();
     do {$sth->finish(); return 1;} if $sth->fetchrow_hashref();
     $sth->finish();
@@ -146,13 +171,13 @@ sub store{
     }
     chop $values;
 
-    if (existsindb($data->{NAME}, $data->{FWVER})){
+    if (existsindb($data->{NAME}, $data->{FWVER}, $data->{ARCH})){
 	my $set = '`pkgname`=';
 	for my $key (qw/NAME `pkgver` VERSION `pkgrel` PKGREL `groups` GROUPS `provides` PROVIDES `depends` DEPENDS `conflicts` CONFLICTS `replaces` REPLACES `csize` CSIZE `arch` ARCH `desc` DESC `maintainer` M8R `md5` MD5SUM `fwver` FWVER `repo` REPO `files` FILELIST/){
   	    $set .= ($data->{$key}) ? "'$data->{$key}'," : "$key=";
 	}
 	chop $set;
-	$dbh->do("UPDATE packages set $set where pkgname='$data->{NAME}' and fwver='$data->{FWVER}'");
+	$dbh->do("UPDATE packages set $set where pkgname='$data->{NAME}' and fwver='$data->{FWVER}' and arch='$data->{ARCH}'");
     } else {
 	$dbh->do("INSERT INTO packages (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
     }
@@ -251,6 +276,20 @@ Be verbose.
 	 repo  		varchar(255) 	
 	 files  	mediumtext 	
 	 updated  	timestamp       
+
+=head1 BUGS
+
+Error checking in various points:
+    - in the sql package
+    - on $db->connect
+
+Warn is data is too long.
+
+Verbose mode
+
+data verify is not comlete
+
+table name in options
 
 =head1 AUTHOR
 

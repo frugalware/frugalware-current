@@ -41,7 +41,7 @@ sub lengthb255{ # SCALAR
 }
 
 my %opts;
-getopts('r:e:b:pu:', \%opts);
+getopts('r:e:b:pu:vi', \%opts);
 
 die 'Specify a repositoryname!' unless my $repo = $opts{r};
 die 'Specify a version string!' unless my $fwver = $opts{e};
@@ -56,7 +56,8 @@ $db->connect({database => 'frugalware',
 	      host => 'localhost',
 	      user => $user,
 	      password => $passw,
-	  }); 
+	  });                                 ##### ERRORCHECK!!
+$passw = '';
 
 my $pkgdir = untarrepodb $repo.'.fdb';
 opendir DBDIR, $pkgdir;
@@ -84,7 +85,11 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
     find sub {
 	$buildscript = $File::Find::name if $File::Find::name =~ m"$pkgdata{NAME}/FrugalBuild\Z";
 	}, $fbdir;
-    ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if $buildscript;
+    ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if $buildscript; ###ELSE WARN
+
+##### VERIFY INFO
+    print "|$buildscript|";
+    ($pkgdata{GROUPS}) = $buildscript =~ m'.*/(.*?)/.*?/FrugalBuild' or $pkgdata{GROUPS} = 'UFO';
 
     #print Dumper \%pkgdata;
 
@@ -108,16 +113,26 @@ sub connect{ # datahash
 			   );
 }
 
+sub existsindb {
+    0;
+}
+
 sub store{
     shift;
     my $data = shift;
     my $values;
     for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM FWVER REPO FILELIST/){
+	$data->{$key} =~ s/'/\\'/g if $data->{$key};
 	$values .= (($data->{$key}) ? "'$data->{$key}'" : 'NULL') . ',';
     }
     chop $values;
 #    print $values."\n";
-    $dbh->do("INSERT INTO packages (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
+
+    if (existsindb($data->{NAME}, $data->{FWVER})){
+	#UPDATE
+    } else {
+	$dbh->do("INSERT INTO packages (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
+    }
 }
 
 sub disconnect{
@@ -155,7 +170,7 @@ fdb2db - refresh a Frugalware database from a repository
 
 =head1 SYNOPSIS
 
-fdb2db [-v] -r name -e frugalware_version -b dir
+fdb2db [-v] -r name -e version -b dir [-p] [-u user] [-i]
 
 =head1 DESCRIPTION
 
@@ -164,7 +179,35 @@ then syncronizes a database. See DATABASE for the structure.
 
 =head1 OPTIONS
 
+=over 4
 
+=item B<-r name>
+
+The name of the repository.
+
+=item B<-e version>
+
+The version string of the disrtibution,
+
+=item B<-b dir>
+
+A parent directory of the buildscripts. ex. ../source/
+
+=item B<-p>
+
+Ask for a password if your database engine require.
+
+=item B<-u user>
+
+The user of the database if your engine require.
+
+=item B<-i>
+
+Be interactive. This will ask you about missing datas if nessesary.
+
+=item B<-v>
+
+Be verbose.
 
 =head1 DATABASE
 

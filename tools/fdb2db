@@ -1,8 +1,11 @@
 #!/usr/bin/perl -w 
+
 use strict;
 use Getopt::Std;
 use Data::Dumper;
 use File::Find;
+use DBI();
+use Term::ReadPassword;
 
 sub untarrepodb{ #repodb
     my ($repodb) = @_;
@@ -38,11 +41,22 @@ sub lengthb255{ # SCALAR
 }
 
 my %opts;
-getopts('r:e:b:', \%opts);
+getopts('r:e:b:pu:', \%opts);
 
 die 'Specify a repositoryname!' unless my $repo = $opts{r};
 die 'Specify a version string!' unless my $fwver = $opts{e};
 die 'Specify the FrugalBuild directory!' unless my $fbdir = $opts{b};
+
+my $user;
+$user = $opts{u} or $user = '';               ####OPTIONS!!!!!
+my $passw = read_password('password: ') if $opts{p};
+
+my $db = 'mysqldb';
+$db->connect({database => 'frugalware',
+	      host => 'localhost',
+	      user => $user,
+	      password => $passw,
+	  }); 
 
 my $pkgdir = untarrepodb $repo.'.fdb';
 opendir DBDIR, $pkgdir;
@@ -62,7 +76,8 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 	$pkgdata{$link} = lengthb255 getrepodbdata '%'.$link.'%', @contents;
     }
 
-    $pkgdata{FILELIST} = join ' ', qx/tar xzOf $pkg.fpm .FILELIST/; 
+    $pkgdata{FILELIST} = join ' ', qx/tar xzOf $pkg.fpm .FILELIST/;
+    $pkgdata{FILELIST} =~ s/\n//g;
     ($pkgdata{ARCH}) =  qx/tar xzOf $pkg.fpm .PKGINFO/ =~ /^arch = (.*)$/m;
     
     my $buildscript;
@@ -71,11 +86,47 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 	}, $fbdir;
     ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if $buildscript;
 
-    print Dumper \%pkgdata;
+    #print Dumper \%pkgdata;
+
+    $db->store(\%pkgdata);
     
 }
+
+$db->disconnect;
 closedir DBDIR;
 rrmdir $pkgdir;
+
+
+package mysqldb;
+
+my $dbh;
+
+sub connect{ # datahash
+    my ($self,$datas) = @_;
+    $dbh = DBI->connect("DBI:mysql:database=$datas->{database};host=$datas->{host}",
+			   $datas->{user}, $datas->{password},
+			   );
+}
+
+sub store{
+    shift;
+    my $data = shift;
+    my $values;
+    for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM FWVER REPO FILELIST/){
+	$values .= (($data->{$key}) ? "'$data->{$key}'" : 'NULL') . ',';
+    }
+    chop $values;
+#    print $values."\n";
+    $dbh->do("INSERT INTO packages (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
+}
+
+sub disconnect{
+    $dbh->disconnect();
+}
+
+
+
+1;
 
 
 __END__
@@ -96,7 +147,6 @@ __END__
 	 fwver  	varchar(255) 	FWVER Parameter
 	 repo  		varchar(255) 	REPO Parameter
 	 files  	mediumtext 	FILELIST .FILELIST
-	 updated  	timestamp       scalar localtime
 
 
 =head1 NAME

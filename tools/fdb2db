@@ -9,7 +9,7 @@ use Term::ReadPassword;
 
 sub untarrepodb{ #repodb
     my ($repodb) = @_;
-    my $dir = "/tmp/$repodb";
+    my $dir = "/tmp/$repodb".".$$";
     die $! unless mkdir $dir;
     die "No such file:$repodb" unless -e $repodb;
     qx"tar xzf $repodb -C $dir";
@@ -103,7 +103,10 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 	$pkgdata{$link} = getrepodbdata '%'.$link.'%', @contents; 
     }
     ($pkgdata{VERSION}, $pkgdata{PKGREL}) = split '-', $pkgdata{VERSION}; # VERSION =~ ver-rel
-    
+    ($pkgdata{ARCH}) =  qx/tar xzOf $pkg.fpm .PKGINFO/ =~ /^arch = (.*)$/m;
+
+    next unless $db->needupdate($pkgdata{NAME}, $pkgdata{VERSION}, $pkgdata{PKGREL}, $pkgdata{FWVER},$pkgdata{ARCH});
+
     @contents = getcontents "$pkgdir/$pkg/depends";
     for my $link (qw/PROVIDES CONFLICTS DEPENDS/){
 	$pkgdata{$link} = getrepodbdata '%'.$link.'%', @contents;
@@ -111,11 +114,11 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 
     $pkgdata{FILELIST} = join ' ', qx/tar xzOf $pkg.fpm .FILELIST/;
     $pkgdata{FILELIST} =~ s/\n//g;
-    ($pkgdata{ARCH}) =  qx/tar xzOf \Q$pkg\E.fpm .PKGINFO/ =~ /^arch = (.*)$/m;
+    
     
     my $buildscript;
     find sub {
-	$buildscript = $File::Find::name if $File::Find::name =~ m"\Q$pkgdata{NAME}\E/FrugalBuild\Z"o;
+	$buildscript = $File::Find::name if $File::Find::name =~ m"\Q$pkgdata{NAME}\E/FrugalBuild\Z";
 	}, $fbdir;
 
     if (!$buildscript){
@@ -178,7 +181,17 @@ sub connect{ # datahash
 			);
 }
 
-sub existsindb {
+sub needupdate {
+    shift;
+    my($name,$ver,$rel,$fwver,$arch) = @_;
+    my $sth = $dbh->prepare("SELECT id FROM $dbtable where pkgname='$name' and pkgver='$ver' and pkgrel='$rel' and fwver='$fwver' and arch='$arch'");
+    $sth->execute();
+    do {$sth->finish(); return 0;} if $sth->fetchrow_hashref();
+    $sth->finish();
+    return 1;
+}
+
+sub isold {
     my($name,$fwver,$arch) = @_;
     my $sth = $dbh->prepare("SELECT id FROM $dbtable where pkgname='$name' and fwver='$fwver' and arch='$arch'");
     $sth->execute();
@@ -187,24 +200,29 @@ sub existsindb {
     return 0;
 }
 
+
 sub store{
     shift;
     my $data = shift;
     my $values;
-    for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM FWVER REPO FILELIST/){
-	$data->{$key} =~ s/'/\\'/g if $data->{$key};
-	$values .= (($data->{$key}) ? "'$data->{$key}'" : 'NULL') . ',';
-    }
-    chop $values;
 
-    if (existsindb($data->{NAME}, $data->{FWVER}, $data->{ARCH})){
+    for my $key (qw/NAME VERSION GROUPS PROVIDES DEPENDS CONFLICTS REPLACES ARCH DESC M8R FWVER REPO FILELIST/){
+	    $data->{$key} =~ s/'/\\'/g if $data->{$key};
+	}
+
+    if (isold($data->{NAME}, $data->{FWVER}, $data->{ARCH})){
 	my $set = '`pkgname`=';
 	for my $key (qw/NAME `pkgver` VERSION `pkgrel` PKGREL `groups` GROUPS `provides` PROVIDES `depends` DEPENDS `conflicts` CONFLICTS `replaces` REPLACES `csize` CSIZE `arch` ARCH `desc` DESC `maintainer` M8R `md5` MD5SUM `fwver` FWVER `repo` REPO `files` FILELIST/){
+
   	    $set .= ($data->{$key}) ? "'$data->{$key}'," : "$key=";
 	}
 	chop $set;
 	$dbh->do("UPDATE $dbtable set $set where pkgname='$data->{NAME}' and fwver='$data->{FWVER}' and arch='$data->{ARCH}'");
     } else {
+	for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM FWVER REPO FILELIST/){
+	    $values .= (($data->{$key}) ? "'$data->{$key}'" : 'NULL') . ',';
+	}
+	chop $values;
 	$dbh->do("INSERT INTO $dbtable (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
     }
 }

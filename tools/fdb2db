@@ -47,24 +47,44 @@ sub readdata { #string
     return $inp;
 }
 
+my %metaverify = (ARCH => 'architecture',
+		  DESC => 'description',
+		  MD5SUM => 'md5sum',
+		  FILELIST => 'filelist',
+		  M8R => 'maintainer',
+		  VERSION => 'version',
+		  PKGREL => 'release',
+		  );
+
 my %opts;
-getopts('r:e:b:pu:vi', \%opts);
+getopts('r:e:b:pu:vit:d:h:', \%opts);
 
 die 'Specify a repositoryname!' unless my $repo = $opts{r};
 die 'Specify a version string!' unless my $fwver = $opts{e};
 die 'Specify the FrugalBuild directory!' unless my $fbdir = $opts{b};
 
-my $warn;
+my $warn = '';
 my $user;
-$user = $opts{u} or $user = '';               
-my $passw = read_password('password: ') if $opts{p};
+my $table;
+my $host;
+my $database;
+$user = $opts{u} or $user = '';
+$table = $opts{t} or $table = '';
+$host = $opts{h} or $host = 'localhost';
+$database = $opts{d} or $database = '';
 
 my $db = 'mysqldb';
-$db->connect({database => 'frugalware',
-	      host => 'localhost',
+
+die 'Specify a table in the database!' if $table eq '';
+die 'Specify a database name!' if $database eq '';
+my $passw = read_password('password: ') if $opts{p};
+
+$db->connect({database => $database,
+	      host => $host,
 	      user => $user,
+	      table => $table,
 	      password => $passw,
-	  });                                 ##### ERRORCHECK!!
+	  });
 $passw = '';
 
 my $pkgdir = untarrepodb $repo.'.fdb';
@@ -78,22 +98,22 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
     my @contents = getcontents "$pkgdir/$pkg/desc";
    
     for my $link (qw/NAME VERSION DESC CSIZE MD5SUM GROUPS REPLACES/){   
-	$pkgdata{$link} = lengthb255 getrepodbdata '%'.$link.'%', @contents; ## WARN when too long
+	$pkgdata{$link} = getrepodbdata '%'.$link.'%', @contents; 
     }
     ($pkgdata{VERSION}, $pkgdata{PKGREL}) = split '-', $pkgdata{VERSION}; # VERSION =~ ver-rel
     
     @contents = getcontents "$pkgdir/$pkg/depends";
     for my $link (qw/PROVIDES CONFLICTS DEPENDS/){
-	$pkgdata{$link} = lengthb255 getrepodbdata '%'.$link.'%', @contents;
+	$pkgdata{$link} = getrepodbdata '%'.$link.'%', @contents;
     }
 
     $pkgdata{FILELIST} = join ' ', qx/tar xzOf $pkg.fpm .FILELIST/;
     $pkgdata{FILELIST} =~ s/\n//g;
-    ($pkgdata{ARCH}) =  qx/tar xzOf $pkg.fpm .PKGINFO/ =~ /^arch = (.*)$/m;
+    ($pkgdata{ARCH}) =  qx/tar xzOf \Q$pkg\E.fpm .PKGINFO/ =~ /^arch = (.*)$/m;
     
     my $buildscript;
     find sub {
-	$buildscript = $File::Find::name if $File::Find::name =~ m"$pkgdata{NAME}/FrugalBuild\Z";
+	$buildscript = $File::Find::name if $File::Find::name =~ m"\Q$pkgdata{NAME}\E/FrugalBuild\Z"o;
 	}, $fbdir;
 
     if (!$buildscript){
@@ -105,10 +125,21 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 	}
     }
 
-    ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if $buildscript;
+    ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if -e $buildscript;
 
 ##### VERIFY INFO
 
+    for my $key (keys %metaverify) {
+	if (not $pkgdata{$key}) {
+	    if ($opts{i}){
+		$pkgdata{$key} = readdata "\u$metaverify{$key} of $pkgdata{NAME}:";
+	    } else {
+		$warn .= "No $metaverify{$key} determined for $pkgdata{NAME}\n";
+		$pkgdata{NVALID} = 1;
+	    }
+	}	
+    }
+    
     if (not $pkgdata{GROUPS}) {
 	do{do{($pkgdata{GROUPS}) = $buildscript =~ m'.*/(.*?)/.*?/FrugalBuild'} if $buildscript} or do{
 	    if ($opts{i}){
@@ -120,15 +151,6 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 	}
     }
 
-    if (not $pkgdata{ARCH}){
-	if ($opts{i}){
-	    $pkgdata{ARCH} = readdata "Architecture of $pkgdata{NAME}:";
-	} else {
-	    $warn .= "No architecture determined for $pkgdata{NAME}\n";
-	    $pkgdata{NVALID} = 1;
-	}
-    }
-
     $db->store(\%pkgdata) unless $pkgdata{NVALID};
 
     %pkgdata = ();
@@ -137,24 +159,26 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 $db->disconnect;
 closedir DBDIR;
 rrmdir $pkgdir;
-
 print $warn;
 
 
 package mysqldb;
 
 my $dbh;
+my $dbtable;
 
 sub connect{ # datahash
     my ($self,$datas) = @_;
+    $dbtable = $datas->{table};
     $dbh = DBI->connect("DBI:mysql:database=$datas->{database};host=$datas->{host}",
 			$datas->{user}, $datas->{password},
+			{'RaiseError' => 1}
 			);
 }
 
 sub existsindb {
     my($name,$fwver,$arch) = @_;
-    my $sth = $dbh->prepare("SELECT id FROM packages where pkgname='$name' and fwver='$fwver' and arch='$arch'");
+    my $sth = $dbh->prepare("SELECT id FROM $dbtable where pkgname='$name' and fwver='$fwver' and arch='$arch'");
     $sth->execute();
     do {$sth->finish(); return 1;} if $sth->fetchrow_hashref();
     $sth->finish();
@@ -177,9 +201,9 @@ sub store{
   	    $set .= ($data->{$key}) ? "'$data->{$key}'," : "$key=";
 	}
 	chop $set;
-	$dbh->do("UPDATE packages set $set where pkgname='$data->{NAME}' and fwver='$data->{FWVER}' and arch='$data->{ARCH}'");
+	$dbh->do("UPDATE $dbtable set $set where pkgname='$data->{NAME}' and fwver='$data->{FWVER}' and arch='$data->{ARCH}'");
     } else {
-	$dbh->do("INSERT INTO packages (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
+	$dbh->do("INSERT INTO $dbtable (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
     }
 }
 
@@ -218,7 +242,7 @@ fdb2db - refresh a Frugalware database from a repository
 
 =head1 SYNOPSIS
 
-fdb2db [-v] -r name -e version -b dir [-p] [-u user] [-i]
+fdb2db [-v] -r name -e version -b dir [-p] [-u user] [-i] [-t table] [-d database] [-h host]
 
 =head1 DESCRIPTION
 
@@ -248,6 +272,18 @@ Ask for a password if your database engine require.
 =item B<-u user>
 
 The user of the database if your engine require.
+
+=item B<-t table>
+
+The table in your database if required.
+
+=item B<-d database>
+
+The name of the database if required.
+
+=item B<-h host>
+
+The host where the database is located, localhost by default.
 
 =item B<-i>
 
@@ -280,16 +316,10 @@ Be verbose.
 =head1 BUGS
 
 Error checking in various points:
-    - in the sql package
-    - on $db->connect
 
 Warn is data is too long.
 
 Verbose mode
-
-data verify is not comlete
-
-table name in options
 
 =head1 AUTHOR
 

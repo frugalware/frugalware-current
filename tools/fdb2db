@@ -11,6 +11,7 @@ sub untarrepodb{ #repodb
     my ($repodb) = @_;
     my $dir = "/tmp/$repodb";
     die $! unless mkdir $dir;
+    die "No such file:$repodb" unless -e $repodb;
     qx"tar xzf $repodb -C $dir";
     return $dir;
 }
@@ -57,9 +58,10 @@ my %metaverify = (ARCH => 'architecture',
 		  );
 
 my %opts;
-getopts('r:e:b:pu:vit:d:h:', \%opts);
+getopts('r:e:b:pu:vit:d:h:f:', \%opts);
 
 die 'Specify a repositoryname!' unless my $repo = $opts{r};
+die 'Specify a filename!' unless my $fdbfile = $opts{f};
 die 'Specify a version string!' unless my $fwver = $opts{e};
 die 'Specify the FrugalBuild directory!' unless my $fbdir = $opts{b};
 
@@ -87,7 +89,7 @@ $db->connect({database => $database,
 	  });
 $passw = '';
 
-my $pkgdir = untarrepodb $repo.'.fdb';
+my $pkgdir = untarrepodb $dbfile.'.fdb';
 opendir DBDIR, $pkgdir;
 
 while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel 
@@ -132,7 +134,7 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
     for my $key (keys %metaverify) {
 	if (not $pkgdata{$key}) {
 	    if ($opts{i}){
-		$pkgdata{$key} = readdata "\u$metaverify{$key} of $pkgdata{NAME}:";
+		$pkgdata{$key} = readdata "\u$metaverify{$key} of $pkgdata{NAME}: ";
 	    } else {
 		$warn .= "No $metaverify{$key} determined for $pkgdata{NAME}\n";
 		$pkgdata{NVALID} = 1;
@@ -143,7 +145,7 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
     if (not $pkgdata{GROUPS}) {
 	do{do{($pkgdata{GROUPS}) = $buildscript =~ m'.*/(.*?)/.*?/FrugalBuild'} if $buildscript} or do{
 	    if ($opts{i}){
-		$pkgdata{GROUPS} = readdata "Groups of $pkgdata{NAME}:";
+		$pkgdata{GROUPS} = readdata "Groups of $pkgdata{NAME}: ";
 	    } else {
 		$warn .= "No groups determined for $pkgdata{NAME}\n";
 		$pkgdata{NVALID} = 1;
@@ -242,7 +244,7 @@ fdb2db - refresh a Frugalware database from a repository
 
 =head1 SYNOPSIS
 
-fdb2db [-v] -r name -e version -b dir [-p] [-u user] [-i] [-t table] [-d database] [-h host]
+fdb2db [-v] -f file -r name -e version -b dir [-p] [-u user] [-i] [-t table] [-d database] [-h host]
 
 =head1 DESCRIPTION
 
@@ -252,6 +254,10 @@ then syncronizes a database. See DATABASE for the structure.
 =head1 OPTIONS
 
 =over 4
+
+=item B<-f file>
+
+The .fdb file of the repository.
 
 =item B<-r name>
 
@@ -314,8 +320,6 @@ Be verbose.
 	 updated  	timestamp       
 
 =head1 BUGS
-
-Error checking in various points:
 
 Warn is data is too long.
 

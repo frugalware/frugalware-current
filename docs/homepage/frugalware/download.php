@@ -6,7 +6,7 @@ fwopenbox($fwstrdlfw, 100, false, $fwwhite);
 print("<table width=\"100%\">\n");
 foreach($mirrors as $i)
 {
-	print("<tr><td width=\"50%\"><a href=$i[1]>$i[0]" .
+	print("<tr><td width=\"50%\"><a href=$i[1]" . $_GET['url'] . ">$i[0]" .
 		"<td>$i[2]\n");
 }
 print("</table>\n");
@@ -17,7 +17,7 @@ fwopenbox($fwstrdlhttp, 100, false, $fwwhite);
 print("<table width=\"100%\">\n");
 foreach($httpmirrors as $i)
 {
-	print("<tr><td width=\"50%\"><a href=$i[1]>$i[0]" .
+	print("<tr><td width=\"50%\"><a href=$i[1]" . $_GET['url'] . ">$i[0]" .
 		"<td>$i[2]\n");
 }
 print("</table>\n");
@@ -28,7 +28,7 @@ fwopenbox($fwstrdlrsync, 100, false, $fwwhite);
 print("<table width=\"100%\">\n");
 foreach($rsyncmirrors as $i)
 {
-	print("<tr><td width=\"50%\"><a href=$i[1]>$i[0]" .
+	print("<tr><td width=\"50%\"><a href=$i[1]" . $_GET['url'] . ">$i[0]" .
 		"<td>$i[2]\n");
 }
 print("</table>\n");

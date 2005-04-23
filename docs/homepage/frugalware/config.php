@@ -50,7 +50,7 @@ $rsyncmirrors=array(
 		"rsync://ftp4.frugalware.org::ftp/pub/linux/distributions/frugalware/",
 		"Hungary (2x100 MBit, ftp.fsn.hu)"),
 	array("ftp5.frugalware.org",
-		"rsync://ftp5.frugalware.org::packages/frugalware/",
+		"rsync://ftp5.frugalware.org::packages/frugalware/pub/frugalware/",
 		"Belgium (2x1GBit, ftp.belnet.be)")
 	);
 $buycd=array(

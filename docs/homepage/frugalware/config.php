@@ -40,10 +40,10 @@ $mirrors=array(
 $httpmirrors=array(
 	array("www5.frugalware.org",
 		"http://www5.frugalware.org/linux/frugalware/pub/frugalware/",
-		"Belgium (2x1GBit, ftp.belnet.be)"),
+		"Belgium (2x1GBit, ftp.belnet.be)")/*,
 	array("www6.frugalware.org",
 		"http://www6.frugalware.org/",
-		"Hungary (-current only, no isos)")
+		"Hungary (-current only, no isos)")*/
 	);
 $rsyncmirrors=array(
 	array("ftp4.frugalware.org",

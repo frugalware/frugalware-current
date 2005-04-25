@@ -93,6 +93,7 @@ function pkg_from_id($id) {
 	if ($arr['arch'] != '') print "<tr><td>Arch:</td><td>".$arr['arch']."</td></tr>\n";
 	if ($arr['desc'] != '') print "<tr><td>Description:</td><td>".$arr['desc']."</td></tr>\n";
 	if ($arr['maintainer'] != '') print "<tr><td>Maintainer:</td><td>".$arr['maintainer']."</td></tr>\n";
+	print("<tr><td>Download: </td><td><a href=\"download.php?url=frugalware-" . $arr['fwver'] . "/" . $arr['repo'] . "/" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . ".fpm\">" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . ".fpm</a></td></tr>");
 	if ($arr['md5'] != '') print "<tr><td>MD5 Sum:</td><td>".$arr['md5']."</td></tr>\n";
 	if ($arr['fwver'] != '') print "<tr><td>Frugalware version:</td><td>".$arr['fwver']."</td></tr>\n";
 	if ($arr['repo'] != '') print "<tr><td>Repository:</td><td>".$arr['repo']."</td></tr>\n";

@@ -1,5 +1,6 @@
 <?php
 #packages2.php - pkgs from mysql db
+include("header.php");
 
 # Searching for a package
 function search_pkg() {
@@ -38,25 +39,20 @@ function search_pkg() {
 }
 
 function res_show($res_set, $what, $search) {
+	$fwtitle="Packages";
 	switch ($what) {
 		case 'p':
-			include("header.php");
-			fwopenbox("Search result for: $search");
-?>
-<table width="70%" border="0">
-<?php
+			fwopenbox("Search result for: $search", 50, false);
+			print "<table width=\"100%\" border=\"0\">\n";
 			$tmp = $_SERVER['PHP_SELF'];
 			$resz = explode("/", $tmp);
 			$resz = $resz[count($resz)-1];
 			unset($tmp);
 			for ($i=0,$j=1;$i<count($res_set);$i++,$j++) {
-				print "<tr><td>".$j.". <a href=".$resz."?id=".$res_set[$i]['id'].">".$res_set[$i]['pkgname']."</a></td></tr>\n";
+				print "<tr><td>".$j.". <a href=".$resz."?id=".$res_set[$i]['id'].">".$res_set[$i]['pkgname']."</a> ".$res_set[$i]['pkgver']."-".$res_set[$i]['pkgrel']."<br>FwVer: ".$res_set[$i]['fwver']."; Repo: ".$res_set[$i]['repo']."</td></tr>\n";
 			}
 			fwclosebox(false);
-?>
-</table>
-<?php
-			include("footer.php");
+			print "</table>\n";
 			break;
 		case 'f':
 			break;
@@ -79,14 +75,14 @@ function error() {
 }
 
 function pkg_from_id($id) {
+	$fwtitle="Packages";
 	include("/etc/todo.conf");
 	$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
 	mysql_select_db(DBNAME, $conn);
 	$res = mysql_query("select pkgname, pkgver, pkgrel, groups, provides, depends, conflicts, replaces, csize, arch, `desc`, maintainer, md5, fwver, repo, updated from packages where id=$id", $conn);
 	$arr = mysql_fetch_array($res);
-	include("header.php");
-	fwopenbox("Package information: ".$arr['pkgname'], 100, false);
-	print "<table border=0 width=70%>\n";
+	fwopenbox("Package information: ".$arr['pkgname'], 80, false);
+	print "<table border=0 width=100%>\n";
 	print "<tr><td>Name:</td><td>".$arr['pkgname']."</td></tr>\n";
 	print "<tr><td>Version:</td><td>".$arr['pkgver']."-".$arr['pkgrel']."</td></tr>\n";
 	if ($arr['groups'] != '') print "<tr><td>Groups:</td><td>".$arr['groups']."</td></tr>\n";
@@ -104,7 +100,6 @@ function pkg_from_id($id) {
 	if ($arr['updated'] != '') print "<tr><td>Updated:</td><td>".$arr['updated']."</td></tr>\n";
 	print "</table>\n";
 	fwclosebox(true);
-	include("footer.php");
 	mysql_close($conn);
 }
 
@@ -120,5 +115,7 @@ switch ($_GET['op']) {
 		error();
 		break;
 }
+
+include("footer.php");
 
 ?>

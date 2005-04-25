@@ -1,5 +1,6 @@
 <?php
 #packages2.php - pkgs from mysql db
+$fwtitle="Packages";
 include("header.php");
 
 # Searching for a package
@@ -39,7 +40,6 @@ function search_pkg() {
 }
 
 function res_show($res_set, $what, $search) {
-	$fwtitle="Packages";
 	switch ($what) {
 		case 'p':
 			fwopenbox("Search result for: $search", 50, false);
@@ -75,7 +75,6 @@ function error() {
 }
 
 function pkg_from_id($id) {
-	$fwtitle="Packages";
 	include("/etc/todo.conf");
 	$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
 	mysql_select_db(DBNAME, $conn);

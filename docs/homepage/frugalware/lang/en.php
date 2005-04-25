@@ -6,6 +6,7 @@ $fwstrpostlog=".";
 
 // download.php
 $fwstrdlfw="Download Frugalware Linux (via ftp)";
+$fwstrdlfile="Download file (via ftp)";
 $fwstrdlhttp="Via http";
 $fwstrdlrsync="Via rsync";
 $fwstrdlrsynct="Via rsync (mini-howto)";

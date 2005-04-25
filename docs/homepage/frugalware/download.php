@@ -2,7 +2,10 @@
 $fwtitle="Download";
 include("header.php");
 
-fwopenbox($fwstrdlfw, 100, false, $fwwhite);
+if (isset($_GET['url']))
+	fwopenbox($fwstrdlfile, 100, false, $fwwhite);
+else
+	fwopenbox($fwstrdlfw, 100, false, $fwwhite);
 print("<table width=\"100%\">\n");
 foreach($mirrors as $i)
 {
@@ -35,6 +38,8 @@ print("</table>\n");
 fwclosebox(0);
 print("<p></p>");
 
+if (!isset($_GET['url']))
+{
 fwopenbox($fwstrdlrsynct, 100, false, $fwwhite);
 print("<div align=left><ul>
 <li>$fwstrdlrsync1<br>
@@ -55,6 +60,7 @@ foreach($buycd as $i)
 }
 print("</ul></div>");
 fwclosebox(false);
+}
 
 include("footer.php");
 ?>

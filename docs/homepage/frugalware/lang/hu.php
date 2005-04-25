@@ -6,6 +6,7 @@ $fwstrpostlog=".";
 
 // download.php
 $fwstrdlfw="A Frugalware Linux letöltése (ftpn keresztül)";
+$fwstrdlfile="File letöltése (ftpn keresztül)";
 $fwstrdlhttp="Httpn keresztül";
 $fwstrdlrsync="Rsyncen keresztül";
 $fwstrdlrsynct="Rsyncen keresztül (mini-hogyan)";

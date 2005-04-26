@@ -11,7 +11,7 @@ function search_pkg() {
 	$repo = $_GET['repo'];
 	($_GET['sub'] == "") ? $sub = 0 : $sub = 1; # whether the search is for a substring or exact match
 
-	$query = "select * from packages where ";
+	$query = "select id, pkgname, pkgver, pkgrel, fwver from packages where ";
 	switch($sub) {
 		# if the 'desc' is set (searching in description, too) I have to put 
 		# the restrictions between brackets, because of the 'repo' below...
@@ -33,16 +33,96 @@ function search_pkg() {
 		while ($i = mysql_fetch_array($res)) {
 			$res_set[] = $i;
 		}
+		mysql_close($conn);
 		res_show($res_set, 'p', $search);
+	}
+	else {
+		mysql_close($conn);
+	}
+}
+
+function search_file() {
+	$res_set = array();
+
+	$search = $_GET['srch'];
+	$repo = $_GET['repo'];
+	($_GET['sub'] == "") ? $sub = 0 : $sub = 1; # whether the search is for a substring or exact match
+
+	$query = "select id, pkgname, pkgver, pkgrel, fwver, repo from packages where files like '%$search%' ";
+	if ($repo != "" && $repo != "all")
+		$query .= "and repo='$repo'";
+	include("/etc/todo.conf");
+	$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
+	mysql_select_db(DBNAME, $conn);
+	$res = mysql_query($query, $conn);
+	if (mysql_num_rows($res) > 0) {
+		while ($i = mysql_fetch_array($res)) {
+			$res_set[] = $i;
+		}
+		mysql_close($conn);
+		res_show($res_set, 'f', $search);
 
 	}
-	mysql_close($conn);
+	else {
+		mysql_close($conn);
+	}
+}
+
+function error() {
+	if ( $_GET['id'] != "" ) {
+		if ($_GET['s'] == "f")
+			file_from_id($_GET['id']);
+		else
+			pkg_from_id($_GET['id']);
+	}
+	else {
+		$tmp = $_SERVER['PHP_SELF'];
+		$resz = explode("/", $tmp);
+		$resz = $resz[count($resz)-1];
+		unset($tmp);
+?>
+<div align=center>
+<table width="70%" border="0" align="center">
+<tr><td>Search for a package</td></tr>
+<tr><td>
+<form action="<?php print $resz; ?>" method="GET">
+<input type=hidden name=op value=pkg>
+<input type="text" name="srch" size=40><br>
+Search for substring: <input type="checkbox" name="sub"><br>
+Search in description: <input type="checkbox" name="desc"><br>
+Repo: 
+<select name="repo">
+        <option value="all" selected="selected">all</option>
+        <option value="frugalware">frugalware</option>
+        <option value="extra">extra</a>
+</select><br>
+<input type="submit" value="Search"> <input type="reset" value="Reset">
+</form>
+</td></tr>
+<tr><td><br>Search for a file</td></tr>
+<tr><td>
+<form action="<?php print $resz; ?>" method="GET" enctype="multipart/form-data">
+<input type=hidden name=op value=file>
+<input type="text" name="srch" size=40><br>
+Repo: 
+<select name="repo">
+        <option value="all" selected="selected">all</option>
+        <option value="frugalware">frugalware</option>
+        <option value="extra">extra</a>
+</select><br>
+<input type="submit" value="Search"> <input type="reset" value="Reset">
+</form>
+</td></tr>
+</table>
+</div>
+<?php
+	}
 }
 
 function res_show($res_set, $what, $search) {
 	switch ($what) {
 		case 'p':
-			fwopenbox("Search result for: $search", 50, false);
+			fwopenbox("Search result for: \"$search\"", 50, false);
 			print "<table width=\"100%\" border=\"0\">\n";
 			$tmp = $_SERVER['PHP_SELF'];
 			$resz = explode("/", $tmp);
@@ -55,26 +135,26 @@ function res_show($res_set, $what, $search) {
 			print "</table>\n";
 			break;
 		case 'f':
+			fwopenbox("Search result for: \"$search\"", 50, false);
+			print "<table width=\"100%\" border=\"0\">\n";
+			$tmp = $_SERVER['PHP_SELF'];
+			$resz = explode("/", $tmp);
+			$resz = $resz[count($resz)-1];
+			unset($tmp);
+			for ($i=0,$j=1;$i<count($res_set);$i++,$j++) {
+				print "<tr><td>".$j.". <a href=".$resz."?id=".$res_set[$i]['id']."&s=f>".$res_set[$i]['pkgname']."</a> ".$res_set[$i]['pkgver']."-".$res_set[$i]['pkgrel']."<br>FwVer: ".$res_set[$i]['fwver']."; Repo: ".$res_set[$i]['repo']."</td></tr>\n";
+			}
+			fwclosebox(false);
+			print "</table>\n";
 			break;
 	}
 }
 
-function search_file() {
-	print "Not ready yet...";
-}
-
-function error() {
-	if ( $_GET['id'] != "" ) {
-		pkg_from_id($_GET['id']);
-	}
-	else {
-?>
-<div class="error">HIBA!!! Valami paraméter nincs, vagy hibásan lett megadva !!!</div>
-<?php
-	}
-}
-
 function pkg_from_id($id) {
+	$tmp = $_SERVER['PHP_SELF'];
+	$resz = explode("/", $tmp);
+	$resz = $resz[count($resz)-1];
+	unset($tmp);
 	include("/etc/todo.conf");
 	$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
 	mysql_select_db(DBNAME, $conn);
@@ -82,7 +162,7 @@ function pkg_from_id($id) {
 	$arr = mysql_fetch_array($res);
 	fwopenbox("Package information: ".$arr['pkgname'], 80, false);
 	print "<table border=0 width=100%>\n";
-	print "<tr><td>Name:</td><td>".$arr['pkgname']."</td></tr>\n";
+	print "<tr><td>Name:</td><td><a href=\"".$resz."?id=".$id."&s=f\">".$arr['pkgname']."</a></td></tr>\n";
 	print "<tr><td>Version:</td><td>".$arr['pkgver']."-".$arr['pkgrel']."</td></tr>\n";
 	if ($arr['groups'] != '') print "<tr><td>Groups:</td><td>".$arr['groups']."</td></tr>\n";
 	if ($arr['provides'] != '') print "<tr><td>Provides:</td><td>".$arr['provides']."</td></tr>\n";
@@ -99,8 +179,32 @@ function pkg_from_id($id) {
 	if ($arr['repo'] != '') print "<tr><td>Repository:</td><td>".$arr['repo']."</td></tr>\n";
 	if ($arr['updated'] != '') print "<tr><td>Updated:</td><td>".$arr['updated']."</td></tr>\n";
 	print "</table>\n";
-	fwclosebox(true);
+	fwclosebox(false);
 	mysql_close($conn);
+}
+
+function file_from_id($id) {
+	$tmp = $_SERVER['PHP_SELF'];
+	$resz = explode("/", $tmp);
+	$resz = $resz[count($resz)-1];
+	unset($tmp);
+	include("/etc/todo.conf");
+	$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
+	mysql_select_db(DBNAME, $conn);
+	$res = mysql_query("select pkgname, pkgver, pkgrel, files from packages where id=$id", $conn);
+	$arr = mysql_fetch_array($res);
+	mysql_close($conn);
+	fwopenbox("File list for ".$arr['pkgname'], 80, false);
+	print "<table border=0 width=100%>\n";
+	print "<tr><td>Name:</td><td><a href=\"".$resz."?id=".$id."\">".$arr['pkgname']."</a></td></tr>\n";
+	print "<tr><td>Version:</td><td>".$arr['pkgver']."-".$arr['pkgrel']."</td></tr>\n";
+	print "<tr><td colspan=2>Files:</td></tr>\n";
+	$files = explode(" ", $arr['files']);
+	for($i=0;$i<count($files);$i++) {
+		print "<tr><td colspan=2>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/".$files[$i]."</td></tr>\n";
+	}
+	print "</table>\n";
+	fwclosebox(true);
 }
 
 switch ($_GET['op']) {

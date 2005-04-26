@@ -16,7 +16,7 @@ sub untarrepodb{ #repodb
     return $dir;
 }
 
-sub rrmdir { #dir
+sub rrm { #file
     qx/rm -rf $_[0]/;
 }
 
@@ -31,7 +31,7 @@ sub getcontents { #file          # puts a textfile to an ARRAY
 sub getrepodbdata { #what from      # takes '%foo%' and gives a SCALAR
     my ($what, $from) = (shift, join '', @_);
     my ($out) = $from =~ /$what.(.*?).(:?.%|\Z)/s;
-    $out =~ s/\n/ / if $out;
+    $out =~ s/\n/ /g if $out;
     return $out;
 }
 
@@ -100,20 +100,28 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
     my @contents = getcontents "$pkgdir/$pkg/desc";
    
     for my $link (qw/NAME VERSION DESC CSIZE MD5SUM GROUPS REPLACES/){   
-	$pkgdata{$link} = getrepodbdata '%'.$link.'%', @contents; 
+	$pkgdata{$link} = getrepodbdata '%'.$link.'%', @contents;
     }
-    ($pkgdata{VERSION}, $pkgdata{PKGREL}) = split '-', $pkgdata{VERSION}; # VERSION =~ ver-rel
-    ($pkgdata{ARCH}) =  qx/tar xzOf $pkg.fpm .PKGINFO/ =~ /^arch = (.*)$/m;
 
-    next unless $db->needupdate($pkgdata{NAME}, $pkgdata{VERSION}, $pkgdata{PKGREL}, $pkgdata{FWVER},$pkgdata{ARCH});
+    for my $link (qw/DESC CSIZE MD5SUM/){
+	$warn .= "No \L$link\E determined for $pkgdata{NAME}\n" unless $pkgdata{$link};
+    }
+
+    ($pkgdata{VERSION}, $pkgdata{PKGREL}) = split '-', $pkgdata{VERSION}; # VERSION =~ ver-rel
+    ($pkgdata{ARCH}) =  qx/tar xzOf $pkg.fpm .PKGINFO/ =~ /^arch = (.*)$/m or $warn .= "No arthitecture determined for $pkgdata{NAME}\n";
+
+    print "$pkgdata{NAME}:\n" if $opts{p};
+
+    do{print " Not enough data!\n" if $opts{v}; next;} unless $pkgdata{NAME}||$pkgdata{VERSION}|| $pkgdata{PKGREL}||$pkgdata{FWVER} ||$pkgdata{ARCH};
+    do {print " No need to update\n" if $opts{v}; next;} unless $db->needupdate($pkgdata{NAME}, $pkgdata{VERSION}, $pkgdata{PKGREL}, $pkgdata{FWVER},$pkgdata{ARCH});
 
     @contents = getcontents "$pkgdir/$pkg/depends";
     for my $link (qw/PROVIDES CONFLICTS DEPENDS/){
 	$pkgdata{$link} = getrepodbdata '%'.$link.'%', @contents;
     }
 
-    $pkgdata{FILELIST} = join ' ', qx/tar xzOf $pkg.fpm .FILELIST/;
-    $pkgdata{FILELIST} =~ s/\n//g;
+    $pkgdata{FILELIST} = "/tmp/FILELIST.$pkg";
+    qx"tar xzOf $pkg.fpm .FILELIST > /tmp/FILELIST.$pkg";
     
     
     my $buildscript;
@@ -156,15 +164,17 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 	}
     }
 
-    $db->store(\%pkgdata) unless $pkgdata{NVALID};
+    my $action = $db->store(\%pkgdata) unless $pkgdata{NVALID};
+    print " $warn" if $warn; $warn = '';
+    print " $action\n" if $opts{v} and  not $pkgdata{NVALID};
 
+    rrm $pkgdata{FILELIST};
     %pkgdata = ();
 }
 
 $db->disconnect;
 closedir DBDIR;
-rrmdir $pkgdir;
-print $warn;
+rrm $pkgdir;
 
 
 package mysqldb;
@@ -205,25 +215,30 @@ sub store{
     shift;
     my $data = shift;
     my $values;
-
+    
+    for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM FWVER REPO FILELIST/){
+	$data->{$key} = 'NULL' unless $data->{$key};
+    }
     for my $key (qw/NAME VERSION GROUPS PROVIDES DEPENDS CONFLICTS REPLACES ARCH DESC M8R FWVER REPO FILELIST/){
-	    $data->{$key} =~ s/'/\\'/g if $data->{$key};
-	}
-
+	$data->{$key} =~ s/'/\\'/g if $data->{$key};
+    }
+    
     if (isold($data->{NAME}, $data->{FWVER}, $data->{ARCH})){
 	my $set = '`pkgname`=';
-	for my $key (qw/NAME `pkgver` VERSION `pkgrel` PKGREL `groups` GROUPS `provides` PROVIDES `depends` DEPENDS `conflicts` CONFLICTS `replaces` REPLACES `csize` CSIZE `arch` ARCH `desc` DESC `maintainer` M8R `md5` MD5SUM `fwver` FWVER `repo` REPO `files` FILELIST/){
-
-  	    $set .= ($data->{$key}) ? "'$data->{$key}'," : "$key=";
+	for my $key (qw/NAME `pkgver` VERSION `pkgrel` PKGREL `groups` GROUPS `provides` PROVIDES `depends` DEPENDS `conflicts` CONFLICTS `replaces` REPLACES `csize` CSIZE `arch` ARCH `desc` DESC `maintainer` M8R `md5` MD5SUM `fwver` FWVER `repo` REPO `files`/){
+	    
+	    $set .= ($data->{$key}) ? "'$data->{$key}'," : "$key=";
 	}
-	chop $set;
+	$set .= "LOAD_FILE('$data->{FILELIST}')";
 	$dbh->do("UPDATE $dbtable set $set where pkgname='$data->{NAME}' and fwver='$data->{FWVER}' and arch='$data->{ARCH}'");
+	return 'updated';
     } else {
-	for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM FWVER REPO FILELIST/){
-	    $values .= (($data->{$key}) ? "'$data->{$key}'" : 'NULL') . ',';
+	for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM FWVER REPO/){
+	    $values .= "'$data->{$key}',";
 	}
-	chop $values;
+	$values .= "LOAD_FILE('$data->{FILELIST}')";
 	$dbh->do("INSERT INTO $dbtable (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
+	return 'inserted';
     }
 }
 

@@ -97,7 +97,7 @@ Repo:
 <select name="repo">
         <option value="all" selected="selected">all</option>
         <option value="frugalware">frugalware</option>
-        <option value="extra">extra</a>
+        <option value="extra">extra</option>
 </select><br>
 <input type="submit" value="Search"> <input type="reset" value="Reset">
 </form>
@@ -111,7 +111,7 @@ Repo:
 <select name="repo">
         <option value="all" selected="selected">all</option>
         <option value="frugalware">frugalware</option>
-        <option value="extra">extra</a>
+        <option value="extra">extra</option>
 </select><br>
 <input type="submit" value="Search"> <input type="reset" value="Reset">
 </form>

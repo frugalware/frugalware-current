@@ -167,7 +167,7 @@ function pkg_from_id($id) {
 	// query dep ids
 	$query="select id, pkgname from packages where ";
 	foreach(explode(" ", strtr($arr['depends'], "\n", " ")) as $i)
-		$query .= " or pkgname='" . $i . "'";
+		$query .= " or pkgname='" . preg_replace('/(<>|>=|<=|=).*/', '', $i) . "'";
 	$res2 = mysql_query(preg_replace("/or /", "", $query, 1));
 	while ($i = mysql_fetch_array($res2, MYSQL_ASSOC))
 	{
@@ -184,7 +184,7 @@ function pkg_from_id($id) {
 	{
 		print("<tr><td>Depends:</td><td>");
 		foreach(explode(" ", strtr($arr['depends'], "\n", " ")) as $i)
-			print("<a href=\"" . $resz . "?id=" . $id_set[$i] . "\">$i</a> ");
+			print("<a href=\"" . $resz . "?id=" . $id_set[preg_replace('/(<>|>=|<=|=).*/', '', $i)] . "\">$i</a> ");
 		print("</td></tr>\n");
 	}
 	if ($arr['conflicts'] != '') print "<tr><td>Conflicts:</td><td>".$arr['conflicts']."</td></tr>\n";

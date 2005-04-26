@@ -15,7 +15,7 @@ print("<!-- This is part of CGI:IRC 0.5
   == Released under the GNU GPL
   -->
 
-<script language=\"JavaScript\"><!--
+<script language=\"JavaScript\" type=\"text/javascript\"><!--
 function setjs() {
  if(navigator.product == 'Gecko') {
    document.loginform[\"interface\"].value = 'mozilla';
@@ -52,8 +52,8 @@ setcharset();
 <input type=\"hidden\" name=\"interface\" value=\"nonjs\">
 <table border=\"0\" cellpadding=\"5\" cellspacing=\"0\">
 <tr><td align=\"right\">$fwstrircnick</td><td align=\"left\"><input type=\"text\" name=\"Nickname\" value=\"\"></td></tr>
-<tr><td align=\"right\">$fwstrircserver</td><td align=\"left\"><input type=\"text\" name=\"Server\" value=\"irc.freenode.net\" disabled=\"1\"></td></tr>
-<tr><td align=\"right\">$fwstrircchan</td><td align=\"left\"><input type=\"text\" name=\"Channel\" value=\"#frugalware\" disabled=\"1\"></td></tr>
+<tr><td align=\"right\">$fwstrircserver</td><td align=\"left\"><input type=\"text\" name=\"Server\" value=\"irc.freenode.net\" disabled=\"disabled\"></td></tr>
+<tr><td align=\"right\">$fwstrircchan</td><td align=\"left\"><input type=\"text\" name=\"Channel\" value=\"#frugalware\" disabled=\"disabled\"></td></tr>
 <tr><td align=\"left\">
 <small><a href=\"irc/irc.cgi?adv=1\">$fwstrircadv</a></small>
 </td><td align=\"right\">

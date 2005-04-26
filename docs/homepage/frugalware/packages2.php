@@ -11,7 +11,7 @@ function search_pkg() {
 	$repo = $_GET['repo'];
 	($_GET['sub'] == "") ? $sub = 0 : $sub = 1; # whether the search is for a substring or exact match
 
-	$query = "select id, pkgname, pkgver, pkgrel, fwver from packages where ";
+	$query = "select id, pkgname, pkgver, pkgrel, fwver, repo from packages where ";
 	switch($sub) {
 		# if the 'desc' is set (searching in description, too) I have to put 
 		# the restrictions between brackets, because of the 'repo' below...

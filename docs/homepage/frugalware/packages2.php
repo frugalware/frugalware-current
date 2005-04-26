@@ -160,13 +160,30 @@ function pkg_from_id($id) {
 	mysql_select_db(DBNAME, $conn);
 	$res = mysql_query("select pkgname, pkgver, pkgrel, groups, provides, depends, conflicts, replaces, csize, arch, `desc`, maintainer, md5, fwver, repo, updated from packages where id=$id", $conn);
 	$arr = mysql_fetch_array($res);
+	
+	// query dep ids
+	$query="select id, pkgname from packages where ";
+	foreach(explode(" ", strtr($arr['depends'], "\n", " ")) as $i)
+		$query .= " or pkgname='" . $i . "'";
+	$res2 = mysql_query(preg_replace("/or /", "", $query, 1));
+	while ($i = mysql_fetch_array($res2, MYSQL_ASSOC))
+	{
+		$id_set[$i['pkgname']]=$i['id'];
+	}
+	
 	fwopenbox("Package information: ".$arr['pkgname'], 80, false);
 	print "<table border=0 width=100%>\n";
 	print "<tr><td>Name:</td><td><a href=\"".$resz."?id=".$id."&s=f\">".$arr['pkgname']."</a></td></tr>\n";
 	print "<tr><td>Version:</td><td>".$arr['pkgver']."-".$arr['pkgrel']."</td></tr>\n";
 	if ($arr['groups'] != '') print "<tr><td>Groups:</td><td>".$arr['groups']."</td></tr>\n";
 	if ($arr['provides'] != '') print "<tr><td>Provides:</td><td>".$arr['provides']."</td></tr>\n";
-	if ($arr['depends'] != '') print "<tr><td>Depends:</td><td>".$arr['depends']."</td></tr>\n";
+	if ($arr['depends'] != '')
+	{
+		print("<tr><td>Depends:</td><td>");
+		foreach(explode(" ", strtr($arr['depends'], "\n", " ")) as $i)
+			print("<a href=\"" . $_SERVER['PHP_SELF'] . "?id=" . $id_set[$i] . "\">$i</a> ");
+		print("</td></tr>\n");
+	}
 	if ($arr['conflicts'] != '') print "<tr><td>Conflicts:</td><td>".$arr['conflicts']."</td></tr>\n";
 	if ($arr['replaces'] != '') print "<tr><td>Replaces:</td><td>".$arr['replaces']."</td></tr>\n";
 	if ($arr['size'] != '') print "<tr><td>Size:</td><td>".$arr['size']."</td></tr>\n";

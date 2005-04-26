@@ -9,17 +9,16 @@ function search_pkg() {
 
 	$search = $_GET['srch'];
 	$repo = $_GET['repo'];
-	($_GET['sub'] == "") ? $sub = 0 : $sub = 1; # whether the search is for a substring or exact match
+	($_GET['sub'] == "on") ? $sub = 1 : $sub = 0; # whether the search is for a substring or exact match
 
 	$query = "select id, pkgname, pkgver, pkgrel, fwver, repo from packages where ";
-	switch($sub) {
-		# if the 'desc' is set (searching in description, too) I have to put 
-		# the restrictions between brackets, because of the 'repo' below...
-		case 0: # exact match
-			($_GET['desc'] == "" || $_GET['desc'] == 0) ? $query .= "(pkgname='$search') " : $query .= "(pkgname='$search' or `desc`='$search') "; # if the desc is set, the search is for description, too
-		
-		case 1: # substring
-			($_GET['desc'] == "" || $_GET['desc'] == 0) ? $query .= "(pkgname like '%$search%') " : $query .= "(pkgname like '%$search%' or `desc` like '%$search%') ";
+	# if the 'desc' is set (searching in description, too) I have to put 
+	# the restrictions between brackets, because of the 'repo' below...
+	if ($sub == 0){
+		($_GET['desc'] == "on" || $_GET['desc'] == 1) ? $query .= "(pkgname='$search' or `desc`='$search') " : $query .= "(pkgname='$search') "; # if the desc is set, the search is for description, too
+	}
+	else {
+		($_GET['desc'] == "on" || $_GET['desc'] == 1) ? $query .= "(pkgname like '%$search%' or `desc` like '%$search%') " : $query .= "(pkgname like '%$search%') ";
 	}
 	if ($repo != "" && $repo != "all") { # if repo is set to frugalware or extra
 		$query .= "and repo='$repo'";
@@ -37,7 +36,9 @@ function search_pkg() {
 		res_show($res_set, 'p', $search);
 	}
 	else {
+		print "<h3>No package found</h3>";
 		mysql_close($conn);
+		error();
 	}
 }
 
@@ -64,7 +65,9 @@ function search_file() {
 
 	}
 	else {
+		print "<h3>No such file found</h3>";
 		mysql_close($conn);
+		error();
 	}
 }
 
@@ -181,7 +184,7 @@ function pkg_from_id($id) {
 	{
 		print("<tr><td>Depends:</td><td>");
 		foreach(explode(" ", strtr($arr['depends'], "\n", " ")) as $i)
-			print("<a href=\"" . $_SERVER['PHP_SELF'] . "?id=" . $id_set[$i] . "\">$i</a> ");
+			print("<a href=\"" . $resz . "?id=" . $id_set[$i] . "\">$i</a> ");
 		print("</td></tr>\n");
 	}
 	if ($arr['conflicts'] != '') print "<tr><td>Conflicts:</td><td>".$arr['conflicts']."</td></tr>\n";

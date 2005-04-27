@@ -91,8 +91,8 @@ function error() {
 <input type=hidden name=op value=pkg>
 <tr><td colspan=2>Search for a package</td></tr>
 <tr><td colspan=2><input type="text" name="srch" size=40></td></tr>
-<tr><td>Search for substring:</td><td><input type="checkbox" name="sub"></td></tr>
-<tr><td>Search in description:</td><td><input type="checkbox" name="desc"></td></tr>
+<tr><td>Search for substring:</td><td align=right><input type="checkbox" name="sub"></td></tr>
+<tr><td>Search in description:</td><td align=right><input type="checkbox" name="desc"></td></tr>
 <tr><td colspan=2>Repo: 
 <select name="repo">
         <option value="all" selected="selected">all</option>

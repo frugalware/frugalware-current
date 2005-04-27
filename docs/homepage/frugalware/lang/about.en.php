@@ -2,7 +2,7 @@
 $fwshortabout="Frugalware is general purpose linux distribution, designed for intermediate users (who are not afraid of text mode).";
 $fwabout= array (
 	array ("What branches does Frugalware have?", 
-		"Currently there is a <i>current</i> and a <i>testing</i> branch. Frugalware is heavily in development, but after enough testing, we plan to release a <i>stable</i> branch."), 
+		"We have a <i>current</i>, a <i>testing</i> and a <i>stable</i> branch. The <i>current</i> branch is updated daily, we push packages to <i>testing</i> about every two month, and we plan to update our <i>stable</i> branch every 6 months."), 
 	array ("What is &quot;The Frugalware Philosophy&quot; about?",
 		"Briefly: simplicity, multimedia, design. We try to make Frugalware as simple as possible while not forgetting to keep it comfortable. We try to ship fresh and stable software, as close to the original source as possible, because in our opinion most software is the best as is, doesn't needs patching."), 
 	array ("What is the license of Frugalware?", 

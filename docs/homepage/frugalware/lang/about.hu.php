@@ -2,7 +2,7 @@
 $fwshortabout="A Frugalware egy általános célú Linux-disztribúció, mely a középhaladó felhasználóknak lett kitalálva, akik nem ijednek meg a karakteres felülettõl.";
 $fwabout= array (
 	array ("Milyen ágai vannak a Frugalware -nek?", 
-		"Jelenleg <i>current</i> és <i>testing</i> ág van. A Frugalware egyelõre még igencsak fejlesztés alatt áll, de elegendõ tesztelés után tervezünk egy <i>stable</i> ágat is."), 
+		"<i>current</i>, <i>testing</i> és <i>stable</i> ág van. A <i>current</i> ág gyakorlatilag naponta, a <i>testing</i> körülbelül kéthavonta, a <i>stable</i> pedig terveink szerint félévente frissül."), 
 	array ("Mirõl szól a  &quot;Frugalware Filozófia&quot;?",
 		"Röviden: egyszerûség, multimédia, dizájn. Megpróbálunk egy egyszerû, mégis könnyen használható rendszert készíteni. Az eredeti forráshoz lehetõleg minél közelebb álló, friss es stabil szoftvert próbálunk kiadni, mert véleményünk szerint a legtöbb szoftver úgy jó, ahogy van, nem igényel módosítást."), 
 	array ("Mi a Frugalware licence?", 

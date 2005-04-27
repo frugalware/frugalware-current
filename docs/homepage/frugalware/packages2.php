@@ -83,42 +83,41 @@ function error() {
 		$resz = explode("/", $tmp);
 		$resz = $resz[count($resz)-1];
 		unset($tmp);
+		fwopenbox("Search", 50, false);
 ?>
-<div align=center>
+<!--div align=center-->
 <table width="70%" border="0" align="center">
-<tr><td>Search for a package</td></tr>
-<tr><td>
 <form action="<?php print $resz; ?>" method="GET">
 <input type=hidden name=op value=pkg>
-<input type="text" name="srch" size=40><br>
-Search for substring: <input type="checkbox" name="sub"><br>
-Search in description: <input type="checkbox" name="desc"><br>
-Repo: 
+<tr><td colspan=2>Search for a package</td></tr>
+<tr><td colspan=2><input type="text" name="srch" size=40></td></tr>
+<tr><td>Search for substring:</td><td><input type="checkbox" name="sub"></td></tr>
+<tr><td>Search in description:</td><td><input type="checkbox" name="desc"></td></tr>
+<tr><td colspan=2>Repo: 
 <select name="repo">
         <option value="all" selected="selected">all</option>
         <option value="frugalware">frugalware</option>
         <option value="extra">extra</option>
-</select><br>
-<input type="submit" value="Search"> <input type="reset" value="Reset">
+</select></td></tr>
+<tr><td colspan=2 align=center><input type="submit" value="Search"> <input type="reset" value="Reset"></td></tr>
 </form>
-</td></tr>
-<tr><td><br>Search for a file</td></tr>
-<tr><td>
+<tr><td colspan=2>&nbsp;</td></tr>
+<tr><td colspan=2>Search for a file</td></tr>
 <form action="<?php print $resz; ?>" method="GET" enctype="multipart/form-data">
 <input type=hidden name=op value=file>
-<input type="text" name="srch" size=40><br>
-Repo: 
+<tr><td colspan=2><input type="text" name="srch" size=40></td></tr>
+<tr><td colspan=2>Repo: 
 <select name="repo">
         <option value="all" selected="selected">all</option>
         <option value="frugalware">frugalware</option>
         <option value="extra">extra</option>
-</select><br>
-<input type="submit" value="Search"> <input type="reset" value="Reset">
+</select></td></tr>
+<tr><td colspan=2 align=center><input type="submit" value="Search"> <input type="reset" value="Reset"></td></tr>
 </form>
-</td></tr>
 </table>
-</div>
+<!--/div-->
 <?php
+		fwclosebox(false);
 	}
 }
 

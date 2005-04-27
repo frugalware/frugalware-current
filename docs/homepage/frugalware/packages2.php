@@ -196,26 +196,26 @@ function pkg_from_id($id) {
 	print "<table border=0 width=100%>\n";
 	print "<tr><td>Name:</td><td><a href=\"".$resz."?id=".$id."&s=f\">".$arr['pkgname']."</a></td></tr>\n";
 	print "<tr><td>Version:</td><td>".$arr['pkgver']."-".$arr['pkgrel']."</td></tr>\n";
-	if ($arr['groups'] != '') print "<tr><td>Groups:</td><td>".$arr['groups']."</td></tr>\n";
-	if ($arr['provides'] != '') print "<tr><td>Provides:</td><td>".$arr['provides']."</td></tr>\n";
-	if ($arr['depends'] != '')
+	if ($arr['groups'] != 'NULL') print "<tr><td>Groups:</td><td>".$arr['groups']."</td></tr>\n";
+	if ($arr['provides'] != 'NULL') print "<tr><td>Provides:</td><td>".$arr['provides']."</td></tr>\n";
+	if ($arr['depends'] != 'NULL')
 	{
 		print("<tr><td>Depends:</td><td>");
 		foreach(explode(" ", strtr($arr['depends'], "\n", " ")) as $i)
 			print("<a href=\"" . $resz . "?id=" . $id_set[preg_replace('/(<>|>=|<=|=).*/', '', $i)] . "\">$i</a> ");
 		print("</td></tr>\n");
 	}
-	if ($arr['conflicts'] != '') print "<tr><td>Conflicts:</td><td>".$arr['conflicts']."</td></tr>\n";
-	if ($arr['replaces'] != '') print "<tr><td>Replaces:</td><td>".$arr['replaces']."</td></tr>\n";
-	if ($arr['size'] != '') print "<tr><td>Size:</td><td>".$arr['size']."</td></tr>\n";
-	if ($arr['arch'] != '') print "<tr><td>Arch:</td><td>".$arr['arch']."</td></tr>\n";
-	if ($arr['desc'] != '') print "<tr><td>Description:</td><td>".$arr['desc']."</td></tr>\n";
-	if ($arr['maintainer'] != '') print "<tr><td>Maintainer:</td><td>".$arr['maintainer']."</td></tr>\n";
+	if ($arr['conflicts'] != 'NULL') print "<tr><td>Conflicts:</td><td>".$arr['conflicts']."</td></tr>\n";
+	if ($arr['replaces'] != 'NULL') print "<tr><td>Replaces:</td><td>".$arr['replaces']."</td></tr>\n";
+	if ($arr['size'] != 'NULL') print "<tr><td>Size:</td><td>".$arr['size']."</td></tr>\n";
+	if ($arr['arch'] != 'NULL') print "<tr><td>Arch:</td><td>".$arr['arch']."</td></tr>\n";
+	if ($arr['desc'] != 'NULL') print "<tr><td>Description:</td><td>".$arr['desc']."</td></tr>\n";
+	if ($arr['maintainer'] != 'NULL') print "<tr><td>Maintainer:</td><td>".$arr['maintainer']."</td></tr>\n";
 	print("<tr><td>Download: </td><td><a href=\"download.php?url=frugalware-" . $arr['fwver'] . "/" . $arr['repo'] . "/" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . ".fpm\">" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . ".fpm</a></td></tr>");
-	if ($arr['md5'] != '') print "<tr><td>MD5 Sum:</td><td>".$arr['md5']."</td></tr>\n";
-	if ($arr['fwver'] != '') print "<tr><td>Frugalware version:</td><td>".$arr['fwver']."</td></tr>\n";
-	if ($arr['repo'] != '') print "<tr><td>Repository:</td><td>".$arr['repo']."</td></tr>\n";
-	if ($arr['updated'] != '') print "<tr><td>Updated:</td><td>".$arr['updated']."</td></tr>\n";
+	if ($arr['md5'] != 'NULL') print "<tr><td>MD5 Sum:</td><td>".$arr['md5']."</td></tr>\n";
+	if ($arr['fwver'] != 'NULL') print "<tr><td>Frugalware version:</td><td>".$arr['fwver']."</td></tr>\n";
+	if ($arr['repo'] != 'NULL') print "<tr><td>Repository:</td><td>".$arr['repo']."</td></tr>\n";
+	if ($arr['updated'] != 'NULL') print "<tr><td>Updated:</td><td>".$arr['updated']."</td></tr>\n";
 	print "</table>\n";
 	fwclosebox(false);
 	mysql_close($conn);

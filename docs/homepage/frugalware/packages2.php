@@ -207,7 +207,7 @@ function pkg_from_id($id) {
 	}
 	if ($arr['conflicts'] != 'NULL') print "<tr><td>Conflicts:</td><td>".$arr['conflicts']."</td></tr>\n";
 	if ($arr['replaces'] != 'NULL') print "<tr><td>Replaces:</td><td>".$arr['replaces']."</td></tr>\n";
-	if ($arr['size'] != 'NULL') print "<tr><td>Size:</td><td>".$arr['size']."</td></tr>\n";
+	if ($arr['csize'] != 'NULL') print "<tr><td>Size:</td><td>".$arr['csize']."</td></tr>\n";
 	if ($arr['arch'] != 'NULL') print "<tr><td>Arch:</td><td>".$arr['arch']."</td></tr>\n";
 	if ($arr['desc'] != 'NULL') print "<tr><td>Description:</td><td>".$arr['desc']."</td></tr>\n";
 	if ($arr['maintainer'] != 'NULL') print "<tr><td>Maintainer:</td><td>".$arr['maintainer']."</td></tr>\n";

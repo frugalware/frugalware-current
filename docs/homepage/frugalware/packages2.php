@@ -219,7 +219,7 @@ function file_from_id($id) {
 	print "<tr><td>Name:</td><td><a href=\"".$resz."?id=".$id."\">".$arr['pkgname']."</a></td></tr>\n";
 	print "<tr><td>Version:</td><td>".$arr['pkgver']."-".$arr['pkgrel']."</td></tr>\n";
 	print "<tr><td colspan=2>Files:</td></tr>\n";
-	$files = explode(" ", $arr['files']);
+	$files = explode("\n", substr($arr['files'], 0, -1));
 	for($i=0;$i<count($files);$i++) {
 		print "<tr><td colspan=2>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/".$files[$i]."</td></tr>\n";
 	}

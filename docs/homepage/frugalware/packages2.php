@@ -86,13 +86,32 @@ function error() {
 		fwopenbox("Search", 50, false);
 ?>
 <!--div align=center-->
+<script type="text/javascript">
+<!--
+
+function chkdesc() {
+	if (document.forms.pkgsrch.desc.checked)
+		document.forms.pkgsrch.desc.checked=false
+	else
+		document.forms.pkgsrch.desc.checked=true
+}
+
+function chksub() {
+	if (document.forms.pkgsrch.sub.checked)
+		document.forms.pkgsrch.sub.checked=false
+	else
+		document.forms.pkgsrch.sub.checked=true
+}
+
+-->
+</script>
 <table width="70%" border="0" align="center">
-<form action="<?php print $resz; ?>" method="GET">
+<form name="pkgsrch" action="<?php print $resz; ?>" method="GET">
 <input type=hidden name=op value=pkg>
 <tr><td colspan=2>Search for a package</td></tr>
 <tr><td colspan=2><input type="text" name="srch" size=40></td></tr>
-<tr><td>Search for substring:</td><td align=right><input type="checkbox" name="sub"></td></tr>
-<tr><td>Search in description:</td><td align=right><input type="checkbox" name="desc"></td></tr>
+<tr><td onClick="chksub()">Search for substring:</td><td align=right><input type="checkbox" name="sub"></td></tr>
+<tr><td onClick="chkdesc()">Search in description:</td><td align=right><input type="checkbox" name="desc"></td></tr>
 <tr><td colspan=2>Repo: 
 <select name="repo">
         <option value="all" selected="selected">all</option>
@@ -103,7 +122,7 @@ function error() {
 </form>
 <tr><td colspan=2>&nbsp;</td></tr>
 <tr><td colspan=2>Search for a file</td></tr>
-<form action="<?php print $resz; ?>" method="GET" enctype="multipart/form-data">
+<form name="filesrch" action="<?php print $resz; ?>" method="GET" enctype="multipart/form-data">
 <input type=hidden name=op value=file>
 <tr><td colspan=2><input type="text" name="srch" size=40></td></tr>
 <tr><td colspan=2>Repo: 

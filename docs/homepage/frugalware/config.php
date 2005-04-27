@@ -70,5 +70,5 @@ $upfile="/proc/uptime";
 $fwprefmirror=$mirrors[1][1];
 
 // releases
-$fwreleases=array("current", "testing", "stable");
+$fwreleases=array("current", "stable");
 ?>

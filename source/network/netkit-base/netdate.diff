@@ -1,0 +1,277 @@
+diff -Naur netdate.orig/Makefile netdate/Makefile
+--- netdate.orig/Makefile	1996-08-14 19:19:54.000000000 +0200
++++ netdate/Makefile	2004-07-19 15:29:12.000000000 +0200
+@@ -1,14 +1,14 @@
+-LDFLAGS += -N
+-CFLAGS = $(O) -Wall
++
++CC = gcc
+ 
+ all: netdate
+ 
+ netdate: netdate.o
+ 
+ install: netdate
+-	install -s -m 0755 netdate /sbin/netdate
+-	install -m 0644 netdate.8 /usr/man/man8
++	install -s netdate $(DESTDIR)/usr/sbin/netdate
++	install -m 0644 netdate.8 $(DESTDIR)/usr/man/man8/netdate.8
+ 
+ clean:
+-	rm -f netdate *.o core
++	rm -f netdate *~ *.o core
+ 
+diff -Naur netdate.orig/netdate.8 netdate/netdate.8
+--- netdate.orig/netdate.8	1996-08-14 19:19:54.000000000 +0200
++++ netdate/netdate.8	2004-07-19 15:27:44.000000000 +0200
+@@ -53,40 +53,41 @@
+ if that host supplies it.
+ .SH EXAMPLE
+ The most accurate hosts are named first in each example.
+-Some such call on \fInetdate\fP should be put at the end of \fB/etc/rc.local\fP,
++Some such call on \fInetdate\fP should be put at the end of
++\fB/etc/rc.d/rc.local\fP,
+ so that the time will be set properly on system startup.
+-It is also useful to have a shell script, e.g., \fB/etc/timehosts\fP,
++It is also useful to have a shell script, e.g., \fB/sbin/timehosts\fP,
+ which contains a call on \fInetdate\fP with arguments appropriate
+ to the local system, so that it is easy to set the time manually.
+-.SH "netdate -l 30 udp dcn\-gateway tcp neighbor"
+-\fIDcn\-gateway\fP is a hypothetical host which usually keeps time
++.SH "netdate -l 30 udp dcn\-gate tcp neighbor"
++\fIDcn\-gate\fP is a hypothetical host which usually keeps time
+ accurate to within milliseconds of Coordinated Universal Time,
+ but may occasionally be eight hours off.
+ \fINeighbor\fP is a neighbor of the local host which keeps time
+ with moderate accuracy.
+-The time will be set to that of \fIdcn\-gateway\fP if that and \fIneighbor\fP
++The time will be set to that of \fIdcn\-gate\fP if that and \fIneighbor\fP
+ agree to within thirty seconds, else it will not be set at all.
+ This is almost good enough for most circumstances, but won't do
+ when the local host's time is known to be wrong (e.g., after
+ a long downtime or a bad crash) and must be set to something.
+ If one of the hosts named is inaccurate or not responding, there is a problem.
+-.SH "netdate -l 30 udp dcn\-gateway tcp neighbor neighbor2"
++.SH "netdate -l 30 udp dcn\-gate tcp neighbor neighbor2"
+ Only two of the three hosts named must agree on the time.
+ The time will still be set (to that of the first neighbor),
+-even if \fIdcn\-gateway\fP is far off as long as the two neighbors agree.
++even if \fIdcn\-gate\fP is far off as long as the two neighbors agree.
+ This is probably good enough for most cases.
+ One can arbitrarily gerrymander the vote for more insurance
+ (and less clarity), as in the following example.
+-.SH "netdate\ udp\ dcn\-gateway\ dcn1\ tcp\ bbn\-unix\ localhost\ neighbor"
++.SH "netdate\ udp\ dcn\-gate\ dcn1\ tcp\ bbn\-unix\ localhost\ neighbor"
+ Here \fIdcn1\fP and \fIbbn\-unix\fP are more hypothetical very accurate
+ timekeepers, at least one of which keeps time independently from
+-\fIdcn\-gateway\fP, one hopes.
++\fIdcn\-gate\fP, one hopes.
+ It is very likely that the time will be set to that one of those three
+ very accurate hosts, as long as at least two of them agree, or at least
+ one of them agrees with the neighbor or the local host's time.
+ If all the foreign hosts disagree, the time will not be set,
+ since \fBlocalhost\fP will be chosen as best.
+-.SH "netdate\ \-l\ 3\ localhost\ localhost\ udp\ dcn\-gateway\ dcn1\ tcp\ bbn\-unix"
++.SH "netdate\ \-l\ 3\ localhost\ localhost\ udp\ dcn\-gate\ dcn1\ tcp\ bbn\-unix"
+ This example gives \fBlocalhost\fP two votes and declares it to usually
+ have the most accurate time.
+ All three foreign hosts must agree within three seconds
+@@ -95,9 +96,9 @@
+ Thus the time will be set only if it really needs to be.
+ .SH FILES
+ .nf
+-/etc/inet/services	for the time service port number
+-/etc/inet/protocols	for the protocol numbers
+-/etc/wtmp	to record time-setting
++/etc/services	for the time service port number
++/etc/protocols	for the protocol numbers
++/var/log/wtmp	to record time-setting
+ .SH SEE ALSO
+ ARPANET Request for Comments 868, gettimeofday(2), date(1),
+ WWV (USA):
+diff -Naur netdate.orig/netdate.c netdate/netdate.c
+--- netdate.orig/netdate.c	1996-08-14 19:19:54.000000000 +0200
++++ netdate/netdate.c	2004-07-19 15:27:44.000000000 +0200
+@@ -1,4 +1,4 @@
+-/* 
++/*
+                             NO WARRANTY
+ 
+     THERE IS NO WARRANTY FOR THIS PROGRAM, TO THE EXTENT PERMITTED BY
+@@ -8,8 +8,8 @@
+   THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+   PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
+   IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
+-  ALL NECESSARY SERVICING, REPAIR OR CORRECTION.  
+-                              
++  ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
++
+   IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING WILL
+   ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
+   REDISTRIBUTE THE PROGRAM, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
+@@ -18,8 +18,8 @@
+   DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD
+   PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS),
+   EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
+-  SUCH DAMAGES.  
+-                                
++  SUCH DAMAGES.
++
+ */
+ 
+ #ifndef lint
+@@ -30,6 +30,7 @@
+ #include <sys/ioctl.h>
+ #include <sys/socket.h>
+ #include <sys/time.h>
++#include <time.h>
+ 
+ #include <netinet/in.h>
+ 
+@@ -42,17 +43,24 @@
+ #include <setjmp.h>
+ #include <signal.h>
+ #include <utmp.h>
+-#define WTMP "/etc/wtmp"
++#define WTMP "/var/log/wtmp"
+ 
++#ifndef __GLIBC__
+ struct utmp wtmp[2] = {
+ 	{ 0, 0, "|", "", 0, "", "", 0},
+ 	{ 0, 0, "{", "", 0, "", "", 0}
+ };
++#else
++struct utmp wtmp[2] = {
++  { 0, 0, "|", "", "", "", {0, 0}, 0, {0, 0}, {0, 0, 0, 0}, "" },
++  { 0, 0, "|", "", "", "", {0, 0}, 0, {0, 0}, {0, 0, 0, 0}, "" },
++};
++#endif
+ 
+ char *service = "time";
+ char *defaultproto = "udp";
+ /* difference between 1900 (RFC868) and 1970 (UNIX) base times */
+-#define NETBASE	2208988800
++#define NETBASE	2208988800u
+ 
+ long limit = 5;
+ #define MAXHOSTS 20
+@@ -78,7 +86,6 @@
+ 
+ void	usage (void);
+ int	setproto (char *, struct timehost *);
+-void	main (int, char **);
+ int	getdiff (struct timehost *);
+ int	getdate (struct timehost *);
+ void	printit (struct timehost *);
+@@ -98,7 +105,7 @@
+ 	fprintf (stderr,
+ "usage: %s [ -l limit ] host ...\n"
+ "%s tries to find a group of at least two hosts whose times agree\n"
+-"within %d seconds, and sets the time to that of the first host in the group.\n",
++"within %ld seconds, and sets the time to that of the first host in the group.\n",
+ 		whoami, whoami, limit);
+ 	fprintf (stderr,
+ "The limit may be set with the -l option.  Setting it to zero (or supplying\n"
+@@ -112,7 +119,7 @@
+ int verbose = 0;
+ int debug = 0;
+ 
+-void
++int
+ main (int argc, char **argv)
+ {
+ 	extern char *rindex();
+@@ -155,7 +162,7 @@
+ 	if (*argv == NULL)
+ 		usage();
+ 	if (debug)
+-		fprintf (stderr, "%s: rdate %d; verbose %d; limit %d.\n", 
++		fprintf (stderr, "%s: rdate %d; verbose %d; limit %ld.\n",
+ 			whoami, rdate, verbose, limit);
+ 	for (thishost = &timehosts[0]; *argv != NULL; argv++) {
+ 		if (thishost >= tophost) {
+@@ -189,7 +196,7 @@
+ 		exit(1);
+ 	if ((thishost = mungediffs(thishost)) == NULL) {
+ 		fprintf (stderr,
+-			"No two hosts agree on the time within %d seconds\n",
++			"No two hosts agree on the time within %ld seconds\n",
+ 			limit);
+ 		exit(1);
+ 	}
+@@ -258,7 +265,7 @@
+ 	and return the first of that group.  If no two hosts agree,
+ 	give up.
+  */
+- 
++
+ struct timehost *
+ mungediffs(struct timehost *tophost)
+ {
+@@ -284,7 +291,7 @@
+ 			}
+ 		}
+ 		if (verbose) {
+-			printf (" %d\n", thishost -> count);
++			printf (" %ld\n", thishost -> count);
+ 			(void)fflush(stdout);
+ 		}
+ 		if (thishost -> count > goodhost -> count)
+@@ -312,13 +319,13 @@
+ 	&& abs((thishost -> then.tv_sec - now.tv_sec) - thishost -> difference)
+ 	    > limit) {
+ 		fprintf (stderr,
+-		"Time from %s has varied more than the limit of %d seconds\n",
++		"Time from %s has varied more than the limit of %ld seconds\n",
+ 			thishost -> hostname, limit);
+ 		printit(thishost);
+ 		exit(1);
+ 	}
+ 	if (settimeofday (&thishost -> then, (struct timezone *)0) == -1)
+-		perror ("netdate; settimeofday");
++		perror ("netdate: settimeofday");
+ 	else {
+ 		int wf;
+ 		if ((wf = open(WTMP, 1)) >= 0) {
+@@ -348,12 +355,12 @@
+ 		(void)sprintf(newstring, "%s ", thishost -> hostname);
+ 		tvsub(&diff, &thishost -> then, &now);
+ 		printdiff(&newstring[strlen(newstring)], &diff);
+-		printf ("%-24s %.19s.%03d", newstring,
++		printf ("%-24s %.19s.%03ld", newstring,
+ 			ctime((unsigned long *)&thishost -> then.tv_sec),
+ 				thishost -> then.tv_usec / 1000);
+ 		if (verbose) {
+ 			tp = localtime((unsigned long *)&thishost -> acked);
+-			printf(" at %02d:%02d:%02d.%03d",
++			printf(" at %02d:%02d:%02d.%03ld",
+ 				tp -> tm_hour, tp -> tm_min, tp -> tm_sec,
+ 				thishost -> acked.tv_usec / 1000);
+ 			tvsub(&diff, &thishost -> acked, &thishost -> asked);
+@@ -446,20 +453,23 @@
+ 		perror("netdate: connect");
+ 		goto bad;
+ 	}
++
+ 	if (thishost -> socktype == SOCK_DGRAM) {
+-		if (write (s, "\n", 1) < 0) {
++		if (send (s, "\n", 1, 0) < 0) {
+ 			perror ("netdate: send");
+ 			goto bad;
+ 		}
+ 	}
+-	nread = read (s, (char *)&thishost -> then, sizeof (thishost -> then));
++	nread = recv (s, (char *)&thishost -> then, sizeof (thishost -> then), 0);
+ 	(void)gettimeofday (&thishost -> acked, (struct timezone *)0);
+ 	(void)alarm(0);
+ 	now = thishost -> acked;
+-	if (nread < sizeof(thishost -> then.tv_sec)) {
++
++	if (nread != 4) {
+ 		perror ("netdate: read");
+ 		goto bad;
+ 	}
++
+ 	/* RFC 868 only allows seconds, but what the hell */
+ 	if (nread == sizeof(thishost -> then))
+ 		thishost -> then.tv_usec = ntohl(thishost -> then.tv_usec);

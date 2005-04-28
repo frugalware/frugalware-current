@@ -1,0 +1,176 @@
+#!/bin/sh
+
+# (c) 2003 Vajna Miklos <mamajom@axelero.hu>
+# rc.pcmcia for FrugalWare
+# distributed under GPL License
+
+# rc.pcmcia 1.23 1998/07/18 18:49:26 (David Hinds)
+# Modified for Slackware Sun Aug 25 22:29:14 PDT 2002 (pjv)
+
+# This is designed to work in BSD as well as SysV init setups.  See
+# the HOWTO for customization instructions.
+
+. /etc/rc.d/rc.functions
+
+# chkconfig: 2345 04 10
+# description: Start, stop or restart PCMCIA services
+
+usage()
+{
+	echo "$usage: $0 {start|stop|restart}"
+}
+
+cleanup()
+{
+	while read SN CLASS MOD INST DEV EXTRA ; do
+		if [ "$SN" != "Socket" ] ; then
+			/etc/pcmcia/$CLASS stop $DEV 2> /dev/null
+		fi
+	done
+}
+
+# Allow environment variables to override all options
+if [ "$PCMCIA" ] ; then readonly PCMCIA ; fi
+if [ "$PCIC" ] ; then readonly PCIC ; fi
+if [ "$CORE_OPTS" ] ; then readonly CORE_OPTS ; fi
+if [ "$CARDMGR_OPTS" ] ; then readonly CARDMGR_OPTS ; fi
+if [ "$SCHEME" ] ; then readonly SCHEME ; fi
+
+# Source PCMCIA configuration, if available
+if [ -f /etc/pcmcia.conf ] ; then
+	. /etc/pcmcia.conf
+elif [ -f /etc/sysconfig/pcmcia ] ; then
+	. /etc/sysconfig/pcmcia
+	if [ "$PCMCIA" != "yes" ] ; then exit 0 ; fi
+else
+	# Should be either i82365, i82092, tcic, or yenta_socket.
+	# Can also be set to "probe" (a Slackware addition) which loads
+	# each module until one of them works.  (this is the default)
+	PCIC=probe
+#	PCIC=i82365
+#	PCIC=tcic
+#	PCIC=yenta_socket
+	# The i82092 is found in old laptops and evaluation boards and will
+	# not be automatically probed for.
+#	PCIC=i82092
+	# Put pcmcia_core options here
+	CORE_OPTS=
+	# Put cardmgr options here
+	CARDMGR_OPTS=
+	# To set the PCMCIA scheme at startup...
+	SCHEME=
+fi
+
+EXITCODE=1
+for x in "1" ; do
+
+	if [ $# -lt 1 ] ; then usage ; break ; fi
+
+	if [ "$PCIC" = "" ] ; then
+		# PCIC not defined in rc.pcmcia!
+		break
+	fi
+
+	action=$1
+	case "$action" in
+
+	'start')
+		SC=/var/run/pcmcia-scheme
+		if [ -L $SC -o ! -O $SC ] ; then rm -f $SC ; fi
+		if [ ! -f $SC ] ; then umask 022 ; echo > $SC ; fi
+		if [ "$SCHEME" ] ; then umask 022 ; echo $SCHEME > $SC ; fi
+		fgrep -q pcmcia /proc/devices
+		if [ $? -ne 0 ] ; then
+		start "$startpcmcia: "
+			if [ -d "/lib/modules/`uname -r`/pcmcia" ]; then
+				PC="/lib/modules/`uname -r`/pcmcia"
+			elif [ -d "/lib/modules/`uname -r`/kernel/drivers/pcmcia" ]; then
+				PC="/lib/modules/`uname -r`/kernel/drivers/pcmcia"
+			fi
+			if [ -d $PC ] ; then
+				/sbin/modprobe pcmcia_core $CORE_OPTS 2> /dev/null
+				if [ "$PCIC" = "probe" ]; then # attempt to load both
+					echo -n "$probepcic"
+					/sbin/modprobe i82365 2> /dev/null
+					if [ ! $? = 0 ]; then # try tcic 
+						/sbin/modprobe tcic 2> /dev/null
+					fi
+					if [ ! $? = 0 ]; then # try yenta_socket
+						/sbin/modprobe yenta_socket 2> /dev/null
+					fi
+				else # PCIC has been selected manually
+					/sbin/modprobe $PCIC 2> /dev/null
+				fi
+				/sbin/modprobe ds 2> /dev/null
+			else
+				echo -n "$nomodule"
+				break
+			fi
+			ok $?
+		fi
+		if [ -s /var/run/cardmgr.pid ] && \
+			kill -0 `cat /var/run/cardmgr.pid` 2>/dev/null ; then
+			#cardmgr is already running
+			echo -n ""
+		else
+			if [ -r /var/run/stab ] ; then
+				cat /var/run/stab | cleanup
+			fi
+			/sbin/cardmgr $CARDMGR_OPTS 2>/dev/null
+		fi
+		if [ -d /var/lock/subsys ] ; then
+			touch /var/lock/subsys/pcmcia
+		fi
+		;;
+
+	'stop')
+		if [ -r /var/run/cardmgr.pid ]; then
+			stop "$stoppcmcia: "
+			PID=`cat /var/run/cardmgr.pid`
+			kill $PID
+			echo -n "$cardmgr, "
+			# Give cardmgr a few seconds to handle the signal
+			kill -0 $PID 2>/dev/null && sleep 2 && \
+			kill -0 $PID 2>/dev/null && sleep 2 && \
+			kill -0 $PID 2>/dev/null && sleep 2 && \
+			kill -0 $PID 2>/dev/null
+			if fgrep -q "ds  " /proc/modules ; then
+				echo -n "$mods"
+				/sbin/modprobe -r ds
+				if [ "$PCIC" = "probe" ]; then
+					if grep i82365 /proc/modules 1> /dev/null 2> /dev/null ; then
+						/sbin/modprobe -r i82365
+					elif grep yenta_socket /proc/modules 1> /dev/null 2> /dev/null ; then
+						/sbin/modprobe -r yenta_socket
+					elif grep tcic /proc/modules 1> /dev/null 2> /dev/null ; then
+						/sbin/modprobe -r tcic
+					fi
+				else
+					/sbin/modprobe -r $PCIC
+				fi
+				/sbin/modprobe -r pcmcia_core
+			fi
+			ok $?
+			rm -f /var/lock/subsys/pcmcia
+		fi
+		EXITCODE=0
+		;;
+	'restart')
+		$0 stop
+		sleep 1
+		$0 start
+		EXITCODE=0
+		;;
+
+	*)
+		usage
+		;;
+
+	esac
+
+done
+
+# Only exit if we're in our own subshell
+if [ "${0##*/}" = "rc.pcmcia" ] ; then
+	exit $EXITCODE
+fi

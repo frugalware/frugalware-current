@@ -1,0 +1,117 @@
+#!/bin/sh
+
+# (c) 2005 Szabo Peter <pete [at] teamlupus.hu>
+# (c) 2005 Vajna Miklos <mamajom@axelero.hu>
+# Window manager chooser for Frugalware
+# distributed under GPL License
+# Script layout was taken from timeconfig.
+
+. /var/lib/frugalware/messages/rc.messages
+
+### strings
+version=0.8
+menutitle="$xwmconfig - Frugalware `cat /etc/frugalware-release |cut -d ' ' -f 2` $setup"
+
+### functions
+showlist()
+{
+	howf=`mktemp`
+	dialogfile=`mktemp`
+	chmod +x $dialogfile
+	
+	wmlist=`ls -1 /etc/X11/xinit/ | cut -d "." -f 2`
+	wmlist_mnu=""
+	
+	for itemname  in $wmlist ;
+	do
+	    if [ $itemname != "d" ] && [ $itemname != "xinitrc" ];
+	    then
+		varname="wm_$itemname"
+		desc=${!varname}
+		if [ -z "$desc" ];
+		then  
+		    desc="$wm_unknown"
+		fi
+		wmlist_mnu="$wmlist_mnu $itemname \"$desc\""
+	    fi
+	done
+	echo -n 'dialog --backtitle "'>$dialogfile;
+	echo -n $menutitle>>$dialogfile;
+	echo -n '" --title "'>>$dialogfile;
+	echo -n $listtitle>>$dialogfile;
+	echo -n '" --aspect 20 --menu "'>>$dialogfile;
+	echo -n $listdesc>>$dialogfile;
+	echo -n '" 0 0 0  '>>$dialogfile;
+	echo -n $wmlist_mnu>>$dialogfile;
+	echo -n ' 2> '>>$dialogfile;
+	echo -n $howf>>$dialogfile;
+	echo -n ' || exit 0'>>$dialogfile;	
+
+	$dialogfile || exit 0; 
+	selected_wm=`cat $howf`
+
+	rm $howf
+	rm $dialogfile
+}
+
+doselect()
+{
+    link="/etc/X11/xinit/xinitrc";
+    if [ "$selected_wm" != "" ]; then
+        if [ -h $link ]; then 
+    	    rm "$link";
+        fi
+	ln -s "/etc/X11/xinit/xinitrc.$selected_wm" "/etc/X11/xinit/xinitrc";
+    fi
+}
+
+
+function usage()
+{
+	cat <<EOF
+xwmconfig $version (C) 2005 Szabo Peter <pete [at] teamlupus.hu>
+
+Usage: xwmconfig [options]
+
+Options:
+--force		Run this tool even GDM or KDM installed.
+--help		This help.
+--silent	Do not print any warning if GDM or KDM installed.
+EOF
+}
+
+### main
+
+if [ "$1" == "--help" ]; then
+	usage
+	exit 0
+fi
+
+if [ "$1" == "--silent" ]; then
+	silent=1
+	shift
+fi
+
+if [ "$1" == "--force" ]; then
+	force=1
+	shift
+fi
+
+if [ "$force" != 1 ]; then
+	if pacman -Q kdebase &>/dev/null; then
+		[ "$silent" == 1 ] || echo $kdminstalled
+		exit 0;
+	fi
+
+	if pacman -Q gdm &>/dev/null; then
+		[ "$silent" == 1 ] || echo $gdminstalled
+		exit 0;
+	fi
+fi
+
+if [ -e /etc/sysconfig/desktop ]; then 
+    showlist
+    doselect
+    exit 0;
+fi
+    echo $xnotinstalled

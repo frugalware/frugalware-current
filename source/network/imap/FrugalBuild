@@ -1,0 +1,67 @@
+# Last Modified: Tue, 15 Mar 2005 01:18:04 +0100
+# Compiling Time: ~2 minutes
+# Contributor: VMiklos <mamajom@axelero.hu>
+# Maintainer: Zsolt Szalai <xbit.lists@chello.hu>
+
+pkgname=imap
+pkgver=2004c
+pkgrel=3
+extrapkgver=1
+pkgdesc="An IMAP/POP server"
+url="http://www.washington.edu/imap"
+groups=('network')
+depends=('openssl')
+up2date=`lynx -dump 'http://ftp.ntua.gr/pub/net/mail/imap/?M=D'|grep imap-[0-9a-z\.]*tar.gz$|sed -n "s/.*-\(.*\)\.t.*/\1/;s/$extrapkgver//;1 p"`
+source=(ftp://ftp.cac.washington.edu/imap/$pkgname-$pkgver$extrapkgver.tar.Z)
+md5sums=('f0a1a2abfa4b1ed8074ce023724416f3')
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver$extrapkgver
+	# CFLAGS and ssl location
+	( cd src/osdep/unix
+	  sed -i -e "s/-g -fno-omit-frame-pointer -O6/${CFLAGS}/" \
+		-e 's|SSLDIR=/usr/local/ssl|SSLDIR=/usr|' \
+		-e 's|SSLCERTS=$(SSLDIR)/certs|SSLCERTS=/etc/ssl/certs|' \
+		Makefile )
+	
+	yes | make slx SPECIALAUTHENTICATORS=ssl SSLTYPE=unix || return 1
+	
+	# installing binaries
+	install -D -m755 imapd/imapd $startdir/pkg/usr/sbin/imapd
+	# install them, but we use popa3d by default
+	install -D -m755 ipopd/ipop2d $startdir/pkg/usr/sbin/ipop2d
+	install -D -m755 ipopd/ipop3d $startdir/pkg/usr/sbin/ipop3d
+	
+	# installing header files
+	mkdir -p $startdir/pkg/usr/include/imap/
+	(cd c-client
+	install -m644 {c-client,mail,imap4r1,rfc822,linkage,misc,smtp,nntp,osdep,env_unix,env,fs,ftl,nl,tcp}.h $startdir/pkg/usr/include/imap/
+	install -D -m644 c-client.a $startdir/pkg/usr/lib/c-client.a)
+	(cd $startdir/pkg/usr/lib/ && ln -sf c-client.a libc-client.a)
+
+	# creating ssl certs
+	for i in imapd ipop3d
+	do
+		umask 077
+		tmp1=`mktemp`
+		tmp2=`mktemp`
+		openssl req -newkey rsa:1024 -keyout $tmp1 \
+			-nodes -x509 -days 365 -out  $tmp2 << EOF
+--
+SomeState
+SomeCity
+SomeOrganization
+SomeOrganizationalUnit
+localhost.localdomain
+root@localhost.localdomain
+EOF
+		cat $tmp1 >$i.pem
+		echo "" >>$i.pem
+		cat $tmp2 >>$i.pem
+		rm $tmp1 $tmp2
+		install -D -m600 $i.pem $startdir/pkg/etc/ssl/certs/$i.pem
+		umask 022
+	done
+}
+
+# vim: ft=sh

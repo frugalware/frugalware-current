@@ -1,0 +1,88 @@
+# Last modified: Tue, 05 Apr 2005 11:27:14 +0200
+# Compiling time: ~1 minute
+# Maintainer: VMiklos <mamajom@axelero.hu>
+# Modified by Laszlo Dvornik <dvornik@gnome.hu>
+
+pkgname=util-linux
+pkgver=2.12
+extrapkgver=q
+pkgrel=15
+pkgdesc="Miscellaneous system utilities for Linux"
+backup=('etc/sysconfig/console' 'etc/sysconfig/numlock')
+depends=('bash' 'ncurses' 'zlib' 'e2fsprogs' 'texinfo')
+groups=('base')
+install=$pkgname.install
+up2date=`lynx -dump 'http://www.kernel.org/pub/linux/utils/util-linux/?C=M;O=D'|grep util-linux-[0-9\.]*[a-z]*.tar.bz2|sed -n "s/.*-\(.*\)\.t.*/\1/;s/$extrapkgver$//;1 p"`
+source=(http://www.kernel.org/pub/linux/utils/$pkgname/$pkgname-$pkgver$extrapkgver.tar.bz2 \
+	util-linux-2.12q-cramfs-1.patch \
+	frugalwaregetty \
+	numlock \
+	rc.bootclean \
+	rc.console \
+	rc.mount \
+	rc.rmount \
+	rc.swap \
+	rc.time \
+	timeconfig \
+	$pkgname.install)
+md5sums=('54320aa1abbce00c0dc030e2c3afe5d7' \
+	'1c3f40b30e12738eb7b66a35b7374572' \
+	'ac8c2f390449e8d50fe7c0c9bee22c20' \
+	'84152b5d7c7c24caa06a4b2d5f2884ce' \
+	'6f2cde5e3520313f47f6ae65e30f8c8d' \
+	'ee5175b3bae3a977d091fee0744ba316' \
+	'0cc2027722fd322cd75827a0abd0eb1e' \
+	'2de72d68b27dc764650c2a712e4fb39d' \
+	'3344ad80af979ea48d2d06b04ef2e409' \
+	'6db2767ad7735311c090d9d29a972f7b' \
+	'3b07c6c4799e32a858b71eda33bbcedb' \
+	'33ab130bd1a1c0ac7c3f4584f3c063a3')
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver$extrapkgver
+	Fpatch util-linux-2.12q-cramfs-1.patch
+	CPUTAIL=`echo $CARCH|sed 's/^i//'`
+	sed -i -e 's/CPUTAIL=486/CPUTAIL='$CPUTAIL'/' MCONFIG
+	./configure
+
+	make HAVE_SLN=yes ADD_RAW=yes || return 1
+
+	make HAVE_SLN=yes ADD_RAW=yes DESTDIR=$startdir/pkg install
+
+	# Remove conflicting files.
+	rm -f $startdir/pkg/bin/kill
+	rm -f $startdir/pkg/usr/share/man/man1/kill.*
+	rm -f $startdir/pkg/usr/bin/write
+	rm -f $startdir/pkg/usr/share/man/man1/write.*
+	rm -f $startdir/pkg/usr/bin/setfdprm
+
+	# Init scripts.
+	mkdir -p $startdir/pkg/etc/rc.d/rc.messages
+	for i in bootclean console mount rmount swap time
+	do
+		install -m755 -o root -g root $startdir/rc.$i \
+			$startdir/pkg/etc/rc.d/rc.$i
+		install -m644 -o root -g root $startdir/messages/$i.* \
+			$startdir/pkg/etc/rc.d/rc.messages
+	done
+
+	# Our getty.
+	install -m755 -o root -g root $startdir/src/frugalwaregetty \
+		$startdir/pkg/sbin/frugalwaregetty
+	install -D -m644 -o root -g root $startdir/src/numlock \
+		$startdir/pkg/etc/sysconfig/numlock
+
+	# Console config.
+	echo "idle=15" > $startdir/pkg/etc/sysconfig/console
+
+	# Timeconfig.
+	mkdir -p $startdir/pkg/var/lib/frugalware/{system,messages}
+	install -m755 -o root -g root $startdir/src/timeconfig \
+		$startdir/pkg/var/lib/frugalware/system/
+	install -m644 -o root -g root $startdir/messages/timeconfig.* \
+		$startdir/pkg/var/lib/frugalware/messages/
+	cd $startdir/pkg/sbin/
+	ln -s ../var/lib/frugalware/system/timeconfig ./
+}
+
+# vim: ft=sh

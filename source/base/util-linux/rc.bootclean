@@ -1,0 +1,42 @@
+#!/bin/sh
+
+# (c) 2005 Laszlo Dvornik <dvornik@gnome.hu>
+# rc.bootclean for FrugalWare
+# distributed under GPL License
+
+. /etc/rc.d/rc.functions
+
+# chkconfig: - 00 00
+# description: Clean /tmp, /var/run and /var/lock.
+
+if [ "$1" = "start" ]; then
+	start "$bootclean"
+	EXCEPT='! -name .
+		! ( -path ./lost+found -uid 0 )
+		! ( -path ./quota.user -uid 0 )
+		! ( -path ./aquota.user -uid 0 )
+		! ( -path ./quota.group -uid 0 )
+		! ( -path ./aquota.group -uid 0 )
+		! ( -path ./.journal -uid 0 )
+		! ( -path ./.clean -uid 0 )
+		! ( -path ./.ICE-unix -uid 0 )
+		! ( -path ./.X11-unix -uid 0 )
+		! ( -path './...security*' -uid 0 )'
+
+	( if cd /tmp && [ "`find . -maxdepth 0 -perm -002`" = "." ]; then
+		# First remove all old files.
+		find . -depth -xdev $EXCEPT \
+				! -type d -print0 | xargs -0r rm -f
+		# And then all empty directories.
+		find . -depth -xdev $EXCEPT \
+				-type d -empty -exec rmdir \{\} \;
+		rm -f .X*-lock
+	fi )
+
+	( cd /var/lock && find . ! -type d -exec rm -f -- {} \; )
+
+	( cd /var/run && \
+		find . ! -type d ! -name utmp ! -name innd.pid \
+		-exec rm -f -- {} \; )
+	ok $?
+fi

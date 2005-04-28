@@ -1,0 +1,292 @@
+diff -Naur icmpinfo-1.11.orig/defs.h icmpinfo-1.11/defs.h
+--- icmpinfo-1.11.orig/defs.h	1994-05-26 15:36:40.000000000 +0200
++++ icmpinfo-1.11/defs.h	2004-07-19 13:37:34.000000000 +0200
+@@ -4,24 +4,17 @@
+ 
+ #include <stdio.h>
+ #include <errno.h>
+-extern int	errno;
++#include <string.h>
+ 
+ #include <sys/time.h>
+ #include <sys/param.h>
+ #include <sys/socket.h>
+ #include <sys/file.h>
+ 
+-/* On Linux you might also need to symlink /usr/include/netinet/in_system.h
+-   to /usr/src/linux/include/linux/in_system.h */
+ #include <netinet/in_systm.h>
+ #include <netinet/in.h>
+ #include <netinet/ip.h>
+-/* maybe change this when linux will include a complete include tree : */
+-#ifdef linux
+-#include "linux_ip_icmp.h"
+-#else
+ #include <netinet/ip_icmp.h>
+-#endif
+ #include <netinet/tcp.h>
+ #include <netdb.h>
+ 
+diff -Naur icmpinfo-1.11.orig/icmpinfo.c icmpinfo-1.11/icmpinfo.c
+--- icmpinfo-1.11.orig/icmpinfo.c	1995-08-28 17:55:46.000000000 +0200
++++ icmpinfo-1.11/icmpinfo.c	2004-07-19 13:39:24.000000000 +0200
+@@ -28,7 +28,7 @@
+  */
+ 
+ #ifndef lint
+-char copyright[] =
++char const copyright[] =
+ "@(#) Copyright (c) 1987 Regents of the University of California.\n\
+  All rights reserved.\n augmented 94/8-95 by dl\n";
+ #endif /* not lint */
+@@ -62,7 +62,7 @@
+  *	This program has to run SUID to ROOT to access the ICMP socket.
+  */
+ 
+-char	usage[] = "Usage:  icmpinfo [-v[v[v]]] [-s] [-n] [-p] [-l]\n   -v : more and more info\n   -s : show local interface address\n   -n : no name query (dot ip only)\n   -p : no port -> service name query\n   -l : fork + syslog output\nv1.11 - 8/1995 - dl";
++char	usage[] = "Usage:  icmpinfo [-v[v[v]]] [-s] [-n] [-p] [-l] [-k]\n   -v : more and more info\n   -s : show local interface address\n   -n : no name query (dot ip only)\n   -p : no port -> service name query\n   -l : fork + syslog output\n   -k : kill background process\nv1.11 - 8/1995 - dl";
+ char	*pname;
+ 
+ int main(argc, argv)
+@@ -101,6 +101,10 @@
+ 			case 's':
+ 				showsrcip++;
+ 				break;
++			case 'k':
++				pid_kill();
++				exit(0);
++				break;
+ 			case 'h':
+ 		        default :
+ 				err_quit(usage);
+@@ -130,6 +134,7 @@
+ 	  openlog("icmpinfo",0,LOG_DAEMON);
+ 	  syslog(LOG_NOTICE,"started, PID=%d.",getpid());
+ 	  setsid();
++	  pid_file();
+ 	  close(0);
+ 	  close(1);
+ 	  close(2);
+diff -Naur icmpinfo-1.11.orig/icmpinfo.man icmpinfo-1.11/icmpinfo.man
+--- icmpinfo-1.11.orig/icmpinfo.man	1995-08-28 17:26:09.000000000 +0200
++++ icmpinfo-1.11/icmpinfo.man	2004-07-19 13:37:34.000000000 +0200
+@@ -6,7 +6,7 @@
+ .SH SYNOPSIS
+ 
+ .B icmpinfo
+-[\-v[v[v]]] [\-n] [\-p] [\-s] [\-l]
++[\-v[v[v]]] [\-n] [\-p] [\-s] [\-l] [\-k]
+ 
+ .SH DESCRIPTION
+ .BR Icmpinfo
+@@ -60,6 +60,13 @@
+ .I "\-l"
+ Forks and use the syslog(3) facility to record events (recomended use).
+ (root only option).
++
++.TP
++.I "\-k"
++Kills the background process started with the
++.I "\-l"
++option.
++
+ .SH WARNINGS
+ The packet decoding is planned for ICMP Unreachable outputs and might
+ not be significant for all other Icmp types. Output can be shorter
+diff -Naur icmpinfo-1.11.orig/Makefile icmpinfo-1.11/Makefile
+--- icmpinfo-1.11.orig/Makefile	1995-08-17 12:44:54.000000000 +0200
++++ icmpinfo-1.11/Makefile	2004-07-19 13:37:34.000000000 +0200
+@@ -13,21 +13,27 @@
+ #LDLIBS= -lsocket -lnsl
+ 
+ # To override default compiler flags :
+-#CFLAGS=-O2 -s
++CFLAGS=-Wall -O2 -pipe -D_BSD_SOURCE
+ 
+ # To change default compiler
+-#CC=gcc
++CC=gcc
+ 
+ RM = rm -f
+ 
+ LDFLAGS= $(CFLAGS)
+ 
+-OBJECTS= recvping.o print.o err.o icmpinfo.o
++OBJECTS= recvping.o print.o err.o icmpinfo.o pid.o
+ TARGET = icmpinfo
+ 
++all:	$(TARGET)
++
+ $(TARGET):  $(OBJECTS)
+ 	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(LDLIBS)
+ 
++install: $(TARGET)
++	install -D -s icmpinfo $(DESTDIR)/usr/sbin/icmpinfo
++	install -D -m 0644 icmpinfo.man $(DESTDIR)/usr/man/man1/icmpinfo.1
++
+ tgz: clean
+ 	rm -f CHECKSUMS.asc
+ 	md5sum * > ../CHECKSUMS
+@@ -38,4 +44,3 @@
+ 
+ clean:
+ 	$(RM) $(OBJECTS) $(TARGET) core *~
+-
+diff -Naur icmpinfo-1.11.orig/pid.c icmpinfo-1.11/pid.c
+--- icmpinfo-1.11.orig/pid.c	1970-01-01 01:00:00.000000000 +0100
++++ icmpinfo-1.11/pid.c	2004-07-19 13:37:34.000000000 +0200
+@@ -0,0 +1,53 @@
++#include <stdio.h>
++#include <signal.h>
++#include <unistd.h>
++
++#define PIDFILE                 "/var/run/icmpinfo.pid"
++
++extern char *pname;
++
++void sig_handler(int);
++void pid_file(void);
++void pid_kill(void);
++
++void pid_file(void)
++{
++    FILE *fp;
++
++    if ((fp = fopen(PIDFILE, "w")) != (FILE *)NULL) {
++        fprintf(fp, "%d\n", getpid());
++        fclose(fp);
++    }
++    else
++    {
++        fprintf(stderr, "\n%s: Could not write PID file `%s', terminating.\n",
++            pname, PIDFILE);
++        exit(1);
++    }
++    signal(SIGHUP, sig_handler);
++    signal(SIGINT, sig_handler);
++    signal(SIGTERM, sig_handler);
++}
++
++void sig_handler(int sig)
++{
++    unlink(PIDFILE);
++    exit(0);
++}
++
++void pid_kill(void)
++{
++    FILE *fp;
++    int pid;
++
++    if ((fp = fopen(PIDFILE, "r")) != (FILE *)NULL)
++    {
++        if (fscanf(fp, "%d", &pid) == 1)
++        {
++            kill(pid, SIGHUP);
++            sleep(1);
++        }
++        fclose(fp);
++    }
++}
++ 
+diff -Naur icmpinfo-1.11.orig/print.c icmpinfo-1.11/print.c
+--- icmpinfo-1.11.orig/print.c	1995-08-28 17:07:49.000000000 +0200
++++ icmpinfo-1.11/print.c	2004-07-19 13:40:25.000000000 +0200
+@@ -9,6 +9,7 @@
+           it should be ok, now */
+ 
+ #include	"defs.h"
++#include <time.h>
+ 
+ #ifndef ANSI_OFFSETOF
+ #ifndef offsetof
+@@ -36,7 +37,7 @@
+   struct hostent	*hostent=NULL;
+   struct servent	*servent=NULL;
+   static char prbuf[1024];	/* provide enough room for even the longest hosts*/
+-	
++
+   /*
+    * We have to look at the IP header, to get its length.
+    * We also verify that what follows the IP header contains at
+@@ -58,14 +59,14 @@
+   cc -= iphdrlen;
+ 
+   icp = (struct icmp *)(buf + iphdrlen);
+-  switch (icp->icmp_type) 
++  switch (icp->icmp_type)
+     {
+     case ICMP_ECHO :
+     case ICMP_ECHOREPLY :
+       doipdecoding=0;
+       if (verbose<2) break;
+     case ICMP_SOURCEQUENCH :
+-    case ICMP_TIMXCEED : 
++    case ICMP_TIMXCEED :
+     case ICMP_REDIRECT :
+       if (!verbose) break;
+     default :
+@@ -86,10 +87,10 @@
+ 	      inet_ntoa(from->sin_addr),
+ 	      hostent?hostent->h_name:NULL
+ 	      );
+-      if ( doipdecoding && 
++      if ( doipdecoding &&
+            ( cc >= offsetof(struct icmp,icmp_ip.ip_src)+sizeof(icp->icmp_ip.ip_dst) ) )
+ 	{
+-	  if (showsrcip) 
++	  if (showsrcip)
+ 	    { /*  icp->icmp_ip.ip_src.s_addr == local host, show it
+ 		  only if requested (might be usefull for host with several
+ 		  interfaces */
+@@ -120,12 +121,12 @@
+ 			  ntohs(tp->th_sport),ntohs(tp->th_dport),
+                           ntohl(tp->th_seq));
+ 		  } else {
+-		    if ((servent=getservbyport(ntohs(tp->th_sport),NULL))) 
++		    if ((servent=getservbyport(ntohs(tp->th_sport),NULL)))
+ 		      sprintf(prbuf+strlen(prbuf)," sp=%d [%s]",
+ 			      ntohs(tp->th_sport),servent->s_name);
+ 		    else
+ 		      sprintf(prbuf+strlen(prbuf)," sp=%d",tp->th_sport);
+-		    if ((servent=getservbyport(ntohs(tp->th_dport),NULL))) 
++		    if ((servent=getservbyport(ntohs(tp->th_dport),NULL)))
+ 		      sprintf(prbuf+strlen(prbuf)," dp=%d [%s] seq=0x%8.8x",
+ 			      ntohs(tp->th_dport),servent->s_name,
+ 			      ntohl(tp->th_seq));
+@@ -148,7 +149,7 @@
+ 	    static char	a[] = "                ";
+ 	    int	i,j,b,n, flagNEof;
+ 	    unsigned char	*pbuf=(unsigned char *)buf;
+-	
++
+ 	    n = 0;
+ 	    flagNEof = 1;
+ 	    while (flagNEof) {
+@@ -243,7 +244,7 @@
+ 	  "PrecdCut"
+ 	  };
+ 	static char buf[80];
+-	
++
+ 	if (t < 0 || t > 15) {
+ 	  sprintf(buf,"[OUT_OF_RANGE(%d)]",t);
+ 	} else {
+@@ -251,4 +252,3 @@
+         }
+ 	return(buf);
+ }
+-
+diff -Naur icmpinfo-1.11.orig/recvping.c icmpinfo-1.11/recvping.c
+--- icmpinfo-1.11.orig/recvping.c	1994-01-07 12:04:04.000000000 +0100
++++ icmpinfo-1.11/recvping.c	2004-07-19 13:37:34.000000000 +0200
+@@ -6,6 +6,9 @@
+ 
+ #include	"defs.h"
+ 
++int err_ret(char *);
++int pr_pack(char *, int, struct sockaddr_in *);
++
+ int recv_ping()
+ {
+ 	register int		n;

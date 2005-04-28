@@ -1,0 +1,56 @@
+#!/bin/sh
+
+# (c) 2003-2004 Vajna Miklos <mamajom@axelero.hu>
+# rc.mysqld for FrugalWare
+# distributed under GPL License
+
+. /etc/rc.d/rc.functions
+
+# chkconfig: 2345 78 12
+# description:  MySQL database server.
+
+# PLEASE REMEMBER TO SET A PASSWORD FOR THE MySQL root USER !
+# To do so, start the server, then issue the following commands:
+# mysqladmin -u root password 'new-password'
+# mysqladmin -u root -h $hostname password 'new-password'
+# See the manual for more instructions.
+
+# before start
+
+if [ ! `egrep '^mysql:' /etc/group` ]; then
+	echo "Adding mysql group"
+	groupadd -g 89 mysql
+fi
+
+if [ ! `egrep '^mysql:' /etc/passwd` ]; then
+	echo "Adding mysql user"
+	useradd -u 89 -g mysql -d /var/lib/mysql -s /bin/false mysql
+	[ -d /var/lib/mysql ] && chown -R mysql.mysql /var/lib/mysql
+fi
+
+if [ ! -d /var/lib/mysql ]; then
+	mkdir /var/lib/mysql
+	/usr/bin/mysql_install_db --datadir=/var/lib/mysql --user=mysql
+	chown -R mysql.mysql /var/lib/mysql
+fi
+
+if [ ! -e /var/log/mysqld.log ]; then
+	touch /var/log/mysqld.log
+	chown mysql /var/log/mysqld.log
+fi
+
+# checking what to do now
+
+if [ "$1" = "stop" ]; then
+	stop "$stopmysqld"
+	killall mysqld
+	ok $?
+elif [ "$1" = "restart" ]; then
+	"$0" stop
+	sleep 1
+	"$0" start
+else # start
+	start "$startmysqld"
+	/usr/bin/mysqld_safe >/dev/null &
+	ok $?
+fi

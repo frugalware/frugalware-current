@@ -1,0 +1,115 @@
+diff -Naurd a/stage2/bios.c b/stage2/bios.c
+--- a/stage2/bios.c	2004-09-27 20:14:16.000000000 +0200
++++ b/stage2/bios.c	2004-09-27 20:29:08.000000000 +0200
+@@ -38,6 +38,8 @@
+ 				unsigned long *heads,
+ 				unsigned long *sectors);
+ #endif
++int get_cdinfo_debug = 0;
++int get_cdinfo_hack = 1;
+ 
+ 
+ /* Read/write NSEC sectors starting from SECTOR in DRIVE disk with GEOMETRY
+@@ -144,9 +146,18 @@
+     unsigned char dummy[16];
+   } __attribute__ ((packed)) cdrp;
+   
++  if (get_cdinfo_debug)
++    grub_printf("\nget_cdinfo drive=%x\n", drive);
+   grub_memset (&cdrp, 0, sizeof (cdrp));
+   cdrp.size = sizeof (cdrp) - sizeof (cdrp.dummy);
+   err = biosdisk_int13_extensions (0x4B01, drive, &cdrp);
++  if (get_cdinfo_debug)
++    grub_printf("err=%d cdrp.drive_no=%d cdrp.media_type=%x\n", err, cdrp.drive_no, cdrp.media_type);
++  if (get_cdinfo_hack && (drive >= 0x88)) {
++    cdrp.drive_no = drive;
++    cdrp.media_type = 0x00;
++    err = 0;
++  }
+   if (! err && cdrp.drive_no == drive)
+     {
+       if ((cdrp.media_type & 0x0F) == 0)
+diff -Naurd a/stage2/builtins.c b/stage2/builtins.c
+--- a/stage2/builtins.c	2004-09-27 20:13:52.000000000 +0200
++++ b/stage2/builtins.c	2004-09-27 22:23:21.205015073 +0200
+@@ -75,6 +75,9 @@
+ int grub_timeout = -1;
+ /* Whether to show the menu or not.  */
+ int show_menu = 1;
++/* get_cdinfo() tweaking */
++extern int get_cdinfo_debug;
++extern int get_cdinfo_hack;
+ /* The BIOS drive map.  */
+ static unsigned short bios_drive_map[DRIVE_MAP_SIZE + 1];
+ 
+@@ -4761,6 +4764,50 @@
+ };
+   
+ 
++#ifndef GRUB_UTIL
++/* cdinfodebug */
++static int
++cdinfodebug_func (char *arg, int flags)
++{
++  if (*arg) {
++    safe_parse_maxint (&arg, (int *) &get_cdinfo_debug);
++  }
++  grub_printf ("get_cdinfo() debug is %s\n", get_cdinfo_debug ? "ON" : "OFF");
++  return 0;
++}
++
++static struct builtin builtin_cdinfodebug =
++{
++  "cdinfodebug",
++  cdinfodebug_func,
++  BUILTIN_CMDLINE | BUILTIN_HELP_LIST,
++  "cdinfodebug STATE",
++  "Turn get_cdinfo() debug info on/off. STATE should be 0 or 1."
++};
++
++
++/* cdinfohack */
++static int
++cdinfohack_func (char *arg, int flags)
++{
++  if (*arg) {
++    safe_parse_maxint (&arg, (int *) &get_cdinfo_hack);
++  }
++  grub_printf ("get_cdinfo() hack is %s\n", get_cdinfo_hack ? "ON" : "OFF");
++  return 0;
++}
++
++static struct builtin builtin_cdinfohack =
++{
++  "cdinfohack",
++  cdinfohack_func,
++  BUILTIN_CMDLINE | BUILTIN_HELP_LIST,
++  "cdinfohack STATE",
++  "Turn get_cdinfo() hack on/off. STATE should be 0 or 1."
++};
++#endif /* GRUB_UTIL */
++
++
+ /* The table of builtin commands. Sorted in dictionary order.  */
+ struct builtin *builtin_table[] =
+ {
+@@ -4770,6 +4817,10 @@
+   &builtin_bootp,
+ #endif /* SUPPORT_NETBOOT */
+   &builtin_cat,
++#ifndef GRUB_UTIL
++  &builtin_cdinfodebug,
++  &builtin_cdinfohack,
++#endif /* GRUB_UTIL */
+   &builtin_chainloader,
+   &builtin_cmp,
+   &builtin_color,
+@@ -4837,7 +4888,7 @@
+ #endif /* SUPPORT_SERIAL */
+   &builtin_setkey,
+   &builtin_setup,
+-#if defined(SUPPORT_SERIAL) || defined(SUPPORT_HERCULES)
++ #if defined(SUPPORT_SERIAL) || defined(SUPPORT_HERCULES)
+   &builtin_terminal,
+ #endif /* SUPPORT_SERIAL || SUPPORT_HERCULES */
+ #ifdef SUPPORT_SERIAL

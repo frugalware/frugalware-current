@@ -1,0 +1,77 @@
+#!/bin/sh
+
+# (c) 2003-2004 Vajna Miklos <mamajom@axelero.hu>
+# mouse setup script for Frugalware
+# distributed under GPL License
+# Copyright 1993-2003 Patrick J. Volkerding, All rights reserved
+# Patrick J. Volkerding's scripts were distributed under an OSI approved
+# BSD License, which can be found in the COPYRIGHT file.
+
+. /var/lib/frugalware/messages/rc.messages
+
+backtitle="$backstring - Frugalware `cat /etc/frugalware-release |cut -d ' ' -f 2` $setup"
+
+# if the mouse is usb, we can autodetect it
+if [ -r /proc/bus/usb/devices ]; then
+ if cat /proc/bus/usb/devices | grep usb_mouse 1> /dev/null 2> /dev/null ; then
+  MOUSE_TYPE=usb
+  MTYPE="imps2"
+  mouselink=input/mice
+ fi
+fi
+
+if [ "$MOUSE_TYPE" = "" ]; then
+	typef=`mktemp`
+	dialog --backtitle "$backtitle" --title "$mouseconfig" --menu "$plzselect" 0 0 0 "ps2" "$ps2"  "imps2" "$imps2"  "bare" "$bare"  "ms" "$ms" "mman" "$mman" "msc" "$msc" "pnp" "$pnp" "usb" "$usb" "ms3" "$ms3" "netmouse" "$netmouse" "logi" "$logi" "logim" "$logim" "atibm" "$atibm" "inportbm" "$inportbm" "logibm" "$logibm" "ncr" "$ncr" "twid" "$twid" "genitizer" "$genitizer" "js" "$js"  "wacom" "$wacom" 2> $typef || ( rm -f $typef && exit 0 )
+	MOUSE_TYPE="`cat $typef`"
+ 	rm -f $typef
+	
+	if [ "$MOUSE_TYPE" = "bare" -o "$MOUSE_TYPE" = "ms" \
+		-o "$MOUSE_TYPE" = "mman" -o "$MOUSE_TYPE" = "msc" \
+		-o "$MOUSE_TYPE" = "genitizer" \
+		-o "$MOUSE_TYPE" = "pnp" -o "$MOUSE_TYPE" = "ms3" \
+		-o "$MOUSE_TYPE" = "logi" -o "$MOUSE_TYPE" = "logim" \
+		-o "$MOUSE_TYPE" = "wacom" -o "$MOUSE_TYPE" = "twid" ]; then
+		portf=`mktemp`
+		dialog --backtitle "$backtitle" --title "$selport" --menu "$portdesc" 0 0 0  "/dev/ttyS0" "$com1"  "/dev/ttyS1" "$com2"  "/dev/ttyS2" "$com3"  "/dev/ttyS3" "$com4" 2> $TMP/mport || ( rm -f $portf && exit 0 )
+		MDEVICE="`cat $portf`"
+		mouselink=`basename $MDEVICE`
+		MTYPE=$MOUSE_TYPE
+	elif [ "$MOUSE_TYPE" = "ps2" ]; then
+		mouselink=psaux
+		MTYPE="ps2"
+	elif [ "$MOUSE_TYPE" = "ncr" ]; then
+		mouselink=psaux
+		MTYPE="ncr"
+	elif [ "$MOUSE_TYPE" = "imps2" ]; then
+		mouselink=psaux
+		MTYPE="imps2"
+	elif [ "$MOUSE_TYPE" = "logibm" ]; then
+		mouselink=logibm
+		MTYPE="ps2"
+	elif [ "$MOUSE_TYPE" = "atibm" ]; then
+		mouselink=atibm
+		MTYPE="ps2"
+	elif [ "$MOUSE_TYPE" = "inportbm" ]; then
+		mouselink=inportbm
+		MTYPE="bm"
+	elif [ "$MOUSE_TYPE" = "js" ]; then
+		mouselink=js0
+		MTYPE="js"
+	elif [ "$MOUSE_TYPE" = "usb" ]; then
+		mouselink=input/mice
+		MTYPE="imps2"
+	fi
+fi
+
+# creating the config in /etc/sysconfig:
+cat << EOF > /etc/sysconfig/gpm
+# /etc/sysconfig/gpm
+# configuration file for gpm
+
+# the mouse file to open
+dev=$mouselink
+
+# type of your mouse device
+type=$MTYPE
+EOF

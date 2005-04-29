@@ -1,0 +1,141 @@
+# Last modified: Sat, 16 Apr 2005 16:08:58 +0200
+# Compiling time: ~51 minutes
+# Maintainer: Laszlo Dvornik <dvornik@gnome.hu>
+# Contributor: VMiklos <mamajom@axelero.hu>
+
+pkgname=firefox
+pkgver=1.0.3
+pkgrel=1
+pkgdesc="Mozilla Firefox web browser"
+url="http://www.mozilla.org/projects/firefox/"
+depends=('gtk+2' 'libidl' 'desktop-file-utils')
+makedepends=('libgnome' 'zip')
+groups=('xapps')
+install=$pkgname.install
+up2date=`wget -O - -q ftp://ftp.mozilla.org/pub/mozilla.org/firefox/releases/|grep '>[0-9\.]*/'|sed -n 's|.*>\([0-9\.]*\)/.*|\1|;$ p'`
+source=(http://ftp.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/source/$pkgname-$pkgver-source.tar.bz2 \
+	# Disable the default application checks.
+	01-$pkgname-PR1-default-applications.patch \
+	# Force use of GTK+2 for Flash player to get better performance.
+	02-$pkgname-1.0-gtk+2-flash.patch \
+	03-$pkgname-1.0-browsername.patch \
+	# Support newer FreeType2.
+	04-$pkgname-0.7.3-freetype-compile.patch \
+	# Autodetect language.
+	05-$pkgname-1.0-lang-detection.patch \
+	# Download to ~/Desktop, not ~.
+	06-$pkgname-1.0-download-to-desktop.patch \
+	# Some versions of the mime stuff will add whitespace to the end or
+	# beginning of the command. Fix this.
+	07-$pkgname-PR1-gnome-vfs-default-app.patch \
+	08-$pkgname-PR1-stack-direction.patch \
+	# GTK+2 file chooser fixes.
+	09-$pkgname-PR1-gtk+2-file-chooser-more-fixes.patch \
+	# Don't use --libs since that can do evil things like add
+	# -Wl,--export-dynamic
+	10-$pkgname-PR1-pkgconfig.patch \
+	11-$pkgname-1.0-useragent.patch \
+	browserconfig.properties \
+	config \
+	ffremote \
+	# GNOME menu file.
+	$pkgname.desktop \
+	$pkgname.install \
+	$pkgname.png \
+	$pkgname-rebuild-databases.pl \
+	generate-chrome.sh \
+	# KDE menu file.
+	mozilla-$pkgname.desktop)
+md5sums=('f1a9a8da0547564a0f8a249f9d56bdf4' \
+	'8b06ceabe3757a99a1dd0f879c52a64d' \
+	'ff046a0bd60da85296742201cd3c920b' \
+	'5e07bf98a15774f6135340c890c4e4dc' \
+	'd53fccb9616e19ac0302cf6c65b19d00' \
+	'0524f903a01f8ac338e453ee10f3b863' \
+	'd546df829ee31bf55be5e1ea8c1aa932' \
+	'1a719de92d68be02ba18f7cb59e2ec46' \
+	'5b28e0fe4f229230cc0fea5afcaae413' \
+	'54d3aaec464df6aeaf5db8ca45429517' \
+	'ddeb23a4941dd256d6a13a6075392ce4' \
+	'4dad7f4615598bfa3d512a40ea59af00' \
+	'ef561b1f4f8bebc60ba8ffa727c391d0' \
+	'c9b4e1be1585cbe7041840d1164fe21f' \
+	'ba45aa5d9ce8a24c612b3094439ab1dc' \
+	'ef2c3dce3d4e566468efb7ade6526f16' \
+	'e63a101013ecbf51dc1405f84c765317' \
+	'6b8f0108b45be58c178f4ae4a176e2bd' \
+	'c814a468176a1c1a10a858cd396b4429' \
+	'ee3fcb945c6758198b602e1968e766d5' \
+	'dddee658ec764878b4c7f64cfd9f509c')
+
+build() {
+	cd $startdir/src/mozilla
+	sed "s/-march i686/$CFLAGS/" $startdir/src/config > .mozconfig
+	export MOZ_PHOENIX=1
+	patch -p0 < $startdir/src/01-$pkgname-PR1-default-applications.patch || return 1
+	patch -p1 < $startdir/src/02-$pkgname-1.0-gtk+2-flash.patch || return 1
+	patch -p1 < $startdir/src/03-$pkgname-1.0-browsername.patch || return 1
+	patch -p0 < $startdir/src/04-$pkgname-0.7.3-freetype-compile.patch || return 1
+	patch -p1 < $startdir/src/05-$pkgname-1.0-lang-detection.patch || return 1
+	patch -p0 < $startdir/src/06-$pkgname-1.0-download-to-desktop.patch || return 1
+	patch -p1 < $startdir/src/07-$pkgname-PR1-gnome-vfs-default-app.patch || return 1
+	patch -p0 < $startdir/src/08-$pkgname-PR1-stack-direction.patch || return 1
+	patch -p0 < $startdir/src/09-$pkgname-PR1-gtk+2-file-chooser-more-fixes.patch || return 1
+	patch -p0 < $startdir/src/10-$pkgname-PR1-pkgconfig.patch || return 1
+	patch -p0 < $startdir/src/11-$pkgname-1.0-useragent.patch || return 1
+
+	make -f client.mk build || return 1
+	make || return 1
+
+	mkdir -p $startdir/pkg/usr
+	make DESTDIR=$startdir/pkg install
+
+	# Compatibility.
+	cd $startdir/pkg/usr/include
+	ln -s firefox-$pkgver firefox
+	cd $startdir/pkg/usr/lib
+	ln -s firefox-$pkgver firefox
+	cd $startdir/pkg/usr/share/idl
+	ln -s firefox-$pkgver firefox
+
+	# Plugins.
+	cd $startdir/pkg/usr/lib/firefox
+	mv plugins plugins.orig
+	ln -sf /usr/lib/mozilla/plugins ./
+
+	# Conflicts with mozilla.
+	rm $startdir/pkg/usr/share/aclocal/nspr.m4
+
+	# Install ffremote.
+	install -D -m755 -o root -g root $startdir/src/ffremote \
+		$startdir/pkg/usr/bin/ffremote
+
+	# Install firefox-rebuild-databases.pl.
+	sed "s/VERSION/$pkgver/" $startdir/src/firefox-rebuild-databases.pl > \
+		$startdir/pkg/usr/lib/firefox-$pkgver/firefox-rebuild-databases.pl
+	chmod 755 $startdir/pkg/usr/lib/firefox-$pkgver/firefox-rebuild-databases.pl
+
+	# Install generate-chrome.sh.
+	install -D -m755 -o root -g root $startdir/src/generate-chrome.sh \
+		$startdir/pkg/usr/lib/firefox-$pkgver/chrome/rc.d/generate-chrome.sh
+
+	# http://frugalware.org/ is the default homepage.
+	install -D -m644 -o root -g root $startdir/src/browserconfig.properties \
+		$startdir/pkg/usr/lib/firefox-$pkgver/browserconfig.properties
+
+	# Install icon for the menu file.
+	install -D -m644 -o root -g root $startdir/src/$pkgname.png \
+		$startdir/pkg/usr/share/pixmaps/$pkgname.png
+
+	# Install GNOME menu file.
+	install -D -m644 -o root -g root $startdir/src/$pkgname.desktop \
+		$startdir/pkg/usr/share/applications/$pkgname.desktop
+
+	# Install KDE menu file.
+	install -D -m644 -o root -g root $startdir/src/mozilla-firefox.desktop \
+		$startdir/pkg/opt/kde/share/applnk/Internet/mozilla-firefox.desktop
+}
+
+# optimalization ok
+
+# vim: ft=sh

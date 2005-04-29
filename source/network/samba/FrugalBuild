@@ -1,0 +1,57 @@
+# Last Modified: Fri, 15 Apr 2005 20:07:09 +0200
+# Compiling Time: ~22 minutes
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=samba
+pkgver=3.0.14a
+pkgrel=1
+pkgdesc="SMB file and print server"
+url="http://www.samba.org"
+backup=(etc/logrotate.d/samba)
+depends=('popt' 'openldap' 'openssl')
+makedepends=('cups')
+groups=('network')
+install=$pkgname.install
+up2date=`lynx -dump 'http://hu.samba.org/samba/ftp/?M=D'|grep LATEST|sed -n -e 's/LATEST-IS-SAMBA-//' -e 's/-/\./g' -e '1 p'|tr -s ' '|cut -d ' ' -f 4|cut -d ] -f 2`
+source=(http://ftp.samba.org/samba/ftp/stable/$pkgname-$pkgver.tar.gz samba.logrotate \
+	rc.samba)
+md5sums=('ebee37e66a8b5f6fd328967dc09088e8' '20b7581d231ea42b0c9c16ed789852ce' \
+         '61b199ea2b03621587621c17a20409c9')
+
+build()
+{
+	Fcd && cd source
+	Fmake --localstatedir=/var --bindir=/usr/bin \
+        	--sbindir=/usr/sbin --with-lockdir=/var/cache/samba \
+		--sysconfdir=/etc --with-configdir=/etc/samba \
+		--with-privatedir=/etc/samba/private \
+		--with-swatdir=/usr/share/swat \
+	        --enable-cups --with-fhs --with-acl-support --with-automount \
+		--with-smbmount --with-quotas --with-syslog --with-utmp \
+		--with-libsmbclient --with-winbind || return 1
+	
+	gcc $CFLAGS $LDFLAGS client/mount.cifs.c -o bin/mount.cifs
+	
+	Fmkdir /var/spool /var/samba /var/log/samba /var/cache/samba
+	Fmkdir /etc/samba/private
+	chmod 700 $Fdestdir/etc/samba/private
+	
+	Fmakeinstall
+	Fexe $pkgname-$pkgver/source/bin/mount.cifs /sbin/mount.cifs
+	
+	Fln samba/libsmbclient.so /usr/lib/libsmbclient.so
+	Fln samba/libsmbclient.so /usr/lib/libsmbclient.so.0
+	chmod 644 $Fdestdir/usr/include/*.h
+	cat ../examples/smb.conf.default \
+		| sed 's|log file = .*$|log file = /var/log/samba/log.%m|g' \
+		>$Fdestdir/etc/samba/smb.conf.default
+	Ffile samba.logrotate /etc/logrotate.d/samba
+	Fln /usr/bin/smbmount /sbin/mount.smbfs
+	
+	Frcd
+	
+	# resolve conflicts with tdb
+	Frm /usr/bin/tdbdump
+}
+
+# vim: ft=sh

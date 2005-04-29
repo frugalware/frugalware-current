@@ -1,0 +1,130 @@
+--- firegl_public.c.orig	2005-03-06 17:50:52.000000000 +0100
++++ firegl_public.c	2005-03-04 23:45:37.000000000 +0100
+@@ -217,7 +217,11 @@
+ /* global module vars and constants - defined trough macros */
+ MODULE_AUTHOR("Fire GL - ATI Research GmbH, Germany");
+ MODULE_DESCRIPTION("ATI Fire GL");
++#if LINUX_VERSION_CODE <= 0x020600
+ MODULE_PARM(firegl, "s");
++#else
++module_param(firegl, charp, 0);
++#endif
+ #ifdef MODULE_LICENSE
+ MODULE_LICENSE("Proprietary. (C) 2002 - ATI Technologies, Starnberg, GERMANY");
+ #endif
+@@ -2424,7 +2428,7 @@
+ 
+ static vm_nopage_ret_t vm_pcie_nopage(struct vm_area_struct* vma,
+                                      unsigned long address,
+-                                     int write_access)
++                                     int *type)
+ {  
+        return do_vm_pcie_nopage(vma, address);
+ }
+@@ -2703,8 +2707,12 @@
+ 			struct page 	*page = virt_to_page((unsigned long)__va(VM_OFFSET(vma)));
+ 			if (!VALID_PAGE(page) || PageReserved(page))
+ #else
++#if LINUX_VERSION_CODE >= 0x02060b
++            if (vma->vm_pgoff >= __pa(high_memory))
++#else
+             if (__ke_vm_offset(vma) >= __pa(high_memory))
+ #endif
++#endif
+             {
+ #ifdef __i386__
+                 if (boot_cpu_data.x86 > 3)
+@@ -2719,13 +2727,23 @@
+ #endif /* __ia64__ */
+                 vma->vm_flags |= VM_IO; /* not in core dump */
+             }
++#if LINUX_VERSION_CODE >= 0x02060b
++            if (remap_pfn_range(FGL_VMA_API_PASS
++                                 vma->vm_start,
++                                 vma->vm_pgoff,
++#else
+             if (remap_page_range(FGL_VMA_API_PASS
+                                  vma->vm_start,
+                                  __ke_vm_offset(vma),
++#endif
+                                  vma->vm_end - vma->vm_start,
+                                  vma->vm_page_prot))
+             {
++#if LINUX_VERSION_CODE >= 0x02060b
++                __KE_DEBUG("remap_pfn_range failed\n");
++#else
+                 __KE_DEBUG("remap_page_range failed\n");
++#endif
+                 return -EAGAIN;
+             }
+             vma->vm_flags |= VM_SHM | VM_RESERVED; /* Don't swap */
+@@ -2786,9 +2804,15 @@
+ 			{
+ 				if (__ke_vm_offset(vma) >= __pa(high_memory))
+ 					vma->vm_flags |= VM_IO; /* not in core dump */
++#if LINUX_VERSION_CODE >= 0x02060b
++                                if (remap_pfn_range(FGL_VMA_API_PASS
++                                        vma->vm_start,
++                                        vma->vm_pgoff,
++#else
+ 				if (remap_page_range(FGL_VMA_API_PASS
+ 									 vma->vm_start,
+ 									 __ke_vm_offset(vma),
++#endif
+ 									 vma->vm_end - vma->vm_start,
+ 									 vma->vm_page_prot))
+ 				{
+@@ -2823,9 +2847,15 @@
+ 			{
+ 				if (__ke_vm_offset(vma) >= __pa(high_memory))
+ 					vma->vm_flags |= VM_IO; /* not in core dump */
++#if LINUX_VERSION_CODE >= 0x02060b
++                                if (remap_pfn_range(FGL_VMA_API_PASS
++                                         vma->vm_start,
++                                         vma->vm_pgoff,
++#else
+ 				if (remap_page_range(FGL_VMA_API_PASS
+ 									 vma->vm_start,
+ 									 __ke_vm_offset(vma),
++#endif
+ 									 vma->vm_end - vma->vm_start,
+ 									 vma->vm_page_prot))
+ 				{
+@@ -2873,6 +2903,37 @@
+ 
+ #if LINUX_VERSION_CODE >= 0x020400
+ 
++#if LINUX_VERSION_CODE >= 0x02060b
++
++typedef struct {
++   void         (*free_memory)(struct agp_memory *);
++   struct agp_memory *   (*allocate_memory)(size_t, u32);
++   int         (*bind_memory)(struct agp_memory *, off_t);
++   int         (*unbind_memory)(struct agp_memory *);
++   void         (*enable)(u32);
++   int         (*acquire)(void);
++   void         (*release)(void);
++   int         (*copy_info)(struct agp_kern_info *);
++} drm_agp_t;
++
++static const drm_agp_t drm_agp = {
++   &agp_free_memory,
++   &agp_allocate_memory,
++   &agp_bind_memory,
++   &agp_unbind_memory,
++   &agp_enable,
++   &agp_backend_acquire,
++   &agp_backend_release,
++   &agp_copy_info
++};
++#undef DRM_AGP_MODULE_GET
++#undef DRM_AGP_MODULE_PUT
++
++#define DRM_AGP_MODULE_GET      &drm_agp
++#define DRM_AGP_MODULE_PUT
++
++#endif
++
+ static const drm_agp_t  *drm_agp_module_stub = NULL;
+ 
+ #define AGP_FUNCTIONS		8

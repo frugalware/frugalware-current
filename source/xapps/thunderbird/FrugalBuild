@@ -1,0 +1,86 @@
+# Last Modified: Wed, 23 Mar 2005 01:16:59 +0100
+# Compiling Time: ~2,1 hours
+# Maintainer: IroNiQ <iron@ironiq.hu>
+
+pkgname=thunderbird
+pkgver=1.0.2
+pkgrel=1
+pkgdesc="Mail and News client based on Mozilla Mail"
+url="http://www.mozilla.org/products/thunderbird"
+depends=('gtk+2' 'libidl' 'gcc')
+makedepends=('zip')
+up2date=`lynx -dump 'http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/?M=D' | grep '[0-9]/$' | cut -d '/' -f 8 | sort -r | head -n 1`
+source=(ftp://ftp.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/source/$pkgname-$pkgver-source.tar.bz2 \
+	$pkgname-$pkgver-destdir_fix-1.diff)
+
+md5sums=('9e5b8a3edb3ced400e769dc2faa45317' '96baf4dbedc993370f79502903a30a20')
+
+build() {
+
+	cd $startdir/src/mozilla
+	
+	export MOZILLA_OFFICIAL="1"
+	export BUILD_OFFICIAL="1"
+	export MOZ_THUNDERBIRD="1"
+
+	patch -Np1 -i $startdir/src/$pkgname-$pkgver-destdir_fix-1.diff
+	
+	./configure --prefix=/usr \
+	--with-default-mozilla-five-home=/usr/lib/thunderbird-$pkgver \
+	--with-system-zlib \
+	--with-system-png \
+	--with-system-jpeg \
+	--enable-application=mail \
+	--enable-default-toolkit=gtk2 \
+	--enable-extensions=wallet,spellcheck,xmlextras,webservices \
+	--enable-crypto \
+	--enable-xft \
+	--enable-xinerama \
+	--enable-optimize \
+	--enable-reorder \
+	--enable-strip \
+	--enable-cpp-rtti \
+	--enable-single-profile \
+	--enable-necko-protocols=http,file,jar,viewsource,res,data \
+	--enable-image-decoders=default,-xbm \
+	--disable-freetype2 \
+	--disable-accessibility \
+	--disable-debug \
+	--disable-tests \
+	--disable-logging \
+	--disable-pedantic \
+	--disable-installer \
+	--disable-profilesharing \
+	--disable-mathml \
+	--disable-oji \
+	--disable-plugins \
+	--disable-necko-disk-cache
+
+	make || return 1
+
+	make DESTDIR=$startdir/pkg install
+	install -d $startdir/pkg/usr/include/$pkgname-$pkgver/nss
+	cp -Lf dist/private/nss/*.h dist/public/nss/*.h $startdir/pkg/usr/include/$pkgname-$pkgver/nss
+	chown -R root:root $startdir/pkg/usr/include/$pkgname-$pkgver/nss
+
+	cd $startdir/pkg/usr/include
+	ln -s $pkgname-$pkgver $pkgname
+	cd $startdir/pkg/usr/lib
+	ln -s $pkgname-$pkgver $pkgname
+	cd $startdir/pkg/usr/share/idl
+	ln -s $pkgname-$pkgver $pkgname
+
+	cd $startdir/pkg/usr/lib/$pkgname-$pkgver
+	export LD_LIBRARY_PATH="$PWD"
+	export MOZILLA_FIVE_HOME="$PWD"
+	./regxpcom
+	./regchrome
+	touch `find . -name *.rdf`
+	export CHROME_PATH="$startdir/pkg/usr/lib/$pkgname-$pkgver/chrome"
+	sed -i.orig -e "/cookieContextOverlay/d" $CHROME_PATH/overlayinfo/messenger/content/overlays.rdf
+	sed -i.orig -e "/cookieContextOverlay/d" -e "/helpMenuOverlay/d" $CHROME_PATH/overlayinfo/communicator/content/overlays.rdf
+	unset CHROME_PATH LD_LIBRARY_PATH MOZILLA_FIVE_HOME MOZILLA_OFFICIAL BUILD_OFFICIAL MOZ_THUNDERBIRD
+	rm $startdir/pkg/usr/bin/defaults/profile/prefs.js
+}
+
+# vim: ft=sh

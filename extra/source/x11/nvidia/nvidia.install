@@ -1,0 +1,40 @@
+post_install()
+{
+	nvver=`echo $1|sed 's/-[0-9]*$//;s/_/-/'`
+
+	if [ -e /tmp/.X0-lock ]; then
+		echo "*** You appear to be running an X server. Stop that (run 'init 3') and"
+		echo "*** re-intall this package."
+		return 1
+	fi
+	echo "*** In order to use this package you have to accept Nvidia's license wich"
+	echo "*** can be found at /usr/share/doc/NVIDIA_GLX-1.0/LICENSE."
+	echo "*** If you don't accept it, please remove the package!"
+	cd /tmp/.nvidia
+	/tmp/.nvidia/NVIDIA-Linux-x86-$nvver-pkg0.run -x 
+	cd NVIDIA-Linux-x86-$nvver-pkg0
+	./nvidia-installer -a -q --no-network --ui=none -n >/dev/null
+	modprobe nvidia
+	rm -rf /tmp/.nvidia
+	sed -i 's/^Load  "dri"/# Load  "dri"/' /etc/X11/xorg.conf
+	sed -i 's/\(^Driver *\)"nv"/\1"nvidia"/' /etc/X11/xorg.conf
+}
+
+post_upgrade()
+{
+	post_install $1
+}
+
+pre_remove() {
+	rmmod nvidia
+	nvidia-installer -a -q --no-network --ui=none --uninstall >/dev/null
+	sed -i 's/^# Load  "dri"/Load  "dri"/' /etc/X11/xorg.conf
+	sed -i 's/\(^Driver *\)"nvidia"/\1"nv"/' /etc/X11/xorg.conf
+}
+
+op=$1
+shift
+
+$op $*
+
+# vim: ft=sh

@@ -1,0 +1,64 @@
+diff -ruN gnome-volume-manager-1.1.3-old/src/manager.c gnome-volume-manager-1.1.3/src/manager.c
+--- gnome-volume-manager-1.1.3-old/src/manager.c	2005-02-23 15:54:46.000000000 +0100
++++ gnome-volume-manager-1.1.3/src/manager.c	2005-02-23 15:55:55.000000000 +0100
+@@ -678,11 +678,9 @@
+     }
+ 
+     ret = (gvm_run_command_sync(device , BIN_MOUNT, NULL, udi) == 0);
+-    if (ret) {
+   		/* add to list of all volumes mounted during lifetime */
+   		all_mounted_volumes = 
+          g_slist_append (all_mounted_volumes, g_strdup (udi));
+-    }
+     if (ret && run_policy) {
+ 		  mounted_volumes_policy_queue = 
+         g_slist_append (mounted_volumes_policy_queue, g_strdup(udi));
+@@ -815,6 +813,7 @@
+ 	dbus_bool_t has_audio;
+ 	dbus_bool_t has_data;
+ 	dbus_bool_t is_blank;
++	GSList *i;
+ 
+ 	has_audio = hal_device_get_property_bool (hal_ctx, udi,
+ 						  "volume.disc.has_audio");
+@@ -831,6 +830,17 @@
+ 		goto out;
+ 	}
+ 
++        /* check whether we already saw the insertion/change of this device
++         * without a removal; this happens on HAL restarts */
++        for (i=all_mounted_volumes; i != NULL; i = g_slist_next (i))
++                if (strcmp (udi, (const char *)i->data) == 0) {
++                    dbg ("Detected change event on already handled device, probably due to a hald restart\n");
++                    goto out;
++                }
++
++        /* add to the list of mounted volumes */
++        all_mounted_volumes = g_slist_append (all_mounted_volumes, g_strdup (udi));
++
+ 	if (has_audio && (!has_data)) {
+ 		gvm_run_cdplayer (device, device, udi);
+ 	} else if (has_audio && has_data) {
+@@ -974,7 +984,22 @@
+ hal_device_removed (LibHalContext *ctx __attribute__((__unused__)), 
+ 		    const char *udi)
+ {
++	GSList *i;
++	GSList *next;
++
+ 	dbg ("Device removed: %s\n", udi);
++        /* remove from list of all volumes mounted during lifetime */
++
++        for (i=all_mounted_volumes; i != NULL; i = next) {
++                next = g_slist_next (i);
++                if (strcmp (udi, (const char *)i->data) == 0) {
++                        g_free (i->data);
++                        all_mounted_volumes = 
++                                g_slist_delete_link (
++                                        all_mounted_volumes, i);
++                        break;
++                }
++        }
+ }
+ 
+ /** Invoked when device in the Global Device List acquires a new capability.

@@ -1,0 +1,164 @@
+diff -ruN gnome-volume-manager-old/src/manager.c gnome-volume-manager/src/manager.c
+--- gnome-volume-manager-old/src/manager.c	2004-11-19 13:27:47.299259000 +0100
++++ gnome-volume-manager/src/manager.c	2004-11-19 14:11:09.564039480 +0100
+@@ -491,6 +491,27 @@
+ 	hal_free_string (mount_point);
+ }
+ 
++/* Returns true if the storage policy indicates this should be manually 
++ * mounted */
++static gboolean
++gvm_is_manual_mount(LibHalContext *ctx, const char *udi) {
++  gchar *parent;
++  gboolean ret = FALSE;
++
++  parent = hal_device_get_property_string(ctx, udi, "info.parent");
++  if (hal_device_property_exists (hal_ctx, parent, 
++                                  "storage.automount_enabled_hint")) {
++      ret = !hal_device_get_property_bool (hal_ctx, parent,
++                                          "storage.automount_enabled_hint");
++  }
++  if (hal_device_property_exists (hal_ctx, udi, 
++                                  "storage.automount_enabled_hint")) {
++      ret = !hal_device_get_property_bool (hal_ctx, udi,
++                                          "storage.automount_enabled_hint");
++  }
++  return ret;
++}
++
+ /*
+  * gvm_device_mount - use BIN_MOUNT to mount the given device node.
+  *
+@@ -500,9 +521,47 @@
+  * @return TRUE iff the mount was succesful
+  */
+ static gboolean
+-gvm_device_mount (const char *udi, const char *device)
++gvm_device_mount (const char *udi, const char *device, gboolean run_policy)
+ {
+-  return (gvm_run_command_sync(device , BIN_MOUNT, NULL, udi) == 0);
++    gboolean ret = FALSE;
++    /* don't attempt to mount if the automount_hint is false */
++    if (gvm_is_manual_mount(hal_ctx, udi)) {
++      dbg("%s has storage.automount_enabled_hint == false, not mounting\n"
++          , udi);
++      return FALSE;
++    }
++		/* don't attempt to mount already mounted volumes */
++		if (!hal_device_property_exists (hal_ctx, udi, 
++						"volume.is_mounted") ||
++		    hal_device_get_property_bool (hal_ctx, udi, 
++						  "volume.is_mounted")) {
++        dbg("%s already mounted, not mounting again\n", udi);
++			return FALSE;
++    }
++
++		/* only mount if the block device got a sensible filesystem 
++     * or when hal couldn't detect the filesystem */
++		if (!hal_device_property_exists (hal_ctx, udi, 
++						"volume.fsusage") ||
++		    (strcmp (hal_device_get_property_string (hal_ctx, udi, 
++							    "volume.fsusage"), "filesystem") != 0 
++         && strcmp (hal_device_get_property_string (hal_ctx, udi,
++                               "volume.fsusage"), "") != 0)) {
++        dbg("%s isn't a filesystem\n", udi);
++      return FALSE;
++    }
++
++    ret = (gvm_run_command_sync(device , BIN_MOUNT, NULL, udi) == 0);
++    if (ret) {
++  		/* add to list of all volumes mounted during lifetime */
++  		all_mounted_volumes = 
++         g_slist_append (all_mounted_volumes, g_strdup (udi));
++    }
++    if (ret && run_policy) {
++		  mounted_volumes_policy_queue = 
++        g_slist_append (mounted_volumes_policy_queue, g_strdup(udi));
++    }
++    return ret;
+ }
+ 
+ /*
+@@ -572,8 +631,7 @@
+ 
+ 	switch (action) {
+ 	case MOUNT:
+-		gvm_device_mount (udi, device);
+-		mounted_volumes_policy_queue = g_slist_append (mounted_volumes_policy_queue, g_strdup (udi));
++		gvm_device_mount (udi, device, TRUE);
+ 		break;
+ 	case PLAY:
+ 		gvm_run_cdplayer (device, device, udi);
+@@ -649,8 +707,7 @@
+ 		gvm_ask_mixed (udi);
+ 	} else if (has_data) {
+ 		if (config.automount_media) {
+-			gvm_device_mount (udi, device);
+-			mounted_volumes_policy_queue = g_slist_append (mounted_volumes_policy_queue, g_strdup (udi));
++			gvm_device_mount (udi, device, TRUE);
+ 		}
+ 	} else if (is_blank) {
+ 		if (gvm_device_is_writer (drive_udi))
+@@ -707,8 +764,7 @@
+ 		dbg ("Added: %s\n", device);
+ 		
+ 		if (config.automount_drives) {
+-			gvm_device_mount (udi, device);
+-			mounted_volumes_policy_queue = g_slist_append (mounted_volumes_policy_queue, g_strdup (udi));
++			gvm_device_mount (udi, device, TRUE);
+ 		}
+ 	}
+ 
+@@ -771,8 +827,7 @@
+ 	dbg ("Added: %s\n", device);
+ 	
+ 	if (config.automount_drives) {
+-		gvm_device_mount (udi, device);
+-		mounted_volumes_policy_queue = g_slist_append (mounted_volumes_policy_queue, g_strdup (udi));
++		gvm_device_mount (udi, device, TRUE);
+ 	}
+ 	
+ out:
+@@ -845,10 +900,6 @@
+ 
+ 		dbg ("Mounted: %s\n", udi);
+ 
+-		/* add to list of all volumes mounted during lifetime */
+-		all_mounted_volumes = g_slist_append (all_mounted_volumes,
+-						      g_strdup (udi));
+-
+ 		policy_udi = g_slist_find_custom (mounted_volumes_policy_queue, 
+ 						  udi, 
+ 						  (GCompareFunc)g_ascii_strcasecmp);
+@@ -1022,22 +1073,6 @@
+ 	volumes = hal_find_device_by_capability (ctx, "volume", &num_volumes);
+ 	for (i = 0; i < num_volumes; i++) {
+ 		udi = volumes [i];
+-
+-		/* don't attempt to mount already mounted volumes */
+-		if (!hal_device_property_exists (ctx, udi, 
+-						"volume.is_mounted") ||
+-		    hal_device_get_property_bool (ctx, udi, 
+-						  "volume.is_mounted"))
+-			continue;
+-
+-		/* only mount if the block device got a sensible filesystem */
+-		if (!hal_device_property_exists (ctx, udi, 
+-						"volume.fsusage") ||
+-		    strcmp (hal_device_get_property_string (ctx, udi, 
+-							    "volume.fsusage"), 
+-			    "filesystem") != 0)
+-			continue;
+-
+     drive_udi = hal_device_get_property_string(ctx, udi, "info.parent");
+ 
+ 		if (hal_device_property_exists(ctx, drive_udi, "storage.hotpluggable") &&
+@@ -1059,7 +1094,7 @@
+ 
+ 			dbg ("mount_all: mounting %s\n", device_file);
+ 
+-			gvm_device_mount (udi, device_file);
++			gvm_device_mount (udi, device_file, FALSE);
+ 
+ 			hal_free_string (device_file);
+ 		} else

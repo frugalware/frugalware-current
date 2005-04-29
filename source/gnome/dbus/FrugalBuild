@@ -1,0 +1,47 @@
+# Last modified: Sat, 19 Feb 2005 19:08:27 +0100
+# Compiling time: ~2 minutes
+# Maintainer: Laszlo Dvornik <dvornik@gnome.hu>
+
+pkgname=dbus
+pkgver=0.23.2
+pkgrel=1
+pkgdesc="A message bus system"
+url="http://freedesktop.org/wiki/Software_2fdbus"
+depends=('expat' 'gtk+2')
+makedepends=('pkgconfig' 'pyrex' 'gtk-sharp')
+groups=('gnome' 'gnome-core')
+install=$pkgname.install
+up2date=`lynx -dump http://freedesktop.org/wiki/Software_2fdbus|grep "latest release"|sed -n 's/.*-\(.*\)\.t.*/\1/;1 p'`
+source=(http://dbus.freedesktop.org/releases/$pkgname-$pkgver.tar.gz \
+	$pkgname.install \
+	rc.$pkgname)
+md5sums=('654a2207203636dca0007de384cf0893' \
+	'd1d771afa95bfa18b3847ff68969d902' \
+	'587490993de4d874935ea4ab88ef7695')
+
+build() {
+	export MONO_SHARED_DIR=$startdir/src/.wabi
+	mkdir -p $MONO_SHARED_DIR
+	cd $startdir/src/$pkgname-$pkgver
+
+	sed -e 's|<user>messagebus|<user>nobody|g' -i bus/system.conf.in
+	./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
+		--enable-x --enable-gtk --enable-glib --enable-python \
+		--enable-mono --enable-checks --enable-asserts --disable-qt \
+		--with-system-pid-file=/var/run/dbus.pid \
+		--with-system-socket=/var/lib/dbus/system_bus_socket
+
+	make || return 1
+
+	make DESTDIR=$startdir/pkg install
+	mkdir -p $startdir/pkg/var/lib/dbus
+	rm -rf $MONO_SHARED_DIR
+
+	# Init scripts.
+	mkdir -p $startdir/pkg/etc/rc.d/rc.messages
+	install -m755 $startdir/rc.$pkgname $startdir/pkg/etc/rc.d/rc.$pkgname
+	install -m644 $startdir/messages/$pkgname.* \
+		$startdir/pkg/etc/rc.d/rc.messages/
+}
+
+# vim: ft=sh

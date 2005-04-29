@@ -1,0 +1,101 @@
+# Last Modified: Mon, 28 Mar 2005 21:43:55 +0200
+# Compiling Time: ~3 minutes
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=sendmail
+pkgver=8.13.4
+pkgrel=1
+pkgdesc="Eric Allman's mail transfer agent"
+url="http://www.sendmail.org/"
+depends=('db' 'glibc' 'openssl' 'procmail')
+groups=('network-extra')
+provides=('mta')
+backup=(etc/mail/{access,access.db,aliases,aliases.db,domaintable,domaintable.db,local-host-names,mailertable,mailertable.db,Makefile,trusted-users,virtusertable,virtusertable.db,sendmail.cf,submit.cf})
+up2date=`lynx -dump http://www.sendmail.org/|grep '[0-9] is available'|sed -n 's/.*l \(.*\) i.*/\1/;1 p'`
+source=(ftp://ftp.sendmail.org/pub/$pkgname/$pkgname.$pkgver.tar.gz \
+	site.config.m4 linux.uucp.mc sendmail-frugalware-tls.mc \
+	sendmail-frugalware.mc rc.sendmail cf2mc)
+md5sums=('61e336750b48b01abaa69b4d7c9473b5' '510cd71daf9b4541a157398127b741b8' \
+	 '2fdc9e4d0953e13ea7369730bab77148' '59f4762d9675f6f40ce2bd737c3107b8' \
+	 '098e510c7372ab5ee3fdaddba096faf6' '090db057bab895cfb82580881efdead6' \
+	 'e4831625e5596e3a7b40ac06331f7ab8')
+
+build()
+{
+	Fcd
+	cp $Fsrcdir/site.config.m4 devtools/Site/
+
+	# build .cf files
+	cd cf/cf
+	Fmkdir /usr/share/sendmail
+	for i in linux.uucp sendmail-frugalware sendmail-frugalware-tls
+	do
+		cp $Fsrcdir/$i.mc .
+		cp $i.mc config.mc
+		sh Build config.cf
+		Ffilerel config.cf /usr/share/sendmail/$i.cf
+	done
+
+	# add sample config
+	Fmkdir /etc/mail
+	Fcp /usr/share/sendmail/sendmail-frugalware.cf /etc/mail/sendmail.cf
+	Ffilerel /etc/mail/submit.cf
+
+	# build
+	cd ../../
+	make O="$CFLAGS" || return 1
+
+	# install binaries and manpages
+	Fmkdir /usr/man/man{1,5,8}
+	Ffilerel sendmail/{mailq.1,newaliases.1} /usr/man/man1/
+	cd obj.`uname -srm | tr ' ' '.'`/sendmail
+	Fexerel /usr/sbin/sendmail
+	Ffilerel /usr/man/man5/aliases.5
+	Ffilerel /usr/man/man8/sendmail.8
+	Ffilerel /etc/mail/statistics
+	(cd ../../sendmail && Ffilerel /etc/mail/helpfile)
+	for i in makemap mailstats smrsh mail.local editmap
+	do
+		cd ../$i
+		Fexerel /usr/sbin/$i
+		Ffilerel /usr/man/man8/$i.8
+	done
+	for i in praliases rmail
+	do
+		cd ../$i
+		Fexerel $Fdestdir/usr/bin/$i
+		Ffilerel /usr/man/man8/$i.8
+	done
+	cd ../vacation
+	Fexerel /usr/bin/vacation
+	Ffilerel /usr/man/man1/vacation.1
+
+	# libmilter
+	cd ../../libmilter
+	./Build
+	cd ..
+	Fmkdir /usr/include/libmilter
+	cp -a include/libmilter/{mfapi.h,mfdef.h} \
+		$Fdestdir/usr/include/libmilter
+	Ffilerel obj.*/libmilter/libmilter.a /usr/lib/libmilter.a
+
+	# misc
+	Ffile ../mail/* /etc/mail/
+	Fmkdir /var/spool/{clientmqueue,mqueue}
+	chmod 770 $Fdestdir/var/spool/clientmqueue
+	chown smmsp.smmsp $Fdestdir/var/spool/clientmqueue
+	chmod 700 $Fdestdir/var/spool/mqueue
+	chown root.mail $Fdestdir/var/spool/mqueue
+	Fcd
+	
+	# users may want to create their own cf's
+	Fmkdir /usr/share/sendmail/cf
+	cd $Fdestdir/usr/share/sendmail/cf
+	cp -a $Fsrcdir/sendmail-$pkgver/cf/README .
+	for i in cf domain feature hack m4 mailer ostype sh siteconfig ; do
+		cp -a $Fsrcdir/sendmail-$pkgver/cf/$i .
+	done
+	cp -f $Fsrcdir/cf2mc cf/Build
+}
+
+# vim: ft=sh

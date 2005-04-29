@@ -1,0 +1,5 @@
+APPENDDEF(`confMAPDEF', `-DNEWDB -DSTARTTLS -DTCPWRAPPERS -DNIS -DMAP_REGEX')
+APPENDDEF(`confLIBS', `-lnsl -lssl -lcrypto -lwrap -lm -ldb -lresolv')
+APPENDDEF(`conf_libmilter_ENVDEF', `-DMILTER')
+APPENDDEF(`conf_sendmail_ENVDEF', `-DMILTER')
+APPENDDEF(`conf_libmilter_ENVDEF', `-D_FFR_MILTER_ROOT_UNSAFE ')

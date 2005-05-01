@@ -19,8 +19,9 @@ foreach($changelogf as $i)
 		{
 			if ($j < $fwchangelogentries)
 			{
+				if ($opennew==false)
+					fwclosebox(0);
 				fwopenbox("$i", 100, false, $fwwhite);
-				// print("<tt>");
 				print ("<p align=\"left\">\n");
 				$j++;
 			}
@@ -31,7 +32,6 @@ foreach($changelogf as $i)
 		else
 		{
 			if (substr($i, 0, 1) == "-" && !$firstline)
-#				print("<br>\n" . $i);
 				print($i . "<br>\n");
 			else
 				print($i."<br>");
@@ -47,6 +47,7 @@ foreach($changelogf as $i)
 		$opennew=true;
 	}
 }
+fwclosebox(0);
 print("<p>$fwstrprelog<a href=\"${fwtopsrchtmlpubdir}frugalware-current/ChangeLog.txt\">$fwstrmidlog</a>$fwstrpostlog");
 
 include("footer.php");

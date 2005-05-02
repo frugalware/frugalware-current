@@ -47,7 +47,6 @@ foreach($changelogf as $i)
 		$opennew=true;
 	}
 }
-fwclosebox(0);
 print("<p>$fwstrprelog<a href=\"${fwtopsrchtmlpubdir}frugalware-current/ChangeLog.txt\">$fwstrmidlog</a>$fwstrpostlog");
 
 include("footer.php");

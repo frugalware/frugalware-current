@@ -64,7 +64,7 @@ $buycd=array(
 
 // misc
 $fwdebug=false;
-$fwchangelogentries=10;
+$fwchangelogentries=20;
 $fwnewsentries=10;
 $upfile="/proc/uptime";
 $fwprefmirror=$mirrors[1][1];

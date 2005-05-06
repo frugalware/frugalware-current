@@ -2,6 +2,18 @@
 $fwtitle="Roadmap";
 include("header.php");
 
+fwopenbox("0.3 (________)");
+print("
+<table width=100%>
+<tr><td>Oct 13, 2005<td>0.3<td><i>pending
+<tr><td>Sep 29, 2005<td>0.3rc2<td><i>pending
+<tr><td>Sep 15, 2005<td>0.3rc1<td><i>pending
+<tr><td>Aug 18, 2005<td>0.3pre2<td><i>pending
+<tr><td width=30%>Jun 23, 2005<td width=30%>0.3pre1<td width=30%><i>pending
+</table>
+");
+fwclosebox();
+print("<p>");
 fwopenbox("0.2 (Aurora)");
 print("
 <table width=100%>

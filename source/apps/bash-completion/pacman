@@ -1,0 +1,216 @@
+#
+# Bash completion for ArchLinux
+#
+# v.1.1 Manolis Tzanidakis <mtzanidakis@freemail.gr>
+#
+# Distributed under the terms of the GNU General Public License, v2 or later.
+#
+
+## Changelog ####################################################
+#                                                               #
+# * 1.1 (20040117)                                              #
+#   - Code cleanup                                              #
+#   - Updated to pacman 2.7.2-2                                 #
+# * 20040216 (orelien)                                          #
+#   - Improved available_{pkgs,groups) functions                #
+#   - Added support for querying groups                         #
+#                                                               #
+#################################################################
+
+## initial functions
+#
+
+rem_selected ()
+{
+  # (Adapted from bash_completion by Ian Macdonald <ian@caliban.org>)
+  # This removes any options from the list of completions that have
+  # already been specified on the command line.
+  COMPREPLY=($(echo "${COMP_WORDS[@]}" | \
+    (while read -d ' ' i; do
+      [ "${i}" == "" ] && continue
+      # flatten array with spaces on either side,
+      # otherwise we cannot grep on word boundaries of
+      # first and last word
+      COMPREPLY=" ${COMPREPLY[@]} "
+      # remove word from list of completions
+      COMPREPLY=(${COMPREPLY/ ${i%% *} / })
+    done
+  echo ${COMPREPLY[@]})))
+  return 0
+}
+
+_installed_pkgs ()
+{
+  local installed_pkgs
+  installed_pkgs=$( ls /var/lib/pacman/local/ )
+  COMPREPLY=( $( compgen -W "$( for i in $installed_pkgs; do echo ${i%-*-*}; done )" -- $cur ) )
+}
+
+_available_pkgs ()
+{
+  local available_pkgs
+  available_pkgs=$( find /var/lib/pacman/*/* ! -path '*/local/*' -type d )
+  COMPREPLY=( $( compgen -W "$( for i in $available_pkgs; do j=${i##*/}; echo ${j%-*-*}; done )" -- $cur ) )
+}
+
+_installed_groups ()
+{
+  local installed_groups
+  installed_groups=$( find /var/lib/pacman/local -name desc -exec sed -ne '/%GROUPS%/,/^$/{//d; p}' {} \; | sort -u )
+  COMPREPLY=( $( compgen -W "$( for i in $installed_groups; do echo ${i%-*-*}; done )" -- $cur ) )
+}
+
+_available_groups ()
+{
+  local available_groups
+  available_groups=$( find /var/lib/pacman ! -path '*/local/*' -name desc -exec sed -ne '/%GROUPS%/,/^$/{//d; p}' {} \; | sort -u )
+  COMPREPLY=( $( compgen -W "$( for i in $available_groups; do echo ${i%-*-*}; done )" -- $cur ) )
+}
+
+## makepkg completion
+#
+
+_makepkg ()
+{
+  local cur prev
+  COMPREPLY=()
+  cur=${COMP_WORDS[COMP_CWORD]}
+  prev=${COMP_WORDS[COMP_CWORD-1]}
+
+  case "$prev" in
+    -@(p|w))
+      _filedir
+      return 0
+    ;;
+    --help|--cleancache|--genmd5)
+      COMPREPLY=''
+      return 0
+    ;;
+  esac
+
+  if [[ "$cur" == -* ]]; then
+    COMPREPLY=( $( compgen -W '-b --builddeps \
+      -c --clean \
+      -C --cleancache \
+      -d --nodeps \
+      -f --force \
+      -g --genmd5 \
+      -h --help \
+      -i --install \
+      -m --nocolor \
+      -n --nostrip \
+      -r --rmdeps \
+      -s --syncdeps \
+      -p -w' -- $cur ) )
+  fi
+
+  rem_selected
+}
+complete -o default -F _makepkg makepkg
+
+## pacman completion
+#
+
+_pacman ()
+{
+  local cur prev operations options
+  COMPREPLY=()
+  cur=${COMP_WORDS[COMP_CWORD]}
+  prev=${COMP_WORDS[COMP_CWORD-1]}
+
+  if [ $COMP_CWORD -eq 1 ] && [[ "$cur" == -* ]]; then
+    COMPREPLY=( $( compgen -W '-A --add \
+      -F --freshen \
+      -h --help \
+      -Q --query \
+      -R --remove \
+      -S --sync \
+      -U --upgrade \
+      -V --version'  -- $cur ) )
+     return 0
+  fi
+
+  if [[ "$cur" == -* ]]; then
+    case "${COMP_WORDS[1]}" in
+      -@(A|-add|U|-upgrade|F|-freshen))
+        COMPREPLY=( $( compgen -W '-d --nodeps \
+           -f --force \
+           -r --root \
+           -v --verbose' -- $cur ) )
+        return 0
+      ;;
+      -@(R|-remove))
+        COMPREPLY=( $( compgen -W '-f --force \
+          -c --cascade \
+          -n --nosave \
+          -v --verbose' -- $cur ) )
+        return 0
+      ;;
+      -@(S|-sync))
+        COMPREPLY=( $( compgen -W '-c --clean \
+          -d --nodeps \
+          -f --force \
+          -g --groups \
+          -r --root \
+          -s --search \
+          -u --sysupgrade \
+          -w --downloadonly \
+          -y --refresh \
+          -v --verbose' -- $cur ) )
+        return 0
+      ;;
+      -@(Q|-query))
+        COMPREPLY=( $( compgen -W '-g --groups \
+          -i --info \
+          -l --list \
+          -o --owns \
+          -p --file \
+          -v --verbose' -- $cur ) )
+        return 0
+      ;;
+    esac
+    rem_selected
+  else
+    case "${COMP_WORDS[1]}" in
+      -@(A|-add|U|-upgrade))
+        _filedir '@(pkg.tar.gz)'
+        return 0
+      ;;
+      -@(h|-help|V|-version))
+        COMPREPLY=''
+        return 0
+      ;;
+      -@(Q|-query))
+        case "$prev" in
+          -@(g|-groups))
+            _installed_groups
+            return 0
+          ;;
+          -@(i|-info|l|-list))
+            _installed_pkgs
+            return 0
+          ;;
+          -@(o|-owns))
+            _filedir
+            return 0
+          ;;
+          -@(p|-file))
+            _filedir '@(pkg.tar.gz)'
+            return 0
+          ;;
+        esac
+      ;;
+      -@(R|-remove))
+        _installed_pkgs
+        return 0
+      ;;
+      -@(S|-sync))
+        _available_pkgs
+        return 0
+      ;;
+    esac
+  fi
+
+  rem_selected
+}
+complete -o default -F _pacman pacman

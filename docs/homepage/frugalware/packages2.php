@@ -218,6 +218,7 @@ function pkg_from_id($id) {
 	if ($arr['desc'] != 'NULL') print "<tr><td>Description:</td><td>".$arr['desc']."</td></tr>\n";
 	if ($arr['maintainer'] != 'NULL') print "<tr><td>Maintainer:</td><td>".$arr['maintainer']."</td></tr>\n";
 	print("<tr><td>Download: </td><td><a href=\"download.php?url=frugalware-" . $arr['fwver'] . "/" . $arr['repo'] . "/" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . ".fpm\">" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . ".fpm</a></td></tr>");
+	print "<tr><td>Forums:</td><td><a href=\"http://forums.frugalware.org/index.php?t=search&srch=".$arr['pkgname']."\">forums.frugalware.org</a></td></tr>\n";
 	if ($arr['md5'] != 'NULL') print "<tr><td>MD5 Sum:</td><td>".$arr['md5']."</td></tr>\n";
 	if ($arr['fwver'] != 'NULL') print "<tr><td>Frugalware version:</td><td>".$arr['fwver']."</td></tr>\n";
 	if ($arr['repo'] != 'NULL') print "<tr><td>Repository:</td><td>".$arr['repo']."</td></tr>\n";

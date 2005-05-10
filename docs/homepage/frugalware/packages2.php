@@ -199,8 +199,8 @@ function pkg_from_id($id) {
 	if ($arr['repo']=="extra")
 	{
 		$repodir="/" . $arr['repo'];
-		$groupdir=preg_replace("/-extra/", "", $arr['groups']);
 	}
+	$groupdir=preg_replace("/-extra/", "", $arr['groups']);
 	print "<tr><td>Changelog:</td><td><a href=\"http://ftp.frugalware.org/pub/frugalware/frugalware-" . $arr['fwver'] . "$repodir/source/" . preg_replace("/^([^ ]*) .*/", "$1", $groupdir) . "/" . $arr['pkgname'] . "/Changelog\">Changelog</a></td></tr>\n";
 	if ($arr['groups'] != 'NULL') print "<tr><td>Groups:</td><td>".$arr['groups']."</td></tr>\n";
 	if ($arr['provides'] != 'NULL') print "<tr><td>Provides:</td><td>".$arr['provides']."</td></tr>\n";

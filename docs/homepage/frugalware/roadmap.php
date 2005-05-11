@@ -2,7 +2,7 @@
 $fwtitle="Roadmap";
 include("header.php");
 
-fwopenbox("0.3 (________)");
+fwopenbox("0.3 (<a class=menu href=\"http://www.geocities.com/Area51/Dimension/1136/galactography/worlds8.html\">Trantor</a>)");
 print("
 <table width=100%>
 <tr><td>Oct 13, 2005<td>0.3<td><i>pending

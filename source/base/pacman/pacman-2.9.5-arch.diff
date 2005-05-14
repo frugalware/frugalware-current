@@ -1,0 +1,138 @@
+diff -Naur pacman-2.9.5.orig/scripts/gensync pacman-2.9.5/scripts/gensync
+--- pacman-2.9.5.orig/scripts/gensync	2004-10-23 19:27:07.000000000 +0200
++++ pacman-2.9.5/scripts/gensync	2005-05-14 18:31:23.000000000 +0200
+@@ -22,6 +22,8 @@
+ 
+ myver='2.9.2'
+ 
++[ -z "$arch" ] && arch=`arch`
++
+ usage() {
+   echo "gensync $myver"
+   echo "usage: $0 <root> <destfile> [package_directory]"
+@@ -54,9 +56,9 @@
+ get_md5checksum()
+ {
+ 	if [ "$pkgdir" != "" ]; then
+-		pkgfile="$pkgdir/$pkgname-$pkgver-$pkgrel.fpm"
++		pkgfile="$pkgdir/$pkgname-$pkgver-$pkgrel-$arch.fpm"
+ 	else
+-		pkgfile="$destdir/$pkgname-$pkgver-$pkgrel.fpm"
++		pkgfile="$destdir/$pkgname-$pkgver-$pkgrel-$arch.fpm"
+ 	fi
+ 	if [ -f $pkgfile ]; then
+ 		md5line=`md5sum $pkgfile`
+@@ -72,8 +74,8 @@
+ 	unset groups replaces provides depends conflicts
+ 	source $1 || return 1
+ 	cd $gstmpdir
+-	mkdir $pkgname-$pkgver-$pkgrel || return 1
+-	cd $pkgname-$pkgver-$pkgrel
++	mkdir $pkgname-$pkgver-$pkgrel-$arch || return 1
++	cd $pkgname-$pkgver-$pkgrel-$arch
+ 	# desc
+ 	: >desc
+ 	echo "%NAME%" >>desc
+@@ -85,6 +87,9 @@
+ 	echo "%DESC%" >>desc
+ 	echo "$pkgdesc" >>desc
+ 	echo "" >>desc
++	echo "%ARCH%" >>desc
++	echo "$arch" >>desc
++	echo "" >>desc
+ 	echo "%CSIZE%" >>desc
+ 	echo "$csize" >>desc
+ 	echo "" >>desc
+@@ -165,9 +170,9 @@
+ for file in `find $rootdir/* -name PKGBUILD`; do
+ 	source $file || die "errors parsing $file"
+ 	if [ "$pkgdir" != "" ]; then
+-		pkgfile="$pkgdir/$pkgname-$pkgver-$pkgrel.fpm"
++		pkgfile="$pkgdir/$pkgname-$pkgver-$pkgrel-$arch.fpm"
+ 	else
+-		pkgfile="$destdir/$pkgname-$pkgver-$pkgrel.fpm"
++		pkgfile="$destdir/$pkgname-$pkgver-$pkgrel-$arch.fpm"
+ 	fi
+ 	[ -f $pkgfile ] || die "missing package file: $pkgfile"
+ 	csize=`du -b $pkgfile | cut -f1`
+diff -Naur pacman-2.9.5.orig/scripts/makepkg pacman-2.9.5/scripts/makepkg
+--- pacman-2.9.5.orig/scripts/makepkg	2004-12-19 03:09:59.000000000 +0100
++++ pacman-2.9.5/scripts/makepkg	2005-05-14 18:31:35.000000000 +0200
+@@ -670,9 +670,9 @@
+ msg "Compressing package..."
+ cd $startdir/pkg
+ if [ -f $startdir/pkg/.INSTALL ]; then
+-	cmd="tar czvf $PKGDEST/$pkgname-$pkgver-$pkgrel.fpm .PKGINFO .FILELIST .INSTALL *"
++	cmd="tar czvf $PKGDEST/$pkgname-$pkgver-$pkgrel-$CARCH.fpm .PKGINFO .FILELIST .INSTALL *"
+ else
+-	cmd="tar czvf $PKGDEST/$pkgname-$pkgver-$pkgrel.fpm .PKGINFO .FILELIST *"
++	cmd="tar czvf $PKGDEST/$pkgname-$pkgver-$pkgrel-$CARCH.fpm .PKGINFO .FILELIST *"
+ fi
+ $cmd | sort >../filelist
+ 
+diff -Naur pacman-2.9.5.orig/scripts/updatesync pacman-2.9.5/scripts/updatesync
+--- pacman-2.9.5.orig/scripts/updatesync	2004-09-25 19:59:49.000000000 +0200
++++ pacman-2.9.5/scripts/updatesync	2005-05-14 18:31:11.000000000 +0200
+@@ -23,6 +23,8 @@
+ 
+ myver='2.9.2'
+ 
++[ -z "$arch" ] && arch=`arch`
++
+ usage() {
+ 	echo "updatesync $myver"
+ 	echo "usage: $0 <action> <destfile> <option> [package_directory]"
+@@ -88,6 +90,9 @@
+ 	echo "%DESC%" >>desc
+ 	echo "$pkgdesc" >>desc
+ 	echo "" >>desc
++	echo "%ARCH%" >>desc
++	echo "$arch" >>desc
++	echo "" >>desc
+ 	echo "%CSIZE%" >>desc
+ 	echo "$csize" >>desc
+ 	echo "" >>desc
+diff -Naur pacman-2.9.5.orig/src/pacman.c pacman-2.9.5/src/pacman.c
+--- pacman-2.9.5.orig/src/pacman.c	2005-01-12 00:14:16.000000000 +0100
++++ pacman-2.9.5/src/pacman.c	2005-05-14 17:32:48.000000000 +0200
+@@ -1166,17 +1166,17 @@
+ 					char path[PATH_MAX];
+ 
+ 					if(pmo_s_printuris) {
+-						snprintf(path, PATH_MAX, "%s-%s%s", sync->pkg->name, sync->pkg->version, PKGEXT);
++						snprintf(path, PATH_MAX, "%s-%s-%s%s", sync->pkg->name, sync->pkg->version, sync->pkg->arch, PKGEXT);
+ 						files = list_add(files, strdup(path));
+ 					} else {
+-						snprintf(path, PATH_MAX, "%s/%s-%s%s",
+-							ldir, sync->pkg->name, sync->pkg->version, PKGEXT);
++						snprintf(path, PATH_MAX, "%s/%s-%s-%s%s",
++							ldir, sync->pkg->name, sync->pkg->version, sync->pkg->arch, PKGEXT);
+ 						if(stat(path, &buf)) {
+ 							/* file is not in the cache dir, so add it to the list */
+-							snprintf(path, PATH_MAX, "%s-%s%s", sync->pkg->name, sync->pkg->version, PKGEXT);
++							snprintf(path, PATH_MAX, "%s-%s-%s%s", sync->pkg->name, sync->pkg->version, sync->pkg->arch, PKGEXT);
+ 							files = list_add(files, strdup(path));
+ 						} else {
+-							vprint(" %s-%s%s is already in the cache\n", sync->pkg->name, sync->pkg->version, PKGEXT);
++							vprint(" %s-%s-%s%s is already in the cache\n", sync->pkg->name, sync->pkg->version, sync->pkg->arch, PKGEXT);
+ 							count++;
+ 						}
+ 					}
+@@ -1248,7 +1248,7 @@
+ 				char *md5sum1, *md5sum2;
+ 
+ 				sync = (syncpkg_t*)i->data;
+-				snprintf(pkgname, PATH_MAX, "%s-%s%s", sync->pkg->name, sync->pkg->version, PKGEXT);
++				snprintf(pkgname, PATH_MAX, "%s-%s-%s%s", sync->pkg->name, sync->pkg->version, sync->pkg->arch, PKGEXT);
+ 
+ 				md5sum1 = sync->pkg->md5sum;
+ 				if(md5sum1 == NULL || md5sum1[0] == '\0') {
+@@ -1340,7 +1340,7 @@
+ 				syncpkg_t *sync = (syncpkg_t*)i->data;
+ 				if(sync->pkg) {
+ 					MALLOC(str, PATH_MAX);
+-					snprintf(str, PATH_MAX, "%s/%s-%s%s", ldir, sync->pkg->name, sync->pkg->version, PKGEXT);
++					snprintf(str, PATH_MAX, "%s/%s-%s-%s%s", ldir, sync->pkg->name, sync->pkg->version, sync->pkg->arch, PKGEXT);
+ 					files = list_add(files, str);
+ 					if(sync->pkg->reason == REASON_DEPEND) {
+ 						dependonly = list_add(dependonly, strdup(str));

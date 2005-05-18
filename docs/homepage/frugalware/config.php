@@ -55,11 +55,13 @@ $rsyncmirrors=array(
 	);
 $buycd=array(
 	array("CheapISO.com",
-		"http://cheapiso.com/product_info.php&amp;products_id=141"),
+		"http://cheapiso.com/index.php?manufacturers_id=55"),
 	array("Linux Central",
-		"http://linuxcentral.com/catalog/index.php3&amp;prod_code=L000-321&amp;id=C1Cto1Nc0CrCp"),
+		"http://linuxcentral.com/catalog/index.php3?prod_code=L000-321"),
 	array("BudgetLinuxCDS",
-		"http://budgetlinuxcds.com/index.php?page=Choose&amp;letter=Frugalware")
+		"http://budgetlinuxcds.com/index.php?page=Choose&amp;letter=Frugalware"),
+	array("cdiras.projektinfo.hu",
+		"http://cdiras.projektinfo.hu/index.php?r=1&op=linux")
 	);
 
 // misc

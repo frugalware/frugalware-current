@@ -199,7 +199,10 @@ function pkg_from_id($id) {
 	if ($arr['repo']=="extra")
 	{
 		$repodir="/" . $arr['repo'];
+		$pkgpath = $arr['repo'] . "/frugalware";
 	}
+	else
+		$pkgpath = "/frugalware";
 	$groupdir=preg_replace("/-extra/", "", $arr['groups']);
 	print "<tr><td>Changelog:</td><td><a href=\"http://ftp.frugalware.org/pub/frugalware/frugalware-" . $arr['fwver'] . "$repodir/source/" . preg_replace("/^([^ ]*) .*/", "$1", $groupdir) . "/" . $arr['pkgname'] . "/Changelog\">Changelog</a></td></tr>\n";
 	if ($arr['groups'] != 'NULL') print "<tr><td>Groups:</td><td>".$arr['groups']."</td></tr>\n";
@@ -217,7 +220,7 @@ function pkg_from_id($id) {
 	if ($arr['arch'] != 'NULL') print "<tr><td>Arch:</td><td>".$arr['arch']."</td></tr>\n";
 	if ($arr['desc'] != 'NULL') print "<tr><td>Description:</td><td>".$arr['desc']."</td></tr>\n";
 	if ($arr['maintainer'] != 'NULL') print "<tr><td>Maintainer:</td><td>".$arr['maintainer']."</td></tr>\n";
-	print("<tr><td>Download: </td><td><a href=\"download.php?url=frugalware-" . $arr['fwver'] . "/" . $arr['repo'] . "/" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . "-" . $arr['arch'] . ".fpm\">" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . "-" . $arr['arch'] . ".fpm</a></td></tr>");
+	print("<tr><td>Download: </td><td><a href=\"download.php?url=frugalware-" . $arr['fwver'] . "/" . $pkgpath . "/" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . "-" . $arr['arch'] . ".fpm\">" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . "-" . $arr['arch'] . ".fpm</a></td></tr>");
 	print "<tr><td>Forums:</td><td><a href=\"http://forums.frugalware.org/index.php?t=search&srch=".$arr['pkgname']."\">forums.frugalware.org</a></td></tr>\n";
 	print "<tr><td>Wiki:</td><td><a href=\"http://wiki.frugalware.org/Special:Search?search=".$arr['pkgname']."\">wiki.frugalware.org</a></td></tr>\n";
 	if ($arr['md5'] != 'NULL') print "<tr><td>MD5 Sum:</td><td>".$arr['md5']."</td></tr>\n";

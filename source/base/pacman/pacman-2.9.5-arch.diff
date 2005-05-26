@@ -1,6 +1,22 @@
+diff -Naur pacman-2.9.5.orig/doc/makepkg.8.in pacman-2.9.5/doc/makepkg.8.in
+--- pacman-2.9.5.orig/doc/makepkg.8.in	2005-05-27 00:28:21.000000000 +0200
++++ pacman-2.9.5/doc/makepkg.8.in	2005-05-27 00:39:57.000000000 +0200
+@@ -287,6 +287,12 @@
+ one could install all KDE packages by installing the 'kde' group.
+ 
+ .TP
++.B archs \fI(array)\fP
++This array defines on which architectures the given package is avalibable.
++If it's not available, that will mean that gensync will skip it when generating
++package databases.
++
++.TP
+ .B backup \fI(array)\fP 
+ A space-delimited array of filenames (without a preceding slash). The
+ \fIbackup\fP line will be propagated to the package meta-info file for
 diff -Naur pacman-2.9.5.orig/scripts/gensync pacman-2.9.5/scripts/gensync
---- pacman-2.9.5.orig/scripts/gensync	2004-10-23 19:27:07.000000000 +0200
-+++ pacman-2.9.5/scripts/gensync	2005-05-14 18:31:23.000000000 +0200
+--- pacman-2.9.5.orig/scripts/gensync	2005-05-27 00:31:27.000000000 +0200
++++ pacman-2.9.5/scripts/gensync	2005-05-27 00:35:56.000000000 +0200
 @@ -22,6 +22,8 @@
  
  myver='2.9.2'
@@ -32,9 +48,37 @@ diff -Naur pacman-2.9.5.orig/scripts/gensync pacman-2.9.5/scripts/gensync
  	echo "%CSIZE%" >>desc
  	echo "$csize" >>desc
  	echo "" >>desc
-@@ -165,9 +170,9 @@
- for file in `find $rootdir/* -name PKGBUILD`; do
+@@ -138,6 +143,19 @@
+ 	touch -r $1 desc depends
+ }
+ 
++in_array()
++{
++	needle=$1
++	shift 1
++	# backward compatibility: if array() undefined, it's available for all archs
++	[ -z "$1" ] && return 0
++	for i in $*
++	do
++		[ "$i" == "$needle" ] && return 0
++	done
++	return 1
++}
++
+ if [ $# -lt 2 ]; then
+ 	usage
+ 	exit 0
+@@ -163,13 +181,15 @@
+ echo "gensync: building database entries, generating md5sums..." >&2
+ cd `dirname $2`
+ for file in `find $rootdir/* -name FrugalBuild`; do
+-	unset nobuild
++	unset nobuild archs
  	source $file || die "errors parsing $file"
+-	[ "$nobuild" ] && continue
++	if ! in_array `arch` ${archs[@]} || [ "$nobuild" ]; then
++		continue
++	fi
  	if [ "$pkgdir" != "" ]; then
 -		pkgfile="$pkgdir/$pkgname-$pkgver-$pkgrel.fpm"
 +		pkgfile="$pkgdir/$pkgname-$pkgver-$pkgrel-$arch.fpm"
@@ -45,9 +89,9 @@ diff -Naur pacman-2.9.5.orig/scripts/gensync pacman-2.9.5/scripts/gensync
  	[ -f $pkgfile ] || die "missing package file: $pkgfile"
  	csize=`du -b $pkgfile | cut -f1`
 diff -Naur pacman-2.9.5.orig/scripts/makepkg pacman-2.9.5/scripts/makepkg
---- pacman-2.9.5.orig/scripts/makepkg	2004-12-19 03:09:59.000000000 +0100
-+++ pacman-2.9.5/scripts/makepkg	2005-05-14 18:31:35.000000000 +0200
-@@ -321,10 +321,10 @@
+--- pacman-2.9.5.orig/scripts/makepkg	2005-05-27 00:31:27.000000000 +0200
++++ pacman-2.9.5/scripts/makepkg	2005-05-27 00:28:21.000000000 +0200
+@@ -328,10 +328,10 @@
  	exit 1
  fi
  
@@ -60,7 +104,7 @@ diff -Naur pacman-2.9.5.orig/scripts/makepkg pacman-2.9.5/scripts/makepkg
  		exit $?
  	else
  		error "a package has already been built.  (use -f to overwrite)"
-@@ -670,9 +670,9 @@
+@@ -709,9 +709,9 @@
  msg "Compressing package..."
  cd $startdir/pkg
  if [ -f $startdir/pkg/.INSTALL ]; then
@@ -72,7 +116,7 @@ diff -Naur pacman-2.9.5.orig/scripts/makepkg pacman-2.9.5/scripts/makepkg
  fi
  $cmd | sort >../filelist
  
-@@ -691,7 +691,7 @@
+@@ -746,7 +746,7 @@
  
  if [ "$INSTALL" = "1" -a "`id -u`" = "0" -a "$INFAKEROOT" != "1" ]; then
  	msg "Running pacman --upgrade..."
@@ -82,8 +126,8 @@ diff -Naur pacman-2.9.5.orig/scripts/makepkg pacman-2.9.5/scripts/makepkg
  fi
  
 diff -Naur pacman-2.9.5.orig/scripts/updatesync pacman-2.9.5/scripts/updatesync
---- pacman-2.9.5.orig/scripts/updatesync	2004-09-25 19:59:49.000000000 +0200
-+++ pacman-2.9.5/scripts/updatesync	2005-05-14 18:31:11.000000000 +0200
+--- pacman-2.9.5.orig/scripts/updatesync	2005-05-27 00:31:27.000000000 +0200
++++ pacman-2.9.5/scripts/updatesync	2005-05-27 00:28:21.000000000 +0200
 @@ -23,6 +23,8 @@
  
  myver='2.9.2'
@@ -115,9 +159,9 @@ diff -Naur pacman-2.9.5.orig/scripts/updatesync pacman-2.9.5/scripts/updatesync
  	echo "%CSIZE%" >>desc
  	echo "$csize" >>desc
  	echo "" >>desc
-@@ -206,9 +211,9 @@
- 
+@@ -207,9 +212,9 @@
  	source $option || die "errors parsing $option"
+ 	if [ ! "$nobuild" ]; then
  	if [ "$pkgdir" != "" ]; then
 -		pkgfile="$pkgdir/$pkgname-$pkgver-$pkgrel.fpm"
 +		pkgfile="$pkgdir/$pkgname-$pkgver-$pkgrel-$arch.fpm"
@@ -128,8 +172,8 @@ diff -Naur pacman-2.9.5.orig/scripts/updatesync pacman-2.9.5/scripts/updatesync
  	[ -f $pkgfile ] || die "missing package file: $pkgfile"
  	csize=`du -b $pkgfile | cut -f1`
 diff -Naur pacman-2.9.5.orig/src/pacman.c pacman-2.9.5/src/pacman.c
---- pacman-2.9.5.orig/src/pacman.c	2005-01-12 00:14:16.000000000 +0100
-+++ pacman-2.9.5/src/pacman.c	2005-05-14 17:32:48.000000000 +0200
+--- pacman-2.9.5.orig/src/pacman.c	2005-05-27 00:31:27.000000000 +0200
++++ pacman-2.9.5/src/pacman.c	2005-05-27 00:28:21.000000000 +0200
 @@ -1166,17 +1166,17 @@
  					char path[PATH_MAX];
  

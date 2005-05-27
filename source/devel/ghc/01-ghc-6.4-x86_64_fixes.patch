@@ -1,0 +1,532 @@
+diff -Naur ghc-6.4.orig/ghc/compiler/deSugar/DsForeign.lhs ghc-6.4/ghc/compiler/deSugar/DsForeign.lhs
+--- ghc-6.4.orig/ghc/compiler/deSugar/DsForeign.lhs	2005-05-26 13:51:09.000000000 +0000
++++ ghc-6.4/ghc/compiler/deSugar/DsForeign.lhs	2005-05-26 13:51:31.000000000 +0000
+@@ -24,14 +24,14 @@
+ import Type		( isUnLiftedType )
+ #endif
+ import MachOp		( machRepByteWidth, MachRep(..) )
+-import SMRep		( argMachRep, primRepToCgRep )
++import SMRep		( argMachRep, typeCgRep )
+ import CoreUtils	( exprType, mkInlineMe )
+ import Id		( Id, idType, idName, mkSysLocal, setInlinePragma )
+ import Literal		( Literal(..), mkStringLit )
+ import Module		( moduleString )
+ import Name		( getOccString, NamedThing(..) )
+ import OccName		( encodeFS )
+-import Type		( repType, coreEqType, typePrimRep )
++import Type		( repType, coreEqType )
+ import TcType		( Type, mkFunTys, mkForAllTys, mkTyConApp,
+ 			  mkFunTy, tcSplitTyConApp_maybe, 
+ 			  tcSplitForAllTys, tcSplitFunTys, tcTyConAppArgs,
+@@ -52,7 +52,7 @@
+ import BasicTypes	( Activation( NeverActive ) )
+ import SrcLoc		( Located(..), unLoc )
+ import Outputable
+-import Maybe 		( fromJust )
++import Maybe 		( fromJust, isNothing )
+ import FastString
+ \end{code}
+ 
+@@ -95,7 +95,7 @@
+   combine (ForeignStubs acc_h acc_c acc_hdrs acc_feb, acc_f) 
+ 	  (L loc (ForeignExport (L _ id) _ (CExport (CExportStatic ext_nm cconv)) depr))
+     = dsFExport id (idType id) 
+-		ext_nm cconv False                 `thenDs` \(h, c, _) ->
++		ext_nm cconv False                 `thenDs` \(h, c, _, _) ->
+       warnDepr depr loc				   `thenDs` \_              ->
+       returnDs (ForeignStubs (h $$ acc_h) (c $$ acc_c) acc_hdrs (id:acc_feb), 
+ 		acc_f)
+@@ -292,7 +292,8 @@
+ 				-- 	   the first argument's stable pointer
+ 	  -> DsM ( SDoc		-- contents of Module_stub.h
+ 		 , SDoc		-- contents of Module_stub.c
+-		 , [Type]       -- primitive arguments expected by stub function.
++		 , [MachRep]    -- primitive arguments expected by stub function
++		 , Int		-- size of args to stub function
+ 		 )
+ 
+ dsFExport fn_id ty ext_name cconv isDyn
+@@ -371,7 +372,8 @@
+      in
+      dsLookupGlobalId bindIOName		`thenDs` \ bindIOId ->
+      newSysLocalDs stable_ptr_ty		`thenDs` \ stbl_value ->
+-     dsFExport id export_ty fe_nm cconv True  	`thenDs` \ (h_code, c_code, stub_args) ->
++     dsFExport id export_ty fe_nm cconv True  	
++		`thenDs` \ (h_code, c_code, arg_reps, args_size) ->
+      let
+       stbl_app cont ret_ty = mkApps (Var bindIOId)
+ 				    [ Type stable_ptr_ty
+@@ -395,9 +397,7 @@
+ 	-- (probably in the RTS.) 
+       adjustor	 = FSLIT("createAdjustor")
+       
+-      arg_type_info = drop 2 $ map (repCharCode.argMachRep
+-                                   .primRepToCgRep.typePrimRep)
+-                                   stub_args
++      arg_type_info = map repCharCode arg_reps
+       repCharCode F32 = 'f'
+       repCharCode F64 = 'd'
+       repCharCode I64 = 'l'
+@@ -407,17 +407,9 @@
+ 	-- so that we can attach the '@N' suffix to its label if it is a
+ 	-- stdcall on Windows.
+       mb_sz_args = case cconv of
+-		      StdCallConv -> Just (sum (map ty_size stub_args))
++		      StdCallConv -> Just args_size
+ 		      _ 	  -> Nothing
+ 
+-	-- NB. the calculation here isn't strictly speaking correct.
+-	-- We have a primitive Haskell type (eg. Int#, Double#), and
+-	-- we want to know the size, when passed on the C stack, of
+-	-- the associated C type (eg. HsInt, HsDouble).  We don't have
+-	-- this information to hand, but we know what GHC's conventions
+-	-- are for passing around the primitive Haskell types, so we
+-	-- use that instead.  I hope the two coincide --SDM
+-      ty_size = machRepByteWidth.argMachRep.primRepToCgRep.typePrimRep
+      in
+      dsCCall adjustor adj_args PlayRisky io_res_ty	`thenDs` \ ccall_adj ->
+ 	-- PlayRisky: the adjustor doesn't allocate in the Haskell heap or do a callback
+@@ -464,33 +456,33 @@
+ 	       -> CCallConv 
+ 	       -> (SDoc, 
+ 		   SDoc,
+-		   [Type] 	-- the *primitive* argument types
++		   [MachRep], 	-- the argument reps
++		   Int		-- total size of arguments
+ 		  )
+ mkFExportCBits c_nm maybe_target arg_htys res_hty is_IO_res_ty cc 
+- = (header_bits, c_bits, all_prim_arg_tys)
++ = (header_bits, c_bits, 
++    [rep | (_,_,_,rep) <- arg_info],  -- just the real args
++    sum [ machRepByteWidth rep | (_,_,_,rep) <- aug_arg_info] -- all the args
++    )
+  where
+-  -- Create up types and names for the real args
+-  arg_cnames, arg_ctys :: [SDoc]
+-  arg_cnames = mkCArgNames 1 arg_htys
+-  arg_ctys   = map showStgType arg_htys
+-
+-  -- and also for auxiliary ones; the stable ptr in the dynamic case, and
+-  -- a slot for the dummy return address in the dynamic + ccall case
+-  extra_cnames_and_tys
+-     = case maybe_target of
+-          Nothing -> [((text "the_stableptr", text "StgStablePtr"), mkStablePtrPrimTy alphaTy)]
+-          other   -> []
+-       ++
+-       case (maybe_target, cc) of
+-          (Nothing, CCallConv) -> [((text "original_return_addr", text "void*"), addrPrimTy)]
+-          other                -> []
+-
+-  all_cnames_and_ctys :: [(SDoc, SDoc)]
+-  all_cnames_and_ctys 
+-     = map fst extra_cnames_and_tys ++ zip arg_cnames arg_ctys
+-
+-  all_prim_arg_tys
+-     = map snd extra_cnames_and_tys ++ map getPrimTyOf arg_htys
++  -- list the arguments to the C function
++  arg_info :: [(SDoc, 		-- arg name
++		SDoc,		-- C type
++	        Type,		-- Haskell type
++		MachRep)]	-- the MachRep
++  arg_info  = [ (text ('a':show n), showStgType ty, ty, 
++		 typeMachRep (getPrimTyOf ty))
++	      | (ty,n) <- zip arg_htys [1..] ]
++
++  -- add some auxiliary args; the stable ptr in the wrapper case, and
++  -- a slot for the dummy return address in the wrapper + ccall case
++  aug_arg_info
++    | isNothing maybe_target = stable_ptr_arg : insertRetAddr cc arg_info
++    | otherwise              = arg_info
++
++  stable_ptr_arg = 
++	(text "the_stableptr", text "StgStablePtr", undefined,
++	 typeMachRep (mkStablePtrPrimTy alphaTy))
+ 
+   -- stuff to do with the return type of the C function
+   res_hty_is_unit = res_hty `coreEqType` unitTy	-- Look through any newtypes
+@@ -506,8 +498,8 @@
+   header_bits = ptext SLIT("extern") <+> fun_proto <> semi
+ 
+   fun_proto = cResType <+> pprCconv <+> ftext c_nm <>
+-	      parens (hsep (punctuate comma (map (\(nm,ty) -> ty <+> nm) 
+-                                                 all_cnames_and_ctys)))
++	      parens (hsep (punctuate comma (map (\(nm,ty,_,_) -> ty <+> nm) 
++                                                 aug_arg_info)))
+ 
+   -- the target which will form the root of what we ask rts_evalIO to run
+   the_cfun
+@@ -517,9 +509,9 @@
+ 
+   -- the expression we give to rts_evalIO
+   expr_to_run
+-     = foldl appArg the_cfun (zip arg_cnames arg_htys)
++     = foldl appArg the_cfun arg_info -- NOT aug_arg_info
+        where
+-          appArg acc (arg_cname, arg_hty) 
++          appArg acc (arg_cname, _, arg_hty, _) 
+              = text "rts_apply" 
+                <> parens (acc <> comma <> mkHObj arg_hty <> parens arg_cname)
+ 
+@@ -538,6 +530,30 @@
+           Nothing -> empty
+           Just hs_fn -> text "extern StgClosure " <> ppr hs_fn <> text "_closure" <> semi
+ 
++   -- the only reason for making the mingw32 (anything targetting PE, really) stick
++   -- out here is that the GHCi linker isn't capable of handling .ctors sections
++  useStaticConstructors 
++#if defined(mingw32_HOST_OS)
++	= False
++#else
++	= True
++#endif  
++
++  initialiser
++     = case maybe_target of
++          Nothing -> empty
++          Just hs_fn 
++	   | not useStaticConstructors -> empty
++	   | otherwise ->
++            vcat
++             [ text "static void stginit_export_" <> ppr hs_fn
++                  <> text "() __attribute__((constructor));"
++             , text "static void stginit_export_" <> ppr hs_fn <> text "()"
++             , braces (text "getStablePtr"
++                <> parens (text "(StgPtr) &" <> ppr hs_fn <> text "_closure")
++                <> semi)
++             ]
++
+   -- finally, the whole darn thing
+   c_bits =
+     space $$
+@@ -568,11 +584,17 @@
+      ,   if res_hty_is_unit then empty
+             else text "return cret;"
+      , rbrace
+-     ]
+-
++     ] $$
++    initialiser
+ 
+-mkCArgNames :: Int -> [a] -> [SDoc]
+-mkCArgNames n as = zipWith (\ _ n -> text ('a':show n)) as [n..] 
++-- NB. the calculation here isn't strictly speaking correct.
++-- We have a primitive Haskell type (eg. Int#, Double#), and
++-- we want to know the size, when passed on the C stack, of
++-- the associated C type (eg. HsInt, HsDouble).  We don't have
++-- this information to hand, but we know what GHC's conventions
++-- are for passing around the primitive Haskell types, so we
++-- use that instead.  I hope the two coincide --SDM
++typeMachRep ty = argMachRep (typeCgRep ty)
+ 
+ mkHObj :: Type -> SDoc
+ mkHObj t = text "rts_mk" <> text (showFFIType t)
+@@ -590,6 +612,26 @@
+ 	    Just (tc,_) -> tc
+ 	    Nothing	-> pprPanic "showFFIType" (ppr t)
+ 
++#if !defined(x86_64_TARGET_ARCH)
++insertRetAddr CCallConv args = ret_addr_arg : args
++insertRetAddr _ args = args
++#else
++-- On x86_64 we insert the return address after the 6th
++-- integer argument, because this is the point at which we
++-- need to flush a register argument to the stack (See rts/Adjustor.c for
++-- details).
++insertRetAddr CCallConv args = go 0 args
++  where  go 6 args = ret_addr_arg : args
++	 go n (arg@(_,_,_,rep):args)
++	  | I64 <- rep = arg : go (n+1) args
++	  | otherwise  = arg : go n     args
++	 go n [] = []
++insertRetAddr _ args = args
++#endif
++
++ret_addr_arg = (text "original_return_addr", text "void*", undefined, 
++		typeMachRep addrPrimTy)
++
+ -- This function returns the primitive type associated with the boxed
+ -- type argument to a foreign export (eg. Int ==> Int#).  It assumes
+ -- that all the types we are interested in have a single constructor
+diff -Naur ghc-6.4.orig/ghc/rts/Adjustor.c ghc-6.4/ghc/rts/Adjustor.c
+--- ghc-6.4.orig/ghc/rts/Adjustor.c	2005-05-26 13:51:09.000000000 +0000
++++ ghc-6.4/ghc/rts/Adjustor.c	2005-05-26 13:51:36.000000000 +0000
+@@ -46,13 +46,18 @@
+ #include <windows.h>
+ #endif
+ 
+-#if defined(openbsd_HOST_OS)
++#if defined(openbsd_HOST_OS) || defined(linux_HOST_OS)
+ #include <unistd.h>
+ #include <sys/types.h>
+ #include <sys/mman.h>
+ 
+ /* no C99 header stdint.h on OpenBSD? */
++#if defined(openbsd_HOST_OS)
+ typedef unsigned long my_uintptr_t;
++#else
++#include <stdint.h>
++typedef uintptr_t my_uintptr_t;
++#endif
+ #endif
+ 
+ #if defined(powerpc_HOST_ARCH) && defined(linux_HOST_OS)
+@@ -80,7 +85,7 @@
+     barf("mallocBytesRWX: failed to protect 0x%p; error=%lu; old protection: %lu\n",
+          addr, (unsigned long)GetLastError(), (unsigned long)dwOldProtect);
+   }
+-#elif defined(openbsd_HOST_OS)
++#elif defined(openbsd_HOST_OS) || defined(linux_HOST_OS)
+   /* malloced memory isn't executable by default on OpenBSD */
+   my_uintptr_t pageSize         = sysconf(_SC_PAGESIZE);
+   my_uintptr_t mask             = ~(pageSize - 1);
+@@ -94,8 +99,46 @@
+   return addr;
+ }
+ 
++#ifdef LEADING_UNDERSCORE
++#define UNDERSCORE "_"
++#else 
++#define UNDERSCORE ""
++#endif
+ #if defined(i386_HOST_ARCH)
+-static unsigned char *obscure_ccall_ret_code;
++/* 
++  Now here's something obscure for you:
++
++  When generating an adjustor thunk that uses the C calling
++  convention, we have to make sure that the thunk kicks off
++  the process of jumping into Haskell with a tail jump. Why?
++  Because as a result of jumping in into Haskell we may end
++  up freeing the very adjustor thunk we came from using
++  freeHaskellFunctionPtr(). Hence, we better not return to
++  the adjustor code on our way  out, since it could by then
++  point to junk.
++  
++  The fix is readily at hand, just include the opcodes
++  for the C stack fixup code that we need to perform when
++  returning in some static piece of memory and arrange
++  to return to it before tail jumping from the adjustor thunk.
++*/
++__asm__ (
++   ".globl " UNDERSCORE "obscure_ccall_ret_code\n"
++   UNDERSCORE "obscure_ccall_ret_code:\n\t"
++   "addl $0x4, %esp\n\t"
++   "ret"
++  );
++extern void obscure_ccall_ret_code(void);
++#endif
++
++#if defined(x86_64_HOST_ARCH)
++__asm__ (
++   ".globl " UNDERSCORE "obscure_ccall_ret_code\n"
++   UNDERSCORE "obscure_ccall_ret_code:\n\t"
++   "addq $0x8, %rsp\n\t"
++   "ret"
++  );
++extern void obscure_ccall_ret_code(void);
+ #endif
+ 
+ #if defined(alpha_HOST_ARCH)
+@@ -195,7 +238,7 @@
+ createAdjustor(int cconv, StgStablePtr hptr,
+ 	       StgFunPtr wptr,
+ 	       char *typeString
+-#if !defined(powerpc_HOST_ARCH) && !defined(powerpc64_HOST_ARCH)
++#if !defined(powerpc_HOST_ARCH) && !defined(powerpc64_HOST_ARCH) && !defined(x86_64_HOST_ARCH)
+ 	          STG_UNUSED
+ #endif
+               )
+@@ -279,6 +322,111 @@
+ 	adj_code[0x0f] = (unsigned char)0xff; /* jmp *%eax */
+ 	adj_code[0x10] = (unsigned char)0xe0; 
+     }
++#elif defined(x86_64_HOST_ARCH)
++    /*
++      stack at call:
++               argn
++	       ...
++	       arg7
++               return address
++	       %rdi,%rsi,%rdx,%rcx,%r8,%r9 = arg0..arg6
++
++      if there are <6 integer args, then we can just push the
++      StablePtr into %edi and shuffle the other args up.
++
++      If there are >=6 integer args, then we have to flush one arg
++      to the stack, and arrange to adjust the stack ptr on return.
++      The stack will be rearranged to this:
++
++             argn
++	     ...
++	     arg7
++	     return address  *** <-- dummy arg in stub fn.
++	     arg6
++	     obscure_ccall_ret_code
++
++      This unfortunately means that the type of the stub function
++      must have a dummy argument for the original return address
++      pointer inserted just after the 6th integer argument.
++
++      Code for the simple case:
++
++   0:   4d 89 c1                mov    %r8,%r9
++   3:   49 89 c8                mov    %rcx,%r8
++   6:   48 89 d1                mov    %rdx,%rcx
++   9:   48 89 f2                mov    %rsi,%rdx
++   c:   48 89 fe                mov    %rdi,%rsi
++   f:   48 8b 3d 0a 00 00 00    mov    10(%rip),%rdi
++  16:   e9 00 00 00 00          jmpq   stub_function
++  ... 
++  20: .quad 0  # aligned on 8-byte boundary
++
++
++  And the version for >=6 integer arguments:
++
++   0:   41 51                   push   %r9
++   2:   68 00 00 00 00          pushq  $obscure_ccall_ret_code
++   7:   4d 89 c1                mov    %r8,%r9
++   a:   49 89 c8                mov    %rcx,%r8
++   d:   48 89 d1                mov    %rdx,%rcx
++  10:   48 89 f2                mov    %rsi,%rdx
++  13:   48 89 fe                mov    %rdi,%rsi
++  16:   48 8b 3d 0b 00 00 00    mov    11(%rip),%rdi
++  1d:   e9 00 00 00 00          jmpq   stub_function
++  ...
++  28: .quad 0  # aligned on 8-byte boundary
++    */
++
++    /* we assume the small code model (gcc -mcmmodel=small) where
++     * all symbols are <2^32, so hence wptr should fit into 32 bits.
++     */
++    ASSERT(((long)wptr >> 32) == 0);
++
++    {  
++	int i = 0;
++	char *c;
++
++	// determine whether we have 6 or more integer arguments,
++	// and therefore need to flush one to the stack.
++	for (c = typeString; *c != '\0'; c++) {
++	    if (*c == 'i' || *c == 'l') i++;
++	    if (i == 6) break;
++	}
++
++	if (i < 6) {
++	    adjustor = mallocBytesRWX(40);
++
++	    *(StgInt32 *)adjustor      = 0x49c1894d;
++	    *(StgInt32 *)(adjustor+4)  = 0x8948c889;
++	    *(StgInt32 *)(adjustor+8)  = 0xf28948d1;
++	    *(StgInt32 *)(adjustor+12) = 0x48fe8948;
++	    *(StgInt32 *)(adjustor+16) = 0x000a3d8b;
++	    *(StgInt32 *)(adjustor+20) = 0x00e90000;
++	    
++	    *(StgInt32 *)(adjustor+23) = 
++		(StgInt32)((StgInt64)wptr - (StgInt64)adjustor - 27);
++	    *(StgInt64 *)(adjustor+32) = (StgInt64)hptr;
++	}
++	else
++	{
++	    adjustor = mallocBytesRWX(48);
++
++	    *(StgInt32 *)adjustor      = 0x00685141;
++	    *(StgInt32 *)(adjustor+4)  = 0x4d000000;
++	    *(StgInt32 *)(adjustor+8)  = 0x8949c189;
++	    *(StgInt32 *)(adjustor+12) = 0xd18948c8;
++	    *(StgInt32 *)(adjustor+16) = 0x48f28948;
++	    *(StgInt32 *)(adjustor+20) = 0x8b48fe89;
++	    *(StgInt32 *)(adjustor+24) = 0x00000b3d;
++	    *(StgInt32 *)(adjustor+28) = 0x0000e900;
++	    
++	    *(StgInt32 *)(adjustor+3) = 
++		(StgInt32)(StgInt64)obscure_ccall_ret_code;
++	    *(StgInt32 *)(adjustor+30) = 
++		(StgInt32)((StgInt64)wptr - (StgInt64)adjustor - 34);
++	    *(StgInt64 *)(adjustor+40) = (StgInt64)hptr;
++	}
++    }
+ #elif defined(sparc_HOST_ARCH)
+   /* Magic constant computed by inspecting the code length of the following
+      assembly language snippet (offset and machine code prefixed):
+@@ -848,7 +996,16 @@
+     freeStablePtr(*((StgStablePtr*)((unsigned char*)ptr + 0x01)));
+  } else {
+     freeStablePtr(*((StgStablePtr*)((unsigned char*)ptr + 0x02)));
+- }    
++ }
++#elif defined(x86_64_HOST_ARCH)
++ if ( *(StgWord16 *)ptr == 0x894d ) {
++     freeStablePtr(*(StgStablePtr*)(ptr+32));
++ } else if ( *(StgWord16 *)ptr == 0x5141 ) {
++     freeStablePtr(*(StgStablePtr*)(ptr+40));
++ } else {
++   errorBelch("freeHaskellFunctionPtr: not for me, guv! %p\n", ptr);
++   return;
++ }
+ #elif defined(sparc_HOST_ARCH)
+  if ( *(unsigned long*)ptr != 0x9C23A008UL ) {
+    errorBelch("freeHaskellFunctionPtr: not for me, guv! %p\n", ptr);
+@@ -906,30 +1063,4 @@
+ void
+ initAdjustor(void)
+ {
+-#if defined(i386_HOST_ARCH)
+-  /* Now here's something obscure for you:
+-
+-  When generating an adjustor thunk that uses the C calling
+-  convention, we have to make sure that the thunk kicks off
+-  the process of jumping into Haskell with a tail jump. Why?
+-  Because as a result of jumping in into Haskell we may end
+-  up freeing the very adjustor thunk we came from using
+-  freeHaskellFunctionPtr(). Hence, we better not return to
+-  the adjustor code on our way  out, since it could by then
+-  point to junk.
+-
+-  The fix is readily at hand, just include the opcodes
+-  for the C stack fixup code that we need to perform when
+-  returning in some static piece of memory and arrange
+-  to return to it before tail jumping from the adjustor thunk.
+-  */
+-
+-  obscure_ccall_ret_code = mallocBytesRWX(4);
+-
+-  obscure_ccall_ret_code[0x00] = (unsigned char)0x83;  /* addl $0x4, %esp */
+-  obscure_ccall_ret_code[0x01] = (unsigned char)0xc4;
+-  obscure_ccall_ret_code[0x02] = (unsigned char)0x04;
+-
+-  obscure_ccall_ret_code[0x03] = (unsigned char)0xc3;  /* ret */
+-#endif
+ }
+diff -Naur ghc-6.4.orig/ghc/rts/GCCompact.h ghc-6.4/ghc/rts/GCCompact.h
+--- ghc-6.4.orig/ghc/rts/GCCompact.h	2005-05-26 13:51:09.000000000 +0000
++++ ghc-6.4/ghc/rts/GCCompact.h	2005-05-26 13:51:40.000000000 +0000
+@@ -12,7 +12,7 @@
+     nat offset_within_block = p - bd->start; // in words
+     StgPtr bitmap_word = (StgPtr)bd->u.bitmap + 
+ 	(offset_within_block / (sizeof(W_)*BITS_PER_BYTE));
+-    nat bit_mask = 1 << (offset_within_block & (sizeof(W_)*BITS_PER_BYTE - 1));
++    StgWord bit_mask = (StgWord)1 << (offset_within_block & (sizeof(W_)*BITS_PER_BYTE - 1));
+     *bitmap_word |= bit_mask;
+ }
+ 
+@@ -22,17 +22,17 @@
+     nat offset_within_block = p - bd->start; // in words
+     StgPtr bitmap_word = (StgPtr)bd->u.bitmap + 
+ 	(offset_within_block / (sizeof(W_)*BITS_PER_BYTE));
+-    nat bit_mask = 1 << (offset_within_block & (sizeof(W_)*BITS_PER_BYTE - 1));
++    StgWord bit_mask = (StgWord)1 << (offset_within_block & (sizeof(W_)*BITS_PER_BYTE - 1));
+     *bitmap_word &= ~bit_mask;
+ }
+ 
+-INLINE_HEADER int
++INLINE_HEADER StgWord
+ is_marked(StgPtr p, bdescr *bd)
+ {
+     nat offset_within_block = p - bd->start; // in words
+     StgPtr bitmap_word = (StgPtr)bd->u.bitmap + 
+ 	(offset_within_block / (sizeof(W_)*BITS_PER_BYTE));
+-    nat bit_mask = 1 << (offset_within_block & (sizeof(W_)*BITS_PER_BYTE - 1));
++    StgWord bit_mask = (StgWord)1 << (offset_within_block & (sizeof(W_)*BITS_PER_BYTE - 1));
+     return (*bitmap_word & bit_mask);
+ }
+ 

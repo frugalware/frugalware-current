@@ -183,10 +183,13 @@ function pkg_from_id($id) {
 	$arr = mysql_fetch_array($res);
 	
 	// query dep ids
-	$query="select id, pkgname from packages where ";
+	$query="select id, pkgname from packages where ( ";
 	foreach(explode(" ", strtr($arr['depends'], "\n", " ")) as $i)
 		$query .= " or pkgname='" . preg_replace('/(<>|>=|<=|=).*/', '', $i) . "'";
-	$res2 = mysql_query(preg_replace("/or /", "", $query, 1));
+	$query = preg_replace("/or /", "", $query, 1) . " ) and " .
+		"fwver='" . $arr['fwver'] . "' and " .
+		"arch='" . $arr['arch'] . "'";
+	$res2 = mysql_query($query);
 	while ($i = mysql_fetch_array($res2, MYSQL_ASSOC))
 	{
 		$id_set[$i['pkgname']]=$i['id'];

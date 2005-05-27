@@ -1,0 +1,128 @@
+--- pacman-2.8.1.orig/scripts/makepkg	2005-05-26 11:11:20.000000000 +0200
++++ pacman-2.8.1/scripts/makepkg	2005-05-26 13:12:30.000000000 +0200
+@@ -189,6 +189,7 @@
+ 	echo "  -h, --help       This help"
+ 	echo "  -i, --install    Install package after successful build"
+ 	echo "  -j <jobs>        Set MAKEFLAGS to \"-j<jobs>\" before building"
++	echo "  -l <pkgname>     Download buildscipts before building"
+ 	echo "  -m, --nocolor    Disable colorized output messages"
+ 	echo "  -n, --nostrip    Do not strip binaries/libraries"
+ 	echo "  -o, --nobuild    Download and extract files only"
+@@ -208,6 +209,7 @@
+ CLEANUP=0
+ CLEANCACHE=0
+ INSTALL=0
++DOWNLOAD=""
+ GENMD5=0
+ DEP_BIN=0
+ DEP_SRC=0
+@@ -248,7 +250,7 @@
+ 			exit 1
+ 			;;
+ 		-*)
+-			while getopts "acCsbdehifgj:mnorp:uw:-" opt; do
++			while getopts "acCsbdehifgj:l:mnorp:uw:-" opt; do
+ 				case $opt in
+ 					a) SEARCHDEPS=1 ;;
+ 					c) CLEANUP=1 ;;
+@@ -264,6 +266,7 @@
+ 						;;
+ 					i) INSTALL=1 ;;
+ 					j) export MAKEFLAGS="-j$OPTARG" ;;
++					l) DOWNLOAD="$OPTARG" ;;
+ 					m) USE_COLOR="n" ;;
+ 					n) NOSTRIP=1 ;;
+ 					o) NOBUILD=1 ;;
+@@ -315,6 +318,58 @@
+ umask 0022
+ unset LC_ALL LANG
+ 
++# download buildscript if necessary
++if [ ! -z "$DOWNLOAD" -a "$INFAKEROOT" != "1" ]; then
++	msg "Retrieving $DOWNLOAD's buildscript..."
++	
++	# find the package
++	if ! pacman -Si $DOWNLOAD >/dev/null 2>&1; then
++		error "Package \"$DOWNLOAD\" was not found."
++		exit 1
++	fi
++	
++	# check for a download utility
++	if [ -z "$FTPAGENT" ]; then
++		error "FTPAGENT is not configured. Check the /etc/makepkg.conf file."
++		msg "Aborting..."
++		exit 1
++	fi
++	ftpclient=`echo $FTPAGENT | awk {'print $1'}`
++	if [ ! -x $ftpclient ]; then
++		error "ftpclient `basename $ftpclient` is not installed."
++		msg "Aborting..."
++		exit 1
++	fi
++	
++	confs=`cat /etc/pacman.conf |grep ^Include|sed 's/.* = \(.*\)/\1/'`
++	# TODO: -q option to download the src tarballs from Frugalware mirrros
++	quickdl="_darcs/current/"
++	
++	# searching for a mirror
++	repo=`pacman -Si $DOWNLOAD |grep ^Repo |sed -n 's/.* \([^ ]*\)/\1/;1 p'`
++	dir=`grep ^Server /etc/pacman.d/$repo |sed -n 's/.* = \(.*\)/\1/;1 p'`
++	arch=`grep ^Server /etc/pacman.d/$repo |sed -n 's/.*-\(.*\)/\1/;1 p'`
++	cat=`pacman -Si $DOWNLOAD |grep ^G |sed 's/.* : \([^ ]*\) .*/\1/; s/-extra$//'`
++	
++	# download the script
++	mkdir $DOWNLOAD
++	cd $DOWNLOAD
++	# FIXME: apps other than wget maybe not support -m
++	$FTPAGENT -m $dir/../$quickdl/source/$cat/$DOWNLOAD/ 2>&1
++	if [ ! -f $file ]; then
++		error "Failed to download $file"
++		msg "Aborting..."
++		exit 1
++	fi
++	junk=`echo $dir|sed "s|^ftp://\(.*\)/frugalware-$arch|\1|"`/$quickdl/source/$cat/$DOWNLOAD/
++	mv $junk* ./
++	rm -rf `echo $junk|cut -d/ -f1`
++	for i in `find * -type d`
++	do
++		( cd $i && [ -e .listing ] && rm .listing )
++	done
++fi
++
+ if [ ! -f $BUILDSCRIPT ]; then
+ 	error "$BUILDSCRIPT does not exist."
+ 	exit 1
+@@ -430,18 +485,6 @@
+ 		msg "    Using local copy of $file"
+ 		cp /var/cache/pacman/src/$file .
+ 	else
+-		# check for a download utility
+-		if [ -z "$FTPAGENT" ]; then
+-			error "FTPAGENT is not configured. Check the /etc/makepkg.conf file."
+-			msg "Aborting..."
+-			exit 1
+-		fi
+-		ftpclient=`echo $FTPAGENT | awk {'print $1'}`
+-		if [ ! -x $ftpclient ]; then
+-			error "ftpclient `basename $ftpclient` is not installed."
+-			msg "Aborting..."
+-			exit 1
+-		fi
+ 		proto=`echo $netfile | sed 's|://.*||'`
+ 		if [ "$proto" != "ftp" -a "$proto" != "http" -a "$proto" != "https" ]; then
+ 			error "$netfile was not found in the build directory and is not a proper URL."
+diff -Naur pacman-2.9.5.orig/doc/makepkg.8.in pacman-2.9.5/doc/makepkg.8.in
+--- pacman-2.9.5.orig/doc/makepkg.8.in	2004-08-04 07:57:17.000000000 +0200
++++ pacman-2.9.5/doc/makepkg.8.in	2005-05-26 15:47:08.000000000 +0200
+@@ -362,6 +362,11 @@
+ Sets MAKEFLAGS="-j<jobs>" before building the package.  This is useful for overriding
+ the MAKEFLAGS setting in /etc/makepkg.conf.
+ .TP
++.B "\-l <pkgname>"
++Download the package's buildscript before starting the build.  This is useful
++if you do not want to do a full 'repoman upd' nor want to download manually the
++buildscript.
++.TP
+ .B "\-m, \-\-nocolor"
+ Disable color in output messages
+ .TP

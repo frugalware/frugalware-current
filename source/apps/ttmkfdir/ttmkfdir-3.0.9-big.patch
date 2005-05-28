@@ -1,0 +1,263 @@
+diff -Naur ttmkfdir-3.0.9.orig/Makefile ttmkfdir-3.0.9/Makefile
+--- ttmkfdir-3.0.9.orig/Makefile	2005-05-28 13:12:42.000000000 +0000
++++ ttmkfdir-3.0.9/Makefile	2005-05-28 13:14:13.000000000 +0000
+@@ -15,20 +15,14 @@
+ VERSION=$(shell rpm -q --qf "%{version}\n" --specfile $(NAME).spec | head -1)
+ RELEASE=$(shell rpm -q --qf "%{release}\n" --specfile $(NAME).spec | head -1)
+ 
+-CVSTAG = r$(subst .,_,$(VERSION))
+-CVSROOT = $(shell cat CVS/Root)
+-
+-# Autodetec the proper command used to build RPM packages
+-RPMBUILD=$(shell [ -x /usr/bin/rpmbuild ] && echo rpmbuild || echo rpm)
+-
+ FREETYPE_INCL=$(shell freetype-config --cflags)
+ FREETYPE_LIB=$(shell freetype-config --libs)
+ 
+ OPTFLAGS=
+-DEBUG=-ggdb
++DEBUG=
+ CXX=g++
+-CXXFLAGS=-Wall -pedantic $(FREETYPE_INCL) $(DEBUG) $(OPTFLAGS)
+-LDFLAGS=$(FREETYPE_LIB) $(DEBUG)
++COMPILE_FLAGS=-Wall -pedantic $(FREETYPE_INCL) $(DEBUG) $(OPTFLAGS)
++LDFLAGS=$(FREETYPE_LIB) $(DEBUG) -lz
+ 
+ DESTDIR=
+ PREFIX=/usr
+@@ -39,7 +33,7 @@
+ all: ttmkfdir
+ 
+ .cpp.o:
+-	libtool --mode=compile $(CXX) $(CXXFLAGS) -o $@ -c $^
++	libtool --mode=compile $(CXX) $(CXXFLAGS) $(COMPILE_FLAGS) -o $@ -c $^
+ 
+ ttmkfdir: ttmkfdir.o directory.o commandline.o ttf.o encoding.o parser.o builtin.o
+ 	libtool --mode=link $(CXX) -o $@ $^ $(LDFLAGS)
+@@ -53,35 +47,6 @@
+ 
+ clean:
+ 	-rm -f *.o *.lo *~ ttmkfdir core parser.cpp
+-	rmdir .libs
+-
+-tag:
+-	cvs -d $(CVSROOT) tag $(CVSTAG)
+-
+-force-tag:
+-	cvs -d $(CVSROOT) tag -F $(CVSTAG)
+-
+-archive:
+-	@rm -rf /tmp/$(NAME)-$(VERSION) /tmp/$(NAME)
+-	@cd /tmp; cvs -d $(CVSROOT) export -r $(CVSTAG) $(NAME)
+-	@mv /tmp/$(NAME) /tmp/$(NAME)-$(VERSION)
+-	@dir=$$PWD; cd /tmp; tar cf - $(NAME)-$(VERSION) | bzip2 -9 - > $$dir/$(NAME)-$(VERSION).tar.bz2
+-	@rm -rf /tmp/$(NAME)-$(VERSION)
+-	@echo "Wrote: $(NAME)-$(VERSION).tar.bz2"
++	rm -r .libs
+ 
+ tarball: archive
+-
+-srpm:
+-	@echo "The general purpose 'srpm' target is not currently implemented"
+-
+-# Private target, if you need to, copy it to a new target first and then
+-# modify it <mharris@redhat.com>
+-srpm-mh:
+-	@echo Creating src.rpm
+-	@mkdir -p $(HOME)/rpmbuild/$(NAME)-$(VERSION)
+-	@mv $(NAME)-$(VERSION).tar.bz2 $(HOME)/rpmbuild/$(NAME)-$(VERSION)/
+-	@cp $(NAME).spec $(HOME)/rpmbuild/$(NAME)-$(VERSION)/
+-	@pushd $(HOME)/rpmbuild/$(NAME)-$(VERSION) &> /dev/null ; $(RPMBUILD) --nodeps -bs $(NAME).spec ; popd &> /dev/null
+-	@echo SRPM is: $(HOME)/rpmbuild/SRPMS/$(NAME)-$(VERSION)-$(RELEASE).src.rpm
+-
+-
+diff -Naur ttmkfdir-3.0.9.orig/builtin.cpp ttmkfdir-3.0.9/builtin.cpp
+--- ttmkfdir-3.0.9.orig/builtin.cpp	2005-05-28 13:12:42.000000000 +0000
++++ ttmkfdir-3.0.9/builtin.cpp	2005-05-28 13:12:51.000000000 +0000
+@@ -600,7 +600,7 @@
+ 	0x00f8, 0x00f9, 0x00fa, 0x00fb, 0x00fc, 0x00fd, 0x00fe, 0x00ff
+     };
+ 
+-};
++}
+ 
+ Encoding::BuiltinEncoding_t Encoding::builtin_encodings[] = {
+     {256,191,32,{TT_PLATFORM_MICROSOFT,TT_MS_ID_UNICODE_CS,iso8859_1},{"iso8859-1",}},
+diff -Naur ttmkfdir-3.0.9.orig/commandline.cpp ttmkfdir-3.0.9/commandline.cpp
+--- ttmkfdir-3.0.9.orig/commandline.cpp	2005-05-28 13:12:42.000000000 +0000
++++ ttmkfdir-3.0.9/commandline.cpp	2005-05-28 13:12:51.000000000 +0000
+@@ -1,6 +1,8 @@
+ #include <cstdlib>
+ 
++#ifndef _GNU_SOURCE
+ #define _GNU_SOURCE
++#endif
+ #include <getopt.h>
+ 
+ #include "commandline.h"
+diff -Naur ttmkfdir-3.0.9.orig/encoding.cpp ttmkfdir-3.0.9/encoding.cpp
+--- ttmkfdir-3.0.9.orig/encoding.cpp	2005-05-28 13:12:42.000000000 +0000
++++ ttmkfdir-3.0.9/encoding.cpp	2005-05-28 13:12:51.000000000 +0000
+@@ -2,7 +2,8 @@
+ #include <cstdio>
+ #include <cstdlib>
+ #include <cstring>
+-#include "freetype/freetype.h"
++#include <unistd.h>
++#include <zlib.h>
+ 
+ #include "ttmkfdir.h"
+ #include "encoding.h"
+@@ -32,9 +33,16 @@
+     NextFile (FILE *f, char *name)
+     {
+ 	char file_name [1024];
+-	char command[1024];
+-
+-	if (fscanf (f, "%*s %[^\n]\n", file_name) == 1) {
++	char line_buf [1024];
++	char tmp_file_name[] = "/tmp/ttmkfdir_XXXXXX";
++	char inbuf[300000];
++	FILE *od;
++	gzFile fd;
++	int rvalue, tmpfd;
++
++	if (fgets (line_buf, sizeof(line_buf), f) != NULL) {
++	    
++	    sscanf (line_buf, "%*s %[^\n]\n", file_name);
+ 
+ 	    if (file_name[0] == '/') {
+ 		name[0] = 0;
+@@ -44,9 +52,24 @@
+ 	
+ 	    strcat (name, file_name);
+ 
+-	    sprintf (command, "exec %s < %s", (toupper(name[strlen (name) - 1]) == 'Z')
+-		     ? "gzip -d" : "cat", name);
+-	    return popen (command, "r");
++	    bzero(inbuf, sizeof(inbuf));
++	    
++	    fd = gzopen (name, "rb");
++	    rvalue = gzread (fd, inbuf, sizeof(inbuf));
++	    
++	    tmpfd = mkstemp (tmp_file_name);
++	    if (tmpfd == -1) {
++		return 0;
++	    }
++	    
++	    od = fdopen (tmpfd, "w");
++	    fputs (inbuf, od);
++	    fflush(od);
++	    fclose(od);
++	    
++	    od = fopen (tmp_file_name, "r");
++	    unlink(tmp_file_name);
++	    return od;
+ 	}
+ 
+ 	return 0;
+@@ -75,7 +98,7 @@
+ 	yyrestart (input);
+ 	yylex (name, *this);
+ 
+-	pclose (input);
++	fclose (input);
+     }
+ 
+     fclose (f);
+@@ -97,7 +120,7 @@
+ 
+     NumericMapping *m = new NumericMapping (size, b->mapdata.platform, b->mapdata.encoding);
+ 
+-    for (int i = 0; i < size; i++)
++    for (unsigned int i = 0; i < size; i++)
+ 	(*m)[i] = b->mapdata.mappingtable[i];
+ 
+     AddMapping (m);
+diff -Naur ttmkfdir-3.0.9.orig/encoding.h ttmkfdir-3.0.9/encoding.h
+--- ttmkfdir-3.0.9.orig/encoding.h	2005-05-28 13:12:42.000000000 +0000
++++ ttmkfdir-3.0.9/encoding.h	2005-05-28 13:12:51.000000000 +0000
+@@ -6,7 +6,8 @@
+ #include <map>
+ #include <string>
+ 
+-#include "freetype/freetype.h"
++#include <ft2build.h>
++#include FT_FREETYPE_H
+ 
+ #include "util.h"
+ 
+diff -Naur ttmkfdir-3.0.9.orig/ttf.cpp ttmkfdir-3.0.9/ttf.cpp
+--- ttmkfdir-3.0.9.orig/ttf.cpp	2005-05-28 13:12:42.000000000 +0000
++++ ttmkfdir-3.0.9/ttf.cpp	2005-05-28 13:12:51.000000000 +0000
+@@ -239,7 +239,7 @@
+ 	for (i = 0; i < n; i++) {
+ 	    if ((fterror = FT_Get_Sfnt_Name (face, i, &NamePtr)) != FT_Err_Ok) {
+                     std::cout << "Warning: Can't SFNT name : " << FileName << "(" << fterror << ")" << std::endl;
+-	            return;
++	            return 0;
+             };
+             platform = NamePtr.platform_id;
+             encoding = NamePtr.encoding_id;
+@@ -533,7 +533,7 @@
+ const char *
+ Face::Weight (void) const
+ {
+-    const char *result;
++    const char *result = 0;
+     
+     if (cmdline::instance()->option ("panose") && ((result = PanoseWeight ()) != 0)) {
+ 	return result;
+@@ -614,7 +614,7 @@
+ const char *
+ Face::Width (void) const
+ {
+-    const char *result;
++    const char *result = 0;
+     
+     if (cmdline::instance()->option ("panose") && ((result = PanoseWidth ()) != 0)) {
+ 	return result;
+diff -Naur ttmkfdir-3.0.9.orig/ttf.h ttmkfdir-3.0.9/ttf.h
+--- ttmkfdir-3.0.9.orig/ttf.h	2005-05-28 13:12:42.000000000 +0000
++++ ttmkfdir-3.0.9/ttf.h	2005-05-28 13:12:51.000000000 +0000
+@@ -3,12 +3,14 @@
+ #define TTF_H__
+ 
+ #include <string>
+-#include "freetype/freetype.h"
+-#include "freetype/tttables.h"
+-#include "freetype/ftsnames.h"
+-#include "freetype/ttnameid.h"
+-#include "freetype/fterrors.h"
+-#include "freetype/ftmodule.h"
++
++#include <ft2build.h>
++#include FT_FREETYPE_H
++
++#include <freetype/ftmodapi.h>
++#include <freetype/ftsnames.h>
++#include <freetype/ttnameid.h>
++#include <freetype/tttables.h>
+ 
+ #include "util.h"
+ #include "encoding.h"
+@@ -49,7 +51,7 @@
+ 	TT_Postscript	    *post;
+ 	std::string	    FileName;
+     };
+-};
++}
+ 
+ #endif /* TTF_H__ */
+ 
+diff -Naur ttmkfdir-3.0.9.orig/util.h ttmkfdir-3.0.9/util.h
+--- ttmkfdir-3.0.9.orig/util.h	2005-05-28 13:12:42.000000000 +0000
++++ ttmkfdir-3.0.9/util.h	2005-05-28 13:12:51.000000000 +0000
+@@ -17,6 +17,6 @@
+ 	Singleton (void) {};
+ 	~Singleton (void) {};
+     };
+-}; 
++}
+ 
+ #endif // TTMKFDIRUTIL_H__

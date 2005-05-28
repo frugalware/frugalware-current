@@ -72,7 +72,7 @@ function search_file() {
 }
 
 function error() {
-	if ( $_GET['id'] != "" ) {
+	if ( is_numeric($_GET['id'])) {
 		if ($_GET['s'] == "f")
 			file_from_id($_GET['id']);
 		else

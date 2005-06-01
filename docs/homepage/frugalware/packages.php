@@ -9,19 +9,27 @@ function search_pkg() {
 
 	$search = $_GET['srch'];
 	$repo = $_GET['repo'];
+	$arch = $_GET['arch'];
+	$fwver = $_GET['fwver'];
 	($_GET['sub'] == "on") ? $sub = 1 : $sub = 0; # whether the search is for a substring or exact match
 
-	$query = "select id, pkgname, pkgver, pkgrel, fwver, repo from packages where ";
+	$query = "select id, pkgname, pkgver, pkgrel, fwver, repo, arch from packages where ";
 	# if the 'desc' is set (searching in description, too) I have to put 
 	# the restrictions between brackets, because of the 'repo' below...
 	if ($sub == 0){
-		($_GET['desc'] == "on" || $_GET['desc'] == 1) ? $query .= "(pkgname='$search' or `desc`='$search') " : $query .= "(pkgname='$search') "; # if the desc is set, the search is for description, too
+		($_GET['desc'] == "on" || $_GET['desc'] == 1) ? $query .= "(pkgname='$search' or `desc`='$search')" : $query .= "(pkgname='$search')"; # if the desc is set, the search is for description, too
 	}
 	else {
-		($_GET['desc'] == "on" || $_GET['desc'] == 1) ? $query .= "(pkgname like '%$search%' or `desc` like '%$search%') " : $query .= "(pkgname like '%$search%') ";
+		($_GET['desc'] == "on" || $_GET['desc'] == 1) ? $query .= "(pkgname like '%$search%' or `desc` like '%$search%')" : $query .= "(pkgname like '%$search%')";
 	}
 	if ($repo != "" && $repo != "all") { # if repo is set to frugalware or extra
-		$query .= "and repo='$repo'";
+		$query .= " and repo='$repo'";
+	}
+	if ($arch != "") {
+		$query .= " and arch='$arch'";
+	}
+	if ($fwver != "") {
+		$query .= " and fwver='$fwver'";
 	}
 
 	include("/etc/todo.conf");
@@ -112,11 +120,28 @@ function chksub() {
 <tr><td colspan=2><input type="text" name="srch" size=40></td></tr>
 <tr><td onClick="chksub()">Search for substring:</td><td align=right><input type="checkbox" name="sub"></td></tr>
 <tr><td onClick="chkdesc()">Search in description:</td><td align=right><input type="checkbox" name="desc"></td></tr>
-<tr><td colspan=2>Repo: 
-<select name="repo">
+<tr><td>Repo:</td><td align=right><select name="repo">
         <option value="all" selected="selected">all</option>
         <option value="frugalware">frugalware</option>
         <option value="extra">extra</option>
+</select></td></tr>
+<tr><td>Arch:</td><td align=right><select name="arch">
+	<option value="i686" selected="selected">i686</option>
+	<option value="x86_64">x86_64</option>
+</select></td></tr>
+<tr><td>Version:</td><td align=right><select name="fwver">
+<?php
+	# getting fw versions from database
+	include("/etc/todo.conf");
+	$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
+	mysql_select_db("frugalware", $conn);
+	$res = mysql_query("select version from releases where type='stable' order by version desc", $conn);
+	print "<option value=\"current\" selected=\"selected\">current</option>\n";
+	while ($row = mysql_fetch_row($res)) {
+		print "<option value=\"".$row[0]."\">".$row[0]."</option>\n";
+	}
+	mysql_close($conn);
+?>
 </select></td></tr>
 <tr><td colspan=2 align=center><input type="submit" value="Search"> <input type="reset" value="Reset"></td></tr>
 </form>
@@ -150,7 +175,7 @@ function res_show($res_set, $what, $search) {
 			$resz = $resz[count($resz)-1];
 			unset($tmp);
 			for ($i=0,$j=1;$i<count($res_set);$i++,$j++) {
-				print "<tr><td>".$j.". <a href=".$resz."?id=".$res_set[$i]['id'].">".$res_set[$i]['pkgname']."</a> ".$res_set[$i]['pkgver']."-".$res_set[$i]['pkgrel']."<br>FwVer: ".$res_set[$i]['fwver']."; Repo: ".$res_set[$i]['repo']."</td></tr>\n";
+				print "<tr><td>".$j.". <a href=".$resz."?id=".$res_set[$i]['id'].">".$res_set[$i]['pkgname']."</a> ".$res_set[$i]['pkgver']."-".$res_set[$i]['pkgrel']."<br>FwVer: ".$res_set[$i]['fwver']."; Repo: ".$res_set[$i]['repo']."; Arch: ".$res_set[$i]['arch']."</td></tr>\n";
 			}
 			fwclosebox(false);
 			print "</table>\n";

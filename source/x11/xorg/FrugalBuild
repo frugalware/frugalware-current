@@ -1,45 +1,51 @@
-# Last Modified: Tue, 22 Mar 2005 16:11:03 +0100
+# Last Modified: Fri, 03 Jun 2005 23:06:41 +0200
 # Compiling Time: ~2 hours
 # Maintainer: zleho <zleho@index.hu>
 # Contributor: VMiklos <mamajom@axelero.hu>
 
 pkgname=xorg
 pkgver=6.8.2
-pkgrel=2
+pkgrel=3
 pkgdesc="A fork of the XFree86 Project with a GPL-compatible license"
 url="http://www.x.org"
 backup=(usr/X11R6/lib/X11/icons/default/index.theme etc/X11/xdm/Xsession \
 	etc/sysconfig/desktop)
-depends=('glibc' 'freetype1' 'fontconfig' 'gcc' 'urw-fonts')
+depends=('ncurses' 'fontconfig' 'gcc' 'libpng')
 groups=('x11')
-archs=('i686')
+archs=('i686' 'x86_64')
 conflicts=('xfree86')
 provides=('x')
 makedepends=('perl')
 install=$pkgname.install
-up2date="lynx -dump http://www.x.org/pub/|grep ]X11R|sed -n 's|.*R\(.*\)/.*|\1|;$ p'"
+#up2date="lynx -dump http://www.x.org/pub/|grep ]X11R|sed -n 's|.*R\(.*\)/.*|\1|;$ p'"
 source=(ftp://ftp.gwdg.de/pub/x11/x.org/pub/X11R6.8.2/src-single/X11R6.8.2-src.tar.bz2 \
-	http://www.joerg-pommnitz.de/TrueType/ttmkfdir.tar.gz Xsession desktop \
+	Xsession desktop \
 	rc.xprint libGL.la $pkgname-$pkgver-black-background.patch \
-	$pkgname-$pkgver-can-2005-0605.diff)
-md5sums=('8131cd7ea1e4566e6e05c438a93fcfe1' 'dcf6aa4d28f5c52acf2bb57f49f53089' \
-         '5e201b584b43de4e33da52a8c3085513' '8aa39dfdf87365c2cfa8db3adef8a3fd' \
+	$pkgname-$pkgver-can-2005-0605.diff xorg-6.8.2-fix_drm_compile_error.patch)
+md5sums=('8131cd7ea1e4566e6e05c438a93fcfe1' \
+         '5e201b584b43de4e33da52a8c3085513' 'a386339431c93347f4ffe694d2f8dcd7' \
          '0a6f2850515182cfd28a061cc580f89d' '6b4052cf6d50cbd2854ebd3409f02695' \
-         'aaf19c351c5340e0ef93ee25a6ccadb8' '1fec60b9007085c3b9286d8087015391')
+         'aaf19c351c5340e0ef93ee25a6ccadb8' '1fec60b9007085c3b9286d8087015391' \
+	 '8666bba1ae3abde2fc1a3d1dc58fb4dd')
 
-build() {
-	cd $startdir/src
-	make FREETYPE_INCL=/usr/include/freetype || return 1
-	install -D ttmkfdir $startdir/pkg/usr/X11R6/bin/ttmkfdir
-	
+build() {	
 	cd $startdir/src/xc
 	patch -Np1 -i $startdir/src/$pkgname-$pkgver-black-background.patch || return 1
 	patch -Np1 -i $startdir/src/$pkgname-$pkgver-can-2005-0605.diff || return 1
+	[ "$CARCH" == "x86_64" ] && (patch -Np1 -i $startdir/src/$pkgname-$pkgver-fix_drm_compile_error.patch || return 1)
 	echo $'#define HasZlib YES\n' >config/cf/host.def
 	echo $'#define HasNCurses YES\n' >>config/cf/host.def
 	echo $'#define HasFontconfig YES\n' >>config/cf/host.def
+	echo $'#define UseFreetype2 YES\n' >>config/cf/host.def
 	echo $'#define HasFreetype2 YES\n' >>config/cf/host.def
+	echo $'#define FreeType2IncDir /usr/include/freetype2\n' >>config/cf/host.def
+	echo $'#define FreeType2IncDir /usr/include/freetype2\n' >>config/cf/host.def
+	echo $'#define BuildFreeType2Library NO\n' >>config/cf/host.def
 	echo $'#define HasExpat YES\n' >>config/cf/host.def
+	echo $'#define HasMMXSupport YES\n' >>config/cf/host.def
+[ "$CARCH" == "x86_64" ] && echo $'#define HaveLib64 NO\n' >>config/cf/host.def
+[ "$CARCH" == "x86_64" ] && echo $'#define HasSSESupport YES\n' >>config/cf/host.def
+[ "$CARCH" == "x86_64" ] && echo $'#define Has3DNowSupport YES\n' >>config/cf/host.def
 
 	make World || return 1
 
@@ -74,9 +80,9 @@ build() {
 	install -D -m644 $startdir/src/libGL.la $startdir/pkg/usr/lib/libGL.la
 	
 	# Remove ugly TrueType Luxi fonts, we use the Type1 ones.
-	rm $startdir/pkg//usr/X11R6/lib/X11/fonts/TTF/luxi*
-	mkfontscale $startdir/pkg//usr/X11R6/lib/X11/fonts/TTF
-	mkfontdir $startdir/pkg//usr/X11R6/lib/X11/fonts/TTF
+	# rm $startdir/pkg//usr/X11R6/lib/X11/fonts/TTF/luxi*
+	# mkfontscale $startdir/pkg//usr/X11R6/lib/X11/fonts/TTF
+	# mkfontdir $startdir/pkg//usr/X11R6/lib/X11/fonts/TTF
 
 	# XDM: do not exec xconsole at startup
 	sed -e 's/xconsole/#xconsole/g' -i $startdir/pkg/etc/X11/xdm/Xsetup_0

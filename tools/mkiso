@@ -1,29 +1,38 @@
 #!/bin/bash
 
 version=current
-arch=i686
-target=../frugalware-$version-iso/
-date=`date -r ../Packages.lst +%Y%m%d 2>/dev/null`
-
 base=('base' 'apps' 'lib' 'multimedia' 'network' 'devel')
-for i in "${base[@]}"
-do
-baselst=$baselst`grep ^$i/ ../Packages.lst |sed "s|$i| -x ./frugalware-$arch|"`
-done
-
 x11=('x11' 'xlib' 'xapps' 'xfce4' 'gnome' 'kde')
-for i in "${x11[@]}"
-do
-x11lst=$x11lst`grep ^$i/ ../Packages.lst |sed "s|$i| -x ./frugalware-$arch|"`
-done
-
-binex=`find ../ -name frugalware-* -type d |sed 's|^\.\./|-x |' |grep -v frugalware-$arch`
-binexall=`find ../ -name frugalware-* -type d |sed 's|^\.\./|-x |'`
-
+archs=('i686' 'x86_64')
+arch=i686
+dbpath=/var/lib/pacman
+target=../frugalware-$version-iso/
+date=`date +%Y%m%d`
 cd ..
 
+# generate exclusion list for cd1 and cd2
+baselst=`for i in $(pacman -b $dbpath -Sg ${base[@]} |grep -v '^\w'); do ls frugalware-i686/$i*|grep "/$i-[^-]*-[^-]*-$arch.fpm$"|sed 's|\(.*\)| -x ./\1|'; done`
+x11lst=`for i in $(pacman -b $dbpath -Sg ${x11[@]} |grep -v '^\w'); do ls frugalware-i686/$i*|grep "/$i-[^-]*-[^-]*-$arch.fpm$"|sed 's|\(.*\)| -x ./\1|'; done`
+
+
+# exlustion other arch's pkgs
+for i in ${archs[@]}
+do
+	[ "$i" != "$arch" ] && binex="$binex -x ./frugalware-$i -x ./extra/frugalware-$i -x ./boot/initrd-$i.img.gz -x ./boot/vmlinuz-*-$i"
+done
+
+# use this to exlude the given arch's packages, so keep only kernel & initrd
+for i in ${archs[@]}
+do
+	if [ "$i" != "$arch" ]; then
+		binexall="$binexall -x ./frugalware-$i -x ./extra/frugalware-$i -x ./boot/initrd-$i.img.gz -x ./boot/vmlinuz-*-$i"
+	else
+		binexall="$binexall -x ./frugalware-$i -x ./extra/frugalware-$i"
+	fi
+done
+
 # CD0: netinstall
-mkisofs -o frugalware-$version-net.iso \
+mkisofs -o frugalware-$version-$arch-net.iso \
 	-R -J -V "Frugalware Install" \
 	-A "Frugalware Install Network Install" \
 	-x ./_darcs \
@@ -33,12 +42,12 @@ mkisofs -o frugalware-$version-net.iso \
 	-hide-rr-moved \
 	-b boot/grub/stage2_eltorito \
 	-v -d -N -no-emul-boot -boot-load-size 4 -boot-info-table . || exit 1
-ln -s frugalware-$version-net.iso frugalware-$date-net.iso
-mv frugalware-$version-net.iso frugalware-$date-net.iso $target
+ln -s frugalware-$version-$arch-net.iso frugalware-$date-$arch-net.iso
+mv frugalware-$version-$arch-net.iso frugalware-$date-$arch-net.iso $target
 # exit 0
 
 # CD1: base system
-mkisofs -o frugalware-$version-cd1.iso \
+mkisofs -o frugalware-$version-$arch-cd1.iso \
 	-R -J -V "Frugalware Install" \
 	-A "Frugalware Install CD 1" \
 	-x ./_darcs \
@@ -49,12 +58,12 @@ mkisofs -o frugalware-$version-cd1.iso \
 	-hide-rr-moved \
 	-b boot/grub/stage2_eltorito \
 	-v -d -N -no-emul-boot -boot-load-size 4 -boot-info-table . || exit 1
-ln -s frugalware-$version-cd1.iso frugalware-$date-cd1.iso
-mv frugalware-$version-cd1.iso frugalware-$date-cd1.iso $target
+ln -s frugalware-$version-$arch-cd1.iso frugalware-$date-$arch-cd1.iso
+mv frugalware-$version-$arch-cd1.iso frugalware-$date-$arch-cd1.iso $target
 # exit 0
 
 # CD2: x11 system
-mkisofs -o frugalware-$version-cd2.iso \
+mkisofs -o frugalware-$version-$arch-cd2.iso \
 	-R -J -V "Frugalware Install" \
 	-A "Frugalware Install CD 2" \
 	-x ./_darcs \
@@ -65,12 +74,12 @@ mkisofs -o frugalware-$version-cd2.iso \
 	-hide-rr-moved \
 	-b boot/grub/stage2_eltorito \
 	-v -d -N -no-emul-boot -boot-load-size 4 -boot-info-table . || exit 1
-ln -s frugalware-$version-cd2.iso frugalware-$date-cd2.iso
-mv frugalware-$version-cd2.iso frugalware-$date-cd2.iso $target
+ln -s frugalware-$version-$arch-cd2.iso frugalware-$date-$arch-cd2.iso
+mv frugalware-$version-$arch-cd2.iso frugalware-$date-$arch-cd2.iso $target
 # exit 0
 
 # CD3: extra repo
-mkisofs -o frugalware-$version-cd3.iso \
+mkisofs -o frugalware-$version-$arch-cd3.iso \
 	-R -J -V "Frugalware Install" \
 	-A "Frugalware Install CD 3" \
 	-x ./_darcs \
@@ -81,12 +90,12 @@ mkisofs -o frugalware-$version-cd3.iso \
 	-hide-rr-moved \
 	-b boot/grub/stage2_eltorito \
 	-v -d -N -no-emul-boot -boot-load-size 4 -boot-info-table . || exit 1
-ln -s frugalware-$version-cd3.iso frugalware-$date-cd3.iso
-mv frugalware-$version-cd3.iso frugalware-$date-cd3.iso $target
+ln -s frugalware-$version-$arch-cd3.iso frugalware-$date-$arch-cd3.iso
+mv frugalware-$version-$arch-cd3.iso frugalware-$date-$arch-cd3.iso $target
 # exit 0
 
 # DVD: full tree
-mkisofs -o frugalware-$version-dvd.iso \
+mkisofs -o frugalware-$version-$arch-dvd.iso \
 	-R -J -V "Frugalware Install" \
 	-A "Frugalware Install DVD" \
 	-x ./_darcs \
@@ -96,5 +105,5 @@ mkisofs -o frugalware-$version-dvd.iso \
 	-hide-rr-moved \
 	-b boot/grub/stage2_eltorito \
 	-v -d -N -no-emul-boot -boot-load-size 4 -boot-info-table . || exit 1
-ln -s frugalware-$version-dvd.iso frugalware-$date-dvd.iso
-mv frugalware-$version-dvd.iso frugalware-$date-dvd.iso $target
+ln -s frugalware-$version-$arch-dvd.iso frugalware-$date-$arch-dvd.iso
+mv frugalware-$version-$arch-dvd.iso frugalware-$date-$arch-dvd.iso $target

@@ -10,9 +10,8 @@ $fwstrdlfile="File letöltése (ftpn keresztül)";
 $fwstrdlhttp="Httpn keresztül";
 $fwstrdlrsync="Rsyncen keresztül";
 $fwstrdlrsynct="Rsyncen keresztül (mini-hogyan)";
-$fwstrdlrsync1="Teljes tükrözés (~16GB):";
-$fwstrdlrsync2="Csak egy meghatározott ág (~3GB, például -current):";
-$fwstrdlrsync3="Csak egy meghatározott ág forráskódok és bináris csomagok nélkül (~15MB):";
+$fwstrdlrsync1="Teljes tükrözés (~27GB):";
+$fwstrdlrsync2="Csak egy meghatározott ág (~5GB, például -current):";
 $fwstrcheapisot="CD beszerzése";
 $fwstrcheapisod="Frugalware CDket a következõ oldalakon vásárolhat:";
 

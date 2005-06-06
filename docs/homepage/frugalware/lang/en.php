@@ -10,9 +10,8 @@ $fwstrdlfile="Download file (via ftp)";
 $fwstrdlhttp="Via http";
 $fwstrdlrsync="Via rsync";
 $fwstrdlrsynct="Via rsync (mini-howto)";
-$fwstrdlrsync1="Full mirroring (~16GB):";
-$fwstrdlrsync2="Only a specified tree (~3GB, for example -current):";
-$fwstrdlrsync3="Only a specified tree without source tarballs and binary packages (~15MB):";
+$fwstrdlrsync1="Full mirroring (~27GB):";
+$fwstrdlrsync2="Only a specified tree (~5GB, for example -current):";
 $fwstrcheapisot="Get a CD";
 $fwstrcheapisod="You can buy Frugalware CDs at the following sites:";
 

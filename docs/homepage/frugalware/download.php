@@ -45,9 +45,7 @@ print("<div align=left><ul>
 <li>$fwstrdlrsync1<br>
 <br><tt>rsync -avP --delete-after <i>server</i> /download/directory</tt><br>&nbsp;
 <li>$fwstrdlrsync2<br>
-<br><tt>rsync -avP --delete-after <i>server</i>/pub/frugalware/frugalware-current/ /download/directory/location </tt><br>&nbsp;
-<li>$fwstrdlrsync3<br>
-<br><tt>rsync -avP --delete-after --exclude '*.fpm' --exclude '*.tar.gz' --exclude '*.tar.bz2' --exclude '*.tgz' --exclude '*.tbz' --exclude '*.bin' --exclude '*.rpm' --exclude '*.zip' --exclude '*.tar.Z' --exclude '*.exe' --exclude '*.img.gz' <i>server</i>/pub/frugalware/frugalware-current/ /download/directory/location</tt><br>&nbsp;
+<br><tt>rsync -avP --delete-after <i>server</i>/frugalware-current/ /download/directory/location </tt><br>&nbsp;
 </ul></div>");
 fwclosebox(0);
 print("<p>");

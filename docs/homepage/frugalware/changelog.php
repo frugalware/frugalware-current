@@ -11,10 +11,7 @@ foreach($changelogf as $i)
 {
 	if ($i != "\n")
 	{
-		$i = str_replace("\n", "", $i);
-		$i = str_replace("\r", "", $i);
-		$i = str_replace("<", "&lt;", $i);
-		$i = str_replace(" ", "&nbsp;", $i);
+		$i = str_replace(array("<", ">", "@", "\n", "\r", " "), array("&lt;", "&gt;", "_at_", "", "", "&nbsp;"), $i);
 		if ($opennew)
 		{
 			if ($j < $fwchangelogentries)

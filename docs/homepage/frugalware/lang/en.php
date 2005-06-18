@@ -182,6 +182,7 @@ $shot_titles["blackbox.png"]="Blackbox";
 $shot_titles["blackbox2.png"]="Blackbox in action";
 $shot_titles["fluxbox.jpg"]="Fluxbox";
 $shot_titles["fluxbox2.jpg"]="Fluxbox in action";
+$shot_titles["gnome-x86_64.png"]="GNOME on x86_64";
 
 // docs.php
 $fwstrdocs="Documentation";

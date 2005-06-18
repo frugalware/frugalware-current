@@ -182,6 +182,7 @@ $shot_titles["blackbox.png"]="Blackbox";
 $shot_titles["blackbox2.png"]="Blackbox munka közben";
 $shot_titles["fluxbox.jpg"]="Fluxbox";
 $shot_titles["fluxbox2.jpg"]="Fluxbox munka közben";
+$shot_titles["gnome-x86_64.png"]="GNOME x86_64-en";
 
 // docs.php
 $fwstrdocs="Dokumentáció";

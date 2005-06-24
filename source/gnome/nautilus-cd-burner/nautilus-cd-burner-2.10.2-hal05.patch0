@@ -1,0 +1,306 @@
+Index: nautilus-burn-drive.c
+===================================================================
+RCS file: /cvs/gnome/nautilus-cd-burner/nautilus-burn-drive.c,v
+retrieving revision 1.3
+diff -u -r1.3 nautilus-burn-drive.c
+--- nautilus-burn-drive.c	10 Feb 2005 21:56:17 -0000	1.3
++++ nautilus-burn-drive.c	23 Feb 2005 18:37:00 -0000
+@@ -88,18 +88,38 @@
+ get_hal_context (void)
+ {
+ 	static LibHalContext *ctx = NULL;
+-	LibHalFunctions       hal_functions = {
+-		NULL, /* mainloop integration */
+-		NULL, /* device_added */
+-		NULL, /* device_removed */
+-		NULL, /* device_new_capability */
+-		NULL, /* device_lost_capability */
+-		NULL, /* property_modified */
+-		NULL, /* device_condition */
+-	};
++	DBusError error;
++	DBusConnection *dbus_conn;
++
++	if (ctx == NULL) {
++		ctx = libhal_ctx_new ();
++		if (ctx == NULL) {
++			g_warning ("Could not create a HAL context\n");
++		} else { 
++			dbus_error_init (&error);
++			dbus_conn = dbus_bus_get (DBUS_BUS_SYSTEM, &error);
++
++			if (dbus_error_is_set (&error)) {
++				g_warning ("Could not connect to system bus: %s\n", error.message);
++				dbus_error_free (&error);
++				return NULL;
++			}
++
++			libhal_ctx_set_dbus_connection (ctx, dbus_conn);
++
++			if (!libhal_ctx_init (ctx, &error)) {
++				g_warning ("Could not initalize "
++					   "the HAL context: %s\n",
++					   error.message);
++
++				if (dbus_error_is_set (&error))
++					dbus_error_free (&error);
+ 
+-	if (ctx == NULL)
+-		ctx = hal_initialize (&hal_functions, FALSE);
++				libhal_ctx_free (ctx);
++				ctx = NULL;
++			}
++		}
++	}
+ 
+ 	return ctx;
+ }
+@@ -423,43 +443,66 @@
+ 		int                   num_devices;
+ 		NautilusBurnMediaType type;
+ 		char                 *hal_type;
++		DBusError error;
+ 		
+ 		ctx = get_hal_context ();
++
++		dbus_error_init (&error);
+ 		if (ctx != NULL) {
+-			device_names = hal_manager_find_device_string_match (ctx, 
+-									     "info.parent",
+-									     drive->priv->udi,
+-									     &num_devices);
+-			if (num_devices == 0) {
++			device_names = libhal_manager_find_device_string_match (ctx, 
++										"info.parent",
++										drive->priv->udi,
++										&num_devices,
++										&error);
++
++			if (dbus_error_is_set (&error)) {
++				g_warning ("%s\n", error.message);
++				dbus_error_free (&error);
+ 				return NAUTILUS_BURN_MEDIA_TYPE_ERROR;
+ 			}
+ 
++			if (num_devices == 0)
++				return NAUTILUS_BURN_MEDIA_TYPE_ERROR;
++			
++
+ 			/* just look at the first child */
+-			if (hal_device_get_property_bool (ctx, 
+-							  device_names [0],
+-							  "volume.is_mounted")) {
++			if (libhal_device_get_property_bool (ctx, 
++							     device_names [0],
++							     "volume.is_mounted",
++							     NULL)) {
+ 				type = NAUTILUS_BURN_MEDIA_TYPE_BUSY;
+-			} else {		    
++			} else {
++			
+ 				if (is_rewritable)
+-					*is_rewritable = hal_device_get_property_bool (ctx, 
+-										       device_names [0],
+-										       "volume.disc.is_rewritable");
++					*is_rewritable = libhal_device_get_property_bool (ctx, 
++									 		  device_names [0],
++											  "volume.disc.is_rewritable",
++											  NULL);
++
+ 				if (is_blank)
+-					*is_blank = hal_device_get_property_bool (ctx, 
+-										  device_names [0],
+-										  "volume.disc.is_blank");
++					*is_blank = libhal_device_get_property_bool (ctx, 
++										     device_names [0],
++										     "volume.disc.is_blank",
++										     NULL);
++
+ 				if (has_data)
+-					*has_data = hal_device_get_property_bool (ctx, 
+-										  device_names [0],
+-										  "volume.disc.has_data");
++					*has_data = libhal_device_get_property_bool (ctx, 
++										     device_names [0],
++										     "volume.disc.has_data",
++										     NULL);
++
+ 				if (has_audio)
+-					*has_audio = hal_device_get_property_bool (ctx, 
+-										  device_names [0],
+-										  "volume.disc.has_audio");
++					*has_audio = libhal_device_get_property_bool (ctx, 
++										      device_names [0],
++										      "volume.disc.has_audio",
++										      NULL);
++
+ 				type = NAUTILUS_BURN_MEDIA_TYPE_BUSY;
+-				hal_type = hal_device_get_property_string (ctx, 
+-									   device_names [0],
+-									   "volume.disc.type");
++				hal_type = libhal_device_get_property_string (ctx, 
++									      device_names [0],
++									      "volume.disc.type",
++									      NULL);
++
+ 				if (hal_type == NULL || strcmp (hal_type, "unknown") == 0) {
+ 					type = NAUTILUS_BURN_MEDIA_TYPE_UNKNOWN;
+ 				} else if (strcmp (hal_type, "cd_rom") == 0) {
+@@ -485,10 +528,10 @@
+ 				}
+ 				
+ 				if (hal_type != NULL)
+-					hal_free_string (hal_type);
++					libhal_free_string (hal_type);
+ 			}
+ 
+-			hal_free_string_array (device_names);
++			libhal_free_string_array (device_names);
+ 
+ 			return type;
+ 		}
+@@ -789,7 +832,7 @@
+ 
+ #ifdef USE_HAL
+ 
+-#define GET_BOOL_PROP(x) (hal_device_property_exists (ctx, device_names [i], x) && hal_device_get_property_bool (ctx, device_names [i], x))
++#define GET_BOOL_PROP(x) (libhal_device_property_exists (ctx, device_names [i], x, NULL) && libhal_device_get_property_bool (ctx, device_names [i], x, NULL))
+ 
+ static GList *
+ hal_scan (gboolean recorder_only)
+@@ -805,8 +848,10 @@
+ 		return NULL;
+ 	}
+ 
+-	device_names = hal_find_device_by_capability (ctx,
+-						      "storage.cdrom", &num_devices);
++	device_names = libhal_find_device_by_capability (ctx,
++						         "storage.cdrom", 
++							 &num_devices,
++							 NULL);
+ 
+ 	if (device_names == NULL)
+ 		return NULL;
+@@ -827,47 +872,61 @@
+ 		if (GET_BOOL_PROP ("storage.cdrom.cdrw")) {
+ 			drive->type |= NAUTILUS_BURN_DRIVE_TYPE_CDRW_RECORDER;
+ 		}
++
+ 		if (GET_BOOL_PROP ("storage.cdrom.dvd")) {
+ 			drive->type |= NAUTILUS_BURN_DRIVE_TYPE_DVD_DRIVE;
+ 
+ 			if (GET_BOOL_PROP ("storage.cdrom.dvdram")) {
+ 				drive->type |= NAUTILUS_BURN_DRIVE_TYPE_DVD_RAM_RECORDER;
+ 			}
++
+ 			if (GET_BOOL_PROP ("storage.cdrom.dvdr")) {
+ 				drive->type |= NAUTILUS_BURN_DRIVE_TYPE_DVD_RW_RECORDER;
+ 			}
++
+ 			if (GET_BOOL_PROP ("storage.cdrom.dvd")) {
+ 				drive->type |= NAUTILUS_BURN_DRIVE_TYPE_DVD_DRIVE;
+ 			}
++
+ 			if (GET_BOOL_PROP ("storage.cdrom.dvdplusr")) {
+ 				drive->type |= NAUTILUS_BURN_DRIVE_TYPE_DVD_PLUS_R_RECORDER;
+ 			}
++
+ 			if (GET_BOOL_PROP ("storage.cdrom.dvdplusrw")) {
+ 				drive->type |= NAUTILUS_BURN_DRIVE_TYPE_DVD_PLUS_RW_RECORDER;
+ 			}
++
+ 		}
+ 
+-		drive->device = hal_device_get_property_string (ctx,
+-								device_names [i], "block.device");
++		drive->device = libhal_device_get_property_string (ctx,
++								   device_names [i], 
++								   "block.device",
++								   NULL);
++
+ 		drive->cdrecord_id = g_strdup (drive->device);
+ 
+-		string = hal_device_get_property_string (ctx,
+-							 device_names [i], "storage.model");
++		string = libhal_device_get_property_string (ctx,
++							    device_names [i], 
++							    "storage.model",
++							    NULL);
++
+ 		if (string != NULL) {
+ 			drive->display_name = string;
+ 		} else {
+ 			drive->display_name = g_strdup_printf ("Unnamed Drive (%s)", drive->device);
+ 		}
+ 
+-		drive->max_speed_read = hal_device_get_property_int
+-			(ctx, device_names [i], "storage.cdrom.read_speed")
++		drive->max_speed_read = libhal_device_get_property_int
++			(ctx, device_names [i], "storage.cdrom.read_speed", NULL)
+ 			/ CD_ROM_SPEED;
+ 
+-		if (hal_device_property_exists (ctx, device_names [i], "storage.cdrom.write_speed")) {
+-			drive->max_speed_write = hal_device_get_property_int
++		if (libhal_device_property_exists (ctx, device_names [i], "storage.cdrom.write_speed", NULL)) {
++			drive->max_speed_write = libhal_device_get_property_int
+ 				(ctx, device_names [i],
+-				 "storage.cdrom.write_speed")
++				 "storage.cdrom.write_speed",
++				 NULL)
+ 				/ CD_ROM_SPEED;
++
+ 		}
+ 
+ 		add_whitelist (drive);
+@@ -881,7 +940,7 @@
+ 		drive->priv->udi = g_strdup (device_names [i]);
+ 	}
+ 
+-	hal_free_string_array (device_names);
++	libhal_free_string_array (device_names);
+ 
+ 	drives = g_list_reverse (drives);
+ 
+@@ -1848,13 +1907,20 @@
+ 	if (drive->priv->udi != NULL) {
+ 		LibHalContext *ctx;
+ 		char *dbus_reason;
++		DBusError error;
+ 		
++		dbus_error_init (&error);
+ 		ctx = get_hal_context ();
+ 		if (ctx != NULL) {
+-			res = hal_device_lock (ctx, 
++			res = libhal_device_lock (ctx, 
+ 					       drive->priv->udi,
+ 					       reason,
+-					       &dbus_reason);
++					       &dbus_reason,
++					       &error);
++
++			if (dbus_error_is_set (&error))
++				dbus_error_free (&error);
++				
+ 			if (dbus_reason != NULL && 
+ 			    reason_for_failure != NULL)
+ 				*reason_for_failure = g_strdup (dbus_reason);
+@@ -1885,11 +1951,17 @@
+ #ifdef USE_HAL
+ 	if (drive->priv->udi != NULL) {
+ 		LibHalContext *ctx;
++		DBusError error;
+ 
++		dbus_error_init (&error);
+ 		ctx = get_hal_context ();
+ 		if (ctx != NULL) {
+-			res = hal_device_unlock (ctx, 
+-						 drive->priv->udi);
++			res = libhal_device_unlock (ctx, 
++						    drive->priv->udi,
++						    &error);
++
++			if (dbus_error_is_set (&error))
++				dbus_error_free (&error);
+ 		}
+ 	}
+ #endif

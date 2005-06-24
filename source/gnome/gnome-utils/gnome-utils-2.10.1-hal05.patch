@@ -1,0 +1,103 @@
+--- gnome-utils-2.9.92/gfloppy/src/main.c.gfloppy_new_hal_api	2005-01-24 10:54:50.000000000 -0500
++++ gnome-utils-2.9.92/gfloppy/src/main.c	2005-03-08 14:58:09.411484000 -0500
+@@ -153,6 +153,37 @@
+ 
+ #define HAL_FLOPPY_DEV_KEY "block.device"
+ 
++static LibHalContext *
++get_hal_context ()
++{
++	LibHalContext *hal_ctx;
++	hal_ctx = NULL;
++
++	hal_ctx = libhal_ctx_new ();
++	if (hal_ctx) {
++		DBusConnection *dbus_conn;
++		DBusError error;
++
++		dbus_error_init (&error);
++		dbus_conn = dbus_bus_get (DBUS_BUS_SYSTEM, &error);
++
++		if (dbus_error_is_set (&error)) {
++			dbus_error_free (&error);
++			return NULL;
++		}
++
++		libhal_ctx_set_dbus_connection (hal_ctx, dbus_conn);
++
++		if (!libhal_ctx_init (hal_ctx, &error)) {
++			dbus_error_free (&error);
++			libhal_ctx_free (hal_ctx);
++ 			return NULL;
++ 		}
++	}
++
++	return hal_ctx;
++}
++
+ static FloppyStatus *
+ get_hal_floppies (gint *num_devices, gint *num_ok, LibHalContext *ctx)
+ {
+@@ -160,10 +191,11 @@
+ 	gchar           **device_list;
+ 	FloppyStatus *floppies;
+ 
+-	device_list = hal_manager_find_device_string_match (ctx,
+-							    HAL_FLOPPY_KEY, 
+-							    HAL_FLOPPY_VALUE, 
+-							    num_devices); 
++	device_list = libhal_manager_find_device_string_match (ctx,
++							       HAL_FLOPPY_KEY, 
++							       HAL_FLOPPY_VALUE, 
++							       num_devices, 
++							       NULL); 
+ 
+ 	floppies = NULL;
+ 	
+@@ -174,9 +206,10 @@
+ 
+ 		for (i = 0; i < *num_devices; i++) {
+ 			floppies[i].device_path = 
+-				hal_device_get_property_string (ctx, 
++				libhal_device_get_property_string (ctx, 
+ 								device_list[i], 
+-								HAL_FLOPPY_DEV_KEY);
++								HAL_FLOPPY_DEV_KEY,
++								NULL);
+ 
+ 			floppies[i].status = test_floppy_device (floppies[i].device_path);
+ 
+@@ -184,7 +217,7 @@
+ 				(*num_ok)++;
+ 		}
+ 		
+-		hal_free_string_array (device_list);
++		libhal_free_string_array (device_list);
+ 	} else {
+ 		*num_devices = 1;
+ 		
+@@ -554,7 +587,7 @@
+                             GNOME_PARAM_APP_DATADIR,DATADIR,NULL);
+ 
+ #ifdef USE_HAL
+-	ctx = (gpointer) hal_initialize (NULL, FALSE);
++	ctx = (gpointer)get_hal_context ();
+ #endif
+ 
+ 	gtk_window_set_default_icon_name ("gnome-dev-floppy");
+@@ -694,7 +727,14 @@
+ 	g_object_unref (G_OBJECT (client));
+ 
+ #ifdef USE_HAL
+-	hal_shutdown (ctx);
++	if (ctx != NULL) {
++		DBusError derror;
++		libhal_ctx_shutdown ((LibHalContext *)ctx, &derror);
++		if (dbus_error_is_set (&derror))
++			dbus_error_free (&derror);
++
++		libhal_ctx_free ((LibHalContext *)ctx);
++	}
+ #endif
+ 
+ 	return 0;

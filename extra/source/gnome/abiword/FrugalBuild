@@ -1,26 +1,49 @@
-# Last Modified: Sat, 25 Jun 2005 12:50:09 +0200
-# Compiling Time: ~1.02 SBU
-# Maintainer: BMH1980 <bmh1980de@yahoo.de>
+# Last Modified: Sat, 25 Jun 2005 17:11:38 +0000
+# Compiling Time: ~3.01 SBU
+# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=abiword
 pkgver=2.2.8
-pkgrel=1
+pkgrel=2
 pkgdesc="AbiWord is a free word processing program similar to Microsoft(R) Word."
 url="http://www.abisource.com"
 license="GPL2"
 install=$pkgname.install
 up2date="lynx -dump $url/download/ | grep tar.gz | cut -d '/' -f 6"
-source=($url/downloads/$pkgname/$pkgver/source/$pkgname-$pkgver.tar.gz)
-md5sums=('0b94d93e63c4daaa6d0c1148cab2cffe')
+source=($url/downloads/$pkgname/$pkgver/source/$pkgname-$pkgver.tar.bz2 abiword-2.2.8-fix-abidist.patch)
+md5sums=('f6f58e6ea4720ca635ede7b7f13cf156' 'fa0c85cf5fc64d4619571d175767af81')
 groups=('gnome-extra')
-archs=('i686')
-depends=('fribidi' 'gucharmap')
+archs=('i686' 'x86_64')
+depends=('termcap' 'librsvg' 'readline' 'fribidi' 'gucharmap' 'enchant' 'libgnomeprintui')
+makedepends=('imagemagick')
 
 build()
 {
-	Fcd $pkgname-$pkgver/abi
-	Fmake || return 1
+	# NOTE: I don't know why, but Fcd did not great at here. So please no replace :)
+	### AbiWord main
+	cd $startdir/src/$pkgname-$pkgver 
+	Fpatchall || return 1
+	cd $startdir/src/$pkgname-$pkgver/abi
+	Fmake --enable-bidi --enable-threads --enable-scripting --enable-gnome \
+		--enable-extra-optimization --with-ImageMagick=/usr all-recursive || return 1
+	cd $startdir/src/$pkgname-$pkgver/abi
 	Fmakeinstall || return 1
+
+	### AbiWord plugins
+	cd $startdir/src/$pkgname-$pkgver/abiword-plugins
+	libtoolize --copy --force
+	./nextgen.sh
+	Fmake --with-abiword=../abi --enable-gnome --with-ImageMagick=/usr --enable-all --disable-gda || return 1
+	cd $startdir/src/$pkgname-$pkgver/abiword-plugins
+	Fmakeinstall DESTDIR=$Fdestdir || return 1
+
+	### AbiWord help files
+	cd $startdir/src/$pkgname-$pkgver/abiword-docs
+	ABI_DOC_PROG=$(pwd)/../abi/src/wp/main/unix/AbiWord-2.2 ./make-html.sh
+	mkdir -p $Fdestdir/usr/share/AbiSuite-2.2/AbiWord/help
+	cp -rp help/* $Fdestdir/usr/share/AbiSuite-2.2/AbiWord/help/
+	# Fix some wrong permission on help files
+	find $Fdestdir/usr/share/AbiSuite-2.2/AbiWord/help/ -type d -exec chmod -c o+rx {} \;
 }
 
 # optimalization OK

@@ -11,6 +11,8 @@
 				$items[] = $i;
 			mysql_free_result($result);
 			break;
+		case "darcs":
+			print(file_get_contents("http://darcs.frugalware.org/cgi-bin/darcs.cgi/frugalware-current/?c=rss"));
 		default:
 			die();
 	}

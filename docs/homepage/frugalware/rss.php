@@ -12,7 +12,13 @@
 			mysql_free_result($result);
 			break;
 		case "darcs":
+			header('Content-Type: application/xml; charset=utf-8');
 			print(file_get_contents("http://darcs.frugalware.org/cgi-bin/darcs.cgi/frugalware-current/?c=rss"));
+			die();
+		case "bugs":
+			header('Content-Type: application/xml; charset=utf-8');
+			print(file_get_contents("http://bugs.frugalware.org/rss.php?type=new"));
+			die();
 		default:
 			die();
 	}

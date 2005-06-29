@@ -9,7 +9,7 @@ print("
 <tr><td>Sep 29, 2005<td>0.3rc2<td><i>pending</i>
 <tr><td>Sep 15, 2005<td>0.3rc1<td><i>pending</i>
 <tr><td>Aug 18, 2005<td>0.3pre2<td><i>pending</i>
-<tr><td width=\"30%\">Jun 23, 2005<td width=\"30%\">0.3pre1<td width=\"30%\"><i>pending</i>
+<tr><td width=\"30%\">Jun 23, 2005<td width=\"30%\">0.3pre1<td width=\"30%\"><i>done</i>
 </table>
 ");
 fwclosebox(false);

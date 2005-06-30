@@ -2,11 +2,13 @@
  * Copyright 2002 Andi Kleen, SuSE Labs.
  * This file is subject to the GNU General Public License v.2 
  */
-#include <linux/personality.h>
+#include <unistd.h>
+#include <sys/personality.h>
 #undef personality
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /* Make --3gb the default for buggy Java */
 #define STUPID_DEFAULT 1

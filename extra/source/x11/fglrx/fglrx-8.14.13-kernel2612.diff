@@ -1,0 +1,1485 @@
+diff -burN fglrx.orig/build_mod/2.6.x/Makefile fglrx/build_mod/2.6.x/Makefile
+--- fglrx.orig/build_mod/2.6.x/Makefile	2005-06-08 15:05:04 -0400
++++ fglrx/build_mod/2.6.x/Makefile	2005-06-14 22:31:10 -0400
+@@ -13,7 +13,6 @@
+ 
+ EXTRA_CFLAGS    += \
+                 -I$(PWD) \
+-                -D__AGP__ \
+                 -DFGL \
+                 -DFGL_LINUX \
+                 -DFGL_GART_RESERVED_SLOT \
+diff -burN fglrx.orig/build_mod/agpgart_be.c fglrx/build_mod/agpgart_be.c
+--- fglrx.orig/build_mod/agpgart_be.c	2005-06-08 15:05:04 -0400
++++ fglrx/build_mod/agpgart_be.c	2005-06-14 22:29:29 -0400
+@@ -81,8 +81,9 @@
+  *   version 1.1.1.8, 2001-10-09, CVS-Tag: LINUX_2_4_13
+  */
+ 
+-// dual boards problem:
+-// MGA G450 (PCI) looks like an AGP board
++/* dual boards problem:
++ * MGA G450 (PCI) looks like an AGP board
++ */
+ #define FGL_FIX
+ 
+ #if defined(FIREGL1) || defined(FIREGL23)
+@@ -117,12 +118,17 @@
+ #include <linux/miscdevice.h>
+ #include <linux/pm.h>
+ 
++#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
++#define pci_find_class pci_get_class
++#endif
++
+ #if (LINUX_VERSION_CODE >= 0x020400)
+ #define FGL_PM_PRESENT
+ #else
+-// some recent SuSE or RedHat kernels from the 2.2.x series do have PM as well.
+-// if in need then enable this on your own risk.
+-//#define FGL_PM_PRESENT
++/* some recent SuSE or RedHat kernels from the 2.2.x series do have PM as well.
++ * if in need then enable this on your own risk.
++ * #define FGL_PM_PRESENT
++ */
+ #endif
+ 
+ #ifdef FGL_PM_PRESENT
+@@ -137,10 +143,10 @@
+ #include "agp.h"
+ 
+ #ifdef FGL
+-//#define FGL_MORE_FLUSH    // performs exhaustive cpu cache flushes
+-#define FGL_PATCH_IRONGATE_FLUSH    // code like published from Jeff Hartmann
+-                                        // at the dri-developer mailing list
+-    // its supposed to be a work around for tlb_flush with certain revisions of AMD 751
++/* #define FGL_MORE_FLUSH     performs exhaustive cpu cache flushes */
++#define FGL_PATCH_IRONGATE_FLUSH    /* code like published from Jeff Hartmann
++                                         at the dri-developer mailing list
++     its supposed to be a work around for tlb_flush with certain revisions of AMD 751 */
+     
+ #endif
+ 
+@@ -273,15 +279,16 @@
+ 		return -EBUSY;
+ 	}
+ #ifdef STANDALONE_AGPGART
+-    // don't increment our own module usage count, cause this
+-    // would prevent the firegl kernel module from ever beeing unloaded.
+-    // (agp_backend_release is called during module unload)
++    /* don't increment our own module usage count, cause this
++     * would prevent the firegl kernel module from ever beeing unloaded.
++     * (agp_backend_release is called during module unload)
++     */
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0) 
+     __module_get(THIS_MODULE);
+ #else
+ 	MOD_INC_USE_COUNT;
+ #endif
+-#endif // STANDALONE_AGPGART
++#endif /* STANDALONE_AGPGART */
+ 	return 0;
+ }
+ 
+@@ -297,7 +304,7 @@
+ #else
+ 	MOD_DEC_USE_COUNT;
+ #endif
+-#endif // STANDALONE_AGPGART
++#endif /* STANDALONE_AGPGART */
+ }
+ 
+ /* 
+@@ -334,21 +341,21 @@
+ {
+ 	agp_memory *new;
+ 
+-    // allocate management header for the memory
++    /* allocate management header for the memory */
+ 	new = kmalloc(sizeof(agp_memory), GFP_KERNEL);
+ 	if (new == NULL) {
+ 		return NULL;
+ 	}
+ 	memset(new, 0, sizeof(agp_memory));
+ 
+-    // allocate an agp memory handle for the memory
++    /* allocate an agp memory handle for the memory */
+ 	new->key = agp_get_key();
+ 	if (new->key < 0) {
+ 		kfree(new);
+ 		return NULL;
+ 	}
+ 
+-    // allocate the memory itself
++    /* allocate the memory itself */
+ 	new->memory = vmalloc(PAGE_SIZE * scratch_pages);
+ 	if (new->memory == NULL) {
+ 		agp_free_key(new->key);
+@@ -358,7 +365,7 @@
+ 	new->num_scratch_pages = scratch_pages;
+ 
+ #ifdef FGL_xxx
+-    {   // enter some magic value at start of each page
++    {   /* enter some magic value at start of each page */
+ #define PAGE_GOOD   0xba6e600d
+         int n;
+         unsigned long *ptr;
+@@ -378,7 +385,7 @@
+ #define ENTRIES_PER_PAGE		(PAGE_SIZE / sizeof(unsigned long))
+ 
+ #ifdef FGL
+-// flag values for agp_memory.alloc_type
++/* flag values for agp_memory.alloc_type */
+ #define AGP_ALLOC_TYPE_REGULAR     0x00000000
+ #define AGP_ALLOC_TYPE_PHYS_LIST   0x00000001
+ #endif
+@@ -409,9 +416,9 @@
+ 		}
+ 	}
+ 
+-	agp_free_key(curr->key);    // release the agp handle
+-	vfree(curr->memory);        // release the table with the phys adresses
+-	kfree(curr);                // release the agp_memory structure itself
++	agp_free_key(curr->key);    /* release the agp handle */
++	vfree(curr->memory);        /* release the table with the phys adresses */
++	kfree(curr);                /* release the agp_memory structure itself */
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0) 
+     module_put(THIS_MODULE);
+ #else
+@@ -439,7 +446,7 @@
+ 		new = agp_bridge.alloc_by_type_phys_list(page_count, type, phys_addr);
+ 		return new;
+ #else
+-        return NULL;    // types are not yet supported for this call
++        return NULL;    /* types are not yet supported for this call */
+ #endif
+ 	}
+     /* We always increase the module count, since free auto-decrements
+@@ -487,7 +494,7 @@
+ 	}
+     
+ #ifdef FGL
+-    // does this memory need release trough the alternate slot?
++    /* does this memory need release trough the alternate slot? */
+     if (curr->alloc_type == AGP_ALLOC_TYPE_PHYS_LIST)
+     {
+         agp_free_memory_phys_list(curr);
+@@ -707,14 +714,14 @@
+ 
+ /* Generic Agp routines - Start */
+ 
+-//static
++/* static */
+ int agp_generic_agp_v2_enable(u32 mode)
+ {
+ 	struct pci_dev *device = NULL;
+ 	u32 command, scratch, cap_id;
+ 	u8 cap_ptr;
+ 
+-    // command = read from AGPstatus reg of bridge (PCI device 0:0.0). 
++    /* command = read from AGPstatus reg of bridge (PCI device 0:0.0).  */
+ 	pci_read_config_dword(agp_bridge.dev,
+ 			      agp_bridge.capndx + 4,
+ 			      &command);
+@@ -802,7 +809,7 @@
+ 	}
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10) 
+-            // the reference count has been increased in agp_backend_initialize.
++            /* the reference count has been increased in agp_backend_initialize. */
+         if (device)
+             pci_dev_put(device); 
+ #endif
+@@ -824,11 +831,11 @@
+ 
+ 
+ #ifdef FGL_xxx
+-    // there is no AGP mode that matches all requirements
++    /* there is no AGP mode that matches all requirements */
+     if (!(command & 7))
+ 	{
+-        // some older AGP chipsets or graphics adapters might revolt 
+-		// if they are in AGP mode and AGP mode gets disabled
++        /* some older AGP chipsets or graphics adapters might revolt 
++         * if they are in AGP mode and AGP mode gets disabled */
+         return(-1); /* error return */
+ 	}
+ #endif
+@@ -839,9 +846,9 @@
+ #endif
+         command |= 0x00000100;
+ #ifdef __x86_64__
+-		// TODO: FIX it
++		/* TODO: FIX it */
+         command |= 0x00000104;
+-#endif // #ifdef __x86_64__
++#endif /* #ifdef __x86_64__ */
+ 
+ 	pci_write_config_dword(agp_bridge.dev,
+ 			       agp_bridge.capndx + 8,
+@@ -886,7 +893,7 @@
+ 	}
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10) 
+-            // the reference count has been increased in agp_backend_initialize.
++            /* the reference count has been increased in agp_backend_initialize. */
+         if (device)
+             pci_dev_put(device); 
+ #endif
+@@ -975,16 +982,16 @@
+ }
+ #endif
+ 
+-// please call the generic agp routine, even if your chipset only supports one
+-// AGP specification. other devices might support just the opposite and here
+-// are the checks that prevent you from enabling AGP in a screwed setup.
++/* please call the generic agp routine, even if your chipset only supports one
++ * AGP specification. other devices might support just the opposite and here
++ * are the checks that prevent you from enabling AGP in a screwed setup. */
+ int agp_generic_agp_enable(u32 mode)
+ {
+ 	struct pci_dev *device = NULL;
+ 	u8 cap_ptr;
+-	u8 v2_devs=0;       // AGP 2.0 device in standard mode (4x/2x/1x)
+-	u8 v3comp_devs=0;   // AGP 3.0 device in AGP 2.0 compatibility mode (4x/2x/1x)
+-	u8 v3_devs=0;       // AGP 3.0 device in standard mode (8x/4x)
++	u8 v2_devs=0;       /* AGP 2.0 device in standard mode (4x/2x/1x) */
++	u8 v3comp_devs=0;   /* AGP 3.0 device in AGP 2.0 compatibility mode (4x/2x/1x) */
++	u8 v3_devs=0;       /* AGP 3.0 device in standard mode (8x/4x) */
+ 
+     /* determine the number of AGPv2 and AGPv3 devices, including the bridge */
+ 	pci_for_each_dev(device) {
+@@ -1043,7 +1050,7 @@
+ #ifdef FGL_USE_AGPV3_OFFICIAL_ENABLE
+         return agp_generic_agp_3_0_enable(mode);
+ #else
+-		return agp_generic_agp_v3_enable(mode); // FGL preliminary coding
++		return agp_generic_agp_v3_enable(mode); /* FGL preliminary coding */
+ #endif
+     } else {
+ 		printk (KERN_INFO "AGP: Insufficent amount of AGP devices found\n");
+@@ -1407,7 +1414,7 @@
+ 	atomic_inc(&agp_bridge.current_memory_agp);
+ 	return (unsigned long) pt;
+ #else
+-    // 2.4.8-ac7 and 2.4.13
++    /* 2.4.8-ac7 and 2.4.13 */
+     struct page * page;
+ 
+     page = alloc_page(GFP_KERNEL);
+@@ -1444,10 +1451,10 @@
+ 	free_page((unsigned long) pt);
+ 	atomic_dec(&agp_bridge.current_memory_agp);
+ }
+-#else // ! AGPGART_2_2
++#else /* ! AGPGART_2_2 */
+ void agp_generic_destroy_page(unsigned long addr)
+ {
+-    // 2.4.8-ac7 and 2.4.13
++    /* 2.4.8-ac7 and 2.4.13 */
+     void *pt = (void *) addr;                                                 
+     struct page *page;                                                        
+ 
+@@ -1461,7 +1468,7 @@
+ #endif
+ 
+ #if LINUX_VERSION_CODE > 0x020500
+-//    unmap_page_from_agp(page); // LINUX_TODO
++/*    unmap_page_from_agp(page);  LINUX_TODO */
+     put_page(page);
+     unlock_page(page);
+ #else /* LINUX_VERSION_CODE > 0x020500 */
+@@ -1477,7 +1484,7 @@
+     free_page((unsigned long) pt);                                            
+     atomic_dec(&agp_bridge.current_memory_agp);                               
+ }
+-#endif // AGPGART_2_2
++#endif /* AGPGART_2_2 */
+ 
+ /* End Basic Page Allocation Routines */
+ 
+@@ -1496,7 +1503,7 @@
+ 	{32, 8192, 4}
+ };
+ 
+-// flag values for agp_memory.type
++/* flag values for agp_memory.type */
+ #define AGP_DCACHE_MEMORY 1
+ #define AGP_PHYS_MEMORY   2
+ 
+@@ -1810,7 +1817,7 @@
+     if ((agp_bridge.dev->device != PCI_DEVICE_ID_INTEL_830_M_0) &&
+         (agp_bridge.dev->device != PCI_DEVICE_ID_INTEL_845_G_0))
+     {
+-        // decoding for anything but 830 M and 845 G
++        /* decoding for anything but 830 M and 845 G */
+         switch (gmch_ctrl & I855_GMCH_GMS_MASK)
+         {
+         case I855_GMCH_GMS_STOLEN_1M:
+@@ -1833,7 +1840,7 @@
+             break;
+         }
+     } else {
+-        // decoding for 830 M and 845 G
++        /* decoding for 830 M and 845 G */
+         switch (gmch_ctrl & I830_GMCH_GMS_MASK)
+         {
+         case I830_GMCH_GMS_STOLEN_512:
+@@ -1922,7 +1929,7 @@
+     if ((agp_bridge.dev->device != PCI_DEVICE_ID_INTEL_830_M_0) &&
+         (agp_bridge.dev->device != PCI_DEVICE_ID_INTEL_845_G_0))
+     {
+-        // handling for anything but 830 M and 845 G
++        /* handling for anything but 830 M and 845 G */
+         agp_bridge.previous_size = agp_bridge.current_size = (void *) values;
+         agp_bridge.aperture_size_idx = 0;
+         return(values[0].size);
+@@ -2163,8 +2170,8 @@
+ 
+ static void intel_tlbflush(agp_memory * mem)
+ {
+-	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x2200); // AGPRSE, GTLB disable/flush
+-	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x2280); // AGPRSE, GTLB enable
++	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x2200); /* AGPRSE, GTLB disable/flush */
++	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x2280); /* AGPRSE, GTLB enable */
+ }
+ 
+ static void intel_8xx_tlbflush(agp_memory * mem)
+@@ -2183,7 +2190,7 @@
+ 
+ 	previous_size = A_SIZE_16(agp_bridge.previous_size);
+ 	pci_read_config_word(agp_bridge.dev, INTEL_NBXCFG, &temp);
+-	pci_write_config_word(agp_bridge.dev, INTEL_NBXCFG, temp & ~(1 << 9)); // global aperture access disable
++	pci_write_config_word(agp_bridge.dev, INTEL_NBXCFG, temp & ~(1 << 9)); /* global aperture access disable */
+ 	pci_write_config_word(agp_bridge.dev, INTEL_APSIZE,
+ 			      previous_size->size_value);
+ }
+@@ -2221,14 +2228,14 @@
+ 			       agp_bridge.gatt_bus_addr);
+ 
+ 	/* agpctrl */
+-	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x2280); // AGPRSE, GTLB enable
++	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x2280); /* AGPRSE, GTLB enable */
+ 
+ 	/* paccfg/nbxcfg */
+ 	pci_read_config_word(agp_bridge.dev, INTEL_NBXCFG, &temp2);
+ 	pci_write_config_word(agp_bridge.dev, INTEL_NBXCFG,
+-			      (temp2 & ~(1 << 10)) | (1 << 9)); // PCI Agent to Aperture Access enable, global aperture access enable
++			      (temp2 & ~(1 << 10)) | (1 << 9)); /* PCI Agent to Aperture Access enable, global aperture access enable */
+ 	/* clear any possible error conditions */
+-	pci_write_config_byte(agp_bridge.dev, INTEL_ERRSTS + 1, 7); // OOGF, IAAF, AIGATT
++	pci_write_config_byte(agp_bridge.dev, INTEL_ERRSTS + 1, 7); /* OOGF, IAAF, AIGATT */
+ 	return 0;
+ }
+ 
+@@ -2273,14 +2280,14 @@
+ 			       agp_bridge.gatt_bus_addr); 
+ 
+ 	/* agpctrl */
+-	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x0000); // GTLB flush/disable
++	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x0000); /* GTLB flush/disable */
+ 
+ 	/* mcgcfg */
+ 	pci_read_config_word(agp_bridge.dev, INTEL_I820_MCHCFG, &temp2);
+ 	pci_write_config_word(agp_bridge.dev, INTEL_I820_MCHCFG,
+-			      temp2 | (1 << 9)); // global aperture access enable
++			      temp2 | (1 << 9)); /* global aperture access enable */
+ 	/* clear any possible error conditions */
+-	pci_write_config_word(agp_bridge.dev, INTEL_I820_ERRSTS, 0xc000); // FSBPAR, AGPERR
++	pci_write_config_word(agp_bridge.dev, INTEL_I820_ERRSTS, 0xc000); /* FSBPAR, AGPERR */
+ 	return 0;
+ }
+ #endif /* FIREGL_AGP_HOOK */
+@@ -2315,7 +2322,7 @@
+     pci_write_config_byte(agp_bridge.dev, INTEL_I820_RDCR, 
+                           temp2 | (1 << 1));
+     /* clear any possible AGP-related error conditions */
+-    pci_write_config_word(agp_bridge.dev, INTEL_I820_ERRSTS, 0x001c); // OOGF, IAAF, ITTEF
++    pci_write_config_word(agp_bridge.dev, INTEL_I820_ERRSTS, 0x001c); /* OOGF, IAAF, ITTEF */
+     return 0;
+ }
+ #endif
+@@ -2375,14 +2382,14 @@
+ 			       agp_bridge.gatt_bus_addr); 
+ 
+ 	/* agpctrl */
+-	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x0000); // GTLB flush/disable
++	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x0000); /* GTLB flush/disable */
+ 
+ 	/* mcgcfg */
+ 	pci_read_config_word(agp_bridge.dev, INTEL_I840_MCHCFG, &temp2);
+ 	pci_write_config_word(agp_bridge.dev, INTEL_I840_MCHCFG,
+-			      temp2 | (1 << 9)); // global aperture access enable
++			      temp2 | (1 << 9)); /* global aperture access enable */
+ 	/* clear any possible error conditions */
+-	pci_write_config_word(agp_bridge.dev, INTEL_I840_ERRSTS, 0xc000); // FSBPAR, AGPERR
++	pci_write_config_word(agp_bridge.dev, INTEL_I840_ERRSTS, 0xc000); /* FSBPAR, AGPERR */
+ 	return 0;
+ }
+ 
+@@ -2444,14 +2451,14 @@
+ 			       agp_bridge.gatt_bus_addr); 
+ 
+ 	/* agpctrl */
+-	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x0000); // GTLB flush/disable
++	pci_write_config_dword(agp_bridge.dev, INTEL_AGPCTRL, 0x0000); /* GTLB flush/disable */
+ 
+ 	/* mcgcfg */
+ 	pci_read_config_word(agp_bridge.dev, INTEL_I850_MCHCFG, &temp2);
+ 	pci_write_config_word(agp_bridge.dev, INTEL_I850_MCHCFG,
+-			      temp2 | (1 << 9)); // global aperture access enable
++			      temp2 | (1 << 9)); /*  global aperture access enable */
+ 	/* clear any possible AGP-related error conditions */
+-	pci_write_config_word(agp_bridge.dev, INTEL_I850_ERRSTS, 0x001c); // OOGF, IAAF, ITTEF
++	pci_write_config_word(agp_bridge.dev, INTEL_I850_ERRSTS, 0x001c); /*  OOGF, IAAF, ITTEF */
+ 	return 0;
+ }
+ 
+@@ -2600,7 +2607,7 @@
+ 	agp_bridge.needs_scratch_page = FALSE;
+ 	agp_bridge.configure = intel_820_configure;
+ 	agp_bridge.fetch_size = intel_fetch_size;
+-	agp_bridge.cleanup = intel_820_cleanup; // bugfix? intel_cleanup;
++	agp_bridge.cleanup = intel_820_cleanup; /*  bugfix? intel_cleanup; */
+ 	agp_bridge.tlb_flush = intel_tlbflush;
+ 	agp_bridge.mask_memory = intel_mask_memory;
+ 	agp_bridge.agp_enable = agp_generic_agp_enable;
+@@ -2622,7 +2629,7 @@
+ 	
+ 	(void) pdev; /* unused */
+ }
+-#endif // FIREGL_AGP_HOOK
++#endif /*  FIREGL_AGP_HOOK */
+ #else
+ static int __init intel_820_setup (struct pci_dev *pdev)
+ {
+@@ -2635,7 +2642,7 @@
+     agp_bridge.needs_scratch_page = FALSE;
+     agp_bridge.configure = intel_820_configure;
+     agp_bridge.fetch_size = intel_8xx_fetch_size;
+-	agp_bridge.cleanup = intel_820_cleanup; // bugfix? intel_cleanup;
++	agp_bridge.cleanup = intel_820_cleanup; /*  bugfix? intel_cleanup; */
+     agp_bridge.tlb_flush = intel_820_tlbflush;
+     agp_bridge.mask_memory = intel_mask_memory;
+     agp_bridge.agp_enable = agp_generic_agp_enable;
+@@ -2836,13 +2843,13 @@
+     (void) pdev; /* unused */
+ }
+ 
+-//================================================================
+-// VIA
++/* ================================================================ */
++/*  VIA */
+ 
+-// forward declarions:
++/*  forward declarions: */
+ static int via_configure(void);
+ 
+-// functions
++/*  functions */
+ static int via_fetch_size(void)
+ {
+ 	int i;
+@@ -3310,7 +3317,7 @@
+ 		retval = amd_create_page_map(entry);
+ 		if (retval != 0) break;
+ 	}
+-    // even partial allocations require private setup for a propper call to free
++    /*  even partial allocations require private setup for a propper call to free */
+ 	amd_irongate_private.num_tables = nr_tables;
+ 	amd_irongate_private.gatt_pages = tables;
+ 
+@@ -3341,14 +3348,14 @@
+ 
+ 	value = A_SIZE_LVL2(agp_bridge.current_size);
+ 
+-    // reserve a single page directory
++    /*  reserve a single page directory */
+ 	retval = amd_create_page_map(&page_dir);
+ 	if (retval != 0) {
+ 		return retval;
+ 	}
+ 
+-    // reserve sufficient gatt (L2) page directories (each with 1024 entries)
+-    // (entry value is not fractional, so wen dont need to add anything)
++    /*  reserve sufficient gatt (L2) page directories (each with 1024 entries) */
++    /*  (entry value is not fractional, so wen dont need to add anything) */
+ 	retval = amd_create_gatt_pages(value->num_entries / 1024);
+ 	if (retval != 0) {
+ 		amd_free_page_map(&page_dir);
+@@ -3373,10 +3380,10 @@
+ 	for(i = 0; i < value->num_entries / 1024; i++, addr += 0x00400000) {
+ 		page_dir.remapped[GET_PAGE_DIR_OFF(addr)] =
+ 			virt_to_bus(amd_irongate_private.gatt_pages[i]->real);
+-		page_dir.remapped[GET_PAGE_DIR_OFF(addr)] |= 0x00000001; // set valid bit
++		page_dir.remapped[GET_PAGE_DIR_OFF(addr)] |= 0x00000001; /*  set valid bit */
+ 	}
+ #ifdef FGL_MORE_FLUSH
+-    // better flush CPU caches once more so that above data goes to memory
++    /*  better flush CPU caches once more so that above data goes to memory */
+ 	CACHE_FLUSH();
+ #endif
+ 
+@@ -3406,7 +3413,7 @@
+ 	struct aper_size_info_lvl2 *values;
+ 
+ 	pci_read_config_dword(agp_bridge.dev, AMD_APSIZE, &temp);
+-	temp = (temp & 0x0000000e); // keep only the encoded size bits
++	temp = (temp & 0x0000000e); /*  keep only the encoded size bits */
+ 	values = A_SIZE_LVL2(agp_bridge.aperture_sizes);
+ 	for (i = 0; i < agp_bridge.num_aperture_sizes; i++) {
+ 		if (temp == values[i].size_value) {
+@@ -3512,9 +3519,9 @@
+ 
+ 	/* Write out the size register (its rather a PC-BIOS task) */
+ 	pci_read_config_dword(agp_bridge.dev, AMD_APSIZE, &temp);
+-	temp = (temp & ~(0x0000000e)) // clear original GART address space size bits
+-        | current_size->size_value // set new GART address space size bits
+-		| 0x00000001; // set GART Enable bit
++	temp = (temp & ~(0x0000000e)) /*  clear original GART address space size bits */
++        | current_size->size_value /*  set new GART address space size bits */
++		| 0x00000001; /*  set GART Enable bit */
+ 	pci_write_config_dword(agp_bridge.dev, AMD_APSIZE, temp);
+ 
+ 	/* Flush the tlb */
+@@ -3549,8 +3556,8 @@
+     
+ 	/* Write back the previous size and disable gart translation */
+ 	pci_read_config_dword(agp_bridge.dev, AMD_APSIZE, &temp);
+-	temp = (temp & ~(0x0000000f)) // clear used GART size, clear GART enable
+-        | previous_size->size_value; // restore previous GART size, NO 'GART enable'!
++	temp = (temp & ~(0x0000000f)) /*  clear used GART size, clear GART enable */
++        | previous_size->size_value; /*  restore previous GART size, NO 'GART enable'! */
+ 	pci_write_config_dword(agp_bridge.dev, AMD_APSIZE, temp);
+ #endif
+ 
+@@ -3637,7 +3644,7 @@
+ 		return -EINVAL;
+ 	}
+ 
+-    // verify by meance of page tables if any page in the specified range is availabel
++    /*  verify by meance of page tables if any page in the specified range is availabel */
+ 	j = pg_start;
+ 	while (j < (pg_start + mem->page_count)) {
+ 		addr = (j * PAGE_SIZE) + agp_bridge.gart_bus_addr;
+@@ -3655,7 +3662,7 @@
+ 	}
+ #endif /* !AGPGART_2_2 */
+ 
+-    // allocate the previousely verified page range
++    /*  allocate the previousely verified page range */
+ 	for (i = 0, j = pg_start; i < mem->page_count; i++, j++) {
+ 		addr = (j * PAGE_SIZE) + agp_bridge.gart_bus_addr;
+ 		cur_gatt = GET_GATT(addr);
+@@ -3663,9 +3670,9 @@
+ 	}
+ 	
+ #ifdef FGL_MORE_FLUSH
+-    // we have modified the page dirs - we better flush anything from caches
+-    // even if we are somewhat sure by our allocation sheme that the
+-    // CPU already does no chaching on the page tables.
++    /*  we have modified the page dirs - we better flush anything from caches */
++    /*  even if we are somewhat sure by our allocation sheme that the */
++    /*  CPU already does no chaching on the page tables. */
+     CACHE_FLUSH();
+ #else
+ #ifdef AGPGART_2_2
+@@ -3687,7 +3694,7 @@
+ 		return -EINVAL;
+ 	}
+ 
+-    // free the specified range of pages
++    /*  free the specified range of pages */
+ 	for (i = pg_start; i < (mem->page_count + pg_start); i++) {
+ 		addr = (i * PAGE_SIZE) + agp_bridge.gart_bus_addr;
+ 		cur_gatt = GET_GATT(addr);
+@@ -3696,9 +3703,9 @@
+ 	}
+ 
+ #ifdef FGL_MORE_FLUSH
+-    // we have modified the page dirs - we better flush anything from caches
+-    // even if we are somewhat sure by our allocation sheme that the
+-    // CPU already does no chaching on the page tables.
++    /*  we have modified the page dirs - we better flush anything from caches */
++    /*  even if we are somewhat sure by our allocation sheme that the */
++    /*  CPU already does no chaching on the page tables. */
+     CACHE_FLUSH();
+ #else
+ #ifdef AGPGART_2_2
+@@ -3711,7 +3718,7 @@
+ 
+ static struct aper_size_info_lvl2 amd_irongate_sizes[7] =
+ {
+-//   MByte pages   bits on chipset
++/*    MByte pages   bits on chipset */
+ 	{2048, 524288, 0x0000000c},
+ 	{1024, 262144, 0x0000000a},
+ 	{512, 131072, 0x00000008},
+@@ -3799,8 +3806,8 @@
+ 	for (i = 0, j = pg_start; i < mem->page_count; i++, j++) {
+ 		tmp = agp_bridge.mask_memory(mem->memory[i], mem->type);
+ 
+-        // TODO: Johannes must find this BUG_ON routine/macro
+-		//BUG_ON(tmp & 0xffffff0000000ffc);
++        /*  TODO: Johannes must find this BUG_ON routine/macro */
++		/* BUG_ON(tmp & 0xffffff0000000ffc); */
+ 		pte = (tmp & 0x000000ff00000000LL) >> 28;
+ 		pte |=(tmp & 0x00000000fffff000LL);
+ 		pte |= 1<<1|1<<0;
+@@ -4075,6 +4082,11 @@
+ 			}
+ 		}
+ 	}
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,11) 
++        /* the reference count has been increased in agp_backend_initialize. */
++        if (device)
++                pci_dev_put(device); 
++#endif
+ 	/*
+ 	 * PASS3: Figure out the 8X/4X setting and enable the
+ 	 *        target (our motherboard chipset).
+@@ -4320,7 +4332,7 @@
+ 	u32 temp;
+ 
+ 	pci_read_config_dword(agp_bridge.dev, ALI_TLBCTRL, &temp);
+-// clear tag
++/*  clear tag */
+ 	pci_write_config_dword(agp_bridge.dev, ALI_TAGCTRL,
+ 			((temp & 0xfffffff0) | 0x00000001|0x00000002));
+ }
+@@ -4333,7 +4345,7 @@
+ 	previous_size = A_SIZE_32(agp_bridge.previous_size);
+ 
+ 	pci_read_config_dword(agp_bridge.dev, ALI_TLBCTRL, &temp);
+-// clear tag
++/*  clear tag */
+ 	pci_write_config_dword(agp_bridge.dev, ALI_TAGCTRL,
+ 			((temp & 0xffffff00) | 0x00000001|0x00000002));
+ 
+@@ -4403,7 +4415,7 @@
+ #endif
+ 
+ 	pci_read_config_dword(agp_bridge.dev, ALI_TLBCTRL, &temp);
+-	temp &= 0xffffff7f;		//enable TLB
++	temp &= 0xffffff7f;		/* enable TLB */
+ 	pci_write_config_dword(agp_bridge.dev, ALI_TLBCTRL, temp);
+ 
+ 	return 0;
+@@ -4465,7 +4477,7 @@
+ 	}
+ 	return (unsigned long) pt;
+ #else /* AGPGART_2_2 */
+-    // 2.4.8-ac7 and 2.4.13
++    /*  2.4.8-ac7 and 2.4.13 */
+     unsigned long page_addr;
+ 
+ #if defined(CONFIG_X86) && (PAGE_ATTR_FIX != 0)
+@@ -4542,7 +4554,7 @@
+ 	atomic_dec(&agp_bridge.current_memory_agp);
+ }
+ #else
+-// 2.4.8-ac7 and 2.4.13
++/*  2.4.8-ac7 and 2.4.13 */
+ static void ali_destroy_page(unsigned long addr)
+ {
+     void *pt = (void *) addr;
+@@ -4572,7 +4584,7 @@
+ #else
+     page = virt_to_page((unsigned long)pt);
+ #if LINUX_VERSION_CODE > 0x020500
+-//    unmap_page_from_agp(page); // LINUX_TODO
++/*     unmap_page_from_agp(page); // LINUX_TODO */
+     put_page(page);
+     unlock_page(page);
+ #else /* LINUX_VERSION_CODE > 0x020500 */
+@@ -4756,7 +4768,7 @@
+ 	kfree(tables);
+ 
+ #ifdef FGL
+-    // free this single scratch table
++    /*  free this single scratch table */
+     if( serverworks_private.scratch_page_table.real )
+     {
+         serverworks_free_page_map(&serverworks_private.scratch_page_table);
+@@ -4884,8 +4896,8 @@
+ 	page_dir.real = (unsigned long *)agp_bridge.gatt_table_real;
+ 	page_dir.remapped = (unsigned long *)agp_bridge.gatt_table;
+ 
+-	serverworks_free_gatt_pages();          // free all page tables
+-	serverworks_free_page_map(&page_dir);   // free the single page with the page directory
++	serverworks_free_gatt_pages();          /*  free all page tables */
++	serverworks_free_page_map(&page_dir);   /*  free the single page with the page directory */
+ #ifndef FGL /* linux-2.4.8 */
+     serverworks_free_page_map(&serverworks_private.scratch_page_table);
+ #endif
+@@ -5210,7 +5222,7 @@
+ 	}
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10) 
+-            // the reference count has been increased in agp_backend_initialize.
++            /*  the reference count has been increased in agp_backend_initialize. */
+         if (device)
+             pci_dev_put(device); 
+ #endif
+@@ -5273,12 +5285,18 @@
+             if (!(scratch & 7))
+                 continue;
+ #endif
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10) 
++            /* the reference count has been increased in agp_backend_initialize. */
++        if (device)
++            pci_dev_put(device); 
++#endif
+ 			pci_write_config_dword(device, cap_ptr + 8, command);
+         }
+ 	}
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10) 
+-            // the reference count has been increased in agp_backend_initialize.
++            /*  the reference count has been increased in agp_backend_initialize. */
+         if (device)
+             pci_dev_put(device); 
+ #endif
+@@ -5385,17 +5403,17 @@
+ static struct _hp_private {
+ 	struct pci_dev *ioc;
+ 	volatile u8 *registers;
+-	u64 *io_pdir;		// PDIR for entire IOVA
+-	u64 *gatt;		// PDIR just for GART (subset of above)
++	u64 *io_pdir;		/*  PDIR for entire IOVA */
++	u64 *gatt;		/*  PDIR just for GART (subset of above) */
+ 	u64 gatt_entries;
+ 	u64 iova_base;
+ 	u64 gart_base;
+ 	u64 gart_size;
+ 	u64 io_pdir_size;
+-	int io_pdir_owner;	// do we own it, or share it with sba_iommu?
++	int io_pdir_owner;	/*  do we own it, or share it with sba_iommu? */
+ 	int io_page_size;
+ 	int io_tlb_shift;
+-	int io_tlb_ps;		// IOC ps config
++	int io_tlb_ps;		/*  IOC ps config */
+ 	int io_pages_per_kpage;
+ } hp_private;
+ 
+@@ -5684,7 +5702,7 @@
+ }
+ 
+ #if 0 
+-// not used
++/*  not used */
+ static unsigned long hp_zx1_unmask_memory(unsigned long addr)
+ {
+ 	return addr & ~(HP_ZX1_PDIR_VALID_BIT);
+@@ -5702,7 +5720,7 @@
+ 	agp_bridge.cleanup = hp_zx1_cleanup;
+ 	agp_bridge.tlb_flush = hp_zx1_tlbflush;
+ 	agp_bridge.mask_memory = hp_zx1_mask_memory;
+-//	agp_bridge.unmask_memory = hp_zx1_unmask_memory;
++/* 	agp_bridge.unmask_memory = hp_zx1_unmask_memory; */
+ 	agp_bridge.agp_enable = agp_generic_agp_enable;
+ 	agp_bridge.cache_flush = global_cache_flush;
+ 	agp_bridge.create_gatt_table = hp_zx1_create_gatt_table;
+@@ -5798,7 +5816,7 @@
+         amd_irongate_setup }, 
+     { PCI_DEVICE_ID_AMD_762_0, 
+         PCI_VENDOR_ID_AMD, 
+-        AMD_762, // was: AMD_IRONGATE - suspected BUG
++        AMD_762, /*  was: AMD_IRONGATE - suspected BUG */
+         "AMD", 
+         "AMD 760MP", 
+         amd_irongate_setup }, 
+@@ -5855,14 +5873,14 @@
+ 		"Intel",
+ 		"i815",
+ 		intel_generic_setup },
+-#else // FIREGL_AGP_HOOK
++#else /*  FIREGL_AGP_HOOK */
+ 	{ PCI_DEVICE_ID_INTEL_815_0,
+ 		PCI_VENDOR_ID_INTEL,
+ 		INTEL_I815,
+ 		"Intel",
+ 		"i815",
+ 		intel_generic_setup },
+-#endif // FIREGL_AGP_HOOK
++#endif /*  FIREGL_AGP_HOOK */
+ 	{ PCI_DEVICE_ID_INTEL_820_0,
+ 		PCI_VENDOR_ID_INTEL,
+ 		INTEL_I820,
+@@ -5913,7 +5931,7 @@
+ 		"Intel",
+ 		"i840",
+ 		intel_840_setup },
+-#endif // FIREGL_AGP_HOOK
++#endif /*  FIREGL_AGP_HOOK */
+     { PCI_DEVICE_ID_INTEL_845_0,
+         PCI_VENDOR_ID_INTEL,
+         INTEL_I845,
+@@ -5979,14 +5997,14 @@
+         INTEL_I7205,
+         "Intel",
+         "i7205",
+-//        intel_7505_setup },
++/*         intel_7505_setup }, */
+         intel_860_setup }, /* semms to be i860 compatible in compatibility mode? */
+     { PCI_DEVICE_ID_INTEL_7505_0,
+         PCI_VENDOR_ID_INTEL,
+         INTEL_I7505,
+         "Intel",
+         "i7505",
+-//        intel_7505_setup },
++/*         intel_7505_setup }, */
+         intel_860_setup }, /* semms to be i860 compatible in compatibility mode? */
+     { 0,
+         PCI_VENDOR_ID_INTEL,
+@@ -6086,7 +6104,7 @@
+         "SiS",
+         "746",
+         sis_generic_setup },
+-#endif // !__ia64__
++#endif /*  !__ia64__ */
+ 	{ 0,
+ 		PCI_VENDOR_ID_SI,
+ 		SIS_GENERIC,
+@@ -6153,13 +6171,13 @@
+         VIA_APOLLO_KT400,
+         "Via",
+         "Apollo KT400",
+-        via_kt400_setup }, // AGP v2
+-    { PCI_DEVICE_ID_VIA_8754, // == PCI_DEVICE_ID_VIA_P4X333,
++        via_kt400_setup }, /*  AGP v2 */
++    { PCI_DEVICE_ID_VIA_8754, /*  == PCI_DEVICE_ID_VIA_P4X333, */
+         PCI_VENDOR_ID_VIA,
+         VIA_APOLLO_P4X400,
+         "Via",
+         "Apollo P4X400",
+-        via_generic_setup }, // AGP v2
++        via_generic_setup }, /*  AGP v2 */
+     { PCI_DEVICE_ID_VIA_P4M266,
+         PCI_VENDOR_ID_VIA,
+         VIA_APOLLO_P4M266,
+@@ -6174,7 +6192,7 @@
+         via_generic_setup },
+ 
+ #ifdef FIREGL_AGP_SVRWKS
+-    // BroadCom-ServerWorks aka Fujitsu - Reliance Computer Corp. (RCC)
++    /*  BroadCom-ServerWorks aka Fujitsu - Reliance Computer Corp. (RCC) */
+ 	{ PCI_DEVICE_ID_SERVERWORKS_CNB20LE_MCH_0,
+ 		PCI_VENDOR_ID_SERVERWORKS,
+ 		SERVERWORKS_CNB20LE,
+@@ -6188,7 +6206,7 @@
+ 		"CNB20HE",
+ 		fgl_svrwks_cnb20he_setup },
+ #if 0
+-    // no generic for now
++    /*  no generic for now */
+ 	{ 0,
+ 		PCI_VENDOR_ID_SERVERWORKS,
+ 		SERVERWROKS_GENERIC,
+@@ -6196,7 +6214,7 @@
+ 		"Generic",
+ 		fgl_svrwks_generic_setup },
+ #endif
+-#endif // FIREGL_AGP_SVRWKS
++#endif /*  FIREGL_AGP_SVRWKS */
+ 
+     { PCI_DEVICE_ID_NVIDIA_NFORCE,
+         PCI_VENDOR_ID_NVIDIA,
+@@ -6236,7 +6254,7 @@
+ 		"HP",
+ 		"ZX1",
+ 		hp_zx1_setup },
+-#endif // __ia64__
++#endif /*  __ia64__ */
+ 
+ 
+ 
+@@ -6249,7 +6267,7 @@
+ {
+ 	int i;
+ 	
+-    // scan for vendor first 
++    /*  scan for vendor first  */
+ 	for (i = 0; i < ARRAY_SIZE (agp_bridge_info); i++)
+ 		if (pdev->vendor == agp_bridge_info[i].vendor_id)
+ 			break;
+@@ -6259,13 +6277,13 @@
+ 		return -ENODEV;
+ 	}
+ 
+-    // scan for device in vendor section
++    /*  scan for device in vendor section */
+ 	while ((i < ARRAY_SIZE (agp_bridge_info)) &&
+ 	       (agp_bridge_info[i].vendor_id == pdev->vendor))
+     {
+ 		if (pdev->device == agp_bridge_info[i].device_id) 
+         {
+-            // special case handling for AL_M1626
++            /*  special case handling for AL_M1626 */
+ 			if (pdev->device == PCI_DEVICE_ID_AL_M1621_0)
+             {
+ 				u8 hidden_1621_id;
+@@ -6282,7 +6300,7 @@
+ 					agp_bridge_info[i].chipset_name="M1641";
+ 					break;
+ 				case 0x43:
+-                    // TODO ???
++                    /*  TODO ??? */
+ 					break;
+ 				case 0x47:
+ 					agp_bridge_info[i].chipset_name="M1647";
+@@ -6334,8 +6352,8 @@
+ 	return -ENODEV;
+ }
+ 
+-// FGL - begin
+-// capabilities helper routines
++/*  FGL - begin */
++/*  capabilities helper routines */
+ 
+ static u8 get_pcidev_capptr(struct pci_dev *dev)
+ {
+@@ -6360,15 +6378,15 @@
+         
+         pci_read_config_dword(dev, cap_ptr, &acapid);
+         capid = acapid & 0xff;
+-        if( capid == PCI_CAP_ID_AGP ) // are these AGP caps?
++        if( capid == PCI_CAP_ID_AGP ) /*  are these AGP caps? */
+         {
+             u8 agp_version_maj;
+ 
+             agp_version_maj = (acapid >> 20) & 0x0f;
+             if( agp_version_maj > 3 )
+             {
+-                // unknown standard
+-                // not yet supported
++                /*  unknown standard */
++                /*  not yet supported */
+             }
+             else
+             if( agp_version_maj == 3 )
+@@ -6376,25 +6394,25 @@
+                 u32 agpstat;
+                 
+                 pci_read_config_dword(dev, cap_ptr+PCI_AGP_STATUS, &agpstat);
+-                if( agpstat & (1<<3) ) // check signalling mode bit
++                if( agpstat & (1<<3) ) /*  check signalling mode bit */
+                 {
+-                    // device is in AGPv3 mode
+-                    // not a topic of our search
++                    /*  device is in AGPv3 mode */
++                    /*  not a topic of our search */
+                 }            
+                 else
+                 {
+-                    // device is in AGPv3 compatibility mode (=AGPv2)
++                    /*  device is in AGPv3 compatibility mode (=AGPv2) */
+                     return cap_ptr; /* found */
+                 }
+             }
+             else
+             {
+-                // AGP v1 (maj==0 || maj==1) and AGP v2 (maj==2)
++                /*  AGP v1 (maj==0 || maj==1) and AGP v2 (maj==2) */
+                 return cap_ptr; /* found */
+             }
+         }
+ 
+-        // advance to next caps entry        
++        /*  advance to next caps entry         */
+         cap_ptr = (acapid >> 8) & 0xff;
+     }
+     
+@@ -6410,15 +6428,15 @@
+         
+         pci_read_config_dword(dev, cap_ptr, &acapid);
+         capid = acapid & 0xff;
+-        if( capid == PCI_CAP_ID_AGP ) // are these AGP caps?
++        if( capid == PCI_CAP_ID_AGP ) /*  are these AGP caps? */
+         {
+             u8 agp_version_maj;
+ 
+             agp_version_maj = (acapid >> 20) & 0x0f;
+             if( agp_version_maj > 3 )
+             {
+-                // unknown standard
+-                // not yet supported
++                /*  unknown standard */
++                /*  not yet supported */
+             }
+             else
+             if( agp_version_maj == 3 )
+@@ -6426,25 +6444,25 @@
+                 u32 agpstat;
+                 
+                 pci_read_config_dword(dev, cap_ptr+PCI_AGP_STATUS, &agpstat);
+-                if( agpstat & (1<<3) ) // check signalling mode bit
++                if( agpstat & (1<<3) ) /*  check signalling mode bit */
+                 {
+-                    // device is in AGPv3 mode
+-                    // not topic of our search
++                    /*  device is in AGPv3 mode */
++                    /*  not topic of our search */
+                 }            
+                 else
+                 {
+-                    // device is in AGPv3 compatibility mode (=AGPv2)
++                    /*  device is in AGPv3 compatibility mode (=AGPv2) */
+                     return cap_ptr; /* found */
+                 }
+             }
+             else
+             {
+-                // AGP v1 (maj==0 || maj==1) and AGP v2 (maj==2)
+-                // old standard, not topic of our search
++                /*  AGP v1 (maj==0 || maj==1) and AGP v2 (maj==2) */
++                /*  old standard, not topic of our search */
+             }
+         }
+ 
+-        // advance to next caps entry        
++        /*  advance to next caps entry         */
+         cap_ptr = (acapid >> 8) & 0xff;
+     }
+     
+@@ -6460,15 +6478,15 @@
+         
+         pci_read_config_dword(dev, cap_ptr, &acapid);
+         capid = acapid & 0xff;
+-        if( capid == PCI_CAP_ID_AGP ) // are these AGP caps?
++        if( capid == PCI_CAP_ID_AGP ) /*  are these AGP caps? */
+         {
+             u8 agp_version_maj;
+ 
+             agp_version_maj = (acapid >> 20) & 0x0f;
+             if( agp_version_maj > 3 )
+             {
+-                // unknown standard
+-                // not yet supported
++                /*  unknown standard */
++                /*  not yet supported */
+             }
+             else
+             if( agp_version_maj == 3 )
+@@ -6476,32 +6494,32 @@
+                 u32 agpstat;
+                 
+                 pci_read_config_dword(dev, cap_ptr+PCI_AGP_STATUS, &agpstat);
+-                if( agpstat & (1<<3) ) // check signalling mode bit
++                if( agpstat & (1<<3) ) /*  check signalling mode bit */
+                 {
+-                    // device is in AGPv3 mode
++                    /*  device is in AGPv3 mode */
+                     return cap_ptr; /* found */
+                 }            
+                 else
+                 {
+-                    // device is in AGPv3 compatibility mode (=AGPv2)
+-                    // not topic of our search
++                    /*  device is in AGPv3 compatibility mode (=AGPv2) */
++                    /*  not topic of our search */
+                 }
+             }
+             else
+             {
+-                // AGP v1 (maj==0 || maj==1) and AGP v2 (maj==2)
+-                // old standard, not topic of our search
++                /*  AGP v1 (maj==0 || maj==1) and AGP v2 (maj==2) */
++                /*  old standard, not topic of our search */
+             }
+         }
+ 
+-        // advance to next caps entry        
++        /*  advance to next caps entry         */
+         cap_ptr = (acapid >> 8) & 0xff;
+     }
+     
+     return 0; /* not found */
+ }
+ 
+-// FGL - end
++/*  FGL - end */
+ 
+ #ifdef __x86_64__
+ static int agp_check_supported_device(struct pci_dev *dev) 
+@@ -6526,7 +6544,7 @@
+ {
+ 	struct pci_dev *dev = NULL;
+ 
+-    // locate host bridge device
++    /*  locate host bridge device */
+ #ifdef __x86_64__
+     do {
+         dev = firegl_pci_find_class(PCI_CLASS_BRIDGE_HOST << 8, dev);
+@@ -6645,7 +6663,7 @@
+ 
+ 			    /* fill in the mode register */
+ 			    pci_read_config_dword(agp_bridge.dev,
+-			        agp_bridge.capndx + 4, // AGP status register
++			        agp_bridge.capndx + 4, /*  AGP status register */
+ 			        &agp_bridge.mode);
+ 
+                 return fgl_intel_i815_AGP_setup(sub_dev);
+@@ -6674,7 +6692,7 @@
+ 			}
+ 			printk(KERN_INFO PFX "Detected an Intel i815 "
+ 			       "chipset in AGP mode.\n");
+-			agp_bridge.type = INTEL_I810; // ??? is i810 compatible to i815 ???
++			agp_bridge.type = INTEL_I810; /*  ??? is i810 compatible to i815 ??? */
+ 			return intel_i810_setup(sub_dev);
+ #endif
+         case PCI_DEVICE_ID_INTEL_830_M_0: 
+@@ -6717,7 +6735,7 @@
+ 
+             	/* fill in the mode register */
+             	pci_read_config_dword(agp_bridge.dev,
+-			        agp_bridge.capndx + 4, // AGP status register
++			        agp_bridge.capndx + 4, /*  AGP status register */
+ 			        &agp_bridge.mode);
+ 
+                 break;
+@@ -6747,7 +6765,7 @@
+ 
+             	/* fill in the mode register */
+             	pci_read_config_dword(agp_bridge.dev,
+-			        agp_bridge.capndx + 4, // AGP status register
++			        agp_bridge.capndx + 4, /*  AGP status register */
+ 			        &agp_bridge.mode);
+ 
+                 break;
+@@ -6801,7 +6819,7 @@
+ 
+             	/* fill in the mode register */
+             	pci_read_config_dword(agp_bridge.dev,
+-			        agp_bridge.capndx + 4, // AGP status register
++			        agp_bridge.capndx + 4, /*  AGP status register */
+ 			        &agp_bridge.mode);
+ 
+                 break;
+@@ -6854,7 +6872,7 @@
+ 
+             	/* fill in the mode register */
+             	pci_read_config_dword(agp_bridge.dev,
+-			        agp_bridge.capndx + 4, // AGP status register
++			        agp_bridge.capndx + 4, /*  AGP status register */
+ 			        &agp_bridge.mode);
+ 
+                 break;
+@@ -6878,7 +6896,7 @@
+ 
+             	/* fill in the mode register */
+             	pci_read_config_dword(agp_bridge.dev,
+-			        agp_bridge.capndx + 4, // AGP status register
++			        agp_bridge.capndx + 4, /*  AGP status register */
+ 			        &agp_bridge.mode);
+ 
+                 break;
+@@ -6941,7 +6959,7 @@
+  
+                 	/* fill in the mode register */
+             	    pci_read_config_dword(agp_bridge.dev,
+-			            agp_bridge.capndx + 4, // AGP status register
++			            agp_bridge.capndx + 4, /*  AGP status register */
+     			        &agp_bridge.mode);
+ 
+                     return intel_7505_setup(agp_bridge.dev); 
+@@ -6952,7 +6970,7 @@
+                 	/* in compatibility mode the bridge is similar to i860 */
+                     /* therefore we dont do anything here but resolve it later */
+                     /* when browsing chipsets via the list */
+-    //                return -ENODEV; 
++    /*                 return -ENODEV;  */
+                     break;
+                 }
+             }
+@@ -6991,7 +7009,7 @@
+ 
+ 			/* fill in the mode register */
+ 			pci_read_config_dword(svrwks_agp_dev,
+-			      agp_bridge.capndx + 4, // AGP status register
++			      agp_bridge.capndx + 4, /*  AGP status register */
+ 			      &agp_bridge.mode);
+ 
+ 			return fgl_svrwks_cnb20le_setup (svrwks_agp_dev);
+@@ -7016,7 +7034,7 @@
+ 
+ 			/* fill in the mode register */
+ 			pci_read_config_dword(svrwks_agp_dev,
+-			      agp_bridge.capndx + 4, // AGP status register
++			      agp_bridge.capndx + 4, /*  AGP status register */
+ 			      &agp_bridge.mode);
+ 
+ 			return fgl_svrwks_cnb20he_setup (svrwks_agp_dev);
+@@ -7025,7 +7043,7 @@
+ 			break;
+ 		}
+     }
+-#endif // FIREGL_AGP_SVRWKS
++#endif /*  FIREGL_AGP_SVRWKS */
+ 
+ #ifndef FIREGL_AGP_SVRWKS
+ 	/* Everything is on func 1 here so we are hardcoding function one */
+@@ -7067,12 +7085,12 @@
+ 			if ( agp_bridge.capndx )
+             {
+ 				printk(KERN_INFO PFX "Detected HP ZX1 AGP "
+-				       "chipset at %s\n", dev->slot_name);
++				       "chipset at %s\n", pci_name(dev));
+ 				agp_bridge.type = HP_ZX1;
+ 				agp_bridge.dev = dev;
+               	/* fill in the mode register */
+                 pci_read_config_dword(agp_bridge.dev,
+-                    agp_bridge.capndx + 4, // AGP status register
++                    agp_bridge.capndx + 4, /*  AGP status register */
+                     &agp_bridge.mode);
+ 				return hp_zx1_setup(dev);
+ 			}
+@@ -7087,7 +7105,7 @@
+ #endif	/* __ia64__ */
+ 
+ #if 1
+-    // special case handling for Via chipsets in AGPv3 mode
++    /*  special case handling for Via chipsets in AGPv3 mode */
+     if (dev->vendor == PCI_VENDOR_ID_VIA)
+     {
+ 		switch (dev->device) {
+@@ -7127,13 +7145,13 @@
+                 /* note: the agp v3 subsystem bit is most likely set now,
+                    that is supposed to be VIA_AGPSEL bit 2, as seen in running systems */
+ 
+-                // agp v3
++                /*  agp v3 */
+                 cap_ptr = get_pcidev_capptr(dev);
+                 cap_ptr = find_agpv3_capptr(dev, cap_ptr);
+                 if( cap_ptr )
+                 {
+     				printk(KERN_INFO PFX "Detected a Via Apollo KT400 chipset in AGP v3 mode "
+-	    			       "at %s\n", dev->slot_name);
++	    			       "at %s\n", pci_name(dev));
+ 
+                     agp_bridge.type = VIA_APOLLO_KT400;
+     				agp_bridge.dev = dev;
+@@ -7141,24 +7159,24 @@
+                     agp_bridge.capndx = cap_ptr;
+                 	/* fill in the mode register */
+                 	pci_read_config_dword(agp_bridge.dev,
+-			            agp_bridge.capndx + 4, // AGP status register
++			            agp_bridge.capndx + 4, /*  AGP status register */
+ 			            &agp_bridge.mode);
+ 
+             	    return via_kt400_setup(dev);
+                 }
+ 
+-                // agp v2
++                /*  agp v2 */
+                 cap_ptr = get_pcidev_capptr(dev);
+                 cap_ptr = find_agpv2_capptr(dev, cap_ptr);
+                 if( cap_ptr )
+                 {
+     				printk(KERN_DEBUG PFX "Detected a Via Apollo KT400 chipset in AGP v2 compat mode "
+-	    			       "at %s\n", dev->slot_name);
++	    			       "at %s\n", pci_name(dev));
+                 }
+                 else
+                 {
+     				printk(KERN_ERR PFX "Detected a Via Apollo KT400 chipset but no AGPv2/v3 caps found "
+-	    			       "at %s\n", dev->slot_name);
++	    			       "at %s\n", pci_name(dev));
+                 }
+             }
+             break;
+@@ -7178,13 +7196,13 @@
+                 /* note: the agp v3 subsystem bit is most likely set now,
+                    that is supposed to be VIA_AGPSEL bit 2, as seen in running systems */
+ 
+-                // agp v3 caps, chipset in AGP v3.x mode
++                /*  agp v3 caps, chipset in AGP v3.x mode */
+                 cap_ptr = get_pcidev_capptr(dev);
+                 cap_ptr = find_agpv3_capptr(dev, cap_ptr);
+                 if( cap_ptr )
+                 {
+                     printk(KERN_INFO PFX "Detected a Via P4X400 chipset in AGP v3 mode "
+-                           "at %s\n", dev->slot_name);
++                           "at %s\n", pci_name(dev));
+ 
+                     agp_bridge.type = VIA_APOLLO_P4X400;
+                     agp_bridge.dev = dev;
+@@ -7192,19 +7210,19 @@
+                     agp_bridge.capndx = cap_ptr;
+                     /* fill in the mode register */
+                     pci_read_config_dword(agp_bridge.dev,
+-                        agp_bridge.capndx + 4, // AGP status register 
++                        agp_bridge.capndx + 4, /*  AGP status register  */
+                         &agp_bridge.mode);
+ 
+                     return via_kt400_setup(dev); /* p4x400 has identical setup like kt400 */
+                 }
+                 
+-                // agp v3 caps, chipset in AGP v2 compatibility mode
++                /*  agp v3 caps, chipset in AGP v2 compatibility mode */
+                 cap_ptr = get_pcidev_capptr(dev);
+                 cap_ptr = find_agpv3_agpv2compat_capptr(dev, cap_ptr);
+                 if( cap_ptr )
+                 {
+                     printk(KERN_INFO PFX "Detected a Via P4X400 chipset with AGP v3.x caps in AGP v2 compatibility mode "
+-                           "at %s\n", dev->slot_name);
++                           "at %s\n", pci_name(dev));
+ 
+                     agp_bridge.type = VIA_APOLLO_P4X400;
+                     agp_bridge.dev = dev;
+@@ -7212,24 +7230,24 @@
+                     agp_bridge.capndx = cap_ptr;
+                     /* fill in the mode register */
+                     pci_read_config_dword(agp_bridge.dev,
+-                        agp_bridge.capndx + 4, // AGP status register 
++                        agp_bridge.capndx + 4, /*  AGP status register  */
+                         &agp_bridge.mode);
+ 
+                     return via_kt400_setup(dev); /* p4x400 has identical setup like kt400 */
+                 }
+                 
+-                // agp v2 
++                /*  agp v2  */
+                 cap_ptr = get_pcidev_capptr(dev);
+                 cap_ptr = find_agpv2_capptr(dev, cap_ptr);
+                 if( cap_ptr )
+                 {
+                     printk(KERN_DEBUG PFX "Detected a Via P4X400 chipset with AGP v2 caps in true AGP v2 mode "
+-                           "at %s\n", dev->slot_name);
++                           "at %s\n", pci_name(dev));
+                 }
+                 else
+                 {
+                     printk(KERN_ERR PFX "Detected a Via P4X400 chipset but no AGPv2/v3 caps found "
+-                           "at %s\n", dev->slot_name);
++                           "at %s\n", pci_name(dev));
+                 }
+             }
+             break;
+@@ -7240,7 +7258,7 @@
+ #endif
+ 
+ #if 1
+-    // special case handling for nVidia chipsets
++    /*  special case handling for nVidia chipsets */
+     if (dev->vendor == PCI_VENDOR_ID_NVIDIA)
+     {
+         int use_nforce12_init = 0;
+@@ -7291,7 +7309,7 @@
+                 return -ENODEV;
+             }
+ 
+-            // agp v3
++            /*  agp v3 */
+             cap_ptr = get_pcidev_capptr(dev);
+             cap_ptr = find_agpv3_capptr(dev, cap_ptr);
+             if( cap_ptr )
+@@ -7300,7 +7318,7 @@
+             }
+             else
+             {
+-                // agp v2
++                /*  agp v2 */
+                 cap_ptr = get_pcidev_capptr(dev);
+                 cap_ptr = find_agpv2_capptr(dev, cap_ptr);
+                 if( cap_ptr )
+@@ -7321,11 +7339,11 @@
+             return nvidia_nforce_setup(agp_bridge.dev);
+         }
+ 
+-        // unknown or non special nvidia chipset - go on with list based resolve
++        /*  unknown or non special nvidia chipset - go on with list based resolve */
+     }
+ #endif
+ 
+-    if(1) // some generic pre processing
++    if(1) /*  some generic pre processing */
+     {
+         u8 cap_ptr;
+ 
+@@ -7333,30 +7351,30 @@
+         cap_ptr = pci_find_capability(dev, PCI_CAP_ID_AGP);
+ #else
+     	/* find capndx by browsing a linked list */
+-	    pci_read_config_dword(dev, 0x04, &scratch); // command and status register
+-    	if (!(scratch & 0x00100000))    // is the capabilitys-pointer-valid flag set?
++	    pci_read_config_dword(dev, 0x04, &scratch); /*  command and status register */
++    	if (!(scratch & 0x00100000))    /*  is the capabilitys-pointer-valid flag set? */
+     		return -ENODEV;
+ 
+-    	pci_read_config_byte(dev, 0x34, &cap_ptr); // capability pointer itself
++    	pci_read_config_byte(dev, 0x34, &cap_ptr); /*  capability pointer itself */
+     	if (cap_ptr != 0x00) {
+ 	    	do {
+-		    	pci_read_config_dword(dev, cap_ptr, &cap_id); // agp caps
++		    	pci_read_config_dword(dev, cap_ptr, &cap_id); /*  agp caps */
+ 
+-			    if ((cap_id & 0xff) != 0x02) // not an agp list entry?
+-				    cap_ptr = (cap_id >> 8) & 0xff; // pointer to next entry in linked list
++			    if ((cap_id & 0xff) != 0x02) /*  not an agp list entry? */
++				    cap_ptr = (cap_id >> 8) & 0xff; /*  pointer to next entry in linked list */
+     		}
+ 	    	while (((cap_id & 0xff) != 0x02) && (cap_ptr != 0x00));
+     	}
+ #endif
+-	    if (cap_ptr == 0x00) // agp entry not found in list?
++	    if (cap_ptr == 0x00) /*  agp entry not found in list? */
+ 		    return -ENODEV;
+ 
+-        // assign the agp capabilities offset to the agp bridge device structure
++        /*  assign the agp capabilities offset to the agp bridge device structure */
+ 	    agp_bridge.capndx = cap_ptr;
+ 
+     	/* fill in the agp caps mode register value for later use (in the calling code) */
+ 	    pci_read_config_dword(agp_bridge.dev,
+-		    agp_bridge.capndx + 4, // AGP status register
++		    agp_bridge.capndx + 4, /*  AGP status register */
+ 			&agp_bridge.mode);
+     }
+ 
+@@ -7430,6 +7448,11 @@
+ 		return rc;
+ 	}
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,11)
++        /* decrease the reference count. */
++        pci_dev_put(agp_bridge.dev);
++#endif
++
+ 	if (agp_bridge.needs_scratch_page == TRUE) {
+ 		agp_bridge.scratch_page = agp_bridge.agp_alloc_page();
+ 
+@@ -7503,7 +7526,7 @@
+ 	vfree(agp_bridge.key_list);
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10)
+-        // decrease the reference count.
++        /*  decrease the reference count. */
+         pci_dev_put(agp_bridge.dev);
+ #endif
+ 
+diff -burN fglrx.orig/build_mod/firegl_public.c fglrx/build_mod/firegl_public.c
+--- fglrx.orig/build_mod/firegl_public.c	2005-06-08 15:05:04 -0400
++++ fglrx/build_mod/firegl_public.c	2005-06-14 22:12:18 -0400
+@@ -340,17 +340,17 @@
+ struct firegl_drm_stub_info_t *firegl_stub_pointer = NULL;
+ #define inter_module_put(x)
+ #define inter_module_unregister(x)
+-#define inter_module_get(x)             firegl_stub_pointer
++#define inter_module_get_request(x,y)             firegl_stub_pointer
+ #define inter_module_register(x,y,z)    do { firegl_stub_pointer = z; } while (0)
+ /* This is a kludge for backward compatibility that is only useful in DRM(stub_open) */
+ #define fops_put(fops)      MOD_DEC_USE_COUNT
+ #define fops_get(fops)      (fops); MOD_INC_USE_COUNT
+ #endif // LINUX_VERSION_CODE < 0x020400
+ 
+-#define DRM_MODULE_GET          (firegl_drm_stub_info_t *)inter_module_get("drm")
++#define DRM_MODULE_GET          (firegl_drm_stub_info_t *)inter_module_get_request("drm","drm")
+ #define DRM_MODULE_PUT          inter_module_put("drm")
+ 
+-#define DRM_AGP_MODULE_GET      (drm_agp_t *)inter_module_get("drm_agp")
++#define DRM_AGP_MODULE_GET      (drm_agp_t *)inter_module_get_request("drm_agp","drm_agp")
+ #define DRM_AGP_MODULE_PUT      inter_module_put("drm_agp")
+ 
+ unsigned long ATI_API_CALL __ke_cpu_to_le32(unsigned long _u)

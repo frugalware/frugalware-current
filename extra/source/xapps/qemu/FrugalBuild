@@ -1,9 +1,12 @@
-# Last Modified: Mon, 13 Jun 2005 13:57:03 +0000
+# Last Modified: Sat, 02 Jul 2005 16:40:42 +0200
 # Compiling Time: ~5 minutes
 # Maintainer: VMiklos <mamajom@axelero.hu>
 
+USE_KQEMU=${USE_KQEMU:-0}
+
 pkgname=qemu
 pkgver=0.7.0
+kqemuver=0.6.2-1
 pkgrel=1
 pkgdesc="QEMU is a FAST! processor emulator"
 url="http://fabrice.bellard.free.fr/qemu/"
@@ -11,11 +14,30 @@ depends=('sdl' 'zlib')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump $url/download.html|grep Source|sed 's/.*-\(.*\)\.t.*/\1/'"
-source=($url/$pkgname-$pkgver.tar.gz)
-md5sums=('234e9ace03b00259bb57dc5a9c633056')
+source=($url/$pkgname-$pkgver.tar.gz $pkgname-$pkgver-kqemu_sysfs.patch0)
+md5sums=('234e9ace03b00259bb57dc5a9c633056' '87ec2e1fa832612fb834d7dd49cf7e5c')
+[ "$USE_KQEMU" == "1" ] && \
+	source=(${source[@]} $url/kqemu-$kqemuver.tar.gz) && \
+	md5sums=(${md5sums[@]} 'c6bb3b40fb3d526d731eb0f1f9dee7ee')
 
 build()
 {
+	Fcd
+	if [ "$USE_KQEMU" == "1" ]; then
+		Fmessage "QEMU Accelerator enabled"
+		Fmessage "kqemu actually is a closed source software"
+		Fmessage "Please read carefully the KQEMU license"
+		Fmessage "and http://fabrice.bellard.free.fr/qemu/qemu-accel.html"
+		Fmessage "if you want it released under GPL"
+		mv $Fsrcdir/kqemu ./
+		Fpatch $pkgname-$pkgver-kqemu_sysfs.patch0
+		Fsed "^\(kernel_path=\"\)" "\1$Fdestdir" kqemu/install.sh
+		Fmkdir /dev
+		Fsed "^\(device=\"\)" "\1$Fdestdir" kqemu/install.sh 
+		Fmkdir /etc/udev/rules.d/
+		echo 'KERNEL="kqemu*", NAME="%k", GROUP="users", MODE="0660"' \
+			> $Fdestdir/etc/udev/rules.d/48-qemu.rules
+	fi
 	Fmake || return 1
 	make prefix=$Fdestdir$Fprefix bindir=$Fdestdir$Fprefix/bin \
 		datadir=$Fdestdir$Fprefix/share/qemu \

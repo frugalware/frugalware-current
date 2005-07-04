@@ -27,20 +27,40 @@ ask_towhere()
 grub_install()
 {
 	floppyopts="--no-floppy"
+	local rootdev=`df /|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`
+
+	if is_raid1_device $rootdev; then
+		# manual installation
+		cp /usr/lib/grub/i386-pc/* /boot/grub/
+		# create /boot/grub/device.map
+		echo quit |grub --batch --device-map=/boot/grub/device.map \
+			>$logdev 2>&1
+		if [ "$1" == "$mbr" ]; then
+			for i in `find_real_devs $rootdev`
+			do
+				echo -e "root $(grub_convert $i)\nsetup $(grub_convert $(echo $i|sed 's/[0-9]*$//')|sed 's/,-1//')"| /sbin/grub --batch >$logdev 2>&1
+			done
+		elif [ "$1" == "$root" ]; then
+			for i in `find_real_devs $rootdev`
+			do
+				echo -e "root $(grub_convert $i)\nsetup $(grub_convert $i)"| /sbin/grub --batch >$logdev 2>&1
+			done
+		fi
+		# TODO: handle $floppy
+	else
 	if [ "$1" == "$mbr" ]; then
 		device=`fdisk -l|grep ^Disk|sed -n -e 's/^Disk \(.*\): .*/\1/' -e '1 p'`
 	elif [ "$1" == "$floppy" ]; then
 		device=/dev/fd0
 		unset floppyopts
 	elif [ "$1" == "$root" ]; then
-		device=`df /|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`
-	else
-		exit 1
+		device=$rootdev
 	fi
 	dialog --backtitle "$grubbacktitle" --title "$workt" \
 		--aspect 20 --infobox "$workd" 0 0
 	grub-install $floppyopts $device >$logdev 2>&1 || \
 		(grub-install $floppyopts $device >$logdev 2>&1 || exit 1)
+	fi
 }
 
 grub_convert()
@@ -55,8 +75,14 @@ create_menu()
 {
 	# variables
 	bootdev=`df /boot|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`
+	if is_raid1_device $bootdev; then
+		bootdev=`find_real_devs $bootdev|sed 's/^\([^ ]*\) .*/\1/'`
+	fi
 	grubbootdev=`grub_convert $bootdev`
 	rootdev=`df /|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`
+	if is_raid1_device $bootdev; then
+		rootdev=`find_real_devs $bootdev|sed 's/^\([^ ]*\) .*/\1/'`
+	fi
 	grubrootdev=`grub_convert $rootdev`
 	
 	# hack for /boot
@@ -100,6 +126,34 @@ create_menu()
 		echo "title Memtest86+"
 		echo "	kernel $grubbootdev$bootstring/memtest.bin"
 	fi
+}
+
+# Usage: is_raid1_device devicename
+# Returns 0 if devicename is a raid1 md device, 1 if it is not.
+is_raid1_device ()
+{
+	level=`mdadm --query --detail $1 2>/dev/null | \
+		grep 'Raid Level :' |sed 's/.*: \(.*\)/\1/'`
+	[ "$level" = "raid1" ] && return 0 || return 1
+}
+
+# Usage: find_real_devs device
+# Returns space separated list of devices for linux if device is
+# a raid1 device. In all other cases, the provided value is returned.
+find_real_devs ()
+{
+	if is_raid1_device $1; then
+		list=""
+		for i in `mdadm --query --detail $1 | \
+			egrep '/dev/[^(md)]' |sed 's/.* \([^ ]*\)/\1/'` 
+		do
+			devs="$devs $i"
+		done
+		echo $devs
+		return 0
+	fi
+	echo $1
+	return 0
 }
 
 ### main

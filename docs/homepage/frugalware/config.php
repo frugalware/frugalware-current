@@ -54,6 +54,8 @@ $rsyncmirrors=array(
 		"Belgium (2x1GBit, ftp.belnet.be)")
 	);
 $buycd=array(
+	array("OSDisc.com",
+		"http://www.osdisc.com/cgi-bin/view.cgi/products/linux/frugalware"),
 	array("CheapISO.com",
 		"http://cheapiso.com/index.php?manufacturers_id=55"),
 	array("Linux Central",

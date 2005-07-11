@@ -7,7 +7,7 @@ $people=file($fwautorsfile);
 // fix mail addresses
 foreach($people as $key => $value)
 {
-	$people[$key] = str_replace(array("<", ">", "@", "á", "Á", "ä", "Ä", "é", "É", "ó", "Ó", "ö", "Ö", "ü", "Ü"), array("&lt;", "&gt;", "_at_", "&aacute;", "&Aacute;", "&auml;", "&Auml;", "&eacute;", "&Eacute;", "&oacute;", "&Oacute;", "&ouml;", "&Ouml;", "&uuml;", "&Uuml;"), $value);
+	$people[$key] = str_replace(array("<", ">", "@", "á", "Á", "ä", "Ä", "é", "É", "ó", "Ó", "ö", "Ö", "ü", "Ü", "õ"), array("&lt;", "&gt;", "_at_", "&aacute;", "&Aacute;", "&auml;", "&Auml;", "&eacute;", "&Eacute;", "&oacute;", "&Oacute;", "&ouml;", "&Ouml;", "&uuml;", "&Uuml;", "&#337;"), $value);
 }
 
 // skip to list

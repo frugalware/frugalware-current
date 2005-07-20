@@ -1,0 +1,195 @@
+Date: 2005-07-20
+Initial Package Version: 2.9.6
+Upstream Status: Not yet submitted
+Origin: Miklos Vajna <vmiklos@frugalware.org>
+Description: Adds support for sha1 hash arrays to makepkg.
+ doc/makepkg.8.in |   14 ++++++++++
+ scripts/makepkg  |   75 +++++++++++++++++++++++++++++++++++++++++++++++++------
+ 2 files changed, 81 insertions(+), 8 deletions(-)
+diff -Naur pacman-2.9.6.orig/doc/makepkg.8.in pacman-2.9.6/doc/makepkg.8.in
+--- pacman-2.9.6.orig/doc/makepkg.8.in	2005-07-20 23:43:00.000000000 +0200
++++ pacman-2.9.6/doc/makepkg.8.in	2005-07-20 23:49:04.000000000 +0200
+@@ -289,6 +289,15 @@
+ \fImd5sums\fP line from the bottom to an appropriate location.
+ 
+ .TP
++.B sha1sums \fI(array)\fP
++If this field is present, it should contain an SHA1 hash for every source file
++specified in the \fIsource\fP array (in the same order).  makepkg will use
++this to verify source file integrity during subsequent builds.  To easily
++generate sha1sums, first build using the FrugalBuild then run
++\fBmakepkg -G >>FrugalBuild\fP.  Then you can edit the FrugalBuild and move the
++\fIsha1sums\fP line from the bottom to an appropriate location.
++
++.TP
+ .B groups \fI(array)\fP
+ This is an array of symbolic names that represent groups of packages, allowing
+ you to install multiple packages by requesting a single target.  For example,
+@@ -380,6 +389,11 @@
+ for each of them.  You can then redirect the output into your FrugalBuild for source
+ validation (makepkg -g >>FrugalBuild).
+ .TP
++.B "\-G, \-\-gensha1"
++Download all source files (if required) and use \fIsha1sum\fP to generate sha1 hashes
++for each of them.  You can then redirect the output into your FrugalBuild for source
++validation (makepkg -G >>FrugalBuild).
++.TP
+ .B "\-h, \-\-help"
+ Output syntax and commandline options.
+ .TP
+diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
+--- pacman-2.9.6.orig/scripts/makepkg	2005-07-20 23:43:00.000000000 +0200
++++ pacman-2.9.6/scripts/makepkg	2005-07-20 23:47:00.000000000 +0200
+@@ -195,6 +195,7 @@
+ 	echo "  -e, --noextract  Do not extract source files (use existing src/ dir)"
+ 	echo "  -f, --force      Overwrite existing package"
+ 	echo "  -g, --genmd5     Generate MD5sums for source files"
++	echo "  -G, --gensha1    Generate SHA1sums for source files"
+ 	echo "  -h, --help       This help"
+ 	echo "  -i, --install    Install package after successful build"
+ 	echo "  -j <jobs>        Set MAKEFLAGS to \"-j<jobs>\" before building"
+@@ -222,6 +223,7 @@
+ INSTALL=0
+ DOWNLOAD=""
+ GENMD5=0
++GENSHA1=0
+ DEP_BIN=0
+ DEP_SUDO=0
+ DEP_SRC=0
+@@ -253,6 +255,7 @@
+ 		--nobuild)    NOBUILD=1 ;;
+ 		--nocolor)    USE_COLOR="n" ;;
+ 		--genmd5)     GENMD5=1 ;;
++		--gensha1)    GENSHA1=1 ;;
+ 		--rmdeps)     RMDEPS=1 ;;
+ 		--noup2date)     NOUP2DATE=1 ;;
+ 		--logging)    LOGGING=1 ;;
+@@ -265,7 +268,7 @@
+ 			exit 1
+ 			;;
+ 		-*)
+-			while getopts "acCsSbdehifgj:l:kmnorp:uw:-" opt; do
++			while getopts "acCsSbdehifgGj:l:kmnorp:uw:-" opt; do
+ 				case $opt in
+ 					a) SEARCHDEPS=1 ;;
+ 					c) CLEANUP=1 ;;
+@@ -275,6 +278,7 @@
+ 					e) NOEXTRACT=1 ;;
+ 					f) FORCE=1 ;;
+ 					g) GENMD5=1 ;;
++					G) GENSHA1=1 ;;
+ 					h)
+ 						usage
+ 						exit 0
+@@ -405,7 +409,7 @@
+ 	exit 1
+ fi
+ 
+-if [ -f $PKGDEST/${pkgname}-${pkgver}-${pkgrel}-${CARCH}.fpm -a "$FORCE" = "0" -a "$GENMD5" = "0" ]; then
++if [ -f $PKGDEST/${pkgname}-${pkgver}-${pkgrel}-${CARCH}.fpm -a "$FORCE" = "0" -a "$GENMD5" = "0" -a "$GENSHA1" = "0" ]; then
+ 	if [ "$INSTALL" = "1" ]; then
+ 		warning "a package has already been built, installing existing package."
+ 		pacman --upgrade $PKGDEST/${pkgname}-${pkgver}-${pkgrel}-${CARCH}.fpm
+@@ -524,16 +528,13 @@
+ 	fi
+ done
+ 
+-if [ "$GENMD5" = "0" ]; then
++if [ "$GENMD5" = "0" -a "$GENSHA1" = "0" ]; then
+ 	if [ "$NOEXTRACT" = "1" ]; then
+ 		warning "Skipping source extraction       -- using existing src/ tree"
+ 		warning "Skipping source integrity checks -- using existing src/ tree"
+ 	else
+ 		# MD5 validation
+-		if [ ${#md5sums[@]} -ne ${#source[@]} ]; then
+-			warning "MD5sums are missing or incomplete.  Cannot verify source integrity."
+-			#sleep 1
+-		elif [ `type -p md5sum` ]; then
++		if [ ${#md5sums[@]} -eq ${#source[@]} -a `type -p md5sum` ]; then
+ 			msg "Validating source files with MD5sums"
+ 			errors=0
+ 			idx=0
+@@ -553,10 +554,36 @@
+ 				error "One or more files did not pass the validity check!"
+ 				exit 1
+ 			fi
+-		else
++		elif [ ! `type -p md5sum` ]; then
+ 			warning "The md5sum program is missing.  Cannot verify source files!"
+ 			sleep 1
+ 		fi
++		
++		# SHA1 validation
++		if [ ${#sha1sums[@]} -eq ${#source[@]} -a `type -p sha1sum` ]; then
++			msg "Validating source files with SHA1sums"
++			errors=0
++			idx=0
++			for netfile in ${source[@]}; do
++				file=`strip_url $netfile`
++				echo -n "    $file ... " >&2
++				echo "${sha1sums[$idx]}  $file" | sha1sum -c - >/dev/null 2>&1
++				if [ $? -ne 0 ]; then
++					echo "FAILED" >&2
++					errors=1
++				else
++					echo "Passed" >&2
++				fi	
++				idx=$(($idx+1))
++			done
++			if [ $errors -gt 0 ]; then
++				error "One or more files did not pass the validity check!"
++				exit 1
++			fi
++		elif [ ! `type -p sha1sum` ]; then
++			warning "The sha1sum program is missing.  Cannot verify source files!"
++			sleep 1
++		fi
+ 		# extract sources
+ 		msg "Extracting Sources..."
+ 		for netfile in ${source[@]}; do
+@@ -594,6 +621,7 @@
+ 	fi
+ else
+ # generate md5 hashes
++  if [ "$GENMD5" = "1" ]; then
+ 	if [ ! `type -p md5sum` ]; then
+ 		error "Cannot find the md5sum program."
+ 		exit 1
+@@ -629,6 +657,37 @@
+ 	done
+ 	plain ""
+ 	exit 0
++  # generate sha1 hashes
++  elif [ "$GENSHA1" = "1" ]; then
++	if [ ! `type -p sha1sum` ]; then
++		error "Cannot find the sha1sum program."
++		exit 1
++	fi
++	msg "Generating SHA1sums for source files"
++	plain ""
++	ct=0
++	newline=0
++	numsrc=${#source[@]}
++	for netfile in ${source[@]}; do
++		file=`strip_url $netfile`
++		sum=`sha1sum $file | cut -d' ' -f 1`
++		if [ $ct -eq 0 ]; then
++			echo -n "sha1sums=("
++		else
++				echo -n "          "
++		fi
++		echo -n "'$sum'"
++		ct=$(($ct+1))
++		if [ $ct -eq $numsrc ]; then
++			echo ')'
++		else
++				echo ' \'
++				newline=0
++		fi
++	done
++	plain ""
++	exit 0
++  fi
+ fi
+ 
+ 

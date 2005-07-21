@@ -1,0 +1,427 @@
+Submitted By: Matthew Burgess <matthew@linuxfromscratch.org>
+Date: 2005-07-15
+Initial Package Version: 2.3.5
+Upstream Status: From Upstream
+Origin: Ryan Oliver, courtesy of upstream CVS and Dan Kegel's crosstool
+        (http://kegel.com/crosstool/)
+Description: Fixes a compilation problem with gcc-4.0.x that results in:
+  rtld.c: In function '_dl_start':
+  dynamic-link.h:47: error: nested function 'elf_machine_rela_relative' declared
+  but never defined
+  dynamic-link.h:41: error: nested function 'elf_machine_rela' declared but
+  never defined
+
+diff -Naur glibc-2.3.5.orig/elf/dynamic-link.h glibc-2.3.5/elf/dynamic-link.h
+--- glibc-2.3.5.orig/elf/dynamic-link.h	2004-09-24 17:09:03.000000000 +0000
++++ glibc-2.3.5/elf/dynamic-link.h	2005-07-15 18:24:04.450773880 +0000
+@@ -1,5 +1,5 @@
+ /* Inline functions for dynamic linking.
+-   Copyright (C) 1995-2002, 2003, 2004 Free Software Foundation, Inc.
++   Copyright (C) 1995-2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+    This file is part of the GNU C Library.
+ 
+    The GNU C Library is free software; you can redistribute it and/or
+@@ -31,26 +31,30 @@
+    optimizing away alignment tests or using word instructions for
+    copying memory, breaking the very code written to handle the
+    unaligned cases.  */
+-auto void __attribute__((always_inline))
++# if ! ELF_MACHINE_NO_REL
++auto inline void __attribute__((always_inline))
+ elf_machine_rel (struct link_map *map, const ElfW(Rel) *reloc,
+ 		 const ElfW(Sym) *sym, const struct r_found_version *version,
+ 		 void *const reloc_addr);
+-auto void __attribute__((always_inline))
++auto inline void __attribute__((always_inline))
++elf_machine_rel_relative (ElfW(Addr) l_addr, const ElfW(Rel) *reloc,
++			  void *const reloc_addr);
++# endif
++# if ! ELF_MACHINE_NO_RELA
++auto inline void __attribute__((always_inline))
+ elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
+ 		  const ElfW(Sym) *sym, const struct r_found_version *version,
+ 		  void *const reloc_addr);
+-auto void __attribute__((always_inline))
+-elf_machine_rel_relative (ElfW(Addr) l_addr, const ElfW(Rel) *reloc,
+-			  void *const reloc_addr);
+-auto void __attribute__((always_inline))
++auto inline void __attribute__((always_inline))
+ elf_machine_rela_relative (ElfW(Addr) l_addr, const ElfW(Rela) *reloc,
+ 			   void *const reloc_addr);
++# endif
+ # if ELF_MACHINE_NO_RELA || defined ELF_MACHINE_PLT_REL
+-auto void __attribute__((always_inline))
++auto inline void __attribute__((always_inline))
+ elf_machine_lazy_rel (struct link_map *map,
+ 		      ElfW(Addr) l_addr, const ElfW(Rel) *reloc);
+ # else
+-auto void __attribute__((always_inline))
++auto inline void __attribute__((always_inline))
+ elf_machine_lazy_rel (struct link_map *map,
+ 		      ElfW(Addr) l_addr, const ElfW(Rela) *reloc);
+ # endif
+diff -Naur glibc-2.3.5.orig/sysdeps/alpha/dl-machine.h glibc-2.3.5/sysdeps/alpha/dl-machine.h
+--- glibc-2.3.5.orig/sysdeps/alpha/dl-machine.h	2004-10-15 07:06:11.000000000 +0000
++++ glibc-2.3.5/sysdeps/alpha/dl-machine.h	2005-07-15 18:24:04.620748040 +0000
+@@ -1,5 +1,5 @@
+ /* Machine-dependent ELF dynamic relocation inline functions.  Alpha version.
+-   Copyright (C) 1996-2002, 2003, 2004 Free Software Foundation, Inc.
++   Copyright (C) 1996-2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+    This file is part of the GNU C Library.
+    Contributed by Richard Henderson <rth@tamu.edu>.
+ 
+@@ -508,6 +508,7 @@
+ /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
+    MAP is the object containing the reloc.  */
+ auto inline void
++__attribute__ ((always_inline))
+ elf_machine_rela (struct link_map *map,
+ 		  const Elf64_Rela *reloc,
+ 		  const Elf64_Sym *sym,
+@@ -646,6 +647,7 @@
+ #define ELF_MACHINE_REL_RELATIVE 1
+ 
+ auto inline void
++__attribute__ ((always_inline))
+ elf_machine_rela_relative (Elf64_Addr l_addr, const Elf64_Rela *reloc,
+ 			   void *const reloc_addr_arg)
+ {
+@@ -662,6 +664,7 @@
+ }
+ 
+ auto inline void
++__attribute__ ((always_inline))
+ elf_machine_lazy_rel (struct link_map *map,
+ 		      Elf64_Addr l_addr, const Elf64_Rela *reloc)
+ {
+diff -Naur glibc-2.3.5.orig/sysdeps/arm/dl-machine.h glibc-2.3.5/sysdeps/arm/dl-machine.h
+--- glibc-2.3.5.orig/sysdeps/arm/dl-machine.h	2004-12-04 21:20:17.000000000 +0000
++++ glibc-2.3.5/sysdeps/arm/dl-machine.h	2005-07-15 18:24:04.621747888 +0000
+@@ -350,16 +350,15 @@
+ 
+ #endif /* !dl_machine_h */
+ 
+-#ifdef RESOLVE
+-
+ /* ARM never uses Elf32_Rela relocations for the dynamic linker.
+    Prelinked libraries may use Elf32_Rela though.  */
+-# ifdef RTLD_BOOTSTRAP
+-#  define ELF_MACHINE_NO_RELA 1
+-# endif
++#define ELF_MACHINE_NO_RELA defined RTLD_BOOTSTRAP
++
++#ifdef RESOLVE
+ 
+ /* Deal with an out-of-range PC24 reloc.  */
+-static Elf32_Addr
++auto inline Elf32_Addr
++__attribute__ ((always_inline))
+ fix_bad_pc24 (Elf32_Addr *const reloc_addr, Elf32_Addr value)
+ {
+   static void *fix_page;
+@@ -392,7 +391,8 @@
+ /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
+    MAP is the object containing the reloc.  */
+ 
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_rel (struct link_map *map, const Elf32_Rel *reloc,
+ 		 const Elf32_Sym *sym, const struct r_found_version *version,
+ 		 void *const reloc_addr_arg)
+@@ -517,7 +517,8 @@
+ }
+ 
+ # ifndef RTLD_BOOTSTRAP
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
+ 		  const Elf32_Sym *sym, const struct r_found_version *version,
+ 		  void *const reloc_addr_arg)
+@@ -597,7 +598,8 @@
+ }
+ # endif
+ 
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_rel_relative (Elf32_Addr l_addr, const Elf32_Rel *reloc,
+ 			  void *const reloc_addr_arg)
+ {
+@@ -606,7 +608,8 @@
+ }
+ 
+ # ifndef RTLD_BOOTSTRAP
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
+ 			   void *const reloc_addr_arg)
+ {
+@@ -615,7 +618,8 @@
+ }
+ # endif
+ 
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_lazy_rel (struct link_map *map,
+ 		      Elf32_Addr l_addr, const Elf32_Rel *reloc)
+ {
+diff -Naur glibc-2.3.5.orig/sysdeps/generic/dl-machine.h glibc-2.3.5/sysdeps/generic/dl-machine.h
+--- glibc-2.3.5.orig/sysdeps/generic/dl-machine.h	2001-09-08 17:16:43.000000000 +0000
++++ glibc-2.3.5/sysdeps/generic/dl-machine.h	2005-07-15 18:24:04.622747736 +0000
+@@ -1,5 +1,6 @@
+ /* Machine-dependent ELF dynamic relocation inline functions.  Stub version.
+-   Copyright (C) 1995,1996,1997,1999,2000,2001 Free Software Foundation, Inc.
++   Copyright (C) 1995, 1996, 1997, 1999, 2000, 2001, 2005
++   Free Software Foundation, Inc.
+    This file is part of the GNU C Library.
+ 
+    The GNU C Library is free software; you can redistribute it and/or
+@@ -64,7 +65,8 @@
+    LOADADDR is the load address of the object; INFO is an array indexed
+    by DT_* of the .dynamic section info.  */
+ 
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_rel (Elf32_Addr loadaddr, Elf32_Dyn *info[DT_NUM],
+ 		 const Elf32_Rel *reloc, const Elf32_Sym *sym,
+ 		 Elf32_Addr (*resolve) (const Elf32_Sym **ref,
+@@ -87,7 +89,8 @@
+ }
+ 
+ 
+-static inline Elf32_Addr
++auto inline Elf32_Addr
++__attribute__ ((always_inline))
+ elf_machine_rela (Elf32_Addr loadaddr, Elf32_Dyn *info[DT_NUM],
+ 		  const Elf32_Rel *reloc, const Elf32_Sym *sym,
+ 		  Elf32_Addr (*resolve) (const Elf32_Sym **ref,
+diff -Naur glibc-2.3.5.orig/sysdeps/i386/dl-machine.h glibc-2.3.5/sysdeps/i386/dl-machine.h
+--- glibc-2.3.5.orig/sysdeps/i386/dl-machine.h	2005-02-16 10:58:03.000000000 +0000
++++ glibc-2.3.5/sysdeps/i386/dl-machine.h	2005-07-15 18:24:04.629746672 +0000
+@@ -387,13 +387,11 @@
+ 
+ #endif /* !dl_machine_h */
+ 
+-#ifdef RESOLVE
+-
+ /* The i386 never uses Elf32_Rela relocations for the dynamic linker.
+    Prelinked libraries may use Elf32_Rela though.  */
+-#ifdef RTLD_BOOTSTRAP
+-# define ELF_MACHINE_NO_RELA 1
+-#endif
++#define ELF_MACHINE_NO_RELA defined RTLD_BOOTSTRAP
++
++#ifdef RESOLVE
+ 
+ /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
+    MAP is the object containing the reloc.  */
+diff -Naur glibc-2.3.5.orig/sysdeps/mips/dl-machine.h glibc-2.3.5/sysdeps/mips/dl-machine.h
+--- glibc-2.3.5.orig/sysdeps/mips/dl-machine.h	2004-11-24 04:36:09.000000000 +0000
++++ glibc-2.3.5/sysdeps/mips/dl-machine.h	2005-07-15 18:24:04.623747584 +0000
+@@ -528,7 +528,7 @@
+ /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
+    MAP is the object containing the reloc.  */
+ 
+-static inline void
++auto inline void
+ #ifdef RTLD_BOOTSTRAP
+   __attribute__ ((always_inline))
+ #endif
+@@ -635,14 +635,16 @@
+     }
+ }
+ 
+-static inline void
++auto inline void
++__attribute__((always_inline))
+ elf_machine_rel_relative (ElfW(Addr) l_addr, const ElfW(Rel) *reloc,
+ 			  void *const reloc_addr)
+ {
+   /* XXX Nothing to do.  There is no relative relocation, right?  */
+ }
+ 
+-static inline void
++auto inline void
++__attribute__((always_inline))
+ elf_machine_lazy_rel (struct link_map *map,
+ 		      ElfW(Addr) l_addr, const ElfW(Rel) *reloc)
+ {
+@@ -651,7 +653,8 @@
+ 
+ #ifndef RTLD_BOOTSTRAP
+ /* Relocate GOT. */
+-static inline void
++auto inline void
++__attribute__((always_inline))
+ elf_machine_got_rel (struct link_map *map, int lazy)
+ {
+   ElfW(Addr) *got;
+@@ -738,7 +741,8 @@
+ /* Set up the loaded object described by L so its stub function
+    will jump to the on-demand fixup code __dl_runtime_resolve.  */
+ 
+-static inline int
++auto inline int
++__attribute__((always_inline))
+ elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
+ {
+ # ifndef RTLD_BOOTSTRAP
+diff -Naur glibc-2.3.5.orig/sysdeps/powerpc/powerpc32/dl-machine.h glibc-2.3.5/sysdeps/powerpc/powerpc32/dl-machine.h
+--- glibc-2.3.5.orig/sysdeps/powerpc/powerpc32/dl-machine.h	2003-07-31 06:33:52.000000000 +0000
++++ glibc-2.3.5/sysdeps/powerpc/powerpc32/dl-machine.h	2005-07-15 18:24:04.624747432 +0000
+@@ -353,7 +353,7 @@
+    LOADADDR is the load address of the object; INFO is an array indexed
+    by DT_* of the .dynamic section info.  */
+ 
+-inline void
++auto inline void __attribute__ ((always_inline))
+ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
+ 		  const Elf32_Sym *sym, const struct r_found_version *version,
+ 		  void *const reloc_addr_arg)
+@@ -455,7 +455,7 @@
+     }
+ }
+ 
+-static inline void
++auto inline void __attribute__ ((always_inline))
+ elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
+ 			   void *const reloc_addr_arg)
+ {
+@@ -463,7 +463,7 @@
+   *reloc_addr = l_addr + reloc->r_addend;
+ }
+ 
+-static inline void
++auto inline void __attribute__ ((always_inline))
+ elf_machine_lazy_rel (struct link_map *map,
+ 		      Elf32_Addr l_addr, const Elf32_Rela *reloc)
+ {
+diff -Naur glibc-2.3.5.orig/sysdeps/powerpc/powerpc64/dl-machine.h glibc-2.3.5/sysdeps/powerpc/powerpc64/dl-machine.h
+--- glibc-2.3.5.orig/sysdeps/powerpc/powerpc64/dl-machine.h	2004-09-08 06:57:14.000000000 +0000
++++ glibc-2.3.5/sysdeps/powerpc/powerpc64/dl-machine.h	2005-07-15 18:24:04.626747128 +0000
+@@ -567,7 +567,7 @@
+                                 const Elf64_Sym *refsym)
+                                 attribute_hidden;
+ 
+-static inline void
++auto inline void __attribute__ ((always_inline))
+ elf_machine_rela_relative (Elf64_Addr l_addr, const Elf64_Rela *reloc,
+ 			   void *const reloc_addr_arg)
+ {
+@@ -577,7 +577,7 @@
+ 
+ #if defined USE_TLS && (!defined RTLD_BOOTSTRAP || USE___THREAD)
+ /* This computes the value used by TPREL* relocs.  */
+-static Elf64_Addr __attribute__ ((const))
++auto inline Elf64_Addr __attribute__ ((always_inline, const))
+ elf_machine_tprel (struct link_map *map,
+ 		   struct link_map *sym_map,
+ 		   const Elf64_Sym *sym,
+@@ -598,7 +598,7 @@
+ 
+ /* Perform the relocation specified by RELOC and SYM (which is fully
+    resolved).  MAP is the object containing the reloc.  */
+-static inline void
++auto inline void __attribute__ ((always_inline))
+ elf_machine_rela (struct link_map *map,
+ 		  const Elf64_Rela *reloc,
+ 		  const Elf64_Sym *sym,
+@@ -883,11 +883,12 @@
+   MODIFIED_CODE_NOQUEUE (reloc_addr);
+ }
+ 
+-static inline void
++auto inline void __attribute__ ((always_inline))
+ elf_machine_lazy_rel (struct link_map *map,
+ 		      Elf64_Addr l_addr, const Elf64_Rela *reloc)
+ {
+   /* elf_machine_runtime_setup handles this.  */
+ }
+ 
++
+ #endif /* RESOLVE */
+diff -Naur glibc-2.3.5.orig/sysdeps/sparc/sparc32/dl-machine.h glibc-2.3.5/sysdeps/sparc/sparc32/dl-machine.h
+--- glibc-2.3.5.orig/sysdeps/sparc/sparc32/dl-machine.h	2004-05-17 18:20:30.000000000 +0000
++++ glibc-2.3.5/sysdeps/sparc/sparc32/dl-machine.h	2005-07-15 18:24:04.627746976 +0000
+@@ -1,5 +1,5 @@
+ /* Machine-dependent ELF dynamic relocation inline functions.  SPARC version.
+-   Copyright (C) 1996-2003, 2004 Free Software Foundation, Inc.
++   Copyright (C) 1996-2003, 2004, 2005 Free Software Foundation, Inc.
+    This file is part of the GNU C Library.
+ 
+    The GNU C Library is free software; you can redistribute it and/or
+@@ -411,7 +411,8 @@
+ /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
+    MAP is the object containing the reloc.  */
+ 
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
+ 		  const Elf32_Sym *sym, const struct r_found_version *version,
+ 		  void *const reloc_addr_arg)
+@@ -593,7 +594,8 @@
+     }
+ }
+ 
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
+ 			   void *const reloc_addr_arg)
+ {
+@@ -601,7 +603,8 @@
+   *reloc_addr += l_addr + reloc->r_addend;
+ }
+ 
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_lazy_rel (struct link_map *map,
+ 		      Elf32_Addr l_addr, const Elf32_Rela *reloc)
+ {
+diff -Naur glibc-2.3.5.orig/sysdeps/sparc/sparc64/dl-machine.h glibc-2.3.5/sysdeps/sparc/sparc64/dl-machine.h
+--- glibc-2.3.5.orig/sysdeps/sparc/sparc64/dl-machine.h	2004-03-05 10:27:55.000000000 +0000
++++ glibc-2.3.5/sysdeps/sparc/sparc64/dl-machine.h	2005-07-15 18:24:04.628746824 +0000
+@@ -1,5 +1,5 @@
+ /* Machine-dependent ELF dynamic relocation inline functions.  Sparc64 version.
+-   Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
++   Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005
+ 	Free Software Foundation, Inc.
+    This file is part of the GNU C Library.
+ 
+@@ -238,7 +238,8 @@
+ /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
+    MAP is the object containing the reloc.  */
+ 
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_rela (struct link_map *map, const Elf64_Rela *reloc,
+ 		  const Elf64_Sym *sym, const struct r_found_version *version,
+ 		  void *const reloc_addr_arg)
+@@ -430,7 +431,8 @@
+     }
+ }
+ 
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_rela_relative (Elf64_Addr l_addr, const Elf64_Rela *reloc,
+ 			   void *const reloc_addr_arg)
+ {
+@@ -438,7 +440,8 @@
+   *reloc_addr = l_addr + reloc->r_addend;
+ }
+ 
+-static inline void
++auto inline void
++__attribute__ ((always_inline))
+ elf_machine_lazy_rel (struct link_map *map,
+ 		      Elf64_Addr l_addr, const Elf64_Rela *reloc)
+ {

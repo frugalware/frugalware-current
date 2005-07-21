@@ -1,0 +1,463 @@
+--- faad2/common/mp4ff/mp4atom.c
++++ faad2.patched/common/mp4ff/mp4atom.c
+@@ -31,15 +31,15 @@
+ #include "drms.h"
+ 
+ /* parse atom header size */
+-static int32_t mp4ff_atom_get_size(const int8_t *data)
++static int32_t mp4ff_atom_get_size(const uint8_t *data)
+ {
+     uint32_t result;
+     uint32_t a, b, c, d;
+ 
+-    a = (uint8_t)data[0];
+-    b = (uint8_t)data[1];
+-    c = (uint8_t)data[2];
+-    d = (uint8_t)data[3];
++    a = data[0];
++    b = data[1];
++    c = data[2];
++    d = data[3];
+ 
+     result = (a<<24) | (b<<16) | (c<<8) | d;
+     //if (result > 0 && result < 8) result = 8;
+@@ -182,7 +182,7 @@
+ {
+     uint64_t size;
+     int32_t ret;
+-    int8_t atom_header[8];
++    uint8_t atom_header[8];
+ 
+     ret = mp4ff_read_data(f, atom_header, 8);
+     if (ret != 8)
+--- faad2/common/mp4ff/mp4ff.h
++++ faad2.patched/common/mp4ff/mp4ff.h
+@@ -125,4 +125,4 @@
+ }
+ #endif /* __cplusplus */
+ 
+-#endif
+\ No newline at end of file
++#endif
+--- faad2/common/mp4ff/mp4ffint.h
++++ faad2.patched/common/mp4ff/mp4ffint.h
+@@ -226,8 +226,8 @@
+ 
+ 
+ /* mp4util.c */
+-int32_t mp4ff_read_data(mp4ff_t *f, int8_t *data, uint32_t size);
+-int32_t mp4ff_write_data(mp4ff_t *f, int8_t *data, uint32_t size);
++int32_t mp4ff_read_data(mp4ff_t *f, uint8_t *data, uint32_t size);
++int32_t mp4ff_write_data(mp4ff_t *f, uint8_t *data, uint32_t size);
+ uint64_t mp4ff_read_int64(mp4ff_t *f);
+ uint32_t mp4ff_read_int32(mp4ff_t *f);
+ uint32_t mp4ff_read_int24(mp4ff_t *f);
+@@ -241,7 +241,7 @@
+ char * mp4ff_read_string(mp4ff_t * f,uint32_t length);
+ 
+ /* mp4atom.c */
+-static int32_t mp4ff_atom_get_size(const int8_t *data);
++static int32_t mp4ff_atom_get_size(const uint8_t *data);
+ static int32_t mp4ff_atom_compare(const int8_t a1, const int8_t b1, const int8_t c1, const int8_t d1,
+                                   const int8_t a2, const int8_t b2, const int8_t c2, const int8_t d2);
+ static uint8_t mp4ff_atom_name_to_type(const int8_t a, const int8_t b, const int8_t c, const int8_t d);
+@@ -301,7 +301,6 @@
+ mp4ff_t *mp4ff_open_edit(mp4ff_callback_t *f);
+ #endif
+ void mp4ff_close(mp4ff_t *ff);
+-void mp4ff_track_add(mp4ff_t *f);
+ int32_t parse_sub_atoms(mp4ff_t *f, const uint64_t total_size);
+ int32_t parse_atoms(mp4ff_t *f);
+ 
+@@ -326,4 +325,4 @@
+ }
+ #endif /* __cplusplus */
+ 
+-#endif
+\ No newline at end of file
++#endif
+--- faad2/common/mp4ff/mp4ff_int_types.h
++++ faad2.patched/common/mp4ff/mp4ff_int_types.h
+@@ -20,4 +20,4 @@
+ #endif
+ 
+ 
+-#endif
+\ No newline at end of file
++#endif
+--- faad2/common/mp4ff/mp4meta.c
++++ faad2.patched/common/mp4ff/mp4meta.c
+@@ -411,4 +411,4 @@
+     return mp4ff_meta_find_by_name(f, "cover", value);
+ }
+ 
+-#endif
+\ No newline at end of file
++#endif
+--- faad2/common/mp4ff/mp4tagupdate.c
++++ faad2.patched/common/mp4ff/mp4tagupdate.c
+@@ -143,7 +143,7 @@
+ 	bufptr = membuffer_get_ptr(buf);
+ 	if (bufptr==0) return 0;
+ 	
+-	if ((unsigned)mp4ff_read_data(src,(char*)bufptr + oldsize,bytes)!=bytes)
++	if ((unsigned)mp4ff_read_data(src,(uint8_t*)bufptr + oldsize,bytes)!=bytes)
+ 	{
+ 		membuffer_set_error(buf);
+ 		return 0;
+@@ -398,7 +398,7 @@
+ 	uint64_t atom_offset = base;
+ 	for(;;)
+ 	{
+-		char atom_name[4];
++		uint8_t atom_name[4];
+ 		uint32_t atom_size;
+ 
+ 		mp4ff_set_position(f,atom_offset);
+@@ -618,7 +618,7 @@
+     /* copy moov atom to end of the file */
+     if (ff->last_atom != ATOM_MOOV)
+     {
+-        char *free_data = "free";
++        uint8_t *free_data = (uint8_t*)"free";
+ 
+         /* rename old moov to free */
+         mp4ff_set_position(ff, ff->moov_offset + 4);
+@@ -626,14 +626,14 @@
+ 	
+         mp4ff_set_position(ff, ff->file_size);
+ 		mp4ff_write_int32(ff,new_moov_size + 8);
+-		mp4ff_write_data(ff,"moov",4);
++		mp4ff_write_data(ff,(uint8_t*)"moov",4);
+ 		mp4ff_write_data(ff, new_moov_data, new_moov_size);
+     }
+ 	else
+ 	{
+         mp4ff_set_position(ff, ff->moov_offset);
+ 		mp4ff_write_int32(ff,new_moov_size + 8);
+-		mp4ff_write_data(ff,"moov",4);
++		mp4ff_write_data(ff,(uint8_t*)"moov",4);
+ 		mp4ff_write_data(ff, new_moov_data, new_moov_size);
+ 	}
+ 
+--- faad2/common/mp4ff/mp4util.c
++++ faad2.patched/common/mp4ff/mp4util.c
+@@ -28,7 +28,7 @@
+ #include "mp4ffint.h"
+ #include <stdlib.h>
+ 
+-int32_t mp4ff_read_data(mp4ff_t *f, int8_t *data, uint32_t size)
++int32_t mp4ff_read_data(mp4ff_t *f, uint8_t *data, uint32_t size)
+ {
+     int32_t result = 1;
+ 
+@@ -44,7 +44,7 @@
+ 	return f->stream->truncate(f->stream->user_data);
+ }
+ 
+-int32_t mp4ff_write_data(mp4ff_t *f, int8_t *data, uint32_t size)
++int32_t mp4ff_write_data(mp4ff_t *f, uint8_t *data, uint32_t size)
+ {
+     int32_t result = 1;
+ 
+@@ -105,13 +105,13 @@
+ {
+     uint32_t result;
+     uint32_t a, b, c, d;
+-    int8_t data[4];
++    uint8_t data[4];
+     
+     mp4ff_read_data(f, data, 4);
+-    a = (uint8_t)data[0];
+-    b = (uint8_t)data[1];
+-    c = (uint8_t)data[2];
+-    d = (uint8_t)data[3];
++    a = data[0];
++    b = data[1];
++    c = data[2];
++    d = data[3];
+ 
+     result = (a<<24) | (b<<16) | (c<<8) | d;
+     return (uint32_t)result;
+@@ -121,12 +121,12 @@
+ {
+     uint32_t result;
+     uint32_t a, b, c;
+-    int8_t data[4];
++    uint8_t data[4];
+     
+     mp4ff_read_data(f, data, 3);
+-    a = (uint8_t)data[0];
+-    b = (uint8_t)data[1];
+-    c = (uint8_t)data[2];
++    a = data[0];
++    b = data[1];
++    c = data[2];
+ 
+     result = (a<<16) | (b<<8) | c;
+     return (uint32_t)result;
+@@ -136,11 +136,11 @@
+ {
+     uint32_t result;
+     uint32_t a, b;
+-    int8_t data[2];
++    uint8_t data[2];
+     
+     mp4ff_read_data(f, data, 2);
+-    a = (uint8_t)data[0];
+-    b = (uint8_t)data[1];
++    a = data[0];
++    b = data[1];
+ 
+     result = (a<<8) | b;
+     return (uint16_t)result;
+@@ -151,7 +151,7 @@
+ 	char * str = (char*)malloc(length + 1);
+ 	if (str!=0)
+ 	{
+-		if ((uint32_t)mp4ff_read_data(f,str,length)!=length)
++		if ((uint32_t)mp4ff_read_data(f,(uint8_t*)str,length)!=length)
+ 		{
+ 			free(str);
+ 			str = 0;
+--- faad2/common/mp4v2/mp4meta.cpp
++++ faad2.patched/common/mp4v2/mp4meta.cpp
+@@ -830,7 +830,6 @@
+     MP4BytesProperty *pMetadataProperty = NULL;
+     char s[256];
+     int i = 0;
+-    bool nameExists = false;
+ 
+     while (1)
+     {
+--- faad2/common/mp4v2/mp4property.h
++++ faad2.patched/common/mp4v2/mp4property.h
+@@ -21,7 +21,6 @@
+ 
+ #ifndef __MP4_PROPERTY_INCLUDED__
+ #define __MP4_PROPERTY_INCLUDED__
+-#define NULL 0
+ 
+ // forward declarations
+ class MP4Atom;
+@@ -44,7 +43,7 @@
+ 
+ class MP4Property {
+ public:
+-	MP4Property(const char *name = NULL);
++	MP4Property(const char *name = 0);
+ 
+ 	virtual ~MP4Property() { }
+ 
+@@ -59,7 +58,7 @@
+ 		return m_name;
+ 	}
+ 
+-	virtual MP4PropertyType GetType() = NULL; 
++	virtual MP4PropertyType GetType() = 0; 
+ 
+ 	bool IsReadOnly() {
+ 		return m_readOnly;
+@@ -75,20 +74,20 @@
+ 		m_implicit = value;
+ 	}
+ 
+-	virtual u_int32_t GetCount() = NULL;
+-	virtual void SetCount(u_int32_t count) = NULL;
++	virtual u_int32_t GetCount() = 0;
++	virtual void SetCount(u_int32_t count) = 0;
+ 
+ 	virtual void Generate() { /* default is a no-op */ };
+ 
+-	virtual void Read(MP4File* pFile, u_int32_t index = 0) = NULL;
++	virtual void Read(MP4File* pFile, u_int32_t index = 0) = 0;
+ 
+-	virtual void Write(MP4File* pFile, u_int32_t index = 0) = NULL;
++	virtual void Write(MP4File* pFile, u_int32_t index = 0) = 0;
+ 
+ 	virtual void Dump(FILE* pFile, u_int8_t indent,
+-		bool dumpImplicits, u_int32_t index = 0) = NULL;
++		bool dumpImplicits, u_int32_t index = 0) = 0;
+ 
+ 	virtual bool FindProperty(const char* name,
+-		MP4Property** ppProperty, u_int32_t* pIndex = NULL);
++		MP4Property** ppProperty, u_int32_t* pIndex = 0);
+ 
+ protected:
+ 	MP4Atom* m_pParentAtom;
+@@ -460,7 +459,7 @@
+ 		 bool dumpImplicits, u_int32_t index = 0);
+ 
+ 	bool FindProperty(const char* name,
+-		MP4Property** ppProperty, u_int32_t* pIndex = NULL);
++		MP4Property** ppProperty, u_int32_t* pIndex = 0);
+ 
+ protected:
+ 	virtual void ReadEntry(MP4File* pFile, u_int32_t index);
+@@ -476,7 +475,7 @@
+ 
+ class MP4DescriptorProperty : public MP4Property {
+ public:
+-	MP4DescriptorProperty(char* name = NULL, 
++	MP4DescriptorProperty(char* name = 0, 
+ 	  u_int8_t tagsStart = 0, u_int8_t tagsEnd = 0,
+ 	  bool mandatory = false, bool onlyOne = false);
+ 
+@@ -519,7 +518,7 @@
+ 		 bool dumpImplicits, u_int32_t index = 0);
+ 
+ 	bool FindProperty(const char* name,
+-		MP4Property** ppProperty, u_int32_t* pIndex = NULL);
++		MP4Property** ppProperty, u_int32_t* pIndex = 0);
+ 
+ protected:
+ 	virtual MP4Descriptor* CreateDescriptor(u_int8_t tag);
+@@ -538,7 +537,7 @@
+ 
+ class MP4QosQualifierProperty : public MP4DescriptorProperty {
+ public:
+-	MP4QosQualifierProperty(char* name = NULL, 
++	MP4QosQualifierProperty(char* name = 0, 
+ 	  u_int8_t tagsStart = 0, u_int8_t tagsEnd = 0,
+ 	  bool mandatory = false, bool onlyOne = false) :
+ 	MP4DescriptorProperty(name, tagsStart, tagsEnd, mandatory, onlyOne) { }
+--- faad2/common/mp4v2/rtphint.h
++++ faad2.patched/common/mp4v2/rtphint.h
+@@ -35,8 +35,8 @@
+ 		return m_pPacket;
+ 	}
+ 
+-	virtual u_int16_t GetDataSize() = NULL;
+-	virtual void GetData(u_int8_t* pDest) = NULL;
++	virtual u_int16_t GetDataSize() = 0;
++	virtual void GetData(u_int8_t* pDest) = 0;
+ 
+ 	MP4Track* FindTrackFromRefIndex(u_int8_t refIndex);
+ 
+@@ -210,7 +210,7 @@
+ 
+ 	MP4RtpPacket* GetCurrentPacket() {
+ 		if (m_rtpPackets.Size() == 0) {
+-			return NULL;
++			return 0;
+ 		}
+ 		return m_rtpPackets[m_rtpPackets.Size() - 1];
+ 	}
+@@ -250,10 +250,10 @@
+ 	}
+ 
+ 	void GetPayload(
+-		char** ppPayloadName = NULL,
+-		u_int8_t* pPayloadNumber = NULL,
+-		u_int16_t* pMaxPayloadSize = NULL,
+-		char **ppEncodingParams = NULL);
++		char** ppPayloadName = 0,
++		u_int8_t* pPayloadNumber = 0,
++		u_int16_t* pMaxPayloadSize = 0,
++		char **ppEncodingParams = 0);
+ 
+ 	void SetPayload(
+ 		const char* payloadName,
+@@ -265,7 +265,7 @@
+ 
+ 	void ReadHint(
+ 		MP4SampleId hintSampleId,
+-		u_int16_t* pNumPackets = NULL);
++		u_int16_t* pNumPackets = 0);
+ 
+ 	u_int16_t GetHintNumberOfPackets();
+ 
+--- faad2/frontend/main.c
++++ faad2.patched/frontend/main.c
+@@ -36,6 +36,7 @@
+ #include <fcntl.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <string.h>
+ #include <getopt.h>
+ 
+ #include <faad.h>
+@@ -377,8 +378,8 @@
+                   float *song_length)
+ {
+     int tagsize;
+-    unsigned long samplerate;
+-    unsigned char channels;
++    uint32_t samplerate;
++    uint8_t channels;
+     void *sample_buffer;
+ 
+     audio_file *aufile;
+@@ -656,7 +657,7 @@
+     for (i = 0; i < numTracks; i++)
+     {
+         unsigned char *buff = NULL;
+-        int buff_size = 0;
++        uint32_t buff_size = 0;
+         mp4AudioSpecificConfig mp4ASC;
+ 
+         mp4ff_get_decoder_config(infile, i, &buff, &buff_size);
+@@ -687,8 +688,8 @@
+                   int infoOnly, int adts_out, float *song_length)
+ {
+     int track;
+-    unsigned long samplerate;
+-    unsigned char channels;
++    uint32_t samplerate;
++    uint8_t channels;
+     void *sample_buffer;
+ 
+     mp4ff_t *infile;
+@@ -707,7 +708,7 @@
+     mp4AudioSpecificConfig mp4ASC;
+ 
+     unsigned char *buffer;
+-    int buffer_size;
++    uint32_t buffer_size;
+ 
+     char percents[200];
+     int percent, old_percent = -1;
+--- faad2/libfaad/decoder.c
++++ faad2.patched/libfaad/decoder.c
+@@ -50,7 +50,7 @@
+ uint16_t dbg_count;
+ #endif
+ 
+-int8_t* FAADAPI faacDecGetErrorMessage(uint8_t errcode)
++char* FAADAPI faacDecGetErrorMessage(uint8_t errcode)
+ {
+     if (errcode >= NUM_ERROR_MESSAGES)
+         return NULL;
+--- faad2/libfaad/decoder.h
++++ faad2.patched/libfaad/decoder.h
+@@ -76,7 +76,7 @@
+ #define LFE_CHANNEL          (9)
+ #define UNKNOWN_CHANNEL      (0)
+ 
+-int8_t* FAADAPI faacDecGetErrorMessage(uint8_t errcode);
++char* FAADAPI faacDecGetErrorMessage(uint8_t errcode);
+ 
+ uint32_t FAADAPI faacDecGetCapabilities(void);
+ 
+--- faad2/libfaad/error.c
++++ faad2.patched/libfaad/error.c
+@@ -28,7 +28,7 @@
+ #include "common.h"
+ #include "error.h"
+ 
+-int8_t *err_msg[] = {
++char *err_msg[] = {
+     "No error",
+     "Gain control not yet implemented",
+     "Pulse coding not allowed in short blocks",
+--- faad2/libfaad/error.h
++++ faad2.patched/libfaad/error.h
+@@ -33,7 +33,7 @@
+ #endif
+ 
+ #define NUM_ERROR_MESSAGES 26
+-extern int8_t *err_msg[];
++extern char *err_msg[];
+ 
+ #ifdef __cplusplus
+ }

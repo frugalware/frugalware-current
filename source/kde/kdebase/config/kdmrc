@@ -39,18 +39,24 @@
 [General]
 # This option exists solely for the purpose of a clean automatic upgrade.
 # Don't even think about changing it!
-ConfigVersion=2.1
-# If the value starts with a slash (/), it specifies the file, where X-servers
-# to be used by KDM are listed; the file is in the usual XDM-Xservers format.
-# Otherwise it's interpreted like one line of the Xservers file, i.e., it
-# specifies exactly one X-server.
-# Default is ":0 local@tty1 /usr/X11R6/bin/X -nolisten tcp vt7"
-# XXX i'm planning to absorb this file into kdmrc, but i'm not sure how to
-# do this best.
-Xservers=/usr/share/config/kdm/Xservers
+ConfigVersion=2.3
+# List of permanent displays. Displays with a hostname are foreign. A display
+# class may be specified separated by an underscore.
+# Default is ":0"
+StaticServers=:0
+# List of on-demand displays. See StaticServers for syntax.
+# Default is ""
+ReserveServers=:1,:2,:3
+# VTs to allocate to X-servers. A negative number means that the VT will be
+# used only if it is free. If all VTs in this list are used up, the next free
+# one greater than the last one in this list will be allocated.
+# Default is ""
+ServerVTs=-12
+# TTYs (without /dev/) to monitor for activity while in console mode.
+# Default is ""
+ConsoleTTYs=tty1,tty2,tty3,tty4,tty5,tty6,tty7,tty8,tty9,tty10,tty11
 # Where KDM should store its PID. Default is "" (don't store)
 PidFile=/var/run/xdm.pid
-ServerVTs=-11
 # Whether KDM should lock the pid file to prevent having multiple KDM
 # instances running at once. Leave it "true", unless you're brave.
 #LockPidFile=false
@@ -211,7 +217,7 @@ SystemPath=/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # (unless you use KDE's built-in screen lock). Default is false
 #AutoReLogin=true
 # Allow root logins? Default is true
-#AllowRootLogin=
+AllowRootLogin=false
 # Allow to log in, when user has set an empty password? Default is true
 #AllowNullPasswd=
 # Who is allowed to shut down the system. This applies both to the
@@ -223,21 +229,25 @@ AllowShutdown=All
 # Who is allowed to abort all still running sessions when shutting down.
 # Same options as for AllowShutdown. Default is All
 #AllowSdForceNow=Root
-# The default choice for the shutdown condition/timing.
-# "Schedule" - shutdown after all sessions exit (possibly at once) (Default)
-# "TryNow" - shutdown, if no sessions are open, otherwise do nothing
-# "ForceNow" - shutdown unconditionally
-#DefaultSdMode=ForceNow
-# If this is false the user must select the shutdown condition/timing already
-# in the shutdown dialog. If this is true he won't be bothered with the options,
-# but will be asked what to do if sessions are actually open. Default is true
-# NOTE: the interaction is currently not implemented. If this is set to true,
-# a normal forced shutdown will happen (without caring for the AllowSdForceNow
-# option!), i.e., KDM will behave exactly as before KDE 3.0.
-#InteractiveSd=false
+# How to offer shutdown scheduling options:
+# "Never" - not at all
+# "Optional" - as a button in the simple shutdown dialogs
+# "Always" - instead of the simple shutdown dialogs
+# Default is Never
+#ScheduledSd=Optional
 # The directories containing session type definitions in .desktop format.
 # Default is /usr/share/apps/kdm/sessions
 #SessionsDirs=/etc/X11/sessions,/usr/share/xsessions
+# The file (relative to $HOME) to redirect the session output to. This is
+# a printf format string; one %s will be replaced with the display name.
+# Default is ".xsession-errors"
+ClientLogFile=.xsession-errors-%s
+# Whether KDM's built-in utmp/wtmp/lastlog registration should be used.
+# Default is true
+UseSessReg=false
+# Create X-authorizations for local displays.
+# Default is true
+Authorize=true
 
 # Greeter config for all displays
 [X-*-Greeter]
@@ -338,7 +348,7 @@ EchoMode=OneStar
 #UseBackground=false
 # The configuration file to be used by krootimage.
 # Default is /usr/share/config/kdm/backgroundrc
-#BackgroundCfg=
+BackgroundCfg=/usr/share/config/kdm/backgroundrc
 # Hold the X-server grabbed the whole time the greeter is visible. This
 # may be more secure, but it will disable any background and other
 # X-clients started from the Setup script. Default is false
@@ -365,6 +375,10 @@ ForgingSeed=5457458457
 # Warn, if local X-authorization cannot be created. Default is true
 # XXX this is a dummy currently
 AuthComplain=true
+# The theme to use for the greeter. Can point to either a directory or an XML
+# file.
+# Default is ""
+Theme=/usr/share/apps/kdm/themes/circles
 
 # Core config for local displays
 [X-:*-Core]
@@ -375,8 +389,16 @@ AuthComplain=true
 #ServerTimeout=
 # See above
 AllowShutdown=All
+# The command line to start the X-server, without display number and VT spec.
+# This string is subject to word splitting.
+# Default is "/usr/X11R6/bin/X"
+ServerCmd=/usr/X11R6/bin/X
+# Additional arguments for the X-servers for local sessions.
+# This string is subject to word splitting.
+# Default is ""
+ServerArgsLocal=-nolisten tcp
 # See above
-AllowRootLogin=true
+AllowRootLogin=false
 # See above
 AllowNullPasswd=true
 # Enable password-less logins on this display. USE WITH EXTREME CARE!
@@ -388,6 +410,10 @@ AllowNullPasswd=true
 
 # Greeter config for local displays
 [X-:*-Greeter]
+# See above
+PreselectUser=Previous
+# See above
+FocusPasswd=true
 # See above
 #AuthComplain=false
 # The screen the greeter should be displayed on in multi-headed setups.
@@ -408,7 +434,7 @@ LoginMode=DefaultLocal
 #ChooserHosts=*,ugly,sky,dino,kiste.local,login.crap.com
 # Show the "Restart X Server"/"Close Connection" action in the greeter.
 # Default is true
-#AllowClose=false
+AllowClose=false
 
 # Core config for 1st local display
 [X-:0-Core]
@@ -421,6 +447,8 @@ LoginMode=DefaultLocal
 # unless the user is to be logged into a NIS or Kerberos domain. If you use
 # it, you should "chmod 600 kdmrc" for obvious reasons. Default is ""
 #AutoLoginPass=secret!
+# See above
+ClientLogFile=.xsession-errors
 
 # Greeter config for 1st local display
 [X-:0-Greeter]

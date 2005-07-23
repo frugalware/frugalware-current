@@ -1,0 +1,70 @@
+#! /bin/bash
+
+BASENAME=/home/ftp/pub/frugalware/frugalware-current
+WHICH=m
+
+chk_status() # $1 = path to a FrugalBuild script, $2 = repo
+{
+	source $1
+	pkg="${pkgname}-${pkgver}-${pkgrel}"
+	file32="/$2/frugalware-i686/${pkg}-i686.fpm"
+	file64="/$2/frugalware-x86_64/${pkg}-x86_64.fpm"
+	if echo ${archs[*]} | grep -q i686 ; then
+		output=$(repoman ls ${file32} 2> /dev/null)
+		if [[ "${output}" != "${BASENAME}/${file32}" ]] ; then
+			status32=31
+		else
+			status32=32
+		fi
+	else
+		status32=33
+	fi
+	if echo ${archs[*]} | grep -q x86_64 ; then
+		output=$(repoman ls ${file64} 2> /dev/null)
+		if [[ "${output}" != "${BASENAME}/${file64}" ]] ; then
+			status64=31
+		else
+			status64=32
+		fi
+	else
+		status64=33
+	fi
+	group=$(basename $(dirname $(dirname $1)))
+	if [[ "$2" == "extra" ]] ; then
+		repo=extra/${group}
+	else
+		repo=${group}
+	fi
+	if [[ "${WHICH}" == "a" ]] ; then
+		printf "\033[01m%s\t\033[0m%s\t\033[01;%smi686\t\033[01;%smx86_64\033[0m\n" \
+		${pkg} ${repo} ${status32} ${status64}
+	elif [[ "${WHICH}" == "d" ]] && (( ${status32} != ${status64} )) ; then
+		printf "\033[01m%s\t\033[0m%s\t\033[01;%smi686\t\033[01;%smx86_64\033[0m\n" \
+		${pkg} ${repo} ${status32} ${status64}
+	elif [[ "${WHICH}" == "m" ]] && (( ${status32} == 31 )) || (( ${status64} == 31 )) ; then
+		printf "\033[01m%s\t\033[0m%s\t\033[01;%smi686\t\033[01;%smx86_64\033[0m\n" \
+		${pkg} ${repo} ${status32} ${status64}
+	fi
+#	printf "\\033[01m%s\t\t\t\t\033[01;%smi686\t\033[01;%smx86_64\033[0m\n" \
+#		$pkg $status32 $status64
+}
+
+case $1 in
+	--all|-a)     WHICH=a ;;
+	--diff|-d)    WHICH=d ;;
+	--missing|-m) WHICH=m ;;
+esac
+
+cd ../source || exit 1
+
+for pkg in $(find . -name FrugalBuild | sort) ; do
+	chk_status ${pkg}
+done
+
+cd ../extra/source || exit 1
+
+for pkg in $(find . -name FrugalBuild | sort) ; do
+	chk_status ${pkg} extra
+done
+
+exit 0

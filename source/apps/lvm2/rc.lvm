@@ -10,16 +10,27 @@
 # chkconfig: - 00 98
 # description: Activate/deactivate volume groups
 
-# initialize the Logical Volume Manager if /etc/lvmtab is found
-# to use LVM you must run /sbin/vgscan yourself the first time
-
 if [ "$1" = "stop" ]; then
 	if [ "$2" = 0 -o "$2" = 6 ]; then
-		if [ -r /etc/lvmtab ]; then
-			start "$vgoff"
-			/sbin/vgchange -an
-			ok $?
-		fi
+		start "$vgoff"
+		# logical volumes
+		for i in `lvdisplay 2>&1|grep "LV Name"|sed -e 's/.*LV Name\s*\(.*\)/\1/'|sort`
+		do
+			# is it active?
+			if [ `lvdisplay $i|grep "# open"|awk '{print $3}'` = 0 ]; then
+				lvchange -an --ignorelockingfailure -P $i >/dev/null
+			fi
+		done
+		# volume groups
+		for i in `vgdisplay 2>&1|grep "VG Name"|sed -e 's/.*VG Name\s*\(.*\)/\1/'|sort`
+		do
+			# has the volume group an active logical volume?
+			if [ `vgdisplay $i|grep "Open LV"|sed -e 's/.*Open LV\s*\(.*\)/\1/'`]; then
+				vgchange -an --ignorelockingfailure -P $i \
+					>/dev/null
+			fi
+		done
+		ok $?
 		# sleep 1 fixes problems with some hard drives that don't
 		# otherwise finish syncing before reboot or poweroff
 		sleep 1
@@ -31,10 +42,17 @@ elif [ "$1" = "restart" ]; then
 	sleep 1
 	"$0" start
 else # start
-	if [ -r /etc/lvmtab ]; then
+	if [ -e /proc/modules ] && \
+		! grep -qs 'device-mapper' /proc/{devices,misc}; then
+		modprobe dm-mod
+	fi
+	if [ -d /proc/lvm ] || \
+		grep -qs 'device-mapper' /proc/{devices,misc} ; then
 		start "$vgchange "
-	# scan for new volume groups and make them available for the kernel
-		/sbin/vgscan && /sbin/vgchange -ay
+		/sbin/vgscan --mknodes --ignorelockingfailure &>/dev/null
+		if [ $? == 0 ] && [ -f /etc/lvmtab -o -d /etc/lvm ]; then
+			/sbin/vgchange --ignorelockingfailure -a y &>/dev/null
+		fi
 		ok $?
 	fi
 fi

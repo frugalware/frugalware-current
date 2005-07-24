@@ -91,6 +91,8 @@ function adm_wish_settodo() {
 	$query = "select wid, wprog, wkero, wcomment from wishlist where wid='$wid'";
 	$res1 = mysql_query($query);
 	if ($res1) {
+		print("No, don't add this item to the todolist! Please file a bugreport on " .
+			"<a href=\"http://bugs.frugalware.org\">bugs.frugalware.org</a> and delete the wish entry!");
 		$sor = mysql_fetch_object($res1);
 		print "<table width=\"60%\" border=\"0\" cellspacing=1 cellpadding=1 bgcolor=\"$fwblack\">\n";
 		print "<form method=POST action=\"admin.php?op=wtot\" enctype=\"multipart/form-data\">\n";

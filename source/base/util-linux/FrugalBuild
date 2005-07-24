@@ -1,12 +1,12 @@
-# Last modified: Thu, 16 Jun 2005 18:23:18 +0200
-# Compiling time: ~1 minute
+# Last modified: Fri, 22 Jul 2005 14:35:34 +0200
+# Compiling time: 0.09 SBU
 # Maintainer: VMiklos <mamajom@axelero.hu>
 # Modified by Laszlo Dvornik <dvornik@gnome.hu>
 
 pkgname=util-linux
 pkgver=2.12
 extrapkgver=q
-pkgrel=16
+pkgrel=17
 pkgdesc="Miscellaneous system utilities for Linux"
 backup=('etc/sysconfig/console' 'etc/sysconfig/numlock')
 depends=('bash' 'ncurses' 'zlib' 'e2fsprogs' 'texinfo')
@@ -15,7 +15,6 @@ archs=('i686' 'x86_64')
 install=$pkgname.install
 up2date="lynx -dump 'http://www.kernel.org/pub/linux/utils/util-linux/?C=M;O=D'|grep util-linux-[0-9\.]*[a-z]*.tar.bz2|sed -n \"s/.*-\(.*\)\.t.*/\1/;s/$extrapkgver$//;1 p\""
 source=(http://www.kernel.org/pub/linux/utils/$pkgname/$pkgname-$pkgver$extrapkgver.tar.bz2 \
-	util-linux-2.12q-cramfs-1.patch \
 	frugalwaregetty \
 	numlock \
 	rc.bootclean \
@@ -25,65 +24,60 @@ source=(http://www.kernel.org/pub/linux/utils/$pkgname/$pkgname-$pkgver$extrapkg
 	rc.swap \
 	rc.time \
 	timeconfig \
+	util-linux-2.12q-cramfs-1.patch \
 	$pkgname.install)
 md5sums=('54320aa1abbce00c0dc030e2c3afe5d7' \
-	'1c3f40b30e12738eb7b66a35b7374572' \
-	'ac8c2f390449e8d50fe7c0c9bee22c20' \
+	'27dc0943d8f8e41b4a657de43428af01' \
 	'84152b5d7c7c24caa06a4b2d5f2884ce' \
-	'6f2cde5e3520313f47f6ae65e30f8c8d' \
-	'ee5175b3bae3a977d091fee0744ba316' \
-	'0cc2027722fd322cd75827a0abd0eb1e' \
-	'2de72d68b27dc764650c2a712e4fb39d' \
-	'3344ad80af979ea48d2d06b04ef2e409' \
-	'6db2767ad7735311c090d9d29a972f7b' \
+	'21586556f1ec57b6b371a29606f7fd2a' \
+	'f9a1d4b06b8bff30339048059b1a8d09' \
+	'6ce49a5ec0663e463ca32ececf47683c' \
+	'd76cbb7b29ce0bd30108941a331c68b0' \
+	'7aa2890a3cab5f607ada10fcfab60047' \
+	'08620807962e67c817789e5326f69195' \
 	'3b07c6c4799e32a858b71eda33bbcedb' \
-	'33ab130bd1a1c0ac7c3f4584f3c063a3')
+	'1c3f40b30e12738eb7b66a35b7374572' \
+	'ff62d9aeea5c72d5683465acc9327763')
 
 build() {
-	cd $startdir/src/$pkgname-$pkgver$extrapkgver
-	Fpatch util-linux-2.12q-cramfs-1.patch
+	Fcd $pkgname-$pkgver$extrapkgver
+	Fpatchall
 	CPUTAIL=`echo $CARCH|sed 's/^i//'`
-	sed -i -e 's/CPUTAIL=486/CPUTAIL='$CPUTAIL'/' MCONFIG
+	Fsed 'CPUTAIL=486' "CPUTAIL=$CPUTAIL" MCONFIG
 	./configure
 
 	make HAVE_SLN=yes ADD_RAW=yes || return 1
 
-	make HAVE_SLN=yes ADD_RAW=yes DESTDIR=$startdir/pkg install
+	make HAVE_SLN=yes ADD_RAW=yes DESTDIR=$Fdestdir install
 
 	# Remove conflicting files.
-	rm -f $startdir/pkg/bin/kill
-	rm -f $startdir/pkg/usr/share/man/man1/kill.*
-	rm -f $startdir/pkg/usr/bin/write
-	rm -f $startdir/pkg/usr/share/man/man1/write.*
-	rm -f $startdir/pkg/usr/bin/setfdprm
+	Frm /bin/kill
+	Frm /usr/share/man/man1/kill.*
+	Frm /usr/bin/write
+	Frm /usr/share/man/man1/write.*
+	Frm /usr/bin/setfdprm
 
 	# Init scripts.
-	mkdir -p $startdir/pkg/etc/rc.d/rc.messages
-	for i in bootclean console mount rmount swap time
+	for i in bootclean mount rmount swap time
 	do
-		install -m755 -o root -g root $startdir/rc.$i \
-			$startdir/pkg/etc/rc.d/rc.$i
-		install -m644 -o root -g root $startdir/messages/$i.* \
-			$startdir/pkg/etc/rc.d/rc.messages
+		Fexe /etc/rc.d/rc.$i
+		Ffile ../messages/$i.* /etc/rc.d/rc.messages/
 	done
+	Fexe /etc/rc.d/rc.console
 
 	# Our getty.
-	install -m755 -o root -g root $startdir/src/frugalwaregetty \
-		$startdir/pkg/sbin/frugalwaregetty
-	install -D -m644 -o root -g root $startdir/src/numlock \
-		$startdir/pkg/etc/sysconfig/numlock
+	Fexe /sbin/frugalwaregetty
+	Ffile /etc/sysconfig/numlock
 
 	# Console config.
-	echo "idle=15" > $startdir/pkg/etc/sysconfig/console
+	echo "idle=15" > $Fdestdir/etc/sysconfig/console
 
 	# Timeconfig.
-	mkdir -p $startdir/pkg/var/lib/frugalware/{system,messages}
-	install -m755 -o root -g root $startdir/src/timeconfig \
-		$startdir/pkg/var/lib/frugalware/system/
-	install -m644 -o root -g root $startdir/messages/timeconfig.* \
-		$startdir/pkg/var/lib/frugalware/messages/
-	cd $startdir/pkg/sbin/
-	ln -s ../var/lib/frugalware/system/timeconfig ./
+	Fexe /var/lib/frugalware/system/timeconfig
+	Ffile ../messages/timeconfig.* /var/lib/frugalware/messages/
+	Fln ../var/lib/frugalware/system/timeconfig /sbin/timeconfig
 }
 
 # vim: ft=sh
+
+# optimalization OK

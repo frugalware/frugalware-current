@@ -31,16 +31,8 @@ function wish_show() {
 
 function wish_ask() {
 
-	global $fwgray, $fwblack, $fwstrwishlist, $fwstrwprog, $fwstrwnick, $fwstrwtime, $fwstrwcomment, $fwstrwnosuch, $fwstrwask, $fwstrinpgo, $fwstrinpdel;
-	print "<table width=\"70%\" border=\"0\" cellspacing=1 cellpadding=1 align=center>\n";
-	print "<tr><td colspan=2>$fwstrwask</td></tr>\n";
-	print "<form method=\"POST\" action=\"wishlist.php?op=add\">\n";
-	print "<tr><td>$fwstrwprog:</td><td><input type=text size=21 maxlength=20 name=wprog></td></tr>\n";
-	print "<tr><td>$fwstrwnick:</td><td><input type=text size=31 maxlength=30 name=wnick></td></tr>\n";
-	print "<tr><td valign=\"top\">$fwstrwcomment:</td><td><textarea name=\"wcomment\" cols=\"60\" rows=\"10\"></textarea></td></tr>\n";
-	print "<tr><td align=right><input type=submit value=\"$fwstrinpgo\"></td><td align=left><input type=reset value=\"$fwstrinpdel\"></td></tr>\n";
-	print "</form>\n";
-	print "</table>\n";
+	print("Please file a wish at <a href=\"http://bugs.frugalware.org\">bugs.frugalware.org</a>" .
+		" instead of asking a program here!<br> Thanks.");
 
 }
 

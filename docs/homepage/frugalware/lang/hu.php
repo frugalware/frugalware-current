@@ -33,7 +33,6 @@ $fwstrlist="listák";
 $fwstrirc="irc";
 $fwstrroadmap="útiterv";
 $fwstrmwishlist="kívánságlista";
-$fwstrmtodolist="teendõlista";
 $fwstrauthors="fejlesztõk";
 $fwstrforum="fórum";
 $fwstrwiki="wiki";

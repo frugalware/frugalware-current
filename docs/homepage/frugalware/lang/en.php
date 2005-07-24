@@ -33,7 +33,6 @@ $fwstrlist="lists";
 $fwstrirc="irc";
 $fwstrroadmap="roadmap";
 $fwstrmwishlist="wishlist";
-$fwstrmtodolist="todolist";
 $fwstrauthors="people";
 $fwstrforum="forum";
 $fwstrwiki="wiki";

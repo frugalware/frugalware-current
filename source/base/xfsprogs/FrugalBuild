@@ -1,32 +1,50 @@
-# Last Modified: Sat, 07 May 2005 22:57:25 +0200
+# Last Modified: Tue, 26 Jul 2005 19:16:08 +0200
 # Compiling Time: ~5 minutes
 # Maintainer: VMiklos <mamajom@axelero.hu>
 
 pkgname=xfsprogs
-pkgver=2.5.6
-pkgrel=2
+pkgver=2.6.25
+pkgrel=1
 pkgdesc="XFS filesystem-specific static libraries and headers."
 url="http://oss.sgi.com/projects/xfs/"
-depends=('glibc')
+depends=('e2fsprogs')
 makedepends=('xfsprogs-attr')
 groups=('base')
 archs=('i686' 'x86_64')
 replaces=('xfsprogs-base')
-up2date="wget --passive-ftp -O - -q ftp://oss.sgi.com/projects/xfs/latest/cmd_tars/MD5SUMS|grep $pkgname|cut -d ' ' -f 3|sed 's/.src.tar.gz//'|cut -d - -f 2"
-source=(ftp://oss.sgi.com/projects/xfs/latest/cmd_tars/$pkgname-$pkgver.src.tar.gz \
-        $pkgname-$pkgver-lai.diff $pkgname-$pkgver-defs.diff)
-md5sums=('047ec75d3601a8dcf3d159da108be1ef' '81cbd3c92a894b364708de767a48fa43' \
-         '8c8365f6585e9abb18a166f7c7a933a7')
+up2date="wget --passive-ftp -O - -q ftp://oss.sgi.com/projects/xfs/cmd_tars/MD5SUMS|grep $pkgname|cut -d ' ' -f 3|sed 's/.src.tar.gz//'|cut -d - -f 2"
+source=(ftp://oss.sgi.com/projects/xfs/cmd_tars/$pkgname-$pkgver.src.tar.gz \
+	xfsprogs-2.6.25-gcc4.patch.gz xfsprogs-sharedlibs.patch.gz)
+md5sums=('65fbf692f348b57f21edd4813733d9ae' '84800ae4d44a5e00e9072693d59aea7a'\
+         '2c4ed116c324815205707b221ac4e948')
+
 
 build()
 {
 	Fpatchall
-	Fmake --enable-shared=no || return 1
-	Fmakeinstall install-dev || return 1
-	Fmv /usr/sbin /
-	Fmv /usr/libexec /usr/lib
+	DEBUG="-DNDEBUG"
+	OPTIMIZER="${CFLAGS}"
+        sed -i \
+            -e '/^GCFLAGS/s:-O1::' \
+            -e "/^PKG_DOC_DIR/s:=.*:= /usr/share/doc/${pkgname}-${pkgver}:" \
+            include/builddefs.in \
+            || Fdie "sed include/builddefs.in failed"
+        sed -i -e '/PLATFORM/d' configure || Fdie "sed PLATFORM"
+        sed -i -e '/INSTALL.* -S .*LIBNAME/d' include/buildmacros || Fdie "sed symlinks"
+	unset CFLAGS
+	Fmake --bindir=/bin --sbindir=/sbin --libexecdir=/usr/lib
+	make DIST_ROOT=$Fdestdir install install-dev || return 1
+	Fmkdir /lib
+	Fmv usr/lib/lib*so* /lib/
+	Fln libhandle.so.1 /lib/libhandle.so
+	# Stolen from gentoo. :) Need for some linking problems.
+	cat > "$Fdestdir/usr/lib/libhandle.so" <<-END_LDSCRIPT
+	/* GNU ld script */
+	GROUP ( /lib/libhandle.so )
+	END_LDSCRIPT
+	chmod a+x $Fdestdir/usr/lib/libhandle.so
 }
 
-# optimalization ok
+# optimalization OK
 
 # vim: ft=sh

@@ -4,7 +4,7 @@ include("header.php");
 
 fwopenbox("$fwstrdocs");
 printf($fwstrdocsabout, "about.php");
-printf($fwstrdocsdarcs, "http://darcs.frugalware.org/cgi-bin/darcs.cgi/frugalware-current/docs/?c=browse");
+printf($fwstrdocsdarcs, "http://darcs.frugalware.org/darcsweb/darcsweb.cgi?r=frugalware-current;a=tree;f=/docs");
 print($fwstrdocsq);
 printf($fwstrdocsa, "mailto:frugalware-devel@frugalware.org");
 fwclosebox();

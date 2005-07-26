@@ -27,6 +27,7 @@ $fwstrsearch="Search";
 $fwstrnews="news";
 $fwstrabout="about";
 $fwstrchl="changelog";
+$fwstrdr="darcs";
 $fwstrpac="packages";
 $fwstrdl="download";
 $fwstrlist="lists";

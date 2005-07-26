@@ -27,6 +27,7 @@ $fwstrsearch="Keresés";
 $fwstrnews="hírek";
 $fwstrabout="rólunk";
 $fwstrchl="changelog";
+$fwstrdr="darcs";
 $fwstrpac="csomagok";
 $fwstrdl="letöltés";
 $fwstrlist="listák";

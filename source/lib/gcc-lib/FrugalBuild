@@ -1,0 +1,52 @@
+# Last Modified: Thu, 28 Jul 2005 22:27:10 +0200
+# Compiling Time: 2.38 SBU
+# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
+
+pkgname=gcc-lib
+pkgver=4.0.1
+pkgrel=1
+pkgdesc="The GNU GCC library (libgcc_s.so)"
+url="http://gcc.gnu.org"
+depends=('glibc')
+conflicts=('gcc<=4.0.1-1')
+groups=('lib')
+arhcs=('i686' 'x86_64')
+up2date="lynx -dump $url |grep Current|sed 's/.*C \(.*\) (.*/\1/'"
+source=(ftp://gcc.gnu.org/pub/gcc/releases/gcc-$pkgver/gcc-$pkgver.tar.bz2 \
+	gcc-3.4.3-no_multilib_amd64.patch0)
+# ftp://gcc.gnu.org/pub/gcc/releases/gcc-$pkgver/md5.sum
+md5sums=('947416e825a877a0d69489be1be43be1' '088e0807e677010cafe4e590e8711be1')
+[ "$CARCH" == "x86_64" ] && flags="--libdir=/usr/lib --disable-multilib"
+
+build()
+{
+	Fcd gcc-$pkgver
+	[ "$CARCH" == "x86_64" ] && Fpatch gcc-3.4.3-no_multilib_amd64.patch0
+	mkdir ../$pkgname-build
+	cd ../$pkgname-build
+	../gcc-$pkgver/configure --prefix=/usr --enable-shared \
+		--enable-languages=c,c++ --enable-threads=posix \
+		--enable-__cxa_atexit $flags
+	
+	make all-gcc BOOT_CFLAGS="$CFLAGS" || return 1
+	
+	make DESTDIR=$Fdestdir install-gcc
+	
+	# include/ contains install-tools/include/* and headers that were fixed
+	# up by fixincludes, we don't want former
+	for i in `find $Fdestdir/usr/lib/gcc/$CHOST/$pkgver/include/ -name \*.h`
+	do
+	if grep -q 'It has been auto-edited by fixincludes from' $i; then
+	    rm -f $i
+        fi
+        done
+
+	Frm /usr/{bin,include,info,libexec,man}
+	Frm /usr/lib/gcc/
+	Frm /usr/share/doc/$pkgname-$pkgver/INSTALL/
+	Frm /usr/share/locale
+}
+
+# optimalization ok
+
+# vim: ft=sh

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# (c) 2003-2004 Vajna Miklos <mamajom@axelero.hu>
+# (c) 2003-2004 Vajna Miklos <vmiklos@frugalware.org>
 # rc.M for Frugalware
 # distriuted under GPL license
 

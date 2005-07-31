@@ -13,7 +13,7 @@
 			break;
 		case "darcs":
 			header('Content-Type: application/xml; charset=utf-8');
-			print(file_get_contents("http://darcs.frugalware.org/cgi-bin/darcs.cgi/frugalware-current/?c=rss"));
+			print(file_get_contents("http://darcs.frugalware.org/darcsweb/darcsweb.cgi?r=frugalware-current;a=rss"));
 			die();
 		case "bugs":
 			header('Content-Type: application/xml; charset=utf-8');

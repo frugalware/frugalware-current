@@ -16,17 +16,20 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #
 
+SLANGS = '' _hu _SK_sk
+DLANGS = en hu sk
+
 compile: uninstall one install-one clean multi install-multi clean
 
 clean:
-	rm -rf en/frugalware-howto/
-	rm -rf hu/frugalware-howto_hu/
-	rm -rf sk/frugalware-howto_SK_sk/
+	for i in $(SLANGS); do \
+		rm -rf en/frugalware-howto$$i/; \
+	done
 
 uninstall:
-	rm -rf html/en/*
-	rm -rf html/hu/*
-	rm -rf html/sk/*
+	for i in $(DLANGS); do \
+		rm -rf html/$$i/*; \
+	done
 
 one:
 	cd en && latex2html -split 0 frugalware-howto.tex

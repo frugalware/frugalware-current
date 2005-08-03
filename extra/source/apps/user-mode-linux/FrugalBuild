@@ -1,10 +1,10 @@
-# Last Modified: Sun, 30 Jan 2005 00:45:29 +0100
+# Last Modified: Wed, 03 Aug 2005 12:15:32 +0200
 # Compiling Time: ~40 minutes on factory.frugalware.org
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=user-mode-linux
-pkgver=2.6.10
-pkgrel=2
+pkgver=2.6.12
+pkgrel=1
 pkgdesc="User-Mode Linux is a safe, secure way of running Linux versions and Linux processes."
 url="http://user-mode-linux.sourceforge.net/"
 depends=('uml_utilities')
@@ -12,22 +12,31 @@ groups=('apps-extra')
 archs=('i686')
 up2date="lynx -dump http://www.kernel.org/kdist/finger_banner |sed -n 's/.* \(.*\)\..*/\1/;1 p'"
 source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$pkgver.tar.bz2 config)
-md5sums=('cffcd2919d9c8ef793ce1ac07a440eda' 'e6ec19689240c40fc72d2147a90f2458')
+sha1sums=('3cb44c9202034a825959e710f94d4e536011901b' \
+          '34e9e032ec185ac88cc05705fb103562eceacf3c')
 
-build() {
-	cd $startdir/src/linux-$pkgver
-	cp $startdir/src/config ./.config
+build()
+{
+	Fcd linux-$pkgver
+	cp $Fsrcdir/config .config
+	Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
+	Fpatchall
 	yes "" | make config ARCH=um
+	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = -fw$pkgrel" Makefile
 	
 	make linux ARCH=um || return 1
 	make modules ARCH=um || return 1
 	
-	mkdir -p $startdir/pkg/usr/share/user-mode-linux
-	install -D -m755 linux $startdir/pkg/usr/bin/linux
+	Fmkdir /usr/share/user-mode-linux
+	Fexerel /usr/bin/linux
 	make modules_install \
-		INSTALL_MOD_PATH=$startdir/pkg/usr/share/user-mode-linux ARCH=um
-	cd $startdir/pkg/usr/share/user-mode-linux/lib/modules/$pkgver
-	rm source build
+		INSTALL_MOD_PATH=$Fdestdir/usr/share/user-mode-linux ARCH=um
+	for i in source build
+	do
+		Frm /usr/share/$pkgname/lib/modules/$pkgver-fw$pkgrel/$i
+		Fln /usr/src/linux \
+			/usr/share/$pkgname/lib/modules/$pkgver-fw$pkgrel/$i
+	done
 }
 
 # vim: ft=sh

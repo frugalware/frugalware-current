@@ -1,3 +1,5 @@
 export J2SDKDIR=/usr/lib/j2sdk
 export PATH=$PATH:$J2SDKDIR/bin
 export MANPATH=$MANPATH:$J2SDKDIR/man
+export CLASSPATH=$CLASSPATH:$J2SDKDIR/lib
+export JAVA_HOME=$J2SDKDIR

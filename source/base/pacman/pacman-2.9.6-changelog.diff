@@ -8,8 +8,8 @@ Description: Allow users to view the changelog of a package.
  src/pacman.c    |   37 +++++++++++++++++++++++++++++++++++--
  3 files changed, 52 insertions(+), 6 deletions(-)
 diff -Naur pacman-2.9.6.orig/doc/pacman.8.in pacman-2.9.6/doc/pacman.8.in
---- pacman-2.9.6.orig/doc/pacman.8.in	2005-08-07 19:16:40.000000000 +0200
-+++ pacman-2.9.6/doc/pacman.8.in	2005-08-07 19:27:36.000000000 +0200
+--- pacman-2.9.6.orig/doc/pacman.8.in	2005-08-09 14:04:21.000000000 +0200
++++ pacman-2.9.6/doc/pacman.8.in	2005-08-09 14:04:41.000000000 +0200
 @@ -157,6 +157,9 @@
  This option is analagous to a backwards --sync operation.
  .SH QUERY OPTIONS
@@ -21,9 +21,9 @@ diff -Naur pacman-2.9.6.orig/doc/pacman.8.in pacman-2.9.6/doc/pacman.8.in
  List all packages that were explicitly installed (ie, not pulled in
  as a dependency by other packages) and are not required by any other
 diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
---- pacman-2.9.6.orig/scripts/makepkg	2005-08-07 19:16:41.000000000 +0200
-+++ pacman-2.9.6/scripts/makepkg	2005-08-07 19:17:13.000000000 +0200
-@@ -915,15 +915,25 @@
+--- pacman-2.9.6.orig/scripts/makepkg	2005-08-09 14:04:21.000000000 +0200
++++ pacman-2.9.6/scripts/makepkg	2005-08-09 14:04:41.000000000 +0200
+@@ -923,15 +923,25 @@
  cd $startdir/pkg
  tar cvf /dev/null * | sort >.FILELIST
  
@@ -53,9 +53,22 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  
  cd $startdir
  if [ "$SEARCHDEPS" == "1" ]; then
+diff -Naur pacman-2.9.6.orig/src/db.c pacman-2.9.6/src/db.c
+--- pacman-2.9.6.orig/src/db.c	2005-08-09 14:04:21.000000000 +0200
++++ pacman-2.9.6/src/db.c	2005-08-09 14:04:41.000000000 +0200
+@@ -629,6 +629,9 @@
+ 	/* INSTALL */
+ 	snprintf(path, PATH_MAX, "%s/install", topdir);
+ 	unlink(path);
++	/* CHANGELOG */
++	snprintf(path, PATH_MAX, "%s/changelog", topdir);
++	unlink(path);
+ 	/* directory */
+ 	rmdir(topdir);
+ 
 diff -Naur pacman-2.9.6.orig/src/pacman.c pacman-2.9.6/src/pacman.c
---- pacman-2.9.6.orig/src/pacman.c	2005-08-07 19:16:40.000000000 +0200
-+++ pacman-2.9.6/src/pacman.c	2005-08-07 19:24:23.000000000 +0200
+--- pacman-2.9.6.orig/src/pacman.c	2005-08-09 14:04:21.000000000 +0200
++++ pacman-2.9.6/src/pacman.c	2005-08-09 14:08:14.000000000 +0200
 @@ -72,6 +72,7 @@
  unsigned short pmo_q_orphans    = 0;
  unsigned short pmo_q_owns       = 0;
@@ -64,20 +77,29 @@ diff -Naur pacman-2.9.6.orig/src/pacman.c pacman-2.9.6/src/pacman.c
  unsigned short pmo_r_cascade    = 0;
  unsigned short pmo_r_dbonly     = 0;
  unsigned short pmo_r_recurse    = 0;
-@@ -1812,6 +1813,12 @@
- 				/* the install script goes inside the db */
- 				snprintf(expath, PATH_MAX, "%s%s/%s/%s-%s/install", pmo_root,
- 									pmo_dbpath, db->treename, info->name, info->version);
-+			}
+@@ -1808,10 +1809,17 @@
+ 				continue;
+ 			}
+ 
+-			if(!strcmp(pathname, "._install") || !strcmp(pathname, ".INSTALL")) {
+-				/* the install script goes inside the db */
+-				snprintf(expath, PATH_MAX, "%s%s/%s/%s-%s/install", pmo_root,
+-									pmo_dbpath, db->treename, info->name, info->version);
++			if(!strcmp(pathname, "._install") || !strcmp(pathname, ".INSTALL") || !strcmp(pathname, ".CHANGELOG")) {
++				if(!strcmp(pathname, ".CHANGELOG")) {
++					/* the changelog goes inside the db */
++					snprintf(expath, PATH_MAX, "%s%s/%s/%s-%s/changelog", pmo_root,
++										pmo_dbpath, db->treename, info->name, info->version);
++				} else {
++					/* the install script goes inside the db */
++					snprintf(expath, PATH_MAX, "%s%s/%s/%s-%s/install", pmo_root,
++										pmo_dbpath, db->treename, info->name, info->version);
++				}
 +			
-+			if(!strcmp(pathname, ".CHANGELOG")) {
-+				/* the changelog goes inside the db */
-+				snprintf(expath, PATH_MAX, "%s%s/%s/%s-%s/changelog", pmo_root,
-+									pmo_dbpath, db->treename, info->name, info->version);
  			} else {
  				/* build the new pathname relative to pmo_root */
  				snprintf(expath, PATH_MAX, "%s%s", pmo_root, pathname);
-@@ -2514,12 +2521,36 @@
+@@ -2514,12 +2522,36 @@
  			}
  		} else {
  			/* find a target */
@@ -115,7 +137,7 @@ diff -Naur pacman-2.9.6.orig/src/pacman.c pacman-2.9.6/src/pacman.c
  				if(pmo_q_info) {
  					dump_pkg_full(info);
  					if(pmo_q_info > 1 && info->backup) {
-@@ -3432,6 +3463,7 @@
+@@ -3432,6 +3464,7 @@
  		{"dbpath",     required_argument, 0, 'b'},
  		{"clean",      no_argument,       0, 'c'},
  		{"cascade",    no_argument,       0, 'c'},
@@ -123,7 +145,7 @@ diff -Naur pacman-2.9.6.orig/src/pacman.c pacman-2.9.6/src/pacman.c
  		{"nodeps",     no_argument,       0, 'd'},
  		{"orphans",    no_argument,       0, 'e'},
  		{"force",      no_argument,       0, 'f'},
-@@ -3478,7 +3510,7 @@
+@@ -3478,7 +3511,7 @@
  			case 'h': pmo_help = 1; break;
  			case 'V': pmo_version = 1; break;
  			case 'b': strcpy(pmo_dbpath, optarg); break;
@@ -132,7 +154,7 @@ diff -Naur pacman-2.9.6.orig/src/pacman.c pacman-2.9.6/src/pacman.c
  			case 'd': pmo_nodeps = 1; break;
  			case 'e': pmo_q_orphans = 1; break;
  			case 'f': pmo_force = 1; break;
-@@ -3803,6 +3835,7 @@
+@@ -3803,6 +3836,7 @@
  		} else if(op == PM_QUERY) {
  			printf("usage:  %s {-Q --query} [options] [package]\n", myname);
  			printf("options:\n");
@@ -140,15 +162,3 @@ diff -Naur pacman-2.9.6.orig/src/pacman.c pacman-2.9.6/src/pacman.c
  			printf("  -e, --orphans       list all packages that were explicitly installed\n");
  			printf("                      and are not required by any other packages\n");
  			printf("  -g, --groups        view all members of a package group\n");
---- pacman-2.9.6.orig/src/db.c	2005-04-22 02:26:33.000000000 +0200
-+++ pacman-2.9.6/src/db.c	2005-08-07 23:27:43.000000000 +0200
-@@ -629,6 +629,9 @@
- 	/* INSTALL */
- 	snprintf(path, PATH_MAX, "%s/install", topdir);
- 	unlink(path);
-+	/* CHANGELOG */
-+	snprintf(path, PATH_MAX, "%s/changelog", topdir);
-+	unlink(path);
- 	/* directory */
- 	rmdir(topdir);
- 

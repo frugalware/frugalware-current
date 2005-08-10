@@ -1,0 +1,292 @@
+Date: 2005-08-10
+Initial Package Version: 2.9.6
+Upstream Status: Not yet submitted
+Origin: Miklos Vajna <vmiklos@frugalware.org>
+Description: Adds the ability to build the package in a chroot environment.
+Thanks for krix <krics@linuxforum.hu> for the idea.
+ doc/makepkg.8.in |   55 ++++++++++++++++++++++++++
+ etc/makepkg.conf |    5 ++
+ scripts/makepkg  |  116 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 175 insertions(+), 1 deletion(-)
+diff -Naur pacman-2.9.6.orig/doc/makepkg.8.in pacman-2.9.6/doc/makepkg.8.in
+--- pacman-2.9.6.orig/doc/makepkg.8.in	2005-08-10 22:41:26.000000000 +0200
++++ pacman-2.9.6/doc/makepkg.8.in	2005-08-10 22:41:40.000000000 +0200
+@@ -359,6 +359,58 @@
+ to kernel-ide, then subsequent 'pacman -Syu' calls will not pick up the upgrade, due
+ to the differing package names.  \fIreplaces\fP handles this.
+ 
++.SH  What is the process of chrooted build ?
++
++First, what is chroot? We currently use fakeroot to prevent build() from
++modifying the host system, and we use a prefix or DESTDIR directive to install
++everything to a directory and not under to the host system. This is good, but
++not enough.
++
++This system lacks of the ability to control the list of installed packages
++during the build on the system of a packager, the given compiled package maybe
++linked itself to an extra installed library. This way we can't really control
++the list of real dependencies. For example if libquicktime is installed from
++source on my system, then mplayer or any other program can link itself to that,
++and so that depends() will be incorrect. Or if I have the closed source binary
++NVidia drivers installed, some programs link tho NVidia's libraries.
++
++Of course there is a sollution to avoid this, to use a real chroot instead of a
++simple fakeroot. What is this means? The followings:
++
++When starting the build, a core chroot system is installed under /var/chroot.
++(Of course you can change this value under /etc/makepkg.conf.) The core system
++contains ~60 packages which are must installed to build any package in
++a chrooted environment. These packages (for example gcc, kernel-headers, make)
++should not be mentioned in makedepends(). 'pacman -Sg core chroot-core
++devel-core' should show you the actial list. (We try to change this list rarely
++of course.)
++
++When you start building with makepkg -R, pacman will install these packages to
++/var/chroot if necessary. This will produce a fully "clean" Frugalware system,
++that consits of base packages only. This /var/chroot is fully separated from
++the host system so that this will solve the problems mentioned above.
++(Linking to a library installed from source, etc.)
++
++Here comes the fun part. The packages listed in depends() and makedepends() are
++installed to this clean (/var/chroot) system. From this point, this chroot is
++capable to build the specified package in it without any unnecessary package
++installed, fully separated from the host system.
++
++After this the chroot should be cleaned up which means the removal of the
++installed depends() and makedepends(). This ensures us not to build from
++scratch the core chroot.
++
++This way we can prevent lots of dependency problems and it is even possible to
++build packages for a different Frugalware version. This is quite efficent when
++building security updates or fixing critical bugs in the -stable tree.
++
++If the build is failed, the working directory will not be deleted, you can find
++it under /var/chroot/var/tmp/fst. Later if you want to clean your chroot
++(delete the working directory and remove unnecessary packages) you can use 'makepkg -CR'.
++
++To activate building in a chroot, you should run makepkg as root at least with
++the -R option.
++
+ .SH MAKEPKG OPTIONS
+ .TP
+ .B "\-b, \-\-builddeps"
+@@ -434,6 +486,9 @@
+ Upon successful build, remove any dependencies installed by makepkg/pacman during
+ dependency auto-resolution (using \fB-b\fP or \fB-s\fP).
+ .TP
++.B "\-R, \-\-chroot"
++Build the package in a chroot environment.
++.TP
+ .B "\-s, \-\-syncdeps"
+ Install missing dependencies using pacman.  When makepkg finds missing build-time
+ or run-time dependencies, it will run pacman to try and resolve them.  If successful,
+diff -Naur pacman-2.9.6.orig/etc/makepkg.conf pacman-2.9.6/etc/makepkg.conf
+--- pacman-2.9.6.orig/etc/makepkg.conf	2005-08-10 22:41:26.000000000 +0200
++++ pacman-2.9.6/etc/makepkg.conf	2005-08-10 22:41:40.000000000 +0200
+@@ -28,6 +28,11 @@
+ # Enable fakeroot for building packages as a non-root user
+ export USE_FAKEROOT="y"
+ 
++# Specify a directory for the chroot environment.
++export CHROOTDIR="/var/chroot"
++# Core package list to be installed in the chroot.
++export COREPKGS="core chroot-core devel-core"
++
+ # Enable colorized output messages
+ export USE_COLOR="y"
+ 
+diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
+--- pacman-2.9.6.orig/scripts/makepkg	2005-08-10 22:41:26.000000000 +0200
++++ pacman-2.9.6/scripts/makepkg	2005-08-10 22:43:43.000000000 +0200
+@@ -40,6 +40,12 @@
+ 	shift
+ fi
+ 
++INCHROOT=
++if [ "$1" = "--inchroot" ]; then
++	INCHROOT=1
++	shift
++fi
++
+ ### SUBROUTINES ###
+ 
+ plain() {
+@@ -216,6 +222,7 @@
+ 	echo "  -o, --nobuild    Download and extract files only"
+ 	echo "  -p <buildscript> Use an alternate build script (instead of FrugalBuild)"
+ 	echo "  -r, --rmdeps     Remove installed dependencies after a successful build"
++	echo "  -R, --chroot     Build the package in a chroot environment"
+ 	echo "  -s, --syncdeps   Install missing dependencies with pacman"
+ 	echo "  -S, --sudosync   Install missing dependencies with pacman and sudo"
+ 	echo "  -u, --noup2date  Do not check for newer version"
+@@ -245,6 +252,7 @@
+ NOSTRIP=0
+ NOBUILD=0
+ RMDEPS=0
++CHROOT=0
+ LOGGING=0
+ NOUP2DATE=0
+ BUILDSCRIPT="./FrugalBuild"
+@@ -271,6 +279,7 @@
+ 		--gensha1)    GENSHA1=1 ;;
+ 		--genmd5)     GENMD5=1 ;;
+ 		--rmdeps)     RMDEPS=1 ;;
++		--chroot)     CHROOT=1 ;;
+ 		--noup2date)     NOUP2DATE=1 ;;
+ 		--logging)    LOGGING=1 ;;
+ 		--help)
+@@ -282,7 +291,7 @@
+ 			exit 1
+ 			;;
+ 		-*)
+-			while getopts "acCsSbBdehifgGj:l:Lkmnorp:uw:-" opt; do
++			while getopts "acCsSbBdehifgGj:l:LkmnorRp:uw:-" opt; do
+ 				case $opt in
+ 					a) SEARCHDEPS=1 ;;
+ 					c) CLEANUP=1 ;;
+@@ -308,6 +317,7 @@
+ 					o) NOBUILD=1 ;;
+ 					p) BUILDSCRIPT=$OPTARG ;;
+ 					r) RMDEPS=1 ;;
++					R) CHROOT=1 ;;
+ 					s) DEP_BIN=1 ;;
+ 					S) DEP_SUDO=1 ;;
+ 					u) NOUP2DATE=1 ;;
+@@ -343,6 +353,26 @@
+ 	if [ "`id -u`" = "0" -a "$INFAKEROOT" != "1" ]; then
+ 		msg "Cleaning up source files from the cache."
+ 		rm -rf /var/cache/pacman/src/*
++		if [ "$CHROOT" = "1" ]; then
++			msg "Cleaning chroot."
++			rm -rf $CHROOTDIR/var/tmp/fst/*
++			msg "Removing unnecessary packages."
++			for i in "$COREPKGS"
++			do
++				corelist="$corelist `pacman -r $CHROOTDIR -Sg $i|grep -v '^\w'`"
++			done
++			for i in `pacman -r $CHROOTDIR -Q|sed 's/\([^ ]*\) .*/\1/'`
++			do
++				if ! echo $corelist |grep -q $i; then
++					removelist="$removelist $i"
++				fi
++			done
++			pacman -r $CHROOTDIR -R $removelist
++			if [ "$?" != "0" ]; then
++				error "Failed to remove packages."
++				exit 1
++			fi
++		fi
+ 		exit 0
+ 	else
+ 		error "You must be root to clean the cache."
+@@ -436,6 +466,85 @@
+ 	fi
+ fi
+ 
++# Build chroot environment if necessary.
++if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
++	if [ "`id -u`" != 0 ]; then
++		error "Building in a chroot as an unprivileged user is not possible."
++		exit 1
++	fi
++	if [ "$CHROOTDIR" = "" ]; then
++		error "The CHROOTDIR environment variable is not defined."
++		exit 1
++	fi
++
++	mkdir -p $CHROOTDIR/{dev,etc,proc,sys,var/cache/pacman,var/tmp/fst}
++	install -d -m 2775 {,$CHROOTDIR}/var/cache/ccache/$pkgname
++
++	msg "Attempting to mount chroot directories..."
++	mount -t proc none $CHROOTDIR/proc >/dev/null &
++	mount -t sysfs none $CHROOTDIR/sys >/dev/null &
++	mount -o bind /dev $CHROOTDIR/dev >/dev/null &
++	mount -o bind /var/cache/pacman $CHROOTDIR/var/cache/pacman >/dev/null &
++	mount -o bind /var/cache/ccache/$pkgname \
++		$CHROOTDIR/var/cache/ccache/$pkgname >/dev/null &
++	if [ "$?" != "0" ]; then
++		error "An error occurred while attempting to mount chroot directories."
++		exit 1
++	fi
++
++	if [ ! -d "$CHROOTDIR/usr" ]; then
++		msg "Building chroot environment"
++		pacman -Syf $COREPKGS -r "$CHROOTDIR" --noconfirm
++		if [ "$?" != "0" ]; then
++			error "Failed to build chroot environment."
++			exit 1
++		fi
++	fi
++	
++	msg "Copying config files to chroot"
++	cp -pf /etc/resolv.conf $CHROOTDIR/etc >/dev/null &
++	cp -pf /etc/passwd $CHROOTDIR/etc >/dev/null &
++	cp -pf /etc/shadow $CHROOTDIR/etc >/dev/null &
++	cp -pf /etc/group $CHROOTDIR/etc >/dev/null &
++	cp -pf /etc/ld.so.conf $CHROOTDIR/etc >/dev/null &
++	cp -pf /etc/hosts $CHROOTDIR/etc > /dev/null &
++	cp -pf /etc/sudoers $CHROOTDIR/etc > /dev/null &
++	cp -Ppf /etc/localtime $CHROOTDIR/etc >/dev/null &
++	if [ "$?" != "0" ]; then
++		error "An error occurred while attempting to copy config files to chroot."
++		exit 1
++	fi
++
++	msg "Copying $pkgname's buildscript to chroot"
++	cp * $CHROOTDIR/var/tmp/fst/
++	
++	if [ ! -x  /usr/sbin/chroot ]; then
++		error "chroot was not found."
++	else
++		msg "Entering chroot environment"
++		echo "cd /var/tmp/fst/; $0 --inchroot -sr $ARGLIST" | \
++			/usr/sbin/chroot $CHROOTDIR /bin/sh
++	fi
++
++	if [ -f $CHROOTDIR/var/tmp/fst/${pkgname}-${pkgver}-${pkgrel}-${CARCH}.fpm ]; then
++		msg "Cleaning chroot..."
++		mv $CHROOTDIR/var/tmp/fst/${pkgname}-${pkgver}-${pkgrel}-${CARCH}.fpm $PKGDEST
++		rm -rf $CHROOTDIR/var/tmp/fst/*
++	fi
++	
++	msg "Attempting to umount chroot directories..."
++	umount $CHROOTDIR/proc >/dev/null &
++	umount $CHROOTDIR/sys >/dev/null &
++	umount $CHROOTDIR/dev >/dev/null &
++	umount $CHROOTDIR/var/cache/pacman >/dev/null &
++	umount $CHROOTDIR/var/cache/ccache/$pkgname >/dev/null &
++	if [ "$?" != "0" ]; then
++		error "An error occurred while attempting to umount chroot directories."
++		exit 1
++	fi
++	exit 0
++fi
++
+ # Enter the fakeroot environment if necessary.  This will call the makepkg script again
+ # as the fake root user.  We detect this by passing a sentinel option (-F) to makepkg
+ if [ "`id -u`" != "0" ]; then
+@@ -758,6 +867,10 @@
+ # use ccache if it's available
+ if [ "$NOCCACHE" = "0" ]; then
+ 	[ -d /usr/lib/ccache/bin ] && export PATH=/usr/lib/ccache/bin:$PATH
++	install -d -m 2775 /var/cache/ccache/$pkgname
++	export CCACHE_DIR=/var/cache/ccache/$pkgname
++	export CCACHE_NOLINK=1
++	export CCACHE_UMASK=002
+ fi
+ 
+ # build
+@@ -940,8 +1053,13 @@
+ if [ -f $startdir/pkg/.CHANGELOG ]; then
+ 	extra="$extra .CHANGELOG"
+ fi
++if [ "$INCHROOT" != "1" ]; then
+ tar czvf $PKGDEST/$pkgname-$pkgver-$pkgrel-$CARCH.fpm .PKGINFO .FILELIST \
+ 	$extra * | sort >../filelist
++else
++	tar czvf ../$pkgname-$pkgver-$pkgrel-$CARCH.fpm .PKGINFO .FILELIST \
++		$extra * | sort >../filelist
++fi
+ 
+ cd $startdir
+ if [ "$SEARCHDEPS" == "1" ]; then

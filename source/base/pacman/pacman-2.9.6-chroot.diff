@@ -1,6 +1,15 @@
+Date: 2005-08-11
+Initial Package Version: 2.9.6
+Upstream Status: Not yet submitted
+Origin: Miklos Vajna <vmiklos@frugalware.org>
+Description: Adds support for building the package in a chroot.
+ doc/makepkg.8.in |   55 +++++++++++++++++++
+ etc/makepkg.conf |    5 +
+ scripts/makepkg  |  156 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 215 insertions(+), 1 deletion(-)
 diff -Naur pacman-2.9.6.orig/doc/makepkg.8.in pacman-2.9.6/doc/makepkg.8.in
---- pacman-2.9.6.orig/doc/makepkg.8.in	2005-08-11 17:34:34.000000000 +0200
-+++ pacman-2.9.6/doc/makepkg.8.in	2005-08-11 17:34:49.000000000 +0200
+--- pacman-2.9.6.orig/doc/makepkg.8.in	2005-08-11 23:01:40.000000000 +0200
++++ pacman-2.9.6/doc/makepkg.8.in	2005-08-11 23:01:53.000000000 +0200
 @@ -359,6 +359,58 @@
  to kernel-ide, then subsequent 'pacman -Syu' calls will not pick up the upgrade, due
  to the differing package names.  \fIreplaces\fP handles this.
@@ -71,8 +80,8 @@ diff -Naur pacman-2.9.6.orig/doc/makepkg.8.in pacman-2.9.6/doc/makepkg.8.in
  Install missing dependencies using pacman.  When makepkg finds missing build-time
  or run-time dependencies, it will run pacman to try and resolve them.  If successful,
 diff -Naur pacman-2.9.6.orig/etc/makepkg.conf pacman-2.9.6/etc/makepkg.conf
---- pacman-2.9.6.orig/etc/makepkg.conf	2005-08-11 17:34:34.000000000 +0200
-+++ pacman-2.9.6/etc/makepkg.conf	2005-08-11 17:34:49.000000000 +0200
+--- pacman-2.9.6.orig/etc/makepkg.conf	2005-08-11 23:01:40.000000000 +0200
++++ pacman-2.9.6/etc/makepkg.conf	2005-08-11 23:01:53.000000000 +0200
 @@ -28,6 +28,11 @@
  # Enable fakeroot for building packages as a non-root user
  export USE_FAKEROOT="y"
@@ -86,8 +95,8 @@ diff -Naur pacman-2.9.6.orig/etc/makepkg.conf pacman-2.9.6/etc/makepkg.conf
  export USE_COLOR="y"
  
 diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
---- pacman-2.9.6.orig/scripts/makepkg	2005-08-11 17:34:34.000000000 +0200
-+++ pacman-2.9.6/scripts/makepkg	2005-08-11 17:37:34.000000000 +0200
+--- pacman-2.9.6.orig/scripts/makepkg	2005-08-11 23:01:40.000000000 +0200
++++ pacman-2.9.6/scripts/makepkg	2005-08-11 23:02:51.000000000 +0200
 @@ -40,6 +40,12 @@
  	shift
  fi
@@ -204,7 +213,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  		exit 0
  	else
  		error "You must be root to clean the cache."
-@@ -436,6 +494,69 @@
+@@ -436,6 +494,93 @@
  	fi
  fi
  
@@ -220,6 +229,16 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
 +	fi
 +
 +	mkdir -p $CHROOTDIR/{dev,etc,proc,sys,var/cache/pacman,var/tmp/fst}
++
++	if [ -e $CHROOTDIR/var/tmp/fst/lock ]; then
++		error "Somebody already building in this chroot."
++		plain "If you're sure makepkg is not already running, you"
++		plain "can remove $CHROOTDIR/var/tmp/fst/lock."
++		exit 1
++	else
++		touch $CHROOTDIR/var/tmp/fst/lock
++	fi
++
 +	install -d -m 2775 {,$CHROOTDIR}/var/cache/ccache/$pkgname
 +
 +	chroot_mount
@@ -229,6 +248,16 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
 +		pacman -Syf $COREPKGS -r "$CHROOTDIR" --noconfirm
 +		if [ "$?" != "0" ]; then
 +			error "Failed to build chroot environment."
++			chroot_umount
++			exit 1
++		fi
++	else
++		msg "Updating the chroot environment"
++		# run pacman -Su twice in case pacman updated
++		pacman -Syu -r "$CHROOTDIR" --noconfirm && \
++			pacman -Su -r "$CHROOTDIR" --noconfirm
++		if [ "$?" != "0" ]; then
++			error "Failed to update chroot environment."
 +			chroot_umount
 +			exit 1
 +		fi
@@ -264,6 +293,10 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
 +	if [ -f $CHROOTDIR/var/tmp/fst/${pkgname}-${pkgver}-${pkgrel}-${CARCH}.fpm ]; then
 +		msg "Cleaning chroot..."
 +		mv $CHROOTDIR/var/tmp/fst/${pkgname}-${pkgver}-${pkgrel}-${CARCH}.fpm $PKGDEST
++		if [ "`id -u`" = "0" ]; then
++			chown `stat -c %U:%G FrugalBuild` \
++				${pkgname}-${pkgver}-${pkgrel}-${CARCH}.fpm
++		fi
 +		rm -rf $CHROOTDIR/var/tmp/fst/*
 +	fi
 +
@@ -274,7 +307,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  # Enter the fakeroot environment if necessary.  This will call the makepkg script again
  # as the fake root user.  We detect this by passing a sentinel option (-F) to makepkg
  if [ "`id -u`" != "0" ]; then
-@@ -758,6 +879,10 @@
+@@ -758,6 +903,10 @@
  # use ccache if it's available
  if [ "$NOCCACHE" = "0" ]; then
  	[ -d /usr/lib/ccache/bin ] && export PATH=/usr/lib/ccache/bin:$PATH
@@ -285,7 +318,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  fi
  
  # build
-@@ -940,8 +1065,13 @@
+@@ -940,8 +1089,13 @@
  if [ -f $startdir/pkg/.CHANGELOG ]; then
  	extra="$extra .CHANGELOG"
  fi

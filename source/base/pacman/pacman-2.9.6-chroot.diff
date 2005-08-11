@@ -1,16 +1,6 @@
-Date: 2005-08-10
-Initial Package Version: 2.9.6
-Upstream Status: Not yet submitted
-Origin: Miklos Vajna <vmiklos@frugalware.org>
-Description: Adds the ability to build the package in a chroot environment.
-Thanks for krix <krics@linuxforum.hu> for the idea.
- doc/makepkg.8.in |   55 ++++++++++++++++++++++++++
- etc/makepkg.conf |    5 ++
- scripts/makepkg  |  116 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-
- 3 files changed, 175 insertions(+), 1 deletion(-)
 diff -Naur pacman-2.9.6.orig/doc/makepkg.8.in pacman-2.9.6/doc/makepkg.8.in
---- pacman-2.9.6.orig/doc/makepkg.8.in	2005-08-10 22:41:26.000000000 +0200
-+++ pacman-2.9.6/doc/makepkg.8.in	2005-08-10 22:41:40.000000000 +0200
+--- pacman-2.9.6.orig/doc/makepkg.8.in	2005-08-11 17:34:34.000000000 +0200
++++ pacman-2.9.6/doc/makepkg.8.in	2005-08-11 17:34:49.000000000 +0200
 @@ -359,6 +359,58 @@
  to kernel-ide, then subsequent 'pacman -Syu' calls will not pick up the upgrade, due
  to the differing package names.  \fIreplaces\fP handles this.
@@ -81,8 +71,8 @@ diff -Naur pacman-2.9.6.orig/doc/makepkg.8.in pacman-2.9.6/doc/makepkg.8.in
  Install missing dependencies using pacman.  When makepkg finds missing build-time
  or run-time dependencies, it will run pacman to try and resolve them.  If successful,
 diff -Naur pacman-2.9.6.orig/etc/makepkg.conf pacman-2.9.6/etc/makepkg.conf
---- pacman-2.9.6.orig/etc/makepkg.conf	2005-08-10 22:41:26.000000000 +0200
-+++ pacman-2.9.6/etc/makepkg.conf	2005-08-10 22:41:40.000000000 +0200
+--- pacman-2.9.6.orig/etc/makepkg.conf	2005-08-11 17:34:34.000000000 +0200
++++ pacman-2.9.6/etc/makepkg.conf	2005-08-11 17:34:49.000000000 +0200
 @@ -28,6 +28,11 @@
  # Enable fakeroot for building packages as a non-root user
  export USE_FAKEROOT="y"
@@ -96,8 +86,8 @@ diff -Naur pacman-2.9.6.orig/etc/makepkg.conf pacman-2.9.6/etc/makepkg.conf
  export USE_COLOR="y"
  
 diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
---- pacman-2.9.6.orig/scripts/makepkg	2005-08-10 22:41:26.000000000 +0200
-+++ pacman-2.9.6/scripts/makepkg	2005-08-10 22:43:43.000000000 +0200
+--- pacman-2.9.6.orig/scripts/makepkg	2005-08-11 17:34:34.000000000 +0200
++++ pacman-2.9.6/scripts/makepkg	2005-08-11 17:37:34.000000000 +0200
 @@ -40,6 +40,12 @@
  	shift
  fi
@@ -119,7 +109,42 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  	echo "  -s, --syncdeps   Install missing dependencies with pacman"
  	echo "  -S, --sudosync   Install missing dependencies with pacman and sudo"
  	echo "  -u, --noup2date  Do not check for newer version"
-@@ -245,6 +252,7 @@
+@@ -226,6 +233,34 @@
+ 	echo
+ }
+ 
++chroot_umount() {
++    msg "Attempting to umount chroot directories..."
++    umount $CHROOTDIR/proc >/dev/null &
++    umount $CHROOTDIR/sys >/dev/null &
++    umount $CHROOTDIR/dev >/dev/null &
++    umount $CHROOTDIR/var/cache/pacman >/dev/null &
++    umount $CHROOTDIR/var/cache/ccache/$pkgname >/dev/null &
++    if [ "$?" != "0" ]; then
++	error "An error occurred while attempting to umount chroot directories."
++	exit 1
++    fi
++    msg "Successfully umounted chroot directories."
++}
++
++chroot_mount() {
++    msg "Attempting to mount chroot directories..."
++    mount -t proc none $CHROOTDIR/proc >/dev/null &
++    mount -t sysfs none $CHROOTDIR/sys >/dev/null &
++    mount -o bind /dev $CHROOTDIR/dev >/dev/null &
++    mount -o bind /var/cache/pacman $CHROOTDIR/var/cache/pacman >/dev/null &
++    mount -o bind /var/cache/ccache/$pkgname \
++    $CHROOTDIR/var/cache/ccache/$pkgname >/dev/null &
++    if [ "$?" != "0" ]; then
++	error "An error occurred while attempting to mount chroot directories."
++	exit 1
++    fi
++    msg "Successfully mounted chroot directories."
++}
+ 
+ # Options
+ CLEANUP=0
+@@ -245,6 +280,7 @@
  NOSTRIP=0
  NOBUILD=0
  RMDEPS=0
@@ -127,7 +152,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  LOGGING=0
  NOUP2DATE=0
  BUILDSCRIPT="./FrugalBuild"
-@@ -271,6 +279,7 @@
+@@ -271,6 +307,7 @@
  		--gensha1)    GENSHA1=1 ;;
  		--genmd5)     GENMD5=1 ;;
  		--rmdeps)     RMDEPS=1 ;;
@@ -135,7 +160,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  		--noup2date)     NOUP2DATE=1 ;;
  		--logging)    LOGGING=1 ;;
  		--help)
-@@ -282,7 +291,7 @@
+@@ -282,7 +319,7 @@
  			exit 1
  			;;
  		-*)
@@ -144,7 +169,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  				case $opt in
  					a) SEARCHDEPS=1 ;;
  					c) CLEANUP=1 ;;
-@@ -308,6 +317,7 @@
+@@ -308,6 +345,7 @@
  					o) NOBUILD=1 ;;
  					p) BUILDSCRIPT=$OPTARG ;;
  					r) RMDEPS=1 ;;
@@ -152,7 +177,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  					s) DEP_BIN=1 ;;
  					S) DEP_SUDO=1 ;;
  					u) NOUP2DATE=1 ;;
-@@ -343,6 +353,26 @@
+@@ -343,6 +381,26 @@
  	if [ "`id -u`" = "0" -a "$INFAKEROOT" != "1" ]; then
  		msg "Cleaning up source files from the cache."
  		rm -rf /var/cache/pacman/src/*
@@ -179,7 +204,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  		exit 0
  	else
  		error "You must be root to clean the cache."
-@@ -436,6 +466,85 @@
+@@ -436,6 +494,69 @@
  	fi
  fi
  
@@ -197,23 +222,14 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
 +	mkdir -p $CHROOTDIR/{dev,etc,proc,sys,var/cache/pacman,var/tmp/fst}
 +	install -d -m 2775 {,$CHROOTDIR}/var/cache/ccache/$pkgname
 +
-+	msg "Attempting to mount chroot directories..."
-+	mount -t proc none $CHROOTDIR/proc >/dev/null &
-+	mount -t sysfs none $CHROOTDIR/sys >/dev/null &
-+	mount -o bind /dev $CHROOTDIR/dev >/dev/null &
-+	mount -o bind /var/cache/pacman $CHROOTDIR/var/cache/pacman >/dev/null &
-+	mount -o bind /var/cache/ccache/$pkgname \
-+		$CHROOTDIR/var/cache/ccache/$pkgname >/dev/null &
-+	if [ "$?" != "0" ]; then
-+		error "An error occurred while attempting to mount chroot directories."
-+		exit 1
-+	fi
++	chroot_mount
 +
 +	if [ ! -d "$CHROOTDIR/usr" ]; then
 +		msg "Building chroot environment"
 +		pacman -Syf $COREPKGS -r "$CHROOTDIR" --noconfirm
 +		if [ "$?" != "0" ]; then
 +			error "Failed to build chroot environment."
++			chroot_umount
 +			exit 1
 +		fi
 +	fi
@@ -227,13 +243,15 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
 +	cp -pf /etc/hosts $CHROOTDIR/etc > /dev/null &
 +	cp -pf /etc/sudoers $CHROOTDIR/etc > /dev/null &
 +	cp -Ppf /etc/localtime $CHROOTDIR/etc >/dev/null &
++	cp -pf /etc/services $CHROOTDIR/etc > /dev/null &
 +	if [ "$?" != "0" ]; then
 +		error "An error occurred while attempting to copy config files to chroot."
++		chroot_umount
 +		exit 1
 +	fi
 +
 +	msg "Copying $pkgname's buildscript to chroot"
-+	cp * $CHROOTDIR/var/tmp/fst/
++	cp -a * $CHROOTDIR/var/tmp/fst/
 +	
 +	if [ ! -x  /usr/sbin/chroot ]; then
 +		error "chroot was not found."
@@ -248,24 +266,15 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
 +		mv $CHROOTDIR/var/tmp/fst/${pkgname}-${pkgver}-${pkgrel}-${CARCH}.fpm $PKGDEST
 +		rm -rf $CHROOTDIR/var/tmp/fst/*
 +	fi
-+	
-+	msg "Attempting to umount chroot directories..."
-+	umount $CHROOTDIR/proc >/dev/null &
-+	umount $CHROOTDIR/sys >/dev/null &
-+	umount $CHROOTDIR/dev >/dev/null &
-+	umount $CHROOTDIR/var/cache/pacman >/dev/null &
-+	umount $CHROOTDIR/var/cache/ccache/$pkgname >/dev/null &
-+	if [ "$?" != "0" ]; then
-+		error "An error occurred while attempting to umount chroot directories."
-+		exit 1
-+	fi
++
++	chroot_umount
 +	exit 0
 +fi
 +
  # Enter the fakeroot environment if necessary.  This will call the makepkg script again
  # as the fake root user.  We detect this by passing a sentinel option (-F) to makepkg
  if [ "`id -u`" != "0" ]; then
-@@ -758,6 +867,10 @@
+@@ -758,6 +879,10 @@
  # use ccache if it's available
  if [ "$NOCCACHE" = "0" ]; then
  	[ -d /usr/lib/ccache/bin ] && export PATH=/usr/lib/ccache/bin:$PATH
@@ -276,7 +285,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  fi
  
  # build
-@@ -940,8 +1053,13 @@
+@@ -940,8 +1065,13 @@
  if [ -f $startdir/pkg/.CHANGELOG ]; then
  	extra="$extra .CHANGELOG"
  fi

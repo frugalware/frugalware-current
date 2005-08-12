@@ -1,6 +1,6 @@
 diff -Naur libarchive-1.02.030.orig/archive_entry.c libarchive-1.02.030/archive_entry.c
---- libarchive-1.02.030.orig/archive_entry.c	2005-08-12 18:06:52.000000000 +0200
-+++ libarchive-1.02.030/archive_entry.c	2005-08-12 18:06:57.000000000 +0200
+--- libarchive-1.02.030.orig/archive_entry.c	2005-08-13 00:53:11.000000000 +0200
++++ libarchive-1.02.030/archive_entry.c	2005-08-13 00:53:17.000000000 +0200
 @@ -622,7 +622,13 @@
  void
  archive_entry_set_pathname(struct archive_entry *entry, const char *name)
@@ -16,9 +16,9 @@ diff -Naur libarchive-1.02.030.orig/archive_entry.c libarchive-1.02.030/archive_
  
  void
 diff -Naur libarchive-1.02.030.orig/archive_read_extract.c libarchive-1.02.030/archive_read_extract.c
---- libarchive-1.02.030.orig/archive_read_extract.c	2005-08-12 18:06:52.000000000 +0200
-+++ libarchive-1.02.030/archive_read_extract.c	2005-08-12 18:09:55.000000000 +0200
-@@ -757,33 +757,44 @@
+--- libarchive-1.02.030.orig/archive_read_extract.c	2005-08-13 00:53:11.000000000 +0200
++++ libarchive-1.02.030/archive_read_extract.c	2005-08-13 00:58:59.000000000 +0200
+@@ -757,33 +757,50 @@
  	int r;
  	const char *pathname;
  	const char *linkname;
@@ -51,18 +51,24 @@ diff -Naur libarchive-1.02.030.orig/archive_read_extract.c libarchive-1.02.030/a
 +		r = link(x, pathname);
  	}
  
++	if ((r != 0) && (errno == EXDEV)) {
++		/* Need to link to external device (eg. some mounted device) */
++		/* Then we don't need the first / */
++		r = link(linkname, pathname);
++	}
++	
  	if (r != 0) {
  		/* XXX Better error message here XXX */
  		archive_set_error(a, errno,
 -		    "Can't restore hardlink to '%s'", linkname);
 +		    "Can't restore hardlink to '%s' - '%s'", linkname, pathname);
-+		    free(x);
++		if (!x) free(x);
  		return (ARCHIVE_WARN);
  	}
  
  	/* Set ownership, time, permission information. */
  	r = restore_metadata(a, -1, entry, flags);
-+	free(x);
++	if (!x) free(x);
  	return (r);
  }
  

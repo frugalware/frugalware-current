@@ -1,30 +1,32 @@
-NOEXTRACT=1 # important, src not tared as a single directory 
-
-# Last Modified: Wed, 08 Jun 2005 12:37:43 +0000
+# Last Modified: Thu, 18 Aug 2005 16:24:35 +0200
 # Compiling Time: ~2 SBU
 # Maintainer: Zsolt Szalai <xbit.lists@chello.hu>
+# Modified by: Christian Hamar alias krix <krics@linuxforum.hu>
 # Category: xapps-extra
 
 pkgname=tetex
 pkgver=3.0
-pkgrel=6
+pkgrel=7
 pkgdesc="teTeX is a complete TeX distribution for UNIX compatible systems - base files, librarys, fonts"
 url="http://www.tug.org/teTeX/"
-depends=('glibc' 'freetype2' 'x' 'fontconfig' 'expat' 'lesstif' 'zlib' 'gcc' 'libpng')
-makedepends=('bison' 'flex' 'ncurses' 'zlib' 'libpng' 'x')
+depends=('glibc' 'freetype2' 'x' 'fontconfig' 'expat' 'lesstif' 'zlib' 'libpng' 'tetex-kpathsea')
+makedepends=('bison' 'flex' 'ncurses')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
 up2date="lynx --dump 'ftp://dante.ctan.org/tex-archive/systems/unix/teTeX/current/distrib/'|grep \"tar.gz\" |sed -e 's/.*tetex-src-\(.*\).tar.*/\1/;q'"
 source=(ftp://dante.ctan.org/tex-archive/systems/unix/teTeX/current/distrib/tetex-texmf-$pkgver.tar.gz ftp://dante.ctan.org/tex-archive/systems/unix/teTeX/current/distrib/tetex-src-$pkgver.tar.gz)
-md5sums=('11aa15c8d3e28ee7815e0d5fcdf43fd4' '944a4641e79e61043fdaf8f38ecbb4b3')
+sha1sums=('10f7d2fa007c95ca066d899fca0e9a8446108824' \
+	  '7637789f7f4929694aed1b89820f5bad4753e8fc')
 install=tetex.install
 backup=('/usr/share/texmf/web2c/texmf.cnf')
 removes=('/usr/share/texmf/web2c/latex.fmt' '/usr/share/texmf/web2c/latex.log')
 replaces=('tetex-base' 'tetex-bin')
 conflicts=('tetex-base' 'tetex-bin')
 provides=('tetex-base' 'tetex-bin')
+NOEXTRACT=1 # important, src not tared as a single directory 
 
 build() {
+	[ "$CARCH" == "x86_64" ] && CFLAGS="$CFLAGS -fPIC -DPIC"
 	cd $startdir/src
 	mkdir texmf
 	tar xzf tetex-texmf-$pkgver.tar.gz -C ./texmf
@@ -43,15 +45,38 @@ build() {
 
 	tar xzf tetex-src-$pkgver.tar.gz
 	cd tetex-src-$pkgver
-	./configure --prefix=/usr --sysconfdir=/etc --disable-multiplatform --datadir=/usr/share --without-texinfo --without-dialog --without-texi2html --with-x --enable-ipc --with-system-zlib --with-system-pnglib --with-system-ncurses
+	./configure --prefix=/usr \
+		    --sysconfdir=/etc \
+		    --datadir=/usr/share \
+		    --enable-shared \
+		    --disable-multiplatform \
+		    --without-texinfo \
+		    --without-dialog \
+		    --without-texi2html \
+		    --with-x \
+		    --enable-ipc \
+		    --with-system-zlib \
+		    --with-system-pnglib \
+		    --with-system-ncurses
 	make all texmf=$startdir/pkg/usr/share/texmf || return 1
 
-	mv $startdir/pkg/usr/share/texmf/ls-R $startdir/pkg/usr/share/texmf/ls-R.tetex-texmf.orig
+	Fmv usr/share/texmf/ls-R usr/share/texmf/ls-R.tetex-texmf.orig
 
 	make install prefix=$startdir/pkg/usr texmf=$startdir/pkg/usr/share/texmf
 
-	mv $startdir/pkg/usr/share/texmf/ls-R $startdir/pkg/usr/share/texmf/ls-R.tetex-bin.orig
+	Fmv usr/share/texmf/ls-R usr/share/texmf/ls-R.tetex-bin.orig
 	
 	#cp $startdir/src/haltp.tex $startdir/pkg/usr/share/texmf/doc
-	rm $startdir/pkg/usr/info/dir
+	Frm usr/info/dir
+
+	# Remove conflicting files with texet-kpathsea
+	Frm usr/bin/{kpseaccess,kpsereadlink,kpsestat,kpsewhich,mktexlsr,mktexmf,mktexpk,mktextfm}
+	Frm usr/include/kpathsea
+	Frm usr/info/kpathsea.info
+	Frm usr/lib/libkpathsea.*
+	Frm usr/man/man1/{kpseaccess,kpsereadlink,kpsestat,kpsewhich,mktexlsr,mktexmf,mktexpk,mktextfm}.1.gz
 }
+
+# optimalization OK
+
+# vim: ft=sh

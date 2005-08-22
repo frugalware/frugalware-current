@@ -63,7 +63,9 @@ $buycd=array(
 	array("BudgetLinuxCDS",
 		"http://budgetlinuxcds.com/index.php?page=Choose&amp;letter=Frugalware"),
 	array("cdiras.projektinfo.hu",
-		"http://cdiras.projektinfo.hu/index.php?r=1&op=linux")
+		"http://cdiras.projektinfo.hu/index.php?r=1&op=linux"),
+	array("LinuxMedia.hu",
+		"http://www.linuxmedia.hu/?ref=frugalware")
 	);
 
 // misc

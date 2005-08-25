@@ -251,6 +251,7 @@ function pkg_from_id($id) {
 	print("<tr><td>Download: </td><td><a href=\"download.php?url=frugalware-" . $arr['fwver'] . "/" . $pkgpath . "/" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . "-" . $arr['arch'] . ".fpm\">" . $arr['pkgname'] . "-" . $arr['pkgver'] . "-" . $arr['pkgrel'] . "-" . $arr['arch'] . ".fpm</a></td></tr>");
 	print "<tr><td>Forums:</td><td><a href=\"http://forums.frugalware.org/index.php?t=search&srch=".$arr['pkgname']."\">forums.frugalware.org</a></td></tr>\n";
 	print "<tr><td>Wiki:</td><td><a href=\"http://wiki.frugalware.org/Special:Search?search=".$arr['pkgname']."\">wiki.frugalware.org</a></td></tr>\n";
+	print "<tr><td>Bug Tracking System:</td><td><a href=\"http://bugs.frugalware.org/index.php?string=".$arr['pkgname']."\">related open bugs</a>; file a feature request, bug report or mark outdated <a href=\"http://bugs.frugalware.org/?do=newtask&project=1\">here</td></tr>\n";
 	if ($arr['md5'] != 'NULL') print "<tr><td>MD5 Sum:</td><td>".$arr['md5']."</td></tr>\n";
 	if ($arr['fwver'] != 'NULL') print "<tr><td>Frugalware version:</td><td>".$arr['fwver']."</td></tr>\n";
 	if ($arr['repo'] != 'NULL') print "<tr><td>Repository:</td><td>".$arr['repo']."</td></tr>\n";

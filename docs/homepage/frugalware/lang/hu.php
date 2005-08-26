@@ -197,4 +197,12 @@ $fwstrdocshu="Magyar";
 $fwstrdocssk="Szlovák";
 $fwstrdocshtml="HTML";
 $fwstrdocshtmlsingle="HTML (1 darab nagy file)";
+
+# donations.php
+$fwdonatestring="Adományok";
+$fwdonatewelcome="<div align=left>Az adományozás jó mód arra, hogy mutassa támogatását és elismerését ";
+$fwdonatewelcome.="a Frugalware Linux iránt. Ezen a lapon összegyûjtöttük azokat az adományokat, amiket eddig kaptunk, ";
+$fwdonatewelcome.="valamint azokat, amik nagy segítséget nyújtatnának munkánk során. Ha van valamilyen hardware eszköze vagy valami, ";
+$fwdonatewelcome.="amihez még nincs a Frugalware -ben támogatás, adományozza a fejlesztõknek, hogy minél elõbb bekerülhessen a Frugalware -be.</div>";
+
 ?>

@@ -198,4 +198,12 @@ $fwstrdocssk="Slovak";
 $fwstrdocshtml="HTML";
 $fwstrdocshtmlsingle="HTML single file";
 
+# donations.php
+$fwdonatestring="Donations";
+$fwdonatewelcome="<div align=left>Donations are a great way to show your appreciation ";
+$fwdonatewelcome.="and support for Frugalware Linux. On this page we list the donations we have ";
+$fwdonatewelcome.="received so far and those that would help us in our work on Frugalware Linux. ";
+$fwdonatewelcome.="If you have a piece of hardware or something whose Frugalware support could be ";
+$fwdonatewelcome.="improved, a good way to achieve this is to donate it to a developer.</div>";
+
 ?>

@@ -3,13 +3,13 @@ Initial Package Version: 2.9.6
 Upstream Status: Not yet submitted
 Origin: Miklos Vajna <vmiklos@frugalware.org>
 Description: Adds support for building the package in a chroot.
- doc/makepkg.8.in |   55 +++++++++++++++++++
+ doc/makepkg.8.in |   55 ++++++++++++++++
  etc/makepkg.conf |    5 +
- scripts/makepkg  |  156 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-
- 3 files changed, 215 insertions(+), 1 deletion(-)
+ scripts/makepkg  |  178 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 237 insertions(+), 1 deletion(-)
 diff -Naur pacman-2.9.6.orig/doc/makepkg.8.in pacman-2.9.6/doc/makepkg.8.in
---- pacman-2.9.6.orig/doc/makepkg.8.in	2005-08-20 00:21:48.000000000 +0200
-+++ pacman-2.9.6/doc/makepkg.8.in	2005-08-20 00:20:56.000000000 +0200
+--- pacman-2.9.6.orig/doc/makepkg.8.in	2005-08-27 00:01:31.000000000 +0200
++++ pacman-2.9.6/doc/makepkg.8.in	2005-08-26 23:52:21.000000000 +0200
 @@ -359,6 +359,58 @@
  to kernel-ide, then subsequent 'pacman -Syu' calls will not pick up the upgrade, due
  to the differing package names.  \fIreplaces\fP handles this.
@@ -80,8 +80,8 @@ diff -Naur pacman-2.9.6.orig/doc/makepkg.8.in pacman-2.9.6/doc/makepkg.8.in
  Install missing dependencies using pacman.  When makepkg finds missing build-time
  or run-time dependencies, it will run pacman to try and resolve them.  If successful,
 diff -Naur pacman-2.9.6.orig/etc/makepkg.conf pacman-2.9.6/etc/makepkg.conf
---- pacman-2.9.6.orig/etc/makepkg.conf	2005-08-20 00:21:48.000000000 +0200
-+++ pacman-2.9.6/etc/makepkg.conf	2005-08-20 00:20:56.000000000 +0200
+--- pacman-2.9.6.orig/etc/makepkg.conf	2005-08-27 00:01:31.000000000 +0200
++++ pacman-2.9.6/etc/makepkg.conf	2005-08-26 23:52:21.000000000 +0200
 @@ -28,6 +28,11 @@
  # Enable fakeroot for building packages as a non-root user
  export USE_FAKEROOT="y"
@@ -95,8 +95,8 @@ diff -Naur pacman-2.9.6.orig/etc/makepkg.conf pacman-2.9.6/etc/makepkg.conf
  export USE_COLOR="y"
  
 diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
---- pacman-2.9.6.orig/scripts/makepkg	2005-08-20 00:21:48.000000000 +0200
-+++ pacman-2.9.6/scripts/makepkg	2005-08-20 00:32:40.000000000 +0200
+--- pacman-2.9.6.orig/scripts/makepkg	2005-08-27 00:01:31.000000000 +0200
++++ pacman-2.9.6/scripts/makepkg	2005-08-26 23:58:43.000000000 +0200
 @@ -40,6 +40,12 @@
  	shift
  fi
@@ -110,7 +110,21 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  ### SUBROUTINES ###
  
  plain() {
-@@ -216,6 +222,7 @@
+@@ -181,6 +187,13 @@
+ 		else
+ 			missingdeps=1
+ 		fi
++	# rerun any additional sh scripts found in /etc/profile.d/
++	for i in /etc/profile.d/*.sh
++	do
++		if [ -x $i ]; then
++			. $i &>/dev/null
++		fi
++	done
+ 	elif [ "$deplist" != "" -a $haveperm -eq 0 ]; then
+ 		if [ "$DEP_SRC" = "1" -o "$DEP_BIN" = "1" ]; then
+ 			warning "Cannot auto-install missing dependencies as a normal user without sudo!"
+@@ -216,6 +229,7 @@
  	echo "  -o, --nobuild    Download and extract files only"
  	echo "  -p <buildscript> Use an alternate build script (instead of FrugalBuild)"
  	echo "  -r, --rmdeps     Remove installed dependencies after a successful build"
@@ -118,7 +132,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  	echo "  -s, --syncdeps   Install missing dependencies with pacman"
  	echo "  -S, --sudosync   Install missing dependencies with pacman and sudo"
  	echo "  -u, --noup2date  Do not check for newer version"
-@@ -226,6 +233,58 @@
+@@ -226,6 +240,58 @@
  	echo
  }
  
@@ -177,7 +191,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  
  # Options
  CLEANUP=0
-@@ -245,6 +304,7 @@
+@@ -245,6 +311,7 @@
  NOSTRIP=0
  NOBUILD=0
  RMDEPS=0
@@ -185,7 +199,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  LOGGING=0
  NOUP2DATE=0
  BUILDSCRIPT="./FrugalBuild"
-@@ -271,6 +331,7 @@
+@@ -271,6 +338,7 @@
  		--gensha1)    GENSHA1=1 ;;
  		--genmd5)     GENMD5=1 ;;
  		--rmdeps)     RMDEPS=1 ;;
@@ -193,7 +207,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  		--noup2date)     NOUP2DATE=1 ;;
  		--logging)    LOGGING=1 ;;
  		--help)
-@@ -282,7 +343,7 @@
+@@ -282,7 +350,7 @@
  			exit 1
  			;;
  		-*)
@@ -202,7 +216,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  				case $opt in
  					a) SEARCHDEPS=1 ;;
  					c) CLEANUP=1 ;;
-@@ -308,6 +369,7 @@
+@@ -308,6 +376,7 @@
  					o) NOBUILD=1 ;;
  					p) BUILDSCRIPT=$OPTARG ;;
  					r) RMDEPS=1 ;;
@@ -210,7 +224,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  					s) DEP_BIN=1 ;;
  					S) DEP_SUDO=1 ;;
  					u) NOUP2DATE=1 ;;
-@@ -343,6 +405,7 @@
+@@ -343,6 +412,7 @@
  	if [ "`id -u`" = "0" -a "$INFAKEROOT" != "1" ]; then
  		msg "Cleaning up source files from the cache."
  		rm -rf /var/cache/pacman/src/*
@@ -218,7 +232,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  		exit 0
  	else
  		error "You must be root to clean the cache."
-@@ -436,6 +499,100 @@
+@@ -436,6 +506,99 @@
  	fi
  fi
  
@@ -247,7 +261,6 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
 +	install -d -m 2775 {,$CHROOTDIR}/var/cache/ccache/$pkgname
 +
 +	chroot_mount
-+	chroot_clean
 +
 +	if [ ! -d "$CHROOTDIR/usr" ]; then
 +		msg "Building chroot environment"
@@ -319,7 +332,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  # Enter the fakeroot environment if necessary.  This will call the makepkg script again
  # as the fake root user.  We detect this by passing a sentinel option (-F) to makepkg
  if [ "`id -u`" != "0" ]; then
-@@ -758,6 +915,10 @@
+@@ -759,6 +922,10 @@
  # use ccache if it's available
  if [ "$NOCCACHE" = "0" ]; then
  	[ -d /usr/lib/ccache/bin ] && export PATH=/usr/lib/ccache/bin:$PATH
@@ -330,7 +343,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  fi
  
  # build
-@@ -940,8 +1101,13 @@
+@@ -941,8 +1108,13 @@
  if [ -f $startdir/pkg/.CHANGELOG ]; then
  	extra="$extra .CHANGELOG"
  fi
@@ -344,3 +357,21 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  
  cd $startdir
  if [ "$SEARCHDEPS" == "1" ]; then
+@@ -963,6 +1135,7 @@
+ 	rm -rf src pkg filelist
+ fi
+ 
++if [ "$INCHROOT" != "1" ]; then
+ if [ "$RMDEPS" = "1" -a "`id -u`" = "0" -a "$INFAKEROOT" != "1" ]; then
+ 	msg "Removing installed dependencies..."
+ 	pacman -R $makedeplist $deplist
+@@ -979,6 +1152,9 @@
+ 		unset FAKEROOTKEY2
+ 	fi
+ fi
++else
++	chroot_clean
++fi
+ 
+ # check optimalization and write it to $BUILDSCRIPT
+ msg "Checking for optimalization..."

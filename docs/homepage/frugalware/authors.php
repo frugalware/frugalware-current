@@ -39,15 +39,5 @@ print("</pre></div>");
 fwclosebox(false);
 print("<p>");
 
-fwopenbox("$fwstrauthx", 100, false, $fwwhite);
-print("<div align=left><pre>");
-while (!preg_match("/^$/", $people[$i]))
-{
-	print(preg_replace("/^\t/", "", $people[$i]));
-	$i++;
-}
-print("</pre></div>");
-fwclosebox(false);
-
 include("footer.php");
 ?>

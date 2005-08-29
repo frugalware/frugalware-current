@@ -16,6 +16,7 @@ print("&middot;
 <a class=menu href=\"http://bugs.frugalware.org\">$fwstrmbugs</a> &middot;
 <a class=menu href=\"roadmap.php\">$fwstrroadmap</a> &middot;
 <a class=menu href=\"authors.php\">$fwstrauthors</a> &middot;
+<a class=menu href=\"donations.php\">$fwstrdonations</a> &middot;
 <a class=menu href=\"download.php\">$fwstrdl</a> &middot;
 \n");
 ?>

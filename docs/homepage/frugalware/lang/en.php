@@ -39,6 +39,7 @@ $fwstrauthors="people";
 $fwstrforum="forum";
 $fwstrwiki="wiki";
 $fwstrdocsmenu="documentation";
+$fwstrdonations="donations";
 
 // news.php
 $fwstrpby="posted by";

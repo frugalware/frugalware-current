@@ -39,6 +39,7 @@ $fwstrauthors="fejlesztõk";
 $fwstrforum="fórum";
 $fwstrwiki="wiki";
 $fwstrdocsmenu="dokumentáció";
+$fwstrdonations="felajánlások";
 
 // news.php
 $fwstrpby="írta:";

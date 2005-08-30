@@ -5,16 +5,16 @@ open FL, "<FrugalBuild";
 close FL;
 
 $blah = `bash -c "makepkg -oe 2>/dev/null"`;
-$md5sm = `bash -c "makepkg -g 2>/dev/null | sed '1 d'"`;
+$sha1sm = `bash -c "makepkg -g 2>/dev/null | sed '1 d'"`;
 
-print "Updating md5sums in ".$ARGV[0].": ";
+print "Updating sha1sums in ".$ARGV[0].": ";
 
 open FL, ">FrugalBuild";
 $out=1;
 for($i=0,$j=1; $i<=$#sorok;$i++,$j++) {
 	chop $sorok[$i];
 
-	if ($sorok[$i] =~ /^md5sums/) {
+	if ($sorok[$i] =~ /^sha1sums/) {
 		$out=0;
 	}
 	else {
@@ -35,8 +35,8 @@ for($i=0,$j=1; $i<=$#sorok;$i++,$j++) {
 	}
 }
 
-print FL $md5sm;
+print FL $sha1sm;
 close FL;
-#print "MD5SUM in ".$ARGV[0].": $md5sm";
+#print "SHA1SUM in ".$ARGV[0].": $sha1sm";
 
 print "done...\n";

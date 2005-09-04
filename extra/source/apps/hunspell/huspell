@@ -1,0 +1,67 @@
+#!/bin/sh
+
+#
+# Az argumentumban megadott fájlokban, avagy argumentum nélküli indítás
+# esetén a standard inputban keres hibásan írt magyar szavakat.
+#
+# A kimenet soronként egy hibás szó, csupa kisbetûvel, magyar ábécérendbe
+# szedve (ehhez legalább 2.2.5-ös glibc kell), ismétlõdés nélkül.
+#
+# Alapvetõen a magyar ispellt használja (annak nagybetûsítve adja oda a
+# szavakat, hogy a tulajdonneveket ne jelezze hibásnak), de egy-két plusz
+# ellenõrzést is elvégez.
+#
+
+#
+# -al, -el: -val, -vel rag teljes hasonulását tessék végre megtanulni. ;-)
+#
+# 0-ás: a helyes alak 0-s (ejtsd: nullás, mert 0=nulla) vagy esetleg 0-as
+# (ejtsd: nullas, mert 0=null). Azért szokatlan, mert ez az egyetlen
+# magánhangzóra végzõdõ számnév, ahol ez a magánhangzó nem esik ki (a
+# "kettõ"-bõl "kettes" lesz, kiesik az õ betû), így csak itt találkozunk az
+# "-s" képzõvel kötõhang nélkül.
+#
+# bájt: a magyar helyesírás (még?) nem ismeri ezt az alakot, viszont a
+# "byte"-ot igen. A magyarispell is valószínûleg csak a "báj" szó tárgyesete
+# miatt fogadja el.
+#
+# baloldal, jobboldal: csak politikai értelemben van egybe írva, ezért
+# inkább hibának jelezzük. A "baloldalt" szó "bal oldalon" értelemben egybe
+# írandó (tehát a baloldalt látható ábrán ez meg az...).
+#
+
+#
+# Koblinger Egmont <egmont@uhulinux.hu>
+# 2002. szept. 12., nov. 24.
+#
+
+export LC_ALL=hu_HU
+
+TMP=`mktemp -d /tmp/huspell.XXXXXX` || exit
+trap "rm -rf $TMP" EXIT
+
+if [ $# = 0 ]; then
+	cat >$TMP/text
+else
+	for i; do
+		cat -- "$i" >>$TMP/text
+		echo >>$TMP/text
+	done
+fi
+
+tr -c '[:alnum:]-' '[\n*]' <$TMP/text | tr '[:lower:]' '[:upper:]' | \
+  grep -v '^$' | grep -v '^-*$' | sort | uniq >$TMP/words
+
+hunspell -dhungarian -l <$TMP/words >$TMP/hiba
+
+grep -i -- '-[ae]l$'  <$TMP/words >>$TMP/hiba
+grep -i '^0-ás'       <$TMP/words >>$TMP/hiba
+grep -i '^bájt'       <$TMP/words >>$TMP/hiba
+grep -i '^kilobájt'   <$TMP/words >>$TMP/hiba
+grep -i '^megabájt'   <$TMP/words >>$TMP/hiba
+grep -i '^gigabájt'   <$TMP/words >>$TMP/hiba
+grep -i '^baloldal'   <$TMP/words | grep -iv '^baloldalt$'  >>$TMP/hiba
+grep -i '^jobboldal'  <$TMP/words | grep -iv '^jobboldalt$' >>$TMP/hiba
+
+tr '[:upper:]' '[:lower:]' <$TMP/hiba | sort | uniq
+

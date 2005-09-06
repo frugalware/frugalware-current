@@ -175,7 +175,7 @@ function res_show($res_set, $what, $search) {
 			$resz = $resz[count($resz)-1];
 			unset($tmp);
 			for ($i=0,$j=1;$i<count($res_set);$i++,$j++) {
-				print "<tr><td>".$j.". <a href=".$resz."?id=".$res_set[$i]['id'].">".$res_set[$i]['pkgname']."</a> ".$res_set[$i]['pkgver']."-".$res_set[$i]['pkgrel']."<br>FwVer: ".$res_set[$i]['fwver']."; Repo: ".$res_set[$i]['repo']."; Arch: ".$res_set[$i]['arch']."</td></tr>\n";
+				print "<tr><td>".$j.". <a href=\"".$resz."?id=".$res_set[$i]['id']."\">".$res_set[$i]['pkgname']."</a> ".$res_set[$i]['pkgver']."-".$res_set[$i]['pkgrel']."<br>FwVer: ".$res_set[$i]['fwver']."; Repo: ".$res_set[$i]['repo']."; Arch: ".$res_set[$i]['arch']."</td></tr>\n";
 			}
 			fwclosebox(false);
 			print "</table>\n";
@@ -188,7 +188,7 @@ function res_show($res_set, $what, $search) {
 			$resz = $resz[count($resz)-1];
 			unset($tmp);
 			for ($i=0,$j=1;$i<count($res_set);$i++,$j++) {
-				print "<tr><td>".$j.". <a href=".$resz."?id=".$res_set[$i]['id']."&s=f>".$res_set[$i]['pkgname']."</a> ".$res_set[$i]['pkgver']."-".$res_set[$i]['pkgrel']."<br>FwVer: ".$res_set[$i]['fwver']."; Repo: ".$res_set[$i]['repo']."</td></tr>\n";
+				print "<tr><td>".$j.". <a href=\"".$resz."?id=".$res_set[$i]['id']."&s=f\">".$res_set[$i]['pkgname']."</a> ".$res_set[$i]['pkgver']."-".$res_set[$i]['pkgrel']."<br>FwVer: ".$res_set[$i]['fwver']."; Repo: ".$res_set[$i]['repo']."</td></tr>\n";
 			}
 			fwclosebox(false);
 			print "</table>\n";

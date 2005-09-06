@@ -51,8 +51,9 @@ sub readdata { #string
 sub HELP_MESSAGE{
     print <<END
 fdb2db [-v] -f file -a architecture -r name -e version -b dir [-p] 
-       [-u user] [-i] [-t table] [-d database] [-h host]	
+       [-u user] [-i] [-t table] [-d database] [-h host] [-c packagename]
 
+        -c packagename
 	-f .fdb file
 	-a architecture
 	-r name of repository
@@ -79,7 +80,7 @@ my %metaverify = (ARCH => 'architecture',
 		  );
 
 my %opts;
-getopts('r:e:b:pu:vit:d:h:f:a:', \%opts);
+getopts('r:e:b:pu:vit:d:h:f:a:c:', \%opts);
 
 HELP_MESSAGE && exit unless %opts;
 
@@ -106,6 +107,8 @@ die 'Specify a table in the database!' if $table eq '';
 die 'Specify a database name!' if $database eq '';
 my $passw = read_password('password: ') if $opts{p};
 
+my $onepkg = $opts{c};
+
 $db->connect({database => $database,
 	      host => $host,
 	      user => $user,
@@ -120,6 +123,9 @@ opendir DBDIR, $pkgdir;
 while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel 
 
     next if $pkg =~ /^\.{1,2}$/;
+    if ($onepkg){
+      unless ($pkg =~ /\Q$onepkg\E/) {print "Skipping $pkg" if $opts{v}; next;}
+    }
     my %pkgdata;
     ($pkgdata{FWVER}, $pkgdata{REPO}) = ($fwver, $repo);
     my @contents = getcontents "$pkgdir/$pkg/desc";
@@ -315,6 +321,10 @@ then syncronizes a database. See DATABASE for the structure.
 =head1 OPTIONS
 
 =over 4
+
+=item B<-c packagename>
+
+Specify a package to update
 
 =item B<-f file>
 

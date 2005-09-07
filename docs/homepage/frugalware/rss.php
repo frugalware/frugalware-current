@@ -27,6 +27,18 @@
 			print(file_get_contents("http://bugs.frugalware.org/rss.php?type=new"));
 			die();
 		default:
+			$fwtitle="RSS";
+			include("header.php");
+
+			fwopenbox("Frugalware RSS feeds");
+			print('<div align="left"><ul>
+			<li><a href="/rss.php?type=stable">Stable releases</a></li>
+			<li><a href="/rss.php?type=darcs">Darcs commits</a></li>
+			<li><a href="/rss.php?type=bugs">BTS entries</a></li>
+			</ul></div>');
+			fwclosebox(false);
+
+			include("footer.php");
 			die();
 	}
 	

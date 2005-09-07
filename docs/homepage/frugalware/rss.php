@@ -2,13 +2,20 @@
 	switch($_GET['type'])
 	{
 		case "stable":
+			$handle['title']="Frugalware Linux";
+			$handle['desc']="Frugalware Linux is general purpose Linux distribution designed for intermediate users. Some of its elements were borrowed from Slackware Linux and Arch Linux.";
+			$handle['link']="http://frugalware.org/";
 			include("/etc/todo.conf");
 			$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
 			mysql_select_db(DBNAME, $conn);
 			$query="select version, `desc` from releases where type='stable' order by date desc";
 			$result = mysql_query($query) or die();
 			while ($i = mysql_fetch_array($result, MYSQL_ASSOC))
-				$items[] = $i;
+			{
+				$handle['items'][] = array("title" => "frugalware-" . $i['version'],
+						"desc" => $i['desc'],
+						"link" => "http://frugalware.org/download.php?url=frugalware-" . $i['version'] . "-iso/frugalware-" . $i['version'] . "-dvd.iso");
+			}
 			mysql_free_result($result);
 			break;
 		case "darcs":
@@ -24,18 +31,18 @@
 	}
 	
 	header('Content-Type: application/xml; charset=utf-8');
-	print('<?xml version="1.0"  encoding="utf-8"?>
-<rss version="2.0">
+	print("<?xml version=\"1.0\"  encoding=\"utf-8\"?>
+<rss version=\"2.0\">
 <channel>
-	<title>Frugalware Linux</title>
-	<description>Frugalware Linux is general purpose Linux distribution designed for intermediate users. Some of its elements were borrowed from Slackware Linux and Arch Linux.</description>
-	<link>http://frugalware.org/</link>');
-	foreach($items as $i)
+	<title>" . $handle['title'] . "</title>
+	<description>" . $handle['desc'] . "</description>
+	<link>" . $handle['link'] . "</link>");
+	foreach($handle['items'] as $i)
 	{
 		print("<item>
-<title>frugalware-" . $i['version'] . "</title>
+<title>" . $i['title'] . "</title>
 <description>" . $i['desc'] . "</description>
-<link>http://frugalware.org/download.php?url=frugalware-" . $i['version'] . "-iso/frugalware-" . $i['version'] . "-dvd.iso</link>
+<link>" . $i['link'] . "-dvd.iso</link>
 </item>");
 	}
 print('</channel>

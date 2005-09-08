@@ -3,8 +3,6 @@
 	$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
 	mysql_select_db(DBNAME, $conn);
 
-$fwisos=split("\n", `ls -l $fwtopsrcdir/frugalware-current-iso/`);
-
 fwopenbox("$fwstrreleaseinfo", 100, false);
 foreach($fwreleases as $i)
 {

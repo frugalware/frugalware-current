@@ -54,7 +54,7 @@
 		print("<item>
 <title>" . $i['title'] . "</title>
 <description>" . $i['desc'] . "</description>
-<link>" . $i['link'] . "-dvd.iso</link>
+<link>" . $i['link'] . "</link>
 </item>");
 	}
 print('</channel>

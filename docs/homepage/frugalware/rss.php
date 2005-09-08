@@ -18,6 +18,23 @@
 			}
 			mysql_free_result($result);
 			break;
+		case "packages":
+			$handle['title']="Frugalware Linux Packages";
+			$handle['desc']="Latest updates to the Frugalware Linux package repositories.";
+			$handle['link']="http://frugalware.org/packages.php";
+			include("/etc/todo.conf");
+			$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
+			mysql_select_db(DBNAME, $conn);
+			$query="select groups, pkgname, id, pkgver, pkgrel, arch, `desc` from packages order by updated desc limit 10";
+			$result = mysql_query($query) or die();
+			while ($i = mysql_fetch_array($result, MYSQL_ASSOC))
+			{
+				$handle['items'][] = array("title" => preg_replace("/^([^ ]*) .*/", "$1", $i['groups']) . "/${i['pkgname']}-${i['pkgver']}-${i['pkgrel']}-${i['arch']}",
+						"desc" => $i['desc'],
+						"link" => "http://frugalware.org/packages.php?id=${i['id']}");
+			}
+			mysql_free_result($result);
+			break;
 		case "darcs":
 			header('Content-Type: application/xml; charset=utf-8');
 			print(file_get_contents("http://darcs.frugalware.org/darcsweb/darcsweb.cgi?r=frugalware-current;a=rss"));
@@ -35,6 +52,7 @@
 			<li><a href="/rss.php?type=stable">Stable releases</a></li>
 			<li><a href="/rss.php?type=darcs">Darcs commits</a></li>
 			<li><a href="/rss.php?type=bugs">BTS entries</a></li>
+			<li><a href="/rss.php?type=packages">Package updates</a></li>
 			</ul></div>');
 			fwclosebox(false);
 

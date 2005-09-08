@@ -79,6 +79,9 @@ $fwstrserverinfo="Server infos";
 // releaseinfo.php
 $fwstrreleaseinfo="Releases";
 
+// pkginfo.php
+$fwstrpkginfo="Recent updates";
+
 // lib.php
 $fwcharset="utf-8";
 $fwstrarrow="Arrow";

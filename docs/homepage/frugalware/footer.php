@@ -10,6 +10,8 @@ print("      </div>
 // right side box-list
 include("releaseinfo.php");
 print("<p>");
+include("pkginfo.php");
+print("<p>");
 include("swpat.php");
 print("<p>");
 include("pageinfo.php");

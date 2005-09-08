@@ -79,6 +79,9 @@ $fwstrpacdl="Letöltés";
 // releaseinfo.php
 $fwstrreleaseinfo="Kiadások";
 
+// pkginfo.php
+$fwstrpkginfo="Legfrisebb csomagok";
+
 // lib.php
 $fwcharset="iso-8859-2";
 $fwstrarrow="Nyíl";

@@ -1,64 +1,60 @@
---- ./Makefile.orig	2003-01-04 04:53:01.000000000 -0800
-+++ ./Makefile	2003-02-20 23:22:56.000000000 -0800
-@@ -31,7 +31,7 @@
+diff -Naur pciutils-2.2.0.orig/lspci.c pciutils-2.2.0/lspci.c
+--- pciutils-2.2.0.orig/lspci.c	2005-09-22 14:43:13.000000000 +0200
++++ pciutils-2.2.0/lspci.c	2005-09-22 14:47:23.000000000 +0200
+@@ -113,8 +113,10 @@
+   d->config = xmalloc(64);
+   d->present = xmalloc(64);
+   memset(d->present, 1, 64);
+-  if (!pci_read_block(p, 0, d->config, 64))
+-    die("Unable to read the standard configuration space header");
++  if (!pci_read_block(p, 0, d->config, 64)) {
++    fprintf(stderr, "Unable to read the standard configuration space header");
++    return NULL;
++    }
+   if ((d->config[PCI_HEADER_TYPE] & 0x7f) == PCI_HEADER_TYPE_CARDBUS)
+     {
+       /* For cardbus bridges, we need to fetch 64 bytes more to get the
+diff -Naur pciutils-2.2.0.orig/Makefile pciutils-2.2.0/Makefile
+--- pciutils-2.2.0.orig/Makefile	2005-09-22 14:43:13.000000000 +0200
++++ pciutils-2.2.0/Makefile	2005-09-22 14:45:18.000000000 +0200
+@@ -33,7 +33,7 @@
  
  export
  
--all: lib lspci setpci lspci.8 setpci.8 update-pciids update-pciids.8 pci.ids
-+all: lib lspci setpci pcimodules lspci.8 setpci.8 update-pciids update-pciids.8 pcimodules.8 pci.ids
+-all: $(PCILIB) lspci setpci lspci.8 setpci.8 update-pciids update-pciids.8 pci.ids
++all: $(PCILIB) lspci setpci pcimodules lspci.8 setpci.8 update-pciids update-pciids.8 pcimodules.8 pci.ids
  
- lib: lib/config.h
+ $(PCILIB): $(PCIINC) force
  	$(MAKE) -C lib all
-@@ -39,9 +39,11 @@
- lib/config.h:
- 	cd lib && ./configure $(SHAREDIR) $(VERSION)
+@@ -45,10 +45,12 @@
  
-+pcimodules: pcimodules.o common.o lib/$(PCILIB)
- lspci: lspci.o common.o lib/$(PCILIB)
- setpci: setpci.o common.o lib/$(PCILIB)
+ lspci: lspci.o common.o $(PCILIB)
+ setpci: setpci.o common.o $(PCILIB)
++pcimodules: pcimodules.o common.o $(PCILIB)
  
-+pcimodules.o: pcimodules.c pciutils.h
- lspci.o: lspci.c pciutils.h
- setpci.o: setpci.c pciutils.h
- common.o: common.c pciutils.h
-@@ -59,15 +61,15 @@
+ lspci.o: lspci.c pciutils.h $(PCIINC)
+ setpci.o: setpci.c pciutils.h $(PCIINC)
+ common.o: common.c pciutils.h $(PCIINC)
++pcimodules.o: pcimodules.c pciutils.h $(PCIINC)
+ 
+ update-pciids: update-pciids.sh
+ 	sed <$< >$@ "s@^DEST=.*@DEST=$(IDSDIR)/pci.ids@"
+@@ -66,10 +68,10 @@
  install: all
  # -c is ignored on Linux, but required on FreeBSD
- 	$(DIRINSTALL) -m 755 $(SBINDIR) $(SHAREDIR) $(MANDIR)/man8
+ 	$(DIRINSTALL) -m 755 $(SBINDIR) $(IDSDIR) $(MANDIR)/man8
 -	$(INSTALL) -c -m 755 -s lspci setpci $(SBINDIR)
 +	$(INSTALL) -c -m 755 -s lspci setpci pcimodules $(SBINDIR)
  	$(INSTALL) -c -m 755 update-pciids $(SBINDIR)
- 	$(INSTALL) -c -m 644 pci.ids $(SHAREDIR)
+ 	$(INSTALL) -c -m 644 pci.ids $(IDSDIR)
 -	$(INSTALL) -c -m 644 lspci.8 setpci.8 update-pciids.8 $(MANDIR)/man8
 +	$(INSTALL) -c -m 644 lspci.8 setpci.8 update-pciids.8 pcimodules.8 $(MANDIR)/man8
  
  uninstall: all
--	rm -f $(SBINDIR)/lspci $(SBINDIR)/setpci $(SBINDIR)/update-pciids
-+	rm -f $(SBINDIR)/lspci $(SBINDIR)/setpci $(SBINDIR)/update-pciids $(SBINDIR)/pcimodules
- 	rm -f $(SHAREDIR)/pci.ids
--	rm -f $(MANDIR)/man8/lspci.8 $(MANDIR)/man8/setpci.8 $(MANDIR)/man8/update-pciids.8
-+	rm -f $(MANDIR)/man8/lspci.8 $(MANDIR)/man8/setpci.8 $(MANDIR)/man8/update-pciids.8 $(MANDIR)/man8/pcimodules.8
- 
- get-ids:
- 	cp ~/tree/pciids/pci.ids pci.ids
---- ./lspci.c.orig	2002-12-26 12:24:50.000000000 -0800
-+++ ./lspci.c	2003-02-20 23:22:36.000000000 -0800
-@@ -107,8 +107,11 @@
-   d = xmalloc(sizeof(struct device));
-   bzero(d, sizeof(*d));
-   d->dev = p;
--  if (!pci_read_block(p, 0, d->config, how_much))
--    die("Unable to read %d bytes of configuration space.", how_much);
-+  if (!pci_read_block(p, 0, d->config, how_much)) {
-+     fprintf(stderr, "Unable to read %d bytes of configuration space.",
-+	    how_much);
-+     return NULL;
-+  }
-   if (how_much < 128 && (d->config[PCI_HEADER_TYPE] & 0x7f) == PCI_HEADER_TYPE_CARDBUS)
-     {
-       /* For cardbus bridges, we need to fetch 64 bytes more to get the full standard header... */
---- ./pcimodules.c.orig	2003-02-20 23:22:36.000000000 -0800
-+++ ./pcimodules.c	2003-02-20 23:22:36.000000000 -0800
+ 	rm -f $(SBINDIR)/lspci $(SBINDIR)/setpci $(SBINDIR)/update-pciids
+diff -Naur pciutils-2.2.0.orig/pcimodules.c pciutils-2.2.0/pcimodules.c
+--- pciutils-2.2.0.orig/pcimodules.c	1970-01-01 01:00:00.000000000 +0100
++++ pciutils-2.2.0/pcimodules.c	2005-09-22 14:46:03.000000000 +0200
 @@ -0,0 +1,183 @@
 +/*
 + *	pcimodules:  Load all kernel modules for PCI device currently
@@ -243,8 +239,9 @@
 +	match_pci_modules();
 +	return 0;
 +}
---- ./pcimodules.man.orig	2003-02-20 23:22:36.000000000 -0800
-+++ ./pcimodules.man	2003-02-20 23:22:36.000000000 -0800
+diff -Naur pciutils-2.2.0.orig/pcimodules.man pciutils-2.2.0/pcimodules.man
+--- pciutils-2.2.0.orig/pcimodules.man	1970-01-01 01:00:00.000000000 +0100
++++ pciutils-2.2.0/pcimodules.man	2005-09-22 14:46:07.000000000 +0200
 @@ -0,0 +1,92 @@
 +.TH pcimodules 8 "@TODAY@" "@VERSION@" "Linux PCI Utilities"
 +.IX pcimodules

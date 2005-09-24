@@ -1,0 +1,376 @@
+diff -Naurp torsmo-0.18-orig/hddtemp.c torsmo-0.18-all/hddtemp.c
+--- torsmo-0.18-orig/hddtemp.c	1970-01-01 01:00:00.000000000 +0100
++++ torsmo-0.18-all/hddtemp.c	2005-09-18 20:25:30.000000000 +0200
+@@ -0,0 +1,143 @@
++#include "torsmo.h"
++#include <stdio.h>
++#include <string.h>
++#include <stdlib.h>
++#include <unistd.h>
++#include <fcntl.h>
++#include <netdb.h>
++#include <sys/select.h>
++#include <sys/socket.h>
++#define BUFLEN 512
++#define PORT 7634
++
++char buf[BUFLEN];
++
++int scan_hddtemp(const char *arg, char **dev, char **addr, int *port)
++{
++	char buf1[32], buf2[64];
++	int n, ret;
++	
++	ret = sscanf(arg, "%31s %63s %d", buf1, buf2, &n);
++	
++	if (ret < 1)
++		return -1;
++
++	*dev = strdup(buf1);
++	if (ret >= 2)
++		*addr = strdup(buf2);
++	else
++		*addr = strdup("127.0.0.1");
++
++	if (ret == 3) 
++		*port = n;
++	else
++		*port = PORT;
++
++	return 0;
++}
++
++char *get_hddtemp_info(char *dev, char *hostaddr, int port, char *unit)
++{
++	int sockfd = 0;
++	struct hostent *he;
++	struct sockaddr_in addr;
++	struct timeval tv;
++	fd_set rfds;
++	int len, i, devlen = strlen(dev);
++	char sep;
++	char *p, *out, *r = NULL;
++	
++	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
++		perror("socket");
++		return NULL;
++	}
++
++	he = gethostbyname(hostaddr);
++	if (!he) {
++		perror("gethostbyname");
++		goto out;
++	}
++
++	addr.sin_family = AF_INET;
++	addr.sin_port = htons(port);
++	addr.sin_addr = *((struct in_addr *)he->h_addr);
++	memset(&(addr.sin_zero), 0, 8);
++
++	if (connect(sockfd, (struct sockaddr *)&addr, sizeof(struct sockaddr)) == -1) {
++		perror("connect");
++		goto out;
++	}
++
++	FD_ZERO(&rfds);
++	FD_SET(sockfd, &rfds);
++
++	/* We're going to wait up to a quarter a second to see whether
++	 * there's any data available. Polling with timeout set to 0
++	 * doesn't seem to work with hddtemp. */
++	tv.tv_sec = 0;
++	tv.tv_usec = 250000;
++	
++	i = select(sockfd+1, &rfds, NULL, NULL, &tv);
++	if (i == -1)
++		perror("select");
++
++	/* No data available */
++	if (i <= 0)
++		goto out;
++	
++	p = buf;
++	len = 0;
++	do {
++		i = recv(sockfd, p, BUFLEN - (p-buf), 0);
++		if (i < 0) {
++			perror("recv");
++			goto out;
++		}
++		len += i;
++		p += i;
++	} while (i > 0 && p < buf + BUFLEN - 1);
++	
++	if (len < 2) {
++		goto out;
++	}
++	
++	buf[len] = 0;
++		
++	/* The first character read is the separator. */
++	sep = buf[0];
++	p = buf+1;
++	
++	while (*p) {
++		if (!strncmp(p, dev, devlen)) {
++			p += devlen + 1; 
++			p = strchr(p, sep);
++			if (!p) 
++				goto out;
++			p++;
++			out = p;	
++			p = strchr(p, sep);
++			if (!p) 
++				goto out;
++			*p = '\0';
++			p++;
++			*unit = *p;	
++			if (!strncmp(out, "NA", 2)) {
++				strcpy(buf, "N/A");
++				r = buf;
++			} else {					
++				r = out;
++			}
++			goto out;
++		} else {
++			for (i = 0; i < 5; i++) {
++				p = strchr(p, sep);
++				if (!p)
++					goto out;
++				p++;
++			}
++		}
++	}
++out:	close(sockfd);
++	return r;
++}
++
+diff -Naurp torsmo-0.18-orig/Makefile.am torsmo-0.18-all/Makefile.am
+--- torsmo-0.18-orig/Makefile.am	2005-09-18 18:55:27.000000000 +0200
++++ torsmo-0.18-all/Makefile.am	2005-09-18 18:58:56.000000000 +0200
+@@ -25,7 +25,7 @@ nvctrl = nvctrl.c
+ endif
+ 
+ torsmo_SOURCES = common.c fs.c $(linux) mail.c mixer.c $(nvctrl) $(seti) \
+-$(solaris) $(freebsd) $(netbsd) torsmo.c torsmo.h x11.c
++$(solaris) $(freebsd) $(netbsd) torsmo.c torsmo.h x11.c hddtemp.c
+ 
+ torsmo_LDFLAGS = $(X11_LIBS) $(XFT_LIBS)
+ 
+diff -Naurp torsmo-0.18-orig/README torsmo-0.18-all/README
+--- torsmo-0.18-orig/README	2005-09-18 18:55:27.000000000 +0200
++++ torsmo-0.18-all/README	2005-09-18 19:00:29.000000000 +0200
+@@ -140,6 +140,11 @@
+                                         system available for users.           
+    fs_size           (fs)               File system size                      
+    fs_used           (fs)               File system used space                
++   goto              x                  The next letter will be printed at
++                                        position 'x'.
++   hddtemp           dev, (host,(port)) Display temperature for selected device
++                                        as reported by the hddtemp daemon 
++                                        running on host:port.
+    hr                (height)           Horizontal line, height is the height 
+                                         in pixels                             
+    i2c               (dev), type, n     I2C sensor from sysfs (Linux 2.6).    
+@@ -181,6 +186,8 @@
+    swapmax                              Total amount of swap                  
+    swapperc                             Percentage of swap in use             
+    sysname                              System name, Linux for example        
++   tab               (width, (start))   Puts a tab of the specified width,
++                                        starting from column 'start'.
+    time              (format)           Local time, see man strftime to get   
+                                         more information about format. Cf.    
+                                         utime.                                
+diff -Naurp torsmo-0.18-orig/torsmo.c torsmo-0.18-all/torsmo.c
+--- torsmo-0.18-orig/torsmo.c	2005-09-18 18:55:27.000000000 +0200
++++ torsmo-0.18-all/torsmo.c	2005-09-18 18:59:21.000000000 +0200
+@@ -162,6 +162,8 @@ enum {
+   FG,
+   BG,
+   OUTLINE,
++  TAB,
++  GOTO,
+ };
+ 
+ static struct special_t {
+@@ -227,6 +229,16 @@ static inline void new_outline(char *buf
+   new_special(buf, OUTLINE)->arg = c;
+ }
+ 
++static inline void new_tab(char *buf, int a, int b) {
++  struct special_t *s = new_special(buf, TAB);
++  s->width = a;
++  s->arg = b;
++}
++
++static inline void new_goto(char *buf, int a) {
++  new_special(buf, GOTO)->arg = a;
++}
++
+ /* quite boring functions */
+ 
+ static inline void for_each_line(char *b, void (*f)(char *)) {
+@@ -303,6 +315,8 @@ enum text_object_type {
+   OBJ_fs_size,
+   OBJ_fs_used,
+   OBJ_fs_used_perc,
++  OBJ_goto,
++  OBJ_hddtemp,
+   OBJ_hr,
+   OBJ_i2c,
+   OBJ_kernel,
+@@ -335,6 +349,7 @@ enum text_object_type {
+   OBJ_swapmax,
+   OBJ_swapperc,
+   OBJ_sysname,
++  OBJ_tab,
+   OBJ_temp1, /* i2c is used instead in these */
+   OBJ_temp2,
+   OBJ_text,
+@@ -396,6 +411,12 @@ struct text_object {
+     } nvctrl; /* 1 */
+ #endif
+ 
++    struct {
++      char *addr;
++      int port;
++      char *dev;
++    } hddtemp; /* 2 */
++    
+   } data;
+ };
+ 
+@@ -438,6 +459,10 @@ static void free_text_objects() {
+       free(text_objects[i].data.execi.cmd);
+       free(text_objects[i].data.execi.buffer);
+       break;
++    case OBJ_hddtemp:
++      free(text_objects[i].data.hddtemp.dev);
++      free(text_objects[i].data.hddtemp.addr);
++      break;
+     }
+   }
+ 
+@@ -588,6 +613,24 @@ static void construct_text_object(const 
+     if (!arg) arg = "/";
+     obj->data.fs = prepare_fs_stat(arg);
+   END
++  OBJ(goto, 0)
++   if(!arg) {
++      ERR("goto needs arguments");
++      obj->type = OBJ_text;
++      obj->data.s = strdup("${goto}");
++      return;
++    }
++    obj->data.i = atoi(arg);
++  END
++  OBJ(hddtemp, 0)
++    if (!arg || scan_hddtemp(arg, &obj->data.hddtemp.dev, &obj->data.hddtemp.addr, 
++	&obj->data.hddtemp.port)) {
++      ERR("hddtemp needs arguments");
++      obj->type = OBJ_text;
++      obj->data.s = strdup("${hddtemp}");
++      return;
++    }
++  END
+   OBJ(hr, 0)
+     obj->data.i = arg ? atoi(arg) : 1;
+   END
+@@ -703,6 +746,16 @@ static void construct_text_object(const 
+   END
+   OBJ(sysname, 0)
+   END
++  OBJ(tab, 0)
++    int a = 10, b = 0;
++    if(arg) {
++      if(sscanf(arg, "%d %d", &a, &b) != 2)
++        sscanf(arg, "%d", &b);
++    }
++    if (a <= 0) a = 1;
++    obj->data.pair.a = a;
++    obj->data.pair.b = b;
++  END
+   OBJ(temp1, INFO_I2C)
+     obj->type = OBJ_i2c;
+     obj->data.i2c.fd = open_i2c_sensor(0, "temp", 1, &obj->data.i2c.arg);
+@@ -1014,6 +1067,9 @@ static void generate_text() {
+         snprintf(p, n, "0");
+       }
+     }
++    OBJ(goto) {
++      new_goto(p, obj->data.i);
++    }
+     OBJ(loadavg) {
+       float *v = info.loadavg;
+ 
+@@ -1026,6 +1082,20 @@ static void generate_text() {
+       else if (obj->data.loadavg[0])
+         snprintf(p, n, "%.2f", v[obj->data.loadavg[0] - 1]);
+     }
++    OBJ(hddtemp) {
++      char *temp;
++      char unit;
++      
++      temp = get_hddtemp_info(obj->data.hddtemp.dev, obj->data.hddtemp.addr, 
++		              obj->data.hddtemp.port, &unit);
++      if (!temp)
++	snprintf(p, n, "N/A");
++      else if (unit == '*')
++	snprintf(p, n, "%s", temp);
++      else {
++        snprintf(p, n, "%s°%c", temp, unit);
++      }
++    }
+     OBJ(hr) {
+       new_hr(p, obj->data.i);
+     }
+@@ -1104,6 +1174,9 @@ static void generate_text() {
+     OBJ(outlinecolor) {
+       new_outline(p, obj->data.l);
+     }
++    OBJ(tab) {
++      new_tab(p, obj->data.pair.a, obj->data.pair.b);
++    }
+     OBJ(processes) {
+       snprintf(p, n, "%d", cur->procs);
+     }
+@@ -1371,6 +1444,18 @@ static void draw_line(char *s) {
+ 
+       /* draw special */
+       switch (specials[special_index].type) {
++      case TAB:
++	{
++          int start = specials[special_index].arg;
++	  int step = specials[special_index].width;
++	  if (!step || step < 0)
++	      step = 10;
++	  w = step - (cur_x - text_start_x - start) % step;
++	}
++	break;
++      case GOTO:
++	w = specials[special_index].arg - cur_x;
++	break;
+       case HORIZONTAL_LINE:
+         {
+           int h = specials[special_index].height;
+diff -Naurp torsmo-0.18-orig/torsmo.h torsmo-0.18-all/torsmo.h
+--- torsmo-0.18-orig/torsmo.h	2005-09-18 18:55:27.000000000 +0200
++++ torsmo-0.18-all/torsmo.h	2005-09-18 18:58:56.000000000 +0200
+@@ -50,6 +50,7 @@ enum {
+   INFO_LOADAVG   = 12,
+   INFO_UNAME     = 13,
+   INFO_FREQ      = 14,
++  INFO_HDDTEMP	 = 15,
+ };
+ 
+ struct information {
+@@ -217,4 +218,9 @@ extern char *seti_dir;
+ void update_seti();
+ #endif
+ 
++/* in hddtemp.c */
++
++int scan_hddtemp(const char *arg, char **dev, char **addr, int *port);
++char *get_hddtemp_info(char *dev, char *addr, int port, char *unit);
++
+ #endif

@@ -1,0 +1,38 @@
+swapon gets confused by symlinks in /dev
+from gentoo: bug ID: #69162
+http://bugs.gentoo.org/69162
+
+--- util-linux-2.12b/mount/swapon.c
++++ util-linux-2.12b/mount/swapon.c
+@@ -7,2 +7,3 @@
+ #include <stdlib.h>
++#include <sys/param.h>
+ #include <stdio.h>
+@@ -137,10 +138,27 @@
+ static int
+ is_in_proc_swaps(const char *fname) {
+ 	int i;
++	struct stat fstatbuf;
+ 
+ 	for (i = 0; i < numSwaps; i++)
+ 		if (swapFiles[i] && !strcmp(fname, swapFiles[i]))
+ 			return 1;
++
++	/* fallback:
++	 * if the device in /etc/fstab is a symlink, the entry
++	 * in /proc/swaps won't match because the kernel stores
++	 * absolute pathnames.  Here we compare dev_t's.
++	 */
++	if (!lstat(fname, &fstatbuf))
++		if (S_ISLNK(fstatbuf.st_mode)) {
++			struct stat swapstatbuf;
++			stat(fname, &fstatbuf);
++			for (i = 0; i < numSwaps; i++)
++				if (swapFiles[i] && !stat(swapFiles[i], &swapstatbuf) && \
++				    swapstatbuf.st_rdev == fstatbuf.st_rdev)
++					return 1;
++		}
++
+ 	return 0;
+ }
+ 

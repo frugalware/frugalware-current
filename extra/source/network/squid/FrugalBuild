@@ -1,0 +1,57 @@
+# Last Modified: Sat, 24 Sep 2005 16:35:01 +0200
+# Compiling Time: 0.42 SBU
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=squid
+pkgver=2.5.STABLE11
+pkgrel=1
+pkgdesc="Squid Web Proxy Cache"
+url="http://www.squid-cache.org/"
+depends=('openssl' 'dcron' 'perl')
+groups=('network-extra')
+backup=(etc/squid/{mime,msntauth,squid}.conf)
+install=$pkgname.install
+up2date=`lynx -dump $url/Versions/v2/2.5/|grep -1 Current|sed -n 's/.*-\(.*\)/\1/;$ p'`
+source=(http://www.squid-cache.org/Versions/v2/2.5/$pkgname-$pkgver.tar.bz2 \
+	$pkgname-2.5.STABLE9-dirs.diff $pkgname-2.5.STABLE9-samba.diff \
+	$pkgname-2.5.STABLE9-username.diff rc.squid squid)
+sha1sums=('0142bde507ea0f30f1ad9548d901b3acf2d5e771' \
+          'a1482482406661090951fa4c4304ca6604db2d14' \
+          '8eacf8bd974c461162aaba72b5bc4109cc1104c7' \
+          '7dbae27eeee7b62e685f6758a06d984b0b62668e' \
+          '0fd7d10edfda7e9851bf4a63b82552492a823174' \
+          '53042dd86e482d4a6eff9e34ecb01352439c5026')
+		  
+build()
+{
+	Fpatchall
+	Fmake --datadir=/usr/share/squid --sysconfdir=/etc/squid \
+		--libexecdir=/usr/lib/squid --localstatedir=/var \
+		--enable-auth="basic,digest,ntlm" \
+		--enable-removal-policies="lru,heap" \
+		--enable-digest-auth-helpers="password" \
+		--enable-storeio="aufs,ufs,diskd,coss,null" \
+		--enable-basic-auth-helpers="getpwnam,YP,NCSA,SMB,MSNT,multi-domain-NTLM,winbind" \
+		--enable-external-acl-helpers="ip_user,unix_group,wbinfo_group,winbind_group" \
+		--enable-ntlm-auth-helpers="SMB,fakeauth,no_check,winbind" \
+		--enable-delay-pools --enable-arp-acl --enable-ssl \
+		--enable-linux-netfilter --enable-ident-lookups \
+		--enable-useragent-log --enable-cache-digests \
+		--enable-referer-log --enable-async-io --enable-truncate \
+		--enable-arp-acl --enable-htcp --enable-carp \
+		--enable-poll || return 1
+	make DESTDIR=$Fdestdir install
+	
+	Frm /var
+	Fmv /usr/bin/Run* /usr/lib/squid/
+	Fmkdir /var/cache/squid
+	Fmkdir /var/log/squid/run
+	Frcd
+	Fexe /etc/cron.weekly/squid
+
+	Fsed 'allow manager localhost' 'allow localhost' $Fdestdir/etc/squid/squid.conf
+}
+
+# optimalization ok
+
+# vim: ft=sh

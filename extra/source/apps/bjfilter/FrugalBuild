@@ -1,0 +1,86 @@
+# Last Modified: Tue, 27 Sep 2005 12:44:27 +0200
+# Compiling Time: 1.75 SBU
+# Maintainer: VMiklos <vmiklos@frugalware.org>
+
+pkgname=bjfilter
+pkgver=2.50_2
+origver=`echo $pkgver|sed 's/_/-/'`
+shortver=2.50
+pkgrel=1
+pkgdesc="Canon Bubble Jet Printer Driver for Linux"
+url="http://canon.jp/"
+pkgurl="ftp://download.canon.jp/pub/driver/bj/linux/"
+depends=('libxml' 'cups' 'gtk+' 'popt')
+makedepends=('rpm' 'cpio')
+groups=('apps-extra')
+archs=('i686')
+up2date="lynx -dump $pkgurl|grep src.rpm$|sed 's/.*n-\(.*\)\.s.*/\1/;s/-/_/'"
+source=($pkgurl/$pkgname-common-$origver.src.rpm)
+sha1sums=('d290d254f8f90b157a2b5fced2eb0a43caf4c671')
+
+build()
+{
+	rpm2cpio $pkgname-common-$origver.src.rpm \
+		|cpio -idmu --no-preserve-owner --quiet
+	tar xzf $pkgname-common-$origver.tar.gz
+	Fcd $pkgname-common-$shortver
+	# workaround for th.po:1083: number of format specifications in 'msgid'
+       	#	and 'msgstr' does not match
+	sed -i 's/th //' printui/configures/configure-new.in
+	cd libs
+	./autogen.sh --prefix=/usr || return 1
+	cd ../bjcups
+	./autogen.sh --prefix=/usr --enable-progpath=/usr/bin || return 1
+	cd ../pstocanonbj
+	./autogen.sh --prefix=/usr --enable-progpath=/usr/bin || return 1
+	cd ../ppd
+	./autogen.sh --prefix=/usr || return 1
+	cd ../bjcupsmon
+	./autogen.sh --prefix=/usr || return 1
+	cd ..
+	
+	Fmkdir /usr/bin /usr/lib/cups/filter /usr/share/cups/model
+	make install DESTDIR=$Fdestdir
+	for i in pixusip3100 pixusip4100 pixusip8600 pixmaip1000 pixmaip1500
+	do
+		cd bjfilter || return 1
+		./autogen.sh --prefix=/usr --program-suffix=$i \
+			--enable-libpath=/usr/lib/bjlib \
+			--enable-binpath=/usr/bin && \
+		make clean && \
+		make && \
+		make install DESTDIR=$Fdestdir || return 1
+		cd ../printui
+		./autogen.sh --prefix=/usr --program-suffix=$i && \
+		make clean && \
+		make && \
+		make install DESTDIR=$Fdestdir || return 1
+		cd ../stsmon
+		./autogen.sh --prefix=/usr --program-suffix=$i \
+			--enable-progpath=/usr/bin && \
+		make clean && \
+		make && \
+		make install DESTDIR=$Fdestdir || return 1
+		cd ..
+	done
+	Fmkdir /usr/lib/bjlib
+	for i in 218 221 238 230 214
+	do
+		Fexerel $i/database/* /usr/lib/bjlib/
+		Fexerel $i/libs_bin/*.so.* /usr/lib/
+	done
+	cd $Fdestdir/usr/lib
+	for i in 218 221 238 230 214
+	do
+		ln -s libcnbpcmcm$i.so.* libcnbpcmcm$i.so
+		ln -s libcnbpcnclapi$i.so.* libcnbpcnclapi$i.so
+		ln -s libcnbpcnclbjcmd$i.so.* libcnbpcnclbjcmd$i.so
+		ln -s libcnbpcnclui$i.so.* libcnbpcnclui$i.so
+		ln -s libcnbpess$i.so.* libcnbpess$i.so
+		ln -s libcnbpo$i.so.* libcnbpo$i.so
+	done
+}
+
+# vim: ft=sh
+
+# optimalization OK

@@ -1,42 +1,50 @@
-# Last Modified: Mon, 04 Jul 2005 14:52:26 +0200
-# Compiling Time: ~5 minutes
+# Last Modified: Tue, 27 Sep 2005 15:55:13 +0200
+# Compiling Time: 0.24 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=windowmaker
 pkgver=0.92.0
-pkgrel=2
+pkgrel=3
 pkgdesc="An X11 window manager originally designed to provide integration support for the GNUstep  Desktop Environment."
 url="http://www.windowmaker.org/"
-depends=('x' 'libtiff' 'zlib' 'libjpeg' 'libungif' 'libpng')
+depends=('libtiff' 'libjpeg' 'libungif')
 groups=('x11')
 archs=('i686' 'x86_64')
 up2date="lynx -dump $url|grep stable|sed -ne 's/.*]\([0-9\.]*\) .*/\1/' -e '1 p'"
 source=(ftp://ftp.windowmaker.org/pub/source/release/WindowMaker-$pkgver.tar.bz2 xinitrc.$pkgname $pkgname.desktop \
-	windowmaker-0.92.0-x86_64-fix.patch)
-md5sums=('aaac5421b686ed2d3e6ab65229c98097' '39e47113e212775a175d2981c17585a8'\
-         '1a8de07dd8bc6bbd8d169ae132cfa752' '723ba626e9925d4313482f36245e7474')
+	windowmaker-0.92.0-x86_64-fix.patch $pkgname.sh)
+sha1sums=('4f7fea6f40b9ba9f870d2e2f0ce46274750edb2c' \
+          '62d8e1d684057c4f40e6dc829380bd77a3b0dc6f' \
+          '34613e910f7c3423b4e0bf759c6df14f6accc891' \
+          'ef66129f28c0d1b330011417f3386b19ff6646cc' \
+          'b603affdaaa7aef71c3f053590016b8c283281b5')
 
 build()
 {
 	Fcd WindowMaker-$pkgver
 	[ "$CARCH" == "x86_64" ] && Fpatchall
 	[ "$CARCH" == "x86_64" ] && Fautoconfize
+	source $Fsrcdir/$pkgname.sh || return 1
 	export LINGUAS="`ls po/*.po | sed 's:po/\(.*\)\.po$:\1:'`"
-	Fmake --sysconfdir=/etc/X11 --with-appspath=/usr/lib/GNUstep/Applications \
-		--enable-xinerama --enable-usermenu --with-pixmapdir=/usr/share/pixmaps \
-		--with-nlsdir=/usr/share/locale
-	Fcd WindowMaker-$pkgver
+	Fconf --sysconfdir=/etc/X11 \
+	      --with-appspath=/usr/lib/GNUstep/Applications --enable-xinerama \
+	      --enable-usermenu --with-pixmapdir=/usr/share/pixmaps \
+	      --with-nlsdir=/usr/share/locale
+	Fsed '#define ASM_X86_MMX 1' '#undef ASM_X86_MMX' src/config.h
 	for file in WindowMaker/*menu*; do
 	    if [ -r $file ]; then
 		Fsed "/usr/local/GNUstep/Applications/WPrefs.app/WPrefs" "/usr/bin/WPrefs" $file
 	    fi
-	done;
-	
+	done
+	make || return 1
 	Fmakeinstall
-
+	Fln /usr/lib/GNUstep/Applications/WPrefs.app/WPrefs /usr/bin/WPrefs
 	Fmkdir /etc/X11/{sessions,xinit}
 	Ffile /etc/X11/sessions/$pkgname.desktop
 	Fexe /etc/X11/xinit/xinitrc.$pkgname
+	Fexe /etc/profile.d/$pkgname.sh
 }
 
 # vim: ft=sh
+
+# optimalization OK

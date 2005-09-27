@@ -1,0 +1,93 @@
+diff -Naur mdbtools-0.6pre1.orig/include/mdbsql.h mdbtools-0.6pre1/include/mdbsql.h
+--- mdbtools-0.6pre1.orig/include/mdbsql.h	2005-09-27 14:26:35.000000000 +0200
++++ mdbtools-0.6pre1/include/mdbsql.h	2005-09-27 14:30:49.000000000 +0200
+@@ -1,7 +1,7 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include <glib.h>
+-#include <mdbtools.h>
++#include "mdbtools.h"
+ 
+ #ifndef _mdbsql_h_
+ #define _mdbsql_h_
+diff -Naur mdbtools-0.6pre1.orig/src/gmdb2/gmdb.h mdbtools-0.6pre1/src/gmdb2/gmdb.h
+--- mdbtools-0.6pre1.orig/src/gmdb2/gmdb.h	2005-09-27 14:26:35.000000000 +0200
++++ mdbtools-0.6pre1/src/gmdb2/gmdb.h	2005-09-27 14:30:49.000000000 +0200
+@@ -24,6 +24,7 @@
+ GtkWidget *gmdb_table_def_new(MdbCatalogEntry *entry);
+ GtkWidget *gmdb_table_export_new(MdbCatalogEntry *entry);
+ void gmdb_table_export(MdbCatalogEntry *entry) ;
++gchar *gmdb_export_get_filepath(GladeXML *xml);
+ 
+ void gmdb_file_select_cb(GtkWidget *w, gpointer data);
+ void gmdb_file_open_cb(GtkWidget *w, gpointer data);
+diff -Naur mdbtools-0.6pre1.orig/src/gmdb2/info.c mdbtools-0.6pre1/src/gmdb2/info.c
+--- mdbtools-0.6pre1.orig/src/gmdb2/info.c	2005-09-27 14:26:35.000000000 +0200
++++ mdbtools-0.6pre1/src/gmdb2/info.c	2005-09-27 14:30:49.000000000 +0200
+@@ -71,4 +71,7 @@
+ 	gtk_label_set_text(GTK_LABEL(label), tmpstr);	
+ 
+ 	g_free(filepath);
++	// a hack to avoid warning: control reaches end of non-void function
++	// the return value is nowhere used anyway
++	return NULL;
+ }
+diff -Naur mdbtools-0.6pre1.orig/src/gmdb2/table_export.c mdbtools-0.6pre1/src/gmdb2/table_export.c
+--- mdbtools-0.6pre1.orig/src/gmdb2/table_export.c	2005-09-27 14:26:35.000000000 +0200
++++ mdbtools-0.6pre1/src/gmdb2/table_export.c	2005-09-27 14:30:49.000000000 +0200
+@@ -49,6 +49,7 @@
+ 	}
+ }
+ 
++void
+ gmdb_export_get_delimiter(GladeXML *xml, gchar *delimiter, int max_buf)
+ {
+ 	GtkWidget *combo;
+diff -Naur mdbtools-0.6pre1.orig/src/libmdb/backend.c mdbtools-0.6pre1/src/libmdb/backend.c
+--- mdbtools-0.6pre1.orig/src/libmdb/backend.c	2005-09-27 14:26:35.000000000 +0200
++++ mdbtools-0.6pre1/src/libmdb/backend.c	2005-09-27 14:30:49.000000000 +0200
+@@ -28,7 +28,7 @@
+ #endif
+ 
+ static int is_init;
+-static GHashTable *mdb_backends;
++GHashTable *mdb_backends;
+ 
+    /*    Access data types */
+ static MdbBackendType mdb_access_types[] = {
+diff -Naur mdbtools-0.6pre1.orig/src/libmdb/data.c mdbtools-0.6pre1/src/libmdb/data.c
+--- mdbtools-0.6pre1.orig/src/libmdb/data.c	2005-09-27 14:26:35.000000000 +0200
++++ mdbtools-0.6pre1/src/libmdb/data.c	2005-09-27 14:30:49.000000000 +0200
+@@ -136,7 +136,7 @@
+ }
+ static int mdb_xfer_bound_ole(MdbHandle *mdb, int start, MdbColumn *col, int len)
+ {
+-int ret;
++int ret=0;
+ 	if (len) {
+ 		col->cur_value_start = start;
+ 		col->cur_value_len = len;
+diff -Naur mdbtools-0.6pre1.orig/src/libmdb/kkd.c mdbtools-0.6pre1/src/libmdb/kkd.c
+--- mdbtools-0.6pre1.orig/src/libmdb/kkd.c	2005-09-27 14:26:35.000000000 +0200
++++ mdbtools-0.6pre1/src/libmdb/kkd.c	2005-09-27 14:30:49.000000000 +0200
+@@ -55,7 +55,7 @@
+ 
+ GHashTable *mdb_get_column_def(MdbCatalogEntry *entry, int start)
+ {
+-GHashTable *hash;
++GHashTable *hash=NULL;
+ MdbHandle *mdb = entry->mdb;
+ MdbColumnProp prop;
+ int tmp, pos, col_num, val_len, i;
+diff -Naur mdbtools-0.6pre1.orig/src/sql/mdbsql.c mdbtools-0.6pre1/src/sql/mdbsql.c
+--- mdbtools-0.6pre1.orig/src/sql/mdbsql.c	2005-09-27 14:26:35.000000000 +0200
++++ mdbtools-0.6pre1/src/sql/mdbsql.c	2005-09-27 14:30:49.000000000 +0200
+@@ -84,7 +84,7 @@
+ 		return 1;
+ 	}
+ }
+-int mdb_run_query(MdbSQL *sql, char *query)
++int mdb_sql_run_query(MdbSQL *sql, char *query)
+ {
+ 	if (_parse(sql,query) && sql->cur_table) {
+ 		mdb_sql_bind_all(sql);

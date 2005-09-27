@@ -12,8 +12,9 @@ foreach($people as $key => $value)
 
 // skip to list
 $i=0;
-while (!preg_match("/^[A-Z][a-z]*,/", $people[$i]))
+while (!preg_match("/^Maintainers:/", $people[$i]))
 	$i++;
+$i++;
 
 fwopenbox("$fwstraudev", 100, false, $fwwhite);
 print("<div align=left><pre>");

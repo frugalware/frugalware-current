@@ -1,0 +1,81 @@
+--- vlc-0.8.2.orig/src/libvlc.c.orig	2005-06-25 15:43:02.000000000 +0200
++++ vlc-0.8.2/src/libvlc.c	2005-09-28 00:30:25.000000000 +0200
+@@ -2398,38 +2398,47 @@
+     char **devices;
+     char *block_dev;
+     dbus_bool_t b_dvd;
++    DBusError error;
++    DBusConnection *conn;
+ 
+-    if( ( ctx = hal_initialize( NULL, FALSE ) ) )
+-    {
+-        if( ( devices = hal_get_all_devices( ctx, &i_devices ) ) )
+-        {
+-            for( i = 0; i < i_devices; i++ )
+-            {
+-                if( !hal_device_property_exists( ctx, devices[ i ],
+-                                                "storage.cdrom.dvd" ) )
+-                {
+-                    continue;
+-                }
+-
+-                b_dvd = hal_device_get_property_bool( ctx, devices[ i ],
+-                                                      "storage.cdrom.dvd" );
+-                block_dev = hal_device_get_property_string( ctx, devices[ i ],
+-                                                            "block.device" );
+-
+-                if( b_dvd )
+-                {
+-                    config_PutPsz( p_vlc, "dvd", block_dev );
+-                }
+-
+-                config_PutPsz( p_vlc, "vcd", block_dev );
+-                config_PutPsz( p_vlc, "cd-audio", block_dev );
+-
+-                hal_free_string( block_dev );
+-            }
+-            hal_free_string_array( devices );
+-        }
+-
+-        hal_shutdown( ctx );
++    ctx = libhal_ctx_new ();
++    if (ctx) {
++	    dbus_error_init (&error);
++		conn = dbus_bus_get (DBUS_BUS_SYSTEM, &error);
++		if (!dbus_error_is_set (&error)) {
++			libhal_ctx_set_dbus_connection (ctx, conn);
++			if (libhal_ctx_init (ctx, &error)) {
++				devices = libhal_get_all_devices (ctx,
++					&i_devices, &error);
++				if (devices) {
++					for ( i = 0; i < i_devices; i++ ) {
++						if (!libhal_device_property_exists ( ctx, devices[i],
++							"storage.cdrom.dvd", NULL))
++							continue;
++						b_dvd = libhal_device_get_property_bool (ctx, devices[i],
++							"storage.cdrom.dvd", NULL);
++						block_dev = libhal_device_get_property_string (ctx, devices[i],
++							"block.device", NULL);
++						if (b_dvd)
++							config_PutPsz (p_vlc, "dvd", block_dev);
++						config_PutPsz (p_vlc, "vcd", block_dev);
++						config_PutPsz (p_vlc, "cd-audio", block_dev);
++						libhal_free_string (block_dev);
++					}
++					libhal_free_string_array (devices);
++				} else {
++					if (dbus_error_is_set (&error))
++						dbus_error_free(&error);
++				}
++				libhal_ctx_shutdown (ctx, NULL);
++				libhal_ctx_free (ctx);
++			} else {
++				if (dbus_error_is_set (&error))
++					dbus_error_free (&error);
++			}
++		} else {
++			dbus_error_free (&error);
++		}
+     }
+ #endif
+ }

@@ -1,0 +1,53 @@
+# Last Modified: Wed, 28 Sep 2005 17:01:50 +0200
+# Compiling Time: 1.95 SBU
+# Maintainer: VMiklos <vmiklos@frugalware.org>
+
+pkgname=vlc
+pkgver=0.8.2
+pkgrel=1
+pkgdesc="The cross-platform media player and streaming server."
+url="http://www.videolan.org/vlc/"
+depends=('wxgtk' 'libid3tag' 'gnutls' 'sysfsutils' 'dbus' 'libxml2' \
+	 'libdvdnav' 'libmad' 'hal' 'mpeg2dec' 'ffmpeg' 'libgcrypt' 'fribidi')
+makedepends=('firefox' 'samba' 'cvs')
+groups=('xapps-extra')
+archs=('i686')
+up2date="lynx -dump $url |grep Downloads|sed 's/.* \(.*\) .*/\1/'"
+source=(http://download.videolan.org/pub/videolan/vlc/$pkgver/$pkgname-$pkgver.tar.gz $pkgname-$pkgver-hal05.diff vlc-0.8.2-samba3020.patch $pkgname.desktop)
+sha1sums=('18aa64a892bcb69ca4dbfd388d07f98196877551' \
+	  '2cfc860d09c5ea5d7fa4623b84a76d06cca77ca6' \
+	  '45bf4d2f4509b78209e9bc1c3a1cfaa994b0a5f7' \
+	  '0c58c35fe47c4d14cd4d4c8c505863dbfc93f5e0')
+
+build()
+{
+	Fpatchall
+	Fsed 'mozilla-config' 'firefox-config' configure.ac
+	Fsed 'firefox-config\.h' 'mozilla-config\.h' configure.ac
+	Fsed '/usr/lib/mozilla' '/usr/lib/firefox' configure.ac
+	Fsed '/usr/share/fonts/truetype/freefont/FreeSerifBold.ttf' \
+		'/usr/X11R6/lib/X11/fonts/TTF/VeraBd.ttf' \
+		modules/misc/freetype.c
+	./bootstrap || return 1
+	Fconf --enable-dvdread --enable-dvdnav --enable-madi --enable-ffmpeg \
+		--disable-rpath --disable-nls --enable-wxwindows --enable-alsa \
+		--disable-skins2 --enable-mozilla
+	Fsed '%{idldir}' '/usr/share/idl/firefox' mozilla/Makefile
+	
+	make || return 1
+	
+	Fmakeinstall plugindir=/usr/lib/mozilla/plugins/ \
+		vlcintf_xptdir=/usr/lib/mozilla/plugins/
+	Frm /usr/share/vlc/{,k,q,g,gnome-}vlc*.{png,xpm,ico}
+	Frm /usr/share/vlc/skins2
+	for i in 16 32 48
+	do
+		Ffilerel share/vlc${i}x$i.png \
+			/usr/share/icons/hicolor/${i}x$i/apps/vlc.png
+	done
+	Ffile /usr/share/applications/$pkgname.desktop
+}
+
+# vim: ft=sh
+
+# optimalization OK

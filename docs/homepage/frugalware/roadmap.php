@@ -6,7 +6,7 @@ fwopenbox("0.3 (<a class=menu href=\"http://www.geocities.com/Area51/Dimension/1
 print("
 <table width=\"100%\">
 <tr><td>Oct 13, 2005<td>0.3<td><i>pending</i>
-<tr><td>Sep 29, 2005<td>0.3rc2<td><i>pending</i>
+<tr><td>Oct 4, 2005<td>0.3rc2<td><i>done</i>
 <tr><td>Sep 16, 2005<td>0.3rc1<td><i>done</i>
 <tr><td>Aug 18, 2005<td>0.3pre2<td><i>done</i>
 <tr><td width=\"30%\">Jun 23, 2005<td width=\"30%\">0.3pre1<td width=\"30%\"><i>done</i>

@@ -204,7 +204,7 @@ function pkg_from_id($id) {
 	include("/etc/todo.conf");
 	$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
 	mysql_select_db(DBNAME, $conn);
-	$res = mysql_query("select pkgname, pkgver, pkgrel, groups, provides, depends, conflicts, replaces, csize, arch, `desc`, maintainer, md5, fwver, repo, updated from packages where id=$id", $conn);
+	$res = mysql_query("select pkgname, pkgver, pkgrel, groups, provides, depends, conflicts, replaces, csize, arch, `desc`, maintainer, md5, sha1, fwver, repo, updated from packages where id=$id", $conn);
 	$arr = mysql_fetch_array($res);
 	
 	// query dep ids
@@ -245,7 +245,7 @@ function pkg_from_id($id) {
 	}
 	if ($arr['conflicts'] != 'NULL') print "<tr><td>Conflicts:</td><td>".$arr['conflicts']."</td></tr>\n";
 	if ($arr['replaces'] != 'NULL') print "<tr><td>Replaces:</td><td>".$arr['replaces']."</td></tr>\n";
-	if ($arr['csize'] != 'NULL') print "<tr><td>Size:</td><td>".$arr['csize']."</td></tr>\n";
+	if ($arr['csize'] != 'NULL') printf("%s%.2f%s", "<tr><td>Compressed size:</td><td>", $arr['csize']/1048576, "MiB</td></tr>\n");
 	if ($arr['arch'] != 'NULL') print "<tr><td>Arch:</td><td>".$arr['arch']."</td></tr>\n";
 	if ($arr['desc'] != 'NULL') print "<tr><td>Description:</td><td>".$arr['desc']."</td></tr>\n";
 	if ($arr['maintainer'] != 'NULL') print "<tr><td>Maintainer:</td><td>".$arr['maintainer']."</td></tr>\n";
@@ -254,6 +254,7 @@ function pkg_from_id($id) {
 	print "<tr><td>Wiki:</td><td><a href=\"http://wiki.frugalware.org/Special:Search?search=".$arr['pkgname']."\">wiki.frugalware.org</a></td></tr>\n";
 	print "<tr><td>Bug Tracking System:</td><td><a href=\"http://bugs.frugalware.org/index.php?string=".$arr['pkgname']."\">related open bugs</a>; file a feature request, bug report or mark outdated <a href=\"http://bugs.frugalware.org/?do=newtask&project=1\">here</td></tr>\n";
 	if ($arr['md5'] != 'NULL') print "<tr><td>MD5 Sum:</td><td>".$arr['md5']."</td></tr>\n";
+	if ($arr['sha1'] != '') print "<tr><td>SHA1 Sum:</td><td>".$arr['sha1']."</td></tr>\n";
 	if ($arr['fwver'] != 'NULL') print "<tr><td>Frugalware version:</td><td>".$arr['fwver']."</td></tr>\n";
 	if ($arr['repo'] != 'NULL') print "<tr><td>Repository:</td><td>".$arr['repo']."</td></tr>\n";
 	if ($arr['updated'] != 'NULL') print "<tr><td>Updated:</td><td>".$arr['updated']."</td></tr>\n";

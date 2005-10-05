@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# Drupal Setup script, using the webappconfig framework
+#
+# Copyright (C) 2005 Alex Smith <alex.extreme2@gmail.com>
+
+. /usr/lib/webappconfig/webappconfig
+message "DrupalSetup"
+message "Copyright (C) 2005 Alex Smith"
+echo
+message "Configuring Drupal 4.6.x..."
+message "Performing sanity checks..."
+sanitycheck "MySQL" "mysql"
+sanitycheck "PHP" "php"
+sanitycheck "Apache" "httpd"
+mysql_root_pass
+message -n "Would you like me to create a database and config file for Drupal [y/n]? "
+read createdb
+if [ "${createdb}" == "y" ]; then
+	message "You will be prompted for your MySQL root password"
+	mysql_create_db drupal || exit 1
+	mysql_insert /var/www/drupal/database/database.mysql drupal
+	
+	# Edit the config file
+	drupalconf="/var/www/drupal/sites/default/settings.php"
+	sed -i '/?>/d' $drupalconf
+	sed -i '/\$db_url =/d' $drupalconf
+	message "Writing Drupal configuratrion..."
+	message -n "Please enter your MySQL root password: "
+	stty -echo
+	read rootpass
+	stty echo
+	echo
+	new_url="mysql://root:${rootpass}@localhost/drupal"
+	echo "\$db_url = '$new_url';" >> $drupalconf
+	message "Please enter the address you access your server, including :<port> (if needed)"
+	message -n "from (without the http://!): "
+	read url
+	base_url="http://${url}/drupal"
+	sed -i '/\$base_url =/d' $drupalconf
+	echo "\$base_url = '${base_url}';" >> $drupalconf
+	echo "?>" >> $drupalconf
+fi
+
+symlink_to_docroot /var/www/drupal
+message "Configured Drupal successfully!"
+echo
+message "If you did not choose to create a database and configure Drupal,"
+message "edit /var/www/drupal/sites/default/settings.php and create a DB"
+echo
+message "Now go to http://<my site>/drupal and follow the instructions"

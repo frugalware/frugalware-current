@@ -73,6 +73,7 @@ END
 my %metaverify = (ARCH => 'architecture',
 		  DESC => 'description',
 		  MD5SUM => 'md5sum',
+		  SHA1SUM => 'sha1', 
 		  FILELIST => 'filelist',
 		  M8R => 'maintainer',
 		  VERSION => 'version',
@@ -130,11 +131,13 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
     ($pkgdata{FWVER}, $pkgdata{REPO}) = ($fwver, $repo);
     my @contents = getcontents "$pkgdir/$pkg/desc";
    
-    for my $link (qw/NAME VERSION DESC CSIZE MD5SUM GROUPS REPLACES/){   
+    for my $link (qw/NAME VERSION DESC CSIZE MD5SUM SHA1SUM GROUPS REPLACES/){   
 	$pkgdata{$link} = getrepodbdata '%'.$link.'%', @contents;
     }
 
-    for my $link (qw/DESC CSIZE MD5SUM/){
+    $warn .= "No sha1sum nor md5sum determined for $pkgdata{NAME}\n" unless $pkgdata{MD5SUM} or $pkgdata{SHA1SUM};
+
+    for my $link (qw/DESC CSIZE/){
 	$warn .= "No \L$link\E determined for $pkgdata{NAME}\n" unless $pkgdata{$link};
     }
 
@@ -174,16 +177,17 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
     ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if -e $buildscript;
 
 ##### VERIFY INFO
-
+########################sha1 or md5???????             ???????????
     for my $key (keys %metaverify) {
-	if (not $pkgdata{$key}) {
-	    if ($opts{i}){
-		$pkgdata{$key} = readdata "\u$metaverify{$key} of $pkgdata{NAME}: ";
-	    } else {
-		$warn .= "No $metaverify{$key} determined for $pkgdata{NAME}\n";
-		$pkgdata{NVALID} = 1;
-	    }
-	}	
+      next if $key == 'SHA1SUM' || $key == 'MD5SUM';
+      if (not $pkgdata{$key}) {
+	if ($opts{i}){
+	  $pkgdata{$key} = readdata "\u$metaverify{$key} of $pkgdata{NAME}: ";
+	} else {
+	  $warn .= "No $metaverify{$key} determined for $pkgdata{NAME}\n";
+	  $pkgdata{NVALID} = 1;
+	}
+      }	
     }
     
     if (not $pkgdata{GROUPS}) {
@@ -249,7 +253,7 @@ sub store{
     my $data = shift;
     my $values;
     
-    for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM FWVER REPO FILELIST/){
+    for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM SHA1SUM FWVER REPO FILELIST/){
 	$data->{$key} = 'NULL' unless $data->{$key};
     }
     for my $key (qw/NAME VERSION GROUPS PROVIDES DEPENDS CONFLICTS REPLACES ARCH DESC M8R FWVER REPO FILELIST/){
@@ -258,7 +262,7 @@ sub store{
     
     if (isold($data->{NAME}, $data->{FWVER}, $data->{ARCH})){
 	my $set = '`pkgname`=';
-	for my $key (qw/NAME `pkgver` VERSION `pkgrel` PKGREL `groups` GROUPS `provides` PROVIDES `depends` DEPENDS `conflicts` CONFLICTS `replaces` REPLACES `csize` CSIZE `arch` ARCH `desc` DESC `maintainer` M8R `md5` MD5SUM `fwver` FWVER `repo` REPO `files`/){
+	for my $key (qw/NAME `pkgver` VERSION `pkgrel` PKGREL `groups` GROUPS `provides` PROVIDES `depends` DEPENDS `conflicts` CONFLICTS `replaces` REPLACES `csize` CSIZE `arch` ARCH `desc` DESC `maintainer` M8R `md5` MD5SUM `sha1` SHA1SUM `fwver` FWVER `repo` REPO `files`/){
 	    
 	    $set .= ($data->{$key}) ? "'$data->{$key}'," : "$key=";
 	}
@@ -267,11 +271,11 @@ sub store{
 	$dbh->do("UPDATE $dbtable set $set where pkgname='$data->{NAME}' and fwver='$data->{FWVER}' and arch='$data->{ARCH}'");
 	return 'updated';
     } else {
-	for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM FWVER REPO/){
+	for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM SHA1SUM FWVER REPO/){
 	    $values .= "'$data->{$key}',";
 	}
 	$values .= "LOAD_FILE('$data->{FILELIST}')";
-	$dbh->do("INSERT INTO $dbtable (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
+	$dbh->do("INSERT INTO $dbtable (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`sha1`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
 	return 'inserted';
     }
 }

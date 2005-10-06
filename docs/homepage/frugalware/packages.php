@@ -53,7 +53,7 @@ function search_pkg() {
 function search_file() {
 	$res_set = array();
 
-	$search = $_GET['srch'];
+	(substr($_GET['srch'], 0, 1) == '/') ? $search = substr($_GET['srch'], 1) : $search = $_GET['srch'];
 	$repo = $_GET['repo'];
 	($_GET['sub'] == "") ? $sub = 0 : $sub = 1; # whether the search is for a substring or exact match
 

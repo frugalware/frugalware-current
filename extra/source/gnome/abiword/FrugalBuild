@@ -1,50 +1,43 @@
-# Last Modified: Wed, 03 Aug 2005 09:31:45 +0200
-# Compiling Time: ~3.01 SBU
+# Last Modified: Fri, 07 Oct 2005 23:24:05 +0200
+# Compiling Time: 3.01 SBU
 # Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=abiword
-pkgver=2.2.9
-pkgrel=2
+pkgver=2.4.0
+shortver=`echo $pkgver | cut -d . -f 1,2`
+pkgrel=1
 pkgdesc="AbiWord is a free word processing program similar to Microsoft(R) Word."
 url="http://www.abisource.com"
 groups=('gnome-extra')
 archs=('i686' 'x86_64')
-depends=('termcap' 'librsvg' 'readline' 'fribidi' 'gucharmap' 'enchant' \
-	 'libgnomeprintui')
+depends=('atk' 'libgnomeprintui' 'fribidi' 'bzip2' 'enchant')
 makedepends=('imagemagick')
 up2date="lynx -dump $url/download/ | grep tar.gz | cut -d '/' -f 6"
-source=($url/downloads/$pkgname/$pkgver/source/$pkgname-$pkgver.tar.bz2 \
-	abiword-2.2.8-fix-abidist.patch)
-sha1sums=('ad7a78d179be6844542c837454f47e4efcfc195f' '83346252055f3abf4739dd73d613d3e5222f9488')
+source=($url/downloads/$pkgname/$pkgver/source/$pkgname-$pkgver.tar.bz2)
+sha1sums=('900306f0acd2763f49684aa96b9a9c29aef3c596')
 license="GPL2"
 
 build()
 {
-	# NOTE: I don't know why, but Fcd did not great at here. So please no replace :)
-	### AbiWord main
-	cd $Fsrcdir/$pkgname-$pkgver || return 1
-	Fpatch abiword-2.2.8-fix-abidist.patch
-	cd $Fsrcdir/$pkgname-$pkgver/abi || return 1
-	Fmake --enable-bidi --enable-threads --enable-scripting --enable-gnome \
-		--enable-extra-optimization --with-ImageMagick=/usr all-recursive || return 1
-	cd $Fsrcdir/$pkgname-$pkgver/abi || return 1
-	Fmakeinstall || return 1
-
-	### AbiWord plugins
-	cd $Fsrcdir/$pkgname-$pkgver/abiword-plugins
-	libtoolize --copy --force
-	./nextgen.sh
-	Fmake --with-abiword=../abi --enable-gnome --with-ImageMagick=/usr --enable-all --disable-gda || return 1
-	cd $Fsrcdir/$pkgname-$pkgver/abiword-plugins
-	Fmakeinstall DESTDIR=$Fdestdir || return 1
-
-	### AbiWord help files
-	cd $Fsrcdir/$pkgname-$pkgver/abiword-docs
-	ABI_DOC_PROG=$(pwd)/../abi/src/wp/main/unix/AbiWord-2.2 ./make-html.sh
-	mkdir -p $Fdestdir/usr/share/AbiSuite-2.2/AbiWord/help
-	cp -rp help/* $Fdestdir/usr/share/AbiSuite-2.2/AbiWord/help/
+	# AbiWord base
+	Fcd $pkgname-$pkgver/abi
+	Fbuild --with-xml2 --enable-scripting --with-pspell
+	# AbiWord plugins
+	cd ../$pkgname-plugins || return 1
+	./nextgen.sh || return 1
+	Fmake --disable-all --with-wmf --with-bmp --with-babelfish \
+	      --with-OpenWrite --with-wordperfect --with-aiksaurus \
+	      --without-magick --with-librsvg --with-bz2abw --with-google \
+	      --with-kword --with-xhtml --with-html --with-jpeg --with-gdict
+	Fmakeinstall
+	# AbiWord help files
+	cd ../abiword-docs || return 1
+	export ABI_DOC_PROG=`pwd`/../abi/src/wp/main/unix/AbiWord-$shortver
+	./make-html.sh || exit 1
+	Fmkdir /usr/share/AbiSuite-$shortver/AbiWord/help
+	cp -rp help/* $Fdestdir/usr/share/AbiSuite-$shortver/AbiWord/help/
 	# Fix some wrong permission on help files
-	find $Fdestdir/usr/share/AbiSuite-2.2/AbiWord/help/ -type d -exec chmod -c o+rx {} \;
+	find $Fdestdir/usr/share/AbiSuite-$shortver/AbiWord/help/ -type d -exec chmod -c 755 {} \;
 }
 
 # optimalization OK

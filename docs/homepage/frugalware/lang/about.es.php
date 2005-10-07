@@ -1,0 +1,37 @@
+<?
+$fwshortabout="Frugalware es una distribución de Linux de utilidad general, dise&ntilde;ada para usuarios de nivel intermedio (que no temen al modo texto).";
+$fwabout= array (
+	array ("&iquest;Qu&eacute; versiones de desarrollo posee Frugalware?", 
+		"Tenemos una versi&oacute;n <i>actual</i>, una <i>experimental</i> y una <i>estable</i>. La versi&oacute;n <i>actual</i> se actualiza diariamente, lanzamos paquetes para ser <i>testeados</i> cada dos meses, y planeamos actualizar nuestra versi&óacute;n <i>estable</i>cada 6 meses."), 
+	array ("&iquest;Cu&aacute;l es la &quot;Filosof&iacute;a de Frugalware&quot;?",
+		"Sint&eacute;ticamente: simplicidad, multimedia, dise&ntilde;o. Tratamos de hacer Frugalware lo m&aacute;s simple posible sin que deje de ser c&oacute;modo. Tratamos de incluir software estable y fresco, lo m&aacute;s similar al c&oacute;digo fuente original que se pueda, porque en nuestra opini&oacute;n la mayor&iacute;a del software es mejor como est&aacute;, no necesita parches."), 
+	array ("&iquest;Cu&aacute;l es la licencia de Frugalware?", 
+		"Esa son dos preguntas. La mayor&iacute;a del software incluido en Frugalware tiene una licencia compatible con GPL o BSD, para m&aacute;s informaci&oacute;n sobre la licencia de un paquete especifico, referirse a los archivos LICENSE o COPYRIGHT del tarball del c&oacute;digo fuente del paquete. Por otro lado, la parte escrita por nuestro equipo (FrugalBuild scripts, instalaci&oacute;n, p&aacute;gina de inicio, etc.) se encuentra bajo licencia GPL. Para hacer m&aacute;s complicada la cuesti&oacute;n, algunas partes de la instalaci&oacute;n y los scripts init fueron escritos por Patrick J. Volkerding. Nosotros pusimos bajo GPL nuestras modificaciones, pero el c&oacute;digo perteneciente a Patrick J. Volkerding  se encuentra a&uacute;n bajo la licencia BSD. Para m&aacute;s informaci&oacute;n, referirse al archivo COPYRIGHT en el directorio ra&iacute;z del  FST (Frugalware Source Tree)."),
+	array ("&iquest;Qu&eacute; manejador de paquetes (package manager) usa Frugalware?",
+	"No tenemos nuestro propio manejador de paquetes, usamos el gran trabajo de Judd Vinet, el manejador de paquetes <a href=\"http://www.archlinux.org/pacman\">pacman</a>. Es un manejador basado en tar.gz, similar al .tgz de Slackware. La extensión de nuestros paquetes es .fpm para diferenciarla de los tarball comunes. A diferencia de los scripts de Slackware, pacman est&aacute; escrito en C, por lo que es mucho m&aacute;s vel&oacute;z."),
+	array ("&iquest;C&oacute;mo maneja Frugalware la actualizaci&oacute;n de paquetes obsoletos?",
+		"No tenemos un programa exclusivo para manejar la actualización de paquetes, por lo que pacman se encarga también de esa tarea. Para actualizar la base de datos de paquetes, debe usarse <tt>pacman&nbsp;-Sy</tt>, para actualizar los paquetes de acuerdo a la base de datos sincronizada (con el comando anterior) debe usarse <tt>pacman&nbsp;-Su</tt>. Para instalar un paquete con sus dependencias necesarias directamente de un servidor ftp mirror, debe ingresar <tt>pacman&nbsp;-S&nbsp;foo</tt>. Para m&aacute;s informaci&oacute;n, leer el manual de pacman (pacman man page)."),
+	array ("&iquest;Existe alguna comunidad que brinde soporte de Frugalware?",
+		"Actualmente tenemos tres listas de mail y un canal irc que pueden ser usados para comunicarse con nosotros y otros usuarios y obtener ayuda. El canal irc est&aacute; en Freenode network (servidor: irc.freenode.net). Para m&aacute;s información sobre nuestras listas de correo, por favor, visitar nuestra <a href=mailman/listinfo>sección listas</a> en nuestro sitio web."),
+	array("&iquest;Existe soporte comercial para Frugalware?",
+		"No, no existe por ahora, y <i>por el momento</i> no est&aacute; planeado incluirlo tampoco."),
+	array("&iquest;A qui&eacute;n recomienda el uso de Frugalware?",
+		"Frugalware est&aacute; dise&ntilde;ado para usuarios intermedios. Para instalar Frugalware no se requiere magia, por supuesto, pero debe saber qu&eacute; es una partici&oacute;n, MBR (Master Boot Record), etc."),
+	array("&iquest;C&oacute;mo puede uno ser desarrollador?",
+		"Inmiscuirse? :) Si instal&oacute; Frugalware desde cds, obtenga todo el FST, los c&oacute;digos fuente se incluyen en la edici&oacute;n de dvd. Luego comience a jugar con los scripts FrugalBuild, dando un ejemplo t&iacute;pico, busque el paquete <a href=\"packages.php?pkgname=cabextract\">cabextract</a>. trate de mejorarlo, o escriba uno para un programa actualmente no soportado. luego env&iacute;e sus patches al mailing list <a href=\"mailman/listinfo/frugalware-devel\">devel</a>. Y a partir de ese punto, todo resultar&aacute; natural para usted :)"),
+	array("&iquest;Qu&eacute; hacen los desarrolladores?",
+		"Brevemente, lo que quieran hacer, si juegan a un juego simple. Pueden mantener paquetes: construirlos si se lanza una nueva versi&oacute;n de Frugalware y actualizar los scripts FrugalBuild para que funcionen correctamente con la nueva versi&oacute;n. Pueden contribuir con la creaci&oacute;n de un nuevo script para un paquete que se incluya por primera vez. Pueden escribir art&iacute;culos acerca de Frugalware, o cualquier cosa que se conecte con la comunidad de Frugalware. Si solamente desea ayudarnos, pero no quiere hackear, puede ayudar traduciendo Frugalware a su idioma u otro que conozca. Y, por supuesto, aceptamos donaciones con alegr&iacute;a :)"),
+	array("&iquest;Qui&eacute;nes desarrollan Frugalware?",
+		"Un grupo de j&oacute;venes, pero tu edad no es condicional para ser desarrollador"),
+	array("&iquest;Se especializa Frugalware en un &uacute;nico prop&oacute;sito?",
+		"No, es una distribuci&oacute;n para cualquier prop&oacute;sito, tanto para servidores como m&aacute;quinas de escritorio."),
+	array("&iquest;Planean lanzar un live cd?",
+		"Est&aacute; en nuestros planes, por supuesto, como parte de muchas caracter&iacute;sticas, pero actualmente no contamos con una distribuci&oacute;n live cd."),
+	array("&iquest;Soporta Frugalware otros idiomas adem&aacute;s del ingl&eacute;s?",
+		"Si, soporta otros. Si el init scripts o el instalador no est&aacute; disponible en su idioma, simplemente es porque nadie lo ha traducido a&uacute;n."),
+	array("&iquest;Qu&eacute; ocurre con las lenguas asi&aacute;ticas?",
+		"Frugalware no incluye lenguas asi&aacute;ticas."),
+	array("&iquest;Qu&eacute; arquitecturas soporta Frugalware?",
+		"Actualmente soportamos solo la arquitectura x86, y dentro de x86, solo i686 (Pentium Pro y sets instrucciones superiores). Si existen pedidos, se crear&aacute; una versi&oacute;n i386, pero actualmente no contamos con recursos para construir ni mantener esos paquetes. Ya que no contamos con hardware no-x86 no podemos extendernos sobre otra arquitectura, Pero aceptamos con alegr&iacute;a donaciones de paquetes o parches optimizados para otras arquitecturas.")
+	);
+?>

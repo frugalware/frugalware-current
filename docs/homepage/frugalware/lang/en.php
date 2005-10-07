@@ -35,6 +35,7 @@ $fwstrirc="irc";
 $fwstrroadmap="roadmap";
 $fwstrmwishlist="wishlist";
 $fwstrmbugs="bugs";
+$fwstrmblogs="blogs";
 $fwstrauthors="people";
 $fwstrforum="forum";
 $fwstrwiki="wiki";

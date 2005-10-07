@@ -35,6 +35,7 @@ $fwstrirc="irc";
 $fwstrroadmap="útiterv";
 $fwstrmwishlist="kívánságlista";
 $fwstrmbugs="hibák";
+$fwstrmblogs="blogok";
 $fwstrauthors="fejlesztõk";
 $fwstrforum="fórum";
 $fwstrwiki="wiki";

@@ -62,6 +62,7 @@ $fwstrpacname="Név";
 $fwstrpacrel="Kidadás";
 $fwstrpacdesc="Leírás";
 $fwstrpacmd5="MD5 Sum";
+$fwstrpacsha1="SHA1 Sum";
 $fwstrpacdeps="Függõségek";
 $fwstrpacfwver="Frugalware verzió";
 $fwstrpacnopac="Nincs ilyen csomag.";

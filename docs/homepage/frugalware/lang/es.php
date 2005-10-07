@@ -62,6 +62,7 @@ $fwstrpacname="Nombre";
 $fwstrpacrel="Release";
 $fwstrpacdesc="Descripci&oacute;n";
 $fwstrpacmd5="MD5 Sum";
+$fwstrpacsha1="SHA1 Sum";
 $fwstrpacdeps="Dependencia";
 $fwstrpacfwver="Versi&oacute;n de Frugalware";
 $fwstrpacnopac="No existe el paquete.";

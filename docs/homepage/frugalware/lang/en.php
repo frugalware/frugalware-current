@@ -62,6 +62,7 @@ $fwstrpacname="Name";
 $fwstrpacrel="Release";
 $fwstrpacdesc="Description";
 $fwstrpacmd5="MD5 Sum";
+$fwstrpacsha1="SHA1 Sum";
 $fwstrpacdeps="Depends";
 $fwstrpacfwver="Frugalware version";
 $fwstrpacnopac="No such package.";

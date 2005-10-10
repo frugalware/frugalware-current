@@ -25,7 +25,7 @@ function wish_show() {
 	print "</table>\n";
 	fwclosebox(false);
 
-	print "<p align=center><a href=\"wishlist.php?op=ask\">$fwstrwask</a></p>\n";
+//	print "<p align=center><a href=\"wishlist.php?op=ask\">$fwstrwask</a></p>\n";
 
 }
 

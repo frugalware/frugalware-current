@@ -25,7 +25,7 @@ function wish_show() {
 	print "</table>\n";
 	fwclosebox(false);
 
-//	print "<p align=center><a href=\"wishlist.php?op=ask\">$fwstrwask</a></p>\n";
+	print "<p align=center>Please file a wish at <a href=http://bugs.frugalware.org>bugs.frugalware.org</a> instead of asking a program here!<br>Thanks.</p>\n";
 
 }
 

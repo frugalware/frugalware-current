@@ -3,6 +3,7 @@
 $fwstrprelog="lire le changelog ";
 $fwstrmidlog="ici";
 $fwstrpostlog=".";
+
 // download.php
 $fwstrdlfw="Télécharger Frugalware Linux (via ftp)";
 $fwstrdlfile="Télécharger fichier (via ftp)";
@@ -55,7 +56,7 @@ $fwstrpacsearch="Recherché un paquet";
 $fwstrpacver="Version";
 $fwstrpacrepo="Repo";
 $fwstrpaccat="Categories";
-
+$fwstrpacpac="Paquets";
 $fwstrpacinfo="information du paquet";
 $fwstrpacname="Nom";
 $fwstrpacrel="Release";
@@ -137,13 +138,13 @@ $fwstradminbox=" menu administrateu";
 $fwadmwshow="voir la wishlist";
 $fwadmtshow="voir la todolist";
 $fwadmbackadm="revenir a l'acceuil administrateur";
-$fwadmlogout="se déconnecter"
+$fwadmlogout="se déconnecter";
 $fwadmwsett="Ajouter";
 $fwadmwdel="Effacer";
 $fwadmtodoready="Prêt à écrire dans la Todo list";
 $fwadmbackwish="Revenir à la Wish list";
 $fwadmsurewdel="êtes vous sur de vouloir éffacer ?";
-$fwadmyes="oui";59 $fwstrpacpac="Paquets";
+$fwadmyes="oui";
 $fwadmno="Non";
 $fwadmdelready="Prêt à éffacer depuis la Wish list";
 $fwadmtodonotready="Todo list pas encore faite";
@@ -199,7 +200,7 @@ $fwstrdocsa="Evoyez un mail à  <a href=\"%s\">frugalware-devel</a> mailing list
 $fwstrdocsonline="vue en ligne";
 $fwstrdocsen="Anglais";
 $fwstrdocshu="Hongrois";
-$fwstrdocssk="S";lovak";
+$fwstrdocssk="Slovak";
 $fwstrdocshtml="HTML";
 $fwstrdocshtmlsingle="HTML simple fichier";
 

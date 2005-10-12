@@ -3,7 +3,7 @@
 3 $fwstrprelog="lire le changelog ";
 4 $fwstrmidlog="ici";
 5 $fwstrpostlog=".";
-6  download.php
+6 //  download.php
 8 $fwstrdlfw="Télécharger Frugalware Linux (via ftp)";
 9 $fwstrdlfile="Télécharger fichier (via ftp)";
 10 $fwstrdlhttp="Via http";

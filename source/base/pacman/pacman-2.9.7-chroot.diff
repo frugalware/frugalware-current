@@ -235,7 +235,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  		exit 0
  	else
  		error "You must be root to clean the cache."
-@@ -436,6 +506,106 @@
+@@ -436,6 +506,109 @@
  	fi
  fi
  
@@ -251,6 +251,8 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
 +	fi
 +
 +	mkdir -p $CHROOTDIR/{dev,etc,proc,sys,var/cache/pacman,var/tmp/fst}
++	# why is this necessary?
++	chmod 1777 $CHROOTDIR/tmp
 +
 +	if [ -e $CHROOTDIR/var/tmp/fst/lock ]; then
 +		error "Somebody already building in this chroot."
@@ -297,7 +299,7 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
 +	cp -pf /etc/group $CHROOTDIR/etc >/dev/null &
 +	cp -pf /etc/ld.so.conf $CHROOTDIR/etc >/dev/null &
 +	cp -pf /etc/hosts $CHROOTDIR/etc > /dev/null &
-+	cp -pf /etc/sudoers $CHROOTDIR/etc > /dev/null &
++	echo "fst ALL=(ALL)       NOPASSWD: ALL" >$CHROOTDIR/etc/sudoers
 +	cp -Ppf /etc/localtime $CHROOTDIR/etc >/dev/null &
 +	cp -pf /etc/services $CHROOTDIR/etc > /dev/null &
 +	# to make Finclude work
@@ -313,13 +315,14 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
 +
 +	msg "Copying $pkgname's buildscript to chroot"
 +	cp -a * $CHROOTDIR/var/tmp/fst/
++	chown -R fst:users $CHROOTDIR/var/tmp/fst
 +	
 +	if [ ! -x  /usr/sbin/chroot ]; then
 +		error "chroot was not found."
 +	else
 +		msg "Entering chroot environment"
-+		echo "cd /var/tmp/fst/; $0 --inchroot -s $ARGLIST" | \
-+			/usr/sbin/chroot $CHROOTDIR /bin/sh
++		/usr/sbin/chroot $CHROOTDIR \
++			/bin/su - fst -c "$0 --inchroot -S $ARGLIST"
 +	fi
 +
 +	if [ -f $CHROOTDIR/var/tmp/fst/${pkgname}-${pkgver}-${pkgrel}-${CARCH}.fpm ]; then
@@ -342,6 +345,19 @@ diff -Naur pacman-2.9.6.orig/scripts/makepkg pacman-2.9.6/scripts/makepkg
  # Enter the fakeroot environment if necessary.  This will call the makepkg script again
  # as the fake root user.  We detect this by passing a sentinel option (-F) to makepkg
  if [ "`id -u`" != "0" ]; then
+@@ -630,7 +635,11 @@
+ 	if [ "$USE_FAKEROOT" = "y" -o "$USE_FAKEROOT" = "Y" ]; then
+ 		if [ `type -p fakeroot` ]; then
+ 			msg "Entering fakeroot environment"
+-			fakeroot -- $0 -F $ARGLIST
++			if [ "$INCHROOT" != "1" ]; then
++				fakeroot -- $0 -F $ARGLIST
++			else
++				fakeroot -- $0 -F --inchroot $ARGLIST
++			fi
+ 			exit $?
+ 		else
+ 			warning "Fakeroot is not installed.  Building as an unprivileged user"
 @@ -759,6 +922,10 @@
  # use ccache if it's available
  if [ "$NOCCACHE" = "0" ]; then

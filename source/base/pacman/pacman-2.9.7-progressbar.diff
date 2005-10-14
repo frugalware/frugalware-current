@@ -1,0 +1,118 @@
+diff -Naur pacman-2.9.7.orig/src/db.c pacman-2.9.7/src/db.c
+--- pacman-2.9.7.orig/src/db.c	2005-10-14 02:03:17.110202750 +0200
++++ pacman-2.9.7/src/db.c	2005-10-14 02:03:22.786557500 +0200
+@@ -377,6 +377,13 @@
+ 				}
+ 				trim(tmp);
+ 				info->size = atol(tmp);
++                        } else if(!strcmp(line, "%USIZE%")) {
++			        char tmp[32];
++			        if(fgets(tmp, sizeof(tmp), fp) != NULL) {
++				    trim(tmp);
++			    	    info->usize = atol(tmp);
++				} else
++			    	    info->usize=0;
+ 			} else if(!strcmp(line, "%LICENSE%")) {
+ 				while(fgets(line, 512, fp) && strlen(trim(line))) {
+ 					char *s = strdup(line);
+diff -Naur pacman-2.9.7.orig/src/package.c pacman-2.9.7/src/package.c
+--- pacman-2.9.7.orig/src/package.c	2005-10-14 02:03:17.110202750 +0200
++++ pacman-2.9.7/src/package.c	2005-10-14 02:03:22.790557750 +0200
+@@ -220,6 +220,10 @@
+ 				char tmp[32];
+ 				strncpy(tmp, ptr, sizeof(tmp));
+ 				info->size = atol(tmp);
++			} else if(!strcmp(key, "USIZE")) {
++				char tmp[32];
++				strncpy(tmp, ptr, sizeof(tmp));
++				info->usize = atol(tmp);
+ 			} else if(!strcmp(key, "LICENSE")) {
+ 				info->license = list_add(info->license, strdup(ptr));
+ 			} else if(!strcmp(key, "DEPEND")) {
+@@ -423,6 +427,8 @@
+ 	list_display("Replaces          :", pm);
+ 	FREELIST(pm);
+ 	printf("Size (compressed) : %ld\n", info->size);
++	if (info->usize != NULL)
++	    printf("Size (uncompressed) : %ld\n", info->usize);
+ 	printf("Description       : ");
+ 	indentprint(info->desc, 20);
+ 	if (info->md5sum[0] != '\0' && info->md5sum != NULL) {
+diff -Naur pacman-2.9.7.orig/src/package.h pacman-2.9.7/src/package.h
+--- pacman-2.9.7.orig/src/package.h	2005-10-14 02:03:17.110202750 +0200
++++ pacman-2.9.7/src/package.h	2005-10-14 02:03:22.790557750 +0200
+@@ -57,6 +57,7 @@
+ 	char sha1sum[41];
+ 	char arch[32];
+ 	unsigned long size;
++	unsigned long usize;
+ 	unsigned short scriptlet;
+ 	unsigned short force;
+ 	time_t date;
+diff -Naur pacman-2.9.7.orig/src/pacman.c pacman-2.9.7/src/pacman.c
+--- pacman-2.9.7.orig/src/pacman.c	2005-10-14 02:03:17.110202750 +0200
++++ pacman-2.9.7/src/pacman.c	2005-10-14 02:03:53.256461750 +0200
+@@ -121,6 +121,32 @@
+ int maxcols = 80;
+ int neednl = 0; /* for cleaner message output */
+ 
++static int disp_progress(char *pkgname, int percent) {
++	/* char *pkgn[25]; */
++	int i, hash;
++    
++	hash = percent/6.25;
++
++	/* snprintf(pkgn, 25, "%s", pkgname); */
++	/* printf(" %s ", pkgn); */
++
++	if (strlen(pkgname)<25)
++	    for (i=25-strlen(pkgname)-1; i>0; i--)
++		printf(" ");
++	
++	printf("[");
++	for (i = 16; i > 0; i--) {
++	    if (i >= 16 - hash)
++		printf("#");
++	    else
++		printf("-");
++	}
++	printf("] %3d%%\r", percent);
++	fflush(stdout);
++	return(1);
++}
++
++
+ int main(int argc, char *argv[])
+ {
+ 	int ret = 0;
+@@ -1556,6 +1582,7 @@
+ int pacman_add(pacdb_t *db, PMList *targets, PMList *dependonly)
+ {
+ 	int i, ret = 0, errors = 0;
++	double percent;
+ 	register struct archive *archive;
+ 	struct archive_entry *entry;
+ 	char expath[PATH_MAX];
+@@ -1910,6 +1937,10 @@
+ 		chdir(pmo_root);
+ 
+ 		for(i = 0; archive_read_next_header (archive, &entry) == ARCHIVE_OK; i++) {
++                        if (info->usize != 0) { /* prevent division by zero */
++			    percent = (double)archive_position_uncompressed(archive) / info->usize;
++			    disp_progress(info->name, (int)(percent * 100));
++			}
+ 			int nb = 0;
+ 			int notouch = 0;
+ 			char *md5_orig = NULL;
+@@ -2223,7 +2254,10 @@
+ 				db_write(db, depinfo, INFRQ_DEPENDS);
+ 				freepkg(depinfo);
+ 			}
+-			printf("done.\n"); fflush(stdout);
++
++                        disp_progress(info->name, 100); /* Put progressbar to 100% */
++                        printf("\n");
++			fflush(stdout);
+ 
+ 			/* run the post-install/upgrade script if it exists  */
+ 			snprintf(pm_install, PATH_MAX, "%s%s/%s/%s-%s/install", pmo_root, pmo_dbpath, db->treename, info->name, info->version);

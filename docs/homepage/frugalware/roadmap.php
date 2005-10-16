@@ -2,6 +2,18 @@
 $fwtitle="Roadmap";
 include("header.php");
 
+fwopenbox("0.4 (<a class=menu href=\"http://en.wikipedia.org/wiki/List_of_minor_Foundation_universe_planets#Wanda\">Wanda</a>)");
+print("
+<table width=\"100%\">
+<tr><td>Mar 30, 2006<td>0.4<td><i>pending</i>
+<tr><td>Mar 16, 2006<td>0.4rc2<td><i>pending</i>
+<tr><td>Mar 2, 2006<td>0.4rc1<td><i>pending</i>
+<tr><td>Feb 2, 2006<td>0.4pre2<td><i>pending</i>
+<tr><td width=\"30%\">Dec 8, 2005<td width=\"30%\">0.4pre1<td width=\"30%\"><i>pending</i>
+</table>
+");
+fwclosebox(false);
+print("<p>");
 fwopenbox("0.3 (<a class=menu href=\"http://www.geocities.com/Area51/Dimension/1136/galactography/worlds8.html\">Trantor</a>)");
 print("
 <table width=\"100%\">

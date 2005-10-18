@@ -1,23 +1,44 @@
+diff -Naur pacman-2.9.7.orig/scripts/makepkg pacman-2.9.7/scripts/makepkg
+--- pacman-2.9.7.orig/scripts/makepkg	2005-10-17 17:15:02.898144750 +0200
++++ pacman-2.9.7/scripts/makepkg	2005-10-17 17:15:19.835203250 +0200
+@@ -1092,6 +1092,7 @@
+ echo "builddate = $builddate" >>.PKGINFO
+ echo "packager = $packager" >>.PKGINFO
+ echo "size = $size" >>.PKGINFO
++echo "usize = $size" >>.PKGINFO
+ if [ "$CARCH" != "" ]; then
+ 	echo "arch = $CARCH" >>.PKGINFO
+ fi
 diff -Naur pacman-2.9.7.orig/src/db.c pacman-2.9.7/src/db.c
---- pacman-2.9.7.orig/src/db.c	2005-10-14 02:03:17.110202750 +0200
-+++ pacman-2.9.7/src/db.c	2005-10-14 02:03:22.786557500 +0200
-@@ -377,6 +377,13 @@
+--- pacman-2.9.7.orig/src/db.c	2005-10-17 17:15:02.898144750 +0200
++++ pacman-2.9.7/src/db.c	2005-10-17 17:16:59.729446250 +0200
+@@ -377,6 +377,14 @@
  				}
  				trim(tmp);
  				info->size = atol(tmp);
 +                        } else if(!strcmp(line, "%USIZE%")) {
-+			        char tmp[32];
-+			        if(fgets(tmp, sizeof(tmp), fp) != NULL) {
-+				    trim(tmp);
-+			    	    info->usize = atol(tmp);
-+				} else
-+			    	    info->usize=0;
++				char tmp[32];
++				if(fgets(tmp, sizeof(tmp), fp) == NULL) {
++					FREEPKG(info);
++					return(NULL);
++				}
++				trim(tmp);
++				info->usize = (unsigned long)atol(tmp);
  			} else if(!strcmp(line, "%LICENSE%")) {
  				while(fgets(line, 512, fp) && strlen(trim(line))) {
  					char *s = strdup(line);
+@@ -546,6 +554,8 @@
+ 		fprintf(fp, "%s\n\n", info->packager);
+ 		fputs("%SIZE%\n", fp);
+ 		fprintf(fp, "%ld\n\n", info->size);
++		fputs("%USIZE%\n", fp);
++		fprintf(fp, "%ld\n\n", info->usize);
+ 		fputs("%REASON%\n", fp);
+ 		fprintf(fp, "%d\n\n", info->reason);
+ 		fclose(fp);
 diff -Naur pacman-2.9.7.orig/src/package.c pacman-2.9.7/src/package.c
---- pacman-2.9.7.orig/src/package.c	2005-10-14 02:03:17.110202750 +0200
-+++ pacman-2.9.7/src/package.c	2005-10-14 02:03:22.790557750 +0200
+--- pacman-2.9.7.orig/src/package.c	2005-10-17 17:15:02.902145000 +0200
++++ pacman-2.9.7/src/package.c	2005-10-17 17:17:25.783074500 +0200
 @@ -220,6 +220,10 @@
  				char tmp[32];
  				strncpy(tmp, ptr, sizeof(tmp));
@@ -29,7 +50,15 @@ diff -Naur pacman-2.9.7.orig/src/package.c pacman-2.9.7/src/package.c
  			} else if(!strcmp(key, "LICENSE")) {
  				info->license = list_add(info->license, strdup(ptr));
  			} else if(!strcmp(key, "DEPEND")) {
-@@ -423,6 +427,8 @@
+@@ -264,6 +268,7 @@
+ 	pkg->sha1sum[0]     = '\0';
+ 	pkg->arch[0]        = '\0';
+ 	pkg->size           = 0;
++	pkg->usize           = 0;
+ 	pkg->scriptlet      = 0;
+ 	pkg->force          = 0;
+ 	pkg->reason         = REASON_EXPLICIT;
+@@ -423,6 +428,8 @@
  	list_display("Replaces          :", pm);
  	FREELIST(pm);
  	printf("Size (compressed) : %ld\n", info->size);
@@ -39,8 +68,8 @@ diff -Naur pacman-2.9.7.orig/src/package.c pacman-2.9.7/src/package.c
  	indentprint(info->desc, 20);
  	if (info->md5sum[0] != '\0' && info->md5sum != NULL) {
 diff -Naur pacman-2.9.7.orig/src/package.h pacman-2.9.7/src/package.h
---- pacman-2.9.7.orig/src/package.h	2005-10-14 02:03:17.110202750 +0200
-+++ pacman-2.9.7/src/package.h	2005-10-14 02:03:22.790557750 +0200
+--- pacman-2.9.7.orig/src/package.h	2005-10-17 17:15:02.902145000 +0200
++++ pacman-2.9.7/src/package.h	2005-10-17 17:16:13.350547750 +0200
 @@ -57,6 +57,7 @@
  	char sha1sum[41];
  	char arch[32];
@@ -50,8 +79,8 @@ diff -Naur pacman-2.9.7.orig/src/package.h pacman-2.9.7/src/package.h
  	unsigned short force;
  	time_t date;
 diff -Naur pacman-2.9.7.orig/src/pacman.c pacman-2.9.7/src/pacman.c
---- pacman-2.9.7.orig/src/pacman.c	2005-10-14 02:03:17.110202750 +0200
-+++ pacman-2.9.7/src/pacman.c	2005-10-14 02:03:53.256461750 +0200
+--- pacman-2.9.7.orig/src/pacman.c	2005-10-17 17:15:02.902145000 +0200
++++ pacman-2.9.7/src/pacman.c	2005-10-17 17:17:34.795637750 +0200
 @@ -121,6 +121,32 @@
  int maxcols = 80;
  int neednl = 0; /* for cleaner message output */

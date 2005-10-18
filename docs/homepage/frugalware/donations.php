@@ -20,7 +20,7 @@ print("<div align=left>Wishes:<ul>
 <li>European mirrors: belnet.be</li>
 <li>i686 Server: Pentium III (Coppermine) 600 Mhz, 256 Mb memory (the developer team)</li>
 <li>i686 build server: Pentium II (Deschutes) 300 Mhz, 384 Mb memory</li>
-<li>i686 build server hosting (University of Debrecen)</li>
+<li>i686 build server hosting</li>
 <li>Advertising: linuxuser.hu, linuxlinks.com</li>
 <li>2x40GB IDE HDD (Szalai, Ervin)</li>
 <li>2x160GB IDE HDD for the i686 server (Miklos Vajna)</li>

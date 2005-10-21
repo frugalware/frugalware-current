@@ -1,0 +1,113 @@
+# Last modified: Thu, 29 Sep 2005 17:03:00 +0200
+# Compiling time: ~49 SBU (or more :) )
+# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
+
+pkgname=openoffice.org2
+pkgver=2.0.0
+pkgrel=1
+pkgdesc="OpenOffice.org, a full office productivity suite (Version 2)"
+url="http://ooo.ximian.com/"
+depends=('db>=4.3' 'perl' 'gtk+2' 'gnome-vfs' 'libxml2' 'libart_lgpl' \
+	'startup-notification' 'fontconfig' 'libpng' 'imagemagick' 'flex' \
+	'bison' 'zip' 'unzip' 'expat' 'cups' 'desktop-file-utils')
+makedepends=('findutils' 'curl' 'intltool' 'tcsh' 'gcc' 'pam-headers' 'qt' \
+	'kdelibs' 'evolution-data-server')
+## TODO: review deps
+groups=('xapps-extra')
+archs=('i686')
+install=$pkgname.install
+up2date="lynx -dump http://ooo.ximian.com/packages/OOO680/|grep tar.gz$|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'"
+source=(http://ooo.ximian.com/packages/OOO680/ooo-build-$pkgver.tar.gz \
+	http://go-ooo.org/packages/OOO680/OOO_2_0_0-core.tar.bz2 \
+	http://go-ooo.org/packages/OOO680/OOO_2_0_0-system.tar.bz2 \
+	http://go-ooo.org/packages/OOO680/OOO_2_0_0-lang.tar.bz2 \
+	http://go-ooo.org/packages/SRC680/ooo_crystal_images-6.tar.bz2 \
+	http://go-ooo.org/packages/SRC680/ooo_custom_images-13.tar.bz2 \
+	http://go-ooo.org/packages/SRC680/extras-2.tar.bz2 \
+	ooo2-allfixes.patch \
+	03-64bit-cws-patch-update.patch \
+	ooo.applications \
+	ooo.keys)
+NOEXTRACT=1
+sha1sums=('d8b662156121496f9b768d34110fa5f9a7ac0f3e' \
+	  'a4cc244164deb831356f609fa967f8d14df6116a' \
+	  'e1fcccc53ac719ed5189a556547dbf3236ab6405' \
+	  '7b2a1943da8cd5a3c39b5d883345c2d65c578d10' \
+	  '99ee34dcba96e27296daf159ab2f48c6c2f0364a' \
+	  '215cbf28c87a391e15ba9580e8201389ea8b92e4' \
+	  '2c7fca93c106e23961f4aaa7cdfcaeb97064eed1' \
+	  'f6396b1d40d7caa97ffae049a87322122158851c' \
+	  'f744cdc0088f3a0ead46ee51557c40c897ed39f5' \
+	  'fdb8d5b9869e6363fe92d24cd4427f9e8e1cbcc2' \
+	  'e31a1b937707007b90731e809ab8947429d645be')
+nobuild=1
+
+build() {
+	# Untar the ooo-build stuff
+	cd $Fsrcdir || return 1
+	tar -xvzf ooo-build-$pkgver.tar.gz || return 1
+
+	# Note: Requires a running X server for building.
+	# Move downloaded tarballs to the correct location. With this
+	# ooo-build won't download the tarballs again.
+	mv $startdir/src/OOO_2_0_0-core.tar.bz2 $startdir/src/ooo-build-$pkgver/src
+	mv $startdir/src/OOO_2_0_0-system.tar.bz2 $startdir/src/ooo-build-$pkgver/src
+	mv $startdir/src/OOO_2_0_0-lang.tar.bz2 $startdir/src/ooo-build-$pkgver/src
+	mv $startdir/src/ooo_crystal_images-6.tar.bz2 $startdir/src/ooo-build-$pkgver/src
+	mv $startdir/src/ooo_custom_images-13.tar.bz2 $startdir/src/ooo-build-$pkgver/src
+	mv $startdir/src/extras-2.tar.bz2 $startdir/src/ooo-build-$pkgver/src
+
+	Fcd ooo-build-$pkgver
+#	Fsed '/usr/share/applications/$dest$BINSUFFIX' '/usr/share/applications/$dest' bin/package-ooo
+
+	Fpatch ooo2-allfixes.patch
+#	[ "$CARCH" == "x86_64" ] && Fpatch 03-64bit-cws-patch-update.patch
+
+	./configure --prefix=/usr --sysconfdir=/etc --mandir=/usr/man \
+		--with-docdir=/usr/share/doc/$pkgname-$pkgver \
+		--with-lang="en-US hu en-GB de fr it" --enable-libart --enable-libsn \
+		--enable-crashdump=no --without-fonts --disable-rpath \
+		--with-system-zlib --enable-fontconfig --with-system-freetype \
+		--disable-mozilla --enable-kde --enable-gtk \
+		--with-icons=gnome --with-distro=Frugalware64 \
+		--with-vendor=Frugalware64 --with-system-gcc=yes \
+		--with-ccache-allowed --with-gcc-speedup=ccache --with-system-db --with-db-version=4.3 \
+		--with-system-curl --with-system-sndfile --with-system-odbc-headers \
+		--with-system-neon --with-system-boost --with-system-expat \
+		--with-system-hunspell --enable-hunspell --enable-symbols --with-system-mdbtools \
+		--without-binsuffix --enable-cairo --with-system-cairo --enable-xsltproc --with-system-sane-headers \
+		--with-java-home=$JAVA_HOME --with-system-icu --disable-odk --with-java || return 1
+	./download || return 1
+
+	make || return 1
+
+	make DESTDIR=$startdir/pkg install || return 1
+
+	# Install some miscellaneous files into GNOME's prefix.
+	install -D -m644 -o root -g root $startdir/src/ooo.applications \
+		$startdir/pkg/usr/share/application-registry/ooo.applications
+	install -D -m644 -o root -g root $startdir/src/ooo.keys \
+		$startdir/pkg/usr/share/mime-info/ooo.keys
+
+	# Install KDE menu entries.
+	# But how? What? Where to? etc.. ? :)
+
+	# Create i18n tarballs.
+#	mkdir $startdir/openoffice.org-i18n
+#	for code in `cat $startdir/src/openoffice.org-i18n.desc | grep -v '^#' | sed 's/^\([^\t]*\)\t.*/\1/'`
+#	do
+#		lang=`grep $code $startdir/src/openoffice.org-i18n.desc | sed 's/.*\t\(.*\)\t.*/\1/'`
+#		tar cvjf openoffice.org-i18n-$lang.tar.bz2 `find $startdir/pkg/usr/lib/ooo-1.9/program/resource/*680$code.res | xargs echo`
+#		mv openoffice.org-i18n-$lang.tar.bz2 \
+#			$startdir/openoffice.org-i18n/
+#		find $startdir/pkg/usr/lib/ooo-1.1/program/resource/*680$code.res \
+#			| xargs rm
+#	done
+}
+
+# vim: ft=sh
+
+# optimalization OK
+
+#		--disable-mozilla --with-java=gij --enable-kde --enable-gtk --enable-java \
+#		--without-binsuffix --enable-cairo --with-system-cairo --with-jdk-home=$JAVA_HOME --enable-xsltproc || return 1

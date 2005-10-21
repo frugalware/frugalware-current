@@ -54,12 +54,12 @@ $rsyncmirrors=array(
 		"Belgium (2x1GBit, ftp.belnet.be)")
 	);
 $buycd=array(
+	array("Lidux.de",
+		"http://www.lidux.de/product_info.php/cPath/2_58/products_id/132"),
 	array("OSDisc.com",
 		"http://www.osdisc.com/cgi-bin/view.cgi/products/linux/frugalware"),
 	array("CheapISO.com",
 		"http://cheapiso.com/index.php?manufacturers_id=55"),
-	array("Linux Central",
-		"http://linuxcentral.com/catalog/index.php3?prod_code=L000-321"),
 	array("BudgetLinuxCDS",
 		"http://budgetlinuxcds.com/index.php?page=Choose&amp;letter=Frugalware"),
 	array("cdiras.projektinfo.hu",

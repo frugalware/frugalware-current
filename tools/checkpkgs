@@ -1,97 +1,152 @@
-#! /bin/bash
+#! /usr/bin/env python
+# -*- coding: UTF-8 -*-
 
-BASENAME=/home/ftp/pub/frugalware/frugalware-current
-WHICH=m
+import getopt, os, sys
 
-# Ugly but needed for some FrubalBuilds
-error(){
-	echo "$1" > /dev/null
-}
-Fdie(){
-	echo "$1" > /dev/null
-}
-Finclude(){
-	return 0;
-}
+class checkpkgs:
+	def __init__(self, color):
+		self.pkg32, self.pkg64, self.pkgs, self.pkgsx = [[], [], [], []]
+		self.color = color
 
-chk_status() # $1 = path to a FrugalBuild script, $2 = repo
-{
-	nobuild=0
-	source $1
-	if (( $nobuild == 1 )) ; then exit 0 ; fi
-	pkg="${pkgname}-${pkgver}-${pkgrel}"
-	file32="/$2/frugalware-i686/${pkg}-i686.fpm"
-	file64="/$2/frugalware-x86_64/${pkg}-x86_64.fpm"
-	if echo ${archs[*]} | grep -q i686 ; then
-		output=$(repoman ls ${file32} 2> /dev/null)
-		if [[ "${output}" != "${BASENAME}/${file32}" ]] ; then
-			status32=31
-		else
-			status32=32
-		fi
-	else
-		status32=33
-	fi
-	if echo ${archs[*]} | grep -q x86_64 ; then
-		output=$(repoman ls ${file64} 2> /dev/null)
-		if [[ "${output}" != "${BASENAME}/${file64}" ]] ; then
-			status64=31
-		else
-			status64=32
-		fi
-	else
-		status64=33
-	fi
-	group=$(basename $(dirname $(dirname $1)))
-	if [[ "$2" == "extra" ]] ; then
-		repo=extra/${group}
-	else
-		repo=${group}
-	fi
-	if [[ "${WHICH}" == "a" ]] ; then
-		msg ${pkg} ${repo} ${status32} ${status64}
-	elif [[ "${WHICH}" == "d" ]] && (( ${status32} != ${status64} )) ; then
-		msg ${pkg} ${repo} ${status32} ${status64}
-	elif [[ "${WHICH}" == "m" ]] && (( ${status32} == 31 )) || (( ${status64} == 31 )) ; then
-		msg ${pkg} ${repo} ${status32} ${status64}
-	fi
-}
 
-help_msg()
-{
-	echo "checkpkgs [-a] [-d] [-m]"
-	echo
-	echo "     -a    Print out all packages"
-	echo -e "     -d    Print packages that are not in i686 \033[01mand\033[0m x86_64 or"
-	echo "           not found."
-	echo "     -m    Print only packages that are not found."
-	echo
-}
+	def get_pkg32(self):
+		for item in os.popen('repoman ls frugalware-i686/*.fpm 2> /dev/null').readlines():
+			self.pkg32.append(os.path.basename(item.rstrip().replace('-i686.fpm', '')))
+		for item in os.popen('repoman ls extra/frugalware-i686/*.fpm 2> /dev/null').readlines():
+			self.pkg32.append(os.path.basename(item.rstrip().replace('-i686.fpm', '')))
 
-msg() # $1 = package name, $2 = repo, $3 = status i686, $4 = status x86_64
-{
-	printf "\033[01m%-35s \033[0m%-25s \033[01;%smi686\t\033[01;%smx86_64\033[0m\n" \
-	$1 $2 $3 $4
-}
 
-case $1 in
-	--all|-a)     WHICH=a ;;
-	--diff|-d)    WHICH=d ;;
-	--missing|-m) WHICH=m ;;
-	--help|-h)    help_msg && exit 0 ;;
-	--*|-*)       help_msg && exit 1 ;;
-esac
+	def get_pkg64(self):
+		for item in os.popen('repoman ls frugalware-x86_64/*.fpm 2> /dev/null').readlines():
+			self.pkg64.append(os.path.basename(item.rstrip().replace('-x86_64.fpm', '')))
+		for item in os.popen('repoman ls extra/frugalware-x86_64/*.fpm 2> /dev/null').readlines():
+			self.pkg64.append(os.path.basename(item.rstrip().replace('-x86_64.fpm', '')))
 
-cd ../source || exit 1
 
-for pkg in $(find . -name FrugalBuild | sort) ; do
-	chk_status ${pkg}
-done
+	def get_fb_data(self, fbuild):
+		pkgname, pkgver, pkgrel, archs, nobuild = ['', '', '', ['i686', 'x86_64'], False]
+		group = os.path.basename(os.path.dirname(os.path.dirname(fbuild)))
+		for item in file(fbuild, 'r').readlines():
+			if item.startswith('pkgname='):
+				pkgname = item.split('=')[1].replace('"', '').rstrip()
+			elif item.startswith('pkgver='):
+				pkgver = item.split('=')[1].replace('"', '').rstrip()
+			elif item.startswith('pkgrel='):
+				pkgrel = item.split('=')[1].replace('"', '').rstrip()
+			elif item.startswith('archs='):
+				archs = item.split('=')[1].replace('(', '').replace(')', '').replace("'", '').rstrip().split()
+			elif item.startswith('nobuild=1'):
+				nobuild = True
+			elif item.startswith('lang='):
+				lang = item.split('=')[1].replace('"', '').rstrip()
+			try: pkgname = pkgname.replace('$lang', lang)
+			except: pass
+		return [group, pkgname + '-' + pkgver + '-' + pkgrel, archs, nobuild]
 
-cd ../extra/source || exit 1
 
-for pkg in $(find . -name FrugalBuild | sort) ; do
-	chk_status ${pkg} extra
-done
+	def get_pkgs(self):
+		for fbuild in os.walk('../source'):
+			if 'FrugalBuild' in fbuild[2]:
+				data = self.get_fb_data(fbuild[0] + '/FrugalBuild')
+				if not data[3]: self.pkgs.append(data)
+		self.pkgs.sort()
+		for fbuild in os.walk('../extra/source'):
+			if 'FrugalBuild' in fbuild[2]:
+				data = self.get_fb_data(fbuild[0] + '/FrugalBuild')
+				if not data[3]: self.pkgsx.append(data)
+		self.pkgsx.sort()
 
-exit 0
+
+	def print_pkgs(self, data):
+		if self.color:
+			print '\x1b[01m%-35s \x1b[0m%-20s \x1b[01;%smi686  \x1b[01;%smx86_64\x1b[0m' % data
+		else: print '%-35s %-20s [%s] i686  [%s] x86_64' % data
+
+
+	def check_pkg32(self, package, archs):
+		if self.color and package in self.pkg32 and 'i686' in archs: msg32 = 32
+		elif not self.color and package in self.pkg32 and 'i686' in archs: msg32 = 'X'
+		elif self.color and not package in self.pkg32 and 'i686' in archs: msg32 = 31
+		elif not self.color and not package in self.pkg32 and 'i686' in archs: msg32 = 'O'
+		elif self.color: msg32 = 33
+		else: msg32 = '-'
+		return msg32
+
+
+	def check_pkg64(self, package, archs):
+		if self.color and package in self.pkg64 and 'x86_64' in archs: msg64 = 32
+		elif not self.color and package in self.pkg64 and 'x86_64' in archs: msg64 = 'X'
+		elif self.color and not package in self.pkg64 and 'x86_64' in archs: msg64 = 31
+		elif not self.color and not package in self.pkg64 and 'x86_64' in archs: msg64 = 'O'
+		elif self.color: msg64 = 33
+		else: msg64 = '-'
+		return msg64
+
+
+	def main(self, typ):
+		self.get_pkg32()
+		self.get_pkg64()
+		self.get_pkgs()
+		for i in self.pkgs:
+			msg32 = self.check_pkg32(i[1], i[2])
+			msg64 = self.check_pkg64(i[1], i[2])
+			if typ == 'all': self.print_pkgs((i[1], i[0], msg32, msg64))
+			elif typ == 'build':
+				if msg32 == 33 or msg32 == '-' or msg64 == 33 or msg64 == '-':
+					self.print_pkgs((i[1], i[0], msg32, msg64))
+			elif typ == 'missing':
+				if msg32 == 31 or msg32 == 'O' or msg64 == 31 or msg64 == 'O':
+					self.print_pkgs((i[1], i[0], msg32, msg64))
+		for i in self.pkgsx:
+			msg32 = self.check_pkg32(i[1], i[2])
+			msg64 = self.check_pkg64(i[1], i[2])
+			if typ == 'all': self.print_pkgs((i[1], 'extra/' + i[0], msg32, msg64))
+			elif typ == 'build':
+				if msg32 == 33 or msg32 == '-' or msg64 == 33 or msg64 == '-':
+					self.print_pkgs((i[1], 'extra/' + i[0], msg32, msg64))
+			elif typ == 'missing':
+				if msg32 == 31 or msg32 == 'O' or msg64 == 31 or msg64 == 'O':
+					self.print_pkgs((i[1], 'extra/' + i[0], msg32, msg64))
+
+
+	def help(self):
+		print sys.argv[0] + ' [option]'
+		print
+		print '\t-a|--all         Check all packages'
+		print '\t-b|--build       Search for not builded packages'
+		print '\t-m|--missing     Search for missing packages'
+		print '\t-n|--nocolor     Don\'t use color'
+		print
+		print '-b searches for packages they only on one architecture are available.'
+		print '-m searches for packages they can\'t be found, but should be exist. It\'s the'
+		print 'default mode.'
+		print '-a is using -b and -m, so you can use one option instead of two.'
+		print '-n doesn\'t use color on the output. That\'s needfull if you want to send the'
+		print 'output via mail.'
+		print
+		print '[X] or green  = package is existing'
+		print '[O] or red    = package is missing'
+		print '[-] or yellow = package isn\'t builded'
+
+
+if __name__ == '__main__':
+	color, command = [True, '']
+	try:
+		args = getopt.getopt(sys.argv[1:], 'abhmn', ['all', 'build', 'help', 'missing', 'nocolor'])
+		for arg in args[0]:
+			if arg[0] == '-n' or arg[0] == '--nocolor': color = False
+			elif arg[0] == '-a' or arg[0] == '--all': command = 'all'
+			elif arg[0] == '-b' or arg[0] == '--build':
+				if command == '': command = 'build'
+				elif command == 'missing': command = 'all'
+			elif arg[0] == '-h' or arg[0] == '--help': command = 'help'
+			elif arg[0] == '-m' or arg[0] == '--missing':
+				if command == '': command = 'missing'
+				elif command == 'build': command = 'all'
+	except: command = 'wrong'
+
+	if command == '': command = 'missing'
+
+	if command == 'help': checkpkgs(color).help()
+	elif command != 'help' and command != 'wrong': checkpkgs(color).main(command)
+	else: checkpkgs(color).help() ; sys.exit(1)

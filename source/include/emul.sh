@@ -9,7 +9,8 @@
 ename=`echo $pkgname|sed 's/-emul//'`
 earch=i686
 
-source=(http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-$earch/$ename-$pkgver-$pkgrel-$earch.fpm)
+up2date="lynx -dump http://ftp.frugalware.org/pub/frugalware/frugalware-current/$repo/frugalware-i686/ |grep \"$ename-[^-]*-[^-]*-$earch.fpm$\"|sed \"s/.*$ename-\(.*\)-[^-]*-$earch.fpm/\1/\""
+source=(http://ftp.frugalware.org/pub/frugalware/frugalware-current/$repo/frugalware-$earch/$ename-$pkgver-$pkgrel-$earch.fpm)
 
 build()
 {

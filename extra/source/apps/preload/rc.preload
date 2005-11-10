@@ -1,0 +1,48 @@
+#!/bin/sh
+#
+#	/etc/rc.d/rc.preload
+#
+# Starts the preload daemon
+#
+# chkconfig: 345 05 95
+# description: Not Yet Set
+# processname: preload
+
+# Source function library.
+. /etc/rc.d/rc.functions
+
+[ -x /usr/sbin/preload ] || exit 0
+
+if [ -f /etc/sysconfig/preload ]; then
+	. /etc/sysconfig/preload
+fi
+
+MIN_MEMORY=${MIN_MEMORY:-256}
+# Check for > MIN_MEMORY MB
+free -m | awk '/Mem:/ {exit ($2 >= ('"$MIN_MEMORY"'))?0:1}' || exit 0
+
+
+
+if [ "$1" = "stop" ]; then
+    stop "$stoppreload"
+    killall -SIGKILL preload
+    ok $?
+    rm -f /var/lock/subsys/preload
+    
+elif [ "$1" = "restart" ]; then
+    "$0" stop
+     sleep 1
+    "$0" start
+
+elif [ "$1" = "reload" ]; then
+    killall -HUP preload
+
+else 
+   if [ ! -f /var/lock/subsys/preload ]; then
+     start "$startpreload"
+     /usr/sbin/preload $PRELOAD_OPTS
+     ok $?
+     touch /var/lock/subsys/preload
+  
+  fi
+fi

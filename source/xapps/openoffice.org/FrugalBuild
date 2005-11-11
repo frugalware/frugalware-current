@@ -1,17 +1,19 @@
-# Last modified: Thu, 27 Oct 2005 18:10:37 +0200
+# Last modified: Fri, 11 Nov 2005 02:19:11 +0100
 # Compiling time: 92.07 SBU
-# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
+# Maintainer: [x86_64] Christian Hamar alias krix <krics@linuxforum.hu>
+# Maintainer: [i686] Janos Kovacs alias janny <janny@frugalware.org>
+# Contributor: VMiklos <vmiklos@frugalware.org>
 
 pkgname=openoffice.org
 pkgver=2.0.0.1
 pkgrel=1
 pkgdesc="OpenOffice.org, a full office productivity suite (Version 2)"
 url="http://ooo.ximian.com/"
-depends=('db>=4.3' 'perl' 'gtk+2' 'gnome-vfs' 'libxml2' 'libart_lgpl' \
-	'startup-notification' 'fontconfig' 'libpng' 'imagemagick' 'flex' \
-	'bison' 'zip' 'unzip' 'expat' 'cups' 'desktop-file-utils')
+depends=('db>=4.3' 'perl' 'gtk+2' 'gnome-vfs' 'libxml2' 'libart_lgpl' 'libsndfile' \
+	'startup-notification' 'fontconfig' 'libpng' 'imagemagick' 'flex' 'firefox' 'neon>=0.24.0' \
+	'bison' 'zip' 'unzip' 'expat' 'cups' 'desktop-file-utils' 'perl-archive-zip' 'unixodbc')
 makedepends=('findutils' 'curl' 'intltool' 'tcsh' 'gcc' 'pam-headers' 'qt' \
-	'kdelibs' 'evolution-data-server' 'boost' 'icu' 'hunspell')
+	'kdelibs' 'evolution-data-server' 'boost' 'icu' 'hunspell' 'hunspell-dict' 'pam-headers')
 groups=('xapps-extra')
 archs=('i686')
 install=$pkgname.install
@@ -23,11 +25,12 @@ source=(http://ooo.ximian.com/packages/OOO680/ooo-build-$pkgver.tar.gz \
 	http://go-ooo.org/packages/SRC680/ooo_crystal_images-6.tar.bz2 \
 	http://go-ooo.org/packages/SRC680/ooo_custom_images-13.tar.bz2 \
 	http://go-ooo.org/packages/SRC680/extras-2.tar.bz2 \
-	ooo2-allfixes.patch \
+	ooo-allpatch.diff \
 	ooo.applications \
-	ooo.keys \
-	Filter.xcu.bz2)
+	ooo.keys)
+
 NOEXTRACT=1
+
 sha1sums=('4e2fae82c341af80605e0013ef32c7e6fa750b82' \
 	  'a4cc244164deb831356f609fa967f8d14df6116a' \
 	  'e1fcccc53ac719ed5189a556547dbf3236ab6405' \
@@ -35,48 +38,37 @@ sha1sums=('4e2fae82c341af80605e0013ef32c7e6fa750b82' \
 	  '99ee34dcba96e27296daf159ab2f48c6c2f0364a' \
 	  '215cbf28c87a391e15ba9580e8201389ea8b92e4' \
 	  '2c7fca93c106e23961f4aaa7cdfcaeb97064eed1' \
-	  'e764064ff5f325d9e4030fa51bf60c42913b5067' \
-	  'fdb8d5b9869e6363fe92d24cd4427f9e8e1cbcc2' \
-	  'e31a1b937707007b90731e809ab8947429d645be' \
-	  '2ca067f9d6ae3b5c0d2434eb3bc343bef966cb77')
+	  '5b8ea65b23df1ddd08ef70479f6afe555ea4539b' \
+	  '64085b7787739d2e7eb20f4f0358fc213937b0e8' \
+	  'e31a1b937707007b90731e809ab8947429d645be')
+
+# nobuild=1
 
 build() {
 	# Untar the ooo-build stuff
 	tar -xvzf ooo-build-$pkgver.tar.gz || return 1
-	bunzip2 Filter.xcu.bz2 || return 1
+#	bunzip2 Filter.xcu.bz2 || return 1
 
 	# Note: Requires a running X server for building.
 	# Move downloaded tarballs to the correct location. With this
 	# ooo-build won't download the tarballs again.
-	mv OOO_2_0_0-core.tar.bz2 ooo-build-$pkgver/src
-	mv OOO_2_0_0-system.tar.bz2 ooo-build-$pkgver/src
-	mv OOO_2_0_0-lang.tar.bz2 ooo-build-$pkgver/src
-	mv ooo_crystal_images-6.tar.bz2 ooo-build-$pkgver/src
-	mv ooo_custom_images-13.tar.bz2 ooo-build-$pkgver/src
-	mv extras-2.tar.bz2 ooo-build-$pkgver/src
+	mv OOO_2_0_0-core.tar.bz2 ooo-build-$pkgver/src || return 1
+	mv OOO_2_0_0-system.tar.bz2 ooo-build-$pkgver/src || return 1
+	mv OOO_2_0_0-lang.tar.bz2 ooo-build-$pkgver/src || return 1
+	mv ooo_crystal_images-6.tar.bz2 ooo-build-$pkgver/src || return 1
+	mv ooo_custom_images-13.tar.bz2 ooo-build-$pkgver/src || return 1
+	mv extras-2.tar.bz2 ooo-build-$pkgver/src || return 1
 
-	Fcd ooo-build-$pkgver
-
-	Fpatch ooo2-allfixes.patch
+	Fcd ooo-build-$pkgver || return 1
+	Fpatch ooo-allpatch.diff
 	
-	Fconf --mandir=/usr/man \
-		--with-docdir=/usr/share/doc/$pkgname-$pkgver \
-		--with-lang=ALL --enable-libart --enable-libsn \
-		--enable-crashdump=yes --without-fonts --disable-rpath \
-		--with-system-zlib --enable-fontconfig --with-system-freetype \
-		--disable-mozilla --enable-kde --enable-gtk --enable-gnome-vfs \
-		--with-icons=gnome --with-distro=Frugalware \
-		--with-vendor=Frugalware --with-system-gcc=yes \
-		--with-ccache-allowed --with-gcc-speedup=ccache \
-		--with-system-db --with-db-version=4.3 \
-		--with-system-curl --with-system-sndfile \
-		--with-system-odbc-headers \
-		--with-system-neon --with-system-boost --with-system-expat \
-		--with-system-hunspell --enable-hunspell --enable-symbols \
-		--without-binsuffix --enable-cairo --with-system-cairo \
-		--enable-xsltproc --with-system-sane-headers \
-		--with-java-home=$JAVA_HOME --disable-odk --with-javac \
-		|| return 1
+	# Defined $CARCH config
+	if [ "$CARCH" == "x86_64" ]; then
+		Fconfopts="$Fconfopts --with-distro=Frugalware64"
+	else
+		Fconfopts="$Fconfopts --with-distro=Frugalware"
+	fi
+	Fconf --with-lang=ALL
 
 	./download || return 1
 
@@ -87,18 +79,10 @@ build() {
 	# Install some miscellaneous files into GNOME's prefix.
 	Ffile /usr/share/application-registry/ooo.applications
 	Ffile /usr/share/mime-info/ooo.keys
-
-	# Somewhat hacky, workaround for
-	# https://bugzilla.novell.com/show_bug.cgi?id=130220
-	Ffile /usr/lib/ooo-2.0/share/registry/res/en-US/org/openoffice/TypeDetection/Filter.xcu
-
-	# Fix menu entries' location
-	Fmv /opt/gnome/share/applications/ /usr/share/
-	Frm /opt
-
+	
 	# Create i18n tarballs.
-	mkdir $startdir/openoffice.org-i18n
-	cd $Fdestdir/usr/lib/ooo-2.0/program/resource
+	mkdir $startdir/openoffice.org-i18n || return 1
+	cd $Fdestdir/usr/lib/ooo-2.0/program/resource || return 1
 	for lang in `ls *.res|sed 's/.*680\(.*\)\.res/\1/'|sort|uniq`
 	do
 		if [ "$lang" != "en-US" ]; then

@@ -1,10 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 
+# (c) 2005 Marcus Habermehl <bmh1980de@yahoo.de>
 # (c) 2003 Vajna Miklos <vmiklos@frugalware.org>
 # rc.acct for FrugalWare
 # distributed under GPL License
-
-. /etc/rc.d/rc.functions
 
 # chkconfig: 2345 90 56
 # description: Turns on/off process accounting
@@ -12,21 +11,55 @@
 # WARNING: by default process accounting is not enabled
 # this is because the log file can get VERY large
 
-if [ "$1" = "stop" ]; then
-	stop "$stopacct"
-	accton
-	ok $?
-elif [ "$1" = "restart" ]; then
-	"$0" stop
-	sleep 1
-	"$0" start
-else # start
-	start "$startacct"
-	if [ `zcat /proc/config.gz |grep CONFIG_BSD_PROCESS_ACCT|sed 's/CONFIG_BSD_PROCESS_ACCT=//'` = "y" ]; then
-		accton /var/log/pacct
-		ok $?
+source /lib/initscripts/functions
+TEXTDOMAIN=acct
+
+actions=(restart start status stop)
+
+pid="$(pidof accton 2> /dev/null)"
+
+rc_start()
+{
+	msg $"Turning on process accounting"
+	if [ -z ${pid} ] ; then
+		if zgrep CONFIG_BSD_PROCESS_ACCT=y /proc/config.gz 2> /dev/null > /dev/null ; then
+			accton /var/log/pacct
+			ok $?
+		else
+			ok 999
+			hint $"BSD process accounting is disabled in your kernel"
+		fi
 	else
-		echo -n ": $nokernelopt"
-		ok 1
+		ok 999
 	fi
-fi
+}
+
+rc_status()
+{
+	msg $"Process accounting is turned"
+	if [ ! -z ${pid} ] ; then
+		ok 998
+	else
+		ok 997
+	fi
+}
+
+rc_stop()
+{
+	msg $"Turning off process accounting"
+	if [[ "${pid}" != "" ]] ; then
+		if zgrep CONFIG_BSD_PROCESS_ACCT=y /proc/config.gz 2> /dev/null > /dev/null ; then
+			accton
+			ok $?
+		else
+			ok 999
+			hint $"BSD process accounting is disabled in your kernel"
+		fi
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1
+
+# vim: ft=sh

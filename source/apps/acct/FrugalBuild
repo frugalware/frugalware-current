@@ -1,10 +1,10 @@
-# Last Modified: Wed, 15 Jun 2005 21:18:14 +0200
-# Compiling Time: ~1 minute
+# Last Modified: Sat, 12 Nov 2005 17:19:26 +0100
+# Compiling Time: 0.04 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=acct
 pkgver=6.3.2
-pkgrel=3
+pkgrel=4
 pkgdesc="Process accounting utilities"
 url="http://www.gnu.org/software/acct/"
 depends=('glibc')
@@ -12,28 +12,36 @@ groups=('apps')
 archs=('i686' 'x86_64')
 up2date="lynx -dump 'http://ftp.gnu.org/pub/gnu/acct/?M=D'|grep ]acct|sed -n -e 's/.*acct-\(.*\)\.tar\.gz .*/\1/' -e '1 p'"
 source=(http://ftp.gnu.org/pub/gnu/acct/$pkgname-$pkgver.tar.gz \
-	$pkgname-$pkgver-logname.diff rc.acct)
-md5sums=('da0055b254f7da8b8920db83ef1ebba1' \
-	 '1e0d4ffc651cf2231048b782d2a0e668' '4dae19bf07f2278ab35714fbc049c646')
+	$pkgname-$pkgver-logname.diff rc.acct rc.acct-{de,hu}.po)
+sha1sums=('f303cdb9bb4c6b29cd164bbfb3cf55226bd51d94' \
+          '82403ec4378db0ff969457e1105214879644b604' \
+          '91ce831a2ef9806c818ec062a5c2a8a4b7baf0ae' \
+          'd0e8f5ab9d94ee0e068d1acf7f4a9868c81943a8' \
+          '938159909a5b14ce75bf0371866c5ea9551146bf')
 
-build() {
-	cd $startdir/src/$pkgname-$pkgver
-	./configure --prefix=/usr
-	patch -p0 < $startdir/src/$pkgname-$pkgver-logname.diff
-
+build()
+{
+	Fconf
+	patch -p0 < $startdir/src/$pkgname-$pkgver-logname.diff || return 1
 	make || return 1
+	Fmakeinstall
 
-	make prefix=$startdir/pkg/usr install
-	mkdir -p $startdir/pkg/var/log
-	touch $startdir/pkg/var/log/pacct
-	chmod 640 $startdir/pkg/var/log/pacct
+	Fmkdir /var/log
+	touch $Fdestdir/var/log/pacct || return 1
+	chmod 640 $Fdestdir/var/log/pacct || return 1
 	
-	mkdir -p $startdir/pkg/etc/rc.d/rc.messages
-	install -m755 $startdir/rc.$pkgname $startdir/pkg/etc/rc.d/rc.$pkgname
-	install -m644 $startdir/messages/$pkgname.* \
-		$startdir/pkg/etc/rc.d/rc.messages
+	Fexe /etc/rc.d/rc.acct
+	for i in $Fsrcdir/rc.acct-*.po ; do
+		slang=`basename $i .po | cut -d _ -f 1 | sed 's|rc.acct-||'`
+		llang=${slang}_`echo $slang | tr [:lower:] [:upper:]`
+		Fmkdir /lib/initscripts/messages/$llang/LC_MESSAGES
+		msgfmt -o $Fdestdir/lib/initscripts/messages/$llang/LC_MESSAGES/acct.mo $i
+	done
+
 	# conflicts with sysvinit
 	rm $startdir/pkg/usr/{bin/last,man/man1/last.*}
 }
 
 # optimalization ok
+
+# vim: ft=sh

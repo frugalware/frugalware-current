@@ -18,5 +18,5 @@ if echo ${groups[*]} | grep -q goodies ; then
 	up2date="lynx -dump 'http://developer.berlios.de/project/showfiles.php?group_id=910'|grep -m 1 \"$name-[0-9\.]\+.tar.\(gz\|bz2\)\"|grep -o '[0-9]\.[0-9\.]\+[0-9]'"
 else
 	dlurl="$hpurl/archive/xfce-$preup2date/src/"
-	up2date="lynx -dump $dlurl|grep -m 1 -o \"$name-[0-9\.]\+[0-9]\"|sed \"s|$name-||\""
+	up2date="lynx -dump $dlurl|grep -m 1 \"http.*$name-\"|grep -o \"$name-[0-9\.]\+[0-9]\"|sed \"s|$name-||\""
 fi

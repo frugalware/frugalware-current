@@ -18,5 +18,5 @@ if echo ${groups[*]} | grep -q goodies ; then
 else
 	preup2date=`lynx -dump $hpurl|grep released|sed 's/.*e \(.*\) r.*/\1/;q'`
 	dlurl="$hpurl/archive/xfce-$preup2date/src/"
-	up2date="lynx -dump $hpurl/archive/xfce-$preup2date/src/|grep $name-|Flasttar"
+	up2date="lynx -dump $hpurl/archive/xfce-$preup2date/src/|grep \"$name-[0-9\.].*gz$\"|Flasttar"
 fi

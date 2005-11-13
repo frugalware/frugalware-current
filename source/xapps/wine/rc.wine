@@ -1,30 +1,45 @@
-#!/bin/sh
+#!/bin/bash
 
+# (c) 2005 Marcus Habermehl <bmh1980de@yahoo.de>
 # (c) 2003 Vajna Miklos <vmiklos@frugalware.org>
 # rc.wine for Frugalware
 # distributed under GPL License
 
-. /etc/rc.d/rc.functions
-
 # chkconfig: 2345 99 01
 # description: Startup/shutdown script for WINE
 
-if [ "$1" = "stop" ]; then
-	stop "$stopwine"
-	echo -1 >/proc/sys/fs/binfmt_misc/wine
-	ok $?
-elif [ "$1" = "restart" ]; then
-	"$0" stop
-	sleep 1
-	"$0" start
-else # start
-	start "$startwine"
-	if [ ! -e /proc/sys/fs/binfmt_misc ]; then
+source /lib/initscripts/functions
+TEXTDOMAIN=wine
+
+actions=(restart start stop)
+daemon=$"wine emulator"
+
+rc_start()
+{
+	start_msg
+	retval=0
+	if [ ! -e /proc/sys/fs/binfmt_misc ] ; then
 		modprobe binfmt_misc
+		retval=$?
 	fi
-	if [ ! -e /proc/sys/fs/binfmt_misc/register ]; then
+	if [ ! -e /proc/sys/fs/binfmt_misc/register ] && (( $retval == 0 )) ; then
 		mount -t binfmt_misc none /proc/sys/fs/binfmt_misc
+		retval=$?
 	fi
-	echo :wine:E::exe::/usr/bin/wine: > /proc/sys/fs/binfmt_misc/register
+	if (( $retval == 0 )) ; then
+		echo ':wine:E::exe::/usr/bin/wine:' > /proc/sys/fs/binfmt_misc/register
+		retval=$?
+	fi
+	ok $retval
+}
+
+rc_stop()
+{
+	stop_msg
+	echo '-1' > /proc/sys/fs/binfmt_misc/wine
 	ok $?
-fi
+}
+
+rc_exec $1
+
+# vim: ft=sh

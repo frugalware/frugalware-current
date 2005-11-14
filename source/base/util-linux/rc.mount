@@ -1,35 +1,27 @@
-#!/bin/sh
+#!/bin/bash
 
+# (c) 2005      Marcus Habermehl <bmh1980de@yahoo.de>
 # (c) 2003-2005 Vajna Miklos <vmiklos@frugalware.org>
-# (c)      Patrick J. Volkerding, <volkerdi@slackware.com>
+# (c)           Patrick J. Volkerding, <volkerdi@slackware.com>
 # rc.mount for Frugalware
 # distributed under GPL License
-
-. /etc/rc.d/rc.functions
 
 # chkconfig: - 00 97
 # description: Mount/umount local filesystems.
 
-if [ "$1" = "stop" ]; then
-	if [ "$2" = 0 -o "$2" = 6 ]; then
-		start "$umountlocal"
-		umount -a -r -t nonfs,noumsdos,nosmbfs,noproc
-		ok $?
-		
-		# Don't remount UMSDOS root volumes.
-		if [ ! "`mount | head -n 1 | cut -d ' ' -f 5`" = "umsdos" ]; then
-			start "$remountro"
-			mount -n -o remount,ro /
-			ok $?
-		fi
-	fi
-	# This never hurts. :)
-	sync
-elif [ "$1" = "restart" ]; then
-	"$0" stop
-	sleep 1
-	"$0" start
-else # start
+source /lib/initscripts/functions
+TEXTDOMAIN=mount
+
+actions=(start stop)
+
+if [ -z $2 ] ; then
+	rl=4
+else
+	rl=$2
+fi
+
+rc_start()
+{
 	# See if a forced filesystem check was requested at shutdown.
 	if [ -r /etc/forcefsck ]; then
 		ffsck="-f"
@@ -37,14 +29,14 @@ else # start
 	
 	# Check all the non-root filesystems.
 	if ! [ -r /etc/fastboot ]; then
-		start "$chknonroot"
+		msg $"Checking non-root filesystems"
 		/sbin/fsck $ffsck -C -R -A -a >/dev/null
 		ok $?
 	fi
 
 	# Mount non-root file systems in fstab (but not NFS or SMB 
 	# because TCP/IP is not yet configured).
-	start "$mountlocal"
+	msg $"Mounting local filesystems"
 	mount -a -t nonfs,nosmbfs,noproc,nosysfs
 	ok $?
 
@@ -56,13 +48,35 @@ else # start
 	# Create a fresh utmp file.
 	cat /dev/null > /var/run/utmp
 
-	if cat /etc/fstab | grep ' / ' | grep umsdos 1> /dev/null 2> /dev/null ; then
+	if cat /etc/fstab | grep ' / ' | grep -q umsdos ; then
 		rfstype="umsdos"
 	fi
 	if [ "$rfstype" = "umsdos" ]; then
 		# We need to update any files added in DOS.
-		start "$umssync"
+		mgs $"Synchronizing UMSDOS directory structure"
 		umssync -r99 -v- /
 		ok $?
 	fi
-fi
+}
+
+rc_stop()
+{
+	if (( ${rl} == 0 )) || (( ${rl} == 6 )) ; then
+		msg $"Unmounting local filesystems"
+		umount -a -r -t nonfs,noumsdos,nosmbfs,noproc
+		ok $?
+		
+		# Don't remount UMSDOS root volumes.
+		if [ ! "`mount | head -n 1 | cut -d ' ' -f 5`" = "umsdos" ]; then
+			msg $"Remounting root filesystem read-only"
+			mount -n -o remount,ro /
+			ok $?
+		fi
+	fi
+	# This never hurts. :)
+	sync
+}
+
+rc_exec $@
+
+# vim: ft=sh

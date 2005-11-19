@@ -1,0 +1,78 @@
+# Last Modified: Tue, 15 Nov 2005 21:02:00 +0100
+# Compiling Time: 7.26 SBU
+# Maintainer: Zoltan Kiss <djsmiley@frugalware.org>
+
+pkgname=kernel-grsec
+pkgver=2.1.7
+kver=2.6.14.2
+kmin=`echo $kver|cut -d . -f 1,2,3`
+cver=0.1.0
+pkgrel=7
+pkgdesc="The Linux Kernel and modules (Grsecurity version)"
+url="http://www.grsecurity.net"
+depends=('module-init-tools')
+backup=('/etc/sysconfig/grsec')
+groups=('base-extra')
+archs=('i686')
+provides=('kernel')
+replaces=('kernel-ide' 'kernel-scsi')
+up2date="lynx -dump http://www.grsecurity.net/download.php|grep grsecurity-.*-2.6|sed -n 's/.*y-\([^-]*\)-.*/\1/;1 p'"
+grtime=`lynx -dump http://www.grsecurity.net/download.php|grep grsecurity-.*-2.6|sed -n 's/.*-\(.*\)\.p.*/\1/;1 p'`
+source=(http://www.grsecurity.net/grsecurity-$pkgver-$kver-$grtime.patch.gz \
+	ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$kver.tar.gz \
+	config config.patch grsec README.frugalware rc.grsec \
+	rc.grsec-{de,hu}.po grsecconf-$cver.tar.gz)
+sha1sums=('')
+						      
+[ "$CARCH" == "x86_64" ] && MARCH=K8
+echo "$CARCH" |grep -q 'i.86' && KARCH=i386
+
+[ "$CARCH" == "x86_64" ] && \
+    source=(${source[@]} linux-2.6.11-x86_64_config.patch0) && \
+	sha1sums=(${sha1sums[@]} '191954a0edaee42cf72e139b34d428fe3df8a11c')
+
+build()
+{
+	#build the mconf util
+	Fcd grsecconf-$cver
+	make || return 1
+
+	#install mconf
+	Fmkdir /usr/share/kernel-grsec
+	Fmkdir /var/lib/frugalware/system
+	Fmkdir /usr/sbin
+	Fexerel /usr/sbin/grsecconf
+	Ffilerel options /usr/share/kernel-grsec/mconf.opts
+	Fexerel /var/lib/frugalware/system/mconf
+	
+	#build kernel
+	cd $Fsrcdir/linux-$kver
+	cp $Fsrcdir/config .config
+	Fpatchall || return 1
+	Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
+	yes "" | make config
+	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = -grsec-fw$pkgrel" Makefile
+	
+	make || return 1
+
+	#install kernel
+	Fmkdir /boot
+
+	Ffilerel .config /boot/config-$kmin-grsec-fw$pkgrel
+	Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage \
+		/boot/vmlinuz-$kmin-grsec-fw$pkgrel
+	Fmkdir /lib/modules
+	make INSTALL_MOD_PATH=$Fdestdir modules_install
+	Ffilerel System.map /boot/System.map-$kmin-grsec-fw$pkgrel
+	Frm /lib/modules/$kmin-grsec-fw$pkgrel/build
+	Frm /lib/modules/$kmin-grsec-fw$pkgrel/source
+	Fln /usr/src/linux-$kmin-grsec-fw$pkgrel /lib/modules/$kmin-grsec-fw$pkgrel/build
+	Fln /usr/src/linux-$kmin-grsec-fw$pkgrel /lib/modules/$kmin-grsec-fw$pkgrel/source
+	Fdoc README.frugalware
+	Fmkdir /etc/sysconfig
+	Ffile /etc/sysconfig/grsec
+	Fmkdir /etc/rc.d/rc.messages
+	Frcd2 grsec
+}
+
+# vim: ft=sh

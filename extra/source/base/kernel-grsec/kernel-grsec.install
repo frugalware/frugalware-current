@@ -1,0 +1,116 @@
+grub_convert()
+{
+	disk=`echo $1|sed 's/[0-9]*$//'`
+	partnum=`echo $1|sed 's|/dev/[a-z]*||'`
+	grubdisk=`grep $disk /boot/grub/device.map |sed 's/(\(.*\))\t.*/\1/'`
+	echo "($grubdisk,$(($partnum-1)))"
+}
+
+bootdev=`df /boot|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`
+grubbootdev=`grub_convert $bootdev`
+rootdev=`df /|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`
+
+# hack for /boot
+if [ "`df /boot|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`" = \
+	"`df /|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`" ]; then
+	bootstring=/boot
+fi
+
+#remove $1 kernel patchset
+rmgr()
+ {
+  MENU="/boot/grub/menu.lst"
+   if [ -e $MENU ]; then
+	echo "removing $1 entries from grub menu..."
+       # grep 2 menu.lst ! $1
+       grep -v $1 $MENU >> /tmp/.menu.lst
+       ## backup the menu.lst, who knows :p
+       mv -f $MENU $MENU.old
+       ## mv the tmpMENU without our $patchset to menu.lst
+       mv -f /tmp/.menu.lst $MENU
+     else
+    echo "Can't remove the kernel entry from your menu.lst :(. Please remove the entry manually."
+   fi
+}
+				       
+# arg 1:  the new package version
+post_install()
+{
+	kernelver=`ls /boot/vmlinuz-*-grsec-fw*|sed 's|/boot/vmlinuz-||'`
+	
+	if ! [ -e /boot/vmlinuz-grsec ]; then
+		cd /boot
+		ln -sf vmlinuz-$kernelver vmlinuz-grsec
+		ln -sf config-$kernelver config-grsec
+		ln -sf System.map-$kernelver System.map-grsec
+	fi
+	if [ -e /boot/grub/menu.lst ]; then
+		if ! grep -q "Frugalware.*Grsecurity" /boot/grub/menu.lst; then
+			echo >>/boot/grub/menu.lst
+			echo "title `cat /etc/frugalware-release` Grsecurity - $kernelver" >>/boot/grub/menu.lst
+			echo "	kernel $grubbootdev$bootstring/vmlinuz-grsec ro root=$rootdev vga=788 pax_softmode=0" >>/boot/grub/menu.lst
+		fi
+	fi
+	
+	if ! grep -q '^grsec_procview:' /etc/group ; then
+	    groupadd -g 60 grsec_procview
+	fi
+	if ! grep -q '^grsec_audit:' /etc/group ; then
+	    groupadd -g 61 grsec_audit
+	fi
+	if ! grep -q '^grsec_tpe:' /etc/group ; then
+	    groupadd -g 62 grsec_tpe
+	fi
+	if ! grep -q '^grsec_s_all:' /etc/group ; then
+	    groupadd -g 63 grsec_s_all
+	fi
+	if ! grep -q '^grsec_s_client:' /etc/group ; then
+	    groupadd -g 64 grsec_s_client
+	fi
+	if ! grep -q '^grsec_s_server:' /etc/group ; then
+	    groupadd -g 65 grsec_s_server
+	fi
+		
+	chkconfig --add rc.grsec
+
+}
+
+# arg 1:  the new package version
+# arg 2:  the old package version
+post_upgrade()
+{
+	fwver=`cat /etc/frugalware-release|sed 's/Frugalware \(.*\) (.*)/\1/'`
+	post_install $1
+	[ -e /boot/grub/menu.lst ] && sed -i "s/^\(title Frugalware $fwver (.*) Grsecurity -\) [^ ]*$/\1 $kernelver/" /boot/grub/menu.lst
+}
+
+pre_remove()
+{
+	chkconfig --del rc.grsec
+}
+
+post_remove()
+{
+	if [ -L /boot/vmlinuz-grsec ]; then
+	    cd /boot    
+	    rm vmlinuz-grsec
+	    rm config-grsec
+	    rm System.map-grsec
+	fi
+	
+	groupdel grsec_procview >/dev/null 2>&1
+	groupdel grsec_audit >/dev/null 2>&1
+	groupdel grsec_tpe >/dev/null 2>&1
+	groupdel grsec_s_all >/dev/null 2>&1
+	groupdel grsec_s_client >/dev/null 2>&1
+	groupdel grsec_s_server >/dev/null 2>&1
+
+	rmgr "grsec"
+}
+
+op=$1
+shift
+
+$op $*
+
+# vim: ft=sh

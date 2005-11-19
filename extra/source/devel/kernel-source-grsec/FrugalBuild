@@ -1,0 +1,51 @@
+# Last Modified: Tue, 15 Nov 2005 21:28:51 +0100
+# Compiling Time: 0.02 SBU
+# Maintainer: Zoltan Kiss <djsmiley@frugalware.org>
+
+pkgname=kernel-source-grsec
+pkgver=2.1.7
+kver=2.6.14.2
+kmin=`echo $kver|cut -d . -f 1,2,3`
+pkgrel=7
+pkgdesc="The Linux Kernel Source (Grsecurity version)"
+url="http://www.grsecurity.net"
+depends=('make' 'gcc' 'kernel-headers')
+groups=('devel')
+provides=('kernel-source')
+archs=('i686')
+up2date="lynx -dump http://www.grsecurity.net/download.php|grep grsecurity-.*-2.6|sed -n 's/.*y-\([^-]*\)-.*/\1/;1 p'"
+grtime=`lynx -dump http://www.grsecurity.net/download.php|grep grsecurity-.*-2.6|sed -n 's/.*-\(.*\)\.p.*/\1/;1 p'`
+source=(http://www.grsecurity.net/~spender/grsecurity-$pkgver-$kver-$grtime.patch.gz ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$kver.tar.gz config config.patch)
+sha1sums=('5dbdaee9d0657827e445b51c16e44a0c3c6816a7' \
+          '5a390e2009f2e6928bed370a68f133c0d3cf2bee' \
+          '5c21384228527c602ba53146177f5d509c184b59' \
+          'a345b3a6bf0c2971b3094a79cf5b57d30bd9d80b')
+						    							    
+[ "$CARCH" == "x86_64" ] && MARCH=K8
+echo "$CARCH" |grep -q 'i.86' && KARCH=i386
+
+[ "$CARCH" == "x86_64" ] && \
+    source=(${source[@]} linux-2.6.11-x86_64_config.patch0) && \
+	sha1sums=(${sha1sums[@]} '191954a0edaee42cf72e139b34d428fe3df8a11c')
+
+build()
+{
+
+	#build kernel
+	cd $Fsrcdir/linux-$kver
+	cp $Fsrcdir/config .config
+	Fpatchall || return 1
+	Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
+	yes "" | make config
+	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = -grsec-fw$pkgrel" Makefile
+
+	cd ..
+	Fmkdir /usr/src/
+	mv linux-$kver $Fdestdir/usr/src/linux-$kmin-grsec-fw$pkgrel
+	Fln linux-$kmin-grsec-fw$pkgrel /usr/src/linux-grsec
+
+	# see http://ieee80211.sourceforge.net/#issues
+	Frm /usr/src/linux-grsec/include/net/ieee80211.h
+}
+
+# vim: ft=sh

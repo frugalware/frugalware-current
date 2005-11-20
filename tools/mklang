@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# (c) 2005 Marcus Habermehl <bmh1980de@yahoo.de>
+# mklang for Frualware
+# distributed under GPL License, Version 2
+
+# Arguments: "pot file" "language"
+
+pot_file="$1"
+lang="$2"
+
+if [ ! -f "${pot_file}" ] ; then
+	touch "${pot_file}" || exit 1
+	for i in * ; do
+		if [ ! -d $i ] ; then
+			bash --dump-po-strings $i | xgettext -L PO -j \
+			                                     --no-location \
+							     -o "${pot_file}" - || exit 1
+		fi
+	done
+fi
+
+if (( $(echo ${lang} | tr _ ' ' | wc -l) == 1 )) ; then
+	lang="${lang}_$(echo ${lang} | tr [:lower:] [:upper:])"
+elif (( $(echo ${lang} | tr _ ' ' | wc -l) != 2 )) ; then
+	echo "${lang} isn't a valid language!"
+	exit 1
+fi
+
+po_file="$(echo ${pot_file} | sed 's|.pot||')-$(echo ${lang} | cut -d _ -f 1).po"
+
+msginit -l "${lang}" -i "${pot_file}" -o "${po_file}" || exit 1
+
+if [ -z "${EDITOR}" ] ; then
+	if [ -z "${DISPLAY}" ] ; then
+		vim "${po_file}"
+	elif [[ "${DESKTOP_SESSION}" == "kde" ]] ; then
+		if [[ "$(which kvim 2> /dev/null)" != "" ]] ; then
+			kvim "${po_file}"
+		else
+			kwrite "${po_file}"
+		fi
+	else
+		if [[ "$(which gvim 2> /dev/null)" != "" ]] ; then
+			gvim "${po_file}"
+		elif [[ "$(which emacs 2> /dev/null)" != "" ]] ; then
+			emacs "${po_file}"
+		else
+			vim "${po_file}"
+		fi
+	fi
+else
+	"${EDITOR}" "${po_file}"
+fi

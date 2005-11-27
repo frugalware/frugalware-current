@@ -1,34 +1,48 @@
 #!/bin/bash
 
+# (c) 2005 Marcus Habermehl <bmh1980de@yahoo.de>
 # (c) 2005 Miklos Vajna <vmiklos@frugalware.org>
 # rc.acpid for Frugalware
 # distributed under GPL License
 
-. /etc/rc.d/rc.functions
-
 # chkconfig: 2345 44 56
 # description: Monitore software raid arrays
 
-[ -e /proc/mdstat ] || exit 1
-. /etc/sysconfig/mdadm || exit 1
+source /lib/initscripts/functions
+TEXTDOMAINDIR=/lib/initscripts/functions
+TEXTDOMAIN=mdadm
 
-if [ "$1" = "stop" ]; then
-	stop "$stopmdadm"
-	for i in /var/run/mdadm.*
-	do
-		kill `cat $i`
-		rm $i
-	done
-	ok $?
-elif [ "$1" = "restart" ]; then
-	"$0" stop
-	sleep 1
-	"$0" start
-else # start
-	start "$startmdadm"
-	for i in "${devices[@]}"
-	do
-		mdadm --monitor --daemonise --mail=$mail --delay=$delay $i >/var/run/mdadm.$RANDOM
-	done
-	ok $?
-fi
+actions=(restart start status stop)
+daemon=$"mdadm monitor daemon"
+
+pid="pidof mdadm 2> /dev/null"
+
+rc_start()
+{
+	start_msg
+	if [ -e /proc/mdstat ] && [[ "$(eval ${pid})" == "" ]] ; then
+		source /etc/sysconfig/mdadm
+		for i in "${devices[@]}" ; do
+			mdadm --monitor --daemonise --mail=${mail} \
+			      --delay=${delay} $i > /var/run/mdadm.${RANDOM}
+		done
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_stop()
+{
+	stop_msg
+	if [[ "$(eval ${pid})" != "" ]] ; then
+		killall mdadm
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1
+
+# vim: ft=sh

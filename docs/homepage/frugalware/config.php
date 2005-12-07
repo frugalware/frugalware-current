@@ -19,13 +19,7 @@ $fwautorsfile="$fwtopsrcdir/frugalware-current/AUTHORS";
 $fwchlfile="$fwtopsrcdir/frugalware-current/ChangeLog.txt";
 
 // mirrors
-/*	array("ftp.frugalware.org",
-		"ftp://ftp.frugalware.org/pub/frugalware/",
-		"Hungary (100 Mbit)"),*/
 $mirrors=array(
-	array("ftp2.frugalware.org",
-		"ftp://ftp2.frugalware.org/frugalware.org/pub/frugalware/",
-		"Hungary (36x2.8 MBit)"),
 	array("ftp3.frugalware.org",
 		"ftp://ftp3.frugalware.org/mirrors/frugalware/frugalware/",
 		"Hungary (100 MBit)"),
@@ -40,7 +34,10 @@ $mirrors=array(
 $httpmirrors=array(
 	array("www5.frugalware.org",
 		"http://www5.frugalware.org/linux/frugalware/pub/frugalware/",
-		"Belgium (2x1GBit, ftp.belnet.be)")/*,
+		"Belgium (2x1GBit, ftp.belnet.be)"),
+	array("www7.frugalware.org",
+		"http://www7.frugalware.org/pub/frugalware/",
+		"Germany (100MBit, pimpmylinux.org)")/*,
 	array("www6.frugalware.org",
 		"http://www6.frugalware.org/",
 		"Hungary (-current only, no isos)")*/

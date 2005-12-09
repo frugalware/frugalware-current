@@ -7,5 +7,5 @@
 # sets url, up2date and source() for a typical sf project
 
 url="http://sourceforge.net/projects/$pkgname"
-up2date="lynx -dump $url |grep -1 Version|sed -n -e 's/.*]\([0-9\.]*\) [A-Z].*/\1/' -e '3 p'"
+up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep 'Release Notes'|sed 's/[^]]*][^]]*]\([^ ]*\) .*/\1/;q'"
 source=(http://dl.sourceforge.net/sourceforge/$pkgname/$pkgname-$pkgver.tar.gz)

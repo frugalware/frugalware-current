@@ -40,6 +40,11 @@ print("<p></p>");
 
 if (!isset($_GET['url']))
 {
+fwopenbox($fwstrdltorrentt, 100, false, $fwwhite);
+printf("<div align=lef>" . $fwstrdltorrentd . "</div>");
+fwclosebox(false);
+print("<p>");
+
 fwopenbox($fwstrdlrsynct, 100, false, $fwwhite);
 print("<div align=left><ul>
 <li>$fwstrdlrsync1<br>

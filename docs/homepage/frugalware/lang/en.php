@@ -14,6 +14,8 @@ $fwstrdlrsync1="Full mirroring (~27GB):";
 $fwstrdlrsync2="Only a specified tree (~5GB, for example -current):";
 $fwstrcheapisot="Get a CD";
 $fwstrcheapisod="You can buy Frugalware CDs at the following sites:";
+$fwstrdltorrentt="Via Bittorrent";
+$fwstrdltorrentd="You can find a bunch of torrent file for various Frugalware iso <a href=\"http://linuxtracker.org/index.php?cat=146\">here</a>. You can also track the last 15 uploaded torrents for Frugalware <a href=\"http://linuxtracker.org/rss.php?cat=146\">here</a>.";
 
 // footer.php
 $fwstrgentime="Generation time";

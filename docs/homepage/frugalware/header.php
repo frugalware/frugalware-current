@@ -33,7 +33,12 @@ print("<META NAME=\"COPYRIGHT\" CONTENT=\"Copyright (c)" .
 	" 2000-" . date("Y") . " by Miklos Vajna\">\n");
 // nice icon for browsers
 print("<link REL=\"icon\" href=\"/images/favicon.ico\">\n");
-print("<style type=\"text/css\">
+print("<script type=\"text/javascript\" src=\"menu.js\">
+/* AnyLink CSS Menu script- (c) Dynamic Drive DHTML code library (www.dynamicdrive.com)
+ * This notice MUST stay intact for legal use
+ * Visit Dynamic Drive at http://www.dynamicdrive.com/ for full source code */
+</script>
+<style type=\"text/css\">
 	a { color: $fwlink; text-decoration: none; }
 	a:link:hover { color: $fwlink; text-decoration: underline; }
 	a:visited:hover { color: $fwlink; text-decoration: underline; }
@@ -41,6 +46,8 @@ print("<style type=\"text/css\">
 	a.menu { color: $fwwhite; text-decoration: none; }
 	a.menu:hover { color: $fwwhite; text-decoration: underline; }
 	body { font-family: Arial, Helvetica, Verdana, Tahoma, monospace; font-size: 14px; background-color : ${fwgray}; }
+	.menulinkcss{ position:absolute; visibility: hidden; border:1px solid $fwblack; background-color: $fwwhite; }
+	.menulinkcss a{ display: block; padding-left: 5px; padding-right: 5px; }
 </style>\n");
 print("</head>\n");
 

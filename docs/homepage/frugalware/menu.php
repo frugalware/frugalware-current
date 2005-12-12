@@ -14,7 +14,6 @@ print("&middot;
 <a class=menu href=\"irc.php\">$fwstrirc</a> &middot;
 <a class=menu href=\"screenshot.php\">$fwstrscreenshot</a> &middot;
 <a class=menu href=\"packages.php\">$fwstrpac</a> &middot;
-<a class=menu href=\"wishlist.php\">$fwstrmwishlist</a> &middot;
 <a class=menu href=\"roadmap.php\">$fwstrroadmap</a> &middot;
 <a class=menu href=\"authors.php\">$fwstrauthors</a> &middot;
 <a class=menu href=\"donations.php\">$fwstrdonations</a> &middot;

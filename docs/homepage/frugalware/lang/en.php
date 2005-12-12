@@ -35,7 +35,6 @@ $fwstrdl="download";
 $fwstrlist="lists";
 $fwstrirc="irc";
 $fwstrroadmap="roadmap";
-$fwstrmwishlist="wishlist";
 $fwstrmbugs="bugs";
 $fwstrmblogs="blogs";
 $fwstrauthors="people";

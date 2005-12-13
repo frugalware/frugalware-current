@@ -32,6 +32,6 @@ $fwabout= array (
 	array("What about asian languages?",
 		"Frugalware does not support asian languages."),
 	array("What architectures does Frugalware support?",
-		"Currently we support only x86, and inside x86, only i686 (Pentium Pro or higher instruction set). If there are any claims, an i386 port will be created, but currently we don't have resources to build and maintain those packages. Outside x86, currently we don't have any non-x86 hardware, but happily accept such patches or any effort to create non-x86 optimized packages.")
+		"Currently we support x86 and x86_64 platforms, and inside x86, only i686 (Pentium Pro or higher instruction set) and inside x86_64 only k8 (amd6). If there are any claims, an i386 port will be created, but currently we don't have resources to build and maintain those packages. Outside x86, currently we don't have any non-x86 hardware, but happily accept such patches or any effort to create non-x86 optimized packages.")
 	);
 ?>

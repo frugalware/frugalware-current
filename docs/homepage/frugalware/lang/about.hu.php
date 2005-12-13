@@ -32,6 +32,6 @@ $fwabout= array (
 	array ("Mi a helyzet az ázsiai nyelvekkel?",
 		"A Frugalware nem támogatja az ázsiai nyelveket."),
 	array ("Mely architektúrákat támogatja a Frugalware?",
-		"Jelenleg csak az x86, azon belül is csak az i686 (Pentium Pro és az annál újabb utasításkészletû) processzorok támogatottak. Ha van rá igény, nyitunk egy i386 portot is, de jelenleg sajnos nincs erõforrásunk újrafordítani és kezelni ezeket a csomagokat. Jelenleg nincs nem-x86 architektúrájú hardverünk, de szívesen fogadunk bármilyen patch-et vagy erõfeszítést nem-x86-ra optimalizált csomagok készítéséhez.")
+		"Jelenleg az x86 és x86_64 platformokat támogatjuk, azon belül is csak az i686 (Pentium Pro és az annál újabb utasításkészletû), valamint k8 (amd64) processzorok támogatottak. Ha van rá igény, nyitunk egy i386 portot is, de jelenleg sajnos nincs erõforrásunk újrafordítani és kezelni ezeket a csomagokat. Jelenleg nincs nem-x86 architektúrájú hardverünk, de szívesen fogadunk bármilyen patch-et vagy erõfeszítést nem-x86-ra optimalizált csomagok készítéséhez.")
 	);
 ?>

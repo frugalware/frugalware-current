@@ -1,3 +1,11 @@
+#!/bin/sh
+
+# (c) 2005 Bence Nagy <nagybence@tipogral.hu>
+# gem.sh for Frugalware
+# distributed under GPL License
+
+# using ruby gem sources
+
 depends=('ruby')
 makedepends=('rubygems')
 source=(http://gems.rubyforge.org/gems/"$pkgname"-"$pkgver".gem)
@@ -27,7 +35,9 @@ Finstallgem() {
 			cp -R doc/"$pkgname"-"$pkgver"/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
 			rm -rf doc/"$pkgname"-"$pkgver"/ || Fdie
 		fi
-		cp -R doc/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
+		if [ -n "`ls doc`" ]; then
+			cp -R doc/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
+		fi
 	fi
 	mv `find . -mindepth 1 -maxdepth 1 -type f` $Fsrcdir
 }

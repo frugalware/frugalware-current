@@ -28,6 +28,7 @@ $fwstrsearch="Search";
 //menu.php
 $fwstrnews="news";
 $fwstrabout="about";
+$fwstrsummary="summary";
 $fwstrchl="changelog";
 $fwstrdr="darcs";
 $fwstrpac="binary packages";

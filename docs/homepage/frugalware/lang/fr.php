@@ -26,6 +26,7 @@ $fwstrsearch="recherche";
 // menu.php
 $fwstrnews="nouveautés";
 $fwstrabout="a propos";
+$fwstrsummary="sommaire";
 $fwstrchl="changelog";
 $fwstrdr="darcs";
 $fwstrpac="paquets";

@@ -2,7 +2,11 @@
 #print("<div align=\"center\">&middot;
 print("</font>&middot;
 <a class=menu href=\"news.php\">$fwstrnews</a> &middot;
-<a class=menu href=\"about.php\">$fwstrabout</a> &middot;
+<a class=menu href=\"\" onClick=\"return clickreturnvalue()\" onMouseover=\"dropdownmenu(this, event, 'aboutmenu')\">$fwstrabout</a> &middot;
+<div id=\"aboutmenu\" class=\"menulinkcss\" align=\"left\">
+<a href=\"about.php\">$fwstrsummary</a>
+<a href=\"docs.php\">$fwstrdocsmenu</a>
+</div>
 <a class=menu href=\"\" onClick=\"return clickreturnvalue()\" onMouseover=\"dropdownmenu(this, event, 'commmenu')\">$fwstrcomm</a> &middot;
 <div id=\"commmenu\" class=\"menulinkcss\" align=\"left\">
 <a href=\"mailman/listinfo\">$fwstrlist</a>
@@ -26,6 +30,5 @@ print("</font>&middot;
 <a href=\"authors.php\">$fwstrauthors</a>
 <a href=\"donations.php\">$fwstrdonations</a>
 </div>
-<a class=menu href=\"docs.php\">$fwstrdocsmenu</a> &middot;
 <font>\n");
 ?>

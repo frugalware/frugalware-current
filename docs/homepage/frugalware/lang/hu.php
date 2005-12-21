@@ -26,6 +26,7 @@ $fwstrsearch="Keresés";
 //menu.php
 $fwstrnews="hírek";
 $fwstrabout="rólunk";
+$fwstrsummary="összegzés";
 $fwstrchl="changelog";
 $fwstrdr="darcs";
 $fwstrpac="csomagok";

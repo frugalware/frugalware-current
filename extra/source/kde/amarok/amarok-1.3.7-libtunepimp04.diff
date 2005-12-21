@@ -1,0 +1,62 @@
+--- amarok-1.3.7/amarok/src/ktrm.cpp	2005-12-06 01:09:25.000000000 +0100
++++ amarok-1.3.7-patched/amarok/src/ktrm.cpp	2005-12-20 03:57:19.000000000 +0100
+@@ -42,7 +42,7 @@
+ 
+ extern "C"
+ {
+-    static void TRMNotifyCallback(tunepimp_t pimp, void *data, TPCallbackEnum type, int fileId);
++    static void TRMNotifyCallback(tunepimp_t pimp, void *data, TPCallbackEnum type, int fileId, TPFileStatus status);
+ }
+ 
+ /**
+@@ -66,7 +66,7 @@
+         int id;
+ 
+         if(!m_fileMap.contains(lookup->file())) {
+-            id = tp_AddFile(m_pimp, QFile::encodeName(lookup->file()));
++            id = tp_AddFile(m_pimp, QFile::encodeName(lookup->file()), 0);
+             m_fileMap.insert(lookup->file(), id);
+         }
+         else {
+@@ -121,7 +121,6 @@
+         tp_SetAutoSaveThreshold(m_pimp, -1);
+         tp_SetMoveFiles(m_pimp, false);
+         tp_SetRenameFiles(m_pimp, false);
+-        tp_SetUseUTF8(m_pimp, true);
+         tp_SetNotifyCallback(m_pimp, TRMNotifyCallback, 0);
+ 
+         if(KProtocolManager::useProxy()) {
+@@ -245,13 +244,11 @@
+  * Callback fuction for TunePimp lookup events.
+  */
+ 
+-static void TRMNotifyCallback(tunepimp_t pimp, void *, TPCallbackEnum type, int fileId)
++static void TRMNotifyCallback(tunepimp_t pimp, void *, TPCallbackEnum type, int fileId, TPFileStatus status)
+ {
+     if(type != tpFileChanged)
+         return;
+ 
+-    track_t track = tp_GetTrack(pimp, fileId);
+-    TPFileStatus status = tr_GetStatus(track);
+ 
+     switch(status) {
+     case eRecognized:
+@@ -554,12 +551,14 @@
+ 
+             for(int i = 0; i < resultCount; i++) {
+                 KTRMResult result;
+-
++                artistresult_t *artist = &tracks[i]->artist;
++                albumresult_t *album = &tracks[i]->album;
++    
+                 result.d->title = QString::fromUtf8(tracks[i]->name);
+-                result.d->artist = QString::fromUtf8(tracks[i]->artist->name);
+-                result.d->album = QString::fromUtf8(tracks[i]->album->name);
++                result.d->artist = QString::fromUtf8(artist->name);
++                result.d->album = QString::fromUtf8(album->name);
+                 result.d->track = tracks[i]->trackNum;
+-                result.d->year = tracks[i]->album->releaseYear;
++                result.d->year = tracks[i]->album.releaseYear;
+                 result.d->relevance =
+                     4 * stringSimilarity(strList,result.d->title) +
+                     2 * stringSimilarity(strList,result.d->artist) +

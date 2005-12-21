@@ -14,7 +14,6 @@ print("</font>&middot;
 <a class=menu href=\"\" onClick=\"return clickreturnvalue()\" onMouseover=\"dropdownmenu(this, event, 'dlmenu')\">$fwstrdl</a> &middot;
 <div id=\"dlmenu\" class=\"menulinkcss\" align=\"left\">
 <a href=\"download.php\">$fwstrdliso</a>
-<a href=\"docs.php\">$fwstrdocsmenu</a>
 <a href=\"packages.php\">$fwstrpac</a>
 </div>
 <a class=menu href=\"\" onClick=\"return clickreturnvalue()\" onMouseover=\"dropdownmenu(this, event, 'devmenu')\">$fwstrdevel</a> &middot;
@@ -27,5 +26,6 @@ print("</font>&middot;
 <a href=\"authors.php\">$fwstrauthors</a>
 <a href=\"donations.php\">$fwstrdonations</a>
 </div>
+<a class=menu href=\"docs.php\">$fwstrdocsmenu</a>
 <font>\n");
 ?>

@@ -26,6 +26,6 @@ print("</font>&middot;
 <a href=\"authors.php\">$fwstrauthors</a>
 <a href=\"donations.php\">$fwstrdonations</a>
 </div>
-<a class=menu href=\"docs.php\">$fwstrdocsmenu</a>
+<a class=menu href=\"docs.php\">$fwstrdocsmenu</a> &middot;
 <font>\n");
 ?>

@@ -1,0 +1,38 @@
+#!/bin/bash -x
+
+# number of packages to build at once
+maxpkgs=2
+logfile=build.log
+
+log()
+{
+	date >>$logfile
+	echo "$@" >>$logfile
+}
+
+logfile="`pwd`/$logfile"
+pkglist=`mktemp`
+darcs pull -a
+./checkpkgs -n|grep "\[O\] `uname -m`"|sed 's/\(.*\)-[^- ]*-[^- ]* .*/\1/' >$pkglist
+
+cd ..
+log "number of pkgs to build: `wc -l $pkglist|sed 's/\(.*\) .*/\1/'`"
+
+i=0
+for pkg in `cat $pkglist`
+do
+	CWD=`pwd`
+	cd `find . -maxdepth 3 -name $pkg`
+	rm -f *fpm
+	log "making package: $pkg"
+	sudo makepkg -RLu
+	log "finished making package $pkg with exit code $?"
+	rf -k -f *fpm
+	cd $CWD
+	i=$(($i+1))
+	if [ "$i" -ge "$maxpkgs" ]; then
+		break
+	fi
+done
+rm $pkglist
+log "build finished, pkgs built: $i"

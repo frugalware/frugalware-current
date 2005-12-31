@@ -1,0 +1,66 @@
+# Last Modified: Sat, 31 Dec 2005 02:37:26 +0100
+# Compiling Time: 4.43 SBU
+# Maintainer: VMiklos <vmiklos@frugalware.org>
+
+pkgname=gcc-3.3
+pkgver=3.3.6
+pkgrel=1
+pkgdesc="The GNU Compiler Collection (3.3.x series)"
+url="http://gcc.gnu.org/gcc-3.3/"
+depends=('binutils')
+conflicts=('gcc<=3.3.6')
+groups=('devel-extra')
+archs=('i686')
+up2date="lynx -dump $url |grep 'GCC.*[0-9]$' |sed -n 's/.*C \(.*\)/\1/;1 p'"
+source=(ftp://gcc.gnu.org/pub/gcc/releases/gcc-$pkgver/gcc-$pkgver.tar.bz2 \
+	gcc-3.4.3-no_multilib_amd64.patch0)
+# ftp://gcc.gnu.org/pub/gcc/releases/gcc-$pkgver/md5.sum
+sha1sums=('2cc43978bb09af6c2ccfdf74797d10d7cc2596fb' \
+          '883ae944eb9aeca85d9adc54b3e16eab8f4a51c3')
+[ "$CARCH" == "x86_64" ] && Fconfopts="$Fconfopts --libdir=/usr/lib --disable-multilib"
+
+build()
+{
+	Fcd gcc-$pkgver
+	[ "$CARCH" == "x86_64" ] && Fpatchall
+	mkdir ../$pkgname-build
+	cd ../$pkgname-build
+	../gcc-$pkgver/configure $Fconfopts --enable-shared \
+		--enable-languages=c,c++,objc --enable-threads=posix \
+		--enable-__cxa_atexit --program-suffix=-3.3
+	
+	make bootstrap || return 1
+	
+	Fmakeinstall
+
+	# include/ contains install-tools/include/* and headers that were fixed
+	# up by fixincludes, we don't want former
+	for i in `find $Fdestdir/usr/lib/gcc/$CHOST/$pkgver/include/ -name \*.h`
+	do
+		if grep -q 'It has been auto-edited by fixincludes from' \
+			$i; then
+			rm -f $i
+		fi
+	done
+
+	Frm '/usr/bin/c++filt*' /usr/lib/libiberty.a
+	Fmkdir /lib
+	Fln ../usr/bin/cpp-3.3 /lib/cpp-3.3
+	Fln gcc-3.3 /usr/bin/cc-3.3
+	Fln g++-3.3 /usr/bin/c++-3.3
+	# conflicts with gcc
+	Frm /usr/info
+	Frm '/usr/lib/libobjc.*'
+	Frm /usr/man/man1/{cpp.1,gcov.1} /usr/man/man7
+	Frm /usr/share/locale/*/LC_MESSAGES/gcc.mo
+	# conflicts with libstdc++5
+	Frm '/usr/lib/libstdc++.*'
+	Frm '/usr/lib/libsupc++.*'
+	Frm /usr/share/locale/*/LC_MESSAGES/libstdc++.mo
+	# conflicts with gcc-lib
+	Frm '/usr/lib/libgcc_*'
+}
+
+# optimalization ok
+
+# vim: ft=sh

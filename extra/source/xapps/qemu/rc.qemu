@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# (c) 2006 Miklos Vajan <vmiklos@frugalware.org>
+# rc.qemu for Frugalware
+# distributed under GPL License
+
+# chkconfig: 2345 35 98
+# description: Allow users to run non-native Linux programs by just clicking \
+#              on them (or typing ./file.exe)
+
+source /lib/initscripts/functions
+TEXTDOMAIN=qemu
+TEXTDOMAINDIR=/lib/initscripts/messages
+
+actions=(restart start status stop)
+
+rc_start()
+{
+	start_msg $"Registering binary handler for qemu applications"
+	if ls /proc/sys/fs/binfmt_misc/qemu-* &>/dev/null; then
+		ok 999
+		return 1
+	fi
+	retval=0
+	if [ ! -e /proc/sys/fs/binfmt_misc ] ; then
+		modprobe binfmt_misc
+		retval=$?
+	fi
+	if [ ! -e /proc/sys/fs/binfmt_misc/register ] && (( $retval == 0 )) ; then
+		mount -t binfmt_misc none /proc/sys/fs/binfmt_misc
+		retval=$?
+	fi
+	if (( $retval == 0 )) ; then
+		cpu=`uname -m`
+		case "$cpu" in
+			i386|i486|i586|i686|i86pc|BePC)
+				cpu="i386"
+				;;
+			"Power Macintosh"|ppc|ppc64)
+				cpu="ppc"
+				;;
+		esac
+		if [ "$cpu" != i386 -a -x /usr/bin/qemu-i386 ] ; then
+			echo ":qemu-i386:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00:\xff\xff\xff\xff\xff\xfe\xfe\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfb\xff\xff\xff:/usr/bin/qemu-i386:" > /proc/sys/fs/binfmt_misc/register
+			echo ":qemu-i486:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x06\x00:\xff\xff\xff\xff\xff\xfe\xfe\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfb\xff\xff\xff:/usr/bin/qemu-i386:" > /proc/sys/fs/binfmt_misc/register
+		fi
+		if [ -x /usr/bin/qemu-arm ] ; then
+			echo ":qemu-arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfb\xff\xff\xff:/usr/bin/qemu-arm:" > /proc/sys/fs/binfmt_misc/register
+		fi
+		if [ "$cpu" != ppc -a -x /usr/bin/qemu-ppc ] ; then
+			echo ":qemu-ppc:M::\x7fELF\x01\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x14:\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfb\xff\xff\xff:/usr/bin/qemu-ppc:" > /proc/sys/fs/binfmt_misc/register
+		fi
+		if [ -x /usr/bin/qemu-sparc ] ; then
+			echo ":qemu-sparc:M::\x7fELF\x01\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x02:\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfb\xff\xff\xff:/usr/bin/qemu-sparc:" > /proc/sys/fs/binfmt_misc/register
+		fi
+		retval=$?
+	fi
+	ok $retval
+}
+
+rc_status()
+{
+	status_msg $"Qemu binary format handlers are"
+	if ! ls /proc/sys/fs/binfmt_misc/qemu-* &>/dev/null; then
+		ok 998
+	else
+		ok 997
+	fi
+}
+
+rc_stop()
+{
+	stop_msg $"Unregistering binary handler for qemu applications"
+	if ! ls /proc/sys/fs/binfmt_misc/qemu-* &>/dev/null; then
+		ok 999
+		return 1
+	fi
+	for i in i386 i486 arm ppc sparc; do 
+		[ -e /proc/sys/fs/binfmt_misc/qemu-$i ] && \
+			echo "-1" >/proc/sys/fs/binfmt_misc/qemu-$i
+	done
+	ok $?
+}
+
+rc_exec $1
+
+# vim: ft=sh

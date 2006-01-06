@@ -9,7 +9,7 @@
 depends=('ruby')
 makedepends=('rubygems')
 source=(http://gems.rubyforge.org/gems/"$pkgname"-"$pkgver".gem)
-up2date='lynx -dump "http://gems.rubyforge.org/gems/" | grep "$pkgname-[0-9.]\+.gem$" | sed "s/.*$pkgname-\(.*\).gem.*/\1/" | sort -n | tail -n 1'
+up2date='lynx -dump "http://gems.rubyforge.org/gems/" | grep "$pkgname-[0-9.]\+.gem$" | sed "s/.*$pkgname-\(.*\).gem.*/\1/" | Fsort | tail -n 1'
 
 Finstallgem() {
 	gem install "$pkgname" --local --version "$pkgver" --install-dir . --ignore-dependencies

@@ -14,6 +14,7 @@ print("</font>&middot;
 <a href=\"http://wiki.frugalware.org/\">$fwstrwiki</a>
 <a href=\"irc.php\">$fwstrirc</a>
 <a href=\"screenshot.php\">$fwstrscreenshot</a>
+<a href=\"http://www.frappr.com/frugalware\">$fwstrmap</a>
 </div>
 <a class=menu href=\"\" onClick=\"return clickreturnvalue()\" onMouseover=\"dropdownmenu(this, event, 'dlmenu')\">$fwstrdl</a> &middot;
 <div id=\"dlmenu\" class=\"menulinkcss\" align=\"left\">

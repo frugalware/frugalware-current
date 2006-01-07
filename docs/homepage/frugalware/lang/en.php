@@ -46,6 +46,7 @@ $fwstrdevel="development";
 $fwstrwiki="wiki";
 $fwstrdocsmenu="documentation";
 $fwstrdonations="donations";
+$fwstrmap="map";
 
 // news.php
 $fwstrpby="posted by";

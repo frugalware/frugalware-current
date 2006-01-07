@@ -44,6 +44,7 @@ $fwstrforum="fórum";
 $fwstrwiki="wiki";
 $fwstrdocsmenu="dokumentáció";
 $fwstrdonations="felajánlások";
+$fwstrmap="térkép";
 
 // news.php
 $fwstrpby="írta:";

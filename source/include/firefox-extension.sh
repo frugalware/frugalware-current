@@ -8,6 +8,7 @@
 
 Fxpiinstall()
 {
+	[ -z "$extname" ] && extname="$pkgname"
 	Fmkdir /usr/lib/firefox/extensions/\{$extid\}
 	cd $Fdestdir/usr/lib/firefox/extensions/\{$extid\}
 	unzip -qqo $Fsrcdir/$extname-$pkgver.xpi || return 1

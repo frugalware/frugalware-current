@@ -200,7 +200,7 @@ $shot_titles["gnome-x86_64.png"]="GNOME on x86_64";
 // docs.php
 $fwstrdocs="Documentation";
 $fwstrdocsabout="<p align=\"left\">The most common questions are collected on the <a href=\"%s\">about</a> page.</p>";
-$fwstrdocsdarcs="<p align=\"left\">This documentation is generated from tex files in the <a href=\"%s\">-current darcs tree</a>.</p>";
+$fwstrdocsdarcs="<p align=\"left\">This documentation is generated from texi files in the <a href=\"%s\">-current darcs tree</a>.</p>";
 $fwstrdocsq="<p align=\"left\">I'd like to translate the documentation into my own language, what do I do to start?<br>";
 $fwstrdocsa="Send email to the <a href=\"%s\">frugalware-devel</a> mailing list, and we'll post our instructions.</p>";
 $fwstrdocsonline="View online";
@@ -208,7 +208,7 @@ $fwstrdocsen="English";
 $fwstrdocshu="Hungarian";
 $fwstrdocssk="Slovak";
 $fwstrdocshtml="HTML";
-$fwstrdocshtmlsingle="HTML single file";
+$fwstrdocstxt="Plain text";
 
 # donations.php
 $fwdonatestring="Donations";

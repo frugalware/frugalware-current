@@ -198,7 +198,7 @@ $shot_titles["gnome-x86_64.png"]="GNOME x86_64-en";
 // docs.php
 $fwstrdocs="Dokumentáció";
 $fwstrdocsabout="<p align=\"left\">A leggyakoribb kérdéseket a \"<a href=\"%s\">rólunk</a>\" oldalon gyûjtöttük össze.</p>";
-$fwstrdocsdarcs="<p align=\"left\">A dokumentáció a <a href=\"%s\">-current darcs fában</a> található tex file-okból készül.</p>";
+$fwstrdocsdarcs="<p align=\"left\">A dokumentáció a <a href=\"%s\">-current darcs fában</a> található texi file-okból készül.</p>";
 $fwstrdocsq="<p align=\"left\">Szeretné lefordítani a dokumentáció egy olyan nyelvre, amilyen nyelven még nem érhetõ el?<br>";
 $fwstrdocsa="Küldjön egy emailt a <a href=\"%s\">frugalware-devel</a> (a lista angol nyelvû) levelezési listára, és ott minden segítséget megadunk a munkához.</p>";
 $fwstrdocsonline="Online olvasás";
@@ -206,7 +206,7 @@ $fwstrdocsen="Angol";
 $fwstrdocshu="Magyar";
 $fwstrdocssk="Szlovák";
 $fwstrdocshtml="HTML";
-$fwstrdocshtmlsingle="HTML (1 darab nagy file)";
+$fwstrdocstxt="Egyszerû szöveg";
 
 # donations.php
 $fwdonatestring="Adományok";

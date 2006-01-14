@@ -11,16 +11,14 @@ fwclosebox();
 print("<p>");
 
 $translations = array(
-	array('en', '', $fwstrdocsen),
-       	array('hu', '_hu', $fwstrdocshu),
-	array('sk', '_SK_sk',$fwstrdocssk)
+	array('en_US', $fwstrdocsen)
 	);
 
 fwopenbox($fwstrdocsonline);
 print("<div align=\"left\"><ul>");
 foreach($translations as $i)
 {
-	print("<li>" . $i[2] . ": <a href=\"http://ftp.frugalware.org/pub/frugalware/frugalware-current/docs/html/" . $i[0] . "/\">$fwstrdocshtml</a> or <a href=\"http://ftp.frugalware.org/pub/frugalware/frugalware-current/docs/html/" . $i[0] . "/frugalware-howto" . $i[1] . ".html\">$fwstrdocshtmlsingle</a></li>\n");
+	print("<li>" . $i[1] . ": <a href=\"http://ftp.frugalware.org/pub/frugalware/frugalware-current/docs/html/" . $i[0] . "/\">$fwstrdocshtml</a> or <a href=\"http://ftp.frugalware.org/pub/frugalware/frugalware-current/docs/txt/" . $i[0] . "/frugalware.txt\">$fwstrdocstxt</a></li>\n");
 }
 print("</ul></div>");
 fwclosebox();

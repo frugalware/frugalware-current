@@ -1,0 +1,673 @@
+@node Development, Contents, Install and configure, Top
+@c node-name,     next,        previous,         up
+
+@chapter Development
+
+@section Creating new packages
+@subsection Introduction
+
+Frugalware consists of thousands of packages. Each files in the
+ distribution belong to some package. You can easily query which 
+package does the specified file belong to. If you want to know which 
+package contains /etc/frugalware-release, you should use:
+
+@verbatim
+$ pacman -Qo /etc/frugalware-release
+/etc/frugalware-release is owned by frugalware 0.3-3
+@end verbatim
+
+If you browse the FST (Frugalware Source Tree), currently there are two
+ repositories (or repos in short). Their name is frugalware and extra. 
+The frugalware repo contains most of packages. The binary packages of 
+the extra repo are only available on the DVD (or of course on the FTP
+ servers): localization packages and packages which conflict with 
+other packages in the frugalware repo. For example, it's not a good i
+dea to install two MTAs at the same time: the frugalware repo contains 
+postfix, the extra contains sendmail. 
+The exim package is in the extra repo, too.
+
+Each repo has a source and a binary directory. The frugalware repo's
+ directories are source/ and frugalware-$arch/. Those of the extra are
+ extra/source/ and extra/frugalware-$arch/. The binary packages are in
+ the binary directory of the repo. The sources of packages are a little
+ bit more complex. Each package has a category, and each category and
+ package has its own directory in the source dir.
+
+Let's see an example. You are searching for the cabextract package.
+ The binary package is named 
+@samp{frugalware-<arch>/cabextract-<version>-<release>-<arch>.fpm} and its
+ source is placed in the source/apps/cabextract dir.
+
+In the package's own dir, we store everything required to compile the package. 
+You may say we should store only the patches and so, but in our opinion, 
+it's very annoying when you want to recompile a package and the original 
+server is slow or even unreachable, due to some other reasons.
+
+Besides, there is a FrugalBuild file in each package's source directory. 
+This is a simple bash shell script, that will be included by makepkg. 
+So in the FrugalBuild script you can use everything that can be used 
+in a shell script.
+
+Briefly, packaging means collecting the sources, adding additional 
+files (for example init scripts or config files) and writing the 
+FrugalBuild script.
+
+@subsection Recompiling packages
+
+Before creating a new package, first we will recompile an
+ existing package in this howto. It's very simple. In our 
+example we will recompile the mplayer package. First, you 
+have to download the current FST: @samp{$ repoman upd}, as root. 
+Or, as a regular user, copy /etc/repoman.conf to ~/.repoman.conf, 
+change the fst_root dir in it (by default, it would download 
+the files to /var/fst, and it is not writable as a user, of course) 
+and issue repoman upd. Continue with
+
+@verbatim
+$ cd $fst_root/source/xapps/mplayer
+$ sudo makepkg -Ra
+@end verbatim
+
+First we enter the directory of mplayer then (like make and Makefile
+) we run makepkg that will build the package according to the parameters 
+described in FrugalBuild. We usually use the -R option to build the package
+ in a chroot-ed environment. Chroot requires root privileges. To allow 
+ group (for example the devels group) to use sudo makepkg -Ra, start 
+visudo as root, and add the following line:
+
+@samp{%devels ALL=NOPASSWD:/usr/bin/makepkg -Ra}
+
+The chroot will be placed by default in /var/chroot. Only one packag
+e can be built in a chroot at a time, so maybe you'll want to specify 
+a separate chroot for each user. In order to do this, set 
+the $CHROOTDIR variable in your /etc/makepkg.conf from:
+@samp{export CHROOTDIR="/var/chroot"}
+to
+@samp{export CHROOTDIR="/var/chroot.`echo $HOME|sed 's|.*/\(.*\)$|\1|'`"}
+
+(See man makepkg for more info about the benefits of building in a chroot).
+
+Also using the -a option is always a good idea, thus makepkg will try to
+ autodetect dependencies. This way in most cases you can detect if you 
+missed a dependency.
+
+In the next section we will see an example for a simple FrugalBuild script.
+
+@subsection A simple example
+
+Let's see a simple example, the FrugalBuild script of the cabextract package.
+
+@verbatim
+# Last Modified: Sun, 21 Mar 2004 16:54:50 +0100
+# Compiling Time: 0.01 SBU
+# Maintainer: VMiklos <vmiklos@frugalware.org>
+
+pkgname=cabextract
+pkgver=1.0
+pkgrel=1
+pkgdesc="a program to extract Microsoft Cabinet files"
+url="http://www.kyz.uklinux.net/cabextract.php"
+depends=('glibc')
+groups=('apps')
+archs=('i686')
+up2date="elinks -dump http://www.kyz.uklinux.net/cabextract.php |grep 'cabextract source code'|sed 's/.*t-\(.*\)\.t.*/\1/'"
+source=(http://www.kyz.uklinux.net/downloads/$pkgname-$pkgver.tar.gz)
+sha1sums=('359c8f4ec9c62d9dac5d572269b607b2cae4fbf7')
+
+# optimalization ok 
+# vim: ft=sh
+@end verbatim
+
+And here comes the description for each line:
+
+# Last Modified: Sun, 21 Mar 2004 16:54:50 +0100
+
+If you modify the FrugalBuild script, you should update this field.
+ The date should be in English. That can be proceeded by unsetting 
+LC_ALL and LANG environment variables. For example I use LC_ALL=hu_HU,
+ so I simply made an alias and took it to my /.bash_login:
+
+alias edate="LANG= LC_ALL= date -R"
+
+Updating this field will be done automatically if the build was successfull.
+
+# Compiling Time: 0.01 SBU
+
+You should write here how much time did it take to build the package. 
+Of course, it depends on your hardware, so we use SBUs instead of 
+minutes as a unit.
+
+SBU is the Static Binutils Unit, which means the time repoman merge 
+binutils takes on your machine. By default makepkg will print out 
+how many seconds the build took. After you built binutils, you should 
+update your /etc/makepkg.conf:
+
+SBU="257"
+
+The line above means compiling binutils on your machine took 257 seconds. 
+From this point, makepkg will print out SBUs instead of seconds after 
+successful builds, and this SBU value will be equal on anyone's machine.
+
+@samp{# Maintainer: VMiklos <vmiklos@@frugalware.org>}
+
+If you are the maintainer of the package, write your name or nick and 
+e-mail address here. If you probably you won't maintain the package, 
+write Contributor instead of Maintainer, and then the Maintainer will 
+add his/her line later.
+
+pkgname=cabextract
+
+This will be the name of the package. It's allowed to include numbers, 
+hyphens (-), etc., and should be lowercase.
+
+pkgver=1.0
+
+The package's version. Hyphens are not allowed, so a 1.0-6111 will be 
+usually converted to 1.0_6111.
+
+pkgrel=1
+
+Release number marks Frugalware-specific changes. If you recompile a package, 
+you should increase this number. If you upgrade to a newer version, don't 
+forget to reset this number back to 1. If you design a new package, 
+set this to 1.
+
+pkgdesc="a program to extract Microsoft Cabinet files"
+
+A short one-line description for the package. Usually taken from the project's
+ homepage or manpage.
+
+url="http://www.kyz.uklinux.net/cabextract.php"
+
+The website of the project.
+
+depends=('glibc')
+
+List of dependencies of the package, defined in a bash array. 
+Usually you should compile a package at least two times: first 
+with depends=(), then you should run chkdep -p foo.fpm that will 
+suggest the dependencies, but handle that information with caution! 
+Reading the README, INSTALL and configure.ac files is also a good 
+idea to find out dependencies.
+
+groups=('apps')
+
+It is needed to know where, in which category the package belongs. 
+The most important thing: don't put your package in apps, base, devel, 
+lib, multimedia or network, if it depends on X (or on a pkg depending on 
+X, of course). Packages in the extra repository get the '-extra' suffix 
+to the group name.
+
+archs=('i686')
+
+This array defines for which architectures the given package is available. 
+If it's not available, it means that gensync will skip it when generating 
+package databases. If you are not able to provide a binary package for a 
+given arch, don't include that in archs()! For example, no matter if the 
+package could be compiled in x86_64, if you haven't compiled it 
+ourself, don't include it.
+
+up2date="elinks -dump http://www.kyz.uklinux.net/cabextract.php |grep 'cabextract source code'|sed 's/.*t-\(.*\)\.t.*/\1/'"
+
+A short command that will give us the latest stable version of the package.
+ This helps maintainers to keep the FST up to date. Usually this string 
+consists of three parts: an elinks -dump someurl, a grep foo, and a sed
+command. We use the http protocol if possible, but sometimes we have to
+ use ftp. In that case instead of @samp{elinks -dump }you should use 
+@samp{wget -O - -q}. Of course, you could use wget all the time, 
+but elinks is simpler. The sed command could be replaced with the 
+combination of tr and cut if you prefer them instead of sed. 
+The example used above would be the following with cut and tr:
+
+up2date="elinks -dump http://www.kyz.uklinux.net/cabextract.php |grep 'cabextractsource code'|tr -s ' '|cut -d ' ' -f 6"
+
+source=(http://www.kyz.uklinux.net/downloads/$pkgname-$pkgver.tar.gz)
+
+Here you define the sources of the package in a bash array. 
+You can use simple filenames for patches, or additional files 
+when you place them in the same directory where the FrugalBuild 
+script is. You can use URLs if you want makepkg to download them 
+automatically. It's important to place all sources in the package's 
+directory including the source files that you can download from a site.
+ Also when dowloading from sourceforge, please use download.sourceforge.net,
+ and not other mirrors (like heanet.dl.sf.net)! If you use various random 
+patches from unknown sources, don't expect that somebody else will port 
+those patches to a newer version. You will have to do the work yourself. 
+You have been warned!
+
+sha1sums=('8fde8ad86f7144943b7e4e5a2da7eddb')
+
+Another bash array to prevent compiling from wrong sources. Of course this
+ is useless if you just run sha1sum foo.tar.gz after download. Try fetching
+ original sha1sums from the projects website, if possible. It's a good idea
+ to leave a comment above this line about where to find these sha1sums.
+
+Finally we define a build() function that will build the package. If you
+ don't want to do anything special, probably you don't have to specify
+ anything, as the default build() will fit your needs. For the list of
+ special functions which can be used in build(), refer to
+ /usr/lib/frugalware/fwmakepkg.
+
+If you don't have that file, you have to install the pacman-tools package.
+
+# optimalization ok
+
+This line will be added automatically to the end of the FrugalBuild
+if the build() function used your $CFLAGS or $CXXFLAGS. This is handy
+ if you want to cross-compile on a faster machine for a slower architecture.
+ Until the package doesn't use our $CFLAGS we can't cross-compile it,
+ so please try to avoid creating "unoptimized" packages. If the package
+ doesn't contain any architecture-dependent file, then you can add this
+ line manually as makepkg will not detect this.
+
+# vim: ft=sh
+
+At the bottom of the script you could add some editor-specific info, for
+ example this one tells vim that the format of this script is shell script
+ (otherwise it cannot detect it because there's no #!/bin/bash at the
+ top of the file).
+
+@subsection Full reference
+
+Now here is a full list of directives available.
+
+First, let's start with the install directive. Here you can refer to an
+ install file (usually $pkgname.install) to use. If there is a $pkgname.install
+ in the FrugalBuild's directory, it will be used automatically. In the
+ install file, you can define actions to be executed before/after
+ installing/upgrading/removing the package. Here is an example, in order to
+ make everything clear about it:
+
+@verbatim
+# $1:  the new package version
+pre_install()
+{
+        /bin/true
+}
+
+# $1:  the new package version
+post_install()
+{
+        /bin/true
+}
+
+# $1:  the new package version
+# $2:  the old package version
+pre_upgrade()
+{
+        /bin/true
+}
+
+# $1:  the new package version
+# $2:  the old package version
+post_upgrade()
+{
+        /bin/true
+}
+
+# $1:  the old package version
+pre_remove()
+{
+        /bin/true
+}
+
+# $1:  the old package version
+post_remove()
+{
+        /bin/true
+}
+
+op=$1
+shift
+
+$op $*
+
+# vim: ft=sh
+@end verbatim
+
+Of course, you probably will not need all of these functions, just remove
+ what you don't need. If you want to do exactly the same after upgrading as
+ after installing, feel free to use post_install $1 in the
+ post_upgrade() function.
+
+Save this file as $pkgname.install, thus makepkg will automatically use it.
+ You may specify the install script in the source array, but it is
+not necessary.
+
+The pkgname, pkgver, pkgrel, url, source and md5sums directives were
+ discussed in the previous section.
+
+The backup array is used to make some files in the package as config files. 
+If possible, we don't modify config files during an upgrade. Example:
+
+backup=('etc/pacman.conf')
+
+Note that the leading slash is missing!
+
+For more information about this, see the handling config files section in
+ the pacman manpage.
+
+The depends array has been discussed already, except I haven't mentioned
+ before that the elements may include version information, for example:
+
+pkgname=kdewebdev
+depends=('kdelibs=3.3.0')
+
+Here you can use <>, <=, >= or = operators.
+
+The makedepends array defines packages required only in build time. For example
+ if the source is in SRPM format, probably alien is a build-time requirement.
+
+The rodepends array defines packages required only in runtime. It must be
+ used in any case when putting the given package to depends() would cause
+ circular dependency.
+
+In the conflicts array, you can define a list of packages that shouldn't be
+ installed if you want to install this package. Let's see an another example:
+
+pkgname=blackbox
+conflicts=('fluxbox')
+
+It is necessary because both of them include a bsetbg command and the two
+ executables are different. In this case the fluxbox package must also contain
+ this line: (conflicts=('blackbox')). Of course, if two or more packages
+ conflict each other, only one of them can be placed in the frugalware repo.
+
+The provides array is used to create virtual dependencies. It means both
+ postfix and sendmail provides mta or, a better example, both xfree and
+ xorg provides x. So qt will contain the following line:
+
+pkgname=qt
+depends=('x' 'libpng' 'libjpeg')
+
+The user has a choice between xfree and xorg.
+
+The last one in this list is the replaces directive. The module-init-tools
+ package is a good example:
+
+pkgname=module-init-tools
+replaces=('modutils')
+conflicts=('modutils')
+
+As you can see, we often make such new packages which also conflict with each
+ other. Using the replaces directive when users use pacman -Su next time, if
+ modutils is installed (probably :)), they will be asked to remove modutils
+ and install module-init-tools.
+
+@subsection Compiling the package
+
+That's fairly simple. In the package directory you should do exactly the same
+ as described in the Recompiling packages section. If you want to contribute
+ this package to the Frugalware project, please do not do a movepkg. Upload
+ the whole package dir (including the binary package) to
+@uref{ftp://ftp.frugalware.org/incoming} and send a mail to the
+ frugalware-devel list.
+
+Happy packaging!
+
+@subsection Repoman
+
+Repoman is simple tool to download all packages' buildscript and compile
+ programs from source.
+
+The most commonly used repoman commands are the followings:
+
+repoman merge package
+
+or simply
+
+repoman m package
+
+builds a package from source and installs it. You can configure the build
+ options in the makepkg_opts directive of /etc/repoman.conf.
+
+By default repoman will install the missing dependencies with pacman, clean up
+ the leftover work files, install the package, and write the resulting package
+ to the current working directory.
+
+repoman update
+
+or simply
+
+repoman upd 
+
+updates FST in /var/fst. First time repoman will download it
+ (it may take some time!).
+
+@section Questions and answers
+@subsection What is the recommended way to version bump a package if I don't have darcs push access?
+
+@enumerate
+@item Update the FrugalBuild.
+@item Optional: update the patches/docs/etc.
+@item Compile the package.
+@item Upload the new .fpm to incoming.
+@item darcs rec and darcs send the fixes. (Don't forget to set your darcs credentials!) 
+@end enumerate
+
+@subsection makepkg ends up with <packagename>: /usr/info/dir: exists in filesystem
+
+Instead of
+
+make DESTDIR=$startdir/pkg install
+
+you should write
+
+Fmakeinstall
+
+in your FrugalBuild.
+@subsection Should I increase pkgrel or not?
+
+If the package needs to be updated at the users, you should increase
+ pkgrel - otherwise not. There's no need to increase pkgrel if you:
+
+@itemize
+@item only corrected a package's up2date line. 
+@end itemize
+
+But pkgrel should be increased if you
+
+@itemize
+@item changed the depends. 
+@end itemize
+
+If you increase pkgrel you are supposed to recompile the package.
+@subsection I can't pacman -Su <package>, it says local version is newer,
+ but I know it isn't!
+
+This is a bug in the package's version numbering, the maintainer should
+ bothered with this. Since pacman checks the version numbers (installed vs.
+ repo version), the new package's version should be bigger than the old one
+ to upgrade flawlessly. (By the time of this writing eg. phpmyadmin is
+ affected: local version is 2.6.3-1, repo version is 2.6.3_pl1-1, which
+ is newer, but considered lower by pacman.)
+
+@subsection What does 5.55 SBU mean?
+
+It took 5.55 times longer to compile the package by the maintainer
+ than binutils. So if you want to know how much will it take to compile 
+a package with 5.55 SBU, you should first compile binutils (makepkg helps 
+you, as it writes how many seconds elapsed). Then you should multiply it 
+by 5.55 to know how many seconds will it take to compile the package.
+
+@subsection Why do maintainers cry about my new package's tarball?
+
+Let's have a look at the filelist of eaccelerator's tarball:
+
+$ tar -tf eaccelerator-0.9.3-1.tar.bz2
+eaccelerator/
+eaccelerator/eaccelerator-0.9.3.zip
+eaccelerator/FrugalBuild
+eaccelerator/README.Frugalware
+eaccelerator/eaccelerator-0.9.3-1-i686.fpm
+$
+
+You have to name the tarball as 
+<pkgname>-<pkgver>-<pkgrel>.tar.bz2 (or gz), which should only 
+contain a <pkgname> directory at first level, and all the files needed to
+ create the fpm in it. It is the easiest way for the maintainers to work
+ with your tarball when addig your package to the repo.
+
+@subsection What should I include in depends() and makedepends() 
+and what shouldn't? FIXME
+
+You shouldn't include any trivial makedepends, you should only include what
+ chkdep -p recommends. Trivial makedepends:
+
+@itemize
+@item auto*
+@item make
+@item gcc
+@item kernel-headers
+@item libtool
+@item glibc 
+@end itemize
+
+Don't forget: every depends is a makedepends as well!
+
+@subsection What are the various dependancy-control arrays for?
+
+@itemize 
+@item  @samp{depends} should contain any packages that this one depends on a
+ compile and run time as well.
+@item  @samp{makedepends} is for packages that this one needs to compile.
+@item  @samp{rodepends} is for run time only dependencies; 
+eg. a wordlist package (with no executables) needs a program 
+which can handle it as a dictionary.
+@item  @samp{provides} is an alternate name for the package. Main use is for
+ more packages which do the same; eg. hunspell-en and hunspell-de both provides
+ hunspell-dict, and hunspell depends on hunspell-dict instead of any specific
+ language. (Sometimes those packages are conflicting, like postfix provides
+ _and_ conflicts with mta, and exim too - this way there can be only one 
+MTA on the system, without the need to know other MTAs' name.) 
+@end itemize
+
+Be careful with dependency-cycles: while pacman can handle them,
+ makepkg can not.
+
+@subsection How can I have PHP to work with my newly packaged eaccelerator/anything extension?
+
+Since package A should not tamper with package B's config files, 
+you should write a README.Frugalware, describing how to enable/use
+ the extension, include it in source() and Fdoc README.Frugalware.
+
+@subsection How can I cross-compile (package) an architecture-independent (non-binary) program?
+
+You should modify carch and chost in /etc/makepkg.conf and 
+build the package again.
+
+@subsection Should I rebuild a (non-binary) package after removing an archs() item?
+
+No.
+
+@subsection What is the easiest/shortest/intended way to version bump a package?
+
+@itemize
+@item makepkg -d tells you the new version to correct the FrugalBuild with
+@item makepkg -d again (it should fail on the checksum)
+@item makepkg -dg >>FrugalBuild generates the correct checksums into the FB (you should check it anyway)
+@item sudo makepkg -R generates the fpm in chroot 
+@end itemize
+
+@subsection repoman upd can't create /var/fst/ as it already exists
+
+Su to root and
+
+cd /var/fst && mv * frugalware-current
+
+@subsection How can I access the central FW repo (mirrors are too slow for me)?
+
+darcs get --partial http://darcs.frugalware.org/repos/frugalware-current
+
+This creates a new local repo for you, which is a copy of the central repo. To update it, run
+
+darcs pull
+
+in it. That's all to have a read-only copy; if you want to darcs
+ send patches, then you should read the Darcs docs to set up your
+ name (@uref{http://darcs.net/manual/node5.html#author_prefs},
+ email (@uref{http://darcs.net/manual/node5.html#SECTION00510060000000000000}),
+ etc.
+
+@subsection What should I write as patch name and long comment at darcs rec?
+
+Patch name should be the same as the fpm (but without .fpm, of course);
+ and long comment should only contain what you have done to create that
+ patch (eg. "added i686 to archs()" or alike).
+
+@subsection I want to see my accents in darcs what output!
+
+echo "export DARCS_DONT_ESCAPE_ISPRINT=1" >>~/.bash_profile
+
+and have your locale set correctly.
+
+@subsection Where should I place my comments about a package?
+
+You mean README.Frugalware. It should be in source() and then 
+at the end of the build() you should use:
+
+Fdoc README.Frugalware
+
+@subsection I want to work with the latest development version
+ of pacman&co.! How?
+
+@verbatim
+darcs get --partial http://darcs.frugalware.org/repos/pacman-tools
+cd pacman-tools
+make dist
+@end verbatim
+
+You will have a brand new .tar.gz. Give it to pacman-tools' FrugalBuild, 
+correct the checksum, create a new pacman-tools package (makepkg -fuck helps)
+ and install it. That's all (and if you don't understand this, read it again, 
+and if it's still not clear, then wait for pacman-tools' normal upgrade 
+since you don't need this really)...
+
+
+@subsection What is the order of a new package's locales? How should I name them?
+
+Have a look at hunspell (>=1.0.8, waiting to be upload by the time of writing).
+ There is a hunspell package, which depends on hunspell-dict. There is 
+no package named hunspell-dict, but it is provided by the locale packages.
+ The most important ones are -en (==en_US), -hu (==hu_HU), -de (==de_DE),
+ -fr (==fr_FR), -it (==it_IT), -es (==es_ES) and -sk (==sk_SK). 
+here are others: -en_US, -de_CH, -es_MX.
+
+The -xx packages will be installed by the non-CD based
+ (ie. netinst, DVD) installers.
+
+@section Short developer notes
+@itemize
+@item If you don't use F* macros in your build(),
+ then you'll need a || return 1.
+@item Libraries (.sos) have to be executable.
+@item Stripping binaries is unnecessary since automatically done by makepkg.
+@item If $pkgname.install exists, it is used automatically,
+ no need to specify it in the FrugalBuild neither as install nor source.
+@item If you use scrollkeeper-update or update-desktop-database or alike,
+ then you must include them (scrollkeeper, desktop-file-utils etc.)
+ in the depends.
+@item Instead of Fmake; Fmakeinstall you can use Fbuild
+ (which is == Fpatchall && Fmake && Fmakeinstall).
+@item If you use F* command $Fdestdir or $Fsrcdir isn't required. Mostly. ;)
+@item license="GPL2" is not required, but it's a habit of BMH.
+@item You can use makepkg -g instead of makepkg -G to get
+ sha1sums() instead of md5sums().
+@item If any program depends on a graphical toolkit,
+ then it should have x* group.
+@item A package may have only one contributor: the first
+ person who wrote FrugalBuild for it.
+@item If a package's group changed you don't have to repackage it,
+ a repoman cl is enough.
+@item To turn off ccache, add -B switch to makepkg. In the meantime,
+ read man makepkg. ;)
+@item Package name should only contain [A-Za-z0-9+_-], pkgrel and
+ pkgver: [A-Za-z0-9+_].
+@item The full uid/gid reference is not currently part of the doc, but can be found at
+ (http://darcs.frugalware.org/darcsweb/darcsweb.cgi?r=frugalware-current;a=headblob;f=/docs/ids.txt) 
+@end itemize
+
+@section Things to do (TODO)
+
+You can check out TODOs by looking at the 
+BTS (@uref{http://bugs.frugalware.org}) or the wiki's TODO section.

@@ -15,5 +15,21 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-all:
-	$(MAKE) -C texi
+all: html txt
+
+info:
+	makeinfo -v --force frugalware.texi
+
+html:
+	makeinfo -v --force --html frugalware.texi
+
+txt:
+	makeinfo -v --force --plaintext -o frugalware.txt frugalware.texi
+
+install: all
+	cp frugalware.txt ../../txt/en_US/
+	cp frugalware/* ../../html/en_US/
+
+clean:
+	rm -f frugalware.txt frugalware.info
+	rm -rf frugalware

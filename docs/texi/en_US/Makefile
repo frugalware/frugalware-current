@@ -17,13 +17,25 @@
 
 all: html txt
 
-info:
+frugalware-apps.texi:
+	( echo "@section Applications"; \
+	echo "The following sections describe the configuration of some applications."; \
+	for i in `find ../../../ -maxdepth 5 -name README.Frugalware`; \
+	do \
+		pkgname=`echo $$i |sed 's|.*/\(.*\)/README.Frugalware|\1|'`; \
+		echo "@subsection $$pkgname"; \
+		echo "@verbatim"; \
+		cat $$i; \
+		echo "@end verbatim"; \
+	done ) >frugalware-apps.texi
+
+info: frugalware-apps.texi
 	makeinfo -v --force frugalware.texi
 
-html:
+html: frugalware-apps.texi
 	makeinfo -v --force --html frugalware.texi
 
-txt:
+txt: frugalware-apps.texi
 	makeinfo -v --force --plaintext -o frugalware.txt frugalware.texi
 
 install: all
@@ -31,5 +43,6 @@ install: all
 	cp frugalware/* ../../html/en_US/
 
 clean:
+	rm -f frugalware-apps.texi
 	rm -f frugalware.txt frugalware.info
 	rm -rf frugalware

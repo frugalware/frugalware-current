@@ -64,6 +64,8 @@ fdb2db [-v] -f file -a architecture -r name -e version -b dir [-p]
 	-t name of table in the database
 	-d name of database
 	-h host of the database
+	-s its a subpkg
+	-n parentpkg
 	-i be interactive
 	-v be verbose
 
@@ -81,7 +83,7 @@ my %metaverify = (ARCH => 'architecture',
 		  );
 
 my %opts;
-getopts('r:e:b:pu:vit:d:h:f:a:c:', \%opts);
+getopts('r:e:b:pu:vit:d:h:f:a:c:sn:', \%opts);
 
 HELP_MESSAGE && exit unless %opts;
 
@@ -109,6 +111,10 @@ die 'Specify a database name!' if $database eq '';
 my $passw = read_password('password: ') if $opts{p};
 
 my $onepkg = $opts{c};
+my $subpkg = $opts{s};
+my $parentpkg = $opts{n};
+
+### ERROR checking for 'sn:' opts
 
 $db->connect({database => $database,
 	      host => $host,
@@ -125,7 +131,7 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 
     next if $pkg =~ /^\.{1,2}$/;
     if ($onepkg){
-      unless ($pkg =~ /\Q$onepkg\E/) {print "Skipping $pkg\n" if $opts{v}; next;}
+      unless ($pkg =~ /^\Q$onepkg\E\Z/) {print "Skipping $pkg\n" if $opts{v}; next;}
     }
     my %pkgdata;
     ($pkgdata{FWVER}, $pkgdata{REPO}) = ($fwver, $repo);
@@ -169,12 +175,16 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 	if ($opts{i}){
 	    $buildscript = readdata "Full path to the FrugalBuild script of $pkgdata{NAME}:";
 	} else {
-	    $warn .= "No FrugalBuild found to $pkgdata{NAME}\n";
-	    $pkgdata{NVALID} = 1;
+	    unless ($subpkg) {
+		$warn .= "No FrugalBuild found to $pkgdata{NAME}\n" ;
+		$pkgdata{NVALID} = 1;
+	    }
 	}
     }
 
     ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if $buildscript && -e $buildscript;
+
+    $pkgdata{PARENT} = $parentpkg;
 
 ##### VERIFY INFO
 ########################sha1 or md5???????             ???????????
@@ -253,7 +263,7 @@ sub store{
     my $data = shift;
     my $values;
     
-    for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM SHA1SUM FWVER REPO FILELIST/){
+    for my $key (qw/NAME PARENT VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM SHA1SUM FWVER REPO FILELIST/){
 	$data->{$key} = 'NULL' unless $data->{$key};
     }
     for my $key (qw/NAME VERSION GROUPS PROVIDES DEPENDS CONFLICTS REPLACES ARCH DESC M8R FWVER REPO FILELIST/){
@@ -262,7 +272,7 @@ sub store{
     
     if (isold($data->{NAME}, $data->{FWVER}, $data->{ARCH})){
 	my $set = '`pkgname`=';
-	for my $key (qw/NAME `pkgver` VERSION `pkgrel` PKGREL `groups` GROUPS `provides` PROVIDES `depends` DEPENDS `conflicts` CONFLICTS `replaces` REPLACES `csize` CSIZE `arch` ARCH `desc` DESC `maintainer` M8R `md5` MD5SUM `sha1` SHA1SUM `fwver` FWVER `repo` REPO `files`/){
+	for my $key (qw/NAME `parent` PARENT `pkgver` VERSION `pkgrel` PKGREL `groups` GROUPS `provides` PROVIDES `depends` DEPENDS `conflicts` CONFLICTS `replaces` REPLACES `csize` CSIZE `arch` ARCH `desc` DESC `maintainer` M8R `md5` MD5SUM `sha1` SHA1SUM `fwver` FWVER `repo` REPO `files`/){
 	    
 	    $set .= ($data->{$key}) ? "'$data->{$key}'," : "$key=";
 	}
@@ -271,11 +281,11 @@ sub store{
 	$dbh->do("UPDATE $dbtable set $set where pkgname='$data->{NAME}' and fwver='$data->{FWVER}' and arch='$data->{ARCH}'");
 	return 'updated';
     } else {
-	for my $key (qw/NAME VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM SHA1SUM FWVER REPO/){
+	for my $key (qw/NAME PARENT VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM SHA1SUM FWVER REPO/){
 	    $values .= "'$data->{$key}',";
 	}
 	$values .= "LOAD_FILE('$data->{FILELIST}')";
-	$dbh->do("INSERT INTO $dbtable (`pkgname`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`sha1`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
+	$dbh->do("INSERT INTO $dbtable (`pkgname`,`parent`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`sha1`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
 	return 'inserted';
     }
 }
@@ -292,6 +302,7 @@ sub disconnect{
 __END__
 
          pkgname   	varchar(255)    NAME r
+         parent         varchar(255)    PARENT opts
 	 pkgver  	varchar(255) 	VERSION r
 	 pkgrel  	tinyint(4) 	PKGREL r
 	 groups  	varchar(255) 	GROUPS r
@@ -369,6 +380,14 @@ The name of the database if required.
 =item B<-h host>
 
 The host where the database is located, localhost by default.
+
+=item B<-s>
+
+The given package is a subpackage.
+
+=item B<-n parentpkg>
+
+The parent package of the given.
 
 =item B<-i>
 

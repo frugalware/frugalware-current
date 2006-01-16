@@ -1,9 +1,9 @@
-# Last Modified: Sat, 10 Dec 2005 17:23:03 +0100
+# Last Modified: Mon, 16 Jan 2006 15:03:35 +0100
 # Compiling Time: 1.90 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=php
-pkgver=5.1.1
+pkgver=5.1.2
 pkgrel=1
 pkgdesc="A widely-used general-purpose scripting language"
 url="http://www.php.net"
@@ -16,17 +16,19 @@ archs=('i686' 'x86_64')
 install=$pkgname.install
 up2date="lynx -dump http://www.php.net/downloads.php |grep 'Complete Source Code' -3|sed -n 's/.*P \(.*\)/\1/;2 p'"
 source=(http://www.php.net/distributions/$pkgname-$pkgver.tar.gz \
-	http://pecl.php.net/get/zip-1.0.tgz php.ini php.conf)
-sha1sums=('88e48e47c11351b2fa9d5649343f839800acb1bf' \
+	http://pecl.php.net/get/zip-1.0.tgz php.ini php.conf \
+	php-5.1.2-pear_install_root.diff)
+sha1sums=('ff9d3ae3ccf6f1995f2b88f14703be7114b472bc' \
 	  '0ac6f2d25385eb2c74af82c7a54639eb531d8414' \
 	  '6e79ce079b6a021f6a6c99a06aa123160a604fd7' \
-	  '0850ef23512a02e8460dc36f08f453d148dcd9df')
+	  '0850ef23512a02e8460dc36f08f453d148dcd9df' \
+	  '6db21566844ff12a055548030b7f9e1606f7347f')
 
 build()
 {
 	mv $Fsrcdir/zip-1.0 $Fsrcdir/$pkgname-$pkgver/ext/zip
 	touch $Fsrcdir/$pkgname-$pkgver/ext/zip/*
-	Fcd
+	Fpatchall
 	./buildconf --force
 	Fmake --with-config-file-path=/etc \
 		--with-apxs2 --with-ttf --enable-mailparse \
@@ -52,18 +54,16 @@ build()
 		--with-zip --with-zip=shared
 	Fmkdir /usr/lib/apache
 	Fsed "-i -a -n php5" "-i -n php5" Makefile
-	make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php
-	Ffile /etc/httpd/conf/modules.d/$pkgname.conf
+	make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php install || return 1
 
-	touch pear/PEAR/RunTest.php
-	sapi/cli/php -n -dshort_open_tag=0 -dsafe_mode=0 \
-		pear/install-pear.php -d $Fdestdir/usr/share/pear \
-		-b $Fdestdir/usr/bin pear/package-*.xml
-	sapi/cli/php -n -dshort_open_tag=0 -dsafe_mode=0 \
-		pear/install-pear.php -d $Fdestdir/usr/share/pear \
-		-b $Fdestdir/usr/bin pear/packages/*.tar
+	# move the pear stuff to the right place
+	Fmv $Fdestdir/'usr/bin/*' /usr/bin
+	Fmv $Fdestdir/'usr/share/pear/*' /usr/share/pear
+	Frm $Fdestdir
+
 	Fsed "$Fdestdir" "" $Fdestdir/usr/{bin/pear,share/pear/pearcmd.php}
 
+	Ffile /etc/httpd/conf/modules.d/$pkgname.conf
 	Ffile /etc/php.ini
 	Fln /etc/php.ini /usr/lib/php.ini
 }

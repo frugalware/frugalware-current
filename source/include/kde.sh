@@ -10,6 +10,11 @@ kdever=3.5
 pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$kdever/src"
 up2date="lynx -dump http://www.kde.org/download/|grep $pkgname|sed -n '1 p'|sed 's/.*-\([^ ]*\) .*/\1/'"
 source=($pkgurl/$pkgname-$pkgver.tar.bz2)
+
+if [ "`cat /proc/meminfo |grep MemTotal|sed 's/.* \(.*\) kB/\1/'`" -ge 500000 ]; then
+	Fconfopts="$Fconfopts --enable-final"
+fi
+
 build() 
 {
 	Fbuild CXXFLAGS="$CXXFLAGS -Wno-deprecated" \

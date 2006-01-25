@@ -11,6 +11,7 @@ fwopenbox("The Frugalware Team", 80, false);
 print("<div align=left>Wishes:<ul>
 <li>American mirror</li>
 <li>Asian mirror</li>
+<li>10-20GB IDE HDD for testing Xen</li>
 </ul>Received:<ul>
 <li>Socket939 Motherboard + AMD Athlon64 3000+ CPU Socket939 version + 512MB DDR400 RAM (this will be our x86_64 buildserver)</li>
 <li>Codegen case for the new x86_64 buildserver (Krisztian VASAS)</li>

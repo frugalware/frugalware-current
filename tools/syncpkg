@@ -1,18 +1,39 @@
-#!/bin/bash -x
+#!/bin/bash
+
+# TODO: move these to a config file
 
 # number of packages to build at once
 maxpkgs=200
-logfile=build.log
+# short log, only 2 entires / package
+blogfile=build.log
+# full log
+mlogfile=makepkg.log
+# problematic pkgs, don't even try to build them
+ignore=('eclipse')
 
 log()
 {
-	date >>$logfile
-	echo "$@" >>$logfile
+	date >>$blogfile
+	echo "$@" >>$blogfile
 }
 
-logfile="`pwd`/$logfile"
+in_array()
+{
+	local i
+
+	needle=$1
+	shift 1
+	for i in $*
+	do
+		[ "$i" == "$needle" ] && return 0
+	done
+	return 1
+}
+
+blogfile="`pwd`/$blogfile"
+mlogfile="`pwd`/$mlogfile"
 pkglist=`mktemp`
-darcs pull -a
+darcs pull -a >>$blogfile 2>&1
 ./checkpkgs -n|grep "\[O\] `uname -m`"|sed 's/\(.*\)-[^- ]*-[^- ]* .*/\1/' >$pkglist
 
 cd ..
@@ -21,16 +42,21 @@ log "number of pkgs to build: `wc -l $pkglist|sed 's/\(.*\) .*/\1/'`"
 i=0
 for pkg in `cat $pkglist`
 do
+	if in_array $pkg ${ignore[@]}; then
+		continue
+	fi
+
 	CWD=`pwd`
 	# 4 will find pkgs from extra, but not under _darcs
-	cd `find . -maxdepth 4 -name $pkg`
+	cd `find . -type d -maxdepth 4 -name $pkg 2>/dev/null`
 	rm -f *fpm
 	log "making package: $pkg"
-	sudo makepkg -RLu
+	sudo makepkg -RLu >>$mlogfile 2>&1
 	log "finished making package $pkg with exit code $?"
-	rf -k -f *fpm
+	rf -k -f *fpm >>$mlogfile 2>&1
 	cd $CWD
 	i=$(($i+1))
+
 	if [ "$i" -ge "$maxpkgs" ]; then
 		break
 	fi

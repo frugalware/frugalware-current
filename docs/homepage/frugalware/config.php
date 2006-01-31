@@ -17,6 +17,8 @@ $fwtopsrchtmlpubdir="http://ftp.frugalware.org/pub/frugalware/";
 $fwnewsfile="$fwtopsrcdir/frugalware-current/NEWS";
 $fwautorsfile="$fwtopsrcdir/frugalware-current/AUTHORS";
 $fwchlfile="$fwtopsrcdir/frugalware-current/ChangeLog.txt";
+$fwpkgcache="/tmp/pkginfo.cache";
+$fwpkgcachetimeout=180;
 
 // mirrors
 $mirrors=array(

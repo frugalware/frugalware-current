@@ -204,12 +204,15 @@ function pkg_from_id($id) {
 	include("/etc/todo.conf");
 	$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
 	mysql_select_db(DBNAME, $conn);
-	$res = mysql_query("select pkgname, pkgver, pkgrel, groups, provides, depends, conflicts, replaces, csize, arch, `desc`, maintainer, md5, sha1, fwver, repo, updated from packages where id=$id", $conn);
+	$res = mysql_query("select pkgname, parent, pkgver, pkgrel, groups, provides, depends, conflicts, replaces, csize, arch, `desc`, maintainer, md5, sha1, fwver, repo, updated from packages where id=$id", $conn);
 	$arr = mysql_fetch_array($res);
 	
 	// query dep ids
 	$query="select id, pkgname from packages where ( ";
-	foreach(explode(" ", strtr($arr['depends'], "\n", " ")) as $i)
+	$arrstr = explode(" ", strtr($arr['depends'], "\n", " "));
+	if ($arr['parent'] != 'NULL')
+		$arrstr[] = $arr['parent'];
+	foreach($arrstr as $i)
 		$query .= " or pkgname='" . preg_replace('/(<>|>=|<=|=).*/', '', $i) . "'";
 	$query = preg_replace("/or /", "", $query, 1) . " ) and " .
 		"fwver='" . $arr['fwver'] . "' and " .
@@ -223,6 +226,8 @@ function pkg_from_id($id) {
 	fwopenbox("Package information: ".$arr['pkgname'], 80, false);
 	print "<table border=0 width=100%>\n";
 	print "<tr><td>Name:</td><td><a href=\"".$resz."?id=".$id."&s=f\">".$arr['pkgname']."</a></td></tr>\n";
+	if ($arr['parent'] != 'NULL')
+		print "<tr><td>Parent:</td><td><a href=\"" . $resz . "?id=" . $id_set[preg_replace('/(<>|>=|<=|=).*/', '', $arr['parent'])] . "\">".$arr['parent']."</a></td></tr>\n";
 	print "<tr><td>Version:</td><td>".$arr['pkgver']."-".$arr['pkgrel']."</td></tr>\n";
 	if ($arr['repo']=="extra")
 	{
@@ -232,8 +237,8 @@ function pkg_from_id($id) {
 	else
 		$pkgpath = "/frugalware-" . $arr['arch'];
 	$groupdir=preg_replace("/-extra/", "", $arr['groups']);
-	print "<tr><td>Changelog:</td><td><a href=\"http://ftp.frugalware.org/pub/frugalware/frugalware-" . $arr['fwver'] . "$repodir/source/" . preg_replace("/^([^ ]*) .*/", "$1", $groupdir) . "/" . $arr['pkgname'] . "/Changelog\">Changelog</a></td></tr>\n";
-	print "<tr><td>Darcs:</td><td><a href=\"http://darcs.frugalware.org/darcsweb/darcsweb.cgi?r=frugalware-" . $arr['fwver'] . ";a=tree;f=$repodir/source/" . preg_replace("/^([^ ]*) .*/", "$1", $groupdir) . "/" . $arr['pkgname'] . "\">View entry</a></td></tr>\n";
+	print "<tr><td>Changelog:</td><td><a href=\"http://ftp.frugalware.org/pub/frugalware/frugalware-" . $arr['fwver'] . "$repodir/source/" . preg_replace("/^([^ ]*) .*/", "$1", $groupdir) . "/" . ($arr['parent'] != 'NULL' ? $arr['parent'] : $arr['pkgname']) . "/Changelog\">Changelog</a></td></tr>\n";
+	print "<tr><td>Darcs:</td><td><a href=\"http://darcs.frugalware.org/darcsweb/darcsweb.cgi?r=frugalware-" . $arr['fwver'] . ";a=tree;f=$repodir/source/" . preg_replace("/^([^ ]*) .*/", "$1", $groupdir) . "/" . ($arr['parent'] != 'NULL' ? $arr['parent'] : $arr['pkgname']) . "\">View entry</a></td></tr>\n";
 	if ($arr['groups'] != 'NULL') print "<tr><td>Groups:</td><td>".$arr['groups']."</td></tr>\n";
 	if ($arr['provides'] != 'NULL') print "<tr><td>Provides:</td><td>".$arr['provides']."</td></tr>\n";
 	if ($arr['depends'] != 'NULL')

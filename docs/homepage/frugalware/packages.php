@@ -248,7 +248,8 @@ function pkg_from_id($id) {
 			print("<a href=\"" . $resz . "?id=" . $id_set[preg_replace('/(<>|>=|<=|=).*/', '', $i)] . "\">$i</a> ");
 		print("</td></tr>\n");
 	}
-	if ($arr['conflicts'] != 'NULL') print "<tr><td>Conflicts:</td><td>".$arr['conflicts']."</td></tr>\n";
+	# this %PROVID stuff is just a workaround for an fdb2db bug
+	if ($arr['conflicts'] != ('NULL' || '%PROVID')) print "<tr><td>Conflicts:</td><td>".$arr['conflicts']."</td></tr>\n";
 	if ($arr['replaces'] != 'NULL') print "<tr><td>Replaces:</td><td>".$arr['replaces']."</td></tr>\n";
 	if ($arr['csize'] != 'NULL') printf("%s%.2f%s", "<tr><td>Compressed size:</td><td>", $arr['csize']/1048576, "MiB</td></tr>\n");
 	if ($arr['arch'] != 'NULL') print "<tr><td>Arch:</td><td>".$arr['arch']."</td></tr>\n";

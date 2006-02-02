@@ -1,11 +1,11 @@
-# Last modified: Tue, 10 Jan 2006 01:20:33 +0100
+# Last modified: Thu, 02 Feb 2006 23:11:05 +0100
 # Compiling time: ~51 minutes
 # Maintainer: Laszlo Dvornik <dvornik@gnome.hu>
 # Contributor: VMiklos <vmiklos@frugalware.org>
 
 pkgname=firefox
-pkgver=1.5
-pkgrel=2
+pkgver=1.5.0.1
+pkgrel=1
 pkgdesc="Mozilla Firefox web browser"
 url="http://www.mozilla.org/products/firefox/"
 depends=('gtk+2' 'libidl' 'desktop-file-utils')
@@ -15,30 +15,31 @@ archs=('i686' 'x86_64')
 up2date="wget -O - -q ftp://ftp.mozilla.org/pub/mozilla.org/firefox/releases/|grep '>[0-9\.]*/'|sed -n 's|.*>\([0-9\.]*\)/.*|\1|;$ p'"
 source=(http://ftp.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/source/$pkgname-$pkgver-source.tar.bz2 \
 	# Disable the default application checks.
-	01-$pkgname-$pkgver-default_applications.patch0 \
+	01-$pkgname-1.5-default_applications.patch0 \
 	# Force use of GTK+2 for Flash player to get better performance.
-	02-$pkgname-$pkgver-gtk+2_flash.patch \
+	02-$pkgname-1.5-gtk+2_flash.patch \
+	# Force use of GTK+2 for Flash player to get better performance.
+	03-$pkgname-1.5-homepage.patch0 \
 	# Support newer FreeType2.
-	04-$pkgname-$pkgver-freetype-compile.patch0 \
+	04-$pkgname-1.5-freetype-compile.patch0 \
 	# Autodetect language.
-	05-$pkgname-$pkgver-lang-detection.patch \
+	05-$pkgname-1.5-lang-detection.patch \
 	# Some versions of the mime stuff will add whitespace to the end or
 	# beginning of the command. Fix this.
-	07-$pkgname-$pkgver-gnome-vfs-default-app.patch \
+	07-$pkgname-1.5-gnome-vfs-default-app.patch \
 	# Visibility is broken in 1.5... Maybe at later version this patch does not needed. (x86_64 specific)
 	08-firefox-1.1-visibility.patch0 \
-	browserconfig.properties \
 	config \
 	ffremote \
 	$pkgname.desktop)
-sha1sums=('7437c6a351787ec8762e598ae1852e22bcca3220' \
+sha1sums=('719a0c5218ead7a4e426612277e1c92c33800d38' \
 	  '4bc71f7f3d400bb7d15e53020f6a09e4b8643d73' \
 	  '6c14c3d1a557d6ff844fbd27e28a0a043bd5c74f' \
+	  'd6bc3a6a099f37dc93d6ee9382b3a0ee9fabf9b6' \
 	  '6cb2982f2113638eeac00d47abac55ae09ccb780' \
 	  'd135d57c4033e89e5fd93994efa2f12338ac1ae6' \
 	  '7ad741a14a454e2f4ffa4255f18ccc431ad3c87d' \
 	  '431c40d0347c4bc654aaf6c1946b6e2e00b8e257' \
-	  'd8f92384f6360873043ea42ab56a682dfd9b32c7' \
 	  '4040724999ad20b6c2c6875e795cbab3163962d0' \
 	  'a797c04d67d343d068c108b804883a7815f3197b' \
 	  '5b0724fce7e15b0ba076842884dc90683318cd9a')
@@ -47,12 +48,7 @@ build() {
 	Fcd mozilla
 	sed "s/-march=i686 -O2 -pipe/$CFLAGS/" $startdir/src/config > .mozconfig
 	export MOZ_PHOENIX=1
-	Fpatch 01-$pkgname-$pkgver-default_applications.patch0
-	Fpatch 02-$pkgname-$pkgver-gtk+2_flash.patch
-	Fpatch 04-$pkgname-$pkgver-freetype-compile.patch0
-	Fpatch 05-$pkgname-$pkgver-lang-detection.patch
-	Fpatch 07-$pkgname-$pkgver-gnome-vfs-default-app.patch
-	[ "$CARCH" == "x86_64" ] && Fpatch 08-firefox-1.1-visibility.patch0
+	Fpatchall
 
 	make -f client.mk build || return 1
 	make || return 1
@@ -60,10 +56,13 @@ build() {
 	Fmkdir /usr
 	Fmakeinstall
 
-	# Compatibility.
-	Fln $pkgname-$pkgver /usr/include/$pkgname
-	Fln $pkgname-$pkgver /usr/lib/$pkgname
-	Fln $pkgname-$pkgver /usr/share/idl/$pkgname
+	# Get rid of versions in path names.
+	Fmv /usr/include/$pkgname-$pkgver /usr/include/$pkgname
+	Fmv /usr/lib/$pkgname-$pkgver /usr/lib/$pkgname
+	Fmv /usr/share/idl/$pkgname-$pkgver /usr/share/idl/$pkgname
+	Fln $pkgname /usr/include/$pkgname-$pkgver
+	Fln $pkgname /usr/lib/$pkgname-$pkgver
+	Fln $pkgname /usr/share/idl/$pkgname-$pkgver
 
 	# Plugins.
 	Fmv /usr/lib/$pkgname/plugins /usr/lib/$pkgname/plugins.orig
@@ -75,19 +74,17 @@ build() {
 	# Install ffremote.
 	Fexe /usr/bin/ffremote
 
-	# http://frugalware.org/ is the default homepage.
-	Ffile /usr/lib/$pkgname-$pkgver/browserconfig.properties
-
 	# Install icon for the menu file.
-	Ffilerel $Fdestdir/usr/lib/$pkgname-$pkgver/icons/default.xpm /usr/share/pixmaps/$pkgname.xpm
+	Fmkdir /usr/share/pixmaps/
+	Fcp /usr/lib/$pkgname/icons/default.xpm /usr/share/pixmaps/$pkgname.xpm
 
 	# Install menu file.
 	Ffile /usr/share/applications/$pkgname.desktop
 
 	# Change the default icons
-	Fmkdir /usr/lib/$pkgname-$pkgver/chrome/icons/default
-	Fcp /usr/lib/$pkgname-$pkgver/icons/* /usr/lib/$pkgname-$pkgver/chrome/icons/default/
-	Fmv /usr/lib/$pkgname-$pkgver/chrome/chromelist.txt /usr/lib/$pkgname-$pkgver/chrome/installed-chrome.txt
+	Fmkdir /usr/lib/$pkgname/chrome/icons/default
+	Fcp /usr/lib/$pkgname/icons/* /usr/lib/$pkgname/chrome/icons/default/
+	Fmv /usr/lib/$pkgname/chrome/chromelist.txt /usr/lib/$pkgname/chrome/installed-chrome.txt
 }
 
 # optimalization OK

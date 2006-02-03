@@ -66,6 +66,7 @@ fdb2db [-v] -f file -a architecture -r name -e version -b dir [-p]
 	-h host of the database
 	-s its a subpkg
 	-n parentpkg
+	-l uploader
 	-i be interactive
 	-v be verbose
 
@@ -113,6 +114,7 @@ my $passw = read_password('password: ') if $opts{p};
 my $onepkg = $opts{c};
 my $subpkg = $opts{s};
 my $parentpkg = $opts{n};
+my $uploader = $opts{l};
 
 ### ERROR checking for 'sn:' opts
 
@@ -190,6 +192,7 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
     ($pkgdata{M8R}) = qx"cat $buildscript" =~ /^\#.?Maintainer: (.*)$/m if $buildscript && -e $buildscript;
 
     $pkgdata{PARENT} = $parentpkg;
+    $pkgdata{UPLOADER} = $uploader;
 
 ##### VERIFY INFO
 ########################sha1 or md5???????             ???????????
@@ -268,16 +271,16 @@ sub store{
     my $data = shift;
     my $values;
     
-    for my $key (qw/NAME PARENT VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM SHA1SUM FWVER REPO FILELIST/){
+    for my $key (qw/NAME PARENT VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R UPLOADER MD5SUM SHA1SUM FWVER REPO FILELIST/){
 	$data->{$key} = 'NULL' unless $data->{$key};
     }
-    for my $key (qw/NAME VERSION GROUPS PROVIDES DEPENDS CONFLICTS REPLACES ARCH DESC M8R FWVER REPO FILELIST/){
+    for my $key (qw/NAME VERSION GROUPS PROVIDES DEPENDS CONFLICTS REPLACES ARCH DESC M8R UPLOADER FWVER REPO FILELIST/){
 	$data->{$key} =~ s/'/\\'/g if $data->{$key};
     }
     
     if (isold($data->{NAME}, $data->{FWVER}, $data->{ARCH})){
 	my $set = '`pkgname`=';
-	for my $key (qw/NAME `parent` PARENT `pkgver` VERSION `pkgrel` PKGREL `groups` GROUPS `provides` PROVIDES `depends` DEPENDS `conflicts` CONFLICTS `replaces` REPLACES `csize` CSIZE `arch` ARCH `desc` DESC `maintainer` M8R `md5` MD5SUM `sha1` SHA1SUM `fwver` FWVER `repo` REPO `files`/){
+	for my $key (qw/NAME `parent` PARENT `pkgver` VERSION `pkgrel` PKGREL `groups` GROUPS `provides` PROVIDES `depends` DEPENDS `conflicts` CONFLICTS `replaces` REPLACES `csize` CSIZE `arch` ARCH `desc` DESC `maintainer` M8R `uploader` UPLOADER `md5` MD5SUM `sha1` SHA1SUM `fwver` FWVER `repo` REPO `files`/){
 	    
 	    $set .= ($data->{$key}) ? "'$data->{$key}'," : "$key=";
 	}
@@ -286,11 +289,11 @@ sub store{
 	$dbh->do("UPDATE $dbtable set $set where pkgname='$data->{NAME}' and fwver='$data->{FWVER}' and arch='$data->{ARCH}'");
 	return 'updated';
     } else {
-	for my $key (qw/NAME PARENT VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R MD5SUM SHA1SUM FWVER REPO/){
+	for my $key (qw/NAME PARENT VERSION PKGREL GROUPS PROVIDES DEPENDS CONFLICTS REPLACES CSIZE ARCH DESC M8R UPLOADER MD5SUM SHA1SUM FWVER REPO/){
 	    $values .= "'$data->{$key}',";
 	}
 	$values .= "LOAD_FILE('$data->{FILELIST}')";
-	$dbh->do("INSERT INTO $dbtable (`pkgname`,`parent`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`md5`,`sha1`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
+	$dbh->do("INSERT INTO $dbtable (`pkgname`,`parent`,`pkgver`,`pkgrel`,`groups`,`provides`,`depends`,`conflicts`,`replaces`,`csize`,`arch`,`desc`,`maintainer`,`uploader`,`md5`,`sha1`,`fwver`,`repo`,`files`,`updated`) VALUES ($values, now())");
 	return 'inserted';
     }
 }
@@ -319,6 +322,7 @@ __END__
 	 arch  		varchar(255) 	ARCH .PKGINFO
 	 desc  		varchar(255) 	DESC r
 	 maintainer  	varchar(255) 	M8R FrugalBuild
+	 uploader  	varchar(255) 	UPLOADER opts
 	 md5  		varchar(32) 	MD5SUM r 
 	 fwver  	varchar(255) 	FWVER Parameter
 	 repo  		varchar(255) 	REPO Parameter
@@ -393,6 +397,10 @@ The given package is a subpackage.
 =item B<-n parentpkg>
 
 The parent package of the given.
+
+=item B<-l uploader>
+
+The nick of ther person who uploaded the package.
 
 =item B<-i>
 

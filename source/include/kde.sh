@@ -6,15 +6,15 @@
 
 # common url, up2date, and source(), and build() for kde packages
 url="http://www.kde.org"
-kdever=3.5
+kdever=3.5.1
 pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$kdever/src"
 up2date="lynx -dump http://www.kde.org/download/|grep $pkgname|sed -n '1 p'|sed 's/.*-\([^ ]*\) .*/\1/'"
 source=($pkgurl/$pkgname-$pkgver.tar.bz2)
 
 # crazy says this is still experimental to enable by default for all pkgs
-#if [ "`cat /proc/meminfo |grep MemTotal|sed 's/.* \(.*\) kB/\1/'`" -ge 500000 ]; then
-#	Fconfopts="$Fconfopts --enable-final"
-#fi
+if [ "`cat /proc/meminfo |grep MemTotal|sed 's/.* \(.*\) kB/\1/'`" -ge 500000 ]; then
+	Fconfopts="$Fconfopts --enable-final"
+fi
 
 build() 
 {

@@ -71,7 +71,7 @@
 	{
 		print("<item>
 <title>" . $i['title'] . "</title>
-<description>" . $i['desc'] . "</description>
+<description>" . htmlspecialchars($i['desc']) . "</description>
 <link>" . $i['link'] . "</link>
 </item>");
 	}

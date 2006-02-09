@@ -37,7 +37,7 @@
 			break;
 		case "darcs":
 			header('Content-Type: application/xml; charset=utf-8');
-			print(file_get_contents("http://darcs.frugalware.org/darcsweb/darcsweb.cgi?r=frugalware-current;a=rss"));
+			print(file_get_contents("http://darcs.frugalware.org/genesis.darcsweb/darcsweb.cgi?r=frugalware-current;a=rss"));
 			die();
 		case "bugs":
 			header('Content-Type: application/xml; charset=utf-8');

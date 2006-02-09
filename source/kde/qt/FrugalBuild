@@ -1,20 +1,22 @@
-# Last modified: Mon, 19 Dec 2005 19:30:40 +0100
+# Last modified: Tue, 07 Feb 2006 22:26:39 +0100
 # Compiling Time: 0.49 SBU 
 # Maintainer: Kapolnasi Tamas <ktamas@tdc.hu>
 # Contributor: crazy <crazy@pimpmylinux.org>
  
-  
 pkgname=qt
 pkgver=3.3.5
-pkgrel=2
+pkgrel=3
 pkgmore=x11-free
 pkgdesc="The QT GUI toolkit."
 url="http://www.trolltech.com/products/qt"
 install=qt.install
-depends=('x' 'libjpeg' 'libmng' 'freetype2')
-makedepends=('mysql>=5.0.15' 'postgresql' 'sqlite3' 'cups') 
+depends=( 'libxrandr' 'mesa' 'libxft' 'libmng' 'libjpeg' 'libxcursor' 'libxinerama' 'libsm' 'imake')
+makedepends=('mysql>=5.0.15' 'postgresql' 'sqlite3' 'cups' 'bison')
 groups=('kde' 'kde-lib')
 archs=('i686' 'x86_64')
+options=('nodocs')
+removes=('usr/share/doc/qt-3.3.5/README*' 'usr/share/doc/qt-3.3.5/FAQ' 'usr/share/doc/qt-3.3.5/MANIFEST' \
+           'usr/share/doc/qt-3.3.5/INSTALL' 'usr/lib/qt/mkspecs/default')
 up2date=$pkgver
 source=(ftp://ftp.trolltech.com/qt/source/$pkgname-$pkgmore-$pkgver.tar.bz2 qt.sh \
          $pkgname-$pkgmore-$pkgver-gcc4-buildkey.patch \
@@ -35,7 +37,13 @@ source=(ftp://ftp.trolltech.com/qt/source/$pkgname-$pkgmore-$pkgver.tar.bz2 qt.s
          $pkgname-$pkgmore-$pkgver-0056-khotkeys_input_84434.patch0 \
          $pkgname-$pkgmore-$pkgver-no-rpath+fw.patch \
          $pkgname-$pkgmore-$pkgver-0066-fcsort2fcmatch.patch0 \
-         $pkgname-$pkgmore-$pkgver-0067-nofclist.patch0)
+         $pkgname-$pkgmore-$pkgver-0067-nofclist.patch0 \
+	 $pkgname-$pkgmore-$pkgver-0068-xcursors-cache-fix.patch0 \
+         $pkgname-$pkgmore-$pkgver-0001-dnd_optimization.patch0 \
+         $pkgname-$pkgmore-$pkgver-0002-dnd_active_window_fix.patch0 \
+         $pkgname-$pkgmore-$pkgver-0038-dragobject-dont-prefer-unknown.patch0 \
+	 $pkgname-$pkgmore-$pkgver-from-3.3.6_fix.patch)
+
 
 sha1sums=('8d7c7ba0b39848ef60b3cd93fc1d33e9527694ec' \
           '0464d40d9bd518fe8d139b1306136089349a4cdf' \
@@ -56,52 +64,56 @@ sha1sums=('8d7c7ba0b39848ef60b3cd93fc1d33e9527694ec' \
           '7dd9c06079cb7c6f4b6c002948582fce1f190dde' \
           '0508ebaa92068ea475b5906cb298f37230483b73' \
           '44b5c643ceddbf39b3b11cee27f4f653829e1ce7' \
-          '8d72abc5f1163ce6f19f54d86208a04fc9a6a99f' \
-          '0a6f040743228856104f0302d257cb57ace41c60')
+          'f5840c1309a599ebe20d64a602089beed3030d50' \
+          '0a6f040743228856104f0302d257cb57ace41c60' \
+          'be02bb6061453c06f8c946c686ad6f7c97cfd254' \
+          '4f3416c3a7e44d52c1088c52256decb384e4b1bc' \
+          '5b16995f072cbde80f000967aa11d8a88ed34e23' \
+          '3a2371a520d800904350bb9e6e445d6b3092bb88' \
+          'd50158d27b11bf68b646671f2e6bfddf0db1b2a8')
+
 
 
 export QTDIR=$startdir/src/$pkgname-$pkgmore-$pkgver
 export PATH=${QTDIR}/bin:${PATH}
 export LD_LIBRARY_PATH=${QTDIR}/lib:${LD_LIBRARY_PATH}
+## may work
+export YACC='yacc -d'
 
 build()
 {
 	Fcd $pkgname-$pkgmore-$pkgver 
 	Fpatchall
         rm -rf doc/html examples tutorial
-        Fsed "-O2" "${CFLAGS} -fPIC" mkspecs/linux-g++/qmake.conf 
+        Fsed "-O2" "${CFLAGS} -fPIC" mkspecs/linux-g++/qmake.conf
+        Fsed "-ln -s -f @QMAKESPEC@ @QT_INSTALL_DATA@/mkspecs/default" "" qmake/Makefile.unix
+	Fsed "-cp -L -R -f @SOURCE_PATH@/mkspecs @QT_INSTALL_DATA@" "" qmake/Makefile.unix
         ./configure -platform linux-g++ -prefix /usr/lib/qt \
               -qt-gif -system-{libpng,libjpeg,libmng,zlib} \
               -plugin-imgfmt-{png,jpeg,mng} -largefile \
               -plugin-sql-{mysql,psql,sqlite} \
-              -thread -shared -no-stl -release \
-              -no-g++-exceptions -dlopen-opengl \
+              -thread -shared -stl -release  -no-exceptions -fast -dlopen-opengl \
               -nis -no-pch -sm -tablet || return 1
-	
-
-       ## see the docs for that 
-       cd $Fsrcdir/$pkgname-$pkgmore-$pkgver/plugins/src/sqldrivers/mysql
-       qmake -o Makefile "INCLUDEPATH+=/usr/include/mysql" "LIBS+=-L/usr/lib/mysql -lmysqlclient" mysql.pro
+        Fmkdir /usr/lib/qt/mkspecs
+        cp -r mkspecs/linux-g++ $Fdestdir/usr/lib/qt/mkspecs/linux-g++
+        ## see the docs for that
+        cd $Fsrcdir/$pkgname-$pkgmore-$pkgver/plugins/src/sqldrivers/mysql
+        qmake -o Makefile "INCLUDEPATH+=/usr/include/mysql" "LIBS+=-L/usr/lib/mysql -lmysqlclient" mysql.pro
   
-       cd $Fsrcdir/$pkgname-$pkgmore-$pkgver/plugins/src/sqldrivers/psql
-       qmake -o Makefile "INCLUDEPATH+=/usr/include/postgresql/server /usr/include" "LIBS+=-L/usr/lib -lpq" psql.pro
+        cd $Fsrcdir/$pkgname-$pkgmore-$pkgver/plugins/src/sqldrivers/psql
+        qmake -o Makefile "INCLUDEPATH+=/usr/include/postgresql/server /usr/include" "LIBS+=-L/usr/lib -lpq" psql.pro
         
-        ## back and make :)
         cd $Fsrcdir/$pkgname-$pkgmore-$pkgver
         make || return 1
         make INSTALL_ROOT=$Fdestdir install 
-
-
-        ## got the 2  ideas from tpowa
         rm -rf $Fdestdir/usr/lib/$pkgname/{phrasebooks,templates} ##not needed 
         
         ## man pages ? :)
         Fmkdir /usr/lib/$pkgname/man
         cp -r $Fsrcdir/$pkgname-$pkgmore-$pkgver/doc/man/{man1,man3} $Fdestdir/usr/lib/$pkgname/man 
-        ## oh oh
         Fsed "-L$startdir/src/$pkgname-$pkgmore-$pkgver/lib" "" $Fdestdir/usr/lib/$pkgname/lib/*.prl
         Fexe /etc/profile.d/qt.sh
-
+        (cd $Fdestdir/usr/lib/qt/mkspecs; ln -sf linux-g++ default)
 }
 
 # vim: ft=sh

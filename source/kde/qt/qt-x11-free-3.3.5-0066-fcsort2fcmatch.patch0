@@ -7,12 +7,14 @@ When finding a matching fontconfig font, try first FcFontMatch() before
 the noticeably more expensive FcFontSort(). Usually the first hit is enough,
 so there's no need to list all matching fonts.
 
-Note that this patch apparently triggers a bug in certain fontconfig versions
-(e.g. 2.2.99 or 2.3.90 crash, while e.g. 2.3.2 or 2.3.92 seem to work fine).
+This patch triggers a bug in fontconfig versions older than 2.3.92 that leads to crashes,
+so older versions are detected at runtime and this optimization is not used.
+A fix for the fontconfig problem is also available at
+http://ktown.kde.org/~seli/performance/fccfg.c.patch .
 
---- src/kernel/qfontdatabase_x11.cpp.sav	2005-12-01 15:18:06.000000000 +0100
-+++ src/kernel/qfontdatabase_x11.cpp	2005-12-01 18:17:33.000000000 +0100
-@@ -1787,106 +1787,137 @@ static QFontEngine *loadFontConfigFont(c
+--- src/kernel/qfontdatabase_x11.cpp.sav	2006-01-27 11:46:50.000000000 +0100
++++ src/kernel/qfontdatabase_x11.cpp	2006-01-27 11:50:22.000000000 +0100
+@@ -1828,106 +1828,138 @@ static QFontEngine *loadFontConfigFont(c
          FcCharSetDestroy(cs);
      }
  
@@ -23,12 +25,13 @@ Note that this patch apparently triggers a bug in certain fontconfig versions
 -        return 0;
 +    QFontEngine *fe = 0;
 +
-+    for( int jj = 0; jj < 2; ++jj ) {
++    // fontconfig older than 2.3.92 has a bug that makes it sometimes crash here in FcFontMatch()
++    for( int jj = ( FcGetVersion() >= 20392 ? 0 : 1 ); jj < 2; ++jj ) {
 +        bool use_fontsort = ( jj == 1 );
 +    
 +        FcResult result;
-+        FcFontSet *fs;
-+        FcPattern *fsp;
++        FcFontSet *fs = NULL;
++        FcPattern *fsp = NULL;
 +        if( use_fontsort ) {
 +            fs = FcFontSort(0, pattern, FcFalse, 0, &result);
 +            if (!fs)

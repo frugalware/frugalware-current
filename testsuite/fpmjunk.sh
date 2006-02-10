@@ -1,9 +1,8 @@
 #!/bin/bash
 
-if [ "$#" != 3 ]; then
+if [ "$#" -lt 3 ]; then
 	echo "searches for old fpm files"
-	echo "note: this is not yet finished, not well-tested!"
-	echo "usage: $0 <startdir> <repomane> <arch>"
+	echo "usage: $0 [--remove] <startdir> <repomane> <arch>"
 	exit 1
 fi
 
@@ -13,6 +12,10 @@ CHROOT=1
 . functions
 . /usr/lib/frugalware/fwmakepkg
 
+if [ "$1" == "--remove" ]; then
+	remove="y"
+	shift
+fi
 startdir=$1
 reponame=$2
 arch=$3
@@ -33,14 +36,15 @@ do
 			echo "$pkgname-$pkgver-$pkgrel-$arch.fpm" >>$newfpms
 		fi
 		if [ ! -z "$subpkgs" ] && [ ! "$nobuild" -a ! "`check_option NOBUILD`" ]; then
-			i=0
+			j=0
 			for subpkg in "${subpkgs[@]}"
 			do
 				unset archs
-				archs="${subarchs[$i]}"
+				archs="${subarchs[$j]}"
 				if in_array $arch ${archs[@]}; then
-					echo "$pkgname-$pkgver-$pkgrel-$arch.fpm" >>$newfpms
+					echo "$subpkg-$pkgver-$pkgrel-$arch.fpm" >>$newfpms
 				fi
+				j=$(($j+1))
 			done
 		fi
 	fi
@@ -51,5 +55,8 @@ cat $newfpms |sort >$newfpms.sorted
 mv -f $newfpms.sorted $newfpms
 cd frugalware-$arch
 ls >$allfpms
-diff -u $allfpms $newfpms
+for i in `diff -u $allfpms $newfpms |grep ^-[^-] |sed 's/^-//'`
+do
+	[ -z "$remove" ] && echo $i || rm -v $i
+done
 rm -f $allfpms $newfpms

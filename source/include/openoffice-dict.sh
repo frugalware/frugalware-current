@@ -11,29 +11,7 @@ url="ftp://ftp.services.openoffice.org/pub/OpenOffice.org/contrib/dictionaries/"
 up2date="$pkgver"
 source=(ftp://ftp.services.openoffice.org/pub/OpenOffice.org/contrib/dictionaries/$dictname-pack.zip)
 
-ifile=`mktemp -p .`
-chmod 644 $ifile
-cat << EOF > $ifile
-post_install()
-{
-	/usr/lib/ooo-2.0/install-dict
-}
-
-post_upgrade()
-{
-	post_install
-}
-
-post_remove()
-{
-	post_install
-}
-
-op=\$1
-shift
-\$op \$*
-EOF
-install=$ifile
+install=$Fincdir/openoffice-dict.install
 
 check_dictoption() {
 	local i

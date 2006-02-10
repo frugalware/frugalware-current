@@ -53,6 +53,7 @@ sub HELP_MESSAGE{
 fdb2db [-v] -f file -a architecture -r name -e version -b dir [-p] 
        [-u user] [-i] [-t table] [-d database] [-h host] [-c packagename]
 
+        -D delete a package
         -c packagename
 	-f .fdb file
 	-a architecture
@@ -83,15 +84,18 @@ my %metaverify = (ARCH => 'architecture',
 		  PKGREL => 'release',
 		  );
 
+my $fdbfile;
+my $fbdir;
+
 my %opts;
-getopts('r:e:b:pu:vit:d:h:f:a:c:sn:l:', \%opts);
+getopts('r:e:b:pu:vit:d:h:f:a:c:sn:l:D', \%opts);
 
 HELP_MESSAGE && exit unless %opts;
 
 die 'Specify a repositoryname!' unless my $repo = $opts{r};
-die 'Specify a filename!' unless my $fdbfile = $opts{f};
+unless ($opts{D}) {die 'Specify a filename!' unless $fdbfile = $opts{f};}
 die 'Specify a version string!' unless my $fwver = $opts{e};
-die 'Specify the FrugalBuild directory!' unless my $fbdir = $opts{b};
+unless ($opts{D}) { die 'Specify the FrugalBuild directory!' unless $fbdir = $opts{b};}
 die 'Specify the architecture!' unless my $arch = $opts{a};
 die 'Invalid architecture!' unless $arch =~ /i686|x86_64|ppc/;
 
@@ -125,6 +129,16 @@ $db->connect({database => $database,
 	      password => $passw,
 	  });
 $passw = '';
+
+# DELETE command
+if ($opts{D}) {
+  die 'Specify a package!' unless $onepkg;
+  $db->delete($table, $onepkg, $arch, $fwver) or die "Messy things were happening while deleting...";
+  exit;
+}
+
+
+# DEFUALT usage
 
 my $pkgdir = untarrepodb $fdbfile;
 opendir DBDIR, $pkgdir;
@@ -228,8 +242,11 @@ while (my $pkg = readdir DBDIR){   #pkg is a dir, pkg =~ name-ver-rel
 }
 
 $db->disconnect;
-closedir DBDIR;
-rrm $pkgdir;
+
+do {
+  closedir DBDIR;
+  rrm $pkgdir;
+} unless $opts{D};
 
 
 package mysqldb;
@@ -298,6 +315,13 @@ sub store{
     }
 }
 
+sub delete{
+  shift;
+  my ($table, $pkgname, $arch, $fwver) = @_;
+  print $table, $pkgname, $arch, $fwver;
+  #$dbh->do ("DELETE FROM $table WHERE pkgname='$pkgname' and arch='$arch' and fwver='$fwver'");
+}
+
 sub disconnect{
     $dbh->disconnect();
 }
@@ -345,6 +369,12 @@ then syncronizes a database. See DATABASE for the structure.
 =head1 OPTIONS
 
 =over 4
+
+=item B<-D delete>
+
+The specified pkg can be deleted with this command.
+
+-c is mandatory.
 
 =item B<-c packagename>
 

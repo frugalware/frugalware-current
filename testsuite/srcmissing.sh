@@ -11,8 +11,15 @@ strip_url()
 	echo $1 | sed 's|^.*://.*/||g'
 }
 
-echo "searching for missing source files..."
+if [ "$#" != 1 ]; then
+	echo "$0: searches for missing source files"
+	echo "usage: $0 <startdir>"
+	exit 1
+fi
 
+startdir=$1
+
+cd $startdir
 for i in `find source extra -maxdepth 5 -name FrugalBuild`
 do
 	cd `dirname $i` || continue

@@ -1,0 +1,78 @@
+--- gnome-system-tools-1.1.4.1.orig/interfaces/common.glade.in
++++ gnome-system-tools-1.1.4.1/interfaces/common.glade.in
+@@ -517,7 +517,7 @@
+ 	      <property name="spacing">12</property>
+ 
+ 	      <child>
+-		<widget class="GtkLabel" id="label68">
++		<widget class="GtkLabel" id="label_pw">
+ 		  <property name="visible">True</property>
+ 		  <property name="can_focus">True</property>
+ 		  <property name="label" translatable="yes">&lt;span weight=&quot;bold&quot; size=&quot;larger&quot;&gt;Please enter your root password&lt;/span&gt;</property>
+--- gnome-system-tools-1.1.4.1.orig/src/common/gst-tool.c
++++ gnome-system-tools-1.1.4.1/src/common/gst-tool.c
+@@ -1042,7 +1042,8 @@
+ 		gtk_widget_show (tool->remote_dialog);
+ 	} else {
+ 		/* run the su command */
+-		gst_auth_do_su_authentication (tool);
++		//gst_auth_do_su_authentication (tool);
++		gst_auth_do_sudo_authentication (tool);
+ 
+ 		gst_tool_process_startup (tool);
+ 		gst_dialog_apply_widget_policies (tool->main_dialog);
+--- gnome-system-tools-1.1.4.1.orig/src/common/gst-auth.c
++++ gnome-system-tools-1.1.4.1/src/common/gst-auth.c
+@@ -218,13 +219,17 @@
+ 	GladeXML *xml;
+ 	gint result;
+ 	gchar *blank;
+-	GtkWidget *password_dialog, *password_entry;
++	GtkWidget *password_dialog, *password_entry, *label_pw;
+ 
+ 	xml = load_glade_common ("password_dialog");
+ 	password_dialog = glade_xml_get_widget (xml, "password_dialog");
+ 	password_entry  = glade_xml_get_widget (xml, "password_entry");
++	label_pw = glade_xml_get_widget (xml, "label_pw");
+ 	g_assert (password_entry);
+ 	g_assert (password_dialog);
++	g_assert (label_pw);
++
++	gtk_label_set_markup(GTK_LABEL(label_pw), _("<span weight=\"bold\" size=\"larger\">Please enter your password</span>"));
+ 
+ 	gtk_widget_show (password_dialog);
+ 	gtk_widget_grab_focus (password_entry);
+@@ -382,3 +387,33 @@
+ 	gst_auth_do_authentication (tool, su_args);
+ 	g_string_free (command, TRUE);
+ }
++
++void
++gst_auth_do_sudo_authentication (GstTool *tool)
++{
++	gchar *su_args[6];
++	GString *command;
++
++	command = g_string_new (NULL);
++	gst_auth_save_locale   (command);
++	command = g_string_append (command, tool->script_path);
++	command = g_string_append (command, " --report");
++
++	if (tool->current_platform) {
++		g_string_append (command, " --platform ");
++		g_string_append (command, (gchar *)gst_platform_get_key (tool->current_platform));
++	}
++
++	/* these are the sudo args */
++	su_args[0] = "/usr/bin/sudo"; /* FIXME: SUDO_PATH; */
++	su_args[1] = "-S";
++	su_args[2] = "/bin/sh";
++	su_args[3] = "-c";
++	su_args[4] = command->str;
++	su_args[5] = NULL;
++
++	//g_print("cmd: %s %s %s\n",su_args[0], su_args[1], su_args[2]);
++
++	gst_auth_do_authentication (tool, su_args);
++	g_string_free (command, TRUE);
++}

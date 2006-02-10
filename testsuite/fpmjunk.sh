@@ -35,18 +35,18 @@ do
 		if in_array $arch ${archs[@]} && [ ! "$nobuild" -a ! "`check_option NOBUILD`" ]; then
 			echo "$pkgname-$pkgver-$pkgrel-$arch.fpm" >>$newfpms
 		fi
-		if [ ! -z "$subpkgs" ] && [ ! "$nobuild" -a ! "`check_option NOBUILD`" ]; then
-			j=0
-			for subpkg in "${subpkgs[@]}"
-			do
-				unset archs
-				archs="${subarchs[$j]}"
-				if in_array $arch ${archs[@]}; then
-					echo "$subpkg-$pkgver-$pkgrel-$arch.fpm" >>$newfpms
-				fi
-				j=$(($j+1))
-			done
-		fi
+	fi
+	if [ ! -z "$pkgver" -a ! -z "$pkgrel" -a ! -z "$subpkgs" ] && [ ! "$nobuild" -a ! "`check_option NOBUILD`" ]; then
+		j=0
+		for subpkg in "${subpkgs[@]}"
+		do
+			unset archs
+			archs="${subarchs[$j]}"
+			if in_array $arch ${archs[@]}; then
+				echo "$subpkg-$pkgver-$pkgrel-$arch.fpm" >>$newfpms
+			fi
+			j=$(($j+1))
+		done
 	fi
 	cd - >/dev/null
 done

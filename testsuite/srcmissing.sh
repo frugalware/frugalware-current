@@ -23,6 +23,10 @@ do
 		file=`strip_url $j`
 		if [ ! -e "$file" ]; then
 			echo "`dirname $i`: $file is missing"
+			if [ "$1" = "--download" ]; then
+				echo "downloading $file..."
+				$FTPAGENT $j
+			fi
 		fi
 	done
 	cd - >/dev/null

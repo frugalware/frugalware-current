@@ -22,6 +22,7 @@ arch=$3
 
 newfpms=`mktemp`
 allfpms=`mktemp`
+fdbfpms=`mktemp`
 
 echo $reponame.fdb >$newfpms
 cd $startdir
@@ -51,12 +52,18 @@ do
 	cd - >/dev/null
 done
 
+tar tzf frugalware-$arch/$reponame.fdb|grep /$|sed "s|/$|-$arch.fpm|" >$fdbfpms
+
 cat $newfpms |sort >$newfpms.sorted
 mv -f $newfpms.sorted $newfpms
 cd frugalware-$arch
 ls >$allfpms
 for i in `diff -u $allfpms $newfpms |grep ^-[^-] |sed 's/^-//'`
 do
-	[ -z "$remove" ] && echo $i || rm -v $i
+	# check if the fpm is in the fdb. if yes, then do not remove this fpm
+	# it's outdated, but there isn't any newer version for this arch
+	if ! grep -q $i $fdbfpms; then
+		[ -z "$remove" ] && echo $i || rm -v $i
+	fi
 done
-rm -f $allfpms $newfpms
+rm -f $allfpms $newfpms $fdbfpms

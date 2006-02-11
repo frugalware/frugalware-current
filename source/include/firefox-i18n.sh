@@ -6,7 +6,7 @@
 
 # provides a common up2date, source and build for firefox i18n packages
 
-up2date="wget -O - -q ftp://ftp.mozilla.org/pub/mozilla.org/firefox/releases/|grep '>[0-9\.]*/'|sed -n 's|.*>\([0-9\.]*\)/.*|\1|;$ p'"
+up2date="1.5"
 source=(http://ftp.mozilla.org/pub/mozilla.org/firefox/releases/$pkgver/linux-i686/xpi/$lang.xpi)
 
 build()

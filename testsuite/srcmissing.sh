@@ -39,7 +39,7 @@ do
 					echo "`dirname $i`: $file is missing"
 					if [ ! -z "$download" ]; then
 						echo "downloading $file..."
-						$FTPAGENT $j
+						$FTPAGENT $k
 					fi
 				fi
 			done

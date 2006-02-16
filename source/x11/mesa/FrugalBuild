@@ -1,10 +1,11 @@
-# Last Modified: Fri, 27 Jan 2006 02:36:51 +0100
+# Last Modified: Thu, 16 Feb 2006 03:44:14 +0100
 # Compiling Time: 1.14 SBU
-# Maintainer: crazy <malagarax@gmx.net>
+# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
+# Old Maintainer: crazy <malagarax@gmx.net>
 
 pkgname=mesa
 origname=Mesa
-pkgver=6.4.1
+pkgver=6.4.2
 pkgrel=1
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
@@ -13,12 +14,16 @@ makedepends=('makedepend' 'glproto' 'xf86vidmodeproto')
 archs=('i686' 'x86_64')
 groups=('x11' 'xorg-core' 'xorg-libs')
 provides=('opengl')
-up2date="lynx -dump $url/news.html|grep stable|sed 's/.*a \(.*\) h.*/\1/;q'"
+up2date="lynx -dump 'http://sourceforge.net/project/showfiles.php?group_id=3&package_id=2436'|grep 'MesaLib-.*tar.bz2'|sed 's/.*-\(.*\)\.t.*/\1/;q'"
 source=(http://heanet.dl.sourceforge.net/sourceforge/mesa3d/MesaLib-$pkgver.tar.bz2 \
-	libGL.la libGLU.la)
-sha1sums=('efb70276ccd9cd13dbd7d5e581213a5ca3e4ef25' \
+	libGL.la libGLU.la xorg-server-1.0.1-amd64-fix-for-glx.patch)
+sha1sums=('4f042bdf38c9eb62e04660bd18566e7ca50d8640' \
 	  '650973d708466f5c4c21e70c1f1f6c118b27e614' \
-	  '12c57ac5e7e8a94d4d41b0f37b0fb3f470791c39')
+	  '12c57ac5e7e8a94d4d41b0f37b0fb3f470791c39' \
+	  'cb1044491f63105e166899439fc0ba250133305a')
+
+# NOTE: If you bump version (major or minor) you need to review the symlinking at the end of this
+#       file !!!! On minor bump last number will be changed.
 
 build()
 {
@@ -27,9 +32,12 @@ build()
 	[ "$CARCH" == "i686" ] && CONFIG=linux-dri-x86
 	[ "$CARCH" == "x86_64" ] && CONFIG=linux-dri-x86-64 && dripath=64
 	[ "$CARCH" == "ppc" ] && CONFIG=linux-dri-ppc
+	[ "$CARCH" == "x86_64" ] && Fpatch xorg-server-1.0.1-amd64-fix-for-glx.patch
 	HOSTCONF="configs/${CONFIG}"
 
 	Fsed "MKDEP = /usr/X11R6/bin/makedepend" "MKDEP = /usr/bin/makedepend" configs/linux-dri
+	Fsed "X11_INCLUDES = -I/usr/X11R6/include" "X11_INCLUDES = -I/usr/include" configs/linux-dri
+	Fsed "EXTRA_LIB_PATH=-L/usr/X11R6/lib" "EXTRA_LIB_PATH=-L/usr/lib" configs/linux-dri
 	Fsed '#define DEFAULT_DRIVER_DIR "/usr/X11R6/lib/modules/dri"' '#define DEFAULT_DRIVER_DIR "/usr/lib/xorg/modules/dri"' src/glx/x11/dri_glx.c
 
 	echo "OPT_FLAGS = ${CFLAGS}" >> ${HOSTCONF}
@@ -37,22 +45,22 @@ build()
 	echo "USING_EGL = 0" >> ${HOSTCONF}
 	echo "PROGRAM_DIRS =" >> ${HOSTCONF}
 	
-	make ${CONFIG} || return 1
+	make ${CONFIG} || Fdie
 
 	Fmkdir /usr
 
-	make DESTDIR=$Fdestdir/usr install
+	make DESTDIR=$Fdestdir/usr install || Fdie
 
 	Fmkdir /usr/share/doc/$pkgname-$pkgver
 	cp -r docs/{README.*,*.html,RELNOTES-$pkgver,COPYING,VERSIONS} \
-		$Fdestdir/usr/share/doc/$pkgname-$pkgver/
+		$Fdestdir/usr/share/doc/$pkgname-$pkgver/ || Fdie
 	
 	Fmkdir /usr/lib/xorg/modules/dri
-	cp -ar $Fsrcdir/$origname-$pkgver/lib$dripath/*_dri.so $Fdestdir/usr/lib/xorg/modules/dri
-	cp -ar $Fsrcdir/libGLU.la $Fdestdir/usr/lib
-	cp -ar $Fsrcdir/libGL.la $Fdestdir/usr/lib
+	cp -ar $Fsrcdir/$origname-$pkgver/lib$dripath/*_dri.so $Fdestdir/usr/lib/xorg/modules/dri || Fdie
+	cp -ar $Fsrcdir/libGLU.la $Fdestdir/usr/lib || Fdie
+	cp -ar $Fsrcdir/libGL.la $Fdestdir/usr/lib || Fdie
 	
-	Fln libGLU.so.1.3.060401 /usr/lib/libGLU.so.1.3
+	Fln libGLU.so.1.3.060402 /usr/lib/libGLU.so.1.3
 	Fln libGLw.so.1.0.0 /usr/lib/libGLw.so.1.0
 }
 

@@ -9,10 +9,14 @@ CHROOT=1
 
 if [ "$#" != 1 ]; then
 	echo "$0: searches for missing source files"
-	echo "usage: $0 <startdir>"
+	echo "usage: $0 [--download] <startdir>"
 	exit 1
 fi
 
+if [ "$1" == "--download" ]; then
+	download="y"
+	shift
+fi
 startdir=$1
 
 cd $startdir
@@ -33,7 +37,7 @@ do
 				file=`strip_url $k`
 				if [ ! -e "$file" ]; then
 					echo "`dirname $i`: $file is missing"
-					if [ "$1" = "--download" ]; then
+					if [ ! -z "$download" ]; then
 						echo "downloading $file..."
 						$FTPAGENT $j
 					fi

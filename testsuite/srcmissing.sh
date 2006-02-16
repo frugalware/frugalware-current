@@ -19,19 +19,26 @@ cd $startdir
 for i in `find source extra -maxdepth 5 -name FrugalBuild`
 do
 	cd `dirname $i` || continue
-	unset source nobuild options
-	source FrugalBuild || echo "errors parsing the FrugalBuild"
-	if [ ! "$nobuild" -a ! "`check_option NOBUILD`" ]; then
-		for j in ${source[@]}
+	unset nobuild options archs
+	. FrugalBuild || echo "errors parsing the FrugalBuild"
+	if [ ! -z "$pkgname" -a ! "$nobuild" -a ! "`check_option NOBUILD`" ]; then
+		for j in ${archs[@]}
 		do
-			file=`strip_url $j`
-			if [ ! -e "$file" ]; then
-				echo "`dirname $i`: $file is missing"
-				if [ "$1" = "--download" ]; then
-					echo "downloading $file..."
-					$FTPAGENT $j
+			export CARCH=$j
+			unset source
+			export startdir=`pwd`
+			. FrugalBuild || echo "errors parsing the FrugalBuild for $j"
+			for k in ${source[@]}
+			do
+				file=`strip_url $k`
+				if [ ! -e "$file" ]; then
+					echo "`dirname $i`: $file is missing"
+					if [ "$1" = "--download" ]; then
+						echo "downloading $file..."
+						$FTPAGENT $j
+					fi
 				fi
-			fi
+			done
 		done
 	fi
 	cd - >/dev/null

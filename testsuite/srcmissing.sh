@@ -7,7 +7,7 @@ CHROOT=1
 . /etc/makepkg.conf
 . /usr/lib/frugalware/fwmakepkg
 
-if [ "$#" != 1 ]; then
+if [ "$#" = 0 ]; then
 	echo "$0: searches for missing source files"
 	echo "usage: $0 [--download] <startdir>"
 	exit 1

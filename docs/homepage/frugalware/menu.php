@@ -24,7 +24,7 @@ print("</font>&middot;
 <a class=menu href=\"\" onClick=\"return clickreturnvalue()\" onMouseover=\"dropdownmenu(this, event, 'devmenu')\">$fwstrdevel</a> &middot;
 <div id=\"devmenu\" class=\"menulinkcss\" align=\"left\">
 <a href=\"http://darcs.frugalware.org/darcsweb/darcsweb.cgi\">$fwstrdr</a>
-<a href=\"http://bugs.frugalware.org\">$fwstrmbugs</a>
+<a href=\"http://bugs.frugalware.org/?project=0\">$fwstrmbugs</a>
 <a href=\"changelog.php\">$fwstrchl</a>
 <a href=\"http://blogs.frugalware.org\">$fwstrmblogs</a>
 <a href=\"roadmap.php\">$fwstrroadmap</a>

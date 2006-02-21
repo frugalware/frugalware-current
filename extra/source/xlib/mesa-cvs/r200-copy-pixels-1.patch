@@ -1,0 +1,112 @@
+diff -u ../Mesa-6.4.1.old/src/mesa/drivers/dri/r200/r200_pixel.c ./src/mesa/drivers/dri/r200/r200_pixel.c
+--- ../Mesa-6.4.1.old/src/mesa/drivers/dri/r200/r200_pixel.c	2004-07-31 10:14:50.000000000 +0200
++++ ./src/mesa/drivers/dri/r200/r200_pixel.c	2005-12-21 15:19:24.000000000 +0100
+@@ -472,6 +472,98 @@
+ }
+ 
+ 
++void
++r200CopyPixels( GLcontext *ctx,
++		GLint srcx, GLint srcy, GLsizei width, GLsizei height,
++		GLint destx, GLint desty,
++		GLenum type )
++{
++    if (type == GL_COLOR &&
++	ctx->Pixel.ReadBuffer == GL_BACK &&
++	ctx->Color.DrawBuffer[0] == GL_FRONT &&
++	srcx == destx && srcy == desty &&
++	ctx->_ImageTransferState == 0 && /* no color tables, scale/bias, etc */
++	ctx->Pixel.ZoomX == 1.0 && /* no zooming */
++	ctx->Pixel.ZoomY == 1.0)
++    {
++	r200ContextPtr rmesa = R200_CONTEXT (ctx);
++	__DRIdrawablePrivate *dPriv = rmesa->dri.drawable;
++	GLint x, y, size;
++	GLint nbox, i, ret;
++
++	x = destx;
++	y = desty;
++
++	if (!clip_pixelrect (ctx, ctx->DrawBuffer, &x, &y, &width, &height,
++			     &size))
++	{
++	    if (R200_DEBUG & DEBUG_PIXEL)
++		fprintf (stderr, "%s totally clipped -- nothing to do\n",
++			 __FUNCTION__);
++
++	    return;
++	}
++
++	y = dPriv->h - y - height; /* convert from gl to hardware coords */
++	x += dPriv->x;
++	y += dPriv->y;
++
++	R200_FIREVERTICES( rmesa );
++
++	LOCK_HARDWARE( rmesa );
++
++	nbox = dPriv->numClipRects; /* must be in locked region */
++
++	for (i = 0; i < nbox; )
++	{
++	    drm_clip_rect_t *box = dPriv->pClipRects;
++	    drm_clip_rect_t *b = rmesa->sarea->boxes;
++	    drm_clip_rect_t r;
++	    GLint	    n = 0;
++
++	    while (n < RADEON_NR_SAREA_CLIPRECTS && i < nbox)
++	    {
++		r = box[i++];
++
++		if (r.x1 < x)
++		    r.x1 = x;
++		if (r.y1 < y)
++		    r.y1 = y;
++		if (r.x2 > x + width)
++		    r.x2 = x + width;
++		if (r.y2 > y + height)
++		    r.y2 = y + height;
++
++		if (r.x1 < r.x2 && r.y1 < r.y2)
++		{
++		    *b++ = r;
++		    n++;
++		}
++	    }
++
++	    if (n)
++	    {
++		rmesa->sarea->nbox = n;
++
++		ret = drmCommandNone ( rmesa->dri.fd, DRM_RADEON_SWAP );
++
++		if ( ret ) {
++		    fprintf( stderr, "DRM_R200_SWAP_BUFFERS: return = %d\n",
++			     ret );
++		    UNLOCK_HARDWARE( rmesa );
++		    exit( 1 );
++		}
++	    }
++	}
++
++	UNLOCK_HARDWARE( rmesa );
++   }
++   else
++   {
++       _swrast_CopyPixels (ctx, srcx, srcy, width, height, destx, desty, type);
++   }
++}
++
+ 
+ void r200InitPixelFuncs( GLcontext *ctx )
+ {
+@@ -485,7 +577,8 @@
+ 
+    if (!getenv("R200_NO_BLITS") && R200_CONTEXT(ctx)->dri.drmMinor >= 6) {
+       ctx->Driver.ReadPixels = r200ReadPixels;  
+-      ctx->Driver.DrawPixels = r200DrawPixels; 
++      ctx->Driver.DrawPixels = r200DrawPixels;
++      ctx->Driver.CopyPixels = r200CopyPixels;
+       if (getenv("R200_HW_BITMAP")) 
+ 	 ctx->Driver.Bitmap = r200Bitmap;
+    }

@@ -1,0 +1,69 @@
+# Last Modified: Tue, 21 Feb 2006 07:54:01 +0100
+# Compiling Time: 1.14 SBU
+# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
+
+pkgname=mesa-cvs
+origname=Mesa-cvs
+pkgver=20060220
+pkgrel=1
+pkgdesc="Mesa is a 3D graphics library (CVS Version)"
+url="http://mesa3d.sourceforge.net/"
+depends=('libx11' 'libxext' 'libxxf86vm' 'libxi' 'libxmu' 'libice' 'libdrm')
+makedepends=('makedepend' 'glproto' 'xf86vidmodeproto')
+archs=('x86_64')
+groups=('xlib-extra')
+up2date=$pkgver
+source=(http://frugalware.org/~krix/CVS/$origname-$pkgver.tar.bz2 \
+	http://krix.linuxforum.hu/i915_drm.h \
+	r200-copy-pixels-1.patch 6.4-dont-install-gles-headers.patch)
+sha1sums=('44266d7eda07b824cf02b24dec90a9f00ea14e7b' \
+	  '222d577dbea1f03027b70418b837743925e472ac' \
+	  '1396202a472a59266e884cfef5654af4e4cd451c' \
+	  'ffdf556a66229d0417d5d7e7833c8e9bfdb39741')
+
+# NOTE: If you bump version (major or minor) you need to review the symlinking at the end of this
+#       file !!!! On minor bump last number will be changed.
+
+# NOTE for CVS version: you need to copy i915_drm.h to /usr/include/drm/ before
+#	building this package. (to chroot dir!)
+
+build()
+{
+	Fcd $origname-$pkgver
+
+	[ "$CARCH" == "i686" ] && CONFIG=linux-dri-x86
+	[ "$CARCH" == "x86_64" ] && CONFIG=linux-dri-x86-64 && dripath=64
+	[ "$CARCH" == "ppc" ] && CONFIG=linux-dri-ppc
+	Fpatchall
+
+	HOSTCONF="configs/${CONFIG}"
+
+	Fsed "MKDEP = /usr/X11R6/bin/makedepend" "MKDEP = /usr/bin/makedepend" configs/linux-dri
+	Fsed "X11_INCLUDES = -I/usr/X11R6/include" "X11_INCLUDES = -I/usr/include" configs/linux-dri
+	Fsed "EXTRA_LIB_PATH=-L/usr/X11R6/lib" "EXTRA_LIB_PATH=-L/usr/lib" configs/linux-dri
+	Fsed '#define DEFAULT_DRIVER_DIR "/usr/X11R6/lib/modules/dri"' '#define DEFAULT_DRIVER_DIR "/usr/lib/xorg/modules/dri"' src/glx/x11/dri_glx.c
+
+	echo "DEFINES += -DDEFAULT_DRIVER_DIR='\"/usr/lib/mesa-cvs/lib/xorg/modules/dri\"'" >> ${HOSTCONF}
+	echo "EXTRA_LIB_PATH =" >> ${HOSTCONF}
+	echo "OPT_FLAGS = ${CFLAGS}" >> ${HOSTCONF}
+	echo "SRC_DIRS = glx/x11 mesa" >> ${HOSTCONF}
+	rm -f include/GL/glut*h
+	echo "USING_EGL = 0" >> ${HOSTCONF}
+	echo "PROGRAM_DIRS =" >> ${HOSTCONF}
+#	echo "DRI_DIRS =" >> ${HOSTCONF}
+	
+	make ${CONFIG} || Fdie
+
+	Fmkdir /usr/lib/mesa-cvs
+
+	make DESTDIR=$Fdestdir/usr/lib/mesa-cvs install || Fdie
+
+	Fmkdir /usr/share/doc/$origname-$pkgver
+	cp -r docs/{README.*,*.html,RELNOTES-6.4.2,RELNOTES-6.5,COPYING,VERSIONS} \
+		$Fdestdir/usr/share/doc/$origname-$pkgver/ || Fdie
+	
+	Fmkdir /usr/lib/mesa-cvs/lib/xorg/modules/dri
+	cp -ar $Fsrcdir/$origname-$pkgver/lib$dripath/*_dri.so $Fdestdir/usr/lib/mesa-cvs/lib/xorg/modules/dri/ || Fdie
+}
+
+# optimalization OK

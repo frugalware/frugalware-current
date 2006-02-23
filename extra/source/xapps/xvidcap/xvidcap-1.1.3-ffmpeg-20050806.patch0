@@ -1,0 +1,78 @@
+--- src/xtoffmpeg.c	2004-02-15 13:00:54.000000000 -0600
++++ src/xtoffmpeg.c.new	2006-02-01 18:56:49.000000000 -0600
+@@ -682,7 +682,7 @@
+             exit (1);
+         }
+         
+-        c = &out_st->codec;
++        c = out_st->codec;
+         c->codec_id = transCodec;
+         c->codec_type = CODEC_TYPE_VIDEO;
+         
+@@ -696,8 +696,8 @@
+         #endif  /* DEBUG */
+         
+         /* frames per second */
+-        c->frame_rate = job->fps;
+-        c->frame_rate_base = 1;
++        //c->frame_rate = job->fps;
++        //c->frame_rate_base = 1;
+         c->gop_size = 250; /* emit one intra frame every 10 frames */
+         //        c->me_method = ME_EPZS;
+         //	    c->debug = 0x00000FFF;
+@@ -707,10 +707,10 @@
+          */
+         memset (p_fParams, 0, sizeof(*p_fParams));
+         p_fParams->image_format = image_format;
+-        p_fParams->frame_rate = out_st->codec.frame_rate;
+-        p_fParams->frame_rate_base = out_st->codec.frame_rate_base;
+-        p_fParams->width = out_st->codec.width;
+-        p_fParams->height = out_st->codec.height;
++        //p_fParams->frame_rate = job->fps;
++        //p_fParams->frame_rate_base = 1;
++        p_fParams->width = out_st->codec->width;
++        p_fParams->height = out_st->codec->height;
+         if (av_set_parameters (output_file, p_fParams) < 0) {
+             //        if (av_set_parameters(output_file, NULL) < 0) {
+             fprintf (stderr, "xtoffmpeg.XImageToFFMPEG(): Invalid encoding parameters ... aborting\n");
+@@ -720,7 +720,7 @@
+         /*
+          * open codec
+          */
+-        c = &out_st->codec;
++        c = out_st->codec;
+         
+         /* find the video encoder */
+         codec = avcodec_find_encoder (c->codec_id);
+@@ -1064,7 +1064,7 @@
+          * FIXME: other formats might also have this problem */
+         if (image->bytes_per_line > c->width) {
+             int y, x;
+-            uint8_t *in, *out;
++            int8_t *in, *out;
+             
+             in = image->data;
+             out = scratchbuf8bit;
+@@ -1117,7 +1117,12 @@
+     }
+ #endif // HAVE_FFMPEG_AUDIO
+     /* write frame to file */
+-    av_write_frame (output_file, out_st->index, outbuf, out_size);
++    AVPacket _pkt, *pkt = &_pkt;
++    av_init_packet (pkt);
++    pkt->stream_index = out_st->index;
++    pkt->data = outbuf;
++    pkt->size = out_size;
++    av_write_frame (output_file, pkt);
+ #ifdef HAVE_FFMPEG_AUDIO
+     /* release the mutex */
+     if (job->flags & FLG_AUDIO_WANTED) {
+@@ -1154,7 +1159,7 @@
+     #endif // HAVE_FFMPEG_AUDIO
+     
+     if (out_st) {
+-        avcodec_close (&out_st->codec);
++        avcodec_close (out_st->codec);
+         out_st = NULL;
+     }
+ 

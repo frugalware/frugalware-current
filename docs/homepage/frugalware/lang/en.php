@@ -63,7 +63,7 @@ $fwstrpacver="Version";
 $fwstrpacrepo="Repo";
 $fwstrpaccat="Category";
 $fwstrpacpac="Package";
-$fwstrpacinfo="Package informations";
+$fwstrpacinfo="Package information";
 $fwstrpacname="Name";
 $fwstrpacrel="Release";
 $fwstrpacdesc="Description";
@@ -101,7 +101,7 @@ $fwstrquestion="Question";
 $fwstranswer="Answer";
 
 // pageinfo.php
-$fwstrpageinfo="Informations";
+$fwstrpageinfo="Information";
 
 // flag.php
 $fwstrchlang="Change language";

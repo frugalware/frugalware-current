@@ -96,7 +96,7 @@ $fwstrquestion="Question";
 $fwstranswer="Réponses";
 
 // pageinfo.php
-$fwstrpageinfo="Informations";
+$fwstrpageinfo="Information";
 
 // flag.php
 $fwstrchlang="Changer de langue";

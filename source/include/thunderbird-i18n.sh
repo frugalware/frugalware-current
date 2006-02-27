@@ -8,20 +8,12 @@
 
 up2date="1.5"
 
-source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linux-i686/xpi/$llang.xpi \
-	lang-$pkgname.txt)
+source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linux-i686/xpi/$llang.xpi)
 
 build()
 {
-	unzip -qqo $llang.xpi
+	unzip -qqo $lang.xpi
 	sed -i 's|chrome/||' chrome.manifest
-	Ffilerel chrome.manifest /usr/lib/thunderbird/chrome/$llang.manifest
-	Ffilerel chrome/$llang.jar /usr/lib/thunderbird/chrome/$llang.jar
-
-#	Fmkdir /usr/lib/thunderbird
-#	cd $Fdestdir/usr/lib/thunderbird
-#	unzip -o $Fsrcdir/$llang.xpi
-#	rm -rf defaults install.rdf chrome/chromelist.txt
-#	mv chrome.manifest $lang.manifest
-	Ffile /usr/lib/thunderbird/chrome/lang-$pkgname.txt
+	Ffilerel chrome.manifest /usr/lib/thunderbird/chrome/$lang.manifest
+	Ffilerel chrome/$lang.jar /usr/lib/thunderbird/chrome/$lang.jar
 }

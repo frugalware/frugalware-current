@@ -12,8 +12,8 @@ source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linu
 
 build()
 {
-	unzip -qqo $lang.xpi
+	unzip -qqo $llang.xpi
 	sed -i 's|chrome/||' chrome.manifest
-	Ffilerel chrome.manifest /usr/lib/thunderbird/chrome/$lang.manifest
-	Ffilerel chrome/$lang.jar /usr/lib/thunderbird/chrome/$lang.jar
+	Ffilerel chrome.manifest /usr/lib/thunderbird/chrome/$llang.manifest
+	Ffilerel chrome/$llang.jar /usr/lib/thunderbird/chrome/$llang.jar
 }

@@ -1,53 +1,48 @@
-#!/bin/sh
-#
-# This is file /etc/rc.d/rc.privoxy and is based upon the original privoxi.init
-#
+#!/bin/bash
+
+# (c) 2006 Marcus Habermehl <bmh1980de@yahoo.de>
+# rc.privoxy for Frugalware
+# distributed under GPL License
+
 # chkconfig: 2345 84 09
-#
 # description: Web proxy with advanced filtering capabilities \
 #              such as filtering web page content, managing \
 #              cookies and removing ads
-#
 
-# Source function library.
-. /etc/rc.d/rc.functions
+source /lib/initscripts/functions
+TEXTDOMAIN=privoxy
+TEXTDOMAINDIR=/lib/initscripts/messages
 
-PRIVOXY_PRG="privoxy"
-PRIVOXY_BIN="/usr/sbin/$PRIVOXY_PRG"
-PRIVOXY_CONF="/etc/$PRIVOXY_PRG/config"
-PRIVOXY_USER="privoxy"
-PRIVOXY_PID=/var/run/$PRIVOXY_PRG.pid
-PRIVOXY_LOCK=/var/lock/subsys/$PRIVOXY_PRG
-PRIVOXY="$PRIVOXY_BIN --user $PRIVOXY_USER.$PRIVOXY_USER --pidfile $PRIVOXY_PID $PRIVOXY_CONF"
+actions=(restart status start stop)
+daemon="privoxy"
 
-# some checks for us
-! [ -x $PRIVOXY_BIN  ] && echo "$missingbin" && exit 0
-! [ -f $PRIVOXY_CONF ] && echo "$missingconf" && exit 0
+pid="pidof privoxy 2> /dev/null"
 
-case "$1" in
-  start)
-	start "$startprivoxy"
-     if [ -f $PRIVOXY_PID ]; then 
-        killall $PRIVOXY_PRG &> /dev/null && rm -f $PRIVOXY_LOCK $PRIVOXY_PID
-        RETVAL=$?
-        [ $RETVAL != 0 ] && return $RETVAL
-     fi
-	$PRIVOXY $PRIVOXY_CONF &> /dev/null
-	RETVAL=$?
-	[ $RETVAL = 0 ] && touch $PRIVOXY_LOCK
-	ok $RETVAL
-	;;
-  stop)
-	stop "$stopprivoxy"
-	killall $PRIVOXY_PRG &> /dev/null && rm -f $PRIVOXY_LOCK $PRIVOXY_PID
-	ok $?
-	;;
-  restart)
-	"$0" stop
-	sleep 1
-	"$0" start
-	;;
-  *)
-	echo $"Usage: $PRIVOXY_PRG {start|stop|restart}"
-	return 1
-esac
+rc_start()
+{
+	start_msg
+	if [[ "$(eval $pid)" == "" ]] ; then
+		${daemon} --user ${daemon}.${daemon} --pidfile /var/run/${daemon}.pid /etc/${daemon}/config
+		retval=$?
+		if (( ${retval} == 0 )) ; then
+			touch /var/lock/subsys/${daemon}.pid
+		fi
+		ok ${retval}
+	else
+		ok 999
+	fi
+}
+
+rc_stop()
+{
+	stop_msg
+	if [[ "$(eval $pid)" != "" ]] ; then
+		killall ${daemon}
+		ok $?
+		rm -f /var/lock/subsys/${daemon} /var/run/${daemon}.pid
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1

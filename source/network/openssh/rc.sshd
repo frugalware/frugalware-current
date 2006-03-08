@@ -1,43 +1,53 @@
-#!/bin/sh
+#!/bin/bash
 
 # (c) 2003 Vajna Miklos <vmiklos@frugalware.org>
+# (c) 2006 Andras Voroskoi <voroskoi@frugalware.org>
 # rc.sshd for FrugalWare
 # distributed under GPL License
-
-. /etc/rc.d/rc.functions
 
 # chkconfig: 2345 32 56
 # description: Starts or stops the OpenSSH daemon
 
-if [ "$1" = "stop" ]; then
-	stop "$stopssh"
-	killall sshd
-	ok $?
-elif [ "$1" = "restart" ]; then
-	if [ -r /var/run/sshd.pid ]; then
-		stop "$stopssh"
-		kill `cat /var/run/sshd.pid`
+source /lib/initscripts/functions
+TEXTDOMAIN=sshd
+TEXTDOMAINDIR=/lib/initscripts/messages
+
+actions=(restart start stop)
+daemon=$"SSH daemon"
+
+pid="pidof sshd 2> /dev/null"
+
+rc_start() {
+	start_msg
+	if [[ "$(eval $pid)" == "" ]] ; then
+		# creating host keys
+		if [ ! -r /etc/ssh/ssh_host_key ]; then
+			/usr/bin/ssh-keygen -t rsa1 -f /etc/ssh/ssh_host_key -N '' |logger
+			retval=$?
+		fi
+		if [ ! -f /etc/ssh/ssh_host_dsa_key ]; then
+			/usr/bin/ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key -N '' |logger
+			retval=$?
+		fi
+		if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
+			/usr/bin/ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N '' |logger
+			retval=$?
+		fi
+		/usr/sbin/sshd
 		ok $?
 	else
-		"$0" stop
+		ok 999
 	fi
-	sleep 1
-	"$0" start
-else # start
-	start "$startssh"
-	# creating host keys
-	if [ ! -r /etc/ssh/ssh_host_key ]; then
-		/usr/bin/ssh-keygen -t rsa1 -f /etc/ssh/ssh_host_key -N '' \
-			|logger
+}
+
+rc_stop() {
+	stop_msg
+	if [[ "$(eval $pid)" != "" ]] ; then
+		killall sshd
+		ok $?
+	else
+		ok 999
 	fi
-	if [ ! -f /etc/ssh/ssh_host_dsa_key ]; then
-		/usr/bin/ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key -N '' \
-			|logger
-	fi
-	if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
-		/usr/bin/ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N '' \
-			|logger
-	fi
-	/usr/sbin/sshd
-	ok $?
-fi
+}
+
+rc_exec $1

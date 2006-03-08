@@ -1,0 +1,135 @@
+Handle bold, italic and underlined messages.
+Handle &foo and !foo-named channels, not just #foo ones.
+diff -Naur irssi-mobile-0.12.orig/src/mobile.c irssi-mobile-0.12/src/mobile.c
+--- irssi-mobile-0.12.orig/src/mobile.c	2002-02-15 10:23:54.000000000 +0100
++++ irssi-mobile-0.12/src/mobile.c	2006-03-08 20:02:13.000000000 +0100
+@@ -90,6 +90,7 @@
+ {
+ 	GString *str;
+ 	char *p;
++	int b = 0, u = 0;
+ 	
+ 	while (g_list_length(channel->last_msgs) > MAX_MSG_QUEUE) {
+ 		/* remove one of the old messages */
+@@ -110,6 +111,14 @@
+ 			g_string_append(str, "&quot;");
+ 		else if (*p == '\'')
+ 			g_string_append(str, "&#039;");
++		else if (*p == 2) {
++			b ? g_string_append(str, "</b>") : g_string_append(str, "<b>");
++			b = !b; }
++		else if (*p == 31) {
++			u ? g_string_append(str, "</u>") : g_string_append(str, "<u>");
++			u = !u; }
++		else if (*p < 32)
++			continue;
+ 		else
+ 			g_string_append_c(str, *p);
+ 	}
+@@ -166,8 +175,12 @@
+ static char *client_get_link(CLIENT_REC *client,
+ 			     const char *server, const char *channel)
+ {
+-	return g_strdup_printf("?server=%s&amp;channel=%s&amp;counter=%x",
+-			       server, channel, cache_counter);
++	if (*channel) {
++		return g_strdup_printf("?server=%s&amp;channel=%%%x%s&amp;counter=%x",
++			       server, *channel, channel+1, cache_counter);
++	} else {
++		return g_strdup_printf(".");
++	}
+ }
+ 
+ static void client_link(CLIENT_REC *client, const char *text,
+@@ -196,10 +209,15 @@
+ 	for (tmp = channels; tmp != NULL; tmp = tmp->next) {
+ 		CHANNEL_REC *channel = tmp->data;
+ 
+-		str = g_strdup_printf("%s (%s)", channel->name,
++		if (*channel->name != '&') {
++			str = g_strdup_printf("%s (%s)", channel->name,
+ 				      channel->server->tag);
++		} else {
++			str = g_strdup_printf("&amp;%s (%s)", channel->name+1,
++				      channel->server->tag);
++		}
+ 		client_link(client, str,
+-			    channel->server->tag, channel->name+1);
++			    channel->server->tag, channel->name);
+ 		g_free(str);
+ 
+ 		client_print(client, "<br />\n");
+@@ -221,7 +239,7 @@
+ 
+ 		/* refresh menu item */
+ 		client_print(client, "<do type=\"options\" label=\"[Refresh]\" name=\"refresh\">\n");
+-		link = client_get_link(client, channel->server->tag, channel->name+1);
++		link = client_get_link(client, channel->server->tag, channel->name);
+ 		client_print(client, "  <go href=\"%s\" />\n", link);
+                 g_free(link);
+ 		client_print(client, "</do>");
+@@ -237,9 +255,9 @@
+ 		MOBILE_MSG_REC *rec = tmp->data;
+ 
+ 		rec->read = TRUE;
+-		if (strlen(rec->message) <= MAX_MSGLINK_LEN)
++		/*if (strlen(rec->message) <= MAX_MSGLINK_LEN)*/
+ 			client_print(client, "%s", rec->message);
+-		else {
++		/*else {
+ 			char *str;
+ 
+ 			str = g_strndup(rec->message, MAX_MSGLINK_LEN);
+@@ -248,7 +266,7 @@
+ 				     "<a href=\"#m%d\">%s</a>",
+ 				     num, str);
+ 			g_free(str);
+-		}
++		}*/
+ 		client_print(client, "<br />\n");
+ 	}
+ 	client_print(client, "<br />\n");
+@@ -263,7 +281,7 @@
+ 	}
+ 
+ 	client_link(client, "Refresh", channel->server->tag,
+-		    channel->name+1);
++		    channel->name);
+ 	client_print(client, "<br />\n");
+ 
+ 	client_link(client, "Change channel", "", "");
+@@ -276,7 +294,11 @@
+ 		client_print(client, "<input type=\"text\" name=\"msg\" />\n");
+ 		client_print(client, "<anchor>Send<go method=\"get\" href=\"?\">\n");
+ 		client_print(client, "<postfield name=\"server\" value=\"%s\" />\n", channel->server->tag);
+-		client_print(client, "<postfield name=\"channel\" value=\"%s\" />\n", channel->name+1);
++		if (*channel->name != '&') {
++			client_print(client, "<postfield name=\"channel\" value=\"%s\" />\n", channel->name);
++		} else {
++			client_print(client, "<postfield name=\"channel\" value=\"&amp;%s\" />\n", channel->name+1);
++		}
+ 		client_print(client, "<postfield name=\"counter\" value=\"%x\" />\n", cache_counter);
+ 		client_print(client, "<postfield name=\"msg\" value=\"$(msg)\" />\n");
+ 		client_print(client, "</go></anchor><br />\n");
+@@ -319,7 +341,7 @@
+ 		/* reload the msgs page every now and then */
+ 		client_print(client, "<onevent type=\"ontimer\">\n");
+ 		link = client_get_link(client, client->channel->channel->server->tag,
+-				       client->channel->channel->name+1);
++				       client->channel->channel->name);
+ 		client_print(client, "  <go href=\"%s\" />\n", link);
+ 		g_free(link);
+ 		client_print(client, "</onevent>\n");
+@@ -361,9 +383,9 @@
+ 		if (client->server->ischannel(client->server, args))
+ 			channel = channel_find(client->server, args);
+ 		else {
+-			str = g_strconcat("#", args, NULL);
+-			channel = channel_find(client->server, str);
+-			g_free(str);
++			//str = g_strconcat("#", args, NULL);
++			channel = channel_find(client->server, args);
++			//g_free(str);
+ 		}
+ 		client->channel = channel == NULL ? NULL :
+                         mobile_channel_find(channel);

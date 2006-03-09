@@ -1,17 +1,20 @@
 Handle bold, italic and underlined messages.
 Handle &foo and !foo-named channels, not just #foo ones.
+Timestamp support.
 diff -Naur irssi-mobile-0.12.orig/src/mobile.c irssi-mobile-0.12/src/mobile.c
 --- irssi-mobile-0.12.orig/src/mobile.c	2002-02-15 10:23:54.000000000 +0100
-+++ irssi-mobile-0.12/src/mobile.c	2006-03-08 20:02:13.000000000 +0100
-@@ -90,6 +90,7 @@
++++ irssi-mobile-0.12/src/mobile.c	2006-03-08 22:56:29.000000000 +0100
+@@ -89,7 +89,8 @@
+ 			   MOBILE_MSG_REC *rec)
  {
  	GString *str;
- 	char *p;
-+	int b = 0, u = 0;
+-	char *p;
++	unsigned char *p;
++	int b = 0, u = 0, s = 0;
  	
  	while (g_list_length(channel->last_msgs) > MAX_MSG_QUEUE) {
  		/* remove one of the old messages */
-@@ -110,6 +111,14 @@
+@@ -110,11 +111,26 @@
  			g_string_append(str, "&quot;");
  		else if (*p == '\'')
  			g_string_append(str, "&#039;");
@@ -21,12 +24,24 @@ diff -Naur irssi-mobile-0.12.orig/src/mobile.c irssi-mobile-0.12/src/mobile.c
 +		else if (*p == 31) {
 +			u ? g_string_append(str, "</u>") : g_string_append(str, "<u>");
 +			u = !u; }
++		else if (*p == '\\') {
++			if (s) g_string_append(str, "\\");
++			s = !s; }
++/*		else if (*p > 127) 
++			g_string_append(str,g_strdup_printf("&#%d;", *p));*/
 +		else if (*p < 32)
 +			continue;
  		else
  			g_string_append_c(str, *p);
  	}
-@@ -166,8 +175,12 @@
++	//printtext(NULL, NULL, MSGLEVEL_CLIENTNOTICE, rec->message);
+ 	g_free(rec->message);
+ 	rec->message = str->str;
++	//printtext(NULL, NULL, MSGLEVEL_CLIENTNOTICE, rec->message);
+ 	g_string_free(str, FALSE);
+ 
+         channel->last_msgs = g_list_append(channel->last_msgs, rec);
+@@ -166,8 +182,12 @@
  static char *client_get_link(CLIENT_REC *client,
  			     const char *server, const char *channel)
  {
@@ -41,17 +56,17 @@ diff -Naur irssi-mobile-0.12.orig/src/mobile.c irssi-mobile-0.12/src/mobile.c
  }
  
  static void client_link(CLIENT_REC *client, const char *text,
-@@ -196,10 +209,15 @@
+@@ -196,10 +216,15 @@
  	for (tmp = channels; tmp != NULL; tmp = tmp->next) {
  		CHANNEL_REC *channel = tmp->data;
  
 -		str = g_strdup_printf("%s (%s)", channel->name,
 +		if (*channel->name != '&') {
 +			str = g_strdup_printf("%s (%s)", channel->name,
- 				      channel->server->tag);
++				      channel->server->tag);
 +		} else {
 +			str = g_strdup_printf("&amp;%s (%s)", channel->name+1,
-+				      channel->server->tag);
+ 				      channel->server->tag);
 +		}
  		client_link(client, str,
 -			    channel->server->tag, channel->name+1);
@@ -59,7 +74,7 @@ diff -Naur irssi-mobile-0.12.orig/src/mobile.c irssi-mobile-0.12/src/mobile.c
  		g_free(str);
  
  		client_print(client, "<br />\n");
-@@ -221,7 +239,7 @@
+@@ -221,7 +246,7 @@
  
  		/* refresh menu item */
  		client_print(client, "<do type=\"options\" label=\"[Refresh]\" name=\"refresh\">\n");
@@ -68,7 +83,12 @@ diff -Naur irssi-mobile-0.12.orig/src/mobile.c irssi-mobile-0.12/src/mobile.c
  		client_print(client, "  <go href=\"%s\" />\n", link);
                  g_free(link);
  		client_print(client, "</do>");
-@@ -237,9 +255,9 @@
+@@ -234,12 +259,14 @@
+ 	/* write short links for messages */
+ 	tmp = g_list_last(client->channel->last_msgs);
+ 	for (num = 0; tmp != NULL; tmp = tmp->prev, num++) {
++	/*tmp = g_list_first(client->channel->last_msgs);
++	while (tmp != NULL) {*/
  		MOBILE_MSG_REC *rec = tmp->data;
  
  		rec->read = TRUE;
@@ -80,16 +100,18 @@ diff -Naur irssi-mobile-0.12.orig/src/mobile.c irssi-mobile-0.12/src/mobile.c
  			char *str;
  
  			str = g_strndup(rec->message, MAX_MSGLINK_LEN);
-@@ -248,7 +266,7 @@
+@@ -248,8 +275,9 @@
  				     "<a href=\"#m%d\">%s</a>",
  				     num, str);
  			g_free(str);
 -		}
 +		}*/
  		client_print(client, "<br />\n");
++		/*tmp = tmp->next;*/
  	}
  	client_print(client, "<br />\n");
-@@ -263,7 +281,7 @@
+ 
+@@ -263,7 +291,7 @@
  	}
  
  	client_link(client, "Refresh", channel->server->tag,
@@ -98,7 +120,7 @@ diff -Naur irssi-mobile-0.12.orig/src/mobile.c irssi-mobile-0.12/src/mobile.c
  	client_print(client, "<br />\n");
  
  	client_link(client, "Change channel", "", "");
-@@ -276,7 +294,11 @@
+@@ -276,14 +304,18 @@
  		client_print(client, "<input type=\"text\" name=\"msg\" />\n");
  		client_print(client, "<anchor>Send<go method=\"get\" href=\"?\">\n");
  		client_print(client, "<postfield name=\"server\" value=\"%s\" />\n", channel->server->tag);
@@ -111,7 +133,24 @@ diff -Naur irssi-mobile-0.12.orig/src/mobile.c irssi-mobile-0.12/src/mobile.c
  		client_print(client, "<postfield name=\"counter\" value=\"%x\" />\n", cache_counter);
  		client_print(client, "<postfield name=\"msg\" value=\"$(msg)\" />\n");
  		client_print(client, "</go></anchor><br />\n");
-@@ -319,7 +341,7 @@
+ 	}
+ 
+ 	/* write the while messages to other cards */
+-	tmp = g_list_last(client->channel->last_msgs);
++	/* tmp = g_list_last(client->channel->last_msgs);
+ 	for (num = 0; tmp != NULL; tmp = tmp->prev, num++) {
+ 		MOBILE_MSG_REC *rec = tmp->data;
+ 
+@@ -300,7 +332,7 @@
+ 		client_print(client, client->wml ?
+ 			     "<do type=\"prev\"><prev /></do>\n" :
+ 			     "<br /><br />\n");
+-	}
++	}*/
+ }
+ 
+ static void send_client_page(CLIENT_REC *client)
+@@ -319,7 +351,7 @@
  		/* reload the msgs page every now and then */
  		client_print(client, "<onevent type=\"ontimer\">\n");
  		link = client_get_link(client, client->channel->channel->server->tag,
@@ -120,7 +159,21 @@ diff -Naur irssi-mobile-0.12.orig/src/mobile.c irssi-mobile-0.12/src/mobile.c
  		client_print(client, "  <go href=\"%s\" />\n", link);
  		g_free(link);
  		client_print(client, "</onevent>\n");
-@@ -361,9 +383,9 @@
+@@ -345,6 +377,13 @@
+ 			     const char *cmd, const char *args)
+ {
+ 	char *str;
++	time_t time_now;
++	struct tm *time_ptr;
++	char timestamp[6];
++      
++        time(&time_now);
++	time_ptr = localtime(&time_now);
++	strftime(timestamp, 6, "%H:%M", time_ptr);
+ 
+ 	if (strcmp(cmd, "lang") == 0) {
+                 client->wml = strcmp(args, "wml") == 0;
+@@ -361,9 +400,9 @@
  		if (client->server->ischannel(client->server, args))
  			channel = channel_find(client->server, args);
  		else {
@@ -133,3 +186,38 @@ diff -Naur irssi-mobile-0.12.orig/src/mobile.c irssi-mobile-0.12/src/mobile.c
  		}
  		client->channel = channel == NULL ? NULL :
                          mobile_channel_find(channel);
+@@ -378,7 +417,7 @@
+ 				      client->channel->channel->name, args,
+ 				      settings_get_str("mobile_msgappend"));
+ 		rec = g_new0(MOBILE_MSG_REC, 1);
+-		rec->message = g_strdup_printf("%s> %s", client->channel->channel->server->nick, args);
++		rec->message = g_strdup_printf("%s <%s> %s", timestamp, client->channel->channel->server->nick, args);
+ 		mobile_msg_add(client->channel, rec);
+ 
+ 		signal_emit("command msg", 3, str, client->server,
+@@ -493,15 +532,24 @@
+ 	MOBILE_CHANNEL_REC *mchannel;
+ 	MOBILE_MSG_REC *rec;
+ 
++	time_t time_now;
++	struct tm *time_ptr;
++	char timestamp[6];
++      
+ 	channel = channel_find(server, target);
+ 	if (channel == NULL) return;
+ 
+ 	mchannel = mobile_channel_find(channel);
+ 	if (mchannel == NULL) return;
+ 
++        time(&time_now);
++	time_ptr = localtime(&time_now);
++	strftime(timestamp, 6, "%H:%M", time_ptr);
++
+ 	rec = g_new0(MOBILE_MSG_REC, 1);
+         rec->personal = nick_match_msg(channel, msg, server->nick);
+-	rec->message = g_strdup_printf("%s> %s", nick, msg);
++	rec->message = g_strdup_printf("%s <%s> %s", timestamp, nick, msg);
++
+ 	mobile_msg_add(mchannel, rec);
+ }
+ 

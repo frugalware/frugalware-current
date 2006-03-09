@@ -1,0 +1,58 @@
+# Last Modified: Thu, 09 Mar 2006 23:54:13 +0100
+# Compiling Time: 4.28 SBU
+# Maintainer: VMiklos <vmiklos@frugalware.org>
+
+pkgname=nx-x11
+pkgver=1.4.0_10
+realver=`echo $pkgver|sed 's/_/-/'`
+pkgrel=1
+pkgdesc="A special version of the X11 libraries supporting NX compression technology"
+url="http://www.nomachine.com/"
+depends=('libjpeg' 'libpng' 'libxaw' 'openssl' 'libstdc++')
+makedepends=('imake' 'gccmakedep' 'xproto' 'rman')
+groups=('xapps-extra')
+archs=('i686')
+up2date="lynx -dump http://www.nomachine.com/sources.php |grep nx-X11|sed 's/.*nx-X11-//;s/-/_/;q'"
+source=(http://www.nomachine.com/download/nxsources/{nx-X11/nx-X11-$realver.tar.gz,nxagent/nxagent-1.4.0-65.tar.gz,nxauth/nxauth-1.4.0-2.tar.gz,nxcomp/nxcomp-1.4.0-31.tar.gz,nxcompext/nxcompext-1.4.0-3.tar.gz,nxviewer/nxviewer-1.4.0-4.tar.gz,nxdesktop/nxdesktop-1.4.0-61.tar.gz} \
+	$pkgname-$pkgver-{gcc4,xprint}.diff)
+sha1sums=('aa954608b3feb386af578edbb3c8181c76843b79' \
+	  'f881fa224ba4dab56342f8ea98455011534c34b3' \
+	  '36bc17dbc6bff280af3b2fcd7d8659b3978388f9' \
+	  '56dd02ffb3bb3a9cfbbb6fcd749d5f7a7a5c5a6b' \
+	  '5d1b7b9b676c8545ae63960da94ff8910d225a69' \
+	  'b701a69534d422f24a50cb93107fd072aea6c407' \
+	  '97c1e24e9ba3eade7ac901155f22ae5e99743f18' \
+	  'fcb5a98c442a59dc36b5f3ce5fa719ff15a9e0bc' \
+	  '23639a30ba6fe70de8c7b63dc0f1700468e591b9')
+
+build()
+{
+	cd nxcomp
+	Fpatch $pkgname-$pkgver-gcc4.diff
+	cd ../nx-X11
+	Fpatch $pkgname-$pkgver-xprint.diff
+
+	make World || return 1
+	cd ../nxviewer
+	xmkmf || return 1
+	make World || return 1
+	cd ../nxdesktop
+	./configure --prefix=/usr/NX --mandir=/usr/share/man --sharedir=/usr/share
+	make || return 1
+
+	cd ../nx-X11
+	Fexerel programs/{Xserver/nxagent,nxauth/nxauth} ../nxviewer/nxviewer/nxviewer \
+		../nxviewer/nxpasswd/nxpasswd ../nxdesktop/nxdesktop /usr/NX/bin/
+	cd lib/X11/
+	Fexerel libX11.so{,.6.2} /usr/NX/lib/
+	cd ../Xext/
+	Fexerel libXext.so{,.6.4} /usr/NX/lib/
+        cd ../Xrender/
+	Fexerel libXrender.so{,.1.2} /usr/NX/lib/
+	cd ../../../nxcomp
+	Fexerel libXcomp.so{,.1.4.0} /usr/NX/lib/
+        cd ../nxcompext/
+	Fexerel libXcompext.so{,.1.4.0} /usr/NX/lib/
+	Ffilerel ../nxcomp/NX.h /usr/include/NX.h
+	Fmkdir /var/lib/nxserver
+}

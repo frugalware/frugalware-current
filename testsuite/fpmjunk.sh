@@ -31,7 +31,7 @@ do
 	cd `dirname $i` || continue
 	unset pkgname pkgver pkgrel nobuild options archs
 	unset subpkgs suboptions subarchs
-	source FrugalBuild || echo "errors parsing the FrugalBuild"
+	source FrugalBuild || echo "errors parsing the FrugalBuild (`pwd`/FrugalBuild)"
 	if [ ! -z "$pkgname" -a ! -z "$pkgver" -a ! -z "$pkgrel" ]; then
 		if in_array $arch ${archs[@]} && [ ! "$nobuild" -a ! "`check_option NOBUILD`" ]; then
 			echo "$pkgname-$pkgver-$pkgrel-$arch.fpm" >>$newfpms

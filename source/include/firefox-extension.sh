@@ -4,7 +4,7 @@
 # firefox-extension.sh for Frugalware
 # distributed under GPL License
 
-# provides an Fxpiinstall() function + overwrites bulid() to just call it
+# provides an Fxpiinstall() function + overwrites build() to just call it
 
 Fxpiinstall()
 {

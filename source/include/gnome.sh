@@ -22,7 +22,7 @@ else
 	up2date="lynx -dump $pkgurl/$name/\$(lynx -dump $pkgurl/$name/?C=N\;O=D|grep '[0-9]\.[0-9]*[02468]/'|sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
 fi
 
-source=(ftp://ftp.gnome.org/pub/gnome/sources/$pkgname/$preup2date/$name-$pkgver.tar.bz2)
+source=(http://ftp.gnome.org/pub/gnome/sources/$pkgname/$preup2date/$name-$pkgver.tar.bz2)
 
 unset realname
 unset nondevel

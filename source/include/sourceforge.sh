@@ -20,6 +20,6 @@ fi
 if [ -z "$_F_sourceforge_ext" ]; then
 	source=(http://dl.sourceforge.net/sourceforge/$name/$name-$pkgver.tar.gz)
 else
-	source=(http://dl.sourceforge.net/sourceforge/$name/$name-$pkgver.$_F_sourceforge_ext)
+	source=(http://dl.sourceforge.net/sourceforge/$name/$name-$pkgver$_F_sourceforge_ext)
 fi
 unset realname _F_sourceforge_prefix _F_sourceforge_ext

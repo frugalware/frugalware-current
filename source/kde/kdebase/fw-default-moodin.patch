@@ -1,0 +1,1268 @@
+diff -Naur kdebase-3.5.1/moodin/cache.cpp kdebase-3.5.1-moodin/moodin/cache.cpp
+--- kdebase-3.5.1/moodin/cache.cpp	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/cache.cpp	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,109 @@
++/***************************************************************************
++ *   Copyright (C) by                                                      *
++ *     - 2005: Christian Leh <moodwrod@web.de>                             *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ ***************************************************************************/
++
++#include <kuser.h>
++#include <kstandarddirs.h>
++#include <kconfig.h>
++
++#include <qfileinfo.h>
++#include <qdatetime.h>
++#include <qimage.h>
++
++#include "cache.h"
++
++Cache::Cache(Scaler* scaler, const QString& themeEngine, const QString& theme)
++{
++  mScaler = scaler;
++  mTheme = theme;
++  mThemeEngine = themeEngine;
++
++  if (mScaler->resolutionDiff())
++    createCacheDir();
++}
++
++
++QImage* Cache::cacheFile(const QString& file)
++{
++  // file must be the full path to queried image so that we can return
++  // a new instance if no cached version exists
++  QStringList parts = QStringList::split("/", file);
++  QFile cachedFile(mCacheDir.filePath(parts.last()));
++
++  if (!mScaler->resolutionDiff())
++    return new QImage(file);
++  else if (isInSync(parts.last()) && cachedFile.exists())
++    return new QImage(cachedFile.name());
++  else
++  {
++    QImage *i = new QImage(file);
++    
++    // update cache if image needs to be scaled (base != target)
++    if (mScaler->scaleSize(i))
++      i->save(cachedFile.name(), QImage::imageFormat(file));
++
++    writeInfoFile(parts.last());
++
++    return i;
++  }
++}
++
++
++void Cache::createCacheDir()
++{
++  KUser user;
++  QString path = user.homeDir() + "/.kde/" + KStandardDirs::kde_default("data");
++  path += QString("ksplash/cache/%1/%2/%3x%4").arg(mThemeEngine).arg(mTheme).arg(mScaler->targetResolution().width()).arg(mScaler->targetResolution().height()) + "/";
++
++  mCacheDir.setPath(path);
++
++  QDir d(mCacheDir.path());
++
++  if (!d.exists())
++  {
++    QStringList parts = QStringList::split("/", mCacheDir.path());
++    QString tmp;
++
++    for (int i = 0; i < parts.count(); i++)
++    {
++      tmp += "/" + parts[i];
++      d = tmp;
++      d.mkdir(tmp);
++    }
++  }
++}
++
++
++void Cache::writeInfoFile(QString& file)
++{
++  QFileInfo fi(getFile(file));
++
++  KConfig cfg(getFile("info"));
++  cfg.setGroup("Cached");
++  cfg.writeEntry(file, fi.lastModified());
++}
++
++
++bool Cache::isInSync(QString& file)
++{
++  QFileInfo fi(getFile(file));
++
++  KConfig cfg(getFile("info"));
++  cfg.setGroup("Cached");
++  QDateTime dt = cfg.readDateTimeEntry(file);
++  
++  return (fi.lastModified() == dt);
++}
++
++
++QString Cache::getFile(QString file)
++{
++  return mCacheDir.filePath(file);
++}
+diff -Naur kdebase-3.5.1/moodin/cache.h kdebase-3.5.1-moodin/moodin/cache.h
+--- kdebase-3.5.1/moodin/cache.h	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/cache.h	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,41 @@
++/***************************************************************************
++ *   Copyright (C) by                                                      *
++ *     - 2005: Christian Leh <moodwrod@web.de>                             *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ ***************************************************************************/
++
++#ifndef CACHE_H
++#define CACHE_H
++
++#include <qstring.h>
++#include <qsize.h>
++#include <qdir.h>
++
++#include "scaler.h"
++
++class Cache
++{
++  private:
++    QString mTheme;
++    QString mThemeEngine;
++    QDir mCacheDir;
++  
++    Scaler* mScaler;
++
++    void createCacheDir();
++    void writeInfoFile(QString& file);
++    bool isInSync(QString& file);
++
++    QString getFile(QString file);
++
++  public:
++    Cache(Scaler* scaler, const QString& mThemeEngine, const QString& theme);
++    QImage* cacheFile(const QString& file);
++};
++
++#endif
+diff -Naur kdebase-3.5.1/moodin/effectwidget.cpp kdebase-3.5.1-moodin/moodin/effectwidget.cpp
+--- kdebase-3.5.1/moodin/effectwidget.cpp	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/effectwidget.cpp	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,165 @@
++/***************************************************************************
++ *   Copyright Sean Meiners 2004 <Sean.Meiners@LinspireInc.com>            *
++ *   Copyright (C) by                                                      *
++ *     - 2005: Christian Leh <moodwrod@web.de>                             *
++ *                                                                         * 
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License (version 2) as   *
++ *   published by the Free Software Foundation. (The original KSplash/ML   *
++ *   codebase (upto version 0.95.3) is BSD-licensed.)                      *
++ *                                                                         *
++ ***************************************************************************/
++
++#include <qwidget.h>
++#include <qstyle.h>
++#include <qtimer.h>
++#include <qpainter.h>
++#include <qimage.h>
++
++#include "effectwidget.h"
++
++QImage* EffectWidget::bgImage = 0;
++
++EffectWidget::EffectWidget(QWidget* parent, const char* name)
++           :QWidget(parent, name)
++{
++  timer = 0;
++  delayMS = 20;
++  currentStep = 0;
++  totalSteps = 0;
++  playing = false;
++  loop = false;
++  beginOpacity = 20.0;
++  endOpacity = 80.0;
++  setBackgroundMode(NoBackground);
++  setBackgroundOrigin(QWidget::ParentOrigin);
++  updateCache();
++}
++
++
++void EffectWidget::setImage(QImage *i)
++{
++  image = i;
++}
++
++
++void EffectWidget::setDelay(int delayInMS)
++{
++  delayMS = delayInMS;
++
++  if (timer)
++    timer->changeInterval(delayMS);
++}
++
++
++void EffectWidget::setLoop(bool loop)
++{
++  this->loop = loop;
++}
++
++
++void EffectWidget::setSteps(int steps)
++{
++  totalSteps = steps;
++}
++
++
++void EffectWidget::start()
++{
++  if ((playing) || (!image) || (totalSteps < 1) || (image->isNull()))
++    return;
++
++  if (!timer)
++  {
++    timer = new QTimer(this);
++    connect(timer,SIGNAL(timeout()),this,SLOT(timerTick()));
++  }
++  
++  playing = true;
++  update();
++  timer->start(delayMS);
++}
++
++
++void EffectWidget::stop()
++{
++  if ((!playing) || (!timer))
++    return;
++
++  timer->stop();
++  playing = false;
++}
++
++
++void EffectWidget::setStart(float begin, float end, bool reverse)
++{
++  beginOpacity = begin;
++  endOpacity = end - beginOpacity;
++
++  if (reverse)
++  {
++    float h = beginOpacity;
++    beginOpacity = endOpacity;
++    endOpacity = h;
++  }
++}
++
++
++void EffectWidget::rewind()
++{
++  stop();
++  currentStep = 0;
++}
++
++
++void EffectWidget::timerTick()
++{
++  if (loop)
++  {
++    currentStep ++;
++    currentStep %= totalSteps;
++  }
++  else if (currentStep + 1 < totalSteps)
++    currentStep ++;
++  else
++    timer->stop();
++
++  update();
++}
++
++
++void EffectWidget::moveEvent(QMoveEvent *)
++{
++  updateCache();
++}
++
++
++void EffectWidget::resizeEvent(QResizeEvent *)
++{
++  updateCache();
++}
++
++
++void EffectWidget::updateCache()
++{
++  if (!bgImage)
++    return;
++
++  QPoint pos(mapToGlobal(QPoint(0, 0)));
++  background = bgImage->copy(pos.x(), pos.y(), width(), height());
++  bitBlt(this, 0, 0, &background);
++}
++
++void EffectWidget::paintEvent(QPaintEvent *)
++{
++  if (background.isNull())
++    return;
++
++  QImage upper = image->copy();
++  QImage lower = background.copy();
++  KImageEffect::blendOnLower(upper, lower, KImageEffect::Centered, (currentStep + 1 == totalSteps) ? 1.0 : endOpacity / float(totalSteps) * float(currentStep) + beginOpacity);
++
++  bitBlt(this, 0, 0, &lower);
++}
++
++#include "effectwidget.moc"
+diff -Naur kdebase-3.5.1/moodin/effectwidget.h kdebase-3.5.1-moodin/moodin/effectwidget.h
+--- kdebase-3.5.1/moodin/effectwidget.h	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/effectwidget.h	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,69 @@
++/***************************************************************************
++ *   Copyright Sean Meiners 2004 <Sean.Meiners@LinspireInc.com>            *
++ *   Copyright (C) by                                                      *
++ *     - 2005: Christian Leh <moodwrod@web.de>                             *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License (version 2) as   *
++ *   published by the Free Software Foundation. (The original KSplash/ML   *
++ *   codebase (upto version 0.95.3) is BSD-licensed.)                      *
++ *                                                                         *
++ ***************************************************************************/
++
++#ifndef FADEWIDGET_H
++#define FADEWIDGET_H
++
++#include <qwidget.h>
++#include <qptrlist.h>
++#include <qpixmap.h>
++#include <qimage.h>
++
++#include <kimageeffect.h>
++
++class QTimer;
++
++class EffectWidget : public QWidget
++{
++  Q_OBJECT
++
++ public:
++  EffectWidget(QWidget *parent = 0,const char *name = 0);
++
++  static void setBackgroundImage(QImage *image) { bgImage = image; }
++
++  void setImage(QImage *i);
++  void setDelay(int delayInMS);
++  void setLoop(bool loop);
++  void setSteps(int steps);
++  void setStart(float begin, float end = 1.0, bool reverse = false);
++
++  void start();
++  void stop();
++  void rewind();
++
++  void paintEvent(QPaintEvent *);
++  void resizeEvent(QResizeEvent *);
++  void moveEvent(QMoveEvent *);
++
++  void updateCache();
++
++ public slots:
++  void timerTick();
++
++ private:
++  static QImage *bgImage;
++
++  QTimer *timer;
++  QImage *image;
++  QImage background;
++  unsigned int delayMS;
++  unsigned int currentStep;
++  unsigned int totalSteps;
++  bool playing;
++  bool loop;
++  float
++    beginOpacity,
++    endOpacity;
++};
++
++#endif
+diff -Naur kdebase-3.5.1/moodin/ksplashmoodin.desktop kdebase-3.5.1-moodin/moodin/ksplashmoodin.desktop
+--- kdebase-3.5.1/moodin/ksplashmoodin.desktop	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/ksplashmoodin.desktop	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,11 @@
++[Desktop Entry]
++Comment=KSplash Plugin
++Encoding=UTF-8
++Icon=
++Name=KSplashMoodin
++ServiceTypes=KSplash/Plugin
++Type=Service
++X-KDE-Library=ksplashmoodin
++X-KSplash-Default=true
++X-KSplash-ObjectName=ThemeMoodin
++X-KSplash-PluginName=Moodin
+diff -Naur kdebase-3.5.1/moodin/magiclabel.cpp kdebase-3.5.1-moodin/moodin/magiclabel.cpp
+--- kdebase-3.5.1/moodin/magiclabel.cpp	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/magiclabel.cpp	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,92 @@
++/***************************************************************************
++ *   Copyright (C) by                                                      *
++ *     - 2005: Christian Leh <moodwrod@web.de>                             *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ ***************************************************************************/
++
++#include <qstringlist.h>
++#include <qregexp.h>
++
++#include <klocale.h>
++#include <kuser.h>
++#include <kmessagebox.h>
++
++#include "magiclabel.h"
++
++// This class is still very simple (as most of the classes)
++// They get all improved later when "OpenGL Effect Widget" structure is completed
++
++MagicLabel::MagicLabel(QString s, bool translate)
++{
++  prefix = "ML:";
++  preUSER = "USER:";
++  preCMD = "CMD:";
++  mValue = s;
++
++  transform();
++
++  if (translate)
++    mValue = i18n(mValue.utf8());
++}
++
++
++void MagicLabel::transform()
++{
++  if (mValue.contains(prefix + preUSER))
++    getUserInfo();
++  else if (mValue.startsWith(prefix + preCMD))
++    getCommandOutput();
++}
++
++
++void MagicLabel::getUserInfo()
++{
++  static KUser user;
++
++  if (mValue.contains(prefix + preUSER + "loginname"))
++    mValue = mValue.replace(prefix + preUSER + "loginname", user.loginName());
++  else if (mValue.contains(prefix + preUSER + "fullname"))
++    mValue = mValue.replace(prefix + preUSER + "fullname", user.fullName());
++  else if (mValue.contains(prefix + preUSER + "homedir"))
++    mValue = mValue.replace(prefix + preUSER + "homedir", user.homeDir());
++}
++
++
++void MagicLabel::getCommandOutput()
++{
++  QString cmd = QStringList::split(prefix + preCMD, mValue)[0];
++  QStringList parts = QStringList::split(" ", cmd);
++
++  KShellProcess *proc = new KShellProcess;
++
++  for (int i = 0; i < parts.count(); i++)
++    *proc << parts[i];
++
++  connect(proc, SIGNAL(processExited(KProcess*)), this, SLOT(processExited(KProcess*)));
++  connect(proc, SIGNAL(receivedStdout(KProcess*, char*, int)), this, SLOT(receivedStdout(KProcess*, char*, int)));
++
++  mValue = "";
++
++  if (!proc->start(KProcess::Block, KProcess::Stdout))
++    KMessageBox::information(0, QString("Could not start process: %1").arg(cmd));
++}
++
++
++void MagicLabel::receivedStdout(KProcess *proc, char *buffer, int buflen)
++{
++  QString buf = QString::fromLatin1(buffer, buflen);
++  mValue += buf.replace("\n", "");
++}
++
++
++void MagicLabel::processExited(KProcess* proc)
++{
++  delete proc;
++}
++
++#include "magiclabel.moc"
+diff -Naur kdebase-3.5.1/moodin/magiclabel.h kdebase-3.5.1-moodin/moodin/magiclabel.h
+--- kdebase-3.5.1/moodin/magiclabel.h	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/magiclabel.h	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,44 @@
++/***************************************************************************
++ *   Copyright (C) by                                                      *
++ *     - 2005: Christian Leh <moodwrod@web.de>                             *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ ***************************************************************************/
++
++#ifndef MAGICLABEL_H
++#define MAGICLABEL_H
++
++#include <qstring.h>
++
++#include <kprocess.h>
++
++class MagicLabel : QObject
++{
++  Q_OBJECT
++
++  private:
++    QString prefix;
++    QString preUSER;
++    QString preCMD;
++
++    QString mValue;
++
++    void transform();
++    void getUserInfo();
++    void getCommandOutput();
++
++  private slots:
++    void processExited(KProcess* proc);
++    void receivedStdout(KProcess *proc, char *buffer, int buflen);
++
++  public:
++    MagicLabel(QString s, bool translate);
++
++    inline QString& value() { return mValue; };
++};
++
++#endif
+diff -Naur kdebase-3.5.1/moodin/Makefile.am kdebase-3.5.1-moodin/moodin/Makefile.am
+--- kdebase-3.5.1/moodin/Makefile.am	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/Makefile.am	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,15 @@
++INCLUDES = -I$(top_srcdir)/ksplashml/themeengine $(all_includes)
++
++kde_module_LTLIBRARIES = ksplashmoodin.la
++
++ksplashmoodin_la_SOURCES = thememoodin.cpp effectwidget.cpp cache.cpp magiclabel.cpp scaler.cpp
++ksplashmoodin_la_LDFLAGS = $(all_libraries) $(KDE_RPATH) -module $(KDE_PLUGIN)
++ksplashmoodin_la_LIBADD  = $(LIB_KDEUI) $(top_builddir)/ksplashml/themeengine/libksplashthemes.la
++
++
++METASOURCES = AUTO
++
++noinst_HEADERS 	= thememoodin.h effectwidget.h cache.h magiclabel.h scaler.h
++
++servicesdir = $(kde_servicesdir)
++services_DATA = ksplashmoodin.desktop
+diff -Naur kdebase-3.5.1/moodin/scaler.cpp kdebase-3.5.1-moodin/moodin/scaler.cpp
+--- kdebase-3.5.1/moodin/scaler.cpp	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/scaler.cpp	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,114 @@
++/***************************************************************************
++ *   Copyright (C) by                                                      *
++ *     - 2005: Christian Leh <moodwrod@web.de>                             *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ ***************************************************************************/
++
++#include <qfontmetrics.h>
++
++#include "scaler.h"
++
++Scaler::Scaler(QSize baseResolution, QSize targetResolution)
++{
++  mBaseResolution = baseResolution;
++  mTargetResolution = targetResolution;
++}
++
++
++void Scaler::autoCoords(QPoint* pt, const QFont& f, const QString& s)
++{
++  QFontMetrics fm(f);
++  QSize fmSize(fm.size(0L, s));
++
++  autoCoords(pt, fmSize);
++}
++
++
++void Scaler::autoCoords(QPoint* pt, const QSize s)
++{
++  scaleCoords(pt);
++
++  if ((pt->x() == -1) && (pt->y() != -1))
++    pt->setX(center(mTargetResolution.width(), s.width()));
++  else if ((pt->y() == -1) && (pt->x() != -1))
++    pt->setY(center(mTargetResolution.height(), s.height()));
++  else if (*pt == QPoint(-1, -1))
++    *pt = QPoint(center(mTargetResolution.width(), s.width()), center(mTargetResolution.height(), s.height()));
++}
++
++
++void Scaler::scaleCoords(QPoint* pt)
++{
++  if (mBaseResolution == mTargetResolution)
++    return;
++
++  int ox = pt->x();
++  int oy = pt->y();
++
++  float tx = float(mBaseResolution.width()) / float(ox);
++  float ty = float(mBaseResolution.height()) / float(oy);
++
++  int nx = intIt(float(mTargetResolution.width()) / tx);
++  int ny = intIt(float(mTargetResolution.height()) / ty);
++
++  pt->setX((ox == -1) ? -1 : nx);
++  pt->setY((oy == -1) ? -1 : ny);
++}
++
++
++bool Scaler::scaleSize(QImage* i)
++{
++  if ((!i) || !resolutionDiff())
++    return false;
++
++  float tx = float(mTargetResolution.width()) / float(mBaseResolution.width());
++  float ty = float(mTargetResolution.height()) / float(mBaseResolution.height());
++  int nx = intIt(float(i->width()) * tx);
++  int ny = intIt(float(i->height()) * ty);
++
++  *i = i->smoothScale(nx, ny);
++
++  return true;
++}
++
++
++bool Scaler::scaleSize(QFont* f)
++{
++  if ((!f) || !resolutionDiff())
++    return false;
++
++  const float d = 96 / 72;
++  const float tx = float(mTargetResolution.height()) / float(mBaseResolution.height());
++  float pt = f->pointSizeFloat();
++  int hPx = intIt(pt * d);
++  
++  f->setPixelSize(intIt(float(hPx) * tx));
++
++  return true;
++}
++
++
++bool Scaler::resolutionDiff()
++{
++  return (mBaseResolution != mTargetResolution);
++}
++
++
++int Scaler::intIt(const float v)
++{
++  float t = v - float(int(v));
++  float tt = (t < 0.5) ? 0 : 1;
++  
++  return int(v + tt);
++}
++
++
++int Scaler::center(const int width, const int size, int offset)
++{
++  return int(width / 2) - int(size / 2) + offset;
++}
+diff -Naur kdebase-3.5.1/moodin/scaler.h kdebase-3.5.1-moodin/moodin/scaler.h
+--- kdebase-3.5.1/moodin/scaler.h	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/scaler.h	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,43 @@
++/***************************************************************************
++ *   Copyright (C) by                                                      *
++ *     - 2005: Christian Leh <moodwrod@web.de>                             *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ ***************************************************************************/
++
++#ifndef SCALER_H
++#define SCALER_H
++
++#include <qpoint.h>
++#include <qimage.h>
++#include <qfont.h>
++
++class Scaler
++{
++  private:
++    QSize mBaseResolution;  
++    QSize mTargetResolution;
++
++  public:
++    Scaler(QSize baseResolution, QSize targetResolution);
++
++    const QSize& baseResolution() { return mBaseResolution; };
++    const QSize& targetResolution() { return mTargetResolution; };
++
++    void autoCoords(QPoint* pt, const QFont& f, const QString& s);
++    void autoCoords(QPoint* pt, const QSize s);
++    void scaleCoords(QPoint* pt);
++    bool scaleSize(QImage* i);
++    bool scaleSize(QFont* f);
++
++    bool resolutionDiff();
++  
++    int center(int width, int size, int offset = 0);
++    int intIt(const float v);
++};
++
++#endif
+diff -Naur kdebase-3.5.1/moodin/thememoodin.cpp kdebase-3.5.1-moodin/moodin/thememoodin.cpp
+--- kdebase-3.5.1/moodin/thememoodin.cpp	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/thememoodin.cpp	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,389 @@
++/***************************************************************************
++ *   Copyright (C) by                                                      *
++ *     - 2005: Christian Leh <moodwrod@web.de>                             *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ ***************************************************************************/
++
++#include <kapplication.h>
++#include <kconfig.h>
++#include <kdebug.h>
++#include <kgenericfactory.h>
++#include <kglobalsettings.h>
++#include <kiconloader.h>
++#include <klocale.h>
++#include <kmessagebox.h>
++#include <kstandarddirs.h>
++#include <kuser.h>
++
++#include <qlabel.h>
++#include <qimage.h>
++#include <qrect.h>
++#include <qpainter.h>
++#include <qstringlist.h>
++#include <qwidget.h>
++#include <qlayout.h>
++
++#include "magiclabel.h"
++#include "thememoodin.h"
++
++K_EXPORT_COMPONENT_FACTORY(ksplashmoodin, KGenericFactory<ThemeMoodin>("ksplash"))
++
++
++ThemeMoodin::ThemeMoodin(QWidget* parent, const char* name, const QStringList& args)
++            :ThemeEngine(parent, name, args)
++{
++  readSettings();
++  init();
++}
++
++
++void ThemeMoodin::readSettings()
++{
++  const QRect screen = kapp->desktop()->screenGeometry(mTheme->xineramaScreen());
++
++  if (!mTheme)
++    return;
++
++  KConfig* cfg = mTheme->themeConfig();
++
++  if (!cfg)
++    return;
++
++  cfg->setGroup(QString("KSplash Theme: %1").arg(mTheme->theme()));
++
++  QFont defaultFont("Trebuchet MS", 10);
++  QFont defaultStatusFont("Trebuchet MS", 12, QFont::Bold);
++  QColor defaultColor(0xFF, 0xFF, 0xFF);
++  QColor defaultShadowColor(0x6D, 0x6D, 0x6D);
++  QPoint defaultPoint(-1, -1), defaultOffset(0, 0);
++  QString defaultIcon;
++
++  mCurrentStatusIndex = 0;
++  mSplashRect = cfg->readRectEntry("SplashRect", &screen);
++  mBackgroundImage = cfg->readEntry("Background", QString::null);
++  mStatusColor = cfg->readColorEntry("StatusColor", &defaultColor);
++  mStatusFont = cfg->readFontEntry("StatusFont", &defaultStatusFont);
++  mStatusCoords = cfg->readPointEntry("StatusCoords", &defaultPoint);
++  mLabelShadow = cfg->readBoolEntry("LabelShadow", true);
++  mLabelShadowColor = cfg->readColorEntry("LabelShadowColor", &defaultShadowColor);
++  mShowStatusText = cfg->readBoolEntry("ShowStatusText", true);
++  mAnimationLength = cfg->readNumEntry("AnimationLength", 30);
++  mAnimationDelay = cfg->readNumEntry("AnimationDelay", 30);
++  mBeginOpacity = cfg->readDoubleNumEntry("BeginOpacity", 0.20);
++  mUseIconSet = cfg->readBoolEntry("UseIconSet", true);
++  mIconSetSize = cfg->readNumEntry("IconSetSize", 48);
++  mAppendX = cfg->readBoolEntry("AppendX", true);
++  mImageSpacer = cfg->readNumEntry("ImageSpacer", mUseIconSet ? mIconSetSize : 0);
++  mUsersBackground = cfg->readBoolEntry("UsersBackground", false);
++  mLabelCount = cfg->readNumEntry("Labels", 0);
++  mLabelShadowOffset = cfg->readPointEntry("LabelShadowOffset", new QPoint(2, 2));
++  mBaseResolution = cfg->readSizeEntry("BaseResolution", new QSize(1280, 1024));
++  mTranslate = cfg->readBoolEntry("Translate", true);
++  mLineUpImages = cfg->readBoolEntry("LineUpImages", false);
++
++  for (int i = 0; i < int(statusPixmaps().count()); i++)
++  {
++    if (mUseIconSet)
++      defaultIcon = statusPixmaps()[i];
++    else
++      defaultIcon = QString("%1.png").arg(i + 1);
++
++    mStatusIcons.append(cfg->readEntry(QString("Image%1").arg(i + 1), defaultIcon));
++    mStatusIconCoords.append(cfg->readPointEntry(QString("ImageCoords%1").arg(i + 1), &defaultPoint));
++    mStatusImageOffsets.append(cfg->readPointEntry(QString("ImageOffset%1").arg(i + 1), &defaultOffset));
++    mStatusMessages.append(cfg->readEntry(QString("StatusMessage%1").arg(i + 1), QString::null));
++  }
++
++  for (int i = 0; i < mLabelCount; i++)
++  {
++    mLabels.append(cfg->readEntry(QString("Label%1").arg(i + 1), QString::null));
++    mLabelCoords.append(cfg->readPointEntry(QString("LabelCoords%1").arg(i + 1), &defaultPoint));
++    mLabelFonts.append(cfg->readFontEntry(QString("LabelFont%1").arg(i + 1), &defaultFont));
++    mLabelColors.append(cfg->readColorEntry(QString("LabelColor%1").arg(i + 1), &defaultColor));
++  }
++}
++
++
++void ThemeMoodin::init()
++{
++  setBackgroundMode(NoBackground);
++  setFixedSize(mSplashRect.size());
++
++  mContainer = new QWidget(this);
++  mContainer->setFixedSize(size());
++  mScaler = new Scaler(mBaseResolution, size());
++  mCache = new Cache(mScaler, mTheme->themeEngine(), mTheme->theme());
++  mBG = new KPixmap();
++  mBG->resize(size());
++
++  QPainter p;
++  p.begin(mBG);
++
++  initBackground(&p);
++  initLabels(&p);
++  initEffectWidgets();
++
++  p.end();
++
++  move(mSplashRect.topLeft());
++}
++
++
++void ThemeMoodin::initBackground(QPainter* p)
++{
++  if (!p)
++    return;
++
++  QString bgImage;
++
++  if (mUsersBackground)
++  {
++    KConfig kdesktoprc("kdesktoprc", true, false);
++    kdesktoprc.setGroup("Background Common");
++    int num = kdesktoprc.readNumEntry("DeskNum", 0);
++
++    kdesktoprc.setGroup(QString("Desktop%1").arg(num));
++    bgImage = kdesktoprc.readPathEntry("Wallpaper", QString::null);
++  }
++  else
++  {
++    if (!mBackgroundImage.isEmpty())
++      bgImage = mTheme->locateThemeData(mBackgroundImage);
++  }
++
++  if (bgImage.isEmpty())
++    bgImage = mTheme->locateThemeData(QString("Background-%1x%2.jpg").arg(width()).arg(height()));
++
++  if (bgImage.isEmpty())
++    bgImage = mTheme->locateThemeData("Background.jpg");
++
++  if (bgImage.isEmpty())
++  {
++    KMessageBox::error(this, i18n("No background. Try to put a Background.jpg in theme folder"));
++    return;
++  }
++
++  QImage* bg = mCache->cacheFile(bgImage);
++  p->drawImage(0, 0, *bg);
++  delete bg;
++}
++
++
++void ThemeMoodin::initLabels(QPainter* p)
++{
++  if ((mLabelCount == 0) || (!p))
++    return;
++
++  for (int i = 0; i < mLabelCount; i++)
++  {
++    QString s = mLabels[i];
++    QPoint pt = mLabelCoords[i];
++    QColor c = mLabelColors[i];
++    QFont f = mLabelFonts[i];
++
++    if (s.isNull() || s.isEmpty())
++      continue;
++
++    MagicLabel ml(s, mTranslate);
++    s = ml.value();
++
++    mScaler->scaleSize(&f);
++    mScaler->autoCoords(&pt, f, s);
++
++    p->setFont(f);
++
++    if (mLabelShadow)
++    {
++      p->setPen(mLabelShadowColor);
++      p->drawText(pt + mLabelShadowOffset, s);
++    }
++
++    p->setPen(c);
++    p->drawText(pt, s);
++  }
++}
++
++
++void ThemeMoodin::initEffectWidgets()
++{
++  EffectWidget::setBackgroundImage(new QImage(mBG->convertToImage()));
++  EffectWidget *fadeWidget = 0;
++  QImage *image = 0;
++  int index = -1;
++
++  for (QStringList::ConstIterator it = mStatusIcons.constBegin(); it != mStatusIcons.constEnd(); ++it)
++  {
++    index++;
++
++    if (mUseIconSet)
++    {
++      if ((*it).isEmpty())
++        continue;
++
++      // TODO: use cache in iconset mode
++      QPixmap* px = new QPixmap(DesktopIcon(*it, mIconSetSize));
++      image = new QImage(px->convertToImage());
++      mScaler->scaleSize(image);
++    }
++    else
++    {
++      QString name = mTheme->locateThemeData(*it);
++ 
++      if (name.isEmpty())
++        continue;
++  
++      image = mCache->cacheFile(name);
++  
++      if (image->isNull())
++      {
++        delete image;
++        continue;
++      }
++    }
++
++    fadeWidget = createEffectWidget(mContainer, image);
++    mEffectWidgets.append(fadeWidget);
++    mImages.append(image);
++    arrangeWidget(fadeWidget, index);
++  }
++
++  for (EffectWidget *fw = mEffectWidgets.first(); fw; fw = mEffectWidgets.next())
++    fw->updateCache();
++}
++
++
++void ThemeMoodin::arrangeWidget(QWidget* w, const int index)
++{
++  QPoint current(mStatusIconCoords[index]);
++
++  if (mLineUpImages)
++  {
++    static bool first = true;
++
++    if (first)
++    {
++      int hw = mAppendX ? width() : height();
++      int hwi = mAppendX ? height() : width();
++      int icons = mStatusIcons.count() * mIconSetSize;
++      int spaces = (mStatusIcons.count() - 1) * mIconSetSize;// + int(float(mIconSetSize) * 0.5);
++      int q = int((hwi - mIconSetSize) / 2);
++      int r = int((hw - icons - spaces) / 2);
++  
++      int x = mAppendX ? r : q;
++      int y = mAppendX ? q : r;
++  
++      current.setX(x);
++      current.setY(y);
++      first = false;
++    }
++    else
++    {
++      int x = mAppendX ? mIconSetSize * 2 : 0;
++      int y = mAppendX ? 0 : mIconSetSize * 2;
++
++      current = mStatusIconCoords[index - 1] + QPoint(x, y);     
++    }
++  }
++  else
++  {
++    mScaler->autoCoords(&current, QSize(mIconSetSize, mIconSetSize));
++    current += mStatusImageOffsets[index];
++  }
++
++  mStatusIconCoords[index] = current;
++  w->move(current);
++}
++
++
++EffectWidget* ThemeMoodin::createEffectWidget(QWidget* parent, QImage* image)
++{
++  EffectWidget *fw = new EffectWidget(parent);
++
++  fw->hide();
++  fw->setBackgroundOrigin(QWidget::WindowOrigin);
++  fw->setDelay(mAnimationDelay);
++  fw->setSteps(mAnimationLength);
++  fw->setFixedSize(image->size());
++  fw->setImage(image);
++  fw->setStart(mBeginOpacity);
++  fw->show();
++
++  return fw;
++}
++
++
++void ThemeMoodin::slotSetText(const QString& s)
++{
++  if (mShowStatusText)
++  {
++    if (!mStatusMessages[mCurrentStatusIndex].isNull())
++      mCurrentAction = mStatusMessages[mCurrentStatusIndex];
++    else
++      mCurrentAction = s;
++  }
++}
++
++
++void ThemeMoodin::slotSetPixmap(const QString& s)
++{
++  if (!mEffectWidgets.count() > 0)
++    return;
++
++  int n = statusPixmaps().findIndex(s);
++
++  if (n == -1)
++    return;
++
++  mCurrentStatusIndex = n + 1;
++
++  EffectWidget *fw = mEffectWidgets.at(n);
++
++  if (fw)
++    fw->start();
++
++  repaint(false);
++}
++
++
++void ThemeMoodin::updateStatus()
++{
++  QPainter p;
++  p.begin(mContainer);
++
++  // use a copy, otherwise status messages move around
++  QPoint pt = mStatusCoords;
++  QFontMetrics fm(mStatusFont);
++  QSize fmSize(fm.size(0L, mCurrentAction));
++  
++  mScaler->autoCoords(&pt, fmSize);
++
++  p.setFont(mStatusFont);
++  
++  if (mLabelShadow)
++  {
++    p.setPen(mLabelShadowColor);
++    p.drawText(pt + mLabelShadowOffset, mCurrentAction);
++  }
++  
++  p.setPen(mStatusColor);
++  p.drawText(pt, mCurrentAction);
++  p.end();
++}
++
++
++void ThemeMoodin::paintEvent(QPaintEvent* pe)
++{
++  QRect r = pe->rect();
++
++  bitBlt(mContainer, r.x(), r.y(), mBG, r.x(), r.y(), r.width(), r.height());
++
++  if (mShowStatusText)
++    updateStatus();
++}
++
++#include "thememoodin.moc"
+diff -Naur kdebase-3.5.1/moodin/thememoodin.h kdebase-3.5.1-moodin/moodin/thememoodin.h
+--- kdebase-3.5.1/moodin/thememoodin.h	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.1-moodin/moodin/thememoodin.h	2006-03-17 20:12:30.000000000 +0100
+@@ -0,0 +1,128 @@
++/***************************************************************************
++ *   Copyright (C) by                                                      *
++ *     - 2005: Christian Leh <moodwrod@web.de>                             *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ ***************************************************************************/
++
++#ifndef THEMEMOODIN_H
++#define THEMEMOODIN_H
++
++#include <qptrlist.h>
++
++#include <kdebug.h>
++#include <kpixmap.h>
++
++#include <themeengine.h>
++#include <objkstheme.h>
++
++#include "scaler.h"
++#include "cache.h"
++#include "effectwidget.h"
++
++typedef QPtrList<EffectWidget> EffectWidgetList;
++typedef QValueList<QPoint> CoordsList;
++typedef QValueList<QColor> ColorList;
++typedef QValueList<QFont> FontList;
++typedef QPtrList<QImage> ImageList;
++
++class ThemeMoodin: public ThemeEngine
++{
++  Q_OBJECT
++
++public:
++  ThemeMoodin(QWidget *parent, const char *name, const QStringList& flags);
++
++  inline const QString name() { return QString("Moodin"); }
++  inline const int version() { return 0x042; }
++
++  static QStringList names()
++  {
++    QStringList l;
++
++    l << "Moodin";
++
++    return l;
++  };
++
++  static QStringList statusPixmaps()
++  {
++    QStringList l;
++
++    l << "filetypes"; // 1 filetypes
++    l << "exec"; // 2 exec
++    l << "key_bindings"; // 3 key_bindings
++    l << "window_list"; // 4 window_list
++    l << "desktop"; // 5 desktop
++    l << "style"; // 6 style
++    l << "kcmsystem"; // 7 kcmsystem
++    l << "go"; // 8 go
++
++    return l;
++  };
++
++public slots:
++  void slotSetText(const QString& s);
++  void slotSetPixmap(const QString&);
++
++private:
++  bool mUseIconSet;
++  bool mLabelShadow;
++  bool mShowStatusText;
++  bool mAppendX;
++  bool mUsersBackground;
++  bool mTranslate;
++  bool mLineUpImages;
++  int mAnimationLength;
++  int mAnimationDelay;
++  int mIconSetSize;
++  int mCurrentStatusIndex;
++  int mImageSpacer;
++  int mLabelCount;
++  float mBeginOpacity;
++
++  QString mCurrentAction;
++  QString mBackgroundImage;
++  QStringList mStatusIcons;
++  QStringList mStatusMessages;
++  QStringList mLabels;
++  QColor mStatusColor;
++  QColor mLabelShadowColor;
++  QFont mStatusFont;
++  QPoint mStatusCoords;
++  QPoint mLabelShadowOffset;
++  QWidget* mContainer;
++  QSize mBaseResolution;
++  QRect mSplashRect;
++
++  KPixmap* mBG;
++
++  Scaler* mScaler;
++  Cache* mCache;
++
++  EffectWidgetList mEffectWidgets;
++  CoordsList mStatusIconCoords;
++  CoordsList mStatusImageOffsets;
++  CoordsList mLabelCoords;
++  ColorList mLabelColors;
++  FontList mLabelFonts;
++  ImageList mImages;
++
++  void init();
++  void initBackground(QPainter* p);
++  void initEffectWidgets();
++  void initLabels(QPainter* p);
++
++  void paintEvent(QPaintEvent* pe);
++  void readSettings();
++  void arrangeWidget(QWidget* me, const int index);
++  void updateStatus();
++
++  EffectWidget* createEffectWidget(QWidget *parent, QImage *image);
++};
++
++#endif

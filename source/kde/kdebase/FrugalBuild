@@ -1,34 +1,39 @@
-# Last modified: Sat, 11 Mar 2006 16:24:56 +0100
-# Compiling time: 4.04 SBU
-# Maintainer: Kapolnasi Tamas <ktamas@tdc.hu>
-# Contributor: crazy <crazy@frugalware.org>
+# Last modified: Sat, 18 Mar 2006 02:46:52 +0100
+# Compiling time: 15.04 SBU
+# Maintainer: crazy <crazy@frugalware.org>
+# Contributor: Kapolnasi Tamas <ktamas@tdc.hu>
 
 pkgname=kdebase
 pkgver=3.5.1
-pkgrel=6
+pkgrel=7
 pkgdesc="KDE Base Programs"
-depends=('libxcomposite' 'libxscrnsaver' 'kdelibs>=3.5.1-6' 'libraw1394' 'hal>=0.5.5-2' 'libusb' 'mtools' 'shadow' \
-           'libxdamage' 'pmount' 'xscreensaver' 'bdftopcf' 'lmsensors' 'libxxf86misc' 'libfontenc' 'xkbdata' 'setxkbmap')
+depends=('libxcomposite' 'libxscrnsaver' 'kdelibs>=3.5.1-6' 'libraw1394' 'hal>=0.5.5-2' 'libusb' 'mtools' 'shadow' 'libxdamage' \
+   'pmount' 'xscreensaver' 'bdftopcf' 'lmsensors' 'libxxf86misc' 'libfontenc' 'xkbdata' 'setxkbmap' 'xsetroot' 'kde-frugalware')
 makedepends=('samba' 'j2re' 'cyrus-sasl' 'imake' 'doxygen')
-backup=(usr/share/config/{kdm/kdmrc,kdeglobals,kickerrc,klauncrc,klipperrc,korgarc})
+backup=(usr/share/config/{kdm/kdmrc,kdeglobals,kickerrc,klauncrc,klipperrc,korgarc,backgroundrc})
 groups=('kde' 'kde-core')
 archs=('i686' 'x86_64')
+conflicts=('ksplash-engine-moodin')
 options=('nodocs')
 Finclude kde
-source=(${source[@]} frugalware.png \
+source=(${source[@]} \
 	kde.desktop \
 	xinitrc.kde \
 	preloadkde \
 	konqy_preload.desktop \
         http://ktown.kde.org/~seli/performance/patches/04_startup_phases_kdebase.patch \
         http://ktown.kde.org/~seli/performance/patches/07_09_wallpaper_opts.patch \
-        $pkgname-$pkgver-KDE-BUG_121087.patch fw-default-dejavu-font.patch $pkgname-$pkgver-misc_fixes.patch)
+        $pkgname-$pkgver-KDE-BUG_121087.patch \
+	$pkgname-$pkgver-misc_fixes.patch \
+        fw-default-dejavu-font.patch \
+        fw-default-moodin.patch \
+        fw-default-startkde.patch \
+        fw-default-theme.patch)
 ## NOTE: if someone change fw-default-dejavu-font.patch its _NEED_ be in sync with
-## fw-default-dejavu-font.patch from kdelibs and both pkgs _NEED_ be recompiled!
-
+##       fw-default-dejavu-font.patch from kdelibs and both pkgs _NEED_ be recompiled!
+##       DO NOT REMOVE or CHANGE fw-default-startkde.patch without permission from m8r!  - crazy -
 
 sha1sums=('656fca622f1a663eab5f254dcceb8ded2d41ef48' \
-          '62fdfe9e07b2b55be660bd107bb6e1c742d90a3e' \
           'e1f706c984fc81633663c662e674b6f2c64d2f83' \
           'ed41253045ff5d9dc15482381e3eea0111041b4b' \
           '47f17c8b39c11496cb13a25db4bf796444f895de' \
@@ -36,20 +41,25 @@ sha1sums=('656fca622f1a663eab5f254dcceb8ded2d41ef48' \
           '6991bbb2a43f5a93cc4d1a440e343623594e8c3f' \
           '8a16006c1b502d6429d26c664df508fb471484ec' \
           '1f1fa84af91aed5e580ee3d4e19a956ccee04ae5' \
-          '3b6e09aa42d6567bf92b986343c0a8d254dc54a3' \
-          '08fbbf8bbd4efd83a78028e2ff4a6bd95d67c869')
+          '08fbbf8bbd4efd83a78028e2ff4a6bd95d67c869' \
+          '3aa55f6296001f0b2672770bcdb42b6075bd44c8' \
+          'a9e3520ac0398f69574c5c661552dfabba4f37ce' \
+          'b83a2313f9111a7da5342eab4eac29fd19802256' \
+          'c1725544d59140a9f61a7137f160eabf23ef3201')
 
 build()
 {
 	Fcd
-	# we need that because KDE add some -O2's twice we already have it in our {$CXX,$C}{FLAGS}
+	Fpatchall
+	make -f admin/Makefile.common || return 1
         for i in `find . -iname configure`
         do
           Fsed '-O2' '' $i
         done
-        Fbuild CXXFLAGS="$CXXFLAGS -Wno-deprecated" \
+        Fmake CXXFLAGS="$CXXFLAGS -Wno-deprecated" \
 		--disable-dependency-tracking \
 		--disable-debug \
+		--without-debug \
 		--disable-warnings \
 		--with-dpms \
 		--with-gnu-ld \
@@ -57,29 +67,22 @@ build()
 		--with-shadow \
 		--with-hal \
                 --enable-gcc-hidden-visibility \
-                DO_NOT_COMPILE="doc" --enable-final --without-debug
+                DO_NOT_COMPILE="doc" --enable-final
+	Fmakeinstall
         # xinitrc for KDE.
 	Fexe /etc/X11/xinit/xinitrc.kde
-
-	# LOGO and preload thigs
-	Ffile /usr/share/apps/kdm/pics/frugalware.png
 	Ffile /usr/share/autostart/konqy_preload.desktop
 	Ffile /usr/bin/preloadkde
 
 	# Konsole configuration.
-	Fsed 'Exec=$' 'Exec=bash -ls' \
-		$Fdestdir/usr/share/apps/konsole/shell.desktop
+	Fsed 'Exec=$' 'Exec=bash -ls' $Fdestdir/usr/share/apps/konsole/shell.desktop
 
 	# Config files.
 	Ffilerel $startdir/config/* /usr/share/config/
 	Fmv usr/share/config/kdmrc usr/share/config/kdm/kdmrc
-
+        Fmv usr/share/config/backgroundrc  usr/share/config/kdm/backgroundrc
 	# Session file.
 	Ffile /etc/X11/sessions/kde.desktop
-
-	# backgroundrc configuration.
-	Fsed 'Wallpaper=.*' 'Wallpaper=/usr/share/wallpapers/KDE34.png' \
-		$Fdestdir/usr/share/config/kdm/backgroundrc
 }
 
 # optimalization OK

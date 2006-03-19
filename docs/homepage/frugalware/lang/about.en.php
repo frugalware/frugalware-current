@@ -12,7 +12,7 @@ $fwabout= array (
 	array ("How does Frugalware manage updating obsolete packages?",
 		"We don't have any standalone program for updating packages as pacman manages this task too. To update your package database, use <tt>pacman&nbsp;-Sy</tt>, an to update your packages according the just synchronized package database, you use <tt>pacman&nbsp;-Su</tt>. To install a package with the necessary dependencies directly from a mirror ftp server, you issue <tt>pacman&nbsp;-S&nbsp;foo</tt>. For more information, refer to the pacman man page."),
 	array ("Is there any community support available for Frugalware?",
-		"Currently we have three mailing lists and an irc channel that can be used to communicate with us or other users and to get help. The irc channel is on the Freenode network (server: irc.freenode.net). For more information about our mailing lists, please refer to the <a href=mailman/listinfo>list section</a> of our web site."),
+		"Currently we have three mailing lists, an irc channel and forums that can be used to communicate with us or other users and to get help. The irc channel is on the Freenode network (server: irc.freenode.net). For more information about our mailing lists, please refer to the <a href=mailman/listinfo>list section</a> of our web site."),
 	array("Is there any commercial support available for Frugalware?",
 		"No, there isn't for now, and <i>currently</i> it isn't planned, either."),
 	array("For whom is Frugalware recommended to use?",

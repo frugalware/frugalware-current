@@ -216,6 +216,11 @@ $fwdonatewelcome="<div align=left>Donations are a great way to show your appreci
 $fwdonatewelcome.="and support for Frugalware Linux. On this page we list the donations we have ";
 $fwdonatewelcome.="received so far and those that would help us in our work on Frugalware Linux. ";
 $fwdonatewelcome.="If you have a piece of hardware or something whose Frugalware support could be ";
-$fwdonatewelcome.="improved, a good way to achieve this is to donate it to a developer.</div>";
+$fwdonatewelcome.="improved, a good way to achieve this is to donate it to a developer.<br /><br />";
+$fwdonatewelcome.="If you would like to donate something to the whole project (i.e. a mirror), ";
+$fwdonatewelcome.="please send a mail to the <a href="http://frugalware.org/mailman/admin/frugalware-devel">frugalware-devel</a> ";
+$fwdonatewelcome.="list, or if you do not wish to subscribe, send a mail directly to vmiklos_at_frugalware_dot_org. ";
+$fwdonatewelcome.="If you wish to donate something to an individual developer, see the <a href="authors.php">authors</a> ";
+$fwdonatewelcome.="page and send the developer a mail.</div>";
 
 ?>

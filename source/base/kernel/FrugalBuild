@@ -1,28 +1,29 @@
-# Last Modified: Fri, 10 Feb 2006 21:18:12 +0100
-# Compiling Time: 8.14 SBU
+# Last Modified: Mon, 20 Mar 2006 18:07:05 +0100
+# Compiling Time: 11.74 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=kernel
-pkgver=2.6.15
+pkgver=2.6.16
 # write here 0 if new, official kernel is out (from Linus)
-stable=4
+stable=0
 bsver=3.1.6
-pkgrel=2
+pkgrel=1
 pkgdesc="The Linux Kernel and modules"
 url="http://www.kernel.org"
-depends=('module-init-tools')
+rodepends=('module-init-tools')
 groups=('base')
 archs=('i686' 'x86_64')
 replaces=('kernel-ide' 'kernel-scsi')
+options=('nodocs')
 up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
 source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$pkgver.tar.bz2 \
 	config \
 	ftp://ftp.suse.com/pub/people/stepan/bootsplash/kernel/bootsplash-$bsver-$pkgver.diff \
-	linux-2.6.15-ipw2200_monitor.diff)
-sha1sums=('6cfa28ef48c385948c6859cfb9f60840720a1d30' \
-	  '6239e4557ea7e053a698a6d4d8773c71a9e795f4' \
+	linux-$pkgver-ipw2200_monitor.diff)
+sha1sums=('bef21cd5063a648f33a99a26f4742dd05eb4dca2' \
+	  '9a7ff1d7a9105959eee268b05ac028946af24763' \
 	  '494096bb2153e97af1ec8b3762b7f4c2eebb80aa' \
-	  'b0b7415096c0ef6ecf3bca79a6ad1b43756bcf09')
+	  '9e48a9e1cbe9e05062bc8f081ac0e9aff660e0e5')
 
 [ $stable -gt 0 ] && \
 	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$pkgver.$stable.bz2) && \
@@ -35,6 +36,14 @@ echo "$CARCH" |grep -q 'i.86' && KARCH=i386
 	source=(${source[@]} linux-2.6.11-x86_64_config.patch0) && \
 	sha1sums=(${sha1sums[@]} '191954a0edaee42cf72e139b34d428fe3df8a11c')
 
+subpkgs=('kernel-source' 'kernel-docs')
+subdescs=('Linux kernel source' 'Linux kernel documentation')
+subdepends=('make gcc kernel-headers' 'kernel')
+subgroups=('devel' 'apps')
+subarchs=('i686 x86_64' 'i686 x86_64')
+subinstall=('kernel-source.install' '')
+suboptions=('nodocs' '')
+
 build()
 {
 	Fcd linux-$pkgver
@@ -45,6 +54,21 @@ build()
 	yes "" | make config
 	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = -fw$pkgrel" Makefile
 	
+	## let we do kernel-source befor make
+	Fmkdir /usr/src
+	cp -Ra $Fsrcdir/linux-$pkgver $Fdestdir/usr/src/linux-$pkgver-fw$pkgrel
+	rm -rf $Fdestdir/usr/src/linux-$pkgver-fw$pkgrel/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS}
+	Fln linux-$pkgver-fw$pkgrel /usr/src/linux
+	Fsplit kernel-source usr/src
+
+	## now the kernel-docs
+	Fmkdir /usr/src/linux-$pkgver-fw$pkgrel
+	cp -Ra $Fsrcdir/linux-$pkgver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
+	                 $Fdestdir/usr/src/linux-$pkgver-fw$pkgrel
+        ## do we need to ln /usr/share/doc ?!
+	Fsplit kernel-docs usr/src
+
+	## now time to eat some cookies and wait kernel got compiled :)
 	make || return 1
 	
 	Fmkdir /boot

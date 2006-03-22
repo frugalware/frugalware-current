@@ -13,6 +13,10 @@ Froxbuild()
 	if [ -f libdir ] ; then Fsed '/usr/apps' '/usr/share/Apps' libdir ; fi
 	Fmkdir /usr/{bin,share/{Apps,doc}}
 	Fcpr $_F_app_dir /usr/share/Apps/
+	[ -d $Fdestdir/usr/share/Apps/$_F_app_dir/src ] && \
+		Frm /usr/share/Apps/$_F_app_dir/src
+	[ -f $Fdestdir/usr/share/Apps/$_F_app_dir/.cvsignore ] && \
+		Frm /usr/share/Apps/$_F_app_dir/.cvsignore
 	Fln /usr/share/Apps/$F_appdir/Help /usr/share/doc/$pkgname-$pkgver
 	if [ -f $Fsrcdir/$pkgname ] ; then
 		Fexe /usr/bin/$pkgname

@@ -157,6 +157,25 @@ function chksub() {
         <option value="extra">extra</option>
 </select></td></tr>
 <tr><td colspan=2 align=center><input type="submit" value="Search"> <input type="reset" value="Reset"></td></tr>
+<tr><td colspan=2 align=center>
+<script type="text/javascript">
+function addEngine()
+{
+	if ((typeof window.sidebar == "object") && (typeof window.sidebar.addSearchEngine == "function"))
+	{
+		window.sidebar.addSearchEngine(
+		"http://frugalware.org/search/Frugalware_Packages.src",
+		"http://frugalware.org/search/Frugalware_Packages.png",
+		"Frugalware_Packages", "Programming" );
+	}
+	else
+	{
+		alert("You will need a Mozilla based browser to install a search plugin.");
+	}
+}
+</script>
+Click <a href="javascript:addEngine()">here</a> to install the Firefox search plugin.
+</td></tr>
 </form>
 </table>
 <!--/div-->

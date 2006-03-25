@@ -41,7 +41,7 @@ print("<p></p>");
 if (!isset($_GET['url']))
 {
 fwopenbox($fwstrdltorrentt, 100, false, $fwwhite);
-printf("<div align=lef>" . $fwstrdltorrentd . "</div>");
+printf("<div align=left>" . $fwstrdltorrentd . "</div>");
 fwclosebox(false);
 print("<p>");
 

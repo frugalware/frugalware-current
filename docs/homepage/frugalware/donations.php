@@ -9,7 +9,7 @@ print("<p>");
 
 fwopenbox("The Frugalware Team", 80, false);
 print("<div align=left>Wishes:<ul>
-<li>American mirror</li>
+<li>American, <i>not</i> ISO-only mirror</li>
 <li>Asian mirror</li>
 <li>10-20GB IDE HDD for testing Xen</li>
 <li>PegasosPPC or/and other PowerPC computer to use as buildserver</li>

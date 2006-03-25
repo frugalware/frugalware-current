@@ -30,7 +30,11 @@ $mirrors=array(
 		"Hungary (2x100 MBit, ftp.fsn.hu)"),
 	array("ftp5.frugalware.org",
 		"ftp://ftp5.frugalware.org/packages/frugalware/pub/frugalware/",
-		"Belgium (2x1GBit, ftp.belnet.be)")
+		"Belgium (2x1GBit, ftp.belnet.be)"),
+	array("ftp8.frugalware.org",
+		"ftp://ftp8.frugalware.org/pub/Frugalware/",
+		// it's a link as they requested it
+		"Silicon Valley, CA, USA (ISO only, 2x1 GBit, <a href=\"http://www.madtux.org/\">www.madtux.org</a>)")
 	);
 
 $httpmirrors=array(

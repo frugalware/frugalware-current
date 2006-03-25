@@ -58,7 +58,7 @@ $rsyncmirrors=array(
 	);
 $buycd=array(
 	array("Lidux.de",
-		"http://www.lidux.de/product_info.php/cPath/2_58/products_id/132"),
+		"http://www.lidux.de/index.php/cPath/2_58"),
 	array("OSDisc.com",
 		"http://www.osdisc.com/cgi-bin/view.cgi/products/linux/frugalware"),
 	array("CheapISO.com",

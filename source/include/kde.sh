@@ -15,6 +15,8 @@ kdename=`echo $pkgname|sed 's/-docs$//'`
 up2date="lynx -dump http://www.kde.org/download/|grep $kdename|sed -n '1 p'|sed 's/.*-\([^ ]*\) .*/\1/'"
 source=($pkgurl/$kdename-$pkgver.tar.bz2)
 unset kdename
+# qt's post_install is essential for kde pkgs
+options=('scriptlet')
 
 if [ "`cat /proc/meminfo |grep MemTotal|sed 's/.* \(.*\) kB/\1/'`" -ge 500000 ]; then
 	Fconfopts="$Fconfopts --enable-final"

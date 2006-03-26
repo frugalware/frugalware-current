@@ -32,7 +32,7 @@ $mirrors=array(
 		"ftp://ftp5.frugalware.org/packages/frugalware/pub/frugalware/",
 		"Belgium (2x1GBit, ftp.belnet.be)"),
 	array("ftp8.frugalware.org",
-		"ftp://ftp8.frugalware.org/pub/Frugalware/",
+		"ftp://ftp8.frugalware.org/Frugalware/",
 		// it's a link as they requested it
 		"Silicon Valley, CA, USA (ISO only, 2x1 GBit, <a href=\"http://www.madtux.org/\">www.madtux.org</a>)")
 	);

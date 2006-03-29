@@ -1,37 +1,75 @@
-# Last Modified: Sat, 11 Mar 2006 23:56:58 +0100
-# Compiling Time: 7.65 SBU
+# Last Modified: Fri, 17 Mar 2006 18:12:59 +0100
+# Compiling Time: 26.48 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=gcc
-pkgver=4.0.3
+pkgver=4.1.0
+shortpkgver=4.1
 pkgrel=1
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('glibc' 'binutils' 'libstdc++' 'gcc-lib')
+depends=('binutils' 'libstdc++')
+makedepends=('gmp' 'gcc-gnat' 'gtk+2' 'libart_lgpl' 'libxtst')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
-archs=('i686' 'x86_64' 'ppc')
-up2date="lynx -dump $url |grep 4.0|sed 's/.*C \(.*\) (.*/\1/;q'"
+archs=('i686' 'x86_64')
+up2date="lynx -dump $url |grep Current|sed 's/.*C \(.*\) (.*/\1/;q'"
 source=(ftp://gcc.gnu.org/pub/gcc/releases/gcc-$pkgver/$pkgname-$pkgver.tar.bz2 \
-	$pkgname-3.4.3-no_multilib_amd64.patch0 \
+	ftp://gcc.gnu.org/pub/gcc/libstdc++/doxygen/libstdc++-man-20051007.tar.bz2 \
+	gcc-4.1.0-no_multilib.diff \
 	README.Frugalware)
-sha1sums=('5a94943d9ab823cf8d080cc7f9e8a4a91797afea' \
-	  '883ae944eb9aeca85d9adc54b3e16eab8f4a51c3' \
+sha1sums=('ad6d56ddc419d464bf8ee28f5a7ac730b97ab59c' \
+	  '3dd2f55a0d9c33dba0a9293cd0db17e785588957' \
+	  'faafa43af030563bd3fe8742d974eea0e9e08a09' \
 	  '27cc00050d9b88b6e2649c406243769dc66593f5')
-[ "$CARCH" == "x86_64" ] && Fconfopts="$Fconfopts --libdir=/usr/lib --disable-multilib"
 
-# do _not_ change this package, you changes after the 4.1.0 merge will be lost!
+subpkgs=('libgcc' 'libstdc++' \
+	 'libgnat' 'gcc-gnat' \
+	 'libgfortran' 'gcc-gfortran' \
+	 'libgcj' 'libgcj-awt' 'gcc-gcj' \
+	 'libobjc' 'gcc-objc' 'gcc-objc++' \
+	 'gcc-treelang')
+subdescs=('GCC shared support library' 'GNU Standard C++ Library' \
+	  'Ada 95 runtime shared libraries' 'Ada 95 support for GCC' \
+	  'Fortran 95 runtime' 'Fortran 95 support for GCC' \
+	  'Java runtime library for gcc' 'AWT peer libraries for libgcj' 'Java support for GCC' \
+	  'Objective-C runtime' 'Objective-C support for GCC' 'Objective-C++ support for GCC' \
+	  'Treelang support for GCC')
+subdepends=('glibc' 'libgcc' \
+	    'libgcc' "gcc=$pkgver libgnat" \
+	    'glibc' "gcc=$pkgver gmp libgfortran" \
+	    'libgcc' 'libgcj gtk+2 libart_lgpl libxtst' "gcc=$pkgver libgcj" \
+	    'libgcc' "gcc=$pkgver libobjc" "gcc=$pkgver libobjc" \
+	    "gcc=$pkgver")
+subprovides=('gcc-lib' '' '' '' '' '' '' '' '' '' '' '' '')
+subconflicts=('gcc-lib' '' '' '' '' '' '' '' '' '' '' '' '')
+subreplaces=('gcc-lib' '' '' '' '' '' '' '' '' '' '' '' '')
+subbackup=('' '' '' '' '' '' "usr/lib/gcj-$pkgver/classmap.db" '' '' '' '' '' '')
+subgroups=('lib chroot-core' 'lib chroot-core' \
+	   'lib-extra' 'devel-extra' \
+	   'lib-extra' 'devel-extra' \
+	   'lib-extra' 'xlib-extra' 'devel-extra' \
+	   'lib-extra' 'devel-extra' 'devel-extra' \
+	   'devel-extra')
+subarchs=('i686 x86_64' 'i686 x86_64' '' '' '' '' '' '' '' '' '' '' '')
+
+[ "$CARCH" == "x86_64" ] && Fconfopts="$Fconfopts --libdir=/usr/lib --disable-multilib"
 
 build()
 {
 	Fpatchall
 	mkdir ../$pkgname-build
 	cd ../$pkgname-build
-	../$pkgname-$pkgver/configure $Fconfopts --enable-shared \
-		--enable-languages=c,c++,objc --enable-threads=posix \
-		--enable-__cxa_atexit
-	
-	make bootstrap || return 1
+	CC="$FCC gcc" CFLAGS="$CFLAGS" CXXFLAGS="$CFLAGS" XCFLAGS="$CFLAGS" \
+	TCFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" \
+	../$pkgname-$pkgver/configure $Fconfopts \
+		--enable-shared \
+		--enable-languages=c,ada,c++,fortran,java,objc,obj-c++,treelang \
+		--enable-threads=posix \
+		--enable-__cxa_atexit \
+		--enable-java-awt=xlib,gtk
+
+	make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" bootstrap || return 1
 	
 	Fmakeinstall
 
@@ -45,20 +83,92 @@ build()
 		fi
 	done
 
+	# conflicts with binutils
 	Frm /usr/bin/c++filt /usr/lib/libiberty.a
-	Fmkdir /lib
-	Fln ../usr/bin/cpp /lib/cpp
+
+	# symlinks for backward compatibility
 	Fln gcc /usr/bin/cc
 	Fln g++ /usr/bin/c++
-	Fdoc README.Frugalware
-	# conflicts with libstdc++
-	Frm '/usr/lib/libstdc++.*'
-	Frm '/usr/lib/libsupc++.*'
-	Frm /usr/share/locale/*/LC_MESSAGES/libstdc++.mo
-	# conflicts with gcc-lib
-	Frm '/usr/lib/libgcc_*'
-}
+	Fmkdir /lib
+	Fln ../usr/bin/cpp /lib/cpp
+	Fln gfortran /usr/bin/f95
+	Fln gcc /usr/bin/gnatgcc
 
-# vim: ft=sh
+	# move libgnat to the right location
+	Fmv usr/lib/gcc/$CHOST/$pkgver/adalib/libgnarl-$shortpkgver.so /usr/lib
+	Fmv usr/lib/gcc/$CHOST/$pkgver/adalib/libgnat-$shortpkgver.so /usr/lib
+	Frm usr/lib/gcc/$CHOST/$pkgver/adalib/lib{gnarl,gnat}.so
+	Fln libgnarl-$shortpkgver.so /usr/lib/libgnarl.so
+	Fln libgnat-$shortpkgver.so /usr/lib/libgnat.so
+	Fln ../../../../libgnarl-$shortpkgver.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnarl.so
+	Fln ../../../../libgnarl-$shortpkgver.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnarl-$shortpkgver.so
+	Fln ../../../../libgnat-$shortpkgver.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnat.so
+	Fln ../../../../libgnat-$shortpkgver.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnat-$shortpkgver.so
+
+	# gcj -static doesn't work properly anyway, unless using --whole-archive
+	# and saving 35mb is not so bad
+	Frm /usr/lib/libgcj.a
+	sed -i -e 's/lib: /&%%{static:%%eJava programs cannot be linked statically}/' \
+		$Fdestdir/usr/lib/libgcj.spec
+
+	# documentation
+	Fdoc README.Frugalware
+	Fmkdir /usr/man/man3
+	cp $Fsrcdir/man/man3/* $Fdestdir/usr/man/man3/
+
+	# split the pkg
+	# libgcc
+	Fsplit libgcc usr/lib/libgcc_*
+	# libstdc++
+	Fsplit libstdc++ usr/lib/libstdc++.*
+	Fsplit libstdc++ usr/man/man3/
+	# libgnat
+	Fsplit libgnat usr/lib/libgnat*.so
+	Fsplit libgnat usr/lib/libgnarl*.so
+	# gcc-gnat
+	Fsplit gcc-gnat usr/bin/gnat*
+	Fsplit gcc-gnat usr/bin/gpr*
+	Fsplit gcc-gnat usr/info/gnat*
+	Fsplit gcc-gnat usr/lib/gcc/$CHOST/$pkgver/adainclude
+	Fsplit gcc-gnat usr/lib/gcc/$CHOST/$pkgver/adalib
+	Fsplit gcc-gnat usr/libexec/gcc/$CHOST/$pkgver/gnat1
+	# libgfortran
+	Fsplit libgfortran usr/lib/libgfortran.*
+	# gcc-gfortran
+	Fsplit gcc-gfortran usr/bin/{gfortran,$CHOST-gfortran,f95}
+	Fsplit gcc-gfortran usr/man/man1/gfortran.1*
+	Fsplit gcc-gfortran usr/info/gfortran*
+	Fsplit gcc-gfortran usr/libexec/gcc/$CHOST/$pkgver/f951
+	# libgcj
+	Fsplit libgcj usr/include/c++/$pkgver/[gj]*
+	Fsplit libgcj usr/lib/pkgconfig/libgcj.pc
+	Fsplit libgcj usr/bin/{jv-convert,gij,fastjar,grepjar,grmic,grmiregistry,gcj-dbtool}
+	Fsplit libgcj usr/man/man1/{fastjar,grepjar,jv-convert,gij,grmic,grmiregistry,gcj-dbtool}.1*
+	Fsplit libgcj usr/info/fastjar*
+	Fsplit libgcj usr/lib/libgcj*
+	Fsplit libgcj usr/lib/libgij*
+	Fsplit libgcj usr/share/java
+	Fsplit libgcj usr/lib/security
+	Fsplit libgcj usr/lib/logging.properties
+	Fsplit libgcj usr/lib/gcj-$pkgver
+	# libgcj-awt
+	Fsplit libgcj-awt usr/lib/lib-gnu-awt-*
+	Fsplit libgcj-awt usr/lib/lib-gnu-java-awt-peer-*
+	# gcc-gcj
+	Fsplit gcc-gcj usr/bin/{gcj,$CHOST-gcj,gcjh,$CHOST-gcjh,gjnih,jcf-dump,jv-scan}
+	Fsplit gcc-gcj usr/man/man1/{gcj,gcjh,gjnih,jcf-dump,jv-scan}.1*
+	Fsplit gcc-gcj usr/info/gcj*
+	Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$pkgver/{jc1,jvgenmain}
+	# libobjc
+	Fsplit libobjc usr/lib/libobjc*
+	# gcc-objc
+	Fsplit gcc-objc usr/libexec/gcc/$CHOST/$pkgver/cc1obj
+	# gcc-objc++
+	Fsplit gcc-objc++ usr/libexec/gcc/$CHOST/$pkgver/cc1objplus
+	# gcc-treelang
+	Fsplit gcc-treelang usr/bin/gtreelang
+	Fsplit gcc-treelang usr/info/treelang*
+	Fsplit gcc-treelang usr/libexec/gcc/$CHOST/$pkgver/tree1
+}
 
 # optimalization OK

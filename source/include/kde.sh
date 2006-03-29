@@ -6,7 +6,7 @@
 
 # common url, up2date, and source(), and build() for kde packages
 url="http://www.kde.org"
-kdever=3.5.1
+kdever=3.5.2
 #pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$kdever/src"
 pkgurl="ftp://ftp.tu-chemnitz.de/pub/X11/kde/stable/$kdever/src"
 

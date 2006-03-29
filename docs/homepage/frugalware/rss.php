@@ -25,12 +25,13 @@
 			include("/etc/todo.conf");
 			$conn = mysql_connect(DBHOST, DBUSER, DBPASS);
 			mysql_select_db(DBNAME, $conn);
-			$query="select groups, pkgname, id, pkgver, pkgrel, arch, `desc` from packages order by updated desc limit 10";
+			$query="select groups, pkgname, id, pkgver, pkgrel, arch, `desc`, unix_timestamp(updated) from packages order by updated desc limit 10";
 			$result = mysql_query($query) or die();
 			while ($i = mysql_fetch_array($result, MYSQL_ASSOC))
 			{
 				$handle['items'][] = array("title" => preg_replace("/^([^ ]*) .*/", "$1", $i['groups']) . "/${i['pkgname']}-${i['pkgver']}-${i['pkgrel']}-${i['arch']}",
 						"desc" => $i['desc'],
+						"pubDate" => date(DATE_RFC2822, $i['unix_timestamp(updated)']),
 						"link" => "http://frugalware.org/packages.php?id=${i['id']}");
 			}
 			mysql_free_result($result);
@@ -72,8 +73,10 @@
 		print("<item>
 <title>" . $i['title'] . "</title>
 <description>" . htmlspecialchars($i['desc']) . "</description>
-<link>" . $i['link'] . "</link>
-</item>");
+<link>" . $i['link'] . "</link>\n");
+if(isset($i['pubDate']))
+	print("<pubDate>" . $i['pubDate'] . "</pubDate>\n");
+print("</item>");
 	}
 print('</channel>
 </rss>');

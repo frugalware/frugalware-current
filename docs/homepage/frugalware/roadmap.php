@@ -2,6 +2,18 @@
 $fwtitle="Roadmap";
 include("header.php");
 
+fwopenbox("0.5 (<acronym title=\"A planet prominent in Foundation and Foundation and Empire.\">Siwenna</acronym>)");
+print("
+<table width=\"100%\">
+<tr><td>Sep 30, 2006<td>0.5<td><i>pending</i>
+<tr><td>Aug 31, 2006<td>0.5rc2<td><i>pending</i>
+<tr><td>Aug 17, 2006<td>0.5rc1<td><i>pending</i>
+<tr><td>Jul 20, 2006<td>0.5pre2<td><i>pending</i>
+<tr><td width=\"30%\">May 25, 2006<td width=\"30%\">0.5pre1<td width=\"30%\"><i>pending</i>
+</table>
+");
+fwclosebox(false);
+print("<p>");
 fwopenbox("0.4 (<acronym title=\"The temporary headquarters for the navy of Bel Riose, during the war between the Empire and the Foundation.\">Wanda</acronym>)");
 print("
 <table width=\"100%\">

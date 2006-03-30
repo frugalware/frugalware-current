@@ -2,7 +2,7 @@
 $fwtitle="Roadmap";
 include("header.php");
 
-fwopenbox("0.4 (<a class=menu href=\"http://en.wikipedia.org/wiki/List_of_minor_Foundation_universe_planets#Wanda\">Wanda</a>)");
+fwopenbox("0.4 (<acronym title=\"The temporary headquarters for the navy of Bel Riose, during the war between the Empire and the Foundation.\">Wanda</acronym>)");
 print("
 <table width=\"100%\">
 <tr><td>Mar 30, 2006<td>0.4<td><i>done</i>
@@ -14,7 +14,7 @@ print("
 ");
 fwclosebox(false);
 print("<p>");
-fwopenbox("0.3 (<a class=menu href=\"http://www.geocities.com/Area51/Dimension/1136/galactography/worlds8.html\">Trantor</a>)");
+fwopenbox("0.3 (<acronym title=\"a fictional planet in Isaac Asimov's Foundation series and Empire series of science-fiction novels\">Trantor</acronym>)");
 print("
 <table width=\"100%\">
 <tr><td>Oct 13, 2005<td>0.3<td><i>done</i>
@@ -26,7 +26,7 @@ print("
 ");
 fwclosebox(false);
 print("<p>");
-fwopenbox("0.2 (Aurora)");
+fwopenbox("0.2 (<acronym title=\"a fictional planet in Isaac Asimov's Robot Series\">Aurora</acronym>)");
 print("
 <table width=\"100%\">
 <tr><td>Apr 28, 2005<td>0.2<td><i>done</i>
@@ -38,7 +38,7 @@ print("
 ");
 fwclosebox(false);
 print("<p>");
-fwopenbox("0.1 (Genesis)");
+fwopenbox("0.1 (<acronym title=\"the first book of the Hebrew Bible\">Genesis</acronym>)");
 print("
 <table width=\"100%\">
 <tr><td>Nov  2, 2004<td>0.1<td><i>done</i>

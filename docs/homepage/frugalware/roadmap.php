@@ -5,7 +5,7 @@ include("header.php");
 fwopenbox("0.4 (<a class=menu href=\"http://en.wikipedia.org/wiki/List_of_minor_Foundation_universe_planets#Wanda\">Wanda</a>)");
 print("
 <table width=\"100%\">
-<tr><td>Mar 30, 2006<td>0.4<td><i>pending</i>
+<tr><td>Mar 30, 2006<td>0.4<td><i>done</i>
 <tr><td>Mar 16, 2006<td>0.4rc2<td><i>done</i>
 <tr><td>Mar 2, 2006<td>0.4rc1<td><i>done</i>
 <tr><td>Feb 2, 2006<td>0.4pre2<td><i>done</i>

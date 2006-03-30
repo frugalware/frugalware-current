@@ -1,0 +1,1284 @@
+diff -Naur kdebase-3.5.2/kcminit/main.cpp kdebase-3.5.2-p/kcminit/main.cpp
+--- kdebase-3.5.2/kcminit/main.cpp	2005-10-10 17:03:49.000000000 +0200
++++ kdebase-3.5.2-p/kcminit/main.cpp	2006-03-29 19:18:46.000000000 +0200
+@@ -19,7 +19,12 @@
+ 
+ #include <config.h>
+ 
++#include "main.h"
++
++#include <unistd.h>
++
+ #include <qfile.h>
++#include <qtimer.h>
+ 
+ #include <kapplication.h>
+ #include <kcmdlineargs.h>
+@@ -39,8 +44,30 @@
+     KCmdLineLastOption
+ };
+ 
+-static bool runModule(const QString &libName, KLibLoader *loader, KService::Ptr service)
++static int ready[ 2 ];
++static bool startup = false;
++
++static void sendReady()
++{
++  if( ready[ 1 ] == -1 )
++    return;
++  char c = 0;
++  write( ready[ 1 ], &c, 1 );
++  close( ready[ 1 ] );
++  ready[ 1 ] = -1;
++}
++
++static void waitForReady()
+ {
++  char c = 1;
++  close( ready[ 1 ] );
++  read( ready[ 0 ], &c, 1 );
++  close( ready[ 0 ] );
++}
++
++bool KCMInit::runModule(const QString &libName, KService::Ptr service)
++{
++    KLibLoader *loader = KLibLoader::self();
+     KLibrary *lib = loader->library(QFile::encodeName(libName));
+     if (lib) {
+ 	// get the init_ function
+@@ -59,30 +86,54 @@
+     return false;
+ }
+ 
+-extern "C" KDE_EXPORT int kdemain(int argc, char *argv[])
++void KCMInit::runModules( int phase )
+ {
+-  KLocale::setMainCatalogue("kcontrol");
+-  KAboutData aboutData( "kcminit", I18N_NOOP("KCMInit"),
+-	"",
+-	I18N_NOOP("KCMInit - runs startups initialization for Control Modules."));
++  // look for X-KDE-Init=... entries
++  for(KService::List::Iterator it = list.begin();
++      it != list.end();
++      ++it) {
++      KService::Ptr service = (*it);
++      
++      QString library = service->property("X-KDE-Init-Library", QVariant::String).toString();
++      if (library.isEmpty())
++        library = service->library();
++      
++      if (library.isEmpty() || service->init().isEmpty())
++	continue; // Skip
+ 
+-  KCmdLineArgs::init(argc, argv, &aboutData);
+-  KCmdLineArgs::addCmdLineOptions( options ); // Add our own options.
++      // see ksmserver's README for the description of the phases
++      QVariant vphase = service->property("X-KDE-Init-Phase", QVariant::Int );
++      int libphase = 1;
++      if( vphase.isValid() )
++          libphase = vphase.toInt();
+ 
+-  KApplication app;
+-  KLocale::setMainCatalogue(0);
++      if( phase != -1 && libphase != phase )
++          continue;
+ 
+-  KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
++      QString libName = QString("kcm_%1").arg(library);
++
++      // try to load the library
++      if (! alreadyInitialized.contains( libName.ascii() )) {
++	  if (!runModule(libName, service)) {
++	      libName = QString("libkcm_%1").arg(library);
++	      if (! alreadyInitialized.contains( libName.ascii() )) {
++		  runModule(libName, service);
++		  alreadyInitialized.append( libName.ascii() );
++	      }
++	  } else 
++	      alreadyInitialized.append( libName.ascii() );
++      }
++  }
++}
++
++KCMInit::KCMInit( KCmdLineArgs* args )
++: DCOPObject( "kcminit" )
++{
+   QCString arg;
+   if (args->count() == 1) {
+     arg = args->arg(0);
+   }
+ 
+-  // get the library loader instance
+-  KLibLoader *loader = KLibLoader::self();
+-
+-  KService::List list;
+-
+   if (args->isSet("list"))
+   {
+     list = KService::allInitServices();
+@@ -96,7 +147,7 @@
+ 	continue; // Skip
+       printf("%s\n", QFile::encodeName(service->desktopEntryName()).data());
+     }
+-    return 0;
++    return;
+   }
+ 
+   if (!arg.isEmpty()) {
+@@ -109,7 +160,7 @@
+     if ( !serv || serv->library().isEmpty() ||
+ 	 serv->init().isEmpty()) {
+       kdError(1208) << i18n("Module %1 not found!").arg(module) << endl;
+-      return -1;
++      return;
+     } else
+       list.append(serv);
+ 
+@@ -137,37 +188,64 @@
+   kapp->dcopClient()->send("klauncher", "klauncher", "setLaunchEnv(QCString,QCString)", params);
+   setenv( name, value, 1 ); // apply effect also to itself
+ 
+-  QStrList alreadyInitialized;
++  if( startup )
++  {
++     runModules( 0 );
++     kapp->dcopClient()->send( "ksplash", "", "upAndRunning(QString)",  QString("kcminit"));
++     sendReady();
++     QTimer::singleShot( 300 * 1000, qApp, SLOT( quit())); // just in case
++     qApp->exec(); // wait for runPhase1() and runPhase2()
++  }
++  else
++     runModules( -1 ); // all phases
++}
+ 
+-  // look for X-KDE-Init=... entries
+-  for(KService::List::Iterator it = list.begin();
+-      it != list.end();
+-      ++it) {
+-      KService::Ptr service = (*it);
+-      
+-      QString library = service->property("X-KDE-Init-Library", QVariant::String).toString();
+-      if (library.isEmpty())
+-        library = service->library();
+-      
+-      if (library.isEmpty() || service->init().isEmpty())
+-	continue; // Skip
++KCMInit::~KCMInit()
++{
++  sendReady();
++}
+ 
+-      QString libName = QString("kcm_%1").arg(library);
++void KCMInit::runPhase1()
++{
++  runModules( 1 );
++  emitDCOPSignal( "phase1Done()", QByteArray());
++}
+ 
+-      // try to load the library
+-      if (! alreadyInitialized.contains( libName.ascii() )) {
+-	  if (!runModule(libName, loader, service)) {
+-	      libName = QString("libkcm_%1").arg(library);
+-	      if (! alreadyInitialized.contains( libName.ascii() )) {
+-		  runModule(libName, loader, service);
+-		  alreadyInitialized.append( libName.ascii() );
+-	      }
+-	  } else 
+-	      alreadyInitialized.append( libName.ascii() );
+-      }
++void KCMInit::runPhase2()
++{
++  runModules( 2 );
++  emitDCOPSignal( "phase2Done()", QByteArray());
++  qApp->exit( 0 );
++}
++
++extern "C" KDE_EXPORT int kdemain(int argc, char *argv[])
++{
++  // kdeinit waits for kcminit to finish, but during KDE startup
++  // only important kcm's are started very early in the login process,
++  // the rest is delayed, so fork and make parent return after the initial phase
++  pipe( ready );
++  if( fork() != 0 )
++  {
++      waitForReady();
++      return 0;
+   }
++  close( ready[ 0 ] );
+ 
+-  kapp->dcopClient()->send( "ksplash", "", "upAndRunning(QString)",  QString("kcminit"));
++  startup = ( strcmp( argv[ 0 ], "kcminit_startup" ) == 0 ); // started from startkde?
+ 
++  KLocale::setMainCatalogue("kcontrol");
++  KAboutData aboutData( "kcminit", I18N_NOOP("KCMInit"),
++	"",
++	I18N_NOOP("KCMInit - runs startups initialization for Control Modules."));
++
++  KCmdLineArgs::init(argc, argv, &aboutData);
++  KCmdLineArgs::addCmdLineOptions( options ); // Add our own options.
++
++  KApplication app;
++  app.dcopClient()->registerAs( "kcminit", false );
++  KLocale::setMainCatalogue(0);
++  KCMInit kcminit( KCmdLineArgs::parsedArgs());
+   return 0;
+ }
++
++#include "main.moc"
+diff -Naur kdebase-3.5.2/kcminit/main.h kdebase-3.5.2-p/kcminit/main.h
+--- kdebase-3.5.2/kcminit/main.h	1970-01-01 01:00:00.000000000 +0100
++++ kdebase-3.5.2-p/kcminit/main.h	2006-03-29 19:18:46.000000000 +0200
+@@ -0,0 +1,45 @@
++/*
++  Copyright (c) 1999 Matthias Hoelzer-Kluepfel <hoelzer@kde.org>
++
++  This program is free software; you can redistribute it and/or modify
++  it under the terms of the GNU General Public License as published by
++  the Free Software Foundation; either version 2 of the License, or
++  (at your option) any later version.
++
++  This program is distributed in the hope that it will be useful,
++  but WITHOUT ANY WARRANTY; without even the implied warranty of
++  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++  GNU General Public License for more details.
++
++  You should have received a copy of the GNU General Public License
++  along with this program; if not, write to the Free Software
++  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
++
++*/
++
++#ifndef KCMINIT_H
++#define KCMINIT_H
++
++#include <dcopobject.h>
++#include <kservice.h>
++
++class KCmdLineArgs;
++
++class KCMInit : public QObject, public DCOPObject
++{
++    Q_OBJECT
++    K_DCOP
++    k_dcop:
++        void runPhase1();
++        void runPhase2();
++    public:
++        KCMInit( KCmdLineArgs* args );
++        virtual ~KCMInit();
++    private:
++        bool runModule(const QString &libName, KService::Ptr service);
++        void runModules( int phase );
++        KService::List list;
++        QStrList alreadyInitialized;
++};
++
++#endif
+diff -Naur kdebase-3.5.2/kcminit/Makefile.am kdebase-3.5.2-p/kcminit/Makefile.am
+--- kdebase-3.5.2/kcminit/Makefile.am	2005-10-10 17:03:49.000000000 +0200
++++ kdebase-3.5.2-p/kcminit/Makefile.am	2006-03-29 19:18:46.000000000 +0200
+@@ -17,14 +17,17 @@
+ #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ # 
+ 
+-kdeinit_LTLIBRARIES = kcminit.la
++kdeinit_LTLIBRARIES = kcminit.la kcminit_startup.la
+ bin_PROGRAMS=
+ lib_LTLIBRARIES=
+ 
+-kcminit_la_SOURCES = main.cpp
++kcminit_la_SOURCES = main.cpp main.skel
+ kcminit_la_LIBADD = $(LIB_KDEUI) $(LIB_KUTILS)
+ kcminit_la_LDFLAGS = $(all_libraries) -module -avoid-version
+ 
++kcminit_startup_la_SOURCES = main.cpp main.skel
++kcminit_startup_la_LIBADD = $(LIB_KDEUI) $(LIB_KUTILS)
++kcminit_startup_la_LDFLAGS = $(all_libraries) -module -avoid-version
++
+ AM_CPPFLAGS = $(all_includes)
+ METASOURCES = AUTO
+-
+diff -Naur kdebase-3.5.2/kcontrol/dnssd/kcm_kdnssd.desktop kdebase-3.5.2-p/kcontrol/dnssd/kcm_kdnssd.desktop
+--- kdebase-3.5.2/kcontrol/dnssd/kcm_kdnssd.desktop	2006-03-17 11:17:18.000000000 +0100
++++ kdebase-3.5.2-p/kcontrol/dnssd/kcm_kdnssd.desktop	2006-03-29 19:18:46.000000000 +0200
+@@ -121,5 +121,4 @@
+ X-KDE-ParentApp=kcontrol
+ X-KDE-SubstituteUID=false
+ X-KDE-RootOnly=true
+-X-KDE-Init=kdnssd
+ Categories=Qt;KDE;X-KDE-settings-network;
+diff -Naur kdebase-3.5.2/kcontrol/energy/energy.desktop kdebase-3.5.2-p/kcontrol/energy/energy.desktop
+--- kdebase-3.5.2/kcontrol/energy/energy.desktop	2006-01-19 18:00:52.000000000 +0100
++++ kdebase-3.5.2-p/kcontrol/energy/energy.desktop	2006-03-29 19:18:46.000000000 +0200
+@@ -7,6 +7,7 @@
+ X-KDE-Library=energy
+ X-KDE-Init=energy
+ X-KDE-ParentApp=kcontrol
++X-KDE-Init-Phase=2
+ 
+ Name=Power Control
+ Name[af]=Krag Beheer
+diff -Naur kdebase-3.5.2/kdesktop/desktop.cc kdebase-3.5.2-p/kdesktop/desktop.cc
+--- kdebase-3.5.2/kdesktop/desktop.cc	2006-03-17 11:17:38.000000000 +0100
++++ kdebase-3.5.2-p/kdesktop/desktop.cc	2006-03-29 19:18:46.000000000 +0200
+@@ -62,13 +62,6 @@
+ // and then remove this include and fix reconnects in initRoot() -- ellis
+ //#include <kaccelbase.h>
+ 
+-// root window hack
+-#include <X11/X.h>
+-#include <X11/Xos.h>
+-#include <X11/Xlib.h>
+-#include <X11/Xatom.h>
+-// ----
+-
+ KRootWidget::KRootWidget() : QObject()
+ {
+      kapp->desktop()->installEventFilter(this);
+@@ -138,13 +131,12 @@
+ KDesktop::WheelDirection KDesktop::m_eWheelDirection = KDesktop::m_eDefaultWheelDirection;
+ const char* KDesktop::m_wheelDirectionStrings[2] = { "Forward", "Reverse" };
+ 
+-KDesktop::KDesktop( bool x_root_hack, bool auto_start, bool wait_for_kded ) :
++KDesktop::KDesktop( bool x_root_hack, bool wait_for_kded ) :
+     DCOPObject( "KDesktopIface" ),
+     QWidget( 0L, "desktop", WResizeNoErase | ( x_root_hack ? (WStyle_Customize | WStyle_NoBorder) : 0) ),
+     // those two WStyle_ break kdesktop when the root-hack isn't used (no Dnd)
+    startup_id( NULL ), m_waitForKicker(0)
+ {
+-  m_bAutoStart = auto_start;
+   m_bWaitForKded = wait_for_kded;
+   m_miniCli = 0; // created on demand
+   keys = 0; // created later
+@@ -335,7 +327,7 @@
+      }
+    } else {
+      DCOPRef r( "ksmserver", "ksmserver" );
+-     r.send( "resumeStartup" );
++     r.send( "resumeStartup", QCString( "kdesktop" ));
+    }
+ 
+    KWin::setType( winId(), NET::Desktop );
+@@ -356,7 +348,7 @@
+ {
+     //kdDebug(1204) << "KDesktop::backgroundInitDone" << endl;
+     DCOPRef r( "ksmserver", "ksmserver" );
+-    r.send( "resumeStartup" );
++    r.send( "resumeStartup", QCString( "kdesktop" ));
+ 
+     // avoid flicker
+     if (m_bDesktopEnabled)
+@@ -375,18 +367,6 @@
+   //kdDebug(1204) << "KDesktop::slotStart" << endl;
+   if (!m_bInit) return;
+ 
+-  kapp->dcopClient()->send( "ksplash", "", "upAndRunning(QString)", QString("kdesktop"));
+-#ifdef Q_WS_X11
+-  XEvent e;
+-  e.xclient.type = ClientMessage;
+-  e.xclient.message_type = XInternAtom( qt_xdisplay(), "_KDE_SPLASH_PROGRESS", False );
+-  e.xclient.display = qt_xdisplay();
+-  e.xclient.window = qt_xrootwin();
+-  e.xclient.format = 8;
+-  strcpy( e.xclient.data.b, "kdesktop" );
+-  XSendEvent( qt_xdisplay(), qt_xrootwin(), False, SubstructureNotifyMask, &e );
+-#endif
+-
+   // In case we started without database
+   KImageIO::registerFormats();
+ 
+@@ -414,8 +394,14 @@
+   keys->readSettings();
+   keys->updateConnections();
+ 
+-  if ( m_bAutoStart )
+-  {
++  connect(kapp, SIGNAL(appearanceChanged()), SLOT(slotConfigure()));
++
++  QTimer::singleShot(300, this, SLOT( slotUpAndRunning() ));
++}
++
++void
++KDesktop::runAutoStart()
++{
+      // now let's execute all the stuff in the autostart folder.
+      // the stuff will actually be really executed when the event loop is
+      // entered, since KRun internally uses a QTimer
+@@ -435,11 +421,6 @@
+                 (void) new KRun( url, 0, true );
+             }
+      }
+-   }
+-
+-  connect(kapp, SIGNAL(appearanceChanged()), SLOT(slotConfigure()));
+-
+-  QTimer::singleShot(300, this, SLOT( slotUpAndRunning() ));
+ }
+ 
+ // -----------------------------------------------------------------------------
+diff -Naur kdebase-3.5.2/kdesktop/desktop.h kdebase-3.5.2-p/kdesktop/desktop.h
+--- kdebase-3.5.2/kdesktop/desktop.h	2005-10-10 17:04:11.000000000 +0200
++++ kdebase-3.5.2-p/kdesktop/desktop.h	2006-03-29 19:18:46.000000000 +0200
+@@ -66,7 +66,7 @@
+ 
+   enum WheelDirection { Forward = 0, Reverse };
+ 
+-  KDesktop(bool x_root_hack, bool auto_start, bool wait_for_kded );
++  KDesktop(bool x_root_hack, bool wait_for_kded );
+   ~KDesktop();
+ 
+   // Implementation of the DCOP interface
+@@ -83,6 +83,7 @@
+   virtual void refresh();
+   virtual void logout();
+   virtual void clearCommandHistory();
++  virtual void runAutoStart();
+ 
+   virtual void switchDesktops( int delta );
+ 
+@@ -185,9 +186,6 @@
+   /** Set to true until start() has been called */
+   bool m_bInit;
+ 
+-  /** Execute files from autoexec folder? */
+-  bool m_bAutoStart;
+-
+   /** Wait for kded to finish building database? */
+   bool m_bWaitForKded;
+ 
+diff -Naur kdebase-3.5.2/kdesktop/kdesktop.desktop kdebase-3.5.2-p/kdesktop/kdesktop.desktop
+--- kdebase-3.5.2/kdesktop/kdesktop.desktop	2006-03-17 11:17:38.000000000 +0100
++++ kdebase-3.5.2-p/kdesktop/kdesktop.desktop	2006-03-29 19:19:38.000000000 +0200
+@@ -76,4 +76,5 @@
+ Name[zu]=I-Desktop ye-KDE
+ Type=Service
+ X-KDE-StartupNotify=false
++X-KDE-autostart-phase=0
+ OnlyShowIn=KDE;
+diff -Naur kdebase-3.5.2/kdesktop/KDesktopIface.h kdebase-3.5.2-p/kdesktop/KDesktopIface.h
+--- kdebase-3.5.2/kdesktop/KDesktopIface.h	2005-09-10 10:25:45.000000000 +0200
++++ kdebase-3.5.2-p/kdesktop/KDesktopIface.h	2006-03-29 19:18:46.000000000 +0200
+@@ -13,6 +13,11 @@
+ 
+ k_dcop:
+     /**
++     * @internal
++     */
++    virtual void runAutoStart() = 0;
++
++    /**
+      * Re-arrange the desktop icons.
+      */
+     virtual void rearrangeIcons() = 0;
+diff -Naur kdebase-3.5.2/kdesktop/main.cc kdebase-3.5.2-p/kdesktop/main.cc
+--- kdebase-3.5.2/kdesktop/main.cc	2005-11-08 23:36:09.000000000 +0100
++++ kdebase-3.5.2-p/kdesktop/main.cc	2006-03-29 19:18:46.000000000 +0200
+@@ -49,7 +49,7 @@
+ static KCmdLineOptions options[] =
+ {
+    { "x-root", I18N_NOOP("Use this if the desktop window appears as a real window"), 0 },
+-   { "noautostart", I18N_NOOP("Use this to disable the Autostart folder"), 0 },
++   { "noautostart", I18N_NOOP("Obsolete"), 0 },
+    { "waitforkded", I18N_NOOP("Wait for kded to finish building database"), 0 },
+    KCmdLineLastOption
+ };
+@@ -62,7 +62,7 @@
+ {
+     DCOPClient::emergencyClose(); // unregister DCOP
+     sleep( 1 );
+-    system("kdesktop --noautostart &"); // try to restart
++    system("kdesktop &"); // try to restart
+     fprintf(stderr, "*** kdesktop (%ld) got signal %d\n", (long) getpid(), sigId);
+     ::exit(1);
+ }
+@@ -166,7 +166,7 @@
+     cl->attach();
+     DCOPRef r( "ksmserver", "ksmserver" );
+     r.setDCOPClient( cl );
+-    r.send( "suspendStartup" );
++    r.send( "suspendStartup", QCString( "kdesktop" ));
+     delete cl;
+     KUniqueApplication app;
+     app.disableSessionManagement(); // Do SM, but don't restart.
+@@ -175,7 +175,6 @@
+     KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
+ 
+     bool x_root_hack = args->isSet("x-root");
+-    bool auto_start = args->isSet("autostart");
+     bool wait_for_kded = args->isSet("waitforkded");
+ 
+     // This MUST be created before any widgets are created
+@@ -198,7 +197,7 @@
+     KSelectionOwner kde_running( "_KDE_RUNNING", 0 );
+     kde_running.claim( false );
+ 
+-    KDesktop desktop( x_root_hack, auto_start, wait_for_kded );
++    KDesktop desktop( x_root_hack, wait_for_kded );
+ 
+     args->clear();
+ 
+diff -Naur kdebase-3.5.2/kicker/kicker/core/extensionmanager.cpp kdebase-3.5.2-p/kicker/kicker/core/extensionmanager.cpp
+--- kdebase-3.5.2/kicker/kicker/core/extensionmanager.cpp	2006-03-17 11:17:32.000000000 +0100
++++ kdebase-3.5.2-p/kicker/kicker/core/extensionmanager.cpp	2006-03-29 19:18:46.000000000 +0200
+@@ -170,7 +170,7 @@
+     pm->clearUntrustedLists();
+     connect(Kicker::the(), SIGNAL(configurationChanged()), SLOT(configurationChanged()));
+     DCOPRef r( "ksmserver", "ksmserver" );
+-    r.send( "resumeStartup" );
++    r.send( "resumeStartup", QCString( "kicker" ));
+ }
+ 
+ void ExtensionManager::configureMenubar(bool duringInit)
+diff -Naur kdebase-3.5.2/kicker/kicker/core/kicker.cpp kdebase-3.5.2-p/kicker/kicker/core/kicker.cpp
+--- kdebase-3.5.2/kicker/kicker/core/kicker.cpp	2006-03-17 11:17:32.000000000 +0100
++++ kdebase-3.5.2-p/kicker/kicker/core/kicker.cpp	2006-03-29 19:18:46.000000000 +0200
+@@ -45,11 +45,6 @@
+ #include <kwin.h>
+ #include <kwinmodule.h>
+ 
+-#ifdef Q_WS_X11
+-#include <X11/Xlib.h>
+-#include <fixx11h.h>
+-#endif
+-
+ #include "extensionmanager.h"
+ #include "pluginmanager.h"
+ #include "menumanager.h"
+@@ -97,19 +92,6 @@
+     }
+ 
+     dcopClient()->setDefaultObject("Panel");
+-    dcopClient()->send( "ksplash", "", "upAndRunning(QString)", KCmdLineArgs::appName());
+-
+-#ifdef Q_WS_X11
+-    XEvent e;
+-    e.xclient.type = ClientMessage;
+-    e.xclient.message_type = XInternAtom( qt_xdisplay(), "_KDE_SPLASH_PROGRESS", False );
+-    e.xclient.display = qt_xdisplay();
+-    e.xclient.window = qt_xrootwin();
+-    e.xclient.format = 8;
+-    strcpy( e.xclient.data.b, "kicker" );
+-    XSendEvent( qt_xdisplay(), qt_xrootwin(), False, SubstructureNotifyMask, &e );
+-#endif
+-
+     disableSessionManagement();
+     QString dataPathBase = KStandardDirs::kde_default("data").append("kicker/");
+     KGlobal::dirs()->addResourceType("mini", dataPathBase + "pics/mini");
+diff -Naur kdebase-3.5.2/kicker/kicker/core/main.cpp kdebase-3.5.2-p/kicker/kicker/core/main.cpp
+--- kdebase-3.5.2/kicker/kicker/core/main.cpp	2006-01-19 18:01:42.000000000 +0100
++++ kdebase-3.5.2-p/kicker/kicker/core/main.cpp	2006-03-29 19:18:46.000000000 +0200
+@@ -140,7 +140,7 @@
+     cl->attach();
+     DCOPRef r( "ksmserver", "ksmserver" );
+     r.setDCOPClient( cl );
+-    r.send( "suspendStartup" );
++    r.send( "suspendStartup", QCString( "kicker" ));
+     delete cl;
+     Kicker* kicker = new Kicker;
+     int rv = kicker->exec();
+diff -Naur kdebase-3.5.2/kicker/kicker/panel.desktop kdebase-3.5.2-p/kicker/kicker/panel.desktop
+--- kdebase-3.5.2/kicker/kicker/panel.desktop	2006-03-17 11:17:32.000000000 +0100
++++ kdebase-3.5.2-p/kicker/kicker/panel.desktop	2006-03-29 19:20:38.000000000 +0200
+@@ -77,4 +77,5 @@
+ X-KDE-autostart-after=kdesktop
+ DocPath=kicker/index.html
+ Type=Service
++X-KDE-autostart-phase=0
+ OnlyShowIn=KDE;
+diff -Naur kdebase-3.5.2/kioslave/home/kdedmodule/homedirnotify.desktop kdebase-3.5.2-p/kioslave/home/kdedmodule/homedirnotify.desktop
+--- kdebase-3.5.2/kioslave/home/kdedmodule/homedirnotify.desktop	2006-01-19 18:01:00.000000000 +0100
++++ kdebase-3.5.2-p/kioslave/home/kdedmodule/homedirnotify.desktop	2006-03-29 19:18:46.000000000 +0200
+@@ -43,3 +43,4 @@
+ X-KDE-Library=homedirnotify
+ X-KDE-FactoryName=homedirnotify
+ X-KDE-Kded-load-on-demand=true
++X-KDE-Kded-autoload=true
+diff -Naur kdebase-3.5.2/kioslave/home/kio_home.cpp kdebase-3.5.2-p/kioslave/home/kio_home.cpp
+--- kdebase-3.5.2/kioslave/home/kio_home.cpp	2006-01-19 18:01:00.000000000 +0100
++++ kdebase-3.5.2-p/kioslave/home/kio_home.cpp	2006-03-29 19:18:46.000000000 +0200
+@@ -23,7 +23,6 @@
+ #include <klocale.h>
+ #include <kapplication.h>
+ #include <dcopclient.h>
+-#include <dcopref.h>
+ #include <kcmdlineargs.h>
+ #include <kglobal.h>
+ 
+@@ -48,8 +47,6 @@
+ 		KApplication app( false, false );
+ 		// We want to be anonymous even if we use DCOP
+ 		app.dcopClient()->attach();
+-		DCOPRef ref( "kded", "kded" );
+-		ref.call( "loadModule", "homedirnotify" );
+ 
+ 		KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
+ 		HomeProtocol slave( args->arg(0), args->arg(1), args->arg(2) );
+diff -Naur kdebase-3.5.2/kioslave/remote/kdedmodule/remotedirnotify.desktop kdebase-3.5.2-p/kioslave/remote/kdedmodule/remotedirnotify.desktop
+--- kdebase-3.5.2/kioslave/remote/kdedmodule/remotedirnotify.desktop	2006-01-19 18:01:00.000000000 +0100
++++ kdebase-3.5.2-p/kioslave/remote/kdedmodule/remotedirnotify.desktop	2006-03-29 19:18:46.000000000 +0200
+@@ -51,3 +51,4 @@
+ X-KDE-Library=remotedirnotify
+ X-KDE-FactoryName=remotedirnotify
+ X-KDE-Kded-load-on-demand=true
++X-KDE-Kded-autoload=true
+diff -Naur kdebase-3.5.2/kioslave/remote/kio_remote.cpp kdebase-3.5.2-p/kioslave/remote/kio_remote.cpp
+--- kdebase-3.5.2/kioslave/remote/kio_remote.cpp	2005-11-08 23:36:07.000000000 +0100
++++ kdebase-3.5.2-p/kioslave/remote/kio_remote.cpp	2006-03-29 19:18:46.000000000 +0200
+@@ -23,7 +23,6 @@
+ #include <klocale.h>
+ #include <kapplication.h>
+ #include <dcopclient.h>
+-#include <dcopref.h>
+ #include <kcmdlineargs.h>
+ #include <kglobal.h>
+ 
+@@ -48,8 +47,6 @@
+ 		KApplication app( false, false );
+ 		// We want to be anonymous even if we use DCOP
+ 		app.dcopClient()->attach();
+-		DCOPRef ref( "kded", "kded" );
+-		ref.call( "loadModule", "remotedirnotify" );
+ 
+ 		KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
+ 		RemoteProtocol slave( args->arg(0), args->arg(1), args->arg(2) );
+diff -Naur kdebase-3.5.2/kioslave/system/kdedmodule/systemdirnotify.desktop kdebase-3.5.2-p/kioslave/system/kdedmodule/systemdirnotify.desktop
+--- kdebase-3.5.2/kioslave/system/kdedmodule/systemdirnotify.desktop	2006-01-19 18:00:59.000000000 +0100
++++ kdebase-3.5.2-p/kioslave/system/kdedmodule/systemdirnotify.desktop	2006-03-29 19:18:46.000000000 +0200
+@@ -50,3 +50,4 @@
+ X-KDE-Library=systemdirnotify
+ X-KDE-FactoryName=systemdirnotify
+ X-KDE-Kded-load-on-demand=true
++X-KDE-Kded-autoload=true
+diff -Naur kdebase-3.5.2/kioslave/system/kio_system.cpp kdebase-3.5.2-p/kioslave/system/kio_system.cpp
+--- kdebase-3.5.2/kioslave/system/kio_system.cpp	2005-10-12 08:24:53.000000000 +0200
++++ kdebase-3.5.2-p/kioslave/system/kio_system.cpp	2006-03-29 19:18:46.000000000 +0200
+@@ -24,7 +24,6 @@
+ #include <kapplication.h>
+ #include <kcmdlineargs.h>
+ #include <dcopclient.h>
+-#include <dcopref.h>
+ 
+ #include <qeventloop.h>
+ 
+@@ -49,8 +48,6 @@
+ 		KApplication app( false, false );
+ 		// We want to be anonymous even if we use DCOP
+ 		app.dcopClient()->attach();
+-		DCOPRef ref( "kded", "kded" );
+-		ref.call( "loadModule", "systemdirnotify" );
+ 
+ 		KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
+ 		SystemProtocol slave( args->arg(0), args->arg(1), args->arg(2) );
+diff -Naur kdebase-3.5.2/ksmserver/KSMServerInterface.h kdebase-3.5.2-p/ksmserver/KSMServerInterface.h
+--- kdebase-3.5.2/ksmserver/KSMServerInterface.h	2005-09-10 10:24:57.000000000 +0200
++++ kdebase-3.5.2-p/ksmserver/KSMServerInterface.h	2006-03-29 19:18:46.000000000 +0200
+@@ -20,8 +20,8 @@
+ 
+   virtual void autoStart2() = 0;
+   
+-  virtual void suspendStartup() = 0;
+-  virtual void resumeStartup() = 0;
++  virtual void suspendStartup( QCString ) = 0;
++  virtual void resumeStartup( QCString ) = 0;
+ };
+ 
+ #endif
+diff -Naur kdebase-3.5.2/ksmserver/README kdebase-3.5.2-p/ksmserver/README
+--- kdebase-3.5.2/ksmserver/README	2005-09-10 10:24:57.000000000 +0200
++++ kdebase-3.5.2-p/ksmserver/README	2006-03-29 19:18:46.000000000 +0200
+@@ -1,8 +1,8 @@
+ KDE session manager  (ksmserver)
+ --------------------------------
+ 
+-Thu Apr 6 2000
+ Matthias Ettrich <ettrich@kde.org>
++Lubos Lunak <l.lunak@kde.org>
+ 
+ ksmserver is KDE's new session management server. It talks the
+ standard X11R6 session management protocol (XSMP).  Thus, in theory,
+@@ -43,9 +43,66 @@
+ specified window manager first, which results in a much nicer startup
+ sequence (less flashy).
+ 
+-A typical KDE setup starts all the daemons, initialization programs
+-and persistent desktop tools (like kdesktop and kicker) outside the
+-session and then gives control to ksmserver.
++KDE startup sequence
++--------------------
++
++Ksmserver controls the second part of the KDE startup sequence,
++after it gets control from the startkde script, which controls
++the first part of the startup sequence. All code related to startup
++should be in startup.cpp and going down in that source file should
++follow the startup order (but note that this is just a documentation
++which may get outdated, so in case of doubts the source wins ;) ).
++
++The startkde scripts already launches kdeinit, which in turns launches
++KDE daemons like dcopserver, klauncher and kded. Kded loads autoloaded
++kded modules, i.e. those that have X-KDE-Kded-autoload=true in .desktop
++files. The exact way autoloading works is controlled by X-KDE-Kded-phase=,
++which may be 0, 1 or 2 (the default). Kded phase 0 means the module is
++always loaded by kded, even outside of KDE session. It should used only
++by kded modules which must be always running. Kded phase 1 modules are
++loaded right after kded startup, but only during KDE startup, i.e. it is
++for modules that are always needed by the KDE session. Phase 2 modules
++will be loaded later.
++
++Startkde also launches kcminit, which performs initialization done by kcontrol
++modules. There are three kcminit phases, 0, 1 and 2, controlled
++by X-KDE-Init-Phase= in the .desktop file, which defaults to 1. Phase 0 kcminit
++modules should be only those that really need to be run early in the startup
++process (and those should probably actually use kstartupconfig in startkde
++to be done even before kdeinit and daemons). After executing phase 0
++modules kcminit returns and waits.
++
++When ksmserver is launched, the first thing it does is launching
++the window manager, as the WM is necessary before any windows are possibly
++shown. When the WM is ready, ksmserver tells klauncher to perform autostart
++phase 0 ($KDEHOME/share/autostart). There are 3 autostart phases, 0, 1 and 2,
++defined by X-KDE-autostart-phase, defaulting to 2. Phase 0 is reserved only
++for the actual visible base components of KDE, i.e. KDesktop and Kicker,
++in order to make the startup appear visually faster. Both KDesktop and Kicker
++use DCOP calls suspendStartup() and resumeStartup() to make ksmserver stay
++waiting for autostart phase 0 until both KDesktop and Kicker are ready.
++
++Next step is telling the waiting kcminit to perform phase 1 - all kcminit
++modules that should be executed before KDE startup is considered done.
++After that ksmserver tells klauncher to perform autostart phase 1,
++i.e. launching normal components of KDE that should be available right
++after KDE startup, and after this session restore is performed,
++i.e. launching all applications that were running during last session
++saving (usually logout).
++
++By this time KDE session is considered to be more or less ready and
++ksmserver does the knotify startkde event (i.e. plays the login sound).
++It also tells klauncher to perform autostart phase 2, kded to load all
++remaining autoload (i.e. kded phase 2) modules, kcminit to execute
++kcminit phase 2 (kcontrol modules that do initialization that can wait,
++like launching daemons) and kdesktop to execute the user Autostart folder.
++
++Technical note: There's a reason why kded modules and items in autostart
++default to the latest phase. Before you explicitly use a different phase,
++read and understand what's above. You should also consider whether something
++really needs to be launched during KDE startup and can't be loaded on-demand
++when really needed. Abusing the phases will result in public spanking
++for making KDE startup slower.
+ 
+ 
+ Establishing the connection
+diff -Naur kdebase-3.5.2/ksmserver/server.cpp kdebase-3.5.2-p/ksmserver/server.cpp
+--- kdebase-3.5.2/ksmserver/server.cpp	2006-01-19 18:01:08.000000000 +0100
++++ kdebase-3.5.2-p/ksmserver/server.cpp	2006-03-29 19:18:46.000000000 +0200
+@@ -584,7 +584,6 @@
+     the_server = this;
+     clean = false;
+     wm = windowManager;
+-    startupSuspendCount = 0;
+ 
+     shutdownType = KApplication::ShutdownTypeNone;
+ 
+@@ -905,3 +904,8 @@
+     return client->program() == wm
+         || client->program() == "kwin";
+ }
++
++bool KSMServer::defaultSession() const
++{
++    return sessionGroup.isEmpty();
++}
+diff -Naur kdebase-3.5.2/ksmserver/server.h kdebase-3.5.2-p/ksmserver/server.h
+--- kdebase-3.5.2/ksmserver/server.h	2006-01-19 18:01:08.000000000 +0100
++++ kdebase-3.5.2-p/ksmserver/server.h	2006-03-29 19:18:46.000000000 +0200
+@@ -52,6 +52,11 @@
+ k_dcop:
+     void notifySlot(QString,QString,QString,QString,QString,int,int,int,int);
+     void logoutSoundFinished(int,int);
++    void autoStart0Done();
++    void autoStart1Done();
++    void autoStart2Done();
++    void kcmPhase1Done();
++    void kcmPhase2Done();
+ public:
+     KSMServer( const QString& windowManager, bool only_local );
+     ~KSMServer();
+@@ -84,8 +89,8 @@
+                    KApplication::ShutdownType sdtype,
+                    KApplication::ShutdownMode sdmode );
+ 
+-    virtual void suspendStartup();
+-    virtual void resumeStartup();
++    virtual void suspendStartup( QCString app );
++    virtual void resumeStartup( QCString app );
+ 
+ public slots:
+     void cleanUp();
+@@ -99,11 +104,13 @@
+     void protectionTimeout();
+     void timeoutQuit();
+     void knotifyTimeout();
++    void kcmPhase1Timeout();
++    void kcmPhase2Timeout();
+ 
+-    void autoStart();
++    void autoStart0();
++    void autoStart1();
+     void autoStart2();
+     void tryRestoreNext();
+-    void restoreNext();
+     void startupSuspendTimeout();
+ 
+ private:
+@@ -125,6 +132,7 @@
+     void executeCommand( const QStringList& command );
+     
+     bool isWM( const KSMClient* client ) const;
++    bool defaultSession() const; // empty session
+     void setupXIOErrorHandler();
+ 
+     void performLegacySessionSave();
+@@ -135,6 +143,10 @@
+     QString windowWmClientMachine(WId w);
+     WId windowWmClientLeader(WId w);
+     QCString windowSessionId(WId w, WId leader);
++    
++    bool checkStartupSuspend();
++    void finishStartup();
++    void resumeStartupInternal();
+ 
+     // public dcop interface
+     void logout( int, int, int );
+@@ -147,13 +159,18 @@
+     QPtrList<KSMListener> listener;
+     QPtrList<KSMClient> clients;
+ 
+-    enum State { Idle, Shutdown, Checkpoint, Killing, Killing2, WaitingForKNotify };
++    enum State
++        {
++        Idle,
++        LaunchingWM, AutoStart0, KcmInitPhase1, AutoStart1, Restoring, FinishingStartup, // startup
++        Shutdown, Checkpoint, Killing, Killing2, WaitingForKNotify // shutdown
++        };
+     State state;
+     bool dialogActive;
+     bool saveSession;
+     int wmPhase1WaitingCount;
+     int saveType;
+-    int startupSuspendCount;
++    QMap< QCString, int > startupSuspendCount;
+ 
+     KApplication::ShutdownType shutdownType;
+     KApplication::ShutdownMode shutdownMode;
+@@ -171,6 +188,8 @@
+     int logoutSoundEvent;
+     QTimer knotifyTimeoutTimer;
+     QTimer startupSuspendTimeoutTimer;
++    bool waitAutoStart2;
++    bool waitKcmInit2;
+ 
+     // ksplash interface
+     void upAndRunning( const QString& msg );
+@@ -187,4 +206,3 @@
+ };
+ 
+ #endif
+-
+diff -Naur kdebase-3.5.2/ksmserver/startup.cpp kdebase-3.5.2-p/ksmserver/startup.cpp
+--- kdebase-3.5.2/ksmserver/startup.cpp	2006-01-19 18:01:08.000000000 +0100
++++ kdebase-3.5.2-p/ksmserver/startup.cpp	2006-03-29 19:18:46.000000000 +0200
+@@ -90,6 +90,10 @@
+  */
+ void KSMServer::restoreSession( QString sessionName )
+ {
++    if( state != Idle )
++        return;
++    state = LaunchingWM;
++
+     kdDebug( 1218 ) << "KSMServer::restoreSession " << sessionName << endl;
+     upAndRunning( "restore session");
+     KConfig* config = KGlobal::config();
+@@ -113,10 +117,12 @@
+         wmCommands << ( QStringList() << wm );
+ 
+     publishProgress( appsToStart, true );
+-    connectDCOPSignal( launcher, launcher, "autoStartDone()",
+-                       "restoreSessionInternal()", true);
++    connectDCOPSignal( launcher, launcher, "autoStart0Done()",
++                       "autoStart0Done()", true);
++    connectDCOPSignal( launcher, launcher, "autoStart1Done()",
++                       "autoStart1Done()", true);
+     connectDCOPSignal( launcher, launcher, "autoStart2Done()",
+-                       "restoreSessionDoneInternal()", true);
++                       "autoStart2Done()", true);
+     upAndRunning( "ksmserver" );
+ 
+     if ( !wmCommands.isEmpty() ) {
+@@ -125,9 +131,9 @@
+         // visually more appealing startup.
+         for (uint i = 0; i < wmCommands.count(); i++)
+             startApplication( wmCommands[i] );
+-        QTimer::singleShot( 4000, this, SLOT( autoStart() ) );
++        QTimer::singleShot( 4000, this, SLOT( autoStart0() ) );
+     } else {
+-        autoStart();
++        autoStart0();
+     }
+ }
+ 
+@@ -138,93 +144,114 @@
+  */
+ void KSMServer::startDefaultSession()
+ {
++    if( state != Idle )
++        return;
++
++    state = LaunchingWM;
+     sessionGroup = "";
+     publishProgress( 0, true );
+     upAndRunning( "ksmserver" );
+-    connectDCOPSignal( launcher, launcher, "autoStartDone()",
+-                       "autoStart2()", true);
++    connectDCOPSignal( launcher, launcher, "autoStart0Done()",
++                       "autoStart0Done()", true);
++    connectDCOPSignal( launcher, launcher, "autoStart1Done()",
++                       "autoStart1Done()", true);
+     connectDCOPSignal( launcher, launcher, "autoStart2Done()",
+-                       "restoreSessionDoneInternal()", true);
++                       "autoStart2Done()", true);
+     startApplication( wm );
+-    QTimer::singleShot( 4000, this, SLOT( autoStart() ) );
++    QTimer::singleShot( 4000, this, SLOT( autoStart0() ) );
+ }
+ 
+ 
+-void KSMServer::autoStart()
++void KSMServer::clientSetProgram( KSMClient* client )
+ {
+-    static bool beenThereDoneThat = false;
+-    if ( beenThereDoneThat )
+-        return;
+-    beenThereDoneThat = true;
+-    DCOPRef( launcher ).send( "autoStart", (int) 1 );
++    if ( !wm.isEmpty() && client->program() == wm )
++        autoStart0();
+ }
+ 
+-void KSMServer::autoStart2()
++void KSMServer::autoStart0()
+ {
+-    static bool beenThereDoneThat = false;
+-    if ( beenThereDoneThat )
++    if( state != LaunchingWM )
+         return;
+-    beenThereDoneThat = true;
+-    DCOPRef( launcher ).send( "autoStart", (int) 2 );
+-}
+-
+-
+-void KSMServer::clientSetProgram( KSMClient* client )
+-{
+-    if ( !wm.isEmpty() && client->program() == wm )
+-        autoStart();
++    if( !checkStartupSuspend())
++        return;
++    state = AutoStart0;
++    DCOPRef( launcher ).send( "autoStart", (int) 0 );
+ }
+ 
+-void KSMServer::clientRegistered( const char* previousId )
++void KSMServer::autoStart0Done()
+ {
+-    if ( previousId && lastIdStarted == previousId )
+-        tryRestoreNext();
++    if( state != AutoStart0 )
++        return;
++    disconnectDCOPSignal( launcher, launcher, "autoStart0Done()",
++                          "autoStart0Done()");
++    if( !checkStartupSuspend())
++        return;
++    kdDebug( 1218 ) << "Autostart 0 done" << endl;
++    upAndRunning( "kdesktop" );
++    upAndRunning( "kicker" );
++    connectDCOPSignal( "kcminit", "kcminit", "phase1Done()",
++                       "kcmPhase1Done()", true);
++    state = KcmInitPhase1;
++    QTimer::singleShot( 10000, this, SLOT( kcmPhase1Timeout())); // protection
++    DCOPRef( "kcminit", "kcminit" ).send( "runPhase1" );
+ }
+ 
+-
+-void KSMServer::suspendStartup()
++void KSMServer::kcmPhase1Done()
+ {
+-    ++startupSuspendCount;
++    if( state != KcmInitPhase1 )
++        return;
++    kdDebug( 1218 ) << "Kcminit phase 1 done" << endl;
++    disconnectDCOPSignal( "kcminit", "kcminit", "phase1Done()",
++                       "kcmPhase1Done()" );
++    autoStart1();
+ }
+ 
+-void KSMServer::resumeStartup()
++void KSMServer::kcmPhase1Timeout()
+ {
+-    if( startupSuspendCount > 0 ) {
+-        --startupSuspendCount;
+-        if( startupSuspendCount == 0 && startupSuspendTimeoutTimer.isActive())
+-            restoreNext();
+-    }
++    if( state != KcmInitPhase1 )
++        return;
++    kdDebug( 1218 ) << "Kcminit phase 1 timeout" << endl;
++    kcmPhase1Done();
+ }
+ 
+-void KSMServer::startupSuspendTimeout()
++void KSMServer::autoStart1()
+ {
+-    kdDebug( 1218 ) << "Startup suspend timeout" << endl;
+-    startupSuspendCount = 0;
+-    restoreNext();
++    if( state != KcmInitPhase1 )
++        return;
++    state = AutoStart1;
++    DCOPRef( launcher ).send( "autoStart", (int) 1 );
+ }
+ 
+-void KSMServer::restoreSessionInternal()
++void KSMServer::autoStart1Done()
+ {
+-    disconnectDCOPSignal( launcher, launcher, "autoStartDone()",
+-                          "restoreSessionInternal()");
++    if( state != AutoStart1 )
++        return;
++    disconnectDCOPSignal( launcher, launcher, "autoStart1Done()",
++                          "autoStart1Done()");
++    if( !checkStartupSuspend())
++        return;
++    kdDebug( 1218 ) << "Autostart 1 done" << endl;
+     lastAppStarted = 0;
+     lastIdStarted = QString::null;
++    state = Restoring;
++    if( defaultSession()) {
++        autoStart2();
++        return;
++    }
+     tryRestoreNext();
+ }
+ 
+-void KSMServer::tryRestoreNext()
++void KSMServer::clientRegistered( const char* previousId )
+ {
+-    if( startupSuspendCount > 0 ) {
+-        startupSuspendTimeoutTimer.start( 10000, true );
+-        return;
+-    }
+-    restoreNext();
++    if ( previousId && lastIdStarted == previousId )
++        tryRestoreNext();
+ }
+ 
+-void KSMServer::restoreNext()
++void KSMServer::tryRestoreNext()
+ {
++    if( state != Restoring )
++        return;
+     restoreTimer.stop();
+-    startupSuspendTimeoutTimer.stop();
+     KConfig* config = KGlobal::config();
+     config->setGroup( sessionGroup );
+ 
+@@ -256,18 +283,130 @@
+     autoStart2();
+ }
+ 
+-void KSMServer::restoreSessionDoneInternal()
++void KSMServer::autoStart2()
++{
++    if( state != Restoring )
++        return;
++    if( !checkStartupSuspend())
++        return;
++    state = FinishingStartup;
++    waitAutoStart2 = true;
++    waitKcmInit2 = true;
++    DCOPRef( launcher ).send( "autoStart", (int) 2 );
++    DCOPRef( "kded", "kded" ).send( "loadSecondPhase" );
++    DCOPRef( "kdesktop", "KDesktopIface" ).send( "runAutoStart" );
++    connectDCOPSignal( "kcminit", "kcminit", "phase2Done()",
++                       "kcmPhase2Done()", true);
++    QTimer::singleShot( 10000, this, SLOT( kcmPhase2Timeout())); // protection
++    DCOPRef( "kcminit", "kcminit" ).send( "runPhase2" );
++    if( !defaultSession())
++        restoreLegacySession( KGlobal::config());
++    KNotifyClient::event( 0, "startkde" ); // this is the time KDE is up, more or less
++}
++
++void KSMServer::autoStart2Done()
+ {
++    if( state != FinishingStartup )
++        return;
+     disconnectDCOPSignal( launcher, launcher, "autoStart2Done()",
+-                          "restoreSessionDoneInternal()");
+-    restoreLegacySession( KGlobal::config());
++                          "autoStart2Done()");
++    kdDebug( 1218 ) << "Autostart 2 done" << endl;
++    waitAutoStart2 = false;
++    finishStartup();
++}
++
++void KSMServer::kcmPhase2Done()
++{
++    if( state != FinishingStartup )
++        return;
++    kdDebug( 1218 ) << "Kcminit phase 2 done" << endl;
++    disconnectDCOPSignal( "kcminit", "kcminit", "phase2Done()",
++                          "kcmPhase2Done()");
++    waitKcmInit2 = false;
++    finishStartup();
++}
++
++void KSMServer::kcmPhase2Timeout()
++{
++    if( !waitKcmInit2 )
++        return;
++    kdDebug( 1218 ) << "Kcminit phase 2 timeout" << endl;
++    kcmPhase2Done();
++}
++
++void KSMServer::finishStartup()
++{
++    if( state != FinishingStartup )
++        return;
++    if( waitAutoStart2 || waitKcmInit2 )
++        return;
++
+     upAndRunning( "session ready" );
+     DCOPRef( "knotify" ).send( "sessionReady" ); // knotify startup optimization
+-    KNotifyClient::event( 0, "startkde" ); // this is the time KDE is up
++
++    state = Idle;
+ 
+     setupXIOErrorHandler(); // From now on handle X errors as normal shutdown.
+ }
+ 
++bool KSMServer::checkStartupSuspend()
++{
++    if( startupSuspendCount.isEmpty())
++        return true;
++    // wait for the phase to finish
++    if( !startupSuspendTimeoutTimer.isActive())
++        startupSuspendTimeoutTimer.start( 10000, true );
++    return false;
++}
++
++void KSMServer::suspendStartup( QCString app )
++{
++    if( !startupSuspendCount.contains( app ))
++        startupSuspendCount[ app ] = 0;
++    ++startupSuspendCount[ app ];
++}
++
++void KSMServer::resumeStartup( QCString app )
++{
++    if( !startupSuspendCount.contains( app ))
++        return;
++    if( --startupSuspendCount[ app ] == 0 ) {
++        startupSuspendCount.remove( app );
++        if( startupSuspendCount.isEmpty() && startupSuspendTimeoutTimer.isActive()) {
++            startupSuspendTimeoutTimer.stop();
++            resumeStartupInternal();
++        }
++    }
++}
++
++void KSMServer::startupSuspendTimeout()
++{
++    kdDebug( 1218 ) << "Startup suspend timeout:" << state << endl;
++    resumeStartupInternal();
++}
++
++void KSMServer::resumeStartupInternal()
++{
++    startupSuspendCount.clear();
++    switch( state ) {
++        case LaunchingWM:
++            autoStart0();
++          break;
++        case AutoStart0:
++            autoStart0Done();
++          break;
++        case AutoStart1:
++            autoStart1Done();
++          break;
++        case Restoring:
++            autoStart2();
++          break;
++        default:
++            kdWarning( 1218 ) << "Unknown resume startup state" << endl;
++          break;
++    }
++}
++
+ void KSMServer::publishProgress( int progress, bool max  )
+ {
+     DCOPRef( "ksplash" ).send( max ? "setMaxProgress" : "setProgress", progress );
+@@ -287,3 +426,15 @@
+     strcpy( e.xclient.data.b, msg.latin1());
+     XSendEvent( qt_xdisplay(), qt_xrootwin(), False, SubstructureNotifyMask, &e );
+ }
++
++// these two are in the DCOP interface but I have no idea what uses them
++// Remove for KDE4
++void KSMServer::restoreSessionInternal()
++{
++    autoStart1Done();
++}
++
++void KSMServer::restoreSessionDoneInternal()
++{
++    autoStart2Done();
++}
+diff -Naur kdebase-3.5.2/kxkb/keyboard_layout.desktop kdebase-3.5.2-p/kxkb/keyboard_layout.desktop
+--- kdebase-3.5.2/kxkb/keyboard_layout.desktop	2006-03-17 11:17:41.000000000 +0100
++++ kdebase-3.5.2-p/kxkb/keyboard_layout.desktop	2006-03-29 19:18:46.000000000 +0200
+@@ -8,7 +8,6 @@
+ X-KDE-ModuleType=Library
+ X-KDE-Library=keyboard
+ X-KDE-FactoryName=keyboard_layout
+-X-KDE-Init=keyboard_layout
+ X-KDE-ParentApp=kcontrol
+ 
+ Name=Keyboard Layout
+diff -Naur kdebase-3.5.2/startkde kdebase-3.5.2-p/startkde
+--- kdebase-3.5.2/startkde	2006-03-17 22:29:19.000000000 +0100
++++ kdebase-3.5.2-p/startkde	2006-03-29 19:18:46.000000000 +0200
+@@ -46,10 +46,7 @@
+ # * Then kdeinit starts kcminit. kcminit performs initialisation of
+ #   certain devices according to the user's settings
+ #
+-# * Then ksmserver is started which in turn starts
+-#   1) the window manager (kwin)
+-#   2) everything in $KDEDIR/share/autostart (kdesktop, kicker, etc.)
+-#   3) the rest of the session.
++# * Then ksmserver is started which takes control of the rest of the startup sequence
+ 
+ # The user's personal KDE directory is usually ~/.kde, but this setting
+ # may be overridden by setting KDEHOME.
+@@ -290,7 +287,7 @@
+ 
+ # We set LD_BIND_NOW to increase the efficiency of kdeinit.
+ # kdeinit unsets this variable before loading applications.
+-LD_BIND_NOW=true kdeinit +kcminit
++LD_BIND_NOW=true kdeinit +kcminit_startup
+ if test $? -ne 0; then
+   # Startup error
+   echo 'startkde: Could not start kdeinit. Check your installation.'  1>&2
+@@ -308,6 +305,7 @@
+ fi
+ 
+ # finally, give the session control to the session manager
++# see kdebase/ksmserver for the description of the rest of the startup sequence
+ # if the KDEWM environment variable has been set, then it will be used as KDE's
+ # window manager instead of kwin.
+ # if KDEWM is not set, ksmserver will ensure kwin is started.

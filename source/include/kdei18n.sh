@@ -6,7 +6,7 @@
 
 url="http://www.kde.org"
 kdever=3.5.2
-pkgurl="ftp://ftp.tu-chemnitz.de/pub/X11/kde/stable/$kdever/src/kde-i18n"
+pkgurl="http://ftp.tu-chemnitz.de/pub/X11/kde/stable/$kdever/src/kde-i18n"
 ## we just need the right version 
 up2date="lynx -dump http://www.kde.org/download/|grep 'kdelibs'|sed -n '1 p'|sed 's/.*-\([^ ]*\) .*/\1/'"
 source=($pkgurl/$pkgname-$pkgver.tar.bz2)

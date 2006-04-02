@@ -1,4 +1,4 @@
-# Last modified: Thu, 23 Mar 2006 13:58:17 +0100
+# Last modified: Sun, 02 Apr 2006 07:30:58 +0200
 # Compiling time: ~0.08 SBU
 # Contributor: Shrift <shrift@frugalware.org>
 # Maintainer: voroskoi <voroskoi@frugalware.org>
@@ -15,29 +15,48 @@ rodepends=('fglrx_module>=8.23.7-2')
 conflicts=('libgl')
 provides=('opengl')
 groups=('x11-extra')
-archs=('i686')
+archs=('i686' 'x86_64')
 install=$pkgname.install
 up2date="8.23.7"
-source=(https://a248.e.akamai.net/f/674/9206/0/www2.ati.com/drivers/linux/ati-driver-installer-$pkgver-i386.run README.Frugalware)
+[ "$CARCH" == "i686" ] && source=(https://a248.e.akamai.net/f/674/9206/0/www2.ati.com/drivers/linux/ati-driver-installer-$pkgver-i386.run)
+[ "$CARCH" == "x86_64" ] && source=(https://a248.e.akamai.net/f/674/9206/0/www2.ati.com/drivers/linux/64bit/ati-driver-installer-8.23.7-x86_64.run ati-drivers-8.22.5-intermodule.patch ati-drivers-8.23.7-noiommu.patch)
+source=(${source[@]} README.Frugalware)
 options=(${options[@]} 'nodocs')
-sha1sums=('331f03f017b2f5187376c41905e27f41a8e01650' \
-	'eb880355272671124a9f9c71a243804d6be4ce7e')
+[ "$CARCH" == "i686" ] && sha1sums=('331f03f017b2f5187376c41905e27f41a8e01650')
+[ "$CARCH" == "x86_64" ] && sha1sums=('a1754ec13a8312d0eedaafde9c7bbaeb4007c283' \
+	'a4e90a325aff2c2e17d441fda3697d5956a2ce21' \
+	'5b043683a457417d0d55cee12aff8fc0f040114f')
+sha1sums=(${sha1sums[@]} 'ff1bf5549896234bb7a17abbad8caa6578b19c4a')
 
 subpkgs=('fglrx_module')
 subdescs=('fglrx kernel module')
 subdepends=("kernel=$kernelver")
 subgroups=('x11-extra')
-subarchs=('i686')
+subarchs=('i686' 'x86_64')
 subinstall=fglrx_module.install
 
 build() {
 	Fcheckkernel
-	chmod a+x ati-driver-installer-$pkgver-i386.run
-	./ati-driver-installer-$pkgver-i386.run --extract ATi
+	if [ "$CARCH" == "i686" ]; then
+		chmod a+x ati-driver-installer-$pkgver-i386.run
+		./ati-driver-installer-$pkgver-i386.run --extract ATi
+		cp -r $Fsrcdir/ATi/arch/x86/* $Fsrcdir/ || Fdie
+		cp -r $Fsrcdir/ATi/x690/* $Fsrcdir/ || Fdie
+	fi
+	if [ "$CARCH" == "x86_64" ]; then
+		chmod a+x ati-driver-installer-$pkgver-x86_64.run
+		./ati-driver-installer-$pkgver-x86_64.run --extract ATi
+		cp -r $Fsrcdir/ATi/arch/x86_64/* $Fsrcdir/ || Fdie
+		cp -r $Fsrcdir/ATi/x690_64a/* $Fsrcdir/ || Fdie
+	fi
 
-	cp -r $Fsrcdir/ATi/arch/x86/* $Fsrcdir/ || Fdie
 	cp -r $Fsrcdir/ATi/common/* $Fsrcdir/ || Fdie
-	cp -r $Fsrcdir/ATi/x690/* $Fsrcdir/ || Fdie
+
+	if [ "$CARCH" == "x86_64" ]; then
+		Fcd /lib/modules/fglrx/build_mod
+		patch -p0 < $Fsrcdir/ati-drivers-8.22.5-intermodule.patch || Fdie
+		patch -p0 < $Fsrcdir/ati-drivers-8.23.7-noiommu.patch || Fdie
+	fi
 
 	# building kernel module
 	Fcd /lib/modules/fglrx/build_mod
@@ -51,7 +70,14 @@ build() {
 	# Install into correct paths for Xorg7
 	Fmkdir /usr/{include,lib/xorg,bin}
 	mv $Fdestdir/usr/X11R6/include/* $Fdestdir/usr/include || Fdie
-	mv $Fdestdir/usr/X11R6/lib/* $Fdestdir/usr/lib || Fdie
+	if [ "$CARCH" == "i686" ]; then
+		Fmessage "Using i686 libs"
+		mv $Fdestdir/usr/X11R6/lib/* $Fdestdir/usr/lib || Fdie
+	fi
+	if [ "$CARCH" == "x86_64" ]; then
+		Fmessage "Using x86_64 libs"
+		mv $Fdestdir/usr/X11R6/lib64/* $Fdestdir/usr/lib || Fdie
+	fi
 	mv $Fdestdir/usr/X11R6/bin/* $Fdestdir/usr/bin || Fdie
 	Frm /usr/X11R6
 

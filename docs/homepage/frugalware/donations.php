@@ -10,8 +10,8 @@ print("<p>");
 fwopenbox("The Frugalware Team", 80, false);
 print("<div align=left>Wishes:<ul>
 <li>American, <i>not</i> ISO-only mirror</li>
-<li>Asian mirror</li>
 <li>10-20GB IDE HDD for testing Xen</li>
+<li>10GB IDE HDD for testing the setup</li>
 <li>PegasosPPC or/and other PowerPC computer to use as buildserver</li>
 </ul>Received:<ul>
 <li>Socket939 Motherboard + AMD Athlon64 3000+ CPU Socket939 version + 512MB DDR400 RAM (this will be our x86_64 buildserver)</li>
@@ -20,6 +20,7 @@ print("<div align=left>Wishes:<ul>
 <li>Main server hosting (Sandor Szentirmay)</li>
 <li>Hungarian mirrors: inflame.hu, linuxforum.hu, FSN.hu</li>
 <li>European mirrors: belnet.be</li>
+<li>Asian mirror: Taipei City, Taiwan (National Taiwan University, cle.linux.org.tw)</li>
 <li>i686 Server: Pentium III (Coppermine) 600 Mhz, 256 Mb memory (the developer team)</li>
 <li>i686 build server: Pentium II (Deschutes) 300 Mhz, 384 Mb memory</li>
 <li>i686 build server hosting</li>

@@ -1,29 +1,28 @@
-# Last modified: Sat, 19 Nov 2005 13:25:27 +0100
-# Compiling time: ~1 minute
+# Last modified: Thu, 06 Apr 2006 16:17:10 +0200
+# Compiling time: 0.29 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
-# Modified by Laszlo Dvornik <dvornik@gnome.hu>
 
 pkgname=grub
 pkgver=0.97
-pkgrel=6
+pkgrel=7
 pkgdesc="The GNU GRand Unified Bootloader"
 url="http://www.gnu.org/software/grub/"
-depends=('reiser4progs' 'ncurses' 'texinfo' 'debianutils')
-makedepends=('gfxboot' 'autoconf' 'automake')
-[ "$CARCH" == "x86_64" ] && depends=('texinfo') && \
-makedepends=('reiser4progs' 'ncurses' 'gfxboot')
+depends=('texinfo')
+[ "$CARCH" == "i686" ] && depends=(${depends[@]} 'ncurses' 'debianutils')
+makedepends=('gfxboot')
+[ "$CARCH" == "x86_64" ] && makedepends=(${makedepends[@]} 'ncurses' 'debianutils')
 groups=('base')
 archs=('i686' 'x86_64')
 up2date="lynx -dump ftp://alpha.gnu.org/gnu/grub/|grep 0.9.*tar.gz$|Flasttar"
 source=(ftp://alpha.gnu.org/gnu/grub/grub-$pkgver.tar.gz \
 	00-$pkgname-$pkgver-gfxboot.patch \
-	ftp://ftp.namesys.com/pub/reiser4progs/grub/grub-$pkgver-reiser4-20050808.diff
 	02-$pkgname-$pkgver-debugcdboot.patch \
+	03-$pkgname-$pkgver-gcc4.patch \
 	grubconfig)
 sha1sums=('2580626c4579bd99336d3af4482c346c95dac4fb' \
 	  '1ae3c12d72778756cb3e6286aef7c520cd3fadc9' \
-	  'ffe2628e07a4c0dcf98360b03d9828936ca21d28' \
 	  'ea8fcfc066d2ada5ebccfa3f6c5fc5ffc0dd9225' \
+	  '220d1b55f6573b026f7f6cbc583b8aeaede20878' \
 	  '31473e88906e027d5e70dada3907d7b41335d506')
 
 # Original patch was for Debian at:
@@ -37,11 +36,19 @@ build()
 	# note that this should NOT build on a real x86_64 box
 	[ "$CARCH" == "x86_64" ] && CFLAGS="$CFLAGS -static"
 	Fpatchall
-	# Need to compile with reiser4 support.
-	aclocal
-	autoheader
-	autoconf
-	automake --add-missing
+
+	# netboot
+	Fmake --libdir=/lib --datadir=/usr/lib/grub --exec-prefix=/ \
+		--disable-auto-linux-mem-opt --enable-diskless \
+                --enable-{3c{5{03,07,09,29,95},90x},cs89x0,davicom,depca,eepro{,100}} \
+                --enable-{epic100,exos205,ni5210,lance,ne2100,ni{50,65}10,natsemi} \
+                --enable-{ne,ns8390,wd,otulip,rtl8139,sis900,sk-g16,smc9000,tiara} \
+                --enable-{tulip,via-rhine,w89c840}
+	Ffilerel stage2/stage2 /usr/lib/grub/i386-pc/stage2.netboot
+	Ffilerel stage2/{nbgrub,pxegrub} /usr/lib/grub/i386-pc/
+	make clean
+
+	# the normal build
 	Fmake --bindir=/bin --sbindir=/sbin
 	Fmakeinstall
 
@@ -58,5 +65,3 @@ build()
 }
 
 # optimalization ok
-
-# vim: ft=sh

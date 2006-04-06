@@ -34,7 +34,10 @@ $mirrors=array(
 	array("ftp8.frugalware.org",
 		"ftp://ftp8.frugalware.org/pub/Frugalware/",
 		// it's a link as they requested it
-		"Silicon Valley, CA, USA (ISO only, 2x1 GBit, <a href=\"http://www.madtux.org/\">www.madtux.org</a>)")
+		"Silicon Valley, CA, USA (ISO only, 2x1 GBit, <a href=\"http://www.madtux.org/\">www.madtux.org</a>)"),
+	array("ftp9.frugalware.org",
+		"ftp://ftp9.frugalware.org/pub/frugalware/",
+		"Taipei City, Taiwan (National Taiwan University, cle.linux.org.tw)")
 	);
 
 $httpmirrors=array(

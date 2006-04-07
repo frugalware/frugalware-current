@@ -12,7 +12,6 @@
 
 # general utility functions for FrugalBuilds
 
-[ -z "$startdir" ] && startdir=`pwd`
 Fsrcdir="$startdir/src"
 Fdestdir="$startdir/pkg"
 Fprefix="/usr"

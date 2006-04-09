@@ -1,27 +1,18 @@
-# Last modified: Fri, 06 Jan 2006 05:04:25 +0100
-# Compiling time: 10.43 SBU
+# Last modified: Fri, 17 Mar 2006 19:16:08 +0100
+# Compiling time: 9.79 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
-# Modified by zleho <zleho@index.hu> and Laszlo Dvornik <dvornik@gnome.hu>
 
 pkgname=glibc
-pkgver=2.3.6
+pkgver=2.4
 pkgrel=1
 pkgdesc="GNU C Library"
 url="http://www.gnu.org/software/libc/libc.html"
 depends=()
 groups=('base' 'chroot-core')
 archs=('i686' 'x86_64' 'ppc')
-up2date="lynx -dump 'http://ftp.gnu.org/pub/gnu/glibc/?M=D'|grep linuxthreads|sed -n 's/.*-\(.*\).t.*/\1/;1 p'"
-source=(http://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-$pkgver.tar.bz2 \
-	http://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-linuxthreads-$pkgver.tar.bz2 \
-	$pkgname-2.3.5-dlopen.diff)
-sha1sums=('82d0487419f1bdbf2dee439c344e89d6af47e558' \
-	  '10190168bf948556afdfff46f87f9208402d810f' \
-	  '6d7c5506c789a172acac364223e41363cb85df7c'
-	 )
-[ "$CARCH" == "x86_64" ] && \
-	source=(${source[@]} $pkgname-2.3.5-lib64_to_lib.diff) && \
-	sha1sums=(${sha1sums[@]} '7a0dc8514f754249e713557daf7f82dbbce81ffa')
+up2date="lynx -dump http://ftp.gnu.org/pub/gnu/glibc/|grep tar.bz2$|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'"
+source=(http://ftp.gnu.org/pub/gnu/glibc/glibc-$pkgver.tar.bz2)
+sha1sums=('35c636e4b474cda0f06e361d5e9caec092fd73d3')
 [ "$CARCH" == "ppc" ] && \
 	source=(${source[@]} glibc-nptl-ppc.patch \
 		glibc-20051107-localedef_segfault-1.patch \
@@ -34,13 +25,15 @@ sha1sums=('82d0487419f1bdbf2dee439c344e89d6af47e558' \
 
 build()
 {
-	mv $Fsrcdir/{linuxthreads,linuxthreads_db} $Fsrcdir/$pkgname-$pkgver
+	# no multilib thanks
+	Fsed 'x86_64 \| ' '' sysdeps/unix/sysv/linux/configure{,.in}
 	Fpatchall
+	Ffilerel nscd/nscd.conf /etc/nscd.conf
 
 	mkdir ../glibc-build
 	cd ../glibc-build
-	../$pkgname-$pkgver/configure --prefix=/usr --with-tls --with-__thread \
-	    --enable-add-ons=nptl --enable-kernel=2.6.6 --enable-bind-now --without-cvs
+	../glibc-$pkgver/configure --prefix=/usr --with-tls --with-__thread \
+	    --enable-add-ons=nptl --enable-kernel=2.6.12 --enable-bind-now --without-cvs
 
 	make || return 1
 
@@ -48,15 +41,7 @@ build()
 	make install_root=$Fdestdir localedata/install-locales
 	Frm /etc/ld.so.cache /etc/localtime
 
-	# Man pages.
-	cd $Fsrcdir/$pkgname-$pkgver/linuxthreads/man
-	make || return 1
-	Fmkdir /usr/man/man3
-	Ffilerel *.3thr /usr/man/man3
-	Ffile $pkgname-$pkgver/nscd/nscd.conf /etc/nscd.conf
 	Frm /usr/info/dir
 }
 
 # optimalization ok
-
-# vim: ft=sh

@@ -183,7 +183,7 @@ $fwstrircsocdiag="Social network diagram for #frugalware";
 $fwstrirclogt="Log of the #frugalware channel";
 $fwstrirclogd="Today's log can be read <a href=\"%s\">here</a>.";
 
-// screenshot.php
+// old screenshot.php
 $fwstrscreenshot="screenshots";
 $shot_titles["sksetup.png"]="Localized setup";
 $shot_titles["bootsplash.png"]="Bootsplash";

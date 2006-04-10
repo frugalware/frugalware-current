@@ -48,6 +48,21 @@ print("<script type=\"text/javascript\" src=\"menu.js\">
 	body { font-family: Arial, Helvetica, Verdana, Tahoma, monospace; font-size: 14px; background-color : ${fwgray}; }
 	.menulinkcss{ position:absolute; visibility: hidden; border:1px solid $fwblack; background-color: $fwwhite; }
 	.menulinkcss a{ display: block; padding-left: 5px; padding-right: 5px; }
+	.screenshots div { float: left; width: 220px; height: 180px; }
+	FIELDSET.fieldset LEGEND {
+		font: bold 11px Verdana, Geneva, Arial, Helvetica, sans-serif;
+		letter-spacing: .1em;
+		color: rgb(0, 80, 154);
+		padding: 0 0.5em;
+		vertical-align: top;
+	}
+	FIELDSET.fieldset {
+		border: 1px solid rgb(130, 150, 187);
+		clear: left;
+		margin: 14px 0 0 0;
+		padding: 4px 8px 4px 8px;
+		text-align: left;
+	}
 </style>\n");
 print("</head>\n");
 

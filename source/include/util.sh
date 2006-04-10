@@ -353,7 +353,12 @@ Fconf() {
 			Fconfopts="$Fconfopts --localstatedir=$Flocalstatedir"
 		./configure $Fconfopts "$@" || Fdie
 	elif [ -f Makefile.PL ]; then
-		perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+		if [ -z "$_F_conf_perl_pipefrom" ]; then
+			perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+		else
+			$_F_conf_perl_pipefrom | perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+		fi
+		unset _F_conf_perl_pipefrom
 		Fsed `perl -e 'printf "%vd", $^V'` "current" Makefile
 	elif [ -f extconf.rb ]; then
 		ruby extconf.rb --prefix="$Fprefix" "$@" || Fdie

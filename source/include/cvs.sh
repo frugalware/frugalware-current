@@ -3,8 +3,6 @@
 # (c) 2006 Rohan Dhruva
 # cvs.sh for Frugalware
 # distributed under GPL License
-# Most of the code is copied verbatim from versionpkg,
-# credits go to "dibblethewrecker -- dtw at jiwe dot org
 
 # Manages the pkgver and provides a default build()
 
@@ -21,7 +19,7 @@ makedepends=(${makedepends[@]} 'cvs')
 
 Fcvsbuild()
 {
-	"Connecting to $pkgname CVS server...."
+	Fmessage "Connecting to $pkgname CVS server...."
 	cvs -z3 -d$_F_cvs_cvsroot co -D $pkgver -f -P $_F_cvs_cvsmod
 	Fcd $_F_cvs_cvsmod
 	if [ -x autogen.sh ]; then

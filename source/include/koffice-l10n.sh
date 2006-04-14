@@ -10,6 +10,7 @@ url="http://www.koffice.org/"
 #up2date="lynx -dump $url |grep current|sed 's/.*e \(.*\) i.*/\1/'"
 up2date="lynx -dump ftp://ftp.fu-berlin.de/pub/unix/X11/gui/kde/stable/|grep -v "1.4"|grep -m1 'koffice-'|sed 's/.*-\(.*\)/\1/'"
 source=(ftp://ftp.kde.org/pub/kde/stable/koffice-$pkgver/src/koffice-l10n/$pkgname-$pkgver.tar.bz2)
+options=(${options[@]} 'scriptlet')
 build()
 {
 	Fbuild

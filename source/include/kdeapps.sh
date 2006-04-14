@@ -4,6 +4,7 @@
 # kdeapps.sh for Frugalware
 # distributed under GPL License
 
+options=(${options[@]} 'scriptlet')
 
 build()
 {

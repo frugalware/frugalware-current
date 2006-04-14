@@ -12,6 +12,7 @@ up2date="lynx -dump http://www.kde.org/download/|grep 'kdelibs'|sed -n '1 p'|sed
 source=($pkgurl/$pkgname-$pkgver.tar.bz2)
 depends=("kdelibs>=$kdever")
 rodepends=("kdebase>=$kdever")
+options=(${options[@]} 'scriptlet')
 groups=('locale-extra')
 
 build() 

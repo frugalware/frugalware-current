@@ -6,7 +6,9 @@
 
 # a common function and a scriptlet for externel kernel module packages
 
-kernelver=2.6.16-3
+kernelbasever=2.6.16
+kernelrel=3
+kernelver=$kernelbasever-$kernelrel
 depends=("kernel=$kernelver")
 makedepends=("kernel-source=$kernelver")
 install=$Fincdir/kernel-module.install

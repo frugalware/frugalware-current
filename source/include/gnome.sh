@@ -24,5 +24,7 @@ fi
 
 source=(http://ftp.gnome.org/pub/gnome/sources/$pkgname/$preup2date/$name-$pkgver.tar.bz2)
 
+options=(${options[@]} 'scriptlet')
+
 unset realname
 unset nondevel

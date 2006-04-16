@@ -38,7 +38,14 @@ if ($fwdebug)
 		date("D M d H:i:s T Y", filemtime($pagename)) . "<br>");
 }
 print("&copy; 2003-" . date("Y") . " <a href=\"mailto:frugalware-devel@frugalware.org\">The Frugalware Developer Team</a>" .
-	"</small>\n</div>\n</body>\n</html>\n");
+"</small>\n</div>
+<script src=\"http://www.google-analytics.com/urchin.js\" type=\"text/javascript\">
+</script>
+<script type=\"text/javascript\">
+_uacct = \"UA-292859-1\";
+urchinTracker();
+</script>
+</body>\n</html>\n");
 
 print ("<!-- end footer.php -->\n");
 

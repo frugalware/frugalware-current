@@ -30,4 +30,11 @@ build()
 	Frm /usr/lib/perl5/current
 }
 
+# defaults
+pkgname="perl-`echo $modname|tr [A-Z] [a-z]`"
+pkgrel=1
+depends=('perl')
+groups=('devel-extra')
+archs=('i686')
+
 unset _F_perl_ext

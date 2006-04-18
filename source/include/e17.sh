@@ -6,4 +6,4 @@
 
 url="http://enlightenment.freedesktop.org/"
 source=($url/files/$pkgname-$pkgver.tar.gz)
-up2date="lynx -dump $url |grep =$pkgname |sed 's/.*-\(.*\).tar.*/\1/'"
+up2date="lynx -dump $url |grep =$pkgname |sed -e 's/.*$pkgname-\(.*\).t.*/\1/' |Fsort |sed -n '$ p'"

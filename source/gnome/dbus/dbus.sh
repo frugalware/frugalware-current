@@ -1,6 +1,7 @@
 #!/bin/sh
 
-# to be sourced
-# Need this to work many apps in X with dbus..
+dbuslaunch="`which dbus-launch 2>/dev/null`"
+if [ -n "$dbuslaunch" ] && [ -x "$dbuslaunch" ] && [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+  eval `$dbuslaunch --sh-syntax --exit-with-session`
+fi
 
-eval `/usr/bin/dbus-launch --exit-with-session --auto-syntax`

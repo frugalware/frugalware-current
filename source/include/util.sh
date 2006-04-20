@@ -635,6 +635,11 @@ Flasttar()
 	grep tar.gz$|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'
 }
 
+Flasttarbz2()
+{
+	grep tar.bz2$|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'
+}
+
 ### Creates a .desktop file for graphical applications
  # example: Fdesktop vmware vmware-workstation.png "System;" \
  # 	"application/x-vmware-vm;application/x-vmware-team;"

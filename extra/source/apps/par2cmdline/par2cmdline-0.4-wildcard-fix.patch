@@ -1,0 +1,75 @@
+Fix wildcard expansion of non-regular files.
+
+Patch by Bardur Arantsson.
+
+http://bugs.gentoo.org/51817
+http://sourceforge.net/tracker/index.php?func=detail&aid=958902&group_id=30568&atid=399698
+
+--- par2cmdline-0.4/diskfile.cpp
++++ par2cmdline-0.4/diskfile.cpp
+@@ -618,6 +618,12 @@
+   return result;
+ }
+ 
++bool is_regular_file(const string &p)
++{
++  struct stat st;
++  return (stat(p.c_str(), &st) == 0 && S_ISREG(st.st_mode));
++}
++
+ list<string>* DiskFile::FindFiles(string path, string wildcard)
+ {
+   list<string> *matches = new list<string>;
+@@ -648,7 +654,15 @@
+               name.substr(0, where) == front &&
+               name.substr(name.size()-back.size()) == back)
+           {
+-            matches->push_back(path + name);
++            if (is_regular_file(path + name))
++            {
++              matches->push_back(path + name);
++            }
++            else
++            {
++              cerr << "Warning: '" << (path + name) 
++                   << "' ignored; not a regular file" << endl;
++            }
+           }
+         }
+         else
+@@ -667,7 +681,15 @@
+ 
+             if (pw == wildcard.end())
+             {
+-              matches->push_back(path + name);
++              if (is_regular_file(path + name)) 
++              {
++                matches->push_back(path + name);
++              }
++              else
++              {
++                cerr << "Warning: '" << (path + name) 
++                     << "' ignored; not a regular file" << endl;
++              }
+             }
+           }
+         }
+@@ -678,12 +700,15 @@
+   }
+   else
+   {
+-    struct stat st;
+-    string fn = path + wildcard;
+-    if (stat(fn.c_str(), &st) == 0)
++    if (is_regular_file(path + wildcard))
+     {
+       matches->push_back(path + wildcard);
+     }
++    else
++    {
++      cerr << "Warning: '" << (path + wildcard) 
++           << "' ignored; not a regular file" << endl;
++    }
+   }
+ 
+   return matches;

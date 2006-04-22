@@ -351,7 +351,11 @@ Fconf() {
 			Fconfopts="$Fconfopts --sysconfdir=$Fsysconfdir"
 		grep -q localstatedir configure && \
 			Fconfopts="$Fconfopts --localstatedir=$Flocalstatedir"
-		./configure $Fconfopts "$@" || Fdie
+		if [ -z "$_F_conf_configure" ]; then
+			./configure $Fconfopts "$@" || Fdie
+		else
+			$_F_conf_configure $Fconfopts "$@" || Fdie
+		fi
 	elif [ -f Makefile.PL ]; then
 		if [ -z "$_F_conf_perl_pipefrom" ]; then
 			perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie

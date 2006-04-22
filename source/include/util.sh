@@ -346,16 +346,15 @@ Fpatchall() {
 Fconf() {
 	Fcd
 	Fmessage "Configuring..."
-	if [ -x configure ]; then
+	if [ -z "$_F_conf_configure" ]; then
+		_F_conf_configure="./configure"
+	fi
+	if [ -x $_F_conf_configure ]; then
 		grep -q sysconfdir configure && \
 			Fconfopts="$Fconfopts --sysconfdir=$Fsysconfdir"
 		grep -q localstatedir configure && \
 			Fconfopts="$Fconfopts --localstatedir=$Flocalstatedir"
-		if [ -z "$_F_conf_configure" ]; then
-			./configure $Fconfopts "$@" || Fdie
-		else
-			$_F_conf_configure $Fconfopts "$@" || Fdie
-		fi
+		$_F_conf_configure $Fconfopts "$@" || Fdie
 	elif [ -f Makefile.PL ]; then
 		if [ -z "$_F_conf_perl_pipefrom" ]; then
 			perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie

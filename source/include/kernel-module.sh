@@ -7,7 +7,7 @@
 # a common function and a scriptlet for externel kernel module packages
 
 kernelbasever=2.6.16
-kernelrel=3
+kernelrel=4
 kernelver=$kernelbasever-$kernelrel
 depends=("kernel=$kernelver")
 makedepends=("kernel-source=$kernelver")

@@ -638,6 +638,11 @@ Flasttar()
 	grep tar.gz$|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'
 }
 
+Flasttgz()
+{
+	grep tgz$|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'
+}
+
 Flasttarbz2()
 {
 	grep tar.bz2$|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'

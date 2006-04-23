@@ -350,9 +350,9 @@ Fconf() {
 		_F_conf_configure="./configure"
 	fi
 	if [ -x $_F_conf_configure ]; then
-		grep -q sysconfdir configure && \
+		grep -q sysconfdir $_F_conf_configure && \
 			Fconfopts="$Fconfopts --sysconfdir=$Fsysconfdir"
-		grep -q localstatedir configure && \
+		grep -q localstatedir $_F_conf_configure && \
 			Fconfopts="$Fconfopts --localstatedir=$Flocalstatedir"
 		$_F_conf_configure $Fconfopts "$@" || Fdie
 	elif [ -f Makefile.PL ]; then

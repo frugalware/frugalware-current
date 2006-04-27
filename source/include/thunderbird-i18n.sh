@@ -6,7 +6,7 @@
 
 # provides a common up2date, source and build for thunderbird i18n packages
 
-up2date="1.5"
+up2date="1.5.0.2"
 
 source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linux-i686/xpi/$llang.xpi)
 

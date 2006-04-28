@@ -4,6 +4,10 @@
 # kdeapps.sh for Frugalware
 # distributed under GPL License
 
+if [ ! -z "$_F_kdeapps_id" ]; then
+	url="http://www.kde-apps.org/content/show.php?content=$_F_kdeapps_id"
+	up2date="lynx -dump $url|grep Version|sed 's/.*: *\(.*\)$/\1/'"
+fi
 options=(${options[@]} 'scriptlet')
 
 build()
@@ -18,3 +22,4 @@ build()
 		--with-gnu-ld --enable-new-ld-flags
 }
 
+unset _F_kdeapps_id

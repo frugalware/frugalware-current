@@ -115,13 +115,13 @@ Fmv() {
 Finstallrel() {
 	if [ "$#" -eq 3 ]; then
 		Fmessage "Installing file(s): $2"
-		if [ "`ls -l $2 | wc -l`" -gt 1 ]; then
+		if [ "`ls -l "$2" | wc -l`" -gt 1 ]; then
 			Fmkdir "$3"
 		fi
-		if [ -d "$Fdestdir/$3" -a ! "`ls -l $2 | wc -l`" -gt 1 ]; then
-			install -D -m "$1" $2 "$Fdestdir/$3/`basename "$2"`" || Fdie
+		if [ -d "$Fdestdir/$3" -a ! "`ls -l "$2" | wc -l`" -gt 1 ]; then
+			install -D -m "$1" "$2" "$Fdestdir/$3/`basename "$2"`" || Fdie
 		else
-			install -D -m "$1" $2 "$Fdestdir/$3" || Fdie
+			install -D -m "$1" "$2" "$Fdestdir/$3" || Fdie
 		fi
 	elif [ "$#" -eq 2 ]; then
 		Finstallrel "$1" "`basename "$2"`" "$2"

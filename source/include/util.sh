@@ -119,17 +119,17 @@ Finstallrel() {
 			Fmkdir "$3"
 		fi
 		if [ -d "$Fdestdir/$3" -a ! "`ls -l $2 | wc -l`" -gt 1 ]; then
-			install -D -m "$1" $2 "$Fdestdir/$3/`basename $2`" || Fdie
+			install -D -m "$1" $2 "$Fdestdir/$3/`basename "$2"`" || Fdie
 		else
 			install -D -m "$1" $2 "$Fdestdir/$3" || Fdie
 		fi
 	elif [ "$#" -eq 2 ]; then
-		Finstallrel "$1" "`basename $2`" "$2"
+		Finstallrel "$1" "`basename "$2"`" "$2"
 	else
 		local i
 		for i in "${@:2:$#-2}"; do
 			Fmkdir "${@:$#}"
-			Finstallrel $1 "$i" "${@:$#}/`basename $i`"
+			Finstallrel $1 "$i" "${@:$#}/`basename "$i"`"
 		done
 	fi
 }
@@ -144,12 +144,12 @@ Finstall() {
 	if [ "$#" -eq 3 ]; then
 		Finstallrel "$1" "$Fsrcdir/$2" "$3"
 	elif [ "$#" -eq 2 ]; then
-		Finstallrel "$1" "$Fsrcdir/`basename $2`" "$2"
+		Finstallrel "$1" "$Fsrcdir/`basename "$2"`" "$2"
 	else
 		local i
 		for i in "${@:2:$#-2}"; do
 			Fmkdir "${@:$#}"
-			Finstallrel "$1" "$Fsrcdir/$i" "${@:$#}/`basename $i`"
+			Finstallrel "$1" "$Fsrcdir/$i" "${@:$#}/`basename "$i"`"
 		done
 	fi
 }
@@ -308,9 +308,9 @@ Fpatch() {
 	local i
 	Fmessage "Using patch: $1"
 	if [ -n "`echo "$1" | grep '\.\(patch[0-9]*\|diff\)\.gz$'`" ]; then
-		i=`basename $1 .gz`
+		i=`basename "$1" .gz`
 	elif [ -n "`echo "$1" | grep '\.\(patch[0-9]*\|diff\)\.bz2$'`" ]; then
-		i=`basename $1 .bz2`
+		i=`basename "$1" .bz2`
 	else
 		i=$1
 	fi
@@ -456,7 +456,7 @@ Frcd2() {
 	Fexe /etc/rc.d/rc.$rc
 	for po in $Fsrcdir/rc.$rc-*.po ; do
 		[ ! -f "$po" ] && continue
-		slang="`basename $po .po | sed "s|rc.$rc-||"`"
+		slang="`basename "$po" .po | sed "s|rc.$rc-||"`"
 		llang=${slang}_`echo $slang | tr [:lower:] [:upper:]`
 		msg_dir="/lib/initscripts/messages/$llang/LC_MESSAGES"
 		Fmkdir $msg_dir

@@ -701,4 +701,20 @@ Fsplit()
 	done
 }
 
+### Check if a logical flag is defined in options() or not
+ # example: if [ "`check_option DEVEL`" ]; then
+ # @param: name of the logical flag
+ ##
+check_option() {
+	local i
+	for i in ${options[@]}; do
+		local uc=`echo $i | tr [:lower:] [:upper:]`
+		local lc=`echo $i | tr [:upper:] [:lower:]`
+		if [ "$uc" = "$1" -o "$lc" = "$1" ]; then
+			echo $1
+			return
+		fi
+	done
+}
+
 ### @}

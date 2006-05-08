@@ -1,165 +1,131 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-
-# Import needed modules
-import getopt, os, sys
+import ftplib, getopt, os, sys
 
 # Defaults
-color, command = (True, 'missing')
-ctxt = '\x1b[01m%-35s \x1b[0m%-15s \x1b[01;%smi686 \x1b[01;%smx86_64 \x1b[01;%smppc\x1b[0m'
-rtxt = '%-35s %-15s [%s] i686 [%s] x86_64 [%s] ppc'
+(color, option, outlist) = (True, 'missing', list())
 
-def checkpkgs():
-	'''Check if the remote packages are equal to the local FrugalBuilds.'''
-	i686, x86_64, ppc = (get_pkgs('i686'), get_pkgs('x86_64'), get_pkgs('ppc'))
-	ffdata, efdata = get_fbuilds()
-	for fdata in (ffdata, efdata):
-		for pkg in fdata:
-			i686_msg = check_pkgs(pkg[1], i686, 'i686', pkg[2])
-			x86_64_msg = check_pkgs(pkg[1], x86_64, 'x86_64', pkg[2])
-			ppc_msg = check_pkgs(pkg[1], ppc, 'ppc', pkg[2])
-			print_pkgs(pkg[1], pkg[0], i686_msg, x86_64_msg, ppc_msg)
+# Build the command to read the FrugalBuilds
+command  = 'CHROOT=1'
+command += ' ; error() { true; }'
+command += ' ; source /usr/lib/frugalware/fwmakepkg'
+command += ' ; source %s'
+command += ' ; [ -n "${nobuild}" ] && exit'
+command += ' ; echo ${options[@]} | grep -q nobuild && exit'
+command += ' ; echo "${pkgname}-${pkgver}-${pkgrel}"'
+command += ' ; echo "${archs[@]}"'
 
-def print_pkgs(pkg, grp, i686, x86_64, ppc):
-	'''Print packages for that we are searching.'''
-	if command == 'all':
-		if color: print ctxt % (pkg, grp, i686[0], x86_64[0], ppc[0])
-		else: print rtxt % (pkg, grp, i686[1], x86_64[1], ppc[1])
-	elif command == 'build' and (33, '-') in (i686, x86_64, ppc):
-		if color: print ctxt % (pkg, grp, i686[0], x86_64[0], ppc[0])
-		else: print rtxt % (pkg, grp, i686[1], x86_64[1], ppc[1])
-	elif command == 'available' and (34, '!') in (i686, x86_64, ppc):
-		if color: print ctxt % (pkg, grp, i686[0], x86_64[0], ppc[0])
-		else: print rtxt % (pkg, grp, i686[1], x86_64[1], ppc[1])
-	elif command == 'missing' and (31, 'O') in (i686, x86_64, ppc):
-		if color: print ctxt % (pkg, grp, i686[0], x86_64[0], ppc[0])
-		else: print rtxt % (pkg, grp, i686[1], x86_64[1], ppc[1])
+# Empty lists
+(fbuilds, rempkgs, tmppkgs) = (list(), list(), list())
 
-def check_pkgs(pkg, pkgs, arch, archs):
-	'''Return the markers for the finded packages.'''
-	if pkg in pkgs and arch in archs: return (32, 'X')
-	elif not pkg in pkgs and arch in archs: return (31, 'O')
-	elif '!' + arch in archs: return (34, '!')
-	else: return (33, '-')
-
-def clean_fb_data(bstring, typ = 's'):
-	'''Clean strings from FrugalBuild files.'''
-	cstring = bstring.split('=')[1]
-	cstring = cstring.replace('"', '').replace("'", '')
-	cstring = cstring.replace('(', '').replace(')', '')
-	cstring = cstring.rstrip()
-	if typ == 'l': cstring = cstring.split()
-	return cstring
-
-def get_fb_data(fbuild, repo = ''):
-	'''Read and return informations from FrugalBuild files.'''
-	pkgname, pkgver, pkgrel, group = (str(), str(), str(), str())
-	archs, nobuild = (('i686', 'x86_64', 'ppc'), False)
-	if repo == 'extra': group = 'extra/'
-	group += os.path.basename(os.path.dirname(os.path.dirname(fbuild)))
-	fbuild = file(fbuild, 'r') ; lines = fbuild.readlines() ; fbuild.close()
-	for line in lines:
-		if line.startswith('pkgname='): pkgname = clean_fb_data(line)
-		elif line.startswith('pkgver='): pkgver = clean_fb_data(line)
-		elif line.startswith('pkgrel='): pkgrel = clean_fb_data(line)
-		elif line.startswith('archs='): archs = clean_fb_data(line, 'l')
-		elif line.startswith('nobuild=1'): nobuild = True
-		elif line.startswith('options=') and 'nobuild' in line: nobuild = True
-		# Workaround for localization packages
-		elif line.startswith('lang='): lang = clean_fb_data(line)
-	try: pkgname = pkgname.replace('$lang', lang) + '-' + pkgver + '-' + pkgrel
-	except: pkgname += '-' + pkgver + '-' + pkgrel
-	if not pkgname.startswith('-'): return (group, pkgname, archs, nobuild)
-
-def get_fbuilds():
-	'''Get informations from FrugalBuild files.'''
-	ffdata, efdata = (list(), list())
-	for fbuild in os.walk('../source'):
-		if 'FrugalBuild' in fbuild[2]:
-			fbdata = get_fb_data(fbuild[0] + '/FrugalBuild')
-			if fbdata and not fbdata[3]: ffdata.append(fbdata)
-	ffdata.sort()
-	for fbuild in os.walk('../extra/source'):
-		if 'FrugalBuild' in fbuild[2]:
-			fbdata = get_fb_data(fbuild[0] + '/FrugalBuild', 'extra')
-			if fbdata and not fbdata[3]: efdata.append(fbdata)
-	efdata.sort()
-	return (ffdata, efdata)
-
-def get_pkgs(arch):
-	'''List remote packages.'''
-	repkg = list()
-	frepo = r'repoman ls frugalware-%s/ 2> /dev/null' % arch
-	erepo = r'repoman ls extra/frugalware-%s/ 2> /dev/null' % arch
-	restr = '-%s.fpm' % arch
-	for pkg in os.popen(frepo + ' && ' + erepo).readlines():
-		if not pkg.endswith('.fpm\n'): continue
-		cpkg = os.path.basename(pkg.replace(restr, '').rstrip())
-		repkg.append(cpkg)
-	return repkg
-
+# Help function
 def show_help(retval = 0):
-	'''Help message / how to use this script.'''
-	print 'Usage: %s [options]' % os.path.abspath(sys.argv[0])
-	print
-	print '\t-a|--all          Check all packages'
-	print '\t-b|--build        Search for not builded packages'
-	print '\t-e|--available    Search for packages that will not be available'
-	print '\t-m|--missing      Search for missing packages (default)'
-	print '\t-n|--nocolor      Don\'t use color'
-	print
-	print '-b is searching for packages they are only available on one architecture.'
-	print '-m is searching for packages that can\'t be found, but should be existing.'
-	print '-a is a short version for -bm.'
-	print '-n doesn\'t use colors on the output. That\'s usefull if you want to send'
-	print '   the output via mail or you want to save it in a file.'
-	print
-	print '[X] or green  = package is existing'
-	print '[O] or red    = package is missing'
-	print '[-] or yellow = package isn\'t builded for this architecture'
-	print '[!] or blue   = package will not be available for this architecture'
+	if retval == 0: out = sys.stdout
+	else: out = sys.stderr
+	out.write('Usage: %s [options]\n' % os.path.abspath(sys.argv[0]))
+	out.write('\n')
+	out.write('\t-a|--all          Check all packages\n')
+	out.write('\t-b|--build        Search for not builded packages\n')
+	out.write('\t-e|--available    Search for packages that will not be available\n')
+	out.write('\t-m|--missing      Search for missing packages (default)\n')
+	out.write('\t-n|--nocolor      Don\'t use color\n')
+	out.write('\n')
+	out.write('-b is searching for packages they are only available on one architecture.\n')
+	out.write('-m is searching for packages that can\'t be found, but should be existing.\n')
+	out.write('-a is a short version for -bm.\n')
+	out.write('-n doesn\'t use colors on the output. That\'s usefull if you want to send\n')
+	out.write('   the output via mail or you want to save it in a file.\n')
+	out.write('\n')
+	out.write('[X] or green  = package is existing\n')
+	out.write('[O] or red    = package is missing\n')
+	out.write('[-] or yellow = package isn\'t builded for this architecture\n')
+	out.write('[!] or blue   = package will not be available for this architecture\n')
 	sys.exit(retval)
 
-def wrong_command(options):
-	'''Show the help message and exit with return code 1.'''
-	command = os.path.abspath(sys.argv[0])
-	for i in options: command += ' ' + i
-	print 'Wrong command line: %s' % command
+# Read the command line
+try:
+	args = getopt.getopt(sys.argv[1:], 'abehmn', ('all', 'available', 'build', 'help', 'missing', 'nocolor'))
+except:
+	cmdline = os.path.abspath(sys.argv[0])
+	for i in getopt.GetoptError('', sys.argv[1:]).opt: cmdline += ' ' + i
+	sys.stderr.write('Wrong command line:\n%s\n\n' % cmdline)
 	show_help(1)
 
-# Main
-if __name__ == '__main__':
-	# Read the command line
-	try: args = getopt.getopt(sys.argv[1:], 'abehmn', ('all', 'available',
-	                                                   'build', 'help',
-	                                                   'missing', 'nocolor'))
-	except: wrong_command(getopt.GetoptError('', sys.argv[1:]).opt)
-	for arg in args[0]:
-		if len(arg) > 0:
-			if '-a' in arg[0] or '--all' in arg[0]: command = 'all'
-			if '-b' in arg[0] and command == 'missing': command = 'all'
-			elif '--build' in arg[0] and command == 'missing': command = 'all'
-			elif '-b' in arg[0] or '--build' in arg[0]: command = 'build'
-			if '-e' in arg[0] or '--available' in arg[0]: command = 'available'
-			if '-m' in arg[0] and command == 'build': command = 'all'
-			elif '--missing' in arg[0] and command == 'build': command = 'all'
-			elif '-m' in arg[0] or '--missing' in arg[0]: command = 'missing'
-			if '-n' in arg[0] or '--nocolor' in arg[0]: color = False
-			if '-h' in arg[0] or '--help' in arg[0]: show_help()
+# Process the command line
+for arg in args[0]:
+	if len(arg) == 0: continue
+	if '-a' in arg[0] or '--all' in arg[0]: option = 'all'
+	if '-b' in arg[0] and option == 'missing': option = 'all'
+	elif '--build' in arg[0] and option == 'missing': option = 'all'
+	elif '-b' in arg[0] or '--build' in arg[0]: option = 'build'
+	if '-e' in arg[0] or '--available' in arg[0]: option = 'available'
+	if '-m' in arg[0] and option == 'build': option = 'all'
+	elif '--missing' in arg[0] and option == 'build': option = 'all'
+	elif '-m' in arg[0] or '--missing' in arg[0]: option = 'missing'
+	if '-n' in arg[0] or '--nocolor' in arg[0]: color = False
+	if '-h' in arg[0] or '--help' in arg[0]: show_help()
 
-	# Check and print the packages
-	checkpkgs()
+
+# Set the default output types
+if color:
+	(typ_e, typ_m, typ_b, typ_a) = (32, 31, 33, 34)
+	out = '\x1b[01m%-35s \x1b[0m%-15s \x1b[01;%smi686 \x1b[01;%smppc \x1b[01;%smx86_64\x1b[0m'
+else:
+	(typ_e, typ_m, typ_b, typ_a) = ('X', 'O', '-', '!')
+	out = '%-35s %-15s [%s] i686 [%s] pps [%s] x86_64'
+
+# Get a list with remote packages
+ftp = ftplib.FTP('ftp.frugalware.org')
+ftp.login()
+for arch in ['i686', 'ppc', 'x86_64']:
+	for repo in ['frugalware-' + arch, 'extra/frugalware-' + arch]:
+		ftp.retrlines('LIST /pub/frugalware/frugalware-current/' + repo, tmppkgs.append)
+for item in tmppkgs: rempkgs.append(item.split()[-1].replace('.fpm', ''))
+ftp.quit()
+
+# Get a list with local FrugalBuilds
+for fbuild in os.walk('../source'):
+	if not 'FrugalBuild' in fbuild[2]: continue
+	fbuilds.append(fbuild[0] + '/FrugalBuild')
+for fbuild in os.walk('../extra/source'):
+	if not 'FrugalBuild' in fbuild[2]: continue
+	fbuilds.append(fbuild[0] + '/FrugalBuild')
+
+# Output: $pkgname-$pkgver-$pkgrel [repo/]$groups[0] i686 x86_64 ppc
+
+# Now get the data from the FrugalBuilds and check it it's okay
+for fbuild in fbuilds:
+	locpkgs = os.popen(command % fbuild).readlines()
+	if locpkgs == []: continue
+	(mark, pkg) = (str(), locpkgs[0].rstrip())
+	if pkg.startswith('-'): continue
+	archs = locpkgs[1].rstrip().split()
+	if 'i686' in archs and pkg + '-i686' in rempkgs: i686 = typ_e
+	elif 'i686' in archs and not pkg + '-i686' in rempkgs: i686 = typ_m
+	elif '!i686' in archs: i686 = typ_a
+	else: i686 = typ_b
+
+	if 'ppc' in archs and pkg + '-ppc' in rempkgs: ppc = typ_e
+	elif 'ppc' in archs and not pkg + '-ppc' in rempkgs: ppc = typ_m
+	elif '!ppc' in archs: ppc = typ_a
+	else: ppc = typ_b
+
+	if 'x86_64' in archs and pkg + '-x86_64' in rempkgs: x86_64 = typ_e
+	elif 'x86_64' in archs and not pkg + '-x86_64' in rempkgs: x86_64 = typ_m
+	elif '!x86_64' in archs: x86_64 = typ_a
+	else: x86_64 = typ_b
+
+	if fbuild.startswith('../source'): group = fbuild.split('/')[-3]
+	else: group = 'zzzz/' + fbuild.split('/')[-3]
+
+	if option == 'build' and not typ_b in (i686, ppc, x86_64): continue
+	if option == 'available' and not typ_a in (i686, ppc, x86_64): continue
+	if option == 'missing' and not typ_m in (i686, ppc, x86_64): continue
+
+	outlist.append((group, pkg, i686, ppc, x86_64))
+
+outlist.sort()
+
+for (group, pkg, i686, ppc, x86_64) in outlist:
+	print out % (pkg, group.replace('zzzz', 'extra'), i686, ppc, x86_64)

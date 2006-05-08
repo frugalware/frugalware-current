@@ -9,6 +9,7 @@
 up2date="1.5.0.2"
 
 source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linux-i686/xpi/$llang.xpi)
+options=('scriptlet')
 
 build()
 {

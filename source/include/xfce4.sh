@@ -17,7 +17,7 @@ if echo ${groups[*]} | grep -q goodies ; then
 	up2date="lynx -dump http://developer.berlios.de/project/showfiles.php?group_id=910|grep \"$name-.*tar.\(gz\|bz2\)$\"|sed 's/.*-\(.*\)\.t.*/\1/;q'"
 else
 	preup2date=4.2.3.2
-	preup2date=`lynx -dump $hpurl|grep released|sed 's/.*e \(.*\) r.*/\1/;q'`
+#	preup2date=`lynx -dump $hpurl|grep released|sed 's/.*e \(.*\) r.*/\1/;q'`
 	dlurl="$hpurl/archive/xfce-$preup2date/src/"
 	up2date="lynx -dump $hpurl/archive/xfce-$preup2date/src/|grep \"$name-[0-9\.].*gz$\"|Flasttar"
 fi

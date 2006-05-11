@@ -1,35 +1,47 @@
-# Last Modified: Sun, 30 Oct 2005 17:41:58 +0100
+# Last Modified: Thu, 11 May 2006 13:23:16 +0200
 # Compiling Time: 0.11 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=irda-utils
-pkgver=0.9.16
-pkgrel=2
+pkgver=0.9.17
+pkgrel=1
 pkgdesc="Utilities for infrared communication between devices"
 url="http://irda.sourceforge.net/"
-depends=('glib')
+depends=('glib2' 'pciutils')
 groups=('apps-extra')
 archs=('i686' 'x86_64')
 backup=('etc/sysconfig/irda')
 up2date="lynx -dump 'http://prdownloads.sourceforge.net/irda/?sort_by=date&sort=desc'|grep 'irda-utils-[0-9\.]*.tar.gz$'|sed -n 's/.*-\(.*\)\.t.*/\1/;1 p'"
-source=(http://dl.sourceforge.net/sourceforge/irda/$pkgname-$pkgver.tar.gz \
-	rc.irda irda)
-sha1sums=('36b10be40a4c0949c6541ce5c1f2782c906eb231' \
-          'd2ecbcbd3a0243a58272cca62049e8aff982ec0c' \
-          '35d4abaa5788f2d9902ba49ada911a16ca46188b')
+source=(http://heanet.dl.sourceforge.net/sourceforge/irda/$pkgname-$pkgver.tar.gz \
+	rc.irda irda fix-for-newer-pciutils.patch \
+	fix-irnetd-install.patch)
+sha1sums=('5c6ef393d90aced65b10bf93ae2ee3f394ba5280' \
+	  'd2ecbcbd3a0243a58272cca62049e8aff982ec0c' \
+	  '35d4abaa5788f2d9902ba49ada911a16ca46188b' \
+	  'fb31a774b13c46b5dcaf1177fc22692239c11e7a' \
+	  '7a79bca31b9a83da0889f5c1e522128835cd8579')
 
 build()
 {
 	Fcd
-	Fsed "^CFLAGS=.*" "CFLAGS=$CFLAGS" Makefile
-	make prefix=/usr RPM_BUILD_ROOT=$Fdestdir ROOT=$Fdestdir|| return 1
-	make install ROOT=$Fdestdir PREFIX=$Fdestdir
-	Fexerel irnetd/irnetd /usr/sbin/irnetd
+	Fpatch fix-for-newer-pciutils.patch
+	Fpatch fix-irnetd-install.patch
+	sed -i -e "s:^\(CFLAGS\)=.*:\1=${CFLAGS}:" \
+		-e "s:^\(DIRS =.*\):\1 irsockets:" Makefile || Fdie
+	make V=1 prefix=/usr RPM_OPT_FLAGS="${CFLAGS}" \
+	    RPM_BUILD_ROOT="${Fdestdir}" ROOT="${Fdestdir}" || Fdie
+
+	Fmkdir /usr/sbin
+	Fmkdir /usr/bin
+	Fmkdir /usr/share/man
+
+	make V=1 install RPM_OPT_FLAGS="${CFLAGS}" \
+	    RPM_BUILD_ROOT="${Fdestdir}" ROOT="${Fdestdir}" \
+	    PREFIX="${Fdestdir}" || Fdie
+
 	Frcd irda
 	Ffile /etc/sysconfig/irda
 	Frm /usr/X11R6
 }
 
-# vim: ft=sh
-
-# optimalization OK
+# optimization OK

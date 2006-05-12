@@ -33,7 +33,7 @@ build()
 # defaults
 pkgname="perl-`echo $modname|tr [A-Z] [a-z]`"
 pkgrel=1
-depends=('perl')
+depends=(${depends[@]} 'perl')
 groups=('devel-extra')
 archs=('i686')
 

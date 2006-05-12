@@ -7,12 +7,12 @@
 # a common function and a scriptlet for externel kernel module packages
 
 kernelbasever=2.6.16
-kernelrel=4
+kernelrel=5
 kernelver=$kernelbasever-$kernelrel
 depends=("kernel=$kernelver")
 makedepends=("kernel-source=$kernelver")
 install=$Fincdir/kernel-module.install
-options=('scriptlet')
+options=(${options[@]} 'scriptlet')
 
 Fcheckkernel()
 {

@@ -51,6 +51,9 @@ my $from_email = 'diablod3@gmail.com';
 my $dest_email = 'cia@cia.navi.cx';
 #my $dest_email = 'vmiklos@gmail.com';
 
+# the To: address in generated -darcs list mails
+my $dest_darcs_email = 'frugalware-darcs@frugalware.org';
+
 # If using email, path to your USCD sendmail compatible binary 
 my $sendmail = '/usr/sbin/sendmail';
 
@@ -60,6 +63,7 @@ my $sendmail = '/usr/sbin/sendmail';
 my %submitters = ();
 my %timestamps = ();
 my %comments   = ();
+my %raws   = ();
 my %files = ();
 
 my ($VERSION) = '0.1';
@@ -107,18 +111,31 @@ while (<STDIN>)
 {
   print DARCS;
 
+  if(/Context:/)
+  {
+  # skip everything till the 'Patch bundle hash:' section
+  while (<STDIN>)
+  {
+    print DARCS;
+    last if (/^Patch bundle hash:$/);
+  }
+  }
+
   # each patch starts with a line '[<patch name>'
   next if (! /^\[(.+)$/);
   my $patch = $1;
+  $raws{$patch} .= $_;
 
   # on the next line follow the submitter's email address
   # and the timestamp of the patch
   $_ = <STDIN>;
   print DARCS;
+  $raws{$patch} .= $_;
   next if (! /^(.+)\*\*(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})($endmarker)??$/o);
 
   # add this patch to the database
   $submitters{$patch} = $1;
+  $senders{$patch} = $1;
   # convert the timestamp into some readable form 'YYYY-MM-DD HH:MM:SS'
   $timestamps{$patch} = "$2-$3-$4 $5:$6:$7";
 
@@ -129,6 +146,7 @@ while (<STDIN>)
     while (<STDIN>)
     {
       print DARCS;
+      $raws{$patch} .= $_;
       last if (/^$endmarker$/);
       $comments{$patch} .= $_;
     }
@@ -138,6 +156,7 @@ while (<STDIN>)
   # new patch types that use filenames, those will have to be added here.
   while ($_ = <STDIN>) {
     print DARCS;
+    $raws{$patch} .= $_;
     $l = $_;
     $l =~ s/\.\///g;
     if($l =~ /adddir (.*)\n/) { push @{$files{$patch}}, "$1 " }
@@ -215,6 +234,7 @@ EM
 ;
 
   if($use_method == 1) {
+    # send mail to cia
     open (MAIL, "| $sendmail -t -oi") or die "Cannot execute $sendmail : " . ($?>>8);
 
 print MAIL <<EOM;
@@ -226,6 +246,20 @@ Subject: DeliverXML
 EOM
 
   print MAIL $message;
+
+  close MAIL;
+  die "$0: sendmail exit status " . ($? >> 8) . "\n" unless ($? == 0);
+  # to -darcs
+    open (MAIL, "| $sendmail -t -oi") or die "Cannot execute $sendmail : " . ($?>>8);
+
+print MAIL <<EOM;
+From: ${senders{$patch}}
+To: $dest_darcs_email
+Subject: $module: $patch
+
+EOM
+
+  print MAIL $raws{$patch};
 
   close MAIL;
   die "$0: sendmail exit status " . ($? >> 8) . "\n" unless ($? == 0);

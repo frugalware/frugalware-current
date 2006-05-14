@@ -278,7 +278,7 @@ Fln() {
 }
 
 ### Use sed with file(s)
- # @param regexp 
+ # @param regexp
  # @param replacement (see man sed!)
  # @param file(s) to edit in place
  ##
@@ -448,7 +448,7 @@ Frcd() {
  # @param name of the rc script, defaults to $pkgname
  ##
 Frcd2() {
-	local llang msg_dir po rc slang
+	local po rc slang
 
 	rc="$pkgname" ; [ -n "$1" ] && rc="$1"
 
@@ -457,11 +457,7 @@ Frcd2() {
 	for po in $Fsrcdir/rc.$rc-*.po ; do
 		[ ! -f "$po" ] && continue
 		slang="`basename "$po" .po | sed "s|rc.$rc-||"`"
-		llang=${slang}_`echo $slang | tr [:lower:] [:upper:]`
-		msg_dir="/lib/initscripts/messages/$llang/LC_MESSAGES"
-		Fmkdir $msg_dir
-		Fmessage "Installing file(s)s: $msg_dir/$rc.mo"
-		msgfmt -o $Fdestdir/$msg_dir/$rc.mo $po || Fdie
+		Fmsgfmt /lib/initscripts/messages $slang $rc `basename $po .po`
 	done
 }
 
@@ -715,6 +711,33 @@ check_option() {
 			return
 		fi
 	done
+}
+
+### Install gettext po files to binary mo files
+ # example: Fmsgfmt /usr/share/locale hu file file-hu
+ # @param path to locale directory (eg /usr/share/locale)
+ # @param language
+ # @param name of the mo file, default $pkgname
+ # @param name of the po file, default $pkgname-$lang
+ ##
+Fmsgfmt() {
+	local llang mofile pofile slang
+
+	if echo $2|grep -q _ ; then
+		llang="$2"
+		slang=`echo $llang|cut -d _ -f 1`
+	else
+		llang=${2}_`echo $2|tr [:lower:] [:upper:]`
+		slang="$2"
+	fi
+
+	[ -n "$3" ] && mofile="$3.mo" || mofile="$pkgname.mo"
+	[ -n "$4" ] && pofile="$4.po" || pofile="$pkgname-$slang.po"
+
+	[ -f $Fsrcdir/$pofile ] || Fdie
+
+	Fmkdir $1/$llang/LC_MESSAGES
+	msgfmt -o $Fdestdir/$1/$llang/LC_MESSAGES/$mofile $Fsrcdir/$pofile || Fdie
 }
 
 ### @}

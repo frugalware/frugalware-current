@@ -9,6 +9,7 @@
 kernelbasever=2.6.16
 kernelrel=5
 kernelver=$kernelbasever-$kernelrel
+_F_kernel_dir=/lib/modules/$kernelbasever-fw$kernelrel
 depends=("kernel=$kernelver")
 makedepends=("kernel-source=$kernelver")
 install=$Fincdir/kernel-module.install

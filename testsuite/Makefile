@@ -18,14 +18,15 @@
 
 LDFLAGS += -lalpm
 
-compile: depbugs
+compile: depbugs xbugs
 	@echo "All done. Start 'make test' now."
 
 test:
 	sh fpmjunkall.sh .
 	sh srcjunk.sh .
 	sh srcmissing.sh .
+	./xbugs frugalware-current
 	./depbugs frugalware-current
 
 clean:
-	rm -f depbugs
+	rm -f depbugs xbugs

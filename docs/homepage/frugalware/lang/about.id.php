@@ -1,0 +1,37 @@
+<?
+$fwshortabout="Frugalware adalah distro dengan tujuan umum, didesain untuk pengguna menengah (yang tidak takut text mode).";
+$fwabout= array (
+array ("cabang apa saja yang dimiliki oleh Frugalware?", 
+"Kami mempunyai cabang <i>current</i> dan <i>stable</i> . Cabang <i>current</i> diperbaharui per hari, dan kami memperbaharui cabang <i>stable</i> setiap 6 bulan sekali."), 
+array ("Apakah &quot;falsafah Frugalware&quot; itu?",
+"Singkatnya: Kesederhanaan, multimedia, desain. Kami berusaha membuat Frugalware secara sesederhan mungkin namun tidak melupakan unsur kenyamanan. Kami berusaha mengirimkan yang terbaru dan sestabil mungkin, semirip mungkin dengan kestabilan dari sumber, karena menurut kami perangakat lunak iu pada dasarnya adalah stabil, dan tidak memerlukan adanya patch."), 
+array ("Tipe ijin apakah yang dimiliki oleh Frugalware?", 
+"Itu adalah 2 pertanyaan. Hampir semua paket pada Frugalware adalah berdasarkan ijin GPL dan BSD , untuk informasi lebih lanjut tentang model perijinan sebuah paket, rujuklah pada berkas LICENSE or COPYRIGHT pada tarball sumber dari paket. Sementara itu, bagian yang ditulis oleh tim kami (FrugalBuild scripts, setup, homepage, etc) adalah berijin GPL. Untuk menjadi lebih rumit lagi, beberapa bagian dari setup dan init scripts adalah ditulis oleh Patrick J. Volkerding. Kami memberi ijin GPL tambahan, tetapi kode dari Patrick J. Volkerding's masih dibawah ijin BSD. Untuk keterangan lebih lanjut, rujuk saja pada berkas COPYRIGHT di FST (Frugalware Source Tree) di direktori root."),
+array ("Apakah paket manajer yang digunakan pada Frugalware?",
+"Kami tidak memiliki paket manajer sendiri, kami menggunakan kerja hebat dari Judd Vinet, paket manajer itu adalah <a href=\"http://www.archlinux.org/pacman\">pacman</a>. Paket manajer yang berdasarkan tar.bz2, mirip dengan tgz pada Slackware. Untuk membedakan dengan tarball pada umumnya paket kami memiliki extensi .fpm. Tidak seperti dengan Slackware scripts, pacman ditulis dengan C, jadi sangat lebih cepat."),
+array ("Bagaimana Frugalware memperbaharui paket yang usang?",
+"Kami tidak memiliki program tersendiri untuk memperbaharui paket-paket karena pacman juga bisa melakukan hal ini. Untuk memperbaharui pusat data paket-paket, gunakan <tt>pacman&nbsp;-Sy</tt>, dan untuk melakukan perbahuruan paket-paket yang ada saja gunakan <tt>pacman&nbsp;-Su</tt>. Untuk memasang sebuah paket dengan segala ketergantungannya langsung dari mirror server ftp gunakanv <tt>pacman&nbsp;-S&nbsp;foo</tt>. Untuk keterangan lebih lanjut, rujuklah pada halaman man pacman."),
+array ("Adakah komunitas pendukung pada Frugalware?",
+"Saat ini kami memiliki tiga buah mailing list, sebuah saluran irc dan forum yang bisa digunakan untuk berkomunikasi dengan kami atau pengguna lain dan untuk mmeperoleh bantuan. Saluran irc terdapat pada jaringan Freenode (server: irc.freenode.net). Untuk keterangan lebih lanjut tentang mailing list kami, silahkan rujuk ke situs kami <a href=mailman/listinfo>list section</a> ."),
+array("Adakah dukungan komersial pada Frugalware?",
+"Tidak, saat ini tidak ada, dan <i>currently</i> hal ini memang tidak kami rencanakan."),
+array("Ditujukan kepada siapa penggunaan Frugalware?",
+"Frugalware kami desain untuk pengguna kelas menengah. Memasang Frugalware bukanlah suatu sulap, tentu saja, anda harus tahu tentang partisi, MBR (Master Boot Record), dsb. is."),
+array("Bagaimana menjadi seorang pengembang?",
+"Ikut sertalah! :) jika anda memasang Frugalware dari CD, ambil seluruh FST melalui repoman, yang telah tersedia pada pacman-tools. Sumber-sumber telah tersedia pada DVD edition. Lalu mulailah bermain dengan FrugalBuild scripts, untuk contoh yang sejenis, rujuk pada paket <a href=\"packages.php?pkgname=cabextract\">cabextract</a> . Cobalah untuk mengembakannya, atau tulislah script baru dari suatu paket yang kami belum memilikinya. lalu kirimkan patch anda ke mailing list <a href=\"mailman/listinfo/frugalware-devel\">devel</a> . Mulai dari sini semuanya akan berjalan secara alami bagi anda :)"),
+array("Apa yang dilakukan pengembang?",
+"Secara singkat adalah melalukan apa yang mereka inginkan. Mereka bisa saja mengurusi paket-paket: membangunnya jika ada paket terbaru telah tersedia dan memperbaharui FrugalBuild scripts agar berjalan dengan mulus pada paket yang baru tsb. Mereka bisa me menyumbangkan script baru untuk paket yang belum tersedia. Mereka bisa menulis artikel tentang Frugalware, atau yang lain yang berhubungan dengan komunitas Frugalware. Jika anda ingin membantu kami tanpa takut mengganggu kami, anda bisa membantu kami menerjemahkan ke bahasa anda atau bahasa lain. Dan tentu saja kami akan senang sekali menerima <a href=\"donations.php\">donations</a> :)"),
+array("Siapa pengembang Frugalware?",
+"Sekelompok pemuda, tetapi umur anda bukan hal penting utk menjadi seorang pengembang"),
+array("Apakah Frugalware untuk penggunaan tertentu?",
+"Tidak,Frugalware ditujukan untuk kalangan umum, untuk dekstop maupun server."),
+array("Adakah rencan untuk membuat sebuah live cd?",
+"Ada rencana kesana seperti juga yang lain, tapi saat ini kami memang belum memiliki sbuah live cd."),
+array("Apakah Frugalware mempunyai dukungan bahasa selain inggris?",
+"Ya, kami mendukung semua bahasa yang didukung oleh paket-paket. Jika init scripts atau setup belum tersedia dalam bahasa anda maka artinya memang belum diterjemahkan."),
+array("Bagaiamana dengan bahasa Asia?",
+"Frugalware belum mendukung bahasa Asia."),
+array("Model arsitektur apa yang didukung oleh Frugalware?",
+"Saat ini kami mendukung x86 dan x86_64 platform, dan didalam x86, hanya i686 (Pentium Pro atau higher instruction set) dan didalam x86_64 hanya k8 (amd64). Jika ada suatu klaim, sebuah i386 port akan dibuat, tapi saat ini kami tidak memiliki sumberdaya untuk mengurus dan membangun paket-paket untuk itu. Diluar x86, saat ini kami tidak memiliki non-x86 hardware, tapi kami dengan senang hati menerima patch atau dukungan untuk membuat paket optimasi non-x86. Kami juga berusaha pada PowerPC port")
+);
+?>

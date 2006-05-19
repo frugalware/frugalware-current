@@ -1,0 +1,37 @@
+<?
+$fwshortabout="Frugalware Linux je distribuce zamerena, designovana pro pokrocile uzivatele(kteri se neboji prace s konzolou).";
+$fwabout= array (
+	array ("Ktere vetve Frugalware pouziva ?", 
+		"Mame <i>current(soucasna)</i> a <i>stable(stabilni)</i> vetev. <i>Current(soucasna)</i> je denne aktualizovana, a i>stable(stabilni)</i> aktualizuje priblizne kazdych 6 mesicu."), 
+	array ("Jaka je &quot;Filozofie Frugalware &quot; ?",
+		"Strucne: jednoduchost, multimedia, design. Snazime se vytvorit Frugalware jednoduchou jak jen to je mozne, pri zachovani daneho komfortu. Pokousime se tvorit aktualni a stabilni software, aktualnost se priblizuje k okamziku vydani zdrojoveho kodu."), 
+	array ("Pod jakou licenci je uvolnovan Frugalware ?", 
+		"To jsou dve otazky. Vetsina softwaru obsazeneho v Frugalware maji GPL nebo BSD kompatibilni licenci, pro vice informaci o licencich nekterych specifickych balicku, nahlednete do LICENSE nebo COPYRIGHT souboru obsazeneho ve zdrojovem balicku aplikace. Na druhe strane vse napsane nasim vyvojovym tymem (FrugalBuild skripty, setup, domaci stranka, atd) je uvolneno po GPL licenci. Abychom to jeste zkomplikovali, tak nektere casti setupu a init skriptu napsal Patrick J. Volkerding pod licenci BSD. Pro vice informaci, nahlednete do COPYRIGHT souboru v adresari root v FST(Frugalware Source Tree)."),
+	array ("Jaky balickovaci manazer pouziva Frugalware ?",
+	"Nemame vlastni balickovaci manazer, spolehame se na Juddem Vinetem dobre odvedenou praci, a to<a href=\"http://www.archlinux.org/pacman\">pacman</a> balickovaci manazer. Zakladem jsou tar.bz2 balicky, jako Slackware.tgz. Nasim rozsiernim v oblasti balicku je format .fpm, ktery byl vytvoren k odliseni od .tar balicku.  Narozdil od Slackware(skripty), pacman je naprogramovan pomoci jazyka C, takze je mnohem rychlejsi."),
+	array ("Jak je zajisteno v Frugalware updatovani zastaralych balicku ?",
+		"Nemame have zadny specialni nastroj pro aktualizaci blaicku, toto zajistuje take pacman. K synchronizaci databaze balicku pouzijte <tt>pacman&nbsp;-Sy</tt>, a k aktualizaci databaze pouzijte <tt>pacman&nbsp;-Su</tt>. K nainstalovani balicku s nezbytnymi zavislostmi primo z mirroru (ftp server), vyuzijte <tt>pacman&nbsp;-S&nbsp;foo</tt>. Pro vice informaci, vyuzijte pacman man stranek."),
+	array ("Existuje nejaka dostupna podpora pro distribuci Frugalware ?",
+		"Soucasne mame 3 "mailing lists", irc kanal and fora ktera mohou byt vyuzita pro komunikaci s nama ci ostatnimi uzivateli a k ziskani pomoci. Irc kanal se nachazi na Freenode network (server: irc.freenode.net). Pro vice informaci ohledne nasich "mailing lists", prejdete do <a href=mailman/listinfo>sekce seznam</a> na nasi domaci strance."),
+	array("Je zde dostupna nejaka komercni podpora pro Frugalware ?",
+		"Ne, nyni zde neni, a<i>soucasne</i> neni planovana."),
+	array("Pro koho je Frugalware urcen ?",
+		"Frugalware je designovan pro pokrocile uzivatele. Instalace Frugalware neni magie, samozrejme, ale meli byste minimalne vedet neco o oddilech(partition), MBR (Master Boot Record), atd."),
+	array("Jak se stat vyvojarem Frugalware ?",
+		"First :) Pokud jste instalovali Frugalware pomoci CD, ziskejte plne FST z hlavniho repositare, ktery je dostupny v pacman-tools. Zdrojove kody jsou obsazeny v DVD edici. Pote si zacnete hrat s FrugalBuild skripty, pro typicky priklad, se obratte na <a href=\"packages.php?pkgname=cabextract\">cabextract</a> balicek. Pokousejte se je vylepsit, nebo novy skript-balicek pro nepodporovane programy. Potom poslete Vase patche na adresu<a href=\"mailman/listinfo/frugalware-devel\"> devel</a> mailing list. Od tohoto okamziku vsechno uz prijde asmo sebou :)"),
+	array("Co vlastne delaji vyvojari ?",
+		"V kratkosti, to co oni sami chteji. Oni mozna udrzuji balisky: aktualizuji je pokud vyjde nova verze aplikace a aktualizuji FrugalBuild skripty aby pracovali spravne s novymi verzemi balicku. Mohou prispet novym skriptem do predtim neexistujicich blaicku. Mohou psat clanky o Frugalware, ci o nceem jinem s propojenim na Frugalware komunitu. Pokud nam chcete pomoct, a nechcete primo programovat, nejvice nam pomuzete prekladanim Frugalware Linuxu to Vaseho materskeho jazyka. A samozrejme radi prijmeme <a href=\"donations.php\">dary</a> :)"),
+	array("Kdo se stara o vyvoj Frugalware?",
+		"Skupina mladych vyvojaru, ale Vas vek neni omezenim pro to aby jste se stal nasim vyvojarem"),
+	array("Ma Frugalware nejake uzke zamereni  ?",
+		"Ne, je to distribuce k vseobecnemu uziti, pro desktopy a servery."),
+	array("Planujete vydat live cd?",
+		"Ano, je to v planu, samozrejme, podobne jako mnoho dalsich vlastnosti , ale nyni nemame live cd."),
+	array("Podporuje Frugalware jine jazyky nez Anglictinu?",
+		"Ano, podporuje vsechny jazyky podporovane jednotlivymi balicky. Pokud init skripty nebo setup neni dostupny ve Vasem jazyce, potom to jednoduse znamena, ze jeste nebyly prelozeny."),
+	array("A jak je to s podporou Asijksych jazyku ?",
+		"Frugalware nepodporuje Asijske jazyky."),
+	array("Ktere architektury podporuje Frugalware ?",
+		"Nyni podporujeme x86 a x86_64 platformy, a z toho na platforme x86, pouze i686 (Pentium Pro nebo vyssi sestavy) a v ramci platformy x86_64 pouze k8 (amd64). Pokud se uzivatele nebudou dozadovat architektury i386, port bude vytvoren, ale nyni nemame zdroje na vytvoreni a udrzovani techto balicku. Krome architektury x86, nyni nemame zadny jiny hardware, ale radi prijmeme patche umoznujici vytvorit non-x86 optimalizovane balicky. Take pracujeme na portu pro platformu PowerPC")
+	);
+?>

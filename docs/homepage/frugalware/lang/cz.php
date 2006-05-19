@@ -129,7 +129,7 @@ $fwstrtprior="Priorita";
 $fwstrttime="Cas";
 $fwstrtcomment="Komentar";
 $fwstrtready="Pripraven";
-$fwstrtnosuch="Nejsou zde zadne aplikace v "Todo seznamu"...";
+$fwstrtnosuch="Nejsou zde zadne aplikace v 'Todo seznamu'...";
 $fwstrerrnoprior="CHYBA!!! Priorita nebyla spravne pridelena!!!";
 
 // login.php

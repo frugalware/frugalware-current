@@ -3,11 +3,11 @@
 #todolist.en.php
 
 $fwtodoprior = array(
-	"Neni moc zajimave, pouze zajimavost", 
-	"Neni moc zajimave, ale vypada to dobre",
-	"Mozna zajimave, stoji za podivani", 
-	"Velmi zajimave, udelejte pred vydanim",
-	"Kriticke, urcete to behem 1, 2 dnu"
+	"Není moc důležité, pouze zajímavost", 
+	"Neni moc důležité, ale vypadá to dobře",
+	"Možná zajímavé, stojí za podívání", 
+	"Velmi zajímavé, udělejte před vydáním",
+	"Kritické, určete to během 1, 2 dnů"
 );
 
 ?>

@@ -4,6 +4,7 @@ print("<div align=\"center\"><a href=\"$PHP_SELF?lang=en\"><img alt=\"$fwstrchla
 <a href=\"$PHP_SELF?lang=hu\"><img alt=\"$fwstrchlang\" title=\"$fwstrchlang\" src=\"images/hungarian.gif\" border=\"0\"></a>
 <a href=\"$PHP_SELF?lang=es\"><img alt=\"$fwstrchlang\" title=\"$fwstrchlang\" src=\"images/spanish.gif\" border=\"0\"></a>
 <a href=\"$PHP_SELF?lang=fr\"><img alt=\"$fwstrchlang\" title=\"$fwstrchlang\" src=\"images/french.gif\" border=\"0\"></a>
-<a href=\"$PHP_SELF?lang=cz\"><img alt=\"$fwstrchlang\" title=\"$fwstrchlang\" src=\"images/czech.gif\" border=\"0\"></a></div>\n");
+<a href=\"$PHP_SELF?lang=cz\"><img alt=\"$fwstrchlang\" title=\"$fwstrchlang\" src=\"images/czech.gif\" border=\"0\"></a>
+<a href=\"$PHP_SELF?lang=id\"><img alt=\"$fwstrchlang\" title=\"$fwstrchlang\" src=\"images/indonesian.gif\" border=\"0\"></a></div>\n");
 fwclosebox(false);
 ?>

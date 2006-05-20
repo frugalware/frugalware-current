@@ -34,23 +34,23 @@ build()
 
 	if [ ! "`check_dictoption NODICT`" ]; then
 		if [ -e $dictname.aff ]; then
-			Ffile /usr/lib/ooo-2.0/share/dict/ooo/$dictname.aff
+			Ffile /usr/lib/openoffice.org/share/dict/ooo/$dictname.aff
 		fi
 		if [ -e $dictname.dic ]; then
-			Ffile /usr/lib/ooo-2.0/share/dict/ooo/$dictname.dic
+			Ffile /usr/lib/openoffice.org/share/dict/ooo/$dictname.dic
 		fi
 	fi
 	if [ ! "`check_dictoption NOHYPH`" ]; then
 		if [ -e hyph_$dictname.dic ]; then
-			Ffile /usr/lib/ooo-2.0/share/dict/ooo/hyph_$dictname.dic
+			Ffile /usr/lib/openoffice.org/share/dict/ooo/hyph_$dictname.dic
 		fi
 	fi
 	if [ ! "`check_dictoption NOTH`" ]; then
 		if [ -e th_$dictname.dat ]; then
-			Ffile /usr/lib/ooo-2.0/share/dict/ooo/th_$dictname.dat
+			Ffile /usr/lib/openoffice.org/share/dict/ooo/th_$dictname.dat
 		fi
 		if [ -e th_$dictname.idx ]; then
-			Ffile /usr/lib/ooo-2.0/share/dict/ooo/th_$dictname.idx
+			Ffile /usr/lib/openoffice.org/share/dict/ooo/th_$dictname.idx
 		fi
 	fi
 }

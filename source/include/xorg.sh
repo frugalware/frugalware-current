@@ -12,7 +12,6 @@ else
 	_F_xorg_name=$pkgname
 fi
 
-xorgver="7.0"
 url="http://xorg.freedesktop.org"
 _F_xorg_dir=`echo ${groups[$((${#groups[@]}-1))]}|sed 's/xorg-\(.*\)/\1/;s/s$//'`
 [ "$pkgname" = "xorg-server" ] && _F_xorg_dir="xserver"

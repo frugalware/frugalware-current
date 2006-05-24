@@ -35,10 +35,10 @@ do
 		for j in ${archs[@]}
 		do
 			export CARCH=$j
-			unset source
+			unset source signatures
 			export startdir=`pwd`
 			. FrugalBuild || echo "errors parsing the FrugalBuild for $j"
-			for k in ${source[@]}
+			for k in ${source[@]} ${signatures[@]}
 			do
 				echo "`pwd|sed \"s|$CWD/||\"`/`strip_url $k`" >>$newsrcs
 			done

@@ -45,6 +45,10 @@
 			header('Content-Type: application/xml; charset=utf-8');
 			print(file_get_contents("http://bugs.frugalware.org/rss.php?type=new"));
 			die();
+		case "blogs":
+			header('Content-Type: application/xml; charset=utf-8');
+			print(file_get_contents("http://blogs.frugalware.org/xmlsrv/rss2.php?blog=1"));
+			die();
 		default:
 			$fwtitle="RSS";
 			include("header.php");
@@ -55,6 +59,7 @@
 			<li><a href="/rss.php?type=darcs">Darcs commits</a></li>
 			<li><a href="/rss.php?type=bugs">BTS entries</a></li>
 			<li><a href="/rss.php?type=packages">Package updates</a></li>
+			<li><a href="/rss.php?type=blogs">Blog posts</a></li>
 			</ul></div>');
 			fwclosebox(false);
 

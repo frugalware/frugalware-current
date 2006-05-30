@@ -1,5 +1,5 @@
 <?
-$fwshortabout="Frugalware is general purpose linux distribution, designed for intermediate users (who are not afraid of text mode).";
+$fwshortabout="Frugalware is a general purpose linux distribution, designed for intermediate users (who are not afraid of text mode).";
 $fwabout= array (
 	array ("What branches does Frugalware have?", 
 		"We have a <i>current</i> and a <i>stable</i> branch. The <i>current</i> branch is updated daily, and we update our <i>stable</i> branch around every 6 months."), 

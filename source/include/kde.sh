@@ -7,8 +7,9 @@
 # common url, up2date, and source(), and build() for kde packages
 url="http://www.kde.org"
 kdever=3.5.3
-pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$kdever/src"
+#pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$kdever/src"
 #pkgurl="ftp://ftp.tu-chemnitz.de/pub/X11/kde/stable/$kdever/src"
+pkgurl="ftp://ftp-stud.fht-esslingen.de/pub/Mirrors/ftp.kde.org/pub/kde/stable/$kdever/src
 
 # strip down the -docs suffix
 kdename=`echo $pkgname|sed 's/-docs$//'`

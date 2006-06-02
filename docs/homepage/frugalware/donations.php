@@ -30,6 +30,7 @@ print("<div align=left>Wishes:<ul>
 <li>2x40GB IDE HDD (Szalai, Ervin)</li>
 <li>2x160GB IDE HDD for the i686 server (Miklos Vajna)</li>
 <li>40GB IDE HDD (Kovacs, Janos)</li>
+<li>Dell Optiplex P4 1.6GHz machine for main server</li>
 </ul></div>");
 fwclosebox(false);
 print("<p>");

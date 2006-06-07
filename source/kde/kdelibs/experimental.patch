@@ -1,0 +1,3402 @@
+diff -Naur kdelibs-3.5.3/dnssd/configure.in.bot kdelibs-3.5.3-p/dnssd/configure.in.bot
+--- kdelibs-3.5.3/dnssd/configure.in.bot	2005-09-10 10:27:49.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/configure.in.bot	1970-01-01 01:00:00.000000000 +0100
+@@ -1,9 +0,0 @@
+-if test "$have_libdns_sd" = "no"; then
+-  echo ""
+-  echo "You're missing Apple mDNSResponder 85 or later, therefore"
+-  echo "dnssd will be compiled as stub, without any real functionality."
+-  echo "If you want zeroconf support (www.zeroconf.org), you should install mDNSResponder first."
+-  echo "See dnssd/INSTALL for details."
+-  echo ""
+-  all_tests=bad
+-fi
+diff -Naur kdelibs-3.5.3/dnssd/configure.in.in kdelibs-3.5.3-p/dnssd/configure.in.in
+--- kdelibs-3.5.3/dnssd/configure.in.in	2005-09-10 10:27:49.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/configure.in.in	2006-06-07 00:51:52.000000000 +0200
+@@ -1,38 +1,18 @@
+ #MIN_CONFIG
+ 
+-AC_ARG_ENABLE(dnssd, [  --disable-dnssd     don't require libdns_sd (browsing and publishing DNS-SD services will not be possible) ],  with_dnssd=$enableval, with_dnssd=yes)
+-if test "$with_dnssd" = "yes"; then
+-AC_MSG_CHECKING(for DNS-SD support)
+-save_dnssdtest_LIBS="$LIBS"
+-save_dnssdtest_LDFLAGS="$LDFLAGS"
+-save_dnssdtest_CPPFLAGS="$CPPFLAGS"
+-LDFLAGS="$all_libraries $LDFLAGS"
+-CPPFLAGS="$CPPFLAGS $all_includes"
+-case $host_os in
+-  darwin*) LIBS="" ;;
+-  *) LIBS="-ldns_sd" ;;
+-esac
+-have_libdns_sd="no"
+-AC_TRY_LINK(	[
+-			#include <dns_sd.h>
+-		],[
+-			DNSServiceRefDeallocate( (DNSServiceRef) 0);
+-			TXTRecordDeallocate( (TXTRecordRef*) 0);
+-		],[
+-			AC_DEFINE(HAVE_DNSSD,1,[Define if dns-sd is available])
+-			case $host_os in
+-				darwin*) LIB_DNSSD="" ;;
+-				*) LIB_DNSSD="-ldns_sd" ;;
+-			esac
+-			have_libdns_sd="yes"
+-			AC_MSG_RESULT(yes)
+-		],[
+-			AC_MSG_RESULT(no)
+-                        LIB_DNSSD=""
+-])
+-CPPFLAGS=$save_dnssdtest_CPPFLAGS
+-LDFLAGS=$save_dnssdtest_LDFLAGS
+-LIBS=$save_dnssdtest_LIBS
++# Check for pkg-config manually first, as if its not installed the
++# PKG_PROG_PKG_CONFIG macro won't be defined.
++m4_pattern_allow(PKG_CONFIG_MIN_VERSION)
++PKG_PROG_PKG_CONFIG
++
++avahi_found=no
++KDE_PKG_CHECK_MODULES(AVAHI, [avahi-qt3 >= 0.4 , avahi-client >= 0.4],
++	[avahi_found=yes],[:])
++AC_MSG_RESULT($avahi_found)
++AC_SUBST(AVAHI_CFLAGS)
++AC_SUBST(AVAHI_LIBS)
++PKG_CHECK_EXISTS( [ avahi-client >= 0.6], AC_DEFINE(AVAHI_API_0_6,1,[Avahi API 0.6] ) )
++
++if test x$avahi_found = xno; then
++   DO_NOT_COMPILE="$DO_NOT_COMPILE dnssd"
+ fi
+-AC_SUBST(LIB_DNSSD)
+-AM_CONDITIONAL(HAVE_DNSSD, test "$have_libdns_sd" = "yes")
+diff -Naur kdelibs-3.5.3/dnssd/domainbrowser.cpp kdelibs-3.5.3-p/dnssd/domainbrowser.cpp
+--- kdelibs-3.5.3/dnssd/domainbrowser.cpp	2005-11-08 23:39:39.000000000 +0100
++++ kdelibs-3.5.3-p/dnssd/domainbrowser.cpp	2006-06-07 00:51:52.000000000 +0200
+@@ -27,46 +27,56 @@
+ #include "query.h"
+ #include "servicebrowser.h"
+ #include <kapplication.h>
++#ifdef AVAHI_API_0_6
++#include <avahi-client/lookup.h>
++#endif
+ 
+ namespace DNSSD
+ {
+ 
+-#ifdef HAVE_DNSSD
+-void domain_callback(DNSServiceRef, DNSServiceFlags flags, uint32_t, DNSServiceErrorType errorCode, 
+-	const char *replyDomain, void *context);
++#ifdef AVAHI_API_0_6
++void domains_callback(AvahiDomainBrowser*,  AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* replyDomain,
++     AvahiLookupResultFlags, void* context);
++#else
++void domains_callback(AvahiDomainBrowser*,  AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* replyDomain,
++     void* context);
+ #endif
+ 
+-class DomainBrowserPrivate : public Responder
++
++class DomainBrowserPrivate 
+ {
+ public:
+-	DomainBrowserPrivate(DomainBrowser* owner) : Responder(), m_browseLAN(false), m_started(false), m_owner(owner) {}
++	DomainBrowserPrivate(DomainBrowser* owner) : m_browseLAN(false), m_started(false), 
++	    m_browser(0), m_owner(owner) {}
++	~DomainBrowserPrivate() { if (m_browser) avahi_domain_browser_free(m_browser); }
+ 	QStringList m_domains;
+ 	virtual void customEvent(QCustomEvent* event);
+ 	bool m_browseLAN;
+ 	bool m_started;
++	AvahiDomainBrowser* m_browser;
+ 	DomainBrowser* m_owner;
+ };		
+ 
+ void DomainBrowserPrivate::customEvent(QCustomEvent* event)
+ {
+-	if (event->type()==QEvent::User+SD_ERROR) stop();
+ 	if (event->type()==QEvent::User+SD_ADDREMOVE) {
+ 		AddRemoveEvent *aev = static_cast<AddRemoveEvent*>(event);
+ 		if (aev->m_op==AddRemoveEvent::Add) m_owner->gotNewDomain(aev->m_domain);
+ 			else m_owner->gotRemoveDomain(aev->m_domain);
+ 	}
+ }
++
+ 	
+ DomainBrowser::DomainBrowser(QObject *parent) : QObject(parent)
+ {
+ 	d = new DomainBrowserPrivate(this);
+-	d->m_domains = Configuration::domainList();
++ 	d->m_domains = Configuration::domainList();
+ 	if (Configuration::browseLocal()) {
+ 		d->m_domains+="local.";
+ 		d->m_browseLAN=true;
+ 	}
+-	connect(KApplication::kApplication(),SIGNAL(kipcMessage(int,int)),this,
+-	        SLOT(domainListChanged(int,int)));
++ 	connect(KApplication::kApplication(),SIGNAL(kipcMessage(int,int)),this,
++ 	        SLOT(domainListChanged(int,int)));
+ }
+ 
+ DomainBrowser::DomainBrowser(const QStringList& domains, bool recursive, QObject *parent) : QObject(parent)
+@@ -88,14 +98,15 @@
+ 	if (d->m_started) return;
+ 	d->m_started=true;
+ 	if (ServiceBrowser::isAvailable()!=ServiceBrowser::Working) return;
+-	QStringList::const_iterator itEnd = d->m_domains.end();
++ 	QStringList::const_iterator itEnd = d->m_domains.end();
+ 	for (QStringList::const_iterator it=d->m_domains.begin(); it!=itEnd; ++it ) emit domainAdded(*it);
+-#ifdef HAVE_DNSSD		
+-	if (d->m_browseLAN) {
+-		DNSServiceRef ref;
+-		if (DNSServiceEnumerateDomains(&ref,kDNSServiceFlagsBrowseDomains,0,domain_callback,
+-		reinterpret_cast<void*>(d))==kDNSServiceErr_NoError) d->setRef(ref);
+-	}
++	if (d->m_browseLAN) 
++#ifdef AVAHI_API_0_6
++	    d->m_browser = avahi_domain_browser_new(Responder::self().client(), AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC,
++		"local.", AVAHI_DOMAIN_BROWSER_BROWSE, (AvahiLookupFlags)0, domains_callback, this);
++#else
++	    d->m_browser = avahi_domain_browser_new(Responder::self().client(), AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC,
++		"local.", AVAHI_DOMAIN_BROWSER_BROWSE, domains_callback, this);
+ #endif
+ }
+ 
+@@ -115,9 +126,14 @@
+ void DomainBrowser::domainListChanged(int message,int)
+ {
+ 	if (message!=KIPCDomainsChanged) return;
++
+ 	bool was_started = d->m_started;
+-	if (d->isRunning()) d->stop(); // LAN query
++	if (d->m_browser) { 
++	    avahi_domain_browser_free(d->m_browser);  // LAN query
++	    d->m_browser=0;
++	}
+ 	d->m_started = false;
++
+ 	// remove all domains and resolvers
+ 	if (was_started) {
+ 		QStringList::const_iterator itEnd = d->m_domains.end();
+@@ -129,7 +145,7 @@
+ 	Configuration::self()->readConfig();
+ 	d->m_browseLAN = Configuration::browseLocal();
+ 	d->m_domains = Configuration::domainList();
+-	if (Configuration::browseLocal()) d->m_domains+="local.";
++	if (Configuration::browseLocal()) d->m_domains+="local";
+ 	// this will emit domainAdded() for every domain if necessary
+ 	if (was_started) startBrowse();
+ }
+@@ -147,22 +163,21 @@
+ void DomainBrowser::virtual_hook(int, void*)
+ {}
+ 
+-#ifdef HAVE_DNSSD
+-void domain_callback(DNSServiceRef, DNSServiceFlags flags, uint32_t, DNSServiceErrorType errorCode, 
+-	const char *replyDomain, void *context)
++#ifdef AVAHI_API_0_6
++void domains_callback(AvahiDomainBrowser*,  AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* replyDomain,
++     AvahiLookupResultFlags,void* context)
++#else
++void domains_callback(AvahiDomainBrowser*,  AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* replyDomain,
++     void* context)
++#endif
+ {
+ 	QObject *obj = reinterpret_cast<QObject*>(context);
+-	if (errorCode != kDNSServiceErr_NoError) {
+-		ErrorEvent err;
+-		QApplication::sendEvent(obj, &err);
+-	} else {
+-		AddRemoveEvent arev((flags & kDNSServiceFlagsAdd) ? AddRemoveEvent::Add :
++	AddRemoveEvent* arev=new AddRemoveEvent((event==AVAHI_BROWSER_NEW) ? AddRemoveEvent::Add :
+ 			AddRemoveEvent::Remove, QString::null, QString::null, 
+-			DNSToDomain(replyDomain), !(flags & kDNSServiceFlagsMoreComing));
+-		QApplication::sendEvent(obj, &arev);
+-	}
++			DNSToDomain(replyDomain));
++		QApplication::postEvent(obj, arev);
+ }
+-#endif
++
+ 
+ }
+ #include "domainbrowser.moc"
+diff -Naur kdelibs-3.5.3/dnssd/INSTALL kdelibs-3.5.3-p/dnssd/INSTALL
+--- kdelibs-3.5.3/dnssd/INSTALL	2005-09-10 10:27:49.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/INSTALL	1970-01-01 01:00:00.000000000 +0100
+@@ -1,21 +0,0 @@
+-Installing Apple mDNSResponder:
+-
+-WARNING: this is NOT Howl's mDNSResponder and it does not come in Debian package called mdnsresponder.
+-You can see the difference by checking daemon's name: Apple's one (the correct one) is named 'mdnsd'
+-Howl's one is named 'mDNSResponder'.
+-
+-1) download mDNSResponder 
+- - from Apple site (http://www.opensource.apple.com/darwinsource/tarballs/apsl/mDNSResponder-107.tar.gz)
+- - or you can get tarball from: http://helios.et.put.poznan.pl/~jstachow/pub/mDNSResponder-107.tar.gz
+-    (for those who don't like registration)
+-
+-2) compile and install
+- Build system for mDNSResponder is quite weird so here are instructions:
+- 
+- cd mDNSPosix
+- make os=linux             (make without parameters gives list of supported systems)
+- now as root:
+- make os=linux install
+- 
+- make sure that mdnsd.sh init script is properly installed and will be executed at  boot time
+- 
+diff -Naur kdelibs-3.5.3/dnssd/Makefile kdelibs-3.5.3-p/dnssd/Makefile
+--- kdelibs-3.5.3/dnssd/Makefile	1970-01-01 01:00:00.000000000 +0100
++++ kdelibs-3.5.3-p/dnssd/Makefile	2006-06-07 00:51:52.000000000 +0200
+@@ -0,0 +1,1041 @@
++# Makefile.in generated by automake 1.9.6 from Makefile.am.
++# KDE tags expanded automatically by am_edit - $Revision: 483858 $ 
++# dnssd/Makefile.  Generated from Makefile.in by config.pl.
++
++# Copyright (C) 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002,
++# 2003, 2004, 2005  Free Software Foundation, Inc.
++# This Makefile.in is free software; the Free Software Foundation
++# gives unlimited permission to copy and/or distribute it,
++# with or without modifications, as long as this notice is preserved.
++
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY, to the extent permitted by law; without
++# even the implied warranty of MERCHANTABILITY or FITNESS FOR A
++# PARTICULAR PURPOSE.
++
++
++
++
++srcdir = .
++top_srcdir = ..
++VPATH = .
++pkgdatadir = $(datadir)/network
++pkglibdir = $(libdir)/network
++pkgincludedir = $(includedir)/network
++top_builddir = ..
++am__cd = CDPATH="$${ZSH_VERSION+.}$(PATH_SEPARATOR)" && cd
++INSTALL = /usr/bin/ginstall -c -p
++install_sh_DATA = $(install_sh) -c -m 644
++install_sh_PROGRAM = $(install_sh) -c
++install_sh_SCRIPT = $(install_sh) -c
++INSTALL_HEADER = $(INSTALL_DATA)
++transform = $(program_transform_name)
++NORMAL_INSTALL = :
++PRE_INSTALL = :
++POST_INSTALL = :
++NORMAL_UNINSTALL = :
++PRE_UNINSTALL = :
++POST_UNINSTALL = :
++build_triplet = i686-pc-linux-gnu
++host_triplet = i686-pc-linux-gnu
++target_triplet = i686-pc-linux-gnu
++DIST_COMMON = README $(dnssdinclude_HEADERS) $(noinst_HEADERS) \
++	$(srcdir)/../admin/Doxyfile.am $(srcdir)/Makefile.am \
++	$(srcdir)/Makefile.in
++subdir = dnssd
++ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
++am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
++	$(top_srcdir)/configure.in
++am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
++	$(ACLOCAL_M4)
++mkinstalldirs = $(SHELL) $(top_srcdir)/admin/mkinstalldirs
++CONFIG_HEADER = $(top_builddir)/config.h
++CONFIG_CLEAN_FILES =
++am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
++am__vpath_adj = case $$p in \
++    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
++    *) f=$$p;; \
++  esac;
++am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
++am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(dnssdincludedir)"
++libLTLIBRARIES_INSTALL = $(INSTALL)
++LTLIBRARIES = $(lib_LTLIBRARIES)
++am__DEPENDENCIES_1 =
++libkdnssd_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
++	$(am__DEPENDENCIES_1)
++am_libkdnssd_la_OBJECTS = libkdnssd_la-remoteservice.lo \
++	libkdnssd_la-responder.lo libkdnssd_la-servicebase.lo \
++	libkdnssd_la-publicservice.lo libkdnssd_la-query.lo \
++	libkdnssd_la-domainbrowser.lo libkdnssd_la-servicebrowser.lo
++#>- libkdnssd_la_OBJECTS = $(am_libkdnssd_la_OBJECTS)
++#>+ 7
++libkdnssd_la_final_OBJECTS = libkdnssd_la.all_cpp.lo 
++libkdnssd_la_nofinal_OBJECTS = libkdnssd_la-remoteservice.lo \
++	libkdnssd_la-responder.lo libkdnssd_la-servicebase.lo \
++	libkdnssd_la-publicservice.lo libkdnssd_la-query.lo \
++	libkdnssd_la-domainbrowser.lo libkdnssd_la-servicebrowser.lo settings.lo
++libkdnssd_la_OBJECTS = $(libkdnssd_la_nofinal_OBJECTS)
++#libkdnssd_la_OBJECTS = $(libkdnssd_la_final_OBJECTS)
++DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
++depcomp = $(SHELL) $(top_srcdir)/admin/depcomp
++am__depfiles_maybe = depfiles
++#>- CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
++#>- 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
++#>+ 2
++CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
++	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS)
++#>- LTCXXCOMPILE = $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) \
++#>- 	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
++#>- 	$(AM_CXXFLAGS) $(CXXFLAGS)
++#>+ 3
++LTCXXCOMPILE = $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) \
++	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
++	$(AM_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS)
++CXXLD = $(CXX)
++#>- CXXLINK = $(LIBTOOL) --tag=CXX --mode=link $(CXXLD) $(AM_CXXFLAGS) \
++#>- 	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
++#>+ 2
++CXXLINK = $(LIBTOOL) --tag=CXX --mode=link $(CXXLD) $(AM_CXXFLAGS) \
++	$(CXXFLAGS) $(KDE_CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
++SOURCES = $(libkdnssd_la_SOURCES)
++DIST_SOURCES = $(libkdnssd_la_SOURCES)
++dnssdincludeHEADERS_INSTALL = $(INSTALL_HEADER)
++HEADERS = $(dnssdinclude_HEADERS) $(noinst_HEADERS)
++ETAGS = etags
++CTAGS = ctags
++#>- DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
++#>+ 1
++DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST) $(KDE_DIST)
++ACLOCAL = ${SHELL} /home/crazy/work/dnssd/SVN/network/admin/missing --run aclocal-1.9
++AMDEP_FALSE = #
++AMDEP_TRUE = 
++AMTAR = ${SHELL} /home/crazy/work/dnssd/SVN/network/admin/missing --run tar
++AR = ar
++ARTSCCONFIG = /usr/bin/artsc-config
++AUTOCONF = $(SHELL) $(top_srcdir)/admin/cvs.sh configure || touch configure
++AUTODIRS = 
++AUTOHEADER = ${SHELL} /home/crazy/work/dnssd/SVN/network/admin/missing --run autoheader
++AUTOMAKE = ${SHELL} /home/crazy/work/dnssd/SVN/network/admin/missing --run automake-1.9
++AVAHI_CFLAGS = -D_REENTRANT  
++AVAHI_LIBS = -L/usr/lib/qt/lib -L/usr/X11R6/lib -lavahi-qt3 -lqt-mt -lz -lGL -lXmu -lXi -lXrender -lXrandr -lXcursor -lXinerama -lXft -lfreetype -lfontconfig -lXext -lX11 -lm -lSM -lICE -ldl -lpthread -lavahi-common -lavahi-client  
++AWK = gawk
++CC = gcc
++CCDEPMODE = depmode=gcc3
++CFLAGS = -std=iso9899:1990 -W -Wall -Wchar-subscripts -Wshadow -Wpointer-arith -Wmissing-prototypes -Wwrite-strings -D_XOPEN_SOURCE=500 -D_BSD_SOURCE -O2   -Wformat-security -Wmissing-format-attribute
++CONF_FILES =  $(top_srcdir)/./admin/configure.in.min $(top_srcdir)/configure.in.in $(top_srcdir)/./dnssd/configure.in.in
++CPP = gcc -E
++CPPFLAGS =  -DQT_THREAD_SUPPORT  -D_REENTRANT
++CXX = g++
++CXXCPP = g++ -E
++CXXDEPMODE = depmode=gcc3
++CXXFLAGS = -Wno-long-long -Wundef -ansi -D_XOPEN_SOURCE=500 -D_BSD_SOURCE -Wcast-align -Wconversion -Wchar-subscripts -Wall -W -Wpointer-arith -O2 -Wformat-security -Wmissing-format-attribute -Wno-non-virtual-dtor -fno-exceptions -fno-check-new -fno-common
++CYGPATH_W = echo
++DCOPIDL = /usr/bin/dcopidl
++DCOPIDL2CPP = /usr/bin/dcopidl2cpp
++DCOPIDLNG = /usr/bin/dcopidlng
++DCOP_DEPENDENCIES = $(DCOPIDL) $(DCOPIDLNG)
++DEFS = -DHAVE_CONFIG_H
++DEPDIR = .deps
++ECHO = echo
++ECHO_C = 
++ECHO_N = -n
++ECHO_T = 
++EGREP = grep -E
++ENABLE_PERMISSIVE_FLAG = -fpermissive
++EXEEXT = 
++F77 = f95
++FFLAGS = -g -O2
++FRAMEWORK_COREAUDIO = 
++GMSGFMT = /usr/bin/msgfmt
++HAVE_GCC_VISIBILITY = 0
++INSTALL_DATA = ${INSTALL} -m 644
++INSTALL_PROGRAM = ${INSTALL} $(INSTALL_STRIP_FLAG)
++INSTALL_SCRIPT = ${INSTALL}
++INSTALL_STRIP_PROGRAM = ${SHELL} $(install_sh) -c -s
++KCFG_DEPENDENCIES = $(KCONFIG_COMPILER)
++KCONFIG_COMPILER = /usr/bin/kconfig_compiler
++KDECONFIG = /usr/bin/kde-config
++KDE_CHECK_PLUGIN = $(KDE_PLUGIN) -rpath $(libdir)
++KDE_EXTRA_RPATH = 
++KDE_INCLUDES = 
++KDE_INSTALLED_FALSE = #
++KDE_INSTALLED_TRUE = 
++KDE_LDFLAGS = -L/usr/lib
++KDE_MT_LDFLAGS = 
++KDE_MT_LIBS = -lpthread
++KDE_NO_UNDEFINED = -Wl,--no-undefined -Wl,--allow-shlib-undefined
++KDE_PLUGIN = -avoid-version -module -no-undefined $(KDE_NO_UNDEFINED) $(KDE_RPATH) $(KDE_MT_LDFLAGS)
++KDE_RPATH = -R $(libdir) -R $(kde_libraries) -R $(qt_libraries) -R $(x_libraries)
++KDE_USE_CLOSURE_FALSE = 
++KDE_USE_CLOSURE_TRUE = #
++KDE_USE_FINAL_FALSE = 
++KDE_USE_FINAL_TRUE = #
++KDE_USE_FPIE = -fPIE
++KDE_USE_NMCHECK_FALSE = 
++KDE_USE_NMCHECK_TRUE = #
++KDE_USE_PIE = -pie
++KDE_XSL_STYLESHEET = /usr/share/apps/ksgmltools2/customization/kde-chunk.xsl
++LDFLAGS = 
++LDFLAGS_AS_NEEDED = 
++LDFLAGS_NEW_DTAGS = 
++LEX = flex
++LEXLIB = -lfl
++LEX_OUTPUT_ROOT = lex.yy
++LFLAGS = -olex.yy.c
++LIBCOMPAT = 
++LIBCRYPT = -lcrypt
++LIBDL = -ldl
++LIBJPEG = -ljpeg
++LIBOBJS = 
++LIBPNG = -lpng -lz -lm
++LIBPTHREAD = -lpthread
++LIBRESOLV = -lresolv
++LIBS = 
++LIBSM = -lSM -lICE
++LIBSOCKET = 
++LIBTOOL = $(SHELL) $(top_builddir)/libtool --silent
++LIBUCB = 
++LIBUTIL = -lutil
++LIBZ = -lz
++LIB_KAB = -lkab
++LIB_KABC = -lkabc
++LIB_KDECORE = -lkdecore
++LIB_KDED = 
++LIB_KDEPIM = -lkdepim
++LIB_KDEPRINT = -lkdeprint
++LIB_KDEUI = -lkdeui
++LIB_KDNSSD = -lkdnssd
++LIB_KFILE = -lkio
++LIB_KFM = 
++LIB_KHTML = -lkhtml
++LIB_KIMPROXY = -lkimproxy
++LIB_KIO = -lkio
++LIB_KJS = -lkjs
++LIB_KNEWSTUFF = -lknewstuff
++LIB_KPARTS = -lkparts
++LIB_KSPELL = -lkspell
++LIB_KSYCOCA = -lkio
++LIB_KUNITTEST = -lkunittest
++LIB_KUTILS = -lkutils
++LIB_POLL = 
++LIB_QPE = 
++LIB_QT = -lqt-mt  $(LIBZ) $(LIBPNG) -lXext $(LIB_X11) $(LIBSM) -lpthread
++LIB_SMB = -lsmb
++LIB_X11 = -lX11 $(LIBSOCKET)
++LIB_XEXT = -lXext
++LIB_XRENDER = 
++LN_S = ln -s
++LTLIBOBJS = 
++MAKEINFO = ${SHELL} /home/crazy/work/dnssd/SVN/network/admin/missing --run makeinfo
++MAKEKDEWIDGETS = /usr/bin/makekdewidgets
++MCOPIDL = /usr/bin/mcopidl
++MEINPROC = /usr/bin/meinproc
++MOC = /usr/lib/qt/bin/moc
++MSGFMT = /usr/bin/msgfmt
++NOOPT_CFLAGS = -O0
++NOOPT_CXXFLAGS = -O0
++OBJEXT = o
++PACKAGE = network
++PACKAGE_BUGREPORT = 
++PACKAGE_NAME = 
++PACKAGE_STRING = 
++PACKAGE_TARNAME = 
++PACKAGE_VERSION = 
++PATH_SEPARATOR = :
++PERL = /usr/bin/perl
++PKG_CONFIG = /usr/bin/pkg-config
++QTE_NORTTI = 
++QT_INCLUDES = -I/usr/lib/qt/include
++QT_LDFLAGS = -L/usr/lib/qt/lib
++RANLIB = ranlib
++SET_MAKE = 
++SHELL = /bin/sh
++STRIP = strip
++TOPSUBDIRS =  dnssd
++UIC = /usr/lib/qt/bin/uic -L $(kde_widgetdir) -nounload
++UIC_TR = tr2i18n
++USER_INCLUDES = 
++USER_LDFLAGS = 
++USE_EXCEPTIONS = -fexceptions
++USE_RTTI = 
++USE_THREADS = 
++VERSION = 3.5.3
++WOVERLOADED_VIRTUAL = 
++XGETTEXT = /usr/bin/xgettext
++XMLLINT = /usr/bin/xmllint
++X_EXTRA_LIBS = 
++X_INCLUDES = -I.
++X_LDFLAGS = -L/usr/lib
++X_PRE_LIBS = 
++X_RPATH = -R $(x_libraries)
++ac_ct_AR = ar
++ac_ct_CC = gcc
++ac_ct_CXX = g++
++ac_ct_F77 = f95
++ac_ct_RANLIB = ranlib
++ac_ct_STRIP = strip
++ac_pt_PKG_CONFIG = /usr/bin/pkg-config
++all_includes = -I/usr/lib/qt/include -I. 
++all_libraries = -L/usr/lib/qt/lib -L/usr/lib   
++am__fastdepCC_FALSE = #
++am__fastdepCC_TRUE = 
++am__fastdepCXX_FALSE = #
++am__fastdepCXX_TRUE = 
++am__include = include
++am__leading_dot = .
++am__quote = 
++am__tar = ${AMTAR} chof - "$$tardir"
++am__untar = ${AMTAR} xf -
++bindir = ${exec_prefix}/bin
++build = i686-pc-linux-gnu
++build_alias = 
++build_cpu = i686
++build_os = linux-gnu
++build_vendor = pc
++datadir = ${prefix}/share
++exec_prefix = ${prefix}
++host = i686-pc-linux-gnu
++host_alias = 
++host_cpu = i686
++host_os = linux-gnu
++host_vendor = pc
++include_ARTS_FALSE = #
++include_ARTS_TRUE = 
++include_x11_FALSE = #
++include_x11_TRUE = 
++includedir = ${prefix}/include
++infodir = ${prefix}/info
++install_sh = /home/crazy/work/dnssd/SVN/network/admin/install-sh
++kde_appsdir = ${datadir}/applnk
++kde_bindir = ${exec_prefix}/bin
++kde_confdir = ${datadir}/config
++kde_datadir = ${datadir}/apps
++kde_htmldir = ${datadir}/doc/HTML
++kde_icondir = ${datadir}/icons
++kde_includes = /usr/include
++kde_kcfgdir = ${datadir}/config.kcfg
++kde_libraries = /usr/lib
++kde_libs_htmldir = /usr/share/doc/HTML
++kde_libs_prefix = /usr
++kde_locale = ${datadir}/locale
++kde_mimedir = ${datadir}/mimelnk
++kde_moduledir = ${libdir}/kde3
++kde_qtver = 3
++kde_servicesdir = ${datadir}/services
++kde_servicetypesdir = ${datadir}/servicetypes
++kde_sounddir = ${datadir}/sounds
++kde_styledir = ${libdir}/kde3/plugins/styles
++kde_templatesdir = ${datadir}/templates
++kde_wallpaperdir = ${datadir}/wallpapers
++kde_widgetdir = /usr/lib/kde3/plugins/designer
++kdeinitdir = $(kde_moduledir)
++kdnssd_avahi_SUBDIR_included_FALSE = #
++kdnssd_avahi_SUBDIR_included_TRUE = 
++libdir = ${exec_prefix}/lib
++libexecdir = ${exec_prefix}/libexec
++localstatedir = ${prefix}/var
++mandir = ${prefix}/man
++mkdir_p = mkdir -p --
++oldincludedir = /usr/include
++prefix = /usr
++program_transform_name = s,x,x,
++qt_includes = /usr/lib/qt/include
++qt_libraries = /usr/lib/qt/lib
++sbindir = ${exec_prefix}/sbin
++sharedstatedir = ${prefix}/com
++sysconfdir = ${prefix}/etc
++target = i686-pc-linux-gnu
++target_alias = 
++target_cpu = i686
++target_os = linux-gnu
++target_vendor = pc
++unsermake_enable_pch_FALSE = 
++unsermake_enable_pch_TRUE = #
++x_includes = .
++x_libraries = /usr/lib
++xdg_appsdir = ${datadir}/applications/kde
++xdg_directorydir = ${datadir}/desktop-directories
++xdg_menudir = ${sysconfdir}/xdg/menus
++
++# set the include path for X, qt and KDE
++INCLUDES = -I$(top_srcdir) $(all_includes) $(AVAHI_CFLAGS)
++
++# these are the headers for your project
++
++# let automoc handle all of the meta source files (moc)
++#>- METASOURCES = AUTO
++lib_LTLIBRARIES = libkdnssd.la
++noinst_HEADERS = sdevent.h
++#>- libkdnssd_la_SOURCES = remoteservice.cpp responder.cpp servicebase.cpp \
++#>- 				settings.kcfgc publicservice.cpp query.cpp domainbrowser.cpp servicebrowser.cpp
++#>+ 2
++libkdnssd_la_SOURCES=remoteservice.cpp responder.cpp servicebase.cpp \
++				 publicservice.cpp query.cpp domainbrowser.cpp servicebrowser.cpp settings.cpp
++
++dnssdincludedir = $(includedir)/dnssd
++dnssdinclude_HEADERS = domainbrowser.h query.h remoteservice.h \
++	publicservice.h servicebase.h servicebrowser.h settings.h
++
++libkdnssd_la_CXXFLAGS = $(INCLUDES)
++libkdnssd_la_LIBADD = $(LIB_KDECORE) $(AVAHI_LIBS)
++libkdnssd_la_LDFLAGS = $(all_libraries) $(KDE_RPATH) -version-info 1:0
++#>- all: all-am
++#>+ 1
++all: docs-am  all-am
++
++.SUFFIXES:
++.SUFFIXES: .cpp .lo .o .obj
++$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(srcdir)/../admin/Doxyfile.am $(am__configure_deps)
++#>- 	@for dep in $?; do \
++#>- 	  case '$(am__configure_deps)' in \
++#>- 	    *$$dep*) \
++#>- 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
++#>- 		&& exit 0; \
++#>- 	      exit 1;; \
++#>- 	  esac; \
++#>- 	done; \
++#>- 	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  dnssd/Makefile'; \
++#>- 	cd $(top_srcdir) && \
++#>- 	  $(AUTOMAKE) --gnu  dnssd/Makefile
++#>+ 12
++	@for dep in $?; do \
++	  case '$(am__configure_deps)' in \
++	    *$$dep*) \
++	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
++		&& exit 0; \
++	      exit 1;; \
++	  esac; \
++	done; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  dnssd/Makefile'; \
++	cd $(top_srcdir) && \
++	  $(AUTOMAKE) --gnu  dnssd/Makefile
++	cd $(top_srcdir) && perl admin/am_edit dnssd/Makefile.in
++.PRECIOUS: Makefile
++Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
++	@case '$?' in \
++	  *config.status*) \
++	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
++	  *) \
++	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
++	    cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe);; \
++	esac;
++
++$(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
++	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
++
++$(top_srcdir)/configure:  $(am__configure_deps)
++	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
++$(ACLOCAL_M4):  $(am__aclocal_m4_deps)
++	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
++install-libLTLIBRARIES: $(lib_LTLIBRARIES)
++	@$(NORMAL_INSTALL)
++	test -z "$(libdir)" || $(mkdir_p) "$(DESTDIR)$(libdir)"
++	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
++	  if test -f $$p; then \
++	    f=$(am__strip_dir) \
++	    echo " $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
++	    $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
++	  else :; fi; \
++	done
++
++uninstall-libLTLIBRARIES:
++	@$(NORMAL_UNINSTALL)
++	@set -x; list='$(lib_LTLIBRARIES)'; for p in $$list; do \
++	  p=$(am__strip_dir) \
++	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
++	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
++	done
++
++clean-libLTLIBRARIES:
++	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
++	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
++	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
++	  test "$$dir" != "$$p" || dir=.; \
++	  echo "rm -f \"$${dir}/so_locations\""; \
++	  rm -f "$${dir}/so_locations"; \
++	done
++libkdnssd.la: $(libkdnssd_la_OBJECTS) $(libkdnssd_la_DEPENDENCIES) 
++	$(CXXLINK) -rpath $(libdir) $(libkdnssd_la_LDFLAGS) $(libkdnssd_la_OBJECTS) $(libkdnssd_la_LIBADD) $(LIBS)
++
++mostlyclean-compile:
++	-rm -f *.$(OBJEXT)
++
++distclean-compile:
++	-rm -f *.tab.c
++
++include ./$(DEPDIR)/libkdnssd_la-domainbrowser.Plo
++include ./$(DEPDIR)/libkdnssd_la-publicservice.Plo
++include ./$(DEPDIR)/libkdnssd_la-query.Plo
++include ./$(DEPDIR)/libkdnssd_la-remoteservice.Plo
++include ./$(DEPDIR)/libkdnssd_la-responder.Plo
++include ./$(DEPDIR)/libkdnssd_la-servicebase.Plo
++include ./$(DEPDIR)/libkdnssd_la-servicebrowser.Plo
++
++.cpp.o:
++	if $(CXXCOMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
++	then mv -f "$(DEPDIR)/$*.Tpo" "$(DEPDIR)/$*.Po"; else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; fi
++#	source='$<' object='$@' libtool=no \
++#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
++#	$(CXXCOMPILE) -c -o $@ $<
++
++.cpp.obj:
++	if $(CXXCOMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ `$(CYGPATH_W) '$<'`; \
++	then mv -f "$(DEPDIR)/$*.Tpo" "$(DEPDIR)/$*.Po"; else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; fi
++#	source='$<' object='$@' libtool=no \
++#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
++#	$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
++
++.cpp.lo:
++	if $(LTCXXCOMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
++	then mv -f "$(DEPDIR)/$*.Tpo" "$(DEPDIR)/$*.Plo"; else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; fi
++#	source='$<' object='$@' libtool=yes \
++#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
++#	$(LTCXXCOMPILE) -c -o $@ $<
++
++libkdnssd_la-remoteservice.lo: remoteservice.cpp
++#>- 	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-remoteservice.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo" -c -o libkdnssd_la-remoteservice.lo `test -f 'remoteservice.cpp' || echo '$(srcdir)/'`remoteservice.cpp; \
++#>- 	then mv -f "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo" "$(DEPDIR)/libkdnssd_la-remoteservice.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo"; exit 1; fi
++#>+ 2
++	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-remoteservice.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo" -c -o libkdnssd_la-remoteservice.lo `test -f 'remoteservice.cpp' || echo '$(srcdir)/'`remoteservice.cpp; \
++	then mv -f "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo" "$(DEPDIR)/libkdnssd_la-remoteservice.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo"; exit 1; fi
++#	source='remoteservice.cpp' object='libkdnssd_la-remoteservice.lo' libtool=yes \
++#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
++#>- #	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-remoteservice.lo `test -f 'remoteservice.cpp' || echo '$(srcdir)/'`remoteservice.cpp
++#>+ 1
++#	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-remoteservice.lo `test -f 'remoteservice.cpp' || echo '$(srcdir)/'`remoteservice.cpp
++
++libkdnssd_la-responder.lo: responder.cpp
++#>- 	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-responder.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-responder.Tpo" -c -o libkdnssd_la-responder.lo `test -f 'responder.cpp' || echo '$(srcdir)/'`responder.cpp; \
++#>- 	then mv -f "$(DEPDIR)/libkdnssd_la-responder.Tpo" "$(DEPDIR)/libkdnssd_la-responder.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-responder.Tpo"; exit 1; fi
++#>+ 2
++	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-responder.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-responder.Tpo" -c -o libkdnssd_la-responder.lo `test -f 'responder.cpp' || echo '$(srcdir)/'`responder.cpp; \
++	then mv -f "$(DEPDIR)/libkdnssd_la-responder.Tpo" "$(DEPDIR)/libkdnssd_la-responder.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-responder.Tpo"; exit 1; fi
++#	source='responder.cpp' object='libkdnssd_la-responder.lo' libtool=yes \
++#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
++#>- #	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-responder.lo `test -f 'responder.cpp' || echo '$(srcdir)/'`responder.cpp
++#>+ 1
++#	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-responder.lo `test -f 'responder.cpp' || echo '$(srcdir)/'`responder.cpp
++
++libkdnssd_la-servicebase.lo: servicebase.cpp
++#>- 	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-servicebase.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-servicebase.Tpo" -c -o libkdnssd_la-servicebase.lo `test -f 'servicebase.cpp' || echo '$(srcdir)/'`servicebase.cpp; \
++#>- 	then mv -f "$(DEPDIR)/libkdnssd_la-servicebase.Tpo" "$(DEPDIR)/libkdnssd_la-servicebase.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-servicebase.Tpo"; exit 1; fi
++#>+ 2
++	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-servicebase.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-servicebase.Tpo" -c -o libkdnssd_la-servicebase.lo `test -f 'servicebase.cpp' || echo '$(srcdir)/'`servicebase.cpp; \
++	then mv -f "$(DEPDIR)/libkdnssd_la-servicebase.Tpo" "$(DEPDIR)/libkdnssd_la-servicebase.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-servicebase.Tpo"; exit 1; fi
++#	source='servicebase.cpp' object='libkdnssd_la-servicebase.lo' libtool=yes \
++#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
++#>- #	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-servicebase.lo `test -f 'servicebase.cpp' || echo '$(srcdir)/'`servicebase.cpp
++#>+ 1
++#	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-servicebase.lo `test -f 'servicebase.cpp' || echo '$(srcdir)/'`servicebase.cpp
++
++libkdnssd_la-publicservice.lo: publicservice.cpp
++#>- 	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-publicservice.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-publicservice.Tpo" -c -o libkdnssd_la-publicservice.lo `test -f 'publicservice.cpp' || echo '$(srcdir)/'`publicservice.cpp; \
++#>- 	then mv -f "$(DEPDIR)/libkdnssd_la-publicservice.Tpo" "$(DEPDIR)/libkdnssd_la-publicservice.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-publicservice.Tpo"; exit 1; fi
++#>+ 2
++	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-publicservice.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-publicservice.Tpo" -c -o libkdnssd_la-publicservice.lo `test -f 'publicservice.cpp' || echo '$(srcdir)/'`publicservice.cpp; \
++	then mv -f "$(DEPDIR)/libkdnssd_la-publicservice.Tpo" "$(DEPDIR)/libkdnssd_la-publicservice.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-publicservice.Tpo"; exit 1; fi
++#	source='publicservice.cpp' object='libkdnssd_la-publicservice.lo' libtool=yes \
++#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
++#>- #	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-publicservice.lo `test -f 'publicservice.cpp' || echo '$(srcdir)/'`publicservice.cpp
++#>+ 1
++#	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-publicservice.lo `test -f 'publicservice.cpp' || echo '$(srcdir)/'`publicservice.cpp
++
++libkdnssd_la-query.lo: query.cpp
++#>- 	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-query.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-query.Tpo" -c -o libkdnssd_la-query.lo `test -f 'query.cpp' || echo '$(srcdir)/'`query.cpp; \
++#>- 	then mv -f "$(DEPDIR)/libkdnssd_la-query.Tpo" "$(DEPDIR)/libkdnssd_la-query.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-query.Tpo"; exit 1; fi
++#>+ 2
++	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-query.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-query.Tpo" -c -o libkdnssd_la-query.lo `test -f 'query.cpp' || echo '$(srcdir)/'`query.cpp; \
++	then mv -f "$(DEPDIR)/libkdnssd_la-query.Tpo" "$(DEPDIR)/libkdnssd_la-query.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-query.Tpo"; exit 1; fi
++#	source='query.cpp' object='libkdnssd_la-query.lo' libtool=yes \
++#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
++#>- #	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-query.lo `test -f 'query.cpp' || echo '$(srcdir)/'`query.cpp
++#>+ 1
++#	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-query.lo `test -f 'query.cpp' || echo '$(srcdir)/'`query.cpp
++
++libkdnssd_la-domainbrowser.lo: domainbrowser.cpp
++#>- 	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-domainbrowser.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo" -c -o libkdnssd_la-domainbrowser.lo `test -f 'domainbrowser.cpp' || echo '$(srcdir)/'`domainbrowser.cpp; \
++#>- 	then mv -f "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo" "$(DEPDIR)/libkdnssd_la-domainbrowser.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo"; exit 1; fi
++#>+ 2
++	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-domainbrowser.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo" -c -o libkdnssd_la-domainbrowser.lo `test -f 'domainbrowser.cpp' || echo '$(srcdir)/'`domainbrowser.cpp; \
++	then mv -f "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo" "$(DEPDIR)/libkdnssd_la-domainbrowser.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo"; exit 1; fi
++#	source='domainbrowser.cpp' object='libkdnssd_la-domainbrowser.lo' libtool=yes \
++#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
++#>- #	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-domainbrowser.lo `test -f 'domainbrowser.cpp' || echo '$(srcdir)/'`domainbrowser.cpp
++#>+ 1
++#	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-domainbrowser.lo `test -f 'domainbrowser.cpp' || echo '$(srcdir)/'`domainbrowser.cpp
++
++libkdnssd_la-servicebrowser.lo: servicebrowser.cpp
++#>- 	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-servicebrowser.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo" -c -o libkdnssd_la-servicebrowser.lo `test -f 'servicebrowser.cpp' || echo '$(srcdir)/'`servicebrowser.cpp; \
++#>- 	then mv -f "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo" "$(DEPDIR)/libkdnssd_la-servicebrowser.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo"; exit 1; fi
++#>+ 2
++	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-servicebrowser.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo" -c -o libkdnssd_la-servicebrowser.lo `test -f 'servicebrowser.cpp' || echo '$(srcdir)/'`servicebrowser.cpp; \
++	then mv -f "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo" "$(DEPDIR)/libkdnssd_la-servicebrowser.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo"; exit 1; fi
++#	source='servicebrowser.cpp' object='libkdnssd_la-servicebrowser.lo' libtool=yes \
++#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
++#>- #	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-servicebrowser.lo `test -f 'servicebrowser.cpp' || echo '$(srcdir)/'`servicebrowser.cpp
++#>+ 1
++#	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-servicebrowser.lo `test -f 'servicebrowser.cpp' || echo '$(srcdir)/'`servicebrowser.cpp
++
++mostlyclean-libtool:
++	-rm -f *.lo
++
++clean-libtool:
++	-rm -rf .libs _libs
++
++distclean-libtool:
++	-rm -f libtool
++uninstall-info-am:
++install-dnssdincludeHEADERS: $(dnssdinclude_HEADERS)
++	@$(NORMAL_INSTALL)
++	test -z "$(dnssdincludedir)" || $(mkdir_p) "$(DESTDIR)$(dnssdincludedir)"
++	@list='$(dnssdinclude_HEADERS)'; for p in $$list; do \
++	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
++	  f=$(am__strip_dir) \
++	  echo " $(dnssdincludeHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(dnssdincludedir)/$$f'"; \
++	  $(dnssdincludeHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(dnssdincludedir)/$$f"; \
++	done
++
++uninstall-dnssdincludeHEADERS:
++	@$(NORMAL_UNINSTALL)
++	@list='$(dnssdinclude_HEADERS)'; for p in $$list; do \
++	  f=$(am__strip_dir) \
++	  echo " rm -f '$(DESTDIR)$(dnssdincludedir)/$$f'"; \
++	  rm -f "$(DESTDIR)$(dnssdincludedir)/$$f"; \
++	done
++
++ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
++	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \
++	unique=`for i in $$list; do \
++	    if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
++	  done | \
++	  $(AWK) '    { files[$$0] = 1; } \
++	       END { for (i in files) print i; }'`; \
++	mkid -fID $$unique
++tags: TAGS
++
++TAGS:  $(HEADERS) $(SOURCES)  $(TAGS_DEPENDENCIES) \
++		$(TAGS_FILES) $(LISP)
++	tags=; \
++	here=`pwd`; \
++	list='$(SOURCES) $(HEADERS)  $(LISP) $(TAGS_FILES)'; \
++	unique=`for i in $$list; do \
++	    if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
++	  done | \
++	  $(AWK) '    { files[$$0] = 1; } \
++	       END { for (i in files) print i; }'`; \
++	if test -z "$(ETAGS_ARGS)$$tags$$unique"; then :; else \
++	  test -n "$$unique" || unique=$$empty_fix; \
++	  $(ETAGS) $(ETAGSFLAGS) $(AM_ETAGSFLAGS) $(ETAGS_ARGS) \
++	    $$tags $$unique; \
++	fi
++ctags: CTAGS
++CTAGS:  $(HEADERS) $(SOURCES)  $(TAGS_DEPENDENCIES) \
++		$(TAGS_FILES) $(LISP)
++	tags=; \
++	here=`pwd`; \
++	list='$(SOURCES) $(HEADERS)  $(LISP) $(TAGS_FILES)'; \
++	unique=`for i in $$list; do \
++	    if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
++	  done | \
++	  $(AWK) '    { files[$$0] = 1; } \
++	       END { for (i in files) print i; }'`; \
++	test -z "$(CTAGS_ARGS)$$tags$$unique" \
++	  || $(CTAGS) $(CTAGSFLAGS) $(AM_CTAGSFLAGS) $(CTAGS_ARGS) \
++	     $$tags $$unique
++
++GTAGS:
++	here=`$(am__cd) $(top_builddir) && pwd` \
++	  && cd $(top_srcdir) \
++	  && gtags -i $(GTAGS_ARGS) $$here
++
++distclean-tags:
++	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
++
++distdir: $(DISTFILES)
++	$(mkdir_p) $(distdir)/../admin
++	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
++	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
++	list='$(DISTFILES)'; for file in $$list; do \
++	  case $$file in \
++	    $(srcdir)/*) file=`echo "$$file" | sed "s|^$$srcdirstrip/||"`;; \
++	    $(top_srcdir)/*) file=`echo "$$file" | sed "s|^$$topsrcdirstrip/|$(top_builddir)/|"`;; \
++	  esac; \
++	  if test -f $$file || test -d $$file; then d=.; else d=$(srcdir); fi; \
++	  dir=`echo "$$file" | sed -e 's,/[^/]*$$,,'`; \
++	  if test "$$dir" != "$$file" && test "$$dir" != "."; then \
++	    dir="/$$dir"; \
++	    $(mkdir_p) "$(distdir)$$dir"; \
++	  else \
++	    dir=''; \
++	  fi; \
++	  if test -d $$d/$$file; then \
++	    if test -d $(srcdir)/$$file && test $$d != $(srcdir); then \
++	      cp -pR $(srcdir)/$$file $(distdir)$$dir || exit 1; \
++	    fi; \
++	    cp -pR $$d/$$file $(distdir)$$dir || exit 1; \
++	  else \
++	    test -f $(distdir)/$$file \
++	    || cp -p $$d/$$file $(distdir)/$$file \
++	    || exit 1; \
++	  fi; \
++	done
++check-am: all-am
++check: check-am
++all-am: Makefile $(LTLIBRARIES) $(HEADERS)
++installdirs:
++	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(dnssdincludedir)"; do \
++	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
++	done
++install: install-am
++install-exec: install-exec-am
++install-data: install-data-am
++uninstall: uninstall-am
++
++install-am: all-am
++	@$(MAKE) $(AM_MAKEFLAGS) install-exec-am install-data-am
++
++installcheck: installcheck-am
++install-strip:
++	$(MAKE) $(AM_MAKEFLAGS) INSTALL_PROGRAM="$(INSTALL_STRIP_PROGRAM)" \
++	  install_sh_PROGRAM="$(INSTALL_STRIP_PROGRAM)" INSTALL_STRIP_FLAG=-s \
++	  `test -z '$(STRIP)' || \
++	    echo "INSTALL_PROGRAM_ENV=STRIPPROG='$(STRIP)'"` install
++mostlyclean-generic:
++
++clean-generic:
++
++distclean-generic:
++	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
++
++maintainer-clean-generic:
++	@echo "This command is intended for maintainers to use"
++	@echo "it deletes files that may require special tools to rebuild."
++#>- clean: clean-am
++#>+ 1
++clean: kde-rpo-clean  clean-am
++
++#>- clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
++#>- 	mostlyclean-am
++#>+ 2
++clean-am: clean-metasources clean-kcfg clean-bcheck clean-final  clean-generic clean-libLTLIBRARIES clean-libtool \
++	mostlyclean-am
++
++distclean: distclean-am
++	-rm -rf ./$(DEPDIR)
++	-rm -f Makefile
++distclean-am: clean-am distclean-compile distclean-generic \
++	distclean-libtool distclean-tags
++
++dvi: dvi-am
++
++dvi-am:
++
++html: html-am
++
++info: info-am
++
++info-am:
++
++install-data-am: install-data-local install-dnssdincludeHEADERS
++
++install-exec-am: install-libLTLIBRARIES
++
++install-info: install-info-am
++
++install-man:
++
++installcheck-am:
++
++maintainer-clean: maintainer-clean-am
++	-rm -rf ./$(DEPDIR)
++	-rm -f Makefile
++maintainer-clean-am: distclean-am maintainer-clean-generic
++
++mostlyclean: mostlyclean-am
++
++mostlyclean-am: mostlyclean-compile mostlyclean-generic \
++	mostlyclean-libtool
++
++pdf: pdf-am
++
++pdf-am:
++
++ps: ps-am
++
++ps-am:
++
++uninstall-am: uninstall-dnssdincludeHEADERS uninstall-info-am \
++	uninstall-libLTLIBRARIES uninstall-local
++
++.PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
++	clean-libLTLIBRARIES clean-libtool ctags distclean \
++	distclean-compile distclean-generic distclean-libtool \
++	distclean-tags distdir dvi dvi-am html html-am info info-am \
++	install install-am install-data install-data-am \
++	install-data-local install-dnssdincludeHEADERS install-exec \
++	install-exec-am install-info install-info-am \
++	install-libLTLIBRARIES install-man install-strip installcheck \
++	installcheck-am installdirs maintainer-clean \
++	maintainer-clean-generic mostlyclean mostlyclean-compile \
++	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
++	tags uninstall uninstall-am uninstall-dnssdincludeHEADERS \
++	uninstall-info-am uninstall-libLTLIBRARIES uninstall-local
++
++apidox-am-yes:
++	@if test \! -d "$(top_srcdir)/doc/common/" && test -z "$$DOXDATA" ; then \
++		export DOXDATA=$(kde_libs_htmldir)/en/common ; \
++	fi ; \
++	abs_top_srcdir=`cd $(top_srcdir) && pwd` ;\
++	test -d $(top_builddir)/apidocs || \
++		( cd $(top_builddir) && sh $$abs_top_srcdir/admin/doxygen.sh \
++		--no-modulename --installdir=$(kde_libs_htmldir)/en \
++		--no-recurse $(abs_top_srcdir) . ) ; \
++	cd $(top_builddir) && sh $$abs_top_srcdir/admin/doxygen.sh \
++		--recurse --no-modulename --installdir=$(kde_libs_htmldir)/en \
++		$$abs_top_srcdir $(subdir)
++
++apidox-am-toplevel-yes:
++	@if test \! -d "$(top_srcdir)/doc/common/" && test -z "$$ADMIN" ; then \
++		export DOXDATA=$(kde_libs_htmldir)/en/common ; \
++	fi ; \
++	abs_top_srcdir=`cd $(top_srcdir) && pwd` ;\
++	cd $(top_builddir) && sh $$abs_top_srcdir/admin/doxygen.sh \
++		--no-modulename --installdir=$(kde_libs_htmldir)/en \
++		$$abs_top_srcdir
++
++apidox-am-no:
++
++apidox-am-toplevel-no:
++
++apidox:
++	@if test "$(subdir)" != "."; then \
++		$(MAKE) apidox-am-@KDE_HAS_DOXYGEN@ ;\
++	else \
++		$(MAKE) apidox-am-toplevel-@KDE_HAS_DOXYGEN@ ;\
++	fi
++
++install-data-local: install-apidox
++
++install-apidox:
++	@if test "$(subdir)" != "."; then \
++		$(mkinstalldirs) $(DESTDIR)$(kde_htmldir)/en/$(PACKAGE)-apidocs/$(subdir)/html ; \
++		if test -f $(top_builddir)/apidocs/$(subdir)/$(subdir).tag; then \
++		echo $(INSTALL_DATA) $(top_builddir)/apidocs/$(subdir)/$(subdir).tag $(DESTDIR)$(kde_htmldir)/en/$(PACKAGE)-apidocs/$(subdir); \
++		$(INSTALL_DATA) $(top_builddir)/apidocs/$(subdir)/$(subdir).tag $(DESTDIR)$(kde_htmldir)/en/$(PACKAGE)-apidocs/$(subdir); \
++		fi; \
++		if test -d $(top_builddir)/apidocs/$(subdir)/html; then \
++			list=`ls $(top_builddir)/apidocs/$(subdir)/html`; \
++			echo "installing $(top_builddir)/apidocs/$(subdir)/html" ;\
++			for file in $$list; do \
++				$(INSTALL_DATA) $(top_builddir)/apidocs/$(subdir)/html/$$file $(DESTDIR)$(kde_htmldir)/en/$(PACKAGE)-apidocs/$(subdir)/html; \
++		done; \
++		fi; \
++	else\
++		if test -d $(top_builddir)/apidocs; then \
++		$(mkinstalldirs) $(DESTDIR)$(kde_htmldir)/en/$(PACKAGE)-apidocs ;\
++		list=`cd $(top_builddir)/apidocs && ls -1`; \
++		echo "installing $(top_builddir)/apidocs/$$file" ;\
++		echo "target directory $(DESTDIR)$(kde_htmldir)/en/$(PACKAGE)-apidocs" ; \
++		for file in $$list; do \
++			if test -f $(top_builddir)/apidocs/$$file; then \
++				$(INSTALL_DATA) $(top_builddir)/apidocs/$$file $(DESTDIR)$(kde_htmldir)/en/$(PACKAGE)-apidocs; \
++			fi; \
++		done ; fi; \
++	fi
++
++uninstall-local: uninstall-apidox
++
++uninstall-apidox:
++	@if test "$(subdir)" != "."; then \
++		if test -d $(DESTDIR)$(kde_htmldir)/en/$(PACKAGE)-apidocs/$(subdir); then \
++			rm -rfv $(DESTDIR)$(kde_htmldir)/en/$(PACKAGE)-apidocs/$(subdir); \
++		fi \
++	else \
++		if test -d $(DESTDIR)$(kde_htmldir)/en/$(PACKAGE)-apidocs; then \
++			rm -rfv $(DESTDIR)$(kde_htmldir)/en/$(PACKAGE)-apidocs; \
++		fi \
++	fi
++
++install-apidox-recurse: install-apidox
++	@set fnord $(MAKEFLAGS); amf=$$2; if test -n '$(SUBDIRS)'; then \
++	    list='$(SUBDIRS)'; \
++	    for subdir in $$list; do \
++		if grep '^include .*Doxyfile.am' $(srcdir)/$$subdir/Makefile.am > /dev/null ; then \
++		echo "Installing apidox from $$subdir"; \
++		if test "$$subdir" != "."; then \
++			(cd $$subdir && $(MAKE) $(AM_MAKEFLAGS) GENERATE_FLAG=no install-apidox-recurse) || exit 1; \
++		fi ; fi ;\
++	    done; \
++	fi
++
++.PHONY: apidox-am-yes apidox-am-no install-data-local install-apidox install-apidox uninstall-local uninstall-apidox uninstall-apidox apidox apidox-am-toplevel-no apidox-am-toplevel-yes
++
++# Local Variables:
++# mode: makefile
++# End:
++
++#kde_kcfg_DATA = kcm_kdnssd.kcfg
++# Tell versions [3.59,3.63) of GNU make to not export all variables.
++# Otherwise a system limit (for SysV at least) may be exceeded.
++.NOEXPORT:
++
++#>+ 3
++responder.moc: $(srcdir)/responder.h
++	$(MOC) $(srcdir)/responder.h -o responder.moc
++
++#>+ 2
++mocs: responder.moc
++
++#>+ 3
++servicebrowser.moc: $(srcdir)/servicebrowser.h
++	$(MOC) $(srcdir)/servicebrowser.h -o servicebrowser.moc
++
++#>+ 2
++mocs: servicebrowser.moc
++
++#>+ 3
++remoteservice.moc: $(srcdir)/remoteservice.h
++	$(MOC) $(srcdir)/remoteservice.h -o remoteservice.moc
++
++#>+ 2
++mocs: remoteservice.moc
++
++#>+ 3
++query.moc: $(srcdir)/query.h
++	$(MOC) $(srcdir)/query.h -o query.moc
++
++#>+ 2
++mocs: query.moc
++
++#>+ 3
++publicservice.moc: $(srcdir)/publicservice.h
++	$(MOC) $(srcdir)/publicservice.h -o publicservice.moc
++
++#>+ 2
++mocs: publicservice.moc
++
++#>+ 3
++domainbrowser.moc: $(srcdir)/domainbrowser.h
++	$(MOC) $(srcdir)/domainbrowser.h -o domainbrowser.moc
++
++#>+ 2
++mocs: domainbrowser.moc
++
++#>+ 3
++clean-metasources:
++	-rm -f  responder.moc servicebrowser.moc remoteservice.moc query.moc publicservice.moc domainbrowser.moc
++
++#>+ 2
++KDE_DIST=Makefile.in settings.kcfgc kcm_kdnssd.kcfg responder.h configure.in.in Makefile.am 
++
++#>+ 4
++clean-kcfg:
++	-rm -f \
++	settings.cpp settings.h 
++
++#>+ 2
++docs-am:
++
++#>+ 15
++force-reedit:
++		@for dep in $?; do \
++	  case '$(am__configure_deps)' in \
++	    *$$dep*) \
++	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
++		&& exit 0; \
++	      exit 1;; \
++	  esac; \
++	done; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  dnssd/Makefile'; \
++	cd $(top_srcdir) && \
++	  $(AUTOMAKE) --gnu  dnssd/Makefile
++	cd $(top_srcdir) && perl admin/am_edit dnssd/Makefile.in
++
++
++#>+ 21
++clean-bcheck: 
++	rm -f *.bchecktest.cc *.bchecktest.cc.class a.out
++
++bcheck: bcheck-am
++
++bcheck-am:
++	@for i in $(dnssdinclude_HEADERS) ; do \
++	    if test $(srcdir)/$$i -nt $$i.bchecktest.cc; then \
++	        echo "int main() {return 0;}" > $$i.bchecktest.cc ; \
++	        echo "#include \"$$i\"" >> $$i.bchecktest.cc ; \
++	        echo "$$i"; \
++	        if ! $(CXXCOMPILE)  --dump-class-hierarchy -c $$i.bchecktest.cc; then \
++	            rm -f $$i.bchecktest.cc; exit 1; \
++	        fi ; \
++	        echo "" >> $$i.bchecktest.cc.class; \
++	        perl $(top_srcdir)/admin/bcheck.pl $$i.bchecktest.cc.class || { rm -f $$i.bchecktest.cc; exit 1; }; \
++	        rm -f a.out; \
++	    fi ; \
++	done
++
++
++#>+ 11
++libkdnssd_la.all_cpp.cpp: $(srcdir)/Makefile.in $(srcdir)/remoteservice.cpp $(srcdir)/responder.cpp $(srcdir)/servicebase.cpp $(srcdir)/publicservice.cpp $(srcdir)/query.cpp $(srcdir)/domainbrowser.cpp $(srcdir)/servicebrowser.cpp settings.cpp  remoteservice.moc servicebrowser.moc responder.moc query.moc publicservice.moc domainbrowser.moc
++	@echo 'creating libkdnssd_la.all_cpp.cpp ...'; \
++	rm -f libkdnssd_la.all_cpp.files libkdnssd_la.all_cpp.final; \
++	echo "#define KDE_USE_FINAL 1" >> libkdnssd_la.all_cpp.final; \
++	for file in remoteservice.cpp responder.cpp servicebase.cpp publicservice.cpp query.cpp domainbrowser.cpp servicebrowser.cpp settings.cpp ; do \
++	  echo "#include \"$$file\"" >> libkdnssd_la.all_cpp.files; \
++	  test ! -f $(srcdir)/$$file || egrep '^#pragma +implementation' $(srcdir)/$$file >> libkdnssd_la.all_cpp.final; \
++	done; \
++	cat libkdnssd_la.all_cpp.final libkdnssd_la.all_cpp.files > libkdnssd_la.all_cpp.cpp; \
++	rm -f libkdnssd_la.all_cpp.final libkdnssd_la.all_cpp.files
++
++#>+ 3
++clean-final:
++	-rm -f libkdnssd_la.all_cpp.cpp
++
++#>+ 3
++final:
++	$(MAKE) libkdnssd_la_OBJECTS="$(libkdnssd_la_final_OBJECTS)" all-am
++
++#>+ 3
++final-install:
++	$(MAKE) libkdnssd_la_OBJECTS="$(libkdnssd_la_final_OBJECTS)" install-am
++
++#>+ 3
++no-final:
++	$(MAKE) libkdnssd_la_OBJECTS="$(libkdnssd_la_nofinal_OBJECTS)" all-am
++
++#>+ 3
++no-final-install:
++	$(MAKE) libkdnssd_la_OBJECTS="$(libkdnssd_la_nofinal_OBJECTS)" install-am
++
++#>+ 3
++kde-rpo-clean:
++	-rm -f *.rpo
++
++#>+ 22
++$(srcdir)/domainbrowser.cpp: settings.h 
++$(srcdir)/publicservice.cpp: settings.h 
++responder.lo: responder.moc 
++publicservice.lo: publicservice.moc 
++$(srcdir)/remoteservice.cpp: settings.h 
++$(srcdir)/servicebase.cpp: settings.h 
++remoteservice.o: remoteservice.moc 
++domainbrowser.lo: domainbrowser.moc 
++query.o: query.moc 
++query.lo: query.moc 
++servicebrowser.lo: servicebrowser.moc 
++$(srcdir)/responder.cpp: settings.h 
++remoteservice.lo: remoteservice.moc 
++nmcheck: 
++publicservice.o: publicservice.moc 
++nmcheck-am: nmcheck
++servicebrowser.o: servicebrowser.moc 
++$(srcdir)/servicebrowser.cpp: settings.h 
++$(srcdir)/query.cpp: settings.h 
++domainbrowser.o: domainbrowser.moc 
++responder.o: responder.moc 
++
++#>+ 6
++settings.cpp: settings.h
++settings.h: $(srcdir)/kcm_kdnssd.kcfg $(srcdir)/settings.kcfgc $(KCFG_DEPENDENCIES)
++	$(KCONFIG_COMPILER) $(srcdir)/kcm_kdnssd.kcfg $(srcdir)/settings.kcfgc; ret=$$?; \
++	if test "$$ret" != 0; then rm -f settings.h ; exit $$ret ;  fi
++
+diff -Naur kdelibs-3.5.3/dnssd/Makefile.am kdelibs-3.5.3-p/dnssd/Makefile.am
+--- kdelibs-3.5.3/dnssd/Makefile.am	2005-09-10 10:27:49.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/Makefile.am	2006-06-07 00:51:52.000000000 +0200
+@@ -1,20 +1,21 @@
+ # set the include path for X, qt and KDE
+-INCLUDES = -I$(top_srcdir) $(all_includes)
++INCLUDES = -I$(top_srcdir) $(all_includes) $(AVAHI_CFLAGS)
+ 
+ # these are the headers for your project
+-noinst_HEADERS = sdevent.h
+ 
+ # let automoc handle all of the meta source files (moc)
+ METASOURCES = AUTO
+ 
+ lib_LTLIBRARIES =  libkdnssd.la
++noinst_HEADERS = sdevent.h
+ 
+ libkdnssd_la_SOURCES = remoteservice.cpp responder.cpp servicebase.cpp \
+ 				settings.kcfgc publicservice.cpp query.cpp domainbrowser.cpp servicebrowser.cpp
+ dnssdincludedir = $(includedir)/dnssd
+ dnssdinclude_HEADERS = domainbrowser.h query.h remoteservice.h \
+ 	publicservice.h servicebase.h servicebrowser.h settings.h
+-libkdnssd_la_LIBADD = ../kdecore/libkdecore.la $(LIB_DNSSD)
++libkdnssd_la_CXXFLAGS = $(INCLUDES)
++libkdnssd_la_LIBADD = $(LIB_KDECORE) $(AVAHI_LIBS)
+ libkdnssd_la_LDFLAGS = $(all_libraries) $(KDE_RPATH) -version-info 1:0
+ 
+ #kde_kcfg_DATA = kcm_kdnssd.kcfg
+diff -Naur kdelibs-3.5.3/dnssd/Makefile.in kdelibs-3.5.3-p/dnssd/Makefile.in
+--- kdelibs-3.5.3/dnssd/Makefile.in	2006-05-23 23:14:51.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/Makefile.in	2006-06-07 00:51:52.000000000 +0200
+@@ -41,19 +41,15 @@
+ target_triplet = @target@
+ DIST_COMMON = README $(dnssdinclude_HEADERS) $(noinst_HEADERS) \
+ 	$(srcdir)/../admin/Doxyfile.am $(srcdir)/Makefile.am \
+-	$(srcdir)/Makefile.in INSTALL
+-subdir = dnssd
++	$(srcdir)/Makefile.in
++subdir = dnssd
+ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
+ am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
+ 	$(top_srcdir)/configure.in
+ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
+ 	$(ACLOCAL_M4)
+ mkinstalldirs = $(SHELL) $(top_srcdir)/admin/mkinstalldirs
+-CONFIG_HEADER = $(top_builddir)/config.h \
+-	$(top_builddir)/dcop/dcop-path.h \
+-	$(top_builddir)/kdecore/kdemacros.h \
+-	$(top_builddir)/kio/kssl/ksslconfig.h \
+-	$(top_builddir)/kjs/global.h
++CONFIG_HEADER = $(top_builddir)/config.h
+ CONFIG_CLEAN_FILES =
+ am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+ am__vpath_adj = case $$p in \
+@@ -65,18 +61,22 @@
+ libLTLIBRARIES_INSTALL = $(INSTALL)
+ LTLIBRARIES = $(lib_LTLIBRARIES)
+ am__DEPENDENCIES_1 =
+-libkdnssd_la_DEPENDENCIES = ../kdecore/libkdecore.la \
++libkdnssd_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
+ 	$(am__DEPENDENCIES_1)
+-am_libkdnssd_la_OBJECTS = remoteservice.lo responder.lo servicebase.lo \
+-	publicservice.lo query.lo domainbrowser.lo servicebrowser.lo
++am_libkdnssd_la_OBJECTS = libkdnssd_la-remoteservice.lo \
++	libkdnssd_la-responder.lo libkdnssd_la-servicebase.lo \
++	libkdnssd_la-publicservice.lo libkdnssd_la-query.lo \
++	libkdnssd_la-domainbrowser.lo libkdnssd_la-servicebrowser.lo
+ #>- libkdnssd_la_OBJECTS = $(am_libkdnssd_la_OBJECTS)
+-#>+ 5
++#>+ 7
+ libkdnssd_la_final_OBJECTS = libkdnssd_la.all_cpp.lo 
+-libkdnssd_la_nofinal_OBJECTS = remoteservice.lo responder.lo servicebase.lo \
+-	publicservice.lo query.lo domainbrowser.lo servicebrowser.lo settings.lo
++libkdnssd_la_nofinal_OBJECTS = libkdnssd_la-remoteservice.lo \
++	libkdnssd_la-responder.lo libkdnssd_la-servicebase.lo \
++	libkdnssd_la-publicservice.lo libkdnssd_la-query.lo \
++	libkdnssd_la-domainbrowser.lo libkdnssd_la-servicebrowser.lo settings.lo
+ @KDE_USE_FINAL_FALSE@libkdnssd_la_OBJECTS = $(libkdnssd_la_nofinal_OBJECTS)
+ @KDE_USE_FINAL_TRUE@libkdnssd_la_OBJECTS = $(libkdnssd_la_final_OBJECTS)
+-DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir) -I$(top_builddir)/dcop -I$(top_builddir)/kdecore -I$(top_builddir)/kio/kssl -I$(top_builddir)/kjs
++DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
+ depcomp = $(SHELL) $(top_srcdir)/admin/depcomp
+ am__depfiles_maybe = depfiles
+ #>- CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
+@@ -107,8 +107,6 @@
+ #>+ 1
+ DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST) $(KDE_DIST)
+ ACLOCAL = @ACLOCAL@
+-ACL_LIBS = @ACL_LIBS@
+-ALLOCA = @ALLOCA@
+ AMDEP_FALSE = @AMDEP_FALSE@
+ AMDEP_TRUE = @AMDEP_TRUE@
+ AMTAR = @AMTAR@
+@@ -118,13 +116,13 @@
+ AUTODIRS = @AUTODIRS@
+ AUTOHEADER = @AUTOHEADER@
+ AUTOMAKE = @AUTOMAKE@
++AVAHI_CFLAGS = @AVAHI_CFLAGS@
++AVAHI_LIBS = @AVAHI_LIBS@
+ AWK = @AWK@
+ CC = @CC@
+ CCDEPMODE = @CCDEPMODE@
+ CFLAGS = @CFLAGS@
+ CONF_FILES = @CONF_FILES@
+-CONVENIENCE_LTDL_FALSE = @CONVENIENCE_LTDL_FALSE@
+-CONVENIENCE_LTDL_TRUE = @CONVENIENCE_LTDL_TRUE@
+ CPP = @CPP@
+ CPPFLAGS = @CPPFLAGS@
+ CXX = @CXX@
+@@ -138,11 +136,6 @@
+ DCOP_DEPENDENCIES = @DCOP_DEPENDENCIES@
+ DEFS = @DEFS@
+ DEPDIR = @DEPDIR@
+-DOJAVA_FALSE = @DOJAVA_FALSE@
+-DOJAVA_TRUE = @DOJAVA_TRUE@
+-DOXYGEN = @DOXYGEN@
+-DOXYGEN_PROJECT_NAME = @DOXYGEN_PROJECT_NAME@
+-DOXYGEN_PROJECT_NUMBER = @DOXYGEN_PROJECT_NUMBER@
+ ECHO = @ECHO@
+ ECHO_C = @ECHO_C@
+ ECHO_N = @ECHO_N@
+@@ -150,38 +143,23 @@
+ EGREP = @EGREP@
+ ENABLE_PERMISSIVE_FLAG = @ENABLE_PERMISSIVE_FLAG@
+ EXEEXT = @EXEEXT@
+-EXR_FLAGS = @EXR_FLAGS@
+-EXTRA_SUBDIRS = @EXTRA_SUBDIRS@
+ F77 = @F77@
+ FFLAGS = @FFLAGS@
+ FRAMEWORK_COREAUDIO = @FRAMEWORK_COREAUDIO@
+ GMSGFMT = @GMSGFMT@
+-GSSAPI_INCS = @GSSAPI_INCS@
+-GSSAPI_LIBS = @GSSAPI_LIBS@
+-GSSAPI_RPATH = @GSSAPI_RPATH@
+-HAVE_DNSSD_FALSE = @HAVE_DNSSD_FALSE@
+-HAVE_DNSSD_TRUE = @HAVE_DNSSD_TRUE@
+ HAVE_GCC_VISIBILITY = @HAVE_GCC_VISIBILITY@
+-HAVE_MITSHM = @HAVE_MITSHM@
+-HAVE_SENDFILE = @HAVE_SENDFILE@
+-HELP_SUBDIR = @HELP_SUBDIR@
+-ICE_RLIB = @ICE_RLIB@
+-ICE_SUBDIR = @ICE_SUBDIR@
+ INSTALL_DATA = @INSTALL_DATA@
+-INSTALL_LTDL_FALSE = @INSTALL_LTDL_FALSE@
+-INSTALL_LTDL_TRUE = @INSTALL_LTDL_TRUE@
+ INSTALL_PROGRAM = @INSTALL_PROGRAM@
+ INSTALL_SCRIPT = @INSTALL_SCRIPT@
+ INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
+ KCFG_DEPENDENCIES = @KCFG_DEPENDENCIES@
+ KCONFIG_COMPILER = @KCONFIG_COMPILER@
+-KDEINIT_XFT_INCLUDES = @KDEINIT_XFT_INCLUDES@
++KDECONFIG = @KDECONFIG@
+ KDE_CHECK_PLUGIN = @KDE_CHECK_PLUGIN@
+ KDE_EXTRA_RPATH = @KDE_EXTRA_RPATH@
+-KDE_FORCE_INLINE = @KDE_FORCE_INLINE@
+-KDE_HAS_DOXYGEN = @KDE_HAS_DOXYGEN@
+-KDE_HAVE_DOT = @KDE_HAVE_DOT@
+ KDE_INCLUDES = @KDE_INCLUDES@
++KDE_INSTALLED_FALSE = @KDE_INSTALLED_FALSE@
++KDE_INSTALLED_TRUE = @KDE_INSTALLED_TRUE@
+ KDE_LDFLAGS = @KDE_LDFLAGS@
+ KDE_MT_LDFLAGS = @KDE_MT_LDFLAGS@
+ KDE_MT_LIBS = @KDE_MT_LIBS@
+@@ -197,50 +175,28 @@
+ KDE_USE_NMCHECK_TRUE = @KDE_USE_NMCHECK_TRUE@
+ KDE_USE_PIE = @KDE_USE_PIE@
+ KDE_XSL_STYLESHEET = @KDE_XSL_STYLESHEET@
+-KJAVA_POLICYPATH = @KJAVA_POLICYPATH@
+ LDFLAGS = @LDFLAGS@
+ LDFLAGS_AS_NEEDED = @LDFLAGS_AS_NEEDED@
+ LDFLAGS_NEW_DTAGS = @LDFLAGS_NEW_DTAGS@
+-LIBADD_DL = @LIBADD_DL@
+-LIBART_CFLAGS = @LIBART_CFLAGS@
+-LIBART_LIBS = @LIBART_LIBS@
+-LIBART_RPATH = @LIBART_RPATH@
+-LIBASOUND = @LIBASOUND@
+-LIBBZ2 = @LIBBZ2@
++LEX = @LEX@
++LEXLIB = @LEXLIB@
++LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
++LFLAGS = @LFLAGS@
+ LIBCOMPAT = @LIBCOMPAT@
+ LIBCRYPT = @LIBCRYPT@
+ LIBDL = @LIBDL@
+-LIBFAM = @LIBFAM@
+-LIBICE = @LIBICE@
+ LIBJPEG = @LIBJPEG@
+ LIBOBJS = @LIBOBJS@
+-LIBPCRE = @LIBPCRE@
+ LIBPNG = @LIBPNG@
+ LIBPTHREAD = @LIBPTHREAD@
+ LIBRESOLV = @LIBRESOLV@
+ LIBS = @LIBS@
+ LIBSM = @LIBSM@
+ LIBSOCKET = @LIBSOCKET@
+-LIBSSL = @LIBSSL@
+-LIBTHAI = @LIBTHAI@
+-LIBTIFF = @LIBTIFF@
+ LIBTOOL = @LIBTOOL@
+ LIBUCB = @LIBUCB@
+-LIBUTEMPTER = @LIBUTEMPTER@
+ LIBUTIL = @LIBUTIL@
+-LIBVOLMGT = @LIBVOLMGT@
+-LIBXML_CFLAGS = @LIBXML_CFLAGS@
+-LIBXML_LIBS = @LIBXML_LIBS@
+-LIBXML_RPATH = @LIBXML_RPATH@
+-LIBXSLT_CFLAGS = @LIBXSLT_CFLAGS@
+-LIBXSLT_LIBS = @LIBXSLT_LIBS@
+-LIBXSLT_RPATH = @LIBXSLT_RPATH@
+ LIBZ = @LIBZ@
+-LIB_CUPS = @LIB_CUPS@
+-LIB_DNSSD = @LIB_DNSSD@
+-LIB_EXR = @LIB_EXR@
+-LIB_IDN = @LIB_IDN@
+-LIB_JASPER = @LIB_JASPER@
+ LIB_KAB = @LIB_KAB@
+ LIB_KABC = @LIB_KABC@
+ LIB_KDECORE = @LIB_KDECORE@
+@@ -252,7 +208,6 @@
+ LIB_KFILE = @LIB_KFILE@
+ LIB_KFM = @LIB_KFM@
+ LIB_KHTML = @LIB_KHTML@
+-LIB_KIMGIO = @LIB_KIMGIO@
+ LIB_KIMPROXY = @LIB_KIMPROXY@
+ LIB_KIO = @LIB_KIO@
+ LIB_KJS = @LIB_KJS@
+@@ -271,15 +226,10 @@
+ LIB_XRENDER = @LIB_XRENDER@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+-LUA = @LUA@
+-LUA_INCLUDES = @LUA_INCLUDES@
+-LUA_LIBS = @LUA_LIBS@
+ MAKEINFO = @MAKEINFO@
+ MAKEKDEWIDGETS = @MAKEKDEWIDGETS@
+ MCOPIDL = @MCOPIDL@
+-MD5SUM = @MD5SUM@
+ MEINPROC = @MEINPROC@
+-MEINPROC_DEP = @MEINPROC_DEP@
+ MOC = @MOC@
+ MSGFMT = @MSGFMT@
+ NOOPT_CFLAGS = @NOOPT_CFLAGS@
+@@ -292,19 +242,14 @@
+ PACKAGE_TARNAME = @PACKAGE_TARNAME@
+ PACKAGE_VERSION = @PACKAGE_VERSION@
+ PATH_SEPARATOR = @PATH_SEPARATOR@
+-PCRECFLAGS = @PCRECFLAGS@
+ PERL = @PERL@
+ PKG_CONFIG = @PKG_CONFIG@
+-QNAMESPACE_H = @QNAMESPACE_H@
+-QTDOCDIR = @QTDOCDIR@
+ QTE_NORTTI = @QTE_NORTTI@
+ QT_INCLUDES = @QT_INCLUDES@
+ QT_LDFLAGS = @QT_LDFLAGS@
+ RANLIB = @RANLIB@
+ SET_MAKE = @SET_MAKE@
+ SHELL = @SHELL@
+-SSL_INCLUDES = @SSL_INCLUDES@
+-SSL_LDFLAGS = @SSL_LDFLAGS@
+ STRIP = @STRIP@
+ TOPSUBDIRS = @TOPSUBDIRS@
+ UIC = @UIC@
+@@ -329,6 +274,7 @@
+ ac_ct_F77 = @ac_ct_F77@
+ ac_ct_RANLIB = @ac_ct_RANLIB@
+ ac_ct_STRIP = @ac_ct_STRIP@
++ac_pt_PKG_CONFIG = @ac_pt_PKG_CONFIG@
+ all_includes = @all_includes@
+ all_libraries = @all_libraries@
+ am__fastdepCC_FALSE = @am__fastdepCC_FALSE@
+@@ -340,22 +286,13 @@
+ am__quote = @am__quote@
+ am__tar = @am__tar@
+ am__untar = @am__untar@
+-arts_SUBDIR_included_FALSE = @arts_SUBDIR_included_FALSE@
+-arts_SUBDIR_included_TRUE = @arts_SUBDIR_included_TRUE@
+ bindir = @bindir@
+ build = @build@
+ build_alias = @build_alias@
+ build_cpu = @build_cpu@
+ build_os = @build_os@
+ build_vendor = @build_vendor@
+-cups_modeldir = @cups_modeldir@
+ datadir = @datadir@
+-dcop_SUBDIR_included_FALSE = @dcop_SUBDIR_included_FALSE@
+-dcop_SUBDIR_included_TRUE = @dcop_SUBDIR_included_TRUE@
+-dnssd_SUBDIR_included_FALSE = @dnssd_SUBDIR_included_FALSE@
+-dnssd_SUBDIR_included_TRUE = @dnssd_SUBDIR_included_TRUE@
+-doc_SUBDIR_included_FALSE = @doc_SUBDIR_included_FALSE@
+-doc_SUBDIR_included_TRUE = @doc_SUBDIR_included_TRUE@
+ exec_prefix = @exec_prefix@
+ host = @host@
+ host_alias = @host_alias@
+@@ -364,49 +301,14 @@
+ host_vendor = @host_vendor@
+ include_ARTS_FALSE = @include_ARTS_FALSE@
+ include_ARTS_TRUE = @include_ARTS_TRUE@
+-include_BZIP2_FALSE = @include_BZIP2_FALSE@
+-include_BZIP2_TRUE = @include_BZIP2_TRUE@
+-include_EXR_MODULES_FALSE = @include_EXR_MODULES_FALSE@
+-include_EXR_MODULES_TRUE = @include_EXR_MODULES_TRUE@
+-include_JP2_MODULES_FALSE = @include_JP2_MODULES_FALSE@
+-include_JP2_MODULES_TRUE = @include_JP2_MODULES_TRUE@
+-include_SVGICONS_FALSE = @include_SVGICONS_FALSE@
+-include_SVGICONS_TRUE = @include_SVGICONS_TRUE@
+-include_TIFF_MODULES_FALSE = @include_TIFF_MODULES_FALSE@
+-include_TIFF_MODULES_TRUE = @include_TIFF_MODULES_TRUE@
+-include_VERSION_SCRIPT_FALSE = @include_VERSION_SCRIPT_FALSE@
+-include_VERSION_SCRIPT_TRUE = @include_VERSION_SCRIPT_TRUE@
+-include_aspell_plugin_FALSE = @include_aspell_plugin_FALSE@
+-include_aspell_plugin_TRUE = @include_aspell_plugin_TRUE@
+-include_bzip2_FALSE = @include_bzip2_FALSE@
+-include_bzip2_TRUE = @include_bzip2_TRUE@
+-include_cups_SUBDIR_FALSE = @include_cups_SUBDIR_FALSE@
+-include_cups_SUBDIR_TRUE = @include_cups_SUBDIR_TRUE@
+-include_hspell_plugin_FALSE = @include_hspell_plugin_FALSE@
+-include_hspell_plugin_TRUE = @include_hspell_plugin_TRUE@
+ include_x11_FALSE = @include_x11_FALSE@
+ include_x11_TRUE = @include_x11_TRUE@
+ includedir = @includedir@
+ infodir = @infodir@
+ install_sh = @install_sh@
+-interfaces_SUBDIR_included_FALSE = @interfaces_SUBDIR_included_FALSE@
+-interfaces_SUBDIR_included_TRUE = @interfaces_SUBDIR_included_TRUE@
+-kab_SUBDIR_included_FALSE = @kab_SUBDIR_included_FALSE@
+-kab_SUBDIR_included_TRUE = @kab_SUBDIR_included_TRUE@
+-kabc_SUBDIR_included_FALSE = @kabc_SUBDIR_included_FALSE@
+-kabc_SUBDIR_included_TRUE = @kabc_SUBDIR_included_TRUE@
+-kate_SUBDIR_included_FALSE = @kate_SUBDIR_included_FALSE@
+-kate_SUBDIR_included_TRUE = @kate_SUBDIR_included_TRUE@
+-kcert_SUBDIR_included_FALSE = @kcert_SUBDIR_included_FALSE@
+-kcert_SUBDIR_included_TRUE = @kcert_SUBDIR_included_TRUE@
+-kcmshell_SUBDIR_included_FALSE = @kcmshell_SUBDIR_included_FALSE@
+-kcmshell_SUBDIR_included_TRUE = @kcmshell_SUBDIR_included_TRUE@
+-kconf_update_SUBDIR_included_FALSE = @kconf_update_SUBDIR_included_FALSE@
+-kconf_update_SUBDIR_included_TRUE = @kconf_update_SUBDIR_included_TRUE@
+ kde_appsdir = @kde_appsdir@
+ kde_bindir = @kde_bindir@
+ kde_confdir = @kde_confdir@
+-kde_cups_config = @kde_cups_config@
+ kde_datadir = @kde_datadir@
+ kde_htmldir = @kde_htmldir@
+ kde_icondir = @kde_icondir@
+@@ -426,72 +328,15 @@
+ kde_templatesdir = @kde_templatesdir@
+ kde_wallpaperdir = @kde_wallpaperdir@
+ kde_widgetdir = @kde_widgetdir@
+-kdecore_SUBDIR_included_FALSE = @kdecore_SUBDIR_included_FALSE@
+-kdecore_SUBDIR_included_TRUE = @kdecore_SUBDIR_included_TRUE@
+-kded_SUBDIR_included_FALSE = @kded_SUBDIR_included_FALSE@
+-kded_SUBDIR_included_TRUE = @kded_SUBDIR_included_TRUE@
+-kdefx_SUBDIR_included_FALSE = @kdefx_SUBDIR_included_FALSE@
+-kdefx_SUBDIR_included_TRUE = @kdefx_SUBDIR_included_TRUE@
+ kdeinitdir = @kdeinitdir@
+-kdeprint_SUBDIR_included_FALSE = @kdeprint_SUBDIR_included_FALSE@
+-kdeprint_SUBDIR_included_TRUE = @kdeprint_SUBDIR_included_TRUE@
+-kdesu_SUBDIR_included_FALSE = @kdesu_SUBDIR_included_FALSE@
+-kdesu_SUBDIR_included_TRUE = @kdesu_SUBDIR_included_TRUE@
+-kdeui_SUBDIR_included_FALSE = @kdeui_SUBDIR_included_FALSE@
+-kdeui_SUBDIR_included_TRUE = @kdeui_SUBDIR_included_TRUE@
+-kdewidgets_SUBDIR_included_FALSE = @kdewidgets_SUBDIR_included_FALSE@
+-kdewidgets_SUBDIR_included_TRUE = @kdewidgets_SUBDIR_included_TRUE@
+-kdoctools_SUBDIR_included_FALSE = @kdoctools_SUBDIR_included_FALSE@
+-kdoctools_SUBDIR_included_TRUE = @kdoctools_SUBDIR_included_TRUE@
+-khtml_SUBDIR_included_FALSE = @khtml_SUBDIR_included_FALSE@
+-khtml_SUBDIR_included_TRUE = @khtml_SUBDIR_included_TRUE@
+-kimgio_SUBDIR_included_FALSE = @kimgio_SUBDIR_included_FALSE@
+-kimgio_SUBDIR_included_TRUE = @kimgio_SUBDIR_included_TRUE@
+-kinit_SUBDIR_included_FALSE = @kinit_SUBDIR_included_FALSE@
+-kinit_SUBDIR_included_TRUE = @kinit_SUBDIR_included_TRUE@
+-kio_SUBDIR_included_FALSE = @kio_SUBDIR_included_FALSE@
+-kio_SUBDIR_included_TRUE = @kio_SUBDIR_included_TRUE@
+-kioslave_SUBDIR_included_FALSE = @kioslave_SUBDIR_included_FALSE@
+-kioslave_SUBDIR_included_TRUE = @kioslave_SUBDIR_included_TRUE@
+-kjs_SUBDIR_included_FALSE = @kjs_SUBDIR_included_FALSE@
+-kjs_SUBDIR_included_TRUE = @kjs_SUBDIR_included_TRUE@
+-kmdi_SUBDIR_included_FALSE = @kmdi_SUBDIR_included_FALSE@
+-kmdi_SUBDIR_included_TRUE = @kmdi_SUBDIR_included_TRUE@
+-knewstuff_SUBDIR_included_FALSE = @knewstuff_SUBDIR_included_FALSE@
+-knewstuff_SUBDIR_included_TRUE = @knewstuff_SUBDIR_included_TRUE@
+-kparts_SUBDIR_included_FALSE = @kparts_SUBDIR_included_FALSE@
+-kparts_SUBDIR_included_TRUE = @kparts_SUBDIR_included_TRUE@
+-kresources_SUBDIR_included_FALSE = @kresources_SUBDIR_included_FALSE@
+-kresources_SUBDIR_included_TRUE = @kresources_SUBDIR_included_TRUE@
+-kspell2_SUBDIR_included_FALSE = @kspell2_SUBDIR_included_FALSE@
+-kspell2_SUBDIR_included_TRUE = @kspell2_SUBDIR_included_TRUE@
+-kstyles_SUBDIR_included_FALSE = @kstyles_SUBDIR_included_FALSE@
+-kstyles_SUBDIR_included_TRUE = @kstyles_SUBDIR_included_TRUE@
+-kunittest_SUBDIR_included_FALSE = @kunittest_SUBDIR_included_FALSE@
+-kunittest_SUBDIR_included_TRUE = @kunittest_SUBDIR_included_TRUE@
+-kutils_SUBDIR_included_FALSE = @kutils_SUBDIR_included_FALSE@
+-kutils_SUBDIR_included_TRUE = @kutils_SUBDIR_included_TRUE@
+-kwallet_SUBDIR_included_FALSE = @kwallet_SUBDIR_included_FALSE@
+-kwallet_SUBDIR_included_TRUE = @kwallet_SUBDIR_included_TRUE@
++kdnssd_avahi_SUBDIR_included_FALSE = @kdnssd_avahi_SUBDIR_included_FALSE@
++kdnssd_avahi_SUBDIR_included_TRUE = @kdnssd_avahi_SUBDIR_included_TRUE@
+ libdir = @libdir@
+ libexecdir = @libexecdir@
+-libkmid_SUBDIR_included_FALSE = @libkmid_SUBDIR_included_FALSE@
+-libkmid_SUBDIR_included_TRUE = @libkmid_SUBDIR_included_TRUE@
+-libkscreensaver_SUBDIR_included_FALSE = @libkscreensaver_SUBDIR_included_FALSE@
+-libkscreensaver_SUBDIR_included_TRUE = @libkscreensaver_SUBDIR_included_TRUE@
+-libltdl_SUBDIR_included_FALSE = @libltdl_SUBDIR_included_FALSE@
+-libltdl_SUBDIR_included_TRUE = @libltdl_SUBDIR_included_TRUE@
+-licenses_SUBDIR_included_FALSE = @licenses_SUBDIR_included_FALSE@
+-licenses_SUBDIR_included_TRUE = @licenses_SUBDIR_included_TRUE@
+ localstatedir = @localstatedir@
+ mandir = @mandir@
+-mimetypes_SUBDIR_included_FALSE = @mimetypes_SUBDIR_included_FALSE@
+-mimetypes_SUBDIR_included_TRUE = @mimetypes_SUBDIR_included_TRUE@
+ mkdir_p = @mkdir_p@
+ oldincludedir = @oldincludedir@
+-path_su = @path_su@
+-pics_SUBDIR_included_FALSE = @pics_SUBDIR_included_FALSE@
+-pics_SUBDIR_included_TRUE = @pics_SUBDIR_included_TRUE@
+ prefix = @prefix@
+ program_transform_name = @program_transform_name@
+ qt_includes = @qt_includes@
+@@ -504,8 +349,6 @@
+ target_cpu = @target_cpu@
+ target_os = @target_os@
+ target_vendor = @target_vendor@
+-undefined_symbols_allowed_FALSE = @undefined_symbols_allowed_FALSE@
+-undefined_symbols_allowed_TRUE = @undefined_symbols_allowed_TRUE@
+ unsermake_enable_pch_FALSE = @unsermake_enable_pch_FALSE@
+ unsermake_enable_pch_TRUE = @unsermake_enable_pch_TRUE@
+ x_includes = @x_includes@
+@@ -515,14 +358,14 @@
+ xdg_menudir = @xdg_menudir@
+ 
+ # set the include path for X, qt and KDE
+-INCLUDES = -I$(top_srcdir) $(all_includes)
++INCLUDES = -I$(top_srcdir) $(all_includes) $(AVAHI_CFLAGS)
+ 
+ # these are the headers for your project
+-noinst_HEADERS = sdevent.h
+ 
+ # let automoc handle all of the meta source files (moc)
+ #>- METASOURCES = AUTO
+ lib_LTLIBRARIES = libkdnssd.la
++noinst_HEADERS = sdevent.h
+ #>- libkdnssd_la_SOURCES = remoteservice.cpp responder.cpp servicebase.cpp \
+ #>- 				settings.kcfgc publicservice.cpp query.cpp domainbrowser.cpp servicebrowser.cpp
+ #>+ 2
+@@ -533,7 +376,8 @@
+ dnssdinclude_HEADERS = domainbrowser.h query.h remoteservice.h \
+ 	publicservice.h servicebase.h servicebrowser.h settings.h
+ 
+-libkdnssd_la_LIBADD = ../kdecore/libkdecore.la $(LIB_DNSSD)
++libkdnssd_la_CXXFLAGS = $(INCLUDES)
++libkdnssd_la_LIBADD = $(LIB_KDECORE) $(AVAHI_LIBS)
+ libkdnssd_la_LDFLAGS = $(all_libraries) $(KDE_RPATH) -version-info 1:0
+ #>- all: all-am
+ #>+ 1
+@@ -550,9 +394,9 @@
+ #>- 	      exit 1;; \
+ #>- 	  esac; \
+ #>- 	done; \
+-#>- 	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  dnssd/Makefile'; \
++#>- 	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  dnssd/Makefile'; \
+ #>- 	cd $(top_srcdir) && \
+-#>- 	  $(AUTOMAKE) --foreign  dnssd/Makefile
++#>- 	  $(AUTOMAKE) --gnu  dnssd/Makefile
+ #>+ 12
+ 	@for dep in $?; do \
+ 	  case '$(am__configure_deps)' in \
+@@ -562,10 +406,10 @@
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  dnssd/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  dnssd/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  dnssd/Makefile
+-	cd $(top_srcdir) && perl admin/am_edit dnssd/Makefile.in
++	  $(AUTOMAKE) --gnu  dnssd/Makefile
++	cd $(top_srcdir) && perl admin/am_edit dnssd/Makefile.in
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+@@ -619,13 +463,13 @@
+ distclean-compile:
+ 	-rm -f *.tab.c
+ 
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/domainbrowser.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/publicservice.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/query.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/remoteservice.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/responder.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/servicebase.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/servicebrowser.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libkdnssd_la-domainbrowser.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libkdnssd_la-publicservice.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libkdnssd_la-query.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libkdnssd_la-remoteservice.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libkdnssd_la-responder.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libkdnssd_la-servicebase.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libkdnssd_la-servicebrowser.Plo@am__quote@
+ 
+ .cpp.o:
+ @am__fastdepCXX_TRUE@	if $(CXXCOMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
+@@ -648,6 +492,90 @@
+ @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+ @am__fastdepCXX_FALSE@	$(LTCXXCOMPILE) -c -o $@ $<
+ 
++libkdnssd_la-remoteservice.lo: remoteservice.cpp
++#>- @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-remoteservice.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo" -c -o libkdnssd_la-remoteservice.lo `test -f 'remoteservice.cpp' || echo '$(srcdir)/'`remoteservice.cpp; \
++#>- @am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo" "$(DEPDIR)/libkdnssd_la-remoteservice.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo"; exit 1; fi
++#>+ 2
++@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-remoteservice.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo" -c -o libkdnssd_la-remoteservice.lo `test -f 'remoteservice.cpp' || echo '$(srcdir)/'`remoteservice.cpp; \
++@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo" "$(DEPDIR)/libkdnssd_la-remoteservice.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-remoteservice.Tpo"; exit 1; fi
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='remoteservice.cpp' object='libkdnssd_la-remoteservice.lo' libtool=yes @AMDEPBACKSLASH@
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
++#>- @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-remoteservice.lo `test -f 'remoteservice.cpp' || echo '$(srcdir)/'`remoteservice.cpp
++#>+ 1
++@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-remoteservice.lo `test -f 'remoteservice.cpp' || echo '$(srcdir)/'`remoteservice.cpp
++
++libkdnssd_la-responder.lo: responder.cpp
++#>- @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-responder.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-responder.Tpo" -c -o libkdnssd_la-responder.lo `test -f 'responder.cpp' || echo '$(srcdir)/'`responder.cpp; \
++#>- @am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-responder.Tpo" "$(DEPDIR)/libkdnssd_la-responder.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-responder.Tpo"; exit 1; fi
++#>+ 2
++@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-responder.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-responder.Tpo" -c -o libkdnssd_la-responder.lo `test -f 'responder.cpp' || echo '$(srcdir)/'`responder.cpp; \
++@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-responder.Tpo" "$(DEPDIR)/libkdnssd_la-responder.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-responder.Tpo"; exit 1; fi
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='responder.cpp' object='libkdnssd_la-responder.lo' libtool=yes @AMDEPBACKSLASH@
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
++#>- @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-responder.lo `test -f 'responder.cpp' || echo '$(srcdir)/'`responder.cpp
++#>+ 1
++@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-responder.lo `test -f 'responder.cpp' || echo '$(srcdir)/'`responder.cpp
++
++libkdnssd_la-servicebase.lo: servicebase.cpp
++#>- @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-servicebase.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-servicebase.Tpo" -c -o libkdnssd_la-servicebase.lo `test -f 'servicebase.cpp' || echo '$(srcdir)/'`servicebase.cpp; \
++#>- @am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-servicebase.Tpo" "$(DEPDIR)/libkdnssd_la-servicebase.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-servicebase.Tpo"; exit 1; fi
++#>+ 2
++@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-servicebase.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-servicebase.Tpo" -c -o libkdnssd_la-servicebase.lo `test -f 'servicebase.cpp' || echo '$(srcdir)/'`servicebase.cpp; \
++@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-servicebase.Tpo" "$(DEPDIR)/libkdnssd_la-servicebase.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-servicebase.Tpo"; exit 1; fi
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='servicebase.cpp' object='libkdnssd_la-servicebase.lo' libtool=yes @AMDEPBACKSLASH@
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
++#>- @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-servicebase.lo `test -f 'servicebase.cpp' || echo '$(srcdir)/'`servicebase.cpp
++#>+ 1
++@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-servicebase.lo `test -f 'servicebase.cpp' || echo '$(srcdir)/'`servicebase.cpp
++
++libkdnssd_la-publicservice.lo: publicservice.cpp
++#>- @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-publicservice.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-publicservice.Tpo" -c -o libkdnssd_la-publicservice.lo `test -f 'publicservice.cpp' || echo '$(srcdir)/'`publicservice.cpp; \
++#>- @am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-publicservice.Tpo" "$(DEPDIR)/libkdnssd_la-publicservice.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-publicservice.Tpo"; exit 1; fi
++#>+ 2
++@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-publicservice.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-publicservice.Tpo" -c -o libkdnssd_la-publicservice.lo `test -f 'publicservice.cpp' || echo '$(srcdir)/'`publicservice.cpp; \
++@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-publicservice.Tpo" "$(DEPDIR)/libkdnssd_la-publicservice.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-publicservice.Tpo"; exit 1; fi
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='publicservice.cpp' object='libkdnssd_la-publicservice.lo' libtool=yes @AMDEPBACKSLASH@
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
++#>- @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-publicservice.lo `test -f 'publicservice.cpp' || echo '$(srcdir)/'`publicservice.cpp
++#>+ 1
++@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-publicservice.lo `test -f 'publicservice.cpp' || echo '$(srcdir)/'`publicservice.cpp
++
++libkdnssd_la-query.lo: query.cpp
++#>- @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-query.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-query.Tpo" -c -o libkdnssd_la-query.lo `test -f 'query.cpp' || echo '$(srcdir)/'`query.cpp; \
++#>- @am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-query.Tpo" "$(DEPDIR)/libkdnssd_la-query.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-query.Tpo"; exit 1; fi
++#>+ 2
++@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-query.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-query.Tpo" -c -o libkdnssd_la-query.lo `test -f 'query.cpp' || echo '$(srcdir)/'`query.cpp; \
++@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-query.Tpo" "$(DEPDIR)/libkdnssd_la-query.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-query.Tpo"; exit 1; fi
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='query.cpp' object='libkdnssd_la-query.lo' libtool=yes @AMDEPBACKSLASH@
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
++#>- @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-query.lo `test -f 'query.cpp' || echo '$(srcdir)/'`query.cpp
++#>+ 1
++@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-query.lo `test -f 'query.cpp' || echo '$(srcdir)/'`query.cpp
++
++libkdnssd_la-domainbrowser.lo: domainbrowser.cpp
++#>- @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-domainbrowser.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo" -c -o libkdnssd_la-domainbrowser.lo `test -f 'domainbrowser.cpp' || echo '$(srcdir)/'`domainbrowser.cpp; \
++#>- @am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo" "$(DEPDIR)/libkdnssd_la-domainbrowser.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo"; exit 1; fi
++#>+ 2
++@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-domainbrowser.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo" -c -o libkdnssd_la-domainbrowser.lo `test -f 'domainbrowser.cpp' || echo '$(srcdir)/'`domainbrowser.cpp; \
++@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo" "$(DEPDIR)/libkdnssd_la-domainbrowser.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-domainbrowser.Tpo"; exit 1; fi
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='domainbrowser.cpp' object='libkdnssd_la-domainbrowser.lo' libtool=yes @AMDEPBACKSLASH@
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
++#>- @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-domainbrowser.lo `test -f 'domainbrowser.cpp' || echo '$(srcdir)/'`domainbrowser.cpp
++#>+ 1
++@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-domainbrowser.lo `test -f 'domainbrowser.cpp' || echo '$(srcdir)/'`domainbrowser.cpp
++
++libkdnssd_la-servicebrowser.lo: servicebrowser.cpp
++#>- @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -MT libkdnssd_la-servicebrowser.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo" -c -o libkdnssd_la-servicebrowser.lo `test -f 'servicebrowser.cpp' || echo '$(srcdir)/'`servicebrowser.cpp; \
++#>- @am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo" "$(DEPDIR)/libkdnssd_la-servicebrowser.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo"; exit 1; fi
++#>+ 2
++@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -MT libkdnssd_la-servicebrowser.lo -MD -MP -MF "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo" -c -o libkdnssd_la-servicebrowser.lo `test -f 'servicebrowser.cpp' || echo '$(srcdir)/'`servicebrowser.cpp; \
++@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo" "$(DEPDIR)/libkdnssd_la-servicebrowser.Plo"; else rm -f "$(DEPDIR)/libkdnssd_la-servicebrowser.Tpo"; exit 1; fi
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='servicebrowser.cpp' object='libkdnssd_la-servicebrowser.lo' libtool=yes @AMDEPBACKSLASH@
++@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
++#>- @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) -c -o libkdnssd_la-servicebrowser.lo `test -f 'servicebrowser.cpp' || echo '$(srcdir)/'`servicebrowser.cpp
++#>+ 1
++@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libkdnssd_la_CXXFLAGS) $(CXXFLAGS) $(KDE_CXXFLAGS) -c -o libkdnssd_la-servicebrowser.lo `test -f 'servicebrowser.cpp' || echo '$(srcdir)/'`servicebrowser.cpp
++
+ mostlyclean-libtool:
+ 	-rm -f *.lo
+ 
+@@ -952,11 +880,11 @@
+ .NOEXPORT:
+ 
+ #>+ 3
+-remoteservice.moc: $(srcdir)/remoteservice.h
+-	$(MOC) $(srcdir)/remoteservice.h -o remoteservice.moc
++responder.moc: $(srcdir)/responder.h
++	$(MOC) $(srcdir)/responder.h -o responder.moc
+ 
+ #>+ 2
+-mocs: remoteservice.moc
++mocs: responder.moc
+ 
+ #>+ 3
+ servicebrowser.moc: $(srcdir)/servicebrowser.h
+@@ -966,11 +894,11 @@
+ mocs: servicebrowser.moc
+ 
+ #>+ 3
+-responder.moc: $(srcdir)/responder.h
+-	$(MOC) $(srcdir)/responder.h -o responder.moc
++remoteservice.moc: $(srcdir)/remoteservice.h
++	$(MOC) $(srcdir)/remoteservice.h -o remoteservice.moc
+ 
+ #>+ 2
+-mocs: responder.moc
++mocs: remoteservice.moc
+ 
+ #>+ 3
+ query.moc: $(srcdir)/query.h
+@@ -995,10 +923,10 @@
+ 
+ #>+ 3
+ clean-metasources:
+-	-rm -f  remoteservice.moc servicebrowser.moc responder.moc query.moc publicservice.moc domainbrowser.moc
++	-rm -f  responder.moc servicebrowser.moc remoteservice.moc query.moc publicservice.moc domainbrowser.moc
+ 
+ #>+ 2
+-KDE_DIST=configure.in.bot settings.kcfgc kcm_kdnssd.kcfg responder.h configure.in.in Makefile.in Makefile.am 
++KDE_DIST=Makefile.in settings.kcfgc kcm_kdnssd.kcfg responder.h configure.in.in Makefile.am 
+ 
+ #>+ 4
+ clean-kcfg:
+@@ -1018,10 +946,10 @@
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  dnssd/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  dnssd/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  dnssd/Makefile
+-	cd $(top_srcdir) && perl admin/am_edit dnssd/Makefile.in
++	  $(AUTOMAKE) --gnu  dnssd/Makefile
++	cd $(top_srcdir) && perl admin/am_edit dnssd/Makefile.in
+ 
+ 
+ #>+ 21
+@@ -1047,7 +975,7 @@
+ 
+ 
+ #>+ 11
+-libkdnssd_la.all_cpp.cpp: $(srcdir)/Makefile.in $(srcdir)/remoteservice.cpp $(srcdir)/responder.cpp $(srcdir)/servicebase.cpp $(srcdir)/publicservice.cpp $(srcdir)/query.cpp $(srcdir)/domainbrowser.cpp $(srcdir)/servicebrowser.cpp settings.cpp  responder.moc servicebrowser.moc remoteservice.moc query.moc publicservice.moc domainbrowser.moc
++libkdnssd_la.all_cpp.cpp: $(srcdir)/Makefile.in $(srcdir)/remoteservice.cpp $(srcdir)/responder.cpp $(srcdir)/servicebase.cpp $(srcdir)/publicservice.cpp $(srcdir)/query.cpp $(srcdir)/domainbrowser.cpp $(srcdir)/servicebrowser.cpp settings.cpp  remoteservice.moc servicebrowser.moc responder.moc query.moc publicservice.moc domainbrowser.moc
+ 	@echo 'creating libkdnssd_la.all_cpp.cpp ...'; \
+ 	rm -f libkdnssd_la.all_cpp.files libkdnssd_la.all_cpp.final; \
+ 	echo "#define KDE_USE_FINAL 1" >> libkdnssd_la.all_cpp.final; \
+diff -Naur kdelibs-3.5.3/dnssd/publicservice.cpp kdelibs-3.5.3-p/dnssd/publicservice.cpp
+--- kdelibs-3.5.3/dnssd/publicservice.cpp	2005-10-10 17:06:42.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/publicservice.cpp	2006-06-07 00:51:52.000000000 +0200
+@@ -27,9 +27,15 @@
+ #include <netinet/in.h>
+ #include <sys/socket.h>
+ #include <qapplication.h>
+-#include <network/ksocketaddress.h>
++#include <network/ksocketaddress.h>
+ #include <kurl.h>
+ #include <unistd.h>
++#include <avahi-client/client.h>
++#ifdef AVAHI_API_0_6
++#include <avahi-client/publish.h>
++#endif
++#include <avahi-common/alternative.h>
++#include <avahi-common/strlst.h>
+ #include "sdevent.h"
+ #include "responder.h"
+ #include "servicebrowser.h"
+@@ -38,16 +44,23 @@
+ namespace DNSSD
+ {
+ static unsigned long publicIP();
+-#ifdef HAVE_DNSSD
+-void publish_callback (DNSServiceRef, DNSServiceFlags, DNSServiceErrorType errorCode, const char *name,
+-		       const char*, const char*, void *context);
+-#endif
+-class PublicServicePrivate : public Responder
++
++void publish_callback (AvahiEntryGroup*, AvahiEntryGroupState s,  void *context);
++
++class PublicServicePrivate 
+ {
+ public:
+-	PublicServicePrivate() : m_published(false)
++	PublicServicePrivate() : m_published(false), m_running(false), m_collision(false), m_group(false)
+ 	{}
+ 	bool m_published;
++	bool m_running;
++	bool m_collision;
++	AvahiEntryGroup* m_group;
++	void commit()
++	{
++	    if (!m_collision) avahi_entry_group_commit(m_group);
++	}    
++	
+ };
+ 
+ PublicService::PublicService(const QString& name, const QString& type, unsigned int port,
+@@ -55,6 +68,10 @@
+   		: QObject(), ServiceBase(name, type, QString::null, domain, port)
+ {
+ 	d = new PublicServicePrivate;
++	if (Responder::self().client()) { 
++		d->m_group = avahi_entry_group_new(Responder::self().client(), publish_callback,this);
++		connect(&Responder::self(),SIGNAL(stateChanged(AvahiClientState)),this,SLOT(clientState(AvahiClientState)));
++	}
+ 	if (domain.isNull())
+ 		if (Configuration::publishType()==Configuration::EnumPublishType::LAN) m_domain="local.";
+ 		else m_domain=Configuration::publishDomain();
+@@ -63,114 +80,148 @@
+ 
+ PublicService::~PublicService()
+ {
+-	stop();
++	if (d->m_group) avahi_entry_group_free(d->m_group);
+ 	delete d;
+ }
+ 
++void PublicService::tryApply()
++{
++    if (fillEntryGroup()) d->commit();
++    else {
++	stop();
++	emit published(false);
++    }
++}
++
+ void PublicService::setServiceName(const QString& serviceName)
+ {
+ 	m_serviceName = serviceName;
+-	if (d->isRunning()) {
+-		stop();
+-		publishAsync();
+-	}
++	if (d->m_running) {
++	    avahi_entry_group_reset(d->m_group);
++	    tryApply();
++	} 
+ }
+ 
+ void PublicService::setDomain(const QString& domain)
+ {
+ 	m_domain = domain;
+-	if (d->isRunning()) {
+-	stop();
+-	publishAsync();
+-	}
++	if (d->m_running) {
++	    avahi_entry_group_reset(d->m_group);
++	    tryApply();
++	} 
+ }
+ 
+ 
+ void PublicService::setType(const QString& type)
+ {
+ 	m_type = type;
+-	if (d->isRunning()) {
+-		stop();
+-		publishAsync();
+-	}
++	if (d->m_running) {
++	    avahi_entry_group_reset(d->m_group);
++	    tryApply();
++	} 
+ }
+ 
+ void PublicService::setPort(unsigned short port)
+ {
+ 	m_port = port;
+-	if (d->isRunning()) {
+-		stop();
+-		publishAsync();
+-	}
++	if (d->m_running) {
++	    avahi_entry_group_reset(d->m_group);
++	    tryApply();
++    	} 
+ }
+ 
+-bool PublicService::isPublished() const
++void PublicService::setTextData(const QMap<QString,QString>& textData)
+ {
+-	return d->m_published;
++	m_textData = textData;
++	if (d->m_running) {
++	    avahi_entry_group_reset(d->m_group);
++	    tryApply();
++	} 
+ }
+ 
+-void PublicService::setTextData(const QMap<QString,QString>& textData)
++bool PublicService::isPublished() const
+ {
+-	m_textData = textData;
+-	if (d->isRunning()) {
+-		stop();
+-		publishAsync();
+-	}
++	return d->m_published;
+ }
+ 
+ bool PublicService::publish()
+ {
+ 	publishAsync();
+-	while (d->isRunning() && !d->m_published) d->process();
++	while (d->m_running && !d->m_published) Responder::self().process();
+ 	return d->m_published;
+ }
+ 
+ void PublicService::stop()
+ {
+-	d->stop();
+-	d->m_published = false;
++    if (d->m_group) avahi_entry_group_reset(d->m_group);
++    d->m_published = false;
++}
++bool PublicService::fillEntryGroup()
++{
++    AvahiStringList *s=0;
++    QMap<QString,QString>::ConstIterator itEnd = m_textData.end();
++    for (QMap<QString,QString>::ConstIterator it = m_textData.begin(); it!=itEnd ; ++it) 
++	s = avahi_string_list_add_pair(s, it.key().utf8(),it.data().utf8());
++#ifdef AVAHI_API_0_6
++    bool res = (!avahi_entry_group_add_service_strlst(d->m_group, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, (AvahiPublishFlags)0, 
++	m_serviceName.isNull() ? avahi_client_get_host_name(Responder::self().client()) : m_serviceName.utf8().data(),
++	m_type.ascii(),domainToDNS(m_domain),m_hostName.utf8(),m_port,s));
++#else
++    bool res = (!avahi_entry_group_add_service_strlst(d->m_group, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, 
++	m_serviceName.isNull() ? avahi_client_get_host_name(Responder::self().client()) : m_serviceName.utf8().data(),
++	m_type.ascii(),m_domain.utf8(),m_hostName.utf8(),m_port,s));
++#endif
++    avahi_string_list_free(s);
++    return res;
+ }
+ 
+-void PublicService::publishAsync()
++void PublicService::clientState(AvahiClientState s)
+ {
+-	if (d->isRunning()) stop();
+-#ifdef HAVE_DNSSD
+-	if (ServiceBrowser::isAvailable()==ServiceBrowser::Working) {
+-		TXTRecordRef txt;
+-		TXTRecordCreate(&txt,0,0);
+-		QMap<QString,QString>::ConstIterator itEnd = m_textData.end();
+-		for (QMap<QString,QString>::ConstIterator it = m_textData.begin(); it!=itEnd ; ++it) {
+-			QCString value = it.data().utf8();
+-			if (TXTRecordSetValue(&txt,it.key().utf8(),value.length(),value)!=kDNSServiceErr_NoError) {
+-				TXTRecordDeallocate(&txt);
+-				emit published(false);
+-				return;
+-			}
+-		}
+-		DNSServiceRef ref;
+-		if (DNSServiceRegister(&ref,0,0,m_serviceName.utf8(),m_type.ascii(),domainToDNS(m_domain),NULL,
+-		    htons(m_port),TXTRecordGetLength(&txt),TXTRecordGetBytesPtr(&txt),publish_callback,
+-		    reinterpret_cast<void*>(this)) == kDNSServiceErr_NoError) d->setRef(ref);
+-		TXTRecordDeallocate(&txt);
+-	}
++    if (!d->m_running) return;
++    switch (s) {
++#ifdef AVAHI_API_0_6
++	case AVAHI_CLIENT_FAILURE:
++#else
++	case AVAHI_CLIENT_S_INVALID:
++	case AVAHI_CLIENT_DISCONNECTED:
+ #endif
+-	if (!d->isRunning()) emit published(false);
++	    stop();
++	    emit published(false);
++	    break;
++	case AVAHI_CLIENT_S_REGISTERING:
++	case AVAHI_CLIENT_S_COLLISION:
++	    avahi_entry_group_reset(d->m_group);
++	    d->m_collision=true;
++	    break;
++	case AVAHI_CLIENT_S_RUNNING:
++	    if (d->m_collision) {
++		d->m_collision=false;
++		tryApply();
++	    }
++    }
++}				    
++
++void PublicService::publishAsync()
++{
++	if (d->m_running) stop();
++	
++	if (!d->m_group) {
++	    emit published(false);
++	    return;
++	}
++	AvahiClientState s=Responder::self().state();
++	d->m_running=true; 
++	d->m_collision=true; // make it look like server is getting out of collision to force registering
++	clientState(s);
+ }
+ 
+-#ifdef HAVE_DNSSD
+-void publish_callback (DNSServiceRef, DNSServiceFlags, DNSServiceErrorType errorCode, const char *name,
+-		       const char*, const char*, void *context)
++void publish_callback (AvahiEntryGroup*, AvahiEntryGroupState s,  void *context)
+ {
+ 	QObject *obj = reinterpret_cast<QObject*>(context);
+-	if (errorCode != kDNSServiceErr_NoError) {
+-		ErrorEvent err;
+-		QApplication::sendEvent(obj, &err);
+-	} else {
+-		PublishEvent pev(QString::fromUtf8(name));
+-		QApplication::sendEvent(obj, &pev);
+-	}
++	if (s!=AVAHI_ENTRY_GROUP_ESTABLISHED && s!=AVAHI_ENTRY_GROUP_COLLISION) return;
++	PublishEvent* pev=new PublishEvent(s==AVAHI_ENTRY_GROUP_ESTABLISHED);
++	QApplication::postEvent(obj, pev);
+ }
+-#endif
+ 
+ const KURL PublicService::toInvitation(const QString& host)
+ {
+@@ -194,14 +245,13 @@
+ 
+ void PublicService::customEvent(QCustomEvent* event)
+ {
+-	if (event->type()==QEvent::User+SD_ERROR) {
+-		stop();
+-		emit published(false);
+-	}
+ 	if (event->type()==QEvent::User+SD_PUBLISH) {
++		if (!static_cast<PublishEvent*>(event)->m_ok) {
++		    setServiceName(QString::fromUtf8(avahi_alternative_service_name(m_serviceName.utf8())));
++		    return;
++		}
+ 		d->m_published=true;
+ 		emit published(true);
+-		m_serviceName = static_cast<PublishEvent*>(event)->m_name;
+ 	}
+ }
+ 
+diff -Naur kdelibs-3.5.3/dnssd/publicservice.h kdelibs-3.5.3-p/dnssd/publicservice.h
+--- kdelibs-3.5.3/dnssd/publicservice.h	2005-10-10 17:06:42.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/publicservice.h	2006-06-07 00:51:52.000000000 +0200
+@@ -23,6 +23,7 @@
+ 
+ #include <qobject.h>
+ #include <dnssd/servicebase.h>
++#include <avahi-client/client.h>
+ 
+ class KURL;
+ namespace DNSSD
+@@ -137,6 +138,10 @@
+ 	void published(bool);
+ private:
+ 	PublicServicePrivate *d;
++	bool fillEntryGroup();
++	void tryApply();
++private slots:
++	void clientState(AvahiClientState);
+ 
+ protected:
+ 	virtual void customEvent(QCustomEvent* event);
+diff -Naur kdelibs-3.5.3/dnssd/query.cpp kdelibs-3.5.3-p/dnssd/query.cpp
+--- kdelibs-3.5.3/dnssd/query.cpp	2005-11-08 23:39:39.000000000 +0100
++++ kdelibs-3.5.3-p/dnssd/query.cpp	2006-06-07 00:51:52.000000000 +0200
+@@ -22,26 +22,46 @@
+ #include "responder.h"
+ #include "remoteservice.h"
+ #include "sdevent.h"
+-#include <kdebug.h>
++#include <qdatetime.h>
+ #include <qapplication.h>
+ #include <qtimer.h>
+ 
+-#define TIMEOUT_WAN 2000
++#include <avahi-client/client.h>
++#ifdef AVAHI_API_0_6
++#include <avahi-client/lookup.h>
++#endif
++
+ #define TIMEOUT_LAN 200
+ 
+ namespace DNSSD
+ {
+-#ifdef HAVE_DNSSD  
+-void query_callback (DNSServiceRef, DNSServiceFlags flags, uint32_t, DNSServiceErrorType errorCode,
+-		     const char *serviceName, const char *regtype, const char *replyDomain, void *context);
++#ifdef AVAHI_API_0_6
++
++void services_callback(AvahiServiceBrowser*, AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* name,
++    const char* regtype, const char* domain, AvahiLookupResultFlags, void* context);
++void types_callback(AvahiServiceTypeBrowser*, AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* regtype,
++    const char* replyDomain, AvahiLookupResultFlags, void* context);
++#else
++void services_callback(AvahiServiceBrowser*, AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* name,
++    const char* regtype, const char* domain, void* context);
++void types_callback(AvahiServiceTypeBrowser*, AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* regtype,
++    const char* replyDomain, void* context);
++void domains_callback(AvahiDomainBrowser*,  AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* replyDomain,
++     void* context);
+ #endif
+-class QueryPrivate : public Responder
++
++enum BrowserType { Types, Services };
++
++class QueryPrivate 
+ {
+ public:
+-	QueryPrivate(const QString& type, const QString& domain) : Responder(), m_finished(false),
+-	m_domain(domain), m_type(type)
+-	{};
++	QueryPrivate(const QString& type, const QString& domain) : m_finished(false), m_browser(0),
++	m_running(false), m_domain(domain), m_type(type) {}
++
+ 	bool m_finished;
++	BrowserType m_browserType;
++	void* m_browser;
++	bool m_running;
+ 	QString m_domain;
+ 	QTimer timeout;
+ 	QString m_type;
+@@ -56,12 +76,18 @@
+ 
+ Query::~Query()
+ {
++	if (d->m_browser) {
++	    switch (d->m_browserType) {
++		case Services: avahi_service_browser_free((AvahiServiceBrowser*)d->m_browser); break;
++		case Types: avahi_service_type_browser_free((AvahiServiceTypeBrowser*)d->m_browser); break;
++	    }
++	}		    
+ 	delete d;
+ }
+ 
+ bool Query::isRunning() const
+ {
+-	return d->isRunning();
++	return d->m_running;
+ }
+ 
+ bool Query::isFinished() const
+@@ -76,16 +102,31 @@
+ 
+ void Query::startQuery()
+ {
+-	if (d->isRunning()) return;
++	if (d->m_running) return;
+ 	d->m_finished = false;
+-#ifdef HAVE_DNSSD
+-	DNSServiceRef ref;
+-	if (DNSServiceBrowse(&ref,0,0, d->m_type.ascii(), 
+-	    domainToDNS(d->m_domain),query_callback,reinterpret_cast<void*>(this))
+-		   == kDNSServiceErr_NoError) d->setRef(ref);
++	if (d->m_type=="_services._dns-sd._udp") {
++	    d->m_browserType = Types;
++#ifdef AVAHI_API_0_6
++	    d->m_browser = avahi_service_type_browser_new(Responder::self().client(), AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC,
++		domainToDNS(d->m_domain), (AvahiLookupFlags)0, types_callback, this);
++#else
++	    d->m_browser = avahi_service_type_browser_new(Responder::self().client(), AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC,
++		d->m_domain.utf8(), types_callback, this);
+ #endif
+-	if (!d->isRunning()) emit finished();
+-		else d->timeout.start(domainIsLocal(d->m_domain) ? TIMEOUT_LAN : TIMEOUT_WAN,true);
++	} else {
++	    d->m_browserType = Services;
++#ifdef AVAHI_API_0_6
++	    d->m_browser = avahi_service_browser_new(Responder::self().client(), AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC,
++	    d->m_type.ascii(),domainToDNS(d->m_domain),  (AvahiLookupFlags)0, services_callback,this);
++#else
++	    d->m_browser = avahi_service_browser_new(Responder::self().client(), AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC,
++	    d->m_type.ascii(),d->m_domain.utf8(),services_callback,this);
++#endif
++	}
++	if (d->m_browser) {
++		d->m_running=true;
++		d->timeout.start(TIMEOUT_LAN,true);
++	} else emit finished();
+ }
+ void Query::virtual_hook(int, void*)
+ {
+@@ -93,24 +134,15 @@
+ 
+ void Query::customEvent(QCustomEvent* event)
+ {
+-	if (event->type()==QEvent::User+SD_ERROR) {
+-		d->stop();
+-		d->m_finished=false;
+-		emit finished();
+-	}
+ 	if (event->type()==QEvent::User+SD_ADDREMOVE) {
+-		RemoteService* svr;
++		d->timeout.start(TIMEOUT_LAN,true);
++		d->m_finished=false;
+ 		AddRemoveEvent *aev = static_cast<AddRemoveEvent*>(event);
+ 		// m_type has useless trailing dot
+-		QString type=aev->m_type.left(aev->m_type.length()-1);
+-		// label is badly splitted here - _http   _tcp.local. . - rely on decode()
+-		if (d->m_type=="_services._dns-sd._udp") svr = new RemoteService(aev->m_name+"."+
+-			type+"."+aev->m_domain);
+-		else svr = new RemoteService(aev->m_name, type, aev->m_domain);
++		RemoteService*  svr = new RemoteService(aev->m_name,
++		    	aev->m_type,aev->m_domain);
+ 		if (aev->m_op==AddRemoveEvent::Add) emit serviceAdded(svr);
+ 			else emit serviceRemoved(svr);
+-		d->m_finished = aev->m_last;
+-		if (d->m_finished) emit finished();
+ 	}
+ }
+ 
+@@ -119,22 +151,36 @@
+ 	d->m_finished=true;
+ 	emit finished();
+ }
+-#ifdef HAVE_DNSSD
+-void query_callback (DNSServiceRef, DNSServiceFlags flags, uint32_t, DNSServiceErrorType errorCode,
+-		     const char *serviceName, const char *regtype, const char *replyDomain,
+-		     void *context)
++
++#ifdef AVAHI_API_0_6
++void services_callback (AvahiServiceBrowser*, AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, 
++    const char* serviceName, const char* regtype, const char* replyDomain, AvahiLookupResultFlags, void* context)
++#else
++void services_callback (AvahiServiceBrowser*, AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, 
++    const char* serviceName, const char* regtype, const char* replyDomain, void* context)
++#endif
+ {
+ 	QObject *obj = reinterpret_cast<QObject*>(context);
+-	if (errorCode != kDNSServiceErr_NoError) {
+-		ErrorEvent err;
+-		QApplication::sendEvent(obj, &err);
+-	} else {
+-		AddRemoveEvent arev((flags & kDNSServiceFlagsAdd) ? AddRemoveEvent::Add :
++	AddRemoveEvent* arev = new AddRemoveEvent((event==AVAHI_BROWSER_NEW) ? AddRemoveEvent::Add :
+ 			AddRemoveEvent::Remove, QString::fromUtf8(serviceName), regtype, 
+-			DNSToDomain(replyDomain), !(flags & kDNSServiceFlagsMoreComing));
+-		QApplication::sendEvent(obj, &arev);
+-	}
++			DNSToDomain(replyDomain));
++		QApplication::postEvent(obj, arev);
+ }
++
++#ifdef AVAHI_API_0_6
++void types_callback(AvahiServiceTypeBrowser*, AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* regtype,
++    const char* replyDomain, AvahiLookupResultFlags, void* context)
++#else
++void types_callback(AvahiServiceTypeBrowser*, AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* regtype,
++    const char* replyDomain, void* context)
+ #endif
++{
++	QObject *obj = reinterpret_cast<QObject*>(context);
++	AddRemoveEvent* arev = new AddRemoveEvent((event==AVAHI_BROWSER_NEW) ? AddRemoveEvent::Add :
++			AddRemoveEvent::Remove, QString::null, regtype, 
++			DNSToDomain(replyDomain));
++		QApplication::postEvent(obj, arev);
++}
++
+ }
+ #include "query.moc"
+diff -Naur kdelibs-3.5.3/dnssd/README kdelibs-3.5.3-p/dnssd/README
+--- kdelibs-3.5.3/dnssd/README	2005-09-10 10:27:49.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/README	2006-06-07 00:51:52.000000000 +0200
+@@ -1,12 +1,11 @@
+ Checklist to ensure that zeroconf will work:
+ 
+-1) Install Apple's mdnsd, at least version 85
+-2) kdelibs (and kdebase for ksysguard) should be configured and compiled with dns_sd sdk (part
+-of mdnsd installation) present - config.h should contain '#define HAVE_DNSSD 1'
++1) Install Avahi, at least version 0.3
++2) compile dnssd and install it to replace 'stub' libkdnssd.so provided by kdelibs
+ 3) check /etc/nsswitch.conf and ensure that there is 'mdns' before 'dns' in
+ line starting with 'host:'. It should be something like:
+ host: files mdns dns
+-4) ensure that mdnsd is being started in initscripts
++4) ensure that avahi-daemon is being started in initscripts
+ 5) for testing: use kpf kicker applet to publish a directory, then open 'zeroconf:/'
+ URL in konqueror. You should be able to see a local webserver with that published dir.
+ 
+diff -Naur kdelibs-3.5.3/dnssd/remoteservice.cpp kdelibs-3.5.3-p/dnssd/remoteservice.cpp
+--- kdelibs-3.5.3/dnssd/remoteservice.cpp	2006-01-19 18:07:20.000000000 +0100
++++ kdelibs-3.5.3-p/dnssd/remoteservice.cpp	2006-06-07 00:51:52.000000000 +0200
+@@ -27,33 +27,39 @@
+ #include <sys/types.h>
+ #endif
+ #include <netinet/in.h>
++#include <avahi-client/client.h>
++#include <avahi-common/strlst.h>
++#ifdef AVAHI_API_0_6
++#include <avahi-client/lookup.h>
++#endif
+ #include "remoteservice.h"
+ #include "responder.h"
+ #include "sdevent.h"
+-#include <kdebug.h>
+ 
+ namespace DNSSD
+ {
+-#ifdef HAVE_DNSSD
+-void resolve_callback    (    DNSServiceRef,
+-				DNSServiceFlags,
+-				uint32_t,
+-				DNSServiceErrorType                 errorCode,
+-				const char*,
+-				const char                          *hosttarget,
+-				uint16_t                            port,
+-				uint16_t                            txtLen,
+-				const char                          *txtRecord,
+-				void                                *context
+-			 );
+-
++#ifdef AVAHI_API_0_6
++void resolve_callback(AvahiServiceResolver*, AvahiIfIndex, AvahiProtocol proto, AvahiResolverEvent e,
++    const char* name, const char* type, const char* domain, const char* hostname, const AvahiAddress* a,
++    uint16_t port, AvahiStringList* txt, AvahiLookupResultFlags, void* context);
++#else
++void resolve_callback(AvahiServiceResolver*, AvahiIfIndex, AvahiProtocol proto, AvahiResolverEvent e,
++    const char* name, const char* type, const char* domain, const char* hostname, const AvahiAddress* a,
++    uint16_t port, AvahiStringList* txt, void* context);
+ #endif
++
+ class RemoteServicePrivate : public Responder
+ {
+ public:
+-	RemoteServicePrivate() : Responder(), m_resolved(false)
+-	{};
++	RemoteServicePrivate() :  m_resolved(false), m_running(false), m_resolver(0) {}
+ 	bool m_resolved;
++	bool m_running;
++	AvahiServiceResolver* m_resolver;
++	void stop() {
++	    m_running = false;
++	    if (m_resolver) avahi_service_resolver_free(m_resolver);
++	    m_resolver=0;
++	}
+ };
+ 
+ RemoteService::RemoteService(const QString& label)
+@@ -83,29 +89,33 @@
+ 
+ RemoteService::~RemoteService()
+ {
++	if (d->m_resolver) avahi_service_resolver_free(d->m_resolver);
+ 	delete d;
+ }
+ 
+ bool RemoteService::resolve()
+ {
+ 	resolveAsync();
+-	while (d->isRunning() && !d->m_resolved) d->process();
++	while (d->m_running && !d->m_resolved) Responder::self().process();
+ 	d->stop();
+ 	return d->m_resolved;
+ }
+ 
+ void RemoteService::resolveAsync()
+ {
+-	if (d->isRunning()) return;
++	if (d->m_running) return;
+ 	d->m_resolved = false;
+-	kdDebug() << this << ":Starting resolve of : " << m_serviceName << " " << m_type << " " << m_domain << "\n";
+-#ifdef HAVE_DNSSD
+-	DNSServiceRef ref;
+-	if (DNSServiceResolve(&ref,0,0,m_serviceName.utf8(), m_type.ascii(), 
+-		domainToDNS(m_domain),resolve_callback,reinterpret_cast<void*>(this))
+-		== kDNSServiceErr_NoError) d->setRef(ref);
++	// FIXME: first protocol should be set?
++#ifdef AVAHI_API_0_6
++	d->m_resolver = avahi_service_resolver_new(Responder::self().client(),AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC,
++	    m_serviceName.utf8(), m_type.ascii(), domainToDNS(m_domain), AVAHI_PROTO_UNSPEC, AVAHI_LOOKUP_NO_ADDRESS,
++	    resolve_callback, this);
++#else
++	d->m_resolver = avahi_service_resolver_new(Responder::self().client(),AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC,
++	    m_serviceName.utf8(), m_type.ascii(), m_domain.utf8(), AVAHI_PROTO_UNSPEC, resolve_callback, this);
+ #endif
+-	if (!d->isRunning()) emit resolved(false);
++	if (d->m_resolver) d->m_running=true;
++	    else  emit resolved(false);
+ }
+ 
+ bool RemoteService::isResolved() const
+@@ -154,42 +164,33 @@
+ 	return s;
+ }
+ 
+-
+-#ifdef HAVE_DNSSD
+-void resolve_callback    (    DNSServiceRef,
+-			      DNSServiceFlags,
+-			      uint32_t,
+-			      DNSServiceErrorType                 errorCode,
+-			      const char*,
+-			      const char                          *hosttarget,
+-			      uint16_t                            port,
+-			      uint16_t                            txtLen,
+-			      const char                          *txtRecord,
+-			      void                                *context
+-			 )
++#ifdef AVAHI_API_0_6
++void resolve_callback(AvahiServiceResolver*, AvahiIfIndex, AvahiProtocol, AvahiResolverEvent e,
++    const char*, const char*, const char*, const char* hostname, const AvahiAddress*,
++    uint16_t port, AvahiStringList* txt, AvahiLookupResultFlags, void* context)
++#else
++void resolve_callback(AvahiServiceResolver*, AvahiIfIndex, AvahiProtocol, AvahiResolverEvent e,
++    const char*, const char*, const char*, const char* hostname, const AvahiAddress*,
++    uint16_t port, AvahiStringList* txt, void* context)
++#endif
+ {
+ 	QObject *obj = reinterpret_cast<QObject*>(context);
+-	if (errorCode != kDNSServiceErr_NoError) {
++	if (e != AVAHI_RESOLVER_FOUND) {
+ 		ErrorEvent err;
+ 		QApplication::sendEvent(obj, &err);	
+ 		return;
+ 	}
+-	char key[256];
+-	int index=0;
+-	unsigned char valueLen;
+-	kdDebug() << "Resolve callback\n";
+ 	QMap<QString,QString> map;
+-        const void *voidValue = 0;
+-	while (TXTRecordGetItemAtIndex(txtLen,txtRecord,index++,256,key,&valueLen,
+-		&voidValue) == kDNSServiceErr_NoError)  
+-        {
+-		if (voidValue) map[QString::fromUtf8(key)]=QString::fromUtf8((const char*)voidValue,valueLen);
+-			else map[QString::fromUtf8(key)]=QString::null;
+-        }
+-	ResolveEvent rev(DNSToDomain(hosttarget),ntohs(port),map);
++	while (txt) {
++	    char *key, *value;
++	    size_t size;
++	    if (avahi_string_list_get_pair(txt,&key,&value,&size)) break;
++	    map[QString::fromUtf8(key)]=(value) ? QString::fromUtf8(value) : QString::null;
++	    txt = txt->next;
++	}
++	ResolveEvent rev(DNSToDomain(hostname),port,map);
+ 	QApplication::sendEvent(obj, &rev);
+ }
+-#endif
+ 
+ 
+ }
+diff -Naur kdelibs-3.5.3/dnssd/responder.cpp kdelibs-3.5.3-p/dnssd/responder.cpp
+--- kdelibs-3.5.3/dnssd/responder.cpp	2005-10-10 17:06:42.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/responder.cpp	2006-06-07 00:51:52.000000000 +0200
+@@ -20,62 +20,61 @@
+ 
+ #include "responder.h"
+ #include <qapplication.h>
++#include <qeventloop.h>
++#include <kstaticdeleter.h>
+ #include <kidna.h>
++#include <kdebug.h>
++#include <avahi-qt3/qt-watch.h>
+ 
+-// dns_sd.h API should care about proper encoding of non-latin1 characters
+-// but for now it does not
+-#define IDN_BROKEN_IN_MDNSRESPONDER
+ 
+ namespace DNSSD
+ {
+ 
+-Responder::Responder(DNSServiceRef ref,QObject *parent, const char *name)
+-		: QObject(parent, name), m_ref(0), m_socket(0)
++static KStaticDeleter<Responder> responder_sd;
++Responder* Responder::m_self = 0;
++
++void client_callback(AvahiClient *, AvahiClientState s, void* u) 
+ {
+-	setRef(ref);
++    Responder *r = reinterpret_cast<Responder*>(u);    
++    emit (r->stateChanged(s));
+ }
+- 
+-void Responder::setRef(DNSServiceRef ref)
++
++
++Responder::Responder()
+ {
+-	if (m_socket || m_ref) stop();	
+-	m_running = false;
+-	m_ref = ref;
+-	if (m_ref == 0 ) return;
+-#ifdef HAVE_DNSSD
+-	int fd = DNSServiceRefSockFD(ref);
+-	if (fd == -1) return;
+-	m_socket = new QSocketNotifier(fd,QSocketNotifier::Read,this);
+-	connect(m_socket,SIGNAL(activated(int)),this,SLOT(process()));
+-	m_running = true;
++    int error;
++    const AvahiPoll* poll = avahi_qt_poll_get();
++#ifdef AVAHI_API_0_6
++    m_client = avahi_client_new(poll, AVAHI_CLIENT_IGNORE_USER_CONFIG,client_callback, this,  &error);
++#else
++    m_client = avahi_client_new(poll, client_callback, this,  &error);
+ #endif
++    if (!m_client) kdWarning() << "Failed to create avahi client" << endl;
+ }
++ 
+ Responder::~Responder()
+ {
+-	stop();
++    if (m_client) avahi_client_free(m_client);
+ }
+ 
+-void Responder::stop()
++Responder& Responder::self()
+ {
+-	if (m_socket) delete m_socket;
+-	m_socket = 0;
+-#ifdef HAVE_DNSSD
+-	if (m_ref) DNSServiceRefDeallocate(m_ref);
+-#endif
+-	m_ref = 0;
+-	m_running = false;
+-}	
+-
++    if (!m_self) responder_sd.setObject(m_self, new Responder);
++    return *m_self;
++}
+ 
+ void Responder::process()
+ {
+-#ifdef HAVE_DNSSD
+-	if ( DNSServiceProcessResult(m_ref) != kDNSServiceErr_NoError) stop();
+-#endif
++    qApp->eventLoop()->processEvents(QEventLoop::ExcludeUserInput);
+ }
+ 
+-bool Responder::isRunning() const
++AvahiClientState Responder::state() const
+ {
+-	return m_running;
++#ifdef AVAHI_API_0_6
++	return (m_client) ? (avahi_client_get_state(m_client)) : AVAHI_CLIENT_FAILURE;
++#else
++	return (m_client) ? (avahi_client_get_state(m_client)) : AVAHI_CLIENT_DISCONNECTED;
++#endif
+ }
+ 
+ bool domainIsLocal(const QString& domain)
+@@ -85,22 +84,14 @@
+ 
+ QCString domainToDNS(const QString &domain)
+ {
+-#ifdef IDN_BROKEN_IN_MDNSRESPONDER
+ 	if (domainIsLocal(domain)) return domain.utf8();
+ 		else return KIDNA::toAsciiCString(domain);
+-#else
+-	return domain.utf8();       
+-#endif
+ }
+ 
+ QString DNSToDomain(const char* domain)
+ {
+-#ifdef IDN_BROKEN_IN_MDNSRESPONDER
+ 	if (domainIsLocal(domain)) return QString::fromUtf8(domain);
+ 		else return KIDNA::toUnicode(domain);
+-#else
+-	return QString::fromUtf8(domain);
+-#endif
+ }
+ 
+ 
+diff -Naur kdelibs-3.5.3/dnssd/responder.h kdelibs-3.5.3-p/dnssd/responder.h
+--- kdelibs-3.5.3/dnssd/responder.h	2005-10-10 17:06:42.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/responder.h	2006-06-07 00:51:52.000000000 +0200
+@@ -25,12 +25,7 @@
+ #include <qsocketnotifier.h>
+ #include <qsignal.h>
+ #include <config.h>
+-#ifdef HAVE_DNSSD
+-#include <dns_sd.h>
+-#else
+-#define DNSServiceRef void*
+-#endif
+-
++#include <avahi-client/client.h>
+ namespace DNSSD
+ {
+ 
+@@ -38,30 +33,28 @@
+ This class should not be used directly.
+  
+ @author Jakub Stachowski
+-@short Internal class wrapping dns_sd.h interface
++@short Internal class wrapping avahi client
+  */
+ class Responder : public QObject
+ {
+ 	Q_OBJECT
+ 
+ public:
+-	Responder(DNSServiceRef ref=0,QObject *parent = 0, const char *name = 0);
++	Responder();
+ 
+ 	~Responder();
+ 
+-	/**
+-	Returns true if it is possible to use mDNS service publishing and discovery. 
+-	It needs mDNSResponder running.
+-	 */
+-	bool isRunning() const;
+-	void setRef(DNSServiceRef ref);
+-	void stop();
+-public slots:
++	static Responder& self();
++	AvahiClientState state() const;
++	AvahiClient* client() const { return m_client; }
+ 	void process();
+-protected:
+-	DNSServiceRef m_ref;
+-	bool m_running;
+-	QSocketNotifier *m_socket;
++signals:
++	void stateChanged(AvahiClientState);
++private:
++	AvahiClient* m_client;
++	static Responder* m_self;
++	friend void client_callback(AvahiClient*, AvahiClientState, void*);
++
+ };
+ 
+ /* Utils functions */
+@@ -71,6 +64,7 @@
+ QCString domainToDNS(const QString &domain);
+ QString DNSToDomain(const char* domain);
+ 
++
+ }
+ 
+ #endif
+diff -Naur kdelibs-3.5.3/dnssd/sdevent.h kdelibs-3.5.3-p/dnssd/sdevent.h
+--- kdelibs-3.5.3/dnssd/sdevent.h	2005-10-10 17:06:42.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/sdevent.h	2006-06-07 00:51:52.000000000 +0200
+@@ -41,24 +41,23 @@
+ public:
+ 	enum Operation { Add, Remove };
+ 	AddRemoveEvent(Operation op,const QString& name,const QString& type,
+-		const QString& domain, bool last) : QCustomEvent(QEvent::User+SD_ADDREMOVE),
+-	m_op(op), m_name(name), m_type(type), m_domain(domain), m_last(last) 
++		const QString& domain) : QCustomEvent(QEvent::User+SD_ADDREMOVE),
++	m_op(op), m_name(name), m_type(type), m_domain(domain) 
+ 	{}
+ 
+ 	const Operation m_op;
+ 	const QString m_name;
+ 	const QString m_type;
+ 	const QString m_domain;
+-	const bool m_last;
+ };
+ 
+ class PublishEvent : public QCustomEvent
+ {
+ public:
+-	PublishEvent(const QString& name) : QCustomEvent(QEvent::User+SD_PUBLISH), m_name(name)
++	PublishEvent(bool ok) : QCustomEvent(QEvent::User+SD_PUBLISH), m_ok(ok)
+ 	{}
+ 
+-	const QString m_name;
++	bool m_ok;
+ };
+ 
+ class ResolveEvent : public QCustomEvent
+diff -Naur kdelibs-3.5.3/dnssd/servicebase.cpp kdelibs-3.5.3-p/dnssd/servicebase.cpp
+--- kdelibs-3.5.3/dnssd/servicebase.cpp	2005-11-08 23:39:39.000000000 +0100
++++ kdelibs-3.5.3-p/dnssd/servicebase.cpp	2006-06-07 00:51:52.000000000 +0200
+@@ -34,7 +34,7 @@
+ 
+ QString ServiceBase::encode()
+ {
+-	return  m_serviceName.replace("\\","\\\\").replace(".","\\.") + QString(".") + m_type +
++	return  m_serviceName.replace(".","\\.").replace("\\","\\\\") + QString(".") + m_type +
+ 			 QString(".") + m_domain;
+ }
+ 
+diff -Naur kdelibs-3.5.3/dnssd/servicebrowser.cpp kdelibs-3.5.3-p/dnssd/servicebrowser.cpp
+--- kdelibs-3.5.3/dnssd/servicebrowser.cpp	2005-10-10 17:06:42.000000000 +0200
++++ kdelibs-3.5.3-p/dnssd/servicebrowser.cpp	2006-06-07 00:51:52.000000000 +0200
+@@ -23,14 +23,11 @@
+ #include <qstringlist.h>
+ #include <qfile.h>
+ #include "domainbrowser.h"
++#include "responder.h"
+ #include "query.h"
+ #include "servicebrowser.h"
++#include <avahi-client/client.h>
+ #include <config.h>
+-#ifdef HAVE_DNSSD
+-#include <dns_sd.h>
+-#endif
+-
+-#define MDNSD_PID "/var/run/mdnsd.pid"
+ 
+ namespace DNSSD
+ {
+@@ -85,20 +82,12 @@
+ 
+ const ServiceBrowser::State ServiceBrowser::isAvailable()
+ {
+-#ifdef HAVE_DNSSD
+-	QFile f(MDNSD_PID);
+-	if (!f.open(IO_ReadOnly)) return Stopped; // no pidfile
+-	QString line;
+-	if (f.readLine(line,16)<1) return Stopped;
+-	unsigned int pid = line.toUInt();
+-	if (pid==0) return Stopped;           // not a pid
+-	return (kill(pid,0)==0 || errno==EPERM) ? Working : Stopped; 
+-	// signal 0 only checks if process is running, mdnsd is probably owned by 'nobody' so we will
+-	// get EPERM, if mdnsd is not running error will be ESRCH
+-	
++	AvahiClientState s = Responder::self().state();
++#ifdef AVAHI_API_0_6
++	return (s==AVAHI_CLIENT_FAILURE) ? Stopped : Working;
+ #else
+-	return Unsupported;
+-#endif
++	return (s==AVAHI_CLIENT_S_INVALID || s==AVAHI_CLIENT_DISCONNECTED) ? Stopped : Working;
++#endif 
+ }
+ ServiceBrowser::~ ServiceBrowser()
+ {
+diff -Naur kdelibs-3.5.3/dnssd/settings.cpp kdelibs-3.5.3-p/dnssd/settings.cpp
+--- kdelibs-3.5.3/dnssd/settings.cpp	1970-01-01 01:00:00.000000000 +0100
++++ kdelibs-3.5.3-p/dnssd/settings.cpp	2006-06-07 00:51:52.000000000 +0200
+@@ -0,0 +1,65 @@
++// This file is generated by kconfig_compiler from kcm_kdnssd.kcfg.
++// All changes you do to this file will be lost.
++
++#include "settings.h"
++
++#include <kstaticdeleter.h>
++
++using namespace DNSSD;
++
++Configuration *Configuration::mSelf = 0;
++static KStaticDeleter<Configuration> staticConfigurationDeleter;
++
++Configuration *Configuration::self()
++{
++  if ( !mSelf ) {
++    staticConfigurationDeleter.setObject( mSelf, new Configuration() );
++    mSelf->readConfig();
++  }
++
++  return mSelf;
++}
++
++Configuration::Configuration(  )
++  : KConfigSkeleton( QString::fromLatin1( "kdnssdrc" ) )
++{
++  mSelf = this;
++  setCurrentGroup( QString::fromLatin1( "browsing" ) );
++
++  KConfigSkeleton::ItemStringList  *itemDomainList;
++  itemDomainList = new KConfigSkeleton::ItemStringList( currentGroup(), QString::fromLatin1( "DomainList" ), mDomainList );
++  addItem( itemDomainList, QString::fromLatin1( "DomainList" ) );
++  KConfigSkeleton::ItemBool  *itemBrowseLocal;
++  itemBrowseLocal = new KConfigSkeleton::ItemBool( currentGroup(), QString::fromLatin1( "BrowseLocal" ), mBrowseLocal, true );
++  addItem( itemBrowseLocal, QString::fromLatin1( "BrowseLocal" ) );
++  KConfigSkeleton::ItemBool  *itemRecursive;
++  itemRecursive = new KConfigSkeleton::ItemBool( currentGroup(), QString::fromLatin1( "Recursive" ), mRecursive, false );
++  addItem( itemRecursive, QString::fromLatin1( "Recursive" ) );
++
++  setCurrentGroup( QString::fromLatin1( "publishing" ) );
++
++  QValueList<KConfigSkeleton::ItemEnum::Choice> valuesPublishType;
++  {
++    KConfigSkeleton::ItemEnum::Choice choice;
++    choice.name = QString::fromLatin1( "LAN" );
++    valuesPublishType.append( choice );
++  }
++  {
++    KConfigSkeleton::ItemEnum::Choice choice;
++    choice.name = QString::fromLatin1( "WAN" );
++    valuesPublishType.append( choice );
++  }
++  KConfigSkeleton::ItemEnum  *itemPublishType;
++  itemPublishType = new KConfigSkeleton::ItemEnum( currentGroup(), QString::fromLatin1( "PublishType" ), mPublishType, valuesPublishType, EnumPublishType::LAN );
++  addItem( itemPublishType, QString::fromLatin1( "PublishType" ) );
++  KConfigSkeleton::ItemString  *itemPublishDomain;
++  itemPublishDomain = new KConfigSkeleton::ItemString( currentGroup(), QString::fromLatin1( "PublishDomain" ), mPublishDomain );
++  addItem( itemPublishDomain, QString::fromLatin1( "PublishDomain" ) );
++}
++
++Configuration::~Configuration()
++{
++  if ( mSelf == this )
++    staticConfigurationDeleter.setObject( mSelf, 0, false );
++}
++
+diff -Naur kdelibs-3.5.3/dnssd/settings.h kdelibs-3.5.3-p/dnssd/settings.h
+--- kdelibs-3.5.3/dnssd/settings.h	1970-01-01 01:00:00.000000000 +0100
++++ kdelibs-3.5.3-p/dnssd/settings.h	2006-06-07 00:51:52.000000000 +0200
+@@ -0,0 +1,143 @@
++// This file is generated by kconfig_compiler from kcm_kdnssd.kcfg.
++// All changes you do to this file will be lost.
++#ifndef DNSSD_CONFIGURATION_H
++#define DNSSD_CONFIGURATION_H
++
++#include <kconfigskeleton.h>
++#include <kdebug.h>
++
++namespace DNSSD {
++
++class KDNSSD_EXPORT Configuration : public KConfigSkeleton
++{
++  public:
++    class EnumPublishType
++    {
++      public:
++      enum type { LAN, WAN, COUNT };
++    };
++
++    static Configuration *self();
++    ~Configuration();
++
++    /**
++      Set Additional domains for browsing
++    */
++    static
++    void setDomainList( const QStringList & v )
++    {
++      if (!self()->isImmutable( QString::fromLatin1( "DomainList" ) ))
++        self()->mDomainList = v;
++    }
++
++    /**
++      Get Additional domains for browsing
++    */
++    static
++    QStringList domainList()
++    {
++      return self()->mDomainList;
++    }
++
++    /**
++      Set Browse local network
++    */
++    static
++    void setBrowseLocal( bool v )
++    {
++      if (!self()->isImmutable( QString::fromLatin1( "BrowseLocal" ) ))
++        self()->mBrowseLocal = v;
++    }
++
++    /**
++      Get Browse local network
++    */
++    static
++    bool browseLocal()
++    {
++      return self()->mBrowseLocal;
++    }
++
++    /**
++      Set Recursive search for domains
++    */
++    static
++    void setRecursive( bool v )
++    {
++      if (!self()->isImmutable( QString::fromLatin1( "Recursive" ) ))
++        self()->mRecursive = v;
++    }
++
++    /**
++      Get Recursive search for domains
++    */
++    static
++    bool recursive()
++    {
++      return self()->mRecursive;
++    }
++
++    /**
++      Set Select publishing in LAN (multicast) or WAN (unicast, needs configured DNS server)
++    */
++    static
++    void setPublishType( int v )
++    {
++      if (!self()->isImmutable( QString::fromLatin1( "PublishType" ) ))
++        self()->mPublishType = v;
++    }
++
++    /**
++      Get Select publishing in LAN (multicast) or WAN (unicast, needs configured DNS server)
++    */
++    static
++    int publishType()
++    {
++      return self()->mPublishType;
++    }
++
++    /**
++      Set Name of default publishing domain for WAN
++    */
++    static
++    void setPublishDomain( const QString & v )
++    {
++      if (!self()->isImmutable( QString::fromLatin1( "PublishDomain" ) ))
++        self()->mPublishDomain = v;
++    }
++
++    /**
++      Get Name of default publishing domain for WAN
++    */
++    static
++    QString publishDomain()
++    {
++      return self()->mPublishDomain;
++    }
++
++    static
++    void writeConfig()
++    {
++      static_cast<KConfigSkeleton*>(self())->writeConfig();
++    }
++  protected:
++    Configuration();
++    static Configuration *mSelf;
++
++
++    // browsing
++    QStringList mDomainList;
++    bool mBrowseLocal;
++    bool mRecursive;
++
++    // publishing
++    int mPublishType;
++    QString mPublishDomain;
++
++  private:
++};
++
++}
++
++#endif
++
+diff -Naur kdelibs-3.5.3/khtml/khtmlview.cpp kdelibs-3.5.3-p/khtml/khtmlview.cpp
+--- kdelibs-3.5.3/khtml/khtmlview.cpp	2006-05-22 20:14:07.000000000 +0200
++++ kdelibs-3.5.3-p/khtml/khtmlview.cpp	2006-06-07 00:53:28.000000000 +0200
+@@ -150,6 +150,9 @@
+ 
+     KHTMLViewPrivate()
+         : underMouse( 0 ), underMouseNonShared( 0 ), visibleWidgets( 107 )
++#ifndef NO_SMOOTH_SCROLL_HACK
++          , dx(0), dy(0), ddx(0), ddy(0), rdx(0), rdy(0), scrolling(false)
++#endif
+     {
+ #ifndef KHTML_NO_CARET
+ 	m_caretViewContext = 0;
+@@ -395,6 +398,17 @@
+     int m_mouseScroll_byY : 4;
+     QTimer *m_mouseScrollTimer;
+     QWidget *m_mouseScrollIndicator;
++#ifndef NO_SMOOTH_SCROLL_HACK
++    QTimer timer2;
++    int dx;
++    int dy;
++    // Step size * 16 and residual to avoid huge difference between 1px/step and 2px/step
++    int ddx;
++    int ddy;
++    int rdx;
++    int rdy;
++    bool scrolling;
++#endif
+ };
+ 
+ #ifndef QT_NO_TOOLTIP
+@@ -503,6 +517,11 @@
+     init();
+ 
+     viewport()->show();
++#ifndef NO_SMOOTH_SCROLL_HACK
++#define timer timer2
++    connect(&d->timer, SIGNAL(timeout()), this, SLOT(scrollTick()));
++#undef timer
++#endif
+ }
+ 
+ KHTMLView::~KHTMLView()
+@@ -1512,7 +1531,7 @@
+                 _ke->accept();
+             else {
+                 if (!d->scrollTimerId || d->scrollSuspended)
+-                    scrollBy( 0, 10 );
++                    scrollBy( 0, 10 * _ke->count());
+                 if (d->scrollTimerId)
+                     d->newScrollTimer(this, 0);
+             }
+@@ -1535,7 +1554,7 @@
+                 _ke->accept();
+             else {
+                 if (!d->scrollTimerId || d->scrollSuspended)
+-                    scrollBy( 0, -10 );
++                    scrollBy( 0, -10 * _ke->count());
+                 if (d->scrollTimerId)
+                     d->newScrollTimer(this, 0);
+             }
+@@ -1556,7 +1575,7 @@
+                 _ke->accept();
+             else {
+                 if (!d->scrollTimerId || d->scrollSuspended)
+-                    scrollBy( 10, 0 );
++                    scrollBy( 10 * _ke->count(), 0 );
+                 if (d->scrollTimerId)
+                     d->newScrollTimer(this, 0);
+             }
+@@ -1567,7 +1586,7 @@
+                 _ke->accept();
+             else {
+                 if (!d->scrollTimerId || d->scrollSuspended)
+-                    scrollBy( -10, 0 );
++                    scrollBy( -10 * _ke->count(), 0 );
+                 if (d->scrollTimerId)
+                     d->newScrollTimer(this, 0);
+             }
+@@ -1709,8 +1728,16 @@
+         d->scrollSuspendPreActivate = false;
+     if( _ke->key() == Key_Shift && d->scrollSuspendPreActivate && _ke->state() == Qt::ShiftButton
+         && !(KApplication::keyboardMouseState() & Qt::ShiftButton))
++    {
+         if (d->scrollTimerId)
+-                d->scrollSuspended = !d->scrollSuspended;
++        {
++            d->scrollSuspended = !d->scrollSuspended;
++#ifndef NO_SMOOTH_SCROLL_HACK
++            if( d->scrollSuspended )
++                stopScrolling();
++#endif
++        }
++    }
+ 
+     if (d->accessKeysEnabled) 
+     {
+@@ -3249,7 +3276,11 @@
+     else
+     {
+         d->scrollBarMoved = true;
++#ifndef NO_SMOOTH_SCROLL_HACK
++        scrollViewWheelEvent( e );
++#else
+         QScrollView::viewportWheelEvent( e );
++#endif
+ 
+         QMouseEvent *tempEvent = new QMouseEvent( QEvent::MouseMove, QPoint(-1,-1), QPoint(-1,-1), Qt::NoButton, e->state() );
+         emit viewportMouseMoveEvent ( tempEvent );
+@@ -4449,4 +4480,117 @@
+ 
+ #endif // KHTML_NO_CARET
+ 
++#ifndef NO_SMOOTH_SCROLL_HACK
++#define timer timer2
++
++// All scrolls must be completed within 240ms of last keypress
++static const int SCROLL_TIME = 240;
++// Each step is 20 ms == 50 frames/second
++static const int SCROLL_TICK = 20;
++
++void KHTMLView::scrollBy(int dx, int dy)
++{
++    KConfigGroup cfg( KGlobal::config(), "KDE" );
++    if( !cfg.readBoolEntry( "SmoothScrolling", true )) {
++        QScrollView::scrollBy( dx, dy );
++        return;
++    }
++    // scrolling destination
++    int full_dx = d->dx + dx;
++    int full_dy = d->dy + dy;
++
++    // scrolling speed
++    int ddx = 0;
++    int ddy = 0;
++
++    int steps = SCROLL_TIME/SCROLL_TICK;
++
++    ddx = (full_dx*16)/steps;
++    ddy = (full_dy*16)/steps;
++
++    // don't go under 1px/step
++    if (ddx > 0 && ddx < 16) ddx = 16;
++    if (ddy > 0 && ddy < 16) ddy = 16;
++    if (ddx < 0 && ddx > -16) ddx = -16;
++    if (ddy < 0 && ddy > -16) ddy = -16;
++
++    d->dx = full_dx;
++    d->dy = full_dy;
++    d->ddx = ddx;
++    d->ddy = ddy;
++
++    if (!d->scrolling) {
++        scrollTick();
++        startScrolling();
++    }
++}
++
++void KHTMLView::scrollTick() {
++    if (d->dx == 0 && d->dy == 0) {
++        stopScrolling();
++        return;
++    }
++
++    int tddx = d->ddx + d->rdx;
++    int tddy = d->ddy + d->rdy;
++
++    int ddx = tddx / 16;
++    int ddy = tddy / 16;
++    d->rdx = tddx % 16;
++    d->rdy = tddy % 16;
++
++    if (d->dx > 0 && ddx > d->dx) ddx = d->dx;
++    else
++    if (d->dx < 0 && ddx < d->dx) ddx = d->dx;
++
++    if (d->dy > 0 && ddy > d->dy) ddy = d->dy;
++    else
++    if (d->dy < 0 && ddy < d->dy) ddy = d->dy;
++
++    d->dx -= ddx;
++    d->dy -= ddy;
++
++//    QScrollView::setContentsPos( contentsX() + ddx, contentsY() + ddy);
++    kapp->syncX();
++    QScrollView::scrollBy(ddx, ddy);
++// Unaccelerated X can get seriously overloaded by scrolling and for some reason
++// will send KeyPress events only infrequently. This should help to reduce
++// the load.
++    kapp->syncX();
++}
++
++void KHTMLView::startScrolling()
++{
++    d->scrolling = true;
++    d->timer.start(SCROLL_TICK, false);
++}
++
++void KHTMLView::stopScrolling()
++{
++    d->timer.stop();
++    d->dx = d->dy = 0;
++    d->scrolling = false;
++}
++
++// Overloaded from QScrollView and QScrollBar
++void KHTMLView::scrollViewWheelEvent( QWheelEvent *e )
++{
++    int pageStep = verticalScrollBar()->pageStep();
++    int lineStep = verticalScrollBar()->lineStep();
++    int step = QMIN( QApplication::wheelScrollLines()*lineStep, pageStep );
++    if ( ( e->state() & ControlButton ) || ( e->state() & ShiftButton ) )
++        step = pageStep;
++
++    if(e->orientation() == Horizontal)
++        scrollBy(-((e->delta()*step)/120), 0);
++    else if(e->orientation() == Vertical)
++        scrollBy(0,-((e->delta()*step)/120));
++
++    e->accept();
++}
++
++#undef timer
++
++#endif // NO_SMOOTH_SCROLL_HACK
++
+ #undef DEBUG_CARETMODE
+diff -Naur kdelibs-3.5.3/khtml/khtmlview.h kdelibs-3.5.3-p/khtml/khtmlview.h
+--- kdelibs-3.5.3/khtml/khtmlview.h	2006-05-22 20:14:07.000000000 +0200
++++ kdelibs-3.5.3-p/khtml/khtmlview.h	2006-06-07 00:53:28.000000000 +0200
+@@ -181,6 +181,11 @@
+     void hideAccessKeys();
+     void repaintAccessKeys();
+     void findAheadActive( bool );
++//#define NO_SMOOTH_SCROLL_HACK
++#ifndef NO_SMOOTH_SCROLL_HACK
++public slots:
++    void scrollBy(int dx, int dy);
++#endif
+ 
+ protected:
+     void clear();
+@@ -211,9 +216,23 @@
+     void contentsContextMenuEvent ( QContextMenuEvent *_ce );
+     void doAutoScroll();
+     void timerEvent ( QTimerEvent * );
++
++#ifndef NO_SMOOTH_SCROLL_HACK
++    void startScrolling();
++    void stopScrolling();
++#ifndef QT_NO_WHEELEVENT
++    void scrollViewWheelEvent( QWheelEvent* e );
++#endif
++#endif
++
+ protected slots:
+     void slotPaletteChanged();
+     void slotScrollBarMoved();
++#ifndef NO_SMOOTH_SCROLL_HACK
++    void scrollTick();
++#else
++    void scrollTick() {}; // moc cannot handle #if
++#endif
+ 
+ private slots:
+     void tripleClickTimeout();

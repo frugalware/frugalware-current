@@ -23,8 +23,8 @@ compile: depbugs xbugs
 
 test:
 	sh fpmjunkall.sh .
-	sh srcjunk.sh .
-	sh srcmissing.sh .
+	sh srcjunk.sh ..
+	sh srcmissing.sh ..
 	./xbugs frugalware-current
 	./depbugs frugalware-current
 

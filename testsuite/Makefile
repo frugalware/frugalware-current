@@ -22,10 +22,15 @@ compile: depbugs xbugs
 	@echo "All done. Start 'make test' now."
 
 test:
+	@echo "no longer necessary fpms (please repoman del them):"
 	sh fpmjunkall.sh .
+	@echo "no longer necessary sources (please repoman del them):"
 	sh srcjunk.sh ..
+	@echo "missing sources (please repoman up them):"
 	sh srcmissing.sh ..
+	@echo "packages in the frugalware repo in wrong group (lib->xlib is needed or so):"
 	./xbugs frugalware-current
+	@echo "packages in the frugalware with a dependency from extra (move them to extra):"
 	./depbugs frugalware-current
 
 clean:

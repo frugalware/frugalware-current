@@ -11,7 +11,7 @@ fwclosebox();
 print("<p>");
 
 $translations = array(
-	array('en_US', $fwstrdocsen)
+	array('en_US', $fwstrdocsen),
 	array('fr_FR', $fwstrdocsfr)
 	);
 

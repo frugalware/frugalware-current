@@ -32,6 +32,10 @@ test:
 	./xbugs frugalware-current
 	@echo "packages in the frugalware with a dependency from extra (move them to extra):"
 	./depbugs frugalware-current
+	@echo "packages with old-style up2dates (slows down repoman cl):"
+	sh up2date.sh ..
+	@echo "duplicated packages (please remove them):"
+	sh pkgdup.sh ..
 
 clean:
 	rm -f depbugs xbugs

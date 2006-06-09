@@ -205,6 +205,7 @@ $fwstrdocsq="<p align=\"left\">I'd like to translate the documentation into my o
 $fwstrdocsa="Send email to the <a href=\"%s\">frugalware-devel</a> mailing list, and we'll post our instructions.</p>";
 $fwstrdocsonline="View online";
 $fwstrdocsen="English";
+$fwstrdocsfr="French";
 $fwstrdocshu="Hungarian";
 $fwstrdocssk="Slovak";
 $fwstrdocshtml="HTML";

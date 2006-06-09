@@ -203,6 +203,7 @@ $fwstrdocsq="<p align=\"left\">Szeretné lefordítani a dokumentáció egy olyan nye
 $fwstrdocsa="Küldjön egy emailt a <a href=\"%s\">frugalware-devel</a> (a lista angol nyelvû) levelezési listára, és ott minden segítséget megadunk a munkához.</p>";
 $fwstrdocsonline="Online olvasás";
 $fwstrdocsen="Angol";
+$fwstrdocsfr="Francia";
 $fwstrdocshu="Magyar";
 $fwstrdocssk="Szlovák";
 $fwstrdocshtml="HTML";

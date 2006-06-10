@@ -7,9 +7,12 @@ pkgver=2.6.16
 # write here 0 if new, official kernel is out (from Linus)
 stable=16
 rc=0
-rcver=${pkgver%.*}.$((${pkgver#*.*.}+1))-rc$rc
-bsver=3.1.6
 pkgrel=5
+patches=(ftp://ftp.suse.com/pub/people/stepan/bootsplash/kernel/bootsplash-3.1.6-$pkgver.diff \
+	linux-$pkgver-ipw2200_monitor.diff)
+
+# you shouldn't have to modify anything below this line
+rcver=${pkgver%.*}.$((${pkgver#*.*.}+1))-rc$rc
 pkgdesc="The Linux Kernel and modules"
 url="http://www.kernel.org"
 rodepends=('module-init-tools' 'sed')
@@ -18,10 +21,14 @@ archs=('i686' 'x86_64')
 replaces=('kernel-ide' 'kernel-scsi')
 options=('nodocs')
 up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
-source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$pkgver.tar.bz2 config \
-	ftp://ftp.suse.com/pub/people/stepan/bootsplash/kernel/bootsplash-$bsver-$pkgver.diff \
-	linux-$pkgver-ipw2200_monitor.diff)
-signatures=("${source[0]}.sign" '' '' '')
+source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$pkgver.tar.bz2 config)
+signatures=("${source[0]}.sign" '')
+
+for i in ${patches[@]}
+do
+	source=(${source[@]} $i)
+	signatures=("${signatures[@]}" '')
+done
 
 [ $stable -gt 0 ] && \
 	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$pkgver.$stable.bz2) && \
@@ -51,9 +58,9 @@ build()
 	Fcd linux-$pkgver
 	cp $Fsrcdir/config .config
 	Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
-	Fpatchall
 	[ $stable -gt 0 ] && Fpatch patch-$pkgver.$stable
 	[ $rc -gt 0 ] && Fpatch patch-$rcver
+	Fpatchall
 	yes "" | make config
 	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = -fw$pkgrel" Makefile
 	

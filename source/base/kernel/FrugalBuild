@@ -4,17 +4,34 @@
 
 pkgname=kernel
 pkgver=2.6.16
-# write here 0 if new, official kernel is out (from Linus)
-stable=16
-rc=0
 pkgrel=5
-patches=(ftp://ftp.suse.com/pub/people/stepan/bootsplash/kernel/bootsplash-3.1.6-$pkgver.diff \
+_F_kernel_stable=16
+_F_kernel_patches=(ftp://ftp.suse.com/pub/people/stepan/bootsplash/kernel/bootsplash-3.1.6-$pkgver.diff \
 	linux-$pkgver-ipw2200_monitor.diff)
 [ "$CARCH" == "x86_64" ] && \
-	patches=(${patches[@]} linux-2.6.11-x86_64_config.patch0)
+	_F_kernel_patches=(${_F_kernel_patches[@]} linux-2.6.11-x86_64_config.patch0)
 
 # you shouldn't have to modify anything below this line
-rcver=${pkgver%.*}.$((${pkgver#*.*.}+1))-rc$rc
+# usage:
+# _F_kernel_vmlinuz (defaults to arch/$arch/boot/bzImage)
+# _F_kernel_name (defaults to "", example: "-grsec")
+# _F_kernel_ver (defaults to $pkgver)
+# _F_kernel_stable (defaults to 0, example: "5")
+# _F_kernel_rc (defaults to 0, example: "5")
+
+if [ -z "$_F_kernel_ver" ]; then
+	_F_kernel_ver=$pkgver
+fi
+
+if [ -z "$_F_kernel_stable" ]; then
+	_F_kernel_stable=0
+fi
+
+if [ -z "$_F_kernel_rc" ]; then
+	_F_kernel_rc=0
+fi
+
+_F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
 pkgdesc="The Linux Kernel and modules"
 url="http://www.kernel.org"
 rodepends=('module-init-tools' 'sed')
@@ -23,21 +40,21 @@ archs=('i686' 'x86_64')
 replaces=('kernel-ide' 'kernel-scsi')
 options=('nodocs')
 up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
-source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$pkgver.tar.bz2 config)
+source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
 signatures=("${source[0]}.sign" '')
 
-for i in ${patches[@]}
+for i in ${_F_kernel_patches[@]}
 do
 	source=(${source[@]} $i)
 	signatures=("${signatures[@]}" '')
 done
 
-[ $stable -gt 0 ] && \
-	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$pkgver.$stable.bz2) && \
+[ "$_F_kernel_stable" -gt 0 ] && \
+	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$_F_kernel_ver.$_F_kernel_stable.bz2) && \
 	signatures=("${signatures[@]}" ${source[4]}.sign)
 
-[ $rc -gt 0 ] && \
-	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/testing/patch-$rcver.bz2) && \
+[ $_F_kernel_rc -gt 0 ] && \
+	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/testing/patch-$_F_kernel_rcver.bz2) && \
 	signatures=("${signatures[@]}" ${source[4]}.sign)
 
 [ "$CARCH" == "x86_64" ] && MARCH=K8
@@ -53,27 +70,27 @@ suboptions=('nodocs' '')
 
 build()
 {
-	Fcd linux-$pkgver
+	Fcd linux-$_F_kernel_ver
 	cp $Fsrcdir/config .config
 	Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
-	[ $stable -gt 0 ] && Fpatch patch-$pkgver.$stable
-	[ $rc -gt 0 ] && Fpatch patch-$rcver
+	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
+	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$F_kernel_rcver
 	Fpatchall
 	yes "" | make config
-	Fsed "SUBLEVEL =.*" "SUBLEVEL = ${pkgver#*.*.}" Makefile
-	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = -fw$pkgrel" Makefile
+	Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
+	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_name-fw$pkgrel" Makefile
 	
 	## let we do kernel-source befor make
 	Fmkdir /usr/src
-	cp -Ra $Fsrcdir/linux-$pkgver $Fdestdir/usr/src/linux-$pkgver-fw$pkgrel
-	rm -rf $Fdestdir/usr/src/linux-$pkgver-fw$pkgrel/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS}
-	Fln linux-$pkgver-fw$pkgrel /usr/src/linux
+	cp -Ra $Fsrcdir/linux-$_F_kernel_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS}
+	Fln linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel /usr/src/linux
 	Fsplit kernel-source usr/src
 
 	## now the kernel-docs
-	Fmkdir /usr/src/linux-$pkgver-fw$pkgrel
-	cp -Ra $Fsrcdir/linux-$pkgver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
-	                 $Fdestdir/usr/src/linux-$pkgver-fw$pkgrel
+	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	cp -Ra $Fsrcdir/linux-$_F_kernel_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
+	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
         ## do we need to ln /usr/share/doc ?!
 	Fsplit kernel-docs usr/src
 
@@ -81,17 +98,23 @@ build()
 	make || return 1
 	
 	Fmkdir /boot
-	Ffilerel .config /boot/config-$pkgver-fw$pkgrel
-	Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage \
-		/boot/vmlinuz-$pkgver-fw$pkgrel
+	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	if [ ! -z "$_F_kernel_vmlinuz" ]; then
+		Ffilerel $_F_kernel_vmlinuz /boot/vmlinuz-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	else
+		Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage \
+			/boot/vmlinuz-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	fi
 	Fmkdir /lib/modules
 	make INSTALL_MOD_PATH=$Fdestdir modules_install
 	# dump symol versions so that later builds will have dependencies and
 	# modversions
-	Ffilerel System.map /boot/System.map-$pkgver-fw$pkgrel
-	Ffilerel /usr/src/linux-$pkgver-fw$pkgrel/Module.symvers
-	Frm /lib/modules/$pkgver-fw$pkgrel/build
-	Frm /lib/modules/$pkgver-fw$pkgrel/source
-	Fln /usr/src/linux-$pkgver-fw$pkgrel /lib/modules/$pkgver-fw$pkgrel/build
-	Fln /usr/src/linux-$pkgver-fw$pkgrel /lib/modules/$pkgver-fw$pkgrel/source
+	Ffilerel System.map /boot/System.map-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	Ffilerel /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel/Module.symvers
+	Frm /lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/build
+	Frm /lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/source
+	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel \
+		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/build
+	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel \
+		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/source
 }

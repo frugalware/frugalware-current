@@ -1,0 +1,114 @@
+#!/bin/sh
+
+# (c) 2006 Miklos Vajna <vmiklos@frugalware.org>
+# kernel.sh for Frugalware
+# distributed under GPL License
+
+# common scheme for kernel FrugalBuilds
+
+# usage:
+# _F_kernel_vmlinuz (defaults to arch/$arch/boot/bzImage)
+# _F_kernel_name (defaults to "", example: "-grsec")
+# _F_kernel_ver (defaults to $pkgver)
+# _F_kernel_stable (defaults to 0, example: "5")
+# _F_kernel_rc (defaults to 0, example: "5")
+# TODO: scriptlets
+
+if [ -z "$_F_kernel_ver" ]; then
+	_F_kernel_ver=$pkgver
+fi
+
+if [ -z "$_F_kernel_stable" ]; then
+	_F_kernel_stable=0
+fi
+
+if [ -z "$_F_kernel_rc" ]; then
+	_F_kernel_rc=0
+fi
+
+_F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
+pkgdesc="The Linux Kernel and modules"
+url="http://www.kernel.org"
+rodepends=('module-init-tools' 'sed')
+groups=('base')
+archs=('i686' 'x86_64')
+options=('nodocs')
+up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
+source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
+signatures=("${source[0]}.sign" '')
+
+for i in ${_F_kernel_patches[@]}
+do
+	source=(${source[@]} $i)
+	signatures=("${signatures[@]}" '')
+done
+
+[ "$_F_kernel_stable" -gt 0 ] && \
+	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$_F_kernel_ver.$_F_kernel_stable.bz2) && \
+	signatures=("${signatures[@]}" ${source[4]}.sign)
+
+[ $_F_kernel_rc -gt 0 ] && \
+	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/testing/patch-$_F_kernel_rcver.bz2) && \
+	signatures=("${signatures[@]}" ${source[4]}.sign)
+
+[ "$CARCH" == "x86_64" ] && MARCH=K8
+echo "$CARCH" |grep -q 'i.86' && KARCH=i386
+
+subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
+subdescs=('Linux kernel source' 'Linux kernel documentation')
+subdepends=("make gcc kernel-headers kernel$_F_kernel_name-docs" 'kernel')
+subgroups=('devel' 'apps')
+subarchs=('i686 x86_64' 'i686 x86_64')
+subinstall=('kernel-source.install' '')
+suboptions=('nodocs' '')
+
+build()
+{
+	Fcd linux-$_F_kernel_ver
+	cp $Fsrcdir/config .config
+	Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
+	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
+	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$F_kernel_rcver
+	Fpatchall
+	yes "" | make config
+	Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
+	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_name-fw$pkgrel" Makefile
+	
+	## let we do kernel$_F_kernel_name-source before make
+	Fmkdir /usr/src
+	cp -Ra $Fsrcdir/linux-$_F_kernel_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS}
+	Fln linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel /usr/src/linux
+	Fsplit kernel$_F_kernel_name-source usr/src
+
+	## now the kernel$_F_kernel_name-docs
+	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	cp -Ra $Fsrcdir/linux-$_F_kernel_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
+	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+        ## do we need to ln /usr/share/doc ?!
+	Fsplit kernel$_F_kernel_name-docs usr/src
+
+	## now time to eat some cookies and wait kernel got compiled :)
+	make || return 1
+	
+	Fmkdir /boot
+	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	if [ ! -z "$_F_kernel_vmlinuz" ]; then
+		Ffilerel $_F_kernel_vmlinuz /boot/vmlinuz-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	else
+		Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage \
+			/boot/vmlinuz-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	fi
+	Fmkdir /lib/modules
+	make INSTALL_MOD_PATH=$Fdestdir modules_install
+	# dump symol versions so that later builds will have dependencies and
+	# modversions
+	Ffilerel System.map /boot/System.map-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	Ffilerel /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel/Module.symvers
+	Frm /lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/build
+	Frm /lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/source
+	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel \
+		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/build
+	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel \
+		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/source
+}

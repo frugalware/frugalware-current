@@ -6,12 +6,17 @@
 
 # common scheme for kernel FrugalBuilds
 
+# polite request for people who spin their own kernel fpms:
+# please _do_ use the _F_kernel_name directive to identify
+# that the kernel isn't the stock distribution kernel
+
 # usage:
 # _F_kernel_vmlinuz (defaults to arch/$arch/boot/bzImage)
 # _F_kernel_name (defaults to "", example: "-grsec")
 # _F_kernel_ver (defaults to $pkgver)
-# _F_kernel_stable (defaults to 0, example: "5")
-# _F_kernel_rc (defaults to 0, example: "5")
+# _F_kernel_stable (defaults to 0, example: "16")
+# _F_kernel_rc (defaults to 0, example: "6")
+# _F_kernel_mm (defaults to 0, example: "2")
 
 if [ -z "$_F_kernel_ver" ]; then
 	_F_kernel_ver=$pkgver
@@ -25,7 +30,16 @@ if [ -z "$_F_kernel_rc" ]; then
 	_F_kernel_rc=0
 fi
 
+if [ -z "$_F_kernel_mm" ]; then
+	_F_kernel_mm=0
+fi
+
 _F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
+if [ $_F_kernel_rc -gt 0 ]; then
+	_F_kernel_mmver=$_F_kernel_rcver-mm$_F_kernel_mm
+else
+	_F_kernel_mmver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-mm$_F_kernel_mm
+fi
 pkgdesc="The Linux Kernel and modules"
 url="http://www.kernel.org"
 rodepends=('module-init-tools' 'sed')
@@ -45,11 +59,20 @@ done
 
 [ "$_F_kernel_stable" -gt 0 ] && \
 	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$_F_kernel_ver.$_F_kernel_stable.bz2) && \
-	signatures=("${signatures[@]}" ${source[4]}.sign)
+	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
 
 [ $_F_kernel_rc -gt 0 ] && \
 	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/testing/patch-$_F_kernel_rcver.bz2) && \
-	signatures=("${signatures[@]}" ${source[4]}.sign)
+	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
+
+if [ $_F_kernel_mm -gt 0 ]; then
+	if [ $_F_kernel_rc -gt 0 ]; then
+		source=(${source[@]} http://www.kernel.org/pub/linux/kernel/people/akpm/patches/2.6/$_F_kernel_rcver/$_F_kernel_mmver/$_F_kernel_mmver.bz2)
+	else
+		source=(${source[@]} http://www.kernel.org/pub/linux/kernel/people/akpm/patches/2.6/$_F_kernel_ver/$_F_kernel_mmver/$_F_kernel_mmver.bz2)
+	fi
+	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
+fi
 
 [ "$CARCH" == "x86_64" ] && MARCH=K8
 echo "$CARCH" |grep -q 'i.86' && KARCH=i386
@@ -68,7 +91,8 @@ Fbuildkernel()
 	cp $Fsrcdir/config .config
 	Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
-	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$F_kernel_rcver
+	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver
+	[ $_F_kernel_mm -gt 0 ] && Fpatch $_F_kernel_mmver
 	Fpatchall
 	yes "" | make config
 	Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile

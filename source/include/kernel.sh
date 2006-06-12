@@ -17,6 +17,7 @@
 # _F_kernel_stable (defaults to 0, example: "16")
 # _F_kernel_rc (defaults to 0, example: "6")
 # _F_kernel_mm (defaults to 0, example: "2")
+# _F_kernel_git (defaults to 0, example: "3")
 
 if [ -z "$_F_kernel_ver" ]; then
 	_F_kernel_ver=$pkgver
@@ -34,11 +35,20 @@ if [ -z "$_F_kernel_mm" ]; then
 	_F_kernel_mm=0
 fi
 
+if [ -z "$_F_kernel_git" ]; then
+	_F_kernel_git=0
+fi
+
 _F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
 if [ $_F_kernel_rc -gt 0 ]; then
 	_F_kernel_mmver=$_F_kernel_rcver-mm$_F_kernel_mm
 else
 	_F_kernel_mmver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-mm$_F_kernel_mm
+fi
+if [ $_F_kernel_rc -gt 0 ]; then
+	_F_kernel_gitver=$_F_kernel_rcver-git$_F_kernel_git
+else
+	_F_kernel_gitver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-git$_F_kernel_git
 fi
 pkgdesc="The Linux Kernel and modules"
 url="http://www.kernel.org"
@@ -74,6 +84,11 @@ if [ $_F_kernel_mm -gt 0 ]; then
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
 fi
 
+if [ $_F_kernel_git -gt 0 ]; then
+	source=(${source[@]} http://www.kernel.org/pub/linux/kernel/v2.6/snapshots/patch-$_F_kernel_gitver.bz2)
+	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
+fi
+
 [ "$CARCH" == "x86_64" ] && MARCH=K8
 echo "$CARCH" |grep -q 'i.86' && KARCH=i386
 
@@ -93,6 +108,7 @@ Fbuildkernel()
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver
 	[ $_F_kernel_mm -gt 0 ] && Fpatch $_F_kernel_mmver
+	[ $_F_kernel_git -gt 0 ] && Fpatch patch-$_F_kernel_gitver
 	Fpatchall
 	yes "" | make config
 	Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile

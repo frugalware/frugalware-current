@@ -62,7 +62,7 @@ subarchs=('i686 x86_64' 'i686 x86_64')
 subinstall=('src/kernel-source.install' '')
 suboptions=('nodocs' '')
 
-build()
+Fbuildkernel()
 {
 	Fcd linux-$_F_kernel_ver
 	cp $Fsrcdir/config .config
@@ -117,4 +117,9 @@ build()
 	Fsed '$_F_kernel_name' "$_F_kernel_name" $Fsrcdir/kernel.install
 	cp $Fincdir/kernel-source.install $Fsrcdir
 	Fsed '$_F_kernel_name' "$_F_kernel_name" $Fsrcdir/kernel-source.install
+}
+
+build()
+{
+	Fbuildkernel
 }

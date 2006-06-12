@@ -12,7 +12,6 @@
 # _F_kernel_ver (defaults to $pkgver)
 # _F_kernel_stable (defaults to 0, example: "5")
 # _F_kernel_rc (defaults to 0, example: "5")
-# TODO: scriptlets
 
 if [ -z "$_F_kernel_ver" ]; then
 	_F_kernel_ver=$pkgver
@@ -36,6 +35,7 @@ options=('nodocs')
 up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
 source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
 signatures=("${source[0]}.sign" '')
+install="src/kernel.install"
 
 for i in ${_F_kernel_patches[@]}
 do
@@ -59,7 +59,7 @@ subdescs=('Linux kernel source' 'Linux kernel documentation')
 subdepends=("make gcc kernel-headers kernel$_F_kernel_name-docs" 'kernel')
 subgroups=('devel' 'apps')
 subarchs=('i686 x86_64' 'i686 x86_64')
-subinstall=('kernel-source.install' '')
+subinstall=('src/kernel-source.install' '')
 suboptions=('nodocs' '')
 
 build()
@@ -111,4 +111,10 @@ build()
 		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/build
 	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel \
 		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/source
+
+	# scriptlets
+	cp $Fincdir/kernel.install $Fsrcdir
+	Fsed '$_F_kernel_name' "$_F_kernel_name" $Fsrcdir/kernel.install
+	cp $Fincdir/kernel-source.install $Fsrcdir
+	Fsed '$_F_kernel_name' "$_F_kernel_name" $Fsrcdir/kernel-source.install
 }

@@ -134,7 +134,7 @@ Fbuildkernel()
 		Fsed '`whoami`' 'fst' scripts/mkcompile_h
 		Fsed '`hostname \| $UTS_TRUNCATE`' "`uname -m`.frugalware.org" scripts/mkcompile_h
 	fi
-	make || return 1
+	make || Fdie
 	
 	Fmkdir /boot
 	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_name-fw$pkgrel

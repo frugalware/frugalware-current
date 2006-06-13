@@ -531,7 +531,7 @@ Funpack_makeself() {
 
 	local shrtsrc="$(basename "${src}")"
 	Fmessage "Unpacking ${shrtsrc}"
-	local dir="$(basename "${src}" .sh)"
+	local dir=${shrtsrc%.*}
 	mkdir $dir
 	if [ -z "${skip}" ]
 	then
@@ -557,7 +557,7 @@ Funpack_makeself() {
 				skip=`grep -a ^offset= "${src}" | awk '{print $3}'`
 				let skip="skip + 1"
 				;;
-			2.1.4)
+			2.1.4|2.1.5)
 				skip=$(grep -a offset=.*head.*wc "${src}" | awk '{print $3}' | head -n 1)
 				skip=$(head -n ${skip} "${src}" | wc -c)
 				exe="dd"

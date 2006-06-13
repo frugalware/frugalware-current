@@ -229,22 +229,43 @@ Ffilerel() {
 }
 
 ### Install documentation file(s) to $Fdestdir/usr/share/doc/$pkgname-$pkgver \
- #  from $Fsrcdir
+ #  from $Fsrcdir. Also is $file.xx or $file.xx_YY present then it will be \
+ #  automatically installed, too.
  # @param file(s) to be installed from $Fsrcdir \
  #        (defaults to $Fsrcdir/`basename $destination`)
  ##
 Fdoc() {
 	Fmkdir "/usr/share/doc/$pkgname-$pkgver"
-	Ffile "$@" "/usr/share/doc/$pkgname-$pkgver/"
+	local i
+	for i in $@
+	do
+		Ffile "$i" "/usr/share/doc/$pkgname-$pkgver/"
+		local j
+		for j in `ls $Fsrcdir|grep "$i\.[a-z_A-Z]\+$"`
+		do
+			Ffile "$j" "/usr/share/doc/$pkgname-$pkgver/"
+		done
+	done
 }
 
-### Install documentation file(s) to $Fdestdir/usr/share/doc/$pkgname-$pkgver
+### Install documentation file(s) to $Fdestdir/usr/share/doc/$pkgname-$pkgver.
+ #  Also is $file.xx or $file.xx_YY present then it will be \
+ #  automatically installed, too.
  # @param file(s) to be installed \
  #        (defaults to $Fsrcdir/`basename $destination`)
  ##
 Fdocrel() {
 	Fmkdir "/usr/share/doc/$pkgname-$pkgver"
-	Ffilerel "$@" /usr/share/doc/$pkgname-$pkgver
+	local i
+	for i in $@
+	do
+		Ffilerel "$i" "/usr/share/doc/$pkgname-$pkgver/"
+		local j
+		for j in `ls |grep "$i\.[a-z_A-Z]\+$"`
+		do
+			Ffilerel "$j" "/usr/share/doc/$pkgname-$pkgver/"
+		done
+	done
 }
 
 ### Install icon file(s) to $Fdestdir/usr/share/pixmaps \

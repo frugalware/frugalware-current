@@ -7,8 +7,10 @@
 # common up2date and an Funpack_scm() function for various "live" FBs
 
 # usage:
-# _F_scm_type: can be darcs
-# _F_scm_url: url of the repo
+# _F_scm_type: can be darcs - required
+# _F_scm_url: url of the repo - required
+# _F_scm_password: password of the repo - required for cvs
+# _F_scm_module: name of the module to check out - required for cvs and svn
 
 # slice the / suffix if there is any
 _F_scm_url=${_F_scm_url%/}
@@ -16,6 +18,10 @@ _F_scm_url=${_F_scm_url%/}
 if [ "$_F_scm_type" == "darcs" ]; then
 	up2date="lynx -source -dump $_F_scm_url/_darcs/inventory|grep ']'|sed -n 's/.*\*\(.*\)\]./\1/;$ p'"
 	makedepends=(${makedepends[@]} 'darcs')
+elif [ "$_F_scm_type" == "cvs" ]; then
+	# if you know a better solution, patches are welcome! :)
+	up2date=`date +%Y%m%d`
+	makedepends=(${makedepends[@]} 'cvs')
 fi
 
 Funpack_scm()
@@ -27,13 +33,17 @@ Funpack_scm()
 			darcs get --partial $_F_scm_url || Fdie
 		fi
 		Fcd ${_F_scm_url##*/}
+	elif [ "$_F_scm_type" == "cvs" ]; then
+		touch ~/.cvspass || Fdie
+		cvs -d ${_F_scm_url/@/:$_F_scm_password@} login || Fdie
+		cvs -d $_F_scm_url co $_F_scm_module || Fdie
+		Fcd $_F_scm_module
 	fi
+	unset _F_scm_type _F_scm_url
 }
-
 
 build()
 {
 	Funpack_scm
 	Fbuild
-	unset _F_scm_type _F_scm_url
 }

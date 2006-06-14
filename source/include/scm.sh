@@ -7,7 +7,7 @@
 # common up2date and an Funpack_scm() function for various "live" FBs
 
 # usage:
-# _F_scm_type: can be darcs, cvs or subversion - required
+# _F_scm_type: can be darcs, cvs, subversion or git - required
 # _F_scm_url: url of the repo - required
 # _F_scm_password: password of the repo - required for cvs
 # _F_scm_module: name of the module to check out - required for cvs and subversion
@@ -25,6 +25,9 @@ elif [ "$_F_scm_type" == "cvs" ]; then
 elif [ "$_F_scm_type" == "subversion" ]; then
 	up2date="svn log $_F_scm_url --limit=1 |sed -n '/^r/s/r\([0-9]\+\) .*/\1/p'"
 	makedepends=(${makedepends[@]} 'subversion')
+elif [ "$_F_scm_type" == "git" ]; then
+	up2date="date +%Y%m%d%H%M%S --date '`curl -I $_F_scm_url/HEAD 2>&1|sed -n '/^Last-Modified/s/^[^:]*: //p'`'"
+	makedepends=(${makedepends[@]} 'cogito')
 fi
 
 Funpack_scm()
@@ -44,6 +47,9 @@ Funpack_scm()
 	elif [ "$_F_scm_type" == "subversion" ]; then
 		svn co $_F_scm_url $_F_scm_module || Fdie
 		Fcd $_F_scm_module
+	elif [ "$_F_scm_type" == "git" ]; then
+		cg-clone $_F_scm_url || Fdie
+		Fcd `echo $_F_scm_url |sed 's|.*/\(.*\)\..*|\1|'`
 	fi
 	unset _F_scm_type _F_scm_url
 }

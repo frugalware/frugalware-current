@@ -50,6 +50,13 @@ if [ $_F_kernel_rc -gt 0 ]; then
 else
 	_F_kernel_gitver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-git$_F_kernel_git
 fi
+if [ -z "$pkgname" ]; then
+	if [ -z "$_F_kernel_name" ]; then
+		pkgname=kernel
+	else
+		pkgname=kernel-$_F_kernel_name
+	fi
+fi
 pkgdesc="The Linux Kernel and modules"
 url="http://www.kernel.org"
 rodepends=('module-init-tools' 'sed')

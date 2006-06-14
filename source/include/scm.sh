@@ -7,10 +7,10 @@
 # common up2date and an Funpack_scm() function for various "live" FBs
 
 # usage:
-# _F_scm_type: can be darcs - required
+# _F_scm_type: can be darcs, cvs or subversion - required
 # _F_scm_url: url of the repo - required
 # _F_scm_password: password of the repo - required for cvs
-# _F_scm_module: name of the module to check out - required for cvs and svn
+# _F_scm_module: name of the module to check out - required for cvs and subversion
 
 # slice the / suffix if there is any
 _F_scm_url=${_F_scm_url%/}
@@ -22,6 +22,9 @@ elif [ "$_F_scm_type" == "cvs" ]; then
 	# if you know a better solution, patches are welcome! :)
 	up2date=`date +%Y%m%d`
 	makedepends=(${makedepends[@]} 'cvs')
+elif [ "$_F_scm_type" == "subversion" ]; then
+	up2date="svn log $_F_scm_url --limit=1 |sed -n '/^r/s/r\([0-9]\+\) .*/\1/p'"
+	makedepends=(${makedepends[@]} 'subversion')
 fi
 
 Funpack_scm()
@@ -37,6 +40,9 @@ Funpack_scm()
 		touch ~/.cvspass || Fdie
 		cvs -d ${_F_scm_url/@/:$_F_scm_password@} login || Fdie
 		cvs -d $_F_scm_url co $_F_scm_module || Fdie
+		Fcd $_F_scm_module
+	elif [ "$_F_scm_type" == "subversion" ]; then
+		svn co $_F_scm_url $_F_scm_module || Fdie
 		Fcd $_F_scm_module
 	fi
 	unset _F_scm_type _F_scm_url

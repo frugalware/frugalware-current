@@ -54,7 +54,7 @@ if [ -z "$pkgname" ]; then
 	if [ -z "$_F_kernel_name" ]; then
 		pkgname=kernel
 	else
-		pkgname=kernel-$_F_kernel_name
+		pkgname=kernel$_F_kernel_name
 	fi
 fi
 pkgdesc="The Linux Kernel and modules"

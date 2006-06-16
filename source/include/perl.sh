@@ -34,6 +34,7 @@ build()
 pkgname="perl-`echo $modname|tr [A-Z] [a-z]`"
 pkgrel=1
 depends=(${depends[@]} 'perl')
+makedepends=(${makedepends[@]} 'perl-libwww')
 groups=('devel-extra')
 archs=('i686')
 

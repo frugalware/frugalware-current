@@ -12,6 +12,7 @@
 
 # usage:
 # _F_kernel_vmlinuz (defaults to arch/$arch/boot/bzImage)
+# _F_kernel_verbose (if length of it isn't zero, then use make with V=1)
 # _F_kernel_name (defaults to "", example: "-grsec")
 # _F_kernel_ver (defaults to $pkgver)
 # _F_kernel_stable (defaults to 0, example: "16")
@@ -141,7 +142,11 @@ Fbuildkernel()
 		Fsed '`whoami`' 'fst' scripts/mkcompile_h
 		Fsed '`hostname \| $UTS_TRUNCATE`' "`uname -m`.frugalware.org" scripts/mkcompile_h
 	fi
-	make || Fdie
+	if [ "$_F_kernel_verbose" ]; then
+		make V=1 || Fdie
+	else
+		make || Fdie
+	fi
 	
 	Fmkdir /boot
 	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_name-fw$pkgrel

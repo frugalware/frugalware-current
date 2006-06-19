@@ -1,12 +1,13 @@
 diff -Naur os-prober.orig/linux-boot-probes/common/50mounted-tests os-prober/linux-boot-probes/common/50mounted-tests
 --- os-prober.orig/linux-boot-probes/common/50mounted-tests	2006-06-16 00:24:48.000000000 +0200
 +++ os-prober/linux-boot-probes/common/50mounted-tests	2006-06-16 20:41:08.000000000 +0200
-@@ -23,6 +23,10 @@
+@@ -23,6 +23,11 @@
  	mkdir $tmpmnt
  fi
  
 +oldmnt=$(mount |grep $partition|cut -d' ' -f 3)
 +if [ -n "$oldmnt" ]; then
++	oldopts=$(mount |grep $partition|sed 's/.*(\(.*\)).*/\1/')
 +	umount $partition
 +fi
  for type in $(grep -v nodev /proc/filesystems); do
@@ -17,7 +18,7 @@ diff -Naur os-prober.orig/linux-boot-probes/common/50mounted-tests os-prober/lin
  					umount $tmpmnt/boot 2>/dev/null || true 	
  					umount $tmpmnt
 +					if [ -n "$oldmnt" ]; then
-+						mount $partition $oldmnt
++						mount $partition $oldmnt -o $oldopts
 +					fi
  					rmdir $tmpmnt || true
  					exit 0
@@ -27,33 +28,11 @@ diff -Naur os-prober.orig/linux-boot-probes/common/50mounted-tests os-prober/lin
  		umount $tmpmnt/boot 2>/dev/null || true 	
  		umount $tmpmnt
 +		if [ -n "$oldmnt" ]; then
-+			mount $partition $oldmnt
++			mount $partition $oldmnt -o $oldopts
 +		fi
  
  		break
  	fi
-diff -Naur os-prober.orig/linux-boot-probes/mounted/x86/40grub os-prober/linux-boot-probes/mounted/x86/40grub
---- os-prober.orig/linux-boot-probes/mounted/x86/40grub	2006-06-16 00:24:48.000000000 +0200
-+++ os-prober/linux-boot-probes/mounted/x86/40grub	2006-06-16 20:12:22.000000000 +0200
-@@ -11,8 +11,7 @@
- 
- entry_result () {
- 	if [ -n "$kernel" ] && \
--	   [ -e "$mpoint/$kernel" ] && \
--	   [ -e "$mpoint/$initrd" ]; then
-+	   [ -e "$mpoint/$kernel" ]; then
- 		result "$rootpart:$bootpart:$title:$kernel:$initrd:$parameters"
- 		found_item=1
- 	fi
-@@ -42,7 +41,7 @@
- 				title="$(echo $@ | sed 's/://g')"
- 			;;
- 			kernel)
--				kernel="$2"
-+				kernel="$(echo $2 | sed 's/(.*)//')"
- 				shift 2
- 				parameters="$@"
- 				# Systems with a separate /boot will not have
 diff -Naur os-prober.orig/os-probes/mounted/common/90linux-distro os-prober/os-probes/mounted/common/90linux-distro
 --- os-prober.orig/os-probes/mounted/common/90linux-distro	2006-06-16 00:24:48.000000000 +0200
 +++ os-prober/os-probes/mounted/common/90linux-distro	2006-06-16 20:39:12.000000000 +0200
@@ -64,7 +43,7 @@ diff -Naur os-prober.orig/os-probes/mounted/common/90linux-distro os-prober/os-p
 -	if [ -e "$dir/etc/debian_version" ]; then
 +	if [ -e "$dir/etc/frugalware-release" ]; then
 +		short="Frugalware"
-+		long="$(cat $dir/etc/frugalware-release) - $(ls $dir/boot/vmlinuz-*|sed 's|.*vmlinuz-||')"
++		long="$(cat $dir/etc/frugalware-release) - $(ls $dir/boot/vmlinuz-*|sed 's|.*vmlinuz-||;q')"
 +	elif [ -e "$dir/etc/debian_version" ]; then
  		short="Debian"
  		long=$(printf "Debian GNU/Linux (%s)\n" "$(cat $dir/etc/debian_version)")

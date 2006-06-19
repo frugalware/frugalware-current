@@ -1,50 +1,34 @@
-# Last Modified: Wed, 24 May 2006 16:18:53 +0200
+# Last Modified: Mon, 19 Jun 2006 00:51:40 +0200
 # Compiling Time: 7.26 SBU
 # Maintainer: Karoly CZOVEK  <slinky@rei.keni.hu>
 # Contributor: Zoltan Kiss <djsmiley@frugalware.org>
 
-pkgname=kernel-grsec
 pkgver=2.1.9
-nkver=2.6.16.18
-kver=2.6.16.15
+kver=2.6.16.19
 # lynx -dump http://www.grsecurity.net/~spender/?M=A|grep grsecurity-.*-2.6|sed -n 's/.*-\(.*\)\.p.*/\1/;1 p'
 grtime=200606041421
-kmin=`echo $kver|cut -d . -f 1,2,3`
 cver=0.1.0
-pkgrel=1
+pkgrel=2
+_F_kernel_name="-grsec"
+_F_kernel_ver=${kver%.*}
+_F_kernel_stable=${kver##*.}
+_F_kernel_patches=(http://www.grsecurity.net/~spender/grsecurity-$pkgver-$kver-$grtime.patch \
+	config.patch)
+Finclude kernel
 pkgdesc="The Linux Kernel and modules (Grsecurity version)"
 url="http://www.grsecurity.net"
 depends=('module-init-tools')
-backup=('/etc/sysconfig/grsec')
 groups=('base-extra')
 archs=('i686')
+backup=('etc/sysconfig/grsec')
 provides=('kernel')
 up2date="lynx -dump http://www.grsecurity.net/~spender/?M=A|grep grsecurity-.*-2.6|sed -n 's/.*y-\([^-]*\)-.*/\1/;1 p'"
-
-source=(http://www.grsecurity.net/~spender/grsecurity-$pkgver-$kver-$grtime.patch \
-	ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$nkver.tar.gz \
-	http://ftp.frugalware.org/pub/other/grsecconf/grsecconf-$cver.tar.gz \
-	config config.patch grsec README.frugalware rc.grsec \
+source=(${source[@]} http://ftp.frugalware.org/pub/other/grsecconf/grsecconf-$cver.tar.gz \
+	grsec README.frugalware rc.grsec \
 	rc.grsec-{de,hu}.po)
+signatures=("${signatures[@]}" '' '' '' '' '' '')
+install=kernel-grsec.install
 	
-sha1sums=('99a730259a55f7af61393f17e84dbc4c90ca46ab' \
-          '67d4fc4ff4a73e8e32abd914251d7d049a5dc6ca' \
-          'ff2bc3fc9c9a203dbeba81c4d1f4d67725776972' \
-          '5c21384228527c602ba53146177f5d509c184b59' \
-          'a345b3a6bf0c2971b3094a79cf5b57d30bd9d80b' \
-          'acc1412a2c2f267b150aea970ec4643810c25990' \
-          'e83987eb2ad234e56e1f47b406733bff79e82cf9' \
-          '39bf63a489895bd9ed7d107dbcc03867d4908b1c' \
-          'd92ba5c7321b63e16d56bea2bdafbbf9a90351ed' \
-          'a38cf9624b942b50182e9a8eee23e53ab093cec6')
-
-[ "$CARCH" == "x86_64" ] && MARCH=K8
-echo "$CARCH" |grep -q 'i.86' && KARCH=i386
-
-[ "$CARCH" == "x86_64" ] && \
-	source=(${source[@]} linux-2.6.11-x86_64_config.patch0) && \
-	sha1sums=(${sha1sums[@]} '191954a0edaee42cf72e139b34d428fe3df8a11c')
-
 build()
 {
 	#build the mconf util
@@ -58,35 +42,13 @@ build()
 	Fexerel /usr/sbin/grsecconf
 	Ffilerel options /usr/share/kernel-grsec/mconf.opts
 	Fexerel /var/lib/frugalware/system/mconf
+	cd ..
 	
 	#build kernel
-	cd $Fsrcdir/linux-$nkver
-	cp $Fsrcdir/config .config
-	Fpatchall
-	Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
-	yes "" | make config
-	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = -grsec-fw$pkgrel" Makefile
-	
-	make || return 1
-
-	#install kernel
-	Fmkdir /boot
-
-	Ffilerel .config /boot/config-$kmin-grsec-fw$pkgrel
-	Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage \
-		/boot/vmlinuz-$kmin-grsec-fw$pkgrel
-	Fmkdir /lib/modules
-	make INSTALL_MOD_PATH=$Fdestdir modules_install
-	Ffilerel System.map /boot/System.map-$kmin-grsec-fw$pkgrel
-	Frm /lib/modules/$kmin-grsec-fw$pkgrel/build
-	Frm /lib/modules/$kmin-grsec-fw$pkgrel/source
-	Fln /usr/src/linux-$kmin-grsec-fw$pkgrel /lib/modules/$kmin-grsec-fw$pkgrel/build
-	Fln /usr/src/linux-$kmin-grsec-fw$pkgrel /lib/modules/$kmin-grsec-fw$pkgrel/source
+	Fbuildkernel
 	Fdoc README.frugalware
 	Fmkdir /etc/sysconfig
 	Ffile /etc/sysconfig/grsec
 	Fmkdir /etc/rc.d/rc.messages
 	Frcd2 grsec
 }
-
-# vim: ft=sh

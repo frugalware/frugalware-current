@@ -1,4 +1,0 @@
-<?
-header("Location: news.php");
-?>
-

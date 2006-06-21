@@ -61,6 +61,9 @@ fi
 pkgdesc="The Linux Kernel and modules"
 url="http://www.kernel.org"
 rodepends=('module-init-tools' 'sed')
+if [ -z "$_F_kernel_name" ]; then
+	makedepends=('unifdef')
+fi
 groups=('base')
 archs=('i686' 'x86_64')
 options=('nodocs')
@@ -97,22 +100,31 @@ if [ $_F_kernel_git -gt 0 ]; then
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
 fi
 
+if [ -z "$_F_kernel_name" ]; then
+	source=(${source[@]} http://ftp.frugalware.org/pub/other/sources/kernel/linux-$_F_kernel_ver-headers.patch.bz2)
+	signatures=("${signatures[@]}" '')
+fi
 [ "$CARCH" == "x86_64" ] && MARCH=K8
 echo "$CARCH" |grep -q 'i.86' && KARCH=i386
 
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
 subdepends=("make gcc kernel-headers kernel$_F_kernel_name-docs" 'kernel')
+subarchs=('i686 x86_64' 'i686 x86_64')
+subinstall=('src/kernel-source.install' '')
+suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
-	subgroups=('devel' 'apps')
-	subdescs=('Linux kernel source' 'Linux kernel documentation')
+	subpkgs=(${subpkgs[@]} "kernel-headers")
+	subdepends=("${subdepends[@]}" '')
+	subgroups=('devel' 'apps' 'devel')
+	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')
+	subarchs=(${subarchs[@]} 'i686 x86_64')
+	subinstall=("${subinstall[@]}" '')
+	suboptions=("${suboptions[@]}" '')
 else
 	subgroups=('devel-extra' 'apps-extra')
 	subdescs=("Linux kernel source (${_F_kernel_name/-} version)" \
 		"Linux kernel documentation (${_F_kernel_name/-} version)")
 fi
-subarchs=('i686 x86_64' 'i686 x86_64')
-subinstall=('src/kernel-source.install' '')
-suboptions=('nodocs' '')
 
 Fbuildkernel()
 {
@@ -142,6 +154,11 @@ Fbuildkernel()
         ## do we need to ln /usr/share/doc ?!
 	Fsplit kernel$_F_kernel_name-docs usr/src
 
+	if [ -z "$_F_kernel_name" ]; then
+		make INSTALL_HDR_PATH=$Fdestdir/usr headers_install
+		Frm /usr/include/scsi
+		Fsplit kernel-headers /usr
+	fi
 	## now time to eat some cookies and wait kernel got compiled :)
 	if [ -z "$_F_kernel_name" ]; then
 		# stock kernel, nobody interested in the buildsystem's details

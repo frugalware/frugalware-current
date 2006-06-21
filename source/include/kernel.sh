@@ -113,11 +113,11 @@ subarchs=('i686 x86_64' 'i686 x86_64')
 subinstall=('src/kernel-source.install' '')
 suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
-	subpkgs=(${subpkgs[@]} "kernel-headers")
+	subpkgs=("${subpkgs[@]}" 'kernel-headers')
 	subdepends=("${subdepends[@]}" '')
 	subgroups=('devel' 'apps' 'devel')
 	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')
-	subarchs=(${subarchs[@]} 'i686 x86_64')
+	subarchs=("${subarchs[@]}" 'i686 x86_64')
 	subinstall=("${subinstall[@]}" '')
 	suboptions=("${suboptions[@]}" '')
 else

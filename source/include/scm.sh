@@ -11,6 +11,7 @@
 # _F_scm_url: url of the repo - required
 # _F_scm_password: password of the repo - required for cvs
 # _F_scm_module: name of the module to check out - required for cvs and subversion
+# _F_scm_tag: name of the tag/branch to use - cvs uses this
 
 # slice the / suffix if there is any
 _F_scm_url=${_F_scm_url%/}
@@ -46,7 +47,11 @@ Funpack_scm()
 	elif [ "$_F_scm_type" == "cvs" ]; then
 		touch ~/.cvspass || Fdie
 		cvs -d ${_F_scm_url/@/:$_F_scm_password@} login || Fdie
-		cvs -d $_F_scm_url co $_F_scm_module || Fdie
+		if [ -n "$_F_scm_tag" ]; then
+			cvs -d $_F_scm_url -r $_F_scm_tag co $_F_scm_module || Fdie
+		else
+			cvs -d $_F_scm_url co $_F_scm_module || Fdie
+		fi
 		Fcd $_F_scm_module
 	elif [ "$_F_scm_type" == "subversion" ]; then
 		svn co $_F_scm_url $_F_scm_module || Fdie

@@ -20,6 +20,9 @@ fi
 if [ -n "$_F_gnome_scrollkeeper" ]; then
 	Fconfopts="$Fconfopts --disable-scrollkeeper"
 fi
+if [ -n "$_F_gnome_mime" ]; then
+	Fconfopts="$Fconfopts --disable-update-mimedb"
+fi
 
 Fbuild_slice_scrollkeeper()
 {

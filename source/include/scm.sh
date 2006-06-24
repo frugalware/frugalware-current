@@ -7,7 +7,7 @@
 # common up2date and an Funpack_scm() function for various "live" FBs
 
 # usage:
-# _F_scm_type: can be darcs, cvs, subversion, git or mercurial - required
+# _F_scm_type: can be darcs, cvs, subversion, git, mercurial or bzr - required
 # _F_scm_url: url of the repo - required
 # _F_scm_password: password of the repo - required for cvs
 # _F_scm_module: name of the module to check out - required for cvs and subversion
@@ -33,6 +33,9 @@ elif [ "$_F_scm_type" == "mercurial" ]; then
 	# it seems that _every_ repo url has the same web interface which has a nice rss
 	up2date="date +%Y%m%d%H%M%S --date '`lynx -dump $_F_scm_url/?style=rss|grep pubDate|sed 's/.*>\(.*\)<.*/\1/;q'`'"
 	makedepends=(${makedepends[@]} 'mercurial')
+elif [ "$_F_scm_type" == "bzr" ]; then
+	up2date="lynx -source -dump $_F_scm_url/.bzr/checkout/last-revision|sed 's/.*-\(.*\)-.*/\1/'"
+	makedepends=(${makedepends[@]} 'bzr')
 fi
 
 Funpack_scm()
@@ -66,6 +69,9 @@ Funpack_scm()
 		Fcd `echo $_F_scm_url |sed 's|.*/\(.*\)\..*|\1|'`
 	elif [ "$_F_scm_type" == "mercurial" ]; then
 		hg clone $_F_scm_url || Fdie
+		Fcd ${_F_scm_url##*/}
+	elif [ "$_F_scm_type" == "bzr" ]; then
+		bzr branch $_F_scm_url || Fdie
 		Fcd ${_F_scm_url##*/}
 	fi
 	unset _F_scm_type _F_scm_url

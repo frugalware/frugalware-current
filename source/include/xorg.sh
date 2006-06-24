@@ -5,11 +5,22 @@
 # distributed under GPL License
 
 # common url, up2date, source() and license for xorg packages
+# also sets some defaults for input packages
 
 if ! [ -z "$realname" ]; then
 	_F_xorg_name=$realname
 else
 	_F_xorg_name=$pkgname
+fi
+
+if [[ $pkgname =~ ^xf86-input- ]]; then
+	pkgrel=1
+	pkgdesc="X.Org driver for ${pkgname#xf86-input-} input devices"
+	url="http://xorg.freedesktop.org"
+	groups=('x11' 'xorg-core' 'xorg-drivers')
+	archs=('i686' 'x86_64')
+	depends=('xorg-server')
+	makedepends=('inputproto' 'randrproto')
 fi
 
 url="http://xorg.freedesktop.org"

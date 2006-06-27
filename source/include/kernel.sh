@@ -44,12 +44,12 @@ _F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
 if [ $_F_kernel_rc -gt 0 ]; then
 	_F_kernel_mmver=$_F_kernel_rcver-mm$_F_kernel_mm
 else
-	_F_kernel_mmver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-mm$_F_kernel_mm
+	_F_kernel_mmver=$_F_kernel_ver-mm$_F_kernel_mm
 fi
 if [ $_F_kernel_rc -gt 0 ]; then
 	_F_kernel_gitver=$_F_kernel_rcver-git$_F_kernel_git
 else
-	_F_kernel_gitver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-git$_F_kernel_git
+	_F_kernel_gitver=$_F_kernel_ver-git$_F_kernel_git
 fi
 if [ -z "$pkgname" ]; then
 	if [ -z "$_F_kernel_name" ]; then

@@ -136,6 +136,8 @@ Fbuildkernel()
 	[ $_F_kernel_mm -gt 0 ] && Fpatch $_F_kernel_mmver
 	[ $_F_kernel_git -gt 0 ] && Fpatch patch-$_F_kernel_gitver
 	Fpatchall
+	# remove unneded localversions
+	rm -f localversion-*
 	yes "" | make config
 	Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
 	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_name-fw$pkgrel" Makefile

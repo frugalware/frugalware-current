@@ -1,43 +1,35 @@
-# Last Modified: Thu, 06 Apr 2006 22:09:57 +0200
-# Compiling Time: 0.42 SBU
+# Last Modified: Mon, 03 Jul 2006 18:05:52 +0200
+# Compiling Time: 1.01 SBU
 # Contributor: VMiklos <vmiklos@frugalware.org>
 # Maintainer: voroskoi <voroskoi@frugalware.org>
 
 pkgname=cups
-pkgver=1.1.23
-pkgrel=7
+pkgver=1.2.1
+pkgrel=1
 pkgdesc="The CUPS Printing System"
 url="http://www.cups.org/"
-depends=('libtiff' 'openssl' 'libjpeg' 'libgcc' 'libpng' 'espgs')
+depends=('libtiff' 'openssl' 'libjpeg' 'libpng')
 groups=('apps')
 archs=('i686' 'x86_64')
-backup=(etc/cups/{printers.conf,classes.conf,client.conf,cupsd.conf,mime.types,mime.convs,ppds.dat} etc/printcap)
+backup=(etc/cups/{printers.conf,classes.conf,client.conf,cupsd.conf,mime.types,mime.convs})
 up2date="lynx -dump $url |grep Stable |sed -e 's/.*v\(.*\)/\1/'"
 source=(ftp://ftp.rz.tu-bs.de/pub/mirror/ftp.easysw.com/ftp/pub/$pkgname/$pkgver/cups-$pkgver-source.tar.bz2 \
-	rc.cups printcap ppds.dat.gz \
-	cups-gcc4-amd64.patch \
-	rc.cups-{hu,de}.po)
-sha1sums=('32d5bfb44c4edc1b54ccb014b5a44499295c6c5c' \
+	rc.cups rc.cups-{hu,de}.po)
+sha1sums=('308dec4039153e62d4206c30d6b1f25469ee868f' \
 	'ad90c43de181d362f6c507f366904472d01ae585' \
-	'2a27795cc4eaee7ba39425585ef470ae220adb07' \
-	'07542c757de8226fef9dc0dffa4c6711834c060c' \
-	'9e23ed973685c279edfee76fc0a7a9c6fd94a103' \
 	'f19bb889e3535e1284d0b93606da48aa61089c8a' \
 	'03197abb98eff18d3ede3000a61c7783b8c1ad92')
 
 build() {
-	Fcd
-	[ "$CARCH" == "x86_64" ] && Fpatch cups-gcc4-amd64.patch
-	Fmake --with-logdir=/var/log/cups \
-		--with-docdir=/usr/share/cups/doc --enable-ssl=yes \
-		--disable-pam
-	make BUILDROOT=$startdir/pkg install
-	Ffile /etc/cups/ppds.dat
-
-	# printcap
-	Ffile /etc/printcap
-	Fmkdir /usr/etc
-	Fln /etc/printcap /usr/etc/printcap
+	Fmake --with-cups-user=lp \
+		--with-cups-group=lp \
+		--with-logdir=/var/log/cups \
+		--with-docdir=/usr/share/cups/doc \
+		--disable-pam \
+		--enable-ssl \
+		--enable-threads \
+		--disable-ldap
+	make BUILDROOT=$Fdestdir install || Fdie
 
 	# samba support
 	( if [ ! -r $Fdestdir/usr/lib/cups/backend/smb ]; then
@@ -47,16 +39,8 @@ build() {
 	# fix perms on /var/spool
 	chmod 755 $Fdestdir/var/spool
 
-	# remove 'cat?'
-	for i in `find $Fdestdir -type d -name cat?`
-	do
-		Frm $i
-	done
-
 	Frm /etc/rc.d
 	Frcd2
 }
 
 # optimization OK
-
-# vim: ft=sh

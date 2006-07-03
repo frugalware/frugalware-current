@@ -20,9 +20,26 @@ else
 	up2date="lynx -dump $pkgurl/$name/\$(lynx -dump $pkgurl/$name/?C=N\;O=D|grep '[0-9]\.[0-9]*[02468]/'|sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
 fi
 
-source=(http://ftp.gnome.org/pub/gnome/sources/$pkgname/${pkgver%.*}/$name-$pkgver.tar.bz2)
+tmpver=`echo $pkgver | tr -d '[0-9][a-z]'`
+count=`expr length "$tmpver"`
+
+case $count in
+    1)
+    tmpver="$pkgver"
+    ;;
+    2)
+    tmpver="${pkgver%.*}"
+    ;;
+    3)
+    tmpver="${pkgver%.*.*}"
+    ;;
+esac
+
+source=(http://ftp.gnome.org/pub/gnome/sources/$pkgname/$tmpver/$name-$pkgver.tar.bz2)
 
 options=(${options[@]} 'scriptlet')
 
 unset realname
 unset nondevel
+unset tmpver
+unset count

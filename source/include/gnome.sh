@@ -35,7 +35,7 @@ case $count in
     ;;
 esac
 
-source=(http://ftp.gnome.org/pub/gnome/sources/$pkgname/$tmpver/$name-$pkgver.tar.bz2)
+source=(http://ftp.gnome.org/pub/gnome/sources/$name/$tmpver/$name-$pkgver.tar.bz2)
 
 options=(${options[@]} 'scriptlet')
 

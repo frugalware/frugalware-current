@@ -12,6 +12,8 @@ else
 	name=$pkgname
 fi
 
+nondevel=1 # temp. hack for bumping to 2.15
+
 pkgurl="http://ftp.gnome.org/pub/GNOME/sources"
 
 if [ "$nondevel" == "1" ]; then

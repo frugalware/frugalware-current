@@ -1,26 +1,28 @@
-# Last Modified: Sat, 04 Mar 2006 16:50:28 +0100
+# Last Modified: Fri, 07 Jul 2006 15:41:28 +0200
 # Compiling Time: 0.27 SBU
-# Maintainer: VMiklos <vmiklos@frugalware.org>
+# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
+# Old Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=xfsprogs
-pkgver=2.7.11
+pkgver=2.8.4_1
 pkgrel=1
 pkgdesc="XFS filesystem-specific static libraries and headers."
 url="http://oss.sgi.com/projects/xfs/"
 depends=('e2fsprogs')
-makedepends=('xfsprogs-attr')
+makedepends=('xfsprogs-attr>=2.4.32_1')
 groups=('base')
 archs=('i686' 'x86_64' 'ppc')
 replaces=('xfsprogs-base')
-up2date="lynx -dump ftp://oss.sgi.com/projects/xfs/cmd_tars/|grep -m1 'xfsprogs_'|sed 's/.*_\(.*\).t.*/\1/'"
-source=(ftp://oss.sgi.com/projects/xfs/cmd_tars/${pkgname}_${pkgver}.tar.gz \
+up2date="lynx -dump ftp://oss.sgi.com/projects/xfs/cmd_tars/|grep -m1 'xfsprogs_'|sed 's/.*_\(.*\).t.*/\1/' | sed 's/-/_/'"
+source=(ftp://oss.sgi.com/projects/xfs/cmd_tars/${pkgname}_`echo ${pkgver} | sed -e 's/_/-/g'`.tar.gz \
 	xfsprogs-sharedlibs.patch.gz)
-sha1sums=('c73f96dba7e60d4ec75f669c1a178946c21a3e60' \
+sha1sums=('c020254d5cc3abae32c7f39534727b1ad0bb3950' \
 	  'd0db69f8de7a769272ae6584b5438a323628ab67')
 
 build()
 {
 	unset MAKEFLAGS
+	Fcd $pkgname-2.8.4
 	Fpatchall
 	DEBUG="-DNDEBUG"
 	OPTIMIZER="${CFLAGS}"
@@ -29,13 +31,17 @@ build()
             -e "/^PKG_DOC_DIR/s:=.*:= /usr/share/doc/${pkgname}-${pkgver}:" \
             include/builddefs.in \
             || Fdie "sed include/builddefs.in failed"
+	autoconf || Fdie
         sed -i -e '/PLATFORM/d' configure || Fdie "sed PLATFORM"
         sed -i -e '/INSTALL.* -S .*LIBNAME/d' include/buildmacros || Fdie "sed symlinks"
 	unset CFLAGS
-	Fmake --bindir=/bin --sbindir=/sbin --libexecdir=/usr/lib
-	make DIST_ROOT=$Fdestdir install install-dev || return 1
+	Fmake --bindir=/bin \
+		--sbindir=/sbin \
+		--libexecdir=/usr/lib --enable-lib64=no \
+		--libdir=/lib --includedir=/usr/include \
+		--datadir=/usr/share
+	make DIST_ROOT=$Fdestdir install install-dev || Fdie
 	Fmkdir /lib
-	Fmv usr/lib/lib*so* /lib/
 	Fln libhandle.so.1 /lib/libhandle.so
 	# Stolen from gentoo. :) Need for some linking problems.
 	cat > "$Fdestdir/usr/lib/libhandle.so" <<-END_LDSCRIPT

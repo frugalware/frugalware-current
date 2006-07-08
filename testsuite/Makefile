@@ -36,6 +36,8 @@ test:
 	sh up2date.sh ..
 	@echo "duplicated packages (please remove them):"
 	sh pkgdup.sh ..
+	@echo "missing xorg packages (please package them):"
+	sh xorg.sh ..
 
 clean:
 	rm -f depbugs xbugs

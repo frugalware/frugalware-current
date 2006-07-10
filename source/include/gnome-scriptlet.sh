@@ -11,8 +11,12 @@
 # _F_gnome_desktop - set to "y" if your package provides a .desktop file
 # _F_gnome_scrollkeeper - set to "y" if you want to run scrollkeeper
 # _F_gnome_mime - set to "y" if your package provides a mime type
+# _F_gnome_name - name of the generated install script
+#                 (defaults to src/gnome-scriptlet.install)
 
-install="src/gnome-scriptlet.install"
+if [ -z "$_F_gnome_name" ]; then
+	install="src/gnome-scriptlet.install"
+fi
 
 if [ -n "$_F_gnome_schemas" ]; then
 	Fconfopts="$Fconfopts --disable-schemas-install"
@@ -36,7 +40,7 @@ Fbuild_gnome_scriptlet()
 {
 	local i str
 
-	cp $Fincdir/gnome-scriptlet.install $Fsrcdir
+	cp $Fincdir/$_F_gnome_name $Fsrcdir
 	if [ -n "$_F_gnome_schemas" ]; then
 		for i in "${_F_gnome_schemas[@]}"
 		do
@@ -47,10 +51,10 @@ Fbuild_gnome_scriptlet()
 			fi
 		done
 	fi
-	Fsed '$_F_gnome_schemas' "$str" $Fsrcdir/gnome-scriptlet.install
-	Fsed '$_F_gnome_desktop' "$_F_gnome_desktop" $Fsrcdir/gnome-scriptlet.install
-	Fsed '$_F_gnome_scrollkeeper' "$_F_gnome_scrollkeeper" $Fsrcdir/gnome-scriptlet.install
-	Fsed '$_F_gnome_mime' "$_F_gnome_mime" $Fsrcdir/gnome-scriptlet.install
+	Fsed '$_F_gnome_schemas' "$str" $Fsrcdir/$_F_gnome_name
+	Fsed '$_F_gnome_desktop' "$_F_gnome_desktop" $Fsrcdir/$_F_gnome_name
+	Fsed '$_F_gnome_scrollkeeper' "$_F_gnome_scrollkeeper" $Fsrcdir/$_F_gnome_name
+	Fsed '$_F_gnome_mime' "$_F_gnome_mime" $Fsrcdir/$_F_gnome_name
 }
 
 build()

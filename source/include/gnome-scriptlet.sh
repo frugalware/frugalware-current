@@ -15,8 +15,9 @@
 #                 (defaults to src/gnome-scriptlet.install)
 
 if [ -z "$_F_gnome_name" ]; then
-	install="src/gnome-scriptlet.install"
+	_F_gnome_name="src/gnome-scriptlet.install"
 fi
+install="$_F_gnome_name"
 
 if [ -n "$_F_gnome_schemas" ]; then
 	Fconfopts="$Fconfopts --disable-schemas-install"

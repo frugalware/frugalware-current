@@ -51,7 +51,10 @@ Fcd() {
 			Fmessage "Going to the source directory..."
 			cd "$Fsrcdir/$1" || Fdie
 		elif [ "$#" -eq 0 ]; then
-			Fcd "$pkgname-$pkgver$pkgextraver"
+			if [ -z "$_F_cd_path" ]; then
+				_F_cd_path="$pkgname-$pkgver$pkgextraver"
+			fi
+			Fcd "$_F_cd_path"
 		fi
 	fi
 }

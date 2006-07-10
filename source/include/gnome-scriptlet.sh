@@ -41,7 +41,7 @@ Fbuild_gnome_scriptlet()
 {
 	local i str
 
-	cp $Fincdir/$_F_gnome_name $Fsrcdir
+	cp $Fincdir/gnome-scriptlet.install $Fsrcdir
 	if [ -n "$_F_gnome_schemas" ]; then
 		for i in "${_F_gnome_schemas[@]}"
 		do

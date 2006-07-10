@@ -52,10 +52,10 @@ Fbuild_gnome_scriptlet()
 			fi
 		done
 	fi
-	Fsed '$_F_gnome_schemas' "$str" $Fsrcdir/$_F_gnome_name
-	Fsed '$_F_gnome_desktop' "$_F_gnome_desktop" $Fsrcdir/$_F_gnome_name
-	Fsed '$_F_gnome_scrollkeeper' "$_F_gnome_scrollkeeper" $Fsrcdir/$_F_gnome_name
-	Fsed '$_F_gnome_mime' "$_F_gnome_mime" $Fsrcdir/$_F_gnome_name
+	Fsed '$_F_gnome_schemas' "$str" ${Fsrcdir%/src}/$_F_gnome_name
+	Fsed '$_F_gnome_desktop' "$_F_gnome_desktop" ${Fsrcdir%/src}/$_F_gnome_name
+	Fsed '$_F_gnome_scrollkeeper' "$_F_gnome_scrollkeeper" ${Fsrcdir%/src}/$_F_gnome_name
+	Fsed '$_F_gnome_mime' "$_F_gnome_mime" ${Fsrcdir%/src}/$_F_gnome_name
 }
 
 build()

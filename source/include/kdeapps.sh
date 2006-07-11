@@ -6,7 +6,7 @@
 
 if [ ! -z "$_F_kdeapps_id" ]; then
 	url="http://www.kde-apps.org/content/show.php?content=$_F_kdeapps_id"
-	up2date="lynx -dump $url|grep Version|sed 's/.*: *\(.*\)$/\1/'"
+	up2date="lynx -dump -nolist $url|grep Version|sed 's/.*: *\(.*\)$/\1/'"
 fi
 options=(${options[@]} 'scriptlet')
 

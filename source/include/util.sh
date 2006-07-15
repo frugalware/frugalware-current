@@ -350,9 +350,21 @@ Fpatch() {
  #  URLs allowed, too.
  ##
 Fpatchall() {
+	local archs=('i686' 'x86_64' 'ppc') patch="" patcharch=""
 	for i in ${source[@]}; do
 		if [ -n "`echo "$i" | grep \.patch[0-9]*$`" -o -n "`echo "$i" | grep \.diff$`" -o -n "`echo "$i" | grep '\.\(patch[0-9]*\|diff\)\.\(gz\|bz2\)$'`" ]; then
-			Fpatch `strip_url "$i"`
+			patch=`strip_url "$i"`
+			patcharch=`echo $patch|sed 's/.*-\([^-]\+\)\.\(diff\|patch0\?\)$/\1/'`
+			if [ "$patcharch" != "$patch" ]; then
+				if echo ${archs[@]}|grep -q $patcharch; then
+					# filter the patch if it's not for the current arch
+					if [ "$patcharch" == "$CARCH" ]; then
+						Fpatch $patch
+					fi
+				fi
+			else
+				Fpatch $patch
+			fi
 		fi
 	done
 }

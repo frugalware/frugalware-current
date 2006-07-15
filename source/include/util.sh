@@ -355,12 +355,10 @@ Fpatchall() {
 		if [ -n "`echo "$i" | grep \.patch[0-9]*$`" -o -n "`echo "$i" | grep \.diff$`" -o -n "`echo "$i" | grep '\.\(patch[0-9]*\|diff\)\.\(gz\|bz2\)$'`" ]; then
 			patch=`strip_url "$i"`
 			patcharch=`echo $patch|sed 's/.*-\([^-]\+\)\.\(diff\|patch0\?\)$/\1/'`
-			if [ "$patcharch" != "$patch" ]; then
-				if echo ${archs[@]}|grep -q $patcharch; then
-					# filter the patch if it's not for the current arch
-					if [ "$patcharch" == "$CARCH" ]; then
-						Fpatch $patch
-					fi
+			if [ "$patcharch" != "$patch" ] && echo ${archs[@]}|grep -q $patcharch; then
+				# filter the patch if it's not for the current arch
+				if [ "$patcharch" == "$CARCH" ]; then
+					Fpatch $patch
 				fi
 			else
 				Fpatch $patch

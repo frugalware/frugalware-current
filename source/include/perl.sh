@@ -21,7 +21,8 @@
 [ -z "$_F_perl_ext" ] && _F_perl_ext=".tar.gz"
 
 url="http://cpan.org/"
-up2date="pud -p 'http://search.cpan.org/search?query=$(echo $modname |sed s/-/::/g)&mode=all' -e '$modname-(.*?) '"
+up2date="lynx -dump -nolist 'http://search.cpan.org/search?query="$modname"&mode=module'|grep -m1 "$modname-"|sed -e 's/.*"$modname"-\(.*\) .*/\1/' -e 's/ .*//'"
+#up2date="pud -p 'http://search.cpan.org/search?query=$(echo $modname |sed s/-/::/g)&mode=all' -e '$modname-(.*?) '"
 source=(http://search.cpan.org/CPAN/authors/id/$modauthor/$modname-$pkgver$_F_perl_ext)
 build()
 {

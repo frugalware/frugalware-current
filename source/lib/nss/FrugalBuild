@@ -1,43 +1,100 @@
-# Last Modified: Sun, 21 May 2006 14:10:35 +0200
+# Last Modified: Wed, 26 Jul 2006 22:48:36 +0200
 # Compiling Time: 0.01 SBU
-# Maintainer: Laszlo Dvornik <dvornik@gnome.hu>
+# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=nss
-pkgver=3.11
+pkgver=3.11.2
+nspr_version=4.6
 pkgrel=1
-pkgdesc="NSS and NSPR from mozilla.org"
+pkgdesc="NSS library from mozilla.org"
 url="http://www.mozilla.org/projects/security/pki/nss/"
 pkgurl="http://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/"
 groups=('lib')
 archs=('i686' 'x86_64')
 license="MPL GPL"
-depends=('glibc')
-up2date="lynx -dump $pkgurl|grep NSS|sed -n 's/.*NSS_\(.*\)_RTM.*/\1/;s/_/./g;$ p'"
+depends=('glibc' 'nspr')
+up2date="lynx -dump '$pkgurl?C=M;D=A'|grep NSS|sed -n 's/.*NSS_\(.*\)_RTM.*/\1/;s/_/./g;$ p'"
 source=($pkgurl/NSS_${pkgver//./_}_RTM/src/$pkgname-$pkgver.tar.gz \
-	nss-3.9.2-amd64.patch)
+	nss-config.in nss.pc.in)
+sha1sums=('e614b5e8575d308cdc2059185758891dcd393824' \
+	  '7b9ee5db74e006eb520e9c71d4a88d606be4e8d1' \
+	  '37de504fcc1c5b78e6199930b0e664e7269e0e99')
 
 build() {
 	Fcd
-	cd mozilla
-	[ "$CARCH" == "x86_64" ] && Fpatch nss-3.9.2-amd64.patch
-	cd security/nss
-
 	BUILD_OPT=1
+	export BUILD_OPT
+	PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
+	export PKG_CONFIG_ALLOW_SYSTEM_LIBS
+	PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
+	export 	PKG_CONFIG_ALLOW_SYSTEM_CFLAGS
+	NSPR_INCLUDE_DIR=`/usr/bin/pkg-config --cflags-only-I nspr | sed 's/-I//'`
+	NSPR_LIB_DIR=`/usr/bin/pkg-config --libs-only-L nspr | sed 's/-L//'`
+	export NSPR_INCLUDE_DIR
+	export NSPR_LIB_DIR
 	NS_USE_GCC=1
+	export NS_USE_GCC
+	export NSS_ENABLE_ECC=1
 	[ "$CARCH" == "x86_64" ] && export USE_64=1
 
-	make nss_build_all || return 1
+	Fmkdir /usr/bin
+	Fmkdir /usr/lib/pkgconfig
 
-	make install || return 1
-	mkdir -p $startdir/pkg/usr/lib $startdir/pkg/usr/include/nspr
-	find ../../dist/Linux*/lib -type l \
-		\( -name "*.so" -o -name "*.chk" \) \
-                -exec cp -L {} $startdir/pkg/usr/lib \;
-  	cp -Lr ../../dist/public/* $startdir/pkg/usr/include
-	cp -Lr ../../dist/Linux*/include/* $startdir/pkg/usr/include/nspr
+	make -C ./mozilla/security/coreconf || Fdie
+	make -C ./mozilla/security/dbm || Fdie
+	make -C ./mozilla/security/nss || Fdie
+
+	cat $Fsrcdir/nss.pc.in > $Fdestdir/usr/lib/pkgconfig/nss.pc || Fdie
+	sed -i -e "s,%libdir%,/usr/lib,g" \
+	    -i -e "s,%prefix%,/usr,g" \
+	    -i -e "s,%exec_prefix%,/usr,g" \
+	    -i -e "s,%includedir%,/usr/include/nss3,g" \
+	    -i -e "s,%NSPR_VERSION%,${nspr_version},g" \
+	    -i -e "s,%NSS_VERSION%,${pkgver},g" \
+	    $Fdestdir/usr/lib/pkgconfig/nss.pc || Fdie
+
+	NSS_VMAJOR=`cat mozilla/security/nss/lib/nss/nss.h | grep "#define.*NSS_VMAJOR" | awk '{print $3}'`
+	NSS_VMINOR=`cat mozilla/security/nss/lib/nss/nss.h | grep "#define.*NSS_VMINOR" | awk '{print $3}'`
+	NSS_VPATCH=`cat mozilla/security/nss/lib/nss/nss.h | grep "#define.*NSS_VPATCH" | awk '{print $3}'`
+	export NSS_VMAJOR
+	export NSS_VMINOR
+	export NSS_VPATCH
+
+	cat $Fsrcdir/nss-config.in > $Fdestdir/usr/bin/nss-config || Fdie
+	sed -i -e "s,@libdir@,/usr/lib,g" \
+	    -i -e "s,@prefix@,/usr,g" \
+	    -i -e "s,@exec_prefix@,/usr,g" \
+	    -i -e "s,@includedir@,/usr/include/nss3,g" \
+	    -i -e "s,@MOD_MAJOR_VERSION@,$NSS_VMAJOR,g" \
+	    -i -e "s,@MOD_MINOR_VERSION@,$NSS_VMINOR,g" \
+	    -i -e "s,@MOD_PATCH_VERSION@,$NSS_VPATCH,g" \
+	    $Fdestdir/usr/bin/nss-config || Fdie
+	chmod 755 $Fdestdir/usr/bin/nss-config || Fdie
+	Fmkdir /usr/{lib,bin,include/nss3}
+
+	# Shared libs install
+	for file in libnss3.so libssl3.so libsmime3.so libsoftokn3.so libnssckbi.so libfreebl3.so
+	do
+	    install -m 755 mozilla/dist/*.OBJ/lib/$file $Fdestdir/usr/lib || Fdie
+	done
+
+	# Static libs and chk files install
+	for file in libsoftokn3.chk libfreebl3.chk libcrmf.a libnssb.a libnssckfw.a
+	do
+	    install -m 644 mozilla/dist/*.OBJ/lib/$file $Fdestdir/usr/lib || Fdie
+	done
+
+	# Binaries install
+	for file in certutil modutil pk12util signtool ssltap
+	do
+	    install -m 755 mozilla/dist/*.OBJ/bin/$file $Fdestdir/usr/bin || Fdie
+	done
+
+	# Header files install
+	for file in mozilla/dist/public/nss/*.h
+	do
+	    install -m 644 $file $Fdestdir/usr/include/nss3 || Fdie
+	done
 }
 
 # optimization OK
-
-sha1sums=('0abccde9a351fb9fa662c75754eb980e04fad482' \
-	  'e7b28acc36f6ce65961d956bccd91cd3c214c75b')

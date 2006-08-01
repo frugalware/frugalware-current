@@ -242,12 +242,16 @@ Fdoc() {
 	local i
 	for i in $@
 	do
+		if [ -d "$i" ]; then
+			Fcpr "$Fsrcdir/$i" "/usr/share/doc/$pkgname-$pkgver/"
+		else
 		Ffile "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		local j
 		for j in `ls $Fsrcdir|grep "$i\.[a-z_A-Z]\+$"`
 		do
 			Ffile "$j" "/usr/share/doc/$pkgname-$pkgver/"
 		done
+		fi
 	done
 }
 
@@ -262,12 +266,16 @@ Fdocrel() {
 	local i
 	for i in $@
 	do
+		if [ -d "$i" ]; then
+			Fcpr "$i" "/usr/share/doc/$pkgname-$pkgver/"
+		else
 		Ffilerel "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		local j
 		for j in `ls |grep "$i\.[a-z_A-Z]\+$"`
 		do
 			Ffilerel "$j" "/usr/share/doc/$pkgname-$pkgver/"
 		done
+		fi
 	done
 }
 

@@ -6,10 +6,14 @@
 
 # provides a common up2date, source and build for thunderbird i18n packages
 
-up2date="1.5.0.2"
-
+up2date="1.5.0.5"
+url="http://www.mozilla.org/projects/l10n/mlp.html"
 source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linux-i686/xpi/$llang.xpi)
 options=('scriptlet')
+depends=('thunderbird>=1.5.0.5')
+makedepends=('unzip')
+groups=('locale-extra')
+archs=('i686' 'x86_64')
 
 build()
 {

@@ -1,21 +1,19 @@
-# Last modified: Wed, 07 Jun 2006 13:25:46 +0200
+# Last modified: Tue, 01 Aug 2006 18:42:19 +0200
 # Compiling time: 7.93 SBU
-# Maintainer: Krisztian VASAS <iron@frugalware.org>
-# Modified by Laszlo Dvornik <dvornik@gnome.hu>
+# Maintainer: crazy <crazy@frugalware.org>
+# Contributor: Krisztian VASAS <iron@frugalware.org>
 
 pkgname=thunderbird
-pkgver=1.5.0.4
+pkgver=1.5.0.5
 pkgrel=1
 pkgdesc="Mozilla Thunderbird mail and newsgroup client"
 url="http://www.mozilla.org/products/thunderbird/"
-depends=('gtk+2' 'libidl')
+depends=('gtk+2' 'libidl' 'nss>=3.11.2' 'pango' 'cairo')
 makedepends=('zip')
 groups=('xapps')
 archs=('i686' 'x86_64')
-install=$pkgname.install
+options=('scriptlet')
 up2date="lynx -dump http://www.mozilla.com/thunderbird/releases|grep -m1 '.html'|sed 's|.*/||g'|sed 's|.html||g'"
-#up2date="lynx -dump 'http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/?C=M;O=A' | grep releases/ | sed -n 's|.*s/\(.*\)/$|\1|; $ p'"
-#up2date="wget -O - -q ftp://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/|grep '>[0-9\.]*/'|sed -n 's|.*>\([0-9\.]*\)/.*|\1|;$ p'"
 source=(http://releases.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/source/$pkgname-$pkgver-source.tar.bz2 \
 	00-$pkgname-0.8-progname.patch \
 	02-$pkgname-locale.patch \
@@ -25,14 +23,16 @@ source=(http://releases.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/so
 	10-firefox-PR1-gnome-vfs-default-app.patch \
 	18-firefox-1.5-makeopts.patch \
 	19-$pkgname-1.5-locale.diff \
+	20-use-pangocairo.patch \
+	21-use-system-nss.patch \
 	mozilla-$pkgname.desktop \
 	$pkgname.desktop
 	$pkgname-frugalware-default-prefs.js \
 	$pkgname.install \
 	$pkgname.png \
-	$pkgname-rebuild-databases.pl.in \
-	$pkgname.sh.in)
-sha1sums=('492dd76460fc14543a70349263b64b0a2803bee9' \
+	$pkgname-rebuild-databases.pl \
+	$pkgname)
+sha1sums=('475ae30ead41847120c36f432b3359f0d60ea9da' \
           '1c3e66758975db0879f71d6bb1f029ac17a82363' \
           '1224ac1a7460dca57e02b1bac1df99732b1bb7d0' \
           'd29ccbe4a7a922068ea57a0431a566cdf3ee2459' \
@@ -41,39 +41,45 @@ sha1sums=('492dd76460fc14543a70349263b64b0a2803bee9' \
           '7ad741a14a454e2f4ffa4255f18ccc431ad3c87d' \
           '565cf985c6f82beafc500881ed70ecb5880dba79' \
           '37a61dd58df3194ffe75b81341986cb2bcaa99ed' \
+          'bfc9331a4b804de536fe3a69e18292f267bfb8cf' \
+          '836f2792f9c3c6d54bfd2c033f53aae1ccaba022' \
           '88870eb3d0ed0110e4e2901ec4c51586226fb626' \
           '4989ab706d6b8457ed1b59912aeeec06fcc59cac' \
           '5e2278a200779038f6319bce4c8143f02f7ef2dc' \
           'e7932d2c76418d017ddfdbd270685e5604050972' \
           'a6bdab1f905c6897c0db145d5e0dc2abbad784d4' \
-          'bd40526b29b8c1b484808159aafd25f9cfc1c6cc' \
-          '9d70fbcadfdff4d1825c8b8f49a3614c3d68f145')
-																		      
+          '560ede0734a2b708a3dd3cb622f82fe094376816' \
+          'b45c061686d73abb53e4ad43116660c0ce95b88c')
+
+
 build()
 {
 	Fcd mozilla
-	export MOZ_THUNDERBIRD="1"
+	export MOZILLA_OFFICIAL=1
+	export BUILD_OFFICIAL=1
+	export MOZ_PROJECT=mail
+	export CFLAGS="$CFLAGS -fno-strict-aliasing"
 	Fpatchall
 
 	# Let jars get compressed.
 	Fsed '\-0' '\-9' config/make-jars.pl
 
 	# For better reading...
-	ac_cv_visibility_pragma=no Fmake --with-system-jpeg \
+	ac_cv_visibility_pragma=no Fmake \
+	--with-default-mozilla-five-home=/usr/lib/thunderbird \
+	--with-distribution-id=Frugalware \
+	--with-system-jpeg \
 	--with-system-zlib \
 	--with-system-png \
 	--with-system-mng \
-	--disable-calendar \
-	--enable-xft \
-	--disable-pedantic \
-	--disable-svg \
-	--enable-mathml \
-	--enable-xsl \
-	--enable-crypto \
-	--disable-xinerama \
-	--disable-xprint \
+	--with-system-nspr \
+	--with-system-nss \
 	--with-pthreads \
-	--with-default-mozilla-five-home=/usr/lib/thunderbird-$pkgver \
+	--disable-xprint \
+	--disable-xinerama \
+	--disable-svg \
+	--disable-pedantic \
+	--disable-calendar \
 	--disable-jsd \
 	--disable-accessibility \
 	--disable-profilesharing \
@@ -86,59 +92,66 @@ build()
 	--disable-strip \
 	--disable-dtd-debug \
 	--disable-logging \
+	--disable-toolkit-qt \
+	--disable-toolkit-xlib \
+	--disable-toolkit-gtk \
+	--enable-optimize="$CFLAGS" \
+	--enable-official-branding \
+	--enable-xft \
+	--enable-mathml \
+	--enable-xsl \
+	--enable-crypto \
 	--enable-reorder \
 	--enable-strip-libs \
 	--enable-xterm-updates \
-	--disable-toolkit-qt \
-	--disable-toolkit-xlib \
 	--enable-application=mail
 	--enable-extensions=wallet,spellcheck,xmlextras,webservices \
 	--enable-necko-protocols=http,file,jar,viewsource,res,data \
 	--enable-image-decoders=png,gif,jpeg,bmp \
 	--enable-toolkit-gtk2 \
 	--enable-default-toolkit=gtk2 \
-	--disable-toolkit-gtk \
 	--enable-ipv6 \
 	--enable-freetype2 \
 	--enable-single-profile \
-	--disable-official-branding
-
+	--enable-pango \
+	--enable-canvas \
+	--enable-system-cairo
+	
 	Fmakeinstall
 
-	Fmkdir /usr/lib/$pkgname-$pkgver/chrome/lang
-	Fcp /usr/lib/$pkgname-$pkgver/chrome/installed-chrome.txt \
-		/usr/lib/$pkgname-$pkgver/chrome/lang/installed-chrome.txt
+	## kill this $pkgver stuff && symlink later on
+	Fmv /usr/lib/$pkgname-$pkgver /usr/lib/$pkgname
+	Fmv /usr/include/$pkgname-$pkgver /usr/include/$pkgname
+	Fmv /usr/share/idl/$pkgname-$pkgver /usr/share/idl/$pkgname
+	
+	## lang stuff
+	Fmkdir /usr/lib/$pkgname/chrome/lang
+	Fcp /usr/lib/$pkgname/chrome/installed-chrome.txt \
+		/usr/lib/$pkgname/chrome/lang/installed-chrome.txt
 
 	# Install RSS feed support.
 	Ffilerel mail/extensions/newsblog/rss.rdf \
-		/usr/lib/$pkgname-$pkgver/defaults/isp/rss.rdf
+		/usr/lib/$pkgname/defaults/isp/rss.rdf
+	Ffilerel mailnews/base/ispdata/movemail.rdf \
+		/usr/lib/$pkgname/defaults/isp/movemail.rdf
 
 	# Compatibility.
-	Fln $pkgname-$pkgver /usr/include/$pkgname
-	Fln $pkgname-$pkgver /usr/lib/$pkgname
-	Fln $pkgname-$pkgver /usr/share/idl/$pkgname
-
-	Fmkdir /usr/include/$pkgname-$pkgver/nss
-	cp -Lf dist/private/nss/*.h dist/public/nss/*.h \
-		$Fdestdir/usr/include/$pkgname-$pkgver/nss
-	chown -R root:root $Fdestdir/usr/include/$pkgname-$pkgver/nss
+	Fln $pkgname /usr/include/$pkgname-$pkgver
+	Fln $pkgname /usr/lib/$pkgname-$pkgver
+	Fln $pkgname /usr/share/idl/$pkgname-$pkgver
 
 	# Install thunderbird-rebuild-databases.pl
-	sed "s/VERSION/$pkgver/" $Fsrcdir/$pkgname-rebuild-databases.pl.in > \
-		$Fdestdir/usr/lib/$pkgname-$pkgver/$pkgname-rebuild-databases.pl
-	chmod 755 $Fdestdir/usr/lib/$pkgname-$pkgver/$pkgname-rebuild-databases.pl
+	Fexe /usr/lib/$pkgname/$pkgname-rebuild-databases.pl
 
 	# Install thunderbird.sh.
-	Fmv /usr/bin/$pkgname /usr/lib/$pkgname-$pkgver/
-	sed "s/VERSION/$pkgver/" $Fsrcdir/$pkgname.sh.in > \
-		$Fdestdir/usr/bin/$pkgname
-	chmod 755 $Fdestdir/usr/bin/$pkgname
+	Fmv /usr/bin/$pkgname /usr/lib/$pkgname/
+	Fexe /usr/bin/$pkgname
 
 	# Install thunderbird-frugalware-default-prefs.js.
 	sed "s/FW_VR/$pkgver-$pkgrel/" $Fsrcdir/$pkgname-frugalware-default-prefs.js > \
-		$Fdestdir/usr/lib/$pkgname-$pkgver/greprefs/all-frugalware.js
-	Fcp /usr/lib/$pkgname-$pkgver/greprefs/all-frugalware.js \
-		/usr/lib/$pkgname-$pkgver/defaults/pref/all-frugalware.js
+		$Fdestdir/usr/lib/$pkgname/greprefs/all-frugalware.js
+	Fcp /usr/lib/$pkgname/greprefs/all-frugalware.js \
+		/usr/lib/$pkgname/defaults/pref/all-frugalware.js
 
 	# Install icon for the menu file.
 	Ffile /usr/share/pixmaps/$pkgname.png
@@ -153,9 +166,5 @@ build()
 #		/usr/lib/thunderbird-$pkgver/defaults/profile
 #	Frm /usr/bin/defaults
 }
-
-# vim: ft=sh
-
-# optimalization OK
 
 # optimization OK

@@ -9,27 +9,27 @@ $timeout = 60;
 
 $ENV{HOME}="/root" if !defined $ENV{HOME};
 $ENV{TMP}="/tmp"; 
-$ENV{MOZILLA_FIVE_HOME}="/usr/lib/thunderbird-VERSION";
-$ENV{LD_LIBRARY_PATH}="/usr/lib/thunderbird-VERSION";
+$ENV{MOZILLA_FIVE_HOME}="/usr/lib/thunderbird";
+$ENV{LD_LIBRARY_PATH}="/usr/lib/thunderbird";
 $ENV{MOZ_DISABLE_GNOME}="1";
 
 umask 022;
 
-if ( -f "/usr/lib/thunderbird-VERSION/regxpcom" )
+if ( -f "/usr/lib/thunderbird/regxpcom" )
 {
     # remove all of the old files
-    rmtree("/usr/lib/thunderbird-VERSION/chrome/overlayinfo");
-    unlink </usr/lib/thunderbird-VERSION/chrome/*.rdf>;
-    unlink("/usr/lib/thunderbird-VERSION/component.reg");
-    unlink("/usr/lib/thunderbird-VERSION/components/compreg.dat");
-    unlink("/usr/lib/thunderbird-VERSION/components/xpti.dat");
+    rmtree("/usr/lib/thunderbird/chrome/overlayinfo");
+    unlink </usr/lib/thunderbird/chrome/*.rdf>;
+    unlink("/usr/lib/thunderbird/component.reg");
+    unlink("/usr/lib/thunderbird/components/compreg.dat");
+    unlink("/usr/lib/thunderbird/components/xpti.dat");
 
     # create a new clean path
-    mkpath("/usr/lib/thunderbird-VERSION/chrome/overlayinfo");
+    mkpath("/usr/lib/thunderbird/chrome/overlayinfo");
 
     # rebuild the installed-chrome.txt file from the installed
     # languages
-    if ( -f "/usr/lib/thunderbird-VERSION/chrome/lang/installed-chrome.txt" ) {
+    if ( -f "/usr/lib/thunderbird/chrome/lang/installed-chrome.txt" ) {
 	rebuild_lang_files();
     }
 
@@ -38,7 +38,7 @@ if ( -f "/usr/lib/thunderbird-VERSION/regxpcom" )
 
     # I am the child.
     if ($pid == 0) {
-	exec("/usr/lib/thunderbird-VERSION/regxpcom > /dev/null 2> /dev/null");
+	exec("/usr/lib/thunderbird/regxpcom > /dev/null 2> /dev/null");
     }
     # I am the parent.
     else {
@@ -62,7 +62,7 @@ if ( -f "/usr/lib/thunderbird-VERSION/regxpcom" )
 
     # I am the child.
     if ($pid == 0) {
-	exec("/usr/lib/thunderbird-VERSION/regchrome > /dev/null 2> /dev/null");
+	exec("/usr/lib/thunderbird/regchrome > /dev/null 2> /dev/null");
     }
     # I am the parent.
     else {
@@ -85,18 +85,18 @@ if ( -f "/usr/lib/thunderbird-VERSION/regxpcom" )
 
 
 sub rebuild_lang_files {
-    unlink("/usr/lib/thunderbird-VERSION/chrome/installed-chrome.txt");
+    unlink("/usr/lib/thunderbird/chrome/installed-chrome.txt");
 
-    open (OUTPUT, "+>", "/usr/lib/thunderbird-VERSION/chrome/installed-chrome.txt")||
+    open (OUTPUT, "+>", "/usr/lib/thunderbird/chrome/installed-chrome.txt")||
 	die("Failed to open installed-chrome.txt: $!\n");
 
-    copy("/usr/lib/thunderbird-VERSION/chrome/lang/installed-chrome.txt",
+    copy("/usr/lib/thunderbird/chrome/lang/installed-chrome.txt",
 	 \*OUTPUT);
 
-    foreach (bsd_glob("/usr/lib/thunderbird-VERSION/chrome/lang/lang-*.txt")) {
+    foreach (bsd_glob("/usr/lib/thunderbird/chrome/lang/lang-*.txt")) {
 	copy($_, \*OUTPUT);
     }
 
-    copy("/usr/lib/thunderbird-VERSION/chrome/lang/default.txt",
+    copy("/usr/lib/thunderbird/chrome/lang/default.txt",
 	 \*OUTPUT);
 }

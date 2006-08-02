@@ -1,0 +1,181 @@
+#!/bin/bash
+
+# Frugalware Xgl Control script.
+# Copyright (C) 2006 Alex Smith
+
+PACMAN="/usr/bin/pacman"
+USE_COLOR="Y"
+CARD=""
+OPTS=""
+
+# Subroutines borrowed from makepkg
+# These are Copyright (C) 2002-2005 Judd Vinet <jvinet@zeroflux.org>
+
+plain() {
+	if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
+		echo -e "    \033[1;1m$1\033[1;0m" >&2
+	else
+		echo "    $1" >&2
+	fi
+}
+
+msg() {		
+	if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
+		if [ "$1" = "-n" ]; then
+			shift
+			echo -en "\033[1;32m==>\033[1;0m \033[1;1m$1\033[1;0m" >&2
+		else
+			echo -e "\033[1;32m==>\033[1;0m \033[1;1m$1\033[1;0m" >&2
+		fi
+	else
+		if [ "$1" = "-n" ]; then
+			shift
+			echo -n "==> $1" >&2
+		else
+			echo "==> $1" >&2
+		fi
+	fi
+}
+
+msg2() {
+	if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
+		if [ "$1" = "-n" ]; then
+			shift
+			echo -en "   \033[1;34m->\033[1;0m \033[1;1m$1\033[1;0m" >&2
+		else
+			echo -e "   \033[1;34m->\033[1;0m \033[1;1m$1\033[1;0m" >&2
+		fi
+	else
+		if [ "$1" = "-n" ]; then
+			shift
+			echo -n "   -> $1" >&2
+		else
+			echo "   -> $1" >&2
+		fi
+	fi
+}
+
+warning() {
+	if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
+		echo -e "\033[1;33m==> WARNING:\033[1;0m \033[1;1m$1\033[1;0m" >&2
+	else
+		echo "==> WARNING: $1" >&2
+	fi
+}
+
+error() {
+	if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
+		echo -e "\033[1;31m==> ERROR:\033[1;0m \033[1;1m$1\033[1;0m" >&2
+	else
+		echo "==> ERROR: $1" >&2
+	fi
+	exit 1
+}
+
+# End alternate copyright
+
+checkpkg() {
+	msg2 "Checking for $1 installation..."
+	$PACMAN -Qi $1 >> /dev/null 2>&1
+	if [ $? -ne 0 ]; then
+		msg2 -n "$1 is not installed. Would you like to install it? [Y/n] "
+		read INSTALL
+		if [ "$INSTALL" = "n" ]; then
+			error "$1 is not installed. Install it with pacman -S $1"
+		else
+			$PACMAN -Sy
+			[ $? -ne 0 ] && error "Failed to sync package database, exiting..."
+			$PACMAN -S $1 --noconfirm
+			[ $? -ne 0 ] && error "Failed to install $1, exiting..."
+		fi
+	fi
+}
+
+detectcard() {
+	msg2 -n "Checking for nVidia card... "
+	nvidia=`grep -c Driver.*nvidia /etc/X11/xorg.conf`
+	nv=`cat /etc/X11/xorg.conf | grep Driver | grep "\"nv\"" | wc -l`
+	if [ $nvidia == 1 ]; then
+		echo "found"
+		CARD="nvidia"
+		OPTS="-accel xv -accel glx:pbuffer -accel xv:fbo -ac -kb -audit 0 -br -dpms"
+		return 0
+	fi
+	if [ $nv == 1 ]; then
+		echo "failed"
+		error "nVidia card found but using open source drivers. Xgl requires that you use the binary drivers for proper 3d accel"
+	fi
+	echo
+	msg2 -n "Checking for i810 card... "
+	i810=`grep -c Driver.*i810 /etc/X11/xorg.conf`
+	if [ $i810 == 1 ]; then
+		echo "found"
+		CARD="i810"
+		OPTS="-accel xv -accel glx:pbuffer -accel xv:pbuffer -ac -kb -audit 0 -br -dpms"
+		return 0
+	fi
+	echo
+	msg2 -n "Checking for an ATI card... "
+	fglrx=`grep -c Driver.*fglrx /etc/X11/xorg.conf`
+	ati=`grep -c Driver.*ati /etc/X11/xorg.conf`
+	if [ $fglrx == 1 ]; then
+		echo "found"
+		CARD="ati"
+		OPTS="-accel xv -accel glx:pbuffer -accel xv:pbuffer -ac -kb -audit 0 -br -dpms"
+		return 0
+	fi
+	if [ $ati == 1 ]; then
+		echo "failed"
+		error "ATI card found but using open source drivers. Xgl requires that you use the fglrx driver for proper 3d accel"
+	fi
+	# Should only get here if card isn't detected
+	error "Sorry, I cannot find a supported card in your system. If you would like support for your card, please post details of it to http://bugs.frugalware.org"
+}
+
+case `id -u` in
+	0)
+	        ;;
+	*)
+		error "fw-xgl-control must be run as root"
+		;;
+esac
+
+case $1 in
+	-e|--enable|--enable-xgl)
+		if [ "`grep '0=Xgl' /etc/gdm/custom.conf | wc -l`" == "1" ]; then
+			error "Xgl is already enabled..."
+		fi
+		msg "Searching for required packages..."
+		checkpkg "xgl"
+		checkpkg "mesa-cvs"
+		checkpkg "compiz-cvs"
+		checkpkg "gdm"
+		checkpkg "gnome-session"
+		msg "Detecting cards..."
+		detectcard
+		msg "Performing modifications to GDM configuration..."
+		echo "0=Xgl #xgl" >> /etc/gdm/custom.conf
+		echo "[server-Xgl] #xgl" >> /etc/gdm/custom.conf
+		echo "name=Xgl server #xgl" >> /etc/gdm/custom.conf
+		echo "command=/usr/bin/Xgl $OPTS #xgl" >> /etc/gdm/custom.conf
+		echo "flexible=true #xgl" >> /etc/gdm/custom.conf
+		msg "Enabling Compiz..."
+		echo "# Should compiz be run when Gnome starts?" > /etc/sysconfig/compiz
+		echo "ENABLE_COMPIZ=1" >> /etc/sysconfig/compiz
+		msg "Modifications complete! Save your work and run gdm-restart as root."
+		;;
+	-d|--disable|--disable-xgl)
+		msg "Disabling Compiz..."
+		echo "# Should compiz be run when Gnome starts?" > /etc/sysconfig/compiz
+		echo "ENABLE_COMPIZ=0" >> /etc/sysconfig/compiz
+		msg "Reverting GDM configuration changes..."
+		sed -i '/\#xgl/d' /etc/gdm/custom.conf
+		msg "Xgl is now disabled. Save your work and run gdm-restart as root"
+		;;
+	*)
+		msg "Frugalware Xgl Control 0.1. Copyright (C) 2006 Alex Smith"
+		msg2 "Usage: $0 --enable-xgl"
+		msg2 "       $0 --disable-xgl"
+		exit 1
+		;;
+esac

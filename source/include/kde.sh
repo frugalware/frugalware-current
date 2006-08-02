@@ -6,7 +6,7 @@
 
 # common url, up2date, and source(), and build() for kde packages
 url="http://www.kde.org"
-kdever=3.5.3
+kdever=3.5.4
 #pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$kdever/src"
 #pkgurl="ftp://ftp.tu-chemnitz.de/pub/X11/kde/stable/$kdever/src"
 pkgurl="ftp://ftp-stud.fht-esslingen.de/pub/Mirrors/ftp.kde.org/pub/kde/stable/$kdever/src"
@@ -25,18 +25,10 @@ fi
 
 build() 
 {
-	# we need that because KDE add some -O2' twice we already have it in our {$CXX,$C}{FLAGS}
-	Fcd
-	for i in `find . -iname configure`
-	do
-		Fsed '-O2' '' $i
-	done
-	
-	Fbuild CXXFLAGS="$CXXFLAGS -Wno-deprecated" \
+     Fbuild CXXFLAGS="$CXXFLAGS -Wno-deprecated" \
 		--disable-dependency-tracking \
 		--disable-debug --without-debug \
 		--with-gnu-ld --enable-new-ld-flags \
-		--enable-gcc-hidden-visibility \
-		DO_NOT_COMPILE="doc"
+		--enable-gcc-hidden-visibility
 }
 

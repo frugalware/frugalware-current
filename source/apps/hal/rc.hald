@@ -12,6 +12,7 @@
 
 PID=`pidof -o %PPID /usr/sbin/hald`
 
+
 if [ "$1" = "stop" ]; then
 	stop "$stophald"
 	[ ! -z "$PID" ] && kill $PID &> /dev/null
@@ -22,8 +23,23 @@ elif [ "$1" = "restart" ]; then
 	"$0" start
 else # start
 	start "$starthald"
+	## need be here without this use hal does not work
+	if ! grep -q '^hald:' /etc/group; then
+        	echo -n "Adding hald group..."
+        	groupadd -g 39 hald
+        	echo -e "done."
+	fi
+
+	if ! grep -q '^hald:' /etc/passwd; then
+        	echo -n "Adding hald user..."
+        	useradd -c 'HAL Daemon' -u 39 -g hald -G cdrom,floppy,camera,storage -d '/' -s /bin/false hald
+        	## kill password
+        	passwd -l hald
+        	echo -e "done."
+	fi
+
 	if [ -z "$PID" ]; then
-		/usr/sbin/hald
+	 	/usr/sbin/hald --daemon=yes
 	fi
 	ok $?
 fi

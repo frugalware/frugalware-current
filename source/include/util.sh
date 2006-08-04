@@ -101,6 +101,15 @@ Fcpr() {
 	cp -dpR "$Fsrcdir/"$1 "$Fdestdir"/$2 || Fdie
 }
 
+### Copy file(s) to $Fdestdir recursively from the current working dir
+ # @param source name of the file(s)
+ # @param dest path of the destination
+ ##
+Fcprrel() {
+	Fmessage "Copying file(s) recursive: $1"
+	cp -dpR "$Fsrcdir/"$1 "$Fdestdir"/$2 || Fdie
+}
+
 ### Move file(s) under $Fdestdir
  # @param source name of the file(s)
  # @param dest path of the destination
@@ -267,7 +276,7 @@ Fdocrel() {
 	for i in $@
 	do
 		if [ -d "$i" ]; then
-			Fcpr "$i" "/usr/share/doc/$pkgname-$pkgver/"
+			Fcprrel "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		else
 		Ffilerel "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		local j

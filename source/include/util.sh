@@ -107,7 +107,7 @@ Fcpr() {
  ##
 Fcprrel() {
 	Fmessage "Copying file(s) recursive: $1"
-	cp -dpR "$Fsrcdir/"$1 "$Fdestdir"/$2 || Fdie
+	cp -dpR $1 "$Fdestdir"/$2 || Fdie
 }
 
 ### Move file(s) under $Fdestdir

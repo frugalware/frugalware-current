@@ -135,7 +135,12 @@ Fbuildkernel()
 	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver
 	[ $_F_kernel_mm -gt 0 ] && Fpatch $_F_kernel_mmver
 	[ $_F_kernel_git -gt 0 ] && Fpatch patch-$_F_kernel_gitver
-	Fpatchall
+	# not using Fpatchall here since not applying the patches from
+	# _F_kernel_patches() having the wrong extension would be stange :)
+	for i in ${_F_kernel_patches[@]}
+	do
+		Fpatch `strip_url $i`
+	done
 	# remove unneded localversions
 	rm -f localversion-*
 	yes "" | make config

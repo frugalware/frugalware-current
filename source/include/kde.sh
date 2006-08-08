@@ -28,7 +28,6 @@ build()
      Fbuild CXXFLAGS="$CXXFLAGS -Wno-deprecated" \
 		--disable-dependency-tracking \
 		--disable-debug --without-debug \
-		--with-gnu-ld --enable-new-ld-flags \
-		--enable-gcc-hidden-visibility
+		--with-gnu-ld --enable-gcc-hidden-visibility
 }
 

@@ -1,8 +1,10 @@
 #!/usr/bin/perl
 use Cwd;
+use Digest::SHA1 qw(sha1_hex);
 
-# CIA Client for Darcs
+# CIA Client and Mailer for Darcs
 # Copyright (C) 2005 Patrick McFarland <diablod3@gmail.com>
+# Copyright (C) 2006 Miklos Vajna <vmiklos@frugalware.org>
 
 # This program is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License version 2, as published by the
@@ -18,6 +20,9 @@ use Cwd;
 # Copyright 1998  Board of Trustees, Leland Stanford Jr. University
 # Copyright 2001, 2003, 2004  Petr Baudis <pasky@ucw.cz>
 # http://cia.navi.cx/clients/cvs/ciabot_cvs.pl
+
+# The getpatchname() function is from darcshive
+# Copyright (c) 2004 by Anthony Towns <aj@azure.humbug.org.au>
 
 # Notes:
 #
@@ -64,6 +69,7 @@ my $sendmail = '/usr/sbin/sendmail';
 # patch database
 my %submitters = ();
 my %timestamps = ();
+my %rawtimestamps = ();
 my %comments   = ();
 my %raws   = ();
 my %files = ();
@@ -71,6 +77,27 @@ my %files = ();
 my ($VERSION) = '0.1';
 my ($URL) = 'http://shadowconflict.com/';
 my $ts = time;
+
+sub getpatchname {
+	my ($email, $desc, $log, $date, $inv) = @_;
+	my $realdate;
+
+	if ($date =~ m/^(\d{14}).*/) {
+		$realdate = $1;
+	} elsif ($date =~ m/(...) (...) (.\d) (\d\d):(\d\d):(\d\d) (.*) (\d{4})$/) {
+		my $mos = "/Jan/Feb/Mar/Apr/May/Jun/Jul/Aug/Sep/Oct/Nov/Dec/";
+		my ($weekday, $mo, $da, $hr, $min, $sec, $tz, $yr) = 
+			($1,$2,$3,$4,$5,$6,$7,$8);
+		my $mon = sprintf "%02d", (index ($mos,"/$mo/"))/4+1;
+		$da=sprintf "%02d", $da;
+		$realdate = "$yr$mon$da$hr$min$sec";
+	} else {
+		die "odd patch date: $date\n"
+	}
+
+	return sprintf("%s-%s-%s", $realdate, substr(sha1_hex($email), 0, 5),
+		sha1_hex("$desc$email$date$log$inv"));
+}
 
 # get repo name for this project
 if($ARGV[3]) {
@@ -140,6 +167,7 @@ while (<STDIN>)
   $senders{$patch} = $1;
   # convert the timestamp into some readable form 'YYYY-MM-DD HH:MM:SS'
   $timestamps{$patch} = "$2-$3-$4 $5:$6:$7";
+  $rawtimestamps{$patch} = "$2$3$4$5$6$7";
 
   # everything until an end-marker string belongs to
   # a long comment for this patch
@@ -150,6 +178,7 @@ while (<STDIN>)
       print DARCS;
       $raws{$patch} .= $_;
       last if (/^$endmarker$/);
+      $_ =~ s/^ //;
       $comments{$patch} .= $_;
     }
   }
@@ -274,6 +303,10 @@ Subject: $module: $patch
 
 EOM
 
+  $_ = $comments{$patch};
+  $_ =~ s/\n//gm;
+  my $hash = getpatchname($senders{$patch}, $patch, $_, $rawtimestamps{$patch}, "f");
+  print MAIL "Darcsweb-Url: http://darcs.frugalware.org/darcsweb/darcsweb.cgi?r=$module;a=darcs_commitdiff;h=$hash.gz;\n";
   print MAIL $raws{$patch};
 
   close MAIL;

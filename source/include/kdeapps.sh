@@ -25,7 +25,7 @@ build()
 	done
 	Fbuild  --disable-dependency-tracking \
 		--disable-debug --without-debug \
-		--with-gnu-ld --enable-new-ld-flags
+		--with-gnu-ld
 }
 
 unset _F_kdeapps_id _F_kdeapps_id2

@@ -25,8 +25,6 @@
 url="http://cpan.org/"
 up2date="lynx -dump -nolist 'http://search.cpan.org/search?query="$modname"&mode=module'|grep -m1 "$modname-"|sed -e 's/.*"$modname"-\(.*\) .*/\1/' -e 's/ .*//'"
 source=($_F_perl_url$modauthor/$modname-$pkgver$_F_perl_ext)
-#up2date="pud -p 'http://search.cpan.org/search?query=$(echo $modname |sed s/-/::/g)&mode=all' -e '$modname-(.*?) '"
-#source=(http://search.cpan.org/CPAN/authors/id/$modauthor/$modname-$pkgver$_F_perl_ext)
 
 build()
 {
@@ -37,7 +35,7 @@ build()
 
 # defaults
 pkgname="perl-`echo $modname|tr [A-Z] [a-z]`"
-pkgrel=1
+[ -z "$pkgrel" ] && pkgrel=1
 depends=(${depends[@]} 'perl')
 makedepends=(${makedepends[@]} 'perl-libwww')
 groups=('devel-extra')

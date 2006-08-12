@@ -1,35 +1,42 @@
-# Last Modified: Tue, 08 Aug 2006 18:29:00 +0200
-# Compiling Time: 1.90 SBU
-# Maintainer: VMiklos <vmiklos@frugalware.org>
+# Last Modified: Sat, 12 Aug 2006 22:18:12 +0200
+# Compiling Time: 5.10 SBU
+# Maintainer: crazy <crazy@frugalware.org>
+# Contributor: VMiklos <vmiklos@frugalware.org>
 
 pkgname=php
 pkgver=5.1.4
-pkgrel=10
+pkgrel=11
 pkgdesc="A widely-used general-purpose scripting language"
 url="http://www.php.net"
 backup=(etc/{php.ini,httpd/conf/modules.d/$pkgname.conf})
-depends=('openssl' 'libjpeg' 'freetype2' 'libpng' 'gdbm' 'libxslt' 'curl' 'libxml2' 'libmcrypt' 'libidn')
-makedepends=('apache' 'mysql' 'imap' 'postgresql' 'bzip2' 'zziplib' 'mta' 'openldap' 'tidy' 'freetds')
+depends=('openssl' 'libjpeg' 'freetype2' 'libpng' 'gdbm' 'libxslt' 'curl' 'libxml2' 'libmcrypt' 'libidn' 'libmysqlclient' 'libpq')
+makedepends=('apache' 'imap' 'bzip2' 'zziplib' 'mta' 'tidy' 'freetds' 'mysql' 'postgresql' 'openldap' 'libldap')
 groups=('devel')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://www.php.net/downloads.php |grep 'Complete Source Code' -3|sed -n 's/.*P \(.*\)/\1/;2 p'"
 source=(http://www.php.net/distributions/$pkgname-$pkgver.tar.gz \
-	http://pecl.php.net/get/zip-1.0.tgz php.ini php.conf CVE-2006-2563.diff php-38322.diff)
+	http://pecl.php.net/get/zip-1.0.tgz php.ini php.conf CVE-2006-2563.diff php-38322.diff \
+	 README.Frugalware)
 sha1sums=('cfabe187fa1cd9c51a9e1ce8d61b6bc9f43d0016' \
           '0ac6f2d25385eb2c74af82c7a54639eb531d8414' \
           '6e79ce079b6a021f6a6c99a06aa123160a604fd7' \
           '0850ef23512a02e8460dc36f08f453d148dcd9df' \
-	  '64a514947bace3681e0a8eb284778e04453aa03a' \
-	  'bd55bb0d4735dfab5967166ffcbd2a7b81031101')
+          '64a514947bace3681e0a8eb284778e04453aa03a' \
+          'bd55bb0d4735dfab5967166ffcbd2a7b81031101' \
+          'c080133b017d5d6f50511e19d7590dc2600ac51a')
+
+subpkgs=("$pkgname-cgi")
+suboptions=('nodocs') ## its depends on PHP and the same files are installed etc
+subdescs=("CGI binary for php and its libs.")
+subdepends=("$pkgname=$pkgver")
+subgroups=('devel-extra')
+subarchs=('i686 x86_64')
+
 
 build()
 {
-	Fpatchall
-	mv $Fsrcdir/zip-1.0 $Fsrcdir/$pkgname-$pkgver/ext/zip
-	touch $Fsrcdir/$pkgname-$pkgver/ext/zip/*
-	Fcd
-	./buildconf --force
-	Fmake --with-config-file-path=/etc \
+	## the php config
+	phpconfig="--with-config-file-path=/etc \
 		--enable-mailparse \
 		--enable-bcmath=shared \
 		--enable-calendar=shared \
@@ -56,7 +63,6 @@ build()
                 --enable-mbstring \
 		--without-db2 \
 		--without-db3 \
-		--with-apxs2 \
                 --with-ttf \
 		--with-bz2=shared \
 		--with-freetype-dir=/usr \
@@ -87,18 +93,45 @@ build()
 		--with-tidy \
 		--with-tidy=shared \
 		--with-ldap=shared \
-		--with-mssql=shared
-
-	## NOTE: if you add options to Fmake then 'pls' add --enable-foo to enable selection and so on
-	##	 so we know wtf is enabled/with or even without thx -- crazy --
-	## NOTE2: we still need sort some stuff , we are missing some apps , some could be added and
-	##        some need s/--enable-foo/--with-foo/ syntax changed. I'll try to figure this -- crazy --
-	Fmkdir /usr/lib/apache
+		--with-mssql=shared"
+	
+	## this is true for both
+	Fpatchall
+        mv $Fsrcdir/zip-1.0 $Fsrcdir/$pkgname-$pkgver/ext/zip
+        touch $Fsrcdir/$pkgname-$pkgver/ext/zip/*
+        Fcd
+	## PHP-CGI first
+	Fmkdir usr/lib/php
+        ./buildconf --force
+        Fmake ${phpconfig} \
+		--enable-fastcgi \
+		--enable-cgi \
+		--enable-discard-path \
+		--enable-force-cgi-redirect
+	
+	make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php install || return 1
+	## remove stuff is in php
+	Fcd $Fdestdir
+	Frm etc ./{.registry,.channels,.depdb*,.lock,.file*} usr/{include,share,lib,man}
+	Frm usr/bin/{phpize,php-config,pecl,pear*}
+	
+	Fmv usr/bin/php usr/bin/php-cgi
+	## yeah mv because Fdoc will not work
+	## and if I don't move it it will be installed in PHP build as well =)
+	Fmkdir usr/share/doc/$pkgname-cgi-$pkgver
+	mv -f $Fsrcdir/README.Frugalware $Fdestdir/usr/share/doc/$pkgname-cgi-$pkgver/
+	## split it
+	Fsplit $pkgname-cgi /usr
+	## PHP build
+	# clean
+	Fmessage "Prepare for PHP build. Running distclean..."
+	make distclean
+	./buildconf --force
+	Fmake ${phpconfig} --with-apxs2
+	Fmkdir usr/lib/apache
 	Fsed "-i -a -n php5" "-i -n php5" Makefile
 	make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php install || return 1
-
 	Fsed "$Fdestdir" "" $Fdestdir/usr/{bin/pear,share/pear/pearcmd.php}
-
 	Ffile /etc/httpd/conf/modules.d/$pkgname.conf
 	Ffile /etc/php.ini
 	Fln /etc/php.ini /usr/lib/php.ini

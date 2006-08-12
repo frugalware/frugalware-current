@@ -118,6 +118,23 @@ class package:
 					values ('%d', '%s');""" % (member,
 						member[:-1], self.id, i))
 
+	def insertgroups(self):
+		for i in self.groups:
+			# get the group id or insert it if necessary
+			self.cursor.execute("select id from groups where name = '%s' limit 1" % i)
+			row = self.cursor.fetchone()
+			if row:
+				gid = row['id']
+			else:
+				self.cursor.execute("insert into groups (name) values ('%s');" % (i))
+				self.cursor.execute("SELECT LAST_INSERT_ID()")
+				row = self.cursor.fetchone()
+				gid = row['LAST_INSERT_ID()']
+			# now link the pkg with this group
+			self.cursor.execute("""insert into ct_groups (pkg_id,
+					group_id) values ('%d', '%d');""" %
+					(self.id, gid))
+
 	def insertlistid(self, member):
 		li = getattr(self, member)
 		for i in li:
@@ -149,15 +166,15 @@ class package:
 				(member, member[:-1], self.id, id, ver))
 
 	def update(self):
-		### do we really need this update?
-		##self.cursor.execute("""select id, pkgver from packages where pkgname = '%s'
-		##	and arch = '%s' and fwver = '%s' limit 1""" %
-		##	(self.pkgname, self.arch, self.fwver))
-		##row = self.cursor.fetchone()
-		##if row and row['pkgver'] == self.pkgver:
-		##	return
-		##elif row:
-		##	self.id = row['id']
+		# do we really need this update?
+		self.cursor.execute("""select id, pkgver from packages where pkgname = '%s'
+			and arch = '%s' and fwver = '%s' limit 1""" %
+			(self.pkgname, self.arch, self.fwver))
+		row = self.cursor.fetchone()
+		if row and row['pkgver'] == self.pkgver:
+			return
+		elif row:
+			self.id = row['id']
 		# uploader_id and parent_id
 		self.cursor.execute("select id from uploaders where login = '%s' limit 1" % (self.uploader))
 		row = self.cursor.fetchone()
@@ -197,6 +214,7 @@ class package:
 			self.insertlistid("provides")
 			self.insertlist("files")
 			self.insertlist("licenses")
+			self.insertgroups()
 		else:
 			self.cursor.execute(''' update packages set pkgname = '%s',
 			pkgver = '%s', `desc` = '%s', url = '%s', sha1sum =

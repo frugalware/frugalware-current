@@ -61,7 +61,10 @@ class package:
 			elif key == "Groups":
 				self.groups = line.split(' : ')[1].split(' ')
 			elif key == "License":
-				self.licenses = line.split(' : ')[1].split(' ')
+				try:
+					self.licenses = line.split(' : ')[1].split(' ')
+				except IndexError:
+					pass
 			elif key == "Provides":
 				self.provides = line.split(' : ')[1].split(' ')
 			elif key == "Description":
@@ -135,6 +138,9 @@ class package:
 					group_id) values ('%d', '%d');""" %
 					(self.id, gid))
 
+	def dellist(self, member):
+		self.cursor.execute("delete from %s where pkg_id = %d" % (member, self.id))
+
 	def insertlistid(self, member):
 		li = getattr(self, member)
 		for i in li:
@@ -164,6 +170,17 @@ class package:
 				self.cursor.execute("""insert into %s (pkg_id,
 				%s_id, version) values ('%d', '%d', '%s');""" %
 				(member, member[:-1], self.id, id, ver))
+
+	def insertlists(self):
+		for i in ["depends", "conflicts", "provides"]:
+			self.insertlistid(i)
+		for i in ["files", "licenses"]:
+			self.insertlist(i)
+		self.insertgroups()
+
+	def dellists(self):
+		for i in ["depends", "conflicts", "provides", "files", "licenses", "groups"]:
+			self.dellist(i)
 
 	def update(self):
 		# do we really need this update?
@@ -209,12 +226,7 @@ class package:
 			self.cursor.execute("SELECT LAST_INSERT_ID()")
 			row = self.cursor.fetchone()
 			self.id = row['LAST_INSERT_ID()']
-			self.insertlistid("depends")
-			self.insertlistid("conflicts")
-			self.insertlistid("provides")
-			self.insertlist("files")
-			self.insertlist("licenses")
-			self.insertgroups()
+			self.insertlists()
 		else:
 			self.cursor.execute(''' update packages set pkgname = '%s',
 			pkgver = '%s', `desc` = '%s', url = '%s', sha1sum =
@@ -226,6 +238,8 @@ class package:
 			self.parent_id, self.maintainer, self.uploader_id,
 			self.fwver, time.strftime("%Y-%m-%d %H:%M:%S",
 				time.strptime(self.builddate)), self.id))
+			self.dellists()
+			self.insertlists()
 
 def usage():
 	print __doc__

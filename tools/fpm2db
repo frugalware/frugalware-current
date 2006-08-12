@@ -29,9 +29,14 @@ class package:
 		if not self.parent:
 			self.parent = self.pkgname
 		self.pkgver = re.sub('.*-([^-]+-[^-]+)-[^-]+.fpm', r'\1', fpm)
-		self.arch = re.sub('.*-([^-]+).fpm', r'\1', fpm)
+		self.arch = os.getcwd().split('-')[-1]
 		self.fwver = os.getcwd().split('/')[-2].split('-')[1]
 		self.uploader = os.environ['HOME'].split('/')[-1]
+
+		try:
+			os.stat(fpm)
+		except OSError:
+			return
 
 		self.files=[]
 		socket = os.popen("pacman -Ql -p %s" % fpm)
@@ -185,6 +190,21 @@ class package:
 		for i in ["depends", "conflicts", "provides", "files", "licenses", "ct_groups"]:
 			self.dellist(i)
 
+	def delete(self):
+		# check if there is such a package & get the id
+		self.cursor.execute("""select id from packages where pkgname =
+				'%s' and arch = '%s' and fwver = '%s'""" %
+				(self.parent, self.arch, self.fwver))
+		row = self.cursor.fetchone()
+		if row:
+			self.id = row['id']
+		else:
+			print 'WARNING: package %s not found, probably already deleted!' % (self.parent)
+			return
+
+		self.cursor.execute("delete from packages where id = %d" % self.id)
+		self.dellists()
+
 	def update(self):
 		# do we really need this update?
 		self.cursor.execute("""select id, pkgver from packages where pkgname = '%s'
@@ -285,7 +305,9 @@ def main(argv):
 			dbname = arg
 
 	# check for missing options
-	if fpm == "":
+	if fpm != "" or (mainpkg != "" and not update):
+		pass
+	else:
 		raise "missing -f package!"
 	if host == "":
 		host = "localhost"
@@ -304,7 +326,10 @@ def main(argv):
 	conn = MySQLdb.connect(host=host, user=user, passwd=password,
 			db=dbname)
 	pkg.cursor = conn.cursor(MySQLdb.cursors.DictCursor)
-	pkg.update()
+	if update:
+		pkg.update()
+	else:
+		pkg.delete()
 	conn.close()
 
 if __name__ == "__main__":

@@ -5,7 +5,8 @@ Usage: python fpm2db [options]
 Options:
 	-D, --delete            The specified pkg can be deleted with this command.
 	-f ..., --fpm=...       The .fpm package.
-	-m ..., --mainpkg=...   The parent .fpm package. (optional)
+	-m ..., --mainpkg=...   The name of the parent .fpm package. (optional)
+	-g ..., --maingrp=...   The group of the .fpm package. (optional)
 	-h ..., --host=...      The host where the database is located. (optional)
 	-u ..., --user=...      The user of the database. (optional)
 	-p ..., --password=...   The password for the database. (optional)
@@ -16,14 +17,17 @@ import getopt, re, os, sha, string, sys, time
 import MySQLdb
 
 class package:
-	def __init__(self, fpm, parent=None):
+	def __init__(self, fpm, parent=None, parentgrp=None):
 		self.cursor=None
 		self.id=None
 		self.uploader_id=0
 		self.parent=parent
+		self.parentgrp=parentgrp
 		self.parent_id=0
 
 		self.pkgname = re.sub("-[^-]+-[^-]+-[^-]+.fpm", "", fpm)
+		if not self.parent:
+			self.parent = self.pkgname
 		self.pkgver = re.sub('.*-([^-]+-[^-]+)-[^-]+.fpm', r'\1', fpm)
 		self.arch = re.sub('.*-([^-]+).fpm', r'\1', fpm)
 		self.fwver = os.getcwd().split('/')[-2].split('-')[1]
@@ -76,12 +80,11 @@ class package:
 			elif key == "Size":
 				self.usize = string.atoi(line.split(' : ')[1])
 		socket.close()
+		if not self.parentgrp:
+			self.parentgrp = self.groups[0]
 
 		self.maintainer=None
-		if not self.parent:
-			socket = open("../source/%s/%s/FrugalBuild" % (self.groups[0], self.pkgname))
-		else:
-			socket = open("../source/%s/%s/FrugalBuild" % (self.groups[0], self.parent))
+		socket = open("../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent))
 		while True:
 			line = socket.readline()
 			if not line:
@@ -249,6 +252,7 @@ def main(argv):
 	update = True
 	fpm = ""
 	mainpkg = None
+	maingrp = None
 	host = ""
 	user = ""
 	password = ""
@@ -256,9 +260,9 @@ def main(argv):
 
 	# option parsing
 	try:
-		opts, args = getopt.getopt(argv, "Df:h:u:p:d:m:", ["delete",
+		opts, args = getopt.getopt(argv, "Df:h:u:p:d:m:g:", ["delete",
 			"fpm=", "host=", "user=", "password=", "dbname=",
-			"mainpkg="])
+			"mainpkg=", "maingrp="])
 	except getopt.GetoptError:
 		usage()
 		sys.exit(1)
@@ -269,6 +273,8 @@ def main(argv):
 			fpm = arg
 		elif opt in ("-m", "--mainpkg"):
 			mainpkg = arg
+		elif opt in ("-g", "--maingrp"):
+			maingrp = arg
 		elif opt in ("-h", "--host"):
 			host = arg
 		elif opt in ("-u", "--user"):
@@ -293,7 +299,7 @@ def main(argv):
 	# autodetection
 	os.unsetenv("LANG")
 	os.unsetenv("LC_ALL")
-	pkg = package(fpm, mainpkg)
+	pkg = package(fpm, mainpkg, maingrp)
 
 	conn = MySQLdb.connect(host=host, user=user, passwd=password,
 			db=dbname)

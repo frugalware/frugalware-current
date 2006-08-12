@@ -1,0 +1,220 @@
+#!/usr/bin/env python
+"""fpm2db - refresh a Frugalware database from a repository
+Usage: python fpm2db [options]
+
+Options:
+	-D, --delete            The specified pkg can be deleted with this command.
+	-f ..., --fpm=...       The .fpm package.
+	-m ..., --mainpkg=...   The parent .fpm package. (optional)
+	-h ..., --host=...      The host where the database is located. (optional)
+	-u ..., --user=...      The user of the database. (optional)
+	-p ..., --password=...   The password for the database. (optional)
+	-d ..., --dbname=...    The name of the database. (optional)
+"""
+
+import getopt, re, os, sha, string, sys, time
+import MySQLdb
+
+class package:
+	def __init__(self, fpm):
+		self.cursor=None
+		self.id=None
+		self.uploader_id=0
+		self.parent=None
+		self.parent_id=0
+
+		self.pkgname = re.sub("-[^-]+-[^-]+-[^-]+.fpm", "", fpm)
+		self.pkgver = re.sub('.*-([^-]+-[^-]+)-[^-]+.fpm', r'\1', fpm)
+		self.arch = re.sub('.*-([^-]+).fpm', r'\1', fpm)
+		self.fwver = os.getcwd().split('/')[-2].split('-')[1]
+		self.uploader = os.environ['HOME'].split('/')[-1]
+
+		self.files=[]
+		socket = os.popen("pacman -Ql -p %s" % fpm)
+		while True:
+			file = socket.readline().strip().replace("%s " % self.pkgname, "")
+			if not file:
+				break
+			else:
+				self.files.append(file)
+		socket.close()
+
+		self.conflicts=[]
+		self.depends=[]
+		self.groups=[]
+		self.licenses=[]
+		self.provides=[]
+		self.desc=None
+		self.url=None
+		self.builddate=None
+		self.usize=None
+		socket = os.popen("pacman -Qi -p %s" % fpm)
+		while True:
+			line = socket.readline().strip()
+			if not line:
+				break
+			key = line.split(':')[0].strip()
+			if key == "Conflicts With":
+				self.conflicts = line.split(' : ')[1].split(' ')
+			elif key == "Depends On":
+				self.depends = line.split(' : ')[1].split(' ')
+			elif key == "Groups":
+				self.groups = line.split(' : ')[1].split(' ')
+			elif key == "License":
+				self.licences = line.split(' : ')[1].split(' ')
+			elif key == "Provides":
+				self.licences = line.split(' : ')[1].split(' ')
+			elif key == "Description":
+				self.desc = "".join(line.split(' : ')[1:])
+			elif key == "URL":
+				self.url = "".join(line.split(' : ')[1:])
+			elif key == "Build Date":
+				self.builddate = "".join(line.split(' : ')[1:])[:-4]
+			elif key == "Size":
+				self.usize = string.atoi(line.split(' : ')[1])
+		socket.close()
+
+		self.maintainer=None
+		socket = open("../source/%s/%s/FrugalBuild" % (self.groups[0], self.pkgname))
+		while True:
+			line = socket.readline()
+			if not line:
+				break
+			if line[:14] != "# Maintainer: ":
+				continue
+			self.maintainer = line[14:].strip()
+			break
+		socket.close()
+
+		ctx = sha.new()
+		socket = open(fpm)
+		while True:
+			buf = socket.read(16384)
+			if not buf:
+				break
+			ctx.update(buf)
+		self.sha1sum = ctx.hexdigest()
+
+		self.size=os.stat(fpm).st_size
+
+	#def insertlist(self, member):
+	#	li = getattr(self, member)
+	#	print str(li)
+	def update(self):
+		# do we really need this update?
+		self.cursor.execute("""select id, pkgver from packages where pkgname = '%s'
+			and arch = '%s' and fwver = '%s' limit 1""" %
+			(self.pkgname, self.arch, self.fwver))
+		row = self.cursor.fetchone()
+		if row and row['pkgver'] == self.pkgver:
+			return
+		elif row:
+			self.id = row['id']
+
+		# uploader_id and parent_id
+		self.cursor.execute("select id from uploaders where login = '%s' limit 1" % (self.uploader))
+		row = self.cursor.fetchone()
+		if row:
+			self.uploader_id = row['id']
+		else:
+			self.cursor.execute("insert into uploaders (login) values ('%s');" % (self.uploader))
+			self.cursor.execute("SELECT LAST_INSERT_ID()")
+			row = self.cursor.fetchone()
+			self.uploader_id = row['LAST_INSERT_ID()']
+
+		if self.parent:
+			self.cursor.execute("""select id from packages where pkgname = '%s'
+				and arch = '%s' and fwver = '%s' limit 1""" %
+				(self.parent, self.arch, self.fwver))
+			row = self.cursor.fetchone()
+			if row:
+				self.parent_id = row['id']
+
+		# time to insert to the packages table
+		if not self.id:
+			self.cursor.execute('''
+			insert into packages
+			(pkgname, pkgver, `desc`, url, sha1sum, arch,
+			size, usize, parent_id, maintainer, uploader_id, fwver, builddate)
+			VALUES ('%s', '%s', '%s', '%s', '%s', '%s',
+			'%d', '%d', '%d', '%s', '%d',
+			'%s', '%s');
+			''' % (self.pkgname, self.pkgver, self.desc, self.url, self.sha1sum, self.arch,
+				self.size, self.usize, self.parent_id, self.maintainer, self.uploader_id,
+				self.fwver, time.strftime("%Y-%m-%d %H:%M:%S", time.strptime(self.builddate))))
+			#self.insertlist("depends")
+		else:
+			self.cursor.execute(''' update packages set pkgname = '%s',
+			pkgver = '%s', `desc` = '%s', url = '%s', sha1sum =
+			'%s', arch = '%s', size = '%d', usize = '%d', parent_id
+			= '%d', maintainer = '%s', uploader_id = '%d', fwver =
+			'%s', builddate = '%s' where id = '%d' ''' %
+			(self.pkgname, self.pkgver, self.desc, self.url,
+			self.sha1sum, self.arch, self.size, self.usize,
+			self.parent_id, self.maintainer, self.uploader_id,
+			self.fwver, time.strftime("%Y-%m-%d %H:%M:%S",
+				time.strptime(self.builddate)), self.id))
+
+def usage():
+	print __doc__
+
+def main(argv):
+	# defaults
+	update = True
+	fpm = ""
+	mainpkg = ""
+	host = ""
+	user = ""
+	password = ""
+	dbname = ""
+
+	# option parsing
+	try:
+		opts, args = getopt.getopt(argv, "Df:h:u:p:d:m:", ["delete",
+			"fpm=", "host=", "user=", "password=", "dbname=",
+			"mainpkg="])
+	except getopt.GetoptError:
+		usage()
+		sys.exit(1)
+	for opt, arg in opts:
+		if opt in ("-D", "--delete"):
+			update = False
+		elif opt in ("-f", "--file"):
+			fpm = arg
+		elif opt in ("-m", "--mainpkg"):
+			mainpkg = arg
+		elif opt in ("-h", "--host"):
+			host = arg
+		elif opt in ("-u", "--user"):
+			user = arg
+		elif opt in ("-p", "--password"):
+			password = arg
+		elif opt in ("-d", "--dbname"):
+			dbname = arg
+
+	# check for missing options
+	if fpm == "":
+		raise "missing -f package!"
+	if host == "":
+		host = "localhost"
+	if user == "":
+		user = "fpm2db"
+	if password == "":
+		password = "C6fO?o3qy"
+	if dbname == "":
+		dbname = "frugalware2"
+
+	# autodetection
+	os.unsetenv("LANG")
+	os.unsetenv("LC_ALL")
+	pkg = package(fpm)
+	pkg.parent = mainpkg
+
+	conn = MySQLdb.connect(host=host, user=user, passwd=password,
+			db=dbname)
+	pkg.cursor = conn.cursor(MySQLdb.cursors.DictCursor)
+	pkg.update()
+	conn.close()
+
+if __name__ == "__main__":
+	main(sys.argv[1:])

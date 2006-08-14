@@ -89,16 +89,22 @@ class package:
 			self.parentgrp = self.groups[0]
 
 		self.maintainer=None
-		socket = open("../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent))
-		while True:
-			line = socket.readline()
-			if not line:
+		try:
+			socket = open("../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent))
+			while True:
+				line = socket.readline()
+				if not line:
+					break
+				if line[:14] != "# Maintainer: ":
+					continue
+				self.maintainer = line[14:].strip()
 				break
-			if line[:14] != "# Maintainer: ":
-				continue
-			self.maintainer = line[14:].strip()
-			break
-		socket.close()
+			socket.close()
+		except IOError:
+			# this happens when the group is changed but there was
+			# no rebuild. we don't want to update the db in this
+			# case
+			self.uploader=None
 
 		ctx = sha.new()
 		socket = open(fpm)
@@ -207,6 +213,8 @@ class package:
 
 	def update(self):
 		# do we really need this update?
+		if not self.uploader:
+			return
 		self.cursor.execute("""select id, pkgver from packages where pkgname = '%s'
 			and arch = '%s' and fwver = '%s' limit 1""" %
 			(self.pkgname, self.arch, self.fwver))

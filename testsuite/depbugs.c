@@ -65,6 +65,9 @@ int main(int argc, char **argv)
 	{
 		PM_PKG *pkg=alpm_list_getdata(i);
 		char *pkgname = alpm_pkg_getinfo(pkg, PM_PKG_NAME);
+		char *group = alpm_list_getdata(alpm_pkg_getinfo(pkg, PM_PKG_GROUPS));
+		if(strcmp(group, "apps") && strcmp(group, "base") && strcmp(group, "devel") && strcmp(group, "gnome") && strcmp(group, "kde") && strcmp(group, "lib") && strcmp(group, "multimedia") && strcmp(group, "network") && strcmp(group, "x11") && strcmp(group, "xapps") && strcmp(group, "xfce4") && strcmp(group, "xlib") && strcmp(group, "xmultimedia"))
+			continue;
 
 		for(j=alpm_pkg_getinfo(pkg, PM_PKG_DEPENDS); j; j=alpm_list_next(j))
 		{
@@ -77,7 +80,17 @@ int main(int argc, char **argv)
 			{
 				PM_PKG *p=alpm_list_getdata(k);
 				if(!strcmp(alpm_pkg_getinfo(p, PM_PKG_NAME), str))
-					found=1;
+				{
+					int buggy=0;
+					for(l=alpm_pkg_getinfo(p, PM_PKG_GROUPS); !found&&l; l=alpm_list_next(l))
+					{
+						char *g = alpm_list_getdata(l);
+						if(!strcmp(g, "apps-extra") || !strcmp(g, "base-extra") || !strcmp(g, "devel-extra") || !strcmp(g, "e17-extra") || !strcmp(g, "games-extra") || !strcmp(g, "gnome-extra") || !strcmp(g, "kde-extra") || !strcmp(g, "lib-extra") || !strcmp(g, "locale-extra") || !strcmp(g, "multimedia-extra") || !strcmp(g, "network-extra") || !strcmp(g, "rox-extra") || !strcmp(g, "x11-extra") || !strcmp(g, "xapps-extra") || !strcmp(g, "xfce4-extra") || !strcmp(g, "xlib-extra"))
+							buggy=1;
+					}
+					if(!buggy)
+						found=1;
+				}
 				else
 					for(l=alpm_pkg_getinfo(p, PM_PKG_PROVIDES); !found&&l; l=alpm_list_next(l))
 					{

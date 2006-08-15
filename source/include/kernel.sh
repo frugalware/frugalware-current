@@ -72,6 +72,10 @@ source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 
 signatures=("${source[0]}.sign" '')
 install="src/kernel.install"
 
+if [ -z "$_F_kernel_name" ]; then
+	_F_kernel_patches=(${_F_kernel_patches[@]} http://ftp.frugalware.org/pub/other/sources/kernel/linux-$_F_kernel_ver-headers.patch.bz2)
+fi
+
 for i in ${_F_kernel_patches[@]}
 do
 	source=(${source[@]} $i)
@@ -100,10 +104,6 @@ if [ $_F_kernel_git -gt 0 ]; then
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
 fi
 
-if [ -z "$_F_kernel_name" ]; then
-	source=(${source[@]} http://ftp.frugalware.org/pub/other/sources/kernel/linux-$_F_kernel_ver-headers.patch.bz2)
-	signatures=("${signatures[@]}" '')
-fi
 [ "$CARCH" == "x86_64" ] && MARCH=K8
 echo "$CARCH" |grep -q 'i.86' && KARCH=i386
 

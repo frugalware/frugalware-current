@@ -7,7 +7,7 @@
 # a common function and a scriptlet for externel kernel module packages
 
 kernelbasever=2.6.17
-kernelrel=3
+kernelrel=4
 kernelver=$kernelbasever-$kernelrel
 _F_kernel_dir=/lib/modules/$kernelbasever-fw$kernelrel
 depends=("kernel=$kernelver")

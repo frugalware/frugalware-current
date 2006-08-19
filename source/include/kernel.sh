@@ -19,6 +19,7 @@
 # _F_kernel_rc (defaults to 0, example: "6")
 # _F_kernel_mm (defaults to 0, example: "2")
 # _F_kernel_git (defaults to 0, example: "3")
+# _F_kernel_dontsedarch (don't run the command below to Fsed 486 with your CARCH if set to 1)
 
 if [ -z "$_F_kernel_ver" ]; then
 	_F_kernel_ver=$pkgver
@@ -38,6 +39,10 @@ fi
 
 if [ -z "$_F_kernel_git" ]; then
 	_F_kernel_git=0
+fi
+
+if [ -z "$_F_kernel_dontsedarch" ]; then
+	_F_kernel_dontsedarch=0
 fi
 
 _F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
@@ -130,7 +135,9 @@ Fbuildkernel()
 {
 	Fcd linux-$_F_kernel_ver
 	cp $Fsrcdir/config .config
-	Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
+	if [ $_F_kernel_dontsedarch -eq 0 ]; then
+		Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
+	fi
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver
 	[ $_F_kernel_mm -gt 0 ] && Fpatch $_F_kernel_mmver

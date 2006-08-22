@@ -26,17 +26,19 @@ allsrcs=`mktemp`
 cd $sdir
 
 CWD=`pwd`
-for i in `find {,extra/}source -name FrugalBuild`
+for i in `find source -name FrugalBuild`
 do
 	cd `dirname $i` || continue
+	startdir=`pwd`
 	unset nobuild options archs
 	. FrugalBuild || echo "errors parsing the FrugalBuild"
 	if [ ! -z "$pkgname" -a ! "$nobuild" -a ! "`check_option NOBUILD`" ]; then
 		for j in ${archs[@]}
 		do
-			export CARCH=$j
+			CARCH=$j
 			unset source signatures
-			export startdir=`pwd`
+			for i in `set|grep ^_F_|sed 's/=.*//'`; do unset $i; done
+			startdir=`pwd`
 			. FrugalBuild || echo "errors parsing the FrugalBuild for $j"
 			for k in ${source[@]} ${signatures[@]}
 			do
@@ -49,8 +51,8 @@ done
 cat $newsrcs |sort -u >$newsrcs.sorted
 mv -f $newsrcs.sorted $newsrcs
 
-find {,extra/}source ! -type d ! -name Changelog |sort >$allsrcs
-find _darcs/current/{,extra/}source ! -name Changelog|sed 's|_darcs/current/||' |sort >$darcssrcs
+find source ! -type d ! -name Changelog |sort >$allsrcs
+find _darcs/current/source ! -name Changelog|sed 's|_darcs/current/||' |sort >$darcssrcs
 
 diff -u $allsrcs $darcssrcs |grep ^-[^-] |sed 's/^-//' >$oldsrcs
 

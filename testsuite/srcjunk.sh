@@ -40,7 +40,7 @@ do
 			for i in `set|grep ^_F_|sed 's/=.*//'`; do unset $i; done
 			startdir=`pwd`
 			. FrugalBuild || echo "errors parsing the FrugalBuild for $j"
-			for k in ${source[@]} ${signatures[@]}
+			for k in "${source[@]}" "${signatures[@]}"
 			do
 				echo "`pwd|sed \"s|$CWD/||\"`/`strip_url $k`" >>$newsrcs
 			done

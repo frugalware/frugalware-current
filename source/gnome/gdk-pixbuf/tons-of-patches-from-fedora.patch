@@ -1,0 +1,409 @@
+diff -Naur gdk-pixbuf-0.22.0.orig/configure.in gdk-pixbuf-0.22.0/configure.in
+--- gdk-pixbuf-0.22.0.orig/configure.in	2006-08-24 22:42:29.000000000 +0200
++++ gdk-pixbuf-0.22.0/configure.in	2006-08-24 22:44:01.000000000 +0200
+@@ -48,7 +48,7 @@
+ AC_SUBST(STRIP_BEGIN)
+ AC_SUBST(STRIP_END)
+ 
+-AC_PATH_PROG(GNOME_CONFIG,gnome-config,no)
++AC_PATH_PROG(GNOME_CONFIG,no-gnome-config-here,no)
+ if test x$GNOME_CONFIG != xno; then
+ 	echo "Building the GnomeCanvasPixbuf library"
+ 	GNOME_LIBS=`$GNOME_CONFIG --libs gnomeui`
+@@ -129,7 +129,7 @@
+ AC_MSG_CHECKING([for location of rgb.txt database])
+ 
+ dnl default to this..
+-path_rgb_txt=/usr/lib/X11/rgb.txt
++path_rgb_txt=/usr/share/X11/rgb.txt
+ 
+ if test -r ${x_libraries}/X11/rgb.txt; then
+   path_rgb_txt="${x_libraries}/X11/rgb.txt"
+@@ -147,18 +147,18 @@
+ dnl Test for libtiff
+   if test -z "$LIBTIFF"; then
+     AC_CHECK_LIB(tiff, TIFFReadScanline,
+-      AC_CHECK_HEADER(tiffio.h,
++      [AC_CHECK_HEADER(tiffio.h,
+         TIFF='tiff'; LIBTIFF='-ltiff',
+-        AC_MSG_WARN(*** TIFF loader will not be built (TIFF header files not found) ***)),
+-      AC_CHECK_LIB(tiff, TIFFWriteScanline,
+-        AC_CHECK_HEADER(tiffio.h,
++        AC_MSG_WARN(*** TIFF loader will not be built (TIFF header files not found) ***))],
++      [AC_CHECK_LIB(tiff, TIFFWriteScanline,
++        [AC_CHECK_HEADER(tiffio.h,
+           TIFF='tiff'; LIBTIFF='-ltiff -ljpeg -lz',
+-          AC_MSG_WARN(*** TIFF loader will not be built (TIFF header files not found) ***)),
+-        AC_CHECK_LIB(tiff34, TIFFFlushData,
+-          AC_CHECK_HEADER(tiffio.h,
++          AC_MSG_WARN(*** TIFF loader will not be built (TIFF header files not found) ***))],
++        [AC_CHECK_LIB(tiff34, TIFFFlushData,
++          [AC_CHECK_HEADER(tiffio.h,
+             TIFF='tiff'; LIBTIFF='-ltiff34 -ljpeg -lz',
+-            AC_MSG_WARN(*** TIFF loader will not be built (TIFF header files not found) ***)),
+-        AC_MSG_WARN(*** TIFF plug-in will not be built (TIFF library not found) ***), -ljpeg -lz -lm), -ljpeg -lz -lm), -lm)
++            AC_MSG_WARN(*** TIFF loader will not be built (TIFF header files not found) ***))],
++        AC_MSG_WARN(*** TIFF plug-in will not be built (TIFF library not found) ***), -ljpeg -lz -lm)], -ljpeg -lz -lm)], -lm)
+   fi
+ 
+ dnl Test for libjpeg
+@@ -191,9 +191,9 @@
+ dnl Test for libpng
+   if test -z "$LIBPNG"; then
+     AC_CHECK_LIB(png, png_read_info,
+-      AC_CHECK_HEADER(png.h,
++      [AC_CHECK_HEADER(png.h,
+         png_ok=yes,
+-        png_ok=no),
++        png_ok=no)],
+       AC_MSG_WARN(*** PNG loader will not be built (PNG library not found) ***), -lz -lm)
+     if test "$png_ok" = yes; then
+       AC_MSG_CHECKING([for png_structp in png.h])
+diff -Naur gdk-pixbuf-0.22.0.orig/gdk-pixbuf/io-bmp.c gdk-pixbuf-0.22.0/gdk-pixbuf/io-bmp.c
+--- gdk-pixbuf-0.22.0.orig/gdk-pixbuf/io-bmp.c	2006-08-24 22:42:29.000000000 +0200
++++ gdk-pixbuf-0.22.0/gdk-pixbuf/io-bmp.c	2006-08-24 22:43:43.000000000 +0200
+@@ -129,6 +129,7 @@
+ 	guint depth;
+ 	guint Negative;		/* Negative = 1 -> top down BMP,
+ 				   Negative = 0 -> bottom up BMP */
++	guint  n_colors;
+ };
+ 
+ /* Data needed for the "state" during decompression */
+@@ -153,8 +154,8 @@
+ 	guint Lines;		/* # of finished lines */
+ 
+ 	guchar *buff;
+-	gint BufferSize;
+-	gint BufferDone;
++	guint BufferSize;
++	guint BufferDone;
+ 
+ 	guchar (*Colormap)[3];
+ 
+@@ -245,7 +246,14 @@
+ static gboolean
+ grow_buffer (struct bmp_progressive_state *State)
+ {
+-  guchar *tmp = realloc (State->buff, State->BufferSize);
++  guchar *tmp; 
++
++  if (State->BufferSize == 0) {
++    State->read_state = READ_STATE_ERROR;
++    return FALSE;
++  }
++
++  tmp = realloc (State->buff, State->BufferSize);
+   if (!tmp) {
+     State->read_state = READ_STATE_ERROR;
+     return FALSE;
+@@ -258,6 +266,8 @@
+ DecodeHeader (unsigned char *BFH, unsigned char *BIH,
+ 	      struct bmp_progressive_state *State)
+ {
++ 	gint clrUsed;
++ 
+ 	g_assert (State->read_state == READ_STATE_HEADERS);
+ 
+         /* FIXME this is totally unrobust against bogus image data. */
+@@ -295,6 +305,23 @@
+ 		return FALSE;
+ 	}
+ 
++	clrUsed = (int) (BIH[35] << 24) + (BIH[34] << 16) + (BIH[33] << 8) + (BIH[32]);
++	if (clrUsed != 0)
++		State->Header.n_colors = clrUsed;
++	else
++            State->Header.n_colors = 1 << State->Header.depth;
++	
++	if (State->Header.n_colors > 1 << State->Header.depth) {
++#if 0	  
++		g_set_error (error,
++			     GDK_PIXBUF_ERROR,
++			     GDK_PIXBUF_ERROR_CORRUPT_IMAGE,
++			     _("BMP image has bogus header data"));
++#endif		
++		State->read_state = READ_STATE_ERROR;
++		return FALSE;
++	}
++
+ 	State->Type = State->Header.depth;	/* This may be less trivial someday */
+ 
+ 	/* Negative heights indicates bottom-down pixelorder */
+@@ -422,16 +449,25 @@
+ 		struct bmp_progressive_state *State)
+ {
+ 	gint i;
+-
++ 	gint samples;
++ 
+ 	g_assert (State->read_state == READ_STATE_PALETTE);
+ 
++ 	samples = (State->Header.size == 12 ? 3 : 4);
++ 	if (State->BufferSize < State->Header.n_colors * samples) {
++ 		State->BufferSize = State->Header.n_colors * samples;
++ 		if (!grow_buffer (State))
++ 			return FALSE;
++ 		return TRUE;
++ 	}
++	
+ 	State->Colormap = g_malloc ((1 << State->Header.depth) * sizeof (*State->Colormap));
+ 
+-	for (i = 0; i < (1 << State->Header.depth); i++)
++ 	for (i = 0; i < State->Header.n_colors; i++)
+ 	{
+-		State->Colormap[i][0] = buff[i * (State->Header.size == 12 ? 3 : 4)];
+-		State->Colormap[i][1] = buff[i * (State->Header.size == 12 ? 3 : 4) + 1];
+-		State->Colormap[i][2] = buff[i * (State->Header.size == 12 ? 3 : 4) + 2];
++ 		State->Colormap[i][0] = buff[i * samples];
++ 		State->Colormap[i][1] = buff[i * samples + 1];
++ 		State->Colormap[i][2] = buff[i * samples + 2];
+ 	}
+ 
+ 	State->read_state = READ_STATE_DATA;
+@@ -870,8 +906,18 @@
+ 	guchar c;
+ 	gint idx;
+ 
+-	if (context->compr.y >= context->Header.height)
++	/* context->compr.y might be past the last line because we are
++	 * on padding past the end of a valid data, or we might have hit
++	 * out-of-bounds data. Either way we just eat-and-ignore the
++	 * rest of the file. Doing the check only here and not when
++	 * we change y below is fine since BufferSize is always 2 here
++	 * and the BMP file format always starts new data on 16-bit
++	 * boundaries.
++	 */
++	if (context->compr.y >= context->Header.height) {
++		context->BufferDone = 0;
+ 		return TRUE;
++	}
+ 
+ 	y = context->compr.y;
+ 
+diff -Naur gdk-pixbuf-0.22.0.orig/gdk-pixbuf/io-ico.c gdk-pixbuf-0.22.0/gdk-pixbuf/io-ico.c
+--- gdk-pixbuf-0.22.0.orig/gdk-pixbuf/io-ico.c	2006-08-24 22:42:29.000000000 +0200
++++ gdk-pixbuf-0.22.0/gdk-pixbuf/io-ico.c	2006-08-24 22:43:53.000000000 +0200
+@@ -330,6 +330,9 @@
+ 
+ 	State->HeaderSize+=I;
+ 
++ 	if (State->HeaderSize < 0)
++ 		return FALSE;
++ 
+  	if (State->HeaderSize>State->BytesInHeaderBuf) {
+ 		guchar *tmp=realloc(State->HeaderBuf,State->HeaderSize);
+ 		if (!tmp)
+@@ -360,7 +363,7 @@
+ 	else if (State->Type == 24)
+ 		State->LineWidth = State->Header.width * 3;
+ 	else if (State->Type == 16)
+-		State->LineWidth = State->Header.height * 2;
++		State->LineWidth = State->Header.width * 2;
+ 	else if (State->Type == 8)
+ 		State->LineWidth = State->Header.width * 1;
+ 	else if (State->Type == 4)
+diff -Naur gdk-pixbuf-0.22.0.orig/gdk-pixbuf/io-xpm.c gdk-pixbuf-0.22.0/gdk-pixbuf/io-xpm.c
+--- gdk-pixbuf-0.22.0.orig/gdk-pixbuf/io-xpm.c	2006-08-24 22:42:29.000000000 +0200
++++ gdk-pixbuf-0.22.0/gdk-pixbuf/io-xpm.c	2006-08-24 22:44:14.000000000 +0200
+@@ -243,8 +243,8 @@
+ 			break;
+ 		else {
+ 			if (numnames > 0) {
+-				space -= 1;
+-				strcat (color, " ");
++				strncat (color, " ", space);
++				space -= MIN (space, 1);
+ 			}
+ 
+ 			strncat (color, temp, space);
+@@ -281,7 +281,8 @@
+ 		/* Fall through to the xpm_read_string. */
+ 
+ 	case op_body:
+-		xpm_read_string (h->infile, &h->buffer, &h->buffer_size);
++		if(!xpm_read_string (h->infile, &h->buffer, &h->buffer_size))
++			return NULL;
+ 		return h->buffer;
+ 
+ 	default:
+@@ -317,13 +318,6 @@
+ 	return NULL;
+ }
+ 
+-/* Destroy notification function for the pixbuf */
+-static void
+-free_buffer (guchar *pixels, gpointer data)
+-{
+-	free (pixels);
+-}
+-
+ static gboolean
+ xpm_color_parse (const char *spec, XColor *color)
+ {
+@@ -342,7 +336,8 @@
+ 	gchar pixel_str[32];
+ 	GHashTable *color_hash;
+ 	_XPMColor *colors, *color, *fallbackcolor;
+-	guchar *pixels, *pixtmp;
++	guchar *pixtmp;
++	GdkPixbuf* pixbuf;
+ 
+ 	fallbackcolor = NULL;
+ 
+@@ -352,16 +347,33 @@
+ 		return NULL;
+ 	}
+ 	sscanf (buffer, "%d %d %d %d", &w, &h, &n_col, &cpp);
+-	if (cpp >= 32) {
+-		g_warning ("XPM has more than 31 chars per pixel.");
++	if (cpp <= 0 || cpp >= 32) {
++		g_warning ("XPM has invalid number of chars per pixel.");
+ 		return NULL;
+ 	}
++        if (n_col <= 0 ||
++            n_col >= G_MAXINT / (cpp + 1) ||
++            n_col >= G_MAXINT / sizeof (_XPMColor)) {
++		g_warning ("XPM file has invalid number of colors");
++  		return NULL;
++  	}
+ 
+ 	/* The hash is used for fast lookups of color from chars */
+ 	color_hash = g_hash_table_new (g_str_hash, g_str_equal);
+ 
+-	name_buf = g_new (gchar, n_col * (cpp + 1));
+-	colors = g_new (_XPMColor, n_col);
++ 	name_buf = malloc (n_col * (cpp + 1));
++ 	if (!name_buf) {
++		g_warning ("Cannot allocate memory for loading XPM image");
++ 		g_hash_table_destroy (color_hash);
++ 		return NULL;
++ 	}
++ 	colors = (_XPMColor *) malloc (sizeof (_XPMColor) * n_col);
++ 	if (!colors) {
++		g_warning ("Cannot allocate memory for loading XPM image");
++ 		g_hash_table_destroy (color_hash);
++ 		free (name_buf);
++ 		return NULL;
++ 	}
+ 
+ 	for (cnt = 0; cnt < n_col; cnt++) {
+ 		gchar *color_name;
+@@ -397,20 +409,16 @@
+ 			fallbackcolor = color;
+ 	}
+ 
+-	if (is_trans)
+-		pixels = malloc (w * h * 4);
+-	else
+-		pixels = malloc (w * h * 3);
+-
+-	if (!pixels) {
++	pixbuf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, is_trans, 8, w, h);
++	if (!pixbuf) {
+ 		g_hash_table_destroy (color_hash);
+-		g_free (colors);
+-		g_free (name_buf);
++		free (colors);
++		free (name_buf);
+ 		return NULL;
+ 	}
+ 
+ 	wbytes = w * cpp;
+-	pixtmp = pixels;
++	pixtmp = pixbuf->pixels;
+ 
+ 	for (ycnt = 0; ycnt < h; ycnt++) {
+ 		buffer = (*get_buf) (op_body, handle);
+@@ -440,12 +448,10 @@
+ 	}
+ 
+ 	g_hash_table_destroy (color_hash);
+-	g_free (colors);
+-	g_free (name_buf);
++	free (colors);
++	free (name_buf);
+ 
+-	return gdk_pixbuf_new_from_data (pixels, GDK_COLORSPACE_RGB, is_trans, 8,
+-					 w, h, is_trans ? (w * 4) : (w * 3),
+-					 free_buffer, NULL);
++	return pixbuf;
+ }
+ 
+ /* Shared library entry point for file loading */
+diff -Naur gdk-pixbuf-0.22.0.orig/gdk-pixbuf/pixops/composite_line_22_4a4_mmx.S gdk-pixbuf-0.22.0/gdk-pixbuf/pixops/composite_line_22_4a4_mmx.S
+--- gdk-pixbuf-0.22.0.orig/gdk-pixbuf/pixops/composite_line_22_4a4_mmx.S	2006-08-24 22:42:29.000000000 +0200
++++ gdk-pixbuf-0.22.0/gdk-pixbuf/pixops/composite_line_22_4a4_mmx.S	2006-08-24 22:44:29.000000000 +0200
+@@ -3,6 +3,12 @@
+ gcc2_compiled.:
+ .text
+ 	.align 16
++
++/* Magic indicating no need for an executable stack */
++#if !defined __powerpc64__ && !defined __ia64__
++.section .note.GNU-stack;  .previous
++#endif
++
+ .globl pixops_composite_line_22_4a4_mmx
+ 	.type	 pixops_composite_line_22_4a4_mmx,@function
+ /*
+diff -Naur gdk-pixbuf-0.22.0.orig/gdk-pixbuf/pixops/composite_line_color_22_4a4_mmx.S gdk-pixbuf-0.22.0/gdk-pixbuf/pixops/composite_line_color_22_4a4_mmx.S
+--- gdk-pixbuf-0.22.0.orig/gdk-pixbuf/pixops/composite_line_color_22_4a4_mmx.S	2006-08-24 22:42:29.000000000 +0200
++++ gdk-pixbuf-0.22.0/gdk-pixbuf/pixops/composite_line_color_22_4a4_mmx.S	2006-08-24 22:44:29.000000000 +0200
+@@ -3,6 +3,12 @@
+ gcc2_compiled.:
+ .text
+ 	.align 16
++
++/* Magic indicating no need for an executable stack */
++#if !defined __powerpc64__ && !defined __ia64__
++.section .note.GNU-stack;  .previous
++#endif
++
+ .globl pixops_composite_line_color_22_4a4_mmx
+ 	.type	 pixops_composite_line_color_22_4a4_mmx,@function
+ /*
+diff -Naur gdk-pixbuf-0.22.0.orig/gdk-pixbuf/pixops/have_mmx.S gdk-pixbuf-0.22.0/gdk-pixbuf/pixops/have_mmx.S
+--- gdk-pixbuf-0.22.0.orig/gdk-pixbuf/pixops/have_mmx.S	2006-08-24 22:42:29.000000000 +0200
++++ gdk-pixbuf-0.22.0/gdk-pixbuf/pixops/have_mmx.S	2006-08-24 22:44:29.000000000 +0200
+@@ -3,6 +3,12 @@
+ gcc2_compiled.:
+ .text
+ 	.align 16
++
++/* Magic indicating no need for an executable stack */
++#if !defined __powerpc64__ && !defined __ia64__
++.section .note.GNU-stack;  .previous
++ #endif
++
+ .globl pixops_have_mmx
+ 	.type	 pixops_have_mmx,@function
+ 
+diff -Naur gdk-pixbuf-0.22.0.orig/gdk-pixbuf/pixops/scale_line_22_33_mmx.S gdk-pixbuf-0.22.0/gdk-pixbuf/pixops/scale_line_22_33_mmx.S
+--- gdk-pixbuf-0.22.0.orig/gdk-pixbuf/pixops/scale_line_22_33_mmx.S	2006-08-24 22:42:29.000000000 +0200
++++ gdk-pixbuf-0.22.0/gdk-pixbuf/pixops/scale_line_22_33_mmx.S	2006-08-24 22:44:29.000000000 +0200
+@@ -3,6 +3,12 @@
+ gcc2_compiled.:
+ .text
+ 	.align 16
++
++/* Magic indicating no need for an executable stack */
++#if !defined __powerpc64__ && !defined __ia64__
++.section .note.GNU-stack;  .previous
++#endif
++
+ .globl pixops_scale_line_22_33_mmx
+ 	.type	 pixops_scale_line_22_33_mmx,@function
+ /*
+diff -Naur gdk-pixbuf-0.22.0.orig/gdk-pixbuf.m4 gdk-pixbuf-0.22.0/gdk-pixbuf.m4
+--- gdk-pixbuf-0.22.0.orig/gdk-pixbuf.m4	2006-08-24 22:42:29.000000000 +0200
++++ gdk-pixbuf-0.22.0/gdk-pixbuf.m4	2006-08-24 22:44:19.000000000 +0200
+@@ -9,7 +9,7 @@
+ dnl AM_PATH_GDK_PIXBUF([MINIMUM-VERSION, [ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND]]])
+ dnl Test for GDK_PIXBUF, and define GDK_PIXBUF_CFLAGS and GDK_PIXBUF_LIBS
+ dnl
+-AC_DEFUN(AM_PATH_GDK_PIXBUF,
++AC_DEFUN([AM_PATH_GDK_PIXBUF],
+ [dnl 
+ dnl Get the cflags and libraries from the gdk-pixbuf-config script
+ dnl

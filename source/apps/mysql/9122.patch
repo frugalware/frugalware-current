@@ -1,0 +1,774 @@
+From: kroki at mysql dot com
+Date: July 13 2006 3:12pm
+Subject: bk commit into 5.0 tree (kroki:1.2217) BUG#18630
+
+Below is the list of changes that have just been committed into a local
+5.0 repository of tomash. When tomash does a push these changes will
+be propagated to the main repository and, within 24 hours after the
+push, to the public repository.
+For information on how to access the public repository
+see http://dev.mysql.com/doc/mysql/en/installing-source-tree.html
+
+ChangeSet@stripped, 2006-07-13 17:12:31+04:00, kroki@stripped +8 -0
+  Bug#18630: Arguments of suid routine calculated in wrong security
+             context.
+  
+  Routine arguments were evaluated in the security context of the routine
+  itself, not in the caller's context.
+  
+  The bug is fixed the following way:
+  
+    - Item_func_sp::find_and_check_access() has been split into two
+      functions: Item_func_sp::find_and_check_access() itself only
+      finds the function and check that the caller have EXECUTE privilege
+      on it.  New function set_routine_security_ctx() changes security
+      context for SUID routines and checks that definer have EXECUTE
+      privilege too.
+  
+    - new function sp_head::execute_trigger() is called from
+      Table_triggers_list::process_triggers() instead of
+      sp_head::execute_function(), and is effectively just as the
+      sp_head::execute_function() is, with all non-trigger related code
+      removed, and added trigger-specific security context switch.
+  
+    - call to Item_func_sp::find_and_check_access() stays outside
+      of sp_head::execute_function(), and there is a code in
+      sql_parse.cc before the call to sp_head::execute_procedure() that
+      checks that the caller have EXECUTE privilege, but both
+      sp_head::execute_function() and sp_head::execute_procedure() call
+      set_routine_security_ctx() after evaluating their parameters,
+      and restore the context after the body is executed.
+
+  mysql-test/r/sp-security.result@stripped, 2006-07-13 17:12:27+04:00, kroki@stripped +52 -0
+    Add test case for bug#18630: Arguments of suid routine calculated
+    in wrong security context.
+
+  mysql-test/t/sp-security.test@stripped, 2006-07-13 17:12:27+04:00, kroki@stripped +77 -1
+    Add result for bug#18630: Arguments of suid routine calculated
+    in wrong security context.
+
+  sql/item_func.cc@stripped, 2006-07-13 17:12:27+04:00, kroki@stripped +28 -56
+    Do not change security context before executing the function, as it
+    will be changed after argument evaluation.
+    Do not change security context in Item_func_sp::find_and_check_access().
+
+  sql/item_func.h@stripped, 2006-07-13 17:12:28+04:00, kroki@stripped +1 -2
+    Change prototype for Item_func_sp::find_and_check_access().
+
+  sql/sp_head.cc@stripped, 2006-07-13 17:12:28+04:00, kroki@stripped +186 -4
+    Add set_routine_security_ctx() function.
+    Add sp_head::execute_trigger() method.
+    Change security context in sp_head::execute_trigger(), and in
+    sp_head::execute_function() and sp_head::execute_procedure()
+    after argument evaluation.
+    Move pop_all_cursors() call to sp_head::execute().
+
+  sql/sp_head.h@stripped, 2006-07-13 17:12:28+04:00, kroki@stripped +8 -0
+    Add declaration for sp_head::execute_trigger() and
+    set_routine_security_ctx().
+
+  sql/sql_parse.cc@stripped, 2006-07-13 17:12:28+04:00, kroki@stripped +1 -17
+    Do not change security context before executing the procedure, as it
+    will be changed after argument evaluation.
+
+  sql/sql_trigger.cc@stripped, 2006-07-13 17:12:28+04:00, kroki@stripped +3 -32
+    Call new sp_head::execute_trigger() instead of
+    sp_head::execute_function(), which is responsible to switch
+    security context.
+
+# This is a BitKeeper patch.  What follows are the unified diffs for the
+# set of deltas contained in the patch.  The rest of the patch, the part
+# that BitKeeper cares about, is below these diffs.
+# User:	kroki
+# Host:	moonlight.intranet
+# Root:	/home/tomash/src/mysql_ab/mysql-5.0-bug18630
+
+--- 1.291/sql/item_func.cc	2006-07-13 17:12:39 +04:00
++++ 1.292/sql/item_func.cc	2006-07-13 17:12:39 +04:00
+@@ -4832,7 +4832,9 @@
+ {
+   bool err_status= TRUE;
+   Sub_statement_state statement_state;
+-  Security_context *save_security_ctx= thd->security_ctx, *save_ctx_func;
++#ifndef NO_EMBEDDED_ACCESS_CHECKS
++  Security_context *save_security_ctx= thd->security_ctx;
++#endif
+ 
+   DBUG_ENTER("Item_func_sp::execute_impl");
+ 
+@@ -4843,7 +4845,7 @@
+     thd->security_ctx= context->security_ctx;
+   }
+ #endif
+-  if (find_and_check_access(thd, EXECUTE_ACL, &save_ctx_func))
++  if (find_and_check_access(thd))
+     goto error;
+ 
+   /*
+@@ -4855,13 +4857,11 @@
+   err_status= m_sp->execute_function(thd, args, arg_count, return_value_fld);
+   thd->restore_sub_statement_state(&statement_state);
+ 
+-#ifndef NO_EMBEDDED_ACCESS_CHECKS
+-  sp_restore_security_context(thd, save_ctx_func);
+ error:
++#ifndef NO_EMBEDDED_ACCESS_CHECKS
+   thd->security_ctx= save_security_ctx;
+-#else
+-error:
+ #endif
++
+   DBUG_RETURN(err_status);
+ }
+ 
+@@ -4978,70 +4978,38 @@
+   SYNOPSIS
+     find_and_check_access()
+     thd           thread handler
+-    want_access   requested access
+-    save          backup of security context
+ 
+   RETURN
+     FALSE    Access granted
+     TRUE     Requested access can't be granted or function doesn't exists
+-	     In this case security context is not changed and *save = 0
+ 
+   NOTES
+     Checks if requested access to function can be granted to user.
+     If function isn't found yet, it searches function first.
+     If function can't be found or user don't have requested access
+     error is raised.
+-    If security context sp_ctx is provided and access can be granted then
+-    switch back to previous context isn't performed.
+-    In case of access error or if context is not provided then
+-    find_and_check_access() switches back to previous security context.
+ */
+ 
+ bool
+-Item_func_sp::find_and_check_access(THD *thd, ulong want_access,
+-                                    Security_context **save)
++Item_func_sp::find_and_check_access(THD *thd)
+ {
+-  bool res= TRUE;
+-
+-  *save= 0;                                     // Safety if error
+   if (! m_sp && ! (m_sp= sp_find_routine(thd, TYPE_ENUM_FUNCTION, m_name,
+                                          &thd->sp_func_cache, TRUE)))
+   {
+     my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "FUNCTION", m_name->m_qname.str);
+-    goto error;
++    return TRUE;
+   }
+ 
+ #ifndef NO_EMBEDDED_ACCESS_CHECKS
+-  if (check_routine_access(thd, want_access,
++  if (check_routine_access(thd, EXECUTE_ACL,
+ 			   m_sp->m_db.str, m_sp->m_name.str, 0, FALSE))
+-    goto error;
+-
+-  sp_change_security_context(thd, m_sp, save);
+-  /*
+-    If we changed context to run as another user, we need to check the
+-    access right for the new context again as someone may have deleted
+-    this person the right to use the procedure
+-
+-    TODO:
+-      Cache if the definer has the right to use the object on the first
+-      usage and only reset the cache if someone does a GRANT statement
+-      that 'may' affect this.
+-  */
+-  if (*save &&
+-      check_routine_access(thd, want_access,
+-			   m_sp->m_db.str, m_sp->m_name.str, 0, FALSE))
+-  {
+-    sp_restore_security_context(thd, *save);
+-    *save= 0;                                   // Safety
+-    goto error;
+-  }
++    return TRUE;
+ #endif
+-  res= FALSE;                                   // no error
+ 
+-error:
+-  return res;
++  return FALSE;
+ }
+ 
++
+ bool
+ Item_func_sp::fix_fields(THD *thd, Item **ref)
+ {
+@@ -5052,19 +5020,23 @@
+   {
+     /*
+       Here we check privileges of the stored routine only during view
+-      creation, in order to validate the view. A runtime check is perfomed
+-      in Item_func_sp::execute(), and this method is not called during
+-      context analysis. We do not need to restore the security context
+-      changed in find_and_check_access because all view structures created
+-      in CREATE VIEW are not used for execution.  Notice, that during view
+-      creation we do not infer into stored routine bodies and do not check
+-      privileges of its statements, which would probably be a good idea
+-      especially if the view has SQL SECURITY DEFINER and the used stored
+-      procedure has SQL SECURITY DEFINER
++      creation, in order to validate the view.  A runtime check is
++      perfomed in Item_func_sp::execute(), and this method is not
++      called during context analysis.  Notice, that during view
++      creation we do not infer into stored routine bodies and do not
++      check privileges of its statements, which would probably be a
++      good idea especially if the view has SQL SECURITY DEFINER and
++      the used stored procedure has SQL SECURITY DEFINER.
+     */
+-    Security_context *save_ctx;
+-    if (!(res= find_and_check_access(thd, EXECUTE_ACL, &save_ctx)))
+-      sp_restore_security_context(thd, save_ctx);
++    res= find_and_check_access(thd);
++#ifndef NO_EMBEDDED_ACCESS_CHECKS
++    Security_context *save_secutiry_ctx;
++    if (!res && !(res= set_routine_security_ctx(thd, m_sp, false,
++                                                &save_secutiry_ctx)))
++    {
++      sp_restore_security_context(thd, save_secutiry_ctx);
++    }
++#endif /* ! NO_EMBEDDED_ACCESS_CHECKS */
+   }
+   return res;
+ }
+
+--- 1.140/sql/item_func.h	2006-07-13 17:12:39 +04:00
++++ 1.141/sql/item_func.h	2006-07-13 17:12:39 +04:00
+@@ -1465,8 +1465,7 @@
+     { context= (Name_resolution_context *)cntx; return FALSE; }
+ 
+   void fix_length_and_dec();
+-  bool find_and_check_access(THD * thd, ulong want_access,
+-                             Security_context **backup);
++  bool find_and_check_access(THD * thd);
+   virtual enum Functype functype() const { return FUNC_SP; }
+ 
+   bool fix_fields(THD *thd, Item **ref);
+
+--- 1.556/sql/sql_parse.cc	2006-07-13 17:12:39 +04:00
++++ 1.557/sql/sql_parse.cc	2006-07-13 17:12:39 +04:00
+@@ -4383,9 +4383,6 @@
+       }
+       else
+       {
+-#ifndef NO_EMBEDDED_ACCESS_CHECKS
+-	Security_context *save_ctx;
+-#endif
+ 	ha_rows select_limit;
+         /* bits that should be cleared in thd->server_status */
+ 	uint bits_to_be_cleared= 0;
+@@ -4427,21 +4424,11 @@
+ 
+ #ifndef NO_EMBEDDED_ACCESS_CHECKS
+ 	if (check_routine_access(thd, EXECUTE_ACL,
+-				 sp->m_db.str, sp->m_name.str, TRUE, 0) ||
+-          sp_change_security_context(thd, sp, &save_ctx))
++				 sp->m_db.str, sp->m_name.str, TRUE, FALSE))
+ 	{
+ 	  thd->net.no_send_ok= nsok;
+ 	  goto error;
+ 	}
+-	if (save_ctx &&
+-            check_routine_access(thd, EXECUTE_ACL,
+-                                 sp->m_db.str, sp->m_name.str, TRUE, 0))
+-	{
+-	  thd->net.no_send_ok= nsok;
+-	  sp_restore_security_context(thd, save_ctx);
+-	  goto error;
+-	}
+-
+ #endif
+ 	select_limit= thd->variables.select_limit;
+ 	thd->variables.select_limit= HA_POS_ERROR;
+@@ -4465,9 +4452,6 @@
+ 	  thd->total_warn_count= 0;
+ 
+ 	thd->variables.select_limit= select_limit;
+-#ifndef NO_EMBEDDED_ACCESS_CHECKS
+-	sp_restore_security_context(thd, save_ctx);
+-#endif
+ 
+ 	thd->net.no_send_ok= nsok;
+         thd->server_status&= ~bits_to_be_cleared;
+
+--- 1.52/sql/sql_trigger.cc	2006-07-13 17:12:39 +04:00
++++ 1.53/sql/sql_trigger.cc	2006-07-13 17:12:39 +04:00
+@@ -1495,40 +1495,11 @@
+       old_field= table->field;
+     }
+ 
+-#ifndef NO_EMBEDDED_ACCESS_CHECKS
+-    Security_context *save_ctx;
+-
+-    if (sp_change_security_context(thd, sp_trigger, &save_ctx))
+-      return TRUE;
+-
+-    /*
+-      NOTE: TRIGGER_ACL should be used below.
+-    */
+-
+-    if (check_global_access(thd, SUPER_ACL))
+-    {
+-      sp_restore_security_context(thd, save_ctx);
+-      return TRUE;
+-    }
+-
+-    /*
+-      Fetch information about table-level privileges to GRANT_INFO structure for
+-      subject table. Check of privileges that will use it and information about
+-      column-level privileges will happen in Item_trigger_field::fix_fields().
+-    */
+-
+-    fill_effective_table_privileges(thd,
+-                                    &subject_table_grants[event][time_type],
+-                                    table->s->db, table->s->table_name);
+-#endif // NO_EMBEDDED_ACCESS_CHECKS
+-
+     thd->reset_sub_statement_state(&statement_state, SUB_STMT_TRIGGER);
+-    err_status= sp_trigger->execute_function(thd, 0, 0, 0);
++    err_status= sp_trigger->execute_trigger
++      (thd, table->s->db, table->s->table_name,
++       &subject_table_grants[event][time_type]);
+     thd->restore_sub_statement_state(&statement_state);
+-
+-#ifndef NO_EMBEDDED_ACCESS_CHECKS
+-    sp_restore_security_context(thd, save_ctx);
+-#endif // NO_EMBEDDED_ACCESS_CHECKS
+   }
+ 
+   return err_status;
+
+--- 1.30/mysql-test/r/sp-security.result	2006-07-13 17:12:39 +04:00
++++ 1.31/mysql-test/r/sp-security.result	2006-07-13 17:12:39 +04:00
+@@ -451,3 +451,55 @@
+ Host	User	Password
+ localhost	user19857	*82DC221D557298F6CE9961037DB1C90604792F5C
+ DROP USER user19857@localhost;
++DROP TABLE IF EXISTS t1;
++DROP VIEW IF EXISTS v1;
++DROP FUNCTION IF EXISTS f_suid;
++DROP PROCEDURE IF EXISTS p_suid;
++DROP FUNCTION IF EXISTS f_evil;
++DELETE FROM mysql.user WHERE user LIKE 'mysqltest\_%';
++DELETE FROM mysql.db WHERE user LIKE 'mysqltest\_%';
++DELETE FROM mysql.tables_priv WHERE user LIKE 'mysqltest\_%';
++DELETE FROM mysql.columns_priv WHERE user LIKE 'mysqltest\_%';
++FLUSH PRIVILEGES;
++CREATE TABLE t1 (i INT);
++CREATE FUNCTION f_suid(i INT) RETURNS INT SQL SECURITY DEFINER RETURN 0;
++CREATE PROCEDURE p_suid(IN i INT) SQL SECURITY DEFINER SET @c:= 0;
++CREATE USER mysqltest_u1@localhost;
++GRANT EXECUTE ON test.* TO mysqltest_u1@localhost;
++CREATE DEFINER=mysqltest_u1@localhost FUNCTION f_evil () RETURNS INT
++SQL SECURITY INVOKER
++BEGIN
++SET @a:= CURRENT_USER();
++SET @b:= (SELECT COUNT(*) FROM t1);
++RETURN @b;
++END|
++CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT f_evil();
++SELECT COUNT(*) FROM t1;
++ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table 't1'
++SELECT f_evil();
++ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table 't1'
++SELECT @a, @b;
++@a	@b
++mysqltest_u1@localhost	NULL
++SELECT f_suid(f_evil());
++ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table 't1'
++SELECT @a, @b;
++@a	@b
++mysqltest_u1@localhost	NULL
++CALL p_suid(f_evil());
++ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table 't1'
++SELECT @a, @b;
++@a	@b
++mysqltest_u1@localhost	NULL
++SELECT * FROM v1;
++ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table 'v1'
++SELECT @a, @b;
++@a	@b
++mysqltest_u1@localhost	NULL
++DROP VIEW v1;
++DROP FUNCTION f_evil;
++DROP USER mysqltest_u1@localhost;
++DROP PROCEDURE p_suid;
++DROP FUNCTION f_suid;
++DROP TABLE t1;
++End of 5.0 tests.
+
+--- 1.33/mysql-test/t/sp-security.test	2006-07-13 17:12:39 +04:00
++++ 1.34/mysql-test/t/sp-security.test	2006-07-13 17:12:39 +04:00
+@@ -790,4 +790,80 @@
+ 
+ DROP USER user19857@localhost;
+ 
+-# End of 5.0 bugs.
++--disconnect con1root
++--connection default
++
++
++#
++# BUG#18630: Arguments of suid routine calculated in wrong security
++# context
++#
++# Arguments of suid routines were calculated in definer's security
++# context instead of caller's context thus creating security hole.
++#
++--disable_warnings
++DROP TABLE IF EXISTS t1;
++DROP VIEW IF EXISTS v1;
++DROP FUNCTION IF EXISTS f_suid;
++DROP PROCEDURE IF EXISTS p_suid;
++DROP FUNCTION IF EXISTS f_evil;
++--enable_warnings
++DELETE FROM mysql.user WHERE user LIKE 'mysqltest\_%';
++DELETE FROM mysql.db WHERE user LIKE 'mysqltest\_%';
++DELETE FROM mysql.tables_priv WHERE user LIKE 'mysqltest\_%';
++DELETE FROM mysql.columns_priv WHERE user LIKE 'mysqltest\_%';
++FLUSH PRIVILEGES;
++
++CREATE TABLE t1 (i INT);
++CREATE FUNCTION f_suid(i INT) RETURNS INT SQL SECURITY DEFINER RETURN 0;
++CREATE PROCEDURE p_suid(IN i INT) SQL SECURITY DEFINER SET @c:= 0;
++
++CREATE USER mysqltest_u1@localhost;
++# Thanks to this grant statement privileges of anonymous users on
++# 'test' database are not applicable for mysqltest_u1@localhost.
++GRANT EXECUTE ON test.* TO mysqltest_u1@localhost;
++
++delimiter |;
++CREATE DEFINER=mysqltest_u1@localhost FUNCTION f_evil () RETURNS INT
++  SQL SECURITY INVOKER
++BEGIN
++  SET @a:= CURRENT_USER();
++  SET @b:= (SELECT COUNT(*) FROM t1);
++  RETURN @b;
++END|
++delimiter ;|
++
++CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT f_evil();
++
++connect (conn1, localhost, mysqltest_u1,,);
++
++--error ER_TABLEACCESS_DENIED_ERROR
++SELECT COUNT(*) FROM t1;
++
++--error ER_TABLEACCESS_DENIED_ERROR
++SELECT f_evil();
++SELECT @a, @b;
++
++--error ER_TABLEACCESS_DENIED_ERROR
++SELECT f_suid(f_evil());
++SELECT @a, @b;
++
++--error ER_TABLEACCESS_DENIED_ERROR
++CALL p_suid(f_evil());
++SELECT @a, @b;
++
++--error ER_TABLEACCESS_DENIED_ERROR
++SELECT * FROM v1;
++SELECT @a, @b;
++
++disconnect conn1;
++connection default;
++
++DROP VIEW v1;
++DROP FUNCTION f_evil;
++DROP USER mysqltest_u1@localhost;
++DROP PROCEDURE p_suid;
++DROP FUNCTION f_suid;
++DROP TABLE t1;
++
++--echo End of 5.0 tests.
+
+--- 1.218/sql/sp_head.cc	2006-07-13 17:12:39 +04:00
++++ 1.219/sql/sp_head.cc	2006-07-13 17:12:39 +04:00
+@@ -1097,6 +1097,7 @@
+ 
+   thd->restore_active_arena(&execute_arena, &backup_arena);
+ 
++  thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error
+ 
+   /* Restore all saved */
+   old_packet.swap(thd->packet);
+@@ -1158,6 +1159,161 @@
+                m_first_instance->m_first_free_instance->m_recursion_level ==
+                m_recursion_level + 1));
+   m_first_instance->m_first_free_instance= this;
++
++  DBUG_RETURN(err_status);
++}
++
++
++#ifndef NO_EMBEDDED_ACCESS_CHECKS
++/*
++  set_routine_security_ctx() changes routine security context, and
++  checks if there is an EXECUTE privilege in new context.  If there is
++  no EXECUTE privilege, it changes the context back and returns a
++  error.
++
++  SYNOPSIS
++    set_routine_security_ctx()
++      thd         thread handle
++      sp          stored routine to change the context for
++      is_proc     TRUE is procedure, FALSE if function
++      save_ctx    pointer to an old security context
++   
++  RETURN
++    TRUE if there was a error, and the context wasn't changed.
++    FALSE if the context was changed.
++*/
++
++bool
++set_routine_security_ctx(THD *thd, sp_head *sp, bool is_proc,
++                         Security_context **save_ctx)
++{
++  *save_ctx= 0;
++  if (sp_change_security_context(thd, sp, save_ctx))
++    return TRUE;
++
++  /*
++    If we changed context to run as another user, we need to check the
++    access right for the new context again as someone may have revoked
++    the right to use the procedure from this user.
++
++    TODO:
++      Cache if the definer has the right to use the object on the
++      first usage and only reset the cache if someone does a GRANT
++      statement that 'may' affect this.
++  */
++  if (*save_ctx &&
++      check_routine_access(thd, EXECUTE_ACL,
++                           sp->m_db.str, sp->m_name.str, is_proc, FALSE))
++  {
++    sp_restore_security_context(thd, *save_ctx);
++    *save_ctx= 0;
++    return TRUE;
++  }
++
++  return FALSE;
++}
++#endif // ! NO_EMBEDDED_ACCESS_CHECKS
++
++
++/*
++  Execute a trigger:
++   - changes security context for triggers
++   - switch to new memroot
++   - call sp_head::execute
++   - restore old memroot
++   - restores security context
++
++  SYNOPSIS
++    sp_head::execute_trigger()
++      thd               Thread handle
++      db                database name
++      table             table name
++      grant_info        GRANT_INFO structure to be filled with
++                        information about definer's privileges
++                        on subject table
++   
++  RETURN
++    FALSE  on success
++    TRUE   on error
++*/
++
++bool
++sp_head::execute_trigger(THD *thd, const char *db, const char *table,
++                         GRANT_INFO *grant_info)
++{
++  sp_rcontext *octx = thd->spcont;
++  sp_rcontext *nctx = NULL;
++  bool err_status= FALSE;
++  MEM_ROOT call_mem_root;
++  Query_arena call_arena(&call_mem_root, Query_arena::INITIALIZED_FOR_SP);
++  Query_arena backup_arena;
++
++  DBUG_ENTER("sp_head::execute_trigger");
++  DBUG_PRINT("info", ("trigger %s", m_name.str));
++
++#ifndef NO_EMBEDDED_ACCESS_CHECKS
++  Security_context *save_ctx;
++  if (sp_change_security_context(thd, this, &save_ctx))
++    DBUG_RETURN(TRUE);
++
++  /*
++    NOTE: TRIGGER_ACL should be used here.
++  */
++  if (check_global_access(thd, SUPER_ACL))
++  {
++    sp_restore_security_context(thd, save_ctx);
++    DBUG_RETURN(TRUE);
++  }
++
++  /*
++    Fetch information about table-level privileges to GRANT_INFO
++    structure for subject table. Check of privileges that will use it
++    and information about column-level privileges will happen in
++    Item_trigger_field::fix_fields().
++  */
++  fill_effective_table_privileges(thd, grant_info, db, table);
++#endif // NO_EMBEDDED_ACCESS_CHECKS
++
++  /*
++    Prepare arena and memroot for objects which lifetime is whole
++    duration of trigger call (sp_rcontext, it's tables and items,
++    sp_cursor and Item_cache holders for case expressions).  We can't
++    use caller's arena/memroot for those objects because in this case
++    some fixed amount of memory will be consumed for each trigger
++    invocation and so statements which involve lot of them will hog
++    memory.
++
++    TODO: we should create sp_rcontext once per command and reuse it
++    on subsequent executions of a trigger.
++  */
++  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0);
++  thd->set_n_backup_active_arena(&call_arena, &backup_arena);
++
++  if (!(nctx= new sp_rcontext(m_pcont, 0, octx)) ||
++      nctx->init(thd))
++  {
++    err_status= TRUE;
++    goto err_with_cleanup;
++  }
++
++#ifndef DBUG_OFF
++  nctx->sp= this;
++#endif
++
++  thd->spcont= nctx;
++
++  err_status= execute(thd);
++
++err_with_cleanup:
++  thd->restore_active_arena(&call_arena, &backup_arena);
++#ifndef NO_EMBEDDED_ACCESS_CHECKS
++  sp_restore_security_context(thd, save_ctx);
++#endif // NO_EMBEDDED_ACCESS_CHECKS
++  delete nctx;
++  call_arena.free_items();
++  free_root(&call_mem_root, MYF(0));
++  thd->spcont= octx;
++
+   DBUG_RETURN(err_status);
+ }
+ 
+@@ -1165,8 +1321,12 @@
+ /*
+   Execute a function:
+    - evaluate parameters
++   - changes security context for SUID routines
++   - switch to new memroot
+    - call sp_head::execute
++   - restore old memroot
+    - evaluate the return value
++   - restores security context
+ 
+   SYNOPSIS
+     sp_head::execute_function()
+@@ -1293,6 +1453,15 @@
+   }
+   thd->spcont= nctx;
+ 
++#ifndef NO_EMBEDDED_ACCESS_CHECKS
++  Security_context *save_security_ctx;
++  if (set_routine_security_ctx(thd, this, FALSE, &save_security_ctx))
++  {
++    err_status= TRUE;
++    goto err_with_cleanup;
++  }
++#endif
++
+   binlog_save_options= thd->options;
+   if (need_binlog_call)
+   {
+@@ -1333,7 +1502,7 @@
+     reset_dynamic(&thd->user_var_events);
+   }
+ 
+-  if (m_type == TYPE_ENUM_FUNCTION && !err_status)
++  if (!err_status)
+   {
+     /* We need result only in function but not in trigger */
+ 
+@@ -1344,8 +1513,9 @@
+     }
+   }
+ 
+-
+-  nctx->pop_all_cursors();	// To avoid memory leaks after an error
++#ifndef NO_EMBEDDED_ACCESS_CHECKS
++  sp_restore_security_context(thd, save_security_ctx);
++#endif
+ 
+ err_with_cleanup:
+   delete nctx;
+@@ -1368,8 +1538,10 @@
+ 
+   The function does the following steps:
+    - Set all parameters 
++   - changes security context for SUID routines
+    - call sp_head::execute
+    - copy back values of INOUT and OUT parameters
++   - restores security context
+ 
+   RETURN
+     FALSE  on success
+@@ -1490,6 +1662,12 @@
+ 
+   thd->spcont= nctx;
+ 
++#ifndef NO_EMBEDDED_ACCESS_CHECKS
++  Security_context *save_security_ctx= 0;
++  if (!err_status)
++    err_status= set_routine_security_ctx(thd, this, TRUE, &save_security_ctx);
++#endif
++
+   if (!err_status)
+     err_status= execute(thd);
+ 
+@@ -1534,10 +1712,14 @@
+     }
+   }
+ 
++#ifndef NO_EMBEDDED_ACCESS_CHECKS
++  if (save_security_ctx)
++    sp_restore_security_context(thd, save_security_ctx);
++#endif
++
+   if (!save_spcont)
+     delete octx;
+ 
+-  nctx->pop_all_cursors();	// To avoid memory leaks after an error
+   delete nctx;
+   thd->spcont= save_spcont;
+ 
+
+--- 1.85/sql/sp_head.h	2006-07-13 17:12:39 +04:00
++++ 1.86/sql/sp_head.h	2006-07-13 17:12:39 +04:00
+@@ -207,6 +207,10 @@
+   destroy();
+ 
+   bool
++  execute_trigger(THD *thd, const char *db, const char *table,
++                  GRANT_INFO *grant_onfo);
++
++  bool
+   execute_function(THD *thd, Item **args, uint argcount, Field *return_fld);
+ 
+   bool
+@@ -1149,6 +1153,10 @@
+                            Security_context **backup);
+ void
+ sp_restore_security_context(THD *thd, Security_context *backup);
++
++bool
++set_routine_security_ctx(THD *thd, sp_head *sp, bool is_proc,
++                         Security_context **save_ctx);
+ #endif /* NO_EMBEDDED_ACCESS_CHECKS */
+ 
+ TABLE_LIST *

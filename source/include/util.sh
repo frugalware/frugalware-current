@@ -471,6 +471,15 @@ Fmakeinstall() {
 		find $Fdestdir/usr/lib/perl5/site_perl -name perllocal.pod -exec rm {} \;
 		find $Fdestdir/usr/lib/perl5/site_perl -name .packlist -exec rm {} \;
 	fi
+
+	# rc script
+	if [ -z "$_F_rcd_name" ]; then
+		_F_rcd_name=$pkgname
+	fi
+	if [ -e $Fsrcdir/rc.$_F_rcd_name ] && \
+		grep -q "source /lib/initscripts/functions" $Fsrcdir/rc.$_F_rcd_name; then
+		Frcd2 $_F_rcd_name
+	fi
 }
 
 ### A default build(): Fpatchall, Fmake, Fmakeinstall

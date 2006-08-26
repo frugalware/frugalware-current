@@ -12,6 +12,7 @@
 # _F_gnome_desktop - set to "y" if your package provides a .desktop file
 # _F_gnome_scrollkeeper - set to "y" if you want to run scrollkeeper
 # _F_gnome_mime - set to "y" if your package provides a mime type
+# _F_gnome_iconcache - set to "y" if your package provides an icon in /usr/share/icons/hicolor
 # _F_gnome_name - name of the generated install script
 #                 (defaults to src/gnome-scriptlet.install)
 
@@ -72,6 +73,7 @@ Fbuild_gnome_scriptlet()
 	Fsed '$_F_gnome_desktop' "$_F_gnome_desktop" ${Fsrcdir%/src}/$_F_gnome_name
 	Fsed '$_F_gnome_scrollkeeper' "$_F_gnome_scrollkeeper" ${Fsrcdir%/src}/$_F_gnome_name
 	Fsed '$_F_gnome_mime' "$_F_gnome_mime" ${Fsrcdir%/src}/$_F_gnome_name
+	Fsed '$_F_gnome_iconcache' "$_F_gnome_iconcache" ${Fsrcdir%/src}/$_F_gnome_name
 }
 
 build()

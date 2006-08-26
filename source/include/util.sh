@@ -642,10 +642,16 @@ Funpack_makeself() {
 ### Our autogen.sh. Runs aclocal, autoheader, autoconf and finally automake.
  ##
 Fautoconfize() {
+	Fmessage "Running aclocal autoheader autoconf automake  ..."
 	aclocal || Fdie
 	autoheader || Fdie
 	autoconf || Fdie
 	automake -a -c -f || Fdie
+}
+
+Fautoreconf() {
+	Fmessage "Running autoreconf -vifs ..."
+	autoreconf -vifs || Fdie
 }
 
 ### Include a scheme. They are in $fst_root/source/include/, and they have a \

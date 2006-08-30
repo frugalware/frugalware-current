@@ -1,5 +1,5 @@
-# Last modified: Fri, 19 May 2006 18:23:31 +0200
-# Compiling time: 9.79 SBU
+# Last modified: Mon, 28 Aug 2006 21:12:35 +0200
+# Compiling time: 19.65 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=glibc
@@ -24,17 +24,25 @@ sha1sums=('35c636e4b474cda0f06e361d5e9caec092fd73d3' \
 		'15a3e65724f5fcedc39e80a3b3f4d068676117c8' \
 		'16bb138bfab5baaf195a767f0d1ee502387ae00d')
 
-build()
+if [ "$CARCH" != "ppc" ]; then
+	subpkgs=('glibc-xen')
+	subdescs=('GNU C Library for Xen.')
+	subdepends=()
+	subconflicts=('glibc')
+	subprovides=('glibc')
+	subgroups=('base-extra')
+	subarchs=('i686 x86_64')
+fi
+
+_build()
 {
-	# no multilib thanks
-	Fsed 'x86_64 \| ' '' sysdeps/unix/sysv/linux/configure{,.in}
-	Fpatchall
 	Ffilerel nscd/nscd.conf /etc/nscd.conf
 
+	rm -rf ../glibc-build
 	mkdir ../glibc-build
 	cd ../glibc-build
 	../glibc-$pkgver/configure --prefix=/usr --with-tls --with-__thread \
-	    --enable-add-ons=nptl --enable-kernel=2.6.12 --enable-bind-now --without-cvs
+	    --enable-add-ons=nptl --enable-kernel=2.6.16 --enable-bind-now --without-cvs
 
 	make || return 1
 
@@ -43,6 +51,22 @@ build()
 	Frm /etc/ld.so.cache /etc/localtime
 
 	Frm /usr/info/dir
+	cd - >/dev/null
+}
+
+build()
+{
+	# no multilib thanks
+	Fsed 'x86_64 \| ' '' sysdeps/unix/sysv/linux/configure{,.in}
+	Fpatchall
+	if [ "$CARCH" != "ppc" ]; then
+		xenflag="-mno-tls-direct-seg-refs"
+		export CFLAGS="$CFLAGS $xenflag"
+		_build || return 1
+		Fsplit glibc-xen /etc /lib /sbin /usr
+		export CFLAGS="${CFLAGS/ $xenflag}"
+	fi
+	_build || return 1
 }
 
 # optimization ok

@@ -6,11 +6,21 @@
 
 # build function for packages with this weird mono foo
 
-build() {
+Fmonoexport() {
 	export MONO_SHARED_DIR=$Fdestdir/weird
 	mkdir -p $MONO_SHARED_DIR
-	
-	Fbuild
-	
+}
+
+Fmonocleanup() {
 	rm -rf $MONO_SHARED_DIR
+}
+
+Fbuild_mono() {
+	Fmonoexport
+	Fbuild
+	Fmonocleanup
+}
+
+build() {
+	Fbuild_mono
 }

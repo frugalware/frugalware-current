@@ -43,4 +43,4 @@ makedepends=(${makedepends[@]} 'perl-libwww')
 groups=('devel-extra')
 archs=('i686')
 
-unset _F_perl_ext _F_perl_url _F_perl_sourcename
+unset _F_perl_ext _F_perl_url

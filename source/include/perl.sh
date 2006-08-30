@@ -30,7 +30,7 @@ source=($_F_perl_url$modauthor/$_F_perl_sourcename-$pkgver$_F_perl_ext)
 
 build()
 {
-	Fcd $modname-$pkgver
+	Fcd $_F_perl_sourcename-$pkgver
 	Fbuild
 	Frm /usr/lib/perl5/current
 }
@@ -43,4 +43,4 @@ makedepends=(${makedepends[@]} 'perl-libwww')
 groups=('devel-extra')
 archs=('i686')
 
-unset _F_perl_ext _F_perl_url
+unset _F_perl_ext _F_perl_url _F_perl_sourcename

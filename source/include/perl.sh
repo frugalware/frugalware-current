@@ -20,11 +20,13 @@
 
 [ -z "$_F_perl_ext" ] && _F_perl_ext=".tar.gz"
 
+[ -z "$_F_perl_sourcename" ] && _F_perl_sourcename="$modname"
+
 [ -z "$_F_perl_url" ] && _F_perl_url="ftp://cpan.org/authors/id/"
 
 url="http://cpan.org/"
 up2date="lynx -dump -nolist 'http://search.cpan.org/search?query="$modname"&mode=module'|grep -m1 "$modname-"|sed -e 's/.*"$modname"-\(.*\) .*/\1/' -e 's/ .*//'"
-source=($_F_perl_url$modauthor/$modname-$pkgver$_F_perl_ext)
+source=($_F_perl_url$modauthor/$_F_perl_sourcename-$pkgver$_F_perl_ext)
 
 build()
 {

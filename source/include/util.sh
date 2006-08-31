@@ -434,6 +434,21 @@ Fmake() {
 	fi
 }
 
+### A wrapper to nant
+ # @param build file to use
+ # @param switch(es) to pass to nant
+ ##
+Fnant() {
+	Fmessage "Compiling with NAnt..."
+	if [ ! -f "$1" ]; then
+		nant $@ -D:debug=false -D:install.prefix=/usr -D:install.destdir=$Fdestdir || Fdie
+	else
+		buildfile=$1
+		shift
+		nant -buildfile:${buildfile} $@ -D:debug=false -D:install.prefix=/usr || Fdie
+	fi
+}
+
 ### A wrapper to make install: calls make DESTDIR=$Fdestir or \
  #  prefix=$Fdestdir/usr install (which is necessary). \
  #  Also handles python's setup.py. \

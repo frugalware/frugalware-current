@@ -665,8 +665,8 @@ Fautoconfize() {
 }
 
 Fautoreconf() {
-	Fmessage "Running autoreconf -vifs ..."
-	autoreconf -vifs || Fdie
+	Fmessage "Running autoreconf -vif ..."
+	autoreconf -vif || Fdie
 }
 
 ### Include a scheme. They are in $fst_root/source/include/, and they have a \

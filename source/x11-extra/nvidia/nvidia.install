@@ -1,40 +1,30 @@
-post_install()
-{
-	jarch=`arch`
-	echo "$jarch" | grep -q 'i.86' && jarch='x86'
-	nvver=`echo $1|sed 's/-[0-9]*$//;s/_/-/'`
-	pkgnum=0
-	
-	if [ -e /tmp/.X0-lock ]; then
-		echo "*** You appear to be running an X server. Stop that (run 'init 3') and"
-		echo "*** re-intall this package."
-		return 1
+pre_install() {
+	if [ -e /usr/lib/xorg/modules/extensions/libglx.so ]; then
+		echo "*** Saving our libglx.so libraries from nvidia-installer! ***"
+		echo "*** Moving libglx.so from /usr/lib/xorg/modules/extensions to /usr/lib/xorg/tmp/"
+		mv /usr/lib/xorg/modules/extensions/libglx.so /usr/lib/xorg/temp/
 	fi
+}
+post_install() {
 	echo "*** In order to use this package you have to accept Nvidia's license which"
-	echo "*** can be found at /usr/share/doc/NVIDIA_GLX-1.0/LICENSE."
+	echo "*** can be found at /usr/share/doc/nvidia/LICENSE."
 	echo "*** If you don't accept it, please remove the package!"
-	cd /tmp/.nvidia
-	/tmp/.nvidia/NVIDIA-Linux-$jarch-$nvver-pkg$pkgnum.run -x 
-	cd NVIDIA-Linux-$jarch-$nvver-pkg$pkgnum
 
 	if [ -e /usr/lib/mesa-cvs/lib/libGL.so.1.2 ]; then
-		echo "*** mesa-cvs detected, saving our libraries from nvidia-installer! :) ***"
+		echo "*** mesa-cvs detected, saving our libraries from nvidia-installer! ***"
 		echo "*** Moving libGL.so* from /usr/lib/mesa-cvs/ to /tmp/mesa-cvs/"
 		mkdir /tmp/mesa-cvs/
 		mv /usr/lib/mesa-cvs/lib/libGL* /tmp/mesa-cvs/
 	fi
-
-	./nvidia-installer -a -q --no-network --ui=none -n --x-module-path=/usr/lib/xorg/modules >/dev/null
-	modprobe nvidia
-	rm -rf /tmp/.nvidia
-	ln -sf libGL.so.1 /usr/lib/libGL.so
 	sed -i 's/^Load  "dri"/# Load  "dri"/' /etc/X11/xorg.conf
-	sed -i 's/\(^Driver *\)"nv"/\1"nvidia"/' /etc/X11/xorg.conf
+	sed -i 's/Driver.*"\(nv\|vesa\|vga\)"/Driver "nvidia"/' /etc/X11/xorg.conf
 	exist=`cat /etc/sysconfig/modules | grep nvidia | wc -l`
 	if [ "$exist" -eq 0 ]; then
 		echo nvidia >> /etc/sysconfig/modules
 	fi
-
+        if test `lsmod | grep ^nvidia | wc -l` -eq 0; then
+                modprobe nvidia
+        fi
 	if [ -e /tmp/mesa-cvs/libGL.so.1.2 ]; then
 		echo "*** Moving libGL.so* back to its original location (mesa-cvs)"
 		mv /tmp/mesa-cvs/libGL* /usr/lib/mesa-cvs/lib/
@@ -43,8 +33,7 @@ post_install()
 
 }
 
-post_upgrade()
-{
+post_upgrade() {
 	post_install $1
 }
 
@@ -52,12 +41,11 @@ pre_remove() {
 	rmmod nvidia
 
 	if [ -e /usr/lib/mesa-cvs/lib/libGL.so.1.2 ]; then
-		echo "*** mesa-cvs detected, saving our libraries from nvidia-installer! :) ***"
+		echo "*** mesa-cvs detected, saving our libraries from nvidia-installer! ***"
 		echo "*** Moving libGL.so* from /usr/lib/mesa-cvs/ to /tmp/mesa-cvs/"
 		mkdir /tmp/mesa-cvs/
 		mv /usr/lib/mesa-cvs/lib/libGL* /tmp/mesa-cvs/
 	fi
-	nvidia-installer -a -q --no-network --ui=none --uninstall >/dev/null
 	sed -i 's/^# Load  "dri"/Load  "dri"/' /etc/X11/xorg.conf
 	sed -i 's/\(^Driver *\)"nvidia"/\1"nv"/' /etc/X11/xorg.conf
 	exist=`cat /etc/sysconfig/modules | grep nvidia | wc -l`
@@ -65,7 +53,9 @@ pre_remove() {
 		grep -v '^nvidia' /etc/sysconfig/modules > /etc/sysconfig/modules.tmp
 		mv /etc/sysconfig/modules.tmp /etc/sysconfig/modules
 	fi
-
+        if [ -e /usr/lib/xorg/temp/libglx.so ]; then
+                mv /usr/lib/xorg/temp/libglx.so /usr/lib/xorg/modules/extensions/
+        fi
 	if [ -e /tmp/mesa-cvs/libGL.so.1.2 ]; then
 		echo "*** Moving libGL.so* back to its original location (mesa-cvs)"
 		mv /tmp/mesa-cvs/libGL* /usr/lib/mesa-cvs/lib/
@@ -75,7 +65,4 @@ pre_remove() {
 
 op=$1
 shift
-
 $op $*
-
-# vim: ft=sh

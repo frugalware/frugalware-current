@@ -15,6 +15,7 @@
 # _F_kernel_verbose (if length of it isn't zero, then use make with V=1)
 # _F_kernel_name (defaults to "", example: "-grsec")
 # _F_kernel_ver (defaults to $pkgver)
+# _F_kernel_rel (defaults to $pkgrel)
 # _F_kernel_stable (defaults to 0, example: "16")
 # _F_kernel_rc (defaults to 0, example: "6")
 # _F_kernel_mm (defaults to 0, example: "2")
@@ -23,6 +24,10 @@
 
 if [ -z "$_F_kernel_ver" ]; then
 	_F_kernel_ver=$pkgver
+fi
+
+if [ -z "$_F_kernel_rel" ]; then
+	_F_kernel_rel=$pkgrel
 fi
 
 if [ -z "$_F_kernel_stable" ]; then
@@ -152,19 +157,19 @@ Fbuildkernel()
 	rm -f localversion-*
 	yes "" | make config
 	Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
-	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_name-fw$pkgrel" Makefile
+	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_name-fw$_F_kernel_rel" Makefile
 	
 	## let we do kernel$_F_kernel_name-source before make
 	Fmkdir /usr/src
-	cp -Ra $Fsrcdir/linux-$_F_kernel_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
-	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS}
-	Fln linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel /usr/src/linux
+	cp -Ra $Fsrcdir/linux-$_F_kernel_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
+	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS}
+	Fln linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel /usr/src/linux
 	Fsplit kernel$_F_kernel_name-source usr/src
 
 	## now the kernel$_F_kernel_name-docs
-	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
 	cp -Ra $Fsrcdir/linux-$_F_kernel_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
-	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
         ## do we need to ln /usr/share/doc ?!
 	Fsplit kernel$_F_kernel_name-docs usr/src
 
@@ -186,31 +191,35 @@ Fbuildkernel()
 	fi
 	
 	Fmkdir /boot
-	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
 	if [ ! -z "$_F_kernel_vmlinuz" ]; then
-		Ffilerel $_F_kernel_vmlinuz /boot/vmlinuz-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+		Ffilerel $_F_kernel_vmlinuz /boot/vmlinuz-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
 	else
 		Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage \
-			/boot/vmlinuz-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
+			/boot/vmlinuz-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
 	fi
 	Fmkdir /lib/modules
 	make INSTALL_MOD_PATH=$Fdestdir modules_install
 	# dump symol versions so that later builds will have dependencies and
 	# modversions
-	Ffilerel System.map /boot/System.map-$_F_kernel_ver$_F_kernel_name-fw$pkgrel
-	Ffilerel /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel/Module.symvers
-	Frm /lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/build
-	Frm /lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/source
-	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel \
-		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/build
-	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$pkgrel \
-		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$pkgrel/source
+	Ffilerel System.map /boot/System.map-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
+	Ffilerel /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/Module.symvers
+	Frm /lib/modules/$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/build
+	Frm /lib/modules/$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/source
+	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel \
+		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/build
+	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel \
+		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/source
 
 	# scriptlets
 	cp $Fincdir/kernel.install $Fsrcdir
 	Fsed '$_F_kernel_name' "$_F_kernel_name" $Fsrcdir/kernel.install
+	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel.install
+	Fsed '$_F_kernel_rel' "$_F_kernel_rel" $Fsrcdir/kernel.install
 	cp $Fincdir/kernel-source.install $Fsrcdir
 	Fsed '$_F_kernel_name' "$_F_kernel_name" $Fsrcdir/kernel-source.install
+	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel-source.install
+	Fsed '$_F_kernel_rel' "$_F_kernel_rel" $Fsrcdir/kernel-source.install
 }
 
 build()

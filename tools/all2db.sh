@@ -14,6 +14,7 @@ do
 	unset pkgname pkgver pkgrel archs subpkgs groups
 	for j in `set|grep ^_F_|sed 's/=.*//'`; do unset $j; done
 	. FrugalBuild || echo "errors parsing the FrugalBuild"
+	[ -z "$pkgname" -o "$nobuild" -o "`check_option NOBUILD`" ] && continue
 	for j in ${archs[@]}
 	do
 		echo ${sqlarchs[@]} |grep -q $j || continue

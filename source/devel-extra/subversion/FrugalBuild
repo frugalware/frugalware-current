@@ -1,77 +1,86 @@
-# Last Modified: Mon, 26 Jun 2006 16:05:22 +0200
-# Compiling Time: 3.50 SBU
-# Maintainer: crazy <crazy@frugalware.org>
-# Contributor: VMiklos <vmiklos@frugalware.org>
+# Last Modified: Wed, 13 Sep 2006 18:54:01 +0200
+# Compiling Time: 1.20 SBU
+# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=subversion
-pkgver=1.3.2
-pkgrel=2
+pkgver=1.4.0
+pkgrel=1
 pkgdesc="A version control system that is a compelling replacement for CVS."
 url="http://subversion.tigris.org/"
-depends=('postgresql' 'sqlite2' 'sqlite3' 'neon' 'apr-util')
-backup=(etc/httpd/conf/modules.d/mod_dav_svn.conf)
-makedepends=('apache' 'j2sdk' 'ruby>=1.8.4' 'swig=1.3.28')
+depends=('neon' 'apr-util' 'apr')
+makedepends=('apache' 'swig' 'ruby')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://subversion.tigris.org/project_packages.html|grep -m1 'The best available'|sed 's/.*]//'|tr -d [:blank:]"
 source=(http://$pkgname.tigris.org/downloads/$pkgname-$pkgver.tar.bz2 rc.svnserve \
 	mod_dav_svn.conf)
-sha1sums=('688ab178db1f6acb2ad3bd99f030402621f837b6' \
-          '97c1e3055ad1e25e96d21a38e9525ce2a8c45c10' \
-          'b4012364a9fbd9e8c490a4819780c31c67940428')
-build()
-{
-	## baa I should split this whole stuff :S
-	Fconf --with-{apr-util=/usr,apr=/usr,berkeley-db,zlib,neon=/usr,swig} \
-	      --disable-experimental-libtool
-	     ### --disable-neon-version-check ## enable this only on problems with neon
-	(make external-all && make LT_LDFLAGS="-L$Fdestdir/usr/lib" local-all)  || return 1
-	unset MAKEFLAGS
-	Fmakeinstall
-	## python
-	make swig-py || return 1
-	## perl
-	## bug 64634
+sha1sums=('92671bba140e9b9e300b5ffb526c4a7c59aeb5b1' \
+	  '97c1e3055ad1e25e96d21a38e9525ce2a8c45c10' \
+	  'b4012364a9fbd9e8c490a4819780c31c67940428')
+
+subpkgs=('mod_svn' 'subversion-svnserve' 'subversion-bindings')
+subdescs=('SVN module for apache 2.X webservers to use SVN server via apache' \
+		 'Standalone SVN server daemon' \
+		 'Python,Ruby,Perl bindings for subversion')
+subdepends=('apache subversion' 'subversion' 'subversion perl python ruby swig')
+subgroups=('devel-extra' 'devel-extra' 'devel-extra')
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
+subbackup=('etc/httpd/conf/modules.d/mod_dav_svn.conf' '' '')
+
+build() {
+	Fbuild --disable-experimental-libtool --disable-debug \
+		--disable-mod-activation --enable-dso --with-neon=/usr \
+		--with-ssl --with-swig=/usr
+	make swig-py || Fdie
+	## bug 64634 Still need this ?!
 	mkdir -p subversion/bindings/swig/perl/native/blib/arch/auto/SVN/{_Client,_Delta,_Fs,_Ra,_Repos,_Wc}
-	make swig-pl || return 1
-	## ruby
-	make swig-rb || return 1
-	## java
-	mkdir -p subversion/bindings/java/javahl/classes
-	make JAVACFLAGS="-source 1.3 -encoding iso8859-1" javahl || return 1
-	## fix svn-config
-	Fsed "@SVN_DB_[^@]*@" "" svn-config
-	Fsed "SVN_SOURCE_DIR=.*" "" svn-config
-	Fsed "SVN_BUILD_DIR=.*" "" svn-config
-	## install python
-	make install-swig-py DESTDIR=$Fdestdir  DISTUTIL_PARAM=--prefix=$Fdestdir  LD_LIBRARY_PATH="-L$Fdestdir/usr/lib" || return 1
+	make swig-pl || Fdie
+	make swig-rb || Fdie
+
+	# PYTHON bindings install
+	make install-swig-py DESTDIR=$Fdestdir \
+		DISTUTIL_PARAM==--prefix=$Fdestdir \
+		LD_LIBRARY_PATH="-L$Fdestdir/usr/lib" || Fdie
 	Fmkdir /usr/lib/python2.4/site-packages
 	Fmv usr/lib/svn-python/libsvn usr/lib/python2.4/site-packages/
 	Fmv usr/lib/svn-python/svn usr/lib/python2.4/site-packages/
 	Frm usr/lib/svn-python
-	## install perl
-	make DESTDIR=$Fdestdir install-swig-pl || return 1
+
+	# PERL bindings install
+	make DESTDIR=$Fdestdir install-swig-pl || Fdie
 	Frm /usr/lib/perl5/`perl -e 'printf "%vd", $^V'`
 	Fmv /usr/lib/perl5/site_perl/`perl -e 'printf "%vd", $^V'` /usr/lib/perl5/site_perl/current
-	## install ruby
-	make DESTDIR=$Fdestdir install-swig-rb || return 1
-	## install java
-	make DESTDIR=$Fdestdir install-javahl || return 1
-	Fexerel /usr/bin/svn-config
-	## done huch ? :) guess no :)
-	# hook scripts
-	Fmkdir /usr/share/subversion
-	cp -r tools/hook-scripts $Fdestdir/usr/share/subversion
-	Frm /usr/share/subversion/hook-scripts/*.in
-	## well mabye someone want use it ? :)
-	Ffilerel tools/client-side/bash_completion etc/bash_completion.d/subversion
-	## some devel stuff
-	cp -r tools/dev $Fdestdir/usr/share/subversion
-	cp -r tools/backup/* $Fdestdir/usr/share/subversion/dev
-	Fmkdir /usr/share/doc/$pkgname-$pkgver
-	cp -r doc $Fdestdir/usr/share/doc/$pkgname-$pkgver
+
+	# RUBY bindings install
+	make DESTDIR=$Fdestdir install-swig-rb || Fdie
 	Frcd svnserve
 	Ffile /etc/httpd/conf/modules.d/mod_dav_svn.conf
+
+	# Install some example scripts and some tools
+	Fmkdir /usr/share/subversion
+	cp -r tools/hook-scripts $Fdestdir/usr/share/subversion || Fdie
+	cp -r tools/dev $Fdestdir/usr/share/subversion || Fdie
+	cp -r tools/backup/* $Fdestdir/usr/share/subversion/dev || Fdie
+	Frm /usr/share/subversion/*.in
+	Frm /usr/share/subversion/hook-scripts/*.in
+	# For bash-completion
+	Ffilerel tools/client-side/bash_completion etc/bash_completion.d/subversion
+	Fmkdir /usr/share/doc/$pkgname-$pkgver
+	cp -r doc $Fdestdir/usr/share/doc/$pkgname-$pkgver || Fdie
+	# Split SVN svnserve daemon and releated files
+	Fsplit subversion-svnserve /etc/rc.d
+	Fsplit subversion-svnserve /usr/bin/svnserve
+	Fsplit subversion-svnserve /usr/man/man8/svnserve*
+	Fsplit subversion-svnserve /usr/man/man5/svnserve*
+	# Split SVN apache libs and confs
+	Fsplit mod_svn /etc/httpd
+	Fsplit mod_svn /usr/lib/apache/
+	# Split SVN bindings / bindings libs and mans
+	Fsplit subversion-bindings /usr/lib/perl5/
+	Fsplit subversion-bindings /usr/lib/python2.4/
+	Fsplit subversion-bindings /usr/lib/ruby/
+	Fsplit subversion-bindings /usr/lib/libsvn_swig*
+	Fsplit subversion-bindings /usr/man/man3/SVN*
 }
 
 # optimization OK

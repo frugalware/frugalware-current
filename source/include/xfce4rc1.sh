@@ -16,7 +16,7 @@ else
 fi
 
 if [ -z $_F_xfce_goodies_ext ] ; then
-	_F_xfce_goodies_ext=".tar.gz"
+	_F_xfce_goodies_ext=".tar.bz2"
 fi
 
 if [ -z $_F_xfce_goodies_dir ] ; then

@@ -15,14 +15,23 @@ else
 	name=$realname
 fi
 
+if [ -z $_F_xfce_goodies_ext ] ; then
+	_F_xfce_goodies_ext=".tar.gz"
+fi
+
+if [ -z $_F_xfce_goodies_dir ] ; then
+	_F_xfce_goodies_dir=$name
+fi
+
 if echo ${groups[*]} | grep -q goodies ; then
-	dlurl="http://download.berlios.de/xfce-goodies/"
-	up2date="lynx -dump http://developer.berlios.de/project/showfiles.php?group_id=910|grep \"$name-.*tar.\(gz\|bz2\)$\"|sed 's/.*-\(.*\)\.t.*/\1/;q'"
+	url="http://goodies.xfce.org/projects/panel-plugins/${name}"
+	dlurl="http://goodies.xfce.org/releases/$_F_xfce_goodies_dir/"
+	up2date="lynx -dump $dlurl | grep "$name-.*${_F_xfce_goodies_ext}$" | sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'"
+	source=($dlurl/${pkgname}-${pkgver}${_F_xfce_goodies_ext})
 else
 	preup2date=`lynx -dump http://www.xfce.org/archive | grep 'xfce-' | sed -n 's/.*-\(.*\)\.t.*/\1/;$ p' | sed 's/[0-9][0-9]\. http:\/\/www\.xfce\.org\/archive\/xfce-//g' | sed 's/ //g' | sed 's/\///g'`
 	dlurl="$hpurl/archive/xfce-$preup2date/src/"
 	up2date="lynx -dump $hpurl/archive/xfce-$preup2date/src/ | grep $name | Flasttarbz2"
+	source=($dlurl/$name-$pkgver.tar.bz2)
 fi
-
-source=($dlurl/$name-$pkgver.tar.bz2)
 

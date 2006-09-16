@@ -1,25 +1,42 @@
-# Last Modified: Wed, 19 Apr 2006 19:18:12 +0200
-# Compiling Time: 0.01 SBU
+# Last Modified: Sat, 16 Sep 2006 03:38:10 +0200
+# Compiling Time: 2.18 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=xerces-j
 pkgver=2.8.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Xerces2 Java XML Parser"
 url="http://xml.apache.org/xerces2-j"
-rodepends=('xml-commons')
-# TODO: compile it, not just ship the bytecode
-#makedepends=('gcc-gcj' 'apache-ant')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://www.apache.org/dist/xml/xerces-j/ |sed -n '/src.*tar.gz$/s/.*src.\(.*\)\.t.*/\1/p'"
-source=(http://www.apache.org/dist/xml/xerces-j/Xerces-J-bin.$pkgver.tar.gz)
-sha1sums=('d8ba16bac3ec447cd5c5206fa76963df5e7e16b4')
+source=(http://www.apache.org/dist/xml/xerces-j/Xerces-J-src.$pkgver.tar.gz \
+	xerces-j-$pkgver-xml-commons-external.diff)
+signatures=($source.sig '')
+Finclude java
+depends=(${depends[@]} 'xml-commons-external' 'xml-commons-resolver' 'xjavac')
 
 build()
 {
 	Fcd xerces-${pkgver//./_}
-	#mv ../tools ./
-	#ant jars -Dbuild.compiler=gcj || return 1
-	Ffilerel x*.jar /usr/share/java/
+	Fpatchall
+	# ugly as hell. first we try to compile with the default compiler then fix up
+	# the rest with gcj
+	for i in modern gcj
+	do
+		CLASSPATH=/usr/share/java/xjavac.jar ant \
+			-Dbuild.compiler=$i \
+			-Dtools.dir=/usr/share/java \
+			-Djar.apis=xml-apis.jar \
+			-Djar.resolver=xml-commons-resolver.jar \
+			-Djar.gcj=libgcj-`gcc -dumpversion`.jar \
+			jars
+	done
+	[ "$?" = 0 ] || Fdie
+	# now remove the junk
+	rm -f build/xml-*jar
+	# then install the rest
+	Fjar build/*.jar
 }
+
+# optimization OK

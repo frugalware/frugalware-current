@@ -754,6 +754,81 @@ MimeType=$4
 EOF
 }
 
+
+### Creates a .desktop for graphical applications 
+ # A more flexible Fdesktop()
+ # Options:
+ # _F_desktop_filename : Name of the .desktop file
+ # _F_desktop_name : Name of the desktop icon to be displayed
+ # _F_desktop_desc : Description of the icon
+ # _F_desktop_icon : Icon to be used from /usr/share/pixmaps
+ # _F_desktop_exec : Name of the executable file
+ # _F_desktop_categories : Categories (same as Fdesktop)
+ # _F_desktop_mime : Mimetypes
+ # _F_desktop_show_in : Whether the icon should be showed in only a particular DE
+ #			like "XFCE;" for Xfce, "GNOME;" for Gnome, etc. 
+###
+Fdesktop2()
+{
+	dcategories="Application;"
+	if [ -z $_F_desktop_filename ] ; then
+		deskfilename=$pkgname.desktop
+	else
+		deskfilename=$_F_desktop_filename.desktop
+	fi
+
+	if [ -z $_F_desktop_name ] ; then
+		dname=$pkgname
+	else
+		dname=$_F_desktop_name
+	fi
+
+	if [ -z $_F_desktop_desc ] ; then
+		ddesc=$pkgdesc
+	else
+		ddesc=$_F_desktop_desc
+	fi
+
+	if [ ! -z $_F_desktop_icon ] ; then
+		dicon=$_F_desktop_icon
+	fi
+
+	if [ ! -z $_F_desktop_exec ] ; then
+		dexec=$_F_desktop_exec
+	else
+		dexec=$pkgname
+	fi
+
+	if [ ! -z $_F_desktop_categories ] ; then
+		dcategories="${dcategories[@]}$_F_desktop_categories"
+	fi
+
+	if [ ! -z $_F_desktop_mimetypes ] ; then
+		dmime=$_F_desktop_mimetypes
+	fi
+
+	if [ ! -z $_F_desktop_show_in ] ; then
+		dshowin=$_F_desktop_show_in
+	fi
+
+	Fmkdir $Fmenudir
+	Fmessage "Installing desktop file: $deskfilename"
+	cat > $Fdestdir$Fmenudir/$pkgname.desktop << EOF
+[Desktop Entry]
+Encoding=UTF-8
+Name=$dname
+Comment=$ddesc
+Exec=$dexec
+Terminal=false
+Type=Application
+StartupNotify=true
+Icon=$dicon
+Categories=$dcategories
+MimeType=$dmime
+OnlyShowIn=$dshowin;
+EOF
+}
+
 ### Moves a file pattern to a subpackage
  # example: Fsplit libmysql /usr/lib
  # @param name of the subpackage

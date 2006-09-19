@@ -5,8 +5,6 @@
 # xfce4rc1.sh for Frugalware
 # distributed under GPL License
 
-# DO NOT USE in -current!
-
 hpurl="http://www.xfce.org/"
 
 if [ -z $realname ] ; then

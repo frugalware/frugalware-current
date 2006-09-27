@@ -1,28 +1,32 @@
-# Last Modified: Sat, 11 Mar 2006 14:02:30 +0100
+# Last Modified: Wed, 27 Sep 2006 03:30:21 +0200
 # Compiling Time: ~1.10 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=db
 pkgver=4.4.20
-pkgrel=1
+pkgrel=2
 pkgdesc="The Berkeley DB embedded database system"
 url="http://www.sleepycat.com"
+if [ "$CARCH" != "ppc" ]; then
+	Finclude java
+	makedepends=(${makedepends[@]} 'java-gcj-compat')
+fi
 depends=('libstdc++')
-[ "$CARCH" != "ppc" ] && makedepends=('j2sdk')
 groups=('base' 'chroot-core')
 archs=('i686' 'x86_64' 'ppc')
 up2date="lynx -dump http://dev.sleepycat.com/downloads/releasehistorybdb.html|grep -2 Latest|sed -n 's/[^0-9\.]*//;$ p'"
-source=(ftp://sleepycat1.inetu.net/releases/$pkgname-$pkgver.tar.gz)
-sha1sums=('bb4c68a4afc14712eb2954b7991f5dc9fe93bf7b')
+source=(ftp://sleepycat1.inetu.net/releases/$pkgname-$pkgver.tar.gz \
+	db-4.4.16-java-gcj.patch)
 [ "$CARCH" == "x86_64" ] && Fconfopts="$Fconfopts --with-mutex=x86/gcc-assembly"
 
 ###
-# NOTE! Every time you bump this package, perl-bdb needs buping, too!
+# NOTE! Every time you bump this package, perl-bdb needs bumping, too!
 ##
 
 build()
 {
-	Fcd $pkgname-$pkgver/build_unix
+	Fpatchall
+	cd build_unix
 	[ "$CARCH" != "ppc" ] && \
 		../dist/configure $Fconfopts --enable-compat185 \
 			--enable-shared --enable-static --enable-cxx \
@@ -39,7 +43,17 @@ build()
 	Fln libdb-4.4.so /usr/lib/libdb-4.3.so
 	
 	Fmkdir /usr/share/java
-	[ "$CARCH" != "ppc" ] && Fmv usr/lib/db.jar usr/share/java/
+	if [ "$CARCH" != "ppc" ]; then
+		Fmv /usr/lib/db.jar /usr/share/java/
+		# FIXME: Fjar's -Wl,-Bsymbolic causes DatabaseConfig.DEFAULT to return null.
+		# Doing just the same thing without -Wl,-Bsymbolic works.
+		cmd="gcj $CFLAGS -fPIC -fjni -findirect-dispatch \
+			-fno-strict-aliasing -shared -o $Fdestdir/usr/lib/libdb.jar.so \
+			$Fdestdir/usr/share/java/db.jar -L$Fdestdir/usr/lib -ldb \
+			-ldb_java"
+		echo $cmd
+		$cmd || return 1
+	fi
 	Fmkdir /usr/share/doc/$pkgname-$pkgver
 	Fmv /usr/docs/* /usr/share/doc/$pkgname-$pkgver/
 	Frm /usr/docs/
@@ -47,3 +61,6 @@ build()
 }
 
 # optimization ok
+
+sha1sums=('bb4c68a4afc14712eb2954b7991f5dc9fe93bf7b' \
+	  '41a0534c0b67d89817e83a3a6fa80e45a0b3f301')

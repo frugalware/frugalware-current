@@ -18,4 +18,7 @@
 #obexftp -b <btaddr> -B <channel> "$@" 2>&1
 #obexftp -t /dev/modem "$@" 2>&1
 # $HOME/sw/cprog/obexftp-0.10.4/apps/obexftp -t /dev/modem "$@" 2>/dev/null
-obexftp -t /dev/ttyS0 "$@"
+#obexftp -t /dev/ttyS0 "$@"
+
+## most uses USB so let be this default for now
+obexftp -u 1 "$@"

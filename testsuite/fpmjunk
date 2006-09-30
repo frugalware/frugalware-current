@@ -1,0 +1,34 @@
+#!/usr/bin/env python
+
+import alpm, os, tempfile, shutil, sys, re
+
+if len(sys.argv) > 1 and sys.argv[1] == "--help":
+	print "finds no longer necessary fpms"
+	sys.exit(0)
+
+for i in os.listdir(".."):
+	if not re.match("^frugalware-", i):
+		continue
+	arch = i[11:]
+	root = tempfile.mkdtemp()
+	alpm.initialize(root)
+	if os.getcwd().split('/')[-2] == "frugalware-current":
+		treename = "frugalware-current"
+	else:
+		treename = "frugalware"
+	db = alpm.db_register(treename)
+	alpm.db_setserver(db, "file://" + os.getcwd() + "/../frugalware-" + arch)
+	alpm.db_update(1, db)
+	fdb = []
+	j = alpm.db_getpkgcache(db)
+	while j:
+		pkg = alpm.void_to_PM_PKG(alpm.list_getdata(j))
+		pkgname = alpm.void_to_char(alpm.pkg_getinfo(pkg, alpm.PKG_NAME))
+		pkgver = alpm.void_to_char(alpm.pkg_getinfo(pkg, alpm.PKG_VERSION))
+		fdb.append("%s-%s-%s.fpm" % (pkgname, pkgver, arch))
+		j = alpm.list_next(j)
+	alpm.release()
+	shutil.rmtree(root)
+	for j in os.listdir(os.getcwd() + "/../frugalware-" + arch):
+		if j not in fdb and j != treename + ".fdb":
+			print "frugalware-" + arch + "/" + j

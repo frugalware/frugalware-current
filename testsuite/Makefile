@@ -18,7 +18,7 @@
 
 LDFLAGS += -lalpm
 
-compile: depbugs xbugs
+compile: xbugs
 	@echo "All done. Start 'make test' now."
 
 test:
@@ -31,7 +31,7 @@ test:
 	@echo "packages in the frugalware repo in wrong group (lib->xlib is needed or so):"
 	./xbugs frugalware-current
 	@echo "packages in the frugalware with a dependency from extra (move them to extra):"
-	./depbugs frugalware-current
+	python deps-extra-i686.py
 	@echo "packages with old-style up2dates (slows down repoman cl):"
 	sh up2date.sh ..
 	@echo "duplicated packages (please remove them):"

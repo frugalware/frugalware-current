@@ -9,7 +9,7 @@ fi
 # fake variable for fwmakepkg
 CHROOT=1
 
-. functions
+. functions.sh
 . /usr/lib/frugalware/fwmakepkg
 
 if [ "$1" == "--remove" ]; then

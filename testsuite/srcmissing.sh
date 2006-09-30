@@ -3,7 +3,7 @@
 # fake variable for fwmakepkg
 CHROOT=1
 
-. functions
+. functions.sh
 . /etc/makepkg.conf
 . /usr/lib/frugalware/fwmakepkg
 

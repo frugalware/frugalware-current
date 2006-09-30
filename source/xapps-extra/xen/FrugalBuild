@@ -1,38 +1,92 @@
-# Last Modified: Fri, 22 Sep 2006 20:39:24 +0100
-# Compiling Time: 0.40 SBU
+# Last Modified: Sat, 30 Sep 2006 20:47:20 +0100
+# Compiling Time: 0.65 SBU
 # Maintainer: AlexExtreme <alex@alex-smith.me.uk>
 
 pkgname=xen
-pkgver=3.0.2
-pkgrel=4
+pkgver=3.0.2_20060930
+pkgrel=5
 pkgdesc="Xen virtual machine"
 url="http://www.cl.cam.ac.uk/Research/SRG/netos/xen/"
 rodepends=('bridge-utils')
-depends=('python' 'e2fsprogs' 'zlib' 'sdl')
-#makedepends=('tetex' 'espgs' 'transfig')
+depends=('python' 'e2fsprogs' 'zlib' 'sdl' 'libvncserver' 'dev86' 'gtk+2')
+makedepends=('tetex' 'espgs' 'transfig')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
 backup=(etc/xen/xend-config.sxp)
 up2date="lynx -dump $url/downloads/|grep xen-[0-9\.]*.src.tgz$|sed -n 's/.*-\(.*\)-s.*/\1/;$ p'"
-source=($url/downloads/xen-$pkgver-src.tgz \
+#source=($url/downloads/xen-$pkgver-src.tgz \
+srcurl="http://ftp.frugalware.org/pub/other/sources/xen"
+source=($srcurl/$pkgname-unstable-src.tar.bz2 \
 	rc.xend \
-	README.Frugalware)
-sha1sums=('b7e797048b516f8b385afd3da9ae2eded1b8033a' \
+	README.Frugalware
+	xen-domUloader.diff \
+	xen-domUloader-pygrub.diff \
+	xen-messages.diff \
+	xen-no-dummy-nfs-ip.diff \
+	xen-ioapic-ack-default.diff \
+	xen-lost-mouse.diff \
+	xen-paths.diff \
+	xen-hvm-rep-movs.diff \
+	xen-console.diff \
+	xen-shutdown-wait.diff \
+	block-losetup-retry.diff \
+	block-sync.diff \
+	$srcurl/vncfb.diff \
+	$srcurl/vfb-frontend.diff \
+	$srcurl/vfb-backend.diff \
+	vncfb-makefile.diff \
+	$srcurl/vfb-viewer.diff \
+	xen-enable-hvm-debug.diff \
+	$srcurl/domUloader.py)
+sha1sums=('33f5b62979868d82ad66f96b4fc4714546380fbe' \
           'eb6b4ced01969af8d04980b32c48db5c2e2bd888' \
-          'f0859a7c379e82ef80e9bfd9b346dd12208cf6d1')
+          'f0859a7c379e82ef80e9bfd9b346dd12208cf6d1' \
+	  'b2ac743c2a8c9d8bb38fdf79f0ef397a3b54f1fc' \
+	  'fc990975798b9b5125f4c17bbd229a4c0135b85b' \
+	  '4d0bea392d3f8a7ccb29a9eeaa4016963d2a6d9b' \
+	  '6a0cb7f131aaa3989ab811a22a93d9afa1a0db98' \
+	  '41dbd2b8755db8984c9452ef9da39cf5b19cab16' \
+	  '744e9ac9f4d8d0c67f51eb923056d2eb6c71a186' \
+	  'ccdeaf4591b39da29349489dcb95dfc6a397ad9f' \
+	  '989e6c7202a638032d3e54cc81c972bc1e204fe7' \
+	  'e2c0fa703e0633e08f291414f53ab57f8c114c8d' \
+	  'fd1494803e0150fdc0cf5e6bcbc6a9b079a7ba56' \
+	  '8d3ac2e2772a4ae97e429abb4e7b5b0f3cd39572' \
+	  '458bb19aba98116bb620c9b7af473e66f9410d14' \
+	  '83749851d755306b58789868dd0d13cfd551aeba' \
+	  '1efed31014c6a63c25a5e4c3ad849e32ee702402' \
+	  '84c20e3c22ded7fa2a389e4cb46b10cc500ddf95' \
+	  'e88900351fa936dc49493bb120f8e69573066786' \
+	  '533ff1d66085562700c499c102eedfc40c966326' \
+	  'e9e7ebb3e1066539029a2ac1390421039553df0d' \
+	  '7b6021907b0d4c2784f0cbdd1479dd46155496cc')
+
+unset MAKEFLAGS
 
 build()
 {
-	Fcd
+	Fcd xen-unstable
+	
+	Fpatchall
+	
+	# Umm, hack. Just to make it build ;) I'll make it actually *work* sometime soon :P
+	if [ "$CARCH" == "x86_64" ]; then
+		mkdir tools/libxc/gnu || Fdie
+		cp /usr/include/gnu/stubs-64.h tools/libxc/gnu/stubs-32.h || Fdie
+	fi
+	
 	make DESTDIR=$Fdestdir install-xen || Fdie
 	make DESTDIR=$Fdestdir install-tools || Fdie
-	#make DESTDIR=$Fdestdir install-docs # Commented out because latex hangs when building
+	make DESTDIR=$Fdestdir install-docs || Fdie
+	make -C tools/pygrub install DESTDIR=$Fdestdir || Fdie
 	
 	if [ "$CARCH" == "x86_64" ]; then
-		cp -R $Fdestdir/usr/lib64/* $Fdestdir/usr/lib/
+		cp -R $Fdestdir/usr/lib64/* $Fdestdir/usr/lib/ || Fdie
 		Frm /usr/lib64
 	fi
-
+	
+	install -m755 $Fsrcdir/domUloader.py $Fdestdir/usr/lib/xen/boot/ || Fdie
+	
 	Frcd xend
 	Fmkdir /etc/rc.d/rc.messages
 	Fdoc README.Frugalware

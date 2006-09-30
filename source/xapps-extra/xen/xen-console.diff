@@ -1,0 +1,63 @@
+Subject: video mode detection (161541)
+
+Charles, attached the promised patch for replacing xen-console.diff. Jan
+
+Index: xen-unstable/xen/drivers/video/vga.c
+===================================================================
+--- xen-unstable.orig/xen/drivers/video/vga.c
++++ xen-unstable/xen/drivers/video/vga.c
+@@ -573,6 +573,30 @@ string_param("vga", opt_vga);
+ #define ATTRIBUTE   7
+ #define VIDEO_SIZE  (COLUMNS * LINES * 2)
+ 
++static int gfx_vga(void)
++{
++    unsigned char idx, data;
++
++    idx = inb(0x3ce);
++    outb(0x06, 0x3ce);
++    data = inb(0x3cf);
++    outb(idx, 0x3ce);
++
++    if ( data & 0x01 )
++        return 1;
++
++    /* Unfortunately many cards don't reflect their mode in the GDC
++     * miscellaneous register, bit 0 (and even fewer reflect it in the
++     * ATC mode control register, bit 0). Therefore we further check
++     * horizontal display width against our original setting. */
++    idx = inb(0x3d4);
++    outb(0x01, 0x3d4);
++    data = inb(0x3d5);
++    outb(idx, 0x3d4);
++
++    return data != COLUMNS - 1;
++}
++
+ void vga_init(void)
+ {
+     char *p;
+@@ -656,14 +680,21 @@ static void put_newline(void)
+ 
+ void vga_putchar(int c)
+ {
++    static int vga_in_gfx = -1;
++
+     if ( !vgacon_enabled )
+         return;
+ 
++    if ( vga_in_gfx < 0 )
++        vga_in_gfx = gfx_vga();
++
+     if ( c == '\n' )
+     {
+-        put_newline();
++        if ( vga_in_gfx <= 0 )
++            put_newline();
++        vga_in_gfx = -1;
+     }
+-    else
++    else if ( vga_in_gfx <= 0 )
+     {
+         if ( xpos >= COLUMNS )
+             put_newline();

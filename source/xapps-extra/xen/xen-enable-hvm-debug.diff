@@ -1,0 +1,110 @@
+Index: xen-unstable/tools/firmware/vmxassist/vm86.c
+===================================================================
+--- xen-unstable.orig/tools/firmware/vmxassist/vm86.c
++++ xen-unstable/tools/firmware/vmxassist/vm86.c
+@@ -38,7 +38,7 @@ unsigned prev_eip = 0;
+ enum vm86_mode mode;
+ 
+ #ifdef DEBUG
+-int traceset = 0;
++int traceset = 0xffffffff;
+ 
+ char *states[] = {
+ 	"<VM86_REAL>",
+@@ -72,6 +72,35 @@ address(struct regs *regs, unsigned seg,
+ 	return addr;
+ }
+ 
++void
++panic_eip(struct regs *regs, char *fmt, ...)
++{
++	va_list ap;
++	va_start(ap, fmt);
++	vprintf(fmt, ap);
++	printf("\n");
++	va_end(ap);
++#ifdef DEBUG
++	if (regs->eflags & EFLAGS_VM) {
++		unsigned int range = 20;
++		unsigned int eip = address(regs, regs->cs, regs->eip);
++		unsigned int start = (eip < range) ? 0 : eip - range;
++		unsigned int stop = (eip > 0x100000 - range) ? 0x100000 : eip + range;
++		int size = (stop - start);
++		unsigned int i;
++		unsigned char data[size];
++
++		printf("Dumping %x..%x  eip=%x\n", start, stop, eip);
++		for (i = start; i < stop; ++i)
++			data[i-start] = *(unsigned char *) i;
++                hexdump(data, size);
++        }
++#else
++	regs = regs;
++#endif
++	halt();
++}
++
+ #ifdef DEBUG
+ void
+ trace(struct regs *regs, int adjust, char *fmt, ...)
+@@ -1037,7 +1066,7 @@ emulate(struct regs *regs)
+ 	/* detect the case where we are not making progress */
+ 	if (nemul == 0 && prev_eip == regs->eip) {
+ 		flteip = address(regs, MASK16(regs->cs), regs->eip);
+-		panic("Unknown opcode at %04x:%04x=0x%x",
++		panic_eip(regs, "Unknown opcode at %04x:%04x=0x%x",
+ 			MASK16(regs->cs), regs->eip, flteip);
+ 	} else
+ 		prev_eip = regs->eip;
+@@ -1061,7 +1090,7 @@ trap(int trapno, int errno, struct regs 
+ 		if (regs->eflags & EFLAGS_VM) {
+ 			/* emulate any 8086 instructions  */
+ 			if (mode != VM86_REAL_TO_PROTECTED)
+-				panic("not in real-to-protected mode");
++				panic_eip(regs, "not in real-to-protected mode");
+ 			emulate(regs);
+ 			return;
+ 		}
+@@ -1071,7 +1100,7 @@ trap(int trapno, int errno, struct regs 
+ 		if (regs->eflags & EFLAGS_VM) {
+ 			/* emulate any 8086 instructions  */
+ 			if (mode == VM86_PROTECTED)
+-				panic("unexpected protected mode");
++				panic_eip(regs, "unexpected protected mode");
+ 			emulate(regs);
+ 			return;
+ 		}
+Index: xen-unstable/tools/firmware/rombios/rombios.c
+===================================================================
+--- xen-unstable.orig/tools/firmware/rombios/rombios.c
++++ xen-unstable/tools/firmware/rombios/rombios.c
+@@ -129,18 +129,18 @@
+ //
+ //   BCC Bug: find a generic way to handle the bug of #asm after an "if"  (fixed in 0.16.7)
+ 
+-#define DEBUG_ROMBIOS      0
++#define DEBUG_ROMBIOS      1
+ 
+-#define DEBUG_ATA          0
+-#define DEBUG_INT13_HD     0
+-#define DEBUG_INT13_CD     0
+-#define DEBUG_INT13_ET     0
+-#define DEBUG_INT13_FL     0
+-#define DEBUG_INT15        0
+-#define DEBUG_INT16        0
+-#define DEBUG_INT1A        0
+-#define DEBUG_INT74        0
+-#define DEBUG_APM          0
++#define DEBUG_ATA          1
++#define DEBUG_INT13_HD     1
++#define DEBUG_INT13_CD     1
++#define DEBUG_INT13_ET     1
++#define DEBUG_INT13_FL     1
++#define DEBUG_INT15        1
++#define DEBUG_INT16        1
++#define DEBUG_INT1A        1
++#define DEBUG_INT74        1
++#define DEBUG_APM          1
+ 
+ #define BX_CPU           3
+ #define BX_USE_PS2_MOUSE 1

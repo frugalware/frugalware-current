@@ -1,0 +1,46 @@
+From: Gerd Hoffman <kraxel@suse.de>
+Upstream: Submitted 2006-05-18; need to re-submit
+
+Index: xen-unstable/xen/arch/x86/hvm/platform.c
+===================================================================
+--- xen-unstable.orig/xen/arch/x86/hvm/platform.c
++++ xen-unstable/xen/arch/x86/hvm/platform.c
+@@ -910,7 +910,7 @@ void handle_mmio(unsigned long va, unsig
+         unsigned long count = GET_REPEAT_COUNT();
+         unsigned long size = mmio_inst.op_size;
+         int sign = regs->eflags & EF_DF ? -1 : 1;
+-        unsigned long addr = 0;
++        unsigned long addr, high_addr, low_addr;
+         int dir;
+ 
+         /* determine non-MMIO address */
+@@ -931,6 +931,13 @@ void handle_mmio(unsigned long va, unsig
+                 addr = regs->edi;
+             }
+         }
++	if (sign > 0) {
++	    high_addr = addr + count * size - 1;
++	    low_addr  = addr;
++	} else {
++	    high_addr = addr + size - 1;
++	    low_addr  = addr - (count-1) * size;
++	}
+ 
+         mmio_opp->flags = mmio_inst.flags;
+         mmio_opp->instr = mmio_inst.instr;
+@@ -956,13 +963,13 @@ void handle_mmio(unsigned long va, unsig
+                 hvm_copy(&value, addr, size, HVM_COPY_IN);
+             send_mmio_req(IOREQ_TYPE_COPY, gpa, 1, size, value, dir, 0);
+         } else {
+-            if ((addr & PAGE_MASK) != ((addr + sign * (count * size - 1)) & PAGE_MASK)) {
++            if ((high_addr & PAGE_MASK) != (low_addr & PAGE_MASK)) {
+                 regs->eip -= inst_len; /* do not advance %eip */
+ 
+                 if (sign > 0)
+                     count = (PAGE_SIZE - (addr & ~PAGE_MASK)) / size;
+                 else
+-                    count = (addr & ~PAGE_MASK) / size;
++                    count = ((high_addr + 1) & ~PAGE_MASK) / size;
+             }
+ 
+             send_mmio_req(IOREQ_TYPE_COPY, gpa, count, size, addr, dir, 1);

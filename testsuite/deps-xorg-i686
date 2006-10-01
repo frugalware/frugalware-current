@@ -1,0 +1,55 @@
+#!/usr/bin/env python
+
+import alpm, os, tempfile, shutil, sys
+
+if len(sys.argv) > 1 and sys.argv[1] == "--help":
+	print "finds base packages which depend on xorg (lib->xlib is needed or so)"
+	sys.exit(0)
+
+basecats = ['base', 'apps', 'lib', 'multimedia', 'network', 'devel']
+
+root = tempfile.mkdtemp()
+alpm.initialize(root)
+if os.getcwd().split('/')[-2] == "frugalware-current":
+	treename = "frugalware-current"
+else:
+	treename = "frugalware"
+db = alpm.db_register(treename)
+alpm.db_setserver(db, "file://" + os.getcwd() + "/../frugalware-i686")
+alpm.db_update(1, db)
+
+i = alpm.db_getpkgcache(db)
+while i:
+	pkg = alpm.void_to_PM_PKG(alpm.list_getdata(i))
+	pkgname = alpm.void_to_char(alpm.pkg_getinfo(pkg, alpm.PKG_NAME))
+	group = alpm.void_to_char(alpm.list_getdata(alpm.void_to_PM_LIST(alpm.pkg_getinfo(pkg, alpm.PKG_GROUPS))))
+	if group not in basecats:
+		i = alpm.list_next(i)
+		continue
+	j = alpm.void_to_PM_LIST(alpm.pkg_getinfo(pkg, alpm.PKG_DEPENDS))
+	while j:
+		found = False
+		dep = alpm.void_to_char(alpm.list_getdata(j)).split(">")[0].split(">")[0].split("=")[0]
+		k = alpm.db_getpkgcache(db)
+		while not found and k:
+			p = alpm.void_to_PM_PKG(alpm.list_getdata(k))
+			if alpm.void_to_char(alpm.pkg_getinfo(p, alpm.PKG_NAME)) == dep:
+				l = alpm.void_to_PM_LIST(alpm.pkg_getinfo(p, alpm.PKG_GROUPS))
+				g = alpm.void_to_char(alpm.list_getdata(l))
+				# if it's in extra then deps-extra-i686 will handle the issue
+				if g in basecats or g[-6:] == "-extra":
+					found = True
+			else:
+				l = alpm.void_to_PM_LIST(alpm.pkg_getinfo(p, alpm.PKG_PROVIDES))
+				while not found and l:
+					pr = alpm.void_to_PM_PKG(alpm.list_getdata(l))
+					if alpm.void_to_char(alpm.pkg_getinfo(pr, alpm.PKG_NAME)) == dep:
+						found = True
+					l = alpm.list_next(l)
+			k = alpm.list_next(k)
+		if not found:
+			print "%s should be moved to some xfoo category (%s is already there)" % (pkgname, alpm.void_to_char(alpm.list_getdata(j)))
+		j = alpm.list_next(j)
+	i = alpm.list_next(i)
+alpm.release()
+shutil.rmtree(root)

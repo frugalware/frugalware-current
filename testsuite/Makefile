@@ -16,9 +16,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #
 
-LDFLAGS += -lalpm
-
-compile: xbugs
+compile:
 	@echo "All done. Start 'make test' now."
 
 test:
@@ -38,6 +36,3 @@ test:
 	sh pkgdup.sh ..
 	@echo "missing xorg packages (please package them):"
 	sh xorg.sh ..
-
-clean:
-	rm -f depbugs xbugs

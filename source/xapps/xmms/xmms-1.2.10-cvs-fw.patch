@@ -1,0 +1,376 @@
+diff -Naur xmms-1.2.10.orig/Output/esd/esdout.h xmms-1.2.10/Output/esd/esdout.h
+--- xmms-1.2.10.orig/Output/esd/esdout.h	2006-10-02 12:48:27.000000000 +0200
++++ xmms-1.2.10/Output/esd/esdout.h	2006-10-02 12:49:37.000000000 +0200
+@@ -58,6 +58,7 @@
+ ESDConfig;
+ 
+ extern ESDConfig esd_cfg;
++extern void esdout_reset_playerid(void);
+ 
+ void esdout_init(void);
+ void esdout_about(void);
+diff -Naur xmms-1.2.10.orig/xmms/main.c xmms-1.2.10/xmms/main.c
+--- xmms-1.2.10.orig/xmms/main.c	2006-10-02 12:48:27.000000000 +0200
++++ xmms-1.2.10/xmms/main.c	2006-10-02 13:37:32.000000000 +0200
+@@ -112,6 +112,7 @@
+ void mainwin_options_menu_callback(gpointer cb_data, guint action, GtkWidget * w);
+ void mainwin_volume_motioncb(gint pos);
+ static void set_timer_mode_menu_cb(TimerMode mode);
++static void mainwin_jump_to_file(void);
+ static void mainwin_queue_manager_queue_refresh(GtkWidget * widget, gpointer userdata);
+ 
+ enum
+@@ -255,7 +256,7 @@
+ enum
+ {
+ 	MAINWIN_GENERAL_ABOUT, MAINWIN_GENERAL_PLAYFILE, MAINWIN_GENERAL_PLAYDIRECTORY,
+-	MAINWIN_GENERAL_PLAYLOCATION, MAINWIN_GENERAL_FILEINFO,
++	MAINWIN_GENERAL_PLAYLOCATION, MAINWIN_GENERAL_PLAYAUDIOCD, MAINWIN_GENERAL_FILEINFO,
+ 	MAINWIN_GENERAL_SHOWMWIN, MAINWIN_GENERAL_SHOWPLWIN,
+ 	MAINWIN_GENERAL_SHOWEQWIN, MAINWIN_GENERAL_PREV, MAINWIN_GENERAL_PLAY,
+ 	MAINWIN_GENERAL_PAUSE, MAINWIN_GENERAL_STOP, MAINWIN_GENERAL_NEXT,
+@@ -271,9 +272,11 @@
+ {
+ 	{N_("/About XMMS"), NULL, mainwin_general_menu_callback, MAINWIN_GENERAL_ABOUT, "<Item>"},
+ 	{N_("/-"), NULL, NULL, 0, "<Separator>"},
+-	{N_("/Play File"), "L", mainwin_general_menu_callback, MAINWIN_GENERAL_PLAYFILE, "<Item>"},
+-	{N_("/Play Directory"), "<shift>L", mainwin_general_menu_callback, MAINWIN_GENERAL_PLAYDIRECTORY, "<Item>"},	
+-	{N_("/Play Location"), "<control>L", mainwin_general_menu_callback, MAINWIN_GENERAL_PLAYLOCATION, "<Item>"},
++	{N_("/Play"), NULL, NULL, 0, "<Branch>"},
++	{N_("/Play/Play File"), "L", mainwin_general_menu_callback, MAINWIN_GENERAL_PLAYFILE, "<Item>"},
++	{N_("/Play/Play Directory"), "<shift>L", mainwin_general_menu_callback, MAINWIN_GENERAL_PLAYDIRECTORY, "<Item>"},	
++	{N_("/Play/Play Location"), "<control>L", mainwin_general_menu_callback, MAINWIN_GENERAL_PLAYLOCATION, "<Item>"},
++	{N_("/Play/Play AudioCD"), "<control>C", mainwin_general_menu_callback, MAINWIN_GENERAL_PLAYAUDIOCD, "<Item>"},
+ 	{N_("/View File Info"), "<control>3" , mainwin_general_menu_callback, MAINWIN_GENERAL_FILEINFO, "<Item>"},
+ 	{N_("/-"), NULL, NULL, 0, "<Separator>"},
+ 	{N_("/Main Window"), "<alt>W", mainwin_general_menu_callback, MAINWIN_GENERAL_SHOWMWIN, "<ToggleItem>"},
+@@ -322,6 +325,21 @@
+ 	g_free(filename);
+ }
+ 
++#ifndef CDDA_DIRECTORY
++# ifdef HAVE_SYS_CDIO_H
++#  ifdef __FreeBSD__
++#   define CDDA_DIRECTORY "/cdrom"
++#  elif defined __OpenBSD__
++#   define CDDA_DIRECTORY "/cdrom"
++#  else
++#   define CDDA_DIRECTORY "/cdrom/cdrom"
++#  endif
++# else
++#   define CDDA_DIRECTORY "/mnt/cdrom"
++# endif
++#endif
++
++
+ static void read_config(void)
+ {
+ 	ConfigFile *cfgfile;
+@@ -366,6 +384,10 @@
+ 	cfg.snap_distance = 10;
+ 	cfg.pause_between_songs_time = 2;
+ 
++	/** Added by Tatu Lahtela */
++	cfg.mousewheel_scroll_amount = 10;
++	/* end */
++
+ 	cfg.vis_type = VIS_ANALYZER;
+ 	cfg.analyzer_mode = ANALYZER_NORMAL;
+ 	cfg.analyzer_type = ANALYZER_BARS;
+@@ -381,6 +403,8 @@
+ 	
+ 	cfg.gentitle_format = NULL;
+ 
++	cfg.cdda_directory = CDDA_DIRECTORY;
++
+ 	filename = g_strconcat(g_get_home_dir(), "/.xmms/config", NULL);
+ 	cfgfile = xmms_cfg_open_file(filename);
+ 	if (cfgfile)
+@@ -442,6 +466,7 @@
+ 		xmms_cfg_read_boolean(cfgfile, "xmms", "equalizer_autoload", &cfg.equalizer_autoload);
+ 		xmms_cfg_read_boolean(cfgfile, "xmms", "easy_move", &cfg.easy_move);
+ 		xmms_cfg_read_float(cfgfile, "xmms", "equalizer_preamp", &cfg.equalizer_preamp);
++		xmms_cfg_read_string(cfgfile, "xmms", "cdda_directory", &cfg.cdda_directory);
+ 		for (i = 0; i < 10; i++)
+ 		{
+ 			gchar eqtext[18];
+@@ -465,6 +490,9 @@
+ 		xmms_cfg_read_boolean(cfgfile, "xmms", "random_skin_on_play", &cfg.random_skin_on_play);
+ 		xmms_cfg_read_boolean(cfgfile, "xmms", "pause_between_songs", &cfg.pause_between_songs);
+ 		xmms_cfg_read_int(cfgfile, "xmms", "pause_between_songs_time", &cfg.pause_between_songs_time);
++		/** Added by Tatu Lahtela */
++		xmms_cfg_read_int(cfgfile, "xmms", "mousewheel_scroll_amount", &cfg.mousewheel_scroll_amount);
++		/* end */
+ 		xmms_cfg_read_int(cfgfile, "xmms", "mouse_wheel_change", &cfg.mouse_change);
+ 		xmms_cfg_read_boolean(cfgfile, "xmms", "show_wm_decorations", &cfg.show_wm_decorations);
+ 		if (xmms_cfg_read_int(cfgfile, "xmms", "url_history_length", &length))
+@@ -616,10 +644,14 @@
+ 	xmms_cfg_write_boolean(cfgfile, "xmms", "random_skin_on_play", cfg.random_skin_on_play);
+ 	xmms_cfg_write_boolean(cfgfile, "xmms", "pause_between_songs", cfg.pause_between_songs);
+ 	xmms_cfg_write_int(cfgfile, "xmms", "pause_between_songs_time", cfg.pause_between_songs_time);
++	/** Added by Tatu Lahtela */
++	xmms_cfg_write_int(cfgfile, "xmms", "mousewheel_scroll_amount", cfg.mousewheel_scroll_amount);
++	/* end */
+ 	xmms_cfg_write_int(cfgfile, "xmms", "mouse_wheel_change", cfg.mouse_change);
+ 	xmms_cfg_write_boolean(cfgfile, "xmms", "show_wm_decorations", cfg.show_wm_decorations);
+ 	xmms_cfg_write_string(cfgfile, "xmms", "eqpreset_default_file", cfg.eqpreset_default_file);
+ 	xmms_cfg_write_string(cfgfile, "xmms", "eqpreset_extension", cfg.eqpreset_extension);
++	xmms_cfg_write_string(cfgfile, "xmms", "cdda_direcory", cfg.cdda_directory);
+ 	for (i = 0; i < 10; i++)
+ 	{
+ 		str = g_strdup_printf("equalizer_band%d", i);
+@@ -1405,22 +1437,47 @@
+ 	{
+ 	case GDK_Up:
+ 	case GDK_KP_Up:
++	case GDK_KP_8:
+ 		mainwin_set_volume_diff(2);
+ 		break;
+ 	case GDK_Down:
+ 	case GDK_KP_Down:
++	case GDK_KP_2:
+ 		mainwin_set_volume_diff(-2);
+ 		break;
+ 	case GDK_Left:
+ 	case GDK_KP_Left:
++	case GDK_KP_7:
+ 		if(playlist_get_current_length() != -1)
+ 			input_seek(CLAMP(input_get_time() - 5000, 0, playlist_get_current_length()) / 1000);
+ 		break;
+ 	case GDK_Right:
+ 	case GDK_KP_Right:
++	case GDK_KP_9:
+ 		if(playlist_get_current_length() != -1)
+ 			input_seek(CLAMP(input_get_time() + 5000, 0, playlist_get_current_length()) / 1000);
+ 		break;
++	case GDK_KP_0:
++		mainwin_eject_pushed();
++		break;
++	case GDK_KP_1:
++		playlist_set_position((((get_playlist_position() - 10) >= 0) ? get_playlist_position() - 10 : 0));
++		break;
++	case GDK_KP_3:
++		playlist_set_position((((get_playlist_position() + 10) < get_playlist_length()) ? (get_playlist_position() + 10) : (get_playlist_length() - 1)));
++		break;
++	case GDK_KP_4:
++		playlist_prev();
++		break;
++	case GDK_KP_5:
++		mainwin_play_pushed();
++		break;
++	case GDK_KP_6:
++		playlist_next();
++		break;
++	case GDK_KP_Decimal:
++		mainwin_jump_to_file();
++		break;
+ 	default:
+ 	     break;
+ 			
+@@ -2998,6 +3055,12 @@
+ 	case MAINWIN_GENERAL_PLAYLOCATION:
+ 		mainwin_show_add_url_window();
+ 		break;
++	case MAINWIN_GENERAL_PLAYAUDIOCD:
++		if (cfg.cdda_directory != NULL)
++		{
++			mainwin_add_dir_handler(cfg.cdda_directory);
++		}
++		break;
+ 	case MAINWIN_GENERAL_FILEINFO:
+ 		playlist_fileinfo_current();
+ 		break;
+diff -Naur xmms-1.2.10.orig/xmms/main.h xmms-1.2.10/xmms/main.h
+--- xmms-1.2.10.orig/xmms/main.h	2006-10-02 12:48:27.000000000 +0200
++++ xmms-1.2.10/xmms/main.h	2006-10-02 12:50:19.000000000 +0200
+@@ -59,7 +59,9 @@
+ 	gboolean pause_between_songs, show_wm_decorations;
+ 	gint mouse_change;
+ 	gboolean playlist_transparent;
+-        gchar *gentitle_format;
++   gchar *gentitle_format;
++   gint mousewheel_scroll_amount;
++ 	gchar *cdda_directory;
+ }
+ Config;
+ 
+diff -Naur xmms-1.2.10.orig/xmms/playlistwin.c xmms-1.2.10/xmms/playlistwin.c
+--- xmms-1.2.10.orig/xmms/playlistwin.c	2006-10-02 12:48:27.000000000 +0200
++++ xmms-1.2.10/xmms/playlistwin.c	2006-10-02 12:50:30.000000000 +0200
+@@ -1274,9 +1274,25 @@
+ 		grab = FALSE;
+ 	}
+ 	else if (event->button == 4) /* Scrollwheel up */
+-		playlistwin_scroll(-3);
++	  /** Added by Tatu Lahtela */
++	  if ( cfg.mousewheel_scroll_amount ) {
++	    playlistwin_scroll(-1*cfg.mousewheel_scroll_amount );
++	  }
++	  else {
++	    playlistwin_scroll(-10);
++	  }
++	/* end */
++
+ 	else if(event->button == 5) /* Scrollwheel down */
+-		playlistwin_scroll(3);
++	  /** Added by Tatu Lahtela */
++	  if ( cfg.mousewheel_scroll_amount ) {
++	    playlistwin_scroll(cfg.mousewheel_scroll_amount ) ;
++	      //playlistwin_scroll(10);
++	      }
++	  else {
++		playlistwin_scroll(10);
++	  }
++	/* end */
+ 	else
+ 	{
+ 		handle_press_cb(playlistwin_wlist, widget, event);
+diff -Naur xmms-1.2.10.orig/xmms/prefswin.c xmms-1.2.10/xmms/prefswin.c
+--- xmms-1.2.10.orig/xmms/prefswin.c	2006-10-02 12:48:27.000000000 +0200
++++ xmms-1.2.10/xmms/prefswin.c	2006-10-02 13:19:37.000000000 +0200
+@@ -20,6 +20,7 @@
+ #include "xmms.h"
+ #include "libxmms/util.h"
+ #include "libxmms/titlestring.h"
++#include "libxmms/dirbrowser.h"
+ 
+ static GtkWidget *prefswin, *prefswin_notebook, *prefswin_ok;
+ static GtkWidget *prefswin_audio_ie_cbox;
+@@ -37,11 +38,16 @@
+ static GtkWidget *prefswin_options_font_entry, *prefswin_options_font_browse;
+ static GtkWidget *prefswin_options_fontset, *prefswin_mainwin_font_entry;
+ static GtkWidget *prefswin_mainwin_xfont, *prefswin_options_mouse_spin;
++/** Added by Tatu Lahtela */
++static GtkWidget *prefswin_options_mousewheel;
++/* end */
+ static gboolean updating_ilist = FALSE, updating_glist = FALSE, updating_vlist = FALSE, updating_elist = FALSE;
+ 
+ static GtkWidget *prefswin_title_entry;
+ static GtkTooltips *prefswin_tooltips;
+ 
++static GtkWidget *prefswin_audiocd_cddadirectory;
++
+ extern MenuRow *mainwin_menurow;
+ 
+ extern PButton *playlistwin_shade, *playlistwin_close, *equalizerwin_close;
+@@ -350,6 +356,11 @@
+ 	cfg.gentitle_format = g_strdup(gtk_entry_get_text(GTK_ENTRY(prefswin_title_entry)));
+ 	cfg.pause_between_songs_time = CLAMP(atoi(gtk_entry_get_text(GTK_ENTRY(prefswin_options_pbs_entry))), 0, 1000);
+ 	cfg.mouse_change = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(prefswin_options_mouse_spin));
++	cfg.cdda_directory = g_strdup(gtk_entry_get_text(GTK_ENTRY(prefswin_audiocd_cddadirectory)));
++
++	/** Added by Tatu Lahtela */
++	cfg.mousewheel_scroll_amount = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(prefswin_options_mousewheel));
++	/* end */
+ 
+ 	set_current_output_plugin(selected_oplugin);
+ 
+@@ -493,6 +504,21 @@
+ 	gtk_clist_select_row(clist, sel, 0);
+ }
+ 
++static void prefswin_audiocd_browse_handler(gchar *dir)
++{
++	gtk_entry_set_text(GTK_ENTRY(prefswin_audiocd_cddadirectory), dir);
++}
++
++static gint prefswin_audiocd_browse_cb(GtkWidget * w, gpointer data)
++{
++	GtkWidget *prefswin_audiocd_browser;
++	prefswin_audiocd_browser = xmms_create_dir_browser(_("Select directory to add:"), gtk_entry_get_text(GTK_ENTRY(prefswin_audiocd_cddadirectory)), GTK_SELECTION_SINGLE, prefswin_audiocd_browse_handler);
++	gtk_signal_connect(GTK_OBJECT(prefswin_audiocd_browser), "destroy", GTK_SIGNAL_FUNC(gtk_widget_destroyed), &prefswin_audiocd_browser);
++	gtk_window_set_transient_for(GTK_WINDOW(prefswin_audiocd_browser), GTK_WINDOW(prefswin));
++	gtk_widget_show(prefswin_audiocd_browser);
++	return (TRUE);
++}
++
+ void prefswin_vplugins_rescan(void)
+ {
+ 	gint sel;
+@@ -702,6 +728,10 @@
+ 	GtkWidget *prefswin_title_frame, *prefswin_title_vbox;
+ 	GtkWidget *prefswin_title_hbox, *prefswin_title_vbox2;
+ 
++	GtkWidget *prefswin_audiocd_frame, *prefswin_audiocd_vbox;
++	GtkWidget *prefswin_audiocd_hbox, *prefswin_audiocd_browse;
++	GtkWidget *prefswin_audiocd_label;
++
+ 	GtkWidget *options_table;
+ 	GtkWidget *options_giop, *options_giod, *options_giol, *options_rt;
+ 	GtkWidget *options_sw, *options_sw_box, *options_sw_label;
+@@ -711,6 +741,12 @@
+ 	GtkWidget *options_font_hbox, *options_font_vbox;
+ 	GtkWidget *options_mouse_box, *options_mouse_label;
+ 	GtkObject *options_mouse_adj;
++
++	/** Added by Tatu Lahtela */
++	GtkWidget *options_mousewheel_scroll_box, *options_mousewheel_scroll_label;
++	GtkObject *options_mousewheel_scroll_adj;
++	/* end */
++
+ 	GtkWidget *prefswin_title_desc, *prefswin_title_label, *prefswin_moreinfo_label, *opt;
+ 
+ 	char *titles[1];
+@@ -1047,6 +1083,18 @@
+ 	opt = prefswin_option_new_with_label_to_table(&cfg.use_pl_metadata,
+ 						      _("Use meta-data in playlists"),
+ 						      GTK_TABLE(options_table), 1, 8);
++
++	/** Added by Tatu Lahtela */
++	options_mousewheel_scroll_box = gtk_hbox_new(FALSE, 5);
++	options_mousewheel_scroll_label = gtk_label_new(_("Mouse wheel scrolls playlist by (lines)"));
++	gtk_box_pack_start(GTK_BOX(options_mousewheel_scroll_box), options_mousewheel_scroll_label, FALSE, FALSE, 0);
++	options_mousewheel_scroll_adj = gtk_adjustment_new(cfg.mousewheel_scroll_amount, 1, 100, 1, 1, 1);
++	prefswin_options_mousewheel = gtk_spin_button_new(GTK_ADJUSTMENT(options_mousewheel_scroll_adj), 1, 0);
++	gtk_widget_set_usize(prefswin_options_mousewheel, 45, -1);
++	gtk_box_pack_start(GTK_BOX(options_mousewheel_scroll_box), prefswin_options_mousewheel, FALSE, FALSE, 0);
++	gtk_table_attach_defaults(GTK_TABLE(options_table), options_mousewheel_scroll_box, 0, 1, 9, 10);
++	/* end */
++
+ 	gtk_tooltips_set_tip(prefswin_tooltips, opt,
+ 			     _("Store information such as song title and "
+ 			       "length to playlists"), NULL);
+@@ -1147,6 +1195,30 @@
+ 
+ 	gtk_notebook_append_page(GTK_NOTEBOOK(prefswin_notebook), prefswin_title_vbox, gtk_label_new(_("Title")));
+ 
++	/*
++	 * Audio CD page
++	 */
++	prefswin_audiocd_vbox = gtk_vbox_new(FALSE, 0);
++
++	prefswin_audiocd_frame = gtk_frame_new(_("Audio CD Directory"));
++	gtk_box_pack_start(GTK_BOX(prefswin_audiocd_vbox), prefswin_audiocd_frame, FALSE, FALSE, 0);
++	gtk_container_border_width(GTK_CONTAINER(prefswin_audiocd_frame), 5);
++
++	prefswin_audiocd_hbox = gtk_hbox_new(FALSE, 10);
++	gtk_container_add(GTK_CONTAINER(prefswin_audiocd_frame), prefswin_audiocd_hbox);
++	gtk_container_border_width(GTK_CONTAINER(prefswin_audiocd_hbox), 5);
++
++	prefswin_audiocd_label = gtk_label_new(_("Directory:"));
++	gtk_box_pack_start(GTK_BOX(prefswin_audiocd_hbox), prefswin_audiocd_label, FALSE, FALSE, 0);
++
++	prefswin_audiocd_cddadirectory = gtk_entry_new();
++	gtk_box_pack_start(GTK_BOX(prefswin_audiocd_hbox), prefswin_audiocd_cddadirectory, TRUE, TRUE, 0);
++
++	prefswin_audiocd_browse = gtk_button_new_with_label(_("Browse"));
++	gtk_signal_connect(GTK_OBJECT(prefswin_audiocd_browse), "clicked", GTK_SIGNAL_FUNC(prefswin_audiocd_browse_cb), NULL);
++	gtk_box_pack_start(GTK_BOX(prefswin_audiocd_hbox), prefswin_audiocd_browse, TRUE, TRUE, 0);
++
++	gtk_notebook_append_page(GTK_NOTEBOOK(prefswin_notebook), prefswin_audiocd_vbox, gtk_label_new(_("Audio CD")));
+ 
+ 	/* 
+ 	 * OK, Cancel & Apply 
+@@ -1392,6 +1464,12 @@
+ 	gtk_entry_set_text(GTK_ENTRY(prefswin_options_pbs_entry), temp);
+ 	gtk_spin_button_set_value(GTK_SPIN_BUTTON(prefswin_options_mouse_spin), cfg.mouse_change);
+ 
++	/** Added by Tatu Lahtela */
++	gtk_spin_button_set_value(GTK_SPIN_BUTTON(prefswin_options_mousewheel), cfg.mousewheel_scroll_amount);
++	/* end */
++
++	gtk_entry_set_text(GTK_ENTRY(prefswin_audiocd_cddadirectory), cfg.cdda_directory);
++
+  	gtk_widget_show_all(prefswin);
+ 	gtk_widget_grab_default(prefswin_ok);
+ 

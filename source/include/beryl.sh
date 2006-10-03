@@ -17,10 +17,10 @@ versha1=`lynx -dump $srcurl/beryl-VERSION-$pkgver.sha1sum | sed 's/ .*//g'`
 sha1sums=($srcsha1 $versha1)
 
 build() {
-	cd $Fsrcdir
-	cp beryl-VERSION-$pkgver VERSION
+	cd $Fsrcdir || Fdie
+	cp beryl-VERSION-$pkgver VERSION || Fdie
 	Fcd
-	./autogen.sh
+	./autogen.sh || Fdie
 	Fbuild
 }
 

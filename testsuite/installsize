@@ -1,0 +1,46 @@
+#!/usr/bin/env python
+
+import alpm, os, tempfile, shutil, sys, re
+
+archlist = None
+limit = 630
+
+if len(sys.argv) > 1:
+	if sys.argv[1] == "--help":
+		print "check if the default install fits on a single CD"
+		sys.exit(0)
+	else:
+		archlist = ["frugalware-%s" % sys.argv[1]]
+if not archlist:
+	archlist = os.listdir("..")
+
+for i in archlist:
+	if not re.match("^frugalware-", i):
+		continue
+	arch = i[11:]
+	root = tempfile.mkdtemp()
+	alpm.initialize(root)
+	if os.getcwd().split('/')[-2] == "frugalware-current":
+		treename = "frugalware-current"
+	else:
+		treename = "frugalware"
+	db = alpm.db_register(treename)
+	alpm.db_setserver(db, "file://" + os.getcwd() + "/../frugalware-" + arch)
+	alpm.db_update(1, db)
+	size = 0
+	j = alpm.db_getpkgcache(db)
+	while j:
+		pkg = alpm.void_to_PM_PKG(alpm.list_getdata(j))
+		pkgname = alpm.void_to_char(alpm.pkg_getinfo(pkg, alpm.PKG_NAME))
+		pkgsize = alpm.void_to_unsigned_long(alpm.pkg_getinfo(pkg, alpm.PKG_SIZE))
+		group = alpm.void_to_char(alpm.list_getdata(alpm.void_to_PM_LIST(alpm.pkg_getinfo(pkg, alpm.PKG_GROUPS))))
+		if group[-6:] == "-extra":
+			j = alpm.list_next(j)
+			continue
+		size += pkgsize
+		j = alpm.list_next(j)
+	alpm.release()
+	shutil.rmtree(root)
+	mbsize = round(size / 1048576.0, 1)
+	if mbsize > 650.0:
+		print "Size for %s is too big: %d MB (should be < %d MB)" % (arch, mbsize, limit)

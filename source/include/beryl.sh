@@ -16,12 +16,16 @@ srcsha1=`lynx -dump $srcurl/$pkgname-$pkgver.tar.bz2.sha1sum | sed 's/ .*//g'`
 versha1=`lynx -dump $srcurl/beryl-VERSION-$pkgver.sha1sum | sed 's/ .*//g'`
 sha1sums=($srcsha1 $versha1)
 
-build() {
+Fbuild_beryl() {
 	cd $Fsrcdir || Fdie
 	cp beryl-VERSION-$pkgver VERSION || Fdie
 	Fcd
 	./autogen.sh || Fdie
 	Fbuild
+}
+
+build() {
+	Fbuild_beryl
 }
 
 # optimization OK

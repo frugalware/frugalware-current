@@ -34,3 +34,5 @@ else
 fi
 
 options=(${options[@]} 'scriptlet')
+
+unset realname

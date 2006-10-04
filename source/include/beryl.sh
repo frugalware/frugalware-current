@@ -12,9 +12,8 @@ url="http://forum.beryl-project.org/"
 up2date="$pkgver"
 srcurl="http://ftp.frugalware.org/pub/other/sources/beryl"
 source=($srcurl/$pkgname-$pkgver.tar.bz2 $srcurl/beryl-VERSION-$pkgver)
-srcsha1=`lynx -dump $srcurl/$pkgname-$pkgver.tar.bz2.sha1sum | sed 's/ .*//g'`
-versha1=`lynx -dump $srcurl/beryl-VERSION-$pkgver.sha1sum | sed 's/ .*//g'`
-sha1sums=($srcsha1 $versha1)
+sha1sums=(${sha1sums[@]} \
+	  'e7d6fa0f54a5fb734ec66b26f0dbf60ba9c79c47')
 
 Fbuild_beryl() {
 	cd $Fsrcdir || Fdie

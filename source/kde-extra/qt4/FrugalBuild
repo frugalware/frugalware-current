@@ -1,50 +1,51 @@
-# Last Modified: Sat, 16 Sep 2006 03:35:54 +0200
-# Compiling Time: 17.07 SBU
+# Last Modified: Thu, 05 Oct 2006 22:24:46 +0200
+# Compiling Time: 12.73 SBU
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=qt4
 origname=qt
-pkgver=4.1.4
-pkgrel=6
+pkgver=4.2.0
+pkgrel=1
 pkgmore=x11-opensource-src
 pkgdesc="The QT4 GUI toolkit."
 url="http://www.trolltech.com/products/qt"
-depends=('libxrandr' 'mesa' 'libxft' 'libmng' 'libjpeg' 'libxcursor' 'libxinerama' 'freetype2' 'libsm' 'libpng' 'libxtst' 'fontconfig')
-makedepends=('mysql>=5.0.15' 'postgresql' 'cups' 'bison' 'flex' 'unixodbc' 'imake')
+depends=('libxrandr' 'mesa' 'libxft' 'libmng' 'libjpeg' 'libxcursor' 'libxinerama' 'freetype2' \
+	'libsm' 'libpng' 'libxtst' 'fontconfig' 'dbus>=0.93' 'glib2')
+## glib2 only for some tests for now will be removed for kde4.
+makedepends=('mysql>=5.0.15' 'postgresql' 'cups' 'bison' 'flex' 'unixodbc' 'imake' 'sqlite3' 'sqlite2')
+rodepends=('dejavu-ttf')
 groups=('kde-extra')
 archs=('i686' 'x86_64')
 options=('nodocs' 'scriptlet')
 up2date="lynx -dump ftp://ftp.trolltech.com/qt/source/|grep 'qt-x11-opensource-src'|grep -v rc[1-9]|sort -n -r|head -n 1|sed 's/.*-\(.*\).t.*/\1/'"
 source=(ftp://ftp.trolltech.com/qt/source/$origname-$pkgmore-$pkgver.tar.gz \
 	assistant4.desktop designer4.desktop linguist4.desktop \
-	qt4config.desktop dummy.patch qt4.sh.off default_post.prf)
-sha1sums=('59ef791e2a0deafcd76429187162ac893c547b29' \
+	qt4config.desktop dummy.patch qt4.sh.off Trolltech.conf)
+sha1sums=('b878d21cd6844261feb97a0a7a813160bf475596' \
           '991ed0d2f047e0ead54efc050c652595b7bed00b' \
           '19281b54674d4071a3814200fd8a64e097ece2e8' \
           '410b18b9a496cf551f7ff6cb282c719c874bc883' \
           'dfa7acb2259f65aeb23968241983110e509fa90c' \
-          '50181a7f20c625a7b710d9f832921a64f0e21d14' \
-          '0bc8e44da3202f00749123f64bd086e9f24ae010' \
-          'bac81734dd552eeaf3357bf2bf70ddc7a01b6298')
+          '6868adc53c2037a83b0601c92ea39dd3394a8fdf' \
+          'b52999fc0c57d92f5e41fedeec00804f8b498465' \
+          '2468fea7b127253832148115d5aa9e85b2e0aea6')
 
 export QTDIR=$startdir/src/$origname-$pkgmore-$pkgver
 export PATH=${QTDIR}/bin:${PATH}
 export LD_LIBRARY_PATH=${QTDIR}/lib:${LD_LIBRARY_PATH}
 export YACC='yacc -d'
 
-subpkgs=("$pkgname-docs" "$pkgname-debug")
-subinstall=('' "$pkgname-debug.install")
-suboptions=('' 'nostrip')
-subdescs=('QT4 Documentation.' 'The QT4 GUI toolkit (DEBUG).')
-subdepends=("$pkgname=$pkgver" "$pkgname=$pkgver")
-subgroups=('kde-extra kde-docs' 'kde-extra')
-subarchs=('i686 x86_64' 'i686 x86_64')
+subpkgs=("$pkgname-docs")
+subdescs=('QT4 Documentation.')
+subdepends=("$pkgname=$pkgver")
+subgroups=('kde-extra kde-docs')
+subarchs=('i686 x86_64')
 build()
 {
 	unset MAKEFLAGS
 	Fcd $origname-$pkgmore-$pkgver
 	Fpatch dummy.patch
-	Fsed "DUMMY" "${CFLAGS} -fno-strict-aliasing -Wno-deprecated" mkspecs/linux-g++/qmake.conf
+	Fsed "DUMMY" "${CFLAGS} -fno-strict-aliasing -Wno-deprecated" mkspecs/common/g++.conf
 	./configure -v -confirm-license -prefix /usr -L /usr/lib \
 		-libdir /usr/lib \
 		-docdir /usr/share/doc/$pkgname-$pkgver \
@@ -54,26 +55,25 @@ build()
 		-demosdir /usr/share/doc/$pkgname-$pkgver/demos \
 		-examplesdir /usr/share/doc/$pkgname-$pkgver/examples \
 		-plugindir /usr/lib/$pkgname/plugins \
-		-debug-and-release -shared -nis -qt-gif -stl -pch -sm \
-		-system-libpng -system-libjpeg -system-libmng -system-zlib \
-                -accessibility -fontconfig -no-nas-sound -no-rpath \
+		-release -shared -nis -qt-gif -stl -pch -sm \
+		-system-libpng -system-libjpeg -system-libmng -system-zlib -system-sqlite \
+                -accessibility -fontconfig -no-nas-sound -no-rpath -qt3support \
                 -tablet -xinerama -xrender -xkb -xshape -xrandr -cups -no-exceptions \
 		-plugin-sql-mysql -I/usr/include/mysql/ \
 		-plugin-sql-psql -I/usr/include -I/usr/include/pgsql/ -I/usr/include/pgsql/server \
-		-plugin-sql-sqlite -plugin-sql-odbc \
+		-plugin-sql-sqlite -plugin-sql-sqlite2 -plugin-sql-odbc -qdbus -glib -no-separate-debug-info \
 		 || return 1
 	Fsed "-L$startdir/src/$origname-$pkgmore-$pkgver/lib" "" lib/*
-	## for some reason without the extra -I/*'s we have some weird compile errors so
-	## lets hope this is fixed in .3 or later
+	## for some reason without the extra -I/*'s we have some weird compile errors
 	## some missing folder :)
         Fmkdir usr/share/applications usr/share/pixmaps usr/lib/pkgconfig
         Ffile ../*.desktop /usr/share/applications/
 	Fmessage "Moving needed icons to $Fdestdir/usr/share/pixmaps..."
         cp -a tools/assistant/images/{linguist,designer,assistant}.png $Fdestdir/usr/share/pixmaps/
 	Fmessage "Starting make.."
-	make || return 1
+	make || Fdie
 	Fmessage "Installing.."
-	make INSTALL_ROOT=$Fdestdir install || return 1
+	make INSTALL_ROOT=$Fdestdir install || Fdie
 	## now let us fix some stuff this *piep* qmake installed THAT fine :-D gota love it
 	## fix *.pc file location
 	Fmv /usr/lib/*.pc usr/lib/pkgconfig/
@@ -87,23 +87,8 @@ build()
 	Fsplit $pkgname-docs usr/bin/{assistant,qtdemo}
 	Fsplit $pkgname-docs usr/share/applications/assistant4.desktop
 	Fsplit $pkgname-docs usr/share/pixmaps/assistant.png
-	## debug package because .. ->
-	## 73M     /usr/lib/libQtGui_debug.so.4.1.4 :-D with nostrip
-	cp -r $Fdestdir/usr/share/$pkgname/mkspecs/qconfig.pri \
-		$Fdestdir/usr/share/$pkgname/mkspecs/qconfig.pri.debug
-	Fmv  usr/share/qt4/mkspecs/features/default_post.prf \
-		usr/share/qt4/mkspecs/features/default_post.prf.debug
-	Fsplit $pkgname-debug usr/lib/*_debug.*
-	Fsplit $pkgname-debug usr/lib/pkgconfig/*_debug.pc
-	Fsplit $pkgname-debug usr/lib/$pkgname/plugins/accessible/*_debug.*
-	Fsplit $pkgname-debug usr/lib/$pkgname/plugins/designer/*_debug.*
-	Fsplit $pkgname-debug usr/lib/$pkgname/plugins/imageformats/*_debug.*
-	Fsplit $pkgname-debug usr/lib/$pkgname/plugins/sqldrivers/*_debug.*
-	Fsplit $pkgname-debug usr/share/$pkgname/mkspecs/features/debug.prf
-	Fsplit $pkgname-debug usr/share/$pkgname/mkspecs/qconfig.pri.debug
-	Fsplit $pkgname-debug usr/share/qt4/mkspecs/features/default_post.prf.debug
 	Fexe /etc/profile.d/qt4.sh.off
-	Fexe /usr/share/qt4/mkspecs/features/default_post.prf
+	Fexe /etc/$pkgname/Trolltech.conf
 	## some more fixes
 	cd $Fdestdir/usr/share/$pkgname/mkspecs
 	rm -rf default ## blah symlink to build dir
@@ -112,7 +97,6 @@ build()
 		rm -rf $i
 	done
 	ln -sf linux-g++ default
-	Fsed 'debug' '' qconfig.pri
 }
 
 # optimization OK

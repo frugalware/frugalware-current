@@ -1,10 +1,10 @@
-# Last Modified: Fri, 06 May 2005 12:58:19 +0200
+# Last Modified: Fri, 06 Oct 2006 14:07:29 +0200
 # Compiling Time: 0.01 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=slocate
-pkgver=2.7
-pkgrel=2
+pkgver=3.1
+pkgrel=1
 pkgdesc="Security Enhanced version of the GNU Locate"
 url="http://www.geekreview.org/slocate"
 depends=('util-linux' 'frugalware')
@@ -12,32 +12,34 @@ groups=('base')
 archs=('i686' 'x86_64')
 backup=('etc/updatedb.conf')
 up2date="$pkgver"
-source=(http://slocate.trakker.ca/files/$pkgname-$pkgver.tar.gz \
-        slocate updatedb.conf)
-sha1sums=('b5de4668b61b137f3f5fa9f17b334f56b9424f90' \
-          '027843ac6833c024b33c90a18b1ab68ef03a5146' \
-          'c6b00373d0391537743f25b89b21a01042a0b6cd')
+#source=(http://slocate.trakker.ca/files/$pkgname-$pkgver.tar.gz \
+source=(http://ftp.frugalware.org/pub/other/sources/slocate/$pkgname-$pkgver.tar.bz2 \
+        slocate updatedb.conf fix-install.patch)
+sha1sums=('730cd64b2b0c22576cd368666f54686a3d5b339b' \
+	  '027843ac6833c024b33c90a18b1ab68ef03a5146' \
+	  'c6b00373d0391537743f25b89b21a01042a0b6cd' \
+	  'dffd2053a870972fdd4b902a2b23f4271abb24a5')
 
 build() {
-	cd $startdir/src/$pkgname-$pkgver
-	./autogen.sh --prefix=/usr
-	
+	Fcd
+	Fpatchall
+	# Fixup for cflags
+	Fsed "CFLAGS=-Wall -Wshadow" "CFLAGS=${CFLAGS}" src/Makefile
 	make || return 1
-	
-	install -cD -m644 ../updatedb.conf $startdir/pkg/etc/updatedb.conf
-	install -cD -m744 ../slocate $startdir/pkg/etc/cron.daily/slocate
-	mkdir -p $startdir/pkg/usr/bin
-	install -cD -m2755 --group=21 slocate $startdir/pkg/usr/bin/slocate
-	(cd $startdir/pkg/usr/bin && ln -sf slocate locate)
-	(cd $startdir/pkg/usr/bin && ln -sf slocate updatedb)
-	install -cD -m644 doc/slocate.1.linux.gz \
-		$startdir/pkg/usr/man/man1/slocate.1.gz
-	install -cD -m644 doc/updatedb.1.gz \
-		$startdir/pkg/usr/man/man1/updatedb.1.gz
-	(cd $startdir/pkg/usr/man/man1 && ln -sf slocate.1.gz locate.1.gz)
-	mkdir -p $startdir/pkg/var/lib
-	# slocate's gid will be 21
-	install -cd -m750 --group=21 $startdir/pkg/var/lib/slocate
+	Fmkdir /usr/bin
+	Fmakeinstall
+
+	Ffilerel $Fsrcdir/updatedb.conf /etc/updatedb.conf
+	Fexerel $Fsrcdir/slocate /etc/cron.daily/slocate
+	# Fixup for perms
+	chgrp 21 $Fdestdir/usr/bin/slocate || Fdie
+	Fln /usr/bin/slocate /usr/bin/locate
+	Fln /usr/bin/slocate /usr/bin/updatedb
+	Fln /usr/share/man/man1/slocate.1.gz /usr/share/man/man1/locate.1.gz
+	Fmkdir /var/lib/slocate
+	touch $Fdestdir/var/lib/slocate/.placeholder || Fdie
+	# Fixup for perms
+	chgrp 21 $Fdestdir/var/lib/slocate || Fdie
 }
 
-# optimization ok
+# optimization OK

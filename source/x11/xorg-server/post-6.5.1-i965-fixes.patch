@@ -1,0 +1,1061 @@
+diff --git a/src/mesa/drivers/dri/i965/Makefile b/src/mesa/drivers/dri/i965/Makefile
+index e4fb451..dfa9318 100644
+--- a/src/mesa/drivers/dri/i965/Makefile
++++ b/src/mesa/drivers/dri/i965/Makefile
+@@ -16,6 +16,7 @@ DRIVER_SOURCES = \
+ 	intel_regions.c \
+ 	intel_screen.c \
+ 	intel_span.c \
++	intel_pixel_copy.c \
+ 	intel_state.c \
+ 	intel_tex.c \
+ 	intel_tex_validate.c \
+diff --git a/src/mesa/drivers/dri/i965/brw_draw.c b/src/mesa/drivers/dri/i965/brw_draw.c
+index f12fb4c..e476b18 100644
+--- a/src/mesa/drivers/dri/i965/brw_draw.c
++++ b/src/mesa/drivers/dri/i965/brw_draw.c
+@@ -328,6 +328,7 @@ static GLboolean brw_try_draw_prims( GLc
+ 	 brw_emit_prim(brw, &prim[i]);   
+       }
+       
++      intel->need_flush = GL_TRUE;
+       retval = GL_TRUE;
+    }
+ 
+@@ -400,7 +401,7 @@ GLboolean brw_draw_prims( GLcontext *ctx
+       retval = brw_try_draw_prims(ctx, arrays, prim, nr_prims, ib, min_index, max_index, flags);
+    }
+ 
+-   if (intel->aub_file) {
++   if (intel->aub_file && (INTEL_DEBUG & DEBUG_SYNC)) {
+       intelFinish( &intel->ctx );
+       intel->aub_wrap = 1;
+    }
+diff --git a/src/mesa/drivers/dri/i965/brw_exec_api.c b/src/mesa/drivers/dri/i965/brw_exec_api.c
+index ca012db..470fa6f 100644
+--- a/src/mesa/drivers/dri/i965/brw_exec_api.c
++++ b/src/mesa/drivers/dri/i965/brw_exec_api.c
+@@ -394,7 +394,7 @@ static void GLAPIENTRY brw_exec_EvalCoor
+ 
+       for (i = 0 ; i <= BRW_ATTRIB_INDEX ; i++) {
+ 	 if (exec->eval.map1[i].map) 
+-	    if (exec->vtx.attrsz[i] != exec->eval.map1[i].sz)
++	    if (exec->vtx.active_sz[i] != exec->eval.map1[i].sz)
+ 	       brw_exec_fixup_vertex( ctx, i, exec->eval.map1[i].sz );
+       }
+    }
+diff --git a/src/mesa/drivers/dri/i965/brw_tex.c b/src/mesa/drivers/dri/i965/brw_tex.c
+index d70b2ea..8332d86 100644
+--- a/src/mesa/drivers/dri/i965/brw_tex.c
++++ b/src/mesa/drivers/dri/i965/brw_tex.c
+@@ -49,34 +49,57 @@ #include "brw_defines.h"
+ 
+ static const struct gl_texture_format *
+ brwChooseTextureFormat( GLcontext *ctx, GLint internalFormat,
+-			 GLenum format, GLenum type )
++			 GLenum srcFormat, GLenum srcType )
+ {
+    switch ( internalFormat ) {
+    case 4:
+    case GL_RGBA:
+    case GL_COMPRESSED_RGBA:
++      if (srcFormat == GL_BGRA && srcType == GL_UNSIGNED_SHORT_4_4_4_4_REV)
++	 return &_mesa_texformat_argb4444;
++      else if (srcFormat == GL_BGRA && srcType == GL_UNSIGNED_SHORT_1_5_5_5_REV)
++	 return &_mesa_texformat_argb1555;
++      else if ((srcFormat == GL_RGBA && srcType == GL_UNSIGNED_INT_8_8_8_8_REV) ||
++	       (srcFormat == GL_RGBA && srcType == GL_UNSIGNED_BYTE) ||
++	       (srcFormat == GL_ABGR_EXT && srcType == GL_UNSIGNED_INT_8_8_8_8)) 
++	 return &_mesa_texformat_rgba8888_rev;
++      else
++	 return &_mesa_texformat_argb8888;
++
+    case GL_RGBA8:
+    case GL_RGB10_A2:
+    case GL_RGBA12:
+    case GL_RGBA16:
+-   case GL_RGBA4:
+-   case GL_RGBA2:
+-   case GL_RGB5_A1:
+       return &_mesa_texformat_argb8888; 
+-/*       return &_mesa_texformat_rgba8888_rev; */
+ 
+-   case 3:
+-   case GL_RGB:
+-   case GL_COMPRESSED_RGB:
+    case GL_RGB8:
+    case GL_RGB10:
+    case GL_RGB12:
+    case GL_RGB16:
++      /* Broadwater doesn't support RGB888 textures, so these must be
++       * stored as ARGB.
++       */
++      return &_mesa_texformat_argb8888;
++
++   case 3:
++   case GL_COMPRESSED_RGB:
++   case GL_RGB:
++      if (srcFormat == GL_RGB &&
++	  srcType == GL_UNSIGNED_SHORT_5_6_5)
++	 return &_mesa_texformat_rgb565;
++      else
++	 return &_mesa_texformat_argb8888;
++
++
+    case GL_RGB5:
+-   case GL_RGB4:
++   case GL_RGB5_A1:
++      return &_mesa_texformat_argb1555;
++
+    case GL_R3_G3_B2:
+-/*       return &_mesa_texformat_rgb888; */
+-      return &_mesa_texformat_argb8888;
++   case GL_RGBA2:
++   case GL_RGBA4:
++   case GL_RGB4:
++      return &_mesa_texformat_argb4444;
+ 
+    case GL_ALPHA:
+    case GL_ALPHA4:
+@@ -115,8 +138,8 @@ brwChooseTextureFormat( GLcontext *ctx, 
+       return &_mesa_texformat_i8;
+ 
+    case GL_YCBCR_MESA:
+-      if (type == GL_UNSIGNED_SHORT_8_8_MESA ||
+-	  type == GL_UNSIGNED_BYTE)
++      if (srcType == GL_UNSIGNED_SHORT_8_8_MESA ||
++	  srcType == GL_UNSIGNED_BYTE)
+          return &_mesa_texformat_ycbcr;
+       else
+          return &_mesa_texformat_ycbcr_rev;
+diff --git a/src/mesa/drivers/dri/i965/brw_tex_layout.c b/src/mesa/drivers/dri/i965/brw_tex_layout.c
+index f8aa068..1353325 100644
+--- a/src/mesa/drivers/dri/i965/brw_tex_layout.c
++++ b/src/mesa/drivers/dri/i965/brw_tex_layout.c
+@@ -138,13 +138,16 @@ GLboolean brw_miptree_layout( struct int
+ 	 
+ 	 /* Layout_below: step right after second mipmap.
+ 	  */
+-	 if (level == mt->first_level + 1) 
++	 if (level == mt->first_level + 1) {
+ 	    x += mt->pitch / 2;
++	    x = (x + 3) & ~ 3;
++	 }
+ 	 else {
+ 	    y += img_height;
++	    y += align_h - 1;
++	    y &= ~(align_h - 1);
+ 	 }
+ 
+-
+ 	 width  = minify(width);
+ 	 height = minify(height);
+       }
+diff --git a/src/mesa/drivers/dri/i965/brw_util.c b/src/mesa/drivers/dri/i965/brw_util.c
+index 5957b71..9d12c26 100644
+--- a/src/mesa/drivers/dri/i965/brw_util.c
++++ b/src/mesa/drivers/dri/i965/brw_util.c
+@@ -98,6 +98,8 @@ static GLuint brw_parameter_state_flags(
+       switch (state[1]) {
+       case STATE_NORMAL_SCALE:
+ 	 return _NEW_MODELVIEW;
++      case STATE_TEXRECT_SCALE:
++	 return _NEW_TEXTURE;
+       default:
+ 	 assert(0);
+ 	 return 0;
+diff --git a/src/mesa/drivers/dri/i965/brw_wm.h b/src/mesa/drivers/dri/i965/brw_wm.h
+index 74c3bbe..ec6ad61 100644
+--- a/src/mesa/drivers/dri/i965/brw_wm.h
++++ b/src/mesa/drivers/dri/i965/brw_wm.h
+@@ -167,6 +167,7 @@ #define WM_PINTERP        (MAX_OPCODE + 
+ #define WM_CINTERP        (MAX_OPCODE + 5)
+ #define WM_WPOSXY         (MAX_OPCODE + 6)
+ #define WM_FB_WRITE       (MAX_OPCODE + 7)
++#define MAX_WM_OPCODE     (MAX_OPCODE + 8)
+ 
+ #define PROGRAM_PAYLOAD   (PROGRAM_FILE_MAX)
+ #define PAYLOAD_DEPTH     (FRAG_ATTRIB_MAX)
+diff --git a/src/mesa/drivers/dri/i965/brw_wm_fp.c b/src/mesa/drivers/dri/i965/brw_wm_fp.c
+index 203eeea..8bf5579 100644
+--- a/src/mesa/drivers/dri/i965/brw_wm_fp.c
++++ b/src/mesa/drivers/dri/i965/brw_wm_fp.c
+@@ -520,6 +520,35 @@ static void precalc_lit( struct brw_wm_c
+ static void precalc_tex( struct brw_wm_compile *c,
+ 			 const struct prog_instruction *inst )
+ {
++   struct prog_src_register coord;
++   struct prog_dst_register tmpcoord;
++
++   if (inst->TexSrcTarget == TEXTURE_RECT_INDEX) {
++      struct prog_src_register scale = 
++	 search_or_add_param6( c, 
++			       STATE_INTERNAL, 
++			       STATE_TEXRECT_SCALE,
++			       inst->TexSrcUnit,
++			       0,0,0 );
++
++      tmpcoord = get_temp(c);
++
++      /* coord.xy   = MUL inst->SrcReg[0], { 1/width, 1/height }
++       */
++      emit_op(c,
++	      OPCODE_MUL,
++	      tmpcoord,
++	      0, 0, 0,
++	      inst->SrcReg[0],
++	      scale,
++	      src_undef());
++
++      coord = src_reg_from_dst(tmpcoord);
++   }
++   else {
++      coord = inst->SrcReg[0];
++   }
++
+    /* Need to emit YUV texture conversions by hand.  Probably need to
+     * do this here - the alternative is in brw_wm_emit.c, but the
+     * conversion requires allocating a temporary variable which we
+@@ -532,7 +561,7 @@ static void precalc_tex( struct brw_wm_c
+ 	      inst->SaturateMode,
+ 	      inst->TexSrcUnit,
+ 	      inst->TexSrcTarget,
+-	      inst->SrcReg[0],
++	      coord,
+ 	      src_undef(),
+ 	      src_undef());
+    }
+@@ -604,7 +633,12 @@ static void precalc_tex( struct brw_wm_c
+ 	      src_swizzle1(tmpsrc, Z),
+ 	      src_swizzle1(C1, W),
+ 	      src_swizzle1(src_reg_from_dst(dst), Y));
++
++      release_temp(c, tmp);
+    }
++
++   if (inst->TexSrcTarget == GL_TEXTURE_RECTANGLE_NV) 
++      release_temp(c, tmpcoord);
+ }
+ 
+ 
+@@ -769,6 +803,27 @@ static void validate_src_regs( struct br
+ 	 
+ 
+ 
++static void print_insns( const struct prog_instruction *insn,
++			 GLuint nr )
++{
++   GLuint i;
++   for (i = 0; i < nr; i++, insn++) {
++      _mesa_printf("%3d: ", i);
++      if (insn->Opcode < MAX_OPCODE)
++	 _mesa_print_instruction(insn);
++      else if (insn->Opcode < MAX_WM_OPCODE) {
++	 GLuint idx = insn->Opcode - MAX_OPCODE;
++
++	 _mesa_print_alu_instruction(insn,
++				     wm_opcode_strings[idx],
++				     3);
++      }
++      else 
++	 _mesa_printf("UNKNOWN\n");
++	   
++   }
++}
++
+ void brw_wm_pass_fp( struct brw_wm_compile *c )
+ {
+    struct brw_fragment_program *fp = c->fp;
+@@ -867,7 +922,7 @@ void brw_wm_pass_fp( struct brw_wm_compi
+ 
+    if (INTEL_DEBUG & DEBUG_WM) {
+       _mesa_printf("\n\n\npass_fp:\n");
+-/*       _mesa_debug_fp_inst(c->nr_fp_insns, c->prog_instructions, wm_opcode_strings, wm_file_strings);  */
++      print_insns( c->prog_instructions, c->nr_fp_insns );
+       _mesa_printf("\n");
+    }
+ }
+diff --git a/src/mesa/drivers/dri/i965/brw_wm_surface_state.c b/src/mesa/drivers/dri/i965/brw_wm_surface_state.c
+index 6ccf56e..5c7dc50 100644
+--- a/src/mesa/drivers/dri/i965/brw_wm_surface_state.c
++++ b/src/mesa/drivers/dri/i965/brw_wm_surface_state.c
+@@ -85,7 +85,8 @@ static GLuint translate_tex_format( GLui
+       return BRW_SURFACEFORMAT_L8A8_UNORM;
+ 
+    case MESA_FORMAT_RGB888:
+-      return BRW_SURFACEFORMAT_R8G8B8_UNORM;
++      assert(0);		/* not supported for sampling */
++      return BRW_SURFACEFORMAT_R8G8B8_UNORM;      
+ 
+    case MESA_FORMAT_ARGB8888:
+       return BRW_SURFACEFORMAT_B8G8R8A8_UNORM;
+@@ -93,6 +94,15 @@ static GLuint translate_tex_format( GLui
+    case MESA_FORMAT_RGBA8888_REV:
+       return BRW_SURFACEFORMAT_R8G8B8A8_UNORM;
+ 
++   case MESA_FORMAT_RGB565:
++      return BRW_SURFACEFORMAT_B5G6R5_UNORM;
++
++   case MESA_FORMAT_ARGB1555:
++      return BRW_SURFACEFORMAT_B5G5R5A1_UNORM;
++
++   case MESA_FORMAT_ARGB4444:
++      return BRW_SURFACEFORMAT_B4G4R4A4_UNORM;
++
+    case MESA_FORMAT_YCBCR_REV:
+       return BRW_SURFACEFORMAT_YCRCB_NORMAL;
+ 
+diff --git a/src/mesa/drivers/dri/i965/bufmgr.h b/src/mesa/drivers/dri/i965/bufmgr.h
+index 83a810c..6932522 100644
+--- a/src/mesa/drivers/dri/i965/bufmgr.h
++++ b/src/mesa/drivers/dri/i965/bufmgr.h
+@@ -182,6 +182,8 @@ void bmUnmapBufferAUB( struct intel_cont
+ int bmValidateBuffers( struct intel_context * );
+ void bmReleaseBuffers( struct intel_context * );
+ 
++GLuint bmCtxId( struct intel_context *intel );
++
+ 
+ GLboolean bmError( struct intel_context * );
+ void bmEvictAll( struct intel_context * );
+diff --git a/src/mesa/drivers/dri/i965/bufmgr_fake.c b/src/mesa/drivers/dri/i965/bufmgr_fake.c
+index 8f182f3..30a235a 100644
+--- a/src/mesa/drivers/dri/i965/bufmgr_fake.c
++++ b/src/mesa/drivers/dri/i965/bufmgr_fake.c
+@@ -117,6 +117,7 @@ struct bufmgr {
+    struct block fenced;		/* after bmFenceBuffers (mi_flush, emit irq, write dword) */
+                                 /* then to pool->lru or free() */
+ 
++   unsigned ctxId;
+    unsigned last_fence;
+    unsigned free_on_hardware;
+ 
+@@ -578,6 +579,12 @@ struct bufmgr *bm_fake_intel_Attach( str
+       make_empty_list(&bm.referenced);
+       make_empty_list(&bm.fenced);
+       make_empty_list(&bm.on_hardware);
++      
++      /* The context id of any of the share group.  This won't be used
++       * in communication with the kernel, so it doesn't matter if
++       * this context is eventually deleted.
++       */
++      bm.ctxId = intel->hHWContext;
+    }
+ 
+    nr_attach++;
+@@ -1242,7 +1249,6 @@ void bmReleaseBuffers( struct intel_cont
+    LOCK(bm);
+    {
+       struct block *block, *tmp;
+-      assert(intel->locked);
+ 
+       foreach_s (block, tmp, &bm->referenced) {
+ 
+@@ -1432,3 +1438,9 @@ GLboolean bmError( struct intel_context 
+ 
+    return retval;
+ }
++
++
++GLuint bmCtxId( struct intel_context *intel )
++{
++   return intel->bm->ctxId;
++}
+diff --git a/src/mesa/drivers/dri/i965/intel_blit.c b/src/mesa/drivers/dri/i965/intel_blit.c
+index 2191dd5..b09b0a9 100644
+--- a/src/mesa/drivers/dri/i965/intel_blit.c
++++ b/src/mesa/drivers/dri/i965/intel_blit.c
+@@ -74,9 +74,6 @@ void intelCopyBuffer( const __DRIdrawabl
+ 
+    if (!rect)
+    {
+-      /* This is a really crappy way to do wait-for-vblank.  I guess
+-       * it sortof works in the single-application case.
+-       */
+        UNLOCK_HARDWARE( intel );
+        driWaitForVBlank( dPriv, &intel->vbl_seq, intel->vblank_flags, & missed_target );
+        LOCK_HARDWARE( intel );
+@@ -291,8 +288,12 @@ void intelEmitCopyBlit( struct intel_con
+ 
+    /* Initial y values don't seem to work with negative pitches.  If
+     * we adjust the offsets manually (below), it seems to work fine.
++    *
++    * On the other hand, if we always adjust, the hardware doesn't
++    * know which blit directions to use, so overlapping copypixels get
++    * the wrong result.
+     */
+-   if (0) {
++   if (dst_pitch > 0 && src_pitch > 0) {
+       BEGIN_BATCH(8, INTEL_BATCH_NO_CLIPRECTS);
+       OUT_BATCH( CMD );
+       OUT_BATCH( dst_pitch | BR13 );
+diff --git a/src/mesa/drivers/dri/i965/intel_context.c b/src/mesa/drivers/dri/i965/intel_context.c
+index 59fc807..5f19137 100644
+--- a/src/mesa/drivers/dri/i965/intel_context.c
++++ b/src/mesa/drivers/dri/i965/intel_context.c
+@@ -149,6 +149,10 @@ const struct dri_extension card_extensio
+     { "GL_ARB_texture_env_combine",        NULL },
+     { "GL_ARB_texture_env_dot3",           NULL },
+     { "GL_ARB_texture_mirrored_repeat",    NULL },
++    { "GL_ARB_texture_non_power_of_two",   NULL },
++    { "GL_ARB_texture_rectangle",          NULL },
++    { "GL_NV_texture_rectangle",           NULL },
++    { "GL_EXT_texture_rectangle",          NULL },
+     { "GL_ARB_texture_rectangle",          NULL },
+     { "GL_ARB_vertex_buffer_object",       GL_ARB_vertex_buffer_object_functions },
+     { "GL_ARB_vertex_program",             GL_ARB_vertex_program_functions },
+@@ -255,10 +259,14 @@ void intelInitDriverFunctions( struct dd
+     */
+    functions->Accum = _swrast_Accum;
+    functions->Bitmap = _swrast_Bitmap;
+-   functions->CopyPixels = _swrast_CopyPixels;
+    functions->ReadPixels = _swrast_ReadPixels;
+    functions->DrawPixels = _swrast_DrawPixels;
+ 
++   /* CopyPixels can be accelerated even with the current memory
++    * manager:
++    */
++   functions->CopyPixels = intelCopyPixels;
++
+    intelInitTextureFuncs( functions );
+    intelInitStateFuncs( functions );
+    intelInitBufferFuncs( functions );
+@@ -370,8 +378,6 @@ GLboolean intelInitContext( struct intel
+       exit(1);
+    }
+  
+-   _math_matrix_ctr (&intel->ViewportMatrix);
+-
+    driInitExtensions( ctx, card_extensions, 
+ 		      GL_TRUE );
+ 
+@@ -446,8 +452,6 @@ GLboolean intelInitContext( struct intel
+ /* 			  DRI_TEXMGR_DO_TEXTURE_RECT ); */
+ 
+ 
+-   intel->prim.primitive = ~0;
+-
+    if (getenv("INTEL_NO_RAST")) {
+       fprintf(stderr, "disabling 3D rasterization\n");
+       intel->no_rast = 1;
+@@ -537,18 +541,13 @@ GLboolean intelMakeCurrent(__DRIcontextP
+ }
+ 
+ 
+-static void lost_hardware( struct intel_context *intel )
+-{
+-   bm_fake_NotifyContendedLockTake( intel ); 
+-   intel->vtbl.lost_hardware( intel );
+-}
+-
+ static void intelContendedLock( struct intel_context *intel, GLuint flags )
+ {
+    __DRIdrawablePrivate *dPriv = intel->driDrawable;
+    __DRIscreenPrivate *sPriv = intel->driScreen;
+    volatile drmI830Sarea * sarea = intel->sarea;
+    int me = intel->hHWContext;
++   int my_bufmgr = bmCtxId(intel);
+ 
+    drmGetLock(intel->driFd, intel->hHWContext, flags);
+ 
+@@ -562,12 +561,23 @@ static void intelContendedLock( struct i
+ 
+ 
+    intel->locked = 1;
++   intel->need_flush = 1;
+ 
+    /* Lost context?
+     */
+    if (sarea->ctxOwner != me) {
++      DBG("Lost Context: sarea->ctxOwner %x me %x\n", sarea->ctxOwner, me);
+       sarea->ctxOwner = me;
+-      lost_hardware(intel);
++      intel->vtbl.lost_hardware( intel );
++   }
++
++   /* As above, but don't evict the texture data on transitions
++    * between contexts which all share a local buffer manager.
++    */
++   if (sarea->texAge != my_bufmgr) {
++      DBG("Lost Textures: sarea->texAge %x my_bufmgr %x\n", sarea->ctxOwner, my_bufmgr);
++      sarea->texAge = my_bufmgr;
++      bm_fake_NotifyContendedLockTake( intel ); 
+    }
+ 
+    /* Drawable changed?
+diff --git a/src/mesa/drivers/dri/i965/intel_context.h b/src/mesa/drivers/dri/i965/intel_context.h
+index 0328cb9..d0354cf 100644
+--- a/src/mesa/drivers/dri/i965/intel_context.h
++++ b/src/mesa/drivers/dri/i965/intel_context.h
+@@ -176,16 +176,6 @@ struct intel_context
+ 
+    struct intel_batchbuffer *batch;
+ 
+-   struct {
+-      GLuint id;
+-      GLuint primitive;
+-      GLubyte *start_ptr;      
+-      void (*flush)( struct intel_context * );
+-   } prim;
+-
+-   GLboolean locked;
+-   GLboolean strict_conformance;
+-
+    GLubyte clear_chan[4];
+    GLuint ClearColor;
+    GLuint ClearDepth;
+@@ -201,6 +191,10 @@ struct intel_context
+    GLboolean no_hw;
+    GLboolean no_rast;
+    GLboolean thrashing;
++   GLboolean locked;
++   GLboolean strict_conformance;
++   GLboolean need_flush;
++
+ 
+    
+    /* AGP memory buffer manager:
+@@ -210,26 +204,14 @@ struct intel_context
+ 
+    /* State for intelvb.c and inteltris.c.
+     */
+-   GLuint RenderIndex;
+-   GLmatrix ViewportMatrix;
+    GLenum render_primitive;
+    GLenum reduced_primitive;
+-   GLuint vertex_size;
+-   GLubyte *verts;			/* points to tnl->clipspace.vertex_buf */
+-
+ 
+    struct intel_region *front_region;
+    struct intel_region *back_region;
+    struct intel_region *draw_region;
+    struct intel_region *depth_region;
+ 
+-
+-   /* Fallback rasterization functions 
+-    */
+-   intel_point_func draw_point;
+-   intel_line_func draw_line;
+-   intel_tri_func draw_tri;
+-
+    /* These refer to the current draw (front vs. back) buffer:
+     */
+    int drawX;			/* origin of drawable in draw buffer */
+@@ -496,6 +478,13 @@ extern GLboolean intel_intersect_cliprec
+ 					    const drm_clip_rect_t *b );
+ 
+ 
++/* ================================================================
++ * intel_pixel_copy.c:
++ */
++void intelCopyPixels(GLcontext * ctx,
++                     GLint srcx, GLint srcy,
++                     GLsizei width, GLsizei height,
++                     GLint destx, GLint desty, GLenum type);
+ 
+ #define _NEW_WINDOW_POS 0x40000000
+ 
+diff --git a/src/mesa/drivers/dri/i965/intel_pixel_copy.c b/src/mesa/drivers/dri/i965/intel_pixel_copy.c
+new file mode 100644
+index 0000000..ad27867
+--- /dev/null
++++ b/src/mesa/drivers/dri/i965/intel_pixel_copy.c
+@@ -0,0 +1,239 @@
++/**************************************************************************
++ * 
++ * Copyright 2003 Tungsten Graphics, Inc., Cedar Park, Texas.
++ * All Rights Reserved.
++ * 
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the
++ * "Software"), to deal in the Software without restriction, including
++ * without limitation the rights to use, copy, modify, merge, publish,
++ * distribute, sub license, and/or sell copies of the Software, and to
++ * permit persons to whom the Software is furnished to do so, subject to
++ * the following conditions:
++ * 
++ * The above copyright notice and this permission notice (including the
++ * next paragraph) shall be included in all copies or substantial portions
++ * of the Software.
++ * 
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
++ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
++ * IN NO EVENT SHALL TUNGSTEN GRAPHICS AND/OR ITS SUPPLIERS BE LIABLE FOR
++ * ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
++ * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
++ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ * 
++ **************************************************************************/
++
++#include "glheader.h"
++#include "enums.h"
++#include "image.h"
++#include "mtypes.h"
++#include "macros.h"
++#include "state.h"
++#include "swrast/swrast.h"
++
++#include "intel_screen.h"
++#include "intel_context.h"
++#include "intel_ioctl.h"
++#include "intel_batchbuffer.h"
++#include "intel_blit.h"
++#include "intel_regions.h"
++
++
++static struct intel_region *
++copypix_src_region(struct intel_context *intel, GLenum type)
++{
++   switch (type) {
++   case GL_COLOR:
++      return intel_readbuf_region(intel);
++   case GL_DEPTH:
++      /* Don't think this is really possible execpt at 16bpp, when we have no stencil.
++       */
++      if (intel->depth_region && intel->depth_region->cpp == 2)
++         return intel->depth_region;
++   case GL_STENCIL:
++      /* Don't think this is really possible. 
++       */
++      break;
++   case GL_DEPTH_STENCIL_EXT:
++      /* Does it matter whether it is stencil/depth or depth/stencil?
++       */
++      return intel->depth_region;
++   default:
++      break;
++   }
++
++   return NULL;
++}
++
++
++
++
++/**
++ * Check if any fragment operations are in effect which might effect
++ * glDraw/CopyPixels.
++ */
++static GLboolean
++intel_check_blit_fragment_ops(GLcontext * ctx)
++{
++   if (ctx->NewState)
++      _mesa_update_state(ctx);
++
++   /* Could do logicop with the blitter: 
++    */
++   return !(ctx->_ImageTransferState ||
++            ctx->Color.AlphaEnabled ||
++            ctx->Depth.Test ||
++            ctx->Fog.Enabled ||
++            ctx->Stencil.Enabled ||
++            !ctx->Color.ColorMask[0] ||
++            !ctx->Color.ColorMask[1] ||
++            !ctx->Color.ColorMask[2] ||
++            !ctx->Color.ColorMask[3] ||
++            ctx->Color.ColorLogicOpEnabled ||
++            ctx->Texture._EnabledUnits ||
++	    ctx->FragmentProgram._Enabled);
++}
++
++
++
++/**
++ * CopyPixels with the blitter.  Don't support zooming, pixel transfer, etc.
++ */
++static GLboolean
++do_blit_copypixels(GLcontext * ctx,
++                   GLint srcx, GLint srcy,
++                   GLsizei width, GLsizei height,
++                   GLint dstx, GLint dsty, GLenum type)
++{
++   struct intel_context *intel = intel_context(ctx);
++   struct intel_region *dst = intel_drawbuf_region(intel);
++   struct intel_region *src = copypix_src_region(intel, type);
++
++   /* Copypixels can be more than a straight copy.  Ensure all the
++    * extra operations are disabled:
++    */
++   if (!intel_check_blit_fragment_ops(ctx) ||
++       ctx->Pixel.ZoomX != 1.0F || ctx->Pixel.ZoomY != 1.0F)
++      return GL_FALSE;
++
++   if (!src || !dst)
++      return GL_FALSE;
++
++
++
++   intelFlush(&intel->ctx);
++
++/*    intel->vtbl.render_start(intel); */
++/*    intel->vtbl.emit_state(intel); */
++
++   LOCK_HARDWARE(intel);
++
++   if (intel->driDrawable->numClipRects) {
++      __DRIdrawablePrivate *dPriv = intel->driDrawable;
++      drm_clip_rect_t *box = dPriv->pClipRects;
++      drm_clip_rect_t dest_rect;
++      GLint nbox = dPriv->numClipRects;
++      GLint delta_x = 0;
++      GLint delta_y = 0;
++      GLuint i;
++
++      /* Do scissoring in GL coordinates:
++       */
++      if (ctx->Scissor.Enabled)
++      {
++	 GLint x = ctx->Scissor.X;
++	 GLint y = ctx->Scissor.Y;
++	 GLuint w = ctx->Scissor.Width;
++	 GLuint h = ctx->Scissor.Height;
++	 GLint dx = dstx - srcx;
++         GLint dy = dsty - srcy;
++
++         if (!_mesa_clip_to_region(x, y, x+w, y+h, &dstx, &dsty, &width, &height))
++            goto out;
++	 
++         srcx = dstx - dx;
++         srcy = dsty - dy;
++      }
++
++      /* Convert from GL to hardware coordinates:
++       */
++      dsty = dPriv->h - dsty - height;  
++      srcy = dPriv->h - srcy - height;  
++      dstx += dPriv->x;
++      dsty += dPriv->y;
++      srcx += dPriv->x;
++      srcy += dPriv->y;
++
++      /* Clip against the source region.  This is the only source
++       * clipping we do.  Dst is clipped with cliprects below.
++       */
++      {
++         delta_x = srcx - dstx;
++         delta_y = srcy - dsty;
++
++         if (!_mesa_clip_to_region(0, 0, src->pitch, src->height,
++                                   &srcx, &srcy, &width, &height))
++            goto out;
++
++         dstx = srcx - delta_x;
++         dsty = srcy - delta_y;
++      }
++
++      dest_rect.x1 = dstx;
++      dest_rect.y1 = dsty;
++      dest_rect.x2 = dstx + width;
++      dest_rect.y2 = dsty + height;
++
++/*       intel->vtbl.emit_flush(intel, 0); */
++
++      /* Could do slightly more clipping: Eg, take the intersection of
++       * the existing set of cliprects and those cliprects translated
++       * by delta_x, delta_y:
++       * 
++       * This code will not overwrite other windows, but will
++       * introduce garbage when copying from obscured window regions.
++       */
++      for (i = 0; i < nbox; i++) {
++         drm_clip_rect_t rect;
++
++         if (!intel_intersect_cliprects(&rect, &dest_rect, &box[i]))
++            continue;
++
++
++         intelEmitCopyBlit(intel, 
++			   dst->cpp, 
++			   src->pitch, src->buffer, 0, src->tiled,
++			   dst->pitch, dst->buffer, 0, dst->tiled,
++			   rect.x1 + delta_x, 
++			   rect.y1 + delta_y,       /* srcx, srcy */
++                           rect.x1, rect.y1,    /* dstx, dsty */
++                           rect.x2 - rect.x1, rect.y2 - rect.y1);
++      }
++
++      intel->need_flush = GL_TRUE;
++   out:
++      intel_batchbuffer_flush(intel->batch);
++   }
++   UNLOCK_HARDWARE(intel);
++   return GL_TRUE;
++}
++
++void
++intelCopyPixels(GLcontext * ctx,
++                GLint srcx, GLint srcy,
++                GLsizei width, GLsizei height,
++                GLint destx, GLint desty, GLenum type)
++{
++   if (INTEL_DEBUG & DEBUG_PIXEL)
++      fprintf(stderr, "%s\n", __FUNCTION__);
++
++   if (do_blit_copypixels(ctx, srcx, srcy, width, height, destx, desty, type))
++      return;
++
++   if (INTEL_DEBUG & DEBUG_PIXEL)
++      _mesa_printf("fallback to _swrast_CopyPixels\n");
++
++   _swrast_CopyPixels(ctx, srcx, srcy, width, height, destx, desty, type);
++}
+diff --git a/src/mesa/drivers/dri/i965/intel_span.c b/src/mesa/drivers/dri/i965/intel_span.c
+index c68def5..60fbecc 100644
+--- a/src/mesa/drivers/dri/i965/intel_span.c
++++ b/src/mesa/drivers/dri/i965/intel_span.c
+@@ -35,6 +35,7 @@ #include "intel_regions.h"
+ #include "intel_span.h"
+ #include "intel_ioctl.h"
+ #include "intel_tex.h"
++#include "intel_batchbuffer.h"
+ #include "swrast/swrast.h"
+ 
+ #undef DBG
+@@ -207,6 +208,16 @@ void intelSpanRenderStart( GLcontext *ct
+ {
+    struct intel_context *intel = intel_context(ctx);
+ 
++   if (intel->need_flush) {
++      LOCK_HARDWARE(intel);
++      intel->vtbl.emit_flush(intel, 0);
++      intel_batchbuffer_flush(intel->batch);
++      intel->need_flush = 0;
++      UNLOCK_HARDWARE(intel);
++      intelFinish(&intel->ctx);
++   }
++
++
+    LOCK_HARDWARE(intel);
+ 
+    /* Just map the framebuffer and all textures.  Bufmgr code will
+diff --git a/src/mesa/drivers/dri/i965/intel_state.c b/src/mesa/drivers/dri/i965/intel_state.c
+index a471f67..ec6e046 100644
+--- a/src/mesa/drivers/dri/i965/intel_state.c
++++ b/src/mesa/drivers/dri/i965/intel_state.c
+@@ -182,39 +182,6 @@ static void intelClearColor(GLcontext *c
+ }
+ 
+ 
+-static void intelCalcViewport( GLcontext *ctx )
+-{
+-   struct intel_context *intel = intel_context(ctx);
+-   const GLfloat *v = ctx->Viewport._WindowMap.m;
+-   GLfloat *m = intel->ViewportMatrix.m;
+-   GLint h = 0;
+-
+-   if (intel->driDrawable) 
+-      h = intel->driDrawable->h + SUBPIXEL_Y;
+-
+-   /* See also intel_translate_vertex.  SUBPIXEL adjustments can be done
+-    * via state vars, too.
+-    */
+-   m[MAT_SX] =   v[MAT_SX];
+-   m[MAT_TX] =   v[MAT_TX] + SUBPIXEL_X;
+-   m[MAT_SY] = - v[MAT_SY];
+-   m[MAT_TY] = - v[MAT_TY] + h;
+-   m[MAT_SZ] =   v[MAT_SZ] * intel->depth_scale;
+-   m[MAT_TZ] =   v[MAT_TZ] * intel->depth_scale;
+-}
+-
+-static void intelViewport( GLcontext *ctx,
+-			  GLint x, GLint y,
+-			  GLsizei width, GLsizei height )
+-{
+-   intelCalcViewport( ctx );
+-}
+-
+-static void intelDepthRange( GLcontext *ctx,
+-			    GLclampd nearval, GLclampd farval )
+-{
+-   intelCalcViewport( ctx );
+-}
+ 
+ /* Fallback to swrast for select and feedback.
+  */
+@@ -228,8 +195,6 @@ static void intelRenderMode( GLcontext *
+ void intelInitStateFuncs( struct dd_function_table *functions )
+ {
+    functions->RenderMode = intelRenderMode;
+-   functions->Viewport = intelViewport;
+-   functions->DepthRange = intelDepthRange;
+    functions->ClearColor = intelClearColor;
+ }
+ 
+diff --git a/src/mesa/drivers/dri/i965/intel_tex_validate.c b/src/mesa/drivers/dri/i965/intel_tex_validate.c
+index 5f65242..91ae097 100644
+--- a/src/mesa/drivers/dri/i965/intel_tex_validate.c
++++ b/src/mesa/drivers/dri/i965/intel_tex_validate.c
+@@ -166,12 +166,15 @@ GLuint intel_finalize_mipmap_tree( struc
+     * target, imageFormat, etc.
+     */
+    if (intelObj->mt &&
+-       (intelObj->mt->first_level != intelObj->firstLevel ||
+-	intelObj->mt->last_level != intelObj->lastLevel ||
++       (intelObj->mt->target != intelObj->base.Target ||
+ 	intelObj->mt->internal_format != firstImage->InternalFormat ||
++	intelObj->mt->first_level != intelObj->firstLevel ||
++	intelObj->mt->last_level != intelObj->lastLevel ||
+ 	intelObj->mt->width0 != firstImage->Width ||
+ 	intelObj->mt->height0 != firstImage->Height ||
+-	intelObj->mt->depth0 != firstImage->Depth)) 
++	intelObj->mt->depth0 != firstImage->Depth ||
++	intelObj->mt->cpp != firstImage->TexFormat->TexelBytes ||
++	intelObj->mt->compressed != firstImage->IsCompressed)) 
+    {
+       intel_miptree_destroy(intel, intelObj->mt);
+       intelObj->mt = NULL;
+diff --git a/src/mesa/shader/program.c b/src/mesa/shader/program.c
+index 590f357..f999e06 100644
+--- a/src/mesa/shader/program.c
++++ b/src/mesa/shader/program.c
+@@ -917,6 +917,15 @@ _mesa_fetch_state(GLcontext *ctx, const 
+ 	    case STATE_NORMAL_SCALE:
+                ASSIGN_4V(value, ctx->_ModelViewInvScale, 0, 0, 1);
+                break;
++	    case STATE_TEXRECT_SCALE: {
++   	       const int unit = (int) state[2];
++	       const struct gl_texture_object *texObj = ctx->Texture.Unit[unit]._Current;
++	       if (texObj) {
++		  struct gl_texture_image *texImage = texObj->Image[0][0];
++		  ASSIGN_4V(value, 1.0 / texImage->Width, 1.0 / texImage->Height, 0, 1);
++	       }
++               break;
++	    }
+ 	    default:
+                _mesa_problem(ctx, "Bad state switch in _mesa_fetch_state()");
+                return;
+@@ -988,6 +997,8 @@ static GLuint make_state_flags(const GLi
+       switch (state[1]) {
+       case STATE_NORMAL_SCALE:
+ 	 return _NEW_MODELVIEW;
++      case STATE_TEXRECT_SCALE:
++	 return _NEW_TEXTURE;
+       default:
+          _mesa_problem(NULL, "unexpected int. state in make_state_flags()");
+ 	 return 0;
+@@ -1450,19 +1461,8 @@ static const struct instruction_info Ins
+ GLuint
+ _mesa_num_inst_src_regs(enum prog_opcode opcode)
+ {
+-   GLuint i;
+-#ifdef DEBUG
+-   for (i = 0; i < MAX_OPCODE; i++) {
+-      ASSERT(i == InstInfo[i].Opcode);
+-   }
+-#endif
+-   for (i = 0; i < MAX_OPCODE; i++) {
+-      if (InstInfo[i].Opcode == opcode) {
+-         return InstInfo[i].NumSrcRegs;
+-      }
+-   }
+-   _mesa_problem(NULL, "invalid opcode in _mesa_num_inst_src_regs");
+-   return 0;
++   ASSERT(opcode == InstInfo[opcode].Opcode);
++   return InstInfo[opcode].NumSrcRegs;
+ }
+ 
+ 
+@@ -1601,6 +1601,38 @@ print_src_reg(const struct prog_src_regi
+                                srcReg->NegateBase, GL_FALSE));
+ }
+ 
++void
++_mesa_print_alu_instruction(const struct prog_instruction *inst,
++			    const char *opcode_string, 
++			    GLuint numRegs)
++{
++   GLuint j;
++
++   _mesa_printf("%s", opcode_string);
++
++   /* frag prog only */
++   if (inst->SaturateMode == SATURATE_ZERO_ONE)
++      _mesa_printf("_SAT");
++
++   if (inst->DstReg.File != PROGRAM_UNDEFINED) {
++      _mesa_printf(" %s[%d]%s",
++		   program_file_string((enum register_file) inst->DstReg.File),
++		   inst->DstReg.Index,
++		   writemask_string(inst->DstReg.WriteMask));
++   }
++
++   if (numRegs > 0)
++      _mesa_printf(", ");
++
++   for (j = 0; j < numRegs; j++) {
++      print_src_reg(inst->SrcReg + j);
++      if (j + 1 < numRegs)
++	 _mesa_printf(", ");
++   }
++
++   _mesa_printf(";\n");
++}
++
+ 
+ /**
+  * Print a single vertex/fragment program instruction.
+@@ -1662,34 +1694,10 @@ _mesa_print_instruction(const struct pro
+    /* XXX may need for other special-case instructions */
+    default:
+       /* typical alu instruction */
+-      {
+-         const GLuint numRegs = _mesa_num_inst_src_regs(inst->Opcode);
+-         GLuint j;
+-
+-         _mesa_printf("%s", _mesa_opcode_string(inst->Opcode));
+-
+-         /* frag prog only */
+-         if (inst->SaturateMode == SATURATE_ZERO_ONE)
+-            _mesa_printf("_SAT");
+-
+-         if (inst->DstReg.File != PROGRAM_UNDEFINED) {
+-            _mesa_printf(" %s[%d]%s",
+-                         program_file_string((enum register_file) inst->DstReg.File),
+-                         inst->DstReg.Index,
+-                         writemask_string(inst->DstReg.WriteMask));
+-         }
+-
+-         if (numRegs > 0)
+-            _mesa_printf(", ");
+-
+-         for (j = 0; j < numRegs; j++) {
+-            print_src_reg(inst->SrcReg + j);
+-            if (j + 1 < numRegs)
+-               _mesa_printf(", ");
+-         }
+-
+-         _mesa_printf(";\n");
+-      }
++      _mesa_print_alu_instruction(inst,
++				  _mesa_opcode_string(inst->Opcode),
++				  _mesa_num_inst_src_regs(inst->Opcode));
++      break;
+    }
+ }
+ 
+diff --git a/src/mesa/shader/program.h b/src/mesa/shader/program.h
+index 6a34533..cf3b1cc 100644
+--- a/src/mesa/shader/program.h
++++ b/src/mesa/shader/program.h
+@@ -188,6 +188,7 @@ enum state_index {
+ 
+    STATE_INTERNAL,		/* Mesa additions */
+    STATE_NORMAL_SCALE,
++   STATE_TEXRECT_SCALE,
+    STATE_POSITION_NORMALIZED    /* normalized light position */
+ };
+ 
+@@ -264,6 +265,11 @@ _mesa_load_state_parameters(GLcontext *c
+ extern void
+ _mesa_print_instruction(const struct prog_instruction *inst);
+ 
++void
++_mesa_print_alu_instruction(const struct prog_instruction *inst,
++			    const char *opcode_string, 
++			    GLuint numRegs);
++
+ extern void
+ _mesa_print_program(const struct gl_program *prog);
+ 

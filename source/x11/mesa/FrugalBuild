@@ -1,4 +1,4 @@
-# Last Modified: Sat, 07 Oct 2006 02:01:57 +0200
+# Last Modified: Sat, 07 Oct 2006 12:48:30 +0200
 # Compiling Time: 1.14 SBU
 # Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 # Old Maintainer: crazy <crazy@frugalware.org>
@@ -6,7 +6,7 @@
 pkgname=mesa
 origname=Mesa
 pkgver=6.5.1
-pkgrel=2
+pkgrel=3
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 # libgl: provided by libgl, fglrx and nvidia packages
@@ -17,12 +17,15 @@ groups=('x11' 'xorg-core' 'xorg-libs')
 up2date="lynx -dump $url/download.html|grep release|sed 's/.*: //;q'"
 source=(http://dl.sourceforge.net/sourceforge/mesa3d/MesaLib-$pkgver.tar.bz2 \
 	libGL.la libGLU.la \
-	change-default-dri-driver-dir-X7.1.patch enable-i965-x86_64.patch)
+	change-default-dri-driver-dir-X7.1.patch \
+	post-6.5.1-i965-fixes.patch \
+	mesa-build-config.patch)
 sha1sums=('cd3b314808534b0306c7f89e9a72c9c23dbff239' \
 	  '650973d708466f5c4c21e70c1f1f6c118b27e614' \
 	  '12c57ac5e7e8a94d4d41b0f37b0fb3f470791c39' \
 	  '426b0b08617ec19cba41ab20f3891cab82f205a2' \
-	  '6806ee7c8e9ca9d8ea59d7112f46a2c34c3a4cc3')
+	  '9141ecfa0f9dd8290b6fce840920af181c3deb87' \
+	  'aa4926e039e394bd784fa92ecb86f58344a49110')
 
 subpkgs=('libgl')
 subdescs=('Mesa OpenGL files.')
@@ -43,14 +46,6 @@ build() {
 	Fpatchall
 	HOSTCONF="configs/${CONFIG}"
 
-	Fsed "MKDEP = /usr/X11R6/bin/makedepend" "MKDEP = /usr/bin/makedepend" configs/linux-dri
-	Fsed "X11_INCLUDES = -I/usr/X11R6/include" "X11_INCLUDES = -I/usr/include" configs/linux-dri
-	Fsed "EXTRA_LIB_PATH=-L/usr/X11R6/lib" "EXTRA_LIB_PATH=-L/usr/lib" configs/linux-dri
-	Fsed '#define DEFAULT_DRIVER_DIR "/usr/X11R6/lib/modules/dri"' '#define DEFAULT_DRIVER_DIR "/usr/lib/dri"' src/glx/x11/dri_glx.c
-	# x86_64 hacks - avoid lib64 usage
-	Fsed "EXTRA_LIB_PATH=-L/usr/X11R6/lib64" "EXTRA_LIB_PATH=-L/usr/lib" configs/linux-dri-x86-64
-	Fsed "LIB_DIR = lib64" "LIB_DIR = lib" configs/linux-dri-x86-64
-
 	echo "OPT_FLAGS = ${CFLAGS}" >> ${HOSTCONF}
 	echo "SRC_DIRS = glx/x11 mesa glu glw" >> ${HOSTCONF}
 	echo "USING_EGL = 0" >> ${HOSTCONF}
@@ -65,7 +60,7 @@ build() {
 	Fmkdir /usr
 
 	make INSTALL_DIR=$Fdestdir/usr DESTDIR=$Fdestdir/usr install \
-		DRI_DRIVER_INSTALL_DIR=$Fdestdir/usr/lib/modules/dri || Fdie
+		DRI_DRIVER_INSTALL_DIR=$Fdestdir/usr/lib/dri || Fdie
 
 	Fmkdir /usr/share/doc/$pkgname-$pkgver
 	cp -r docs/{README.*,*.html,RELNOTES-6.5,COPYING} \

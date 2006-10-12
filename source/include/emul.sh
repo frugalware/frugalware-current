@@ -19,6 +19,5 @@ build()
         tar x${f}f $ename-$pkgver-$pkgrel-$earch.fpm -C tmp || return 1
         Fmkdir /usr/lib/chroot32
         cp -av tmp/* $Fdestdir/usr/lib/chroot32 || return 1
+	Frm /usr/share/{doc,man}
 }
-
-# vim: ft=sh

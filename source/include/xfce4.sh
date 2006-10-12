@@ -25,7 +25,7 @@ if echo ${groups[*]} | grep -q goodies ; then
 	url="http://goodies.xfce.org/projects/panel-plugins/${name}"
 	dlurl="http://goodies.xfce.org/releases/$_F_xfce_goodies_dir/"
 	up2date="lynx -dump $dlurl | grep "$name-.*${_F_xfce_goodies_ext}$" | sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'"
-	source=($dlurl/${pkgname}-${pkgver}${_F_xfce_goodies_ext})
+	source=($dlurl/${name}-${pkgver}${_F_xfce_goodies_ext})
 else
 	preup2date=`lynx -dump http://www.xfce.org/archive | grep 'xfce-' | sed -n 's/.*-\(.*\)\.t.*/\1/;$ p' | sed 's/[0-9][0-9]\. http:\/\/www\.xfce\.org\/archive\/xfce-//g' | sed 's/ //g' | sed 's/\///g'`
 	dlurl="$hpurl/archive/xfce-$preup2date/src"

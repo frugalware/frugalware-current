@@ -5,7 +5,7 @@
 # distributed under GPL License
 
 url="www.get-e.org/"
-source=($pkgname-$pkgver.tar.gz)
+source=(ftp://ftp.frugalware.org/pub/other/e17/packages/$pkgname/$pkgname-$pkgver.tar.gz)
 up2date="lynx -dump http://frugalware.org/~voroskoi/e17.up2date |sed -n '1 p'"
 
 build() {

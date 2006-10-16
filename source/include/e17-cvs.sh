@@ -11,11 +11,11 @@ else
 fi
 
 url="www.get-e.org/"
-source=(ftp://ftp.frugalware.org/pub/other/e17/packages/$realname/$realname-$pkgver.tar.gz)
+source=(ftp://ftp.frugalware.org/pub/other/e17/packages/$name/$name-$pkgver.tar.gz)
 up2date="lynx -dump http://frugalware.org/~voroskoi/e17.up2date |sed -n '1 p'"
 
 build() {
-	Fcd $realname
+	Fcd $name
 	export NOCONFIGURE="yes"
 	./autogen.sh || Fdie
 	Fbuild

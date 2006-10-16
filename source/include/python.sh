@@ -6,5 +6,5 @@
 
 # common variables for python packages
 
-_F_python_libdir=`python -c 'from distutils import sysconfig; print sysconfig.get_python_lib()'`
+_F_python_libdir=`python -c 'from distutils import sysconfig; print sysconfig.get_python_lib()[1:]'`
 _F_python_ver=`python -c 'from distutils import sysconfig; print sysconfig.get_python_version()'`

@@ -1,15 +1,21 @@
 #!/bin/sh
 
-# (c) 2005 Andras Voroskoi <voroskoi@frugalware.org>
+# (c) 2005-2006 Andras Voroskoi <voroskoi@frugalware.org>
 # e17-cvs.sh for Frugalware
 # distributed under GPL License
 
+if ! [ -z "$realname" ]; then
+	name=$realname
+else
+	name=$pkgname
+fi
+
 url="www.get-e.org/"
-source=(ftp://ftp.frugalware.org/pub/other/e17/packages/$pkgname/$pkgname-$pkgver.tar.gz)
+source=(ftp://ftp.frugalware.org/pub/other/e17/packages/$realname/$realname-$pkgver.tar.gz)
 up2date="lynx -dump http://frugalware.org/~voroskoi/e17.up2date |sed -n '1 p'"
 
 build() {
-	Fcd $pkgname
+	Fcd $realname
 	export NOCONFIGURE="yes"
 	./autogen.sh || Fdie
 	Fbuild

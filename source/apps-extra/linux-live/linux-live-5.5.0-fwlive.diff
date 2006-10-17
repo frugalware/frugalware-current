@@ -1,0 +1,160 @@
+diff -Nur linux-live-5.5.0.orig/cd-root/boot/splash.cfg linux-live-5.5.0/cd-root/boot/splash.cfg
+--- linux-live-5.5.0.orig/cd-root/boot/splash.cfg	2005-05-04 20:49:50.000000000 +0200
++++ linux-live-5.5.0/cd-root/boot/splash.cfg	2006-10-17 20:27:06.000000000 +0200
+@@ -1,3 +1,2 @@
+ boot/splash.lss
+-0f Welcome to YOUR Live CD. Hit Enter to continue booting or press F1 for help...
+- 
+\ No newline at end of file
++0f Welcome to FwLive. Hit Enter to continue booting or press F1 for help...
+diff -Nur linux-live-5.5.0.orig/cd-root/boot/splash.txt linux-live-5.5.0/cd-root/boot/splash.txt
+--- linux-live-5.5.0.orig/cd-root/boot/splash.txt	2005-05-04 15:35:20.000000000 +0200
++++ linux-live-5.5.0/cd-root/boot/splash.txt	2006-10-17 20:27:06.000000000 +0200
+@@ -1,12 +1,17 @@
+ You can affect the system by passing special parameters to the kernel now.
+-Type "linux" followed by one or more parameters as shown below, or just press
++Type "fwlive" followed by one or more parameters as shown below, or just press
+ Enter to skip this boot prompt.
+ 
+-linux debug .......... to start Linux shell several times during the boot
+-linux copy2ram ....... to copy all files to RAM (only if you have enough!)
+-linux floppy ......... to enable floppy automounting during startup
+-linux load=modules ... load modules from "optional" directory. Eg: load=wine,xmms
++fwlive noX ............ to disable starting X
++fwlive desktop= ....... which window manager to use: kde, kde, kde, kde,
++                        kde. default: kde
++fwlive res= ........... which resolution to use, default: 1024x768
++fwlive depth= ......... color depth. default: 16
++fwlive lang= .......... which language to use, e.g.: en_US, hu_HU, de_DE, fr_FR
++fwlive mouse=serial0 .. if you want a serial mouse, connected to COM1
++                        use serial1 if you have a serial mouse connected to COM2
++fwlive rescue ......... Rescue mode, doesn't start anything, just gives a shell
+ 
+-memtest .............. to start memtest instead of LinuxLiveCD
++memtest ............... to start memtest instead of FwLive
+ 
+ 
+diff -Nur linux-live-5.5.0.orig/cd-root/isolinux.cfg linux-live-5.5.0/cd-root/isolinux.cfg
+--- linux-live-5.5.0.orig/cd-root/isolinux.cfg	2006-05-05 22:25:22.000000000 +0200
++++ linux-live-5.5.0/cd-root/isolinux.cfg	2006-10-17 20:27:06.000000000 +0200
+@@ -1,13 +1,13 @@
+ display boot/splash.cfg
+-default linux
++default fwlive
+ prompt 1
+ timeout 40
+ F1 boot/splash.txt
+ F2 boot/splash.cfg
+ 
+-label linux
++label fwlive
+ kernel boot/vmlinuz
+-append vga=769 max_loop=255 initrd=boot/initrd.gz init=linuxrc load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=4444 root=/dev/ram0 rw
++append max_loop=255 initrd=boot/initrd.gz init=linuxrc load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=4444 root=/dev/ram0 rw quiet splash=silent vga=788
+ 
+ label memtest
+ kernel boot/memtest
+diff -Nur linux-live-5.5.0.orig/initrd/liblinuxlive linux-live-5.5.0/initrd/liblinuxlive
+--- linux-live-5.5.0.orig/initrd/liblinuxlive	2006-08-22 08:34:39.000000000 +0200
++++ linux-live-5.5.0/initrd/liblinuxlive	2006-10-17 20:27:06.000000000 +0200
+@@ -41,9 +41,9 @@
+ echolog()
+ {
+    if [ "$1" != "" ]; then
+-      echogreen "* "
++#      echogreen "* "
+       echo "LIVECD:" "$@" >>/var/log/livedbg
+-      echo "$@"
++#      echo "$@"
+    fi
+ }
+ 
+@@ -66,7 +66,7 @@
+ #
+ header()
+ {
+-   echo "[0;1m""$@""[0;0m"
++   echo -n ""
+ }
+ 
+ fatal()
+@@ -446,6 +446,7 @@
+    modprobe_module nls_cp437
+    modprobe_module nls_iso8859-1
+    modprobe_module nls_iso8859-2
++   modprobe_module nls_utf8
+    modprobe_module vfat
+    echolog "starting ntfs support"
+    modprobe_module ntfs
+diff -Nur linux-live-5.5.0.orig/initrd/linuxrc linux-live-5.5.0/initrd/linuxrc
+--- linux-live-5.5.0.orig/initrd/linuxrc	2006-08-22 08:38:18.000000000 +0200
++++ linux-live-5.5.0/initrd/linuxrc	2006-10-17 20:27:06.000000000 +0200
+@@ -3,7 +3,7 @@
+ export PATH=.:/:/usr/sbin:/usr/bin:/sbin:/bin
+ . liblinuxlive
+ 
+-header "starting Linux Live scripts <http://www.linux-live.org/>"
++header "FwLive setup start"
+ 
+ echolog "mounting /proc and /sys filesystems"
+ mount -t proc proc /proc
+@@ -152,9 +152,9 @@
+ 
+ $DEBUGCMD
+ 
+-echolog "creating /etc/fstab"
+-echo -ne > $UNION/etc/fstab
+-fstab_update $UNION
++#echolog "creating /etc/fstab"
++#echo -ne > $UNION/etc/fstab
++#fstab_update $UNION
+ 
+ # More likely these directories aren't there.
+ # Even if they are, this won't hurt.
+@@ -176,12 +176,9 @@
+ mkdir -p $INITRAMDISK
+ if [ ! -e dev/console ]; then mknod dev/console c 5 1; fi
+ 
+-if [ -x $UNION/usr/sbin/chroot ];
+-  then CHROOT=/usr/sbin/chroot
+-  else CHROOT=/usr/bin/chroot
+-fi
++CHROOT=/usr/sbin/chroot
+ 
+-header "linux live end, starting the Linux distribution"
++header "FwLive setup end, starting the Linux distribution"
+ pivot_root . $INITRAMDISK
+ exec $CHROOT . sbin/init <dev/console >dev/console 2>&1
+ 
+diff -Nur linux-live-5.5.0.orig/tools/liblinuxlive linux-live-5.5.0/tools/liblinuxlive
+--- linux-live-5.5.0.orig/tools/liblinuxlive	2006-08-22 08:34:39.000000000 +0200
++++ linux-live-5.5.0/tools/liblinuxlive	2006-10-17 20:27:06.000000000 +0200
+@@ -41,9 +41,9 @@
+ echolog()
+ {
+    if [ "$1" != "" ]; then
+-      echogreen "* "
++#      echogreen "* "
+       echo "LIVECD:" "$@" >>/var/log/livedbg
+-      echo "$@"
++#      echo "$@"
+    fi
+ }
+ 
+@@ -66,7 +66,7 @@
+ #
+ header()
+ {
+-   echo "[0;1m""$@""[0;0m"
++   echo -n ""
+ }
+ 
+ fatal()
+@@ -446,6 +446,7 @@
+    modprobe_module nls_cp437
+    modprobe_module nls_iso8859-1
+    modprobe_module nls_iso8859-2
++   modprobe_module nls_utf8
+    modprobe_module vfat
+    echolog "starting ntfs support"
+    modprobe_module ntfs

@@ -29,9 +29,11 @@ Fbuildpear()
 	# the package.xml is required to update the common files
 	Ffilerel package.xml /var/lib/pear/$_F_pear_name.xml
 	# move the documentation to the correct location
-	Frm /usr/share/pear/doc/
 	Fcd $_F_pear_name-$pkgver
-	Fdocrel docs/*
+	if [ -d docs ]; then
+		Frm /usr/share/pear/doc/
+		Fdocrel docs/*
+	fi
 	# now prepare the scriptlet
 	cp $Fincdir/pear.install $Fsrcdir || Fdie
 	Fsed '$_F_pear_name' "$_F_pear_name" $Fsrcdir/pear.install

@@ -2,7 +2,7 @@
 
 # (c) 2006 Priyank <priyankmg@gmail.com>
 # (c) 2006 Alex Smith <alex@alex-smith.me.uk>
-# xfce4rc1.sh for Frugalware
+# xfce4.sh for Frugalware
 # distributed under GPL License
 
 hpurl="http://www.xfce.org"

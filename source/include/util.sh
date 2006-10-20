@@ -825,8 +825,11 @@ StartupNotify=true
 Icon=$dicon
 Categories=$dcategories
 MimeType=$dmime
-OnlyShowIn=$dshowin;
 EOF
+
+	if [ ! -z $_F_desktop_show_in ] ; then
+		echo "OnlyShowIn=$dshowin;" >> $Fdestdir$Fmenudir/$pkgname.desktop
+	fi
 }
 
 ### Moves a file pattern to a subpackage

@@ -6,7 +6,7 @@
 
 # up2date and source() macro for beryl packages
 
-pkgver=20061013
+pkgver=0.1.1
 pkgdesc="Beryl is a compositing window manager which provides lots of fancy effects on your desktop"
 url="http://forum.beryl-project.org/"
 up2date="$pkgver"

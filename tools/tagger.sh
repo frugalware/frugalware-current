@@ -17,3 +17,4 @@ get_next_tag()
 cd $1
 nexttag=`get_next_tag`
 darcs tag --checkpoint $nexttag >/dev/null
+darcs optimize >/dev/null

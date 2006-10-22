@@ -21,6 +21,7 @@
 # _F_kernel_mm (defaults to 0, example: "2")
 # _F_kernel_git (defaults to 0, example: "3")
 # _F_kernel_dontsedarch (don't run the command below to Fsed 486 with your CARCH if set to 1)
+# _F_kernel_dontfakeversion ( don't run sed to fake the kernel version to $pkgname etc if set to 1 )
 
 if [ -z "$_F_kernel_ver" ]; then
 	_F_kernel_ver=$pkgver
@@ -48,6 +49,9 @@ fi
 
 if [ -z "$_F_kernel_dontsedarch" ]; then
 	_F_kernel_dontsedarch=0
+fi
+if [ -z "$_F_kernel_dontfakeversion" ]; then
+	_F_kernel_dontfakeversion=0
 fi
 
 _F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
@@ -151,9 +155,15 @@ Fbuildkernel()
 	done
 	# remove unneded localversions
 	rm -f localversion-*
-	yes "" | make config
-	Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
-	Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_name-fw$_F_kernel_rel" Makefile
+	if [ "$_F_kernel_dontsedarch" ]; then
+		make silentoldconfig || Fdie
+	else
+		yes "" | make config
+	fi
+	if [ ! "$_F_kernel_dontfakeversion" ]; then
+		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
+		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_name-fw$_F_kernel_rel" Makefile
+	fi
 	
 	## let we do kernel$_F_kernel_name-source before make
 	Fmkdir /usr/src

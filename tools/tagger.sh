@@ -16,4 +16,4 @@ get_next_tag()
 
 cd $1
 nexttag=`get_next_tag`
-dr tag --checkpoint $nexttag >/dev/null
+darcs tag --checkpoint $nexttag >/dev/null

@@ -1,0 +1,70 @@
+After logging in once, store the parameters in a cookie, so from one phone
+logging in only necessary once.
+--- wapreader/wapreader.php.orig	2006-10-23 22:52:18.000000000 +0200
++++ wapreader/wapreader.php	2006-10-23 23:16:08.000000000 +0200
+@@ -33,6 +33,15 @@
+ 	return (strtoupper($a->name) < strtoupper($b->name)) ? -1 : 1;
+ }
+ 
++function print_header()
++{
++	print('<?xml version="1.0" encoding="utf-8"?>
++<!DOCTYPE wml PUBLIC "-//WAPFORUM//DTD WML 1.1//EN" "http://www.wapforum.org/DTD/wml_1.1.xml">
++
++<wml>
++<template><do type="prev" label="back"><prev/></do></template>');
++}
++
+ //Defaul imap/pop3 host.
+ $host_default="";
+ 
+@@ -85,6 +94,13 @@
+   }
+ }
+ 
++else if(empty($action) && !empty($_COOKIE["wapreader"])) {
++  $qs=explode(":", $_COOKIE["wapreader"]);
++  if(count($qs)>1) {
++    list($login, $password, $host, $protocol)=$qs;
++    $action="login";
++  }
++}
+ 
+ if(!function_exists("imap_open")) {
+   $action="error";
+@@ -124,16 +140,11 @@
+ }
+ else {
+   @header("Content-type: text/vnd.wap.wml; charset=utf-8");
+-  echo "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
+ }
+ 
+-
+-?>
+-<!DOCTYPE wml PUBLIC "-//WAPFORUM//DTD WML 1.1//EN" "http://www.wapforum.org/DTD/wml_1.1.xml">
+-
+-<wml>
+-<template><do type="prev" label="back"><prev/></do></template>
+-<?php
++if ($action != "login") {
++  print_header();
++}
+ 
+ $continue=true;
+ while($continue) {
+@@ -157,6 +168,7 @@
+   $connect="{".$host.$cs_suffixes[$protocol]."}";
+ 
+   if( $box=imap_open($connect, $login, $password) ) {
++    setcookie("wapreader", implode(":", array($login, $password, $host, $protocol)), time()+(60*60*24*365));
+     @session_start();
+     $sid=session_id();
+ 
+@@ -178,6 +190,7 @@
+     $continue=true;
+     $error=imap_last_error();
+   }
++  print_header();
+   break;
+ //----------------------------------------------------
+ case "auth":

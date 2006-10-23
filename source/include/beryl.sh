@@ -28,4 +28,6 @@ build() {
 	Fbuild_beryl
 }
 
+unset MAKEFLAGS
+
 # optimization OK

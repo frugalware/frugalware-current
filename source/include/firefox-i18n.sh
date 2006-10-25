@@ -6,8 +6,14 @@
 
 # provides a common up2date, source and build for firefox i18n packages
 
-up2date="1.5"
+up2date="2.0"
 source=(http://ftp.mozilla.org/pub/mozilla.org/firefox/releases/$pkgver/linux-i686/xpi/$lang.xpi)
+pkgname=firefox-$lang
+url="http://www.mozilla.org/projects/l10n/mlp.html"
+rodepends=('firefox>=2.0')
+makedepends=('unzip')
+groups=('locale-extra')
+archs=('i686' 'x86_64')
 
 build()
 {

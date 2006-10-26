@@ -12,8 +12,7 @@ url="http://forum.beryl-project.org/"
 up2date="$pkgver"
 srcurl="http://ftp.frugalware.org/pub/other/sources/beryl"
 source=($srcurl/$pkgname-$pkgver.tar.bz2 $srcurl/beryl-VERSION-$pkgver)
-sha1sums=(${sha1sums[@]} \
-	  'e7d6fa0f54a5fb734ec66b26f0dbf60ba9c79c47')
+signatures=($srcurl/$pkgname-$pkgver.tar.bz2.asc $srcurl/beryl-VERSION-$pkgver.asc)
 options=(${options[@]} 'force')
 
 Fbuild_beryl() {

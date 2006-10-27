@@ -27,9 +27,9 @@ if echo ${groups[*]} | grep -q goodies ; then
 	up2date="lynx -dump $dlurl | grep "$name-.*${_F_xfce_goodies_ext}$" | sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'"
 	source=($dlurl/${name}-${pkgver}${_F_xfce_goodies_ext})
 else
-	preup2date=`lynx -dump http://www.xfce.org/archive | grep 'xfce-' | sed -n 's/.*-\(.*\)\.t.*/\1/;$ p' | sed 's/[0-9][0-9]\. http:\/\/www\.xfce\.org\/archive\/xfce-//g' | sed 's/ //g' | sed 's/\///g'`
-	dlurl="$hpurl/archive/xfce-$preup2date/src"
-	up2date="lynx -dump $hpurl/archive/xfce-$preup2date/src/ | grep $name | Flasttarbz2"
+	preup2date="lynx -dump http://www.xfce.org/archive | grep 'xfce-' | sed -n 's/.*-\(.*\)\.t.*/\1/;$ p' | sed 's/[0-9][0-9]\. http:\/\/www\.xfce\.org\/archive\/xfce-//g' | sed 's/ //g' | sed 's/\///g'"
+	dlurl="$hpurl/archive/xfce-4.3.99.1/src"
+	up2date="lynx -dump $hpurl/archive/xfce-\$($preup2date)/src/ | grep $name | Flasttarbz2"
 	source=($dlurl/$name-$pkgver.tar.bz2)
 fi
 

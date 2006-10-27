@@ -346,7 +346,7 @@ Fdeststrip() {
  ##
 Fpatch() {
 	Fcd
-	local i
+	local i level="1"
 	Fmessage "Using patch: $1"
 	if [ -n "`echo "$1" | grep '\.\(patch[0-9]*\|diff\)\.gz$'`" ]; then
 		i=`basename "$1" .gz`
@@ -355,11 +355,8 @@ Fpatch() {
 	else
 		i=$1
 	fi
-	if [ -n "`echo $i | grep \.patch0$`" ]; then
-		patch -Np0 --no-backup-if-mismatch -i "$Fsrcdir/$i" || Fdie
-	else
-		patch -Np1 --no-backup-if-mismatch -i "$Fsrcdir/$i" || Fdie
-	fi
+	patch -Np0 --dry-run -i "$Fsrcdir/$i" >/dev/null && level="0"
+	patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$i" || Fdie
 }
 
 ### Apply patches from source(). \

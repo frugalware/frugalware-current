@@ -4,18 +4,16 @@
 # e17-cvs.sh for Frugalware
 # distributed under GPL License
 
-if ! [ -z "$realname" ]; then
-	name=$realname
-else
-	name=$pkgname
+if [ -z "$_F_e17_name" ]; then
+	_F_e17_name=$pkgname
 fi
 
 url="www.get-e.org/"
-source=(ftp://ftp.frugalware.org/pub/other/e17/packages/$name/$name-$pkgver.tar.gz)
+source=(ftp://ftp.frugalware.org/pub/other/e17/packages/$_F_e17_name/$_F_e17_name-$pkgver.tar.gz)
 up2date="lynx -dump http://frugalware.org/~voroskoi/e17.up2date |sed -n '1 p'"
 
 build() {
-	Fcd $name
+	Fcd $_F_e17_name
 	export NOCONFIGURE="yes"
 	./autogen.sh || Fdie
 	Fbuild

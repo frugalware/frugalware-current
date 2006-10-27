@@ -1,0 +1,80 @@
+diff -Naurp kdebase-3.5.5/kioslave/media/medianotifier/medianotifier.cpp kdebase-3.5.5-p/kioslave/media/medianotifier/medianotifier.cpp
+--- kdebase-3.5.5/kioslave/media/medianotifier/medianotifier.cpp	2006-10-01 19:31:53.000000000 +0200
++++ kdebase-3.5.5-p/kioslave/media/medianotifier/medianotifier.cpp	2006-10-27 20:25:14.000000000 +0200
+@@ -19,8 +19,11 @@
+ 
+ #include "medianotifier.h"
+ 
++#include <sys/vfs.h>
++
+ #include <qfile.h>
+ #include <qfileinfo.h>
++#include <qdir.h>
+ 
+ #include <kapplication.h>
+ #include <kglobal.h>
+@@ -44,6 +47,10 @@ MediaNotifier::MediaNotifier(const QCStr
+ 	
+ 	connectDCOPSignal( "kded", "mediamanager", "mediumChanged(QString, bool)",
+ 	                   "onMediumChange(QString, bool)", true );
++
++    m_freeTimer = new QTimer( this );
++    connect( m_freeTimer, SIGNAL( timeout() ), SLOT( checkFreeDiskSpace() ) );
++    m_freeTimer->start( 1000*60*20 /* 20 minutes */ );
+ }
+ 
+ MediaNotifier::~MediaNotifier()
+@@ -309,4 +316,34 @@ extern "C"
+ 	}
+ }
+ 
++void MediaNotifier::checkFreeDiskSpace()
++{
++    struct statfs sfs;
++    long total, avail;
++    QString homeDirPath = QDir::homeDirPath();
++    if ( statfs( QFile::encodeName( homeDirPath ), &sfs ) == 0 )
++    {
++        total = sfs.f_blocks;
++        avail = ( getuid() ? sfs.f_bavail : sfs.f_bfree );
++
++        if (avail < 0)
++            return; // we better do not say anything about it
++
++        int freeperc = static_cast<int>(100 * double(avail) / total);
++
++        if ( freeperc < 5 && KMessageBox::shouldBeShownContinue( "dontagainfreespace" ) )    // free disk space dropped under a limit
++        {
++            int ret = KMessageBox::warningContinueCancel( 0, i18n( "You are running low on disk space on your home partition (currently %1% free), would you like to "
++                                                                   "run Konqueror to free some disk space and fix the problem?" ).arg( freeperc ),
++                                                          i18n( "Low Disk Space" ), i18n( "Start Konqueror" ), "dontagainfreespace" );
++            if ( ret == KMessageBox::Continue ) // start Konqi
++            {
++                ( void ) new KRun( KURL::fromPathOrURL( homeDirPath ) );
++            }
++            else                // people don't want to be bothered, at least stop the timer; there's no way to save the dontshowagain entry in this case
++                m_freeTimer->stop();
++        }
++    }
++}
++
+ #include "medianotifier.moc"
+diff -Naurp kdebase-3.5.5/kioslave/media/medianotifier/medianotifier.h kdebase-3.5.5-p/kioslave/media/medianotifier/medianotifier.h
+--- kdebase-3.5.5/kioslave/media/medianotifier/medianotifier.h	2005-10-10 17:04:00.000000000 +0200
++++ kdebase-3.5.5-p/kioslave/media/medianotifier/medianotifier.h	2006-10-27 20:25:14.000000000 +0200
+@@ -41,6 +41,7 @@ k_dcop:
+ 
+ private slots:
+ 	void slotStatResult( KIO::Job *job );
++    void checkFreeDiskSpace();
+ 	
+ private:
+ 	bool autostart( const KFileItem &medium );
+@@ -52,6 +53,7 @@ private:
+ 	                   const QString &autoopenFile );
+ 
+ 	QMap<KIO::Job*,bool> m_allowNotificationMap;
++    QTimer * m_freeTimer;
+ };
+ #endif
+ 

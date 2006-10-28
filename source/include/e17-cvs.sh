@@ -9,7 +9,7 @@ if [ -z "$_F_e17_name" ]; then
 fi
 
 url="www.get-e.org/"
-source=(ftp://ftp.frugalware.org/pub/other/e17/packages/$_F_e17_name/$_F_e17_name-$pkgver.tar.gz)
+source=(http://ftp.frugalware.org/pub/other/e17/packages/$_F_e17_name/$_F_e17_name-$pkgver.tar.gz)
 up2date="lynx -dump http://frugalware.org/~voroskoi/e17.up2date |sed -n '1 p'"
 
 build() {

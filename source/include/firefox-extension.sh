@@ -12,15 +12,13 @@ archs=('i686' 'x86_64')
 
 Fxpiinstall()
 {
-	[ -z "$extname" ] && extname="$pkgname"
-	[ -n "$_F_firefox_name" ] && mv $_F_firefox_name $extname-$pkgver.xpi
-	Fmkdir /usr/lib/firefox/extensions/\{$extid\}
-	cd $Fdestdir/usr/lib/firefox/extensions/\{$extid\}
-	unzip -qqo $Fsrcdir/$extname-$pkgver.xpi || return 1
+	[ -z "$_F_firefox_ext" ] && _F_firefox_ext="$pkgname"
+	[ -n "$_F_firefox_name" ] && mv $_F_firefox_name $_F_firefox_ext-$pkgver.xpi
+	Fmkdir /usr/lib/firefox/extensions/\{$_F_firefox_id\}
+	cd $Fdestdir/usr/lib/firefox/extensions/\{$_F_firefox_id\}
+	unzip -qqo $Fsrcdir/$_F_firefox_ext-$pkgver.xpi || return 1
 	Fpatchall
-	Ffile /usr/lib/firefox/extensions/\{$extid\}/chrome.manifest
-
-	unset _F_firefox_name
+	Ffile /usr/lib/firefox/extensions/\{$_F_firefox_id\}/chrome.manifest
 }
 
 build()

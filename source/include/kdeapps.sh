@@ -27,5 +27,3 @@ build()
 		--disable-debug --without-debug \
 		--with-gnu-ld
 }
-
-unset _F_kdeapps_id _F_kdeapps_id2

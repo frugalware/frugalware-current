@@ -19,6 +19,7 @@ Fsysconfdir="/etc"
 Flocalstatedir="/var"
 Fmenudir="/usr/share/applications"
 Fconfopts="--prefix=$Fprefix"
+export LDFLAGS="-Wl,--hash-style=both"
 
 ### @defgroup fwmakepkg Common functions
  # @{

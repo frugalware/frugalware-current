@@ -13,13 +13,13 @@
 # _F_gnome_scrollkeeper - set to "y" if you want to run scrollkeeper
 # _F_gnome_mime - set to "y" if your package provides a mime type
 # _F_gnome_iconcache - set to "y" if your package provides an icon in /usr/share/icons/hicolor
-# _F_gnome_name - name of the generated install script
+# _F_gnome_scriptlet - name of the generated install script
 #                 (defaults to src/gnome-scriptlet.install)
 
-if [ -z "$_F_gnome_name" ]; then
-	_F_gnome_name="src/gnome-scriptlet.install"
+if [ -z "$_F_gnome_scriptlet" ]; then
+	_F_gnome_scriptlet="src/gnome-scriptlet.install"
 fi
-install="$_F_gnome_name"
+install="$_F_gnome_scriptlet"
 
 if [ -n "$_F_gnome_schemas" ]; then
 	Fconfopts="$Fconfopts --disable-schemas-install"
@@ -57,7 +57,7 @@ Fbuild_gnome_scriptlet()
 			fi
 		done
 	fi
-	Fsed '$_F_gnome_schemas' "$str" ${Fsrcdir%/src}/$_F_gnome_name
+	Fsed '$_F_gnome_schemas' "$str" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 	str=''
 	if [ -n "$_F_gnome_entries" ]; then
 		for i in "${_F_gnome_entries[@]}"
@@ -69,11 +69,11 @@ Fbuild_gnome_scriptlet()
 			fi
 		done
 	fi
-	Fsed '$_F_gnome_entries' "$str" ${Fsrcdir%/src}/$_F_gnome_name
-	Fsed '$_F_gnome_desktop' "$_F_gnome_desktop" ${Fsrcdir%/src}/$_F_gnome_name
-	Fsed '$_F_gnome_scrollkeeper' "$_F_gnome_scrollkeeper" ${Fsrcdir%/src}/$_F_gnome_name
-	Fsed '$_F_gnome_mime' "$_F_gnome_mime" ${Fsrcdir%/src}/$_F_gnome_name
-	Fsed '$_F_gnome_iconcache' "$_F_gnome_iconcache" ${Fsrcdir%/src}/$_F_gnome_name
+	Fsed '$_F_gnome_entries' "$str" ${Fsrcdir%/src}/$_F_gnome_scriptlet
+	Fsed '$_F_gnome_desktop' "$_F_gnome_desktop" ${Fsrcdir%/src}/$_F_gnome_scriptlet
+	Fsed '$_F_gnome_scrollkeeper' "$_F_gnome_scrollkeeper" ${Fsrcdir%/src}/$_F_gnome_scriptlet
+	Fsed '$_F_gnome_mime' "$_F_gnome_mime" ${Fsrcdir%/src}/$_F_gnome_scriptlet
+	Fsed '$_F_gnome_iconcache' "$_F_gnome_iconcache" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 }
 
 build()

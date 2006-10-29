@@ -1,0 +1,823 @@
+diff -Naur gimmix-0.1b/src/config.c gimmix-svn/src/config.c
+--- gimmix-0.1b/src/config.c	2006-10-27 14:28:49.000000000 +0530
++++ gimmix-svn/src/config.c	2006-10-29 11:41:39.000000000 +0530
+@@ -96,5 +96,8 @@
+ void
+ gimmix_config_free (Conf *conf)
+ {
+-	free (conf);
++	if (conf)
++		free (conf);
++
++	return;
+ }
+diff -Naur gimmix-0.1b/src/gimmix.c gimmix-svn/src/gimmix.c
+--- gimmix-0.1b/src/gimmix.c	2006-10-27 14:28:49.000000000 +0530
++++ gimmix-svn/src/gimmix.c	2006-10-29 11:41:39.000000000 +0530
+@@ -42,26 +42,60 @@
+ 	return false;
+ }
+ 
+-int
++void
++gimmix_connect_error (void)
++{
++	GtkWidget 	*error_dialog;
++	GtkWidget	*error_label;
++	gchar 		*error_markup;
++
++	gchar *error = "ERROR: Couldn't connect to mpd. Check whether mpd is running.\nAlso check that you have specified the proper hostname, port \nand password in ~/.gimmixrc";
++	error_markup = g_markup_printf_escaped ("<span size=\"larger\">%s</span>", error);
++	error_label = gtk_label_new (NULL);
++	gtk_label_set_markup (GTK_LABEL(error_label), error_markup);
++	g_free (error_markup);
++	error_dialog = gtk_dialog_new_with_buttons ("Error",
++												main_window,
++												GTK_DIALOG_DESTROY_WITH_PARENT,
++												GTK_STOCK_OK,
++												GTK_RESPONSE_ACCEPT,
++												NULL);
++    g_signal_connect (error_dialog,
++					"response",
++					G_CALLBACK (error_dialog_response),
++					(gpointer)error_dialog);
++	
++	gtk_container_add (GTK_CONTAINER(GTK_DIALOG(error_dialog)->vbox), error_label);
++    gtk_widget_show_all (error_dialog);
++}
++
++void
++error_dialog_response (GtkDialog *err_dialog, gint arg1, gpointer dialog)
++{
++	if (arg1 == GTK_RESPONSE_ACCEPT || arg1 == GTK_RESPONSE_DELETE_EVENT)
++	{
++		gtk_widget_destroy (GTK_WIDGET(dialog));
++		gtk_main_quit ();
++	}
++}
++
+ main (int argc, char *argv[])
+ {
+ 	GladeXML *xml;
+ 	gchar 	*path;
+ 
+ 	pub = (GM *) malloc(sizeof(GM));
+-	pub->conf = gimmix_config_init();
++	pub->conf = gimmix_config_init ();
++	gtk_init (&argc, &argv);
++	path = g_strdup_printf ("%s%s", PREFIX, GLADE_FILE);
++	xml = glade_xml_new (path, NULL, NULL);
++	g_free (path);
++	glade_xml_signal_autoconnect(xml);
++
++	main_window = glade_xml_get_widget(xml, "main_window");
+ 	
+ 	if(gimmix_connect())
+ 	{
+-		gtk_init(&argc, &argv);
+-
+-        path = g_strdup_printf ("%s%s", PREFIX, GLADE_FILE);
+-		xml = glade_xml_new (path, NULL, NULL);
+-		g_free (path);
+-		glade_xml_signal_autoconnect(xml);
+-
+-		main_window = glade_xml_get_widget(xml, "main_window");
+-
+ 		song_label = glade_xml_get_widget(xml,"song_label");
+ 		artist_label = glade_xml_get_widget(xml,"artist_label");
+ 		album_label = glade_xml_get_widget(xml,"album_label");
+@@ -83,6 +117,7 @@
+ 		info_album = glade_xml_get_widget(xml,"info_album");
+ 		info_genre = glade_xml_get_widget(xml,"info_genre");
+ 		info_length = glade_xml_get_widget(xml, "info_length");
++		info_bitrate = glade_xml_get_widget(xml, "info_bitrate");
+ 		
+ 		/* Preferences dialog */
+ 		pref_window = glade_xml_get_widget(xml, "prefs_window");
+@@ -96,19 +131,28 @@
+ 		directory_treeview = glade_xml_get_widget(xml, "album");
+ 		songs_treeview = glade_xml_get_widget(xml, "list");
+ 		current_playlist_treeview = glade_xml_get_widget(xml, "current_playlist_treeview");
+-
+-		gimmix_init();
+-
+-		gtk_main();
+-		gimmix_config_save(pub->conf);
+-		exit_cleanup ();
++		
++		gtk_widget_show (main_window);
++		gimmix_init ();
+ 	}
+-	return(0);
++	else
++	{
++		gimmix_connect_error ();
++	}
++
++	gtk_main ();
++	gimmix_config_save (pub->conf);
++	exit_cleanup ();
+ }
+ 
+ void exit_cleanup ()
+ {
++	if (pub->conf)
++		gimmix_config_free (pub->conf);
+ 	if (pub)
++	{
++		gimmix_disconnect (pub->gmo);
+ 		g_free (pub);
++	}
+ 	return;
+ }
+diff -Naur gimmix-0.1b/src/gimmix-core.c gimmix-svn/src/gimmix-core.c
+--- gimmix-0.1b/src/gimmix-core.c	2006-10-27 14:28:49.000000000 +0530
++++ gimmix-svn/src/gimmix-core.c	2006-10-29 11:41:39.000000000 +0530
+@@ -34,7 +34,6 @@
+ 	MpdObj *mo;
+ 
+ 	mo = mpd_new (conf->hostname, conf->port, conf->password);
+-	//mo = mpd_new_default();
+ 	mpd_connect (mo);
+ 
+ 	if (mpd_check_connected (mo))
+@@ -43,7 +42,6 @@
+ 		return mo;
+ 	}
+ 
+-	fprintf(stderr, "Error! Couldn't connect to mpd. Check whether mpd is running.\n");
+ 	return NULL;
+ }
+ 
+@@ -183,6 +181,10 @@
+ 	s->album 	= (ms->album) 	? strdup (ms->album) : NULL;
+ 	s->genre 	= (ms->genre) 	? strdup (ms->genre) : NULL;
+ 	s->length 	= ms->time;
++	if (gimmix_is_playing(mo) == PLAY)
++		s->bitrate 	= mpd_status_get_bitrate (mo);
++	else
++		s->bitrate 	= -1;
+ 	//mpd_freeSong(ms);
+ 	
+ 	return s;
+@@ -195,10 +197,24 @@
+ 	char *length = malloc (10);
+ 	
+ 	time = s->length;
+-	snprintf(length, 10, "%02i:%02i", time/60, time%60);
++	snprintf (length, 10, "%02i:%02i", time/60, time%60);
+ 	return length;
+ }
+ 
++char *
++gimmix_get_song_bitrate (SongInfo *s)
++{
++	int bitr;
++	char *bitrate = malloc (10);
++	
++	bitr = s->bitrate;
++	if (bitr != -1)
++		snprintf (bitrate, 10, "%i Kbps", bitr);
++	else
++		return NULL;
++	return bitrate;
++};
++
+ void
+ gimmix_free_song_info (SongInfo *si)
+ {
+@@ -260,3 +276,15 @@
+ 		status_is_changed = false;
+ 	return;
+ }
++
++void
++gimmix_disconnect (MpdObj *mo)
++{
++	if (mpd_check_connected(mo))
++	{
++		mpd_disconnect (mo);
++		mpd_free (mo);
++	}
++	
++	return;
++}
+diff -Naur gimmix-0.1b/src/gimmix-core.h gimmix-svn/src/gimmix-core.h
+--- gimmix-0.1b/src/gimmix-core.h	2006-10-27 14:28:49.000000000 +0530
++++ gimmix-svn/src/gimmix-core.h	2006-10-29 11:41:39.000000000 +0530
+@@ -18,6 +18,7 @@
+ 	char *genre;
+ 	char *file;
+ 	int length;
++	int bitrate;
+ 	int id;
+ 	int pos;
+ } SongInfo;
+@@ -25,7 +26,8 @@
+ bool status_is_changed;
+ 
+ /* create a mpd object and connect to mpd using the conf */
+-MpdObj * gimmix_mpd_connect(Conf *);
++MpdObj * gimmix_mpd_connect (Conf *);
++void gimmix_disconnect (MpdObj *);
+ 
+ /* playback control */
+ bool gimmix_play (MpdObj *);
+@@ -47,6 +49,7 @@
+ int gimmix_get_progress_status (MpdObj *, float *, char *);
+ int gimmix_get_total_song_time (MpdObj *);
+ char * gimmix_get_song_length (SongInfo *);
++char * gimmix_get_song_bitrate (SongInfo *);
+ 
+ /* Check whether gimmix is paused/playing or stopped */
+ int gimmix_is_playing (MpdObj *);
+diff -Naur gimmix-0.1b/src/gimmix.h gimmix-svn/src/gimmix.h
+--- gimmix-0.1b/src/gimmix.h	2006-10-27 14:28:49.000000000 +0530
++++ gimmix-svn/src/gimmix.h	2006-10-29 11:41:39.000000000 +0530
+@@ -22,6 +22,10 @@
+ 
+ bool gimmix_connect (void);
+ 
++/* Connection error dialog */
++void gimmix_connect_error (void);
++void error_dialog_response ();
++
+ /* Finalize */
+ void exit_cleanup (void);
+ 
+diff -Naur gimmix-0.1b/src/interface.c gimmix-svn/src/interface.c
+--- gimmix-0.1b/src/interface.c	2006-10-27 14:28:49.000000000 +0530
++++ gimmix-svn/src/interface.c	2006-10-29 11:41:39.000000000 +0530
+@@ -172,19 +172,27 @@
+ 	{
+ 		SongInfo *info = NULL;
+ 		gchar *length;
++		gchar *bitrate;
+ 		info = gimmix_get_song_info (pub->gmo);
+ 
+ 		gtk_entry_set_text (GTK_ENTRY(info_file), info->file ? info->file : NULL);
+ 		gtk_label_set_text (GTK_LABEL(info_title), info->title ? info->title : NULL);
+ 		gtk_label_set_text (GTK_LABEL(info_artist), info->artist ? info->artist : NULL);
+ 		gtk_label_set_text (GTK_LABEL(info_album), info->album ? info->album : NULL);
+-		length = gimmix_get_song_length(info);
+-		if(length)
++		length = gimmix_get_song_length (info);
++		if (length)
+ 		{
+-			gtk_label_set_text(GTK_LABEL(info_length), length);
+-			g_free(length);
++			gtk_label_set_text (GTK_LABEL(info_length), length);
++			g_free (length);
++		}
++		bitrate = gimmix_get_song_bitrate (info);
++		if (bitrate)
++		{
++			gtk_label_set_text (GTK_LABEL(info_bitrate), bitrate);
++			g_free (bitrate);
+ 		}
+ 		gtk_label_set_text (GTK_LABEL(info_genre), info->genre ? info->genre : NULL);
++
+ 		gimmix_free_song_info (info);
+ 
+ 		gtk_widget_show (GTK_WIDGET(info_window));
+@@ -432,7 +440,7 @@
+ 	gchar *website = "http://priyank.one09.net/";
+ 	gchar *website_label = "http://priyank.one09.net/";
+ 	gchar *authors[] = 	{ "Priyank M. Gosalia <priyankmg@gmail.com>",
+-						 "Part of song seek code taken from Pygmy.",
++						 "Part of the song seek code borrowed from Pygmy.",
+ 						 NULL
+ 						};
+ 	
+diff -Naur gimmix-0.1b/src/interface.h gimmix-svn/src/interface.h
+--- gimmix-0.1b/src/interface.h	2006-10-27 14:28:49.000000000 +0530
++++ gimmix-svn/src/interface.h	2006-10-29 11:41:39.000000000 +0530
+@@ -41,6 +41,7 @@
+ GtkWidget *info_album;
+ GtkWidget *info_genre;
+ GtkWidget *info_length;
++GtkWidget *info_bitrate;
+ 
+ /* Initializes default interface signals */
+ void gimmix_init (void);
+diff -Naur gimmix-0.1b/src/playlist.c gimmix-svn/src/playlist.c
+--- gimmix-0.1b/src/playlist.c	2006-10-27 14:28:49.000000000 +0530
++++ gimmix-svn/src/playlist.c	2006-10-29 11:41:39.000000000 +0530
+@@ -31,6 +31,7 @@
+ };
+ 
+ GtkTreeModel        *current_playlist_model;
++GtkTreeSelection	*current_playlist_selection;
+ GtkListStore        *current_playlist_store;
+ GtkCellRenderer     *current_playlist_renderer;
+ 
+@@ -49,8 +50,10 @@
+ 												G_TYPE_STRING, 	/* path */
+ 												G_TYPE_INT); 	/* id */
+ 	current_playlist_model	= GTK_TREE_MODEL (current_playlist_store);
++
+ 	gtk_tree_view_set_model (GTK_TREE_VIEW (current_playlist_treeview), current_playlist_model);
+ 	g_signal_connect (current_playlist_treeview, "row-activated", G_CALLBACK(gimmix_current_playlist_play), NULL);
++	g_signal_connect (current_playlist_treeview, "button-release-event", G_CALLBACK (gimmix_current_playlist_right_click), NULL);
+ 	g_object_unref (current_playlist_model);
+ 	
+ 	return;
+@@ -256,6 +259,7 @@
+ 							-1);
+ 		mpd_player_play_id (pub->gmo, id);
+ 		mpd_status_update (pub->gmo);
++		gimmix_set_song_info (pub->gmo);
+ 	}
+ 	return;
+ }
+@@ -354,6 +358,71 @@
+ 	return;
+ }
+ 
++void
++gimmix_current_playlist_right_click (GtkTreeView *treeview, GdkEventButton *event)
++{	
++	if (event->button == 3) /* If right click */
++	{
++		gimmix_playlist_popup_menu ();
++	}
++	return;
++}
++
++void
++gimmix_current_playlist_remove_song (void)
++{
++	GtkTreeSelection	*selection;
++	GtkTreeIter			iter;
++	gchar				*title;
++	gchar				*path;
++	gint				id;
++
++	selection = gtk_tree_view_get_selection (GTK_TREE_VIEW(current_playlist_treeview));
++	
++	if ( gtk_tree_selection_get_selected (selection, &current_playlist_model, &iter) )
++	{
++		gtk_tree_model_get (current_playlist_model, &iter,
++							0, &title,
++							1, &path,
++							2, &id,
++							-1);
++		mpd_playlist_delete_id (pub->gmo, id);
++		mpd_status_update (pub->gmo);
++		gtk_list_store_remove (GTK_LIST_STORE (current_playlist_model), &iter);	
++	}
++}	
++
++void
++gimmix_current_playlist_clear (void)
++{
++	gtk_list_store_clear (GTK_LIST_STORE(current_playlist_store));
++	mpd_playlist_clear (pub->gmo);
++	mpd_status_update (pub->gmo);
++
++	return;
++}
++
++void
++gimmix_playlist_popup_menu (void)
++{
++	GtkWidget *menu, *menu_item;
++
++	menu = gtk_menu_new ();
++
++	menu_item = gtk_image_menu_item_new_from_stock (GTK_STOCK_REMOVE, NULL);
++	g_signal_connect (G_OBJECT (menu_item), "activate", G_CALLBACK (gimmix_current_playlist_remove_song), NULL);
++	gtk_menu_shell_append (GTK_MENU_SHELL (menu), menu_item);
++	gtk_widget_show (menu_item);
++	
++	menu_item = gtk_image_menu_item_new_from_stock (GTK_STOCK_CLEAR, NULL);
++	g_signal_connect (G_OBJECT (menu_item), "activate", G_CALLBACK (gimmix_current_playlist_clear), NULL);
++	gtk_menu_shell_append (GTK_MENU_SHELL (menu), menu_item);
++	gtk_widget_show (menu_item);
++
++	gtk_widget_show (menu);
++	gtk_menu_popup (GTK_MENU(menu), NULL, NULL, NULL, NULL, 3,gtk_get_current_event_time());
++}
++
+ gchar *
+ gimmix_path_get_parent_dir (gchar *path)
+ {
+diff -Naur gimmix-0.1b/src/playlist.h gimmix-svn/src/playlist.h
+--- gimmix-0.1b/src/playlist.h	2006-10-27 14:28:49.000000000 +0530
++++ gimmix-svn/src/playlist.h	2006-10-29 11:41:39.000000000 +0530
+@@ -18,11 +18,14 @@
+ void gimmix_update_current_playlist (void);
+ void gimmix_playlist_populate (void);
+ void gimmix_update_dir_song_treeview_with_dir (gchar *);
++void gimmix_playlist_popup_menu (void);
+ gchar *gimmix_path_get_parent_dir (gchar *);
+ 
+ /* Callbacks */
+ void add_song (GtkTreeView *);
+ void on_dir_activated (GtkTreeView *);
+ void gimmix_current_playlist_play (GtkTreeView *);
+-
++void gimmix_current_playlist_right_click (GtkTreeView *, GdkEventButton *);
++void gimmix_current_playlist_remove_song (void);
++void gimmix_current_playlist_clear (void);
+ #endif
+diff -Naur gimmix-0.1b/glade/gimmix.glade gimmix-svn/glade/gimmix.glade
+--- gimmix-0.1b/glade/gimmix.glade	2006-10-27 14:28:53.000000000 +0530
++++ gimmix-svn/glade/gimmix.glade	2006-10-29 11:41:39.000000000 +0530
+@@ -431,78 +431,78 @@
+                         <property name="column_spacing">6</property>
+                         <property name="row_spacing">6</property>
+                         <child>
+-                          <widget class="GtkLabel" id="label11">
++                          <widget class="GtkEntry" id="password_entry">
+                             <property name="visible">True</property>
+-                            <property name="xalign">0</property>
+-                            <property name="label" translatable="yes">Host</property>
++                            <property name="can_focus">True</property>
+                           </widget>
+                           <packing>
+-                            <property name="x_options">GTK_FILL</property>
++                            <property name="left_attach">1</property>
++                            <property name="right_attach">2</property>
++                            <property name="top_attach">2</property>
++                            <property name="bottom_attach">3</property>
+                             <property name="y_options"></property>
+                           </packing>
+                         </child>
+                         <child>
+-                          <widget class="GtkLabel" id="label12">
++                          <widget class="GtkEntry" id="port_entry">
+                             <property name="visible">True</property>
+-                            <property name="xalign">0</property>
+-                            <property name="label" translatable="yes">Port</property>
++                            <property name="can_focus">True</property>
++                            <property name="max_length">5</property>
+                           </widget>
+                           <packing>
++                            <property name="left_attach">1</property>
++                            <property name="right_attach">2</property>
+                             <property name="top_attach">1</property>
+                             <property name="bottom_attach">2</property>
+-                            <property name="x_options">GTK_FILL</property>
+                             <property name="y_options"></property>
+                           </packing>
+                         </child>
+                         <child>
+-                          <widget class="GtkLabel" id="label13">
++                          <widget class="GtkEntry" id="host_entry">
+                             <property name="visible">True</property>
+-                            <property name="xalign">0</property>
+-                            <property name="label" translatable="yes">Password</property>
++                            <property name="can_focus">True</property>
++                            <property name="max_length">255</property>
+                           </widget>
+                           <packing>
+-                            <property name="top_attach">2</property>
+-                            <property name="bottom_attach">3</property>
+-                            <property name="x_options">GTK_FILL</property>
++                            <property name="left_attach">1</property>
++                            <property name="right_attach">2</property>
+                             <property name="y_options"></property>
+                           </packing>
+                         </child>
+                         <child>
+-                          <widget class="GtkEntry" id="host_entry">
++                          <widget class="GtkLabel" id="label13">
+                             <property name="visible">True</property>
+-                            <property name="can_focus">True</property>
+-                            <property name="max_length">255</property>
++                            <property name="xalign">0</property>
++                            <property name="label" translatable="yes">Password</property>
+                           </widget>
+                           <packing>
+-                            <property name="left_attach">1</property>
+-                            <property name="right_attach">2</property>
++                            <property name="top_attach">2</property>
++                            <property name="bottom_attach">3</property>
++                            <property name="x_options">GTK_FILL</property>
+                             <property name="y_options"></property>
+                           </packing>
+                         </child>
+                         <child>
+-                          <widget class="GtkEntry" id="port_entry">
++                          <widget class="GtkLabel" id="label12">
+                             <property name="visible">True</property>
+-                            <property name="can_focus">True</property>
+-                            <property name="max_length">5</property>
++                            <property name="xalign">0</property>
++                            <property name="label" translatable="yes">Port</property>
+                           </widget>
+                           <packing>
+-                            <property name="left_attach">1</property>
+-                            <property name="right_attach">2</property>
+                             <property name="top_attach">1</property>
+                             <property name="bottom_attach">2</property>
++                            <property name="x_options">GTK_FILL</property>
+                             <property name="y_options"></property>
+                           </packing>
+                         </child>
+                         <child>
+-                          <widget class="GtkEntry" id="password_entry">
++                          <widget class="GtkLabel" id="label11">
+                             <property name="visible">True</property>
+-                            <property name="can_focus">True</property>
++                            <property name="xalign">0</property>
++                            <property name="label" translatable="yes">Host</property>
+                           </widget>
+                           <packing>
+-                            <property name="left_attach">1</property>
+-                            <property name="right_attach">2</property>
+-                            <property name="top_attach">2</property>
+-                            <property name="bottom_attach">3</property>
++                            <property name="x_options">GTK_FILL</property>
+                             <property name="y_options"></property>
+                           </packing>
+                         </child>
+@@ -739,176 +739,199 @@
+                     <property name="column_spacing">16</property>
+                     <property name="row_spacing">3</property>
+                     <child>
+-                      <placeholder/>
+-                    </child>
+-                    <child>
+-                      <placeholder/>
++                      <widget class="GtkLabel" id="info_bitrate">
++                        <property name="visible">True</property>
++                        <property name="xalign">0</property>
++                      </widget>
++                      <packing>
++                        <property name="left_attach">1</property>
++                        <property name="right_attach">2</property>
++                        <property name="top_attach">6</property>
++                        <property name="bottom_attach">7</property>
++                        <property name="x_options">GTK_FILL</property>
++                        <property name="y_options"></property>
++                        <property name="y_padding">5</property>
++                      </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkLabel" id="label22">
++                      <widget class="GtkLabel" id="label1">
+                         <property name="visible">True</property>
+                         <property name="xalign">0</property>
+-                        <property name="label" translatable="yes">&lt;b&gt;Genre&lt;/b&gt;</property>
++                        <property name="label" translatable="yes">&lt;b&gt;Bitrate&lt;/b&gt;</property>
+                         <property name="use_markup">True</property>
+                       </widget>
+                       <packing>
+-                        <property name="top_attach">4</property>
+-                        <property name="bottom_attach">5</property>
++                        <property name="top_attach">6</property>
++                        <property name="bottom_attach">7</property>
+                         <property name="x_options">GTK_FILL</property>
+                         <property name="y_options"></property>
+                       </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkLabel" id="label21">
++                      <widget class="GtkLabel" id="info_length">
+                         <property name="visible">True</property>
+                         <property name="xalign">0</property>
+-                        <property name="label" translatable="yes">&lt;b&gt;Album&lt;/b&gt;</property>
+-                        <property name="use_markup">True</property>
+                       </widget>
+                       <packing>
+-                        <property name="top_attach">3</property>
+-                        <property name="bottom_attach">4</property>
++                        <property name="left_attach">1</property>
++                        <property name="right_attach">2</property>
++                        <property name="top_attach">5</property>
++                        <property name="bottom_attach">6</property>
+                         <property name="x_options">GTK_FILL</property>
+                         <property name="y_options"></property>
++                        <property name="y_padding">5</property>
+                       </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkLabel" id="label19">
++                      <widget class="GtkLabel" id="label24">
+                         <property name="visible">True</property>
+                         <property name="xalign">0</property>
+-                        <property name="label" translatable="yes">&lt;b&gt;Artist&lt;/b&gt;</property>
++                        <property name="label" translatable="yes">&lt;b&gt;Length&lt;/b&gt;</property>
+                         <property name="use_markup">True</property>
+                       </widget>
+                       <packing>
+-                        <property name="top_attach">2</property>
+-                        <property name="bottom_attach">3</property>
++                        <property name="top_attach">5</property>
++                        <property name="bottom_attach">6</property>
+                         <property name="x_options">GTK_FILL</property>
+                         <property name="y_options"></property>
+                       </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkLabel" id="label17">
++                      <widget class="GtkEntry" id="info_file">
++                        <property name="height_request">22</property>
++                        <property name="visible">True</property>
++                        <property name="can_focus">True</property>
++                        <property name="editable">False</property>
++                      </widget>
++                      <packing>
++                        <property name="left_attach">1</property>
++                        <property name="right_attach">2</property>
++                        <property name="y_options"></property>
++                      </packing>
++                    </child>
++                    <child>
++                      <widget class="GtkLabel" id="label23">
+                         <property name="visible">True</property>
+                         <property name="xalign">0</property>
+-                        <property name="label" translatable="yes">&lt;b&gt;Title&lt;/b&gt;</property>
++                        <property name="label" translatable="yes">&lt;b&gt;File&lt;/b&gt;</property>
+                         <property name="use_markup">True</property>
+                       </widget>
+                       <packing>
+-                        <property name="top_attach">1</property>
+-                        <property name="bottom_attach">2</property>
+                         <property name="x_options">GTK_FILL</property>
+                         <property name="y_options"></property>
+                       </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkLabel" id="info_genre">
++                      <widget class="GtkLabel" id="info_title">
+                         <property name="visible">True</property>
+                         <property name="xalign">0</property>
+                       </widget>
+                       <packing>
+                         <property name="left_attach">1</property>
+                         <property name="right_attach">2</property>
+-                        <property name="top_attach">4</property>
+-                        <property name="bottom_attach">5</property>
+-                        <property name="x_options">GTK_FILL</property>
++                        <property name="top_attach">1</property>
++                        <property name="bottom_attach">2</property>
+                         <property name="y_options"></property>
+                         <property name="y_padding">5</property>
+                       </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkLabel" id="info_album">
++                      <widget class="GtkLabel" id="info_artist">
+                         <property name="visible">True</property>
+                         <property name="xalign">0</property>
+                       </widget>
+                       <packing>
+                         <property name="left_attach">1</property>
+                         <property name="right_attach">2</property>
+-                        <property name="top_attach">3</property>
+-                        <property name="bottom_attach">4</property>
++                        <property name="top_attach">2</property>
++                        <property name="bottom_attach">3</property>
+                         <property name="y_options"></property>
+                         <property name="y_padding">5</property>
+                       </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkLabel" id="info_artist">
++                      <widget class="GtkLabel" id="info_album">
+                         <property name="visible">True</property>
+                         <property name="xalign">0</property>
+                       </widget>
+                       <packing>
+                         <property name="left_attach">1</property>
+                         <property name="right_attach">2</property>
+-                        <property name="top_attach">2</property>
+-                        <property name="bottom_attach">3</property>
++                        <property name="top_attach">3</property>
++                        <property name="bottom_attach">4</property>
+                         <property name="y_options"></property>
+                         <property name="y_padding">5</property>
+                       </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkLabel" id="info_title">
++                      <widget class="GtkLabel" id="info_genre">
+                         <property name="visible">True</property>
+                         <property name="xalign">0</property>
+                       </widget>
+                       <packing>
+                         <property name="left_attach">1</property>
+                         <property name="right_attach">2</property>
+-                        <property name="top_attach">1</property>
+-                        <property name="bottom_attach">2</property>
++                        <property name="top_attach">4</property>
++                        <property name="bottom_attach">5</property>
++                        <property name="x_options">GTK_FILL</property>
+                         <property name="y_options"></property>
+                         <property name="y_padding">5</property>
+                       </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkLabel" id="label23">
++                      <widget class="GtkLabel" id="label17">
+                         <property name="visible">True</property>
+                         <property name="xalign">0</property>
+-                        <property name="label" translatable="yes">&lt;b&gt;File&lt;/b&gt;</property>
++                        <property name="label" translatable="yes">&lt;b&gt;Title&lt;/b&gt;</property>
+                         <property name="use_markup">True</property>
+                       </widget>
+                       <packing>
++                        <property name="top_attach">1</property>
++                        <property name="bottom_attach">2</property>
+                         <property name="x_options">GTK_FILL</property>
+                         <property name="y_options"></property>
+                       </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkEntry" id="info_file">
+-                        <property name="height_request">22</property>
++                      <widget class="GtkLabel" id="label19">
+                         <property name="visible">True</property>
+-                        <property name="can_focus">True</property>
+-                        <property name="editable">False</property>
++                        <property name="xalign">0</property>
++                        <property name="label" translatable="yes">&lt;b&gt;Artist&lt;/b&gt;</property>
++                        <property name="use_markup">True</property>
+                       </widget>
+                       <packing>
+-                        <property name="left_attach">1</property>
+-                        <property name="right_attach">2</property>
++                        <property name="top_attach">2</property>
++                        <property name="bottom_attach">3</property>
++                        <property name="x_options">GTK_FILL</property>
+                         <property name="y_options"></property>
+                       </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkLabel" id="label24">
++                      <widget class="GtkLabel" id="label21">
+                         <property name="visible">True</property>
+                         <property name="xalign">0</property>
+-                        <property name="label" translatable="yes">&lt;b&gt;Length&lt;/b&gt;</property>
++                        <property name="label" translatable="yes">&lt;b&gt;Album&lt;/b&gt;</property>
+                         <property name="use_markup">True</property>
+                       </widget>
+                       <packing>
+-                        <property name="top_attach">5</property>
+-                        <property name="bottom_attach">6</property>
++                        <property name="top_attach">3</property>
++                        <property name="bottom_attach">4</property>
+                         <property name="x_options">GTK_FILL</property>
+                         <property name="y_options"></property>
+                       </packing>
+                     </child>
+                     <child>
+-                      <widget class="GtkLabel" id="info_length">
++                      <widget class="GtkLabel" id="label22">
+                         <property name="visible">True</property>
+                         <property name="xalign">0</property>
++                        <property name="label" translatable="yes">&lt;b&gt;Genre&lt;/b&gt;</property>
++                        <property name="use_markup">True</property>
+                       </widget>
+                       <packing>
+-                        <property name="left_attach">1</property>
+-                        <property name="right_attach">2</property>
+-                        <property name="top_attach">5</property>
+-                        <property name="bottom_attach">6</property>
++                        <property name="top_attach">4</property>
++                        <property name="bottom_attach">5</property>
+                         <property name="x_options">GTK_FILL</property>
+                         <property name="y_options"></property>
+-                        <property name="y_padding">5</property>
+                       </packing>
+                     </child>
+                   </widget>
+--- gimmix-0.1b/Makefile	2006-10-27 14:29:02.000000000 +0530
++++ gimmix-svn/Makefile	2006-10-29 11:41:39.000000000 +0530
+@@ -2,19 +2,19 @@
+ # gimmix-0.1beta
+ 
+ # Installation directory
+-PREFIX=/usr
++PREFIX=$(DESTDIR)/usr
+ 
+ ALLFILES=*.c
+ 
+-CONFUSE_LIB=`pkg-config libconfuse --libs`
+-NOTIFY_CFLAGS=`pkg-config libnotify --cflags`
+-NOTIFY_LIB=`pkg-config libnotify --libs`
+-GLADE_CFLAGS=`pkg-config libglade-2.0 --cflags`
+-GLADE_LIB=`pkg-config libglade-2.0 --libs`
+-MPD_CFLAGS=`pkg-config libmpd --cflags`
+-MPD_LIB=`pkg-config libmpd --libs`
++CONFUSE_LIB=$(shell pkg-config libconfuse --libs)
++NOTIFY_CFLAGS=$(shell pkg-config libnotify --cflags)
++NOTIFY_LIB=$(shell pkg-config libnotify --libs)
++GLADE_CFLAGS=$(shell pkg-config libglade-2.0 --cflags)
++GLADE_LIB=$(shell pkg-config libglade-2.0 --libs)
++MPD_CFLAGS=$(shell pkg-config libmpd --cflags)
++MPD_LIB=$(shell pkg-config libmpd --libs)
+ 
+-CFLAGS=-march=i686 -pipe -O2 -Wall -fPIC -DPREFIX=\"$(PREFIX)\" $(NOTIFY_CFLAGS) $(GLADE_CFLAGS) $(MPD_CFLAGS) -I.
++CFLAGS += -fPIC -DPREFIX=\"$(PREFIX)\" $(NOTIFY_CFLAGS) $(GLADE_CFLAGS) $(MPD_CFLAGS) -I.
+ LIBS=$(CONFUSE_LIB) $(NOTIFY_LIB) $(GLADE_LIB) $(MPD_LIB)
+ 
+ OBJS = config.o gimmix-core.o playlist.o interface.o gimmix.o
+@@ -47,4 +47,3 @@
+ 	install -D gimmix $(PREFIX)/bin/gimmix
+ 	install -D -m644 pixmaps/gimmix.png $(PREFIX)/share/pixmaps/gimmix.png
+ 	install -D -m644 glade/gimmix.glade $(PREFIX)/share/gimmix/gimmix.glade
+-

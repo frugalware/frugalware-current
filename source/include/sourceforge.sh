@@ -6,32 +6,23 @@
 
 # sets url, up2date and source() for a typical sf project
 
-if ! [ -z "$realname" ]; then
-	name=$realname
-else
-	name=$pkgname
+if [ -z "$_F_sourceforge_name" ]; then
+	_F_sourceforge_name=$pkgname
 fi
 
-if ! [ -z "$_F_sourceforge_mirror" ]; then
-	_F_sourceforge_mirror="$_F_sourceforge_mirror."
-else
+if [ -z "$_F_sourceforge_mirror" ]; then
 	# set our preferred mirror
-	_F_sourceforge_mirror="heanet."
+	_F_sourceforge_mirror="heanet"
 fi
 
 if [ -z "$_F_sourceforge_dirname" ]; then
-	_F_sourceforge_dirname="$name"
+	_F_sourceforge_dirname="$_F_sourceforge_name"
 fi
 
-url="http://sourceforge.net/projects/$name"
-if [ -z "$_F_sourceforge_prefix" ]; then
-	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep 'Release Notes'|sed 's/[^]]*][^]]*]\([^ ]*\) .*/\1/;s/-/_/g;q'"
-else
-	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep 'Release Notes'|sed 's/[^]]*][^]]*]$_F_sourceforge_prefix\([^ ]*\) .*/\1/;s/-/_/g;q'"
-fi
 if [ -z "$_F_sourceforge_ext" ]; then
-	source=(http://${_F_sourceforge_mirror}dl.sourceforge.net/sourceforge/$_F_sourceforge_dirname/$name-${pkgver//_/-}.tar.gz)
-else
-	source=(http://${_F_sourceforge_mirror}dl.sourceforge.net/sourceforge/$_F_sourceforge_dirname/$name-${pkgver//_/-}$_F_sourceforge_ext)
+	_F_sourceforge_ext=".tar.gz"
 fi
-unset realname _F_sourceforge_prefix _F_sourceforge_ext _F_sourceforge_mirror _F_sourceforge_dirname
+
+url="http://sourceforge.net/projects/$_F_sourceforge_name"
+up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep 'Release Notes'|sed 's/[^]]*][^]]*]$_F_sourceforge_prefix\([^ ]*\) .*/\1/;s/-/_/g;q'"
+source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/$_F_sourceforge_dirname/$_F_sourceforge_name-${pkgver//_/-}$_F_sourceforge_ext)

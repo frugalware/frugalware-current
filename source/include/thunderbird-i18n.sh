@@ -8,7 +8,7 @@
 
 up2date="1.5.0.7"
 url="http://www.mozilla.org/projects/l10n/mlp.html"
-source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linux-i686/xpi/$llang.xpi)
+source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linux-i686/xpi/$_F_thunderbird_lang.xpi)
 options=('scriptlet')
 depends=('thunderbird>=1.5.0.7')
 makedepends=('unzip')
@@ -17,8 +17,8 @@ archs=('i686' 'x86_64')
 
 build()
 {
-	unzip -qqo $llang.xpi
+	unzip -qqo $_F_thunderbird_lang.xpi
 	sed -i 's|chrome/||' chrome.manifest
-	Ffilerel chrome.manifest /usr/lib/thunderbird/chrome/$llang.manifest
-	Ffilerel chrome/$llang.jar /usr/lib/thunderbird/chrome/$llang.jar
+	Ffilerel chrome.manifest /usr/lib/thunderbird/chrome/$_F_thunderbird_lang.manifest
+	Ffilerel chrome/$_F_thunderbird_lang.jar /usr/lib/thunderbird/chrome/$_F_thunderbird_lang.jar
 }

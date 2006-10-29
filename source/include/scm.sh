@@ -74,7 +74,6 @@ Funpack_scm()
 		bzr branch $_F_scm_url || Fdie
 		Fcd ${_F_scm_url##*/}
 	fi
-	unset _F_scm_type _F_scm_url
 }
 
 build()

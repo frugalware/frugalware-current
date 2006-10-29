@@ -6,18 +6,19 @@
 
 # a common function and a scriptlet for externel kernel module packages
 
-kernelbasever=2.6.18
-kernelrel=2
-kernelver=$kernelbasever-$kernelrel
-_F_kernel_dir=/lib/modules/$kernelbasever-fw$kernelrel
-depends=("kernel=$kernelver")
-makedepends=("kernel-source=$kernelver")
+_F_kernelmod_ver=2.6.18
+_F_kernelmod_rel=2
+_F_kernelmod_uname=$_F_kernelmod_ver-fw$_F_kernelmod_rel
+_F_kernelmod_pkgver=${_F_kernelmod_uname/fw}
+_F_kernel_dir=/lib/modules/$_F_kernelmod_uname
+depends=("kernel=$_F_kernelmod_pkgver")
+makedepends=("kernel-source=$_F_kernelmod_pkgver")
 install=$Fincdir/kernel-module.install
 options=(${options[@]} 'scriptlet')
 
 Fcheckkernel()
 {
-	if [ "`uname -r|sed 's/fw//'`" != "$kernelver" ]; then
+	if [ "`uname -r`" != "$_F_kernelmod_uname" ]; then
 		error "You might installed the required kernel package, but"
 		plain "you're not running that kernel. Please reboot your system."
 		Fdie

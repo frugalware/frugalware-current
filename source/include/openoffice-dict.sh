@@ -9,11 +9,11 @@
 url="ftp://ftp.services.openoffice.org/pub/OpenOffice.org/contrib/dictionaries/"
 # no way to determine pkgver automatically :-/
 up2date="$pkgver"
-source=(ftp://ftp.services.openoffice.org/pub/OpenOffice.org/contrib/dictionaries/$dictname-pack.zip)
+source=(ftp://ftp.services.openoffice.org/pub/OpenOffice.org/contrib/dictionaries/$_F_openoffice_name-pack.zip)
 
 install=$Fincdir/openoffice-dict.install
 
-check_dictoption() {
+_F_openoffice_option() {
 	local i
 	for i in ${dictoptions[@]}; do
 		local uc=`echo $i | tr [:lower:] [:upper:]`
@@ -32,25 +32,25 @@ build()
 		unzip -qqo $i
 	done
 
-	if [ ! "`check_dictoption NODICT`" ]; then
-		if [ -e $dictname.aff ]; then
-			Ffile /usr/lib/openoffice.org/share/dict/ooo/$dictname.aff
+	if [ ! "`_F_openoffice_option NODICT`" ]; then
+		if [ -e $_F_openoffice_name.aff ]; then
+			Ffile /usr/lib/openoffice.org/share/dict/ooo/$_F_openoffice_name.aff
 		fi
-		if [ -e $dictname.dic ]; then
-			Ffile /usr/lib/openoffice.org/share/dict/ooo/$dictname.dic
-		fi
-	fi
-	if [ ! "`check_dictoption NOHYPH`" ]; then
-		if [ -e hyph_$dictname.dic ]; then
-			Ffile /usr/lib/openoffice.org/share/dict/ooo/hyph_$dictname.dic
+		if [ -e $_F_openoffice_name.dic ]; then
+			Ffile /usr/lib/openoffice.org/share/dict/ooo/$_F_openoffice_name.dic
 		fi
 	fi
-	if [ ! "`check_dictoption NOTH`" ]; then
-		if [ -e th_$dictname.dat ]; then
-			Ffile /usr/lib/openoffice.org/share/dict/ooo/th_$dictname.dat
+	if [ ! "`_F_openoffice_option NOHYPH`" ]; then
+		if [ -e hyph_$_F_openoffice_name.dic ]; then
+			Ffile /usr/lib/openoffice.org/share/dict/ooo/hyph_$_F_openoffice_name.dic
 		fi
-		if [ -e th_$dictname.idx ]; then
-			Ffile /usr/lib/openoffice.org/share/dict/ooo/th_$dictname.idx
+	fi
+	if [ ! "`_F_openoffice_option NOTH`" ]; then
+		if [ -e th_$_F_openoffice_name.dat ]; then
+			Ffile /usr/lib/openoffice.org/share/dict/ooo/th_$_F_openoffice_name.dat
+		fi
+		if [ -e th_$_F_openoffice_name.idx ]; then
+			Ffile /usr/lib/openoffice.org/share/dict/ooo/th_$_F_openoffice_name.idx
 		fi
 	fi
 }

@@ -7,26 +7,26 @@
 # common url, up2date, and source(), and build() for perl modules
 
 # sanility checks
-[ -z "$modname" ] && \
+[ -z "$_F_perl_name" ] && \
 {
-	error "No \$modname set!"
+	error "No \$_F_perl_name set!"
 	Fdie
 }
-[ -z "$modauthor" ] && \
+[ -z "$_F_perl_author" ] && \
 {
-	error "No \$modauthor set!"
+	error "No \$_F_perl_author set!"
 	Fdie
 }
 
 [ -z "$_F_perl_ext" ] && _F_perl_ext=".tar.gz"
 
-[ -z "$_F_perl_sourcename" ] && _F_perl_sourcename="$modname"
+[ -z "$_F_perl_sourcename" ] && _F_perl_sourcename="$_F_perl_name"
 
 [ -z "$_F_perl_url" ] && _F_perl_url="ftp://cpan.org/authors/id/"
 
 url="http://cpan.org/"
-up2date="lynx -dump -nolist 'http://search.cpan.org/search?query="$modname"&mode=module'|grep -m1 "$modname-"|sed -e 's/.*"$modname"-\(.*\) .*/\1/' -e 's/ .*//'"
-source=($_F_perl_url$modauthor/$_F_perl_sourcename-$pkgver$_F_perl_ext)
+up2date="lynx -dump -nolist 'http://search.cpan.org/search?query="$_F_perl_name"&mode=module'|grep -m1 "$_F_perl_name-"|sed -e 's/.*"$_F_perl_name"-\(.*\) .*/\1/' -e 's/ .*//'"
+source=($_F_perl_url$_F_perl_author/$_F_perl_sourcename-$pkgver$_F_perl_ext)
 
 build()
 {
@@ -36,11 +36,9 @@ build()
 }
 
 # defaults
-pkgname="perl-`echo $modname|tr [A-Z] [a-z]`"
+pkgname="perl-`echo $_F_perl_name|tr [A-Z] [a-z]`"
 [ -z "$pkgrel" ] && pkgrel=1
 depends=(${depends[@]} 'perl')
 makedepends=(${makedepends[@]} 'perl-libwww')
 groups=('devel-extra')
 archs=('i686')
-
-unset _F_perl_ext _F_perl_url

@@ -356,7 +356,10 @@ Fpatch() {
 	else
 		i=$1
 	fi
-	patch -Np0 --dry-run -i "$Fsrcdir/$i" >/dev/null && level="0"
+	if patch -Np0 --dry-run -i "$Fsrcdir/$i" >/dev/null && \
+		! patch -Np1 --dry-run -i "$Fsrcdir/$i" >/dev/null; then
+		level="0"
+	fi
 	patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$i" || Fdie
 }
 

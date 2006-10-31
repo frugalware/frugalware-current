@@ -10,7 +10,7 @@ _F_kernelmod_ver=2.6.18
 _F_kernelmod_rel=2
 _F_kernelmod_uname=$_F_kernelmod_ver-fw$_F_kernelmod_rel
 _F_kernelmod_pkgver=${_F_kernelmod_uname/fw}
-_F_kernel_dir=/lib/modules/$_F_kernelmod_uname
+_F_kernelmod_dir=/lib/modules/$_F_kernelmod_uname
 depends=("kernel=$_F_kernelmod_pkgver")
 makedepends=("kernel-source=$_F_kernelmod_pkgver")
 install=$Fincdir/kernel-module.install

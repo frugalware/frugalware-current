@@ -1,0 +1,134 @@
+Index: xen-3.0.3-testing/tools/python/xen/xend/XendNode.py
+===================================================================
+--- xen-3.0.3-testing.orig/tools/python/xen/xend/XendNode.py
++++ xen-3.0.3-testing/tools/python/xen/xend/XendNode.py
+@@ -59,9 +59,34 @@ class XendNode:
+                            info['cores_per_socket'] *
+                            info['threads_per_core'])
+         info['cpu_mhz'] = info['cpu_khz'] / 1000
+-        # physinfo is in KiB
+-        info['total_memory'] = info['total_memory'] / 1024
+-        info['free_memory']  = info['free_memory'] / 1024
++        import XendRoot
++        configured_floor = XendRoot.instance().get_dom0_min_mem() * 1024
++        from xen.xend import balloon
++        try:
++            kernel_floor = balloon.get_dom0_min_target()
++        except:
++            kernel_floor = 0
++        dom0_min_mem = max(configured_floor, kernel_floor)
++        dom0_mem = balloon.get_dom0_current_alloc()
++        extra_mem = 0
++        if dom0_min_mem > 0 and dom0_mem > dom0_min_mem:
++            extra_mem = dom0_mem - dom0_min_mem
++        info['free_memory']     = info['free_memory'] + info['scrub_memory']
++        info['max_free_memory'] = info['free_memory'] + extra_mem
++
++        # Convert KiB to MiB, rounding down to be conservative
++        info['total_memory']    = info['total_memory'] / 1024
++        info['free_memory']     = info['free_memory'] / 1024
++        info['max_free_memory'] = info['max_free_memory'] / 1024
++
++        # FIXME:  These are hard-coded to be the inverse of the getXenMemory
++        #         functions in image.py.  Find a cleaner way.
++        info['max_para_memory'] = info['max_free_memory'] - 4
++        if info['max_para_memory'] < 0:
++            info['max_para_memory'] = 0
++        info['max_hvm_memory'] = int((info['max_free_memory']-12) * (1-2.4/1024))
++        if info['max_hvm_memory'] < 0:
++            info['max_hvm_memory'] = 0
+ 
+         ITEM_ORDER = ['nr_cpus',
+                       'nr_nodes',
+@@ -72,6 +97,9 @@ class XendNode:
+                       'hw_caps',
+                       'total_memory',
+                       'free_memory',
++                      'max_free_memory',
++                      'max_para_memory',
++                      'max_hvm_memory',
+                       ]
+ 
+         return [[k, info[k]] for k in ITEM_ORDER]
+Index: xen-3.0.3-testing/tools/python/xen/xend/balloon.py
+===================================================================
+--- xen-3.0.3-testing.orig/tools/python/xen/xend/balloon.py
++++ xen-3.0.3-testing/tools/python/xen/xend/balloon.py
+@@ -43,6 +43,8 @@ SLEEP_TIME_GROWTH = 0.1
+ # label actually shown in the PROC_XEN_BALLOON file.
+ labels = { 'current'      : 'Current allocation',
+            'target'       : 'Requested target',
++           'min-target'   : 'Minimum target',
++           'max-target'   : 'Maximum target',
+            'low-balloon'  : 'Low-mem balloon',
+            'high-balloon' : 'High-mem balloon',
+            'limit'        : 'Xen hard limit' }
+@@ -81,6 +83,23 @@ def get_dom0_target_alloc():
+         raise VmError('Failed to query target memory allocation of dom0.')
+     return kb
+ 
++def get_dom0_min_target():
++    """Returns the minimum amount of memory (in KiB) that dom0 will accept."""
++
++    kb = _get_proc_balloon(labels['min-target'])
++    if kb == None:
++        raise VmError('Failed to query minimum target memory allocation of dom0.')
++    return kb
++
++def get_dom0_max_target():
++    """Returns the maximum amount of memory (in KiB) that is potentially
++    visible to dom0."""
++
++    kb = _get_proc_balloon(labels['max-target'])
++    if kb == None:
++        raise VmError('Failed to query maximum target memory allocation of dom0.')
++    return kb
++
+ def free(need_mem):
+     """Balloon out memory from the privileged domain so that there is the
+     specified required amount (in KiB) free.
+Index: xen-3.0.3-testing/tools/python/xen/xend/XendDomainInfo.py
+===================================================================
+--- xen-3.0.3-testing.orig/tools/python/xen/xend/XendDomainInfo.py
++++ xen-3.0.3-testing/tools/python/xen/xend/XendDomainInfo.py
+@@ -1005,6 +1005,27 @@ class XendDomainInfo:
+ 
+     ## public:
+ 
++    def capAndSetMemoryTarget(self, target):
++        """Potentially lowers the requested target to the largest possible
++        value (i.e., caps it), and then sets the memory target of this domain
++        to that value.
++        @param target in MiB.
++        """
++        max_target = 0
++        if self.domid == 0:
++            try:
++                from balloon import get_dom0_max_target
++                max_target = get_dom0_max_target() / 1024
++            except:
++                # It's nice to cap the max at sane values, but harmless to set
++                # them high.  Carry on.
++                pass
++            if max_target and target > max_target:
++                log.debug("Requested memory target %d MiB; maximum reasonable is %d MiB.",
++                          target, max_target)
++                target = max_target
++        self.setMemoryTarget(target)
++
+     def setMemoryTarget(self, target):
+         """Set the memory target of this domain.
+         @param target In MiB.
+Index: xen-3.0.3-testing/tools/python/xen/xend/server/SrvDomain.py
+===================================================================
+--- xen-3.0.3-testing.orig/tools/python/xen/xend/server/SrvDomain.py
++++ xen-3.0.3-testing/tools/python/xen/xend/server/SrvDomain.py
+@@ -147,7 +147,7 @@ class SrvDomain(SrvDir):
+ 
+ 
+     def op_mem_target_set(self, _, req):
+-        return self.call(self.dom.setMemoryTarget,
++        return self.call(self.dom.capAndSetMemoryTarget,
+                          [['target', 'int']],
+                          req)
+ 

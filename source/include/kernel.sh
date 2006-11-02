@@ -155,12 +155,12 @@ Fbuildkernel()
 	done
 	# remove unneded localversions
 	rm -f localversion-*
-	if [ "$_F_kernel_dontsedarch" ]; then
-		make silentoldconfig || Fdie
-	else
+	if [ $_F_kernel_dontsedarch -eq 0 ]; then
 		yes "" | make config
+	else
+		make silentoldconfig || Fdie
 	fi
-	if [ ! "$_F_kernel_dontfakeversion" ]; then
+	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
 		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
 		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_name-fw$_F_kernel_rel" Makefile
 	fi

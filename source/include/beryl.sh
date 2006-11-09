@@ -17,6 +17,7 @@ up2date="lynx -dump http://releases.beryl-project.org/current/ | grep $_F_beryl_
 srcurl="http://releases.beryl-project.org/current"
 source=($srcurl/$_F_beryl_name-$pkgver.tar.bz2)
 options=(${options[@]} 'force')
+_F_cd_path="$_F_beryl_name-$pkgver"
 
 unset MAKEFLAGS
 

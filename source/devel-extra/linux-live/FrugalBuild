@@ -5,10 +5,11 @@
 pkgname=linux-live
 pkgver=5.5.0
 splashver=0.1
-pkgrel=2
+pkgrel=3
 pkgdesc="A set of shell scripts which allows you to create own LiveCD."
 url="http://www.linux-live.org/"
 depends=('cdrtools')
+makedepends=('squashfs' 'busybox' 'unionfs' 'eject' 'module-init-tools')
 groups=('devel-extra')
 archs=('i686')
 up2date="lynx -dump $url |Flasttar"
@@ -17,15 +18,38 @@ source=(http://www.linux-live.org/dl/linux-live-$pkgver.tar.gz \
 	linux-live-5.5.0-fwlive.diff)
 sha1sums=('7933a82fbe6a278270fb5251960bae2dd37acccf' \
 	  '6575f4826c17a710eed5755f2db5b0eebc1d56b2' \
-	  '564a4e2e74f4a9c9db083b5488b6c54be182bf28')
-#TODO: Add files from pkgs instead of own/custom binaries
-# makedepends=('squashfs' 'busybox' 'unionfs' 'eject')
+	  '47ac75c145e777362ce762498380d5bcaf9a0f8b')
+# when the interal package versions are outdated, we need extra hacks
+# the version of glibc we have
+glibcver=2.5
+# the version of the internal glibc
+liveglibcver=2.3.6
 
 build()
 {
 	Fpatchall
 	Fmkdir /usr/share/linux-live
 	Fcpr $pkgname-$pkgver/* usr/share/$pkgname/
+
+	# now copy the missing binaries
+	rm $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/{ld-$liveglibcver.so,libblkid.so.1.0,libc-$liveglibcver.so,libz.so.1.2.3,libuuid.so.1.2}
+	rm $Fdestdir/usr/share/$pkgname/initrd/rootfs/bin/{blkid,busybox,eject,unionctl,uniondbg}
+	cp /sbin/mksquashfs $Fdestdir/usr/share/$pkgname/tools/ || Fdie
+	cp /sbin/unsquashfs $Fdestdir/usr/share/$pkgname/tools/ || Fdie
+	cp /usr/share/busybox/bin/busybox $Fdestdir/usr/share/$pkgname/initrd/rootfs/bin/ || Fdie
+	cp /usr/sbin/uniondbg $Fdestdir/usr/share/$pkgname/initrd/rootfs/bin/ || Fdie
+	cp /sbin/blkid $Fdestdir/usr/share/$pkgname/initrd/rootfs/bin/ || Fdie
+	cp /usr/sbin/unionctl $Fdestdir/usr/share/$pkgname/initrd/rootfs/bin/ || Fdie
+	cp /usr/bin/eject $Fdestdir/usr/share/$pkgname/initrd/rootfs/bin/eject || Fdie
+	cp /lib/ld-$glibcver.so $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ || Fdie
+	ln -sf ld-$glibcver.so $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ld-linux.so.2 || Fdie
+	cp /lib/libc-$glibcver.so $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ || Fdie
+	ln -sf libc-$glibcver.so $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/libc.so.6 || Fdie
+	cp /usr/lib/libz.so.1.2.3 $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ || Fdie
+	cp /lib/libblkid.so.1.0 $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ || Fdie
+	cp /lib/libuuid.so.1.2 $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ || Fdie
+	cp /sbin/insmod $Fdestdir/usr/share/$pkgname/initrd/rootfs/bin/ || Fdie
+
 	Ffile splash-$splashver.lss usr/share/$pkgname/cd-root/boot/splash.lss
 	Fln /usr/share/$pkgname/DOC usr/share/doc/$pkgname-$pkgver/DOC
 }

@@ -27,7 +27,7 @@ if [ -z "$_F_sourceforge_broken_up2date" ]; then
         _F_sourceforge_broken_up2date=0
 fi
 
-url="http://sourceforge.net/projects/$_F_sourceforge_name"
+url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
 if [ $_F_sourceforge_broken_up2date -eq 0 ]; then
 	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep -m1 'Latest \[.*\]'|sed 's/.*]$_F_sourceforge_prefix\(.*\) \[.*\].*/\1/'"
 else

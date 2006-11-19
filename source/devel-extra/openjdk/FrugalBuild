@@ -1,0 +1,68 @@
+# Compiling Time: 8.68 SBU
+# Maintainer: VMiklos <vmiklos@frugalware.org>
+
+pkgname=openjdk
+pkgver=1.5.0_09
+pkgrel=1
+pkgdesc="Sun's java development kit (GPL version)"
+url="http://openjdk.dev.java.net/"
+# TODO: rebuild using openjdk itself
+makedepends=('j2sdk' 'unixodbc' 'libice' 'libxp' 'libxi' 'libsm' 'libxtst' 'libxt' 'alsa-lib')
+rodepends=('openjre')
+conflicts=('j2sdk')
+groups=('devel-extra')
+archs=('i686')
+# this is a bit hackish but at least we are notified when a new version is out
+up2date="elinks -dump http://openjdk.dev.java.net/hotspot/|grep zip$|sed 's|.*/\(.*\)\.zip|\1|;s/hotspot-7-ea-src-b02-08_nov_2006/1.5.0_09/'"
+source=(http://www.java.net/download/.a2af6706b541c76a90f3597ee8e6a6eb/openjdk/jdk7/promoted/b02/hotspot-7-ea-src-b02-08_nov_2006.zip \
+	openjdk-1.5.0_09-binutils.diff openj{dk,re}.sh)
+
+subpkgs=('openjre')
+subdescs=("Sun's java runtime environment (GPL version)")
+subdepends=('unixodbc libice libxp libxi libsm libxtst libxt alsa-lib')
+subconflicts=('j2re')
+subgroups=('xlib-extra')
+subarchs=('i686')
+
+build()
+{
+	if [ ! -z "$MAKEFLAGS" ]; then
+		export HOTSPOT_BUILD_JOBS="${MAKEFLAGS/-j}"
+		unset MAKEFLAGS
+	fi
+	Fcd hotspot
+	Fpatchall
+	cd make
+	export ALT_BOOTDIR="/usr/lib/java"
+	export ALT_JDK_IMPORT_PATH="$ALT_BOOTDIR"
+	export FULL_VERSION="$pkgver-$pkgrel"
+
+	make MAKE_VERBOSE="" world || return 1
+
+	cd ..
+	# don't se Fdoc here since we want this to go to the jre subpkg
+	Ffilerel /usr/share/doc/openjre-$pkgver/LICENSE
+	cd build/linux/jdk-linux-i586/
+	rm -rf fastdebug
+	Fdocrel docs/*
+	rm -rf docs
+	Fmkdir /usr/lib/java
+	cp -a * $Fdestdir/usr/lib/java/ || return 1
+	# remove the duplicated 'ja' manpages
+	for i in /usr/lib/java{,/jre}
+	do
+		Frm $i/man/ja
+		Fln ja_JP.eucJP $i/man/ja
+	done
+	Fexe /etc/profile.d/openjdk.sh
+	Fexe /etc/profile.d/openjre.sh
+	Fln /usr/lib/java/jre/plugin/i386/ns7/libjavaplugin_oji.so \
+		/usr/lib/mozilla/plugins/libjavaplugin_oji.so
+	Fsplit openjre usr/lib/java/jre usr/lib/mozilla etc/profile.d/openjre.sh \
+		usr/share/doc/openjre*
+}
+
+sha1sums=('1bd58dd935b4cd9330a1b84755451c56eaa026a0' \
+	  'ce10c10c6811269f8a21685357f2db6a3c3a67f5' \
+	  '7a28c09a3fa421971129fdc0113d94238c6e1515' \
+	  '26762d4aa846b15229fd175577f26611cc22194d')

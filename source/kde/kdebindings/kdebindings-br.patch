@@ -1,0 +1,560 @@
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/admin/cvs.sh kdebindings.3.5.5-svn/admin/cvs.sh
+--- kdebindings.3.5.5/admin/cvs.sh	2006-11-19 18:06:10.000000000 +0100
++++ kdebindings.3.5.5-svn/admin/cvs.sh	2006-11-19 18:01:13.000000000 +0100
+@@ -68,7 +68,7 @@ case $AUTOMAKE_STRING in
+     echo "*** KDE requires automake $required_automake_version"
+     exit 1
+     ;;
+-  automake*1.6.* | automake*1.7* | automake*1.8* | automake*1.9*)
++  automake*1.6.* | automake*1.7* | automake*1.8* | automake*1.9* | automake*1.10*)
+     echo "*** $AUTOMAKE_STRING found."
+     UNSERMAKE=no
+     ;;
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/dcoppython/shell/marshaller.cpp kdebindings.3.5.5-svn/dcoppython/shell/marshaller.cpp
+--- kdebindings.3.5.5/dcoppython/shell/marshaller.cpp	2006-11-19 18:06:06.000000000 +0100
++++ kdebindings.3.5.5-svn/dcoppython/shell/marshaller.cpp	2006-11-19 17:57:24.000000000 +0100
+@@ -124,7 +124,7 @@ namespace PythonDCOP {
+     if (!PyDict_Check(obj)) return false;
+ 
+ 
+-    int c=0;
++    ssize_t c=0;
+     PyObject *key, *val;
+     while (PyDict_Next(obj, &c, &key, &val)==1)
+       if (!key_type.isMarshallable(key) ||
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/korundum/ChangeLog kdebindings.3.5.5-svn/korundum/ChangeLog
+--- kdebindings.3.5.5/korundum/ChangeLog	2006-11-19 18:06:18.000000000 +0100
++++ kdebindings.3.5.5-svn/korundum/ChangeLog	2006-11-19 17:57:36.000000000 +0100
+@@ -1,3 +1,8 @@
++2006-10-22  Richard Dale  <rdale@foton.es>
++
++	* Special case QValueList<int> as a DCOPRef return type. Fixes problem
++	  reported by Brian Bart.
++
+ 2006-08-18  Richard Dale  <rdale@foton.es>
+ 
+ 	* Added a KActionPtrList marshaller. Fixes problem reported by
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/korundum/rubylib/examples/RubberDoc.rb kdebindings.3.5.5-svn/korundum/rubylib/examples/RubberDoc.rb
+--- kdebindings.3.5.5/korundum/rubylib/examples/RubberDoc.rb	2006-11-19 18:06:15.000000000 +0100
++++ kdebindings.3.5.5-svn/korundum/rubylib/examples/RubberDoc.rb	2006-11-19 17:57:32.000000000 +0100
+@@ -3,7 +3,7 @@
+ require 'Korundum'
+ 
+ about = KDE::AboutData.new("one", "two", "three")
+-KDE::CmdLineArgs.init(1, ["RubberDoc"], about)
++KDE::CmdLineArgs.init(ARGV, about)
+ app = KDE::Application.new()
+ 
+ # Qt.debug_level = Qt::DebugLevel::High
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/korundum/rubylib/korundum/Korundum.cpp kdebindings.3.5.5-svn/korundum/rubylib/korundum/Korundum.cpp
+--- kdebindings.3.5.5/korundum/rubylib/korundum/Korundum.cpp	2006-11-19 18:06:12.000000000 +0100
++++ kdebindings.3.5.5-svn/korundum/rubylib/korundum/Korundum.cpp	2006-11-19 17:57:29.000000000 +0100
+@@ -518,6 +518,14 @@ public:
+ 			for (QValueListIterator<QCString> it = propertyList.begin(); it != propertyList.end(); ++it) {
+ 				rb_ary_push(_result, rb_str_new2((const char *) *it));
+ 			}
++		} else if (replyType == "QValueList<int>") {
++			// And special case this type too 
++			QValueList<int> propertyList;
++			ds >> propertyList;
++			_result = rb_ary_new();
++			for (QValueListIterator<int> it = propertyList.begin(); it != propertyList.end(); ++it) {
++				rb_ary_push(_result, INT2NUM(*it));
++			}
+ 		} else if (replyType == "QMap<QString,DCOPRef>") {
+ 			// And another.. 
+ 			QMap<QString,DCOPRef>	actionMap;
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/Makefile.am kdebindings.3.5.5-svn/python/Makefile.am
+--- kdebindings.3.5.5/python/Makefile.am	2006-11-19 18:03:50.000000000 +0100
++++ kdebindings.3.5.5-svn/python/Makefile.am	2006-11-19 17:54:06.000000000 +0100
+@@ -26,7 +26,7 @@ sipdone:
+ 	cd $(srcdir)/sip ; \
+ 	export QTDIR=${qt_dir} ; \
+ 	export PYTHONPATH=$$builddir/sip:$$PYTHONPATH ; \
+-	@PYTHON@ configure.py -b @bindir@ -d ${site_packages} -e ${python_inc_dir} -l qt-mt -v ${sip_dir} -t "$$builddir/sip" INCDIR_QT=@qt_includes@
++	@PYTHON@ configure.py -b @bindir@ -d ${site_packages} -e ${python_inc_dir} -l qt-mt -v ${sip_dir} -t "$$builddir/sip" INCDIR_QT=@qt_includes@ CXXFLAGS_WARN_OFF='' CFLAGS_WARN_OFF=''
+ 	@(cd sip ; $(MAKE))
+ 	echo "" > sipdone
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kdecore/bytearray.sip kdebindings.3.5.5-svn/python/pykde/sip/kdecore/bytearray.sip
+--- kdebindings.3.5.5/python/pykde/sip/kdecore/bytearray.sip	2006-11-19 18:02:27.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kdecore/bytearray.sip	2006-11-19 17:52:46.000000000 +0100
+@@ -620,7 +620,7 @@ void dcop_add (QDataStream& s, QPointArr
+     QMap<QCString,DCOPRef> *cppmap = new QMap<QCString,DCOPRef>;
+ 
+     PyObject *aelem, *belem;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QCString *acpp;
+     DCOPRef *bcpp;
+ 
+@@ -705,7 +705,7 @@ void dcop_add (QDataStream& s, QPointArr
+     QMap<QString,DCOPRef> *cppmap = new QMap<QString,DCOPRef>;
+ 
+     PyObject *aelem, *belem;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QString *acpp;
+     DCOPRef *bcpp;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kdecore/kaccel.sip kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kaccel.sip
+--- kdebindings.3.5.5/python/pykde/sip/kdecore/kaccel.sip	2006-11-19 18:02:28.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kaccel.sip	2006-11-19 17:52:47.000000000 +0100
+@@ -209,7 +209,7 @@ public:
+     QMap<int,QString> *map = new QMap<int,QString>;
+ 
+         PyObject *key, *value;
+-        int pos = 0;
++        ssize_t pos = 0;
+         int iKey;
+         QString *sData;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kdecore/kcompletion.sip kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kcompletion.sip
+--- kdebindings.3.5.5/python/pykde/sip/kdecore/kcompletion.sip	2006-11-19 18:02:28.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kcompletion.sip	2006-11-19 17:52:47.000000000 +0100
+@@ -201,7 +201,7 @@ protected:
+     QMap<KCompletionBase::KeyBindingType,KShortcut> *kbmap = new QMap<KCompletionBase::KeyBindingType,KShortcut>;
+ 
+     PyObject *key, *value;
+-        int pos = 0;
++        ssize_t pos = 0;
+         KShortcut *cValue;
+         int iserr;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kdecore/kconfigdata.sip kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kconfigdata.sip
+--- kdebindings.3.5.5/python/pykde/sip/kdecore/kconfigdata.sip	2006-11-19 18:02:27.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kconfigdata.sip	2006-11-19 17:52:47.000000000 +0100
+@@ -141,7 +141,7 @@ KEntryMap            testKEntryMap (SIP_
+     QMap<KEntryKey,KEntry> *cppmap = new QMap<KEntryKey,KEntry>;
+ 
+     PyObject *aelem, *belem;
+-    int pos = 0;
++    ssize_t pos = 0;
+     KEntryKey *acpp;
+     KEntry *bcpp;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kdecore/kconfig.sip kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kconfig.sip
+--- kdebindings.3.5.5/python/pykde/sip/kdecore/kconfig.sip	2006-11-19 18:02:28.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kconfig.sip	2006-11-19 17:52:47.000000000 +0100
+@@ -158,7 +158,7 @@ private:
+     QMap<QString,QString> *cppmap = new QMap<QString,QString>;
+ 
+     PyObject *aelem, *belem;
+-    int pos = 0;
++    ssize_t  pos = 0;
+     QString *acpp;
+     QString *bcpp;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kdecore/kmacroexpander.sip kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kmacroexpander.sip
+--- kdebindings.3.5.5/python/pykde/sip/kdecore/kmacroexpander.sip	2006-11-19 18:02:28.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kmacroexpander.sip	2006-11-19 17:52:47.000000000 +0100
+@@ -169,7 +169,7 @@ QString              expandMacrosShellQu
+     QMap<QChar,QString> *map = new QMap<QChar,QString>;
+ 
+     PyObject *key, *value;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QChar *cKey;
+     QString *sData;
+ 
+@@ -255,7 +255,7 @@ QString              expandMacrosShellQu
+     QMap<QString, QStringList> *map = new QMap<QString, QStringList>;
+ 
+     PyObject *key, *value;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QString *sKey;
+     QStringList *slData;
+ 
+@@ -343,7 +343,7 @@ QString              expandMacrosShellQu
+     QMap<QChar,QStringList> *map = new QMap<QChar,QStringList>;
+ 
+     PyObject *key, *value;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QChar *cKey;
+     QStringList *slData;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kdecore/kurl.sip kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kurl.sip
+--- kdebindings.3.5.5/python/pykde/sip/kdecore/kurl.sip	2006-11-19 18:02:28.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kdecore/kurl.sip	2006-11-19 17:52:47.000000000 +0100
+@@ -234,7 +234,7 @@ public:
+         void                 __setitem__ (int, const KURL&);
+ %MethodCode
+ //takes index | (int) | value | (KURL)
+-    int len;
++    ssize_t len;
+ 
+     len = sipCpp -> count();
+ 
+@@ -248,7 +248,7 @@ public:
+ %MethodCode
+ //takes range | (a Python slice) | urlList | (KURL.List)
+ 
+-    int len, start, stop, step, slicelength;
++    ssize_t len, start, stop, step, slicelength;
+ 
+     len = sipCpp -> count();
+ 
+@@ -278,7 +278,7 @@ public:
+         void                 __delitem__ (int);
+ %MethodCode
+ //takes index | (int)
+-    int len;
++    ssize_t len;
+ 
+     len = sipCpp -> count();
+ 
+@@ -291,7 +291,7 @@ public:
+         void                 __delitem__ (SIP_PYSLICE);
+ %MethodCode
+ //takes range | (a Python slice)
+-    int len, start, stop, step, slicelength;
++    ssize_t len, start, stop, step, slicelength;
+ 
+     len = sipCpp -> count();
+     if (sipConvertFromSliceObject(a0,len,&start,&stop,&step,&slicelength) < 0)
+@@ -308,7 +308,7 @@ public:
+ %MethodCode
+ //returns (KURL)
+ //takes index | (int)
+-    int len;
++    ssize_t len;
+ 
+     len = sipCpp -> count();
+ 
+@@ -322,7 +322,7 @@ public:
+ %MethodCode
+ //returns (KURL.List)
+ //takes range | (a Python slice)
+-    int len, start, stop, step, slicelength;
++    ssize_t len, start, stop, step, slicelength;
+ 
+     len = sipCpp -> count();
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kdeui/kkeydialog.sip kdebindings.3.5.5-svn/python/pykde/sip/kdeui/kkeydialog.sip
+--- kdebindings.3.5.5/python/pykde/sip/kdeui/kkeydialog.sip	2006-11-19 18:02:20.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kdeui/kkeydialog.sip	2006-11-19 17:52:38.000000000 +0100
+@@ -231,7 +231,7 @@ typedef QDict<int> IntDict;
+     QDict<int>* qdict = new QDict<int>;
+ 
+     PyObject *key, *value;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QString *a0;
+     int a1;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kio/authinfo.sip kdebindings.3.5.5-svn/python/pykde/sip/kio/authinfo.sip
+--- kdebindings.3.5.5/python/pykde/sip/kio/authinfo.sip	2006-11-19 18:02:09.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kio/authinfo.sip	2006-11-19 17:52:26.000000000 +0100
+@@ -176,7 +176,7 @@ typedef QMap<QString, QStringList> KStri
+     QMap<QString, QStringList> *map = new QMap<QString, QStringList>;
+ 
+     PyObject *key, *value;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QString *sKey;
+     QStringList *sData;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kio/global.sip kdebindings.3.5.5-svn/python/pykde/sip/kio/global.sip
+--- kdebindings.3.5.5/python/pykde/sip/kio/global.sip	2006-11-19 18:02:08.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kio/global.sip	2006-11-19 17:52:25.000000000 +0100
+@@ -675,7 +675,7 @@ KIO::MetaData        testKIOMetaData (KI
+     QMap<QString,QString> *cppmap = new QMap<QString,QString>;
+ 
+     PyObject *aelem, *belem;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QString *acpp;
+     QString *bcpp;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kio/kservicetype.sip kdebindings.3.5.5-svn/python/pykde/sip/kio/kservicetype.sip
+--- kdebindings.3.5.5/python/pykde/sip/kio/kservicetype.sip	2006-11-19 18:02:09.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kio/kservicetype.sip	2006-11-19 17:52:26.000000000 +0100
+@@ -184,7 +184,7 @@ typedef QMap<QString,QVariant::Type> Str
+     QMap<QString,QVariant::Type> *cppmap = new QMap<QString,QVariant::Type>;
+ 
+     PyObject *aelem, *belem;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QString *acpp;
+     QVariant::Type bcpp;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kmdi/kmdichildfrm.sip kdebindings.3.5.5-svn/python/pykde/sip/kmdi/kmdichildfrm.sip
+--- kdebindings.3.5.5/python/pykde/sip/kmdi/kmdichildfrm.sip	2006-11-19 18:02:10.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kmdi/kmdichildfrm.sip	2006-11-19 17:52:27.000000000 +0100
+@@ -245,7 +245,7 @@ protected:
+     QDict<QWidget::FocusPolicy>* qdict = new QDict<QWidget::FocusPolicy>;
+ 
+     PyObject *key, *value;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QString *a0;
+     QWidget::FocusPolicy a1;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pykde/sip/kparts/browserextension.sip kdebindings.3.5.5-svn/python/pykde/sip/kparts/browserextension.sip
+--- kdebindings.3.5.5/python/pykde/sip/kparts/browserextension.sip	2006-11-19 18:02:22.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pykde/sip/kparts/browserextension.sip	2006-11-19 17:52:40.000000000 +0100
+@@ -404,7 +404,7 @@ QMap<QCString,int>   testQMapQCStringInt
+     QMap<QCString,QCString> *cppmap = new QMap<QCString,QCString>;
+ 
+     PyObject *aelem, *belem;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QCString *acpp;
+     QCString *bcpp;
+ 
+@@ -487,7 +487,7 @@ QMap<QCString,int>   testQMapQCStringInt
+     QMap<QCString,int> *cppmap = new QMap<QCString,int>;
+ 
+     PyObject *aelem, *belem;
+-    int pos = 0;
++    ssize_t pos = 0;
+     QCString *acpp;
+     int bcpp;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pyqt/sip/qt/qdir.sip kdebindings.3.5.5-svn/python/pyqt/sip/qt/qdir.sip
+--- kdebindings.3.5.5/python/pyqt/sip/qt/qdir.sip	2006-11-19 18:03:30.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pyqt/sip/qt/qdir.sip	2006-11-19 17:53:48.000000000 +0100
+@@ -238,7 +238,7 @@ public:
+ 
+ 	QString operator[](int) const;
+ %MethodCode
+-		int len;
++		ssize_t len;
+ 
+ 		Py_BEGIN_ALLOW_THREADS
+ 		len = sipCpp -> count();
+@@ -256,7 +256,7 @@ public:
+ 
+ 	QStringList operator[](SIP_PYSLICE) const;
+ %MethodCode
+-		int len, start, stop, step, slicelength;
++		ssize_t len, start, stop, step, slicelength;
+ 
+ 		Py_BEGIN_ALLOW_THREADS
+ 		len = sipCpp -> count();
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pyqt/sip/qt/qstringlist.sip kdebindings.3.5.5-svn/python/pyqt/sip/qt/qstringlist.sip
+--- kdebindings.3.5.5/python/pyqt/sip/qt/qstringlist.sip	2006-11-19 18:03:30.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pyqt/sip/qt/qstringlist.sip	2006-11-19 17:53:49.000000000 +0100
+@@ -99,7 +99,7 @@ public:
+ 
+ 	void __setitem__(int,const QString &);
+ %MethodCode
+-		int len;
++		ssize_t len;
+ 
+ 		len = sipCpp -> count();
+ 
+@@ -111,7 +111,7 @@ public:
+ 
+ 	void __setitem__(SIP_PYSLICE,const QStringList &);
+ %MethodCode
+-		int len, start, stop, step, slicelength;
++		ssize_t len, start, stop, step, slicelength;
+ 
+ 		len = sipCpp -> count();
+ 
+@@ -142,7 +142,7 @@ public:
+ 
+ 	void __delitem__(int);
+ %MethodCode
+-		int len;
++		ssize_t len;
+ 
+ 		len = sipCpp -> count();
+ 
+@@ -154,7 +154,7 @@ public:
+ 
+ 	void __delitem__(SIP_PYSLICE);
+ %MethodCode
+-		int len, start, stop, step, slicelength;
++		ssize_t len, start, stop, step, slicelength;
+ 
+ 		len = sipCpp -> count();
+ 
+@@ -170,7 +170,7 @@ public:
+ 
+ 	QString operator[](int);
+ %MethodCode
+-		int len;
++		ssize_t len;
+ 
+ 		len = sipCpp -> count();
+ 
+@@ -182,7 +182,7 @@ public:
+ 
+ 	QStringList operator[](SIP_PYSLICE);
+ %MethodCode
+-		int len, start, stop, step, slicelength;
++		ssize_t len, start, stop, step, slicelength;
+ 
+ 		len = sipCpp -> count();
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/pyqt/sip/qt/qstring.sip kdebindings.3.5.5-svn/python/pyqt/sip/qt/qstring.sip
+--- kdebindings.3.5.5/python/pyqt/sip/qt/qstring.sip	2006-11-19 18:03:26.000000000 +0100
++++ kdebindings.3.5.5-svn/python/pyqt/sip/qt/qstring.sip	2006-11-19 17:53:44.000000000 +0100
+@@ -746,7 +746,7 @@ public:
+ 
+ 	QString operator[](SIP_PYSLICE) const;
+ %MethodCode
+-		int len, start, stop, step, slicelength;
++		ssize_t len, start, stop, step, slicelength;
+ 
+ 		len = sipCpp -> length();
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/sip/sipgen/gencode.c kdebindings.3.5.5-svn/python/sip/sipgen/gencode.c
+--- kdebindings.3.5.5/python/sip/sipgen/gencode.c	2006-11-19 18:01:54.000000000 +0100
++++ kdebindings.3.5.5-svn/python/sip/sipgen/gencode.c	2006-11-19 17:52:14.000000000 +0100
+@@ -3053,7 +3053,7 @@ static void generateSlot(sipSpec *pt,cla
+ "		return Py_NotImplemented;\n"
+ "	}\n"
+ "\n"
+-			,classFQCName(cd));
++			,classFQCName(cd),classFQCName(cd));
+ 
+ 	prcode(fp,
+ "	%S *sipCpp = reinterpret_cast<%S *>(sipGetCppPtr((sipWrapper *)sipSelf,sipClass_%C));\n"
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/sip/siplib/sip.h kdebindings.3.5.5-svn/python/sip/siplib/sip.h
+--- kdebindings.3.5.5/python/sip/siplib/sip.h	2006-11-19 18:01:52.000000000 +0100
++++ kdebindings.3.5.5-svn/python/sip/siplib/sip.h	2006-11-19 17:52:12.000000000 +0100
+@@ -47,6 +47,12 @@ extern "C" {
+ #define	SIP_VERSION_STR		"4.2.1"
+ #define	SIP_BUILD		"297"
+ 
++/* Some internal compatibility stuff. */
++#if PY_VERSION_HEX >= 0x02050000
++#define _SIP_SSIZE_T        Py_ssize_t
++#else
++#define _SIP_SSIZE_T        int
++#endif
+ 
+ /*
+  * Define the current API version number.  SIP must handle modules with the
+@@ -535,12 +541,12 @@ typedef struct _sipAPIDef {
+ 	 * The following are part of the public API.
+ 	 */
+ 	void (*api_bad_catcher_result)(PyObject *method);
+-	void (*api_bad_length_for_slice)(int seqlen,int slicelen);
++	void (*api_bad_length_for_slice)(_SIP_SSIZE_T seqlen,_SIP_SSIZE_T slicelen);
+ 	PyObject *(*api_build_result)(int *isErr,char *fmt,...);
+ 	PyObject *(*api_call_method)(int *isErr,PyObject *method,char *fmt,...);
+ 	PyObject *(*api_class_name)(PyObject *self);
+ 	PyObject *(*api_connect_rx)(PyObject *txObj,const char *sig,PyObject *rxObj,const char *slot);
+-	int (*api_convert_from_sequence_index)(int idx,int len);
++	_SIP_SSIZE_T (*api_convert_from_sequence_index)(_SIP_SSIZE_T idx,_SIP_SSIZE_T len);
+ 	void *(*api_convert_to_cpp)(PyObject *sipSelf,sipWrapperType *type,int *iserrp);
+ 	PyObject *(*api_disconnect_rx)(PyObject *txObj,const char *sig,PyObject *rxObj,const char *slot);
+ 	int (*api_emit_signal)(PyObject *self,const char *sig,PyObject *sigargs);
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/python/sip/siplib/siplib.c kdebindings.3.5.5-svn/python/sip/siplib/siplib.c
+--- kdebindings.3.5.5/python/sip/siplib/siplib.c	2006-11-19 18:01:52.000000000 +0100
++++ kdebindings.3.5.5-svn/python/sip/siplib/siplib.c	2006-11-19 17:52:12.000000000 +0100
+@@ -28,12 +28,12 @@
+  * These are the functions that make up the public and private SIP API.
+  */
+ static void sip_api_bad_catcher_result(PyObject *method);
+-static void sip_api_bad_length_for_slice(int seqlen,int slicelen);
++static void sip_api_bad_length_for_slice(_SIP_SSIZE_T seqlen,_SIP_SSIZE_T slicelen);
+ static PyObject *sip_api_build_result(int *isErr,char *fmt,...);
+ static PyObject *sip_api_call_method(int *isErr,PyObject *method,char *fmt,
+ 				     ...);
+ static PyObject *sip_api_class_name(PyObject *self);
+-static int sip_api_convert_from_sequence_index(int idx,int len);
++static _SIP_SSIZE_T sip_api_convert_from_sequence_index(_SIP_SSIZE_T idx, _SIP_SSIZE_T len);
+ static void *sip_api_convert_to_cpp(PyObject *sipSelf,sipWrapperType *type,
+ 				    int *iserrp);
+ static PyObject *sip_api_get_wrapper(void *cppPtr,sipWrapperType *type);
+@@ -2340,7 +2340,7 @@ static void sip_api_common_dtor(sipWrapp
+  * Convert a sequence index.  Return the index or a negative value if there was
+  * an error.
+  */
+-static int sip_api_convert_from_sequence_index(int idx,int len)
++static _SIP_SSIZE_T sip_api_convert_from_sequence_index(_SIP_SSIZE_T idx,_SIP_SSIZE_T len)
+ {
+ 	/* Negative indices start from the other end. */
+ 	if (idx < 0)
+@@ -2934,9 +2934,15 @@ static void badArgs(int argsParsed,char 
+ /*
+  * Report a sequence length that does not match the length of a slice.
+  */
+-static void sip_api_bad_length_for_slice(int seqlen,int slicelen)
++static void sip_api_bad_length_for_slice(_SIP_SSIZE_T seqlen,_SIP_SSIZE_T slicelen)
+ {
+-	PyErr_Format(PyExc_ValueError,"attempt to assign sequence of size %d to slice of size %d",seqlen,slicelen);
++	PyErr_Format(PyExc_ValueError,
++#if PY_VERSION_HEX >= 0x02050000
++            "attempt to assign sequence of size %zd to slice of size %zd",
++#else
++            "attempt to assign sequence of size %d to slice of size %d",
++#endif
++             seqlen,slicelen);
+ }
+ 
+ 
+@@ -4075,7 +4081,7 @@ PyObject *sip_api_convert_from_void_ptr(
+ /*
+  * The type alloc slot.
+  */
+-static PyObject *sipWrapperType_alloc(PyTypeObject *self, int nitems)
++static PyObject *sipWrapperType_alloc(PyTypeObject *self, _SIP_SSIZE_T nitems)
+ {
+ 	PyObject *o;
+ 
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/qtjava/ChangeLog kdebindings.3.5.5-svn/qtjava/ChangeLog
+--- kdebindings.3.5.5/qtjava/ChangeLog	2006-11-19 18:05:47.000000000 +0100
++++ kdebindings.3.5.5-svn/qtjava/ChangeLog	2006-11-19 17:57:05.000000000 +0100
+@@ -1,3 +1,7 @@
++2006-10-24  Richard Dale  <rdale@foton.es>
++
++	* Fixed compiler warning in Invocation.java reported by Rafael Lopez
++
+ 2006-02-14  Richard Dale  <Richard_Dale@tipitina.demon.co.uk>
+ 
+ 	* Added QStyleOption.h and QStyleOption.cpp sources which were
+diff -Naurp -X kdedontdiff kdebindings.3.5.5/qtjava/javalib/org/kde/qt/Invocation.java kdebindings.3.5.5-svn/qtjava/javalib/org/kde/qt/Invocation.java
+--- kdebindings.3.5.5/qtjava/javalib/org/kde/qt/Invocation.java	2006-11-19 18:05:28.000000000 +0100
++++ kdebindings.3.5.5-svn/qtjava/javalib/org/kde/qt/Invocation.java	2006-11-19 17:56:45.000000000 +0100
+@@ -366,10 +366,10 @@ public class Invocation {
+ 		Object onThis = qtjava.objectForQtKey(target, className, false);
+ 
+ 		try {
+-			method = onThis.getClass().getMethod(methodName, null);
++			method = onThis.getClass().getMethod(methodName, (Class[]) null);
+ 		} catch (NoSuchMethodException e1) {
+ 			try {
+-				method = onThis.getClass().getDeclaredMethod(methodName, null);
++				method = onThis.getClass().getDeclaredMethod(methodName, (Class[]) null);
+ 			} catch (NoSuchMethodException e2) {
+ 				return false;
+ 			}
+@@ -382,7 +382,7 @@ public class Invocation {
+ 
+ 		try {
+ 			method.setAccessible(true);
+-			Object result = method.invoke(onThis, null);
++			Object result = method.invoke(onThis, (Class[]) null);
+ 			return true;
+ 		} catch (InvocationTargetException e) {
+ 			Qt.qWarning("Invocation failed : " + onThis.getClass().getName() + "." + methodName + "()");
+@@ -403,10 +403,10 @@ public class Invocation {
+ 		Object onThis = qtjava.objectForQtKey(target, "QObject", false);
+ 
+ 		try {
+-			method = onThis.getClass().getMethod(methodName, null);
++			method = onThis.getClass().getMethod(methodName, (Class[]) null);
+ 		} catch (NoSuchMethodException e1) {
+ 			try {
+-				method = onThis.getClass().getDeclaredMethod(methodName, null);
++				method = onThis.getClass().getDeclaredMethod(methodName, (Class[]) null);
+ 			} catch (NoSuchMethodException e2) {
+ 				return true;
+ 			}
+@@ -419,7 +419,7 @@ public class Invocation {
+ 
+ 		try {
+ 			method.setAccessible(true);
+-			Object result = method.invoke(onThis, null);
++			Object result = method.invoke(onThis, (Class[]) null);
+ 			return ((Boolean) result).booleanValue();
+ 		} catch (InvocationTargetException e) {
+ 			Qt.qWarning("Invocation failed : " + onThis.getClass().getName() + "." + methodName + "()");

@@ -18,7 +18,7 @@ source=(http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-$
 build()
 {
         mkdir $Fsrcdir/tmp || return 1
-        tar xf $_F_emul_name-$pkgver-$pkgrel-$_F_emul_arch.fpm -C tmp || return 1
+        tar xf $_F_emul_name-${pkgver/_/-}-$_F_emul_arch.fpm -C tmp || return 1
         Fmkdir /usr/lib/chroot32
         cp -av tmp/* $Fdestdir/usr/lib/chroot32 || return 1
 	Frm /usr/share/{doc,man}

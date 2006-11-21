@@ -9,9 +9,9 @@
 _F_emul_name=${pkgname/-emul}
 _F_emul_arch=i686
 
-up2date="lynx -dump http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-$_F_emul_arch/ |grep '$_F_emul_name-[^-]*-[^-]*-$_F_emul_arch.fpm$'|grep -v 'mingw'|sed -n 's/.*$_F_emul_name-\(.*\)-\([^-]*\)-$_F_emul_arch.fpm/\1_\2/;$ p'"
+up2date="lynx -dump http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-$_F_emul_arch/ |grep '$_F_emul_name-[^-]*-[^-]*-$_F_emul_arch.fpm$'|grep -v 'mingw'|sed 's/.*$_F_emul_name-\(.*\)-\([^-]*\)-$_F_emul_arch.fpm/\1_\2/;q'"
 # requested by krix
-up2date="$pkgver"
+#up2date="$pkgver"
 #source=(http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-$_F_emul_arch/$_F_emul_name-$pkgver-$pkgrel-$_F_emul_arch.fpm)
 source=(http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-$_F_emul_arch/$_F_emul_name-${pkgver/_/-}-$_F_emul_arch.fpm)
 

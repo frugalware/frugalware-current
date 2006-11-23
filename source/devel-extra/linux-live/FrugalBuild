@@ -31,9 +31,17 @@ build()
 	Fmkdir /usr/share/linux-live
 	Fcpr $pkgname-$pkgver/* usr/share/$pkgname/
 
+	# a special version of make clean ;)
+	unset bins
+	for i in `find $Fdestdir/usr/share/$pkgname -perm -u+x ! -type d ! -type l`
+	do
+		if [[ "`file $i`" =~ "ELF" ]]; then
+			bins="$bins $i"
+			rm $i
+		fi
+	done
+
 	# now copy the missing binaries
-	rm $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/{ld-$liveglibcver.so,libblkid.so.1.0,libc-$liveglibcver.so,libz.so.1.2.3,libuuid.so.1.2}
-	rm $Fdestdir/usr/share/$pkgname/initrd/rootfs/bin/{blkid,busybox,eject,unionctl,uniondbg}
 	cp /sbin/mksquashfs $Fdestdir/usr/share/$pkgname/tools/ || Fdie
 	cp /sbin/unsquashfs $Fdestdir/usr/share/$pkgname/tools/ || Fdie
 	cp /usr/share/busybox/bin/busybox $Fdestdir/usr/share/$pkgname/initrd/rootfs/bin/ || Fdie
@@ -43,12 +51,23 @@ build()
 	cp /usr/bin/eject $Fdestdir/usr/share/$pkgname/initrd/rootfs/bin/eject || Fdie
 	cp /lib/ld-$glibcver.so $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ || Fdie
 	ln -sf ld-$glibcver.so $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ld-linux.so.2 || Fdie
+	bins=${bins/ld-$liveglibcver.so/ld-$glibcver.so}
 	cp /lib/libc-$glibcver.so $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ || Fdie
 	ln -sf libc-$glibcver.so $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/libc.so.6 || Fdie
+	bins=${bins/libc-$liveglibcver.so/libc-$glibcver.so}
 	cp /usr/lib/libz.so.1.2.3 $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ || Fdie
 	cp /lib/libblkid.so.1.0 $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ || Fdie
 	cp /lib/libuuid.so.1.2 $Fdestdir/usr/share/$pkgname/initrd/rootfs/lib/ || Fdie
 	cp /sbin/insmod $Fdestdir/usr/share/$pkgname/initrd/rootfs/bin/ || Fdie
+
+	# check if we have everything
+	for i in $bins
+	do
+		if [ ! -e $i ]; then
+			echo $i is missing
+			return 1
+		fi
+	done
 
 	Ffile splash-$splashver.lss usr/share/$pkgname/cd-root/boot/splash.lss
 	Fln /usr/share/$pkgname/DOC usr/share/doc/$pkgname-$pkgver/DOC

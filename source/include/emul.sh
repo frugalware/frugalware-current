@@ -13,6 +13,7 @@ groups=('emul-extra')
 archs=('!i686' 'x86_64')
 up2date="lynx -dump http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-$_F_emul_arch/ |grep '/$_F_emul_name-[^-]*-[^-]*-$_F_emul_arch.fpm$'|sed 's/.*$_F_emul_name-\(.*\)-\([^-]*\)-$_F_emul_arch.fpm/\1_\2/;q'"
 source=(http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-$_F_emul_arch/$_F_emul_name-${pkgver/_/-}-$_F_emul_arch.fpm)
+NOSTRIP=1
 
 build()
 {

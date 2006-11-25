@@ -118,7 +118,7 @@ fi
 echo "$CARCH" |grep -q 'i.86' && KARCH=i386
 
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
-subdepends=("make gcc kernel-headers kernel$_F_kernel_name-docs" 'kernel')
+subdepends=("make gcc kernel-headers kernel$_F_kernel_name-docs" "kernel$_F_kernel_name")
 subarchs=('i686 x86_64' 'i686 x86_64')
 subinstall=('src/kernel-source.install' '')
 suboptions=('nodocs' '')

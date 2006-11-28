@@ -31,6 +31,6 @@ url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
 if [ $_F_sourceforge_broken_up2date -eq 0 ]; then
 	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep -m1 'Latest \[.*\]'|sed 's/.*]$_F_sourceforge_prefix\(.*\) \[.*\].*/\1/;s/-/_/g'"
 else
- 	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep -m1 '$_F_sourceforge_name-\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name-\(.*\).t.*/\1/;s/-/_/g'"
+ 	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep -m1 '$_F_sourceforge_name-\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name-\(.*\)$_F_sourceforge_ext.*/\1/;s/-/_/g'"
 fi
 source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/$_F_sourceforge_dirname/$_F_sourceforge_name-${pkgver//_/-}$_F_sourceforge_ext)

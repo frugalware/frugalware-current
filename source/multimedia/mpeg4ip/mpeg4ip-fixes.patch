@@ -1,0 +1,102 @@
+diff -Nurp mpeg4ip-1.5.0.1/configure.in mpeg4ip-1.5.0.1-p/configure.in
+--- mpeg4ip-1.5.0.1/configure.in	2006-06-08 21:15:16.000000000 +0200
++++ mpeg4ip-1.5.0.1-p/configure.in	2006-11-20 14:22:44.000000000 +0100
+@@ -718,7 +718,7 @@ fi
+ AM_CONDITIONAL(USE_MMX, test x$test_use_mmx = xtrue)
+ 
+ dnl Get SDL cflags and SDL libraries to include
+-SDL_LIBS="`sdl-config --libs`"
++SDL_LIBS="`sdl-config --libs` -lX11"
+ AC_SUBST(SDL_LIBS)
+ SDL_LIB_LIBS="`sdl-config --libs | sed /-lSDLmain/s///`"
+ AC_SUBST(SDL_LIB_LIBS)
+@@ -733,7 +733,7 @@ AC_ARG_ENABLE(warns-as-err,
+ 	[if test x$enableval = xno; then
+ 	   AC_MSG_NOTICE([compiler warnings will not be errors])
+          else 
+-           BASE_ERR="$BASE_ERR -Werror"
++           BASE_ERR="$BASE_ERR"
+ 	   AC_MSG_NOTICE([enabling compiler warnings as errors])
+          fi
+ 	 ],
+diff -Nurp mpeg4ip-1.5.0.1/player/src/Makefile.am mpeg4ip-1.5.0.1-p/player/src/Makefile.am
+--- mpeg4ip-1.5.0.1/player/src/Makefile.am	2006-03-10 19:49:44.000000000 +0100
++++ mpeg4ip-1.5.0.1-p/player/src/Makefile.am	2006-11-20 14:11:18.000000000 +0100
+@@ -206,7 +206,7 @@ mp4player_LDADD = \
+ 	$(top_builddir)/lib/audio/libaudio.la \
+ 	$(top_builddir)/lib/ismacryp/libismacryp.la \
+ 	$(top_builddir)/lib/srtp/libsrtpif.la \
+-	@SDL_LIBS@ @SRTPLIB@
++	@SDL_LIBS@  @SRTPLIB@
+ 
+ gmp4player_LDFLAGS= $(SDL_AUDIO_FLAGS)
+ gmp4player_LDADD = $(mp4player_LDADD) \
+diff -Nurp mpeg4ip-1.5.0.1/server/mp4live/video_x264.cpp mpeg4ip-1.5.0.1-p/server/mp4live/video_x264.cpp
+--- mpeg4ip-1.5.0.1/server/mp4live/video_x264.cpp	2006-05-11 22:23:19.000000000 +0200
++++ mpeg4ip-1.5.0.1-p/server/mp4live/video_x264.cpp	2006-11-20 14:04:26.000000000 +0100
+@@ -32,7 +32,9 @@
+ 
+ static config_index_t CFG_X264_FORCE_BASELINE;
+ static config_index_t CFG_X264_USE_CABAC;
++#ifndef HAVE_X264_PARAM_T_RC_I_RC_METHOD
+ static config_index_t CFG_X264_USE_CBR;
++#endif
+ static config_index_t CFG_X264_BIT_RATE_TOLERANCE;
+ static config_index_t CFG_X264_USE_VBV;
+ static config_index_t CFG_X264_VBV_BITRATE_MULT;
+@@ -44,7 +46,9 @@ static config_index_t CFG_X264_SAR_HEIGH
+ static SConfigVariable X264EncoderVariables[] = {
+   CONFIG_BOOL(CFG_X264_FORCE_BASELINE, "x264ForceBaseline", false),
+   CONFIG_BOOL(CFG_X264_USE_CABAC, "x264UseCabac", true),
++#ifndef HAVE_X264_PARAM_T_RC_I_RC_METHOD
+   CONFIG_BOOL(CFG_X264_USE_CBR, "x264UseCbr", true),
++#endif
+   CONFIG_FLOAT(CFG_X264_BIT_RATE_TOLERANCE, "x264BitRateTolerance", 1.0),
+   CONFIG_BOOL(CFG_X264_USE_VBV, "x264UseVbv", false),
+   CONFIG_FLOAT(CFG_X264_VBV_BITRATE_MULT, "x264VbvBitRateMult", 1.0),
+@@ -56,7 +60,9 @@ static SConfigVariable X264EncoderVariab
+ 
+ GUI_BOOL(gui_baseline, CFG_X264_FORCE_BASELINE, "Force Baseline (overrides below)");
+ GUI_BOOL(gui_cabac, CFG_X264_USE_CABAC, "Use Cabac");
++#ifndef HAVE_X264_PARAM_T_RC_I_RC_METHOD
+ GUI_BOOL(gui_cbr, CFG_X264_USE_CBR, "Use CBR");
++#endif
+ GUI_BOOL(gui_bframe, CFG_VIDEO_USE_B_FRAMES, "Use B Frames");
+ GUI_INT_RANGE(gui_bframenum, CFG_VIDEO_NUM_OF_B_FRAMES, "Number of B frames", 1, 4);
+ 
+@@ -75,7 +81,9 @@ GUI_INT_RANGE(gui_sar_h, CFG_X264_SAR_HE
+ DECLARE_TABLE(x264_gui_options) = {
+   TABLE_GUI(gui_baseline),
+   TABLE_GUI(gui_cabac),
++#ifndef HAVE_X264_PARAM_T_RC_I_RC_METHOD
+   TABLE_GUI(gui_cbr),
++#endif
+   TABLE_GUI(gui_bframe),
+   TABLE_GUI(gui_bframenum),
+   TABLE_GUI(gui_brate),
+@@ -168,7 +176,11 @@ bool CX264VideoEncoder::Init (void)
+     m_param.i_bframe = 0;
+   //debug_message("h264 b frames %d", m_param.i_bframe);
+   m_param.rc.i_bitrate = Profile()->GetIntegerValue(CFG_VIDEO_BIT_RATE);
++#ifndef HAVE_X264_PARAM_T_RC_I_RC_METHOD
+   m_param.rc.b_cbr = Profile()->GetBoolValue(CFG_X264_USE_CBR) ? 1 : 0;
++#else
++  m_param.rc.i_rc_method = X264_RC_ABR;
++#endif
+   m_param.rc.f_rate_tolerance = Profile()->GetFloatValue(CFG_X264_BIT_RATE_TOLERANCE);
+   if (Profile()->GetBoolValue(CFG_X264_USE_VBV)) {
+     if (Profile()->GetBoolValue(CFG_X264_FORCE_BASELINE)) {
+diff -Nurp mpeg4ip-1.5.0.1/server/mp4live/video_x264.h mpeg4ip-1.5.0.1-p/server/mp4live/video_x264.h
+--- mpeg4ip-1.5.0.1/server/mp4live/video_x264.h	2005-12-19 18:47:26.000000000 +0100
++++ mpeg4ip-1.5.0.1-p/server/mp4live/video_x264.h	2006-11-20 14:04:26.000000000 +0100
+@@ -33,6 +33,10 @@ extern "C" {
+ }
+ #endif
+ 
++#if X264_BUILD > 47
++#define HAVE_X264_PARAM_T_RC_I_RC_METHOD
++#endif
++
+ class CX264VideoEncoder : public CVideoEncoder {
+  public:
+ 	CX264VideoEncoder(CVideoProfile *vp, 

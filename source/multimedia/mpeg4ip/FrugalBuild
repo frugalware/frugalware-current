@@ -1,24 +1,84 @@
-# Compiling Time: 3.33 SBU
+# Compiling Time: 4.53 SBU
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=mpeg4ip
-pkgver=1.4.1
+pkgver=1.5.0.1
 pkgrel=1
-pkgdesc="Open Source, Open Standards, Open Streaming"
-url="http://mpeg4ip.sourceforge.net/"
-depends=('sdl' 'gtk+2' 'atk' 'mpeg2dec' 'ffmpeg' 'pango' 'cairo' 'id3lib' 'x264')
-makedepends=('faac' 'lame' 'x264' 'ffmpeg' 'xvidcore')
-groups=('multimedia')
-archs=('i686')
+pkgdesc="mpeg4ip provides an end-to-end system to explore streaming multimedia"
 Finclude sourceforge
-sha1sums=('f0a4b9ecfb281c6c20b332002a7e341e27a9ea10')
-options=('nobuild')
+depends=("libmp4v2=$pkgver")
+makedepends=('id3lib' 'sdl' 'gtk+2' 'faad2' 'mpeg2dec' 'freetype2' 'libice' 'ffmpeg' 'nas' 'alsa-lib' 'srtp')
+groups=('multimedia')
+options=('scriptlet')
+archs=('i686')
+source=($source mpeg4ip-fixes.patch)
+sha1sums=('1271de695ed65284d9c39aa91bf26c5494603fd3' \
+          '2dbb820a6c8032861484686060861be05fc5f201')
+
+subpkgs=("$pkgname-player" "$pkgname-server")
+subdescs=('mpeg4ip player' 'mpeg4ip server')
+## kind I need rework this
+subdepends=("$pkgname=$pkgver gtk+2 sdl ffmpeg mpeg2dec id3lib alsa-lib faad2 libmad" "$pkgname=$pkgver $pkgname-player=$pkgver")
+subgroups=('xmultimedia' 'xmultimedia')
+subarchs=('i686' 'i686')
 
 build()
 {
-	Fcd $pkgname-$pkgver
-	./bootstrap
-	Fbuild || return 1
-}
+	Fcd
+	Fpatchall
+	autoconf || Fdie
+	export CXXFLAGS="${CXXFLAGS} -fno-strict-aliasing"
+	./bootstrap \
+		$Fconfopts \
+		--enable-ipv6 \
+		--disable-dependency-tracking \
+		--enable-warns-as-err=no \
+		--enable-mp4live=yes \
+		--enable-mp4live-alsa=no \
+		--enable-server=yes \
+		--enable-player=yes \
+		--enable-srtp \
+		--enable-id3tags=yes \
+		--enable-mp3lame=yes \
+		--enable-faac=yes \
+		--enable-x264=yes \
+		--enable-ppc=no \
+		--enable-xvid=yes \
+		--enable-a52dec=yes \
+		--enable-mad=yes \
+		--enable-mpeg2dec=yes \
+		--with-x
+	## :FIXME: --enable-mp4live-alsa is broken :|
+	##         kill Werror shit and fix the Makefile's
+	Fsed '-Werror' '' common/video/iso-mpeg4/src/Makefile
+	make || Fdie
+	Fmakeinstall
+	## this is already in libmp4v2 package
+	Frm usr/lib/libmp4v2.*
+	Frm usr/include/{mp4.h,mpeg4ip.h,mpeg4ip_config.h,mpeg4ip_version.h}
+	## player
+	for incsplit in codec_plugin.h h264_sdp.h mpeg4_audio_config.h mpeg4_sdp.h rtp_plugin.h text_plugin.h
+	do
+		Fsplit $pkgname-player usr/include/$incsplit
+	done
+	for binsplit in gmp4player mp4player sdl_pcm_play yuvdump
+	do
+		Fsplit $pkgname-player usr/bin/$binsplit
+	done
+	Fsplit $pkgname-player usr/lib/libh264util.*
+	Fsplit $pkgname-player usr/lib/libhttp.*
+	Fsplit $pkgname-player usr/lib/libmp4util.*
+	Fsplit $pkgname-player usr/lib/libmpeg4ipSDL*
+	Fsplit $pkgname-player usr/lib/libmpeg4ip_celp.*
+	Fsplit $pkgname-player usr/lib/libmpeg4ip_celpbs.*
+	Fsplit $pkgname-player usr/lib/libmpeg4ip_faad.*
+	Fsplit $pkgname-player usr/lib/libmpeg4ip_mpeg4_iso.*
+	Fsplit $pkgname-player usr/lib/mp4player_plugin
+	## server
+	for i in avi2raw avidump lboxcrop mp4creator mp4live rgb2yuv
+	do
+		Fsplit $pkgname-server usr/bin/$i
+	done
 
-# optimalization ok
+}
+# optimization OK

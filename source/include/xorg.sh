@@ -12,6 +12,7 @@ if [ -z "$_F_xorg_name" ]; then
 fi
 
 if [[ $pkgname =~ ^xf86-input- ]]; then
+	[ -z "$pkgrel" ] && pkgrel=1
 	pkgdesc="X.Org driver for ${pkgname#xf86-input-} input devices"
 	url="http://xorg.freedesktop.org"
 	groups=('x11' 'xorg-core' 'xorg-drivers')

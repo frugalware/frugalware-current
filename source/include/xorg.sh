@@ -23,7 +23,8 @@ fi
 url="http://xorg.freedesktop.org"
 _F_xorg_dir=`echo ${groups[$((${#groups[@]}-1))]}|sed 's/xorg-\(.*\)/\1/;s/s$//'`
 [ "$_F_xorg_name" = "xorg-server" ] && _F_xorg_dir="xserver"
-dlurl="$url/releases/individual/$_F_xorg_dir/"
+#dlurl="$url/releases/individual/$_F_xorg_dir/"
+dlurl="http://xorg.freedesktop.org/archive/development/X11R7.2-RC3/everything/"
 up2date="lynx -dump $dlurl | grep $_F_xorg_name-[0-9].*bz2$|sed -n 's/.*$_F_xorg_name-\(.*\)\.t.*/\1/;$ p'"
 source=($dlurl/$_F_xorg_name-$pkgver.tar.bz2)
 license="GPL2"

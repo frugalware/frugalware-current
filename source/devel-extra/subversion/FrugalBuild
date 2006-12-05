@@ -2,27 +2,26 @@
 # Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=subversion
-pkgver=1.4.0
-pkgrel=5
+pkgver=1.4.2
+pkgrel=1
 pkgdesc="A version control system that is a compelling replacement for CVS."
 url="http://subversion.tigris.org/"
-depends=('neon>=0.26.1' 'apr-util>=1.2.7-2' 'apr')
+depends=('neon>=0.26.1' 'apr-util>=1.2.8' 'apr>=1.2.8')
 makedepends=('apache>=2.2.3-2' 'swig' 'ruby')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://subversion.tigris.org/project_packages.html|grep -m1 'The best available'|sed 's/.*]//'|tr -d [:blank:]"
 source=(http://$pkgname.tigris.org/downloads/$pkgname-$pkgver.tar.bz2 rc.svnserve \
-	mod_dav_svn.conf neon26.patch)
-sha1sums=('92671bba140e9b9e300b5ffb526c4a7c59aeb5b1' \
+	mod_dav_svn.conf)
+sha1sums=('349847a97ad790cb14ad15bfd7bfe5bc5a9c8837' \
           '97c1e3055ad1e25e96d21a38e9525ce2a8c45c10' \
-          'b4012364a9fbd9e8c490a4819780c31c67940428' \
-          '251947ca57ca5a35c84179c9d8ef927b17b58e15')
+          'b4012364a9fbd9e8c490a4819780c31c67940428')
 
-subpkgs=('mod_svn' 'subversion-svnserve' 'subversion-bindings')
+subpkgs=('mod_svn' "$pkgname-svnserve" "$pkgname-bindings")
 subdescs=('SVN module for apache 2.X webservers to use SVN server via apache' \
 		 'Standalone SVN server daemon' \
 		 'Python,Ruby,Perl bindings for subversion')
-subdepends=('apache subversion' 'subversion' 'subversion perl python ruby swig')
+subdepends=("apache $pkgname=$pkgver" "$pkgname=$pkgver" "$pkgname=$pkgver perl python ruby swig")
 subgroups=('devel-extra' 'devel-extra' 'devel-extra')
 subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
 subbackup=('etc/httpd/conf/modules.d/mod_dav_svn.conf' '' '')
@@ -32,13 +31,19 @@ Finclude python
 build() {
 	## krix this need be here svn won't build on SMP systems without -- crazy --
 	unset MAKEFLAGS
-	
-	Fpatchall
+	Fcd
+	# lol :D
+	Fsed "103029" "103031" build/ac-macros/swig.m4 
 	Fautoreconf
-	Fmake --disable-experimental-libtool --disable-debug \
-		--disable-mod-activation --enable-dso --with-neon=/usr \
-		--with-ssl --with-swig=/usr
-	Fmakeinstall
+	Fbuild \
+		--disable-experimental-libtool \
+		--disable-debug \
+		--disable-mod-activation \
+		--enable-dso \
+		--with-neon=/usr \
+		--with-ssl \
+		--with-swig=/usr \
+		--disable-neon-version-check
 	Fmv usr/share/man usr/man
 	make swig-py || Fdie
 	## bug 64634 Still need this ?!
@@ -76,20 +81,28 @@ build() {
 	Ffilerel tools/client-side/bash_completion etc/bash_completion.d/subversion
 	Fmkdir /usr/share/doc/$pkgname-$pkgver
 	cp -r doc $Fdestdir/usr/share/doc/$pkgname-$pkgver || Fdie
+	## Fix permissions
+	Fdirschmod usr/share/doc/$pkgname-$pkgver/doc 0755
+	Fdirschmod usr/share/subversion/hook-scripts 0755
+	Fdirschmod usr/share/subversion/dev 0755
+	Ffileschmod  usr/share/doc/$pkgname-$pkgver/doc 0644
+	Ffileschmod  usr/share/subversion/hook-scripts 0644
+	Ffileschmod  usr/share/subversion/dev 0644
 	# Split SVN svnserve daemon and releated files
-	Fsplit subversion-svnserve etc/rc.d
-	Fsplit subversion-svnserve usr/bin/svnserve
-	Fsplit subversion-svnserve usr/man/man8/svnserve*
-	Fsplit subversion-svnserve usr/man/man5/svnserve*
+	Fsplit $pkgname-svnserve etc/rc.d
+	Fsplit $pkgname-svnserve usr/bin/svnserve
+	Fsplit $pkgname-svnserve usr/man/man8/svnserve*
+	Fsplit $pkgname-svnserve usr/man/man5/svnserve*
 	# Split SVN apache libs and confs
 	Fsplit mod_svn etc/httpd
 	Fsplit mod_svn usr/lib/apache/
 	# Split SVN bindings / bindings libs and mans
-	Fsplit subversion-bindings usr/lib/perl5/
-	Fsplit subversion-bindings $_F_python_libdir
-	Fsplit subversion-bindings usr/lib/ruby/
-	Fsplit subversion-bindings usr/lib/libsvn_swig*
-	Fsplit subversion-bindings usr/man/man3/SVN*
+	# - TODO - split the bindings in perl | ruby etc and readd java - crazy -
+	Fsplit $pkgname-bindings usr/lib/perl5/
+	Fsplit $pkgname-bindings $_F_python_libdir
+	Fsplit $pkgname-bindings usr/lib/ruby/
+	Fsplit $pkgname-bindings usr/lib/libsvn_swig*
+	Fsplit $pkgname-bindings usr/man/man3/SVN*
 }
 
 # optimization OK

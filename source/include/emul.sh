@@ -7,18 +7,19 @@
 # common source() and build() for emulation of i686 on x86_64
 
 _F_emul_name=${pkgname/-emul}
+_F_emul_ver=`echo $pkgver|sed 's/\(.*\)_\([^_]\+\)/\1-\2/'`
 _F_emul_arch=i686
 
 groups=('emul-extra')
 archs=('!i686' 'x86_64')
 up2date="lynx -dump http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-$_F_emul_arch/ |grep '/$_F_emul_name-[^-]*-[^-]*-$_F_emul_arch.fpm$'|sed 's/.*$_F_emul_name-\(.*\)-\([^-]*\)-$_F_emul_arch.fpm/\1_\2/;q'"
-source=(http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-$_F_emul_arch/$_F_emul_name-${pkgver/_/-}-$_F_emul_arch.fpm)
+source=(http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-$_F_emul_arch/$_F_emul_name-$_F_emul_ver-$_F_emul_arch.fpm)
 NOSTRIP=1
 
 build()
 {
         mkdir $Fsrcdir/tmp || return 1
-        tar xf $_F_emul_name-${pkgver/_/-}-$_F_emul_arch.fpm -C tmp || return 1
+        tar xf $_F_emul_name-$_F_emul_ver-$_F_emul_arch.fpm -C tmp || return 1
         Fmkdir /usr/lib/chroot32
         cp -av tmp/* $Fdestdir/usr/lib/chroot32 || return 1
 	Frm /usr/share/{doc,man}

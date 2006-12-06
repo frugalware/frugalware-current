@@ -141,25 +141,46 @@ case `id -u` in
 		;;
 esac
 
+if [ "`type -p gdm`" ]; then
+	GDM="y"
+fi
+if [ "`type -p kdm`" ]; then
+	KDM="y"
+fi
+
 case $1 in
 	-e|--enable|--enable-xgl)
-		if [ "`grep '0=Xgl' /etc/gdm/custom.conf | wc -l`" == "1" ]; then
-			error "Xgl is already enabled..."
+		if [ "$GDM" ]; then
+			if grep -q '0=Xgl' /etc/gdm/custom.conf; then
+				error "Xgl is already enabled..."
+			fi
+		fi
+		if [ "$KDM" ]; then
+			if grep -q ServerCmd=/usr/bin/Xgl /usr/share/config/kdm/kdmrc; then
+				error "Xgl is already enabled..."
+			fi
 		fi
 		msg "Searching for required packages..."
+		if [ -z "$GDM" -a -z "$KDM" ]; then
+			checkpkg "gdm"
+		fi
 		checkpkg "xgl"
-		checkpkg "mesa-cvs"
-		checkpkg "gdm"
-		checkpkg "gnome-session"
+		if [ "$GDM" ]; then
+			checkpkg "gnome-session"
+		fi
+		if [ "$KDM" ]; then
+			checkpkg "kdebase"
+		fi
 		msg "Detecting cards..."
 		detectcard
-		msg "Checking if compiz-cvs is available..."
-		if [ -x "/usr/bin/compiz" ]; then
+		if [ "$GDM" ]; then
+			msg "Checking if compiz-cvs is available..."
+		fi
+		if [ "$GDM"  -a "`type -p compiz`" ]; then
 			ENABLE_COMPIZ=1
 			msg "Compiz detected. If you would like to use Beryl instead, set ENABLE_COMPIZ"
 			msg "to 0 in /etc/sysconfig/compiz and follow the steps outlined at the bottom of"
 			msg "this page: http://wiki.beryl-project.org/index.php/Install/Frugalware"
-			
 			msg "Checking if CGWD is available..."
 			if [ -x "/usr/bin/cgwd" ]; then
 				USE_CGWD=1
@@ -172,33 +193,73 @@ case $1 in
 			ENABLE_COMPIZ=0
 			USE_CGWD=0
 		fi
-		msg "Performing modifications to GDM configuration..."
-		echo "0=Xgl #xgl" >> /etc/gdm/custom.conf
-		echo "[server-Xgl] #xgl" >> /etc/gdm/custom.conf
-		echo "name=Xgl server #xgl" >> /etc/gdm/custom.conf
-		echo "command=/usr/bin/Xgl $OPTS #xgl" >> /etc/gdm/custom.conf
-		echo "flexible=true #xgl" >> /etc/gdm/custom.conf
-		msg "Enabling Compiz..."
-		echo "# Should compiz be run when Gnome or Xfce starts?" > /etc/sysconfig/compiz
-		echo "ENABLE_COMPIZ=${ENABLE_COMPIZ}" >> /etc/sysconfig/compiz
-		echo "" >> /etc/sysconfig/compiz
-		echo "# Shall we use CGWD instead of gnome-window-decorator? Only works if cgwd is installed" >> /etc/sysconfig/compiz
-		echo "USE_CGWD=${USE_CGWD}" >> /etc/sysconfig/compiz
-		msg "Modifications complete! Save your work and run gdm-restart as root."
+		if [ "`type -p beryl-manager`" ]; then
+			ENABLE_BERYL=1
+		else
+			ENABLE_BERYL=0
+		fi
+		if [ "$GDM" ]; then
+			msg "Performing modifications to GDM configuration..."
+			echo "0=Xgl #xgl" >> /etc/gdm/custom.conf
+			echo "[server-Xgl] #xgl" >> /etc/gdm/custom.conf
+			echo "name=Xgl server #xgl" >> /etc/gdm/custom.conf
+			echo "command=/usr/bin/Xgl $OPTS #xgl" >> /etc/gdm/custom.conf
+			echo "flexible=true #xgl" >> /etc/gdm/custom.conf
+		fi
+		if [ "$KDM" ]; then
+			sed -i "s|^ServerArgsLocal=.*|ServerArgsLocal=$OPTS|" /usr/share/config/kdm/kdmrc
+			sed -i "s|^ServerCmd=.*|ServerCmd=/usr/bin/Xgl|" /usr/share/config/kdm/kdmrc
+		fi
+		if [ "$GDM" ]; then
+			msg "Configuring Compiz..."
+			echo "# Should compiz be run when Gnome or Xfce starts?" > /etc/sysconfig/compiz
+			echo "ENABLE_COMPIZ=${ENABLE_COMPIZ}" >> /etc/sysconfig/compiz
+			echo "" >> /etc/sysconfig/compiz
+			echo "# Shall we use CGWD instead of gnome-window-decorator? Only works if cgwd is installed" >> /etc/sysconfig/compiz
+			echo "USE_CGWD=${USE_CGWD}" >> /etc/sysconfig/compiz
+		fi
+		if [ "$KDM" -a -x /usr/env/beryl.sh ]; then
+			msg "Configuring Beryl..."
+			echo "# Should beryl be run when KDE starts?" > /etc/sysconfig/beryl
+			echo "ENABLE_BERYL=${ENABLE_BERYL}" >> /etc/sysconfig/beryl
+		fi
+		if [ "$GDM" ]; then
+			msg "Modifications complete! Save your work and run gdm-restart as root."
+		else
+			msg "Modifications complete! Save your work and restart KDM."
+		fi
 		;;
 	-d|--disable|--disable-xgl)
-		msg "Disabling Compiz..."
-		echo "# Should compiz be run when Gnome starts?" > /etc/sysconfig/compiz
-		echo "ENABLE_COMPIZ=0" >> /etc/sysconfig/compiz
-		echo "" >> /etc/sysconfig/compiz
-		echo "# Shall we use CGWD instead of gnome-window-decorator? Only works if cgwd is installed" >> /etc/sysconfig/compiz
-		echo "USE_CGWD=0" >> /etc/sysconfig/compiz
-		msg "Reverting GDM configuration changes..."
-		sed -i '/\#xgl/d' /etc/gdm/custom.conf
-		msg "Xgl is now disabled. Save your work and run gdm-restart as root"
+		if [ "$GDM" ]; then
+			msg "Disabling Compiz..."
+			echo "# Should compiz be run when Gnome starts?" > /etc/sysconfig/compiz
+			echo "ENABLE_COMPIZ=0" >> /etc/sysconfig/compiz
+			echo "" >> /etc/sysconfig/compiz
+			echo "# Shall we use CGWD instead of gnome-window-decorator? Only works if cgwd is installed" >> /etc/sysconfig/compiz
+			echo "USE_CGWD=0" >> /etc/sysconfig/compiz
+		fi
+		if [ "$KDM" -a -x /usr/env/beryl.sh ]; then
+			msg "Disabling Beryl..."
+			echo "# Should beryl be run when KDE starts?" > /etc/sysconfig/beryl
+			echo "ENABLE_BERYL=0" >> /etc/sysconfig/beryl
+		fi
+		if [ "$GDM" ]; then
+			msg "Reverting GDM configuration changes..."
+			sed -i '/\#xgl/d' /etc/gdm/custom.conf
+		fi
+		if [ "$KDM" ]; then
+			msg "Reverting KDM configuration changes..."
+			sed -i "s|^ServerArgsLocal=.*|ServerArgsLocal=-br -nolisten tcp -dpi 72 dpms|" /usr/share/config/kdm/kdmrc
+			sed -i "s|^ServerCmd=.*|ServerCmd=/usr/bin/X|" /usr/share/config/kdm/kdmrc
+		fi
+		if [ "$GDM" ]; then
+			msg "Xgl is now disabled. Save your work and run gdm-restart as root."
+		else
+			msg "Xgl is now disabled. Save your work and restart KDM."
+		fi
 		;;
 	*)
-		msg "Frugalware Xgl Control 0.1.2 Copyright (C) 2006 Alex Smith"
+		msg "Frugalware Xgl Control 0.1.3 Copyright (C) 2006 Alex Smith"
 		msg2 "Usage: $0 --enable-xgl"
 		msg2 "       $0 --disable-xgl"
 		exit 1

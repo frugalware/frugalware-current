@@ -48,6 +48,7 @@ do
 	if [[ $i =~ sh$ ]] || [ $i == "README" ]; then
 		continue
 	fi
+	[ -x $i ] || chmod +x $i
 	./$i > $logdir/$i
 done
 

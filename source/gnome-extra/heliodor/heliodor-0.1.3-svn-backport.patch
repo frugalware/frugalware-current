@@ -1,0 +1,7040 @@
+diff -urN heliodor/configure.ac heliodor.trunk/configure.ac
+--- heliodor/configure.ac	2006-12-10 11:55:28.000000000 +0000
++++ heliodor.trunk/configure.ac	2006-12-10 11:51:12.000000000 +0000
+@@ -15,7 +15,10 @@
+ AC_CHECK_HEADERS([stdlib.h sys/time.h unistd.h])
+ 
+ AC_C_BIGENDIAN
+-HELIODOR_REQUIRES=" xrender >= 0.8.4  \
++
++LIBHELIODOR_REQUIRES="xrender >= 0.8.4"
++
++HELIODOR_REQUIRES="xrender >= 0.8.4 \
+ 		    gtk+-2.0 >= 2.8.0 \
+ 		    libwnck-1.0	      \
+             beryl \
+@@ -34,8 +37,26 @@
+ AC_SUBST(PKG_CONFIG_PATH)
+ AC_MSG_NOTICE([Using PKG_CONFIG_PATH=$PKG_CONFIG_PATH])
+ 
++PKG_CHECK_MODULES(LIBHELIODOR, $LIBHELIODOR_REQUIRES)
+ PKG_CHECK_MODULES(HELIODOR, $HELIODOR_REQUIRES)
++AC_SUBST(LIBHELIODOR_REQUIRES)
+ AC_SUBST(HELIODOR_REQUIRES)
++PKG_CHECK_EXISTS(libmetacity-private >= 2.15.21,
++				 [have_metacity_2_15_21=yes], [have_metacity_2_15_21=no])
++PKG_CHECK_EXISTS(libmetacity-private >= 2.17.0,
++				 [have_metacity_2_17_0=yes], [have_metacity_2_17_0=no])
++
++if test "$have_metacity_2_15_21" = yes
++then
++	AC_DEFINE(HAVE_METACITY_2_15_21, 1,
++			  [Define to 1 if metacity version >= 2.15.21])
++fi
++if test "$have_metacity_2_17_0" = yes
++then
++	AC_DEFINE(HAVE_METACITY_2_17_0, 1,
++			  [Define to 1 if metacity version >= 2.17.0])
++fi
++
+ CFLAGS="$CFLAGS $HELIODOR_CFLAGS"
+ LIBS="$LIBS $HELIODOR_LIBS"
+ AC_CHECK_FUNCS(wnck_window_has_name)
+@@ -51,4 +72,7 @@
+ Makefile
+ src/Makefile
+ lib/Makefile
++libheliodor/Makefile
++libheliodor/libheliodor.pc
++include/Makefile
+ ])
+diff -urN heliodor/include/decoration.h heliodor.trunk/include/decoration.h
+--- heliodor/include/decoration.h	1970-01-01 01:00:00.000000000 +0100
++++ heliodor.trunk/include/decoration.h	2006-12-10 11:51:10.000000000 +0000
+@@ -0,0 +1,367 @@
++/*
++ * Copyright © 2006 Novell, Inc.
++ *
++ * Permission to use, copy, modify, distribute, and sell this software
++ * and its documentation for any purpose is hereby granted without
++ * fee, provided that the above copyright notice appear in all copies
++ * and that both that copyright notice and this permission notice
++ * appear in supporting documentation, and that the name of
++ * Novell, Inc. not be used in advertising or publicity pertaining to
++ * distribution of the software without specific, written prior permission.
++ * Novell, Inc. makes no representations about the suitability of this
++ * software for any purpose. It is provided "as is" without express or
++ * implied warranty.
++ *
++ * NOVELL, INC. DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
++ * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN
++ * NO EVENT SHALL NOVELL, INC. BE LIABLE FOR ANY SPECIAL, INDIRECT OR
++ * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
++ * OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
++ * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
++ * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++ *
++ * Author: David Reveman <davidr@novell.com>
++ */
++
++#ifndef _DECORATION_H
++#define _DECORATION_H
++
++#include <string.h>
++#include <limits.h>
++
++#include <X11/Xlib.h>
++#include <X11/extensions/Xrender.h>
++
++#ifdef  __cplusplus
++extern "C" {
++#endif
++
++#define GRAVITY_WEST  (1 << 0)
++#define GRAVITY_EAST  (1 << 1)
++#define GRAVITY_NORTH (1 << 2)
++#define GRAVITY_SOUTH (1 << 3)
++
++#define ALIGN_LEFT   (0)
++#define ALIGN_RIGHT  (1 << 0)
++#define ALIGN_TOP    (0)
++#define ALIGN_BOTTOM (1 << 1)
++
++#define CLAMP_HORZ (1 << 0)
++#define CLAMP_VERT (1 << 1)
++
++#define XX_MASK (1 << 12)
++#define XY_MASK (1 << 13)
++#define YX_MASK (1 << 14)
++#define YY_MASK (1 << 15)
++
++#define PAD_TOP    (1 << 0)
++#define PAD_BOTTOM (1 << 1)
++#define PAD_LEFT   (1 << 2)
++#define PAD_RIGHT  (1 << 3)
++
++typedef struct _decor_point {
++    int x;
++    int y;
++    int gravity;
++} decor_point_t;
++
++typedef struct _decor_matrix {
++    double xx; double yx;
++    double xy; double yy;
++    double x0; double y0;
++} decor_matrix_t;
++
++typedef struct _decor_quad {
++    decor_point_t  p1;
++    decor_point_t  p2;
++    int		   max_width;
++    int		   max_height;
++    int		   align;
++    int		   clamp;
++    decor_matrix_t m;
++} decor_quad_t;
++
++typedef struct _decor_extents {
++    int left;
++    int right;
++    int top;
++    int bottom;
++} decor_extents_t;
++
++typedef struct _decor_context {
++    decor_extents_t extents;
++
++    int left_space;
++    int right_space;
++    int top_space;
++    int bottom_space;
++
++    int left_corner_space;
++    int right_corner_space;
++    int top_corner_space;
++    int bottom_corner_space;
++} decor_context_t;
++
++typedef struct _decor_box {
++    int x1;
++    int y1;
++    int x2;
++    int y2;
++
++    int pad;
++} decor_box_t;
++
++typedef struct _decor_layout {
++    int width;
++    int height;
++
++    decor_box_t left;
++    decor_box_t right;
++    decor_box_t top;
++    decor_box_t bottom;
++
++    int rotation;
++} decor_layout_t;
++
++typedef struct _decor_shadow_options {
++    double	   shadow_radius;
++    double	   shadow_opacity;
++    unsigned short shadow_color[3];
++    int		   shadow_offset_x;
++    int		   shadow_offset_y;
++} decor_shadow_options_t;
++
++typedef struct _decor_shadow {
++    Pixmap  pixmap;
++    Picture picture;
++    int	    width;
++    int	    height;
++} decor_shadow_t;
++
++typedef void (*decor_draw_func_t) (Display	   *xdisplay,
++				   Pixmap	   pixmap,
++				   Picture	   picture,
++				   int		   width,
++				   int		   height,
++				   decor_context_t *context,
++				   void		   *closure);
++
++#define BASE_PROP_SIZE 12
++#define QUAD_PROP_SIZE 9
++#define N_QUADS_MAX    24
++
++void
++decor_quads_to_property (long		 *data,
++			 Pixmap		 pixmap,
++			 decor_extents_t *input,
++			 decor_extents_t *max_input,
++			 int		 min_width,
++			 int		 min_height,
++			 decor_quad_t    *quad,
++			 int		 nQuad);
++
++int
++decor_set_vert_quad_row (decor_quad_t *q,
++			 int	      top,
++			 int	      top_corner,
++			 int	      bottom,
++			 int	      bottom_corner,
++			 int	      left,
++			 int	      right,
++			 int	      gravity,
++			 int	      height,
++			 int	      splitY,
++			 int	      splitGravity,
++			 double	      x0,
++			 double	      y0,
++			 int	      rotation);
++
++int
++decor_set_horz_quad_line (decor_quad_t *q,
++			  int	       left,
++			  int	       left_corner,
++			  int	       right,
++			  int	       right_corner,
++			  int	       top,
++			  int	       bottom,
++			  int	       gravity,
++			  int	       width,
++			  int	       splitX,
++			  int	       splitGravity,
++			  double       x0,
++			  double       y0);
++
++int
++decor_set_lSrS_window_quads (decor_quad_t    *q,
++			     decor_context_t *c,
++			     decor_layout_t  *l);
++
++int
++decor_set_lSrStSbS_window_quads (decor_quad_t    *q,
++				 decor_context_t *c,
++				 decor_layout_t  *l);
++
++int
++decor_set_lSrStXbS_window_quads (decor_quad_t    *q,
++				 decor_context_t *c,
++				 decor_layout_t  *l,
++				 int		 top_stretch_offset);
++
++int
++decor_set_lSrStSbX_window_quads (decor_quad_t    *q,
++				 decor_context_t *c,
++				 decor_layout_t  *l,
++				 int		 bottom_stretch_offset);
++
++int
++decor_set_lXrXtXbX_window_quads (decor_quad_t    *q,
++				 decor_context_t *c,
++				 decor_layout_t  *l,
++				 int		 left_stretch_offset,
++				 int		 right_stretch_offset,
++				 int		 top_stretch_offset,
++				 int		 bottom_stretch_offset);
++
++decor_shadow_t *
++decor_create_shadow (Display		    *xdisplay,
++		     Screen		    *screen,
++		     int		    width,
++		     int		    height,
++		     int		    left,
++		     int		    right,
++		     int		    top,
++		     int		    bottom,
++		     int		    solid_left,
++		     int		    solid_right,
++		     int		    solid_top,
++		     int		    solid_bottom,
++		     decor_shadow_options_t *opt,
++		     decor_context_t	    *context,
++		     decor_draw_func_t      draw,
++		     void		    *closure);
++
++void
++decor_destroy_shadow (Display	     *xdisplay,
++		      decor_shadow_t *shadow);
++
++void
++decor_draw_simple (Display	   *xdisplay,
++		   Pixmap	   pixmap,
++		   Picture	   picture,
++		   int		   width,
++		   int		   height,
++		   decor_context_t *c,
++		   void		   *closure);
++
++void
++decor_get_default_layout (decor_context_t *c,
++			  int	          width,
++			  int	          height,
++			  decor_layout_t  *layout);
++
++void
++decor_get_best_layout (decor_context_t *c,
++		       int	       width,
++		       int	       height,
++		       decor_layout_t  *layout);
++
++void
++decor_fill_picture_extents_with_shadow (Display	        *xdisplay,
++					decor_shadow_t  *shadow,
++					decor_context_t *context,
++					Picture	        picture,
++					decor_layout_t  *layout);
++
++void
++decor_blend_transform_picture (Display	       *xdisplay,
++			       decor_context_t *context,
++			       Picture	       src,
++			       int	       xSrc,
++			       int	       ySrc,
++			       Picture	       dst,
++			       decor_layout_t  *layout,
++			       Region	       region,
++			       unsigned short  alpha,
++			       int	       shade_alpha);
++
++void
++decor_blend_top_border_picture (Display	        *xdisplay,
++				decor_context_t *context,
++				Picture	        src,
++				int	        xSrc,
++				int	        ySrc,
++				Picture	        dst,
++				decor_layout_t  *layout,
++				Region	        region,
++				unsigned short  alpha,
++				int	        shade_alpha);
++
++void
++decor_blend_bottom_border_picture (Display	   *xdisplay,
++				   decor_context_t *context,
++				   Picture	   src,
++				   int	           xSrc,
++				   int	           ySrc,
++				   Picture	   dst,
++				   decor_layout_t  *layout,
++				   Region	   region,
++				   unsigned short  alpha,
++				   int	           shade_alpha);
++
++void
++decor_blend_left_border_picture (Display	 *xdisplay,
++				 decor_context_t *context,
++				 Picture	 src,
++				 int	         xSrc,
++				 int	         ySrc,
++				 Picture	 dst,
++				 decor_layout_t  *layout,
++				 Region		 region,
++				 unsigned short  alpha,
++				 int	         shade_alpha);
++
++void
++decor_blend_right_border_picture (Display	  *xdisplay,
++				  decor_context_t *context,
++				  Picture	  src,
++				  int	          xSrc,
++				  int	          ySrc,
++				  Picture	  dst,
++				  decor_layout_t  *layout,
++				  Region	  region,
++				  unsigned short  alpha,
++				  int	          shade_alpha);
++
++#define DECOR_ACQUIRE_STATUS_SUCCESS	      0
++#define DECOR_ACQUIRE_STATUS_FAILED	      1
++#define DECOR_ACQUIRE_STATUS_OTHER_DM_RUNNING 2
++
++int
++decor_acquire_dm_session (Display *xdisplay,
++			  int	   screen,
++			  char     *name,
++			  int	   replace_current_dm,
++			  Time	   *timestamp);
++
++void
++decor_set_dm_check_hint (Display *xdisplay,
++			 int	 screen);
++
++#define DECOR_SELECTION_KEEP    0
++#define DECOR_SELECTION_GIVE_UP 1
++
++int
++decor_handle_selection_clear (Display *xdisplay,
++			      XEvent  *xevent,
++			      int     screen);
++
++void
++decor_handle_selection_request (Display *xdisplay,
++				XEvent  *event,
++				Time    dm_sn_timestamp);
++
++#ifdef  __cplusplus
++}
++#endif
++
++#endif
+diff -urN heliodor/include/Makefile.am heliodor.trunk/include/Makefile.am
+--- heliodor/include/Makefile.am	1970-01-01 01:00:00.000000000 +0100
++++ heliodor.trunk/include/Makefile.am	2006-12-10 11:51:10.000000000 +0000
+@@ -0,0 +1,3 @@
++heliodorincludedir = $(includedir)/heliodor
++heliodorinclude_HEADERS = \
++	decoration.h
+diff -urN heliodor/libheliodor/libheliodor.pc.in heliodor.trunk/libheliodor/libheliodor.pc.in
+--- heliodor/libheliodor/libheliodor.pc.in	1970-01-01 01:00:00.000000000 +0100
++++ heliodor.trunk/libheliodor/libheliodor.pc.in	2006-12-10 11:51:12.000000000 +0000
+@@ -0,0 +1,12 @@
++prefix=@prefix@
++exec_prefix=@exec_prefix@
++libdir=@libdir@
++includedir=@includedir@
++
++Name: libheliodor
++Description: Port of compiz Window decoration library for Heliodor
++Version: @VERSION@
++
++Requires: @LIBHELIODOR_REQUIRES@
++Libs: @LIBHELIODOR_LIBS@ -lheliodor
++Cflags: @LIBHELIODOR_CFLAGS@ -I${includedir}/beryl
+diff -urN heliodor/libheliodor/main.c heliodor.trunk/libheliodor/main.c
+--- heliodor/libheliodor/main.c	1970-01-01 01:00:00.000000000 +0100
++++ heliodor.trunk/libheliodor/main.c	2006-12-10 11:51:12.000000000 +0000
+@@ -0,0 +1,2484 @@
++/*
++ * Copyright © 2006 Novell, Inc.
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the
++ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
++ * Boston, MA 02111-1307, USA.
++ */
++
++#ifdef HAVE_CONFIG_H
++#include <config.h>
++#endif
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <math.h>
++
++#include <decoration.h>
++
++#include <X11/Xatom.h>
++#include <X11/Xregion.h>
++
++/*
++  decoration property
++  -------------------
++
++  data[0] = version
++
++  data[1] = pixmap
++
++  data[2] = input left
++  data[3] = input right
++  data[4] = input top
++  data[5] = input bottom
++
++  data[6] = input left when maximized
++  data[7] = input right when maximized
++  data[8] = input top when maximized
++  data[9] = input bottom when maximized
++
++  data[10] = min width
++  data[11] = min height
++
++  flags
++
++  1st to 4nd bit p1 gravity, 5rd to 8th bit p2 gravity,
++  9rd and 10th bit alignment, 11rd and 12th bit clamp,
++  13th bit XX, 14th bit XY, 15th bit YX, 16th bit YY.
++
++  data[11 + n * 9 + 1] = flags
++  data[11 + n * 9 + 2] = p1 x
++  data[11 + n * 9 + 3] = p1 y
++  data[11 + n * 9 + 4] = p2 x
++  data[11 + n * 9 + 5] = p2 y
++  data[11 + n * 9 + 6] = widthMax
++  data[11 + n * 9 + 7] = heightMax
++  data[11 + n * 9 + 8] = x0
++  data[11 + n * 9 + 9] = y0
++ */
++void
++decor_quads_to_property (long		 *data,
++			 Pixmap		 pixmap,
++			 decor_extents_t *input,
++			 decor_extents_t *max_input,
++			 int		 min_width,
++			 int		 min_height,
++			 decor_quad_t    *quad,
++			 int		 nQuad)
++{
++    *data++ = 0; // DECOR_INTERFACE_VERSION;
++
++    memcpy (data++, &pixmap, sizeof (Pixmap));
++
++    *data++ = input->left;
++    *data++ = input->right;
++    *data++ = input->top;
++    *data++ = input->bottom;
++
++    *data++ = max_input->left;
++    *data++ = max_input->right;
++    *data++ = max_input->top;
++    *data++ = max_input->bottom;
++
++    *data++ = min_width;
++    *data++ = min_height;
++
++    while (nQuad--)
++    {
++	*data++ =
++	    (quad->p1.gravity << 0)    |
++	    (quad->p2.gravity << 4)    |
++	    (quad->align      << 8)    |
++	    (quad->clamp      << 10)   |
++	    (quad->m.xx ? XX_MASK : 0) |
++	    (quad->m.xy ? XY_MASK : 0) |
++	    (quad->m.yx ? YX_MASK : 0) |
++	    (quad->m.yy ? YY_MASK : 0);
++
++	*data++ = quad->p1.x;
++	*data++ = quad->p1.y;
++	*data++ = quad->p2.x;
++	*data++ = quad->p2.y;
++	*data++ = quad->max_width;
++	*data++ = quad->max_height;
++	*data++ = quad->m.x0;
++	*data++ = quad->m.y0;
++
++	quad++;
++    }
++}
++
++int
++decor_set_vert_quad_row (decor_quad_t *q,
++			 int	      top,
++			 int	      top_corner,
++			 int	      bottom,
++			 int	      bottom_corner,
++			 int	      left,
++			 int	      right,
++			 int	      gravity,
++			 int	      height,
++			 int	      splitY,
++			 int	      splitGravity,
++			 double	      x0,
++			 double	      y0,
++			 int	      rotation)
++{
++    int nQuad = 0;
++
++    q->p1.x	  = left;
++    q->p1.y	  = -top;
++    q->p1.gravity = gravity | GRAVITY_NORTH;
++    q->p2.x	  = right;
++    q->p2.y	  = splitY;
++    q->p2.gravity = gravity | splitGravity;
++    q->max_width  = SHRT_MAX;
++    q->max_height = top + top_corner;
++    q->align	  = ALIGN_TOP;
++    q->clamp	  = CLAMP_VERT;
++    q->m.x0	  = x0;
++    q->m.y0	  = y0;
++
++    if (rotation)
++    {
++	q->m.xx	= 0.0;
++	q->m.xy	= 1.0;
++	q->m.yx	= 1.0;
++	q->m.yy	= 0.0;
++    }
++    else
++    {
++	q->m.xx	= 1.0;
++	q->m.xy	= 0.0;
++	q->m.yx	= 0.0;
++	q->m.yy	= 1.0;
++    }
++
++    q++; nQuad++;
++
++    q->p1.x	  = left;
++    q->p1.y	  = top_corner;
++    q->p1.gravity = gravity | GRAVITY_NORTH;
++    q->p2.x	  = right;
++    q->p2.y	  = -bottom_corner;
++    q->p2.gravity = gravity | GRAVITY_SOUTH;
++    q->max_width  = SHRT_MAX;
++    q->max_height = SHRT_MAX;
++    q->align	  = 0;
++    q->clamp	  = CLAMP_VERT;
++
++    if (rotation)
++    {
++	q->m.xx	= 0.0;
++	q->m.xy	= 0.0;
++	q->m.yx	= 1.0;
++	q->m.yy	= 0.0;
++	q->m.x0	= x0 + top + top_corner;
++	q->m.y0	= y0;
++    }
++    else
++    {
++	q->m.xx	= 1.0;
++	q->m.xy	= 0.0;
++	q->m.yx	= 0.0;
++	q->m.yy	= 0.0;
++	q->m.x0	= x0;
++	q->m.y0	= y0 + top + top_corner;
++    }
++
++    q++; nQuad++;
++
++    q->p1.x	  = left;
++    q->p1.y	  = splitY-1;
++    q->p1.gravity = gravity | splitGravity;
++    q->p2.x	  = right;
++    q->p2.y	  = bottom;
++    q->p2.gravity = gravity | GRAVITY_SOUTH;
++    q->max_width  = SHRT_MAX;
++    q->max_height = bottom_corner + bottom+1;
++    q->align	  = ALIGN_BOTTOM;
++    q->clamp	  = CLAMP_VERT;
++
++    if (rotation)
++    {
++	q->m.xx	= 0.0;
++	q->m.xy	= 1.0;
++	q->m.yx	= 1.0;
++	q->m.yy	= 0.0;
++	q->m.x0	= x0 + height;
++	q->m.y0	= y0;
++    }
++    else
++    {
++	q->m.xx	= 1.0;
++	q->m.xy	= 0.0;
++	q->m.yx	= 0.0;
++	q->m.yy	= 1.0;
++	q->m.x0	= x0;
++	q->m.y0	= y0 + height;
++    }
++
++    nQuad++;
++
++    return nQuad;
++}
++
++int
++decor_set_horz_quad_line (decor_quad_t *q,
++			  int	       left,
++			  int	       left_corner,
++			  int	       right,
++			  int	       right_corner,
++			  int	       top,
++			  int	       bottom,
++			  int	       gravity,
++			  int	       width,
++			  int	       splitX,
++			  int	       splitGravity,
++			  double       x0,
++			  double       y0)
++{
++    int nQuad = 0;
++
++    q->p1.x	  = -left;
++    q->p1.y	  = top;
++    q->p1.gravity = gravity | GRAVITY_WEST;
++    q->p2.x	  = splitX;
++    q->p2.y	  = bottom;
++    q->p2.gravity = gravity | splitGravity;
++    q->max_width  = left + left_corner;
++    q->max_height = SHRT_MAX;
++    q->align	  = ALIGN_LEFT;
++    q->clamp	  = 0;
++    q->m.xx	  = 1.0;
++    q->m.xy	  = 0.0;
++    q->m.yx	  = 0.0;
++    q->m.yy	  = 1.0;
++    q->m.x0	  = x0;
++    q->m.y0	  = y0;
++
++    q++; nQuad++;
++
++    q->p1.x	  = left_corner;
++    q->p1.y	  = top;
++    q->p1.gravity = gravity | GRAVITY_WEST;
++    q->p2.x	  = -right_corner;
++    q->p2.y	  = bottom;
++    q->p2.gravity = gravity | GRAVITY_EAST;
++    q->max_width  = SHRT_MAX;
++    q->max_height = SHRT_MAX;
++    q->align	  = 0;
++    q->clamp	  = 0;
++    q->m.xx	  = 0.0;
++    q->m.xy	  = 0.0;
++    q->m.yx	  = 0.0;
++    q->m.yy	  = 1.0;
++    q->m.x0	  = x0 + left + left_corner;
++    q->m.y0	  = y0;
++
++    q++; nQuad++;
++
++    q->p1.x	  = splitX;
++    q->p1.y	  = top;
++    q->p1.gravity = gravity | splitGravity;
++    q->p2.x	  = right;
++    q->p2.y	  = bottom;
++    q->p2.gravity = gravity | GRAVITY_EAST;
++    q->max_width  = right_corner + right;
++    q->max_height = SHRT_MAX;
++    q->align	  = ALIGN_RIGHT;
++    q->clamp	  = 0;
++    q->m.xx	  = 1.0;
++    q->m.xy	  = 0.0;
++    q->m.yx	  = 0.0;
++    q->m.yy	  = 1.0;
++    q->m.x0	  = x0 + width;
++    q->m.y0	  = y0;
++
++    nQuad++;
++
++    return nQuad;
++}
++
++int
++decor_set_lSrS_window_quads (decor_quad_t    *q,
++			     decor_context_t *c,
++			     decor_layout_t  *l)
++{
++    int lh, rh, splitY, n, nQuad = 0;
++
++    splitY = (c->top_corner_space - c->bottom_corner_space) / 2;
++
++    if (l->rotation)
++    {
++	lh = l->left.x2 - l->left.x1;
++	rh = l->right.x2 - l->right.x1;
++    }
++    else
++    {
++	lh = l->left.y2 - l->left.y1;
++	rh = l->right.y2 - l->right.y1;
++    }
++
++    /* left quads */
++    n = decor_set_vert_quad_row (q,
++				 0,
++				 c->top_corner_space,
++				 0,
++				 c->bottom_corner_space,
++				 -c->left_space,
++				 0,
++				 GRAVITY_WEST,
++				 lh,
++				 splitY,
++				 0,
++				 l->left.x1,
++				 l->left.y1,
++				 l->rotation);
++
++    q += n; nQuad += n;
++
++    /* right quads */
++    n = decor_set_vert_quad_row (q,
++				 0,
++				 c->top_corner_space,
++				 0,
++				 c->bottom_corner_space,
++				 0,
++				 c->right_space,
++				 GRAVITY_EAST,
++				 rh,
++				 splitY,
++				 0,
++				 l->right.x1,
++				 l->right.y1,
++				 l->rotation);
++
++    nQuad += n;
++
++    return nQuad;
++}
++
++int
++decor_set_lSrStSbS_window_quads (decor_quad_t    *q,
++				 decor_context_t *c,
++				 decor_layout_t  *l)
++{
++    int splitX, n, nQuad = 0;
++
++    splitX = (c->left_corner_space - c->right_corner_space) / 2;
++
++    /* top quads */
++    n = decor_set_horz_quad_line (q,
++				  c->left_space,
++				  c->left_corner_space,
++				  c->right_space,
++				  c->right_corner_space,
++				  -c->top_space,
++				  0,
++				  GRAVITY_NORTH,
++				  l->top.x2 - l->top.x1,
++				  splitX,
++				  0,
++				  l->top.x1,
++				  l->top.y1);
++
++    q += n; nQuad += n;
++
++    n = decor_set_lSrS_window_quads (q, c, l);
++
++    q += n; nQuad += n;
++
++    /* bottom quads */
++    n = decor_set_horz_quad_line (q,
++				  c->left_space,
++				  c->left_corner_space,
++				  c->right_space,
++				  c->right_corner_space,
++				  0,
++				  c->bottom_space,
++				  GRAVITY_SOUTH,
++				  l->bottom.x2 - l->bottom.x1,
++				  splitX,
++				  0,
++				  l->bottom.x1,
++				  l->bottom.y1);
++
++    nQuad += n;
++
++    return nQuad;
++}
++
++int
++decor_set_lSrStXbS_window_quads (decor_quad_t    *q,
++				 decor_context_t *c,
++				 decor_layout_t  *l,
++				 int		 top_stretch_offset)
++{
++    int splitX, n, nQuad = 0;
++    int top_left, top_right;
++
++    splitX = (c->left_corner_space - c->right_corner_space) / 2;
++
++    top_left  = top_stretch_offset;
++    top_right = l->top.x2 - l->top.x1 -
++	c->left_space - c->right_space - top_left - 1;
++
++    /* top quads */
++    n = decor_set_horz_quad_line (q,
++				  c->left_space,
++				  top_left,
++				  c->right_space,
++				  top_right,
++				  -c->top_space,
++				  0,
++				  GRAVITY_NORTH,
++				  l->top.x2 - l->top.x1,
++				  -top_right,
++				  GRAVITY_EAST,
++				  l->top.x1,
++				  l->top.y1);
++
++    q += n; nQuad += n;
++
++    n = decor_set_lSrS_window_quads (q, c, l);
++
++    q += n; nQuad += n;
++
++    /* bottom quads */
++    n = decor_set_horz_quad_line (q,
++				  c->left_space,
++				  c->left_corner_space,
++				  c->right_space,
++				  c->right_corner_space,
++				  0,
++				  c->bottom_space,
++				  GRAVITY_SOUTH,
++				  l->bottom.x2 - l->bottom.x1,
++				  splitX,
++				  0,
++				  l->bottom.x1,
++				  l->bottom.y1);
++
++    nQuad += n;
++
++    return nQuad;
++}
++
++int
++decor_set_lSrStSbX_window_quads (decor_quad_t    *q,
++				 decor_context_t *c,
++				 decor_layout_t  *l,
++				 int		 bottom_stretch_offset)
++{
++    int splitX, n, nQuad = 0;
++    int bottom_left, bottom_right;
++
++    splitX = (c->left_corner_space - c->right_corner_space) / 2;
++
++    bottom_left  = bottom_stretch_offset;
++    bottom_right = l->bottom.x2 - l->bottom.x1 -
++	c->left_space - c->right_space - bottom_left - 1;
++
++    /* top quads */
++    n = decor_set_horz_quad_line (q,
++				  c->left_space,
++				  c->left_corner_space,
++				  c->right_space,
++				  c->right_corner_space,
++				  -c->top_space,
++				  0,
++				  GRAVITY_NORTH,
++				  l->top.x2 - l->top.x1,
++				  splitX,
++				  0,
++				  l->top.x1,
++				  l->top.y1);
++
++    q += n; nQuad += n;
++
++    n = decor_set_lSrS_window_quads (q, c, l);
++
++    q += n; nQuad += n;
++
++    /* bottom quads */
++    n = decor_set_horz_quad_line (q,
++				  c->left_space,
++				  bottom_left,
++				  c->right_space,
++				  bottom_right,
++				  0,
++				  c->bottom_space,
++				  GRAVITY_SOUTH,
++				  l->bottom.x2 - l->bottom.x1,
++				  -bottom_right,
++				  GRAVITY_EAST,
++				  l->bottom.x1,
++				  l->bottom.y1);
++
++    nQuad += n;
++
++    return nQuad;
++}
++
++int
++decor_set_lXrXtXbX_window_quads (decor_quad_t    *q,
++				 decor_context_t *c,
++				 decor_layout_t  *l,
++				 int		 left_stretch_offset,
++				 int		 right_stretch_offset,
++				 int		 top_stretch_offset,
++				 int		 bottom_stretch_offset)
++{
++    int lh, rh, n, nQuad = 0;
++    int left_top, left_bottom;
++    int right_top, right_bottom;
++    int top_left, top_right;
++    int bottom_left, bottom_right;
++
++    top_left  = top_stretch_offset;
++    top_right = l->top.x2 - l->top.x1 -
++	c->left_space - c->right_space - top_left - 1;
++
++    bottom_left  = bottom_stretch_offset;
++    bottom_right = l->bottom.x2 - l->bottom.x1 -
++	c->left_space - c->right_space - bottom_left - 1;
++
++    if (l->rotation)
++    {
++	lh = l->left.x2 - l->left.x1;
++	rh = l->right.x2 - l->right.x1;
++    }
++    else
++    {
++	lh = l->left.y2 - l->left.y1;
++	rh = l->right.y2 - l->right.y1;
++    }
++
++    left_top    = left_stretch_offset;
++    left_bottom = lh - left_top - 1;
++
++    right_top    = right_stretch_offset;
++    right_bottom = rh - right_top - 1;
++
++
++    /* top quads */
++    n = decor_set_horz_quad_line (q,
++				  c->left_space,
++				  top_left,
++				  c->right_space,
++				  top_right,
++				  -c->top_space,
++				  0,
++				  GRAVITY_NORTH,
++				  l->top.x2 - l->top.x1,
++				  -top_right,
++				  GRAVITY_EAST,
++				  l->top.x1,
++				  l->top.y1);
++
++    q += n; nQuad += n;
++
++    /* left quads */
++    n = decor_set_vert_quad_row (q,
++				 0,
++				 left_top,
++				 0,
++				 left_bottom,
++				 -c->left_space,
++				 0,
++				 GRAVITY_WEST,
++				 lh,
++				 -left_bottom,
++				 GRAVITY_SOUTH,
++				 l->left.x1,
++				 l->left.y1,
++				 l->rotation);
++
++    q += n; nQuad += n;
++
++    /* right quads */
++    n = decor_set_vert_quad_row (q,
++				 0,
++				 right_top,
++				 0,
++				 right_bottom,
++				 0,
++				 c->right_space,
++				 GRAVITY_EAST,
++				 rh,
++				 -right_bottom,
++				 GRAVITY_SOUTH,
++				 l->right.x1,
++				 l->right.y1,
++				 l->rotation);
++
++    q += n; nQuad += n;
++
++    /* bottom quads */
++    n = decor_set_horz_quad_line (q,
++				  c->left_space,
++				  bottom_left,
++				  c->right_space,
++				  bottom_right,
++				  0,
++				  c->bottom_space,
++				  GRAVITY_SOUTH,
++				  l->bottom.x2 - l->bottom.x1,
++				  -bottom_right,
++				  GRAVITY_EAST,
++				  l->bottom.x1,
++				  l->bottom.y1);
++
++    nQuad += n;
++
++    return nQuad;
++}
++
++#if INT_MAX != LONG_MAX
++
++static int errors;
++
++static int
++error_handler (Display *xdisplay,
++	       XErrorEvent *event)
++{
++    errors++;
++    return 0;
++}
++
++/* XRenderSetPictureFilter used to be broken on LP64. This
++ * works with either the broken or fixed version.
++ */
++static void
++XRenderSetPictureFilter_wrapper (Display *dpy,
++				 Picture picture,
++				 char    *filter,
++				 XFixed  *params,
++				 int     nparams)
++{
++    int (*old) (Display *, XErrorEvent *);
++
++    errors = 0;
++
++    old = XSetErrorHandler (error_handler);
++
++    XRenderSetPictureFilter (dpy, picture, filter, params, nparams);
++    XSync (dpy, False);
++
++    XSetErrorHandler (old);
++
++    if (errors)
++    {
++	long *long_params = malloc (sizeof (long) * nparams);
++	int  i;
++
++	for (i = 0; i < nparams; i++)
++	    long_params[i] = params[i];
++
++	XRenderSetPictureFilter (dpy, picture, filter,
++				 (XFixed *) long_params, nparams);
++	free (long_params);
++    }
++}
++
++#define XRenderSetPictureFilter XRenderSetPictureFilter_wrapper
++#endif
++
++static void
++set_picture_transform (Display *xdisplay,
++		       Picture p,
++		       int     dx,
++		       int     dy)
++{
++    XTransform transform = {
++	{
++	    { 1 << 16, 0,       -dx << 16 },
++	    { 0,       1 << 16, -dy << 16 },
++	    { 0,       0,         1 << 16 },
++	}
++    };
++
++    XRenderSetPictureTransform (xdisplay, p, &transform);
++}
++
++static void
++set_picture_clip (Display *xdisplay,
++		  Picture p,
++		  int     width,
++		  int	  height,
++		  int     clipX1,
++		  int     clipY1,
++		  int     clipX2,
++		  int     clipY2)
++{
++    XRectangle clip[4];
++
++    clip[0].x      = 0;
++    clip[0].y      = 0;
++    clip[0].width  = width;
++    clip[0].height = clipY1;
++
++    clip[1].x      = 0;
++    clip[1].y      = clipY2;
++    clip[1].width  = width;
++    clip[1].height = height - clipY2;
++
++    clip[2].x      = 0;
++    clip[2].y      = clipY1;
++    clip[2].width  = clipX1;
++    clip[2].height = clipY2 - clipY1;
++
++    clip[3].x      = clipX2;
++    clip[3].y      = clipY1;
++    clip[3].width  = width - clipX2;
++    clip[3].height = clipY2 - clipY1;
++
++    XRenderSetPictureClipRectangles (xdisplay, p, 0, 0, clip, 4);
++}
++
++static void
++set_no_picture_clip (Display *xdisplay,
++		     Picture p)
++{
++    XRectangle clip;
++
++    clip.x      = 0;
++    clip.y      = 0;
++    clip.width  = SHRT_MAX;
++    clip.height = SHRT_MAX;
++
++    XRenderSetPictureClipRectangles (xdisplay, p, 0, 0, &clip, 1);
++}
++
++static XFixed *
++create_gaussian_kernel (double radius,
++			double sigma,
++			double alpha,
++			int    *r_size)
++{
++    XFixed *params;
++    double *amp, scale, x_scale, fx, sum;
++    int    size, half_size, x, i, n;
++
++    scale = 1.0f / (2.0f * M_PI * sigma * sigma);
++    half_size = alpha + 0.5f;
++
++    if (half_size == 0)
++	half_size = 1;
++
++    size = half_size * 2 + 1;
++    x_scale = 2.0f * radius / size;
++
++    if (size < 3)
++	return NULL;
++
++    n = size;
++
++    amp = malloc (sizeof (double) * n);
++    if (!amp)
++	return NULL;
++
++    n += 2;
++
++    params = malloc (sizeof (XFixed) * n);
++    if (!params)
++	return NULL;
++
++    i   = 0;
++    sum = 0.0f;
++
++    for (x = 0; x < size; x++)
++    {
++	fx = x_scale * (x - half_size);
++
++	amp[i] = scale * exp ((-1.0f * (fx * fx)) / (2.0f * sigma * sigma));
++
++	sum += amp[i];
++
++	i++;
++    }
++
++    /* normalize */
++    if (sum != 0.0)
++	sum = 1.0 / sum;
++
++    params[0] = params[1] = 0;
++
++    for (i = 2; i < n; i++)
++	params[i] = XDoubleToFixed (amp[i - 2] * sum);
++
++    free (amp);
++
++    *r_size = size;
++
++    return params;
++}
++
++#define SIGMA(r) ((r) / 2.0)
++#define ALPHA(r) (r)
++
++decor_shadow_t *
++decor_create_shadow (Display		    *xdisplay,
++		     Screen		    *screen,
++		     int		    width,
++		     int		    height,
++		     int		    left,
++		     int		    right,
++		     int		    top,
++		     int		    bottom,
++		     int		    solid_left,
++		     int		    solid_right,
++		     int		    solid_top,
++		     int		    solid_bottom,
++		     decor_shadow_options_t *opt,
++		     decor_context_t	    *c,
++		     decor_draw_func_t	    draw,
++		     void		    *closure)
++{
++    static XRenderColor white = { 0xffff, 0xffff, 0xffff, 0xffff };
++    XRenderPictFormat   *format;
++    Pixmap		pixmap;
++    Picture		src, dst, tmp;
++    XFixed		opacity, *params;
++    XFilters		*filters;
++    char		*filter = NULL;
++    int			size, n_params = 0;
++    XRenderColor	color;
++    int			shadow_offset_x;
++    int			shadow_offset_y;
++    Pixmap		d_pixmap;
++    int			d_width;
++    int			d_height;
++    Window		xroot = screen->root;
++    decor_shadow_t	*shadow;
++    int			clipX1, clipY1, clipX2, clipY2;
++
++    shadow = malloc (sizeof (decor_shadow_t));
++    if (!shadow)
++	return NULL;
++
++    shadow->pixmap  = 0;
++    shadow->picture = 0;
++    shadow->width   = 0;
++    shadow->height  = 0;
++
++    shadow_offset_x = opt->shadow_offset_x;
++    shadow_offset_y = opt->shadow_offset_y;
++
++    /* compute a gaussian convolution kernel */
++    params = create_gaussian_kernel (opt->shadow_radius,
++				     SIGMA (opt->shadow_radius),
++				     ALPHA (opt->shadow_radius),
++				     &size);
++    if (!params)
++	shadow_offset_x = shadow_offset_y = size = 0;
++
++    if (opt->shadow_radius <= 0.0 &&
++	shadow_offset_x == 0	  &&
++	shadow_offset_y == 0)
++	size = 0;
++
++    n_params = size + 2;
++    size     = size / 2;
++
++    c->extents.left   = left;
++    c->extents.right  = right;
++    c->extents.top    = top;
++    c->extents.bottom = bottom;
++
++    c->left_space   = left   + size - shadow_offset_x;
++    c->right_space  = right  + size + shadow_offset_x;
++    c->top_space    = top    + size - shadow_offset_y;
++    c->bottom_space = bottom + size + shadow_offset_y;
++
++    c->left_space   = MAX (left,   c->left_space);
++    c->right_space  = MAX (right,  c->right_space);
++    c->top_space    = MAX (top,    c->top_space);
++    c->bottom_space = MAX (bottom, c->bottom_space);
++
++    c->left_corner_space   = MAX (1, size - solid_left   + shadow_offset_x);
++    c->right_corner_space  = MAX (1, size - solid_right  - shadow_offset_x);
++    c->top_corner_space    = MAX (1, size - solid_top    + shadow_offset_y);
++    c->bottom_corner_space = MAX (1, size - solid_bottom - shadow_offset_y);
++
++    width  = MAX (width, c->left_corner_space + c->right_corner_space);
++    height = MAX (height, c->top_corner_space + c->bottom_corner_space);
++
++    width  = MAX (1, width);
++    height = MAX (1, height);
++
++    d_width  = c->left_space + width + c->right_space;
++    d_height = c->top_space + height + c->bottom_space;
++
++    /* all pixmaps are ARGB32 */
++    format = XRenderFindStandardFormat (xdisplay, PictStandardARGB32);
++
++    /* no shadow */
++    if (size <= 0)
++    {
++	if (params)
++	    free (params);
++
++	return shadow;
++    }
++
++    pixmap = XCreatePixmap (xdisplay, xroot, d_width, d_height, 32);
++    if (!pixmap)
++    {
++	free (params);
++	return shadow;
++    }
++
++    /* query server for convolution filter */
++    filters = XRenderQueryFilters (xdisplay, pixmap);
++    if (filters)
++    {
++	int i;
++
++	for (i = 0; i < filters->nfilter; i++)
++	{
++	    if (strcmp (filters->filter[i], FilterConvolution) == 0)
++	    {
++		filter = (char *) FilterConvolution;
++		break;
++	    }
++	}
++
++	XFree (filters);
++    }
++
++    if (!filter)
++    {
++	XFreePixmap (xdisplay, pixmap);
++	free (params);
++
++	return shadow;
++    }
++
++    /* create pixmap for temporary decorations */
++    d_pixmap = XCreatePixmap (xdisplay, xroot, d_width, d_height, 32);
++    if (!d_pixmap)
++    {
++	XFreePixmap (xdisplay, pixmap);
++	free (params);
++
++	return shadow;
++    }
++
++    src = XRenderCreateSolidFill (xdisplay, &white);
++    dst = XRenderCreatePicture (xdisplay, d_pixmap, format, 0, NULL);
++    tmp = XRenderCreatePicture (xdisplay, pixmap, format, 0, NULL);
++
++    /* draw decoration */
++    (*draw) (xdisplay, d_pixmap, dst, d_width, d_height, c, closure);
++
++    /* first pass */
++    params[0] = (n_params - 2) << 16;
++    params[1] = 1 << 16;
++
++    clipX1 = c->left_space + size;
++    clipY1 = c->top_space  + size;
++    clipX2 = d_width - c->right_space - size;
++    clipY2 = d_height - c->bottom_space - size;
++
++    if (clipX1 < clipX2 && clipY1 < clipY2)
++	set_picture_clip (xdisplay, tmp, d_width, d_height,
++			  clipX1, clipY1, clipX2, clipY2);
++
++    set_picture_transform (xdisplay, dst, shadow_offset_x, 0);
++    XRenderSetPictureFilter (xdisplay, dst, filter, params, n_params);
++    XRenderComposite (xdisplay,
++		      PictOpSrc,
++		      src,
++		      dst,
++		      tmp,
++		      0, 0,
++		      0, 0,
++		      0, 0,
++		      d_width, d_height);
++
++    set_no_picture_clip (xdisplay, tmp);
++
++    XRenderFreePicture (xdisplay, src);
++
++    /* second pass */
++    params[0] = 1 << 16;
++    params[1] = (n_params - 2) << 16;
++
++    opacity = XDoubleToFixed (opt->shadow_opacity);
++    if (opacity < (1 << 16))
++    {
++	/* apply opacity as shadow color if less than 1.0 */
++	color.red   = (opt->shadow_color[0] * opacity) >> 16;
++	color.green = (opt->shadow_color[1] * opacity) >> 16;
++	color.blue  = (opt->shadow_color[2] * opacity) >> 16;
++	color.alpha = opacity;
++
++	opacity = 1 << 16;
++    }
++    else
++    {
++	/* shadow color */
++	color.red   = opt->shadow_color[0];
++	color.green = opt->shadow_color[1];
++	color.blue  = opt->shadow_color[2];
++	color.alpha = 0xffff;
++    }
++
++    src = XRenderCreateSolidFill (xdisplay, &color);
++
++    clipX1 = c->left_space;
++    clipY1 = c->top_space;
++    clipX2 = d_width - c->right_space;
++    clipY2 = d_height - c->bottom_space;
++
++    if (clipX1 < clipX2 && clipY1 < clipY2)
++	set_picture_clip (xdisplay, dst, d_width, d_height,
++			  clipX1, clipY1, clipX2, clipY2);
++
++    set_picture_transform (xdisplay, tmp, 0, shadow_offset_y);
++    XRenderSetPictureFilter (xdisplay, tmp, filter, params, n_params);
++    XRenderComposite (xdisplay,
++		      PictOpSrc,
++		      src,
++		      tmp,
++		      dst,
++		      0, 0,
++		      0, 0,
++		      0, 0,
++		      d_width, d_height);
++
++    set_no_picture_clip (xdisplay, dst);
++
++    XRenderFreePicture (xdisplay, src);
++
++    if (opacity != (1 << 16))
++    {
++	XFixed p[3];
++
++	p[0] = 1 << 16;
++	p[1] = 1 << 16;
++	p[2] = opacity;
++
++	if (clipX1 < clipX2 && clipY1 < clipY2)
++	    set_picture_clip (xdisplay, tmp, d_width, d_height,
++			      clipX1, clipY1, clipX2, clipY2);
++
++	/* apply opacity */
++	set_picture_transform (xdisplay, dst, 0, 0);
++	XRenderSetPictureFilter (xdisplay, dst, filter, p, 3);
++	XRenderComposite (xdisplay,
++			  PictOpSrc,
++			  dst,
++			  None,
++			  tmp,
++			  0, 0,
++			  0, 0,
++			  0, 0,
++			  d_width, d_height);
++
++	XFreePixmap (xdisplay, d_pixmap);
++	shadow->pixmap = pixmap;
++    }
++    else
++    {
++	XFreePixmap (xdisplay, pixmap);
++	shadow->pixmap = d_pixmap;
++    }
++
++    XRenderFreePicture (xdisplay, tmp);
++    XRenderFreePicture (xdisplay, dst);
++
++    shadow->picture = XRenderCreatePicture (xdisplay, shadow->pixmap,
++					    format, 0, NULL);
++
++    shadow->width  = d_width;
++    shadow->height = d_height;
++
++    free (params);
++
++    return shadow;
++}
++
++void
++decor_draw_simple (Display	   *xdisplay,
++		   Pixmap	   pixmap,
++		   Picture	   picture,
++		   int		   width,
++		   int		   height,
++		   decor_context_t *c,
++		   void		   *closure)
++{
++    static XRenderColor clear = { 0x0000, 0x0000, 0x0000, 0x0000 };
++    static XRenderColor white = { 0xffff, 0xffff, 0xffff, 0xffff };
++
++    XRenderFillRectangle (xdisplay, PictOpSrc, picture, &clear,
++			  0,
++			  0,
++			  width,
++			  height);
++    XRenderFillRectangle (xdisplay, PictOpSrc, picture, &white,
++			  c->left_space - c->extents.left,
++			  c->top_space - c->extents.top,
++			  width - c->left_space - c->right_space +
++			  c->extents.left + c->extents.right,
++			  height - c->top_space - c->bottom_space +
++			  c->extents.top + c->extents.bottom);
++}
++
++void
++decor_destroy_shadow (Display	     *xdisplay,
++		      decor_shadow_t *shadow)
++{
++    if (shadow->picture)
++	XRenderFreePicture (xdisplay, shadow->picture);
++
++    if (shadow->pixmap)
++	XFreePixmap (xdisplay, shadow->pixmap);
++
++    free (shadow);
++}
++
++void
++decor_get_default_layout (decor_context_t *c,
++			  int	          width,
++			  int	          height,
++			  decor_layout_t  *layout)
++{
++    width  = MAX (width, c->left_corner_space + c->right_corner_space);
++    height = MAX (height, c->top_corner_space + c->bottom_corner_space);
++
++    width += c->left_space + c->right_space;
++
++    layout->top.x1  = 0;
++    layout->top.y1  = 0;
++    layout->top.x2  = width;
++    layout->top.y2  = c->top_space;
++    layout->top.pad = 0;
++
++    layout->left.x1  = 0;
++    layout->left.y1  = c->top_space;
++    layout->left.x2  = c->left_space;
++    layout->left.y2  = c->top_space + height;
++    layout->left.pad = 0;
++
++    layout->right.x1  = width - c->right_space;
++    layout->right.y1  = c->top_space;
++    layout->right.x2  = width;
++    layout->right.y2  = c->top_space + height;
++    layout->right.pad = 0;
++
++    layout->bottom.x1  = 0;
++    layout->bottom.y1  = height + c->top_space;
++    layout->bottom.x2  = width;
++    layout->bottom.y2  = height + c->top_space + c->bottom_space;
++    layout->bottom.pad = 0;
++
++    layout->width  = width;
++    layout->height = height + c->top_space + c->bottom_space;
++
++    layout->rotation = 0;
++}
++
++void
++decor_get_best_layout (decor_context_t *c,
++		       int	       width,
++		       int	       height,
++		       decor_layout_t  *layout)
++{
++    int y;
++
++    /* use default layout when no left and right extents */
++    if (c->extents.left == 0 && c->extents.right == 0)
++    {
++	decor_get_default_layout (c, width, 1, layout);
++	return;
++    }
++
++    width  = MAX (width, c->left_corner_space + c->right_corner_space);
++    height = MAX (height, c->top_corner_space + c->bottom_corner_space);
++
++    width += c->left_space + c->right_space;
++
++    if (width >= (height + 2))
++    {
++	int max;
++
++	layout->width = width;
++
++	layout->top.x1 = 0;
++	layout->top.y1 = 0;
++	layout->top.x2 = width;
++	layout->top.y2 = c->top_space;
++
++	y = c->top_space;
++
++	max = MAX (c->left_space, c->right_space);
++	if (max < height)
++	{
++	    layout->rotation = 1;
++
++	    y += 2;
++
++	    layout->top.pad    = PAD_BOTTOM;
++	    layout->bottom.pad = PAD_TOP;
++	    layout->left.pad   = PAD_TOP | PAD_BOTTOM | PAD_LEFT | PAD_RIGHT;
++	    layout->right.pad  = PAD_TOP | PAD_BOTTOM | PAD_LEFT | PAD_RIGHT;
++
++	    layout->left.x1 = 1;
++	    layout->left.y1 = y;
++	    layout->left.x2 = 1 + height;
++	    layout->left.y2 = y + c->left_space;
++
++	    if ((height + 2) <= (width / 2))
++	    {
++		layout->right.x1 = height + 3;
++		layout->right.y1 = y;
++		layout->right.x2 = height + 3 + height;
++		layout->right.y2 = y + c->right_space;
++
++		y += max + 2;
++	    }
++	    else
++	    {
++		y += c->left_space + 2;
++
++		layout->right.x1 = 1;
++		layout->right.y1 = y;
++		layout->right.x2 = 1 + height;
++		layout->right.y2 = y + c->right_space;
++
++		y += c->right_space + 2;
++	    }
++	}
++	else
++	{
++	    layout->top.pad    = 0;
++	    layout->bottom.pad = 0;
++	    layout->left.pad   = 0;
++	    layout->right.pad  = 0;
++
++	    layout->left.x1 = 0;
++	    layout->left.y1 = y;
++	    layout->left.x2 = c->left_space;
++	    layout->left.y2 = y + height;
++
++	    layout->right.x1 = width - c->right_space;
++	    layout->right.y1 = y;
++	    layout->right.x2 = width;
++	    layout->right.y2 = y + height;
++
++	    y += height;
++	}
++
++	layout->bottom.x1 = 0;
++	layout->bottom.y1 = y;
++	layout->bottom.x2 = width;
++	layout->bottom.y2 = y + c->bottom_space;
++
++	y += c->bottom_space;
++    }
++    else
++    {
++	layout->rotation = 1;
++
++	layout->left.pad   = PAD_TOP | PAD_BOTTOM | PAD_LEFT | PAD_RIGHT;
++	layout->right.pad  = PAD_TOP | PAD_BOTTOM | PAD_LEFT | PAD_RIGHT;
++
++	layout->top.x1 = 0;
++	layout->top.y1 = 0;
++	layout->top.x2 = width;
++	layout->top.y2 = c->top_space;
++
++	if (((width * 2) + 3) <= (height + 2))
++	{
++	    layout->width = height + 2;
++
++	    layout->top.pad    = PAD_BOTTOM | PAD_RIGHT;
++	    layout->bottom.pad = PAD_TOP | PAD_BOTTOM | PAD_RIGHT | PAD_LEFT;
++
++	    layout->bottom.x1 = width + 2;
++	    layout->bottom.y1 = 1;
++	    layout->bottom.x2 = width + 2 + width;
++	    layout->bottom.y2 = 1 + c->bottom_space;
++
++	    y = MAX (c->top_space, 1 + c->bottom_space) + 2;
++
++	    layout->left.x1 = 1;
++	    layout->left.y1 = y;
++	    layout->left.x2 = 1 + height;
++	    layout->left.y2 = y + c->left_space;
++
++	    y += c->left_space + 2;
++
++	    layout->right.x1 = 1;
++	    layout->right.y1 = y;
++	    layout->right.x2 = 1 + height;
++	    layout->right.y2 = y + c->right_space;
++
++	    y += c->right_space;
++	}
++	else
++	{
++	    layout->width = height + 2;
++
++	    layout->top.pad    = PAD_BOTTOM | PAD_RIGHT;
++	    layout->bottom.pad = PAD_TOP | PAD_RIGHT;
++
++	    y = c->top_space + 2;
++
++	    layout->left.x1 = 1;
++	    layout->left.y1 = y;
++	    layout->left.x2 = 1 + height;
++	    layout->left.y2 = y + c->left_space;
++
++	    y += c->left_space + 2;
++
++	    layout->right.x1 = 1;
++	    layout->right.y1 = y;
++	    layout->right.x2 = 1 + height;
++	    layout->right.y2 = y + c->right_space;
++
++	    y += c->right_space + 2;
++
++	    layout->bottom.x1 = 0;
++	    layout->bottom.y1 = y;
++	    layout->bottom.x2 = width;
++	    layout->bottom.y2 = y + c->bottom_space;
++
++	    y += c->bottom_space;
++	}
++    }
++
++    layout->height = y;
++}
++
++static XTransform xident = {
++    {
++	{ 1 << 16, 0,             0 },
++	{ 0,       1 << 16,       0 },
++	{ 0,       0,       1 << 16 },
++    }
++};
++
++void
++decor_fill_picture_extents_with_shadow (Display	        *xdisplay,
++					decor_shadow_t  *shadow,
++					decor_context_t *context,
++					Picture	        picture,
++					decor_layout_t  *layout)
++{
++    int w, h, x2, y2, left, right, top, bottom, width, height;
++
++    width = layout->top.x2 - layout->top.x1;
++    if (layout->rotation)
++	height = layout->left.x2 - layout->left.x1;
++    else
++	height = layout->left.y2 - layout->left.y1;
++
++    height += context->top_space + context->bottom_space;
++
++    left   = context->left_space   + context->left_corner_space;
++    right  = context->right_space  + context->right_corner_space;
++    top    = context->top_space    + context->top_corner_space;
++    bottom = context->bottom_space + context->bottom_corner_space;
++
++    if (width - left - right < 0)
++    {
++	left = width / 2;
++	right = width - left;
++    }
++
++    if (height - top - bottom < 0)
++    {
++	top = height / 2;
++	bottom = height - top;
++    }
++
++    w = width - left - right;
++    h = height - top - bottom;
++
++    x2 = width - right;
++    y2 = height - bottom;
++
++    /* top left */
++    XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++		      0, 0,
++		      0, 0,
++		      layout->top.x1, layout->top.y1,
++		      left, context->top_space);
++
++    /* top right */
++    XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++		      shadow->width - right, 0,
++		      0, 0,
++		      layout->top.x2 - right, layout->top.y1,
++		      right, context->top_space);
++
++    /* bottom left */
++    XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++		      0, shadow->height - context->bottom_space,
++		      0, 0,
++		      layout->bottom.x1, layout->bottom.y1,
++		      left, context->bottom_space);
++
++    /* bottom right */
++    XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++		      shadow->width - right,
++		      shadow->height - context->bottom_space,
++		      0, 0,
++		      layout->bottom.x2 - right, layout->bottom.y1,
++		      right, context->bottom_space);
++
++    if (w > 0)
++    {
++	int sw = shadow->width - left - right;
++	int sx = left;
++
++	if (sw != w)
++	{
++	    XTransform t = {
++		{
++		    { (sw << 16) / w,       0, left << 16 },
++		    {              0, 1 << 16,          0 },
++		    {              0,       0,    1 << 16 },
++		}
++	    };
++
++	    sx = 0;
++
++	    XRenderSetPictureTransform (xdisplay, shadow->picture, &t);
++	}
++
++	/* top */
++	XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			  sx, 0,
++			  0, 0,
++			  layout->top.x1 + left, layout->top.y1,
++			  w, context->top_space);
++
++	/* bottom */
++	XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			  sx, shadow->height - context->bottom_space,
++			  0, 0,
++			  layout->bottom.x1 + left, layout->bottom.y1,
++			  w, context->bottom_space);
++
++	if (sw != w)
++	    XRenderSetPictureTransform (xdisplay, shadow->picture, &xident);
++    }
++
++    if (layout->rotation)
++    {
++	XTransform t = {
++	    {
++		{       0, 1 << 16,       0 },
++		{ 1 << 16,       0,       0 },
++		{       0,       0, 1 << 16 }
++	    }
++	};
++
++	t.matrix[1][2] = context->top_space << 16;
++
++	XRenderSetPictureTransform (xdisplay, shadow->picture, &t);
++
++	/* left top */
++	XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			  0, 0,
++			  0, 0,
++			  layout->left.x1,
++			  layout->left.y1,
++			  top - context->top_space, context->left_space);
++
++	t.matrix[0][2] = (shadow->width - context->right_space) << 16;
++
++	XRenderSetPictureTransform (xdisplay, shadow->picture, &t);
++
++	/* right top */
++	XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			  0, 0,
++			  0, 0,
++			  layout->right.x1,
++			  layout->right.y1,
++			  top - context->top_space, context->right_space);
++
++	XRenderSetPictureTransform (xdisplay, shadow->picture, &xident);
++    }
++    else
++    {
++	/* left top */
++	XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			  0, context->top_space,
++			  0, 0,
++			  layout->left.x1, layout->left.y1,
++			  context->left_space, top - context->top_space);
++
++	/* right top */
++	XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			  shadow->width - context->right_space,
++			  context->top_space,
++			  0, 0,
++			  layout->right.x1, layout->right.y1,
++			  context->right_space, top - context->top_space);
++    }
++
++    if (layout->rotation)
++    {
++	XTransform t = {
++	    {
++		{       0, 1 << 16,       0 },
++		{ 1 << 16,       0,       0 },
++		{       0,       0, 1 << 16 }
++	    }
++	};
++
++	t.matrix[1][2] = (shadow->height - bottom) << 16;
++
++	XRenderSetPictureTransform (xdisplay, shadow->picture, &t);
++
++	/* left bottom */
++	XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			  0, 0,
++			  0, 0,
++			  layout->left.x2 - (bottom - context->bottom_space),
++			  layout->left.y1,
++			  bottom - context->bottom_space, context->left_space);
++
++	t.matrix[0][2] = (shadow->width - context->right_space) << 16;
++
++	XRenderSetPictureTransform (xdisplay, shadow->picture, &t);
++
++	/* right bottom */
++	XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			  0, 0,
++			  0, 0,
++			  layout->right.x2 - (bottom - context->bottom_space),
++			  layout->right.y1,
++			  bottom - context->bottom_space, context->right_space);
++
++	XRenderSetPictureTransform (xdisplay, shadow->picture, &xident);
++    }
++    else
++    {
++	/* left bottom */
++	XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			  0, shadow->height - bottom,
++			  0, 0,
++			  layout->left.x1,
++			  layout->left.y2 - (bottom - context->bottom_space),
++			  context->left_space, bottom - context->bottom_space);
++
++	/* right bottom */
++	XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			  shadow->width - context->right_space,
++			  shadow->height - bottom,
++			  0, 0,
++			  layout->right.x1,
++			  layout->right.y2 - (bottom - context->bottom_space),
++			  context->right_space, bottom - context->bottom_space);
++    }
++
++    if (h > 0)
++    {
++	int sh = shadow->height - top - bottom;
++
++	if (layout->rotation)
++	{
++	    XTransform t = {
++		{
++		    {              0, 1 << 16,       0 },
++		    { (sh << 16) / h,       0,       0 },
++		    {              0,       0, 1 << 16 }
++		}
++	    };
++
++	    t.matrix[1][2] = top << 16;
++
++	    XRenderSetPictureTransform (xdisplay, shadow->picture, &t);
++
++	    /* left */
++	    XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			      0, 0,
++			      0, 0,
++			      layout->left.x1 + (top - context->top_space),
++			      layout->left.y1,
++			      h, context->left_space);
++
++	    t.matrix[0][2] = (shadow->width - context->right_space) << 16;
++
++	    XRenderSetPictureTransform (xdisplay, shadow->picture, &t);
++
++	    /* right */
++	    XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			      0, 0,
++			      0, 0,
++			      layout->right.x1 + (top - context->top_space),
++			      layout->right.y1,
++			      h, context->right_space);
++
++	    XRenderSetPictureTransform (xdisplay, shadow->picture, &xident);
++
++	}
++	else
++	{
++	    int sy = top;
++
++	    if (sh != h)
++	    {
++		XTransform t = {
++		    {
++			{ 1 << 16,              0,         0 },
++			{       0, (sh << 16) / h, top << 16 },
++			{       0,              0,   1 << 16 },
++		    }
++		};
++
++		sy = 0;
++
++		XRenderSetPictureTransform (xdisplay, shadow->picture, &t);
++	    }
++
++	    /* left */
++	    XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			      0, sy,
++			      0, 0,
++			      layout->left.x1,
++			      layout->left.y1 + (top - context->top_space),
++			      context->left_space, h);
++
++	    /* right */
++	    XRenderComposite (xdisplay, PictOpSrc, shadow->picture, 0, picture,
++			      shadow->width - right, sy,
++			      0, 0,
++			      layout->right.x2 - context->right_space,
++			      layout->right.y1 + (top - context->top_space),
++			      context->right_space, h);
++
++	    if (sh != h)
++		XRenderSetPictureTransform (xdisplay, shadow->picture, &xident);
++	}
++    }
++}
++
++static void
++_decor_pad_border_picture (Display     *xdisplay,
++			   Picture     dst,
++			   decor_box_t *box)
++{
++    int x1, y1, x2, y2;
++
++    x1 = box->x1;
++    y1 = box->y1;
++    x2 = box->x2;
++    y2 = box->y2;
++
++    if (box->pad & PAD_TOP)
++    {
++	XRenderComposite (xdisplay, PictOpSrc, dst, None, dst,
++			  x1, y1,
++			  0, 0,
++			  x1, y1 - 1,
++			  x2 - x1, 1);
++
++	y1--;
++    }
++
++    if (box->pad & PAD_BOTTOM)
++    {
++	XRenderComposite (xdisplay, PictOpSrc, dst, None, dst,
++			  x1, y2 - 1,
++			  0, 0,
++			  x1, y2,
++			  x2 - x1, 1);
++
++	y2++;
++    }
++
++    if (box->pad & PAD_LEFT)
++    {
++	XRenderComposite (xdisplay, PictOpSrc, dst, None, dst,
++			  x1, y1,
++			  0, 0,
++			  x1 - 1, y1,
++			  1, y2 - y1);
++    }
++
++    if (box->pad & PAD_RIGHT)
++    {
++	XRenderComposite (xdisplay, PictOpSrc, dst, None, dst,
++			  x2 - 1, y1,
++			  0, 0,
++			  x2, y1,
++			  1, y2 - y1);
++    }
++}
++
++static void
++_decor_blend_horz_border_picture (Display	  *xdisplay,
++				  decor_context_t *context,
++				  Picture	  src,
++				  int	          xSrc,
++				  int	          ySrc,
++				  Picture	  dst,
++				  decor_layout_t  *layout,
++				  Region	  region,
++				  unsigned short  alpha,
++				  int	          shade_alpha,
++				  int		  x1,
++				  int		  y1,
++				  int		  x2,
++				  int		  y2,
++				  int		  dy,
++				  int		  direction)
++{
++    XRenderColor color[3] = {
++	{ 0xffff, 0xffff, 0xffff, 0xffff },
++	{  alpha,  alpha,  alpha,  alpha }
++    };
++    int		 op = PictOpSrc;
++    int		 left, right;
++
++    left   = context->extents.left;
++    right  = context->extents.right;
++
++    XOffsetRegion (region, x1, y1);
++    XRenderSetPictureClipRegion (xdisplay, dst, region);
++    XOffsetRegion (region, -x1, -y1);
++
++    if (alpha != 0xffff)
++    {
++	op = PictOpIn;
++
++	if (shade_alpha)
++	{
++	    static XFixed	     stop[2] = { 0, 1 << 16 };
++	    XTransform		     transform = {
++		{
++		    { 1 << 16,       0,       0 },
++		    {       0, 1 << 16,       0 },
++		    {       0,       0, 1 << 16 }
++		}
++	    };
++	    Picture		     grad;
++	    XLinearGradient	     linear;
++	    XRadialGradient	     radial;
++	    XRenderPictureAttributes attrib;
++
++	    attrib.repeat = RepeatPad;
++
++	    radial.inner.x	= 0;
++	    radial.inner.y	= 0;
++	    radial.inner.radius = 0;
++	    radial.outer.x	= 0;
++	    radial.outer.y	= 0;
++
++	    /* left */
++	    radial.outer.radius = left << 16;
++
++	    grad = XRenderCreateRadialGradient (xdisplay,
++						&radial,
++						stop,
++						color,
++						2);
++
++	    transform.matrix[1][1] = (left << 16) / dy;
++	    transform.matrix[0][2] = -left << 16;
++
++	    if (direction < 0)
++		transform.matrix[1][2] = -left << 16;
++
++	    XRenderSetPictureTransform (xdisplay, grad, &transform);
++	    XRenderChangePicture (xdisplay, grad, CPRepeat, &attrib);
++
++	    XRenderComposite (xdisplay, PictOpSrc, grad, None, dst,
++			      0, 0,
++			      0, 0,
++			      x1, y1,
++			      left, dy);
++
++	    XRenderFreePicture (xdisplay, grad);
++
++	    /* middle */
++	    linear.p1.x = 0;
++	    linear.p2.x = 0;
++
++	    if (direction > 0)
++	    {
++		linear.p1.y = 0;
++		linear.p2.y = dy << 16;
++	    }
++	    else
++	    {
++		linear.p1.y = dy << 16;
++		linear.p2.y = 0;
++	    }
++
++	    grad = XRenderCreateLinearGradient (xdisplay,
++						&linear,
++						stop,
++						color,
++						2);
++
++	    XRenderChangePicture (xdisplay, grad, CPRepeat, &attrib);
++
++	    XRenderComposite (xdisplay, PictOpSrc, grad, None, dst,
++			      0, 0,
++			      0, 0,
++			      x1 + left, y1,
++			      (x2 - x1) - left - right, dy);
++
++	    XRenderFreePicture (xdisplay, grad);
++
++	    /* right */
++	    radial.outer.radius = right << 16;
++
++	    grad = XRenderCreateRadialGradient (xdisplay,
++						&radial,
++						stop,
++						color,
++						2);
++
++	    transform.matrix[1][1] = (right << 16) / dy;
++	    transform.matrix[0][2] = 1 << 16;
++
++	    if (direction < 0)
++		transform.matrix[1][2] = -right << 16;
++
++	    XRenderSetPictureTransform (xdisplay, grad, &transform);
++	    XRenderChangePicture (xdisplay, grad, CPRepeat, &attrib);
++
++	    XRenderComposite (xdisplay, PictOpSrc, grad, None, dst,
++			      0, 0,
++			      0, 0,
++			      x2 - right, y1,
++			      right, dy);
++
++	    XRenderFreePicture (xdisplay, grad);
++	}
++	else
++	{
++	    XRenderFillRectangle (xdisplay, PictOpSrc, dst, &color[1],
++				  x1, y1, x2 - x1, y2 - y1);
++	}
++    }
++
++    XRenderComposite (xdisplay, op, src, None, dst,
++		      xSrc, ySrc,
++		      0, 0,
++		      x1, y1,
++		      x2 - x1, y2 - y1);
++
++    set_no_picture_clip (xdisplay, dst);
++}
++
++void
++decor_blend_top_border_picture (Display	        *xdisplay,
++				decor_context_t *context,
++				Picture	        src,
++				int	        xSrc,
++				int	        ySrc,
++				Picture	        dst,
++				decor_layout_t  *layout,
++				Region	        region,
++				unsigned short  alpha,
++				int	        shade_alpha)
++{
++    int left, right, top;
++    int x1, y1, x2, y2;
++
++    left  = context->extents.left;
++    right = context->extents.right;
++    top   = context->extents.top;
++
++    x1 = layout->top.x1 + context->left_space - left;
++    y1 = layout->top.y1 + context->top_space - top;
++    x2 = layout->top.x2 - context->right_space + right;
++    y2 = layout->top.y2;
++
++    _decor_blend_horz_border_picture (xdisplay,
++				      context,
++				      src,
++				      xSrc,
++				      ySrc,
++				      dst,
++				      layout,
++				      region,
++				      alpha,
++				      shade_alpha,
++				      x1,
++				      y1,
++				      x2,
++				      y2,
++				      top,
++				      -1);
++
++    _decor_pad_border_picture (xdisplay, dst, &layout->top);
++}
++
++void
++decor_blend_bottom_border_picture (Display	   *xdisplay,
++				   decor_context_t *context,
++				   Picture	   src,
++				   int	           xSrc,
++				   int	           ySrc,
++				   Picture	   dst,
++				   decor_layout_t  *layout,
++				   Region	   region,
++				   unsigned short  alpha,
++				   int	           shade_alpha)
++{
++    int left, right, bottom;
++    int x1, y1, x2, y2;
++
++    left   = context->extents.left;
++    right  = context->extents.right;
++    bottom = context->extents.bottom;
++
++    x1 = layout->bottom.x1 + context->left_space - left;
++    y1 = layout->bottom.y1;
++    x2 = layout->bottom.x2 - context->right_space + right;
++    y2 = layout->bottom.y1 + bottom;
++
++    _decor_blend_horz_border_picture (xdisplay,
++				      context,
++				      src,
++				      xSrc,
++				      ySrc,
++				      dst,
++				      layout,
++				      region,
++				      alpha,
++				      shade_alpha,
++				      x1,
++				      y1,
++				      x2,
++				      y2,
++				      bottom,
++				      1);
++
++    _decor_pad_border_picture (xdisplay, dst, &layout->bottom);
++}
++
++static void
++_decor_blend_vert_border_picture (Display	  *xdisplay,
++				  decor_context_t *context,
++				  Picture	  src,
++				  int	          xSrc,
++				  int	          ySrc,
++				  Picture	  dst,
++				  decor_layout_t  *layout,
++				  Region	  region,
++				  unsigned short  alpha,
++				  int	          shade_alpha,
++				  int		  x1,
++				  int		  y1,
++				  int		  x2,
++				  int		  y2,
++				  int		  direction)
++{
++    XRenderColor color[3] = {
++	{ 0xffff, 0xffff, 0xffff, 0xffff },
++	{  alpha,  alpha,  alpha,  alpha }
++    };
++    int		 op = PictOpSrc;
++
++    if (layout->rotation)
++    {
++	Region     rotated_region;
++	XRectangle rect;
++	BoxPtr     pBox = region->rects;
++	int	   nBox = region->numRects;
++
++	rotated_region = XCreateRegion ();
++
++	while (nBox--)
++	{
++	    rect.x      = x1 + pBox->y1;
++	    rect.y	= y1 + pBox->x1;
++	    rect.width  = pBox->y2 - pBox->y1;
++	    rect.height = pBox->x2 - pBox->x1;
++
++	    XUnionRectWithRegion (&rect, rotated_region, rotated_region);
++
++	    pBox++;
++	}
++
++	XRenderSetPictureClipRegion (xdisplay, dst, rotated_region);
++	XDestroyRegion (rotated_region);
++    }
++    else
++    {
++	XOffsetRegion (region, x1, y1);
++	XRenderSetPictureClipRegion (xdisplay, dst, region);
++	XOffsetRegion (region, -x1, -y1);
++    }
++
++    if (alpha != 0xffff)
++    {
++	op = PictOpIn;
++
++	if (shade_alpha)
++	{
++	    static XFixed	     stop[2] = { 0, 1 << 16 };
++	    Picture		     grad;
++	    XLinearGradient	     linear;
++	    XRenderPictureAttributes attrib;
++
++	    attrib.repeat = RepeatPad;
++
++	    if (layout->rotation)
++	    {
++		linear.p1.x = 0;
++		linear.p2.x = 0;
++
++		if (direction < 0)
++		{
++		    linear.p1.y = 0;
++		    linear.p2.y = (y2 - y1) << 16;
++		}
++		else
++		{
++		    linear.p1.y = (y2 - y1) << 16;
++		    linear.p2.y = 0 << 16;
++		}
++	    }
++	    else
++	    {
++		linear.p1.y = 0;
++		linear.p2.y = 0;
++
++		if (direction < 0)
++		{
++		    linear.p1.x = 0;
++		    linear.p2.x = (x2 - x1) << 16;
++		}
++		else
++		{
++		    linear.p1.x = (x2 - x1) << 16;
++		    linear.p2.x = 0;
++		}
++	    }
++
++	    grad = XRenderCreateLinearGradient (xdisplay,
++						&linear,
++						stop,
++						color,
++						2);
++
++	    XRenderChangePicture (xdisplay, grad, CPRepeat, &attrib);
++
++	    XRenderComposite (xdisplay, PictOpSrc, grad, None, dst,
++			      0, 0,
++			      0, 0,
++			      x1, y1,
++			      x2 - x1, y2 - y1);
++
++	    XRenderFreePicture (xdisplay, grad);
++	}
++	else
++	{
++	    XRenderFillRectangle (xdisplay, PictOpSrc, dst, &color[1],
++				  x1, y1, x2 - x1, y2 - y1);
++	}
++    }
++
++    if (layout->rotation)
++    {
++	XTransform t = {
++	    {
++		{       0, 1 << 16,       0 },
++		{ 1 << 16,       0,       0 },
++		{       0,       0, 1 << 16 }
++	    }
++	};
++
++	t.matrix[0][2] = xSrc << 16;
++	t.matrix[1][2] = ySrc << 16;
++
++	XRenderSetPictureTransform (xdisplay, src, &t);
++
++	XRenderComposite (xdisplay, op, src, None, dst,
++			  0, 0,
++			  0, 0,
++			  x1, y1, x2 - x1, y2 - y1);
++
++	XRenderSetPictureTransform (xdisplay, src, &xident);
++    }
++    else
++    {
++	XRenderComposite (xdisplay, op, src, None, dst,
++			  xSrc, ySrc,
++			  0, 0,
++			  x1, y1, x2 - x1, y2 - y1);
++    }
++
++    set_no_picture_clip (xdisplay, dst);
++}
++
++void
++decor_blend_left_border_picture (Display	 *xdisplay,
++				 decor_context_t *context,
++				 Picture	 src,
++				 int	         xSrc,
++				 int	         ySrc,
++				 Picture	 dst,
++				 decor_layout_t  *layout,
++				 Region		 region,
++				 unsigned short  alpha,
++				 int	         shade_alpha)
++{
++    int x1, y1, x2, y2;
++
++    x1 = layout->left.x1;
++    y1 = layout->left.y1;
++    x2 = layout->left.x2;
++    y2 = layout->left.y2;
++
++    if (layout->rotation)
++	y1 += context->left_space - context->extents.left;
++    else
++	x1 += context->left_space - context->extents.left;
++
++    _decor_blend_vert_border_picture (xdisplay,
++				      context,
++				      src,
++				      xSrc,
++				      ySrc,
++				      dst,
++				      layout,
++				      region,
++				      alpha,
++				      shade_alpha,
++				      x1,
++				      y1,
++				      x2,
++				      y2,
++				      1);
++
++    _decor_pad_border_picture (xdisplay, dst, &layout->left);
++}
++
++void
++decor_blend_right_border_picture (Display	  *xdisplay,
++				  decor_context_t *context,
++				  Picture	  src,
++				  int	          xSrc,
++				  int	          ySrc,
++				  Picture	  dst,
++				  decor_layout_t  *layout,
++				  Region	  region,
++				  unsigned short  alpha,
++				  int	          shade_alpha)
++{
++    int x1, y1, x2, y2;
++
++    x1 = layout->right.x1;
++    y1 = layout->right.y1;
++    x2 = layout->right.x2;
++    y2 = layout->right.y2;
++
++    if (layout->rotation)
++	y2 -= context->right_space - context->extents.right;
++    else
++	x2 -= context->right_space - context->extents.right;
++
++    _decor_blend_vert_border_picture (xdisplay,
++				      context,
++				      src,
++				      xSrc,
++				      ySrc,
++				      dst,
++				      layout,
++				      region,
++				      alpha,
++				      shade_alpha,
++				      x1,
++				      y1,
++				      x2,
++				      y2,
++				      -1);
++
++    _decor_pad_border_picture (xdisplay, dst, &layout->right);
++}
++
++int
++decor_acquire_dm_session (Display *xdisplay,
++			  int	   screen,
++			  char     *name,
++			  int	   replace_current_dm,
++			  Time	   *timestamp)
++{
++    XEvent		 event;
++    XSetWindowAttributes attr;
++    Window		 current_dm_sn_owner, new_dm_sn_owner;
++    Atom		 dm_sn_atom;
++    Atom		 manager_atom;
++    Atom		 dm_name_atom;
++    Atom		 utf8_string_atom;
++    Time		 dm_sn_timestamp;
++    char		 buf[128];
++
++    manager_atom = XInternAtom (xdisplay, "MANAGER", FALSE);
++    dm_name_atom = XInternAtom (xdisplay, "_NET_DM_NAME", 0);
++
++    utf8_string_atom = XInternAtom (xdisplay, "UTF8_STRING", 0);
++
++    sprintf (buf, "DM_S%d", screen);
++    dm_sn_atom = XInternAtom (xdisplay, buf, 0);
++
++    current_dm_sn_owner = XGetSelectionOwner (xdisplay, dm_sn_atom);
++
++    if (current_dm_sn_owner != None)
++    {
++	if (!replace_current_dm)
++	    return DECOR_ACQUIRE_STATUS_OTHER_DM_RUNNING;
++
++	XSelectInput (xdisplay, current_dm_sn_owner, StructureNotifyMask);
++    }
++
++    attr.override_redirect = TRUE;
++    attr.event_mask	   = PropertyChangeMask;
++
++    new_dm_sn_owner =
++	XCreateWindow (xdisplay, XRootWindow (xdisplay, screen),
++		       -100, -100, 1, 1, 0,
++		       CopyFromParent, CopyFromParent,
++		       CopyFromParent,
++		       CWOverrideRedirect | CWEventMask,
++		       &attr);
++
++    XChangeProperty (xdisplay,
++		     new_dm_sn_owner,
++		     dm_name_atom,
++		     utf8_string_atom, 8,
++		     PropModeReplace,
++		     (unsigned char *) name,
++		     strlen (name));
++
++    XWindowEvent (xdisplay,
++		  new_dm_sn_owner,
++		  PropertyChangeMask,
++		  &event);
++
++    dm_sn_timestamp = event.xproperty.time;
++
++    XSetSelectionOwner (xdisplay, dm_sn_atom, new_dm_sn_owner,
++			dm_sn_timestamp);
++
++    if (XGetSelectionOwner (xdisplay, dm_sn_atom) != new_dm_sn_owner)
++    {
++	XDestroyWindow (xdisplay, new_dm_sn_owner);
++
++	return DECOR_ACQUIRE_STATUS_FAILED;
++    }
++
++    /* Send client message indicating that we are now the DM */
++    event.xclient.type	       = ClientMessage;
++    event.xclient.window       = XRootWindow (xdisplay, screen);
++    event.xclient.message_type = manager_atom;
++    event.xclient.format       = 32;
++    event.xclient.data.l[0]    = dm_sn_timestamp;
++    event.xclient.data.l[1]    = dm_sn_atom;
++    event.xclient.data.l[2]    = 0;
++    event.xclient.data.l[3]    = 0;
++    event.xclient.data.l[4]    = 0;
++
++    XSendEvent (xdisplay, XRootWindow (xdisplay, screen), 0,
++		StructureNotifyMask, &event);
++
++    /* Wait for old decoration manager to go away */
++    if (current_dm_sn_owner != None)
++    {
++	do {
++	    XWindowEvent (xdisplay, current_dm_sn_owner,
++			  StructureNotifyMask, &event);
++	} while (event.type != DestroyNotify);
++    }
++
++    *timestamp = dm_sn_timestamp;
++
++    return DECOR_ACQUIRE_STATUS_SUCCESS;
++}
++
++void
++decor_set_dm_check_hint (Display *xdisplay,
++			 int	 screen)
++{
++    XSetWindowAttributes attrs;
++    unsigned long	 data;
++    Window		 xroot;
++    Atom		 atom;
++
++    attrs.override_redirect = 1;
++    attrs.event_mask	    = PropertyChangeMask;
++
++    xroot = RootWindow (xdisplay, screen);
++
++    data = XCreateWindow (xdisplay,
++			  xroot,
++			  -100, -100, 1, 1,
++			  0,
++			  CopyFromParent,
++			  CopyFromParent,
++			  (Visual *) CopyFromParent,
++			  CWOverrideRedirect | CWEventMask,
++			  &attrs);
++
++    atom = XInternAtom (xdisplay, "_NET_SUPPORTING_DM_CHECK", 0);
++
++    XChangeProperty (xdisplay, xroot,
++		     atom,
++		     XA_WINDOW,
++		     32, PropModeReplace, (unsigned char *) &data, 1);
++}
++
++/* from fvwm2, Copyright Matthias Clasen, Dominik Vogt */
++static int
++convert_property (Display *xdisplay,
++		  Window  w,
++		  Atom    target,
++		  Atom    property,
++		  Time    dm_sn_timestamp)
++{
++
++#define N_TARGETS 4
++
++    Atom conversion_targets[N_TARGETS];
++    long icccm_version[] = { 2, 0 };
++
++    conversion_targets[0] = XInternAtom (xdisplay, "TARGETS", 0);
++    conversion_targets[1] = XInternAtom (xdisplay, "MULTIPLE", 0);
++    conversion_targets[2] = XInternAtom (xdisplay, "TIMESTAMP", 0);
++    conversion_targets[3] = XInternAtom (xdisplay, "VERSION", 0);
++
++    if (target == conversion_targets[0])
++	XChangeProperty (xdisplay, w, property,
++			 XA_ATOM, 32, PropModeReplace,
++			 (unsigned char *) conversion_targets, N_TARGETS);
++    else if (target == conversion_targets[2])
++	XChangeProperty (xdisplay, w, property,
++			 XA_INTEGER, 32, PropModeReplace,
++			 (unsigned char *) &dm_sn_timestamp, 1);
++    else if (target == conversion_targets[3])
++	XChangeProperty (xdisplay, w, property,
++			 XA_INTEGER, 32, PropModeReplace,
++			 (unsigned char *) icccm_version, 2);
++    else
++	return 0;
++
++    /* Be sure the PropertyNotify has arrived so we
++     * can send SelectionNotify
++     */
++    XSync (xdisplay, 0);
++
++    return 1;
++}
++
++void
++decor_handle_selection_request (Display *xdisplay,
++				XEvent  *event,
++				Time    timestamp)
++{
++    XSelectionEvent reply;
++    Atom	    multiple_atom;
++    Atom	    atom_pair_atom;
++
++    reply.type	    = SelectionNotify;
++    reply.display   = xdisplay;
++    reply.requestor = event->xselectionrequest.requestor;
++    reply.selection = event->xselectionrequest.selection;
++    reply.target    = event->xselectionrequest.target;
++    reply.property  = None;
++    reply.time	    = event->xselectionrequest.time;
++
++    multiple_atom  = XInternAtom (xdisplay, "MULTIPLE", 0);
++    atom_pair_atom = XInternAtom (xdisplay, "ATOM_PAIR", 0);
++
++    if (event->xselectionrequest.target == multiple_atom)
++    {
++	if (event->xselectionrequest.property != None)
++	{
++	    Atom	  type, *adata;
++	    int		  i, format;
++	    unsigned long num, rest;
++	    unsigned char *data;
++
++	    if (XGetWindowProperty (xdisplay,
++				    event->xselectionrequest.requestor,
++				    event->xselectionrequest.property,
++				    0, 256, FALSE,
++				    atom_pair_atom,
++				    &type, &format, &num, &rest,
++				    &data) != Success)
++		return;
++
++	    /* FIXME: to be 100% correct, should deal with rest > 0,
++	     * but since we have 4 possible targets, we will hardly ever
++	     * meet multiple requests with a length > 8
++	     */
++	    adata = (Atom *) data;
++	    i = 0;
++	    while (i < (int) num)
++	    {
++		if (!convert_property (xdisplay,
++				       event->xselectionrequest.requestor,
++				       adata[i], adata[i + 1],
++				       timestamp))
++		    adata[i + 1] = None;
++
++		i += 2;
++	    }
++
++	    XChangeProperty (xdisplay,
++			     event->xselectionrequest.requestor,
++			     event->xselectionrequest.property,
++			     atom_pair_atom,
++			     32, PropModeReplace, data, num);
++	}
++    }
++    else
++    {
++	if (event->xselectionrequest.property == None)
++	    event->xselectionrequest.property = event->xselectionrequest.target;
++
++	if (convert_property (xdisplay,
++			      event->xselectionrequest.requestor,
++			      event->xselectionrequest.target,
++			      event->xselectionrequest.property,
++			      timestamp))
++	    reply.property = event->xselectionrequest.property;
++    }
++
++    XSendEvent (xdisplay,
++		event->xselectionrequest.requestor,
++		FALSE, 0L, (XEvent *) &reply);
++}
++
++int
++decor_handle_selection_clear (Display *xdisplay,
++			      XEvent  *xevent,
++			      int     screen)
++{
++    Atom dm_sn_atom;
++    char buf[128];
++
++    sprintf (buf, "DM_S%d", screen);
++    dm_sn_atom = XInternAtom (xdisplay, buf, 0);
++
++    if (xevent->xselectionclear.selection == dm_sn_atom)
++	return DECOR_SELECTION_GIVE_UP;
++
++    return DECOR_SELECTION_KEEP;
++}
+diff -urN heliodor/libheliodor/Makefile.am heliodor.trunk/libheliodor/Makefile.am
+--- heliodor/libheliodor/Makefile.am	1970-01-01 01:00:00.000000000 +0100
++++ heliodor.trunk/libheliodor/Makefile.am	2006-12-10 11:51:12.000000000 +0000
+@@ -0,0 +1,11 @@
++lib_LTLIBRARIES = libheliodor.la
++
++libheliodor_la_SOURCES = main.c
++libheliodor_la_LDFLAGS = -no-undefined
++
++INCLUDES = -I$(top_srcdir)/include
++
++pkgconfigdir = $(libdir)/pkgconfig
++pkgconfig_DATA = libheliodor.pc
++
++EXTRA_DIST = libheliodor.pc.in
+diff -urN heliodor/Makefile.am heliodor.trunk/Makefile.am
+--- heliodor/Makefile.am	2006-12-10 11:55:28.000000000 +0000
++++ heliodor.trunk/Makefile.am	2006-12-10 11:51:12.000000000 +0000
+@@ -1,5 +1,5 @@
+ ## Process this file with automake to produce Makefile.in
+-SUBDIRS=src lib
++SUBDIRS=lib libheliodor include src
+ 
+ EXTRA_DIST = \
+     VERSION
+diff -urN heliodor/src/main.c heliodor.trunk/src/main.c
+--- heliodor/src/main.c	2006-12-10 11:55:28.000000000 +0000
++++ heliodor.trunk/src/main.c	2006-12-10 11:51:12.000000000 +0000
+@@ -21,7 +21,7 @@
+ #include <config.h>
+ #endif
+ 
+-#define DECOR_INTERFACE_VERSION 0 // for beryl
++#include "decoration.h"
+ 
+ #include <X11/Xlib.h>
+ #include <X11/Xatom.h>
+@@ -61,9 +61,7 @@
+ #include <sys/types.h>
+ #include <signal.h>
+ 
+-#ifdef USE_METACITY
+ #include <metacity-private/theme.h>
+-#endif
+ 
+ #define METACITY_GCONF_DIR "/apps/metacity/general"
+ 
+@@ -84,6 +82,9 @@
+ #define COMPIZ_SHADOW_OPACITY_KEY \
+     COMPIZ_GCONF_DIR1 "/shadow_opacity"
+ 
++#define COMPIZ_SHADOW_COLOR_KEY \
++    COMPIZ_GCONF_DIR1 "/shadow_color"
++
+ #define COMPIZ_SHADOW_OFFSET_X_KEY \
+     COMPIZ_GCONF_DIR1 "/shadow_offset_x"
+ 
+@@ -115,19 +116,19 @@
+ #define COMPIZ_FULLSCREEN_VISUAL_BELL_KEY	\
+     COMPIZ_GCONF_DIR3 "/fullscreen_visual_bell"
+ 
+-#define GCONF_DIR "/apps/heliodor"
++#define GCONF_DIR "/apps/gwd"
+ 
+ #define META_THEME_OPACITY_KEY	        \
+-    GCONF_DIR "/theme_opacity"
++    GCONF_DIR "/metacity_theme_opacity"
+ 
+ #define META_THEME_SHADE_OPACITY_KEY	      \
+-    GCONF_DIR "/theme_shade_opacity"
++    GCONF_DIR "/metacity_theme_shade_opacity"
+ 
+ #define META_THEME_ACTIVE_OPACITY_KEY	       \
+-    GCONF_DIR "/theme_active_opacity"
++    GCONF_DIR "/metacity_theme_active_opacity"
+ 
+ #define META_THEME_ACTIVE_SHADE_OPACITY_KEY          \
+-    GCONF_DIR "/theme_active_shade_opacity"
++    GCONF_DIR "/metacity_theme_active_shade_opacity"
+ 
+ 
+ #define STROKE_ALPHA 0.6
+@@ -136,31 +137,6 @@
+ 
+ #define DOUBLE_CLICK_DISTANCE 8.0
+ 
+-typedef struct _extents {
+-    gint left;
+-    gint right;
+-    gint top;
+-    gint bottom;
+-} extents;
+-
+-#define GRAVITY_WEST  (1 << 0)
+-#define GRAVITY_EAST  (1 << 1)
+-#define GRAVITY_NORTH (1 << 2)
+-#define GRAVITY_SOUTH (1 << 3)
+-
+-#define ALIGN_LEFT   (0)
+-#define ALIGN_RIGHT  (1 << 0)
+-#define ALIGN_TOP    (0)
+-#define ALIGN_BOTTOM (1 << 1)
+-
+-#define CLAMP_HORZ (1 << 0)
+-#define CLAMP_VERT (1 << 1)
+-
+-#define XX_MASK (1 << 12)
+-#define XY_MASK (1 << 13)
+-#define YX_MASK (1 << 14)
+-#define YY_MASK (1 << 15)
+-
+ #define WM_MOVERESIZE_SIZE_TOPLEFT      0
+ #define WM_MOVERESIZE_SIZE_TOP          1
+ #define WM_MOVERESIZE_SIZE_TOPRIGHT     2
+@@ -173,34 +149,19 @@
+ #define WM_MOVERESIZE_SIZE_KEYBOARD     9
+ #define WM_MOVERESIZE_MOVE_KEYBOARD    10
+ 
+-#define SHADOW_RADIUS   8.0
+-#define SHADOW_OPACITY  0.5
+-#define SHADOW_OFFSET_X 1
+-#define SHADOW_OFFSET_Y 1
++#define SHADOW_RADIUS      8.0
++#define SHADOW_OPACITY     0.5
++#define SHADOW_OFFSET_X    1
++#define SHADOW_OFFSET_Y    1
++#define SHADOW_COLOR_RED   0x0000
++#define SHADOW_COLOR_GREEN 0x0000
++#define SHADOW_COLOR_BLUE  0x0000
+ 
+ #define META_OPACITY              0.75
+ #define META_SHADE_OPACITY        TRUE
+ #define META_ACTIVE_OPACITY       1.0
+ #define META_ACTIVE_SHADE_OPACITY TRUE
+ 
+-#define N_QUADS_MAX 24
+-
+-typedef struct _point {
+-    gint x;
+-    gint y;
+-    gint gravity;
+-} point;
+-
+-typedef struct _quad {
+-    point	   p1;
+-    point	   p2;
+-    gint	   max_width;
+-    gint	   max_height;
+-    gint	   align;
+-    gint	   clamp;
+-    cairo_matrix_t m;
+-} quad;
+-
+ #define MWM_HINTS_DECORATIONS (1L << 1)
+ 
+ #define MWM_DECOR_ALL      (1L << 0)
+@@ -230,58 +191,64 @@
+ 
+ static double decoration_alpha = 0.5;
+ 
+-static extents _shadow_extents   = { 0, 0, 0, 0 };
+-static extents _win_extents      = { 6, 6, 4, 6 };
+-static extents _switcher_extents = { 0, 0, 0, 0 };
+-
+-#define SWITCHER_SPACE     40
+-#define SWITCHER_TOP_EXTRA 4
+-
+-static gint left_space   = 6;
+-static gint right_space  = 6;
+-static gint top_space    = 4;
+-static gint bottom_space = 6;
+-
+-static gint left_corner_space   = 0;
+-static gint right_corner_space  = 0;
+-static gint top_corner_space    = 0;
+-static gint bottom_corner_space = 0;
+-
+-static gint titlebar_height = 17;
+-
+-static gint normal_top_corner_space      = 0;
+-static gint switcher_top_corner_space    = 0;
+-static gint switcher_bottom_corner_space = 0;
+-
+-static gint shadow_left_space   = 0;
+-static gint shadow_right_space  = 0;
+-static gint shadow_top_space    = 0;
+-static gint shadow_bottom_space = 0;
+-
+-static gint shadow_left_corner_space   = 0;
+-static gint shadow_right_corner_space  = 0;
+-static gint shadow_top_corner_space    = 0;
+-static gint shadow_bottom_corner_space = 0;
++#define SWITCHER_SPACE 40
++
++static decor_extents_t _shadow_extents      = { 0, 0, 0, 0 };
++static decor_extents_t _win_extents         = { 6, 6, 4, 6 };
++static decor_extents_t _max_win_extents     = { 6, 6, 4, 6 };
++static decor_extents_t _default_win_extents = { 6, 6, 4, 6 };
++static decor_extents_t _switcher_extents    = { 6, 6, 6, 6 + SWITCHER_SPACE };
++
++static int titlebar_height = 17;
++static int max_titlebar_height = 17;
++
++static decor_context_t window_context = {
++    { 0, 0, 0, 0 },
++    6, 6, 4, 6,
++    0, 0, 0, 0
++};
++
++static decor_context_t max_window_context = {
++    { 0, 0, 0, 0 },
++    6, 6, 4, 6,
++    0, 0, 0, 0
++};
++
++static decor_context_t switcher_context = {
++    { 0, 0, 0, 0 },
++    6, 6, 6, 6 + SWITCHER_SPACE,
++    0, 0, 0, 0
++};
++
++static decor_context_t shadow_context = {
++    { 0, 0, 0, 0 },
++    0, 0, 0, 0,
++    0, 0, 0, 0,
++};
+ 
+ static gdouble shadow_radius   = SHADOW_RADIUS;
+ static gdouble shadow_opacity  = SHADOW_OPACITY;
++static gint    shadow_color[3] = {
++    SHADOW_COLOR_RED,
++    SHADOW_COLOR_GREEN,
++    SHADOW_COLOR_BLUE
++};
+ static gint    shadow_offset_x = SHADOW_OFFSET_X;
+ static gint    shadow_offset_y = SHADOW_OFFSET_Y;
+ 
+-#ifdef USE_METACITY
+ static double   meta_opacity              = META_OPACITY;
+ static gboolean meta_shade_opacity        = META_SHADE_OPACITY;
+ static double   meta_active_opacity       = META_ACTIVE_OPACITY;
+ static gboolean meta_active_shade_opacity = META_ACTIVE_SHADE_OPACITY;
+-#endif
+ 
+-static GdkPixmap *shadow_pixmap = NULL;
+-static GdkPixmap *large_shadow_pixmap = NULL;
++static decor_shadow_t *no_border_shadow = NULL;
++static decor_shadow_t *border_shadow = NULL;
++static decor_shadow_t *max_border_shadow = NULL;
++static decor_shadow_t *switcher_shadow = NULL;
++
+ static GdkPixmap *decor_normal_pixmap = NULL;
+ static GdkPixmap *decor_active_pixmap = NULL;
+ 
+-static cairo_pattern_t *shadow_pattern = NULL;
+-
+ static Atom frame_window_atom;
+ static Atom win_decor_atom;
+ static Atom wm_move_resize_atom;
+@@ -299,18 +266,6 @@
+ static Atom panel_action_main_menu_atom;
+ static Atom panel_action_run_dialog_atom;
+ 
+-static Atom manager_atom;
+-static Atom targets_atom;
+-static Atom multiple_atom;
+-static Atom timestamp_atom;
+-static Atom version_atom;
+-static Atom atom_pair_atom;
+-
+-static Atom utf8_string_atom;
+-
+-static Atom dm_name_atom;
+-static Atom dm_sn_atom;
+-
+ static Time dm_sn_timestamp;
+ 
+ #define C(name) { 0, XC_ ## name }
+@@ -324,25 +279,6 @@
+     { C (bottom_left_corner), C (bottom_side), C (bottom_right_corner) }
+ };
+ 
+-static struct _pos {
+-    int x, y, w, h;
+-    int xw, yh, ww, hh, yth, hth;
+-} pos[3][3] = {
+-    {
+-	{  0,  0, 10, 21,   0, 0, 0, 0, 0, 1 },
+-	{ 10,  0, -8,  6,   0, 0, 1, 0, 0, 1 },
+-	{  2,  0, 10, 21,   1, 0, 0, 0, 0, 1 }
+-    }, {
+-	{  0, 10,  6, 11,   0, 0, 0, 1, 1, 0 },
+-	{  6,  6,  0, 15,   0, 0, 1, 0, 0, 1 },
+-	{  6, 10,  6, 11,   1, 0, 0, 1, 1, 0 }
+-    }, {
+-	{  0, 17, 10, 10,   0, 1, 0, 0, 1, 0 },
+-	{ 10, 21, -8,  6,   0, 1, 1, 0, 1, 0 },
+-	{  2, 17, 10, 10,   1, 1, 0, 0, 1, 0 }
+-    }
+-};
+-
+ typedef struct _decor_color {
+     double r;
+     double g;
+@@ -359,6 +295,10 @@
+     GdkPixmap	      *pixmap;
+     GdkPixmap	      *buffer_pixmap;
+     GdkGC	      *gc;
++    decor_layout_t    border_layout;
++    decor_context_t   *context;
++    decor_shadow_t    *shadow;
++    Picture	      picture;
+     gint	      button_width;
+     gint	      width;
+     gint	      height;
+@@ -376,22 +316,31 @@
+     void	      (*draw) (struct _decor *d);
+ } decor_t;
+ 
+-void     (*theme_draw_window_decoration) (decor_t *d);
+-gboolean (*theme_calc_decoration_size)   (decor_t *d,
+-					  int     client_width,
+-					  int     client_height,
+-					  int     text_width,
+-					  int     *width,
+-					  int     *height);
+-gint     (*theme_calc_titlebar_height)   (gint    text_height);
+-void     (*theme_get_button_position)    (decor_t *d,
+-					  gint    i,
+-					  gint	  width,
+-					  gint	  height,
+-					  gint    *x,
+-					  gint    *y,
+-					  gint    *w,
+-					  gint    *h);
++void     (*theme_draw_window_decoration)    (decor_t *d);
++gboolean (*theme_calc_decoration_size)      (decor_t *d,
++					     int     client_width,
++					     int     client_height,
++					     int     text_width,
++					     int     *width,
++					     int     *height);
++void     (*theme_update_border_extents)     (gint    text_height);
++void     (*theme_get_event_window_position) (decor_t *d,
++					     gint    i,
++					     gint    j,
++					     gint    width,
++					     gint    height,
++					     gint    *x,
++					     gint    *y,
++					     gint    *w,
++					     gint    *h);
++void     (*theme_get_button_position)       (decor_t *d,
++					     gint    i,
++					     gint    width,
++					     gint    height,
++					     gint    *x,
++					     gint    *y,
++					     gint    *w,
++					     gint    *h);
+ 
+ typedef void (*event_callback) (WnckWindow *win, XEvent *event);
+ 
+@@ -423,536 +372,27 @@
+ static gint      switcher_width;
+ static gint      switcher_height;
+ 
+-#define BASE_PROP_SIZE 12
+-#define QUAD_PROP_SIZE 9
+-
+-/*
+-  decoration property
+-  -------------------
+-
+-  data[0] = version
+-
+-  data[1] = pixmap
+-
+-  data[2] = input left
+-  data[3] = input right
+-  data[4] = input top
+-  data[5] = input bottom
+-
+-  data[6] = input left when maximized
+-  data[7] = input right when maximized
+-  data[8] = input top when maximized
+-  data[9] = input bottom when maximized
+-
+-  data[10] = min width
+-  data[11] = min height
+-
+-  flags
+-
+-  1st to 4nd bit p1 gravity, 5rd to 8th bit p2 gravity,
+-  9rd and 10th bit alignment, 11rd and 12th bit clamp,
+-  13th bit XX, 14th bit XY, 15th bit YX, 16th bit YY.
+-
+-  data[11 + n * 9 + 1] = flags
+-  data[11 + n * 9 + 2] = p1 x
+-  data[11 + n * 9 + 3] = p1 y
+-  data[11 + n * 9 + 4] = p2 x
+-  data[11 + n * 9 + 5] = p2 y
+-  data[11 + n * 9 + 6] = widthMax
+-  data[11 + n * 9 + 7] = heightMax
+-  data[11 + n * 9 + 8] = x0
+-  data[11 + n * 9 + 9] = y0
+- */
+-static void
+-decoration_to_property (long	*data,
+-			Pixmap	pixmap,
+-			extents	*input,
+-			extents	*max_input,
+-			int	min_width,
+-			int	min_height,
+-			quad	*quad,
+-			int	nQuad)
+-{
+-    *data++ = DECOR_INTERFACE_VERSION;
+-
+-    memcpy (data++, &pixmap, sizeof (Pixmap));
+-
+-    *data++ = input->left;
+-    *data++ = input->right;
+-    *data++ = input->top;
+-    *data++ = input->bottom;
+-
+-    *data++ = max_input->left;
+-    *data++ = max_input->right;
+-    *data++ = max_input->top;
+-    *data++ = max_input->bottom;
+-
+-    *data++ = min_width;
+-    *data++ = min_height;
+-
+-    while (nQuad--)
+-    {
+-	*data++ =
+-	    (quad->p1.gravity << 0)    |
+-	    (quad->p2.gravity << 4)    |
+-	    (quad->align      << 8)    |
+-	    (quad->clamp      << 10)   |
+-	    (quad->m.xx ? XX_MASK : 0) |
+-	    (quad->m.xy ? XY_MASK : 0) |
+-	    (quad->m.yx ? YX_MASK : 0) |
+-	    (quad->m.yy ? YY_MASK : 0);
+-
+-	*data++ = quad->p1.x;
+-	*data++ = quad->p1.y;
+-	*data++ = quad->p2.x;
+-	*data++ = quad->p2.y;
+-	*data++ = quad->max_width;
+-	*data++ = quad->max_height;
+-	*data++ = quad->m.x0;
+-	*data++ = quad->m.y0;
+-
+-	quad++;
+-    }
+-}
+-
+-static gint
+-set_horz_quad_line (quad   *q,
+-		    int    left,
+-		    int    left_corner,
+-		    int    right,
+-		    int    right_corner,
+-		    int    top,
+-		    int	   bottom,
+-		    int    gravity,
+-		    int	   width,
+-		    double x0,
+-		    double y0)
+-{
+-    gint dx, nQuad = 0;
+-
+-    dx = (left_corner - right_corner) >> 1;
+-
+-    q->p1.x	  = -left;
+-    q->p1.y	  = top;
+-    q->p1.gravity = gravity | GRAVITY_WEST;
+-    q->p2.x	  = dx;
+-    q->p2.y	  = bottom;
+-    q->p2.gravity = gravity;
+-    q->max_width  = left + left_corner;
+-    q->max_height = SHRT_MAX;
+-    q->align	  = ALIGN_LEFT;
+-    q->clamp	  = 0;
+-    q->m.xx	  = 1.0;
+-    q->m.xy	  = 0.0;
+-    q->m.yx	  = 0.0;
+-    q->m.yy	  = 1.0;
+-    q->m.x0	  = x0;
+-    q->m.y0	  = y0;
+-
+-    q++; nQuad++;
+-
+-    q->p1.x	  = left_corner;
+-    q->p1.y	  = top;
+-    q->p1.gravity = gravity | GRAVITY_WEST;
+-    q->p2.x	  = -right_corner;
+-    q->p2.y	  = bottom;
+-    q->p2.gravity = gravity | GRAVITY_EAST;
+-    q->max_width  = SHRT_MAX;
+-    q->max_height = SHRT_MAX;
+-    q->align	  = 0;
+-    q->clamp	  = 0;
+-    q->m.xx	  = 0.0;
+-    q->m.xy	  = 0.0;
+-    q->m.yx	  = 0.0;
+-    q->m.yy	  = 1.0;
+-    q->m.x0	  = x0 + left + left_corner;
+-    q->m.y0	  = y0;
+-
+-    q++; nQuad++;
+-
+-    q->p1.x	  = dx;
+-    q->p1.y	  = top;
+-    q->p1.gravity = gravity;
+-    q->p2.x	  = right;
+-    q->p2.y	  = bottom;
+-    q->p2.gravity = gravity | GRAVITY_EAST;
+-    q->max_width  = right_corner + right;
+-    q->max_height = SHRT_MAX;
+-    q->align	  = ALIGN_RIGHT;
+-    q->clamp	  = 0;
+-    q->m.xx	  = 1.0;
+-    q->m.xy	  = 0.0;
+-    q->m.yx	  = 0.0;
+-    q->m.yy	  = 1.0;
+-    q->m.x0	  = x0 + width;
+-    q->m.y0	  = y0;
+-
+-    nQuad++;
+-
+-    return nQuad;
+-}
+-
+-static gint
+-set_vert_quad_row (quad   *q,
+-		   int    top,
+-		   int    top_corner,
+-		   int    bottom,
+-		   int    bottom_corner,
+-		   int    left,
+-		   int	  right,
+-		   int    gravity,
+-		   int	  height,
+-		   double x0,
+-		   double y0)
+-{
+-    gint dy, nQuad = 0;
+-
+-    dy = (top_corner - bottom_corner) >> 1;
+-
+-    q->p1.x	  = left;
+-    q->p1.y	  = -top;
+-    q->p1.gravity = gravity | GRAVITY_NORTH;
+-    q->p2.x	  = right;
+-    q->p2.y	  = dy;
+-    q->p2.gravity = gravity;
+-    q->max_width  = SHRT_MAX;
+-    q->max_height = top + top_corner;
+-    q->align	  = ALIGN_TOP;
+-    q->clamp	  = CLAMP_VERT;
+-    q->m.xx	  = 1.0;
+-    q->m.xy	  = 0.0;
+-    q->m.yx	  = 0.0;
+-    q->m.yy	  = 1.0;
+-    q->m.x0	  = x0;
+-    q->m.y0	  = y0;
+-
+-    q++; nQuad++;
+-
+-    q->p1.x	  = left;
+-    q->p1.y	  = top_corner;
+-    q->p1.gravity = gravity | GRAVITY_NORTH;
+-    q->p2.x	  = right;
+-    q->p2.y	  = -bottom_corner;
+-    q->p2.gravity = gravity | GRAVITY_SOUTH;
+-    q->max_width  = SHRT_MAX;
+-    q->max_height = SHRT_MAX;
+-    q->align	  = 0;
+-    q->clamp	  = CLAMP_VERT;
+-    q->m.xx	  = 1.0;
+-    q->m.xy	  = 0.0;
+-    q->m.yx	  = 0.0;
+-    q->m.yy	  = 0.0;
+-    q->m.x0	  = x0;
+-    q->m.y0	  = y0 + top + top_corner;
+-
+-    q++; nQuad++;
+-
+-    q->p1.x	  = left;
+-    q->p1.y	  = dy;
+-    q->p1.gravity = gravity;
+-    q->p2.x	  = right;
+-    q->p2.y	  = bottom;
+-    q->p2.gravity = gravity | GRAVITY_SOUTH;
+-    q->max_width  = SHRT_MAX;
+-    q->max_height = bottom_corner + bottom;
+-    q->align	  = ALIGN_BOTTOM;
+-    q->clamp	  = CLAMP_VERT;
+-    q->m.xx	  = 1.0;
+-    q->m.xy	  = 0.0;
+-    q->m.yx	  = 0.0;
+-    q->m.yy	  = 1.0;
+-    q->m.x0	  = x0;
+-    q->m.y0	  = y0 + height;
+-
+-    nQuad++;
+-
+-    return nQuad;
+-}
+-
+-static int
+-set_common_window_quads (quad *q,
+-			 int  width,
+-			 int  height)
+-{
+-    gint n, nQuad = 0;
+-
+-    /* left quads */
+-    n = set_vert_quad_row (q,
+-			   0,
+-			   normal_top_corner_space,
+-			   0,
+-			   bottom_corner_space,
+-			   -left_space,
+-			   0,
+-			   GRAVITY_WEST,
+-			   height - top_space - titlebar_height - bottom_space,
+-			   0.0,
+-			   top_space + titlebar_height + 1.0);
+-
+-    q += n; nQuad += n;
+-
+-    /* right quads */
+-    n = set_vert_quad_row (q,
+-			   0,
+-			   normal_top_corner_space,
+-			   0,
+-			   bottom_corner_space,
+-			   0,
+-			   right_space,
+-			   GRAVITY_EAST,
+-			   height - top_space - titlebar_height - bottom_space,
+-			   width - right_space,
+-			   top_space + titlebar_height + 1.0);
+-
+-    q += n; nQuad += n;
+-
+-    /* bottom quads */
+-    n = set_horz_quad_line (q,
+-			    left_space,
+-			    left_corner_space,
+-			    right_space,
+-			    right_corner_space,
+-			    0,
+-			    bottom_space,
+-			    GRAVITY_SOUTH,
+-			    width,
+-			    0.0,
+-			    top_space + titlebar_height +
+-			    normal_top_corner_space +
+-			    bottom_corner_space + 2.0);
+-
+-    nQuad += n;
+-
+-    return nQuad;
+-}
+-
+-static int
+-set_window_quads (quad *q,
+-		  int  width,
+-		  int  height,
+-		  int  button_width)
+-{
+-    gint    n, nQuad = 0;
+-    int     top_left, top_right, y;
+-    double  y0;
+-
+-    top_right = button_width;
+-    top_left  = width - left_space - right_space - top_right - 1;
+-
+-    /* special case which can happen with large shadows */
+-    if (right_corner_space > top_right || left_corner_space > top_left)
+-    {
+-	y  = -titlebar_height;
+-	y0 = top_space;
+-
+-	/* top quads */
+-	n = set_horz_quad_line (q,
+-				left_space,
+-				left_corner_space,
+-				right_space,
+-				right_corner_space,
+-				-top_space - titlebar_height,
+-				y,
+-				GRAVITY_NORTH,
+-				width,
+-				0.0,
+-				0.0);
+-
+-	q += n; nQuad += n;
+-    }
+-    else
+-    {
+-	y  = -top_space - titlebar_height;
+-	y0 = 0.0;
+-    }
+-
+-    /* 3 top/titlebar quads */
+-    q->p1.x	  = -left_space;
+-    q->p1.y	  = y;
+-    q->p1.gravity = GRAVITY_NORTH | GRAVITY_WEST;
+-    q->p2.x	  = -top_right;
+-    q->p2.y	  = 0;
+-    q->p2.gravity = GRAVITY_NORTH | GRAVITY_EAST;
+-    q->max_width  = left_space + top_left;
+-    q->max_height = SHRT_MAX;
+-    q->align	  = ALIGN_LEFT;
+-    q->clamp	  = 0;
+-    q->m.xx	  = 1.0;
+-    q->m.xy	  = 0.0;
+-    q->m.yx	  = 0.0;
+-    q->m.yy	  = 1.0;
+-    q->m.x0	  = 0.0;
+-    q->m.y0	  = y0;
+-
+-    q++; nQuad++;
+-
+-    q->p1.x	  = top_left;
+-    q->p1.y	  = y;
+-    q->p1.gravity = GRAVITY_NORTH | GRAVITY_WEST;
+-    q->p2.x	  = -top_right;
+-    q->p2.y	  = 0;
+-    q->p2.gravity = GRAVITY_NORTH | GRAVITY_EAST;
+-    q->max_width  = SHRT_MAX;
+-    q->max_height = SHRT_MAX;
+-    q->align	  = 0;
+-    q->clamp	  = 0;
+-    q->m.xx	  = 0.0;
+-    q->m.xy	  = 0.0;
+-    q->m.yx	  = 0.0;
+-    q->m.yy	  = 1.0;
+-    q->m.x0	  = left_space + top_left;
+-    q->m.y0	  = y0;
+-
+-    q++; nQuad++;
+-
+-    q->p1.x	  = 0;
+-    q->p1.y	  = y;
+-    q->p1.gravity = GRAVITY_NORTH | GRAVITY_WEST;
+-    q->p2.x	  = right_space;
+-    q->p2.y	  = 0;
+-    q->p2.gravity = GRAVITY_NORTH | GRAVITY_EAST;
+-    q->max_width  = right_space + top_right;
+-    q->max_height = SHRT_MAX;
+-    q->align	  = ALIGN_RIGHT;
+-    q->clamp	  = 0;
+-    q->m.xx	  = 1.0;
+-    q->m.xy	  = 0.0;
+-    q->m.yx	  = 0.0;
+-    q->m.yy	  = 1.0;
+-    q->m.x0	  = width;
+-    q->m.y0	  = y0;
+-
+-    q++; nQuad++;
+-
+-    n = set_common_window_quads (q, width, height);
+-
+-    nQuad += n;
+-
+-    return nQuad;
+-}
+-
+-static int
+-set_no_title_window_quads (quad *q,
+-			   int  width,
+-			   int  height)
+-{
+-    gint n, nQuad = 0;
+-
+-    /* top quads */
+-    n = set_horz_quad_line (q,
+-			    left_space,
+-			    left_corner_space,
+-			    right_space,
+-			    right_corner_space,
+-			    -top_space - titlebar_height,
+-			    0,
+-			    GRAVITY_NORTH,
+-			    width,
+-			    0.0,
+-			    0.0);
+-
+-    q += n; nQuad += n;
+-
+-    n = set_common_window_quads (q, width, height);
+-
+-    nQuad += n;
+-
+-    return nQuad;
+-}
+-
+-static int
+-set_switcher_quads (quad *q,
+-		    int  width,
+-		    int  height)
+-{
+-    gint n, nQuad = 0;
+-
+-    /* 1 top quads */
+-    q->p1.x	  = -left_space;
+-    q->p1.y	  = -top_space - SWITCHER_TOP_EXTRA;
+-    q->p1.gravity = GRAVITY_NORTH | GRAVITY_WEST;
+-    q->p2.x	  = right_space;
+-    q->p2.y	  = 0;
+-    q->p2.gravity = GRAVITY_NORTH | GRAVITY_EAST;
+-    q->max_width  = SHRT_MAX;
+-    q->max_height = SHRT_MAX;
+-    q->align	  = 0;
+-    q->clamp	  = 0;
+-    q->m.xx	  = 1.0;
+-    q->m.xy	  = 0.0;
+-    q->m.yx	  = 0.0;
+-    q->m.yy	  = 1.0;
+-    q->m.x0	  = 0.0;
+-    q->m.y0	  = 0.0;
+-
+-    q++; nQuad++;
+-
+-    /* left quads */
+-    n = set_vert_quad_row (q,
+-			   0,
+-			   switcher_top_corner_space,
+-			   0,
+-			   bottom_corner_space,
+-			   -left_space,
+-			   0,
+-			   GRAVITY_WEST,
+-			   height - top_space - titlebar_height - bottom_space,
+-			   0.0,
+-			   top_space + SWITCHER_TOP_EXTRA);
+-
+-    q += n; nQuad += n;
+-
+-    /* right quads */
+-    n = set_vert_quad_row (q,
+-			   0,
+-			   switcher_top_corner_space,
+-			   0,
+-			   switcher_bottom_corner_space,
+-			   0,
+-			   right_space,
+-			   GRAVITY_EAST,
+-			   height - top_space - titlebar_height - bottom_space,
+-			   width - right_space,
+-			   top_space + SWITCHER_TOP_EXTRA);
+-
+-    q += n; nQuad += n;
+-
+-    /* 1 bottom quad */
+-    q->p1.x	  = -left_space;
+-    q->p1.y	  = 0;
+-    q->p1.gravity = GRAVITY_SOUTH | GRAVITY_WEST;
+-    q->p2.x	  = right_space;
+-    q->p2.y	  = bottom_space + SWITCHER_SPACE;
+-    q->p2.gravity = GRAVITY_SOUTH | GRAVITY_EAST;
+-    q->max_width  = SHRT_MAX;
+-    q->max_height = SHRT_MAX;
+-    q->align	  = 0;
+-    q->clamp	  = 0;
+-    q->m.xx	  = 1.0;
+-    q->m.xy	  = 0.0;
+-    q->m.yx	  = 0.0;
+-    q->m.yy	  = 1.0;
+-    q->m.x0	  = 0.0;
+-    q->m.y0	  = height - bottom_space - SWITCHER_SPACE;
+-
+-    nQuad++;
+-
+-    return nQuad;
+-}
++static XRenderPictFormat *xformat;
+ 
+ static void
+ decor_update_switcher_property (decor_t *d)
+ {
+-    long    data[256];
+-    Display *xdisplay = GDK_DISPLAY_XDISPLAY (gdk_display_get_default ());
+-    gint    nQuad;
+-    quad    quads[N_QUADS_MAX];
+-    extents extents = _switcher_extents;
+-
+-    nQuad = set_switcher_quads (quads, d->width, d->height);
+-
+-    decoration_to_property (data, GDK_PIXMAP_XID (d->pixmap),
+-			    &extents, &extents, 0, 0, quads, nQuad);
++    long	 data[256];
++    Display	 *xdisplay = GDK_DISPLAY_XDISPLAY (gdk_display_get_default ());
++    gint	 nQuad;
++    decor_quad_t quads[N_QUADS_MAX];
++
++    nQuad = decor_set_lSrStSbX_window_quads (quads, &switcher_context,
++					     &d->border_layout,
++					     d->border_layout.top.x2 -
++					     d->border_layout.top.x1 -
++					     switcher_context.extents.left -
++					     switcher_context.extents.right -
++					     32);
++
++    decor_quads_to_property (data, GDK_PIXMAP_XID (d->pixmap),
++			     &_switcher_extents, &_switcher_extents,
++			     0, 0, quads, nQuad);
+ 
+     gdk_error_trap_push ();
+     XChangeProperty (xdisplay, d->prop_xid,
+@@ -964,77 +404,6 @@
+     gdk_error_trap_pop ();
+ }
+ 
+-static int
+-set_shadow_quads (quad *q,
+-		  gint width,
+-		  gint height)
+-{
+-    gint n, nQuad = 0;
+-
+-    /* top quads */
+-    n = set_horz_quad_line (q,
+-			    shadow_left_space,
+-			    shadow_left_corner_space,
+-			    shadow_right_space,
+-			    shadow_right_corner_space,
+-			    -shadow_top_space,
+-			    0,
+-			    GRAVITY_NORTH,
+-			    width,
+-			    0.0,
+-			    0.0);
+-
+-    q += n; nQuad += n;
+-
+-    /* left quads */
+-    n = set_vert_quad_row (q,
+-			   0,
+-			   shadow_top_corner_space,
+-			   0,
+-			   shadow_bottom_corner_space,
+-			   -shadow_left_space,
+-			   0,
+-			   GRAVITY_WEST,
+-			   height - shadow_top_space - shadow_bottom_space,
+-			   0.0,
+-			   shadow_top_space);
+-
+-    q += n; nQuad += n;
+-
+-    /* right quads */
+-    n = set_vert_quad_row (q,
+-			   0,
+-			   shadow_top_corner_space,
+-			   0,
+-			   shadow_bottom_corner_space,
+-			   0,
+-			   shadow_right_space,
+-			   GRAVITY_EAST,
+-			   height - shadow_top_space - shadow_bottom_space,
+-			   width - shadow_right_space,
+-			   shadow_top_space);
+-
+-    q += n; nQuad += n;
+-
+-    /* bottom quads */
+-    n = set_horz_quad_line (q,
+-			    shadow_left_space,
+-			    shadow_left_corner_space,
+-			    shadow_right_space,
+-			    shadow_right_corner_space,
+-			    0,
+-			    shadow_bottom_space,
+-			    GRAVITY_SOUTH,
+-			    width,
+-			    0.0,
+-			    shadow_top_space + shadow_top_corner_space +
+-			    shadow_bottom_corner_space + 1.0);
+-
+-    nQuad += n;
+-
+-    return nQuad;
+-}
+-
+ static void
+ gdk_cairo_set_source_color_alpha (cairo_t  *cr,
+ 				  GdkColor *color,
+@@ -1059,6 +428,9 @@
+     if (!visual)
+ 	return NULL;
+ 
++    if (w == 0 || h ==0)
++	abort ();
++
+     pixmap = gdk_pixmap_new (NULL, w, h, 32);
+     if (!pixmap)
+ 	return NULL;
+@@ -1192,176 +564,75 @@
+ }
+ 
+ static void
+-draw_shadow_background (decor_t *d,
+-			cairo_t	*cr)
++draw_shadow_background (decor_t		*d,
++			cairo_t		*cr,
++			decor_shadow_t  *s,
++			decor_context_t *c)
+ {
+-    cairo_matrix_t matrix;
+-    double	   w, h, x2, y2;
+-    gint	   width, height;
+-    gint	   left, right, top, bottom;
++    Display *xdisplay = GDK_DISPLAY_XDISPLAY (gdk_display_get_default ());
+ 
+-    if (!large_shadow_pixmap)
++    if (!s || !d->picture)
+     {
+ 	cairo_set_source_rgba (cr, 0.0, 0.0, 0.0, 0.0);
+ 	cairo_paint (cr);
+-
+-	return;
+-    }
+-
+-    gdk_drawable_get_size (large_shadow_pixmap, &width, &height);
+-
+-    left   = left_space   + left_corner_space;
+-    right  = right_space  + right_corner_space;
+-    top    = top_space    + top_corner_space;
+-    bottom = bottom_space + bottom_corner_space;
+-
+-    if (d->width - left - right < 0)
+-    {
+-	left = d->width / 2;
+-	right = d->width - left;
+     }
+-
+-    if (d->height - top - bottom < 0)
++    else
+     {
+-	top = d->height / 2;
+-	bottom = d->height - top;
++	decor_fill_picture_extents_with_shadow (xdisplay,
++						s, c,
++						d->picture,
++						&d->border_layout);
+     }
+-
+-    w = d->width - left - right;
+-    h = d->height - top - bottom;
+-
+-    x2 = d->width - right;
+-    y2 = d->height - bottom;
+-
+-    /* top left */
+-    cairo_matrix_init_identity (&matrix);
+-    cairo_pattern_set_matrix (shadow_pattern, &matrix);
+-    cairo_set_source (cr, shadow_pattern);
+-    cairo_rectangle (cr, 0.0, 0.0, left, top);
+-    cairo_fill (cr);
+-
+-    /* top */
+-    if (w > 0)
+-    {
+-	cairo_matrix_init_translate (&matrix, left, 0.0);
+-	cairo_matrix_scale (&matrix, 1.0 / w, 1.0);
+-	cairo_matrix_translate (&matrix, -left, 0.0);
+-	cairo_pattern_set_matrix (shadow_pattern, &matrix);
+-	cairo_set_source (cr, shadow_pattern);
+-	cairo_rectangle (cr, left, 0.0, w, top);
+-	cairo_fill (cr);
+-    }
+-
+-    /* top right */
+-    cairo_matrix_init_translate (&matrix, width - right - x2, 0.0);
+-    cairo_pattern_set_matrix (shadow_pattern, &matrix);
+-    cairo_set_source (cr, shadow_pattern);
+-    cairo_rectangle (cr, x2, 0.0, right, top);
+-    cairo_fill (cr);
+-
+-    /* left */
+-    if (h > 0)
+-    {
+-	cairo_matrix_init_translate (&matrix, 0.0, top);
+-	cairo_matrix_scale (&matrix, 1.0, 1.0 / h);
+-	cairo_matrix_translate (&matrix, 0.0, -top);
+-	cairo_pattern_set_matrix (shadow_pattern, &matrix);
+-	cairo_set_source (cr, shadow_pattern);
+-	cairo_rectangle (cr, 0.0, top, left, h);
+-	cairo_fill (cr);
+-    }
+-
+-    /* right */
+-    if (h > 0)
+-    {
+-	cairo_matrix_init_translate (&matrix, width - right - x2, top);
+-	cairo_matrix_scale (&matrix, 1.0, 1.0 / h);
+-	cairo_matrix_translate (&matrix, 0.0, -top);
+-	cairo_pattern_set_matrix (shadow_pattern, &matrix);
+-	cairo_set_source (cr, shadow_pattern);
+-	cairo_rectangle (cr, x2, top, right, h);
+-	cairo_fill (cr);
+-    }
+-
+-    /* bottom left */
+-    cairo_matrix_init_translate (&matrix, 0.0, height - bottom - y2);
+-    cairo_pattern_set_matrix (shadow_pattern, &matrix);
+-    cairo_set_source (cr, shadow_pattern);
+-    cairo_rectangle (cr, 0.0, y2, left, bottom);
+-    cairo_fill (cr);
+-
+-    /* bottom */
+-    if (w > 0)
+-    {
+-	cairo_matrix_init_translate (&matrix, left,
+-				     height - bottom - y2);
+-	cairo_matrix_scale (&matrix, 1.0 / w, 1.0);
+-	cairo_matrix_translate (&matrix, -left, 0.0);
+-	cairo_pattern_set_matrix (shadow_pattern, &matrix);
+-	cairo_set_source (cr, shadow_pattern);
+-	cairo_rectangle (cr, left, y2, w, bottom);
+-	cairo_fill (cr);
+-    }
+-
+-    /* bottom right */
+-    cairo_matrix_init_translate (&matrix, width - right - x2,
+-				 height - bottom - y2);
+-    cairo_pattern_set_matrix (shadow_pattern, &matrix);
+-    cairo_set_source (cr, shadow_pattern);
+-    cairo_rectangle (cr, x2, y2, right, bottom);
+-    cairo_fill (cr);
+ }
+ 
+-typedef void (*draw_proc) (cairo_t *cr);
+-
+-#ifdef USE_METACITY
+ static void
+ decor_update_meta_window_property (decor_t	  *d,
+ 				   MetaTheme	  *theme,
+ 				   MetaFrameFlags flags)
+ {
+-    long    data[256];
+-    Display *xdisplay = GDK_DISPLAY_XDISPLAY (gdk_display_get_default ());
+-    extents extents, max_extents;
+-    gint    nQuad;
+-    quad    quads[N_QUADS_MAX];
+-    gint    left_width, right_width, top_height, bottom_height;
++    long	    data[256];
++    Display	    *xdisplay =
++	GDK_DISPLAY_XDISPLAY (gdk_display_get_default ());
++    gint	    nQuad;
++    decor_extents_t extents, max_extents;
++    decor_quad_t    quads[N_QUADS_MAX];
++    gint            lh, rh;
+ 
+-    nQuad = set_window_quads (quads, d->width, d->height, d->button_width);
++    if (d->border_layout.rotation)
++	lh = d->border_layout.left.x2 - d->border_layout.left.x1;
++    else
++	lh = d->border_layout.left.y2 - d->border_layout.left.y1;
+ 
+-    meta_theme_get_frame_borders (theme,
+-				  META_FRAME_TYPE_NORMAL,
+-				  text_height,
+-				  flags & ~META_FRAME_MAXIMIZED,
+-				  &top_height,
+-				  &bottom_height,
+-				  &left_width,
+-				  &right_width);
++    if (d->border_layout.rotation)
++	rh = d->border_layout.right.x2 - d->border_layout.right.x1;
++    else
++	rh = d->border_layout.right.y2 - d->border_layout.right.y1;
+ 
+-    extents.top    = top_height;
+-    extents.bottom = bottom_height;
+-    extents.left   = left_width;
+-    extents.right  = right_width;
++    nQuad = decor_set_lXrXtXbX_window_quads (quads, d->context,
++					     &d->border_layout,
++					     lh / 2,
++					     rh / 2,
++					     d->border_layout.top.x2 -
++					     d->border_layout.top.x1 -
++					     d->context->left_space -
++					     d->context->right_space -
++					     d->button_width - 1,
++					     (d->border_layout.bottom.x2 -
++					      d->border_layout.bottom.x1 -
++					      d->context->left_space -
++					      d->context->right_space) / 2);
+ 
+-    meta_theme_get_frame_borders (theme,
+-				  META_FRAME_TYPE_NORMAL,
+-				  text_height,
+-				  flags | META_FRAME_MAXIMIZED,
+-				  &top_height,
+-				  &bottom_height,
+-				  &left_width,
+-				  &right_width);
++    extents = _win_extents;
++    max_extents = _max_win_extents;
+ 
+-    max_extents.top    = top_height;
+-    max_extents.bottom = bottom_height;
+-    max_extents.left   = left_width;
+-    max_extents.right  = right_width;
+-
+-    decoration_to_property (data, GDK_PIXMAP_XID (d->pixmap),
+-			    &extents, &max_extents,
+-			    ICON_SPACE + d->button_width,
+-			    0,
+-			    quads, nQuad);
++    extents.top += titlebar_height;
++    max_extents.top += max_titlebar_height;
++
++    decor_quads_to_property (data, GDK_PIXMAP_XID (d->pixmap),
++			     &extents, &max_extents,
++			     ICON_SPACE + d->button_width,
++			     0,
++			     quads, nQuad);
+ 
+     gdk_error_trap_push ();
+     XChangeProperty (xdisplay, d->prop_xid,
+@@ -1373,140 +644,205 @@
+     gdk_error_trap_pop ();
+ }
+ 
++static void
++meta_get_corner_radius (const MetaFrameGeometry *fgeom,
++			int		        *top_left_radius,
++			int			*top_right_radius,
++			int		        *bottom_left_radius,
++			int			*bottom_right_radius)
++{
++
++#ifdef HAVE_METACITY_2_17_0
++    *top_left_radius     = fgeom->top_left_corner_rounded_radius;
++    *top_right_radius    = fgeom->top_right_corner_rounded_radius;
++    *bottom_left_radius  = fgeom->bottom_left_corner_rounded_radius;
++    *bottom_right_radius = fgeom->bottom_right_corner_rounded_radius;
++#else
++    *top_left_radius     = fgeom->top_left_corner_rounded ? 5 : 0;
++    *top_right_radius    = fgeom->top_right_corner_rounded ? 5 : 0;
++    *bottom_left_radius  = fgeom->bottom_left_corner_rounded ? 5 : 0;
++    *bottom_right_radius = fgeom->bottom_right_corner_rounded ? 5 : 0;
++#endif
++
++}
++
++static int
++radius_to_width (int radius,
++		 int i)
++{
++    int r2 = radius * radius - (radius - i) * (radius - i);
++
++    return 1 + (radius - floor (sqrt (r2) + 0.5));
++}
++
+ static Region
+-meta_get_window_region (const MetaFrameGeometry *fgeom,
+-			int		        width,
+-			int			height)
++meta_get_top_border_region (const MetaFrameGeometry *fgeom,
++			    int			    width)
+ {
+-    Region     corners_xregion, window_xregion;
++    Region     corners_xregion, border_xregion;
+     XRectangle xrect;
++    int	       top_left_radius;
++    int	       top_right_radius;
++    int	       bottom_left_radius;
++    int	       bottom_right_radius;
++    int	       w, i;
+ 
+     corners_xregion = XCreateRegion ();
+ 
+-    if (fgeom->top_left_corner_rounded)
+-    {
+-	xrect.x = 0;
+-	xrect.y = 0;
+-	xrect.width = 5;
+-	xrect.height = 1;
++    meta_get_corner_radius (fgeom,
++			    &top_left_radius,
++			    &top_right_radius,
++			    &bottom_left_radius,
++			    &bottom_right_radius);
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
+-
+-	xrect.y = 1;
+-	xrect.width = 3;
++    if (top_left_radius)
++    {
++	for (i = 0; i < top_left_radius; i++)
++	{
++	    w = radius_to_width (top_left_radius, i);
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++	    xrect.x	 = 0;
++	    xrect.y	 = i;
++	    xrect.width  = w;
++	    xrect.height = 1;
+ 
+-	xrect.y = 2;
+-	xrect.width = 2;
++	    XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++	}
++    }
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++    if (top_right_radius)
++    {
++	for (i = 0; i < top_right_radius; i++)
++	{
++	    w = radius_to_width (top_right_radius, i);
+ 
+-	xrect.y = 3;
+-	xrect.width = 1;
+-	xrect.height = 2;
++	    xrect.x	 = width - w;
++	    xrect.y	 = i;
++	    xrect.width  = w;
++	    xrect.height = 1;
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++	    XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++	}
+     }
+ 
+-    if (fgeom->top_right_corner_rounded)
+-    {
+-	xrect.x = width - 5;
+-	xrect.y = 0;
+-	xrect.width = 5;
+-	xrect.height = 1;
++    border_xregion = XCreateRegion ();
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++    xrect.x = 0;
++    xrect.y = 0;
++    xrect.width = width;
++    xrect.height = fgeom->top_height;
+ 
+-	xrect.y = 1;
+-	xrect.x = width - 3;
+-	xrect.width = 3;
++    XUnionRectWithRegion (&xrect, border_xregion, border_xregion);
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++    XSubtractRegion (border_xregion, corners_xregion, border_xregion);
+ 
+-	xrect.y = 2;
+-	xrect.x = width - 2;
+-	xrect.width = 2;
++    XDestroyRegion (corners_xregion);
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++    return border_xregion;
++}
+ 
+-	xrect.y = 3;
+-	xrect.x = width - 1;
+-	xrect.width = 1;
+-	xrect.height = 2;
++static Region
++meta_get_bottom_border_region (const MetaFrameGeometry *fgeom,
++			       int		        width)
++{
++    Region     corners_xregion, border_xregion;
++    XRectangle xrect;
++    int	       top_left_radius;
++    int	       top_right_radius;
++    int	       bottom_left_radius;
++    int	       bottom_right_radius;
++    int	       w, i;
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
+-    }
++    corners_xregion = XCreateRegion ();
++
++    meta_get_corner_radius (fgeom,
++			    &top_left_radius,
++			    &top_right_radius,
++			    &bottom_left_radius,
++			    &bottom_right_radius);
+ 
+-    if (fgeom->bottom_left_corner_rounded)
++    if (bottom_left_radius)
+     {
+-	xrect.x = 0;
+-	xrect.y = height - 1;
+-	xrect.width = 5;
+-	xrect.height = 1;
++	for (i = 0; i < bottom_left_radius; i++)
++	{
++	    w = radius_to_width (bottom_left_radius, i);
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++	    xrect.x	 = 0;
++	    xrect.y	 = fgeom->bottom_height - i;
++	    xrect.width  = w;
++	    xrect.height = 1;
+ 
+-	xrect.y = height - 2;
+-	xrect.width = 3;
++	    XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++	}
++    }
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++    if (bottom_right_radius)
++    {
++	for (i = 0; i < bottom_right_radius; i++)
++	{
++	    w = radius_to_width (bottom_right_radius, i);
+ 
+-	xrect.y = height - 3;
+-	xrect.width = 2;
++	    xrect.x	 = width - w;
++	    xrect.y	 = fgeom->bottom_height - i;
++	    xrect.width  = w;
++	    xrect.height = 1;
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++	    XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++	}
++    }
+ 
+-	xrect.y = height - 5;
+-	xrect.width = 1;
+-	xrect.height = 2;
++    border_xregion = XCreateRegion ();
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
+-    }
++    xrect.x = 0;
++    xrect.y = 0;
++    xrect.width = width;
++    xrect.height = fgeom->bottom_height;
+ 
+-    if (fgeom->bottom_right_corner_rounded)
+-    {
+-	xrect.x = width - 5;
+-	xrect.y = height - 1;
+-	xrect.width = 5;
+-	xrect.height = 1;
++    XUnionRectWithRegion (&xrect, border_xregion, border_xregion);
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++    XSubtractRegion (border_xregion, corners_xregion, border_xregion);
+ 
+-	xrect.y = height - 2;
+-	xrect.x = width - 3;
+-	xrect.width = 3;
++    XDestroyRegion (corners_xregion);
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++    return border_xregion;
++}
+ 
+-	xrect.y = height - 3;
+-	xrect.x = width - 2;
+-	xrect.width = 2;
++static Region
++meta_get_left_border_region (const MetaFrameGeometry *fgeom,
++			     int		     height)
++{
++    Region     border_xregion;
++    XRectangle xrect;
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
++    border_xregion = XCreateRegion ();
+ 
+-	xrect.y = height - 5;
+-	xrect.x = width - 1;
+-	xrect.width = 1;
+-	xrect.height = 2;
++    xrect.x	 = 0;
++    xrect.y	 = 0;
++    xrect.width  = fgeom->left_width;
++    xrect.height = height - fgeom->top_height - fgeom->bottom_height;
+ 
+-	XUnionRectWithRegion (&xrect, corners_xregion, corners_xregion);
+-    }
++    XUnionRectWithRegion (&xrect, border_xregion, border_xregion);
+ 
+-    window_xregion = XCreateRegion ();
++    return border_xregion;
++}
+ 
+-    xrect.x = 0;
+-    xrect.y = 0;
+-    xrect.width = width;
+-    xrect.height = height;
++static Region
++meta_get_right_border_region (const MetaFrameGeometry *fgeom,
++			      int		      height)
++{
++    Region     border_xregion;
++    XRectangle xrect;
+ 
+-    XUnionRectWithRegion (&xrect, window_xregion, window_xregion);
++    border_xregion = XCreateRegion ();
+ 
+-    XSubtractRegion (window_xregion, corners_xregion, window_xregion);
++    xrect.x	 = 0;
++    xrect.y	 = 0;
++    xrect.width  = fgeom->right_width;
++    xrect.height = height - fgeom->top_height - fgeom->bottom_height;
+ 
+-    XDestroyRegion (corners_xregion);
++    XUnionRectWithRegion (&xrect, border_xregion, border_xregion);
+ 
+-    return window_xregion;
++    return border_xregion;
+ }
+ 
+ static MetaButtonState
+@@ -1556,16 +892,19 @@
+ 			      GdkRectangle      *clip)
+ {
+     gint left_width, right_width, top_height, bottom_height;
++    gint i;
+ 
+     button_layout->left_buttons[0] = META_BUTTON_FUNCTION_MENU;
+-    button_layout->left_buttons[1] = META_BUTTON_FUNCTION_LAST;
+-    button_layout->left_buttons[2] = META_BUTTON_FUNCTION_LAST;
+-    button_layout->left_buttons[3] = META_BUTTON_FUNCTION_LAST;
++
++    for (i = 1; i < MAX_BUTTONS_PER_CORNER; i++)
++	button_layout->left_buttons[i] = META_BUTTON_FUNCTION_LAST;
+ 
+     button_layout->right_buttons[0] = META_BUTTON_FUNCTION_MINIMIZE;
+     button_layout->right_buttons[1] = META_BUTTON_FUNCTION_MAXIMIZE;
+     button_layout->right_buttons[2] = META_BUTTON_FUNCTION_CLOSE;
+-    button_layout->right_buttons[3] = META_BUTTON_FUNCTION_LAST;
++
++    for (i = 3; i < MAX_BUTTONS_PER_CORNER; i++)
++	button_layout->right_buttons[i] = META_BUTTON_FUNCTION_LAST;
+ 
+     *flags = 0;
+ 
+@@ -1604,24 +943,37 @@
+ 				  &left_width,
+ 				  &right_width);
+ 
+-    clip->x	= left_space - left_width;
+-    clip->y	= top_space + titlebar_height - top_height;
+-    clip->width  = d->width - right_space + right_width - clip->x;
+-    clip->height = d->height - bottom_space + bottom_height - clip->y;
++    clip->x = d->context->left_space - left_width;
++    clip->y = d->context->top_space - top_height;
++
++    clip->width = d->border_layout.top.x2 - d->border_layout.top.x1;
++    clip->width -= d->context->right_space + d->context->left_space;
++
++    if (d->border_layout.rotation)
++	clip->height = d->border_layout.left.x2 - d->border_layout.left.x1;
++    else
++	clip->height = d->border_layout.left.y2 - d->border_layout.left.y1;
+ 
+     meta_theme_calc_geometry (theme,
+ 			      META_FRAME_TYPE_NORMAL,
+ 			      text_height,
+ 			      *flags,
+-			      clip->width - left_width - right_width,
+-			      clip->height - top_height - bottom_height,
++			      clip->width,
++			      clip->height,
+ 			      button_layout,
+ 			      fgeom);
++
++    clip->width  += left_width + right_width;
++    clip->height += top_height + bottom_height;
+ }
+ 
+ static void
+ meta_draw_window_decoration (decor_t *d)
+ {
++    Display	      *xdisplay =
++	GDK_DISPLAY_XDISPLAY (gdk_display_get_default ());
++    GdkPixmap	      *pixmap;
++    Picture	      src;
+     MetaButtonState   button_states[META_BUTTON_TYPE_LAST];
+     MetaButtonLayout  button_layout;
+     MetaFrameGeometry fgeom;
+@@ -1629,15 +981,23 @@
+     MetaTheme	      *theme;
+     GtkStyle	      *style;
+     cairo_t	      *cr;
+-    gint	      i;
++    gint	      size, i;
+     GdkRectangle      clip, rect;
+     GdkDrawable       *drawable;
+     Region	      region;
+     double	      alpha = (d->active) ? meta_active_opacity : meta_opacity;
++    gboolean	      shade_alpha = (d->active) ? meta_active_shade_opacity :
++	meta_shade_opacity;
++    MetaFrameStyle    *frame_style;
++    GdkColor	      bg_color;
++    double	      bg_alpha;
+ 
+-    if (!d->pixmap)
++    if (!d->pixmap || !d->picture)
+ 	return;
+ 
++    if (decoration_alpha == 1.0)
++	alpha = 1.0;
++
+     style = gtk_widget_get_style (style_window);
+ 
+     drawable = d->buffer_pixmap ? d->buffer_pixmap : d->pixmap;
+@@ -1646,198 +1006,171 @@
+ 
+     cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
+ 
+-    draw_shadow_background (d, cr);
+-
+     theme = meta_theme_get_current ();
+ 
+     meta_get_decoration_geometry (d, theme, &flags, &fgeom, &button_layout,
+ 				  &clip);
+ 
++    /* we only have to redraw the shadow background when decoration
++       changed size */
++    if (d->prop_xid || !d->buffer_pixmap)
++	draw_shadow_background (d, cr, d->shadow, d->context);
++
+     for (i = 0; i < META_BUTTON_TYPE_LAST; i++)
+ 	button_states[i] = meta_button_state_for_button_type (d, i);
+ 
+-    region = meta_get_window_region (&fgeom, clip.width, clip.height);
++    frame_style = meta_theme_get_frame_style (theme,
++					      META_FRAME_TYPE_NORMAL,
++					      flags);
++
++    bg_color = style->bg[GTK_STATE_NORMAL];
++    bg_alpha = 1.0;
+ 
+-    if (alpha != 1.0)
++#ifdef HAVE_METACITY_2_17_0
++    if (frame_style->window_background_color)
+     {
+-	GdkPixmap *pixmap;
+-	cairo_t	  *pcr;
+-	gboolean  shade_alpha = (d->active) ? meta_active_shade_opacity :
+-	    meta_shade_opacity;
+-
+-	pixmap = create_pixmap (clip.width, clip.height);
+-
+-	pcr = gdk_cairo_create (GDK_DRAWABLE (pixmap));
+-
+-	gdk_cairo_set_source_color (pcr, &style->bg[GTK_STATE_NORMAL]);
+-	cairo_paint (pcr);
+-
+-	rect.x	    = 0;
+-	rect.y      = 0;
+-	rect.width  = clip.width;
+-	rect.height = clip.height;
+-
+-	meta_theme_draw_frame (theme,
+-			       style_window,
+-			       pixmap,
+-			       &rect,
+-			       0, 0,
+-			       META_FRAME_TYPE_NORMAL,
+-			       flags,
+-			       clip.width - fgeom.left_width -
+-			       fgeom.right_width,
+-			       clip.height - fgeom.top_height -
+-			       fgeom.bottom_height,
+-			       d->layout,
+-			       text_height,
+-			       &button_layout,
+-			       button_states,
+-			       d->icon_pixbuf,
+-			       NULL);
++	meta_color_spec_render (frame_style->window_background_color,
++				GTK_WIDGET (style_window),
++				&bg_color);
++
++	bg_alpha = frame_style->window_background_alpha / 255.0;
++    }
++#endif
++
++    cairo_destroy (cr);
+ 
+-	cairo_save (cr);
++    rect.x     = 0;
++    rect.y     = 0;
++    rect.width = clip.width;
+ 
+-	for (i = 0; i < region->numRects; i++)
+-	    cairo_rectangle (cr,
+-			     clip.x + region->rects[i].x1,
+-			     clip.y + region->rects[i].y1,
+-			     region->rects[i].x2 - region->rects[i].x1,
+-			     region->rects[i].y2 - region->rects[i].y1);
++    size = MAX (fgeom.top_height, fgeom.bottom_height);
+ 
+-	cairo_clip (cr);
++    if (rect.width && size)
++    {
++	pixmap = create_pixmap (rect.width, size);
+ 
++	cr = gdk_cairo_create (GDK_DRAWABLE (pixmap));
++	gdk_cairo_set_source_color_alpha (cr, &bg_color, bg_alpha);
+ 	cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
+-	cairo_set_source_rgba (cr, 1.0, 1.0, 1.0, alpha);
+-	cairo_paint (cr);
+ 
+-	if (shade_alpha)
++	src = XRenderCreatePicture (xdisplay,
++				    GDK_PIXMAP_XID (pixmap),
++				    xformat, 0, NULL);
++
++	if (fgeom.top_height)
+ 	{
+-	    static decor_color_t color = { 0.0, 0.0, 0.0 };
+-	    int			 corners = 0;
++	    rect.height = fgeom.top_height;
++
++	    cairo_paint (cr);
++
++	    meta_theme_draw_frame (theme,
++				   style_window,
++				   pixmap,
++				   &rect,
++				   0, 0,
++				   META_FRAME_TYPE_NORMAL,
++				   flags,
++				   clip.width - fgeom.left_width -
++				   fgeom.right_width,
++				   clip.height - fgeom.top_height -
++				   fgeom.bottom_height,
++				   d->layout,
++				   text_height,
++				   &button_layout,
++				   button_states,
++				   d->icon_pixbuf,
++				   NULL);
+ 
+-	    if (fgeom.top_left_corner_rounded)
+-		corners |= CORNER_TOPLEFT;
++	    region = meta_get_top_border_region (&fgeom, clip.width);
+ 
+-	    if (fgeom.top_right_corner_rounded)
+-		corners |= CORNER_TOPRIGHT;
+-
+-	    if (fgeom.bottom_left_corner_rounded)
+-		corners |= CORNER_BOTTOMLEFT;
+-
+-	    if (fgeom.bottom_right_corner_rounded)
+-		corners |= CORNER_BOTTOMRIGHT;
+-
+-	    if (d->state & (WNCK_WINDOW_STATE_MAXIMIZED_HORIZONTALLY |
+-			    WNCK_WINDOW_STATE_MAXIMIZED_VERTICALLY))
+-		corners = 0;
+-
+-	    fill_rounded_rectangle (cr,
+-				    clip.x,
+-				    clip.y,
+-				    fgeom.left_width,
+-				    fgeom.top_height,
+-				    5.0, CORNER_TOPLEFT & corners,
+-				    &color, 1.0,
+-				    &color, alpha,
+-				    SHADE_TOP | SHADE_LEFT);
+-
+-	    fill_rounded_rectangle (cr,
+-				    clip.x + fgeom.left_width,
+-				    clip.y,
+-				    clip.width - fgeom.left_width -
+-				    fgeom.right_width,
+-				    fgeom.top_height,
+-				    5.0, 0,
+-				    &color, 1.0, &color, alpha,
+-				    SHADE_TOP);
+-
+-	    fill_rounded_rectangle (cr,
+-				    clip.x + clip.width - fgeom.right_width,
+-				    clip.y,
+-				    fgeom.right_width,
+-				    fgeom.top_height,
+-				    5.0, CORNER_TOPRIGHT & corners,
+-				    &color, 1.0, &color, alpha,
+-				    SHADE_TOP | SHADE_RIGHT);
+-
+-	    fill_rounded_rectangle (cr,
+-				    clip.x,
+-				    clip.y + fgeom.top_height,
+-				    fgeom.left_width,
+-				    clip.height - fgeom.top_height -
+-				    fgeom.bottom_height,
+-				    5.0, 0,
+-				    &color, 1.0, &color, alpha,
+-				    SHADE_LEFT);
+-
+-	    fill_rounded_rectangle (cr,
+-				    clip.x + clip.width - fgeom.right_width,
+-				    clip.y + fgeom.top_height,
+-				    fgeom.right_width,
+-				    clip.height - fgeom.top_height -
+-				    fgeom.bottom_height,
+-				    5.0, 0,
+-				    &color, 1.0, &color, alpha,
+-				    SHADE_RIGHT);
+-
+-	    fill_rounded_rectangle (cr,
+-				    clip.x,
+-				    clip.y + clip.height - fgeom.bottom_height,
+-				    fgeom.left_width,
+-				    fgeom.bottom_height,
+-				    5.0, CORNER_BOTTOMLEFT & corners,
+-				    &color, 1.0, &color, alpha,
+-				    SHADE_BOTTOM | SHADE_LEFT);
+-
+-	    fill_rounded_rectangle (cr,
+-				    clip.x + fgeom.left_width,
+-				    clip.y + clip.height - fgeom.bottom_height,
+-				    clip.width - fgeom.left_width -
+-				    fgeom.right_width,
+-				    fgeom.bottom_height,
+-				    5.0, 0,
+-				    &color, 1.0, &color, alpha,
+-				    SHADE_BOTTOM);
+-
+-	    fill_rounded_rectangle (cr,
+-				    clip.x + clip.width - fgeom.right_width,
+-				    clip.y + clip.height - fgeom.bottom_height,
+-				    fgeom.right_width,
+-				    fgeom.bottom_height,
+-				    5.0, CORNER_BOTTOMRIGHT & corners,
+-				    &color, 1.0, &color, alpha,
+-				    SHADE_BOTTOM | SHADE_RIGHT);
++	    decor_blend_top_border_picture (xdisplay,
++					    d->context,
++					    src,
++					    0, 0,
++					    d->picture,
++					    &d->border_layout,
++					    region,
++					    alpha * 0xffff,
++					    shade_alpha);
++
++	    XDestroyRegion (region);
+ 	}
+ 
+-	cairo_set_operator (cr, CAIRO_OPERATOR_IN);
+-	cairo_set_source_surface (cr, cairo_get_target (pcr), clip.x, clip.y);
+-	cairo_paint (cr);
++	if (fgeom.bottom_height)
++	{
++	    rect.height = fgeom.bottom_height;
++
++	    cairo_paint (cr);
++
++	    meta_theme_draw_frame (theme,
++				   style_window,
++				   pixmap,
++				   &rect,
++				   0,
++				   -(clip.height - fgeom.bottom_height),
++				   META_FRAME_TYPE_NORMAL,
++				   flags,
++				   clip.width - fgeom.left_width -
++				   fgeom.right_width,
++				   clip.height - fgeom.top_height -
++				   fgeom.bottom_height,
++				   d->layout,
++				   text_height,
++				   &button_layout,
++				   button_states,
++				   d->icon_pixbuf,
++				   NULL);
+ 
+-	cairo_restore (cr);
++	    region = meta_get_bottom_border_region (&fgeom, clip.width);
++
++	    decor_blend_bottom_border_picture (xdisplay,
++					       d->context,
++					       src,
++					       0, 0,
++					       d->picture,
++					       &d->border_layout,
++					       region,
++					       alpha * 0xffff,
++					       shade_alpha);
++
++	    XDestroyRegion (region);
++	}
++
++	cairo_destroy (cr);
+ 
+-	cairo_destroy (pcr);
+ 	gdk_pixmap_unref (pixmap);
++
++	XRenderFreePicture (xdisplay, src);
+     }
+-    else
++
++    rect.height = clip.height - fgeom.top_height - fgeom.bottom_height;
++
++    size = MAX (fgeom.left_width, fgeom.right_width);
++
++    if (size && rect.height)
+     {
+-	gdk_cairo_set_source_color (cr, &style->bg[GTK_STATE_NORMAL]);
++	pixmap = create_pixmap (size, rect.height);
+ 
+-	for (i = 0; i < region->numRects; i++)
++	cr = gdk_cairo_create (GDK_DRAWABLE (pixmap));
++	gdk_cairo_set_source_color_alpha (cr, &bg_color, bg_alpha);
++	cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
++
++	src = XRenderCreatePicture (xdisplay,
++				    GDK_PIXMAP_XID (pixmap),
++				    xformat, 0, NULL);
++
++	if (fgeom.left_width)
+ 	{
+-	    rect.x	= clip.x + region->rects[i].x1;
+-	    rect.y	= clip.y + region->rects[i].y1;
+-	    rect.width  = region->rects[i].x2 - region->rects[i].x1;
+-	    rect.height = region->rects[i].y2 - region->rects[i].y1;
++	    rect.width = fgeom.left_width;
+ 
+-	    cairo_rectangle (cr, rect.x, rect.y, rect.width, rect.height);
+-	    cairo_fill (cr);
++	    cairo_paint (cr);
+ 
+ 	    meta_theme_draw_frame (theme,
+ 				   style_window,
+-				   drawable,
++				   pixmap,
+ 				   &rect,
+-				   clip.x,
+-				   clip.y,
++				   0,
++				   -fgeom.top_height,
+ 				   META_FRAME_TYPE_NORMAL,
+ 				   flags,
+ 				   clip.width - fgeom.left_width -
+@@ -1850,12 +1183,68 @@
+ 				   button_states,
+ 				   d->icon_pixbuf,
+ 				   NULL);
++
++	    region = meta_get_left_border_region (&fgeom, clip.height);
++
++	    decor_blend_left_border_picture (xdisplay,
++					     d->context,
++					     src,
++					     0, 0,
++					     d->picture,
++					     &d->border_layout,
++					     region,
++					     alpha * 0xffff,
++					     shade_alpha);
++
++	    XDestroyRegion (region);
+ 	}
+-    }
+ 
+-    cairo_destroy (cr);
++	if (fgeom.right_width)
++	{
++	    rect.width = fgeom.right_width;
++
++	    cairo_paint (cr);
++
++	    meta_theme_draw_frame (theme,
++				   style_window,
++				   pixmap,
++				   &rect,
++				   -(clip.width - fgeom.right_width),
++				   -fgeom.top_height,
++				   META_FRAME_TYPE_NORMAL,
++				   flags,
++				   clip.width - fgeom.left_width -
++				   fgeom.right_width,
++				   clip.height - fgeom.top_height -
++				   fgeom.bottom_height,
++				   d->layout,
++				   text_height,
++				   &button_layout,
++				   button_states,
++				   d->icon_pixbuf,
++				   NULL);
++
++	    region = meta_get_right_border_region (&fgeom, clip.height);
++
++	    decor_blend_right_border_picture (xdisplay,
++					      d->context,
++					      src,
++					      0, 0,
++					      d->picture,
++					      &d->border_layout,
++					      region,
++					      alpha * 0xffff,
++					      shade_alpha);
+ 
+-    XDestroyRegion (region);
++	    XDestroyRegion (region);
++	}
++
++	cairo_destroy (cr);
++
++	gdk_pixmap_unref (pixmap);
++
++	XRenderFreePicture (xdisplay, src);
++    }
+ 
+     if (d->buffer_pixmap)
+ 	gdk_draw_drawable  (d->pixmap,
+@@ -1874,7 +1263,6 @@
+ 	d->prop_xid = 0;
+     }
+ }
+-#endif
+ 
+ #define SWITCHER_ALPHA 0xa0a0
+ 
+@@ -1904,44 +1292,44 @@
+ 
+     cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
+ 
+-    top = _win_extents.bottom;
++    top = _switcher_extents.top;
+ 
+-    x1 = left_space - _win_extents.left;
+-    y1 = top_space - _win_extents.top;
+-    x2 = d->width - right_space + _win_extents.right;
+-    y2 = d->height - bottom_space + _win_extents.bottom;
++    x1 = switcher_context.left_space - _switcher_extents.left;
++    y1 = switcher_context.top_space - _switcher_extents.top;
++    x2 = d->width - switcher_context.right_space + _switcher_extents.right;
++    y2 = d->height - switcher_context.bottom_space + _switcher_extents.bottom;
+ 
+-    h = y2 - y1 - _win_extents.bottom - _win_extents.bottom;
++    h = y2 - y1 - _switcher_extents.top - _switcher_extents.top;
+ 
+     cairo_set_line_width (cr, 1.0);
+ 
+     cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
+ 
+-    draw_shadow_background (d, cr);
++    draw_shadow_background (d, cr, switcher_shadow, &switcher_context);
+ 
+     fill_rounded_rectangle (cr,
+ 			    x1 + 0.5,
+ 			    y1 + 0.5,
+-			    _win_extents.left - 0.5,
++			    _switcher_extents.left - 0.5,
+ 			    top - 0.5,
+ 			    5.0, CORNER_TOPLEFT,
+ 			    &color, alpha, &color, alpha * 0.75,
+ 			    SHADE_TOP | SHADE_LEFT);
+ 
+     fill_rounded_rectangle (cr,
+-			    x1 + _win_extents.left,
++			    x1 + _switcher_extents.left,
+ 			    y1 + 0.5,
+-			    x2 - x1 - _win_extents.left -
+-			    _win_extents.right,
++			    x2 - x1 - _switcher_extents.left -
++			    _switcher_extents.right,
+ 			    top - 0.5,
+ 			    5.0, 0,
+ 			    &color, alpha, &color, alpha * 0.75,
+ 			    SHADE_TOP);
+ 
+     fill_rounded_rectangle (cr,
+-			    x2 - _win_extents.right,
++			    x2 - _switcher_extents.right,
+ 			    y1 + 0.5,
+-			    _win_extents.right - 0.5,
++			    _switcher_extents.right - 0.5,
+ 			    top - 0.5,
+ 			    5.0, CORNER_TOPRIGHT,
+ 			    &color, alpha, &color, alpha * 0.75,
+@@ -1950,16 +1338,16 @@
+     fill_rounded_rectangle (cr,
+ 			    x1 + 0.5,
+ 			    y1 + top,
+-			    _win_extents.left - 0.5,
++			    _switcher_extents.left - 0.5,
+ 			    h,
+ 			    5.0, 0,
+ 			    &color, alpha, &color, alpha * 0.75,
+ 			    SHADE_LEFT);
+ 
+     fill_rounded_rectangle (cr,
+-			    x2 - _win_extents.right,
++			    x2 - _switcher_extents.right,
+ 			    y1 + top,
+-			    _win_extents.right - 0.5,
++			    _switcher_extents.right - 0.5,
+ 			    h,
+ 			    5.0, 0,
+ 			    &color, alpha, &color, alpha * 0.75,
+@@ -1967,35 +1355,35 @@
+ 
+     fill_rounded_rectangle (cr,
+ 			    x1 + 0.5,
+-			    y2 - _win_extents.bottom,
+-			    _win_extents.left - 0.5,
+-			    _win_extents.bottom - 0.5,
++			    y2 - _switcher_extents.top,
++			    _switcher_extents.left - 0.5,
++			    _switcher_extents.top - 0.5,
+ 			    5.0, CORNER_BOTTOMLEFT,
+ 			    &color, alpha, &color, alpha * 0.75,
+ 			    SHADE_BOTTOM | SHADE_LEFT);
+ 
+     fill_rounded_rectangle (cr,
+-			    x1 + _win_extents.left,
+-			    y2 - _win_extents.bottom,
+-			    x2 - x1 - _win_extents.left -
+-			    _win_extents.right,
+-			    _win_extents.bottom - 0.5,
++			    x1 + _switcher_extents.left,
++			    y2 - _switcher_extents.top,
++			    x2 - x1 - _switcher_extents.left -
++			    _switcher_extents.right,
++			    _switcher_extents.top - 0.5,
+ 			    5.0, 0,
+ 			    &color, alpha, &color, alpha * 0.75,
+ 			    SHADE_BOTTOM);
+ 
+     fill_rounded_rectangle (cr,
+-			    x2 - _win_extents.right,
+-			    y2 - _win_extents.bottom,
+-			    _win_extents.right - 0.5,
+-			    _win_extents.bottom - 0.5,
++			    x2 - _switcher_extents.right,
++			    y2 - _switcher_extents.top,
++			    _switcher_extents.right - 0.5,
++			    _switcher_extents.top - 0.5,
+ 			    5.0, CORNER_BOTTOMRIGHT,
+ 			    &color, alpha, &color, alpha * 0.75,
+ 			    SHADE_BOTTOM | SHADE_RIGHT);
+ 
+-    cairo_rectangle (cr, x1 + _win_extents.left,
++    cairo_rectangle (cr, x1 + _switcher_extents.left,
+ 		     y1 + top,
+-		     x2 - x1 - _win_extents.left - _win_extents.right,
++		     x2 - x1 - _switcher_extents.left - _switcher_extents.right,
+ 		     h);
+     gdk_cairo_set_source_color_alpha (cr,
+ 				      &style->bg[GTK_STATE_NORMAL],
+@@ -2089,8 +1477,6 @@
+     GtkStyle	  *style;
+     decor_color_t color;
+     double	  alpha = SWITCHER_ALPHA / 65535.0;
+-    double	  x1, y1, x2;
+-    int		  top;
+ 
+     if (!d->pixmap || !d->buffer_pixmap)
+ 	return;
+@@ -2101,19 +1487,14 @@
+     color.g = style->bg[GTK_STATE_NORMAL].green / 65535.0;
+     color.b = style->bg[GTK_STATE_NORMAL].blue  / 65535.0;
+ 
+-    top = _win_extents.bottom;
+-
+-    x1 = left_space - _win_extents.left;
+-    y1 = top_space - _win_extents.top;
+-    x2 = d->width - right_space + _win_extents.right;
+-
+     cr = gdk_cairo_create (GDK_DRAWABLE (d->buffer_pixmap));
+ 
+     cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
+ 
+-    cairo_rectangle (cr, x1 + _win_extents.left,
+-		     y1 + top + switcher_top_corner_space,
+-		     x2 - x1 - _win_extents.left - _win_extents.right,
++    cairo_rectangle (cr, switcher_context.left_space,
++		     d->height - switcher_context.bottom_space,
++		     d->width - switcher_context.left_space -
++		     switcher_context.right_space,
+ 		     SWITCHER_SPACE);
+ 
+     gdk_cairo_set_source_color_alpha (cr,
+@@ -2134,7 +1515,7 @@
+ 	pango_layout_get_pixel_size (d->layout, &w, NULL);
+ 
+ 	cairo_move_to (cr, d->width / 2 - w / 2,
+-		       y1 + top + switcher_top_corner_space +
++		       d->height - switcher_context.bottom_space +
+ 		       SWITCHER_SPACE / 2 - text_height / 2);
+ 
+ 	pango_cairo_show_layout (cr, d->layout);
+@@ -2220,15 +1601,15 @@
+ static void
+ update_default_decorations (GdkScreen *screen)
+ {
+-    long       data[256];
+-    Window     xroot;
+-    GdkDisplay *gdkdisplay = gdk_display_get_default ();
+-    Display    *xdisplay = gdk_x11_display_get_xdisplay (gdkdisplay);
+-    Atom       bareAtom, normalAtom, activeAtom;
+-    decor_t    d;
+-    gint       nQuad;
+-    quad       quads[N_QUADS_MAX];
+-    extents    extents = _win_extents;
++    long	    data[256];
++    Window	    xroot;
++    GdkDisplay	    *gdkdisplay = gdk_display_get_default ();
++    Display	    *xdisplay = gdk_x11_display_get_xdisplay (gdkdisplay);
++    Atom	    bareAtom, normalAtom, activeAtom;
++    decor_t	    d;
++    gint	    nQuad;
++    decor_quad_t    quads[N_QUADS_MAX];
++    decor_extents_t extents = _win_extents;
+ 
+     xroot = RootWindowOfScreen (gdk_x11_screen_get_xscreen (screen));
+ 
+@@ -2236,17 +1617,18 @@
+     normalAtom = XInternAtom (xdisplay, "_NET_WINDOW_DECOR_NORMAL", FALSE);
+     activeAtom = XInternAtom (xdisplay, "_NET_WINDOW_DECOR_ACTIVE", FALSE);
+ 
+-    if (shadow_pixmap)
++    if (no_border_shadow)
+     {
+-	int width, height;
++	decor_layout_t layout;
+ 
+-	gdk_drawable_get_size (shadow_pixmap, &width, &height);
++	decor_get_default_layout (&shadow_context, 1, 1, &layout);
+ 
+-	nQuad = set_shadow_quads (quads, width, height);
++	nQuad = decor_set_lSrStSbS_window_quads (quads, &shadow_context,
++						 &layout);
+ 
+-	decoration_to_property (data, GDK_PIXMAP_XID (shadow_pixmap),
+-				&_shadow_extents, &_shadow_extents,
+-				0, 0, quads, nQuad);
++	decor_quads_to_property (data, no_border_shadow->pixmap,
++				 &_shadow_extents, &_shadow_extents,
++				 0, 0, quads, nQuad);
+ 
+ 	XChangeProperty (xdisplay, xroot,
+ 			 bareAtom,
+@@ -2284,10 +1666,13 @@
+ 
+     memset (&d, 0, sizeof (d));
+ 
+-    d.width  = left_space + left_corner_space + 1 + right_corner_space +
+-	right_space;
+-    d.height = top_space + titlebar_height + normal_top_corner_space + 2 +
+-	bottom_corner_space + bottom_space;
++    d.context = &window_context;
++    d.shadow  = border_shadow;
++
++    decor_get_default_layout (d.context, 1, 1, &d.border_layout);
++
++    d.width  = d.border_layout.width;
++    d.height = d.border_layout.height;
+ 
+     extents.top += titlebar_height;
+ 
+@@ -2296,18 +1681,24 @@
+     if (decor_normal_pixmap)
+ 	gdk_pixmap_unref (decor_normal_pixmap);
+ 
+-    nQuad = set_no_title_window_quads (quads, d.width, d.height);
++    nQuad = decor_set_lSrStSbS_window_quads (quads, d.context,
++					     &d.border_layout);
+ 
+     decor_normal_pixmap = create_pixmap (d.width, d.height);
+     if (decor_normal_pixmap)
+     {
+-	d.pixmap = decor_normal_pixmap;
+-	d.active = FALSE;
++	d.pixmap  = decor_normal_pixmap;
++	d.active  = FALSE;
++	d.picture = XRenderCreatePicture (xdisplay,
++					  GDK_PIXMAP_XID (d.pixmap),
++					  xformat, 0, NULL);
+ 
+ 	(*d.draw) (&d);
+ 
+-	decoration_to_property (data, GDK_PIXMAP_XID (d.pixmap),
+-				&extents, &extents, 0, 0, quads, nQuad);
++	XRenderFreePicture (xdisplay, d.picture);
++
++	decor_quads_to_property (data, GDK_PIXMAP_XID (d.pixmap),
++				 &extents, &extents, 0, 0, quads, nQuad);
+ 
+ 	XChangeProperty (xdisplay, xroot,
+ 			 normalAtom,
+@@ -2322,13 +1713,18 @@
+     decor_active_pixmap = create_pixmap (d.width, d.height);
+     if (decor_active_pixmap)
+     {
+-	d.pixmap = decor_active_pixmap;
+-	d.active = TRUE;
++	d.pixmap  = decor_active_pixmap;
++	d.active  = TRUE;
++	d.picture = XRenderCreatePicture (xdisplay,
++					  GDK_PIXMAP_XID (d.pixmap),
++					  xformat, 0, NULL);
+ 
+ 	(*d.draw) (&d);
+ 
+-	decoration_to_property (data, GDK_PIXMAP_XID (d.pixmap),
+-				&extents, &extents, 0, 0, quads, nQuad);
++	XRenderFreePicture (xdisplay, d.picture);
++
++	decor_quads_to_property (data, GDK_PIXMAP_XID (d.pixmap),
++				 &extents, &extents, 0, 0, quads, nQuad);
+ 
+ 	XChangeProperty (xdisplay, xroot,
+ 			 activeAtom,
+@@ -2338,39 +1734,6 @@
+     }
+ }
+ 
+-static void
+-set_dm_check_hint (GdkScreen *screen)
+-{
+-    XSetWindowAttributes attrs;
+-    unsigned long	 data[1];
+-    Window		 xroot;
+-    GdkDisplay		 *gdkdisplay = gdk_display_get_default ();
+-    Display		 *xdisplay = gdk_x11_display_get_xdisplay (gdkdisplay);
+-    Atom		 atom;
+-
+-    attrs.override_redirect = TRUE;
+-    attrs.event_mask	    = PropertyChangeMask;
+-
+-    xroot = RootWindowOfScreen (gdk_x11_screen_get_xscreen (screen));
+-
+-    data[0] = XCreateWindow (xdisplay,
+-			     xroot,
+-			     -100, -100, 1, 1,
+-			     0,
+-			     CopyFromParent,
+-			     CopyFromParent,
+-			     (Visual *) CopyFromParent,
+-			     CWOverrideRedirect | CWEventMask,
+-			     &attrs);
+-
+-    atom = XInternAtom (xdisplay, "_NET_SUPPORTING_DM_CHECK", FALSE);
+-
+-    XChangeProperty (xdisplay, xroot,
+-		     atom,
+-		     XA_WINDOW,
+-		     32, PropModeReplace, (guchar *) data, 1);
+-}
+-
+ static gboolean
+ get_window_prop (Window xwindow,
+ 		 Atom   atom,
+@@ -2447,7 +1810,105 @@
+     return decor;
+ }
+ 
+-#ifdef USE_METACITY
++#define TOP_RESIZE_HEIGHT 2
++static void
++meta_get_event_window_position (decor_t *d,
++				gint    i,
++				gint    j,
++				gint	width,
++				gint	height,
++				gint    *x,
++				gint    *y,
++				gint    *w,
++				gint    *h)
++{
++    MetaButtonLayout  button_layout;
++    MetaFrameGeometry fgeom;
++    MetaFrameFlags    flags;
++    MetaTheme	      *theme;
++    GdkRectangle      clip;
++
++    theme = meta_theme_get_current ();
++
++    meta_get_decoration_geometry (d, theme, &flags, &fgeom, &button_layout,
++				  &clip);
++
++    width  += fgeom.right_width + fgeom.left_width;
++    height += fgeom.top_height  + fgeom.bottom_height;
++
++    switch (i) {
++    case 2: /* bottom */
++	switch (j) {
++	case 2: /* bottom right */
++	    *x = width - fgeom.right_width;
++	    *y = height - fgeom.bottom_height;
++	    *w = fgeom.right_width;
++	    *h = fgeom.bottom_height;
++	    break;
++	case 1: /* bottom */
++	    *x = fgeom.left_width;
++	    *y = height - fgeom.bottom_height;
++	    *w = width - fgeom.left_width - fgeom.right_width;
++	    *h = fgeom.bottom_height;
++	    break;
++	case 0: /* bottom left */
++	default:
++	    *x = 0;
++	    *y = height - fgeom.bottom_height;
++	    *w = fgeom.left_width;
++	    *h = fgeom.bottom_height;
++	    break;
++	}
++	break;
++    case 1: /* middle */
++	switch (j) {
++	case 2: /* right */
++	    *x = width - fgeom.right_width;
++	    *y = fgeom.top_height;
++	    *w = fgeom.right_width;
++	    *h = height - fgeom.top_height - fgeom.bottom_height;
++	    break;
++	case 1: /* middle */
++	    *x = fgeom.left_width;
++	    *y = fgeom.title_rect.y + TOP_RESIZE_HEIGHT;
++	    *w = width - fgeom.left_width - fgeom.right_width;
++	    *h = height - fgeom.top_titlebar_edge - fgeom.bottom_height;
++	    break;
++	case 0: /* left */
++	default:
++	    *x = 0;
++	    *y = fgeom.top_height;
++	    *w = fgeom.left_width;
++	    *h = height - fgeom.top_height - fgeom.bottom_height;
++	    break;
++	}
++	break;
++    case 0: /* top */
++    default:
++	switch (j) {
++	case 2: /* top right */
++	    *x = width - fgeom.right_width;
++	    *y = 0;
++	    *w = fgeom.right_width;
++	    *h = fgeom.top_height;
++	    break;
++	case 1: /* top */
++	    *x = fgeom.left_width;
++	    *y = 0;
++	    *w = width - fgeom.left_width - fgeom.right_width;
++	    *h = fgeom.title_rect.y + TOP_RESIZE_HEIGHT;
++	    break;
++	case 0: /* top left */
++	default:
++	    *x = 0;
++	    *y = 0;
++	    *w = fgeom.left_width;
++	    *h = fgeom.top_height;
++	    break;
++	}
++    }
++}
++
+ static void
+ meta_get_button_position (decor_t *d,
+ 			  gint    i,
+@@ -2463,7 +1924,12 @@
+     MetaFrameFlags    flags;
+     MetaTheme	      *theme;
+     GdkRectangle      clip;
++
++#ifdef HAVE_METACITY_2_15_21
+     MetaButtonSpace   *space;
++#else
++    GdkRectangle      *space;
++#endif
+ 
+     theme = meta_theme_get_current ();
+ 
+@@ -2483,13 +1949,21 @@
+ 	break;
+     }
+ 
++#ifdef HAVE_METACITY_2_15_21
+     *x = space->clickable.x;
+     *y = space->clickable.y;
+     *w = space->clickable.width;
+     *h = space->clickable.height;
+-}
++#else
++    *x = space->x;
++    *y = space->y;
++    *w = space->width;
++    *h = space->height;
+ #endif
+ 
++}
++
++
+ static void
+ update_event_windows (WnckWindow *win)
+ {
+@@ -2537,10 +2011,8 @@
+ 	{
+ 	    if (d->actions & event_window_actions[i][j] && i >= k && i <= l)
+ 	    {
+-		x = pos[i][j].x + pos[i][j].xw * width;
+-		y = pos[i][j].y + pos[i][j].yh * height + pos[i][j].yth * (titlebar_height - 17);
+-		w = pos[i][j].w + pos[i][j].ww * width;
+-		h = pos[i][j].h + pos[i][j].hh * height + pos[i][j].hth * (titlebar_height - 17);
++		(*theme_get_event_window_position) (d, i, j, width, height,
++						    &x, &y, &w, &h);
+ 
+ 		XMapWindow (xdisplay, d->event_windows[i][j]);
+ 		XMoveResizeWindow (xdisplay, d->event_windows[i][j],
+@@ -2592,10 +2064,6 @@
+     const gchar *name;
+     gint	w;
+ 
+-    name = wnck_window_get_name (win);
+-    if (!name)
+-	return 0;
+-
+     if (!d->layout)
+     {
+ 	d->layout = pango_layout_new (pango_context);
+@@ -2605,6 +2073,10 @@
+ 	pango_layout_set_wrap (d->layout, PANGO_WRAP_CHAR);
+     }
+ 
++    name = wnck_window_get_name (win);
++    if (!name)
++	return 0;
++
+     pango_layout_set_width (d->layout, -1);
+     pango_layout_set_text (d->layout, name, strlen (name));
+     pango_layout_get_pixel_size (d->layout, &w, NULL);
+@@ -2634,10 +2106,7 @@
+     {
+ 	gint w, n_line;
+ 
+-	w  = d->width - left_space - right_space - ICON_SPACE - 4;
+-	w -= d->button_width;
+-	if (w < 1)
+-	    w = 1;
++	w = SHRT_MAX;
+ 
+ 	pango_layout_set_width (d->layout, w * PANGO_SCALE);
+ 	pango_layout_set_text (d->layout, name, name_length);
+@@ -2651,8 +2120,7 @@
+ 	{
+ 	    if (name_length < 4)
+ 	    {
+-		g_object_unref (G_OBJECT (d->layout));
+-		d->layout = NULL;
++		pango_layout_set_text (d->layout, NULL, 0);
+ 		return;
+ 	    }
+ 
+@@ -2664,11 +2132,6 @@
+ 
+ 	pango_layout_set_text (d->layout, d->name, name_length);
+     }
+-    else if (d->layout)
+-    {
+-	g_object_unref (G_OBJECT (d->layout));
+-	d->layout = NULL;
+-    }
+ }
+ 
+ static void
+@@ -2721,41 +2184,39 @@
+     d->actions = wnck_window_get_actions (win);
+ }
+ 
+-static gboolean
+-update_window_button_size (WnckWindow *win)
++static void
++meta_calc_button_size (decor_t *d)
+ {
+-    decor_t *d = g_object_get_data (G_OBJECT (win), "decor");
+-    gint    button_width;
+-
+-    button_width = 0;
+-
+-    if (d->actions & WNCK_WINDOW_ACTION_CLOSE)
+-	button_width += 17;
+-
+-    if (d->actions & (WNCK_WINDOW_ACTION_MAXIMIZE_HORIZONTALLY   |
+-		      WNCK_WINDOW_ACTION_MAXIMIZE_VERTICALLY     |
+-		      WNCK_WINDOW_ACTION_UNMAXIMIZE_HORIZONTALLY |
+-		      WNCK_WINDOW_ACTION_UNMAXIMIZE_VERTICALLY))
+-	button_width += 17;
+-
+-    if (d->actions & (WNCK_WINDOW_ACTION_MINIMIZE |
+-		      WNCK_WINDOW_ACTION_MINIMIZE))
+-	button_width += 17;
++    gint i, min_x, x, y, w, h, width;
+ 
+-    if (button_width)
+-	button_width++;
++    width = d->border_layout.top.x2 - d->border_layout.top.x1 -
++	d->context->left_space - d->context->right_space;
++    min_x = width;
+ 
+-    if (button_width != d->button_width)
++    for (i = 0; i < 3; i++)
+     {
+-	d->button_width = button_width;
++	static guint button_actions[3] = {
++	    WNCK_WINDOW_ACTION_CLOSE,
++	    WNCK_WINDOW_ACTION_MAXIMIZE,
++	    WNCK_WINDOW_ACTION_MINIMIZE
++	};
+ 
+-	return TRUE;
++	if (d->actions & button_actions[i])
++	{
++	    meta_get_button_position (d,
++				      i,
++				      width,
++				      256,
++				      &x, &y, &w, &h);
++
++	    if (x < min_x)
++		min_x = x;
++	}
+     }
+ 
+-    return FALSE;
++    d->button_width = width - min_x;
+ }
+ 
+-#ifdef USE_METACITY
+ static gboolean
+ meta_calc_decoration_size (decor_t *d,
+ 			   gint    w,
+@@ -2764,23 +2225,53 @@
+ 			   gint    *width,
+ 			   gint    *height)
+ {
+-    *width  = MAX (w, left_corner_space + right_corner_space);
+-    *width += left_space + 1 + right_space;
++    decor_layout_t  layout;
++    decor_context_t *context;
++    decor_shadow_t  *shadow;
+ 
+-    *height  = titlebar_height + normal_top_corner_space + bottom_corner_space;
+-    *height += top_space + 2 + bottom_space;
++    if ((d->state & META_MAXIMIZED) == META_MAXIMIZED)
++    {
++	context = &max_window_context;
++	shadow  = max_border_shadow;
++    }
++    else
++    {
++	context = &window_context;
++	shadow  = border_shadow;
++    }
++
++    decor_get_best_layout (context, w, h, &layout);
+ 
+-    return (*width != d->width || *height != d->height);
++    if (context != d->context ||
++	memcmp (&layout, &d->border_layout, sizeof (layout)))
++    {
++	*width  = layout.width;
++	*height = layout.height;
++
++	d->border_layout = layout;
++	d->context       = context;
++	d->shadow        = shadow;
++
++	meta_calc_button_size (d);
++
++	return TRUE;
++    }
++
++
++    return FALSE;
+ }
+-#endif
+ 
+ static gboolean
+ update_window_decoration_size (WnckWindow *win)
+ {
+     decor_t   *d = g_object_get_data (G_OBJECT (win), "decor");
+     GdkPixmap *pixmap, *buffer_pixmap = NULL;
++    Picture   picture;
+     gint      width, height;
+     gint      w, h, name_width;
++    Display   *xdisplay;
++
++    xdisplay = GDK_DISPLAY_XDISPLAY (gdk_display_get_default ());
+ 
+     wnck_window_get_geometry (win, NULL, NULL, &w, &h);
+ 
+@@ -2803,6 +2294,9 @@
+ 	return FALSE;
+     }
+ 
++    picture = XRenderCreatePicture (xdisplay, GDK_PIXMAP_XID (buffer_pixmap),
++				    xformat, 0, NULL);
++
+     if (d->pixmap)
+ 	gdk_pixmap_unref (d->pixmap);
+ 
+@@ -2812,10 +2306,15 @@
+     if (d->gc)
+ 	gdk_gc_unref (d->gc);
+ 
++    if (d->picture)
++	XRenderFreePicture (xdisplay, d->picture);
++
+     d->pixmap	     = pixmap;
+     d->buffer_pixmap = buffer_pixmap;
+     d->gc	     = gdk_gc_new (pixmap);
+ 
++    d->picture = picture;
++
+     d->width  = width;
+     d->height = height;
+ 
+@@ -2897,7 +2396,6 @@
+ 	update_window_decoration_state (win);
+ 	update_window_decoration_actions (win);
+ 	update_window_decoration_icon (win);
+-	update_window_button_size (win);
+ 	update_window_decoration_size (win);
+ 
+ 	update_event_windows (win);
+@@ -2916,12 +2414,16 @@
+     GdkPixmap  *pixmap, *buffer_pixmap = NULL;
+     gint       height, width = 0;
+     WnckWindow *selected_win;
++    Display    *xdisplay;
++
++    xdisplay = GDK_DISPLAY_XDISPLAY (gdk_display_get_default ());
+ 
+     wnck_window_get_geometry (win, NULL, NULL, &width, NULL);
+ 
+-    width  += left_space + right_space;
+-    height  = top_space + SWITCHER_TOP_EXTRA + switcher_top_corner_space +
+-	SWITCHER_SPACE + switcher_bottom_corner_space + bottom_space;
++    decor_get_default_layout (&switcher_context, width, 1, &d->border_layout);
++
++    width  = d->border_layout.width;
++    height = d->border_layout.height;
+ 
+     d->decorated = FALSE;
+     d->draw	 = draw_switcher_decoration;
+@@ -2973,7 +2475,8 @@
+ 	    {
+ 		int tw;
+ 
+-		tw = width - left_space - right_space - 64;
++		tw = width - switcher_context.left_space -
++		    switcher_context.right_space - 64;
+ 		pango_layout_set_width (d->layout, tw * PANGO_SCALE);
+ 		pango_layout_set_text (d->layout, name, name_length);
+ 
+@@ -3014,6 +2517,12 @@
+ 	if (!d->gc)
+ 	    d->gc = gdk_gc_new (d->pixmap);
+ 
++	if (!d->picture)
++	    d->picture =
++		XRenderCreatePicture (xdisplay,
++				      GDK_PIXMAP_XID (d->buffer_pixmap),
++				      xformat, 0, NULL);
++
+ 	queue_decor_draw (d);
+ 	return FALSE;
+     }
+@@ -3044,6 +2553,9 @@
+     if (d->gc)
+ 	gdk_gc_unref (d->gc);
+ 
++    if (d->picture)
++	XRenderFreePicture (xdisplay, d->picture);
++
+     switcher_pixmap	   = pixmap;
+     switcher_buffer_pixmap = buffer_pixmap;
+ 
+@@ -3057,6 +2569,9 @@
+     d->buffer_pixmap = buffer_pixmap;
+     d->gc	     = gdk_gc_new (pixmap);
+ 
++    d->picture = XRenderCreatePicture (xdisplay, GDK_PIXMAP_XID (buffer_pixmap),
++				       xformat, 0, NULL);
++
+     d->width  = width;
+     d->height = height;
+ 
+@@ -3071,6 +2586,9 @@
+ remove_frame_window (WnckWindow *win)
+ {
+     decor_t *d = g_object_get_data (G_OBJECT (win), "decor");
++    Display *xdisplay;
++
++    xdisplay = GDK_DISPLAY_XDISPLAY (gdk_display_get_default ());
+ 
+     if (d->pixmap)
+     {
+@@ -3090,6 +2608,12 @@
+ 	d->gc = NULL;
+     }
+ 
++    if (d->picture)
++    {
++	XRenderFreePicture (xdisplay, d->picture);
++	d->picture = 0;
++    }
++
+     if (d->name)
+     {
+ 	g_free (d->name);
+@@ -3136,6 +2660,9 @@
+     d->state   = 0;
+     d->actions = 0;
+ 
++    d->context = NULL;
++    d->shadow  = NULL;
++
+     draw_list = g_slist_remove (draw_list, d);
+ }
+ 
+@@ -3183,7 +2710,7 @@
+     if (d->decorated)
+     {
+ 	update_window_decoration_state (win);
+-	queue_decor_draw (d);
++	update_window_decoration_size (win);
+ 	update_event_windows (win);
+     }
+ }
+@@ -3196,15 +2723,10 @@
+     if (d->decorated)
+     {
+ 	update_window_decoration_actions (win);
+-	if (update_window_button_size (win))
+-	{
+-	    update_window_decoration_size (win);
++	if (update_window_decoration_size (win))
+ 	    update_event_windows (win);
+-	}
+ 	else
+-	{
+ 	    queue_decor_draw (d);
+-	}
+     }
+ }
+ 
+@@ -3265,37 +2787,12 @@
+     Window  window;
+     gulong  xid;
+ 
+-    d = g_malloc (sizeof (decor_t));
++    d = calloc (1, sizeof (decor_t));
+     if (!d)
+ 	return;
+ 
+-    d->pixmap	     = NULL;
+-    d->buffer_pixmap = NULL;
+-    d->gc	     = NULL;
+-
+-    d->icon	   = NULL;
+-    d->icon_pixmap = NULL;
+-    d->icon_pixbuf = NULL;
+-
+-    d->button_width = 0;
+-
+-    d->width  = 0;
+-    d->height = 0;
+-
+     d->active = wnck_window_is_active (win);
+ 
+-    d->layout = NULL;
+-    d->name   = NULL;
+-
+-    d->state   = 0;
+-    d->actions = 0;
+-
+-    d->prop_xid = 0;
+-
+-    d->decorated = FALSE;
+-
+-    d->force_quit_dialog = NULL;
+-
+     d->draw = theme_draw_window_decoration;
+ 
+     g_object_set_data (G_OBJECT (win), "decor", d);
+@@ -3304,15 +2801,15 @@
+ 
+     xid = wnck_window_get_xid (win);
+ 
+-    if (get_window_prop (xid, frame_window_atom, &window))
+-    {
+-	add_frame_window (win, window);
+-    }
+-    else if (get_window_prop (xid, select_window_atom, &window))
++    if (get_window_prop (xid, select_window_atom, &window))
+     {
+ 	d->prop_xid = wnck_window_get_xid (win);
+ 	update_switcher_window (win, window);
+     }
++    else if (get_window_prop (xid, frame_window_atom, &window))
++    {
++	add_frame_window (win, window);
++    }
+ }
+ 
+ static void
+@@ -4170,226 +3667,6 @@
+     }
+ }
+ 
+-/* from fvwm2, Copyright Matthias Clasen, Dominik Vogt */
+-static gboolean
+-convert_property (Display *xdisplay,
+-		  Window  w,
+-		  Atom    target,
+-		  Atom    property)
+-{
+-
+-#define N_TARGETS 4
+-
+-    Atom conversion_targets[N_TARGETS];
+-    long icccm_version[] = { 2, 0 };
+-
+-    conversion_targets[0] = targets_atom;
+-    conversion_targets[1] = multiple_atom;
+-    conversion_targets[2] = timestamp_atom;
+-    conversion_targets[3] = version_atom;
+-
+-    if (target == targets_atom)
+-	XChangeProperty (xdisplay, w, property,
+-			 XA_ATOM, 32, PropModeReplace,
+-			 (unsigned char *) conversion_targets, N_TARGETS);
+-    else if (target == timestamp_atom)
+-	XChangeProperty (xdisplay, w, property,
+-			 XA_INTEGER, 32, PropModeReplace,
+-			 (unsigned char *) &dm_sn_timestamp, 1);
+-    else if (target == version_atom)
+-	XChangeProperty (xdisplay, w, property,
+-			 XA_INTEGER, 32, PropModeReplace,
+-			 (unsigned char *) icccm_version, 2);
+-    else
+-	return FALSE;
+-
+-    /* Be sure the PropertyNotify has arrived so we
+-     * can send SelectionNotify
+-     */
+-    XSync (xdisplay, FALSE);
+-
+-    return TRUE;
+-}
+-
+-static void
+-handle_selection_request (Display *xdisplay,
+-			  XEvent  *event)
+-{
+-    XSelectionEvent reply;
+-
+-    reply.type	    = SelectionNotify;
+-    reply.display   = xdisplay;
+-    reply.requestor = event->xselectionrequest.requestor;
+-    reply.selection = event->xselectionrequest.selection;
+-    reply.target    = event->xselectionrequest.target;
+-    reply.property  = None;
+-    reply.time	    = event->xselectionrequest.time;
+-
+-    if (event->xselectionrequest.target == multiple_atom)
+-    {
+-	if (event->xselectionrequest.property != None)
+-	{
+-	    Atom	  type, *adata;
+-	    int		  i, format;
+-	    unsigned long num, rest;
+-	    unsigned char *data;
+-
+-	    if (XGetWindowProperty (xdisplay,
+-				    event->xselectionrequest.requestor,
+-				    event->xselectionrequest.property,
+-				    0, 256, FALSE,
+-				    atom_pair_atom,
+-				    &type, &format, &num, &rest,
+-				    &data) != Success)
+-		return;
+-
+-	    /* FIXME: to be 100% correct, should deal with rest > 0,
+-	     * but since we have 4 possible targets, we will hardly ever
+-	     * meet multiple requests with a length > 8
+-	     */
+-	    adata = (Atom *) data;
+-	    i = 0;
+-	    while (i < (int) num)
+-	    {
+-		if (!convert_property (xdisplay,
+-				       event->xselectionrequest.requestor,
+-				       adata[i], adata[i + 1]))
+-		    adata[i + 1] = None;
+-
+-		i += 2;
+-	    }
+-
+-	    XChangeProperty (xdisplay,
+-			     event->xselectionrequest.requestor,
+-			     event->xselectionrequest.property,
+-			     atom_pair_atom,
+-			     32, PropModeReplace, data, num);
+-	}
+-    }
+-    else
+-    {
+-	if (event->xselectionrequest.property == None)
+-	    event->xselectionrequest.property = event->xselectionrequest.target;
+-
+-	if (convert_property (xdisplay,
+-			      event->xselectionrequest.requestor,
+-			      event->xselectionrequest.target,
+-			      event->xselectionrequest.property))
+-	    reply.property = event->xselectionrequest.property;
+-    }
+-
+-    XSendEvent (xdisplay,
+-		event->xselectionrequest.requestor,
+-		FALSE, 0L, (XEvent *) &reply);
+-}
+-
+-static void
+-handle_selection_clear (Display *xdisplay,
+-			XEvent  *xevent)
+-{
+-    if (xevent->xselectionclear.selection == dm_sn_atom)
+-	exit (0);
+-}
+-
+-static gboolean
+-acquire_dm_session (Display  *xdisplay,
+-		    int	     screen,
+-		    gboolean replace_current_dm)
+-{
+-    XEvent		 event;
+-    XSetWindowAttributes attr;
+-    Window		 current_dm_sn_owner, new_dm_sn_owner;
+-    char		 buf[128];
+-
+-    sprintf (buf, "DM_S%d", screen);
+-    dm_sn_atom = XInternAtom (xdisplay, buf, 0);
+-
+-    current_dm_sn_owner = XGetSelectionOwner (xdisplay, dm_sn_atom);
+-
+-    if (current_dm_sn_owner != None)
+-    {
+-	if (!replace_current_dm)
+-	{
+-	    fprintf (stderr,
+-		     "%s: Screen %d on display \"%s\" already "
+-		     "has a decoration manager; try using the "
+-		     "--replace option to replace the current "
+-		     "decoration manager.\n",
+-		     program_name, screen, DisplayString (xdisplay));
+-
+-	    return FALSE;
+-	}
+-
+-	XSelectInput (xdisplay, current_dm_sn_owner, StructureNotifyMask);
+-    }
+-
+-    attr.override_redirect = TRUE;
+-    attr.event_mask	   = PropertyChangeMask;
+-
+-    new_dm_sn_owner =
+-	XCreateWindow (xdisplay, XRootWindow (xdisplay, screen),
+-		       -100, -100, 1, 1, 0,
+-		       CopyFromParent, CopyFromParent,
+-		       CopyFromParent,
+-		       CWOverrideRedirect | CWEventMask,
+-		       &attr);
+-
+-    XChangeProperty (xdisplay,
+-		     new_dm_sn_owner,
+-		     dm_name_atom,
+-		     utf8_string_atom, 8,
+-		     PropModeReplace,
+-		     (unsigned char *) "gwd",
+-		     strlen ("gwd"));
+-
+-    XWindowEvent (xdisplay,
+-		  new_dm_sn_owner,
+-		  PropertyChangeMask,
+-		  &event);
+-
+-    dm_sn_timestamp = event.xproperty.time;
+-
+-    XSetSelectionOwner (xdisplay, dm_sn_atom, new_dm_sn_owner,
+-			dm_sn_timestamp);
+-
+-    if (XGetSelectionOwner (xdisplay, dm_sn_atom) != new_dm_sn_owner)
+-    {
+-	fprintf (stderr,
+-		 "%s: Could not acquire decoration manager "
+-		 "selection on screen %d display \"%s\"\n",
+-		 program_name, screen, DisplayString (xdisplay));
+-
+-	XDestroyWindow (xdisplay, new_dm_sn_owner);
+-
+-	return FALSE;
+-    }
+-
+-    /* Send client message indicating that we are now the DM */
+-    event.xclient.type	       = ClientMessage;
+-    event.xclient.window       = XRootWindow (xdisplay, screen);
+-    event.xclient.message_type = manager_atom;
+-    event.xclient.format       = 32;
+-    event.xclient.data.l[0]    = dm_sn_timestamp;
+-    event.xclient.data.l[1]    = dm_sn_atom;
+-    event.xclient.data.l[2]    = 0;
+-    event.xclient.data.l[3]    = 0;
+-    event.xclient.data.l[4]    = 0;
+-
+-    XSendEvent (xdisplay, XRootWindow (xdisplay, screen), FALSE,
+-		StructureNotifyMask, &event);
+-
+-    /* Wait for old decoration manager to go away */
+-    if (current_dm_sn_owner != None)
+-    {
+-	do {
+-	    XWindowEvent (xdisplay, current_dm_sn_owner,
+-			  StructureNotifyMask, &event);
+-	} while (event.type != DestroyNotify);
+-    }
+-
+-    return TRUE;
+-}
+-
+ static GdkFilterReturn
+ event_filter_func (GdkXEvent *gdkxevent,
+ 		   GdkEvent  *event,
+@@ -4431,12 +3708,15 @@
+ 	    win = wnck_window_get (xid);
+ 	    if (win)
+ 	    {
+-		Window frame;
++		Window frame, window;
+ 
+-		if (get_window_prop (xid, frame_window_atom, &frame))
+-		    add_frame_window (win, frame);
+-		else
+-		    remove_frame_window (win);
++		if (!get_window_prop (xid, select_window_atom, &window))
++		{
++		    if (get_window_prop (xid, frame_window_atom, &frame))
++			add_frame_window (win, frame);
++		    else
++			remove_frame_window (win);
++		}
+ 	    }
+ 	}
+ 	else if (xevent->xproperty.atom == mwm_hints_atom)
+@@ -4459,6 +3739,7 @@
+ 		    d->decorated = decorated;
+ 		    if (decorated)
+ 		    {
++			d->context = NULL;
+ 			d->width = d->height = 0;
+ 
+ 			update_window_decoration_size (win);
+@@ -4589,16 +3870,19 @@
+     Display    *xdisplay;
+     GdkDisplay *gdkdisplay;
+     XEvent     *xevent = gdkxevent;
++    int	       status;
+ 
+     gdkdisplay = gdk_display_get_default ();
+     xdisplay   = GDK_DISPLAY_XDISPLAY (gdkdisplay);
+ 
+     switch (xevent->type) {
+     case SelectionRequest:
+-	handle_selection_request (xdisplay, xevent);
++	decor_handle_selection_request (xdisplay, xevent, dm_sn_timestamp);
+ 	break;
+     case SelectionClear:
+-	handle_selection_clear (xdisplay, xevent);
++	status = decor_handle_selection_clear (xdisplay, xevent, 0);
++	if (status == DECOR_SELECTION_GIVE_UP)
++	    exit (0);
+     default:
+ 	break;
+     }
+@@ -4810,420 +4094,210 @@
+     shade (&_title_color[0], &_title_color[1], 0.85);
+ }
+ 
+-#if G_MAXINT != G_MAXLONG
+-/* XRenderSetPictureFilter used to be broken on LP64. This
+- * works with either the broken or fixed version.
+- */
+-static void
+-XRenderSetPictureFilter_wrapper (Display *dpy,
+-				 Picture picture,
+-				 char    *filter,
+-				 XFixed  *params,
+-				 int     nparams)
+-{
+-    gdk_error_trap_push ();
+-    XRenderSetPictureFilter (dpy, picture, filter, params, nparams);
+-    XSync (dpy, False);
+-    if (gdk_error_trap_pop ())
+-    {
+-	long *long_params = g_new (long, nparams);
+-	int  i;
+-
+-	for (i = 0; i < nparams; i++)
+-	    long_params[i] = params[i];
+-
+-	XRenderSetPictureFilter (dpy, picture, filter,
+-				 (XFixed *) long_params, nparams);
+-	g_free (long_params);
+-    }
+-}
+-
+-#define XRenderSetPictureFilter XRenderSetPictureFilter_wrapper
+-#endif
+-
+-static void
+-set_picture_transform (Display *xdisplay,
+-		       Picture p,
+-		       int     dx,
+-		       int     dy)
+-{
+-    XTransform transform = {
+-	{
+-	    { 1 << 16, 0,       -dx << 16 },
+-	    { 0,       1 << 16, -dy << 16 },
+-	    { 0,       0,         1 << 16 },
+-	}
+-    };
+-
+-    XRenderSetPictureTransform (xdisplay, p, &transform);
+-}
+-
+-static XFixed *
+-create_gaussian_kernel (double radius,
+-			double sigma,
+-			double alpha,
+-			double opacity,
+-			int    *r_size)
+-{
+-    XFixed *params;
+-    double *amp, scale, x_scale, fx, sum;
+-    int    size, half_size, x, i, n;
+-
+-    scale = 1.0f / (2.0f * M_PI * sigma * sigma);
+-    half_size = alpha + 0.5f;
+-
+-    if (half_size == 0)
+-	half_size = 1;
+-
+-    size = half_size * 2 + 1;
+-    x_scale = 2.0f * radius / size;
+-
+-    if (size < 3)
+-	return NULL;
+-
+-    n = size;
+-
+-    amp = g_malloc (sizeof (double) * n);
+-    if (!amp)
+-	return NULL;
+-
+-    n += 2;
+-
+-    params = g_malloc (sizeof (XFixed) * n);
+-    if (!params)
+-	return NULL;
+-
+-    i   = 0;
+-    sum = 0.0f;
+-
+-    for (x = 0; x < size; x++)
+-    {
+-	fx = x_scale * (x - half_size);
+-
+-	amp[i] = scale * exp ((-1.0f * (fx * fx)) / (2.0f * sigma * sigma));
+-
+-	sum += amp[i];
+-
+-	i++;
+-    }
+-
+-    /* normalize */
+-    if (sum != 0.0)
+-	sum = 1.0 / sum;
+-
+-    params[0] = params[1] = 0;
+-
+-    for (i = 2; i < n; i++)
+-	params[i] = XDoubleToFixed (amp[i - 2] * sum * opacity * 1.2);
+-
+-    g_free (amp);
+-
+-    *r_size = size;
+-
+-    return params;
+-}
+-
+ /* to save some memory, value is specific to current decorations */
+-#define CORNER_REDUCTION 3
++#define TRANSLUCENT_CORNER_SIZE 3
+ 
+-#define SIGMA(r) ((r) / 2.0)
+-#define ALPHA(r) (r)
+-
+-static int
+-update_shadow (void)
++static void
++draw_border_shape (Display	   *xdisplay,
++		   Pixmap	   pixmap,
++		   Picture	   picture,
++		   int		   width,
++		   int		   height,
++		   decor_context_t *c,
++		   void		   *closure)
+ {
+-    Display		*xdisplay = gdk_display;
+-    XRenderPictFormat   *format;
+-    GdkPixmap		*pixmap;
+-    Picture		src, dst, tmp;
+-    XFixed		*params;
+-    XFilters		*filters;
+-    char		*filter = NULL;
+-    int			size, n_params = 0;
+-    cairo_t		*cr;
++    static XRenderColor white = { 0xffff, 0xffff, 0xffff, 0xffff };
++    GdkScreen		*screen;
++    GdkColormap		*colormap;
+     decor_t		d;
+     double		save_decoration_alpha;
+-    static XRenderColor color = { 0x0000, 0x0000, 0x0000, 0xffff };
+-    static XRenderColor clear = { 0x0000, 0x0000, 0x0000, 0x0000 };
+-    static XRenderColor white = { 0xffff, 0xffff, 0xffff, 0xffff };
+-
+-    /* compute a gaussian convolution kernel */
+-    params = create_gaussian_kernel (shadow_radius,
+-				     SIGMA (shadow_radius),
+-				     ALPHA (shadow_radius),
+-				     shadow_opacity,
+-				     &size);
+-    if (!params)
+-	shadow_offset_x = shadow_offset_y = size = 0;
+-
+-    if (shadow_radius <= 0.0 && shadow_offset_x == 0 && shadow_offset_y == 0)
+-	size = 0;
+-
+-    n_params = size + 2;
+-    size     = size / 2;
+-
+-    left_space   = _win_extents.left   + size - shadow_offset_x;
+-    right_space  = _win_extents.right  + size + shadow_offset_x;
+-    top_space    = _win_extents.top    + size - shadow_offset_y;
+-    bottom_space = _win_extents.bottom + size + shadow_offset_y;
+-
+-    left_space   = MAX (_win_extents.left,   left_space);
+-    right_space  = MAX (_win_extents.right,  right_space);
+-    top_space    = MAX (_win_extents.top,    top_space);
+-    bottom_space = MAX (_win_extents.bottom, bottom_space);
+-
+-    shadow_left_space   = MAX (0, size - shadow_offset_x);
+-    shadow_right_space  = MAX (0, size + shadow_offset_x);
+-    shadow_top_space    = MAX (0, size - shadow_offset_y);
+-    shadow_bottom_space = MAX (0, size + shadow_offset_y);
+-
+-    shadow_left_corner_space   = MAX (0, size + shadow_offset_x);
+-    shadow_right_corner_space  = MAX (0, size - shadow_offset_x);
+-    shadow_top_corner_space    = MAX (0, size + shadow_offset_y);
+-    shadow_bottom_corner_space = MAX (0, size - shadow_offset_y);
+-
+-    left_corner_space   = MAX (0, shadow_left_corner_space - CORNER_REDUCTION);
+-    right_corner_space  = MAX (0, shadow_right_corner_space - CORNER_REDUCTION);
+-    top_corner_space    = MAX (0, shadow_top_corner_space - CORNER_REDUCTION);
+-    bottom_corner_space =
+-	MAX (0, shadow_bottom_corner_space - CORNER_REDUCTION);
+-
+-    normal_top_corner_space = MAX (0, top_corner_space - titlebar_height);
+-    switcher_top_corner_space = MAX (0, top_corner_space - SWITCHER_TOP_EXTRA);
+-    switcher_bottom_corner_space =
+-	MAX (0, bottom_corner_space - SWITCHER_SPACE);
+ 
+     memset (&d, 0, sizeof (d));
+ 
+-    d.draw   = theme_draw_window_decoration;
+-    d.active = TRUE;
+-
+-    d.width  = left_space + left_corner_space + 1 + right_corner_space +
+-	right_space;
+-    d.height = top_space + titlebar_height + normal_top_corner_space + 2 +
+-	bottom_corner_space + bottom_space;
+-
+-    /* all pixmaps are ARGB32 */
+-    format = XRenderFindStandardFormat (xdisplay, PictStandardARGB32);
+-
+-    /* shadow color */
+-    src = XRenderCreateSolidFill (xdisplay, &color);
+-
+-    if (large_shadow_pixmap)
+-    {
+-	gdk_pixmap_unref (large_shadow_pixmap);
+-	large_shadow_pixmap = NULL;
+-    }
+-
+-    if (shadow_pattern)
+-    {
+-	cairo_pattern_destroy (shadow_pattern);
+-	shadow_pattern = NULL;
+-    }
+-
+-    if (shadow_pixmap)
+-    {
+-	gdk_pixmap_unref (shadow_pixmap);
+-	shadow_pixmap = NULL;
+-    }
+-
+-    /* no shadow */
+-    if (size <= 0)
+-    {
+-	if (params)
+-	    g_free (params);
+-
+-	return 1;
+-    }
+-
+-    pixmap = create_pixmap (d.width, d.height);
+-    if (!pixmap)
+-    {
+-	g_free (params);
+-	return 0;
+-    }
+-
+-    /* query server for convolution filter */
+-    filters = XRenderQueryFilters (xdisplay, GDK_PIXMAP_XID (pixmap));
+-    if (filters)
+-    {
+-	int i;
+-
+-	for (i = 0; i < filters->nfilter; i++)
+-	{
+-	    if (strcmp (filters->filter[i], FilterConvolution) == 0)
+-	    {
+-		filter = FilterConvolution;
+-		break;
+-	    }
+-	}
+-
+-	XFree (filters);
+-    }
+-
+-    if (!filter)
+-    {
+-	fprintf (stderr, "can't generate shadows, X server doesn't support "
+-		 "convolution filters\n");
+-
+-	g_free (params);
+-	gdk_pixmap_unref (pixmap);
+-	return 1;
+-    }
++    d.pixmap  = gdk_pixmap_foreign_new_for_display (gdk_display_get_default (),
++						    pixmap);
++    d.width   = width;
++    d.height  = height;
++    d.active  = TRUE;
++    d.draw    = theme_draw_window_decoration;
++    d.picture = picture;
++    d.context = c;
++
++    /* we use closure argument if maximized */
++    if (closure)
++	d.state |=
++	    WNCK_WINDOW_STATE_MAXIMIZED_HORIZONTALLY |
++	    WNCK_WINDOW_STATE_MAXIMIZED_VERTICALLY;
+ 
++    decor_get_default_layout (c, 1, 1, &d.border_layout);
+ 
+-    /* WINDOWS WITH DECORATION */
++    screen   = gdk_display_get_default_screen (gdk_display_get_default ());
++    colormap = gdk_screen_get_rgba_colormap (screen);
+ 
+-    d.pixmap = create_pixmap (d.width, d.height);
+-    if (!d.pixmap)
+-    {
+-	g_free (params);
+-	gdk_pixmap_unref (pixmap);
+-	return 0;
+-    }
++    gdk_drawable_set_colormap (d.pixmap, colormap);
+ 
+     /* create shadow from opaque decoration */
+     save_decoration_alpha = decoration_alpha;
+     decoration_alpha = 1.0;
+ 
+-    /* draw decorations */
+     (*d.draw) (&d);
+ 
+     decoration_alpha = save_decoration_alpha;
+ 
+-    dst = XRenderCreatePicture (xdisplay, GDK_PIXMAP_XID (d.pixmap),
+-				format, 0, NULL);
+-    tmp = XRenderCreatePicture (xdisplay, GDK_PIXMAP_XID (pixmap),
+-				format, 0, NULL);
+-
+-    /* first pass */
+-    params[0] = (n_params - 2) << 16;
+-    params[1] = 1 << 16;
+-
+-    set_picture_transform (xdisplay, dst, shadow_offset_x, 0);
+-    XRenderSetPictureFilter (xdisplay, dst, filter, params, n_params);
+-    XRenderComposite (xdisplay,
+-		      PictOpSrc,
+-		      src,
+-		      dst,
+-		      tmp,
+-		      0, 0,
+-		      0, 0,
+-		      0, 0,
+-		      d.width, d.height);
+-
+-    /* second pass */
+-    params[0] = 1 << 16;
+-    params[1] = (n_params - 2) << 16;
+-
+-    set_picture_transform (xdisplay, tmp, 0, shadow_offset_y);
+-    XRenderSetPictureFilter (xdisplay, tmp, filter, params, n_params);
+-    XRenderComposite (xdisplay,
+-		      PictOpSrc,
+-		      src,
+-		      tmp,
+-		      dst,
+-		      0, 0,
+-		      0, 0,
+-		      0, 0,
+-		      d.width, d.height);
+-
+-    XRenderFreePicture (xdisplay, tmp);
+-    XRenderFreePicture (xdisplay, dst);
+-
+-    gdk_pixmap_unref (pixmap);
+-
+-    large_shadow_pixmap = d.pixmap;
+-
+-    cr = gdk_cairo_create (GDK_DRAWABLE (large_shadow_pixmap));
+-    shadow_pattern = cairo_pattern_create_for_surface (cairo_get_target (cr));
+-    cairo_pattern_set_filter (shadow_pattern, CAIRO_FILTER_NEAREST);
+-    cairo_destroy (cr);
++    XRenderFillRectangle (xdisplay, PictOpSrc, picture, &white,
++			  c->left_space,
++			  c->top_space,
++			  width - c->left_space - c->right_space,
++			  height - c->top_space - c->bottom_space);
+ 
++    gdk_pixmap_unref (d.pixmap);
++}
+ 
+-    /* WINDOWS WITHOUT DECORATIONS */
++static int
++update_shadow (void)
++{
++    decor_shadow_options_t opt;
++    Display		   *xdisplay = gdk_display;
++    GdkDisplay		   *display = gdk_display_get_default ();
++    GdkScreen		   *screen = gdk_display_get_default_screen (display);
++
++    opt.shadow_radius  = shadow_radius;
++    opt.shadow_opacity = shadow_opacity;
++
++    memcpy (opt.shadow_color, shadow_color, sizeof (shadow_color));
++
++    opt.shadow_offset_x = shadow_offset_x;
++    opt.shadow_offset_y = shadow_offset_y;
++
++    if (no_border_shadow)
++    {
++	decor_destroy_shadow (xdisplay, no_border_shadow);
++	no_border_shadow = NULL;
++    }
++
++    no_border_shadow = decor_create_shadow (xdisplay,
++					    gdk_x11_screen_get_xscreen (screen),
++					    1, 1,
++					    0,
++					    0,
++					    0,
++					    0,
++					    0, 0, 0, 0,
++					    &opt,
++					    &shadow_context,
++					    decor_draw_simple,
++					    0);
++
++    if (border_shadow)
++    {
++	decor_destroy_shadow (xdisplay, border_shadow);
++	border_shadow = NULL;
++    }
++
++    border_shadow = decor_create_shadow (xdisplay,
++					 gdk_x11_screen_get_xscreen (screen),
++					 1, 1,
++					 _win_extents.left,
++					 _win_extents.right,
++					 _win_extents.top + titlebar_height,
++					 _win_extents.bottom,
++					 _win_extents.left -
++					 _win_extents.left -
++					 TRANSLUCENT_CORNER_SIZE,
++					 _win_extents.right -
++					 TRANSLUCENT_CORNER_SIZE,
++					 _win_extents.top + titlebar_height -
++					 TRANSLUCENT_CORNER_SIZE,
++					 _win_extents.bottom -
++					 TRANSLUCENT_CORNER_SIZE,
++					 &opt,
++					 &window_context,
++					 draw_border_shape,
++					 0);
++
++    if (max_border_shadow)
++    {
++	decor_destroy_shadow (xdisplay, max_border_shadow);
++	max_border_shadow = NULL;
++    }
++
++    max_border_shadow =
++	decor_create_shadow (xdisplay,
++			     gdk_x11_screen_get_xscreen (screen),
++			     1, 1,
++			     _max_win_extents.left,
++			     _max_win_extents.right,
++			     _max_win_extents.top + max_titlebar_height,
++			     _max_win_extents.bottom,
++			     _max_win_extents.left -
++			     _max_win_extents.left - TRANSLUCENT_CORNER_SIZE,
++			     _max_win_extents.right - TRANSLUCENT_CORNER_SIZE,
++			     _max_win_extents.top + max_titlebar_height -
++			     TRANSLUCENT_CORNER_SIZE,
++			     _max_win_extents.bottom - TRANSLUCENT_CORNER_SIZE,
++			     &opt,
++			     &max_window_context,
++			     draw_border_shape,
++			     (void *) 1);
++
++    if (switcher_shadow)
++    {
++	decor_destroy_shadow (xdisplay, switcher_shadow);
++	switcher_shadow = NULL;
++    }
++
++    switcher_shadow = decor_create_shadow (xdisplay,
++					   gdk_x11_screen_get_xscreen (screen),
++					   1, 1,
++					   _switcher_extents.left,
++					   _switcher_extents.right,
++					   _switcher_extents.top,
++					   _switcher_extents.bottom,
++					   _switcher_extents.left -
++					   TRANSLUCENT_CORNER_SIZE,
++					   _switcher_extents.right -
++					   TRANSLUCENT_CORNER_SIZE,
++					   _switcher_extents.top -
++					   TRANSLUCENT_CORNER_SIZE,
++					   _switcher_extents.bottom -
++					   TRANSLUCENT_CORNER_SIZE,
++					   &opt,
++					   &switcher_context,
++					   decor_draw_simple,
++					   0);
+ 
+-    d.width  = shadow_left_space + shadow_left_corner_space + 1 +
+-	shadow_right_space + shadow_right_corner_space;
+-    d.height = shadow_top_space + shadow_top_corner_space + 1 +
+-	shadow_bottom_space + shadow_bottom_corner_space;
++    return 1;
++}
+ 
+-    pixmap = create_pixmap (d.width, d.height);
+-    if (!pixmap)
+-    {
+-	g_free (params);
+-	return 0;
+-    }
++static void
++update_window_decoration (WnckWindow *win)
++{
++    decor_t *d = g_object_get_data (G_OBJECT (win), "decor");
+ 
+-    d.pixmap = create_pixmap (d.width, d.height);
+-    if (!d.pixmap)
++    if (d->decorated)
+     {
+-	gdk_pixmap_unref (pixmap);
+-	g_free (params);
+-	return 0;
+-    }
+-
+-    dst = XRenderCreatePicture (xdisplay, GDK_PIXMAP_XID (d.pixmap),
+-				format, 0, NULL);
+-
+-    /* draw rectangle */
+-    XRenderFillRectangle (xdisplay, PictOpSrc, dst, &clear,
+-			  0,
+-			  0,
+-			  d.width,
+-			  d.height);
+-    XRenderFillRectangle (xdisplay, PictOpSrc, dst, &white,
+-			  shadow_left_space,
+-			  shadow_top_space,
+-			  d.width - shadow_left_space - shadow_right_space,
+-			  d.height - shadow_top_space - shadow_bottom_space);
+-
+-    tmp = XRenderCreatePicture (xdisplay, GDK_PIXMAP_XID (pixmap),
+-				format, 0, NULL);
+-
+-    /* first pass */
+-    params[0] = (n_params - 2) << 16;
+-    params[1] = 1 << 16;
+-
+-    set_picture_transform (xdisplay, dst, shadow_offset_x, 0);
+-    XRenderSetPictureFilter (xdisplay, dst, filter, params, n_params);
+-    XRenderComposite (xdisplay,
+-		      PictOpSrc,
+-		      src,
+-		      dst,
+-		      tmp,
+-		      0, 0,
+-		      0, 0,
+-		      0, 0,
+-		      d.width, d.height);
+-
+-    /* second pass */
+-    params[0] = 1 << 16;
+-    params[1] = (n_params - 2) << 16;
+-
+-    set_picture_transform (xdisplay, tmp, 0, shadow_offset_y);
+-    XRenderSetPictureFilter (xdisplay, tmp, filter, params, n_params);
+-    XRenderComposite (xdisplay,
+-		      PictOpSrc,
+-		      src,
+-		      tmp,
+-		      dst,
+-		      0, 0,
+-		      0, 0,
+-		      0, 0,
+-		      d.width, d.height);
+-
+-    XRenderFreePicture (xdisplay, tmp);
+-    XRenderFreePicture (xdisplay, dst);
+-    XRenderFreePicture (xdisplay, src);
+-
+-    gdk_pixmap_unref (pixmap);
++	/* force size update */
++	d->context = NULL;
++	d->width = d->height = 0;
+ 
+-    g_free (params);
++	update_window_decoration_size (win);
++	update_event_windows (win);
++    }
++    else
++    {
++	Window xid = wnck_window_get_xid (win);
++	Window select;
+ 
+-    shadow_pixmap = d.pixmap;
++	if (get_window_prop (xid, select_window_atom, &select))
++	{
++	    /* force size update */
++	    d->context = NULL;
++	    d->width = d->height = 0;
++	    switcher_width = switcher_height = 0;
+ 
+-    return 1;
++	    update_switcher_window (win, select);
++	}
++    }
+ }
+ 
+ static void
+@@ -5248,16 +4322,7 @@
+     windows = wnck_screen_get_windows (screen);
+     while (windows != NULL)
+     {
+-	decor_t *d = g_object_get_data (G_OBJECT (windows->data), "decor");
+-
+-	if (d->decorated)
+-	{
+-	    /* force size update */
+-	    d->width = d->height = 0;
+-
+-	    update_window_decoration_size (WNCK_WINDOW (windows->data));
+-	    update_event_windows (WNCK_WINDOW (windows->data));
+-	}
++	update_window_decoration (WNCK_WINDOW (windows->data));
+ 	windows = windows->next;
+     }
+ }
+@@ -5313,9 +4378,8 @@
+     }
+ }
+ 
+-#ifdef USE_METACITY
+-static gint
+-meta_calc_titlebar_height (gint text_height)
++static void
++meta_update_border_extents (gint text_height)
+ {
+     MetaTheme *theme;
+     gint      top_height, bottom_height, left_width, right_width;
+@@ -5330,9 +4394,28 @@
+ 				  &left_width,
+ 				  &right_width);
+ 
+-    return top_height - _win_extents.top;
++    _win_extents.top    = _default_win_extents.top;
++    _win_extents.bottom = bottom_height;
++    _win_extents.left   = left_width;
++    _win_extents.right  = right_width;
++
++    titlebar_height = top_height - _win_extents.top;
++
++    meta_theme_get_frame_borders (theme,
++				  META_FRAME_TYPE_NORMAL,
++				  text_height, META_FRAME_MAXIMIZED,
++				  &top_height,
++				  &bottom_height,
++				  &left_width,
++				  &right_width);
++
++    _max_win_extents.top    = _default_win_extents.top;
++    _max_win_extents.bottom = bottom_height;
++    _max_win_extents.left   = left_width;
++    _max_win_extents.right  = right_width;
++
++    max_titlebar_height = top_height - _max_win_extents.top;
+ }
+-#endif
+ 
+ static void
+ update_titlebar_font (void)
+@@ -5358,16 +4441,16 @@
+     text_height = PANGO_PIXELS (pango_font_metrics_get_ascent (metrics) +
+ 				pango_font_metrics_get_descent (metrics));
+ 
+-    titlebar_height = (*theme_calc_titlebar_height) (text_height);
+-
+     pango_font_metrics_unref (metrics);
+ }
+ 
+ static gboolean
+ shadow_settings_changed (GConfClient *client)
+ {
++	return FALSE;
+     double   radius, opacity;
+     int      offset;
++    gchar    *color;
+     gboolean changed = FALSE;
+ 
+     radius = gconf_client_get_float (client,
+@@ -5390,6 +4473,24 @@
+ 	changed = TRUE;
+     }
+ 
++    color = gconf_client_get_string (client,
++				     COMPIZ_SHADOW_COLOR_KEY,
++				     NULL);
++    if (color)
++    {
++	int c[4];
++
++	if (sscanf (color, "#%2x%2x%2x%2x", &c[0], &c[1], &c[2], &c[3]) == 4)
++	{
++	    shadow_color[0] = c[0] << 8 | c[0];
++	    shadow_color[1] = c[1] << 8 | c[1];
++	    shadow_color[2] = c[2] << 8 | c[2];
++	    changed = TRUE;
++	}
++
++	g_free (color);
++    }
++
+     offset = gconf_client_get_int (client,
+ 				   COMPIZ_SHADOW_OFFSET_X_KEY,
+ 				   NULL);
+@@ -5457,43 +4558,40 @@
+ static gboolean
+ theme_changed (GConfClient *client)
+ {
+-    gchar *theme;
+ 
+-    theme = gconf_client_get_string (client,
+-	    META_THEME_KEY,
+-	    NULL);
++	gchar *theme;
+ 
+-    if (theme)
+-    {
+-	meta_theme_set_current (theme, TRUE);
+-	if (!meta_theme_get_current ())
+-	    g_warning("Couldn't set metacity theme?");
++	theme = gconf_client_get_string (client,
++					 META_THEME_KEY,
++					 NULL);
+ 
+-	g_free (theme);
+-    }
+-    else
+-    {
+-	g_warning("No metacity theme set?");
+-    }
+-    theme_draw_window_decoration = meta_draw_window_decoration;
+-    theme_calc_decoration_size   = meta_calc_decoration_size;
+-    theme_calc_titlebar_height   = meta_calc_titlebar_height;
+-    theme_get_button_position    = meta_get_button_position;
++	if (theme)
++	{
++	    meta_theme_set_current (theme, TRUE);
++
++	    g_free (theme);
++	}
++
++	theme_draw_window_decoration	= meta_draw_window_decoration;
++	theme_calc_decoration_size	= meta_calc_decoration_size;
++	theme_update_border_extents	= meta_update_border_extents;
++	theme_get_event_window_position = meta_get_event_window_position;
++	theme_get_button_position	= meta_get_button_position;
+     return TRUE;
++
+ }
+ 
+ static gboolean
+ theme_opacity_changed (GConfClient *client)
+ {
++	return FALSE;
+ 
+-#ifdef USE_METACITY
+     gboolean shade_opacity, changed = FALSE;
+     gdouble  opacity;
+ 
+-    opacity =1.0;
+-    /*= gconf_client_get_float (client,
++    opacity = gconf_client_get_float (client,
+ 				    META_THEME_OPACITY_KEY,
+-				    NULL);*/
++				    NULL);
+ 
+     if (opacity != meta_opacity)
+     {
+@@ -5514,10 +4612,9 @@
+ 	}
+     }
+ 
+-    opacity = 1.0;
+-    /*gconf_client_get_float (client,
++    opacity = gconf_client_get_float (client,
+ 				    META_THEME_ACTIVE_OPACITY_KEY,
+-				    NULL);*/
++				    NULL);
+ 
+     if (opacity != meta_active_opacity)
+     {
+@@ -5540,9 +4637,6 @@
+     }
+ 
+     return changed;
+-#else
+-    return FALSE;
+-#endif
+ 
+ }
+ 
+@@ -5576,7 +4670,8 @@
+     else if (strcmp (key, COMPIZ_SHADOW_RADIUS_KEY)   == 0 ||
+ 	     strcmp (key, COMPIZ_SHADOW_OPACITY_KEY)  == 0 ||
+ 	     strcmp (key, COMPIZ_SHADOW_OFFSET_X_KEY) == 0 ||
+-	     strcmp (key, COMPIZ_SHADOW_OFFSET_Y_KEY) == 0)
++	     strcmp (key, COMPIZ_SHADOW_OFFSET_Y_KEY) == 0 ||
++	     strcmp (key, COMPIZ_SHADOW_COLOR_KEY) == 0)
+     {
+ 	if (shadow_settings_changed (client))
+ 	    changed = TRUE;
+@@ -5613,6 +4708,7 @@
+ 	gdkscreen  = gdk_display_get_default_screen (gdkdisplay);
+ 
+ 	update_titlebar_font ();
++	(*theme_update_border_extents) (text_height);
+ 	update_shadow ();
+ 
+ 	update_default_decorations (gdkscreen);
+@@ -5627,17 +4723,14 @@
+ 
+ 	    if (d->decorated)
+ 	    {
+-		d->width = d->height = 0;
+ 
+-#ifdef USE_METACITY
+ 		if (
+ 		    d->draw == meta_draw_window_decoration)
+ 		    d->draw = theme_draw_window_decoration;
+-#endif
+ 
+-		update_window_decoration_size (WNCK_WINDOW (windows->data));
+-		update_event_windows (WNCK_WINDOW (windows->data));
+ 	    }
++
++	    update_window_decoration (WNCK_WINDOW (windows->data));
+ 	    windows = windows->next;
+ 	}
+     }
+@@ -5715,6 +4808,7 @@
+     double_click_titlebar_changed (gconf);
+     shadow_settings_changed (gconf);
+     bell_settings_changed (gconf);
++    (*theme_update_border_extents) (text_height);
+     update_shadow ();
+ 
+     return TRUE;
+@@ -5727,7 +4821,7 @@
+     Display    *xdisplay;
+     GdkScreen  *gdkscreen;
+     WnckScreen *screen;
+-    gint       i, j;
++    gint       i, j, status;
+     gboolean   replace = FALSE;
+ 
+     program_name = argv[0];
+@@ -5783,19 +4877,29 @@
+     panel_action_run_dialog_atom =
+ 	XInternAtom (xdisplay, "_GNOME_PANEL_ACTION_RUN_DIALOG", FALSE);
+ 
+-    manager_atom   = XInternAtom (xdisplay, "MANAGER", FALSE);
+-    targets_atom   = XInternAtom (xdisplay, "TARGETS", FALSE);
+-    multiple_atom  = XInternAtom (xdisplay, "MULTIPLE", FALSE);
+-    timestamp_atom = XInternAtom (xdisplay, "TIMESTAMP", FALSE);
+-    version_atom   = XInternAtom (xdisplay, "VERSION", FALSE);
+-    atom_pair_atom = XInternAtom (xdisplay, "ATOM_PAIR", FALSE);
+-
+-    utf8_string_atom = XInternAtom (xdisplay, "UTF8_STRING", FALSE);
+-
+-    dm_name_atom = XInternAtom (xdisplay, "_NET_DM_NAME", FALSE);
++    status = decor_acquire_dm_session (xdisplay, 0, "gwd", replace,
++				       &dm_sn_timestamp);
++    if (status != DECOR_ACQUIRE_STATUS_SUCCESS)
++    {
++	if (status == DECOR_ACQUIRE_STATUS_OTHER_DM_RUNNING)
++	{
++	    fprintf (stderr,
++		     "%s: Could not acquire decoration manager "
++		     "selection on screen %d display \"%s\"\n",
++		     program_name, 0, DisplayString (xdisplay));
++	}
++	else if (status == DECOR_ACQUIRE_STATUS_OTHER_DM_RUNNING)
++	{
++	    fprintf (stderr,
++		     "%s: Screen %d on display \"%s\" already "
++		     "has a decoration manager; try using the "
++		     "--replace option to replace the current "
++		     "decoration manager.\n",
++		     program_name, 0, DisplayString (xdisplay));
++	}
+ 
+-    if (!acquire_dm_session (xdisplay, 0, replace))
+ 	return 1;
++    }
+ 
+     for (i = 0; i < 3; i++)
+     {
+@@ -5807,6 +4911,8 @@
+ 	}
+     }
+ 
++    xformat = XRenderFindStandardFormat (xdisplay, PictStandardARGB32);
++
+     frame_table = g_hash_table_new (NULL, NULL);
+ 
+     if (!create_tooltip_window ())
+@@ -5836,7 +4942,7 @@
+ 	return 1;
+     }
+ 
+-    set_dm_check_hint (gdk_display_get_default_screen (gdkdisplay));
++    decor_set_dm_check_hint (xdisplay, 0);
+ 
+     update_default_decorations (gdkscreen);
+ 
+diff -urN heliodor/src/Makefile.am heliodor.trunk/src/Makefile.am
+--- heliodor/src/Makefile.am	2006-12-10 11:55:28.000000000 +0000
++++ heliodor.trunk/src/Makefile.am	2006-12-10 11:51:12.000000000 +0000
+@@ -1,4 +1,4 @@
+-INCLUDES=@HELIODOR_CFLAGS@ -DUSE_METACITY
+-heliodor_LDFLAGS=@HELIODOR_LIBS@
++INCLUDES=@HELIODOR_CFLAGS@ -DUSE_METACITY -I$(top_srcdir)/include
++heliodor_LDFLAGS=@HELIODOR_LIBS@ $(top_builddir)/libheliodor/libheliodor.la 
+ heliodor_SOURCES=main.c
+ bin_PROGRAMS=heliodor

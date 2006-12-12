@@ -7,7 +7,7 @@
 # a common function and a scriptlet for externel kernel module packages
 
 _F_kernelmod_ver=2.6.19
-_F_kernelmod_rel=1
+_F_kernelmod_rel=2
 _F_kernelmod_uname=$_F_kernelmod_ver-fw$_F_kernelmod_rel
 _F_kernelmod_pkgver=${_F_kernelmod_uname/fw}
 _F_kernelmod_dir=/lib/modules/$_F_kernelmod_uname

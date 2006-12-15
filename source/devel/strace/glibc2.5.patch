@@ -1,0 +1,29 @@
+Since mid-September 2006, glibc sys/ptrace.h defines PT_GETSIGINFO
+on all arches, while strace clearly assumed just ia64.
+I have no idea why GETSIGINFO is combined with pc setting, IMHO
+the latter should be guarded with defined IA64, as it is clearly
+IA64 specific, while for PT{,RACE}_GETSIGINFO IMHO we should always
+do what the #elif was doing, i.e. verify the syscall return value
+and only look at si.si_addr for signals that set it.
+In the mean time, this is a hack to get things to build.
+
+--- strace/strace.c.jj	2006-01-12 04:50:49.000000000 -0500
++++ strace/strace.c	2006-11-20 08:14:34.000000000 -0500
+@@ -2251,7 +2251,7 @@ Process %d attached (waiting for parent)
+ 			if (!cflag
+ 			    && (qual_flags[WSTOPSIG(status)] & QUAL_SIGNAL)) {
+ 				unsigned long addr = 0, pc = 0;
+-#ifdef PT_GETSIGINFO
++#if defined PT_GETSIGINFO && defined IA64
+ #				define PSR_RI	41
+ 				struct siginfo si;
+ 				unsigned long psr;
+@@ -2262,7 +2262,7 @@ Process %d attached (waiting for parent)
+ 				pc += (psr >> PSR_RI) & 0x3;
+ 				ptrace(PT_GETSIGINFO, pid, 0, (long) &si);
+ 				addr = (unsigned long) si.si_addr;
+-#elif defined PTRACE_GETSIGINFO
++#elif defined PT_GETSIGINFO || defined PTRACE_GETSIGINFO
+ 				if (WSTOPSIG(status) == SIGSEGV ||
+ 				    WSTOPSIG(status) == SIGBUS) {
+ 					siginfo_t si;

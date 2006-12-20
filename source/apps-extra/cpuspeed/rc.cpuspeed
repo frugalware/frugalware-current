@@ -1,0 +1,72 @@
+#!/bin/sh
+
+# (c) 2006 Priyank M.G. <priyankmg@gmail.com>
+# portions of this file copied from the original cpuspeed.rc
+# rc.cpuspeed for Frugalware
+# distributed under GPL License
+
+# chkconfig: 2345 85 15
+# description: cpuspeed is a daemon that minimizes power consumption by dynamicall changing cpu speed (for laptops)
+
+source /lib/initscripts/functions
+TEXTDOMAIN=cpuspeed
+TEXTDOMAINDIR=/lib/initscripts/messages
+actions=(restart start status stop)
+daemon=$"cpuspeed daemon"
+pid="pidof cpuspeed 2> /dev/null"
+
+[ -f /etc/cpuspeed.conf ] && . /etc/cpuspeed.conf
+
+rc_start()
+{
+	if [ -z "$(eval $pid)" ] 
+	then
+		[ -e /var/lock/cpuspeed ] && exit
+    		# make sure the userspace CPUFreq governor module is loaded
+    		/sbin/modprobe -q cpufreq_userspace
+
+    		if [ ! -f /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver ]
+    		then
+        		if  [ -n "$DRIVER" ]
+        		then
+            			# attempt to load scaling_driver if not loaded but it is specified in config
+            			/sbin/modprobe -q $DRIVER
+        		else
+            			# if driver not specified
+				hint "Error: No driver specified in cpuspeed.conf"
+				hint "Specify a valid driver name in /etc/cpuspeed.conf"
+				return 0
+        		fi
+    		fi
+
+		start_msg
+    		# Abort if unable to load a driver
+		if [ ! -f /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver ]
+		then
+			ok 999
+		else
+			/sbin/cpuspeed -d $OPTS
+			RETVAL=$?
+			[ $RETVAL = 0 ] && touch /var/lock/cpuspeed
+			ok $?
+		fi
+
+	else
+		ok 999
+	fi
+}
+
+rc_stop()
+{
+    	stop_msg
+	if [ ! -z "$(eval $pid)" ]; then
+		killall cpuspeed
+		rm -f /var/lock/cpuspeed
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1
+	

@@ -784,7 +784,7 @@ Fdesktop2()
 		dname=$_F_desktop_name
 	fi
 
-	if [ -z $_F_desktop_desc ] ; then
+	if [ -z "$_F_desktop_desc" ] ; then
 		ddesc=$pkgdesc
 	else
 		ddesc=$_F_desktop_desc

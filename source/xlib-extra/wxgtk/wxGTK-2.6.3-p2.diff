@@ -1,0 +1,220 @@
+diff -Naurp wxGTK-2.6.3/src/common/dobjcmn.cpp wxGTK-2.6.3-p2/src/common/dobjcmn.cpp
+--- wxGTK-2.6.3/src/common/dobjcmn.cpp	2006-03-22 00:42:10.000000000 +0100
++++ wxGTK-2.6.3-p2/src/common/dobjcmn.cpp	2006-12-20 23:20:18.000000000 +0100
+@@ -4,7 +4,7 @@
+ // Author:      Vadim Zeitlin, Robert Roebling
+ // Modified by:
+ // Created:     19.10.99
+-// RCS-ID:      $Id: dobjcmn.cpp,v 1.35.2.1 2006/03/24 23:51:30 RD Exp $
++// RCS-ID:      $Id: dobjcmn.cpp,v 1.35.2.2 2006/03/30 09:52:54 RR Exp $
+ // Copyright:   (c) wxWidgets Team
+ // Licence:     wxWindows licence
+ ///////////////////////////////////////////////////////////////////////////////
+@@ -253,11 +253,15 @@ size_t wxTextDataObject::GetDataSize(con
+ 
+ bool wxTextDataObject::GetDataHere(const wxDataFormat& format, void *buf) const
+ {
++    if ( !buf )
++        return false;
++        
+     wxCharBuffer buffer = GetConv(format).cWX2MB( GetText().c_str() );
+     if ( !buffer )
+         return false;
+ 
+-    strcpy( (char*) buf, buffer );
++    memcpy( (char*) buf, buffer, GetDataSize(format) );
++    // strcpy( (char*) buf, buffer );
+ 
+     return true;
+ }
+diff -Naurp wxGTK-2.6.3/src/common/socket.cpp wxGTK-2.6.3-p2/src/common/socket.cpp
+--- wxGTK-2.6.3/src/common/socket.cpp	2006-03-22 00:42:11.000000000 +0100
++++ wxGTK-2.6.3-p2/src/common/socket.cpp	2006-12-20 23:20:18.000000000 +0100
+@@ -5,7 +5,7 @@
+ // Created:    April 1997
+ // Copyright:  (C) 1999-1997, Guilhem Lavaux
+ //             (C) 2000-1999, Guillermo Rodriguez Garcia
+-// RCS_ID:     $Id: socket.cpp,v 1.133.2.2 2006/02/16 08:53:35 JS Exp $
++// RCS_ID:     $Id: socket.cpp,v 1.133.2.3 2006/03/30 15:27:59 KH Exp $
+ // License:    see wxWindows licence
+ /////////////////////////////////////////////////////////////////////////////
+ 
+@@ -698,7 +698,7 @@ bool wxSocketBase::_Wait(long seconds,
+   else
+     timeout = m_timeout * 1000;
+ 
+-  bool has_event_loop = wxTheApp ? (wxTheApp->GetTraits() ? true : false) : false;
++  bool has_event_loop = wxTheApp->GetTraits() ? (wxTheApp->GetTraits()->GetSocketGUIFunctionsTable() ? true : false) : false;
+ 
+   // Wait in an active polling loop.
+   //
+diff -Naurp wxGTK-2.6.3/src/generic/listctrl.cpp wxGTK-2.6.3-p2/src/generic/listctrl.cpp
+--- wxGTK-2.6.3/src/generic/listctrl.cpp	2006-03-22 00:42:14.000000000 +0100
++++ wxGTK-2.6.3-p2/src/generic/listctrl.cpp	2006-12-20 23:20:18.000000000 +0100
+@@ -3,7 +3,7 @@
+ // Purpose:     generic implementation of wxListCtrl
+ // Author:      Robert Roebling
+ //              Vadim Zeitlin (virtual list control support)
+-// Id:          $Id: listctrl.cpp,v 1.378.2.7 2006/03/10 21:37:20 RD Exp $
++// Id:          $Id: listctrl.cpp,v 1.378.2.8 2006/03/28 08:25:51 RR Exp $
+ // Copyright:   (c) 1998 Robert Roebling
+ // Licence:     wxWindows licence
+ /////////////////////////////////////////////////////////////////////////////
+@@ -2914,6 +2914,7 @@ void wxListMainWindow::OnRenameCancelled
+ 
+ void wxListMainWindow::OnMouse( wxMouseEvent &event )
+ {
++
+ #ifdef __WXMAC__
+     // On wxMac we can't depend on the EVT_KILL_FOCUS event to properly
+     // shutdown the edit control when the mouse is clicked elsewhere on the
+@@ -2937,7 +2938,15 @@ void wxListMainWindow::OnMouse( wxMouseE
+     }
+ 
+     if ( !HasCurrent() || IsEmpty() )
++    {
++        if (event.RightDown())
++        {
++            SendNotify( (size_t)-1, wxEVT_COMMAND_LIST_ITEM_RIGHT_CLICK, event.GetPosition() );
++            // Allow generation of context menu event
++            event.Skip();
++		}
+         return;
++	}
+ 
+     if (m_dirty)
+         return;
+@@ -3005,11 +3014,17 @@ void wxListMainWindow::OnMouse( wxMouseE
+         m_dragCount = 0;
+     }
+ 
+-    if ( !hitResult )
++	if ( !hitResult )
+     {
+-        // outside of any item
+-        return;
+-    }
++        if (event.RightDown())
++        {
++            SendNotify( (size_t) -1, wxEVT_COMMAND_LIST_ITEM_RIGHT_CLICK, event.GetPosition() );
++            // Allow generation of context menu event
++            event.Skip();
++        }
++
++		return;
++	}
+ 
+     bool forceClick = false;
+     if (event.ButtonDClick())
+@@ -3319,6 +3334,10 @@ void wxListMainWindow::OnChar( wxKeyEven
+ 
+         case WXK_PRIOR:
+             {
++                // avoid floating point exception
++                if (m_linesPerPage == 0)
++                    m_linesPerPage = 1;
++                    
+                 int steps = InReportView() ? m_linesPerPage - 1 : m_current % m_linesPerPage;
+ 
+                 int index = m_current - steps;
+@@ -3331,6 +3350,10 @@ void wxListMainWindow::OnChar( wxKeyEven
+ 
+         case WXK_NEXT:
+             {
++                // avoid floating point exception
++                if (m_linesPerPage == 0)
++                    m_linesPerPage = 1;
++                    
+                 int steps = InReportView()
+                                ? m_linesPerPage - 1
+                                : m_linesPerPage - (m_current % m_linesPerPage) - 1;
+@@ -4667,7 +4690,13 @@ void wxListMainWindow::SortItems( wxList
+ 
+ void wxListMainWindow::OnScroll(wxScrollWinEvent& event)
+ {
+-    // update our idea of which lines are shown when we redraw the window the
++    int cw, ch, vw, vh;
++    GetVirtualSize(&vw, &vh);  
++    GetClientSize(&cw, &ch);
++    if (event.GetOrientation() == wxVERTICAL && ch >= vh)
++        return;
++        
++	// update our idea of which lines are shown when we redraw the window the
+     // next time
+     ResetVisibleLinesRange();
+ 
+diff -Naurp wxGTK-2.6.3/src/gtk/clipbrd.cpp wxGTK-2.6.3-p2/src/gtk/clipbrd.cpp
+--- wxGTK-2.6.3/src/gtk/clipbrd.cpp	2006-03-22 00:42:16.000000000 +0100
++++ wxGTK-2.6.3-p2/src/gtk/clipbrd.cpp	2006-12-20 23:20:18.000000000 +0100
+@@ -2,7 +2,7 @@
+ // Name:        gtk/clipbrd.cpp
+ // Purpose:
+ // Author:      Robert Roebling
+-// Id:          $Id: clipbrd.cpp,v 1.60.2.3 2006/03/24 23:51:29 RD Exp $
++// Id:          $Id: clipbrd.cpp,v 1.60.2.4 2006/03/30 01:31:36 RD Exp $
+ // Copyright:   (c) 1998 Robert Roebling
+ // Licence:     wxWindows licence
+ /////////////////////////////////////////////////////////////////////////////
+@@ -493,17 +493,22 @@ bool wxClipboard::AddData( wxDataObject 
+     }
+ 
+     delete[] array;
+-
++    
++#ifdef __WXGTK20__
+     gtk_signal_connect( GTK_OBJECT(m_clipboardWidget),
+                         "selection_get",
+                         GTK_SIGNAL_FUNC(selection_handler),
+                         GUINT_TO_POINTER(
+-#ifdef __WXGTK20__
+                                 gtk_get_current_event_time()
++                            ) );
+ #else
++    gtk_signal_connect( GTK_OBJECT(m_clipboardWidget),
++                        "selection_get",
++                        GTK_SIGNAL_FUNC(selection_handler),
++                        GUINT_TO_POINTER(
+                                 gdk_event_get_time(gtk_get_current_event())
++                            ) );
+ #endif
+-                                        ) );
+ 
+ #if wxUSE_THREADS
+     /* disable GUI threads */
+diff -Naurp wxGTK-2.6.3/src/gtk/window.cpp wxGTK-2.6.3-p2/src/gtk/window.cpp
+--- wxGTK-2.6.3/src/gtk/window.cpp	2006-03-22 00:42:17.000000000 +0100
++++ wxGTK-2.6.3-p2/src/gtk/window.cpp	2006-12-20 23:20:18.000000000 +0100
+@@ -2,7 +2,7 @@
+ // Name:        gtk/window.cpp
+ // Purpose:
+ // Author:      Robert Roebling
+-// Id:          $Id: window.cpp,v 1.548.2.13 2006/03/18 21:58:19 VZ Exp $
++// Id:          $Id: window.cpp,v 1.548.2.14 2006/03/30 10:36:22 RR Exp $
+ // Copyright:   (c) 1998 Robert Roebling, Julian Smart
+ // Licence:     wxWindows licence
+ /////////////////////////////////////////////////////////////////////////////
+@@ -1014,9 +1014,6 @@ static void wxFillOtherKeyEventFields(wx
+     event.m_scanCode = gdk_event->keyval;
+     event.m_rawCode = (wxUint32) gdk_event->keyval;
+     event.m_rawFlags = 0;
+-#if wxUSE_UNICODE
+-    event.m_uniChar = gdk_keyval_to_unicode(gdk_event->keyval);
+-#endif
+     wxGetMousePosition( &x, &y );
+     win->ScreenToClient( &x, &y );
+     event.m_x = x;
+@@ -1327,11 +1324,11 @@ static gint gtk_window_key_press_callbac
+             if (event.ControlDown() && key_code >= 'a' && key_code <= 'z' )
+             {
+                 event.m_keyCode = key_code - 'a' + 1;
+-#if wxUSE_UNICODE
+-                event.m_uniChar = event.m_keyCode;
+-#endif
+             }               
+ 
++#if wxUSE_UNICODE
++            event.m_uniChar = event.m_keyCode;
++#endif
+             // Implement OnCharHook by checking ancesteror top level windows
+             wxWindow *parent = win;
+             while (parent && !parent->IsTopLevel())

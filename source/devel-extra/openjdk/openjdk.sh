@@ -1,6 +1,6 @@
 export OPENJDKDIR=/usr/lib/java
 export MANPATH=$MANPATH:$OPENJDKDIR/man
-export CLASSPATH=$CLASSPATH:$OPNEJDKDIR/lib
+export CLASSPATH=$CLASSPATH:$OPENJDKDIR/lib
 
 # if you put "java=foo" (where foo != openjdk) to /etc/sysconfig/java,
 # then this script won't touch the JAVA_HOME variable

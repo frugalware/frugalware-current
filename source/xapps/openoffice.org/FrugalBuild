@@ -9,7 +9,7 @@ options=('scriptlet')
 # uncomment this to get a -devel build
 #options=('scriptlet' 'devel')
 if [ ! "`check_option DEVEL`" ]; then
-	pkgrel=1
+	pkgrel=2
 	snapshot=20061221
 else
 	tree=ooe680
@@ -20,28 +20,39 @@ else
 fi
 pkgdesc="OpenOffice.org, a full office productivity suite."
 url="http://www.openoffice.org/"
-depends=('gnome-vfs' 'libbonobo' 'libxml2' 'libart_lgpl' 'libsndfile' 'libgcj-awt' 'nas' \
-	'startup-notification' 'fontconfig' 'libpng' 'imagemagick' 'flex' 'neon>=0.26.1' \
-	'bison' 'zip' 'unzip' 'expat' 'cups' 'desktop-file-utils' \
-	'perl-archive-zip' 'unixodbc' 'libxaw' 'libxslt')
-makedepends=('curl' 'intltool' 'tcsh' 'pam-headers' 'firefox' 'apache-ant' 'gcc-gcj' \
-	'kdelibs' 'evolution-data-server-ldap' 'boost' 'icu' 'hunspell' 'imake' 'gccmakedep' \
-	'xalan-j' 'patch>=2.5.9' 'openclipart' 'xorg-server' 'gstreamer' 'gst-plugins-base')
+depends=('libxml2' 'libart_lgpl' 'libsndfile' 'libgcj-awt' 'nas' 'fontconfig' 'libpng' 'imagemagick' \
+	 'flex' 'neon>=0.26.1' 'bison' 'zip' 'unzip' 'expat' 'cups' 'desktop-file-utils' 'perl-archive-zip' \
+	 'unixodbc' 'libxaw' 'libxslt' 'flac=1.1.2')
+makedepends=('curl' 'intltool' 'tcsh' 'pam-headers' 'firefox' 'apache-ant' 'gcc-gcj' 'kdelibs>=3.5.5' \
+	     'evolution-data-server-ldap' 'boost' 'icu' 'hunspell' 'imake' 'gccmakedep' 'xalan-j' \
+	     'patch>=2.5.9' 'openclipart' 'xorg-server' 'gstreamer' 'gst-plugins-base' 'gnome-vfs' \
+	     'libbonobo' 'startup-notification' 'procps')
 groups=('xapps')
 archs=('i686' 'x86_64')
 if [ ! "`check_option DEVEL`" ]; then
 	up2date="lynx -dump http://www.openoffice.org/ |grep Version|sed 's/.*: //'"
 	source=(http://ftp.frugalware.org/pub/other/sources/ooo-build/ooo-build-${pkgver//./-}-$snapshot.tar.bz2)
-#		$pkgname-$pkgver-frugalware.diff)
+#	newer-dejavu-need-bz2-not-gz.patch)
+#	$pkgname-$pkgver-frugalware.diff)
 	signatures=($source.asc)
 else
 	up2date="lynx -dump http://cvs.gnome.org/viewcvs/*checkout*/ooo-build/configure.in|grep ^DEFAULT_TAG|sed 's/.*-m\(.*\)/${pkgver%.*}.\1/'"
 	source=(http://ftp.frugalware.org/pub/other/sources/ooo-build/ooo-build-$snapshot.tar.bz2)
-#		ooo-build-$tree-m$milestone.diff)
+#	newer-dejavu-need-bz2-not-gz.patch)
+#	ooo-build-$tree-m$milestone.diff)
 	signatures=($source.asc)
 fi
 _F_gnome_desktop="y"
 Finclude gnome-scriptlet
+unset install
+
+subpkgs=("$pkgname-kde" "$pkgname-gnome")
+subdescs=("$pkgname kde integration" "$pkgname gnome integration")
+# FIXME - depends - are still guessed   
+subdepends=("$pkgname=$pkgver kdelibs>=3.5.5" "$pkgname=$pkgver gnome-vfs libbonobo evolution-data-server-ldap")
+subarchs=('i686 x864_64' 'i686 x86_64')
+subgroups=('kde-extra' 'gnome-extra')
+subinstall=(" " "$_F_gnome_scriptlet")
 
 ooosubpkgs=('de' 'es' 'fr' 'hu')
 ooosubdescs=('German' 'Spanish' 'French' 'Hungarian')
@@ -66,10 +77,17 @@ done
 i=0
 while [ $i -lt ${#ooosubpkgs[@]} ]
 do
-	subdepends=("${subdepends[@]}" "openoffice.org>=$pkgver")
-	subgroups=("${subgroups[@]}" "locale-extra")
-	subarchs=("${subarchs[@]}" "i686 x86_64")
+	subinstall=("${subinstall[@]}" "`echo ${ooosubpkgs[$i]}|sed 's/.*/""/g'`")
 	i=$(($i+1))
+done
+
+i=0
+while [ $i -lt ${#ooosubpkgs[@]} ]
+do
+        subdepends=("${subdepends[@]}" "openoffice.org>=$pkgver")
+        subgroups=("${subgroups[@]}" "locale-extra")
+        subarchs=("${subarchs[@]}" "i686 x86_64")
+        i=$(($i+1))
 done
 
 # You can find a few random notes about building OOo here:
@@ -100,16 +118,25 @@ build() {
 	fi
 
 	# Other options.
-	Fconfopts="$Fconfopts --with-gcc-speedup=ccache \
+	Fconfopts="$Fconfopts \
+		--with-gcc-speedup=ccache \
 		--with-openclipart=/usr/share/openclipart \
 		--enable-gtk \
 		--enable-hunspell \
 		--with-binsuffix=no \
+		--disable-dependency-tracking \
+		--with-dejavu-fonts=2.13 \
+		--with-fonts \
 		--with-installed-ooo-dirname=openoffice.org"
 
 	# Set our version.
 	Fsed "AC_PACKAGE_VERSION" "$pkgver-$pkgrel" configure.in
 	autoconf || return 1
+
+	## Ffix env C{XX}FLAGS also Fkill 'mtune' ( don't _use_ -0[1-9] here ) O or Os nothing else... Fthx 
+	## Fand Fwhy Fthey Fare Fdoing Fsomething Fcrappy Flike Fthis ? ;)
+	#export ARCH_FLAGS="`echo $CFLAGS|sed 's/-O[0-9]/-Os/g'` -fno-strict-aliasing"
+	export ARCH_FLAGS="$CFLAGS"
 
 	if [ "`check_option DEVEL`" ]; then
 		Fconf --with-lang="en-US de es fr hu" --with-tag=$tree-m$milestone
@@ -134,6 +161,17 @@ build() {
 		fi
 		Fsplit openoffice.org-i18n-$spkg usr/lib/$pkgname/program/resource/*680$i.res
 	done
+
+	## Split KDE stuff
+	for kde in libfps_kde.so libvclplug_kde*.so libkab*.so kdebe*.so kdefilepicker; do
+		Fsplit $pkgname-kde usr/lib/openoffice.org/program/$kde
+	done
+	## Split GNOME stuff 
+	## FIXME "usr/lib/openoffice.org/share/xdg/" need be in gnome too ?!? 
+	for gnome in gnome-open-ur* fps_gnome.uno.so gnome-set-default-* libvclplug_gtk*.so libeggtray* libqstart_gtk* ucpgvfs1.uno.so gconfbe* libevoab*.so; do
+		Fsplit $pkgname-gnome usr/lib/openoffice.org/program/$gnome
+	done 
+
 	Fbuild_gnome_scriptlet
 
 	# Check for missing language packs.

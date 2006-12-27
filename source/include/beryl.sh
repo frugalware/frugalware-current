@@ -10,7 +10,7 @@ if [ -z "$_F_beryl_name" ]; then
 	_F_beryl_name=$pkgname
 fi
 
-pkgver=0.1.3
+pkgver=0.1.4
 pkgdesc="Beryl is a compositing window manager which provides lots of fancy effects on your desktop"
 url="http://www.beryl-project.org/"
 up2date="lynx -dump http://releases.beryl-project.org/current/ | grep $_F_beryl_name | Flasttarbz2"

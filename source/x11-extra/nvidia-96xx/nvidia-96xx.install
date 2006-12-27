@@ -1,0 +1,60 @@
+post_install() {
+	echo "*** In order to use this package you have to accept Nvidia's license which"
+	echo "*** can be found at /usr/share/doc/nvidia/LICENSE."
+	echo "*** If you don't accept it, please remove the package!"
+	## well here a 'WARNING' only on install | update because I don't know this
+	## metamodes option will work for all
+	devnr=`lspci -nn|grep "GeForce4 \(.*\) Go \(.*\)M"|sed 's/.*:\(.*\)].*/\1/'`
+
+	if [ "$devnr" ]; then
+		if [ "$devnr" -eq 0179 ]; then
+			echo ""
+  			echo "*** WARNING: Nvidia  -  GeForce4 440/420 Go 32/64M - with PCI ID: - 0x$devnr - detected."
+  			echo "*** WARNING: If you get an black screen try add this line to your xorg.conf in the DefaultDepth Section:"
+  			echo "Option   "\"metamodes\" "\"DFP: nvidia-auto-select +0+0; DFP: 800x600 +0+0; DFP: 640x480 +0+0\""
+			echo ""
+		fi
+	fi
+
+	sed -i 's/^.*Load  "dri"/# Load  "dri"/' /etc/X11/xorg.conf
+	sed -i 's/Driver.*"\(nv\|vesa\|vga\)"/Driver "nvidia"/' /etc/X11/xorg.conf
+	
+	exist=`cat /etc/sysconfig/modules | grep nvidia | wc -l`
+	if [ "$exist" -eq 0 ]; then
+		echo nvidia >> /etc/sysconfig/modules
+	fi
+	/sbin/depmod -a
+	/sbin/modprobe nvidia
+}
+
+post_upgrade() {
+	post_install $1
+}
+
+pre_remove() {
+	if test `lsmod | grep ^nvidia | wc -l` -gt 0; then
+		rmmod nvidia
+	fi
+
+	sed -i 's/^.*# Load  "dri"/Load  "dri"/' /etc/X11/xorg.conf
+	sed -i 's/\(^Driver *\)"nvidia"/\1"nv"/' /etc/X11/xorg.conf
+	
+	exist=`cat /etc/sysconfig/modules | grep nvidia | wc -l`
+	if [ "$exist" -eq 1 ]; then
+		grep -v '^nvidia' /etc/sysconfig/modules > /etc/sysconfig/modules.tmp
+		mv /etc/sysconfig/modules.tmp /etc/sysconfig/modules
+	fi
+        if [ -e /usr/lib/xorg/temp/libglx.so ]; then
+                mv /usr/lib/xorg/temp/libglx.so /usr/lib/xorg/modules/extensions/
+        fi
+}
+
+post_remove() {
+	depmod -a
+	echo "*** Nvidia driver is removed now. To have a working Xorg Server again run : ***"
+	echo "*** pacman -S libgl libglx ****"
+}
+
+op=$1
+shift
+$op $*

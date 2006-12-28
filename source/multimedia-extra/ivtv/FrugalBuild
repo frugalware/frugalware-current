@@ -1,0 +1,62 @@
+# Compiling Time: 0.05 SBU
+# Maintainer: crazy <crazy@frugalware.org>
+
+
+pkgname=ivtv
+## damn I hate this , does only work for .19.X kernels
+branch=0.9.x
+pkgver=0.9.1
+pkgrel=1
+pkgdesc="Linux module and a driver for X11 for hardware based on Conexant's codec chip."
+url="http://ivtvdriver.org/index.php/Main_Page"
+Finclude kernel-module
+rodepends=("$pkgname-firmware")
+groups=('multimedia-extra')
+archs=('i686')
+up2date="lynx -dump http://ivtvdriver.org/index.php/Main_Page|grep -m1 'tar.gz'|sed 's/.*-\(.*\).t.*/\1/'"
+source=(http://dl.ivtvdriver.org/$pkgname/archive/$branch/$pkgname-$pkgver.tar.gz \
+	http://dl.ivtvdriver.org/$pkgname/firmware/firmware.tar.gz)
+sha1sums=('b277ecc49e6a222c9774b13d59c37ca9b61badff' \
+          '37a358505eeb1b3017d99636cedfb578ab9884f0')
+
+subpkgs=("$pkgname-utils" "$pkgname-firmware")
+subdescs=("Tools for managing the hardware supported by ivtv driver" "firmware for Hauppauge PVR and Conexant based cards")
+subdepends=('libstdc++' 'udev')
+subgroups=('apps-extra' 'multimedia-extra')
+subarchs=('i686' 'i686')
+
+build()
+{
+	Fcd
+	## man some apps have such crappy and broken build tools ...
+	for crap in `find . -name Makefile`
+	do
+		Fsed "-O2" "$CFLAGS" $crap
+	done
+	KDIR=$_F_kernelmod_dir/build
+	cd utils
+	make || Fdie
+	Fmakeinstall PREFIX=/usr
+	cd ../test
+	make || Fdie
+	## lalala this should be 'make install' :D
+	for tool in ivtv-pcm-tester vbi vbi-detect vbi-passthrough wss
+	do
+		cp $tool $Fdestdir/usr/bin/
+	done
+	## utils and the test tools
+	Fsplit $pkgname-utils /usr
+	## kernel mod
+	cd ../driver
+	Fsed '/sbin/depmod -a' '#/sbin/depmod -a' Makefile
+	make || Fdie
+	Fmakeinstall
+	cd ..
+	## firmware
+	Ffilerel ../{*.fw,v4l-cx2341x-init.mpg}  /lib/firmware
+	Fsplit $pkgname-firmware lib/firmware
+	## docs
+	Ffilerel doc/* /usr/share/doc/$pkgname-$pkgver
+}
+
+# optimization OK

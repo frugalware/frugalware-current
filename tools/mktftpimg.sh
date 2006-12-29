@@ -3,6 +3,7 @@
 #   mktftpimg.sh
 #  
 #   Copyright (c) 2006 by Miklos Vajna <vmiklos@frugalware.org>
+#   Copyright (c) 2006 by Alex Smith <alex@alex-smith.me.uk>
 #  
 #   This program is free software; you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by

@@ -87,13 +87,13 @@ timeout=10
 title Frugalware $ver ($rel) - ${kernel#*vmlinuz-}
 	bootp
 	root (nd)
-        kernel /tftpboot/`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=791
-        initrd /tftpboot/initrd-$arch.img.gz
+        kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=791
+        initrd /initrd-$arch.img.gz
 title Frugalware $ver ($rel) - ${kernel#*vmlinuz-} (nofb)
 	bootp
 	root (nd)
-        kernel /tftpboot/`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=normal
-        initrd /tftpboot/initrd-$arch.img.gz" >boot/grub/menu.lst
+        kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=normal
+        initrd /initrd-$arch.img.gz" >boot/grub/menu.lst
 echo "done"
 
 dd if=/dev/zero of=$img bs=1k count=$(echo "$(`which du` -s boot|sed 's/^\(.*\)\t.*$/\1/')+500"|bc)

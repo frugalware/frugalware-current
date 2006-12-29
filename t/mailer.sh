@@ -4,12 +4,13 @@ gen_output()
 {
 	# display a summary
 	echo "================================================================================
-Results
+$2 Results
 --------------------------------------------------------------------------------"
 	passed=0
 	failed=0
-	for i in $logdir/*
+	for i in $1/*
 	do
+		[ -d $i ] && continue
 		if [ -z "`cat $i`" ]; then
 			echo "[PASSED] `basename $i`"
 			passed=$(($passed+1))
@@ -25,15 +26,16 @@ Results
 	echo ""
 
 	# detailed info on failed tests
-	for i in $logdir/*
+	for i in $1/*
 	do
-		if [ -z "`cat $i`" ]; then
+		if [ -d $i ] || [ -z "`cat $i 2>&1`" ]; then
 			continue
 		fi
 		echo "================================================================================
 Details of '`basename $i`'
-`./$(basename $i) --help`
---------------------------------------------------------------------------------"
+`$(basename $1)/$(basename $i) --help`
+--------------------------------------------------------------------------------
+"
 		cat $i|sed 's/^\(.\)/| \1/'
 		echo ""
 	done
@@ -41,17 +43,28 @@ Details of '`basename $i`'
 
 cd `dirname $0`
 logdir=`mktemp -d`
+mkdir $logdir/s
 
 # run the tests
 for i in *
 do
-	if [[ $i =~ sh$ ]] || [ $i == "README" ]; then
+	if [[ $i =~ sh$ ]] || [ $i == "README" ] || [ -d $i ]; then
 		continue
 	fi
 	[ -x $i ] || chmod +x $i
 	./$i > $logdir/$i
 done
 
-gen_output |mail -r "Frugalware Testsuite <noreply@frugalware.org>" \
+# run the stats
+cd s
+for i in *
+do
+	[ -x $i ] || chmod +x $i
+	./$i > $logdir/s/$i
+done
+cd ..
+
+(gen_output $logdir "Testsuite"; gen_output $logdir/s "Statistics") \
+	| mail -r "Frugalware Testsuite <noreply@frugalware.org>" \
 	-s "Testsuite results for `date +%Y-%m-%d`" frugalware-devel@frugalware.org
 rm -rf $logdir

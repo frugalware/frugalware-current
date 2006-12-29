@@ -20,6 +20,49 @@
 #   USA.
 #
 
+usage() {
+	echo "mktftpimg.sh"
+	echo
+	echo "Usage: $0 [options]"
+	echo
+	echo "Options:"
+	echo "  -p, --password Set the GRUB password to this."
+	echo
+	echo "Example:"
+	echo "  $0 --password \"mypassword\" - this sets the password to mypassword"
+	echo
+}
+
+# Check options
+while [ "$#" -ne "0" ]; do
+	case $1 in
+		--password)       password="$2" ;;
+		--help)
+			usage
+			exit 0
+			;;
+		--*)
+			usage
+			exit 1
+			;;
+		-*)
+			while getopts "p:" opt; do
+				case $opt in
+					p) password="$OPTARG" ;;
+					*)
+						usage
+						exit 1
+						;;
+				esac
+			done
+			;;
+		*)
+			true
+			;;
+	esac
+	shift
+done
+
 echo -n "checking if we are root... "
 if [ "`id -u`" == "0" ]; then
         echo "yes"
@@ -65,6 +108,16 @@ else
         exit 1
 fi
 
+if [ ! -z "$password" ]; then
+	password=$(/sbin/grub --batch --device-map=/dev/null <<EOF | grep "^Encrypted: " | sed 's/^Encrypted: //'
+md5crypt
+$password
+quit
+EOF
+)
+	password="password --md5 $password"
+fi
+
 toolsdir=`pwd`
 imgdir=`mktemp -d`
 loop=`/sbin/losetup -f`
@@ -83,17 +136,20 @@ img="frugalware-$ver-$arch-tftp.img"
 size=`echo "$(gzip --list $toolsdir/$initrd|grep $toolsdir/${initrd/.gz/}|sed 's/.*[0-9]\+ \+\([0-9]\+\) .*/\1/')/1024"|bc`
 echo "default=0
 timeout=10
+$password
 
 title Frugalware $ver ($rel) - ${kernel#*vmlinuz-}
 	bootp
 	root (nd)
         kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=791
         initrd /initrd-$arch.img.gz
+	$password
 title Frugalware $ver ($rel) - ${kernel#*vmlinuz-} (nofb)
 	bootp
 	root (nd)
         kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=normal
-        initrd /initrd-$arch.img.gz" >boot/grub/menu.lst
+        initrd /initrd-$arch.img.gz
+	$password" >boot/grub/menu.lst
 echo "done"
 
 dd if=/dev/zero of=$img bs=1k count=$(echo "$(`which du` -s boot|sed 's/^\(.*\)\t.*$/\1/')+500"|bc)

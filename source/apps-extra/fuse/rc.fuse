@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# (c) 2006 Miklos Vajna <vmiklos@frugalware.org>
+# (c) 2006 Miklos Szeredi <miklos@szeredi.hu>
+# rc.fuse for Frugalware
+# distributed under GPL License
+
+# chkconfig: 2345 99 01
+# description: Init script for Filesystem in Userspace
+
+source /lib/initscripts/functions
+TEXTDOMAIN=fuse
+TEXTDOMAINDIR=/lib/initscripts/messages
+
+actions=(restart start stop)
+daemon="FUSE"
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+MOUNTPOINT=/sys/fs/fuse/connections
+
+# Gracefully exit if the package has been removed.
+test -x `which fusermount` || exit 0
+
+error()
+{
+	hint "$1" >&2
+	ok 1
+	exit 1
+}
+
+rc_start()
+{
+	start_msg
+	if ! grep -qw fuse /proc/filesystems; then
+		modprobe fuse >/dev/null 2>&1 || error $"Error loading fuse module"
+	fi
+	if grep -qw fusectl /proc/filesystems && \
+		! grep -qw $MOUNTPOINT /proc/mounts; then
+		mount -t fusectl none $MOUNTPOINT >/dev/null 2>&1 || \
+			error $"Error mounting control filesystem"
+	fi
+	ok 0
+}
+
+rc_stop()
+{
+	stop_msg
+	if grep -qw $MOUNTPOINT /proc/mounts; then
+		umount $MOUNTPOINT >/dev/null 2>&1 || \
+		error $"Error unmounting control filesystem"
+	fi
+	if grep -qw "^fuse" /proc/modules; then
+		rmmod fuse >/dev/null 2>&1 || error $"Error unloading fuse module"
+	fi
+	ok 0
+}
+
+rc_exec $1

@@ -20,6 +20,8 @@
 #   USA.
 #
 
+bootcmd="bootp"
+
 usage() {
 	echo "mktftpimg.sh"
 	echo
@@ -27,9 +29,11 @@ usage() {
 	echo
 	echo "Options:"
 	echo "  -p, --password Set the GRUB password to this."
+	echo "  -d, --dhcp Use dhcp rather than bootp"
 	echo
 	echo "Example:"
 	echo "  $0 --password \"mypassword\" - this sets the password to mypassword"
+	echo "  $0 --password \"mypassword\" --dhcp - this sets the password to mypassword and uses dhcp rather than bootp"
 	echo
 }
 
@@ -37,6 +41,7 @@ usage() {
 while [ "$#" -ne "0" ]; do
 	case $1 in
 		--password)       password="$2" ;;
+		--dhcp)           bootcmd="dhcp" ;;
 		--help)
 			usage
 			exit 0
@@ -46,8 +51,9 @@ while [ "$#" -ne "0" ]; do
 			exit 1
 			;;
 		-*)
-			while getopts "p:" opt; do
+			while getopts "dp:" opt; do
 				case $opt in
+					d) bootcmd="dhcp" ;;
 					p) password="$OPTARG" ;;
 					*)
 						usage
@@ -120,50 +126,50 @@ fi
 
 toolsdir=`pwd`
 imgdir=`mktemp -d`
-loop=`/sbin/losetup -f`
-cd $imgdir
-echo -e "(fd0)\t$loop" >device.map
-mkdir -p boot/grub
-cp /usr/lib/grub/i386-pc/stage1 boot/grub/
-cp /usr/lib/grub/i386-pc/stage2.netboot boot/grub/stage2
 
-echo -n "generating menu.lst... "
 ver=`grep '<version>' $toolsdir/$volumes |sed 's/.*>\(.*\)<.*/\1/'`
 [ -z "$ver" ] && ver=`date +%Y%m%d`
 rel=`grep '<codename>' $toolsdir/$volumes |sed 's/.*>\(.*\)<.*/\1/'`
 [ -z "$rel" ] && rel="-current"
 img="frugalware-$ver-$arch-tftp.img"
 size=`echo "$(gzip --list $toolsdir/$initrd|grep $toolsdir/${initrd/.gz/}|sed 's/.*[0-9]\+ \+\([0-9]\+\) .*/\1/')/1024"|bc`
+
+dd if=/dev/zero of=$img bs=1k count=1440
+/sbin/mke2fs -F $img
+grep -q loop /proc/modules || /sbin/modprobe loop
+mount -o loop $img $imgdir
+
+cd $imgdir
+mkdir -p boot/grub
+cp /usr/lib/grub/i386-pc/stage1 boot/grub/
+cp /usr/lib/grub/i386-pc/stage2.netboot boot/grub/stage2
+
+echo -n "generating menu.lst... "
+
 echo "default=0
 timeout=10
 $password
 
 title Frugalware $ver ($rel) - ${kernel#*vmlinuz-}
-	bootp
+	$bootcmd
 	root (nd)
         kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=791
         initrd /initrd-$arch.img.gz
 	$password
 title Frugalware $ver ($rel) - ${kernel#*vmlinuz-} (nofb)
-	bootp
+	$bootcmd
 	root (nd)
         kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=normal
         initrd /initrd-$arch.img.gz
 	$password" >boot/grub/menu.lst
 echo "done"
 
-dd if=/dev/zero of=$img bs=1k count=$(echo "$(`which du` -s boot|sed 's/^\(.*\)\t.*$/\1/')+500"|bc)
-/sbin/mke2fs -F $img
-mkdir i
-grep -q loop /proc/modules || /sbin/modprobe loop
-losetup -f $img
-mount $loop i
-cp -a boot i
-umount i
-echo "root (fd0)
-setup (fd0)
-quit" | grub --batch --device-map=device.map
-losetup -d $loop
-cp $img $toolsdir
 cd $toolsdir
+umount $imgdir
+
+echo "device (fd0) $img
+root (fd0)
+setup (fd0)
+quit" | grub --batch --device-map=/dev/null
+
 rm -rf $imgdir

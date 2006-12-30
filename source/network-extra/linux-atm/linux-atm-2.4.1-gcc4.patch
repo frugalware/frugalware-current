@@ -1,0 +1,147 @@
+--- linux-atm/src/ilmid/atmf_uni.c~	2005-01-18 14:35:53.000000000 +0000
++++ linux-atm/src/ilmid/atmf_uni.c	2005-03-02 15:29:37.000000000 +0000
+@@ -228,7 +228,7 @@ AsnInt setNetPrefix(VarBind *varbind, Va
+       newPrefix->name = alloc_t(AsnOid);
+       newPrefix->name->octs = alloc(varBindName->octetLen);
+       AsnOidCopy(newPrefix->name, varBindName);
+-      Q_INSERT_BEFORE((NetPrefixNode *) var->value, newPrefix, prefix);
++      Q_INSERT_BEFORE((*((NetPrefixNode **)&var->value)), newPrefix, prefix);
+       if(atmNetPrefix.octs == NULL)
+ 	{
+ 	  atmNetPrefix.octetLen = varBindName->octetLen - NETPREFIX_LEN - 2;
+@@ -238,7 +238,7 @@ AsnInt setNetPrefix(VarBind *varbind, Va
+     }
+   else if (varbind->value->a.simple->a.number == INVALID && cmp == AsnOidEqual)
+     {
+-      Q_REMOVE((NetPrefixNode *) var->value, prefix);
++      Q_REMOVE((*((NetPrefixNode **) &var->value)), prefix);
+     }
+ 
+   return NOERROR;
+--- linux-atm/src/maint/atmtcp.c~	2001-10-09 23:33:07.000000000 +0100
++++ linux-atm/src/maint/atmtcp.c	2005-03-02 14:48:12.000000000 +0000
+@@ -60,7 +60,7 @@ static OUT *outputs = NULL;
+ static IN *inputs = NULL;
+ static fd_set in_set;
+ static int fds = 0;
+-static int debug = 0;
++int debug = 0;
+ static int links = 0;
+ 
+ 
+--- linux-atm/src/mpoad/p_factory.c~	2001-10-09 23:33:07.000000000 +0100
++++ linux-atm/src/mpoad/p_factory.c	2005-03-02 15:33:06.000000000 +0000
+@@ -31,16 +31,17 @@ unsigned short compute_ip_csum(unsigned 
+             *         beginning at location "addr".
+             */
+        uint32_t sum = 0;
++       uint16_t *addr16 = addr;
+ 
+         while( count > 1 )  {
+            /*  This is the inner loop */
+-               sum += * ((uint16_t *) addr)++;
++               sum += * addr16++;
+                count -= 2;
+        }
+ 
+            /*  Add left-over byte, if any */
+        if( count > 0 )
+-               sum += * (unsigned char *) addr;
++               sum += * (unsigned char *) addr16;
+ 
+            /*  Fold 32-bit sum to 16 bits */
+        while (sum>>16)
+--- linux-atm/src/qgen/qlib.c~	2001-10-09 23:33:07.000000000 +0100
++++ linux-atm/src/qgen/qlib.c	2005-03-02 14:42:45.000000000 +0000
+@@ -26,8 +26,6 @@ int q_dump = 0;
+ #include "op.h"
+ 
+ 
+-static int debug = 0;
+-
+ 
+ void PREFIX(report)(int severity,const char *msg,...)
+ {
+@@ -830,6 +828,8 @@ int PREFIX(close)(Q_DSC *dsc)
+ 
+ #ifdef STANDALONE
+ 
++int debug = 0;
++
+ int main(int argc,const char **argv)
+ {
+     unsigned char msg[5000]; /* should be large enough for that */
+--- linux-atm/src/qgen/qlib.h~	2001-10-09 23:33:07.000000000 +0100
++++ linux-atm/src/qgen/qlib.h	2005-03-02 14:40:47.000000000 +0000
+@@ -23,7 +23,6 @@
+ #define Q_FATAL		-1
+ 
+ 
+-extern int q_dump;
+ extern void q_report(int severity,const char *msg,...);
+ 
+ #ifdef DUMP_MODE
+--- linux-atm/src/switch/debug/debug.c~	2001-10-09 23:33:08.000000000 +0100
++++ linux-atm/src/switch/debug/debug.c	2005-03-02 15:34:19.000000000 +0000
+@@ -18,7 +18,7 @@
+ #define COMPONENT "FAB(debug)"
+ 
+ 
+-#define PRV(call) ((FAB *) (call)->fab)
++#define PRV(call) (*((FAB **) &(call)->fab))
+ 
+ 
+ typedef struct _fab {
+--- linux-atm/src/switch/tcp/tcpsw.c~	2001-10-09 23:33:08.000000000 +0100
++++ linux-atm/src/switch/tcp/tcpsw.c	2005-03-02 15:34:55.000000000 +0000
+@@ -27,7 +27,7 @@
+ 
+ #define COMPONENT "FAB(tcp)"
+ 
+-#define PRV(call) ((FAB *) (call)->fab)
++#define PRV(call) (*((FAB **) &(call)->fab))
+ 
+ #define MAX_VCI	1024
+ 
+--- linux-atm/src/sigd/cfg_y.y.orig	2005-01-18 17:24:39.000000000 +0000
++++ linux-atm/src/sigd/cfg_y.y	2005-01-18 17:24:49.000000000 +0000
+@@ -7,6 +7,7 @@
+ #include <config.h>
+ #endif
+ 
++#include <stdlib.h>
+ #include <string.h>
+ #include <ctype.h>
+ #include <limits.h>
+--- linux-atm/src/switch/cfg_y.y.orig	2005-01-18 17:59:05.000000000 +0000
++++ linux-atm/src/switch/cfg_y.y	2005-01-18 17:59:15.000000000 +0000
+@@ -7,6 +7,7 @@
+ #include <config.h>
+ #endif
+ 
++#include <stdlib.h>
+ #include <string.h>
+ #include <errno.h>
+ #include <limits.h>
+--- linux-atm/src/test/ttcp.c.orig	2005-01-18 18:00:04.000000000 +0000
++++ linux-atm/src/test/ttcp.c	2005-01-18 18:03:00.000000000 +0000
+@@ -54,7 +54,11 @@ static char RCSid[] = "ttcp.c $Revision:
+ /* #define BSD41a */
+ /* #define SYSV */	/* required on SGI IRIX releases before 3.3 */
+ 
++#include <stdlib.h>
++#include <unistd.h>
++#include <string.h>
+ #include <stdio.h>
++#include <sys/select.h>
+ #include <signal.h>
+ #include <ctype.h>
+ #include <errno.h>
+@@ -120,7 +124,6 @@ static struct timeval stop_time;	/* Time
+ static struct rusage ru0;		/* Resource utilization at the start */
+ 
+ struct hostent *addr;
+-extern int errno;
+ extern int optind;
+ extern char *optarg;
+ 

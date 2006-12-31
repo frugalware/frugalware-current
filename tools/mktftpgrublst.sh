@@ -83,28 +83,43 @@ volumes=`ls ../docs/xml/volumes.xml 2>/dev/null`
 if [ -n "$volumes" ]; then
         echo $volumes
 else
-        echo "missing"
-        exit 1
+	volumes=`ls volumes.xml 2>/dev/null`
+	if [ -n "$volumes" ]; then
+	        echo $volumes
+	else
+	        echo "missing"
+        	exit 1
+	fi
 fi
 
 [ -z "$arch" ] && arch=`uname -m`
 
 echo -n "searching for a kernel... "
-kernel=`ls ../boot/vmlinuz*-$arch 2>/dev/null`
+kernel=`ls /tftpboot/vmlinuz*-$arch 2>/dev/null`
 if [ -n "$kernel" ]; then
         echo $kernel
 else
-        echo "none found"
-        exit 1
+	kernel=`ls ../boot/vmlinuz*-$arch 2>/dev/null`
+	if [ -n "$kernel" ]; then
+        	echo $kernel
+	else
+        	echo "none found"
+	        exit 1
+	fi
 fi
 
 echo -n "searching for the initrd... "
-initrd=`ls ../boot/initrd-$arch.img.gz 2>/dev/null`
+initrd=`ls /tftpboot/initrd-$arch.img.gz 2>/dev/null`
 if [ -n "$initrd" ]; then
         echo $initrd
 else
-        echo "none found"
-        exit 1
+	initrd=`ls ../boot/initrd-$arch.img.gz 2>/dev/null`
+	if [ -n "$initrd" ]; then
+	        echo $initrd
+	else
+	        echo "none found"
+        	exit 1
+	fi
 fi
 
 if [ ! -z "$password" ]; then
@@ -123,7 +138,7 @@ ver=`grep '<version>' $toolsdir/$volumes |sed 's/.*>\(.*\)<.*/\1/'`
 [ -z "$ver" ] && ver=`date +%Y%m%d`
 rel=`grep '<codename>' $toolsdir/$volumes |sed 's/.*>\(.*\)<.*/\1/'`
 [ -z "$rel" ] && rel="-current"
-size=`echo "$(gzip --list $toolsdir/$initrd|grep $toolsdir/${initrd/.gz/}|sed 's/.*[0-9]\+ \+\([0-9]\+\) .*/\1/')/1024"|bc`
+size=`echo "$(gzip --list $initrd|grep ${initrd/.gz/}|sed 's/.*[0-9]\+ \+\([0-9]\+\) .*/\1/')/1024"|bc`
 
 echo -n "generating menu.lst... "
 

@@ -152,17 +152,17 @@ timeout=10
 $password
 
 title Frugalware $ver ($rel) - ${kernel#*vmlinuz-}
+	$password
 	$bootcmd
 	root (nd)
         kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=791
         initrd /initrd-$arch.img.gz
-	$password
 title Frugalware $ver ($rel) - ${kernel#*vmlinuz-} (nofb)
+	$password
 	$bootcmd
 	root (nd)
         kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=normal
-        initrd /initrd-$arch.img.gz
-	$password" >boot/grub/menu.lst
+        initrd /initrd-$arch.img.gz" >boot/grub/menu.lst
 echo "done"
 
 cd $toolsdir

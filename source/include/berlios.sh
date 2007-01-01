@@ -21,4 +21,4 @@ fi
 
 url="http://developer.berlios.de/projects/$_F_berlios_dirname"
 up2date="lynx -dump http://developer.berlios.de/project/showfiles.php?group_id=\$(lynx -dump $url| grep -m1 showfiles | sed -e 's/.*id=\(.*\)\&.*/\1/;q') | grep -m1 '$_F_berlios_name-\(.*\)$_F_berlios_ext'| sed 's/.*$_F_berlios_name-\(.*\)$_F_berlios_ext.*/\1/;s/-/_/g'"
-source=(http://download.berlios.de/$_F_berlios_name/$_F_berlios_name-${pkgver//_/-}$_F_berlios_ext)
+source=(http://download.berlios.de/$_F_berlios_dirname/$_F_berlios_name-${pkgver//_/-}$_F_berlios_ext)

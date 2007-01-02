@@ -778,10 +778,10 @@ Fdesktop2()
 		deskfilename=$_F_desktop_filename.desktop
 	fi
 
-	if [ -z $_F_desktop_name ] ; then
+	if [ ! -n "$_F_desktop_name" ] ; then
 		dname=$pkgname
 	else
-		dname=$_F_desktop_name
+		dname="$_F_desktop_name"
 	fi
 
 	if [ -z "$_F_desktop_desc" ] ; then

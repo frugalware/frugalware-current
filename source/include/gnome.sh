@@ -44,3 +44,5 @@ fi
 source=(http://ftp.gnome.org/pub/gnome/sources/$_F_gnome_name/`_F_gnome_getver`/$_F_gnome_name-$pkgver.tar.bz2)
 
 options=(${options[@]} 'scriptlet')
+
+_F_gnome_pygtkdefsdir="usr/share/pygtk/2.0/defs"

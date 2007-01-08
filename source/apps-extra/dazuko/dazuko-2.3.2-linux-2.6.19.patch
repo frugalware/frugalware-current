@@ -1,0 +1,1213 @@
+diff -urNp dazuko-2.3.2.org/configure dazuko-2.3.2/configure
+--- dazuko-2.3.2.org/configure	2006-10-04 00:48:18.000000000 +0200
++++ dazuko-2.3.2/configure	2006-12-09 19:52:59.000000000 +0200
+@@ -446,7 +446,7 @@ do_linux26()
+ 			echo "ok"
+ 		fi
+ 
+-		echo -n "identifying LSM API... "
++		echo -n "identifying LSM API (this can take a while)... "
+ 		if [ ! -x "linux_lsm_conf" ]
+ 		then
+ 			echo "failed"
+@@ -725,6 +725,11 @@ do_linux26()
+ 		echo "EXTRA_CFLAGS += -DTASKSTRUCT_USES_PARENT" >> Makefile
+ 	fi
+ 
++	if [ ${LINUX_USE_CONFIG_H} -eq 1 ]
++	then
++		echo "EXTRA_CFLAGS += -DUSE_CONFIG_H" >> Makefile
++	fi
++
+ 	if [ ${DEBUG} -eq 1 ]
+ 	then
+ 		echo "EXTRA_CFLAGS += -DDEBUG" >> Makefile
+@@ -1372,6 +1377,7 @@ WITH_EXAMPLE_JAVA=0
+ WITH_EXAMPLE_PERL=0
+ WITH_EXAMPLE_PYTHON=0
+ LINUX_USE_PARENT=0
++LINUX_USE_CONFIG_H=1
+ LINUX26_USE_SUSPEND=0
+ LINUX26_USE_CLASS=0
+ LINUX26_USE_CHROOT=0
+@@ -1782,6 +1788,8 @@ case ${OS} in
+ 			if [ -f "$TEMPNAME/linux/config.h" ]
+ 			then
+ 				echo "CFLAGS += -DUSE_CONFIG_H" >> Makefile
++			else
++				LINUX_USE_CONFIG_H=0
+ 			fi
+ 			if [ -f "$TEMPNAME/linux/utsrelease.h" ]
+ 			then
+diff -urNp dazuko-2.3.2.org/dazuko_linux26.c dazuko-2.3.2/dazuko_linux26.c
+--- dazuko-2.3.2.org/dazuko_linux26.c	2006-11-15 10:11:20.000000000 +0200
++++ dazuko-2.3.2/dazuko_linux26.c	2006-12-09 19:53:17.000000000 +0200
+@@ -24,7 +24,9 @@
+ #include "dazuko_core.h"
+ #include "dazuko_linux26_device_def.h"
+ 
++#ifdef USE_CONFIG_H
+ #include <linux/config.h>
++#endif
+ #include <linux/module.h>
+ #include <linux/kernel.h>
+ #include <linux/init.h>
+diff -urNp dazuko-2.3.2.org/dazuko_linux26_lsm.c dazuko-2.3.2/dazuko_linux26_lsm.c
+--- dazuko-2.3.2.org/dazuko_linux26_lsm.c	2006-07-29 12:13:27.000000000 +0300
++++ dazuko-2.3.2/dazuko_linux26_lsm.c	2006-12-09 19:53:23.000000000 +0200
+@@ -819,6 +819,40 @@ int dazuko_security_task_getsid (struct 
+ 	return 0;
+ }
+ 
++#if defined(LSM_security_task_getsecid_2_6_19)
++void dazuko_security_task_getsecid (struct task_struct * p, u32 * secid)
++{
++	VOID_DAZUKO_LSM_CALL(task_getsecid, (p, secid));
++}
++#endif
++
++#if defined(LSM_security_task_setioprio_2_6_19)
++int dazuko_security_task_setioprio (struct task_struct * p, int ioprio)
++{
++	RETURN_DAZUKO_LSM_CALL(task_setioprio, (p, ioprio));
++
++	return 0;
++}
++#endif
++
++#if defined(LSM_security_task_getioprio_2_6_19)
++int dazuko_security_task_getioprio (struct task_struct * p)
++{
++	RETURN_DAZUKO_LSM_CALL(task_getioprio, (p));
++
++	return 0;
++}
++#endif
++
++#if defined(LSM_security_task_movememory_2_6_19)
++int dazuko_security_task_movememory (struct task_struct * p)
++{
++	RETURN_DAZUKO_LSM_CALL(task_movememory, (p));
++
++	return 0;
++}
++#endif
++
+ #if defined(LSM_security_task_setgroups_2_6_4)
+ int dazuko_security_task_setgroups (struct group_info *group_info)
+ {
+@@ -1065,6 +1099,22 @@ int dazuko_security_setprocattr(struct t
+ 	return -EINVAL;
+ }
+ 
++#if defined(LSM_security_secid_to_secctx_2_6_19)
++int dazuko_security_secid_to_secctx(u32 secid, char **secdata, u32 *seclen)
++{
++	RETURN_DAZUKO_LSM_CALL(secid_to_secctx, (secid, secdata, seclen));
++
++	return -EOPNOTSUPP;
++}
++#endif
++
++#if defined(LSM_security_release_secctx_2_6_19)
++void dazuko_security_release_secctx(char *secdata, u32 seclen)
++{
++	VOID_DAZUKO_LSM_CALL(release_secctx, (secdata, seclen));
++}
++#endif
++
+ #ifndef NO_CAPABILITIES
+ #if defined(LSM_security_netlink_send_2_6_8)
+ int dazuko_security_netlink_send (struct sock *sk, struct sk_buff *skb)
+@@ -1141,7 +1191,16 @@ int dazuko_security_socket_create (int f
+ }
+ #endif
+ 
+-#if defined(LSM_security_socket_post_create_2_6_6)
++#if defined(LSM_security_socket_post_create_2_6_19)
++int dazuko_security_socket_post_create (struct socket * sock, int family, int type, int protocol, int kern)
++{
++#ifdef CONFIG_SECURITY_NETWORK
++	RETURN_DAZUKO_LSM_CALL(socket_post_create, (sock, family, type, protocol, kern));
++#endif
++
++	return 0;
++}
++#elif defined(LSM_security_socket_post_create_2_6_6)
+ void dazuko_security_socket_post_create(struct socket * sock, int family, int type, int protocol, int kern)
+ {
+ #ifdef CONFIG_SECURITY_NETWORK
+@@ -1283,7 +1342,16 @@ int dazuko_security_socket_getpeersec_st
+ }
+ #endif
+ 
+-#if defined(LSM_security_socket_getpeersec_dgram_2_6_17)
++#if defined(LSM_security_socket_getpeersec_dgram_2_6_19)
++int dazuko_security_socket_getpeersec_dgram (struct socket *sock, struct sk_buff *skb, u32 *secid)
++{
++#ifdef CONFIG_SECURITY_NETWORK
++	RETURN_DAZUKO_LSM_CALL(socket_getpeersec_dgram, (sock, skb, secid));
++#endif
++
++	return -ENOPROTOOPT;
++}
++#elif defined(LSM_security_socket_getpeersec_dgram_2_6_17)
+ int dazuko_security_socket_getpeersec_dgram(struct sk_buff *skb, char **secdata, u32 *seclen)
+ {
+ #ifdef CONFIG_SECURITY_NETWORK
+@@ -1340,9 +1408,73 @@ unsigned int dazuko_security_sk_getsid(s
+ }
+ #endif
+ 
++#if defined(LSM_security_sk_clone_security_2_6_19)
++void dazuko_security_sk_clone_security (const struct sock *sk, struct sock *newsk)
++{
++#ifdef CONFIG_SECURITY_NETWORK
++	VOID_DAZUKO_LSM_CALL(sk_clone_security, (sk, newsk));
++#endif
++}
++#endif
++
++#if defined(LSM_security_sk_getsecid_2_6_19)
++void dazuko_security_sk_getsecid (struct sock *sk, u32 *secid)
++{
++	/* XXX: this is called security_sk_classify_flow() in security.h ?? */
++#ifdef CONFIG_SECURITY_NETWORK
++	VOID_DAZUKO_LSM_CALL(sk_getsecid, (sk, secid));
++#endif
++}
++#endif
++
++#if defined(LSM_security_sock_graft_2_6_19)
++void dazuko_security_sock_graft(struct sock* sk, struct socket *parent)
++{
++#ifdef CONFIG_SECURITY_NETWORK
++	VOID_DAZUKO_LSM_CALL(sock_graft, (sk, parent));
++#endif
++}
++#endif
++
++#if defined(LSM_security_inet_conn_request_2_6_19)
++int dazuko_security_inet_conn_request(struct sock *sk, struct sk_buff *skb, struct request_sock *req)
++{
++#ifdef CONFIG_SECURITY_NETWORK
++	RETURN_DAZUKO_LSM_CALL(inet_conn_request, (sk, skb, req));
++#endif
++
++	return 0;
++}
++#endif
++
++#if defined(LSM_security_inet_csk_clone_2_6_19)
++void dazuko_security_inet_csk_clone(struct sock *newsk, const struct request_sock *req)
++{
++#ifdef CONFIG_SECURITY_NETWORK
++	VOID_DAZUKO_LSM_CALL(inet_csk_clone, (newsk, req));
++#endif
++}
++#endif
++
++#if defined(LSM_security_req_classify_flow_2_6_19)
++void dazuko_security_req_classify_flow(const struct request_sock *req, struct flowi *fl)
++{
++#ifdef CONFIG_SECURITY_NETWORK
++	VOID_DAZUKO_LSM_CALL(req_classify_flow, (req, fl));
++#endif
++}
++#endif
++
+ #ifdef CONFIG_SECURITY_NETWORK_XFRM
+ 
+-#if defined(LSM_security_xfrm_policy_alloc_2_6_16)
++#if defined(LSM_security_xfrm_policy_alloc_2_6_19)
++int dazuko_security_xfrm_policy_alloc (struct xfrm_policy *xp, struct xfrm_user_sec_ctx *sec_ctx, struct sock *sk)
++{
++	RETURN_DAZUKO_LSM_CALL(xfrm_policy_alloc_security, (xp, sec_ctx, NULL));
++
++	return 0;
++}
++#elif defined(LSM_security_xfrm_policy_alloc_2_6_16)
+ int dazuko_security_xfrm_policy_alloc(struct xfrm_policy *xp, struct xfrm_user_sec_ctx *sec_ctx)
+ {
+ 	RETURN_DAZUKO_LSM_CALL(xfrm_policy_alloc_security, (xp, sec_ctx));
+@@ -1367,7 +1499,23 @@ void dazuko_security_xfrm_policy_free(st
+ }
+ #endif
+ 
+-#if defined(LSM_security_xfrm_state_alloc_2_6_16)
++#if defined(LSM_security_xfrm_policy_delete_2_6_19)
++int dazuko_security_xfrm_policy_delete (struct xfrm_policy *xp)
++{
++	RETURN_DAZUKO_LSM_CALL(xfrm_policy_delete_security, (xp));
++	
++	return 0;
++}
++#endif
++
++#if defined(LSM_security_xfrm_state_alloc_2_6_19)
++int dazuko_security_xfrm_state_alloc (struct xfrm_state *x, struct xfrm_user_sec_ctx *sec_ctx, struct xfrm_sec_ctx *polsec, u32 secid)
++{
++	RETURN_DAZUKO_LSM_CALL(xfrm_state_alloc_security, (x, sec_ctx, NULL, 0));
++
++	return 0;
++}
++#elif defined(LSM_security_xfrm_state_alloc_2_6_16)
+ int dazuko_security_xfrm_state_alloc(struct xfrm_state *x, struct xfrm_user_sec_ctx *sec_ctx)
+ {
+ 	RETURN_DAZUKO_LSM_CALL(xfrm_state_alloc_security, (x, sec_ctx));
+@@ -1383,7 +1531,23 @@ void dazuko_security_xfrm_state_free(str
+ }
+ #endif
+ 
+-#if defined(LSM_security_xfrm_policy_lookup_2_6_16)
++#if defined(LSM_security_xfrm_state_delete_2_6_19)
++int dazuko_security_xfrm_state_delete (struct xfrm_state *x)
++{
++	RETURN_DAZUKO_LSM_CALL(xfrm_state_delete_security, (x));
++
++	return 0;
++}
++#endif
++
++#if defined(LSM_security_xfrm_policy_lookup_2_6_19)
++int dazuko_security_xfrm_policy_lookup(struct xfrm_policy *xp, u32 fl_secid, u8 dir)
++{
++	RETURN_DAZUKO_LSM_CALL(xfrm_policy_lookup, (xp, fl_secid, dir));
++
++	return 0;
++}
++#elif defined(LSM_security_xfrm_policy_lookup_2_6_16)
+ int dazuko_security_xfrm_policy_lookup(struct xfrm_policy *xp, u32 sk_sid, u8 dir)
+ {
+ 	RETURN_DAZUKO_LSM_CALL(xfrm_policy_lookup, (xp, sk_sid, dir));
+@@ -1392,11 +1556,45 @@ int dazuko_security_xfrm_policy_lookup(s
+ }
+ #endif
+ 
++#if defined(LSM_security_xfrm_state_pol_flow_match_2_6_19)
++int dazuko_security_xfrm_state_pol_flow_match(struct xfrm_state *x, struct xfrm_policy *xp, struct flowi *fl)
++{
++	RETURN_DAZUKO_LSM_CALL(xfrm_state_pol_flow_match, (x, xp, fl));
++
++	return 1;
++}
++#endif
++
++#if defined(LSM_security_xfrm_flow_state_match_2_6_19)
++int dazuko_security_xfrm_flow_state_match(struct flowi *fl, struct xfrm_state *xfrm, struct xfrm_policy *xp)
++{
++	RETURN_DAZUKO_LSM_CALL(xfrm_flow_state_match, (fl, xfrm, xp));
++
++	return 1;
++}
++#endif
++
++#if defined(LSM_security_xfrm_decode_session_2_6_19)
++int dazuko_security_xfrm_decode_session(struct sk_buff *skb, u32 *secid, int ckall)
++{
++	RETURN_DAZUKO_LSM_CALL(xfrm_decode_session, (skb, secid, 1));
++
++	return 0;
++}
++#endif
++
+ #endif
+ 
+ #ifdef CONFIG_KEYS
+ 
+-#if defined(LSM_struct_key_alloc_2_6_15)
++#if defined(LSM_struct_key_alloc_2_6_19)
++int dazuko_security_key_alloc(struct key *key, struct task_struct *tsk, unsigned long flags)
++{
++	RETURN_DAZUKO_LSM_CALL(key_alloc, (key, tsk, flags));
++
++	return 0;
++}
++#elif defined(LSM_struct_key_alloc_2_6_15)
+ int dazuko_security_key_alloc(struct key *key)
+ {
+ 	RETURN_DAZUKO_LSM_CALL(key_alloc, (key));
+diff -urNp dazuko-2.3.2.org/dazuko_linux26_lsm.h dazuko-2.3.2/dazuko_linux26_lsm.h
+--- dazuko-2.3.2.org/dazuko_linux26_lsm.h	2006-07-29 12:13:17.000000000 +0300
++++ dazuko-2.3.2/dazuko_linux26_lsm.h	2006-12-09 19:53:26.000000000 +0200
+@@ -297,6 +297,22 @@ int dazuko_security_task_getpgid (struct
+ 
+ int dazuko_security_task_getsid (struct task_struct *p);
+ 
++#if defined(LSM_security_task_getsecid_2_6_19)
++void dazuko_security_task_getsecid (struct task_struct * p, u32 * secid);
++#endif
++
++#if defined(LSM_security_task_setioprio_2_6_19)
++int dazuko_security_task_setioprio (struct task_struct * p, int ioprio);
++#endif
++
++#if defined(LSM_security_task_getioprio_2_6_19)
++int dazuko_security_task_getioprio (struct task_struct * p);
++#endif
++
++#if defined(LSM_security_task_movememory_2_6_19)
++int dazuko_security_task_movememory (struct task_struct * p);
++#endif
++
+ #if defined(LSM_security_task_setgroups_2_6_4)
+ int dazuko_security_task_setgroups (struct group_info *group_info);
+ #else
+@@ -375,6 +391,14 @@ int dazuko_security_getprocattr(struct t
+ 
+ int dazuko_security_setprocattr(struct task_struct *p, char *name, void *value, size_t size);
+ 
++#if defined(LSM_security_secid_to_secctx_2_6_19)
++int dazuko_security_secid_to_secctx(u32 secid, char **secdata, u32 *seclen);
++#endif
++
++#if defined(LSM_security_release_secctx_2_6_19)
++void dazuko_security_release_secctx(char *secdata, u32 seclen);
++#endif
++
+ int dazuko_security_unix_stream_connect(struct socket * sock, struct socket * other, struct sock * newsk);
+ 
+ int dazuko_security_unix_may_send(struct socket * sock, struct socket * other);
+@@ -385,7 +409,9 @@ int dazuko_security_socket_create (int f
+ int dazuko_security_socket_create (int family, int type, int protocol);
+ #endif
+ 
+-#if defined(LSM_security_socket_post_create_2_6_6)
++#if defined(LSM_security_socket_post_create_2_6_19)
++int dazuko_security_socket_post_create (struct socket * sock, int family, int type, int protocol, int kern);
++#elif defined(LSM_security_socket_post_create_2_6_6)
+ void dazuko_security_socket_post_create(struct socket * sock, int family, int type, int protocol, int kern);
+ #else
+ void dazuko_security_socket_post_create(struct socket * sock, int family, int type, int protocol);
+@@ -421,7 +447,9 @@ int dazuko_security_socket_sock_rcv_skb 
+ int dazuko_security_socket_getpeersec_stream(struct socket *sock, char __user *optval, int __user *optlen, unsigned len);
+ #endif
+ 
+-#if defined(LSM_security_socket_getpeersec_dgram_2_6_17)
++#if defined(LSM_security_socket_getpeersec_dgram_2_6_19)
++int dazuko_security_socket_getpeersec_dgram (struct socket *sock, struct sk_buff *skb, u32 *secid);
++#elif defined(LSM_security_socket_getpeersec_dgram_2_6_17)
+ int dazuko_security_socket_getpeersec_dgram(struct sk_buff *skb, char **secdata, u32 *seclen);
+ #endif
+ 
+@@ -445,9 +473,35 @@ void dazuko_security_sk_free_security(st
+ unsigned int dazuko_security_sk_getsid(struct sock *sk, struct flowi *fl, u8 dir);
+ #endif
+ 
++#if defined(LSM_security_sk_clone_security_2_6_19)
++void dazuko_security_sk_clone_security (const struct sock *sk, struct sock *newsk);
++#endif
++
++#if defined(LSM_security_sk_getsecid_2_6_19)
++void dazuko_security_sk_getsecid (struct sock *sk, u32 *secid);
++#endif
++
++#if defined(LSM_security_sock_graft_2_6_19)
++void dazuko_security_sock_graft(struct sock* sk, struct socket *parent);
++#endif
++
++#if defined(LSM_security_inet_conn_request_2_6_19)
++int dazuko_security_inet_conn_request(struct sock *sk, struct sk_buff *skb, struct request_sock *req);
++#endif
++
++#if defined(LSM_security_inet_csk_clone_2_6_19)
++void dazuko_security_inet_csk_clone(struct sock *newsk, const struct request_sock *req);
++#endif
++
++#if defined(LSM_security_req_classify_flow_2_6_19)
++void dazuko_security_req_classify_flow(const struct request_sock *req, struct flowi *fl);
++#endif
++
+ #ifdef CONFIG_KEYS
+ 
+-#if defined(LSM_struct_key_alloc_2_6_15)
++#if defined(LSM_struct_key_alloc_2_6_19)
++int dazuko_security_key_alloc(struct key *key, struct task_struct *tsk, unsigned long flags);
++#elif defined(LSM_struct_key_alloc_2_6_15)
+ int dazuko_security_key_alloc(struct key *key);
+ #endif
+ 
+@@ -463,7 +517,9 @@ int dazuko_security_key_permission(key_r
+ 
+ #ifdef CONFIG_SECURITY_NETWORK_XFRM
+ 
+-#if defined(LSM_security_xfrm_policy_alloc_2_6_16)
++#if defined(LSM_security_xfrm_policy_alloc_2_6_19)
++int dazuko_security_xfrm_policy_alloc (struct xfrm_policy *xp, struct xfrm_user_sec_ctx *sec_ctx, struct sock *sk);
++#elif defined(LSM_security_xfrm_policy_alloc_2_6_16)
+ int dazuko_security_xfrm_policy_alloc(struct xfrm_policy *xp, struct xfrm_user_sec_ctx *sec_ctx);
+ #endif
+ 
+@@ -475,7 +531,13 @@ int dazuko_security_xfrm_policy_clone(st
+ void dazuko_security_xfrm_policy_free(struct xfrm_policy *xp);
+ #endif
+ 
+-#if defined(LSM_security_xfrm_state_alloc_2_6_16)
++#if defined(LSM_security_xfrm_policy_delete_2_6_19)
++int dazuko_security_xfrm_policy_delete (struct xfrm_policy *xp);
++#endif
++
++#if defined(LSM_security_xfrm_state_alloc_2_6_19)
++int dazuko_security_xfrm_state_alloc (struct xfrm_state *x, struct xfrm_user_sec_ctx *sec_ctx, struct xfrm_sec_ctx *polsec, u32 secid);
++#elif defined(LSM_security_xfrm_state_alloc_2_6_16)
+ int dazuko_security_xfrm_state_alloc(struct xfrm_state *x, struct xfrm_user_sec_ctx *sec_ctx);
+ #endif
+ 
+@@ -483,10 +545,28 @@ int dazuko_security_xfrm_state_alloc(str
+ void dazuko_security_xfrm_state_free(struct xfrm_state *x);
+ #endif
+ 
+-#if defined(LSM_security_xfrm_policy_lookup_2_6_16)
++#if defined(LSM_security_xfrm_state_delete_2_6_19)
++int dazuko_security_xfrm_state_delete (struct xfrm_state *x);
++#endif
++
++#if defined(LSM_security_xfrm_policy_lookup_2_6_19)
++int dazuko_security_xfrm_policy_lookup(struct xfrm_policy *xp, u32 fl_secid, u8 dir);
++#elif defined(LSM_security_xfrm_policy_lookup_2_6_16)
+ int dazuko_security_xfrm_policy_lookup(struct xfrm_policy *xp, u32 sk_sid, u8 dir);
+ #endif
+ 
++#if defined(LSM_security_xfrm_state_pol_flow_match_2_6_19)
++int dazuko_security_xfrm_state_pol_flow_match(struct xfrm_state *x, struct xfrm_policy *xp, struct flowi *fl);
++#endif
++
++#if defined(LSM_security_xfrm_flow_state_match_2_6_19)
++int dazuko_security_xfrm_flow_state_match(struct flowi *fl, struct xfrm_state *xfrm, struct xfrm_policy *xp);
++#endif
++
++#if defined(LSM_security_xfrm_decode_session_2_6_19)
++int dazuko_security_xfrm_decode_session(struct sk_buff *skb, u32 *secid, int ckall);
++#endif
++
+ #endif
+ 
+ struct security_operations dazuko_security_ops;
+@@ -615,6 +695,18 @@ struct security_operations dazuko_regist
+ 	.task_setpgid = dazuko_security_task_setpgid,
+ 	.task_getpgid = dazuko_security_task_getpgid,
+ 	.task_getsid = dazuko_security_task_getsid,
++#if defined(LSM_security_task_getsecid_2_6_19)
++	.task_getsecid = dazuko_security_task_getsecid,
++#endif
++#if defined(LSM_security_task_setioprio_2_6_19)
++	.task_setioprio = dazuko_security_task_setioprio,
++#endif
++#if defined(LSM_security_task_getioprio_2_6_19)
++	.task_getioprio = dazuko_security_task_getioprio,
++#endif
++#if defined(LSM_security_task_movememory_2_6_19)
++	.task_movememory = dazuko_security_task_movememory,
++#endif
+ 	.task_setgroups = dazuko_security_task_setgroups,
+ 	.task_setnice = dazuko_security_task_setnice,
+ 	.task_setrlimit = dazuko_security_task_setrlimit,
+@@ -649,6 +741,12 @@ struct security_operations dazuko_regist
+ 	.d_instantiate = dazuko_security_d_instantiate,
+ 	.getprocattr = dazuko_security_getprocattr,
+ 	.setprocattr = dazuko_security_setprocattr,
++#if defined(LSM_security_secid_to_secctx_2_6_19)
++	.secid_to_secctx = dazuko_security_secid_to_secctx,
++#endif
++#if defined(LSM_security_release_secctx_2_6_19)
++	.release_secctx = dazuko_security_release_secctx,
++#endif
+ 
+ #ifdef CONFIG_SECURITY_NETWORK
+ 	.unix_stream_connect = dazuko_security_unix_stream_connect,
+@@ -686,27 +784,60 @@ struct security_operations dazuko_regist
+ #if defined(LSM_security_sk_getsid_2_6_17)
+ 	.sk_getsid = dazuko_security_sk_getsid,
+ #endif
++#if defined(LSM_security_sk_clone_security_2_6_19)
++	.sk_clone_security = dazuko_security_sk_clone_security,
++#endif
++#if defined(LSM_security_sk_getsecid_2_6_19)
++	.sk_getsecid = dazuko_security_sk_getsecid,
++#endif
++#if defined(LSM_security_sock_graft_2_6_19)
++	.sock_graft = dazuko_security_sock_graft,
++#endif
++#if defined(LSM_security_inet_conn_request_2_6_19)
++	.inet_conn_request = dazuko_security_inet_conn_request,
++#endif
++#if defined(LSM_security_inet_csk_clone_2_6_19)
++	.inet_csk_clone = dazuko_security_inet_csk_clone,
++#endif
++#if defined(LSM_security_req_classify_flow_2_6_19)
++	.req_classify_flow = dazuko_security_req_classify_flow,
++#endif
+ #endif
+ 
+ #ifdef CONFIG_SECURITY_NETWORK_XFRM
+ #if defined(LSM_security_xfrm_policy_alloc_security_2_6_16)
+-	.xfrm_policy_alloc_security = dazuko_security_xfrm_policy_alloc_security,
++	.xfrm_policy_alloc_security = dazuko_security_xfrm_policy_alloc,
+ #endif
+ #if defined(LSM_security_xfrm_policy_clone_security_2_6_16)
+-	.xfrm_policy_clone_security = dazuko_security_xfrm_policy_clone_security,
++	.xfrm_policy_clone_security = dazuko_security_xfrm_policy_clone,
+ #endif
+ #if defined(LSM_security_xfrm_policy_free_security_2_6_16)
+-	.xfrm_policy_free_security = dazuko_security_xfrm_policy_free_security,
++	.xfrm_policy_free_security = dazuko_security_xfrm_policy_free,
+ #endif
+ #if defined(LSM_security_xfrm_state_alloc_security_2_6_16)
+-	.xfrm_state_alloc_security = dazuko_security_xfrm_state_alloc_security,
++	.xfrm_state_alloc_security = dazuko_security_xfrm_state_alloc,
+ #endif
+ #if defined(LSM_security_xfrm_state_free_security_2_6_16)
+-	.xfrm_state_free_security = dazuko_security_xfrm_state_free_security,
++	.xfrm_state_free_security = dazuko_security_xfrm_state_free,
+ #endif
+ #if defined(LSM_security_xfrm_policy_lookup_2_6_16)
+ 	.xfrm_policy_lookup = dazuko_security_xfrm_policy_lookup,
+ #endif
++#if defined(LSM_security_xfrm_policy_delete_2_6_19)
++	.xfrm_policy_delete_security = dazuko_security_xfrm_policy_delete,
++#endif
++#if defined(LSM_security_xfrm_state_delete_2_6_19)
++	.xfrm_state_delete_security = dazuko_security_xfrm_state_delete,
++#endif
++#if defined(LSM_security_xfrm_state_pol_flow_match_2_6_19)
++	.xfrm_state_pol_flow_match = dazuko_security_xfrm_state_pol_flow_match,
++#endif
++#if defined(LSM_security_xfrm_flow_state_match_2_6_19)
++	.xfrm_flow_state_match = dazuko_security_xfrm_flow_state_match,
++#endif
++#if defined(LSM_security_xfrm_decode_session_2_6_19)
++	.xfrm_decode_session = dazuko_security_xfrm_decode_session,
++#endif
+ #endif
+ 
+ #ifdef CONFIG_KEYS
+diff -urNp dazuko-2.3.2.org/dazuko_linux.c dazuko-2.3.2/dazuko_linux.c
+--- dazuko-2.3.2.org/dazuko_linux.c	2006-11-29 21:52:36.000000000 +0200
++++ dazuko-2.3.2/dazuko_linux.c	2006-12-09 19:53:35.000000000 +0200
+@@ -27,7 +27,7 @@
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
+ #include "dazuko_linux26_device_def.h"
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
++#ifdef USE_CONFIG_H
+ #include <linux/config.h>
+ #endif
+ #include <linux/module.h>
+diff -urNp dazuko-2.3.2.org/linux_lsm_conf dazuko-2.3.2/linux_lsm_conf
+--- dazuko-2.3.2.org/linux_lsm_conf	2006-07-29 12:13:49.000000000 +0300
++++ dazuko-2.3.2/linux_lsm_conf	2006-12-09 19:53:48.000000000 +0200
+@@ -53,89 +53,92 @@ then
+ fi
+ 
+ FILE="dazuko_linux26_lsm_def.h"
++TMPFILE="$FILE.tmp"
+ Z="[^),]*"
+ 
++cat $1 | tr -d "\n" > $TMPFILE
++
+ echo "/* defines for LSM API identification */" > $FILE
+ echo "" >> $FILE
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_sysctl${Z}(${Z}struct${Z}ctl_table${Z}\*${Z},${Z}int${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_sysctl_2_6_10" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_settime${Z}(${Z}struct${Z}timespec${Z}\*${Z},${Z}struct${Z}timezone${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_settime_2_6_10" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_bprm_apply_creds${Z}(${Z}struct${Z}linux_binprm${Z}\*${Z},${Z}int${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_bprm_apply_creds_2_6_6" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_bprm_apply_creds${Z}(${Z}struct${Z}linux_binprm${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_bprm_apply_creds_2_6_6_mandrake" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_sb_copy_data${Z}(${Z}struct${Z}file_system_type${Z}\*${Z},${Z}void${Z}\*${Z},${Z}void${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_sb_copy_data_2_6_5" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_sb_copy_data${Z}(${Z}const${Z}char${Z}\*${Z},${Z}void${Z}\*${Z},${Z}void${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_sb_copy_data_2_6_3" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_sb_kern_mount${Z}(${Z}struct${Z}super_block${Z}\*${Z},${Z}void${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_sb_kern_mount_2_6_3" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "cap_inode_setxattr${Z}(${Z},${Z},${Z},${Z},${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_setxattr_2_6_2" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "cap_inode_removexattr${Z}(${Z},${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_removexattr_2_6_2" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_xattr_getsuffix${Z}(${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_xattr_getsuffix_2_6_17" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_getsecurity${Z}(${Z}struct${Z}inode${Z}\*${Z},${Z}const${Z}char${Z}\*${Z},${Z}void${Z}\*${Z},${Z}size_t${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_getsecurity_2_6_10" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_getsecurity${Z}(${Z}const${Z}struct${Z}inode${Z}\*${Z},${Z}const${Z}char${Z}\*${Z},${Z}void${Z}\*${Z},${Z}size_t${Z},${Z}int${Z})"
+ if [ $? -eq 0 ]
+ then
+@@ -143,7 +146,7 @@ then
+ else
+ 	# we only check this if the above search didn't match
+ 
+-	cat $1 | tr -d "\n" | grep -q \
++	cat $TMPFILE | grep -q \
+ 	"security_inode_getsecurity${Z}(${Z}struct${Z}inode${Z}\*${Z},${Z}const${Z}char${Z}\*${Z},${Z}void${Z}\*${Z},${Z}size_t${Z},${Z}int${Z})"
+ 	if [ $? -eq 0 ]
+ 	then
+@@ -151,70 +154,79 @@ else
+ 	fi
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_setsecurity${Z}(${Z}struct${Z}inode${Z}\*${Z},${Z}const${Z}char${Z}\*${Z},${Z}const${Z}void${Z}\*${Z},${Z}size_t${Z},${Z}int${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_setsecurity_2_6_10" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_listsecurity${Z}(${Z}struct${Z}inode${Z}\*${Z},${Z}char${Z}\*${Z},${Z}size_t${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_listsecurity_2_6_10" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_file_send_sigiotask${Z}(${Z}struct${Z}task_struct${Z}\*${Z},${Z}struct${Z}fown_struct${Z}\*${Z},${Z}int${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_file_send_sigiotask_2_6_10" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_task_setgroups${Z}(${Z}struct${Z}group_info${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_task_setgroups_2_6_4" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_ipc_getsecurity${Z}(${Z}struct${Z}kern_ipc_perm${Z}\*${Z},${Z}void${Z}\*${Z},${Z}size_t${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_ipc_getsecurity_2_6_17" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_shm_shmat${Z}(${Z}struct${Z}shmid_kernel${Z}\*${Z},${Z}char${Z}__user${Z}\*${Z},${Z}int${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_shm_shmat_2_6_7" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_netlink_send${Z}(${Z}struct${Z}sock${Z}\*${Z},${Z}struct${Z}sk_buff${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_netlink_send_2_6_8" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_socket_create${Z}(${Z}int${Z},${Z}int${Z},${Z}int${Z},${Z}int${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_socket_create_2_6_6" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
+-"security_socket_post_create${Z}(${Z}struct${Z}socket${Z}\*${Z},${Z}int${Z},${Z}int${Z},${Z}int${Z},${Z}int${Z})"
++cat $TMPFILE | grep -q \
++"int[^a-z]*security_socket_post_create${Z}(${Z}struct${Z}socket${Z}\*${Z},${Z}int${Z},${Z}int${Z},${Z}int${Z},${Z}int${Z})"
+ if [ $? -eq 0 ]
+ then
+-	echo "#define LSM_security_socket_post_create_2_6_6" >> $FILE
++	echo "#define LSM_security_socket_post_create_2_6_19" >> $FILE
++else
++	# we only check this if the above search didn't match
++
++	cat $TMPFILE | grep -q \
++	"security_socket_post_create${Z}(${Z}struct${Z}socket${Z}\*${Z},${Z}int${Z},${Z}int${Z},${Z}int${Z},${Z}int${Z})"
++	if [ $? -eq 0 ]
++	then
++		echo "#define LSM_security_socket_post_create_2_6_6" >> $FILE
++	fi
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_socket_getpeersec_stream${Z}(${Z}struct${Z}socket${Z}\*${Z},${Z}char${Z}__user${Z}\*${Z},${Z}int${Z}__user${Z}\*${Z},${Z}unsigned${Z})"
+ if [ $? -eq 0 ]
+ then
+@@ -222,7 +234,7 @@ then
+ else
+ 	# we only check this if the above search didn't match
+ 
+-	cat $1 | tr -d "\n" | grep -q \
++	cat $TMPFILE | grep -q \
+ 	"security_socket_getpeersec${Z}(${Z}struct${Z}socket${Z}\*${Z},${Z}char${Z}__user${Z}\*${Z},${Z}int${Z}__user${Z}\*${Z},${Z}unsigned${Z})"
+ 	if [ $? -eq 0 ]
+ 	then
+@@ -230,91 +242,91 @@ else
+ 	fi
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_socket_getpeersec_dgram${Z}(${Z}struct${Z}sk_buff${Z}\*${Z},${Z}char${Z}\*${Z}\*${Z},${Z}u32${Z}\*${Z}${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_socket_getpeersec_dgram_2_6_17" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_quota_on${Z}(${Z}struct${Z}dentry${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_quota_on_2_6_11" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_bprm_post_apply_creds${Z}(${Z}struct${Z}linux_binprm${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_bprm_post_apply_creds_2_6_11" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_file_mmap${Z}(${Z}struct${Z}file${Z}\*${Z},${Z}unsigned${Z}long${Z},${Z}unsigned${Z}long${Z},${Z}unsigned${Z}long${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_file_mmap_2_6_12" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_file_mprotect${Z}(${Z}struct${Z}vm_area_struct${Z}\*${Z},${Z}unsigned${Z}long${Z},${Z}unsigned${Z}long${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_file_mprotect_2_6_12" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_init_security${Z}(${Z}struct${Z}inode${Z}\*${Z},${Z}struct${Z}inode${Z}\*${Z},${Z}char${Z}\*${Z}\*${Z},${Z}void${Z}\*${Z}\*${Z},${Z}size_t${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_init_security_2_6_14" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_post_create${Z}(${Z}struct${Z}inode${Z}\*${Z},${Z}struct${Z}dentry${Z}\*${Z},${Z}int${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_post_create_2_6_14" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_post_link${Z}(${Z}struct${Z}dentry${Z}\*${Z},${Z}struct${Z}inode${Z}\*${Z},${Z}struct${Z}dentry${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_post_link_2_6_14" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_post_symlink${Z}(${Z}struct${Z}inode${Z}\*${Z},${Z}struct${Z}dentry${Z}\*${Z},${Z}const${Z}char${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_post_symlink_2_6_14" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_post_mkdir${Z}(${Z}struct${Z}inode${Z}\*${Z},${Z}struct${Z}dentry${Z}\*${Z},${Z}int${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_post_mkdir_2_6_14" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_post_mknod${Z}(${Z}struct${Z}inode${Z}\*${Z},${Z}struct${Z}dentry${Z}\*${Z},${Z}int${Z},${Z}dev_t${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_post_mknod_2_6_14" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_inode_post_rename${Z}(${Z}struct${Z}inode${Z}\*${Z},${Z}struct${Z}dentry${Z}\*${Z},${Z}struct${Z}inode${Z}\*${Z},${Z}struct${Z}dentry${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_inode_post_rename_2_6_14" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_sk_alloc${Z}(${Z}struct${Z}sock${Z}\*${Z},${Z}int${Z},${Z}unsigned${Z}int${Z}__nocast${Z})"
+ if [ $? -eq 0 ]
+ then
+@@ -322,7 +334,7 @@ then
+ else
+ 	# we only check this if the above search didn't match
+ 
+-	cat $1 | tr -d "\n" | grep -q \
++	cat $TMPFILE | grep -q \
+ 	"security_sk_alloc${Z}(${Z}struct${Z}sock${Z}\*${Z},${Z}int${Z},${Z}int${Z})"
+ 	if [ $? -eq 0 ]
+ 	then
+@@ -330,110 +342,268 @@ else
+ 	fi
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_sk_alloc${Z}(${Z}struct${Z}sock${Z}\*${Z},${Z}int${Z},${Z}gfp_t${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_sk_alloc_security_2_6_15" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_sk_free${Z}(${Z}struct${Z}sock${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_sk_free_security_2_6_2" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "sk_sid${Z}(${Z}struct${Z}sock${Z}\*${Z},${Z}struct${Z}flowi${Z}\*${Z},${Z}u8${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_sk_getsid_2_6_17" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_key_alloc${Z}(${Z}struct${Z}key${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_struct_key_alloc_2_6_15" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_key_free${Z}(${Z}struct${Z}key${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_struct_key_free_2_6_15" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_key_permission${Z}(${Z}key_ref_t${Z},${Z}struct${Z}task_struct${Z}\*${Z},${Z}key_perm_t${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_key_permission_2_6_15" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_xfrm_policy_alloc${Z}(${Z}struct${Z}xfrm_policy${Z}\*${Z},${Z}struct${Z}xfrm_user_sec_ctx${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_xfrm_policy_alloc_2_6_16" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_xfrm_policy_clone${Z}(${Z}struct${Z}xfrm_policy${Z}\*${Z},${Z}struct${Z}xfrm_policy${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_xfrm_policy_clone_2_6_16" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_xfrm_policy_free${Z}(${Z}struct${Z}xfrm_policy${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_xfrm_policy_free_2_6_16" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_xfrm_state_alloc${Z}(${Z}struct${Z}xfrm_state${Z}\*${Z},${Z}struct${Z}xfrm_user_sec_ctx${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_xfrm_state_alloc_2_6_16" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_xfrm_state_free${Z}(${Z}struct${Z}xfrm_state${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_xfrm_state_free_2_6_16" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
+-"security_xfrm_policy_lookup${Z}(${Z}struct${Z}xfrm_policy${Z}\*${Z},${Z}u32${Z},${Z}u8${Z})"
++cat $TMPFILE | grep -q \
++"security_xfrm_policy_lookup${Z}(${Z}struct${Z}xfrm_policy${Z}\*${Z},${Z}u32${Z}fl_secid${Z},${Z}u8${Z})"
+ if [ $? -eq 0 ]
+ then
+-	echo "#define LSM_security_xfrm_policy_lookup_2_6_16" >> $FILE
++	echo "#define LSM_security_xfrm_policy_lookup_2_6_19" >> $FILE
++else
++	# we only check this if the above search didn't match
++
++	cat $TMPFILE | grep -q \
++	"security_xfrm_policy_lookup${Z}(${Z}struct${Z}xfrm_policy${Z}\*${Z},${Z}u32${Z},${Z}u8${Z})"
++	if [ $? -eq 0 ]
++	then
++		echo "#define LSM_security_xfrm_policy_lookup_2_6_16" >> $FILE
++	fi
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "cap_netlink_recv${Z}(${Z}struct${Z}sk_buff${Z}\*${Z},${Z}int${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_netlink_recv_2_6_18" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_sb_statfs${Z}(${Z}struct${Z}dentry${Z}\*${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_sb_statfs_2_6_18" >> $FILE
+ fi
+ 
+-cat $1 | tr -d "\n" | grep -q \
++cat $TMPFILE | grep -q \
+ "security_task_kill${Z}(${Z}struct${Z}task_struct${Z}\*${Z},${Z}struct${Z}siginfo${Z}\*${Z},${Z}int${Z},${Z}u32${Z})"
+ if [ $? -eq 0 ]
+ then
+ 	echo "#define LSM_security_task_kill_2_6_18" >> $FILE
+ fi
+ 
++cat $TMPFILE | grep -q \
++"security_task_getsecid${Z}(${Z}struct${Z}task_struct${Z}\*${Z},${Z}u32${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_task_getsecid_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_task_setioprio${Z}(${Z}struct${Z}task_struct${Z}\*${Z},${Z}int${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_task_setioprio_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_task_getioprio${Z}(${Z}struct${Z}task_struct${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_task_getioprio_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_task_movememory${Z}(${Z}struct${Z}task_struct${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_task_movememory_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_secid_to_secctx${Z}(${Z}u32${Z},${Z}char${Z}\*\*${Z},${Z}u32${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_secid_to_secctx_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_release_secctx${Z}(${Z}char${Z}\*${Z},${Z}u32${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_release_secctx_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_socket_getpeersec_dgram${Z}(${Z}struct${Z}socket${Z}\*${Z},${Z}struct${Z}sk_buff${Z}\*${Z},${Z}u32${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_socket_getpeersec_dgram_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_sk_clone${Z}(${Z}const${Z}struct${Z}sock${Z}\*${Z},${Z}struct${Z}sock${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_sk_clone_security_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"void[^a-z_]*sk_getsecid[^a-z_]*(${Z}struct${Z}sock${Z}\*${Z},${Z}u32${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_sk_getsecid_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_sock_graft${Z}(${Z}struct${Z}sock${Z}\*${Z},${Z}struct${Z}socket${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_sock_graft_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_inet_conn_request${Z}(${Z}struct${Z}sock${Z}\*${Z},${Z}struct${Z}sk_buff${Z}\*${Z},${Z}struct${Z}request_sock${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_inet_conn_request_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_inet_csk_clone${Z}(${Z}struct${Z}sock${Z}\*${Z},${Z}const${Z}struct${Z}request_sock${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_inet_csk_clone_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_req_classify_flow${Z}(${Z}const${Z}struct${Z}request_sock${Z}\*${Z},${Z}struct${Z}flowi${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_req_classify_flow_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_key_alloc${Z}(${Z}struct${Z}key${Z}\*${Z},${Z}struct${Z}task_struct${Z}\*${Z},${Z}unsigned${Z}long${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_struct_key_alloc_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_xfrm_policy_alloc${Z}(${Z}struct${Z}xfrm_policy${Z}\*${Z},${Z}struct${Z}xfrm_user_sec_ctx${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_xfrm_policy_alloc_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_xfrm_policy_delete${Z}(${Z}struct${Z}xfrm_policy${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_xfrm_policy_delete_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_xfrm_state_alloc${Z}(${Z}struct${Z}xfrm_state${Z}\*${Z},${Z}struct${Z}xfrm_user_sec_ctx${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_xfrm_state_alloc_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_xfrm_state_delete${Z}(${Z}struct${Z}xfrm_state${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_xfrm_state_delete_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_xfrm_state_pol_flow_match${Z}(${Z}struct${Z}xfrm_state${Z}\*${Z},${Z}struct${Z}xfrm_policy${Z}\*${Z},${Z}struct${Z}flowi${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_xfrm_state_pol_flow_match_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_xfrm_flow_state_match${Z}(${Z}struct${Z}flowi${Z}\*${Z},${Z}struct${Z}xfrm_state${Z}\*${Z},${Z}struct${Z}xfrm_policy${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_xfrm_flow_state_match_2_6_19" >> $FILE
++fi
++
++cat $TMPFILE | grep -q \
++"security_xfrm_decode_session${Z}(${Z}struct${Z}sk_buff${Z}\*${Z},${Z}u32${Z}\*${Z})"
++if [ $? -eq 0 ]
++then
++	echo "#define LSM_security_xfrm_decode_session_2_6_19" >> $FILE
++fi
++
++rm -f $TMPFILE
++
+ exit 0
+ 

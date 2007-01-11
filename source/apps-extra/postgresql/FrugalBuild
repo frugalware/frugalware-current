@@ -3,36 +3,69 @@
 # Contributor: VMiklos <vmiklos@frugalware.org>
 
 pkgname=postgresql
-pkgver=8.2
-pkgextraver=.0
+pkgver=8.2.1
 pkgrel=1
 pkgdesc="An advanced Object-Relational database management system (DBMS)"
 url="http://www.postgresql.org/"
 depends=('zlib' 'readline')
-makedepends=('openssl')
+makedepends=('openssl' 'perl' 'python' 'tcl' 'libxslt')
 rodepends=("libpq=$pkgver")
 groups=('apps-extra')
 archs=('i686' 'x86_64')
 up2date="wget --passive-ftp -O - -q ftp://ftp.postgresql.org/pub/source/|grep '\.[0-9]/</a> $'|sed -n 's|.*v\([0-9\.]*\)/</a> $|\1|;$ p'"
 source=(ftp://ftp.postgresql.org/pub/source/v$pkgver/postgresql-$pkgver$pkgextraver.tar.bz2 rc.postgresql)
+sha1sums=('d73b964ca068c36c9d88766d551f25e0feb8de13' \
+          'faa7229726d07a3af32cff8abf8bbb9b46900763')
 
-subpkgs=('libpq')
-subdescs=('PostgreSQL Library.')
-subdepends=('openssl')
-subgroups=('lib')
-subarchs=('i686 x86_64')
+subpkgs=('libpq' "$pkgname-extras" "$pkgname-docs" "$pkgname-perl" "$pkgname-python" "$pkgname-tcl")
+subdescs=('PostgreSQL Library.' 'PostgreSQL extra tools' 'PostgreSQL Documentation' \
+	"PostgreSQL perl bindings" "PostgreSQL python bindings" "PostgreSQL tcl bindings")
+subdepends=('openssl' 'libxslt libpq readline' "$pkgname=$pkgver" "$pkgname=$pkgver perl" \
+	  "$pkgname=$pkgver python" "$pkgname=$pkgver tcl")
+subgroups=('lib' 'apps-extra' 'apps-extra' 'devel-extra' 'devel-extra' 'devel-extra')
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
 
 build()
 {
-	Fmake --datadir=/usr/share/pgsql \
-		--localstatedir=/var/lib/pgsql --with-openssl
-	make DESTDIR=$Fdestdir install
+	Fmake \
+		--datadir=/usr/share/pgsql \
+		--localstatedir=/var/lib/pgsql \
+		--with-docdir=/usr/share/doc/$pkgname-$pkgver \
+		--with-openssl \
+		--with-tcl \
+		--with-perl \
+		--with-python \
+		--enable-thread-safety \
+		--without-ldap \
+		--without-krb5 \
+		--without-pam
+	## I cannot add ldap and krb* support while I make pqsql depends itself
+	## *-sasl need be split first
+	## extra things
+	cd contrib
+	Fmake
+	make DESTDIR=$Fdestdir install || Fdie
+	cd xml2
+	Fmake
+	make DESTDIR=$Fdestdir install || Fdie
+	cd ../..
+	## contrib extra 'tools, libs etc'  package
+	Fsplit $pkgname-extras /usr
+	## Install main package
+	make DESTDIR=$Fdestdir install || Fdie
 	Frcd
-	Fmkdir /usr/share/doc/
-	Fmv /usr/doc/$pkgname /usr/share/doc/$pkgname-$pkgver
+	## Documentation package
+	Fsplit $pkgname-docs usr/share/doc/$pkgname-$pkgver/html
+	## Library package
 	Fsplit libpq usr/lib/libpq.so*
+	Fsplit libpq usr/include/libpq-fe.h
+	Fsplit libpq usr/include/libpq
+	## Perl bindings
+	Fsplit $pkgname-perl usr/lib/$pkgname/plperl.so
+	## Python bindings
+	Fsplit $pkgname-python usr/lib/$pkgname/plpython.so
+	## Tcl bindings
+	Fsplit $pkgname-tcl usr/lib/$pkgname/pltcl.so
 }
 
 # optimization ok
-sha1sums=('377034c155ebc6a063a1d54069d1a56da4d11f93' \
-	  'ccaf6e648078424adf433fd33dc2408aa84e6b25')

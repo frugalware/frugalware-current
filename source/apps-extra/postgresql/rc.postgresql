@@ -10,15 +10,20 @@
 # description: Starts and stops the PostgreSQL backend daemon that handles \
 #              all database requests.
 
+DATA_DIR="/var/lib/pgsql/data"
+
+
 if [ "$1" = "stop" ]; then
 	stop "$stoppostgresql"
-	su postgres -c "/usr/bin/pg_ctl -D /var/lib/pgsql/data \
-		-l /var/log/postgresql.log -w stop" 2>&1 |logger
+	if [ -f ${DATA_DIR}/postmaster.pid ]; then
+	su postgres -c "/usr/bin/pg_ctl -D ${DATA_DIR} \
+		-l /var/log/postgresql.log -w -m smart stop" 2>&1 |logger
+	fi
 	ok $?
 elif [ "$1" = "restart" ]; then
 	"$0" stop
-	sleep 1
-	"$0" start
+        sleep 1
+        "$0" start
 else # start
 	start "$startpostgresql"
 	# pgdb group
@@ -31,10 +36,10 @@ else # start
 			chown -R postgres.pgdb /var/lib/pgsql
 	fi
 	# create db
-	if [ ! -d /var/lib/pgsql ]; then
-		mkdir -p /var/lib/pgsql/data
-		chown postgres.pgdb /var/lib/pgsql/data
-		su postgres -c "/usr/bin/initdb -D /var/lib/pgsql/data" \
+	if [ ! -d "$DATA_DIR" ]; then
+		mkdir -p ${DATA_DIR}
+		chown postgres.pgdb ${DATA_DIR}
+		su postgres -c "/usr/bin/initdb -D ${DATA_DIR}" \
 			2>&1 |logger
 	fi
 	# log
@@ -42,7 +47,9 @@ else # start
 		touch /var/log/postgresql.log
 		chown postgres /var/log/postgresql.log
 	fi
-	su postgres -c "/usr/bin/pg_ctl -D /var/lib/pgsql/data \
+	if [ ! -f ${DATA_DIR}/postmaster.pid ]; then
+	su postgres -c "/usr/bin/pg_ctl -D ${DATA_DIR} \
 		-l /var/log/postgresql.log -w start" 2>&1 |logger
+	fi
 	ok $?
 fi

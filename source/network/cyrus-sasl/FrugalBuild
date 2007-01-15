@@ -3,21 +3,29 @@
 
 pkgname=cyrus-sasl
 pkgver=2.1.22
-pkgrel=6
+pkgrel=7
 pkgdesc="SASL Authentication mechanism"
 url="http://ftp.andrew.cmu.edu/pub/cyrus-mail/"
-depends=('heimdal' 'gdbm' 'libmysqlclient' 'libpq>=8.2')
-makedepends=('mysql' 'postgresql')
+depends=('openssl' 'gdbm')
+makedepends=('mysql' 'postgresql>=8.2' 'heimdal' 'db>=4.5.20')
 groups=('network')
 archs=('i686' 'x86_64')
 source=(ftp://ftp.andrew.cmu.edu/pub/cyrus-mail/cyrus-sasl-$pkgver.tar.gz \
-	$pkgname-2.1.21-checkpw.patch\
-	psql.patch)
-	
+	$pkgname-2.1.21-checkpw.patch psql.patch rc.saslauthd saslauthd)
 up2date="lynx -dump 'http://ftp.andrew.cmu.edu/pub/cyrus-mail/?M=D'|grep cyrus-sasl.*tar.gz$|sed -n 's/.*-\(.*\)\.t.*/\1/;1 p'"
 sha1sums=('d23454ab12054714ab97d229c86cb934ce63fbb1' \
           '60949a168c99b445298b3af786dae6e1b0f129d9' \
-          'b4eeaf03a4b672f3153e0b5ef2eec59802d0214d')
+          'b4eeaf03a4b672f3153e0b5ef2eec59802d0214d'
+	  '244d0aa46685256c66ec6d1c10b051c795f5533b'
+	  'f3c648fa7e5d9047bd051abbf70e3532abaa0fad')
+
+subpkgs=("$pkgname-sql" "$pkgname-gssapiv2" "saslauthd")
+subdescs=("$pkgname mysql, postgresql and sqlite plugin." "$pkgname gssapiv2 plugin." \
+	 "sasl authentication server")
+subdepends=("$pkgname=$pkgver libmysqlclient libpq>=8.2" "$pkgname=$pkgver db>=4.5.20 heimdal" \
+	  "$pkgname=$pkgver $pkgname-gssapiv2")
+subgroups=('network' 'network' 'network')
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
 
 build()
 {
@@ -26,11 +34,25 @@ build()
 		--enable-sql \
 		--enable-plain \
 		--disable-anon \
-		--with-gdbm=/usr/include/ \
-		--with-saslauthd=/var/run/courier || return 1
+		--with-saslauthd=/var/run/courier \
+		--with-pam=no \
+		--with-dblib=gdbm \
+		--with-gdbm=/usr
 	Frm /usr/man/cat8
-	
-
+	## SQL's
+	Fsplit $pkgname-sql usr/lib/sasl2/libsql.*
+	## heimdal
+	Fsplit $pkgname-gssapiv2 usr/lib/sasl2/libgssapiv2.*
+	## daemon 
+	## NOTE: this daemon need an init script (never worked).
+	## See 'man saslauthd' - crazy -
+	Fsplit saslauthd usr/sbin/*saslauthd
+	Fsplit saslauthd usr/man/man8/saslauthd.*
+	Finstall 0644 saslauthd etc/sysconfig/saslauthd
+	Frcd2 saslauthd
+	Fsplit saslauthd etc/rc.d
+	Fsplit saslauthd etc/sysconfig
+	Frm /etc
 }
 
 # optimization ok

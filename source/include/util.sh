@@ -900,4 +900,46 @@ Fmsgfmt() {
 	msgfmt -o $Fdestdir/$1/$llang/LC_MESSAGES/$mofile $Fsrcdir/$pofile || Fdie
 }
 
+### Extract archives
+ # example: Fextract pacman.tar.gz
+ # @param: file name to extract
+ ##
+Fextract() {
+	local cmd file tmp
+	file="${1}"
+	tmp="$(echo "${file}" | tr 'A-Z' 'a-z')"
+	case "${tmp}" in
+		*.tar.gz|*.tar.z|*.tgz)
+		cmd="tar --use-compress-program=gzip -xf $file" ;;
+		*.tar.bz2|*.tbz2)
+		cmd="tar --use-compress-program=bzip2 -xf $file" ;;
+		*.tar)
+		cmd="tar -xf $file" ;;
+		*.zip)
+		unziphack=1
+		cmd="unzip -qqo $file" ;;
+		*.cpio.gz)
+		cmd="bsdtar -x -f $file" ;;
+		*.cpio.bz2)
+		cmd="bsdtar -x -f $file" ;;
+		*.gz)
+		cmd="gunzip -f $file" ;;
+		*.bz2)
+		cmd="bunzip2 -f $file" ;;
+		*)
+		cmd="" ;;
+	esac
+	if [ "$cmd" != "" ]; then
+		msg "    $cmd"
+		$cmd
+		if [ $? -ne 0 ]; then
+			# unzip will return a 1 as a warning, it is not an error
+			if [ "$unziphack" != "1" -o $? -ne 1 ]; then
+				error "Failed to extract ${file}"
+				msg "Aborting..."
+				Fdie
+			fi
+		fi
+	fi
+}
 ### @}

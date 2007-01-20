@@ -1,0 +1,71 @@
+# Compiling Time: 3.03 SBU
+# Maintainer: AlexExtreme <alex@alex-smith.me.uk>
+
+pkgname=virtualbox
+realname=vbox
+pkgver=20070120
+pkgrel=1
+pkgdesc="InnoTek VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
+url="http://www.virtualbox.org"
+Finclude kernel-module
+unset install
+depends=(${depends[@]} 'gcc' 'xerces-c' 'xalan-c' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'qt' 'libidl' 'sdl')
+groups=('xapps-extra')
+archs=('i686' '!x86_64')
+up2date="$pkgver" # For now ;-)
+source=(http://ftp.frugalware.org/pub/other/sources/$pkgname/$realname-$pkgver.tar.bz2 \
+	frugalware-buildfix.patch vboxsvc virtualbox rc.virtualbox vbox.png)
+signatures=("${source[0]}.asc" '' '' '' '' '')
+_F_cd_path="$realname"
+install=$pkgname.install
+
+_F_desktop_name="VirtualBox"
+_F_desktop_desc="InnoTek VirtualBox virtualization program"
+_F_desktop_icon="vbox.png"
+_F_desktop_exec="virtualbox"
+_F_desktop_categories="System;"
+
+build() {
+	cd $Fsrcdir
+	mv $realname-$pkgver $realname
+	Fcd
+	
+	# frugalware-buildfix.patch: fix the paths to some stuff on configure
+	Fpatchall
+	
+	# Configure and load our options
+	./configure || Fdie
+	source ./env.sh || Fdie
+	
+	# Build
+	kmk all || Fdie
+	
+	# Kernel module
+	cd out/linux.x86/release/bin/src || Fdie
+	make KERN_DIR=${_F_kernelmod_dir}/build || Fdie
+	make MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_PATH=$Fdestdir install || Fdie
+	Fmkdir ${_F_kernelmod_dir}/kernel/misc
+	Fmv ${_F_kernelmod_dir}/vboxdrv.ko ${_F_kernelmod_dir}/kernel/misc/
+	
+	# Install it
+	cd $Fsrcdir/$realname || Fdie
+	cd out/linux.x86/release/bin || Fdie
+	Fmkdir /usr/lib/VirtualBox
+	rm -rf sdk src tst* testcase additions/src || Fdie
+	rm vboxdrv.ko SUPInstall SUPUninstall || Fdie
+	cp -R * $Fdestdir/usr/lib/VirtualBox/
+	for each in VBox{BFE,Manage,SDL,SVC,XPCOMIPCD} VirtualBox vditool xpidl additions/vboxadd-timesync ; do
+		chmod 0755 $Fdestdir/usr/lib/VirtualBox/${each}
+	done
+	
+	# Install the wrappers
+	Fexerel $Fsrcdir/vboxsvc /usr/bin/vboxsvc
+	Fexerel $Fsrcdir/virtualbox /usr/bin/virtualbox
+	
+	# Desktop file
+	Ffilerel $Fsrcdir/$realname.png /usr/share/pixmaps/$realname.png
+	Fdesktop2
+	
+	# Finally, the init script
+	Frcd2
+}

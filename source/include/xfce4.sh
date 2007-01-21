@@ -25,6 +25,7 @@ if echo ${groups[*]} | grep -q goodies ; then
 	up2date="lynx -dump $dlurl | grep "$_F_xfce_name-.*${_F_xfce_goodies_ext}$" | sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'"
 	source=($dlurl/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
 else
+	url="http://www.xfce.org/"
 	#preup2date="lynx -dump http://www.xfce.org/archive | grep 'xfce-' | sed -n 's/.*-\(.*\)\.t.*/\1/;$ p' | sed 's/[0-9][0-9]\. http:\/\/www\.xfce\.org\/archive\/xfce-//g' | sed 's/ //g' | sed 's/\///g'"
 	# The above preup2date sometimes gives no output due to unknown reasons. The below one works always.
 	preup2date="lynx -dump http://www.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"

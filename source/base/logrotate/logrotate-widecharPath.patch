@@ -1,0 +1,67 @@
+--- logrotate-3.7.4/config.c.widechar	2007-01-08 14:29:06.000000000 +0100
++++ logrotate-3.7.4/config.c	2007-01-08 14:33:41.000000000 +0100
+@@ -14,6 +14,7 @@
+ #include <time.h>
+ #include <unistd.h>
+ #include <assert.h>
++#include <wchar.h>
+ 
+ #include "basenames.h"
+ #include "log.h"
+@@ -82,13 +83,24 @@
+     char *start = *startPtr;
+     char *path;
+ 
++    wchar_t pwc;
++    size_t len;
++
+     if (!isolateValue(configFile, lineNum, key, &start, &endtag)) {
+ 	oldchar = *endtag, *endtag = '\0';
+ 
+ 	chptr = start;
+ 
+-	/* this is technically too restrictive -- let's see if anyone
+-	   complains */
++	while( (len = mbrtowc(&pwc, chptr, strlen(chptr), NULL)) != 0 ) {
++		if( len == (size_t)(-1) || len == (size_t)(-2) || !iswprint(pwc) || iswblank(pwc) ) {
++		    message(MESS_ERROR, "%s:%d bad %s path %s\n",
++			    configFile, lineNum, key, start);
++		    return NULL;
++		}
++		chptr += len;
++	}
++
++/*
+ 	while (*chptr && isprint(*chptr) && *chptr != ' ')
+ 	    chptr++;
+ 	if (*chptr) {
+@@ -96,8 +108,11 @@
+ 		    configFile, lineNum, key, start);
+ 	    return NULL;
+ 	}
++*/
++
+ 	path = strdup(start);
+ 
++
+ 	*endtag = oldchar, start = endtag;
+ 
+ 	*startPtr = start;
+--- logrotate-3.7.4/logrotate.c.widechar	2007-01-08 14:36:09.000000000 +0100
++++ logrotate-3.7.4/logrotate.c	2007-01-08 14:38:01.000000000 +0100
+@@ -12,6 +12,7 @@
+ #include <time.h>
+ #include <unistd.h>
+ #include <glob.h>
++#include <locale.h>
+ 
+ #ifdef WITH_SELINUX
+ #include <selinux/selinux.h>
+@@ -1344,6 +1345,7 @@
+     };
+ 
+     logSetLevel(MESS_NORMAL);
++    setlocale (LC_ALL, "");
+ 
+     optCon = poptGetContext("logrotate", argc, argv, options, 0);
+     poptReadDefaultConfig(optCon, 1);

@@ -6,12 +6,15 @@
 # Author : Stuart Winter <stuart@polplex.co.uk>
 #          Based on the original Slackware adduser by Hrvoje Dogan
 #          with modifications by Patrick Volkerding and Miklós Vajna
-# Version: 1.09
+#          with modifications by Wael Nasreddine <wael@nasreddine.com>
+# Version: 1.10
 ##########################################################################
 # Usage..: adduser [<new_user_name>]
 ##########################################################################
 # History #
 ###########
+# v1.10 - 2007-01-23                                                                                                      
+#       * When choosing a non-existing initial group, ask about creating it. 
 # v1.09 - 2005-09-30
 #       * Adding defaults for additional groups
 #       * Adding /etc/adduser.conf to edit the default without making changes
@@ -61,6 +64,7 @@ sfile=/etc/shells
 
 # Paths to binaries
 useradd=/usr/sbin/useradd
+groupadd=/usr/sbin/groupadd
 chfn=/usr/bin/chfn
 passwd=/usr/bin/passwd
 chmod=/bin/chmod
@@ -82,6 +86,14 @@ if [ -z "$recycleUIDMIN" ]; then
    export recycleUIDMIN=1000  # this is the default from Slackware's /etc/login.defs
 fi
 
+# Determine what the minimum GID is (for GID recycling)
+# (we ignore it if it's not at the beginning of the line (i.e. commented out with #))
+export recycleGIDMIN="$(grep ^GID_MIN /etc/login.defs | awk '{print $2}' 2>/dev/null)"
+# If we couldn't find it, set it to the default of 1000
+if [ -z "$recycleGIDMIN" ]; then
+   export recycleGIDMIN=1000  # this is the default from Slackware's /etc/login.defs
+fi
+
 
 # This setting enables the 'recycling' of older unused UIDs.
 # When you userdel a user, it removes it from passwd and shadow but it will
@@ -92,6 +104,16 @@ fi
 # We'll set this to no because this is what the original adduser shell script
 # did and it's what users expect.
 recycleuids=no
+
+# This setting enables the 'recycling' of older unused GIDs.
+# When you groupdel a group, it removes it from group and but it will
+# never get used again unless you specify it expliticly -- groupadd (appears to) just
+# look at the last line in group and increment the gid.  I like the idea of 
+# recycling gids but you may have very good reasons not to (old forgotten
+# confidential files still on the system could then be owned by this new group).
+# We'll set this to no because this is what the original groupadd shell script
+# did and it's what users expect.
+recyclegids=no
 
 # Function to read keyboard input.
 # bash1 is broken (even ash will take read -ep!), so we work around
@@ -207,23 +229,53 @@ fi
 #: Get the initial group for the user & ensure it exists :#
 #
 # We check /etc/group for both the text version and the group ID number 
-echo
+# If it doesn't exist we create it using groupadd
+[ -z "$defgroup" ] && defgroup="$LOGIN"
+g_initial=
 needinput=yes
+echo
 while [ ! -z "$needinput" ]; do
   GID="$(get_input "Initial group [ ${defgroup} ]:")"
+  [ -z "$GID" ] && GID="$defgroup"
   check_group "$GID"
   if [ $? -gt 0 ]; then
-    echo "- Please choose another"
+    unset temp
+    while [ -z "$temp" ]; do temp="$(get_input "- create it [Y/n]:")"; done
+    temp="$temp" # trim spaces
+    temp="$(echo $temp | tr A-Z a-z)" # make it all lowercase
+    if [ "$temp" = "y" -o "$temp" = "yes" ]; then
+      echo
+      needinnerinput=yes
+      while [ ! -z "$needinnerinput" ]; do
+        _GID="$(get_input "Group ID ('GID') [ defaults to next available ]:")"
+        grep -v "^$" $gfile | awk -F: '{print $3}' | grep "^${_GID}$" >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+          echo "- That GID is already in use; please choose another"
+        elif [ ! -z "$(echo $_GID | egrep '[A-Za-z]')" ]; then
+          echo "- GIDs are numerics only"         
+        else
+          unset needinnerinput
+        fi
+      done
+      # If we were given a GID, then syntax up the variable to pass to groupadd
+      if [ ! -z "$_GID" ]; then 
+        G_ID="-g ${_GID}"
+      else
+        # Will we be recycling UIDs?
+        if [ "$recyclegids" = "yes" ]; then
+          G_ID="-g $(awk -F: '{gid[$3]=1} END { for (i=ENVIRON["recycleGIDMIN"];i in gid;i++);print i}' $gfile)"
+        fi   
+      fi
+      g_initial=y
+      unset needinput
+    else
+        echo "- Please choose another"
+    fi
   else
     unset needinput 
   fi
 done
-# Syntax the variable ready for useradd
-if [ -z "$GID" ]; then
-  GID="-g ${defgroup}"
-else
-  GID="-g ${GID}"
-fi
+unset temp
 
 #: Get additional groups for the user :#
 #
@@ -336,6 +388,9 @@ echo "---------------------------------------"
 display "Login name.......: " "$LOGIN"
 display "UID..............: " "$_UID" "[ Next available ]"
 display "Initial group....: " "$GID"
+if [ ! -z "$g_initial" ]; then
+    display "GID..............: " "$_GID" "[ Next available ]"
+fi
 display "Additional groups: " "$AGID" "[ None ]"
 display "Home directory...: " "$HME"
 display "Shell............: " "$SHL"
@@ -352,7 +407,17 @@ echo
 echo
 
 # Add the account to the system
-CMD="$useradd "$HME" -m "$EXP" "$U_ID" "$GID" "$AGID" "$SHL" "$LOGIN""
+if [ ! -z "$g_initial" ]; then
+  CMD="$groupadd "$G_ID" "$GID""
+  $CMD
+  if [ $? -gt 0 ]; then
+    echo "- Error running groupadd command -- account not created!"
+    echo "(cmd: $CMD)"
+    exit 1
+  fi
+fi
+
+CMD="$useradd "$HME" -m "$EXP" "$U_ID" -g "$GID" "$AGID" "$SHL" "$LOGIN""
 $CMD
 
 if [ $? -gt 0 ]; then

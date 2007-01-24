@@ -670,45 +670,6 @@ Fautoreconf() {
 	autoreconf -vif || Fdie
 }
 
-### Include a scheme. They are in $fst_root/source/include/, and they have a \
- # .sh suffix. After including them, you can of course overwrite the \
- # initialized values, using only a part of the scheme.
- # @param scheme(s) to include (_without_ the .sh suffix)
- ##
-Finclude ()
-{
-	if [ "$startdir" = `pwd` ]; then
-		local i
-		i=`pwd`
-		while true
-		do
-			if [ -e "$i/_darcs" ]; then
-				break
-			elif [ "$i" == "" ]; then
-				break
-			fi
-			i=`echo $i|sed 's|\(.*\)/.*|\1|'`
-		done
-		if [ "$i" -a -d "$i"/source/include ]; then
-			local Fincdir=$i/source/include
-		elif [ -d /var/tmp/fst/include ]; then
-			local Fincdir=/var/tmp/fst/include
-		elif [ -d $fst_root/$reponame/source/include ]; then
-			local Fincdir=$fst_root/$reponame/source/include
-		fi
-		if [ ! -z "$Fincdir" ]; then
-			for i in "$@"
-			do
-				source $Fincdir/$i.sh || Fdie
-			done
-		else
-			echo "Could not find the scheme dir! (\$fst/source/include)"
-			echo "Please edit your /etc/repoman.conf or ~/.repoman.conf."
-			Fdie
-		fi
-	fi
-}
-
 ### Extracts version from a page's last tar.gz link
  ##
 Flasttar()

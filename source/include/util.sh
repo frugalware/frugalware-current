@@ -794,6 +794,21 @@ EOF
 	fi
 }
 
+### Creates a wrapper for applications
+ # example: Fwrapper "python /usr/lib/python/foo.py" foo
+ # @param wrapper string or command
+ # @param name of the wrapper file to be installed under /usr/bin
+ ##
+Fwrapper()
+{
+	local exe=$2
+	mkdir -p $startdir/pkg/usr/bin
+	Fmessage "Creating a wrapper: /usr/bin/$exe"
+	echo "#!/bin/sh" > $startdir/pkg/usr/bin/$exe
+	echo "$1" >> $startdir/pkg/usr/bin/$exe
+	chmod 755 $startdir/pkg/usr/bin/$exe
+}
+
 ### Moves a file pattern to a subpackage
  # example: Fsplit libmysql /usr/lib
  # @param name of the subpackage

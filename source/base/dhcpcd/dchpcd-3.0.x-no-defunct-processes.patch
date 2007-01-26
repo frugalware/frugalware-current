@@ -1,0 +1,61 @@
+diff -Naur dhcpcd-3.0.9.orig/client.c dhcpcd-3.0.9/client.c
+--- dhcpcd-3.0.9.orig/client.c	2007-01-07 11:53:27.000000000 +0100
++++ dhcpcd-3.0.9/client.c	2007-01-26 18:30:45.000000000 +0100
+@@ -19,7 +19,9 @@
+  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+  */
+ 
++#include <sys/types.h>
+ #include <sys/select.h>
++#include <sys/wait.h>
+ #include <arpa/inet.h>
+ #ifdef __linux__
+ #include <netinet/ether.h>
+@@ -214,19 +216,24 @@
+ 	{
+ 	  switch (sig)
+ 	    {
++	    case SIGCHLD:
++	      /* Silently ignore this signal and wait for it
++	         This stops zombies */
++	      wait (0);
++	      break;
+ 	    case SIGINT:
+-	      logger (LOG_INFO, "receieved SIGINT, stopping");
++	      logger (LOG_INFO, "received SIGINT, stopping");
+ 	      retval = 0;
+ 	      goto eexit;
+ 
+ 	    case SIGTERM:
+-	      logger (LOG_INFO, "receieved SIGTERM, stopping");
++	      logger (LOG_INFO, "received SIGTERM, stopping");
+ 	      retval = 0;
+ 	      goto eexit;
+ 
+ 	    case SIGALRM:
+ 
+-	      logger (LOG_INFO, "receieved SIGALRM, renewing lease");
++	      logger (LOG_INFO, "received SIGALRM, renewing lease");
+ 	      switch (state)
+ 		{
+ 		case STATE_BOUND:
+@@ -259,7 +266,7 @@
+ 		}
+ 	      else
+ 		logger (LOG_ERR,
+-			"receieved SIGUP, but no we have lease to release");
++			"received SIGUP, but no we have lease to release");
+ 	      retval = 0;
+ 	      goto eexit;
+ 
+diff -Naur dhcpcd-3.0.9.orig/signals.c dhcpcd-3.0.9/signals.c
+--- dhcpcd-3.0.9.orig/signals.c	2007-01-07 11:53:27.000000000 +0100
++++ dhcpcd-3.0.9/signals.c	2007-01-26 18:28:44.000000000 +0100
+@@ -57,6 +57,7 @@
+   signal (SIGALRM, signal_handler);
+   signal (SIGTERM, signal_handler);
+   signal (SIGINT, signal_handler);
++  signal (SIGCHLD, signal_handler);
+ }
+ 
+ /* Quick little function to setup the rfds. Will return the

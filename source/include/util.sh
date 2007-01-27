@@ -505,6 +505,9 @@ Fbuild() {
 	Fpatchall
 	Fmake "$@"
 	Fmakeinstall
+	if echo ${source[@]}|grep -q README.Frugalware; then
+		Fdoc README.Frugalware
+	fi
 }
 
 ### Create an rc.d environment

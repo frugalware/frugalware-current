@@ -1,9 +1,9 @@
-# Compiling Time: 0.15 SBU
+# Compiling Time: 0.34 SBU
 # Contributor: VMiklos <vmiklos@frugalware.org>
-# Maintainer: Zsolt Szalai <xbit.lists@chello.hu>
+# Maintainer: voroskoi <voroskoi@frugalware.org>
 
 pkgname=imap
-pkgver=2004g
+pkgver=2006e
 pkgrel=1
 extrapkgver=
 pkgdesc="An IMAP/POP server"
@@ -13,34 +13,29 @@ archs=('i686' 'x86_64')
 depends=('openssl')
 up2date="lynx -dump 'http://ftp.ntua.gr/pub/net/mail/imap/?M=D'|grep imap-[0-9a-z\.]*tar.gz$|sed -n 's/.*-\(.*\)\.t.*/\1/;s/$extrapkgver//;1 p'"
 source=(ftp://ftp.cac.washington.edu/imap/$pkgname-$pkgver$extrapkgver.tar.Z $pkgname-$pkgver-big.patch)
-sha1sums=('791a8bb247ca51ce0a4c32e814a2f736c2bcf066' \
-	  '74f66415e31aef97c7346318ae6760c72be1f613')
 
-build()
-{
-	Fcd $pkgname-$pkgver$extrapkgver
-	Fpatch $pkgname-$pkgver-big.patch
-	# ssl certs location
-	( cd src/osdep/unix
-	  sed -i -e 's|SSLCERTS=$(SSLDIR)/certs|SSLCERTS=/etc/ssl/certs|' Makefile )
-	
-	yes | make slx SPECIALAUTHENTICATORS=ssl SSLTYPE=unix \
-		SHLIBBASE=c-client SHLIBNAME=libc-client.so.1 || return 1
-	
-	# installing binaries
+build() {
+	Fpatchall
+	Fsed 'CFLAGS=-g' "CFLAGS=$CFLAGS" src/osdep/unix/Makefile
+	make slx SPECIALS="SSLINCLUDE=/usr/include/openssl \
+		SSLCERTS=/etc/ssl/certs SPECIALAUTHENTICATORS=ssl SSLTYPE=unix \
+		SHLIBBASE=c-client SHLIBNAME=libc-client.so.1" || Fdie
+
+	# daemons
 	Fexerel imapd/imapd /usr/sbin/imapd
-	# install them, but we use popa3d by default
 	Fexerel ipopd/ipop2d /usr/sbin/ipop2d
 	Fexerel ipopd/ipop3d /usr/sbin/ipop3d
 	
-	# installing header files
+	# headers
 	Fmkdir /usr/include/imap/
-	( cd c-client
-	install -m644 {c-client,mail,imap4r1,rfc822,linkage,misc,smtp,nntp,osdep,env_unix,env,fs,ftl,nl,tcp}.h $Fdestdir/usr/include/imap/
-	install -D -m644 c-client.a $Fdestdir/usr/lib/c-client.a
-	install -D -m755 libc-client.so.1 $Fdestdir/usr/lib/libc-client.so.1 )
+	for i in c-client imap4r1 rfc822 linkage mail misc smtp nntp osdep env_unix env fs ftl nl tcp; do
+		Ffilerel "c-client/${i}.h" /usr/include/imap/
+	done
+
+	# libs and links
+	Ffilerel c-client/c-client.a /usr/lib/c-client.a
+	Fexerel c-client/libc-client.so.1 /usr/lib/libc-client.so.1
 	Fln c-client.a /usr/lib/libc-client.a
-	
 	Fln libc-client.so.1 /usr/lib/libc-client.so
 
 	# creating ssl certs
@@ -67,7 +62,7 @@ EOF
 		umask 022
 	done
 }
+sha1sums=('c2c59d663b2ce40e561a4e0e77d8795cd9b294f1'\
+          'c38171e2295e9ddba15f5e91b7327020ae191fcf')
 
-# optimalization OK
-
-# vim: ft=sh
+# optimization OK

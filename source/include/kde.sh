@@ -50,13 +50,13 @@ fi
 
 ## kdeapps stuff
 
-if [ ! -z "$_F_kdeapps_id" ]; then
-        url="http://www.kde-apps.org/content/show.php?content=$_F_kdeapps_id"
+if [ ! -z "$_F_kde_id" ]; then
+        url="http://www.kde-apps.org/content/show.php?content=$_F_kde_id"
         up2date="lynx -dump -nolist $url|grep -m1 'Version:'|sed 's/.*: *\(.*\)$/\1/'"
 fi
 
-if [ ! -z "$_F_kdeapps_id2" ]; then
-        url="http://www.kde-look.org/content/show.php?content=$_F_kdeapps_id2"
+if [ ! -z "$_F_kde_id2" ]; then
+        url="http://www.kde-look.org/content/show.php?content=$_F_kde_id2"
         up2date="lynx -dump -nolist $url|grep -m1 'Version:'|sed 's/.*: *\(.*\)$/\1/'"
 fi
 

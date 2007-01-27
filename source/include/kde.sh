@@ -26,7 +26,8 @@ source=($pkgurl/$_F_kde_name-$pkgver.tar.bz2)
 # qt's post_install is essential for kde pkgs
 options=(${options[@]} 'scriptlet')
 ## If someone want to work on this /etc move here is a way to do it. Just add ${kde_config} to Fconfopts
-## !!!BIG FAT WARNING!!!: THE WHOLE KDE AND _EVERY DAMN KDE_APP NEED BE REBUILD WITH THIS_ 
+## !!!BIG FAT WARNING!!!: THE WHOLE KDE AND _EVERY DAMN KDE_APP NEED BE REBUILD WITH THIS_. 
+##			  KDE{APPS} NEED BE FORCED TO USE THIS BY DEFAULT
 ## 			  !!! DO NOT EVER REMOVE THIS FROM DEFAULTS ONCE IS ADDED OR KDE BREAKS !!!
 
 #kde_config="kde_confdir=/etc/kde3/config \

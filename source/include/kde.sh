@@ -1,5 +1,6 @@
 #!/bin/sh
 
+# (c) 2007 Gabriel Craciunescu <crazy@frugalware.org>
 # (c) 2006 Miklos Vajna <vmiklos@frugalware.org>
 # kde.sh for Frugalware
 # distributed under GPL License
@@ -16,6 +17,14 @@ fi
 
 if [ -z "$_F_cd_path" ]; then
         _F_cd_path=$_F_kde_name-$pkgver
+fi
+
+if [ -z "$_F_kde_reconf" ]; then
+        _F_kde_reconf=0
+fi
+
+if [ -z "$_F_kde_split_docs" ]; then
+        _F_kde_split_docs=0
 fi
 
 url="http://www.kde.org"
@@ -47,8 +56,7 @@ else
 fi
 
 
-
-## kdeapps stuff
+## Things for kde apps
 
 if [ ! -z "$_F_kde_id" ]; then
         url="http://www.kde-apps.org/content/show.php?content=$_F_kde_id"
@@ -59,4 +67,37 @@ if [ ! -z "$_F_kde_id2" ]; then
         url="http://www.kde-look.org/content/show.php?content=$_F_kde_id2"
         up2date="lynx -dump -nolist $url|grep -m1 'Version:'|sed 's/.*: *\(.*\)$/\1/'"
 fi
+
+
+Fbuild_kde_reconf()
+{
+        if [ "$_F_kde_reconf" -eq 1 ]; then
+                Fcd
+                Fpatchall
+                make -f admin/Makefile.common cvs || Fdie
+        fi
+}
+
+Fbuild_kde_split_docs()
+{
+        if [ "$_F_kde_split_docs" -eq 1 ]; then
+                Fsplit $_F_kde_name-docs usr/share/doc
+        fi
+}
+
+
+Fbuild_kde()
+{
+        Fbuild_kde_reconf
+        Fconf DO_NOT_COMPILE="$_F_kde_do_not_compile"
+        make || Fdie
+        Fmakeinstall
+        Fbuild_kde_split_docs
+}
+
+
+build()
+{
+        Fbuild_kde
+}
 

@@ -28,7 +28,7 @@ if [ -z "$_F_kde_split_docs" ]; then
 fi
 
 url="http://www.kde.org"
-_F_kde_ver=3.5.5
+_F_kde_ver=3.5.6
 pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$_F_kde_ver/src"
 up2date="lynx -dump http://www.kde.org/download/|grep '$_F_kde_name'|sed -n '1 p'|sed 's/.*-\([^ ]*\) .*/\1/'"
 source=($pkgurl/$_F_kde_name-$pkgver.tar.bz2)

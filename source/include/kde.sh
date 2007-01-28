@@ -27,11 +27,20 @@ if [ -z "$_F_kde_split_docs" ]; then
         _F_kde_split_docs=0
 fi
 
-url="http://www.kde.org"
-_F_kde_ver=3.5.6
-pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$_F_kde_ver/src"
-up2date="lynx -dump http://www.kde.org/download/|grep '$_F_kde_name'|sed -n '1 p'|sed 's/.*-\([^ ]*\) .*/\1/'"
-source=($pkgurl/$_F_kde_name-$pkgver.tar.bz2)
+if [ -z "$_F_kde_defaults" ]; then
+	_F_kde_defaults=1
+fi
+
+## This only works on 'kde core' and conflicts with some _F_sourceforge
+## options so allow to disable when isset to 0 , default is enabled
+## TODO: add mirror option 
+if [ "$_F_kde_defaults" -eq 1 ]; then
+	url="http://www.kde.org"
+	_F_kde_ver=3.5.6
+	pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$_F_kde_ver/src"
+	up2date="lynx -dump http://www.kde.org/download/|grep '$_F_kde_name'|sed -n '1 p'|sed 's/.*-\([^ ]*\) .*/\1/'"
+	source=($pkgurl/$_F_kde_name-$pkgver.tar.bz2)
+fi
 # qt's post_install is essential for kde pkgs
 options=(${options[@]} 'scriptlet')
 ## If someone want to work on this /etc move here is a way to do it. Just add ${kde_config} to Fconfopts

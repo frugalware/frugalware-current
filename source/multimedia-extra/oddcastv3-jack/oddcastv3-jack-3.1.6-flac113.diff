@@ -1,0 +1,115 @@
+diff -Naur oddcastv3-jack-3.1.6.orig/m4/libFLAC.m4 oddcastv3-jack-3.1.6/m4/libFLAC.m4
+--- oddcastv3-jack-3.1.6.orig/m4/libFLAC.m4	2005-11-17 23:07:58.000000000 +0100
++++ oddcastv3-jack-3.1.6/m4/libFLAC.m4	2007-01-29 21:50:38.000000000 +0100
+@@ -21,7 +21,7 @@
+     LIBFLAC_LIBS="-L$libdir"
+   fi
+ 
+-  LIBFLAC_LIBS="$LIBFLAC_LIBS -lFLAC -lOggFLAC -lm"
++  LIBFLAC_LIBS="$LIBFLAC_LIBS -lFLAC -lm"
+ 
+   if test "x$libFLAC_includes" != "x" ; then
+     LIBFLAC_CFLAGS="-I$libFLAC_includes"
+diff -Naur oddcastv3-jack-3.1.6.orig/src/liboddcast.cpp oddcastv3-jack-3.1.6/src/liboddcast.cpp
+--- oddcastv3-jack-3.1.6.orig/src/liboddcast.cpp	2005-11-16 00:03:59.000000000 +0100
++++ oddcastv3-jack-3.1.6/src/liboddcast.cpp	2007-01-29 21:49:06.000000000 +0100
+@@ -1170,7 +1170,7 @@
+ #ifdef HAVE_FLAC
+ extern "C" {
+ FLAC__StreamEncoderWriteStatus FLACWriteCallback(
+-									const OggFLAC__StreamEncoder	*encoder,
++									const FLAC__StreamEncoder	*encoder,
+ 									const FLAC__byte				buffer[],
+ 									unsigned						bytes,
+ 									unsigned						samples,
+@@ -1192,7 +1192,7 @@
+ }
+ }
+ extern "C" {
+-void FLACMetadataCallback(const OggFLAC__StreamEncoder	*encoder,
++void FLACMetadataCallback(const FLAC__StreamEncoder	*encoder,
+ 													const FLAC__StreamMetadata *metadata, 
+ 													void *client_data) {
+ 	oddcastGlobals	*g = (oddcastGlobals *) client_data;
+@@ -2299,25 +2299,21 @@
+ 		memset(Streamed, '\000', sizeof(Streamed));
+ 
+ 		if(g->flacEncoder) {
+-			OggFLAC__stream_encoder_finish(g->flacEncoder);
+-			OggFLAC__stream_encoder_delete(g->flacEncoder);
++			FLAC__stream_encoder_finish(g->flacEncoder);
++			FLAC__stream_encoder_delete(g->flacEncoder);
+ 			FLAC__metadata_object_delete(g->flacMetadata);
+ 			g->flacEncoder = NULL;
+ 			g->flacMetadata = NULL;
+ 		}
+ 
+-		g->flacEncoder = OggFLAC__stream_encoder_new();
++		g->flacEncoder = FLAC__stream_encoder_new();
+ 		g->flacMetadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
+ 
+-		OggFLAC__stream_encoder_set_streamable_subset(g->flacEncoder, false);
+-		OggFLAC__stream_encoder_set_client_data(g->flacEncoder, (void*)g);
++		FLAC__stream_encoder_set_streamable_subset(g->flacEncoder, false);
++
++		FLAC__stream_encoder_set_channels(g->flacEncoder, g->currentChannels);
+ 
+-		OggFLAC__stream_encoder_set_channels(g->flacEncoder, g->currentChannels);
+ 
+-		OggFLAC__stream_encoder_set_write_callback(g->flacEncoder,
+-												   (OggFLAC__StreamEncoderWriteCallback) FLACWriteCallback);
+-		OggFLAC__stream_encoder_set_metadata_callback(g->flacEncoder,
+-												   (OggFLAC__StreamEncoderMetadataCallback) FLACMetadataCallback);
+ 		srand(time(0));
+ 
+ 
+@@ -2336,10 +2332,16 @@
+ 			FLAC__metadata_object_vorbiscomment_append_comment(g->flacMetadata, entry3, true);
+ 
+ 		}
+-		OggFLAC__stream_encoder_set_serial_number(g->flacEncoder, rand());
+ 
+-		OggFLAC__StreamEncoderState ret = OggFLAC__stream_encoder_init(g->flacEncoder);
+-		if(ret == FLAC__STREAM_ENCODER_OK) {
++		if( FLAC__stream_encoder_init_stream( g->flacEncoder,
++					//////(FLAC__StreamEncoderWriteCallback*) FLACWriteCallback,
++					FLACWriteCallback,
++					NULL,
++					NULL,
++					///////////(FLAC__EncoderMetadataCallback) FLACMetadataCallback,
++					FLACMetadataCallback,
++					(void*)g )
++			!= FLAC__STREAM_ENCODER_INIT_STATUS_OK ) {
+ 			if(g->serverStatusCallback) {
+ 				g->serverStatusCallback(g, (void *) "FLAC initialized");
+ 			}
+@@ -2652,7 +2654,7 @@
+ 				}
+ 			}
+ 
+-			OggFLAC__stream_encoder_process_interleaved(g->flacEncoder, int32_samples, numsamples);
++			FLAC__stream_encoder_process_interleaved(g->flacEncoder, int32_samples, numsamples);
+ 
+ 			if(int32_samples) {
+ 				free(int32_samples);
+diff -Naur oddcastv3-jack-3.1.6.orig/src/liboddcast.h oddcastv3-jack-3.1.6/src/liboddcast.h
+--- oddcastv3-jack-3.1.6.orig/src/liboddcast.h	2005-11-15 22:57:27.000000000 +0100
++++ oddcastv3-jack-3.1.6/src/liboddcast.h	2007-01-29 21:20:39.000000000 +0100
+@@ -45,7 +45,7 @@
+ 
+ 
+ #ifdef HAVE_FLAC
+-#include <OggFLAC/stream_encoder.h>
++#include <FLAC/stream_encoder.h>
+ extern "C" {
+ #include <FLAC/metadata.h>
+ }
+@@ -341,7 +341,7 @@
+         char    metadataWindowClass[255];
+         bool    metadataWindowClassInd;
+ #ifdef HAVE_FLAC
+-		OggFLAC__StreamEncoder	*flacEncoder;
++		FLAC__StreamEncoder	*flacEncoder;
+ 		FLAC__StreamMetadata *flacMetadata;
+ 		int	flacFailure;
+ #endif

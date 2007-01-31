@@ -1,0 +1,547 @@
+diff -ru akode-2.0.1/akode/configure.in.in akode-2.0.1-b2/akode/configure.in.in
+--- akode-2.0.1/akode/configure.in.in	2005-10-27 08:12:36.000000000 -0700
++++ akode-2.0.1-b2/akode/configure.in.in	2006-10-26 08:39:36.000000000 -0700
+@@ -10,12 +10,12 @@
+   have_libFLAC=no
+   KDE_CHECK_HEADER(FLAC/metadata.h,
+   [
+-     KDE_CHECK_LIB(FLAC,FLAC__seekable_stream_decoder_process_single,
+-	          have_libFLAC=yes)
++     KDE_CHECK_LIB(FLAC,FLAC__stream_decoder_process_single,
++	          have_libFLAC=yes,,[-lFLAC -logg])
+ 
+     ])
+   if test "x$have_libFLAC" = "xyes"; then
+-      LIBFLAC="-lFLAC"
++      LIBFLAC="-lFLAC -logg"
+       AC_DEFINE(HAVE_LIBFLAC, 1,
+         [Define if you have libFLAC (required for loading FLAC files)])
+   fi
+@@ -30,7 +30,7 @@
+   have_libOggFLAC=no
+   KDE_CHECK_HEADER(OggFLAC/seekable_stream_decoder.h,
+   [
+-     KDE_CHECK_LIB(OggFLAC,OggFLAC__seekable_stream_decoder_process_single,
++     KDE_CHECK_LIB(OggFLAC,OggFLAC__stream_decoder_process_single,
+ 	          have_libOggFLAC=yes,,[-lm -lOggFLAC -lFLAC])
+ 
+     ])
+diff -ru akode-2.0.1/akode/plugins/xiph_decoder/flac_decoder.cpp akode-2.0.1-b2/akode/plugins/xiph_decoder/flac_decoder.cpp
+--- akode-2.0.1/akode/plugins/xiph_decoder/flac_decoder.cpp	2005-10-30 09:21:19.000000000 -0800
++++ akode-2.0.1-b2/akode/plugins/xiph_decoder/flac_decoder.cpp	2006-10-26 20:12:00.000000000 -0700
+@@ -25,18 +25,22 @@
+ #include <string.h>
+ #include <iostream>
+ 
+-#include <FLAC/format.h>
+-#include <FLAC/seekable_stream_decoder.h>
+-
+-#ifdef HAVE_LIBOGGFLAC
+- #include <OggFLAC/seekable_stream_decoder.h>
+-#endif
+-
+ #include "audioframe.h"
+ #include "decoder.h"
+ #include "file.h"
+ #include "flac_decoder.h"
+ 
++#include <FLAC/format.h>
++#ifdef LEGACY_FLAC
++ #include <FLAC/seekable_stream_decoder.h>
++
++ #ifdef HAVE_LIBOGGFLAC
++  #include <OggFLAC/seekable_stream_decoder.h>
++ #endif
++#else
++ #include <FLAC/stream_decoder.h>
++#endif
++
+ 
+ namespace aKode {
+ 
+@@ -68,7 +72,8 @@
+ 
+ extern "C" { FLACDecoderPlugin flac_decoder; }
+ 
+-#ifdef HAVE_LIBOGGFLAC
++// Starting with FLAC 1.1.3 libFLAC supports Ogg FLAC and there is no more libOggFLAC. 
++#if defined(HAVE_LIBOGGFLAC) || !defined(LEGACY_FLAC)
+ bool OggFLACDecoderPlugin::canDecode(File* src) {
+     char header[34];
+     bool res = false;
+@@ -89,7 +94,11 @@
+ struct FLACDecoder::private_data {
+     private_data() : decoder(0), valid(false), out(0), source(0), eof(false), error(false) {};
+ 
++#ifdef LEGACY_FLAC
+     FLAC__SeekableStreamDecoder *decoder;
++#else
++    FLAC__StreamDecoder *decoder;
++#endif
+     const FLAC__StreamMetadata_StreamInfo* si;
+     const FLAC__StreamMetadata_VorbisComment* vc;
+ 
+@@ -104,11 +113,15 @@
+     bool eof, error;
+ };
+ 
+-#ifdef HAVE_LIBOGGFLAC
++#if defined(HAVE_LIBOGGFLAC) || !defined(LEGACY_FLAC)
+ struct OggFLACDecoder::private_data {
+     private_data() : decoder(0), valid(false), out(0), source(0), eof(false), error(false) {};
+ 
++#ifdef LEGACY_FLAC
+     OggFLAC__SeekableStreamDecoder *decoder;
++#else
++    FLAC__StreamDecoder *decoder;
++#endif
+     const FLAC__StreamMetadata_StreamInfo* si;
+     const FLAC__StreamMetadata_VorbisComment* vc;
+ 
+@@ -124,26 +137,43 @@
+ };
+ #endif
+ 
++#ifdef LEGACY_FLAC
+ static FLAC__SeekableStreamDecoderReadStatus flac_read_callback(
+         const FLAC__SeekableStreamDecoder *,
+         FLAC__byte buffer[],
+         unsigned *bytes,
+         void *client_data)
++#else
++static FLAC__StreamDecoderReadStatus flac_read_callback(
++        const FLAC__StreamDecoder *,
++        FLAC__byte buffer[],
++        size_t *bytes,
++        void *client_data)
++#endif
+ {
+     FLACDecoder::private_data *data = (FLACDecoder::private_data*)client_data;
+ 
+     long res = data->source->read((char*)buffer, *bytes);
+     if (res<=0) {
+         if (data->source->eof()) data->eof = true;
++#ifdef LEGACY_FLAC
+         return FLAC__SEEKABLE_STREAM_DECODER_READ_STATUS_ERROR;
++#else
++        return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
++#endif
+     }
+     else {
+         *bytes = res;
++#ifdef LEGACY_FLAC
+         return FLAC__SEEKABLE_STREAM_DECODER_READ_STATUS_OK;
++#else
++        return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
++#endif
+     }
+ }
+ 
+-#ifdef HAVE_LIBOGGFLAC
++// we only need Ogg flavors of the callbacks for before FLAC 1.1.3
++#if defined(HAVE_LIBOGGFLAC) && defined(LEGACY_FLAC)
+ // God, I hate people doing OO in C!
+ static OggFLAC__SeekableStreamDecoderReadStatus oggflac_read_callback(
+         const OggFLAC__SeekableStreamDecoder *,
+@@ -165,20 +195,35 @@
+ }
+ #endif
+ 
++#ifdef LEGACY_FLAC
+ static FLAC__SeekableStreamDecoderSeekStatus flac_seek_callback(
+         const FLAC__SeekableStreamDecoder *,
+         FLAC__uint64 absolute_byte_offset,
+         void *client_data)
++#else
++static FLAC__StreamDecoderSeekStatus flac_seek_callback(
++        const FLAC__StreamDecoder *,
++        FLAC__uint64 absolute_byte_offset,
++        void *client_data)
++#endif
+ {
+     FLACDecoder::private_data *data = (FLACDecoder::private_data*)client_data;
+ 
+     if(data->source->seek(absolute_byte_offset))
++#ifdef LEGACY_FLAC
+         return FLAC__SEEKABLE_STREAM_DECODER_SEEK_STATUS_OK;
++#else
++        return FLAC__STREAM_DECODER_SEEK_STATUS_OK;
++#endif
+     else
++#ifdef LEGACY_FLAC
+         return FLAC__SEEKABLE_STREAM_DECODER_SEEK_STATUS_ERROR;
++#else
++        return FLAC__STREAM_DECODER_SEEK_STATUS_ERROR;
++#endif
+ }
+ 
+-#ifdef HAVE_LIBOGGFLAC
++#if defined(HAVE_LIBOGGFLAC) && defined(LEGACY_FLAC)
+ static OggFLAC__SeekableStreamDecoderSeekStatus oggflac_seek_callback(
+         const OggFLAC__SeekableStreamDecoder *,
+         FLAC__uint64 absolute_byte_offset,
+@@ -193,23 +238,38 @@
+ }
+ #endif
+ 
++#ifdef LEGACY_FLAC
+ static FLAC__SeekableStreamDecoderTellStatus flac_tell_callback(
+         const FLAC__SeekableStreamDecoder *,
+         FLAC__uint64 *absolute_byte_offset,
+         void *client_data)
++#else
++static FLAC__StreamDecoderTellStatus flac_tell_callback(
++        const FLAC__StreamDecoder *,
++        FLAC__uint64 *absolute_byte_offset,
++        void *client_data)
++#endif
+ {
+     FLACDecoder::private_data *data = (FLACDecoder::private_data*)client_data;
+ 
+     long res = data->source->position();
+     if (res<0)
++#ifdef LEGACY_FLAC
+         return FLAC__SEEKABLE_STREAM_DECODER_TELL_STATUS_ERROR;
++#else
++        return FLAC__STREAM_DECODER_TELL_STATUS_ERROR;
++#endif
+     else {
+         *absolute_byte_offset = res;
++#ifdef LEGACY_FLAC
+         return FLAC__SEEKABLE_STREAM_DECODER_TELL_STATUS_OK;
++#else
++        return FLAC__STREAM_DECODER_TELL_STATUS_OK;
++#endif
+     }
+ }
+ 
+-#ifdef HAVE_LIBOGGFLAC
++#if defined(HAVE_LIBOGGFLAC) && defined(LEGACY_FLAC)
+ static OggFLAC__SeekableStreamDecoderTellStatus oggflac_tell_callback(
+         const OggFLAC__SeekableStreamDecoder *,
+         FLAC__uint64 *absolute_byte_offset,
+@@ -227,23 +287,38 @@
+ }
+ #endif
+ 
++#ifdef LEGACY_FLAC
+ static FLAC__SeekableStreamDecoderLengthStatus flac_length_callback(
+         const FLAC__SeekableStreamDecoder *,
+         FLAC__uint64 *stream_length,
+         void *client_data)
++#else
++static FLAC__StreamDecoderLengthStatus flac_length_callback(
++        const FLAC__StreamDecoder *,
++        FLAC__uint64 *stream_length,
++        void *client_data)
++#endif
+ {
+     FLACDecoder::private_data *data = (FLACDecoder::private_data*)client_data;
+ 
+     long res = data->source->length();
+     if (res<0)
++#ifdef LEGACY_FLAC
+         return FLAC__SEEKABLE_STREAM_DECODER_LENGTH_STATUS_ERROR;
++#else
++        return FLAC__STREAM_DECODER_LENGTH_STATUS_ERROR;
++#endif
+     else {
+         *stream_length = res;
++#ifdef LEGACY_FLAC
+         return FLAC__SEEKABLE_STREAM_DECODER_LENGTH_STATUS_OK;
++#else
++        return FLAC__STREAM_DECODER_LENGTH_STATUS_OK;
++#endif
+     }
+ }
+ 
+-#ifdef HAVE_LIBOGGFLAC
++#if defined(HAVE_LIBOGGFLAC) && defined(LEGACY_FLAC)
+ static OggFLAC__SeekableStreamDecoderLengthStatus oggflac_length_callback(
+         const OggFLAC__SeekableStreamDecoder *,
+         FLAC__uint64 *stream_length,
+@@ -372,6 +447,10 @@
+             break;
+         case FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH:
+             break;
++#ifndef LEGACY_FLAC
++        case FLAC__STREAM_DECODER_ERROR_STATUS_UNPARSEABLE_STREAM:
++            break;
++#endif
+     }
+     //data->valid = false;
+ }
+@@ -380,7 +459,7 @@
+     return &m_data->config;
+ }
+ 
+-#ifdef HAVE_LIBOGGFLAC
++#if defined(HAVE_LIBOGGFLAC) || !defined(LEGACY_FLAC)
+ const AudioConfiguration* OggFLACDecoder::audioConfiguration() {
+     return &m_data->config;
+ }
+@@ -389,10 +468,11 @@
+ FLACDecoder::FLACDecoder(File* src) {
+     m_data = new private_data;
+     m_data->out = 0;
+-    m_data->decoder = FLAC__seekable_stream_decoder_new();
+     m_data->source = src;
+     m_data->source->openRO();
+     m_data->source->fadvise();
++#ifdef LEGACY_FLAC
++    m_data->decoder = FLAC__seekable_stream_decoder_new();
+     FLAC__seekable_stream_decoder_set_client_data(m_data->decoder, m_data);
+     FLAC__seekable_stream_decoder_set_read_callback    (m_data->decoder, flac_read_callback);
+     FLAC__seekable_stream_decoder_set_seek_callback    (m_data->decoder, flac_seek_callback);
+@@ -408,25 +488,50 @@
+             metadata_callback<FLAC__SeekableStreamDecoder, private_data>);
+     FLAC__seekable_stream_decoder_set_metadata_respond (m_data->decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
+ 
+-    FLAC__seekable_stream_decoder_init(m_data->decoder);
++    FLAC__seekable_stream_decoder_init(m_data->decoder); // really should check the return value here
+     FLAC__seekable_stream_decoder_process_until_end_of_metadata(m_data->decoder);
++#else
++    m_data->decoder = FLAC__stream_decoder_new();
++    FLAC__stream_decoder_set_metadata_respond (m_data->decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
++
++    // really should check the return value here
++    FLAC__stream_decoder_init_stream(
++        m_data->decoder,
++        flac_read_callback,
++        flac_seek_callback,
++        flac_tell_callback,
++        flac_length_callback,
++        eof_callback<FLAC__StreamDecoder, private_data>,
++        write_callback<FLAC__StreamDecoder, private_data>,
++        metadata_callback<FLAC__StreamDecoder, private_data>,
++        error_callback<FLAC__StreamDecoder, private_data>,
++        m_data
++    );
++    FLAC__stream_decoder_process_until_end_of_metadata(m_data->decoder);
++#endif
+ }
+ 
+ FLACDecoder::~FLACDecoder() {
++#ifdef LEGACY_FLAC
+     FLAC__seekable_stream_decoder_finish(m_data->decoder);
+     FLAC__seekable_stream_decoder_delete(m_data->decoder);
++#else
++    FLAC__stream_decoder_finish(m_data->decoder);
++    FLAC__stream_decoder_delete(m_data->decoder);
++#endif
+     m_data->source->close();
+     delete m_data;
+ }
+ 
+-#ifdef HAVE_LIBOGGFLAC
++#if defined(HAVE_LIBOGGFLAC) || !defined(LEGACY_FLAC)
+ OggFLACDecoder::OggFLACDecoder(File* src) {
+     m_data = new private_data;
+     m_data->out = 0;
+-    m_data->decoder = OggFLAC__seekable_stream_decoder_new();
+     m_data->source = src;
+     m_data->source->openRO();
+     m_data->source->fadvise();
++#ifdef LEGACY_FLAC
++    m_data->decoder = OggFLAC__seekable_stream_decoder_new();
+     OggFLAC__seekable_stream_decoder_set_client_data(m_data->decoder, m_data);
+     OggFLAC__seekable_stream_decoder_set_read_callback    (m_data->decoder, oggflac_read_callback);
+     OggFLAC__seekable_stream_decoder_set_seek_callback    (m_data->decoder, oggflac_seek_callback);
+@@ -444,11 +549,35 @@
+ 
+     OggFLAC__seekable_stream_decoder_init(m_data->decoder);
+     OggFLAC__seekable_stream_decoder_process_until_end_of_metadata(m_data->decoder);
++#else
++    m_data->decoder = FLAC__stream_decoder_new();
++    FLAC__stream_decoder_set_metadata_respond (m_data->decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
++
++    // really should check the return value here
++    FLAC__stream_decoder_init_ogg_stream(
++        m_data->decoder,
++        flac_read_callback,
++        flac_seek_callback,
++        flac_tell_callback,
++        flac_length_callback,
++        eof_callback<FLAC__StreamDecoder, private_data>,
++        write_callback<FLAC__StreamDecoder, private_data>,
++        metadata_callback<FLAC__StreamDecoder, private_data>,
++        error_callback<FLAC__StreamDecoder, private_data>,
++        m_data
++    );
++    FLAC__stream_decoder_process_until_end_of_metadata(m_data->decoder);
++#endif
+ }
+ 
+ OggFLACDecoder::~OggFLACDecoder() {
++#ifdef LEGACY_FLAC
+     OggFLAC__seekable_stream_decoder_finish(m_data->decoder);
+     OggFLAC__seekable_stream_decoder_delete(m_data->decoder);
++#else
++    FLAC__stream_decoder_finish(m_data->decoder);
++    FLAC__stream_decoder_delete(m_data->decoder);
++#endif
+     m_data->source->close();
+     delete m_data;
+ }
+@@ -467,12 +596,17 @@
+     }
+     m_data->valid = false;
+     m_data->out = frame;
++#ifdef LEGACY_FLAC
+     bool ret = FLAC__seekable_stream_decoder_process_single(m_data->decoder);
++#else
++    bool ret = FLAC__stream_decoder_process_single(m_data->decoder);
++#endif
+     m_data->out = 0;
+     if (ret && m_data->valid) {
+         frame->pos = position();
+         return true;
+     } else {
++#ifdef LEGACY_FLAC
+         FLAC__SeekableStreamDecoderState state = FLAC__seekable_stream_decoder_get_state(m_data->decoder);
+         switch (state) {
+             case FLAC__SEEKABLE_STREAM_DECODER_OK:
+@@ -484,11 +618,18 @@
+                 m_data->error = true;
+                 break;
+         }
++#else
++        FLAC__StreamDecoderState state = FLAC__stream_decoder_get_state(m_data->decoder);
++        if (state == FLAC__STREAM_DECODER_END_OF_STREAM)
++            m_data->eof = true;
++        else if (state > FLAC__STREAM_DECODER_END_OF_STREAM)
++	    m_data->error = true;
++#endif
+         return false;
+     }
+ }
+ 
+-#ifdef HAVE_LIBOGGFLAC
++#if defined(HAVE_LIBOGGFLAC) || !defined(LEGACY_FLAC)
+ bool OggFLACDecoder::readFrame(AudioFrame* frame) {
+     if (m_data->error || m_data->eof) return false;
+ 
+@@ -502,12 +643,17 @@
+     }
+     m_data->valid = false;
+     m_data->out = frame;
++#ifdef LEGACY_FLAC
+     bool ret = OggFLAC__seekable_stream_decoder_process_single(m_data->decoder);
++#else
++    bool ret = FLAC__stream_decoder_process_single(m_data->decoder);
++#endif
+     m_data->out = 0;
+     if (ret && m_data->valid) {
+         frame->pos = position();
+         return true;
+     } else {
++#ifdef LEGACY_FLAC
+         OggFLAC__SeekableStreamDecoderState state = OggFLAC__seekable_stream_decoder_get_state(m_data->decoder);
+         switch (state) {
+             case OggFLAC__SEEKABLE_STREAM_DECODER_OK:
+@@ -519,6 +665,13 @@
+                 m_data->error = true;
+                 break;
+         }
++#else
++        FLAC__StreamDecoderState state = FLAC__stream_decoder_get_state(m_data->decoder);
++        if (state == FLAC__STREAM_DECODER_END_OF_STREAM)
++            m_data->eof = true;
++        else if (state > FLAC__STREAM_DECODER_END_OF_STREAM)
++	    m_data->error = true;
++#endif
+         return false;
+     }
+ }
+@@ -550,10 +703,14 @@
+     if (m_data->error) return false;
+     float samplePos = (float)pos * (float)m_data->config.sample_rate / 1000.0;
+     m_data->position = (uint64_t)samplePos;
++#ifdef LEGACY_FLAC
+     return FLAC__seekable_stream_decoder_seek_absolute(m_data->decoder, m_data->position);
++#else
++    return FLAC__stream_decoder_seek_absolute(m_data->decoder, m_data->position);
++#endif
+ }
+ 
+-#ifdef HAVE_LIBOGGFLAC
++#if defined(HAVE_LIBOGGFLAC) || !defined(LEGACY_FLAC)
+ long OggFLACDecoder::length() {
+     float pos = ((float)m_data->length)/m_data->config.sample_rate;
+     return (long)(pos*1000.0);
+@@ -580,7 +737,11 @@
+     if (m_data->error) return false;
+     float samplePos = (float)pos * (float)m_data->config.sample_rate / 1000.0;
+     m_data->position = (uint64_t)samplePos;
++#ifdef LEGACY_FLAC
+     return OggFLAC__seekable_stream_decoder_seek_absolute(m_data->decoder, m_data->position);
++#else
++    return FLAC__stream_decoder_seek_absolute(m_data->decoder, m_data->position);
++#endif
+ }
+ #endif
+ 
+diff -ru akode-2.0.1/akode/plugins/xiph_decoder/flac_decoder.h akode-2.0.1-b2/akode/plugins/xiph_decoder/flac_decoder.h
+--- akode-2.0.1/akode/plugins/xiph_decoder/flac_decoder.h	2005-10-20 13:54:12.000000000 -0700
++++ akode-2.0.1-b2/akode/plugins/xiph_decoder/flac_decoder.h	2006-10-26 17:16:11.000000000 -0700
+@@ -26,6 +26,14 @@
+ 
+ #include "decoder.h"
+ 
++// FLAC 1.1.3 has FLAC_API_VERSION_CURRENT == 8
++#include <FLAC/export.h>
++#if !defined(FLAC_API_VERSION_CURRENT) || FLAC_API_VERSION_CURRENT < 8
++#define LEGACY_FLAC
++#else
++#undef LEGACY_FLAC
++#endif
++
+ namespace aKode {
+ 
+ class File;
+@@ -50,7 +58,8 @@
+     private_data *m_data;
+ };
+ 
+-#ifdef HAVE_LIBOGGFLAC
++// Starting with FLAC 1.1.3 libFLAC supports Ogg FLAC and there is no more libOggFLAC. 
++#if defined(HAVE_LIBOGGFLAC) || !defined(LEGACY_FLAC)
+ class OggFLACDecoder : public Decoder {
+ public:
+     OggFLACDecoder(File* src);
+@@ -81,7 +90,7 @@
+ 
+ extern "C" FLACDecoderPlugin flac_decoder;
+ 
+-#ifdef HAVE_LIBOGGFLAC
++#if defined(HAVE_LIBOGGFLAC) || !defined(LEGACY_FLAC)
+ class OggFLACDecoderPlugin : public DecoderPlugin {
+ public:
+     virtual bool canDecode(File*);
+diff -ru akode-2.0.1/configure.in akode-2.0.1-b2/configure.in
+--- akode-2.0.1/configure.in	2006-07-22 15:16:52.000000000 -0700
++++ akode-2.0.1-b2/configure.in	2006-10-26 19:50:27.000000000 -0700
+@@ -115,12 +115,12 @@
+   have_libFLAC=no
+   KDE_CHECK_HEADER(FLAC/metadata.h,
+   [
+-     KDE_CHECK_LIB(FLAC,FLAC__seekable_stream_decoder_process_single,
++     KDE_CHECK_LIB(FLAC,FLAC__stream_decoder_process_single,
+ 	          have_libFLAC=yes)
+ 
+     ])
+   if test "x$have_libFLAC" = "xyes"; then
+-      LIBFLAC="-lFLAC"
++      LIBFLAC="-lFLAC -logg"
+       AC_DEFINE(HAVE_LIBFLAC, 1,
+         [Define if you have libFLAC (required for loading FLAC files)])
+   fi
+@@ -135,7 +135,7 @@
+   have_libOggFLAC=no
+   KDE_CHECK_HEADER(OggFLAC/seekable_stream_decoder.h,
+   [
+-     KDE_CHECK_LIB(OggFLAC,OggFLAC__seekable_stream_decoder_process_single,
++     KDE_CHECK_LIB(OggFLAC,OggFLAC__stream_decoder_process_single,
+ 	          have_libOggFLAC=yes,,[-lm -lOggFLAC -lFLAC])
+ 
+     ])

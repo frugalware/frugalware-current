@@ -1,0 +1,138 @@
+? src/export/2
+? src/export/makefile
+? src/import/2
+? src/import/makefile
+Index: acinclude.m4
+===================================================================
+RCS file: /cvsroot/audacity/audacity-src/acinclude.m4,v
+retrieving revision 1.17
+diff -u -r1.17 acinclude.m4
+--- acinclude.m4	20 Oct 2006 10:31:59 -0000	1.17
++++ acinclude.m4	20 Oct 2006 22:46:26 -0000
+@@ -463,7 +463,7 @@
+    dnl See if FLAC is installed in the system
+ 
+    AC_CHECK_LIB(FLAC,
+-                FLAC__file_decoder_new,
++                FLAC__stream_decoder_new,
+                 lib_found="yes",
+                 lib_found="no",
+                 -lFLAC++ -lFLAC)
+Index: src/export/ExportFLAC.cpp
+===================================================================
+RCS file: /cvsroot/audacity/audacity-src/src/export/ExportFLAC.cpp,v
+retrieving revision 1.9
+diff -u -r1.9 ExportFLAC.cpp
+--- src/export/ExportFLAC.cpp	23 Sep 2006 02:26:41 -0000	1.9
++++ src/export/ExportFLAC.cpp	20 Oct 2006 22:46:32 -0000
+@@ -41,6 +41,13 @@
+ 
+ #define SAMPLES_PER_RUN 8192
+ 
++/* FLACPP_API_VERSION_CURRENT is 6 for libFLAC++ from flac-1.1.3 (see <FLAC++/export.h>) */
++#if !defined FLACPP_API_VERSION_CURRENT || FLACPP_API_VERSION_CURRENT < 6
++#define LEGACY_FLAC
++#else
++#undef LEGACY_FLAC
++#endif
++
+ bool ExportFLAC(AudacityProject *project,
+                 int numChannels, wxString fName,
+                 bool selectionOnly, double t0, double t1, MixerSpec *mixerSpec)
+@@ -58,7 +65,9 @@
+       gPrefs->Read(wxT("/FileFormats/FLACBitDepth"), wxT("16"));
+    
+    FLAC::Encoder::File *encoder= new FLAC::Encoder::File();
++#ifdef LEGACY_FLAC
+    encoder->set_filename(OSFILENAME(fName));
++#endif
+    encoder->set_channels(numChannels);
+    encoder->set_sample_rate(int(rate + 0.5));
+ 
+@@ -72,7 +81,11 @@
+     	format=int16Sample;
+    	encoder->set_bits_per_sample(16);
+    }
+-   encoder->init();
++#ifdef LEGACY_FLAC
++   encoder->init(); // really should check the return value here...
++#else
++   encoder->init(OSFILENAME(fName)); // really should check the return value here...
++#endif
+    
+    int numWaveTracks;
+    WaveTrack **waveTracks;
+@@ -129,7 +142,7 @@
+    return !cancelling;
+ }
+ 
+-#endif // USE_LIBVORBIS
++#endif // USE_LIBFLAC
+ 
+ 
+ // Indentation settings for Vim and Emacs and unique identifier for Arch, a
+Index: src/import/ImportFLAC.cpp
+===================================================================
+RCS file: /cvsroot/audacity/audacity-src/src/import/ImportFLAC.cpp,v
+retrieving revision 1.16
+diff -u -r1.16 ImportFLAC.cpp
+--- src/import/ImportFLAC.cpp	23 Sep 2006 02:26:55 -0000	1.16
++++ src/import/ImportFLAC.cpp	20 Oct 2006 22:46:32 -0000
+@@ -63,6 +63,13 @@
+ #include "../WaveTrack.h"
+ #include "ImportPlugin.h"
+ 
++/* FLACPP_API_VERSION_CURRENT is 6 for libFLAC++ from flac-1.1.3 (see <FLAC++/export.h>) */
++#if !defined FLACPP_API_VERSION_CURRENT || FLACPP_API_VERSION_CURRENT < 6
++#define LEGACY_FLAC
++#else
++#undef LEGACY_FLAC
++#endif
++
+ class FLACImportFileHandle;
+ 
+ class MyFLACFile : public FLAC::Decoder::File
+@@ -264,6 +271,7 @@
+ 
+ bool FLACImportFileHandle::Init()
+ {
++#ifdef LEGACY_FLAC
+    bool success = mFile->set_filename(OSFILENAME(mName));
+    if (!success) {
+       return false;
+@@ -272,11 +280,23 @@
+    if (state != FLAC__FILE_DECODER_OK) {
+       return false;
+    }
++#else
++   if (mFile->init(OSFILENAME(mName)) != FLAC__STREAM_DECODER_INIT_STATUS_OK) {
++      return false;
++   }
++#endif
+    mFile->process_until_end_of_metadata();
++#ifdef LEGACY_FLAC
+    state = mFile->get_state();
+    if (state != FLAC__FILE_DECODER_OK) {
+       return false;
+    }
++#else
++   // not necessary to check state, error callback will catch errors, but here's how:
++   if (mFile->get_state() > FLAC__STREAM_DECODER_READ_FRAME) {
++      return false;
++   }
++#endif
+    if (!mFile->is_valid() || mFile->get_was_error())
+    {
+       // This probably is not a FLAC file at all
+@@ -340,7 +360,11 @@
+       mChannels[1]->SetTeamed(true);
+    }
+ 
++#ifdef LEGACY_FLAC
+    mFile->process_until_end_of_file();
++#else
++   mFile->process_until_end_of_stream();
++#endif
+    
+    *outTracks = new Track *[*outNumTracks];
+    for(c = 0; c < *outNumTracks; c++) {

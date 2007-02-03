@@ -5,14 +5,15 @@ import alpm, os, tempfile, shutil, sys, re
 remove = False
 if len(sys.argv) > 1:
 	if sys.argv[1] == "--help":
-		print "no longer necessary fpms"
+		print "no longer necessary %s fpms" % sys.argv[2]
 		sys.exit(0)
 	elif sys.argv[1] == "--remove":
 		remove = True
+		arch = sys.argv[2]
+	else:
+		arch = sys.argv[1]
 
-for i in os.listdir(".."):
-	if not re.match("^frugalware-", i):
-		continue
+for i in ['frugalware-%s' % arch]:
 	arch = i[11:]
 	root = tempfile.mkdtemp()
 	alpm.initialize(root)

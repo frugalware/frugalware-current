@@ -48,7 +48,7 @@ mkdir $logdir/s
 # run the tests
 for i in *
 do
-	if [[ $i =~ sh$ ]] || [ $i == "README" ] || [ -d $i ]; then
+	if [[ $i =~ sh$ ]] || [[ $i =~ py$ ]] || [ $i == "README" ] || [ -d $i ]; then
 		continue
 	fi
 	[ -x $i ] || chmod +x $i

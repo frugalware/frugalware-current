@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# (c) 2006 Miklos Vajna <vmiklos@frugalware.org>
+# (c) 2006-2007 Miklos Vajna <vmiklos@frugalware.org>
 # kernel.sh for Frugalware
 # distributed under GPL License
 
@@ -11,6 +11,10 @@
 # that the kernel isn't the stock distribution kernel
 
 # usage:
+#
+# there are only two required variables: pkgver and pkgrel. here is a list of
+# other optional variables:
+#
 # _F_kernel_vmlinuz (defaults to arch/$arch/boot/bzImage)
 # _F_kernel_verbose (if length of it isn't zero, then use make with V=1)
 # _F_kernel_name (defaults to "", example: "-grsec")
@@ -22,6 +26,7 @@
 # _F_kernel_git (defaults to 0, example: "3")
 # _F_kernel_dontsedarch (don't run the command below to Fsed 486 with your CARCH if set to 1)
 # _F_kernel_dontfakeversion ( don't run sed to fake the kernel version to $pkgname etc if set to 1 )
+# _F_kernel_manualamd64 (don't update the config automatically to add 32bit emulation support on x86_64)
 
 if [ -z "$_F_kernel_ver" ]; then
 	_F_kernel_ver=$pkgver
@@ -142,6 +147,17 @@ Fbuildkernel()
 	cp $Fsrcdir/config .config
 	if [ $_F_kernel_dontsedarch -eq 0 ]; then
 		Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
+	fi
+	if [ "$CARCH" = "x86_64" -a -z "$_F_kernel_manualamd64" ]; then
+		sed -e "/CONFIG_BINFMT_MISC=m/{
+			n
+			i \
+		CONFIG_IA32_EMULATION=y\n\
+		CONFIG_IA32_AOUT=y\n\
+		CONFIG_COMPAT=y\n\
+		CONFIG_SYSVIPC_COMPAT=y\n\
+		CONFIG_UID16=y
+		}" .config
 	fi
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver

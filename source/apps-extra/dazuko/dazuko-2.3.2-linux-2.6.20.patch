@@ -1,6 +1,5 @@
-diff -urNp dazuko-2.3.2.org/configure dazuko-2.3.2/configure
---- dazuko-2.3.2.org/configure	2006-10-04 00:48:18.000000000 +0200
-+++ dazuko-2.3.2/configure	2006-12-09 19:52:59.000000000 +0200
+--- configure
++++ configure	2007/01/15 16:14:25
 @@ -446,7 +446,7 @@ do_linux26()
  			echo "ok"
  		fi
@@ -10,7 +9,113 @@ diff -urNp dazuko-2.3.2.org/configure dazuko-2.3.2/configure
  		if [ ! -x "linux_lsm_conf" ]
  		then
  			echo "failed"
-@@ -725,6 +725,11 @@ do_linux26()
+@@ -486,6 +486,14 @@ do_linux26()
+ 			exit 1
+ 		fi
+ 
++		SRC_PATH_END="/include/linux/syscalls.h"
++		get_src_path
++
++		if [ -f "$SRC_PATH" ]
++		then
++			LINUX26_USE_SYSCALLS_H=1
++		fi
++
+ 		echo -n "locating sys_call_table... "
+ 
+ 		ADDRESS=`awk '$3 == "sys_call_table" { print $1 }' $MAPFILE`
+@@ -566,12 +574,21 @@ do_linux26()
+ 	if [ -f "$SRC_PATH" ]
+ 	then
+ 		grep class_simple_create "$SRC_PATH" > /dev/null 2>&1
+-		if [ $? -ne 0 ]
++		if [ $? -eq 0 ]
+ 		then
+-			LINUX26_USE_CLASS=1
++			LINUX26_USE_CLASS=2
++		else
++			grep 'class_create(' "$SRC_PATH" > /dev/null 2>&1
++			if  [ $? -eq 0 ]
++			then
++				LINUX26_USE_CLASS=1
++			fi
+ 		fi
+ 	fi
+-	if [ $LINUX26_USE_CLASS -ne 0 ]
++	if [ $LINUX26_USE_CLASS -eq 0 ]
++	then
++		echo "ok (no udev support)"
++	elif [ $LINUX26_USE_CLASS -eq 1 ]
+ 	then
+ 		echo "ok (class)"
+ 	else
+@@ -580,25 +597,38 @@ do_linux26()
+ 
+ 	echo -n "inspecting suspend function... "
+ 
+-	SRC_PATH_END="/include/linux/sched.h"
++	# look for suspend (2) functions in "freezer.h"
++
++	SRC_PATH_END="/include/linux/freezer.h"
+ 	get_src_path
+ 
+ 	if [ -f "$SRC_PATH" ]
+ 	then
++		LINUX26_USE_FREEZER=1
++
+ 		grep "try_to_freeze.*(.*void.*)" "$SRC_PATH" > /dev/null 2>&1
+ 		if [ $? -eq 0 ]
+ 		then
+ 			LINUX26_USE_SUSPEND=1
+ 		fi
++	else
+ 
+-		grep "try_todo_list.*(.*void.*)" "$SRC_PATH" > /dev/null 2>&1
+-		if [ $? -eq 0 ]
++		# look for suspend (1) function in "sched.h"
++
++		SRC_PATH_END="/include/linux/sched.h"
++		get_src_path
++
++		if [ -f "$SRC_PATH" ]
+ 		then
+-			LINUX26_USE_SUSPEND=2
++			grep "try_to_freeze.*(.*void.*)" "$SRC_PATH" > /dev/null 2>&1
++			if [ $? -eq 0 ]
++			then
++				LINUX26_USE_SUSPEND=1
++			fi
+ 		fi
+ 	fi
+ 
+-	if [ $LINUX26_USE_SUSPEND -eq 2 ]
++	if [ $LINUX26_USE_SUSPEND -eq 1 ]
+ 	then
+ 		echo "ok (suspend2)"
+ 	else
+@@ -705,9 +735,19 @@ do_linux26()
+ 		echo "EXTRA_CFLAGS += -DUSE_TRYTOFREEZEVOID" >> Makefile
+ 	fi
+ 
+-	if [ ${LINUX26_USE_SUSPEND} -eq 2 ]
++	if [ ${LINUX26_USE_FREEZER} -eq 1 ]
++	then
++		echo "EXTRA_CFLAGS += -DLINUX_USE_FREEZER_H" >> Makefile
++	fi
++
++	if [ ${LINUX26_USE_SYSCALLS_H} -eq 1 ]
+ 	then
+-		echo "EXTRA_CFLAGS += -DUSE_SUSPEND2" >> Makefile
++		echo "EXTRA_CFLAGS += -DLINUX_USE_SYSCALLS_H" >> Makefile
++	fi
++
++	if [ ${LINUX26_USE_CLASS} -eq 0 ]
++	then
++		echo "EXTRA_CFLAGS += -DWITHOUT_UDEV" >> Makefile
+ 	fi
+ 
+ 	if [ ${LINUX26_USE_CLASS} -eq 1 ]
+@@ -725,6 +765,11 @@ do_linux26()
  		echo "EXTRA_CFLAGS += -DTASKSTRUCT_USES_PARENT" >> Makefile
  	fi
  
@@ -22,15 +127,18 @@ diff -urNp dazuko-2.3.2.org/configure dazuko-2.3.2/configure
  	if [ ${DEBUG} -eq 1 ]
  	then
  		echo "EXTRA_CFLAGS += -DDEBUG" >> Makefile
-@@ -1372,6 +1377,7 @@ WITH_EXAMPLE_JAVA=0
+@@ -1372,7 +1417,10 @@ WITH_EXAMPLE_JAVA=0
  WITH_EXAMPLE_PERL=0
  WITH_EXAMPLE_PYTHON=0
  LINUX_USE_PARENT=0
 +LINUX_USE_CONFIG_H=1
  LINUX26_USE_SUSPEND=0
++LINUX26_USE_FREEZER=0
++LINUX26_USE_SYSCALLS_H=0
  LINUX26_USE_CLASS=0
  LINUX26_USE_CHROOT=0
-@@ -1782,6 +1788,8 @@ case ${OS} in
+ LINUX26_USE_SYSCALLS=0
+@@ -1782,6 +1830,8 @@ case ${OS} in
  			if [ -f "$TEMPNAME/linux/config.h" ]
  			then
  				echo "CFLAGS += -DUSE_CONFIG_H" >> Makefile
@@ -39,9 +147,8 @@ diff -urNp dazuko-2.3.2.org/configure dazuko-2.3.2/configure
  			fi
  			if [ -f "$TEMPNAME/linux/utsrelease.h" ]
  			then
-diff -urNp dazuko-2.3.2.org/dazuko_linux26.c dazuko-2.3.2/dazuko_linux26.c
---- dazuko-2.3.2.org/dazuko_linux26.c	2006-11-15 10:11:20.000000000 +0200
-+++ dazuko-2.3.2/dazuko_linux26.c	2006-12-09 19:53:17.000000000 +0200
+--- dazuko_linux26.c
++++ dazuko_linux26.c	2007/01/15 16:20:48
 @@ -24,7 +24,9 @@
  #include "dazuko_core.h"
  #include "dazuko_linux26_device_def.h"
@@ -52,9 +159,90 @@ diff -urNp dazuko-2.3.2.org/dazuko_linux26.c dazuko-2.3.2/dazuko_linux26.c
  #include <linux/module.h>
  #include <linux/kernel.h>
  #include <linux/init.h>
-diff -urNp dazuko-2.3.2.org/dazuko_linux26_lsm.c dazuko-2.3.2/dazuko_linux26_lsm.c
---- dazuko-2.3.2.org/dazuko_linux26_lsm.c	2006-07-29 12:13:27.000000000 +0300
-+++ dazuko-2.3.2/dazuko_linux26_lsm.c	2006-12-09 19:53:23.000000000 +0200
+@@ -37,9 +39,12 @@
+ #include <linux/devfs_fs_kernel.h>
+ #endif
+ #include <linux/device.h>
+-#if !defined(USE_TRYTOFREEZEVOID) && !defined(USE_SUSPEND2)
++#if !defined(USE_TRYTOFREEZEVOID)
+ #include <linux/suspend.h>
+ #endif
++#ifdef LINUX_USE_FREEZER_H
++#include <linux/freezer.h>
++#endif
+ #include <asm/uaccess.h>
+ 
+ 
+@@ -62,11 +67,13 @@ int linux_dazuko_device_open(struct inod
+ int linux_dazuko_device_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long param);
+ int linux_dazuko_device_release(struct inode *, struct file *);
+ 
++#ifndef WITHOUT_UDEV
+ #ifdef USE_CLASS
+ static struct class *dazuko_class = NULL;
+ #else
+ static struct class_simple *dazuko_class = NULL;
+ #endif
++#endif
+ 
+ static struct vfsmount  *orig_rootmnt = NULL;
+ static struct dentry    *orig_root = NULL;
+@@ -178,10 +185,7 @@ inline int xp_wait_until_condition(struc
+ 		{
+ 			ret = wait_event_interruptible(queue->queue, cfunction(cparam) != 0);
+ 
+-#ifdef USE_SUSPEND2
+-			if (try_todo_list() == 0)
+-				break;
+-#elif defined (USE_TRYTOFREEZEVOID)
++#if defined (USE_TRYTOFREEZEVOID)
+ 			if (try_to_freeze() == 0)
+ 				break;
+ #else
+@@ -1056,6 +1060,7 @@ inline int xp_sys_hook()
+ 	devfs_mk_cdev(MKDEV(dev_major, 0), S_IFCHR | S_IRUSR | S_IWUSR, DEVICE_NAME);
+ #endif
+ 
++#ifndef WITHOUT_UDEV
+ #ifdef USE_CLASS
+ 	dazuko_class = class_create(THIS_MODULE, "dazuko");
+ #ifdef CLASS_class_device_create_2_6_15
+@@ -1067,6 +1072,7 @@ inline int xp_sys_hook()
+ 	dazuko_class = class_simple_create(THIS_MODULE, "dazuko");
+ 	class_simple_device_add(dazuko_class, MKDEV(dev_major, 0), NULL, "dazuko");
+ #endif
++#endif
+ 
+ 	return 0;
+ }
+@@ -1079,6 +1085,7 @@ inline int xp_sys_unhook()
+ 	devfs_remove(DEVICE_NAME);
+ #endif
+ 
++#ifndef WITHOUT_UDEV
+ #ifdef USE_CLASS
+ 	class_device_destroy(dazuko_class, MKDEV(dev_major, 0));
+ 	class_destroy(dazuko_class);
+@@ -1086,6 +1093,7 @@ inline int xp_sys_unhook()
+ 	class_simple_device_remove(MKDEV(dev_major, 0));
+ 	class_simple_destroy(dazuko_class);
+ #endif
++#endif
+ 
+ #ifndef DAZUKO_FIST
+ #ifdef NO_STACKING_SUPPORT
+--- dazuko_linux26.h
++++ dazuko_linux26.h	2007/01/15 16:24:06
+@@ -21,6 +21,7 @@
+ #define DAZUKO_LINUX26_H
+ 
+ #include <linux/module.h>
++#include <asm/semaphore.h>
+ 
+ #define	DEVICE_NAME		"dazuko"
+ 
+--- dazuko_linux26_lsm.c
++++ dazuko_linux26_lsm.c	2007/01/15 15:43:33
 @@ -819,6 +819,40 @@ int dazuko_security_task_getsid (struct 
  	return 0;
  }
@@ -155,7 +343,41 @@ diff -urNp dazuko-2.3.2.org/dazuko_linux26_lsm.c dazuko-2.3.2/dazuko_linux26_lsm
  int dazuko_security_socket_getpeersec_dgram(struct sk_buff *skb, char **secdata, u32 *seclen)
  {
  #ifdef CONFIG_SECURITY_NETWORK
-@@ -1340,9 +1408,73 @@ unsigned int dazuko_security_sk_getsid(s
+@@ -1307,18 +1375,31 @@ int dazuko_security_socket_getpeersec(st
+ 
+ #if defined(LSM_security_sk_alloc_security_2_6_15)
+ int dazuko_security_sk_alloc_security(struct sock *sk, int family, gfp_t priority)
++{
++#ifdef CONFIG_SECURITY_NETWORK
++	RETURN_DAZUKO_LSM_CALL(sk_alloc_security, (sk, family, priority));
++#endif
++
++	return 0;
++}
+ #elif defined(LSM_security_sk_alloc_security_2_6_14)
+ int dazuko_security_sk_alloc_security(struct sock *sk, int family, unsigned int __nocast priority)
++{
++#ifdef CONFIG_SECURITY_NETWORK
++	RETURN_DAZUKO_LSM_CALL(sk_alloc_security, (sk, family, priority));
++#endif
++
++	return 0;
++}
+ #elif defined(LSM_security_sk_alloc_security_2_6_2)
+ int dazuko_security_sk_alloc_security(struct sock *sk, int family, int priority)
+-#endif
+ {
+ #ifdef CONFIG_SECURITY_NETWORK
+ 	RETURN_DAZUKO_LSM_CALL(sk_alloc_security, (sk, family, priority));
+ #endif
+-
+ 	return 0;
+ }
++#endif
+ 
+ #if defined(LSM_security_sk_free_security_2_6_2)
+ void dazuko_security_sk_free_security(struct sock *sk)
+@@ -1340,9 +1421,73 @@ unsigned int dazuko_security_sk_getsid(s
  }
  #endif
  
@@ -230,7 +452,7 @@ diff -urNp dazuko-2.3.2.org/dazuko_linux26_lsm.c dazuko-2.3.2/dazuko_linux26_lsm
  int dazuko_security_xfrm_policy_alloc(struct xfrm_policy *xp, struct xfrm_user_sec_ctx *sec_ctx)
  {
  	RETURN_DAZUKO_LSM_CALL(xfrm_policy_alloc_security, (xp, sec_ctx));
-@@ -1367,7 +1499,23 @@ void dazuko_security_xfrm_policy_free(st
+@@ -1367,7 +1512,23 @@ void dazuko_security_xfrm_policy_free(st
  }
  #endif
  
@@ -255,7 +477,7 @@ diff -urNp dazuko-2.3.2.org/dazuko_linux26_lsm.c dazuko-2.3.2/dazuko_linux26_lsm
  int dazuko_security_xfrm_state_alloc(struct xfrm_state *x, struct xfrm_user_sec_ctx *sec_ctx)
  {
  	RETURN_DAZUKO_LSM_CALL(xfrm_state_alloc_security, (x, sec_ctx));
-@@ -1383,7 +1531,23 @@ void dazuko_security_xfrm_state_free(str
+@@ -1383,7 +1544,23 @@ void dazuko_security_xfrm_state_free(str
  }
  #endif
  
@@ -280,7 +502,7 @@ diff -urNp dazuko-2.3.2.org/dazuko_linux26_lsm.c dazuko-2.3.2/dazuko_linux26_lsm
  int dazuko_security_xfrm_policy_lookup(struct xfrm_policy *xp, u32 sk_sid, u8 dir)
  {
  	RETURN_DAZUKO_LSM_CALL(xfrm_policy_lookup, (xp, sk_sid, dir));
-@@ -1392,11 +1556,45 @@ int dazuko_security_xfrm_policy_lookup(s
+@@ -1392,11 +1569,45 @@ int dazuko_security_xfrm_policy_lookup(s
  }
  #endif
  
@@ -327,9 +549,8 @@ diff -urNp dazuko-2.3.2.org/dazuko_linux26_lsm.c dazuko-2.3.2/dazuko_linux26_lsm
  int dazuko_security_key_alloc(struct key *key)
  {
  	RETURN_DAZUKO_LSM_CALL(key_alloc, (key));
-diff -urNp dazuko-2.3.2.org/dazuko_linux26_lsm.h dazuko-2.3.2/dazuko_linux26_lsm.h
---- dazuko-2.3.2.org/dazuko_linux26_lsm.h	2006-07-29 12:13:17.000000000 +0300
-+++ dazuko-2.3.2/dazuko_linux26_lsm.h	2006-12-09 19:53:26.000000000 +0200
+--- dazuko_linux26_lsm.h
++++ dazuko_linux26_lsm.h	2007/01/15 15:42:57
 @@ -297,6 +297,22 @@ int dazuko_security_task_getpgid (struct
  
  int dazuko_security_task_getsid (struct task_struct *p);
@@ -581,21 +802,8 @@ diff -urNp dazuko-2.3.2.org/dazuko_linux26_lsm.h dazuko-2.3.2/dazuko_linux26_lsm
  #endif
  
  #ifdef CONFIG_KEYS
-diff -urNp dazuko-2.3.2.org/dazuko_linux.c dazuko-2.3.2/dazuko_linux.c
---- dazuko-2.3.2.org/dazuko_linux.c	2006-11-29 21:52:36.000000000 +0200
-+++ dazuko-2.3.2/dazuko_linux.c	2006-12-09 19:53:35.000000000 +0200
-@@ -27,7 +27,7 @@
- #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
- #include "dazuko_linux26_device_def.h"
- 
--#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
-+#ifdef USE_CONFIG_H
- #include <linux/config.h>
- #endif
- #include <linux/module.h>
-diff -urNp dazuko-2.3.2.org/linux_lsm_conf dazuko-2.3.2/linux_lsm_conf
---- dazuko-2.3.2.org/linux_lsm_conf	2006-07-29 12:13:49.000000000 +0300
-+++ dazuko-2.3.2/linux_lsm_conf	2006-12-09 19:53:48.000000000 +0200
+--- linux_lsm_conf
++++ linux_lsm_conf	2007/01/15 15:50:40
 @@ -53,89 +53,92 @@ then
  fi
  

@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# (c) 2007 Christian Hamar alias krix <krics@linuxforum.hu>
+# rc.microcode_ctl for FrugalWare
+# distributed under GPL License
+
+# chkconfig: 2345 1 98
+# description: Updates Intel CPUs microcode at startup
+
+# Only root can do this :P
+[ `id -u` = 0 ] || exit 0
+
+DEVICE=/dev/microcode
+ARGS=-Qu
+PROGRAM=/sbin/microcode
+DATAFILE=/usr/share/misc/microcode.dat
+
+source /lib/initscripts/functions
+TEXTDOMAIN=microcode_ctl
+TEXTDOMAINDIR=/lib/initscripts/messages
+
+
+actions=(start stop restart)
+
+rc_start()
+{
+	msg $"Updating Intel CPU microcode: "
+	# Make sure we are on an Intel machine
+	vendor=`grep "^vendor_id" /proc/cpuinfo | head -n1 | awk -F ": " '{ print $2 }'`
+	if [ "$vendor" != "GenuineIntel" ]; then
+	    ok 999
+	    hint $"Not an Intel CPU."
+	    exit 0
+	fi
+
+	# Microcode wasn't available until 686's.
+	family=`grep "^cpu family" /proc/cpuinfo | head -n1 | awk -F ": " '{ print $2 }'`
+	if [ $family -lt 6 ]; then
+	    ok 999
+	    hint $"Not 686 or higher CPU."
+	    exit 0
+	fi
+
+	if [ ! -e $DATAFILE ]; then
+	    ok 1
+	    hint $"missing microcode data file! ($DATAFILE)"
+	    exit 1
+	fi
+
+	/sbin/modprobe microcode
+
+	lt=0
+	while [ ! -c $DEVICE ]; do
+	    lt=$[lt+1];
+	    [ $lt -gt 5 ] && break;
+	    sleep 1;
+	done
+
+	# Let just be sure that device created...
+	if [ ! -e $DEVICE ]; then
+	    ok 1
+	    hint $"microcode device $DEVICE does not exists?"
+	    exit 1
+	elif [ ! -c $DEVICE ]; then
+	    ok 1
+	    hint $"$DEVICE not a character device?"
+	    exit 1
+	fi
+
+	$PROGRAM $ARGS &>/dev/null
+	RETVAL=$?
+
+	# trap the most common case, errno 19 = no device
+	if [ $RETVAL -eq 19 ]; then
+	    ok 1
+	    hint $"kernel does not have CPU microcode device support"
+	    exit 1
+	fi
+
+	/sbin/rmmod microcode
+
+	[ $RETVAL -eq 0 ] && /var/lock/subsys/microcode_ctl
+	ok 0
+}
+
+rc_stop()
+{
+	msg $"Removing microcode_ctl lock."
+	rm -f /var/lock/subsys/microcode_ctl
+	hint $"You need to reboot to clear uploaded microcode."
+	ok 0
+}
+
+rc_exec $1
+
+# vim: ft=sh

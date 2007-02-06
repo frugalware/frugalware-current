@@ -1,0 +1,97 @@
+diff -Naur microcode_ctl-1.16.orig/Makefile microcode_ctl-1.16/Makefile
+--- microcode_ctl-1.16.orig/Makefile	2007-02-06 19:03:21.000000000 +0100
++++ microcode_ctl-1.16/Makefile	2007-02-06 19:03:27.000000000 +0100
+@@ -14,13 +14,13 @@
+ INS		= install
+ CC		= gcc
+ KERNELHEADER    = /usr/src/linux/include
+-CFLAGS		= -g -Wall -O2 -I $(KERNELHEADER)
++CFLAGS		+= -Wall -I $(KERNELHEADER)
+ 
+ DESTDIR		=
+ PREFIX		= /usr/local
+ 
+ INSDIR		= $(PREFIX)/sbin
+-MANDIR		= $(PREFIX)/man/man8
++MANDIR		= $(PREFIX)/share/man/man8
+ MICDIR		= /etc
+ 
+ RCFILE		= microcode_ctl.start
+@@ -40,24 +40,14 @@
+ 	rm -f $(PROGRAM)
+ 
+ install:
+-	$(INS) -d	$(DESTDIR)$(INSDIR) $(DESTDIR)$(MICDIR) \
+-			$(DESTDIR)$(MANDIR) $(DESTDIR)$(RCFILETO) \
+-			$(DESTDIR)$(RCLINKTO)
++	$(INS) -d $(DESTDIR)$(INSDIR) $(DESTDIR)$(MICDIR) $(DESTDIR)$(MANDIR)
+ 
+-	$(INS) -s -m 755 $(PROGRAM) $(DESTDIR)$(INSDIR)
+-	$(INS) -m 644 $(MICROCODE) $(DESTDIR)$(MICDIR)/microcode.dat
++	$(INS) -m 755 $(PROGRAM) $(DESTDIR)$(INSDIR)
++	$(INS) -m 644 $(MICROCODE) $(DESTDIR)/usr/share/misc/microcode.dat
+ 
+ 	$(INS) -m 644 $(MANPAGE) $(DESTDIR)$(MANDIR)
+ 	gzip -9f $(DESTDIR)$(MANDIR)/$(MANPAGE)
+ 
+-	$(INS) -m 755 $(RCFILE) $(DESTDIR)$(RCFILETO)/$(RCFILEFINAL)
+-
+-ifndef DESTDIR
+-		chkconfig --add $(RCFILEFINAL)
+-else
+-		echo "MAKE: Skipping chkconfig operation (rpm build?)"
+-endif
+-
+ device:
+ 	mkdir -p $(DESTDIR)/dev/cpu
+ 	mknod $(DESTDIR)/dev/cpu/microcode c 10 184
+diff -Naur microcode_ctl-1.16.orig/microcode_ctl.8 microcode_ctl-1.16/microcode_ctl.8
+--- microcode_ctl-1.16.orig/microcode_ctl.8	2007-02-06 19:03:21.000000000 +0100
++++ microcode_ctl-1.16/microcode_ctl.8	2007-02-06 19:03:27.000000000 +0100
+@@ -49,7 +49,7 @@
+ Upload microcode using defaults
+ .SH FILES
+ .TP
+-/etc/microcode.dat
++/usr/share/misc/microcode.dat
+ The default microcode location
+ .PD
+ .SH AUTHOR
+diff -Naur microcode_ctl-1.16.orig/microcode_ctl.c microcode_ctl-1.16/microcode_ctl.c
+--- microcode_ctl-1.16.orig/microcode_ctl.c	2007-02-06 19:03:21.000000000 +0100
++++ microcode_ctl-1.16/microcode_ctl.c	2007-02-06 19:03:35.000000000 +0100
+@@ -24,8 +24,8 @@
+ #define BUFFER_SIZE	4096
+ #define MAX_MICROCODE	2000000
+ 
+-#define MICROCODE_DEVICE_DEFAULT	"/dev/cpu/microcode"
+-#define MICROCODE_FILE_DEFAULT		"/etc/microcode.dat"
++#define MICROCODE_DEVICE_DEFAULT	"/dev/microcode"
++#define MICROCODE_FILE_DEFAULT		"/usr/share/misc/microcode.dat"
+ 
+ static void usage(void)
+ {
+@@ -52,11 +52,13 @@
+ {
+ 	FILE *fp;
+ 	char line_buffer[BUFFER_SIZE];
+-	int microcode[MAX_MICROCODE];
++	int *microcode;
+ 	int *pos;
+ 	int outfd;
+ 	int wrote, length;
+ 
++	microcode=malloc(sizeof(int)* MAX_MICROCODE);
++	if (!microcode) return ENOMEM;
+ 
+ 	if( (fp=fopen(filename, "r")) == NULL){
+ 		if(print_error_messages)
+@@ -101,7 +103,7 @@
+ 		return errno;
+ 	}
+ 
+-	if( (wrote = write(outfd, &microcode, length)) < 0){
++	if( (wrote = write(outfd, microcode, length)) < 0){
+ 		if(print_error_messages)
+ 			fprintf(stderr, "%s: error writing to '%s' errno=%d (%s)\n"
+ 					"%s: there may be messages from the driver in your system log.\n",

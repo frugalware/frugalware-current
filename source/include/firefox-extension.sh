@@ -14,11 +14,20 @@ Fxpiinstall()
 {
 	[ -z "$_F_firefox_ext" ] && _F_firefox_ext="$pkgname"
 	[ -n "$_F_firefox_name" ] && mv $_F_firefox_name $_F_firefox_ext-$pkgver.xpi
-	Fmkdir /usr/lib/firefox/extensions/\{$_F_firefox_id\}
-	cd $Fdestdir/usr/lib/firefox/extensions/\{$_F_firefox_id\}
+	if [ -z "$_F_firefox_nocurly" ]; then
+		Fmkdir /usr/lib/firefox/extensions/\{$_F_firefox_id\}
+		cd $Fdestdir/usr/lib/firefox/extensions/\{$_F_firefox_id\}
+	else
+		Fmkdir /usr/lib/firefox/extensions/$_F_firefox_id
+		cd $Fdestdir/usr/lib/firefox/extensions/$_F_firefox_id
+	fi
 	unzip -qqo $Fsrcdir/$_F_firefox_ext-$pkgver.xpi || return 1
 	Fpatchall
-	Ffile /usr/lib/firefox/extensions/\{$_F_firefox_id\}/chrome.manifest
+	if [ -z "$_F_firefox_nocurly" ]; then
+		Ffile /usr/lib/firefox/extensions/\{$_F_firefox_id\}/chrome.manifest
+	else
+		Ffile /usr/lib/firefox/extensions/$_F_firefox_id/chrome.manifest
+	fi
 }
 
 build()

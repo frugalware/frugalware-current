@@ -276,8 +276,6 @@ syntax highlight will work as expected.
 
 @subsection Full reference
 
-@c FIXME - below part haven't reviewed(2007-02-11)
-
 Now here is a full list of directives available.
 
 First, let's start with the install directive. Here you can refer to an
@@ -374,34 +372,124 @@ The rodepends array defines packages required only in runtime. It must be
 In the conflicts array, you can define a list of packages that shouldn't be
  installed if you want to install this package. Let's see an another example:
 
-pkgname=blackbox
-conflicts=('fluxbox')
+@verbatim
+pkgname=mutt-devel
+conflicts=('mutt')
+@end verbatim
 
-It is necessary because both of them include a bsetbg command and the two
- executables are different. In this case the fluxbox package must also contain
- this line: (conflicts=('blackbox')). Of course, if two or more packages
- conflict each other, only one of them can be placed in the frugalware repo.
+It is necessary as the two package almost the same, but the binaries differs.
+In this case the mutt package must also contain this line: (conflicts=('mutt-devel')).
+Of course, if two or more packages conflict each other, only one of them can be
+placed in a non-extra group.
 
 The provides array is used to create virtual dependencies. It means both
- postfix and sendmail provides mta or, a better example, both xfree and
- xorg provides x. So qt will contain the following line:
+postfix and sendmail provides mta, so we can do:
 
-pkgname=qt
-depends=('x' 'libpng' 'libjpeg')
+@verbatim
+pkgname=mailman
+rodepends=('mta')
+@end verbatim
 
-The user has a choice between xfree and xorg.
+The user has a choice between postfix and sendmail.
 
 The last one in this list is the replaces directive. The module-init-tools
  package is a good example:
 
+@verbatim
 pkgname=module-init-tools
 replaces=('modutils')
 conflicts=('modutils')
+@end verbatim
 
 As you can see, we often make such new packages which also conflict with each
  other. Using the replaces directive when users use pacman -Su next time, if
  modutils is installed (probably :)), they will be asked to remove modutils
  and install module-init-tools.
+
+@subsection Subpackages
+
+Since 0.5 makepkg can also create subpackages. It is very useful when your
+package has graphical parts based on qt for example. It's a pain for gnome
+users as they want the package, but they do not want the qt part. So you create
+a subpackage for qt part and both side is happy. Let's see an example:
+
+@verbatim
+# Compiling Time: 1.43 SBU
+# Maintainer: crazy <crazy@frugalware.org>
+
+pkgname=djvulibre
+pkgver=3.5.18
+pkgrel=2
+pkgdesc="DjVu is a web-centric format for distributing documents and images."
+depends=('libtiff' 'libjpeg')
+makedepends=('kdelibs' 'gnome-mime-data' 'gnome-icon-theme' 'htop')
+rodepends=('xdg-utils')
+groups=('xapps')
+archs=('i686' 'x86_64')
+options=('scriptlet')
+_F_sourceforge_dirname="djvu"
+_F_sourceforge_broken_up2date=1
+Finclude sourceforge
+url="http://djvulibre.djvuzone.org/"
+source=(${source[@]} head_-n1.patch  no-OPTS-FLAGS-thx.patch)
+
+subpkgs=('djview')
+subdescs=('DjVu viewer for qt and mozilla plugins.')
+subdepends=('libxi libgl qt libxmu')
+subrodepends=('djvulibre')
+subgroups=('xapps-extra')
+subarchs=('i686 x86_64')
+
+build()
+{
+	Fcd
+	Fpatchall
+	Fautoreconf
+	export CFLAGS="$CFLAGS"
+	export CXXFLAGS="$CXXFLAGS"
+	Fconf \
+		--enable-threads \
+		--disable-desktopfiles \
+		--enable-xmltools \
+		--enable-djview
+	## desktopfiles installis doneon post_install now
+	make depend || Fdie
+	make || Fdie
+	Fmakeinstall
+	Fln /usr/lib/netscape/plugins/nsdejavu.so \
+		/usr/lib/mozilla/plugins/nsdejavu.so
+	Fln djview3.1.gz usr/share/man/man1/djview.1
+
+	Fsplit djview usr/bin/djview
+	Fsplit djview usr/bin/djview3
+	Fsplit djview usr/lib/mozilla
+	Fsplit djview usr/lib/netscape
+	for i in . ja; do
+		[[ $i == . ]] && Fsplit djview usr/share/man/$i/man1/djview.1
+		Fsplit djview usr/share/man/$i/man1/djview3.1
+		Fsplit djview usr/share/man/$i/man1/nsdejavu.1
+	done
+	Fsplit djview usr/share/djvu/djview3
+}
+@end verbatim
+
+Here you can see the djvulibre FrugalBuild. Note subpkgs, subdescs, subdepends,
+subgroups and subarchs. These 5 value is lethal for a subpackage. There are
+other subpackage variables too of course. See @samp{man FrugalBuild} for details.
+Also  note  that  bash does not support two-dimensional arrays, so when defining
+the array of arrays, then quotes are the major separators and spaces are the minor ones.
+
+Defining the subpackage is only the first part of creating a subpackage. You have
+to tell makepkg which files you want to put in the subpackage. We use Fsplit command
+for this. First parameter is the subpackage nem, second is the file you want to move.
+Please never use a trailing slash when defining file patterns, especially if you use
+wildcards in it!
+
+If you need more example just take a look on avahi FrugalBuild in network group.
+
+Use subpackages when they are necessary, but do not start making foo-devel, foo-common,
+foo-not-so-common, foo-quite-common-but-not-that-common packages :) Makeing too
+much subpackage makes maintaining too hard and simplicity is the frugal way.
 
 @subsection Compiling the package
 
@@ -410,6 +498,8 @@ That's fairly simple. In the package directory you should do exactly the same
  this package to the Frugalware project, then go to http://bugs.frugalware.org,
  open a feature request and upload each non-downloadable file (ie. FrugalBuild,
  install scriptlet, patches) as an attachement.
+Please do not forget to check your FrugalBuild with fblint command before uploading
+it. Fblint is available in pacman-tools package.
 
 Happy packaging!
 

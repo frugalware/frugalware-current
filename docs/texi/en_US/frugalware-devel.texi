@@ -452,7 +452,6 @@ build()
 		--disable-desktopfiles \
 		--enable-xmltools \
 		--enable-djview
-	## desktopfiles installis doneon post_install now
 	make depend || Fdie
 	make || Fdie
 	Fmakeinstall
@@ -506,13 +505,15 @@ Happy packaging!
 @subsection Kernel modules
 
 A few words about kernel modules. They're special as even if you installed the
-correct version of the kernel (and kernel-source) package, the modules are
-compiled for the running kernel. So you have to check if the the installed
-kernel is the same as you are currently run. Because of this, there are
-a few extra rules for kernel packages containing a kernel module:
+correct version of the kernel (and kernel-source) package, sometimes the modules
+are compiled for the running kernel, so you have to check if compiling against
+other kernel version than the running one works or not. You can use the modinfo
+command for this. If crosscompiling does not work always add Fcheckkernel to the
+build(). So here is the list of conditions a kernel module package have to
+satisfy:
 
 1) Should depend on kernel=version, where version is the version of the kernel
-defined in /source/include/kernel-module.sh.
+defined in /source/include/kernel-module.sh. (Always use up-to-date FST!)
 
 2) Should Finclude the kernel-module scheme.
 
@@ -521,8 +522,10 @@ after the install/upgrade is not enough for you) then the install script
 should run depmod -a. Otherwise the scheme will provide so a scriptlet which
 does so.
 
-4) build() should call Fcheckkernel() to ensure the module will be compiled
-for the right kernel version.
+4) build() should call Fcheckkernel to ensure the module will be compiled
+for the right kernel version or it should be commented if you have checked
+the compiling for other kernel version. It is good for out build servers as
+they can not restarted after every kernel update.
 
 @subsection Repoman
 
@@ -550,8 +553,8 @@ or simply
 
 repoman upd 
 
-updates FST in /var/fst. First time repoman will download it
- (it may take some time!).
+updates FST in /var/fst (or the directory set in ~/.repoman.conf). First time
+repoman will download it (it may take some time!).
 
 @section Questions and answers
 @subsection What is the recommended way to version bump a package if I don't have darcs push access?
@@ -581,7 +584,7 @@ If the package needs to be updated at the users, you should increase
  pkgrel - otherwise not. There's no need to increase pkgrel if you:
 
 @itemize
-@item only corrected a package's up2date line. 
+@item only corrected a package's up2date line.
 @end itemize
 
 But pkgrel should be increased if you
@@ -627,8 +630,8 @@ contain a <pkgname> directory at first level, and all the files needed to
  create the fpm in it. It is the easiest way for the maintainers to work
  with your tarball when addig your package to the repo.
 
-@subsection What should I include in depends() and makedepends() 
-and what shouldn't? FIXME
+@subsection What should I include in depends(), rodepends() and makedepends() 
+and what shouldn't?
 
 You shouldn't include any trivial makedepends, you should only include what
  chkdep -p recommends. Trivial makedepends:
@@ -643,6 +646,9 @@ You shouldn't include any trivial makedepends, you should only include what
 @end itemize
 
 Don't forget: every depends is a makedepends as well!
+
+The rodepends() array should only contain packages really needed for running
+the given application.
 
 @subsection What are the various dependancy-control arrays for?
 
@@ -684,8 +690,8 @@ No.
 @itemize
 @item makepkg -d tells you the new version to correct the FrugalBuild with
 @item makepkg -d again (it should fail on the checksum)
-@item makepkg -dg >>FrugalBuild generates the correct checksums into the FB (you should check it anyway)
-@item sudo makepkg -R generates the fpm in chroot 
+@item makepkg -dG generates the correct checksums into the FB (you should check it anyway)
+@item sudo makepkg -a generates the fpm in chroot and also runs chkdep
 @end itemize
 
 @subsection repoman upd can't create /var/fst/ as it already exists
@@ -727,6 +733,8 @@ at the end of the build() you should use:
 
 Fdoc README.Frugalware
 
+It is automatically included if you use empty build() or Fbuild.
+
 @subsection I want to work with the latest development version
  of pacman&co.! How?
 
@@ -737,7 +745,7 @@ make dist
 @end verbatim
 
 You will have a brand new .tar.gz. Give it to pacman-tools' FrugalBuild, 
-correct the checksum, create a new pacman-tools package (makepkg -fuck helps)
+correct the checksum, create a new pacman-tools package (makepkg -fucH helps)
  and install it. That's all (and if you don't understand this, read it again, 
 and if it's still not clear, then wait for pacman-tools' normal upgrade 
 since you don't need this really)...
@@ -745,10 +753,9 @@ since you don't need this really)...
 
 @subsection What is the order of a new package's locales? How should I name them?
 
-Have a look at hunspell (>=1.0.8, waiting to be upload by the time of writing).
- There is a hunspell package, which depends on hunspell-dict. There is 
-no package named hunspell-dict, but it is provided by the locale packages.
- The most important ones are -en (==en_US), -hu (==hu_HU), -de (==de_DE),
+Have a look at hunspell There is a hunspell package, which depends on
+hunspell-dict. There is no package named hunspell-dict, but it is provided by the
+locale packages. The most important ones are -en (==en_US), -hu (==hu_HU), -de (==de_DE),
  -fr (==fr_FR), -it (==it_IT), -es (==es_ES) and -sk (==sk_SK). 
 here are others: -en_US, -de_CH, -es_MX.
 
@@ -759,7 +766,7 @@ The -xx packages will be installed by the non-CD based
 @itemize
 @item If you don't use F* macros in your build(),
  then you'll need a || return 1.
-@item Libraries (.sos) have to be executable.
+@item Shared Libraries (.so) have to be executable.
 @item Stripping binaries is unnecessary since automatically done by makepkg.
 @item If $pkgname.install exists, it is used automatically,
  no need to specify it in the FrugalBuild neither as install nor source.
@@ -770,14 +777,13 @@ The -xx packages will be installed by the non-CD based
  (which is == Fpatchall && Fmake && Fmakeinstall).
 @item If you use F* command $Fdestdir or $Fsrcdir isn't required. Mostly. ;)
 @item license="GPL2" is not required, but it's a habit of BMH.
-@item You can use makepkg -g instead of makepkg -G to get
- sha1sums() instead of md5sums().
+@item You can use makepkg -G instead of makepkg -g to update sha1sums automatically.
 @item If any program depends on a graphical toolkit,
  then it should have x* group.
 @item A package may have only one contributor: the first
  person who wrote FrugalBuild for it.
 @item If a package's group changed you don't have to repackage it,
- a repoman cl is enough.
+ a repoman cl is enough on _all_ architecture.
 @item To turn off ccache, add -B switch to makepkg. In the meantime,
  read man makepkg. ;)
 @item Package name should only contain [A-Za-z0-9+_-], pkgrel and

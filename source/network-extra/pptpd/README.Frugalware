@@ -1,137 +1,157 @@
 1. Preface
-----------
-
++
 I was asked to set up VPN using PPTP. A much secure way to setup it up is using
 IPSec, more details here:
-http://web.archive.org/web/20030416131233/www.counterpane.com/pptpv2-paper.html
-here. Also you could use ssh+pppd, but that's rather problematic on platforms
+http://web.archive.org/web/20030416131233/www.counterpane.com/pptpv2-paper.html[here].
+Also you could use ssh+pppd, but that's rather problematic on platforms
 other than Unix.
 
 2. Setting up the server
-------------------------
-
++
 The big problem here is that most outdated HOWTO starts with patching your
 kernel and ppp. This is no longer needed!
-
++
 Requiements: You need kernel>=2.6.15 or newer (Frugalware 0.4 or higher is OK).
 Also you need ppp>=2.4.2.
-
++
 Also probably these are already installed on your system, let's see the new
 package: pptpd. Install it with the usual
-
-	pacman -Sy pptpd
-
++
+----------------
+pacman -Sy pptpd
+----------------
++
 Probably this is done if you're reading this HOWTO :-)
-
-Here comes my /etc/pptp.conf:
-
-	$ grep -v '^\(#\|$\)' /etc/pptpd.conf
-	option /etc/ppp/options.pptpd
-	logwtmp
-	localip 10.0.0.88
-	remoteip 10.0.0.89-127
-
++
+Here comes my '/etc/pptp.conf':
++
+-------------------------------------
+$ grep -v '^\(#\|$\)' /etc/pptpd.conf
+option /etc/ppp/options.pptpd
+logwtmp
+localip 10.0.0.88
+remoteip 10.0.0.89-127
+-------------------------------------
++
 10.0.0.88 is the internal address of the server, 10.0.0.89-127 is the range
 that can be used by the pptp clients.
-
-Then let's see that referred /etc/ppp/options.pptpd:
-
-	$ grep -v '^\(#\|$\)' /etc/ppp/options.pptpd
-	name pptpd
-	domain nemesis.example.net
-	refuse-pap
-	refuse-chap
-	refuse-mschap
-	require-mschap-v2
-	require-mppe-128
-	proxyarp
-	debug
-	lock
-	nobsdcomp
-	novj
-	novjccomp
-	nologfd
-
++
+Then let's see that referred '/etc/ppp/options.pptpd':
++
+--------------------------------------------
+$ grep -v '^\(#\|$\)' /etc/ppp/options.pptpd
+name pptpd
+domain nemesis.example.net
+refuse-pap
+refuse-chap
+refuse-mschap
+require-mschap-v2
+require-mppe-128
+proxyarp
+debug
+lock
+nobsdcomp
+novj
+novjccomp
+nologfd
+---------------------------------------------
++
 nemesis.example.net is the full name of the machine, replace it to your one.
 After everything works fine, you can remove the "debug" line from the config.
-
++
 Then add at least one user:
-
-	# cat /etc/ppp/chap-secrets
-	Password:
-	vmiklos  pptpd   "secret"        *
-
++
+----------------------------------
+# cat /etc/ppp/chap-secrets
+Password:
+vmiklos  pptpd   "secret"        *
+----------------------------------
++
 The rest is about to allow pptp on the firewall (I'm assuming that you use the
 default Frugalware configuration: INPUT is on DROP by default, but FORWARD is
 allowed, OUTPUT too.)
-
-Add the following 2 lines to the filter section of /etc/sysconfig/firewall:
-
-	-A INPUT -p gre -j ACCEPT
-	-A INPUT -p tcp -m tcp --dport 1723 -j ACCEPT
-
++
+Add the following 2 lines to the filter section of '/etc/sysconfig/firewall':
++
+---------------------------------------------
+-A INPUT -p gre -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 1723 -j ACCEPT
+---------------------------------------------
++
 Now we're ready to start:
-
-	pptpd -f -o /etc/ppp/options.pptpd
-
++
+----------------------------------
+pptpd -f -o /etc/ppp/options.pptpd
+----------------------------------
++
 If no error messages are reported, omit the -f option so it will go background.
-
-Later you can put this to your /etc/rc.d/rc.local. Debug messages will appear
-in /var/log/messages if you're interested in them.
++
+Later you can put this to your '/etc/rc.d/rc.local'. Debug messages will appear
+in '/var/log/messages' if you're interested in them.
 
 3. Client side
---------------
-
++
 Install the necessary "pptp" package:
-
-	pacman -Sy pptp
-
++
+---------------
+pacman -Sy pptp
+---------------
++
 Most howto suggets the pptpconfig (http://pptpclient.sourceforge.net/) tool,
 it's written in PHP and uses GTK+2. You don't want to use graphical tools
 locally (and install XOrg) for administrating your machine, do you?
-
++
 We can do it by hand, not too complicated.
-
++
 You can name every tunnel you create, I'll use here the "mytunnel" name.
-
++
 Fire up your favorite editor and create the /etc/ppp/peers/mytunnel file with
 the following contents:
-
-	$ grep -v '^\(#\|$\)' /etc/ppp/peers/mytunnel
-	name vmiklos
-	remotename PPTP
-	file /etc/ppp/options.pptp
-	pty "pptp IP_OF_THE_SERVER --nolaunchpppd "
-	require-mppe
-
++
+---------------------------------------------
+$ grep -v '^\(#\|$\)' /etc/ppp/peers/mytunnel
+name vmiklos
+remotename PPTP
+file /etc/ppp/options.pptp
+pty "pptp IP_OF_THE_SERVER --nolaunchpppd "
+require-mppe
+---------------------------------------------
++
 Your /etc/ppp/chap-secrets should contain the following line:
-
-	vmiklos  PPTP    secret  *
-
++
+--------------------------
+vmiklos  PPTP    secret  *
+--------------------------
++
 We're ready to start the client:
-
-	pppd pty 'pptp server --nolaunchpppd' call mytunnel debug dump logfd 2 nodetach
-
++
+-------------------------------------------------------------------------------
+pppd pty 'pptp server --nolaunchpppd' call mytunnel debug dump logfd 2 nodetach
+-------------------------------------------------------------------------------
++
 A lot of debug messages will be printed, check on an other console if you got a new pppx interface or not:
-
-	# ifconfig ppp0
-	ppp0      Link encap:Point-to-Point Protocol
-	          inet addr:10.0.0.89  P-t-P:10.0.0.88  Mask:255.255.255.255
-	          UP POINTOPOINT RUNNING NOARP MULTICAST  MTU:996  Metric:1
-	          RX packets:7 errors:0 dropped:0 overruns:0 frame:0
-	          TX packets:7 errors:0 dropped:0 overruns:0 carrier:0
-	          collisions:0 txqueuelen:3
-	          RX bytes:70 (70.0 b)  TX bytes:76 (76.0 b)
-
++
+------------------------------------------------------------------
+# ifconfig ppp0
+ppp0    Link encap:Point-to-Point Protocol
+        inet addr:10.0.0.89  P-t-P:10.0.0.88  Mask:255.255.255.255
+        UP POINTOPOINT RUNNING NOARP MULTICAST  MTU:996  Metric:1
+        RX packets:7 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:7 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:3
+        RX bytes:70 (70.0 b)  TX bytes:76 (76.0 b)
+------------------------------------------------------------------
++
 If it seems to be ok, you no longer need the debug messages and pppd can go
 backround:
-
-	pppd pty 'pptp server --nolaunchpppd' call mytunnel
-
++
+---------------------------------------------------
+pppd pty 'pptp server --nolaunchpppd' call mytunnel
+---------------------------------------------------
++
 That was all. Not so simple but anyone can do it :-)
 
 4. Resources
-------------
 
-* http://czeh.hu/linuxdoc/vpn-pptp.html - VPN connection using PPTP and Linux by István Czéh (Hungarian)
+* http://czeh.hu/linuxdoc/vpn-pptp.html - VPN connection using PPTP and Linux by Istvan Czeh (Hungarian)
 * http://webb.gotdns.com:2080/kernel-mppe/pptp-command.html - 'pptp-command' HOWTO

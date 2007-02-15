@@ -1,0 +1,78 @@
+Frugalware Asciidoc quickstart
+==============================
+
+Since 0.6 Frugalware documentation written in asciidoc which
+means we have to write README.Frugalware files in asciidoc
+syntax. Here are some basic asciidoc features and also some
+thing you should *not* do in a README.Frugalware.
+
+Features:
+---------
+
+You can use *bold*, _italic_('italic') and also `monospaced` fonts.
+
+You can also ``quote'' if you want to do so.
+
+When you want to add something to the
+------------
+command line
+------------
+that's no problem at all.
+
+Maybe you want bulleted items:
+
+.Items
+* item 1
+* item 2
+* here somes 3
+
+And you can also create lists:
+
+1. First
++
+It's indented, belongs to first.
++
+And this paragraph is also indented.
+
+2. Second
++
+This is inside the second point.
++
+2.1. Foo
++
+2.2. Bar
++
+a. Baz
+
+3. Third
+
+End of list.
+
+Some extras:
+
+NOTE: You can also place notes.
+
+TIP: It's a tip
+
+WARNING: Warning.
+
+IMPORTANT: This is important
+
+CAUTION: Cave canem!
+
+Restrictions:
+-------------
+
+You *must not* underline titles with =, -, ~. You might use ^, but try to use + only.
+If you want one line titles place 5 = before the title and a space.
+
+So your titles should look something similar:
+
+---------------------------
+My title
+++++++++
+
+or
+
+===== This is also my title
+---------------------------

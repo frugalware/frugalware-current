@@ -22,10 +22,25 @@ if [[ $pkgname =~ ^xf86-input- ]]; then
 fi
 
 url="http://xorg.freedesktop.org"
+## :FIXME: do it better
+_F_xorg_release_dir="X11R7.2/src"
 _F_xorg_dir=`echo ${groups[$((${#groups[@]}-1))]}|sed 's/xorg-\(.*\)/\1/;s/s$//'`
+_F_xorg_version="X11R7."
 [ "$_F_xorg_name" = "xorg-server" ] && _F_xorg_dir="xserver"
-#dlurl="$url/releases/individual/$_F_xorg_dir/"
-dlurl="http://xorg.freedesktop.org/archive/development/X11R7.2-RC3/everything/"
-up2date="lynx -dump $dlurl | grep $_F_xorg_name-[0-9].*bz2$|sed -n 's/.*$_F_xorg_name-\(.*\)\.t.*/\1/;$ p'"
-source=($dlurl/$_F_xorg_name-$pkgver.tar.bz2)
+dlurl="$url/releases/$_F_xorg_release_dir/$_F_xorg_dir/"
+
+## this checks for 0 , 1 , 2 so on next Xorg release we need change to <= 3 and so on - crazy -
+for (( i=0; $i <= 2; i++ ))
+do
+      if lynx -dump $dlurl|grep -o "$_F_xorg_name-${_F_xorg_version}${i}-\(.*\).tar.bz2" >/dev/null; then
+        _F_xorg_nr=$i
+       fi
+done
+
+up2date="lynx -dump $dlurl | grep '$_F_xorg_name-${_F_xorg_version}$_F_xorg_nr-\(.*\).tar.bz2'|sed -n 's/.*$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-\(.*\)\.t.*/\1/;$ p'"
+source=($dlurl/$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-$pkgver.tar.bz2)
 license="GPL2"
+
+if [ -z "$_F_cd_path" ]; then
+	_F_cd_path="$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-$pkgver"
+fi

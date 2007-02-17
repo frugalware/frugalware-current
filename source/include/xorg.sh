@@ -30,12 +30,12 @@ _F_xorg_version="X11R7."
 dlurl="$url/releases/$_F_xorg_release_dir/$_F_xorg_dir/"
 
 ## this checks for 0 , 1 , 2 so on next Xorg release we need change to <= 3 and so on - crazy -
-for (( i=0; $i <= 2; i++ ))
-do
-      if lynx -dump $dlurl|grep -o "$_F_xorg_name-${_F_xorg_version}${i}-\(.*\).tar.bz2" >/dev/null; then
-        _F_xorg_nr=$i
-       fi
-done
+#for (( i=0; $i <= 2; i++ ))
+#do
+#      if lynx -dump $dlurl|grep -o "$_F_xorg_name-${_F_xorg_version}${i}-\(.*\).tar.bz2" >/dev/null; then
+#        _F_xorg_nr=$i
+#       fi
+#done
 
 up2date="lynx -dump $dlurl | grep '$_F_xorg_name-${_F_xorg_version}$_F_xorg_nr-\(.*\).tar.bz2'|sed -n 's/.*$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-\(.*\)\.t.*/\1/;$ p'"
 source=($dlurl/$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-$pkgver.tar.bz2)

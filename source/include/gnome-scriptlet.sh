@@ -1,10 +1,14 @@
 #!/bin/sh
 
 # (c) 2006 Miklos Vajna <vmiklos@frugalware.org>
-# gnome-scriptlet. for Frugalware
+# gnome-scriptlet.sh for Frugalware
 # distributed under GPL License
 
-# common scheme for kernel FrugalBuilds
+# common scheme for gnome-related FrugalBuilds
+
+# please don't forget to include the necessary packgages (scrollkeeper,
+# desktop-file-utils etc.) in the depends(). at the moment gnome-scriptlet.sh
+# won't do this for you
 
 # usage:
 # _F_gnome_schemas() - if declared, gconf will be called to register them

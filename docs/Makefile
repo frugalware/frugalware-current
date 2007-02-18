@@ -15,12 +15,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-# TODO: pdf, manpages, authors, po4a
-# TODO: remove these hardwired values
-VERSION = 0.6rc1 (Terminus)
-FST_ROOT ?= ~/darcs/current
+# TODO: manpages, authors, po4a
 
-# combined html documents
+VERSION = $(shell date +%Y%m%d)
+#VERSION = 0.6 (Terminus)
+
+# metadocuments
 GENERATED = index.html manual.html index-user.html user.html index-devel.html devel.html
 
 PDFS = manual.pdf user.pdf devel.pdf
@@ -35,8 +35,6 @@ DEVEL_SOURCES = $(shell grep link: index-devel.txt|grep -v devel.html |sed 's/.*
 
 # sources to be removed on make clean
 GENERATED_SOURCES = packages.txt manual.txt user.txt devel.txt $(DYNAMIC_SOURCES)
-
-# no need to modify anything below this line
 
 MERGE = : > $(2); \
 	for i in `cat $(1) |grep link:|sed 's/.*:\(.*\).html\[.*/\1.txt/'`; \
@@ -86,7 +84,7 @@ devel.txt: $(DEVEL_SOURCES) $(DYNAMIC_SOURCES)
 packages.txt:
 	( echo "= Packages"; \
 	echo -e "\nThe following sections describe the configuration of some packages.\n"; \
-	for i in `find $(FST_ROOT)/source -maxdepth 5 -name README.Frugalware`; \
+	for i in `find ../source -maxdepth 5 -name README.Frugalware`; \
 	do \
 		pkgname=`echo $$i |sed 's|.*/\(.*\)/README.Frugalware|\1|'`; \
 		echo "== $$pkgname"; \

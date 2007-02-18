@@ -20,8 +20,10 @@
 VERSION = 0.6rc1 (Terminus)
 FST_ROOT ?= ~/darcs/current
 
-# metadocuments
+# combined html documents
 GENERATED = index.html manual.html index-user.html user.html index-devel.html devel.html
+
+PDFS = manual.pdf user.pdf devel.pdf
 
 # generated sources for metadocuments
 DYNAMIC_SOURCES = header.txt
@@ -44,12 +46,27 @@ MERGE = : > $(2); \
 		echo >> $(2); \
 	done; \
 	sed -i 's/^\(=\+ \)/=\1/' $(2); \
+	sed -i '/^\^\{2,\}$$/s/\^/+/g' $(2); \
+	sed -i '/^~\{2,\}$$/s/~/^/g' $(2); \
 	sed -i '1i include::header.txt[]' $(2)
 
-all: $(MANUAL_SOURCES) $(GENERATED)
+all: html
+
+html: $(MANUAL_SOURCES) $(GENERATED)
+
+pdf: $(PDFS)
 
 %.html: %.txt
 	asciidoc -a toc -a numbered $(basename $@).txt
+
+%.xml: %.txt
+	asciidoc -a toc -a numbered -b docbook $(basename $@).txt
+
+%.fo: %.xml
+	xsltproc /etc/asciidoc/docbook-xsl/fo.xsl $(basename $@).xml > $(basename $@).fo
+
+%.pdf: %.fo
+	fop $(basename $@).fo $(basename $@).pdf
 
 %.txt: %.txt.in
 	sed 's/@VERSION@/$(VERSION)/' $(basename $@).txt.in > $@
@@ -78,7 +95,7 @@ packages.txt:
 	done ) >packages.txt
 
 clean:
-	rm -f *.html $(GENERATED_SOURCES)
+	rm -f *.html *.pdf $(GENERATED_SOURCES)
 
 # checks if all the txts are included in index.txt
 # -2 is for the two tags: index-user.txt and index-devel.txt

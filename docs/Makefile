@@ -17,7 +17,7 @@
 
 # TODO: manpages, authors, po4a
 
-VERSION = $(shell date +%Y%m%d)
+VERSION = $(shell date +%Y%m%d) (-current)
 #VERSION = 0.6 (Terminus)
 
 # metadocuments

@@ -61,8 +61,8 @@ all: html pdf text
 %.html: %.txt
 	asciidoc -a toc -a numbered $(basename $@).txt
 
-%.text: %.txt
-	a2x -f text $(basename $@).txt
+%.text: %.html
+	lynx -dump $(basename $@).html > $@
 
 %.xml: %.txt
 	asciidoc -a toc -a numbered -b docbook $(basename $@).txt

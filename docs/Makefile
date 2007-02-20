@@ -30,15 +30,15 @@ TEXTS = manual.text user.text devel.text
 DYNAMIC_SOURCES = header.txt
 
 # dependencies for metadocuments
-MANUAL_SOURCES = $(shell grep link: index.txt|grep -v manual.html |sed 's/.*:\(.*\)\[.*/\1/')
-USER_SOURCES = $(shell grep link: index-user.txt|grep -v user.html |sed 's/.*:\(.*\).html\[.*/\1.txt/')
-DEVEL_SOURCES = $(shell grep link: index-devel.txt|grep -v devel.html |sed 's/.*:\(.*\).html\[.*/\1.txt/')
+MANUAL_SOURCES = $(shell grep link:.*html index.txt|grep -v manual.html |sed 's/.*:\(.*\)\[.*/\1/')
+USER_SOURCES = $(shell grep link:.*html index-user.txt|grep -v user.html |sed 's/.*:\(.*\).html\[.*/\1.txt/')
+DEVEL_SOURCES = $(shell grep link:.*html index-devel.txt|grep -v devel.html |sed 's/.*:\(.*\).html\[.*/\1.txt/')
 
 # sources to be removed on make clean
 GENERATED_SOURCES = packages.txt manual.txt user.txt devel.txt $(DYNAMIC_SOURCES)
 
 MERGE = : > $(2); \
-	for i in `cat $(1) |grep link:|sed 's/.*:\(.*\).html\[.*/\1.txt/'`; \
+	for i in `cat $(1) |grep link:.*html |sed 's/.*:\(.*\).html\[.*/\1.txt/'`; \
 	do \
 		[ "$$i" = "$(2)" ] && continue; \
 		cat $$i >> $(2); \

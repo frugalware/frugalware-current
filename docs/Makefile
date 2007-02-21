@@ -35,7 +35,10 @@ USER_SOURCES = $(shell grep link:.*html index-user.txt|grep -v user.html |sed 's
 DEVEL_SOURCES = $(shell grep link:.*html index-devel.txt|grep -v devel.html |sed 's/.*:\(.*\).html\[.*/\1.txt/')
 
 # sources to be removed on make clean
-GENERATED_SOURCES = packages.txt manual.txt user.txt devel.txt $(DYNAMIC_SOURCES)
+GENERATED_SOURCES = packages.txt manual.txt user.txt devel.txt po/{docs.pot,*.po~} $(DYNAMIC_SOURCES)
+
+# list of supported languages
+LANGS = $(shell grep '\[po4a_langs\]' po4a.cfg |sed 's/\[po4a_langs\] //')
 
 MERGE = : > $(2); \
 	for i in `cat $(1) |grep link:.*html |sed 's/.*:\(.*\).html\[.*/\1.txt/'`; \
@@ -56,6 +59,17 @@ pdf: $(PDFS)
 text: $(TEXTS)
 
 all: html pdf text
+
+all-i18n: all
+	po4a -k 0 po4a.cfg
+	for i in $(LANGS); \
+	do \
+		yes n |find . -maxdepth 1 -type f -exec cp -i {} $$i \;; \
+		sed -i 's|../source|../../source|' $$i/Makefile; \
+		$(MAKE) -C $$i html || exit 1; \
+		$(MAKE) -C $$i pdf || exit 1; \
+		$(MAKE) -C $$i text || exit 1; \
+	done
 
 %.html: %.txt
 	asciidoc -a toc -a numbered $(basename $@).txt
@@ -99,7 +113,7 @@ packages.txt:
 	done ) >packages.txt
 
 clean:
-	rm -f *.html *.pdf *.text $(GENERATED_SOURCES)
+	rm -rf *.html *.pdf *.text $(GENERATED_SOURCES) $(LANGS)
 
 # checks if all the txts are included in index.txt
 # -2 is for the two tags: index-user.txt and index-devel.txt

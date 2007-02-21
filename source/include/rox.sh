@@ -6,7 +6,7 @@
 
 [ -z "$_F_app_dir" ] && Fdie
 
-options=('${options[@]}' 'nobuild')
+options=('nobuild')
 
 Froxbuild()
 {

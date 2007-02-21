@@ -100,9 +100,8 @@ user.txt: $(USER_SOURCES) $(DYNAMIC_SOURCES)
 devel.txt: $(DEVEL_SOURCES) $(DYNAMIC_SOURCES)
 	$(call MERGE,index-devel.txt,devel.txt)
 
-packages.txt:
-	( echo "= Packages"; \
-	echo -e "\nThe following sections describe the configuration of some packages.\n"; \
+packages.txt: packages.txt.in
+	( cat packages.txt.in; \
 	for i in `find ../source -maxdepth 5 -name README.Frugalware`; \
 	do \
 		pkgname=`echo $$i |sed 's|.*/\(.*\)/README.Frugalware|\1|'`; \

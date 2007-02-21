@@ -60,15 +60,14 @@ text: $(TEXTS)
 
 all: html pdf text
 
-all-i18n: all
+# TODO: if the po4a support is complete then we can add text and pdf here, too
+html-i18n: html
 	po4a -k 0 po4a.cfg
 	for i in $(LANGS); \
 	do \
 		yes n |find . -maxdepth 1 -type f -exec cp -i {} $$i \;; \
 		sed -i 's|../source|../../source|' $$i/Makefile; \
 		$(MAKE) -C $$i html || exit 1; \
-		$(MAKE) -C $$i pdf || exit 1; \
-		$(MAKE) -C $$i text || exit 1; \
 	done
 
 %.html: %.txt

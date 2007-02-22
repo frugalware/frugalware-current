@@ -6,8 +6,8 @@
 
 # using ruby gem sources
 
-depends=('ruby')
-makedepends=('rubygems')
+depends=(${depens[@]} 'ruby')
+makedepends=(${makedepends[@]} 'rubygems')
 source=(http://gems.rubyforge.org/gems/"$pkgname"-"$pkgver".gem)
 up2date='lynx -dump "http://rubyforge.vm.bytemark.co.uk/gems/" | grep "$pkgname-[0-9.]\+.gem$" | sed "s/.*$pkgname-\(.*\).gem.*/\1/" | Fsort | tail -n 1'
 

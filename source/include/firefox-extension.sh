@@ -6,6 +6,7 @@
 
 # provides an Fxpiinstall() function + overwrites build() to just call it
 
+pkgname=firefox-$_F_firefox_ext
 rodepends=('firefox>=2.0')
 groups=('xapps-extra' 'firefox-extensions')
 archs=('i686' 'x86_64')

@@ -1,29 +1,53 @@
 #!/bin/sh
 
-# (c) 2006 Miklos Vajna <vmiklos@frugalware.org>
-# gnome-scriptlet.sh for Frugalware
-# distributed under GPL License
-
-# common scheme for gnome-related FrugalBuilds
-
-# please don't forget to include the necessary packgages (scrollkeeper,
-# desktop-file-utils etc.) in the depends(). at the moment gnome-scriptlet.sh
-# won't do this for you
-
-# usage:
-# _F_gnome_schemas() - if declared, gconf will be called to register them
-# _F_gnome_entries() - same as above except for gconf .entries files
-# _F_gnome_desktop - set to "y" if your package provides a .desktop file
-# _F_gnome_scrollkeeper - set to "y" if you want to run scrollkeeper
-# _F_gnome_mime - set to "y" if your package provides a mime type
-# _F_gnome_iconcache - set to "y" if your package provides an icon in /usr/share/icons/hicolor
-# _F_gnome_scriptlet - name of the generated install script
-#                 (defaults to src/gnome-scriptlet.install)
-
+###
+# = gnome-scriptlet.sh(3)
+# Miklos Vajna <vmiklos@frugalware.org>
+#
+# == NAME
+# gnome-scriptlet.sh - for Frugalware
+#
+# == SYNOPSIS
+# Common schema for GNOME packages using scriplets.
+#
+# == EXAMPLE
+# --------------------------------------------------
+# pkgname=notification-daemon
+# pkgver=0.3.6
+# pkgrel=1
+# pkgdesc="Galago Desktop Presence Framework - Desktop Notification Daemon"
+# url="http://www.galago-project.org"
+# depends=('libnotify>=0.4.3' 'libwnck' 'libsexy' 'gconf' 'dbus-glib>=0.71')
+# makedepends=('gnome-doc-utils' 'intltool')
+# groups=('gnome')
+# archs=('i686' 'x86_64')
+# source=($url/files/releases/source/$pkgname/$pkgname-$pkgver.tar.bz2)
+# up2date="lynx -dump http://www.galago-project.org/files/releases/source/$pkgname | Flasttar"
+# options=('scriptlet')
+# _F_gnome_schemas=('/etc/gconf/schemas/notification-daemon.schemas')
+# _F_gnome_desktop="y"
+# _F_gnome_scrollkeeper="y"
+# Finclude gnome-scriptlet
+# sha1sums=('e43940d202e6af08ac69ec8129fa52be2a99300d')
+# --------------------------------------------------
+# NOTE: Please don't forget to include the necessary packgages (scrollkeeper,
+# desktop-file-utils etc.) in the depends(). At the moment gnome-scriptlet.sh
+# won't do this for you.
+#
+# == OPTIONS
+# * _F_gnome_schemas() - if declared, gconf will be called to register them
+# * _F_gnome_entries() - same as above except for gconf .entries files
+# * _F_gnome_desktop - set to "y" if your package provides a .desktop file
+# * _F_gnome_scrollkeeper - set to "y" if you want to run scrollkeeper
+# * _F_gnome_mime - set to "y" if your package provides a mime type
+# * _F_gnome_iconcache - set to "y" if your package provides an icon in
+# /usr/share/icons/hicolor
+# * _F_gnome_scriptlet - name of the generated install script (defaults to
+# src/gnome-scriptlet.install)
+###
 if [ -z "$_F_gnome_scriptlet" ]; then
 	_F_gnome_scriptlet="src/gnome-scriptlet.install"
 fi
-install="$_F_gnome_scriptlet"
 
 if [ -n "$_F_gnome_schemas" ]; then
 	Fconfopts="$Fconfopts --disable-schemas-install"
@@ -38,6 +62,17 @@ if [ -n "$_F_gnome_mime" ]; then
 	Fconfopts="$Fconfopts --disable-update-mimedb --enable-mime-update=no"
 fi
 
+###
+# == OVERWRITTEN VARIABLES
+# * install
+###
+install="$_F_gnome_scriptlet"
+
+###
+# == PROVIDED FUNCTIONS
+# * Fbuild_slice_scrollkeeper() removes scrollkeeper-update from Makefile.in
+# and omf.make
+###
 Fbuild_slice_scrollkeeper()
 {
 	find . -name Makefile.in -exec sed -i -e 's/-scrollkeeper-update.*//' {} \;
@@ -46,6 +81,10 @@ Fbuild_slice_scrollkeeper()
 	fi
 }
 
+###
+# * Fbuild_gnome_scriptlet() generates a scriptlet for the given package from
+# the template according to the declared options
+###
 Fbuild_gnome_scriptlet()
 {
 	local i str
@@ -80,6 +119,10 @@ Fbuild_gnome_scriptlet()
 	Fsed '$_F_gnome_iconcache' "$_F_gnome_iconcache" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 }
 
+###
+# * build() just includes Fbuild_slice_scrollkeeper and Fbuild_gnome_scriptlet
+# in the default build() (and disables the schema installation on make install)
+###
 build()
 {
 	Fbuild_slice_scrollkeeper

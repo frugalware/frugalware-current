@@ -98,17 +98,17 @@ Fbuild_kde_split_docs()
 Fbuild_kde()
 {
 
-if [  "$_F_kde_reconf" -eq 1 ]; then
-        Fbuild_kde_reconf
-        Fconf \
+	if [  "$_F_kde_reconf" -eq 1 ]; then
+		Fbuild_kde_reconf
+		Fconf \
 		DO_NOT_COMPILE="$_F_kde_do_not_compile"
-        make || Fdie
-        Fmakeinstall
-else
-	Fbuild \
+		make || Fdie
+		Fmakeinstall
+	else
+		Fbuild \
 		DO_NOT_COMPILE="$_F_kde_do_not_compile"
-fi
-        Fbuild_kde_split_docs
+	fi
+	Fbuild_kde_split_docs
 }
 
 

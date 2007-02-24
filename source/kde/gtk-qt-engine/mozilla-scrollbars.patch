@@ -1,0 +1,68 @@
+Index: src/qt_qt_wrapper.cpp
+===================================================================
+--- src/qt_qt_wrapper.cpp	(revision 25)
++++ src/qt_qt_wrapper.cpp	(working copy)
+@@ -18,6 +18,7 @@
+ #include <gdk/gdkx.h>
+ 
+ #include <fcntl.h>
++#include <dlfcn.h>
+ 
+ #ifdef USE_SOLARIS
+ #include <procfs.h>
+@@ -136,7 +137,29 @@
+ 	return 0;
+ }
+ 
++typedef void (*kstyle_fn)( void* );
+ 
++static kstyle_fn get_set_scrollbar_fn()
++{
++	void* handle = dlopen( "libkdefx.so.4", RTLD_LAZY );
++	if( handle == NULL )
++		return NULL;
++	kstyle_fn ret = (kstyle_fn) dlsym( handle, "kde_kstyle_set_scrollbar_type_windows" );
++	dlclose( handle );
++        return ret;
++}
++
++static void initStyle( QStyle* style )
++{
++	if( !style->inherits("KStyle" ) || !mozillaFix )
++		return;
++        if( QCString(style->name()).lower() == "thinkeramik" )
++            return; // this one has its own kdefx :-/
++	static kstyle_fn set_scrollbar = get_set_scrollbar_fn();
++	if( set_scrollbar != NULL )
++		set_scrollbar( style );
++}
++
+ void createQApp()
+ {
+ 	int argc = 1;
+@@ -254,7 +277,7 @@
+ 	}
+ #endif // USE_SOLARIS
+ 
+-	if (cmdLine.contains("mozilla") || cmdLine.contains("firefox"))
++	if (cmdLine.contains("seamonkey") || cmdLine.contains("firefox") || cmdLine.contains("thunderbird"))
+ 		mozillaFix = true;
+ 	
+ 	openOfficeFix = (cmdLine.endsWith("soffice.bin"))
+@@ -366,6 +389,8 @@
+ 	backgroundTile = meepWidget->paletteBackgroundPixmap();
+ 	if (backgroundTile != NULL)
+ 		backgroundTileGdk = gdk_pixmap_foreign_new(backgroundTile->handle());
++
++	initStyle( &qApp->style());
+ }
+ 
+ void destroyQApp()
+@@ -408,6 +433,7 @@
+ 		
+ 		// Tell the QApplication about this new style
+ 		qApp->setStyle(style);
++		initStyle(style);
+ 		
+ 		// Now we need to update GTK's properties
+ 		setRcProperties(gtkRcStyle, 1); // Rewrite our cache file

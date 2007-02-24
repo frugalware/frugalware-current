@@ -1,25 +1,45 @@
 #!/bin/sh
 
-# (c) 2006 Miklos Vajna <vmiklos@frugalware.org>
-# java.sh for Frugalware
-# distributed under GPL License
-
-# common functions for java-related tasks
-
-# usage:
-# _F_java_compiler: defaults to 'ecj', can be 'gcj', too
-# Fant(): a wrapper for ant to use _F_java_compiler as compiler
-# Fgcj(): compile a native binary
-#	example: Fgcj org.foo.hello.Main output input.jar [input2.jar]
-# Fgcjshared(): compile a native library
-#	example: Fgcjshared liboutput.jar.so input.jar [input2.jar]
-# Fjar(): calls Fgcjshared the installs the original and the native jar, too
-# Fjavacleanup(): cleans up the source tree (jar and class files) before
-# building
-
-depends=('libgcj')
-makedepends=('gcc-gcj' 'ant-eclipse-ecj')
-
+###
+# = java.sh(3)
+# Miklos Vajna <vmiklos@frugalware.org>
+#
+# == NAME
+# java.sh - for Frugalware
+#
+# == SYNOPSIS
+# Common schema for java packages.
+#
+# == EXAMPLE
+# --------------------------------------------------
+# pkgname=jakarta-regexp
+# pkgver=1.4
+# pkgrel=1
+# pkgdesc="100% Pure Java Regular Expression package"
+# url="http://jakarta.apache.org/regexp"
+# groups=('devel-extra')
+# archs=('i686' 'x86_64')
+# up2date="lynx -dump http://www.apache.org/dist/jakarta/regexp/source/ |Flasttar"
+# source=(http://www.apache.org/dist/jakarta/regexp/source/jakarta-regexp-$pkgver.tar.gz)
+# signatures=($source.asc)
+# Finclude java
+#
+# build()
+# {
+#         Fcd
+#         Fjavacleanup
+#         Fant
+#         mv build/jakarta-regexp{-$pkgver,}.jar
+#         Fjar build/jakarta-regexp.jar
+# }
+# --------------------------------------------------
+#
+# == OPTIONS
+# * _F_java_compiler: Sets the java compiler used for building. Defaults to
+# 'ecj', can be 'gcj', too.
+# * _F_java_cflags (defaults to -fPIC -findirect-dispatch -fjni): compiler flags passed to the bytecompiler (gcj)
+# * _F_java_ldflags (defaults to -Wl,-Bsymbolic): linker flags passed to the bytecompiler (gcj)
+###
 if [ -z "$_F_java_cflags" ]; then
 	_F_java_cflags="-fPIC -findirect-dispatch -fjni"
 fi
@@ -28,6 +48,18 @@ if [ -z "$_F_java_ldflags" ]; then
 	_F_java_ldflags="-Wl,-Bsymbolic"
 fi
 
+###
+# == OVERWRITTEN VARIABLES
+# * depends()
+# * makedepends()
+###
+depends=('libgcj')
+makedepends=('gcc-gcj' 'ant-eclipse-ecj')
+
+###
+# == PROVIDED FUNCTIONS
+# * Fant(): a wrapper for ant to use _F_java_compiler as compiler
+###
 Fant()
 {
 	if [ -n "$_F_java_compiler" ]; then
@@ -37,6 +69,10 @@ Fant()
 	fi
 }
 
+###
+# * Fgcj(): compile a native binary
+# (example: Fgcj org.foo.hello.Main output input.jar [input2.jar])
+###
 Fgcj()
 {
 	local main="$1" output="$2"
@@ -48,6 +84,10 @@ Fgcj()
 	gcj $CFLAGS --main=$main -o $output $@ || Fdie
 }
 
+###
+# * Fgcjshared(): compile a native library
+# (example: Fgcjshared liboutput.jar.so input.jar [input2.jar])
+###
 Fgcjshared()
 {
 	local output="$1"
@@ -59,6 +99,9 @@ Fgcjshared()
 	gcj -shared $CFLAGS $_F_java_cflags $_F_java_ldflags -o $output $@ || Fdie
 }
 
+###
+# * Fjar(): calls Fgcjshared the installs the original and the native jar, too
+###
 Fjar()
 {
 	local i dir file
@@ -74,6 +117,10 @@ Fjar()
 	done
 }
 
+###
+# * Fjavacleanup(): cleans up the source tree (jar and class files) before
+# building
+###
 Fjavacleanup()
 {
 	find . -name "*.class" -exec rm -vf {} \;

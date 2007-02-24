@@ -1,33 +1,50 @@
 #!/bin/sh
 
-# (c) 2006-2007 Miklos Vajna <vmiklos@frugalware.org>
-# kernel.sh for Frugalware
-# distributed under GPL License
-
-# common scheme for kernel FrugalBuilds
-
-# polite request for people who spin their own kernel fpms:
-# please _do_ use the _F_kernel_name directive to identify
-# that the kernel isn't the stock distribution kernel
-
-# usage:
+###
+# = kernel.sh(3)
+# Miklos Vajna <vmiklos@frugalware.org>
 #
-# there are only two required variables: pkgver and pkgrel. here is a list of
+# == NAME
+# kernel.sh - for Frugalware
+#
+# == SYNOPSIS
+# Common schema for kernel packages.
+#
+# == EXAMPLE
+# --------------------------------------------------
+# pkgver=2.6.20
+# pkgrel=2
+# _F_kernel_stable=1
+# _F_kernel_pathces=(my.patch)
+# Finclude kernel
+# --------------------------------------------------
+# NOTE: Polite request for people who spin their own kernel fpms: Please do use
+# the _F_kernel_name directive to identify that the kernel isn't the stock
+# distribution kernel. Thanks.
+#
+# == OPTIONS
+# There are only two required variables: pkgver and pkgrel. Here is a list of
 # other optional variables:
 #
-# _F_kernel_vmlinuz (defaults to arch/$arch/boot/bzImage)
-# _F_kernel_verbose (if length of it isn't zero, then use make with V=1)
-# _F_kernel_name (defaults to "", example: "-grsec")
-# _F_kernel_ver (defaults to $pkgver)
-# _F_kernel_rel (defaults to $pkgrel)
-# _F_kernel_stable (defaults to 0, example: "16")
-# _F_kernel_rc (defaults to 0, example: "6")
-# _F_kernel_mm (defaults to 0, example: "2")
-# _F_kernel_git (defaults to 0, example: "3")
-# _F_kernel_dontsedarch (don't run the command below to Fsed 486 with your CARCH if set to 1)
-# _F_kernel_dontfakeversion ( don't run sed to fake the kernel version to $pkgname etc if set to 1 )
-# _F_kernel_manualamd64 (don't update the config automatically to add 32bit emulation support on x86_64)
-
+# * _F_kernel_vmlinuz (defaults to arch/$arch/boot/bzImage): path to the kernel
+# binary
+# * _F_kernel_verbose: if set, then the V=1 parameter will be passed to make
+# * _F_kernel_name (defaults to ""): include a string in the kernel version
+# string (example: "-mygrsec")
+# * _F_kernel_ver (defaults to $pkgver): the version of the kernel
+# * _F_kernel_rel (defaults to $pkgrel): the release of the kernel (used in the
+# kernel version string)
+# * _F_kernel_stable: if set, the version of the stable patch to use (example:
+# "16")
+# * _F_kernel_rc: if set, the version of the rc patch to use (example: "6")
+# * _F_kernel_mm: if set, the version of the mm patch to use (example: "2")
+# * _F_kernel_git if set, the version of the git patch to use (example: "3")
+# * _F_kernel_dontsedarch: if set, don't replace 486 with your CARCH in the kernel config
+# * _F_kernel_dontfakeversion if set, don't replace the kernel version string
+# with a generate one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
+# * _F_kernel_manualamd64: if set, don't update the config automatically to add
+# 32bit emulation support on x86_64
+###
 if [ -z "$_F_kernel_ver" ]; then
 	_F_kernel_ver=$pkgver
 fi
@@ -70,6 +87,12 @@ if [ $_F_kernel_rc -gt 0 ]; then
 else
 	_F_kernel_gitver=$_F_kernel_ver-git$_F_kernel_git
 fi
+
+###
+# == OVERWRITTEN VARIABLES
+# * pkgname
+# * pkgdesc
+###
 if [ -z "$pkgname" ]; then
 	if [ -z "$_F_kernel_name" ]; then
 		pkgname=kernel
@@ -77,7 +100,23 @@ if [ -z "$pkgname" ]; then
 		pkgname=kernel$_F_kernel_name
 	fi
 fi
-pkgdesc="The Linux Kernel and modules"
+if [ -z "$_F_kernel_name" ]; then
+	pkgdesc="The Linux Kernel and modules"
+else
+	pkgdesc="The Linux Kernel and modules (${_F_kernel_name/-} version)"
+fi
+###
+# * url
+# * rodepends
+# * makedepends
+# * groups
+# * archs
+# * options()
+# * up2date
+# * source()
+# * signatures()
+# * install
+###
 url="http://www.kernel.org"
 rodepends=('module-init-tools' 'sed')
 if [ -z "$_F_kernel_name" ]; then
@@ -122,6 +161,15 @@ fi
 [ "$CARCH" == "x86_64" ] && MARCH=K8
 echo "$CARCH" |grep -q 'i.86' && KARCH=i386
 
+###
+# * subpkg()
+# * subdepends()
+# * subarchs()
+# * subinstall()
+# * suboptions()
+# * subgroups()
+# * subdescs()
+###
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
 subdepends=("make gcc kernel-headers kernel$_F_kernel_name-docs" "kernel$_F_kernel_name")
 subarchs=('i686 x86_64' 'i686 x86_64')
@@ -141,6 +189,10 @@ else
 		"Linux kernel documentation (${_F_kernel_name/-} version)")
 fi
 
+###
+# == PROVIDED FUNCTIONS
+# * Fbuildkernel()
+###
 Fbuildkernel()
 {
 	Fcd linux-$_F_kernel_ver
@@ -244,6 +296,9 @@ Fbuildkernel()
 	Fsed '$_F_kernel_rel' "$_F_kernel_rel" $Fsrcdir/kernel-source.install
 }
 
+###
+# * build() just calls Fbuildskel()
+###
 build()
 {
 	Fbuildkernel

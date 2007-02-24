@@ -1,16 +1,48 @@
 #!/bin/sh
 
-# (c) 2005 Bence Nagy <nagybence@tipogral.hu>
-# gem.sh for Frugalware
-# distributed under GPL License
-
-# using ruby gem sources
-
+###
+# = gem.sh(3)
+# Miklos Vajna <vmiklos@frugalware.org>
+#
+# == NAME
+# gem.sh - for Frugalware
+#
+# == SYNOPSIS
+# Common schema for Ruby gem packages.
+#
+# == EXAMPLE
+# --------------------------------------------------
+# pkgname=actionwebservice
+# pkgver=1.2.2
+# pkgrel=1
+# pkgdesc="Simple Support for Web Services APIs for Rails"
+# url="http://rubyforge.org/projects/aws/"
+# depends=('activerecord>=1.15.2' 'actionpack>=1.13.2')
+# groups=('devel-extra')
+# archs=('i686' 'x86_64')
+# Finclude gem
+# sha1sums=('2712601395ec0a059263b730b10db9f93cd5a1f1')
+# --------------------------------------------------
+#
+# == APPENDED VARIABLES
+# * ruby to depends()
+# * rubygems to makedepends()
+###
 depends=(${depends[@]} 'ruby')
 makedepends=(${makedepends[@]} 'rubygems')
+
+###
+# == OVERWRITTEN VARIABLES
+# * source()
+# * up2date
+###
 source=(http://gems.rubyforge.org/gems/"$pkgname"-"$pkgver".gem)
 up2date='lynx -dump "http://rubyforge.vm.bytemark.co.uk/gems/" | grep "$pkgname-[0-9.]\+.gem$" | sed "s/.*$pkgname-\(.*\).gem.*/\1/" | Fsort | tail -n 1'
 
+###
+# == PROVIDED FUNCTIONS
+# * Finstallgem()
+###
 Finstallgem() {
 	gem install "$pkgname" --local --version "$pkgver" --install-dir . --ignore-dependencies
 	cd gems/"$pkgname"-"$pkgver"
@@ -42,6 +74,9 @@ Finstallgem() {
 	mv `find . -mindepth 1 -maxdepth 1 -type f` $Fsrcdir
 }
 
+###
+# * build() just calls Fxpiinstall()
+###
 build() {
 	Finstallgem
 }

@@ -31,6 +31,9 @@
 #           'e1ad5704e87a6cd3e8e49728a3b1fe53c832ba9f')
 # --------------------------------------------------
 #
+# NOTE: For the first time, you need to install the extension as a user
+# manually and take the chrome.manifest from your ~/.mozilla/firefox directory.
+#
 # == OPTIONS
 # * _F_firefox_ext: name of the extension
 # * _F_firefox_id: id of the extension

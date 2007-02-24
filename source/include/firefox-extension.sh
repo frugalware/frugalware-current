@@ -1,16 +1,58 @@
 #!/bin/sh
 
-# (c) 2005-2006 Miklos Vajna <vmiklos@frugalware.org>
-# firefox-extension.sh for Frugalware
-# distributed under GPL License
-
-# provides an Fxpiinstall() function + overwrites build() to just call it
-
+###
+# = firefox-extension.sh(3)
+# Miklos Vajna <vmiklos@frugalware.org>
+#
+# == NAME
+# firefox-extension.sh - for Frugalware
+#
+# == SYNOPSIS
+# Common schema for Firefox extension packages.
+#
+# == EXAMPLE
+# --------------------------------------------------
+# pkgver=1.01
+# pkgrel=1
+# pkgdesc="Display WML (Wireless Markup Language) content."
+# url="https://addons.mozilla.org/firefox/1843/"
+# rodepends=('firefox>=1.5')
+# groups=('xapps-extra' 'firefox-extensions')
+# archs=('i686' 'x86_64')
+# up2date="elinks -dump $url |grep xpi$|sed 's/.*g-\(.*\)-.*/\1/'"
+# source=(http://releases.mozilla.org/pub/mozilla.org/extensions/firebug/\
+# firebug-$pkgver-fx+fl.xpi chrome.manifest)
+# _F_firefox_ext=firebug
+# _F_firefox_id="firebug@software.joehewitt.com"
+# _F_firefox_name="$_F_firefox_ext-$pkgver-fx+fl.xpi"
+# _F_firefox_nocurly=1
+# Finclude firefox-extension
+# sha1sums=('f2d188ae2a952fa8326d1bf1364a14079013fd19'\
+#           'e1ad5704e87a6cd3e8e49728a3b1fe53c832ba9f')
+# --------------------------------------------------
+#
+# == OPTIONS
+# * _F_firefox_ext: name of the extension
+# * _F_firefox_id: id of the extension
+# * _F_firefox_name: if not set, the name of the source must be in a
+# $_F_firefox_ext-$pkgver.xpi form
+# * _F_firefox_nocurly: set this if the is not in curly brackets
+#
+# == OVERWRITTEN VARIABLES
+# * pkgname
+# * rodepends()
+# * groups()
+# * archs()
+###
 pkgname=firefox-$_F_firefox_ext
 rodepends=('firefox>=2.0')
 groups=('xapps-extra' 'firefox-extensions')
 archs=('i686' 'x86_64')
 
+###
+# == PROVIDED FUNCTIONS
+# * Fxpiinstall()
+###
 Fxpiinstall()
 {
 	[ -z "$_F_firefox_ext" ] && _F_firefox_ext="$pkgname"
@@ -31,6 +73,9 @@ Fxpiinstall()
 	fi
 }
 
+###
+# * build() just calls Fxpiinstall()
+###
 build()
 {
 	Fxpiinstall

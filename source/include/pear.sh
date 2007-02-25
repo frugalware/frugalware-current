@@ -1,16 +1,41 @@
 #!/bin/sh
 
-# (c) 2006 Miklos Vajna <vmiklos@frugalware.org>
-# pear.sh for Frugalware
-# distributed under GPL License
-
-# common scheme for php pear packages
-
-# usage:
-# _F_pear_name - name of the pear package
-# also don't forge to set pkgver, pkgdesc and depends
-# the rest will be set by this scheme
-
+###
+# = pear.sh(3)
+# Miklos Vajna <vmiklos@frugalware.org>
+#
+# == NAME
+# pear.sh - for Frugalware
+#
+# == SYNOPSIS
+# Common schema for PHP PEAR packages.
+#
+# == EXAMPLE
+# --------------------------------------------------
+# _F_pear_name="MDB2"
+# pkgver=2.3.0
+# pkgdesc="PEAR: database abstraction layer"
+# depends=('php')
+# Finclude pear
+# pkgrel=2
+# sha1sums=('1f9b11d273352209143b5989bc65a3a73f364b3e')
+# --------------------------------------------------
+#
+# == OPTIONS
+# You need to set pkgver, pkgdesc and depends() manually from the standard
+# directives and the followings:
+# * _F_pear_name - name of the pear package
+#
+# == OVERWRITTEN VARIABLES
+# * pkgname
+# * pkgrel
+# * url
+# * groups()
+# * archs()
+# * up2date
+# * source()
+# * install
+###
 pkgname=php-pear-`echo $_F_pear_name|tr [A-Z] [a-z]`
 pkgrel=1
 url="http://pear.php.net/package/$_F_pear_name"
@@ -20,6 +45,10 @@ up2date="lynx -dump http://pear.php.net/package/$_F_pear_name|grep released|sed 
 source=(http://pear.php.net/get/$_F_pear_name-$pkgver.tgz)
 install=src/pear.install
 
+###
+# == PROVIDED FUNCTIONS
+# * Fbuildpear()
+###
 Fbuildpear()
 {
 	# install the package
@@ -39,6 +68,9 @@ Fbuildpear()
 	Fsed '$_F_pear_name' "$_F_pear_name" $Fsrcdir/pear.install
 }
 
+###
+# * build() just calls Fbuildskel()
+###
 build()
 {
 	Fbuildpear

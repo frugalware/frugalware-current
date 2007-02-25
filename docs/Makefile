@@ -81,9 +81,11 @@ html-i18n: html
 
 %.fo: %.xml
 	xsltproc /etc/asciidoc/docbook-xsl/fo.xsl $(basename $@).xml > $(basename $@).fo
+	sed -i 's/sans-serif,Symbol,ZapfDingbats/DejaVuSans/g' $(basename $@).fo
+	sed -i 's/serif,Symbol,ZapfDingbats/DejaVuSerif/g' $(basename $@).fo
 
 %.pdf: %.fo
-	fop $(basename $@).fo $(basename $@).pdf
+	fop -c /usr/share/fop/dejavu-ttf.xml $(basename $@).fo $(basename $@).pdf
 
 %.txt: %.txt.in
 	sed 's/@VERSION@/$(VERSION)/' $(basename $@).txt.in > $@

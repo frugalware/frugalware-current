@@ -1,11 +1,38 @@
 #!/bin/sh
 
-# (c) 2006 Miklos Vajna <vmiklos@frugalware.org>
-# pecl.sh for Frugalware
-# distributed under GPL License
-
-# common scheme for php extensions
-
+###
+# = pecl.sh(3)
+# Miklos Vajna <vmiklos@frugalware.org>
+#
+# == NAME
+# pecl.sh - for Frugalware
+#
+# == SYNOPSIS
+# Common schema for PHP PECL packages.
+#
+# == EXAMPLE
+# --------------------------------------------------
+# _F_pecl_name="ncurses"
+# pkgver=1.0.0
+# pkgdesc="Terminal screen handling and optimization package for PHP."
+# depends=('php>=5.2.0' 'ncurses')
+# Finclude pecl
+# archs=('i686' 'x86_64')
+# pkgrel=2
+# sha1sums=('bd57c58806d72baa23c20f4d078c0196f7c2c309')
+# --------------------------------------------------
+#
+# == OPTIONS
+# * _F_pecl_name: The name of the PECL extension.
+# == OVERWRITTEN VARIABLES
+# * pkgname
+# * pkgrel
+# * url
+# * groups()
+# * archs()
+# * up2date
+# * source()
+###
 pkgname=php-pecl-$_F_pecl_name
 pkgrel=1
 url="http://pecl.php.net/package/$_F_pecl_name"
@@ -14,6 +41,10 @@ archs=('i686')
 up2date="lynx -dump $url  |grep gz$|sed 's/.*-\(.*\)\.t.*/\1/;q'"
 source=(http://pecl.php.net/get/$_F_pecl_name-$pkgver.tgz)
 
+###
+# == PROVIDED FUNCTIONS
+# * Fbuildpecl()
+###
 Fbuildpecl()
 {
 	Fcd $_F_pecl_name-$pkgver
@@ -23,6 +54,9 @@ Fbuildpecl()
 	Fexerel /usr/lib/php/$_F_pecl_name.so
 }
 
+###
+# * build() just calls Fbuildskel()
+###
 build()
 {
 	Fbuildpecl

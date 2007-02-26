@@ -1,21 +1,83 @@
 #!/bin/sh
 
-# (c) 2006 Miklos Vajna <vmiklos@frugalware.org>
-# scm.sh for Frugalware
-# distributed under GPL License
+###
+# = scm.sh(3)
+# Miklos Vajna <vmiklos@frugalware.org>
+#
+# == NAME
+# scm.sh - for Frugalware
+#
+# == SYNOPSIS
+# Common schema for "live" (pulling out the source directly using a version
+# control system) packages.
+#
+# == EXAMPLE
+# --------------------------------------------------
+# pkgname=mktemp-cvs
+# pkgver=20060614
+# pkgrel=1
+# pkgdesc="A small program to allow safe temporary file creation from shell scripts."
+# url="http://www.mktemp.org/"
+# depends=('glibc')
+# replaces=('debianutils')
+# groups=('base' 'chroot-core')
+# archs=('i686' 'x86_64')
+# options=('nobuild')
+# _F_scm_type="cvs"
+# _F_scm_url=":pserver:anoncvs@anoncvs.mktemp.org:/cvs"
+# _F_scm_password="anoncvs"
+# _F_scm_module="mktemp"
+# Finclude scm
 
-# common up2date and an Funpack_scm() function for various "live" FBs
-
-# usage:
-# _F_scm_type: can be darcs, cvs, subversion, git, mercurial or bzr - required
-# _F_scm_url: url of the repo - required
-# _F_scm_password: password of the repo - required for cvs
-# _F_scm_module: name of the module to check out - required for cvs and subversion
-# _F_scm_tag: name of the tag/branch to use - implemented for darcs/cvs
+# build()
+# {
+#         Funpack_scm
+#         chmod +x config.guess config.sub configure install-sh mkinstalldirs
+#         Fbuild
+# }
+# --------------------------------------------------
+# Example for hg:
+# --------------------------------------------------
+# _F_scm_type="mercurial"
+# _F_scm_url="http://thunk.org/hg/e2fsprogs"
+# --------------------------------------------------
+# Example for git:
+# --------------------------------------------------
+# _F_scm_type="git"
+# _F_scm_url="http://www.kernel.org/pub/scm/linux/pcmcia/pcmciautils.git"
+# --------------------------------------------------
+# Example for darcs:
+# --------------------------------------------------
+# _F_scm_type="darcs"
+# _F_scm_url="http://darcs.frugalware.org/repos/pacman-tools/"
+# --------------------------------------------------
+# Example for bzr:
+# --------------------------------------------------
+# _F_scm_type="bzr"
+# _F_scm_url="http://people.ubuntu.com/~pitti/bzr/pmount"
+# --------------------------------------------------
+# Example for svn:
+# --------------------------------------------------
+# _F_scm_type="subversion"
+# _F_scm_url="svn://svn.mplayerhq.hu/mplayer/trunk"
+# _F_scm_module="mplayer"
+# --------------------------------------------------
+# == OPTIONS
+# * _F_scm_type: can be darcs, cvs, subversion, git, mercurial or bzr - required
+# * _F_scm_url: url of the repo - required
+# * _F_scm_password: password of the repo - required for cvs
+# * _F_scm_module: name of the module to check out - required for cvs and subversion
+# * _F_scm_tag: name of the tag/branch to use - implemented for darcs/cvs
+###
 
 # slice the / suffix if there is any
 _F_scm_url=${_F_scm_url%/}
 
+###
+# == OVERWRITTEN VARIABLES
+# * up2date
+# * makedepends()
+###
 if [ "$_F_scm_type" == "darcs" ]; then
 	up2date="lynx -source -dump $_F_scm_url/_darcs/inventory|grep ']'|sed -n 's/.*\*\(.*\)\]./\1/;$ p'"
 	makedepends=(${makedepends[@]} 'darcs')
@@ -38,6 +100,10 @@ elif [ "$_F_scm_type" == "bzr" ]; then
 	makedepends=(${makedepends[@]} 'bzr')
 fi
 
+###
+# == PROVIDED FUNCTIONS
+# * Funpack_scm()
+###
 Funpack_scm()
 {
 	local extra
@@ -76,6 +142,9 @@ Funpack_scm()
 	fi
 }
 
+###
+# * build() just calls Funpack_scm and Fbuild
+###
 build()
 {
 	Funpack_scm

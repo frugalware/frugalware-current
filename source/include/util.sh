@@ -1,5 +1,50 @@
 #!/bin/sh
 
+# No author, see below.
+
+###
+# = util.sh(3)
+#
+# == NAME
+# util.sh - for Frugalware
+#
+# == SYNOPSIS
+# General utility functions for Frugalware packages.
+#
+# == EXAMPLE
+#
+# Example for Fdesktop2:
+# --------------------------------------------------
+# _F_desktop_name="Adobe Reader"
+# _F_desktop_icon="acroread.png"
+# _F_desktop_categories="GTK;Utility;Viewer;"
+# _F_desktop_mime="application/pdf;"
+# --------------------------------------------------
+# NOTE: You don't need to use Finclude util, it is automatically included.
+#
+# == OPTIONS
+# * _F_cd_path (defaults to $pkgname-$pkgver$pkgextraver)
+# * _F_conf_configure (defaults to ./configure)
+# * _F_conf_perl_pipefrom: if set, pipe the output of this command in Fconf()
+# for perl packages
+# * _F_rcd_name (defaults to $pkgname): the name of the initscript without the
+# 'rc.' prefix
+# * _F_desktop_filename (defaults to $pkgname.desktop): Name of the .desktop
+# file
+# * _F_desktop_name (defaults to $pkgname): Name of the desktop icon to be
+# displayed
+# * _F_desktop_desc (defaults to $pkgdesc): Description of the icon
+# * _F_desktop_icon (no default, required): Icon to be used from
+# /usr/share/pixmaps
+# * _F_desktop_exec (defaults to $pkgname): Name of the executable file
+# * _F_desktop_categories ('Application;' is always prepended): You can choose
+# one or more from the followings:
+# System;Games;AudioVideo;GNOME;KDE;Network;Development;FileTransfer;GTK;
+# * _F_desktop_mime (no default, optional): Mimetypes
+# * _F_desktop_show_in: Whether the icon should be showed in only a particular
+# DE like "XFCE;" for Xfce, "GNOME;" for Gnome, etc.
+###
+
 # Copyright (C) 2005-2006 Bence Nagy <nagybence@tipogral.hu>
 # Copyright (C) 2005-2006 Miklos Vajna <vmiklos@frugalware.org>
 # util.sh for Frugalware
@@ -10,25 +55,34 @@
 # This file can be distributed under the terms of the
 # GNU General Public License version 2.
 
-# general utility functions for FrugalBuilds
-
+###
+# == OVERWRITTEN VARIABLES
+# Since util.sh is included before the FrugalBuild you may modify these
+# variables, they won't be overwritten by util.sh again.
+# * Fsrcdir
+# * Fdestdir
+# * Fprefix
+# * Fsysconfdir
+# * Flocalstatedir
+# * Fmenudir
+# * Farchs
+# * Fconfopts
+# * LDFLAGS
+###
 Fsrcdir="$startdir/src"
 Fdestdir="$startdir/pkg"
 Fprefix="/usr"
 Fsysconfdir="/etc"
 Flocalstatedir="/var"
 Fmenudir="/usr/share/applications"
+Farchs=('i686' 'x86_64' 'ppc')
 Fconfopts="--prefix=$Fprefix"
 export LDFLAGS="-Wl,--hash-style=both"
 
-### @defgroup fwmakepkg Common functions
- # @{
- # @brief Common functions used by makepkg
- ##
-
-### Prints out a message
- # @param message message to display
- ##
+###
+# == PROVIDED FUNCTIONS
+# * Fmessage(): Prints out a message. Parameter: message to display.
+###
 Fmessage() {
 	if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
 		echo -e "\033[1;36m==>\033[1;0m \033[1;1m$1\033[1;0m" >&2
@@ -37,15 +91,17 @@ Fmessage() {
 	fi
 }
 
-### Cause makepkg to exit
- ##
+###
+# * Fdie():  Cause makepkg to exit.
+###
 Fdie() {
 	exit 2
 }
 
-### Go to the source directory if it is $Fsrcdir currently
- # @param dir optional source directory, default is $pkgname-$pkgver$pkgextraver
- ##
+###
+# * Fcd(): Go to the source directory if it is $Fsrcdir currently. Parameter:
+# optional source directory, default is $_F_cd_path.
+###
 Fcd() {
 	if [ "$Fsrcdir" = `pwd` ]; then
 		if [ "$#" -eq 1 ]; then
@@ -60,9 +116,10 @@ Fcd() {
 	fi
 }
 
-### Creates a directory under $Fdestdir
- # @param dir name of the directory to create (you can supply more than one)
- ##
+###
+# * Fmkdir(): Creates a directory under $Fdestdir. Parameter: name of the
+# directory to create (you can supply more than one).
+###
 Fmkdir() {
 	local i
 	for i in "$@"; do
@@ -73,9 +130,10 @@ Fmkdir() {
 	done
 }
 
-### Deletes (rm -rf) a directory stucture under $Fdestdir
- # @param path name of the path to rm -rf (you can supply more than one)
- ##
+###
+# * Frm(): Deletes (rm -rf) a directory stucture under $Fdestdir. Parameter:
+# name of the path to rm -rf (you can supply more than one).
+###
 Frm() {
 	local i
 	for i in "$@"; do
@@ -84,47 +142,48 @@ Frm() {
 	done
 }
 
-### Copy file(s) under $Fdestdir
- # @param source name of the file(s)
- # @param dest path of the destination
- ##
+###
+# * Fcp(): Copy file(s) under $Fdestdir. First parameter: name of the file,
+# second parameter: path of the destination.
+###
 Fcp() {
 	Fmessage "Copying file(s): $1"
 	cp "$Fdestdir/"$1 "$Fdestdir"/$2 || Fdie
 }
 
-### Copy file(s) to $Fdestdir recursively from $Fsrcdir
- # @param source name of the file(s)
- # @param dest path of the destination
- ##
+###
+# * Fcpr(): Copy file(s) to $Fdestdir recursively from $Fsrcdir. First
+# parameter: name of the file, second parameter: path of the destination.
+###
 Fcpr() {
 	Fmessage "Copying file(s) recursive: $1"
-	cp -dpR "$Fsrcdir/"$1 "$Fdestdir"/$2 || Fdie
+	cp -a "$Fsrcdir/"$1 "$Fdestdir"/$2 || Fdie
 }
 
-### Copy file(s) to $Fdestdir recursively from the current working dir
- # @param source name of the file(s)
- # @param dest path of the destination
- ##
+###
+# * Fcpr(): Copy file(s) to $Fdestdir recursively from the current working
+# directory. First parameter: name of the file, second parameter: path of the
+# destination.
+###
 Fcprrel() {
 	Fmessage "Copying file(s) recursive: $1"
-	cp -dpR $1 "$Fdestdir"/$2 || Fdie
+	cp -a $1 "$Fdestdir"/$2 || Fdie
 }
 
-### Move file(s) under $Fdestdir
- # @param source name of the file(s)
- # @param dest path of the destination
- ##
+###
+# * Fmv(): Move a file under $Fdestdir. First parameter: name of the file,
+# second parameter: path of the destination.
+###
 Fmv() {
 	Fmessage "Moving file(s): $1"
 	mv "$Fdestdir/"$1 "$Fdestdir"/$2 || Fdie
 }
 
-### Install file(s) to $Fdestdir
- # @param mode set permission mode (as in chmod)
- # @param file(s) to be installed (defaults to `basename $destination`)
- # @param destination
- ##
+###
+# * Finstallrel(): Install file(s) to $Fdestdir. Parameters: 1) set permission
+# mode (as in chmod) 2) file(s) to be installed (defaults to `basename
+# $destination`) 3) destination
+###
 Finstallrel() {
 	if [ "$#" -eq 3 ]; then
 		Fmessage "Installing file(s): $2"
@@ -147,12 +206,11 @@ Finstallrel() {
 	fi
 }
 
-### Install file(s) to $Fdestdir from $Fsrcdir
- # @param mode set permission mode (as in chmod)
- # @param file(s) to be installed from $Fsrcdir \
- #        (defaults to $Fsrcdir/`basename $destination`)
- # @param destination
- ##
+###
+# * Finstall(): Install file(s) to $Fdestdir from $Fsrcdir. Parameters: 1) set
+# permission mode (as in chmod) 2) file(s) to be installed from $Fsrcdir
+# (defaults to $Fsrcdir`basename $destination`) 3) destination
+###
 Finstall() {
 	if [ "$#" -eq 3 ]; then
 		Finstallrel "$1" "$Fsrcdir/$2" "$3"
@@ -167,86 +225,87 @@ Finstall() {
 	fi
 }
 
-### Changes the permissions of dirs & subdirs inside $Fdestdir
- # @param dir where to start "find"
- # @param permission octal mode or [+-][rwxstugo]
- ##
+###
+# * Fdirschmod(): Changes the permissions of dirs & subdirs inside $Fdestdir.
+# First parameter: where to start "find", second parameter: octal mode or
+# [+-][rwxstugo].
+###
 Fdirschmod() {
-	Fmessage "Configure chmod dirs & subdirs inside: $1"
+	Fmessage "Changing directory permissions inside: $1"
 	find "$Fdestdir"/$1 -type d |xargs chmod $2 || Fdie
 }
 
-### Changes the permissions of all file(s) inside $Fdestdir
- # @param dir to where start "find"
- # @param permission octal mode or [+-][rwxstugo]
- ##
+###
+# Ffileschmod(): Changes the permissions of all file(s) inside $Fdestdir. First
+# parameter: where to start "find", second parameter: octal mode or
+# [+-][rwxstugo].
+###
 Ffileschmod() {
-	Fmessage "Configure chmod all files inside: $1"
+	Fmessage "Changing file permissions inside: $1"
         find "$Fdestdir"/$1 -type f |xargs chmod $2 || Fdie
 }
 
-### Change the owner and/or group of dirs and subdirs inside $Fdestdir
- # @param dir where to start "find"
- # @param owner (needed)
- # @param group (needed)
- ##
+###
+# * Fdirschown(): Change the owner and/or group of dirs and subdirs inside
+# $Fdestdir. Parameters: 1) where to start "find" 2) owner 3) group.
+###
 Fdirschown() {
-	Fmessage "Configure chown dirs & subdirs inside: $1"
+	Fmessage "Changing the owner of directories inside: $1"
 	find "$Fdestdir"/$1 -type d |xargs chown $2:$3 || Fdie
 }
 
-### Change the owner and/or group of all file(s) inside $Fdestdir
- # @param dir where to start "find"
- # @param owner (needed)
- # @param group (needed)
- ##
+###
+# * Ffileschown(): Change the owner and/or group of files inside $Fdestdir.
+# Parameters: 1) where to start "find" 2) owner 3) group.
+###
 Ffileschown() {
-	Fmessage "Configure chown all files inside: $1"
+	Fmessage "Changing the owner of files inside: $1"
 	find "$Fdestdir"/$1 -type f |xargs chown $2:$3 || Fdie
 }
 
-### Install executable file(s) to $Fdestdir from $Fsrcdir
- # @param file(s) to be installed from $Fsrcdir \
- #        (defaults to $Fsrcdir/`basename $destination`)
- # @param destination
- ##
+###
+# * Fexe(): Install executable file(s) to $Fdestdir from $Fsrcdir. First
+# parameter: file(s) to be installed from $Fsrcdir (defaults to
+# $Fsrcdir/`basename $destination`), second parameter: destination.
+###
 Fexe() {
 	Finstall 0755 "$@"
 }
 
-### Install executable file(s) to $Fdestdir
- # @param file(s) to be installed \
- #        (defaults to `basename $destination`)
- # @param destination
- ##
+###
+# * Fexerel(): Install executable file(s) to $Fdestdir. First parameter:
+# file(s) to be installed (defaults to `basename $destination`), second
+# parameter: destination.
+###
 Fexerel() {
 	Finstallrel 0755 "$@"
 }
 
-### Install regular file(s) to $Fdestdir from $Fsrcdir
- # @param file(s) to be installed from $Fsrcdir \
- #        (defaults to $Fsrcdir/`basename $destination`)
- # @param destination
- ##
+###
+# * Ffile(): Install regular file(s) to $Fdestdir from $Fsrcdir. First
+# parameter: file(s) to be installed from $Fsrcdir (defaults to
+# $Fsrcdir/`basename $destination`), second parameter: destination.
+###
 Ffile() {
 	Finstall 0644 "$@"
 }
 
-### Install regular file(s) to $Fdestdir
- # @param file(s) to be installed \
- #        (defaults to `basename $destination`)
- # @param destination
- ##
+###
+# * Ffilerel(): Install regular file(s) to $Fdestdir. First parameter: file(s)
+# to be installed (defaults to `basename $destination`), second parameter:
+# destination.
+###
 Ffilerel() {
 	Finstallrel 0644 "$@"
 }
 
-### Install documentation file(s) to $Fdestdir/usr/share/doc/$pkgname-$pkgver \
- #  from $Fsrcdir. Also is $file.xx or $file.xx_YY present then it will be \
- #  automatically installed, too.
- # @param file(s) to be installed from $Fsrcdir \
- #        (defaults to $Fsrcdir/`basename $destination`)
- ##
+###
+# * Fdoc(): Install documentation file(s) to
+# $Fdestdir/usr/share/doc/$pkgname-$pkgver from $Fsrcdir. Also if $file.xx or
+# $file.xx_YY present then it will be automatically installed, too. Parameter:
+# file(s) to be installed from $Fsrcdir (defaults to $Fsrcdir/`basename
+# $destination`).
+###
 Fdoc() {
 	Fmkdir "/usr/share/doc/$pkgname-$pkgver"
 	local i
@@ -265,12 +324,12 @@ Fdoc() {
 	done
 }
 
-### Install documentation file(s) to $Fdestdir/usr/share/doc/$pkgname-$pkgver.
- #  Also is $file.xx or $file.xx_YY present then it will be \
- #  automatically installed, too.
- # @param file(s) to be installed \
- #        (defaults to $Fsrcdir/`basename $destination`)
- ##
+###
+# * Fdocrel(): Install documentation file(s) to
+# $Fdestdir/usr/share/doc/$pkgname-$pkgver. Also if $file.xx or $file.xx_YY
+# present then it will be automatically installed, too. Parameter: file(s) to
+# be installed (defaults to $Fsrcdir/`basename $destination`).
+###
 Fdocrel() {
 	Fmkdir "/usr/share/doc/$pkgname-$pkgver"
 	local i
@@ -289,41 +348,39 @@ Fdocrel() {
 	done
 }
 
-### Install icon file(s) to $Fdestdir/usr/share/pixmaps \
- #  from $Fsrcdir
- # @param file(s) to be installed from $Fsrcdir \
- #        (defaults to $Fsrcdir/`basename $destination`)
- ##
+###
+# * Ficon(): Install icon file(s) to $Fdestdir/usr/share/pixmaps from $Fsrcdir.
+# Parameter: file(s) to be installed from $Fsrcdir.
+###
 Ficon() {
         Fmkdir "/usr/share/pixmaps"
         Ffile "$@" "/usr/share/pixmaps/"
 }
 
-### Install icon file(s) to $Fdestdir/usr/share/pixmaps \
- #  from $Fsrcdir
- # @param file(s) to be installed from $Fsrcdir \
- #        (defaults to $Fsrcdir/`basename $destination`)
- ##
+###
+# * Ficonrel(): Install icon file(s) to $Fdestdir/usr/share/pixmaps from the
+# current working directory.  Parameter: file(s) to be installed.
+###
 Ficonrel() {
         Fmkdir "/usr/share/pixmaps"
         Ffilerel "$@" /usr/share/pixmaps
 }
 
-### Create symlink in $Fdestdir
- # @param source (i.e. mysql/libmysqlclient.so)
- # @param target (i.e. /usr/lib/) ($target's dir will be created if necessary)
- ##
+###
+# * Fln(): Create a symlink in $Fdestdir. First parameter: source (i.e.
+# mysql/libmysqlclient.so), second parameter: target (i.e. /usr/lib/)
+# ($target's dir will be created if necessary).
+###
 Fln() {
 	Fmessage "Creating symlink(s): $1"
 	Fmkdir "`dirname $2`"
 	ln -sf $1 "$Fdestdir"/$2 || Fdie
 }
 
-### Use sed with file(s)
- # @param regexp
- # @param replacement (see man sed!)
- # @param file(s) to edit in place
- ##
+###
+# * Fsed(): Use sed on file(s). Parameters: 1) regexp (see man sed!) 2)
+# replacement 3) file(s) to edit in place.
+###
 Fsed() {
 	Fcd
 	for i in ${@:3:$#}; do
@@ -332,9 +389,10 @@ Fsed() {
 	done
 }
 
-### Strip $Fdestdir from files in $Fdestdir
- # @param file(s) to strip
- ##
+###
+# * Fdeststrip(): Strip $Fdestdir from files in $Fdestdir. Parameter: file(s)
+# to strip.
+###
 Fdeststrip() {
 	local i
 	for i in "$@"; do
@@ -342,9 +400,10 @@ Fdeststrip() {
 	done
 }
 
-### Apply a patch with -p1 (use the .patch0 suffix for -p0)
- # @param Patch to apply. A ".gz" or ".bz2" suffix will be ingored.
- ##
+###
+# * Fpatch(): Apply a patch with -p1 (or -p0 if -p1 fails). Parameter: Patch to
+# apply. A ".gz" or ".bz2" suffix will be ingored.
+###
 Fpatch() {
 	Fcd
 	local i level="1"
@@ -363,17 +422,19 @@ Fpatch() {
 	patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$i" || Fdie
 }
 
-### Apply patches from source(). \
- #  Allowed suffixes are \.\(patch[0-9]*\|diff\)\(\.\(gz\|bz2\)\|\). \
- #  URLs allowed, too.
- ##
+###
+# * Fpatchall(): Apply patches from source(). Allowed suffixes are
+# \.\(patch[0-9]*\|diff\)\(\.\(gz\|bz2\)\|\). URLs allowed, too. If the patch
+# is in some foo-<valid arch>.suffix format, then the patch will be applied on
+# the given arch only.
+###
 Fpatchall() {
-	local archs=('i686' 'x86_64' 'ppc') patch="" patcharch=""
+	local patch="" patcharch=""
 	for i in ${source[@]}; do
 		if [ -n "`echo "$i" | grep \.patch[0-9]*$`" -o -n "`echo "$i" | grep \.diff$`" -o -n "`echo "$i" | grep '\.\(patch[0-9]*\|diff\)\.\(gz\|bz2\)$'`" ]; then
 			patch=`strip_url "$i"`
 			patcharch=`echo $patch|sed 's/.*-\([^-]\+\)\.\(diff\|patch0\?\)$/\1/'`
-			if [ "$patcharch" != "$patch" ] && echo ${archs[@]}|grep -q $patcharch; then
+			if [ "$patcharch" != "$patch" ] && echo ${Farchs[@]}|grep -q $patcharch; then
 				# filter the patch if it's not for the current arch
 				if [ "$patcharch" == "$CARCH" ]; then
 					Fpatch $patch
@@ -385,16 +446,16 @@ Fpatchall() {
 	done
 }
 
-### A wrapper to ./configure. It will try to run ./configure, Makefile.PL, \
- #  extconf.rb and configure.rb, respectively. It will automatically add the \
- #  --prefix=$Fprefix (defaults to /usr), \
- #  --sysconfdir=$Fsysconfdir (defaults to /etc) and the \
- #  --localstatedir=$Flocalstatedir (defaults to /var) switches. The two later \
- #  will be added only if the configure script support it.
- #  If you want to pre-set a switch (i.e. add a switch only on a ceratin \
- #  arch or so) apped the $Fconfopts variable.
- # @param switch(es) to pass to the configure script
- ##
+###
+# * Fconf(): A wrapper to ./configure. It will try to run ./configure,
+# Makefile.PL, extconf.rb and configure.rb, respectively. It will automatically
+# add the --prefix=$Fprefix (defaults to /usr), --sysconfdir=$Fsysconfdir
+# (defaults to /etc) and the --localstatedir=$Flocalstatedir (defaults to /var)
+# switches. The two later will be added only if the configure script support
+# it. If you want to pre-set a switch (i.e. add a switch only on a ceratin arch
+# or so) apped the $Fconfopts variable. Parameter: switch(es) to pass to the
+# configure script.
+###
 Fconf() {
 	Fcd
 	Fmessage "Configuring..."
@@ -422,9 +483,10 @@ Fconf() {
 	fi
 }
 
-### A wrapper to make and "python setup.py build" after calling Fconf()
- # @param switch(es) to pass to Fconf()
- ##
+###
+# * Fmake(): A wrapper to make and "python setup.py build" after calling
+# Fconf(). Paramter: switch(es) to pass to Fconf().
+###
 Fmake() {
 	Fconf "$@"
 	Fmessage "Compiling..."
@@ -435,10 +497,10 @@ Fmake() {
 	fi
 }
 
-### A wrapper to nant
- # @param build file to use
- # @param switch(es) to pass to nant
- ##
+###
+# * Fnant(): A wrapper to nant. Parameters: 1) build file to use 2) switch(es)
+# to pass to nant.
+###
 Fnant() {
 	Fmessage "Compiling with NAnt..."
 	if [ ! -f "$1" ]; then
@@ -450,12 +512,14 @@ Fnant() {
 	fi
 }
 
-### A wrapper to make install: calls make DESTDIR=$Fdestir or \
- #  prefix=$Fdestdir/usr install (which is necessary). \
- #  Also handles python's setup.py. \
- #  Removes /usr/info/dir and /usr/share/info/dir.
- # @param param(s) passed to make/python
- ##
+###
+# * Fmakeinstall(): A wrapper to make install. Calls make DESTDIR=$Fdestir or
+# prefix=$Fdestdir/usr install (which is necessary). Also handles python's
+# setup.py. Removes /usr/info/dir and /usr/share/info/dir and moves the perl
+# modules (if found) to the right location. If an rc.$_F_rcd_name file is
+# found, then installs the init script, too. Parameter(s) are passed to
+# make/python.
+###
 Fmakeinstall() {
 	Fmessage "Installing to the package directory..."
 	if [ -f GNUmakefile -o -f makefile -o -f Makefile ]; then
@@ -498,9 +562,10 @@ Fmakeinstall() {
 	fi
 }
 
-### A default build(): Fpatchall, Fmake, Fmakeinstall
- # @param param(s) passed to Fmake
- ##
+###
+# * Fbuild(): The default build(): Fpatchall, Fmake, Fmakeinstall. Parameter(s)
+# are passed to Fmake.
+###
 Fbuild() {
 	Fpatchall
 	Fmake "$@"
@@ -510,9 +575,11 @@ Fbuild() {
 	fi
 }
 
-### Create an rc.d environment
- # @param name of the rc script, defaults to $pkgname
- ##
+###
+# * Frcd(): Create an rc.d environment. Parameter: name of the rc script,
+# defaults to $pkgname.
+# NOTE: this function is obsolete, use Frcd2 instead.
+###
 Frcd() {
 	if [ "$#" -eq 1 ]; then
 		Fmessage "Creating rc.d environment: $1"
@@ -722,16 +789,6 @@ EOF
 
 ### Creates a .desktop for graphical applications 
  # A more flexible Fdesktop()
- # Options:
- # _F_desktop_filename : Name of the .desktop file
- # _F_desktop_name : Name of the desktop icon to be displayed
- # _F_desktop_desc : Description of the icon
- # _F_desktop_icon : Icon to be used from /usr/share/pixmaps
- # _F_desktop_exec : Name of the executable file
- # _F_desktop_categories : Categories (same as Fdesktop)
- # _F_desktop_mime : Mimetypes
- # _F_desktop_show_in : Whether the icon should be showed in only a particular DE
- #			like "XFCE;" for Xfce, "GNOME;" for Gnome, etc. 
 ###
 Fdesktop2()
 {

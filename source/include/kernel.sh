@@ -201,15 +201,11 @@ Fbuildkernel()
 		Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
 	fi
 	if [ "$CARCH" = "x86_64" -a -z "$_F_kernel_manualamd64" ]; then
-		sed -e "/CONFIG_BINFMT_MISC=m/{
-			n
-			i \
-		CONFIG_IA32_EMULATION=y\n\
-		CONFIG_IA32_AOUT=y\n\
-		CONFIG_COMPAT=y\n\
-		CONFIG_SYSVIPC_COMPAT=y\n\
-		CONFIG_UID16=y
-		}" .config
+		echo -e "CONFIG_IA32_EMULATION=y
+		CONFIG_IA32_AOUT=y
+		CONFIG_COMPAT=y
+		CONFIG_SYSVIPC_COMPAT=y
+		CONFIG_UID16=y" >> .config
 	fi
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver

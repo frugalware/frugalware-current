@@ -1,11 +1,36 @@
 #!/bin/sh
 
-# (c) 2006 Priyank <priyankmg@gmail.com>
-# (c) 2006 Alex Smith <alex@alex-smith.me.uk>
-# xfce4.sh for Frugalware
-# distributed under GPL License
-
-hpurl="http://www.xfce.org"
+###
+# = xfce4.sh(3)
+# Priyank <priyankmg@gmail.com>
+#
+# == NAME
+# xfce4.sh - for Frugalware
+#
+# == SYNOPSIS
+# Common schema for Xfce4 packages.
+#
+# == EXAMPLE
+# --------------------------------------------------
+# pkgname=xfce4-icon-theme
+# pkgver=4.4.0
+# pkgrel=1
+# pkgdesc="Default icon theme for Xfce4."
+# groups=('xfce4' 'xfce4-core')
+# archs=('i686' 'x86_64')
+# Finclude xfce4
+# sha1sums=('86eab53a01b16dee695002dd22981b55a16cc085')
+# --------------------------------------------------
+#
+# == OPTIONS
+# * _F_xfce_name (defaults to $pkgname): if you want to use a custom package
+# name (for example the upstream name contains uppercase letters) then use this
+# to declare the real name
+# * _F_xfce_goodies_ext (defaults to .tar.bz2) extension of the source tarball
+# * _F_xfce_goodies_dir (defaults to _F_xfce_name) if the source tarball uses a
+# name different to the xfce4 proect name, then use this option to declare the
+# project name
+###
 
 if [ -z $_F_xfce_name ] ; then
 	_F_xfce_name=$pkgname
@@ -19,6 +44,12 @@ if [ -z $_F_xfce_goodies_dir ] ; then
 	_F_xfce_goodies_dir=$_F_xfce_name
 fi
 
+###
+# == OVERWRITTEN VARIABLES
+# * url
+# * up2date
+# * source()
+###
 if echo ${groups[*]} | grep -q goodies ; then
 	url="http://goodies.xfce.org/projects/panel-plugins/${_F_xfce_name}"
 	dlurl="http://goodies.xfce.org/releases/$_F_xfce_goodies_dir/"
@@ -26,12 +57,14 @@ if echo ${groups[*]} | grep -q goodies ; then
 	source=($dlurl/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
 else
 	url="http://www.xfce.org/"
-	#preup2date="lynx -dump http://www.xfce.org/archive | grep 'xfce-' | sed -n 's/.*-\(.*\)\.t.*/\1/;$ p' | sed 's/[0-9][0-9]\. http:\/\/www\.xfce\.org\/archive\/xfce-//g' | sed 's/ //g' | sed 's/\///g'"
-	# The above preup2date sometimes gives no output due to unknown reasons. The below one works always.
 	preup2date="lynx -dump http://www.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"
-	dlurl="$hpurl/archive/xfce-4.4.0/src"
-	up2date="lynx -dump $hpurl/archive/xfce-\$($preup2date)/src/ | grep $_F_xfce_name | Flasttarbz2"
+	dlurl="$url/archive/xfce-4.4.0/src"
+	up2date="lynx -dump $url/archive/xfce-\$($preup2date)/src/ | grep $_F_xfce_name | Flasttarbz2"
 	source=($dlurl/$_F_xfce_name-$pkgver.tar.bz2)
 fi
 
+###
+# == APPENDED VARIABLES
+# * scriptlet to options()
+###
 options=(${options[@]} 'scriptlet')

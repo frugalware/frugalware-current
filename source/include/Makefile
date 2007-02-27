@@ -15,8 +15,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-# disable this for now as not all the schemas are documented
-#all: $(subst .sh,.sh.3,$(wildcard *.sh))
+all: $(subst .sh,.sh.3,$(wildcard *.sh))
 
 stat:
 	@echo $(shell ls *.3|wc -l)/$(shell ls *.sh|wc -l)

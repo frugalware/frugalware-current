@@ -52,23 +52,34 @@ MERGE = : > $(2); \
 	sed -i '/^~\{2,\}$$/s/~/^/g' $(2); \
 	sed -i '1i include::header.txt[]' $(2)
 
+I18NBUILD = po4a -k 0 po4a.cfg; \
+		for i in $(LANGS); \
+		do \
+			yes n |find . -maxdepth 1 -type f -exec cp -i {} $$i \;; \
+			sed -i 's|../source|../../source|' $$i/Makefile; \
+			$(MAKE) -C $$i $(1) || exit 1; \
+		done
+
 html: $(MANUAL_SOURCES) $(GENERATED)
+
+html-i18n: html
+	$(call I18NBUILD,html)
 
 pdf: $(PDFS)
 
+pdf-i18n: pdf
+	$(call I18NBUILD,pdf)
+
 text: $(TEXTS)
+
+text-i18n: text
+	$(call I18NBUILD,text)
 
 all: html pdf text
 
-# TODO: if the po4a support is complete then we can add text and pdf here, too
-html-i18n: html
-	po4a -k 0 po4a.cfg
-	for i in $(LANGS); \
-	do \
-		yes n |find . -maxdepth 1 -type f -exec cp -i {} $$i \;; \
-		sed -i 's|../source|../../source|' $$i/Makefile; \
-		$(MAKE) -C $$i html || exit 1; \
-	done
+i18n: html-i18n
+
+all-i18n: html-i18n pdf-i18n text-i18n
 
 %.html: %.txt
 	asciidoc -a toc -a numbered $(basename $@).txt

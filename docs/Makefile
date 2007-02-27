@@ -53,6 +53,7 @@ MERGE = : > $(2); \
 	sed -i '1i include::header.txt[]' $(2)
 
 I18NBUILD = po4a -k 0 po4a.cfg; \
+		darcs revert -a po/*.po; \
 		for i in $(LANGS); \
 		do \
 			yes n |find . -maxdepth 1 -type f -exec cp -i {} $$i \;; \

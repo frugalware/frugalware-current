@@ -59,6 +59,7 @@
 # == OVERWRITTEN VARIABLES
 # Since util.sh is included before the FrugalBuild you may modify these
 # variables, they won't be overwritten by util.sh again.
+#
 # * Fsrcdir
 # * Fdestdir
 # * Fprefix
@@ -578,6 +579,7 @@ Fbuild() {
 ###
 # * Frcd(): Create an rc.d environment. Parameter: name of the rc script,
 # defaults to $pkgname.
+#
 # NOTE: this function is obsolete, use Frcd2 instead.
 ###
 Frcd() {
@@ -590,9 +592,10 @@ Frcd() {
 	fi
 }
 
-### Create the new rc.d environment
- # @param name of the rc script, defaults to $pkgname
- ##
+###
+# * Frcd2(): Create the new rc.d environment. Paramter: name of the rc script,
+# defaults to $pkgname.
+###
 Frcd2() {
 	local po rc slang
 
@@ -607,21 +610,25 @@ Frcd2() {
 	done
 }
 
+###
+# * build(): just calls Fbuild()
+###
 build() {
 	Fbuild
 }
 
-### Updates config.sub and config.guess from our automake.
- ##
+###
+# * Facu(): Updates config.sub and config.guess from our automake.
+###
 Facu() {
 	cat /usr/share/automake/config.sub >config.sub
 	cat /usr/share/automake/config.guess >config.guess
 }
 
-### Similar to sort, but handles versions (i.e. 1.9 vs 1.10 vs 2.0) correctly. \
- # Uses vercmp from pacman.
- # @param versions to be sorted
- ##
+###
+# * Fsort(): Similar to sort, but handles versions (i.e. 1.9 vs 1.10 vs 2.0)
+# correctly. Uses vercmp from pacman. Reads the version list from stdin.
+###
 Fsort() {
 	local i= items= left=0
 	items=( `cat|tr '\n' ' '` )
@@ -641,14 +648,12 @@ Fsort() {
 	echo ${items[@]}|sed 's/ /\n/g'
 }
 
-### Unpack those pesky makeself generated files... \
- # They're shell scripts with the binary package tagged onto \
- # the end of the archive. Loki utilized the format as does \
- # many other game companies.
- # @param file to unpack
- # @param offset (optional)
- # @param tail|dd (optional)
- ##
+###
+# * Funpack_makeself(): Unpack those pesky makeself generated files... They're
+# shell scripts with the binary package tagged onto the end of the archive.
+# Loki utilized the format as does many other game companies. Parameters: 1)
+# file to unpack 2) offset (optional) 3) tail|dd (optional)
+###
 Funpack_makeself() {
 	local src="$1"
 	local skip="$2"
@@ -725,8 +730,10 @@ Funpack_makeself() {
 	esac
 }
 
-### Our autogen.sh. Runs aclocal, autoheader, autoconf and finally automake.
- ##
+###
+# * Fautoconfize(): Our autogen.sh. Runs aclocal, autoheader, autoconf and
+# finally automake.
+###
 Fautoconfize() {
 	Fmessage "Running aclocal autoheader autoconf automake  ..."
 	aclocal || Fdie
@@ -735,38 +742,48 @@ Fautoconfize() {
 	automake -a -c -f || Fdie
 }
 
+###
+# * Fautoreconf(): runs autoreconf -vif.
+###
 Fautoreconf() {
 	Fmessage "Running autoreconf -vif ..."
 	autoreconf -vif || Fdie
 }
 
-### Extracts version from a page's last tar.gz link
- ##
+###
+# * Flasttar(): Extracts version from a page's last tar.gz link.
+###
 Flasttar()
 {
 	grep tar.gz$|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'
 }
 
+###
+# * Flasttgz(): Extracts version from a page's last tgz link.
+###
 Flasttgz()
 {
 	grep tgz$|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'
 }
 
+###
+# * Flasttarbz2(): Extracts version from a page's last tar.bz2 link.
+###
 Flasttarbz2()
 {
 	grep tar.bz2$|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'
 }
 
-### Creates a .desktop file for graphical applications
- # example: Fdesktop vmware vmware-workstation.png "System;" \
- # 	"application/x-vmware-vm;application/x-vmware-team;"
- # @param name of the executable binary
- # @param icon name from /usr/share/pixmaps
- # @param categori(es) (optional)
- # You can choose one or more from the followings:
- # System;Games;AudioVideo;GNOME;KDE;Network;Development;FileTransfer;GTK;
- # @param mimetype(s) (optional)
- ##
+###
+# * Fdesktop(): Creates a .desktop file for graphical applications. Parameters:
+# 1) name of the executable binary 2) icon name from /usr/share/pixmaps 3)
+# categori(es) (optional). You can choose one or more from the followings:
+# System;Games;AudioVideo;GNOME;KDE;Network;Development;FileTransfer;GTK; 4)
+# mimetype(s) (optional). Example: Fdesktop vmware vmware-workstation.png
+# "System;" "application/x-vmware-vm;application/x-vmware-team;"
+#
+# NOTE: this function is obsolete, use Fdesktop2 instead.
+###
 Fdesktop()
 {
 	Fmkdir $Fmenudir
@@ -786,9 +803,9 @@ MimeType=$4
 EOF
 }
 
-
-### Creates a .desktop for graphical applications 
- # A more flexible Fdesktop()
+###
+# * Fdesktop2(): Creates a .desktop for graphical applications. See the OPTIONS
+# section for options.
 ###
 Fdesktop2()
 {
@@ -854,11 +871,11 @@ EOF
 	fi
 }
 
-### Creates a wrapper for applications
- # example: Fwrapper "python /usr/lib/python/foo.py" foo
- # @param wrapper string or command
- # @param name of the wrapper file to be installed under /usr/bin
- ##
+###
+# * Fwrapper(): Creates a wrapper for applications. Parameters: 1) wrapper
+# string or command 2) name of the wrapper file to be installed under /usr/bin.
+# Example: Fwrapper "python /usr/lib/python/foo.py" foo.
+###
 Fwrapper()
 {
 	local exe=$2
@@ -869,11 +886,12 @@ Fwrapper()
 	chmod 755 $startdir/pkg/usr/bin/$exe
 }
 
-### Moves a file pattern to a subpackage
- # example: Fsplit libmysql /usr/lib
- # @param name of the subpackage
- # @param pattern of the files to move
- ##
+###
+# * Fsplit(): Moves a file pattern to a subpackage. Parameters: 1) name of the
+# subpackage 2) pattern of the files to move. Example: Fsplit libmysql /usr/lib.
+#
+# NOTE: never use a leading slash when using wildcards!
+###
 Fsplit()
 {
 	local subpkg=$1
@@ -893,10 +911,11 @@ Fsplit()
 	done
 }
 
-### Check if a logical flag is defined in options() or not
- # example: if [ "`check_option DEVEL`" ]; then
- # @param: name of the logical flag
- ##
+###
+# * check_option(): Check if a logical flag is defined in options() or not.
+# Parameter: name of the logical flag. Example: if [ "`check_option DEVEL`" ];
+# then
+###
 check_option() {
 	local i
 	for i in ${options[@]}; do
@@ -909,13 +928,13 @@ check_option() {
 	done
 }
 
-### Install gettext po files to binary mo files
- # example: Fmsgfmt /usr/share/locale hu file file-hu
- # @param path to locale directory (eg /usr/share/locale)
- # @param language
- # @param name of the mo file, default $pkgname
- # @param name of the po file, default $pkgname-$lang
- ##
+###
+# * Fmsgfmt(): Install gettext po files to binary mo files. Parameters: 1) path
+# to locale directory (eg /usr/share/locale) 2) language 3) name of the mo file
+# (without the .mo suffix), defaults to $pkgname 4) name of the po file,
+# defaults $pkgname-$lang (without the .po suffix). Example: Fmsgfmt
+# /usr/share/locale hu file file-hu.
+###
 Fmsgfmt() {
 	local llang mofile pofile slang
 
@@ -936,10 +955,10 @@ Fmsgfmt() {
 	msgfmt -o $Fdestdir/$1/$llang/LC_MESSAGES/$mofile $Fsrcdir/$pofile || Fdie
 }
 
-### Extract archives
- # example: Fextract pacman.tar.gz
- # @param: file name to extract
- ##
+###
+# * Fextract(): Extract archives. Parameter: file name to extract. Example:
+# Fextract pacman.tar.gz.
+###
 Fextract() {
 	local cmd file tmp
 	file="${1}"
@@ -978,4 +997,3 @@ Fextract() {
 		fi
 	fi
 }
-### @}

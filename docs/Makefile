@@ -61,7 +61,7 @@ I18NBUILD = po4a -k 0 po4a.cfg; \
 				[ "`stat -c %Y $$j`" -gt "`stat -c %Y $$i/$$j 2>/dev/null || echo 0`" ] && \
 					`which cp` -v $$j $$i/; \
 			done; \
-			sed -i 's|../source|../../source|' $$i/Makefile; \
+			sed -i 's| ../source | ../../source |' $$i/Makefile; \
 			$(MAKE) -C $$i $(1) || exit 1; \
 		done
 

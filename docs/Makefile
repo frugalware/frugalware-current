@@ -56,7 +56,11 @@ I18NBUILD = po4a -k 0 po4a.cfg; \
 		darcs revert -a po/*.po; \
 		for i in $(LANGS); \
 		do \
-			yes n |find . -maxdepth 1 -type f -exec cp -i {} $$i \;; \
+			for j in Makefile $(shell grep link:.*html index.txt|grep -v manual.html |sed 's/.*:\(.*\)\[.*/\1/;s/html/txt/g'); \
+			do \
+				[ "`stat -c %Y $$j`" -gt "`stat -c %Y $$i/$$j 2>/dev/null || echo 0`" ] && \
+					`which cp` -v $$j $$i/; \
+			done; \
 			sed -i 's|../source|../../source|' $$i/Makefile; \
 			$(MAKE) -C $$i $(1) || exit 1; \
 		done

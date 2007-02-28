@@ -50,7 +50,7 @@ MERGE = : > $(2); \
 	sed -i 's/^\(=\+ \)/=\1/' $(2); \
 	sed -i '/^\^\{2,\}$$/s/\^/+/g' $(2); \
 	sed -i '/^~\{2,\}$$/s/~/^/g' $(2); \
-	sed -i '1i include::header.txt[]' $(2)
+	sed -i '1i include::header.txt[]\n' $(2)
 
 I18NBUILD = po4a -k 0 po4a.cfg; \
 		darcs revert -a po/*.po; \

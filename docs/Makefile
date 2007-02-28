@@ -123,7 +123,7 @@ packages.txt: packages.txt.in
 	for i in `find ../source -maxdepth 5 -name README.Frugalware`; \
 	do \
 		pkgname=`echo $$i |sed 's|.*/\(.*\)/README.Frugalware|\1|'`; \
-		echo "== $$pkgname"; \
+		echo -e "== $$pkgname\n"; \
 		cat $$i; \
 		echo ""; \
 	done ) >packages.txt

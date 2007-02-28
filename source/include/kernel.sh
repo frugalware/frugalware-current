@@ -15,7 +15,7 @@
 # pkgver=2.6.20
 # pkgrel=2
 # _F_kernel_stable=1
-# _F_kernel_pathces=(my.patch)
+# _F_kernel_patches=(my.patch)
 # Finclude kernel
 # --------------------------------------------------
 # NOTE: Polite request for people who spin their own kernel fpms: Please do use

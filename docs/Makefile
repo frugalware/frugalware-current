@@ -18,6 +18,7 @@
 
 VERSION = $(shell date +%Y%m%d) (-current)
 #VERSION = 0.6 (Terminus)
+PO_DIR=~/darcs/translations/po
 
 # metadocuments
 GENERATED = index.html manual.html index-user.html user.html index-devel.html devel.html
@@ -35,7 +36,7 @@ USER_SOURCES = $(shell grep link:.*html index-user.txt|grep -v user.html |sed 's
 DEVEL_SOURCES = $(shell grep link:.*html index-devel.txt|grep -v devel.html |sed 's/.*:\(.*\).html\[.*/\1.txt/')
 
 # sources to be removed on make clean
-GENERATED_SOURCES = packages.txt manual.txt user.txt devel.txt po/{docs.pot,*.po~} $(DYNAMIC_SOURCES)
+GENERATED_SOURCES = packages.txt manual.txt user.txt devel.txt po $(DYNAMIC_SOURCES)
 
 # list of supported languages
 LANGS = $(shell grep '\[po4a_langs\]' po4a.cfg |sed 's/\[po4a_langs\] //')
@@ -67,17 +68,25 @@ I18NBUILD = po4a -k 0 po4a.cfg; \
 
 html: $(MANUAL_SOURCES) $(GENERATED)
 
-html-i18n: html
+po:
+	[ -d $(PO_DIR) ]
+	mkdir po
+	for i in `ls $(PO_DIR)/docs`; \
+	do \
+		cp $(PO_DIR)/docs/$$i/docs.po po/$$i.po; \
+	done
+
+html-i18n: html po
 	$(call I18NBUILD,html)
 
 pdf: $(PDFS)
 
-pdf-i18n: pdf
+pdf-i18n: pdf po
 	$(call I18NBUILD,pdf)
 
 text: $(TEXTS)
 
-text-i18n: text
+text-i18n: text po
 	$(call I18NBUILD,text)
 
 all: html pdf text

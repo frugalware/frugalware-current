@@ -11,17 +11,22 @@
 # Common schema for kernel packages.
 #
 # == EXAMPLE
+# * To build a vanilla upstream kernel:
 # --------------------------------------------------
 # pkgver=2.6.20
-# pkgrel=2
-# _F_kernel_stable=1
-# _F_kernel_patches=(my.patch)
+# pkgrel=1
+# _F_kernel_name="-custom"
 # Finclude kernel
 # --------------------------------------------------
-# NOTE: Polite request for people who spin their own kernel fpms: Please do use
-# the _F_kernel_name directive to identify that the kernel isn't the stock
-# distribution kernel. Thanks.
-#
+# * To use a given patchset (for example -ck):
+# --------------------------------------------------
+# pkgver=2.6.20
+# pkgrel=1
+# _F_kernel_name="-ck"
+# _F_kernel_patches=(http://www.kernel.org/pub/linux/kernel/people/ck/patches/\
+# 2.6/2.6.20/2.6.20-ck1/patch-2.6.20-ck1.bz2)
+# Finclude kernel
+# --------------------------------------------------
 # == OPTIONS
 # There are only two required variables: pkgver and pkgrel. Here is a list of
 # other optional variables:

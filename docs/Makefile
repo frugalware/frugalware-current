@@ -36,7 +36,7 @@ USER_SOURCES = $(shell grep link:.*html index-user.txt|grep -v user.html |sed 's
 DEVEL_SOURCES = $(shell grep link:.*html index-devel.txt|grep -v devel.html |sed 's/.*:\(.*\).html\[.*/\1.txt/')
 
 # sources to be removed on make clean
-GENERATED_SOURCES = packages.txt manual.txt user.txt devel.txt po $(DYNAMIC_SOURCES)
+GENERATED_SOURCES = packages.txt manual.txt user.txt devel.txt po images $(DYNAMIC_SOURCES)
 
 # list of supported languages
 LANGS = $(shell grep '\[po4a_langs\]' po4a.cfg |sed 's/\[po4a_langs\] //')
@@ -95,6 +95,9 @@ i18n: html-i18n
 
 all-i18n: html-i18n pdf-i18n text-i18n
 
+images:
+	ln -s /etc/asciidoc/images ./
+
 %.html: %.txt
 	asciidoc -a toc -a numbered $(basename $@).txt
 
@@ -110,7 +113,7 @@ all-i18n: html-i18n pdf-i18n text-i18n
 	sed -i 's/serif,Symbol,ZapfDingbats/DejaVuSerif/g' $(basename $@).fo
 	sed -i 's|\(src="./images/icons/[^"]\+\).png"|\1.jpg"|g' $(basename $@).fo
 
-%.pdf: %.fo
+%.pdf: %.fo images
 	fop -c /usr/share/fop/dejavu-ttf.xml $(basename $@).fo $(basename $@).pdf
 
 %.txt: %.txt.in

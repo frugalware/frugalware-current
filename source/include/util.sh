@@ -301,6 +301,30 @@ Ffilerel() {
 }
 
 ###
+# * Fman(): Install regular file(s) to the man directory from $Fsrcdir.
+# Parameter: file(s) to be installed from $Fsrcdir
+###
+Fman() {
+	local i
+	for i in $@
+	do
+		Ffile /usr/share/man/man${i##*.}/$i
+	done
+}
+
+###
+# * Fmanrel(): Install regular file(s) to the man directory.  Parameter:
+# file(s) to be installed
+###
+Fmanrel() {
+	local i
+	for i in $@
+	do
+		Ffilerel /usr/share/man/man${i##*.}/$i
+	done
+}
+
+###
 # * Fdoc(): Install documentation file(s) to
 # $Fdestdir/usr/share/doc/$pkgname-$pkgver from $Fsrcdir. Also if $file.xx or
 # $file.xx_YY present then it will be automatically installed, too. Parameter:

@@ -108,6 +108,7 @@ all-i18n: html-i18n pdf-i18n text-i18n
 	xsltproc /etc/asciidoc/docbook-xsl/fo.xsl $(basename $@).xml > $(basename $@).fo
 	sed -i 's/sans-serif,Symbol,ZapfDingbats/DejaVuSans/g' $(basename $@).fo
 	sed -i 's/serif,Symbol,ZapfDingbats/DejaVuSerif/g' $(basename $@).fo
+	sed -i ''s|\(src="./images/icons/[^"]\).png"|\1.jpg"|g' $(basename $@).fo
 
 %.pdf: %.fo
 	fop -c /usr/share/fop/dejavu-ttf.xml $(basename $@).fo $(basename $@).pdf

@@ -71,7 +71,7 @@ html: $(MANUAL_SOURCES) $(GENERATED)
 po:
 	[ -d $(PO_DIR) ]
 	mkdir po
-	for i in `ls $(PO_DIR)/docs`; \
+	for i in $(LANGS); \
 	do \
 		cp $(PO_DIR)/docs/$$i/docs.po po/$$i.po; \
 	done

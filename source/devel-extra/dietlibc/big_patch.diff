@@ -1,0 +1,438 @@
+diff -Naurp dietlibc-0.30/diet.c dietlibc-0.30-p/diet.c
+--- dietlibc-0.30/diet.c	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/diet.c	2007-03-02 04:30:19.000000000 +0100
+@@ -71,6 +71,7 @@ int main(int argc,char *argv[]) {
+   int shared=0;
+ #endif
+   char* shortplatform=0;
++  char* shortplatform32=0;
+ #ifdef WANT_SAFEGUARD
+   char safeguard1[]="-include";
+   char* safeguard2;
+@@ -155,6 +156,7 @@ int main(int argc,char *argv[]) {
+ #endif
+ #ifdef __powerpc64__
+       shortplatform="ppc64";
++      shortplatform32="ppc";
+ #endif
+ #ifdef __i386__
+       shortplatform="i386";
+@@ -183,10 +185,25 @@ int main(int argc,char *argv[]) {
+ #endif
+ #ifdef __x86_64__
+       shortplatform=(m==32?"i386":"x86_64");
++      shortplatform32="i386";
+ #endif
+ #ifdef __ia64__
+       shortplatform="ia64";
+ #endif
++      /* Check for -m32 on biarch platforms */
++      /* NOTE: though it's wrong to pass both -m32/-m64 flags to
++         gcc at once, we pick up the last one only */
++      if (shortplatform32) {
++        int i, m64=1;
++        for (i=0; i<argc; ++i) {
++          if (!strcmp(argv[i],"-m32"))
++            m64=0;
++          else if (!strcmp(argv[i],"-m64"))
++            m64=1;
++        }
++        if (!m64)
++          shortplatform=shortplatform32;
++      }
+       {
+ 	char *tmp=platform+strlen(platform);
+ 	strcpy(tmp,shortplatform);
+@@ -335,6 +352,19 @@ pp:
+       }
+ #endif
+       *dest++="-D__dietlibc__";
++      *dest++="-D__LIBC_DIETLIBC__";
++      {
++	unsigned int gcc_ver = 0;
++	const char *gcc_ver_str = strstr(cc, "gcc-");
++	if (gcc_ver_str)
++	  gcc_ver_str += 4;
++	else
++	  gcc_ver_str = getenv("GCC_VERSION");
++	if (gcc_ver_str)
++	  gcc_ver = atoi(gcc_ver_str);
++	if ((gcc_ver == 0) || (gcc_ver >= 4))
++	  *dest++="-fno-stack-protector";
++      }
+       if (mangleopts) {
+ 	const char **o=Os;
+ 
+diff -Naurp dietlibc-0.30/dietfeatures.h dietlibc-0.30-p/dietfeatures.h
+--- dietlibc-0.30/dietfeatures.h	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/dietfeatures.h	2007-03-02 04:30:19.000000000 +0100
+@@ -47,7 +47,7 @@
+ 
+ /* you need to define this if you want to run your programs with large
+  * file support on kernel 2.2 or 2.0 */
+-#define WANT_LARGEFILE_BACKCOMPAT
++/* #define WANT_LARGEFILE_BACKCOMPAT */
+ 
+ /* do you want localtime(3) to read /etc/localtime?
+  * Needed for daylight saving time etc. */
+@@ -59,7 +59,7 @@
+ #define WANT_FULL_RESOLV_CONF
+ 
+ /* do you want IPv6 transport support in the DNS resolver? */
+-#define WANT_IPV6_DNS
++/* #define WANT_IPV6_DNS */
+ 
+ /* do you want gethostbyname and friends to consult /etc/hosts? */
+ #define WANT_ETC_HOSTS
+@@ -69,13 +69,13 @@
+ #define WANT_INET_ADDR_DNS
+ 
+ /* do you want math functions high precision rather than fast/small? */
+-#define WANT_HIGH_PRECISION_MATH
++/* #define WANT_HIGH_PRECISION_MATH */
+ 
+ /* do you want support for matherr? */
+ #define WANT_MATHERR
+ 
+ /* do you want crypt(3) to use MD5 if the salt starts with "$1$"? */
+-#define WANT_CRYPT_MD5
++/* #define WANT_CRYPT_MD5 */
+ 
+ /* do you want diet to include a safeguard dependency to make linking
+  * against glibc fail?  This may fail with older binutils. */
+@@ -99,7 +99,7 @@
+ /* WARNING: this appears to break with some binutils versions.  Works
+  * for me with binutils 2.15.  The symptom is an error message that
+  * `main' can not be found. */
+-/* #define WANT_STACKGAP */
++#define WANT_STACKGAP
+ 
+ /* Include support for ProPolice/SSP, calls guard_setup */
+ /* ProPolice is part of gcc 4.1 and up, there were patches for earlier
+diff -Naurp dietlibc-0.30/include/linux/types.h dietlibc-0.30-p/include/linux/types.h
+--- dietlibc-0.30/include/linux/types.h	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/include/linux/types.h	2007-03-02 04:30:19.000000000 +0100
+@@ -3,4 +3,28 @@
+ 
+ #include <asm/types.h>
+ 
++/*
++ * The type of an index into the pagecache.  Use a #define so asm/types.h
++ * can override it.
++ * XXX: temporary solution
++ */
++#ifndef pgoff_t
++#define pgoff_t unsigned long
++#endif
++
++#ifdef __CHECKER__
++#define __bitwise __attribute__((bitwise))
++#else
++#define __bitwise
++#endif
++
++typedef __u16 __bitwise __le16;
++typedef __u16 __bitwise __be16;
++typedef __u32 __bitwise __le32;
++typedef __u32 __bitwise __be32;
++#if defined(__GNUC__)
++typedef __u64 __bitwise __le64;
++typedef __u64 __bitwise __be64;
++#endif
++
+ #endif
+diff -Naurp dietlibc-0.30/include/mntent.h dietlibc-0.30-p/include/mntent.h
+--- dietlibc-0.30/include/mntent.h	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/include/mntent.h	2007-03-02 04:30:19.000000000 +0100
+@@ -45,7 +45,7 @@ extern FILE *setmntent (const char *file
+    check).  */
+ extern struct mntent *getmntent (FILE* stream) __THROW;
+ 
+-#ifdef __USE_MISC
++#if defined _GNU_SOURCE || defined _BSD_SOURCE
+ /* Reentrant version of the above function.  */
+ extern struct mntent *getmntent_r (FILE* stream,
+ 				   struct mntent* result,
+diff -Naurp dietlibc-0.30/include/stdio.h dietlibc-0.30-p/include/stdio.h
+--- dietlibc-0.30/include/stdio.h	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/include/stdio.h	2007-03-02 04:30:19.000000000 +0100
+@@ -188,7 +188,6 @@ int ftrylockfile (FILE *__stream) __THRO
+ 
+ #ifdef _GNU_SOURCE
+ int vasprintf(char **strp, const char *fmt, va_list ap);
+-ssize_t getline(char **lineptr, size_t *n, FILE *stream);
+ ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
+ #endif
+ 
+diff -Naurp dietlibc-0.30/include/sys/stat.h dietlibc-0.30-p/include/sys/stat.h
+--- dietlibc-0.30/include/sys/stat.h	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/include/sys/stat.h	2007-03-02 04:30:19.000000000 +0100
+@@ -534,6 +534,27 @@ struct stat {
+ 	long		__unused[3];
+ };
+ 
++struct stat64 {
++	unsigned long	st_dev;
++	unsigned long	st_ino;
++	unsigned long	st_nlink;
++	unsigned int	st_mode;
++	unsigned int	st_uid;
++	unsigned int	st_gid;
++	unsigned int	__pad0;
++	unsigned long	 st_rdev;
++	unsigned long	st_size;
++	unsigned long	st_blksize;
++	unsigned long	st_blocks;
++	unsigned long	st_atime;
++	unsigned long	__reserved0;
++	unsigned long	st_mtime;
++	unsigned long	__reserved1;
++	unsigned long	st_ctime;
++	unsigned long	__reserved2;
++	long		__unused[3];
++};
++
+ #elif defined(__ia64__)
+ 
+ struct stat {
+diff -Naurp dietlibc-0.30/include/unistd.h dietlibc-0.30-p/include/unistd.h
+--- dietlibc-0.30/include/unistd.h	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/include/unistd.h	2007-03-02 04:30:19.000000000 +0100
+@@ -34,8 +34,8 @@ int access (const char *__name, int __ty
+ #define STDERR_FILENO  2
+ 
+ off_t lseek(int fildes, off_t offset, int whence) __THROW;
++off64_t lseek64(int fildes, off64_t offset, int whence) __THROW;
+ #ifndef __NO_STAT64
+-loff_t lseek64(int fildes, loff_t offset, int whence) __THROW;
+ #if defined _FILE_OFFSET_BITS && _FILE_OFFSET_BITS == 64
+ #define lseek(fildes,offset,whence) lseek64(fildes,offset,whence)
+ #endif
+diff -Naurp dietlibc-0.30/lib/alloc.c dietlibc-0.30-p/lib/alloc.c
+--- dietlibc-0.30/lib/alloc.c	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/lib/alloc.c	2007-03-02 04:30:19.000000000 +0100
+@@ -176,7 +176,8 @@ void* malloc(size_t size) __attribute__(
+ void* __libc_calloc(size_t nmemb, size_t _size);
+ void* __libc_calloc(size_t nmemb, size_t _size) {
+   register size_t size=_size*nmemb;
+-  if (nmemb && size/nmemb!=_size) {
++  if ((nmemb | _size) >= (((size_t) 1) << (8 * sizeof (size_t) / 2))
++       && (_size && size / _size != nmemb)) {
+     (*__errno_location())=ENOMEM;
+     return 0;
+   }
+diff -Naurp dietlibc-0.30/lib/__fstatfs64.c dietlibc-0.30-p/lib/__fstatfs64.c
+--- dietlibc-0.30/lib/__fstatfs64.c	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/lib/__fstatfs64.c	2007-03-02 04:30:19.000000000 +0100
+@@ -17,7 +17,7 @@ int fstatfs64(int fd, struct statfs64 *_
+   }
+   return 0;
+ #else
+-  return __dietlibc_fstatfs64(fd,sizeof(*__buf),buf);
++  return __dietlibc_fstatfs64(fd,sizeof(*__buf),__buf);
+ #endif
+ }
+ #endif
+diff -Naurp dietlibc-0.30/lib/__nice.c dietlibc-0.30-p/lib/__nice.c
+--- dietlibc-0.30/lib/__nice.c	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/lib/__nice.c	2007-03-02 04:30:19.000000000 +0100
+@@ -1,9 +1,13 @@
+ #include "syscalls.h"
+-#include <sys/time.h>
++#include <errno.h>
+ #include <sys/resource.h>
+ 
+ #ifndef __NR_nice
+ int nice(int i) {
+-  return setpriority(PRIO_PROCESS,0,getpriority(PRIO_PROCESS,0)+i);
++  if (setpriority(PRIO_PROCESS,0,getpriority(PRIO_PROCESS,0)+i) == -1) {
++    errno=EPERM;
++    return -1;
++  }
++  return getpriority(PRIO_PROCESS,0);
+ }
+ #endif
+diff -Naurp dietlibc-0.30/libcompat/syscall.S dietlibc-0.30-p/libcompat/syscall.S
+--- dietlibc-0.30/libcompat/syscall.S	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/libcompat/syscall.S	2007-03-02 04:30:19.000000000 +0100
+@@ -130,6 +130,12 @@ syscall:
+ 	b    __unified_syscall
+ 
+ #else
+-		/* arch not implemented yet */
++#include <endian.h>
++	.section	.note
++#if (__WORDSIZE == 64)	
++	.quad		__syscall_2_not_implemented_for_this_arch
++#else	
++	.long		__syscall_2_not_implemented_for_this_arch
++#endif
+ #endif
+ .size	syscall, . - syscall
+diff -Naurp dietlibc-0.30/libcruft/res_query.c dietlibc-0.30-p/libcruft/res_query.c
+--- dietlibc-0.30/libcruft/res_query.c	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/libcruft/res_query.c	2007-03-02 04:30:19.000000000 +0100
+@@ -109,10 +109,14 @@ int res_query(const char *dname, int cla
+       last.tv_sec=0;
+ #ifdef WANT_PLUGPLAY_DNS
+       if (duh[1].fd!=-1) {
++#ifdef WANT_IPV6_DNS
+ 	if (v4pnp)
++#endif
+ 	  sendto(pnpfd,packet,size,0,(struct sockaddr*)(&pnpsa4),sizeof(pnpsa4));
++#ifdef WANT_IPV6_DNS
+ 	else
+ 	  sendto(pnpfd,packet,size,0,(struct sockaddr*)(&pnpsa6),sizeof(pnpsa6));
++#endif
+       }
+       /* if it doesn't work, we don't care */
+ #endif
+diff -Naurp dietlibc-0.30/libstdio/fwrite.c dietlibc-0.30-p/libstdio/fwrite.c
+--- dietlibc-0.30/libstdio/fwrite.c	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/libstdio/fwrite.c	2007-03-02 04:30:19.000000000 +0100
+@@ -11,7 +11,7 @@ size_t fwrite_unlocked(const void *ptr, 
+     stream->flags|=ERRORINDICATOR;
+     return 0;
+   }
+-  if (!nmemb || len/nmemb!=size) return 0; /* check for integer overflow */
++  if (!len || len/nmemb!=size) return 0; /* check for integer overflow */
+   if (len>stream->buflen || (stream->flags&NOBUF)) {
+     if (fflush_unlocked(stream)) return 0;
+     do {
+diff -Naurp dietlibc-0.30/libugly/getmntent.c dietlibc-0.30-p/libugly/getmntent.c
+--- dietlibc-0.30/libugly/getmntent.c	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/libugly/getmntent.c	2007-03-02 04:30:19.000000000 +0100
+@@ -1,24 +1,23 @@
++#define _GNU_SOURCE
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <mntent.h>
+ #include <string.h>
+ 
+-struct mntent *getmntent(FILE *filep) {
+-  static struct mntent m;
+-  static char buf[1024];
++struct mntent *getmntent_r(FILE *filep, struct mntent *m, char *buf, int size) {
+   do {
+     char *tmp=buf;
+     int num;
+-    if (!fgets(buf,1024,filep)) return 0;
++    if (!fgets(buf,size,filep)) return 0;
+ /* "/dev/ide/host0/bus0/target0/lun0/part2 / reiserfs defaults 1 1" */
+     for (num=0; num<6; ++num) {
+       switch (num) {
+-      case 0: m.mnt_fsname=tmp; break;
+-      case 1: m.mnt_dir=tmp; break;
+-      case 2: m.mnt_type=tmp; break;
+-      case 3: m.mnt_opts=tmp; break;
+-      case 4: m.mnt_freq=strtol(tmp,&tmp,0); if (*tmp!=' ' && *tmp!='\t') continue; break;
+-      case 5: m.mnt_passno=strtol(tmp,&tmp,0); if (*tmp=='\n') return &m; break;
++      case 0: m->mnt_fsname=tmp; break;
++      case 1: m->mnt_dir=tmp; break;
++      case 2: m->mnt_type=tmp; break;
++      case 3: m->mnt_opts=tmp; break;
++      case 4: m->mnt_freq=strtol(tmp,&tmp,0); if (*tmp!=' ' && *tmp!='\t') continue; break;
++      case 5: m->mnt_passno=strtol(tmp,&tmp,0); if (*tmp=='\n') return m; break;
+       }
+       while (*tmp && *tmp!=' ' && *tmp!='\n' && *tmp!='\t') ++tmp;
+       if (*tmp) {
+diff -Naurp dietlibc-0.30/libugly/getmntent_nor.c dietlibc-0.30-p/libugly/getmntent_nor.c
+--- dietlibc-0.30/libugly/getmntent_nor.c	1970-01-01 01:00:00.000000000 +0100
++++ dietlibc-0.30-p/libugly/getmntent_nor.c	2007-03-02 04:30:19.000000000 +0100
+@@ -0,0 +1,9 @@
++#define _GNU_SOURCE
++#include <stdio.h>
++#include <mntent.h>
++
++struct mntent *getmntent(FILE *filep) {
++  static struct mntent m;
++  static char buf[1024];
++  return getmntent_r(filep,&m,buf,sizeof(buf));
++}
+diff -Naurp dietlibc-0.30/Makefile dietlibc-0.30-p/Makefile
+--- dietlibc-0.30/Makefile	2007-02-03 17:01:34.000000000 +0100
++++ dietlibc-0.30-p/Makefile	2007-03-02 04:30:19.000000000 +0100
+@@ -28,6 +28,7 @@ ARCH=ppc
+ else
+ ifeq ($(MYARCH),ppc64)
+ ARCH=ppc64
++ARCH32=ppc
+ else
+ ifeq ($(MYARCH),arm)
+ ARCH=arm
+@@ -56,6 +57,7 @@ MYARCH=parisc
+ else
+ ifeq ($(MYARCH),x86_64)
+ ARCH=x86_64
++ARCH32=i386
+ else
+ ifeq ($(MYARCH),ia64)
+ ARCH=ia64
+@@ -88,16 +90,23 @@ ILIBDIR=$(LIBDIR)-$(ARCH)
+ 
+ HOME=$(shell pwd)
+ 
+-WHAT=	$(OBJDIR) $(OBJDIR)/start.o $(OBJDIR)/dyn_start.o $(OBJDIR)/dyn_stop.o \
++LIBS=	$(OBJDIR) $(OBJDIR)/start.o $(OBJDIR)/dyn_start.o $(OBJDIR)/dyn_stop.o \
+ 	$(OBJDIR)/dietlibc.a $(OBJDIR)/liblatin1.a \
+ 	$(OBJDIR)/libcompat.a $(OBJDIR)/libm.a \
+ 	$(OBJDIR)/librpc.a $(OBJDIR)/libpthread.a \
+-	$(OBJDIR)/libcrypt.a \
+-	$(OBJDIR)/diet $(OBJDIR)/diet-i $(OBJDIR)/elftrunc \
+-	$(OBJDIR)/dnsd
++	$(OBJDIR)/libcrypt.a
+ 
+-all: $(WHAT)
++all: all_32 libs $(OBJDIR)/diet $(OBJDIR)/diet-i $(OBJDIR)/elftrunc $(OBJDIR)/dnsd
+ 
++libs: $(LIBS)
++
++ifeq (,$(ARCH32))
++all_32:
++else
++all_32:
++	$(MAKE) MYARCH=$(ARCH32) CC="$(CC) -m32" libs
++endif
++ 
+ profiling: $(OBJDIR)/libgmon.a $(OBJDIR)/pstart.o
+ 
+ CFLAGS=-pipe -nostdinc
+@@ -353,12 +362,22 @@ t:
+ t1:
+ 	$(CROSS)$(CC) -g -o t1 t.c
+ 
+-install: $(OBJDIR)/start.o $(OBJDIR)/dietlibc.a $(OBJDIR)/librpc.a $(OBJDIR)/liblatin1.a $(OBJDIR)/libcompat.a $(OBJDIR)/elftrunc $(OBJDIR)/diet-i
+-	$(INSTALL) -d $(DESTDIR)$(ILIBDIR) $(DESTDIR)$(MAN1DIR) $(DESTDIR)$(BINDIR)
++install_libs: $(OBJDIR)/start.o $(OBJDIR)/dietlibc.a $(OBJDIR)/librpc.a $(OBJDIR)/liblatin1.a $(OBJDIR)/libcompat.a
++	$(INSTALL) -d $(DESTDIR)$(ILIBDIR)
+ 	$(INSTALL) $(OBJDIR)/start.o $(DESTDIR)$(ILIBDIR)/start.o
+ 	$(INSTALL) -m 644 $(OBJDIR)/libm.a $(OBJDIR)/libpthread.a $(OBJDIR)/librpc.a \
+ $(OBJDIR)/liblatin1.a $(OBJDIR)/libcompat.a $(OBJDIR)/libcrypt.a $(DESTDIR)$(ILIBDIR)
+ 	$(INSTALL) -m 644 $(OBJDIR)/dietlibc.a $(DESTDIR)$(ILIBDIR)/libc.a
++
++ifeq (,$(ARCH32))
++install_32:
++else
++install_32:
++	$(MAKE) MYARCH=$(ARCH32) CC="$(CC) -m32" install_libs
++endif
++
++install: install_32 install_libs $(OBJDIR)/elftrunc $(OBJDIR)/diet-i
++	$(INSTALL) -d $(DESTDIR)$(MAN1DIR) $(DESTDIR)$(BINDIR)
+ ifeq ($(MYARCH),$(ARCH))
+ 	$(INSTALL) $(OBJDIR)/diet-i $(DESTDIR)$(BINDIR)/diet
+ 	-$(INSTALL) $(PICODIR)/diet-dyn-i $(DESTDIR)$(BINDIR)/diet-dyn
+diff -Naurp dietlibc-0.30/x86_64/fstat64.S dietlibc-0.30-p/x86_64/fstat64.S
+--- dietlibc-0.30/x86_64/fstat64.S	1970-01-01 01:00:00.000000000 +0100
++++ dietlibc-0.30-p/x86_64/fstat64.S	2007-03-02 04:30:19.000000000 +0100
+@@ -0,0 +1,3 @@
++#include "syscalls.h"
++
++syscall(fstat,fstat64)
+diff -Naurp dietlibc-0.30/x86_64/lseek64.S dietlibc-0.30-p/x86_64/lseek64.S
+--- dietlibc-0.30/x86_64/lseek64.S	1970-01-01 01:00:00.000000000 +0100
++++ dietlibc-0.30-p/x86_64/lseek64.S	2007-03-02 04:30:19.000000000 +0100
+@@ -0,0 +1,3 @@
++#include "syscalls.h"
++
++syscall_weak(lseek,lseek64,__libc_lseek64)

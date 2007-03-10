@@ -72,7 +72,7 @@ _F_gnome_getver()
 ###
 _F_gnome_pygtkdefsdir="usr/share/pygtk/2.0/defs"
 _F_gnome_pkgurl="http://ftp.gnome.org/pub/GNOME/sources"
-if [ -n "$_F_gnome_devel" ]; then
+if [ "$_F_gnome_devel" != "n" ]; then
 	up2date="lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep '/'|sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
 else
 	up2date="lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep '[0-9]\.[0-9]*[02468]/'|sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"

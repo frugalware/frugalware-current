@@ -36,7 +36,10 @@
 if [ -z "$_F_gnome_name" ]; then
 	_F_gnome_name=$pkgname
 fi
-_F_gnome_devel="y"
+
+if [ -z "$_F_gnome_devel" ]; then
+	_F_gnome_devel="y"
+fi
 
 # don't document this function, it's used only for source()
 _F_gnome_getver()

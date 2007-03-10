@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+
+import alpm, os, tempfile, shutil, sys
+
+if len(sys.argv) > 1:
+	if sys.argv[1] == "--help":
+		print "check if all the packages can be downloaded via pacman-g2 -Sw"
+		sys.exit(0)
+
+root = tempfile.mkdtemp()
+if alpm.initialize(root) == -1:
+	print "initialize() failed"
+if os.getcwd().split('/')[-2] in ["frugalware-current", "current"]:
+	treename = "frugalware-current"
+else:
+	treename = "frugalware"
+local = alpm.db_register("local")
+db = alpm.db_register(treename)
+if not db:
+	print "db_register() failed"
+if alpm.db_setserver(db, "file://" + os.getcwd() + "/../frugalware-i686") == -1:
+	print "db_setserver() failed"
+if alpm.db_update(1, db) == -1:
+	print "db_update() failed"
+if alpm.trans_init(alpm.TRANS_TYPE_SYNC, alpm.TRANS_FLAG_NOCONFLICTS, None, None, None) == -1:
+	print "trans_init() failed"
+i = alpm.db_getpkgcache(db)
+while i:
+	pkg = alpm.void_to_PM_PKG(alpm.list_getdata(i))
+	pkgname = alpm.void_to_char(alpm.pkg_getinfo(pkg, alpm.PKG_NAME))
+	if alpm.trans_addtarget(pkgname):
+		print "failed to add target '%s' (%s)" % (pkgname, alpm.strerror(alpm.cvar.pm_errno))
+		break
+	i = alpm.list_next(i)
+junk = alpm.LISTp_new()
+if alpm.trans_prepare(junk) == -1:
+	print "%s:" % alpm.strerror(alpm.cvar.pm_errno)
+	i = alpm.list_first(alpm.LISTp_to_LIST(junk))
+	while i:
+		miss = alpm.void_to_PM_DEPMISS(alpm.list_getdata(i))
+		if alpm.void_to_long(alpm.dep_getinfo(miss, alpm.DEP_TYPE)) == alpm.DEP_TYPE_DEPEND:
+			reason = "requires"
+		else:
+			reason = "is required by"
+		sys.stdout.write(":: %s: %s %s" % (alpm.void_to_char(alpm.dep_getinfo(miss, alpm.DEP_TARGET)),
+			reason, alpm.void_to_char(alpm.dep_getinfo(miss, alpm.DEP_NAME))))
+		mod = alpm.void_to_long(alpm.dep_getinfo(miss, alpm.DEP_MOD))
+		ver = alpm.void_to_char(alpm.dep_getinfo(miss, alpm.DEP_VERSION))
+		if mod == alpm.DEP_MOD_EQ:
+			sys.stdout.write("=%s\n" % ver)
+		elif mod == alpm.DEP_MOD_GE:
+			sys.stdout.write(">=%s\n" % ver)
+		elif mod == alpm.DEP_MOD_LE:
+			sys.stdout.write("<=%s\n" % ver)
+		else:
+			print
+		i = alpm.list_next(i)
+alpm.release()
+shutil.rmtree(root)

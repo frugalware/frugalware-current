@@ -112,6 +112,7 @@ images:
 	sed -i 's/sans-serif,Symbol,ZapfDingbats/DejaVuSans/g' $(basename $@).fo
 	sed -i 's/serif,Symbol,ZapfDingbats/DejaVuSerif/g' $(basename $@).fo
 	sed -i 's|\(src="./images/icons/[^"]\+\).png"|\1.jpg"|g' $(basename $@).fo
+	sed -i 's/bgcolor="[^"]\+"//g;s/border-right-color=""//g;s/border-bottom-color=""//g' $(basename $@).fo
 
 %.pdf: %.fo images
 	fop -c /usr/share/fop/dejavu-ttf.xml $(basename $@).fo $(basename $@).pdf

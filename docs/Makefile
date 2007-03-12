@@ -20,6 +20,9 @@ VERSION = $(shell date +%Y%m%d) (-current)
 #VERSION = 0.6 (Terminus)
 PO_DIR=~/darcs/translations/po
 
+# force the usage of gcj, we have no time to test fop with other jdks
+export JAVA_HOME = /usr
+
 # metadocuments
 GENERATED = index.html manual.html index-user.html user.html index-devel.html devel.html
 

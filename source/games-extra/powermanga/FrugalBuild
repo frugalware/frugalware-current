@@ -1,0 +1,73 @@
+# Compiling Time: 0.15 SBU
+# Maintainer: Priyank Gosalia <priyankmg@gmail.com>
+
+pkgname=powermanga
+pkgver=0.80
+pkgrel=1
+pkgdesc="Powermanga Linux is an arcade 2D shoot-em-up game."
+url="http://linux.tlk.fr/games/Powermanga"
+license="GPL"
+_F_desktop_name="Powermanga"
+_F_desktop_icon="powermanga.png"
+_F_desktop_categories="Game;"
+depends=('sdl' 'sdl_mixer')
+groups=('games-extra')
+archs=('i686')
+up2date="lynx -dump $url/download | grep -m1 powermanga- | sed 's/.*a-\(.*\).t.*/\1/'"
+source=($url/download/$pkgname-$pkgver.tgz \
+	powermanga.png powermanga.sh)
+sha1sums=('03633c0bbf42f931a45c7c7b6dbce0a75d35b63f'\
+          '2cf079a3c9af750232eefae4624a85fbeef1e5e4'\
+          'd82ae1df33123df1737d19df58161d8b6d756ca5')
+
+build()
+{
+	Fcd
+
+	# Apply Fixes
+	Fsed '-O3 -Wall' '${CXXFLAGS}' configure.ac
+	Fsed 'SDL_mixer.h' 'SDL/SDL_mixer.h' src/sdl_mixer.cpp
+	sed -i -e "/null/d" graphics/Makefile.in || Fdie
+	sed -i -e "/zozo/d" texts/text_en.txt || Fdie
+	local f
+	for f in src/assembler.S src/assembler_opt.S ; do
+		cat <<-EOF >> ${f}
+		#ifdef __ELF__
+		.section .note.GNU-stack,"",%progbits
+		#endif
+		EOF
+	done
+
+	# Build powermanga
+	./bootstrap || Fdie
+	./configure --prefix=/usr
+	make || Fdie
+
+	# Install game data
+	Fmkdir /usr/share/powermanga
+	Fexerel powermanga /usr/share/powermanga
+	Fcprrel sounds /usr/share/powermanga
+	Fcprrel graphics /usr/share/powermanga
+	Fcprrel texts /usr/share/powermanga
+
+	# Install other data
+	Fmkdir /var/games
+	touch $Fdestdir/var/games/{powermanga.hi-easy,powermanga.hi,powermanga.hi-hard}
+	Ffileschmod /var/games 660
+
+	# Create a wrapper
+	Fexe powermanga.sh /usr/bin/powermanga
+
+	# Delete unwanted file(s)
+	find "$Fdestdir/usr/share/powermanga/" -name "Makefile*" -exec rm -f \{\} \; >& /dev/null
+	find "$Fdestdir/usr/share/powermanga/" -type d -name CVS -exec rm -rf '{}' \; >& /dev/null
+
+	# Install manpage
+	Fmanrel powermanga.6
+
+	# Destkop entry
+	Ficon powermanga.png
+	Fdesktop2
+}
+
+# optimization OK

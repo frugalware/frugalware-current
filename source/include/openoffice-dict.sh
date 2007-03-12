@@ -65,7 +65,7 @@ Fopenoffice_dictbuild()
 {
 	for i in *.zip
 	do
-		unzip -qqo $i
+		unzip -qqon $i
 	done
 
 	if [ ! "`_F_openoffice_option NODICT`" ]; then

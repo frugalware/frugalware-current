@@ -59,9 +59,9 @@ _F_openoffice_option() {
 
 ###
 # == PROVIDED FUNCTIONS
-# * build()
+# * Fopenoffice_dictbuild()
 ###
-build()
+Fopenoffice_dictbuild()
 {
 	for i in *.zip
 	do
@@ -89,4 +89,12 @@ build()
 			Ffile /usr/lib/openoffice.org/share/dict/ooo/th_$_F_openoffice_name.idx
 		fi
 	fi
+}
+
+###
+# * build() just calls Fopenoffice_dictbuild()
+###
+build()
+{
+	Fopenoffice_dictbuild
 }

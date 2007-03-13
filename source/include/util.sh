@@ -39,7 +39,7 @@
 # * _F_desktop_exec (defaults to $pkgname): Name of the executable file
 # * _F_desktop_categories ('Application;' is always prepended): You can choose
 # one or more from the followings:
-# System;Games;AudioVideo;GNOME;KDE;Network;Development;FileTransfer;GTK;
+# System;Game;AudioVideo;GNOME;KDE;Network;Development;FileTransfer;GTK;
 # * _F_desktop_mime (no default, optional): Mimetypes
 # * _F_desktop_show_in: Whether the icon should be showed in only a particular
 # DE like "XFCE;" for Xfce, "GNOME;" for Gnome, etc.

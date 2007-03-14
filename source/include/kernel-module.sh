@@ -48,7 +48,7 @@
 # * install
 ###
 _F_kernelmod_ver=2.6.20
-_F_kernelmod_rel=3
+_F_kernelmod_rel=4
 _F_kernelmod_uname=$_F_kernelmod_ver-fw$_F_kernelmod_rel
 _F_kernelmod_pkgver=${_F_kernelmod_uname/fw}
 _F_kernelmod_dir=/lib/modules/$_F_kernelmod_uname

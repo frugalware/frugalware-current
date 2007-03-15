@@ -63,14 +63,22 @@ if [[ $pkgname =~ ^xf86-input- ]]; then
 	makedepends=('inputproto' 'randrproto')
 fi
 url="http://xorg.freedesktop.org"
-_F_xorg_release_dir="X11R7.2/src"
+if [ -n "$_F_xorg_nr" ]; then
+	_F_xorg_release_dir="X11R7.2/src"
+else
+	_F_xorg_release_dir="individual"
+fi
 _F_xorg_dir=`echo ${groups[$((${#groups[@]}-1))]}|sed 's/xorg-\(.*\)/\1/;s/s$//'`
 _F_xorg_version="X11R7."
 [ "$_F_xorg_name" = "xorg-server" ] && _F_xorg_dir="xserver"
 _F_xorg_url="$url/releases/$_F_xorg_release_dir/$_F_xorg_dir/"
-up2date="lynx -dump $_F_xorg_url | grep '$_F_xorg_name-${_F_xorg_version}$_F_xorg_nr-\(.*\).tar.bz2'|sed -n 's/.*$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-\(.*\)\.t.*/\1/;$ p'"
-source=($_F_xorg_url/$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-$pkgver.tar.bz2)
 license="GPL2"
-if [ -z "$_F_cd_path" ]; then
-	_F_cd_path="$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-$pkgver"
+if [ -n "$_F_xorg_nr" ]; then
+	up2date="lynx -dump $_F_xorg_url | grep '$_F_xorg_name-${_F_xorg_version}$_F_xorg_nr-\(.*\).tar.bz2'|sed -n 's/.*$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-\(.*\)\.t.*/\1/;$ p'"
+	source=($_F_xorg_url/$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-$pkgver.tar.bz2)
+	[ -z "$_F_cd_path" ] && _F_cd_path="$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-$pkgver"
+else
+	up2date="lynx -dump $_F_xorg_url | grep '$_F_xorg_name-\(.*\).tar.bz2'|sed -n 's/.*$_F_xorg_name-\(.*\)\.t.*/\1/;$ p'"
+	source=($_F_xorg_url/$_F_xorg_name-$pkgver.tar.bz2)
+	[ -z "$_F_cd_path" ] && _F_cd_path="$_F_xorg_name-$pkgver"
 fi

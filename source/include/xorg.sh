@@ -76,9 +76,13 @@ license="GPL2"
 if [ -n "$_F_xorg_nr" ]; then
 	up2date="lynx -dump $_F_xorg_url | grep '$_F_xorg_name-${_F_xorg_version}$_F_xorg_nr-\(.*\).tar.bz2'|sed -n 's/.*$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-\(.*\)\.t.*/\1/;$ p'"
 	source=($_F_xorg_url/$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-$pkgver.tar.bz2)
-	[ -z "$_F_cd_path" ] && _F_cd_path="$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-$pkgver"
+	if [ -z "$_F_cd_path" ]; then
+		_F_cd_path="$_F_xorg_name-$_F_xorg_version$_F_xorg_nr-$pkgver"
+	fi
 else
 	up2date="lynx -dump $_F_xorg_url | grep '$_F_xorg_name-\(.*\).tar.bz2'|sed -n 's/.*$_F_xorg_name-\(.*\)\.t.*/\1/;$ p'"
 	source=($_F_xorg_url/$_F_xorg_name-$pkgver.tar.bz2)
-	[ -z "$_F_cd_path" ] && _F_cd_path="$_F_xorg_name-$pkgver"
+	if [ -z "$_F_cd_path" ]; then
+		_F_cd_path="$_F_xorg_name-$pkgver"
+	fi
 fi

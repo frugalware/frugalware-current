@@ -1,5 +1,7 @@
 #!/bin/bash
 
+stabledir="../../frugalware-stable/t"
+
 gen_output()
 {
 	# display a summary
@@ -55,6 +57,21 @@ do
 	./$i > $logdir/$i
 done
 
+# run the stable tests
+if [ -d $stabledir ]; then
+	mkdir $logdir/stable
+	cd $stabledir
+	for i in *
+	do
+		if [[ $i =~ sh$ ]] || [[ $i =~ py$ ]] || [ $i == "README" ] || [ -d $i ]; then
+			continue
+		fi
+		[ -x $i ] || chmod +x $i
+		./$i > $logdir/$i
+	done
+	cd - >/dev/null
+fi
+
 # run the stats
 cd s
 for i in *
@@ -64,7 +81,7 @@ do
 done
 cd ..
 
-(gen_output $logdir "Testsuite"; gen_output $logdir/s "Statistics") \
+(gen_output $logdir "-current Testsuite"; gen_output $logdir/stable "-stable Testsuite"; gen_output $logdir/s "-current Statistics") \
 	| mail -r "Frugalware Testsuite <noreply@frugalware.org>" \
 	-s "Testsuite results for `date +%Y-%m-%d`" frugalware-devel@frugalware.org
 rm -rf $logdir

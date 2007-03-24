@@ -1,5 +1,7 @@
 #!/bin/sh
 
+Finclude kernel-version
+
 ###
 # = kernel.sh(3)
 # Miklos Vajna <vmiklos@frugalware.org>
@@ -11,7 +13,7 @@
 # Common schema for kernel packages.
 #
 # == EXAMPLE
-# * To build a vanilla upstream kernel:
+# * To build a vanilla upstream kernel with a custom version and config:
 # --------------------------------------------------
 # pkgver=2.6.20
 # pkgrel=1
@@ -28,8 +30,8 @@
 # Finclude kernel
 # --------------------------------------------------
 # == OPTIONS
-# There are only two required variables: pkgver and pkgrel. Here is a list of
-# other optional variables:
+# You are strongly recommended to use the pkgver and pkgrel variables, however
+# all the variables are optional. Here is a list of them:
 #
 # * _F_kernel_vmlinuz (defaults to arch/$arch/boot/bzImage): path to the kernel
 # binary
@@ -49,7 +51,19 @@
 # with a generate one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
 # * _F_kernel_manualamd64: if set, don't update the config automatically to add
 # 32bit emulation support on x86_64
+#
+# == OVERWRITTEN VARIABLES
+# * pkgver (if not set)
+# * pkgrel (if not set)
 ###
+if [ -z "$pkgver" ]; then
+	pkgver=$_F_kernelver_ver
+fi
+
+if [ -z "$pkgrel" ]; then
+	pkgrel=$_F_kernelver_rel
+fi
+
 if [ -z "$_F_kernel_ver" ]; then
 	_F_kernel_ver=$pkgver
 fi
@@ -94,7 +108,6 @@ else
 fi
 
 ###
-# == OVERWRITTEN VARIABLES
 # * pkgname
 # * pkgdesc
 ###

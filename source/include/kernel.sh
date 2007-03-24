@@ -42,7 +42,7 @@ Finclude kernel-version
 # * _F_kernel_rel (defaults to $pkgrel): the release of the kernel (used in the
 # kernel version string)
 # * _F_kernel_stable: if set, the version of the stable patch to use (example:
-# "16")
+# "16", it will be set to _F_kernelver_stable if pkgrel is not specified)
 # * _F_kernel_rc: if set, the version of the rc patch to use (example: "6")
 # * _F_kernel_mm: if set, the version of the mm patch to use (example: "2")
 # * _F_kernel_git if set, the version of the git patch to use (example: "3")
@@ -62,6 +62,7 @@ fi
 
 if [ -z "$pkgrel" ]; then
 	pkgrel=$_F_kernelver_rel
+	_F_kernel_stable=$_F_kernelver_stable
 fi
 
 if [ -z "$_F_kernel_ver" ]; then

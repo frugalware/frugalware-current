@@ -35,7 +35,7 @@ $2 Results
 		fi
 		echo "================================================================================
 Details of '`basename $i`'
-`$(basename $1)/$(basename $i) --help`
+`./$3/$(basename $i) --help`
 --------------------------------------------------------------------------------
 "
 		cat $i|sed 's/^\(.\)/| \1/'
@@ -81,7 +81,7 @@ do
 done
 cd ..
 
-(gen_output $logdir "-current Testsuite"; gen_output $logdir/stable "-stable Testsuite"; gen_output $logdir/s "-current Statistics") \
+(gen_output $logdir "-current Testsuite" ""; gen_output $logdir/stable "-stable Testsuite" "$stabledir"; gen_output $logdir/s "-current Statistics" "s") \
 	| mail -r "Frugalware Testsuite <noreply@frugalware.org>" \
 	-s "Testsuite results for `date +%Y-%m-%d`" frugalware-devel@frugalware.org
 rm -rf $logdir

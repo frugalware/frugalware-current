@@ -1,5 +1,7 @@
 #!/bin/sh
 
+Finclude kernel-version
+
 ###
 # = kernel-module.sh(3)
 # Miklos Vajna <vmiklos@frugalware.org>
@@ -38,8 +40,6 @@
 # info.
 #
 # == OVERWRITTEN VARIABLES
-# * _F_kernelmod_ver: the kernel version
-# * _F_kernelmod_rel: the kernel release
 # * _F_kernelmod_uname: the output of the uname -r command of the official kernel
 # * _F_kernelmod_pkgver: the package version (pkgname-pkgrel) of the kernel
 # * _F_kernelmod_dir: the directory where the modules are (ie: /lib/modules/`uname -r`)
@@ -47,9 +47,7 @@
 # * makedepends()
 # * install
 ###
-_F_kernelmod_ver=2.6.20
-_F_kernelmod_rel=4
-_F_kernelmod_uname=$_F_kernelmod_ver-fw$_F_kernelmod_rel
+_F_kernelmod_uname=$_F_kernelver_ver-fw$_F_kernelver_rel
 _F_kernelmod_pkgver=${_F_kernelmod_uname/fw}
 _F_kernelmod_dir=/lib/modules/$_F_kernelmod_uname
 depends=("kernel$_F_kernel_name=$_F_kernelmod_pkgver")

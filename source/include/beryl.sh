@@ -40,7 +40,7 @@ fi
 # * source()
 # * _F_cd_path
 ###
-pkgver=0.2.0
+pkgver=0.2.1
 pkgdesc="Beryl is a compositing window manager which provides lots of fancy effects on your desktop"
 url="http://www.beryl-project.org/"
 up2date="lynx -dump http://releases.beryl-project.org/current/ | grep $_F_beryl_name | Flasttarbz2"

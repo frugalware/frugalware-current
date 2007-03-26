@@ -51,6 +51,8 @@ Finclude kernel-version
 # with a generate one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
 # * _F_kernel_manualamd64: if set, don't update the config automatically to add
 # 32bit emulation support on x86_64
+# * _F_kernel_uname: specify the kernel version manually (defaults to
+# $_F_kernel_name-fw$_F_kernel_rel)
 #
 # == OVERWRITTEN VARIABLES
 # * pkgver (if not set)
@@ -94,6 +96,9 @@ if [ -z "$_F_kernel_dontsedarch" ]; then
 fi
 if [ -z "$_F_kernel_dontfakeversion" ]; then
 	_F_kernel_dontfakeversion=0
+fi
+if [ -z "$_F_kernel_uname" ]; then
+	_F_kernel_uname="$_F_kernel_name-fw$_F_kernel_rel"
 fi
 
 _F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
@@ -245,7 +250,7 @@ Fbuildkernel()
 	fi
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
 		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
-		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_name-fw$_F_kernel_rel" Makefile
+		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_uname" Makefile
 	fi
 	
 	## let we do kernel$_F_kernel_name-source before make

@@ -255,15 +255,15 @@ Fbuildkernel()
 	
 	## let we do kernel$_F_kernel_name-source before make
 	Fmkdir /usr/src
-	cp -Ra $Fsrcdir/linux-$_F_kernel_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
-	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS}
-	Fln linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel /usr/src/linux
+	cp -Ra $Fsrcdir/linux-$_F_kernel_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname
+	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS}
+	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
 	Fsplit kernel$_F_kernel_name-source usr/src
 
 	## now the kernel$_F_kernel_name-docs
-	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
+	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_uname
 	cp -Ra $Fsrcdir/linux-$_F_kernel_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
-	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
+	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname
         ## do we need to ln /usr/share/doc ?!
 	Fsplit kernel$_F_kernel_name-docs usr/src
 
@@ -285,25 +285,25 @@ Fbuildkernel()
 	fi
 	
 	Fmkdir /boot
-	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
+	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_uname
 	if [ ! -z "$_F_kernel_vmlinuz" ]; then
-		Ffilerel $_F_kernel_vmlinuz /boot/vmlinuz-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
+		Ffilerel $_F_kernel_vmlinuz /boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
 	else
 		Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage \
-			/boot/vmlinuz-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
+			/boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
 	fi
 	Fmkdir /lib/modules
 	make INSTALL_MOD_PATH=$Fdestdir modules_install
 	# dump symol versions so that later builds will have dependencies and
 	# modversions
-	Ffilerel System.map /boot/System.map-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel
-	Ffilerel /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/Module.symvers
-	Frm /lib/modules/$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/build
-	Frm /lib/modules/$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/source
-	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel \
-		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/build
-	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel \
-		/lib/modules/$_F_kernel_ver$_F_kernel_name-fw$_F_kernel_rel/source
+	Ffilerel System.map /boot/System.map-$_F_kernel_ver$_F_kernel_uname
+	Ffilerel /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/Module.symvers
+	Frm /lib/modules/$_F_kernel_ver$_F_kernel_uname/build
+	Frm /lib/modules/$_F_kernel_ver$_F_kernel_uname/source
+	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname \
+		/lib/modules/$_F_kernel_ver$_F_kernel_uname/build
+	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname \
+		/lib/modules/$_F_kernel_ver$_F_kernel_uname/source
 
 	# scriptlets
 	cp $Fincdir/kernel.install $Fsrcdir

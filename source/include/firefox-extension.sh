@@ -16,9 +16,6 @@
 # pkgrel=1
 # pkgdesc="Display WML (Wireless Markup Language) content."
 # url="https://addons.mozilla.org/firefox/1843/"
-# rodepends=('firefox>=1.5')
-# groups=('xapps-extra' 'firefox-extensions')
-# archs=('i686' 'x86_64')
 # up2date="elinks -dump $url |grep xpi$|sed 's/.*g-\(.*\)-.*/\1/'"
 # source=(http://releases.mozilla.org/pub/mozilla.org/extensions/firebug/\
 # firebug-$pkgver-fx+fl.xpi chrome.manifest)

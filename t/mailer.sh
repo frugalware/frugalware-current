@@ -67,7 +67,7 @@ if [ -d $stabledir ]; then
 			continue
 		fi
 		[ -x $i ] || chmod +x $i
-		./$i > $logdir/$i
+		./$i > $logdir/stable/$i
 	done
 	cd - >/dev/null
 fi

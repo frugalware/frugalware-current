@@ -307,13 +307,11 @@ Fbuildkernel()
 
 	# scriptlets
 	cp $Fincdir/kernel.install $Fsrcdir
-	Fsed '$_F_kernel_name' "$_F_kernel_name" $Fsrcdir/kernel.install
 	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel.install
-	Fsed '$_F_kernel_rel' "$_F_kernel_rel" $Fsrcdir/kernel.install
+	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel.install
 	cp $Fincdir/kernel-source.install $Fsrcdir
-	Fsed '$_F_kernel_name' "$_F_kernel_name" $Fsrcdir/kernel-source.install
 	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel-source.install
-	Fsed '$_F_kernel_rel' "$_F_kernel_rel" $Fsrcdir/kernel-source.install
+	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel-source.install
 }
 
 ###

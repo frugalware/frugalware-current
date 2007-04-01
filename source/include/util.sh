@@ -162,7 +162,7 @@ Fcpr() {
 }
 
 ###
-# * Fcpr(): Copy file(s) to $Fdestdir recursively from the current working
+# * Fcprrel(): Copy file(s) to $Fdestdir recursively from the current working
 # directory. First parameter: name of the file, second parameter: path of the
 # destination.
 ###

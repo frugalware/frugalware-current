@@ -876,7 +876,7 @@ Fdesktop2()
 
 	Fmkdir $Fmenudir
 	Fmessage "Installing desktop file: $deskfilename"
-	cat > $Fdestdir$Fmenudir/$deskfilename.desktop << EOF
+	cat > $Fdestdir$Fmenudir/$deskfilename << EOF
 [Desktop Entry]
 Encoding=UTF-8
 Name=$dname

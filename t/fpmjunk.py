@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 
-import pacman, os, tempfile, shutil, sys, re
+try:
+	import pacman
+except ImportError:
+	import alpm
+	pacman = alpm
+import os, tempfile, shutil, sys, re
 
 remove = False
 if len(sys.argv) > 1:

@@ -38,6 +38,18 @@ Fmonoexport() {
 }
 
 ###
+# * Fmonoccompileaot(): AOT all of the libraries in the pkg
+###
+Fmonocompileaot() {
+	Fmessage "AOTing all of the libraries..."
+	for i in $Fdestdir/usr/lib/mono/gac/*/*/*.dll
+	do
+		echo mono --aot $i
+		mono --aot $i || Fdie
+	done
+}
+
+###
 # * Fmonocleanup(): removes MONO_SHARED_DIR
 ###
 Fmonocleanup() {
@@ -51,6 +63,7 @@ Fmonocleanup() {
 Fbuild_mono() {
 	Fmonoexport
 	Fbuild
+	Fmonocompileaot
 	Fmonocleanup
 }
 

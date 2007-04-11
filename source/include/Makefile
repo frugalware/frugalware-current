@@ -31,4 +31,4 @@ stat:
 	sed -i 's/\\(bu/*/' $@
 
 clean:
-	rm -f *.3
+	rm -f *.3 *.txt *.xml

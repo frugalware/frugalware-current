@@ -15,6 +15,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
+XML_PATH = /usr/share/sgml/docbook/dtd/xml-dtd-4.2
+
 all: $(subst .sh,.sh.3,$(wildcard *.sh))
 
 stat:
@@ -25,9 +27,10 @@ stat:
 
 %.sh.xml: %.sh.txt
 	asciidoc -d manpage -b docbook $(basename $@).txt
+	sed -i '/<!DOCTYPE/s|\("http[^"].*"\)|"file://$(XML_PATH)/docbookx.dtd"|' $@
 
 %.sh.3: %.sh.xml
-	xsltproc /etc/asciidoc/docbook-xsl/manpage.xsl $(basename $@).xml
+	xsltproc --nonet --path $(XML_PATH) /etc/asciidoc/docbook-xsl/manpage.xsl $(basename $@).xml
 	sed -i 's/\\(bu/*/' $@
 
 clean:

@@ -1,0 +1,56 @@
+--- muine-0.8.7/libmuine/metadata.c.flac	2007-01-19 23:14:07.000000000 +0100
++++ muine-0.8.7/libmuine/metadata.c	2007-01-22 13:52:05.000000000 +0100
+@@ -41,6 +41,12 @@
+ #include "metadata.h"
+ #include "macros.h"
+ 
++#if !defined(FLAC_API_VERSION_CURRENT) || FLAC_API_VERSION_CURRENT < 8
++#define LEGACY_FLAC
++#else
++#undef LEGACY_FLAC
++#endif
++
+ struct _Metadata {
+ 	char *title;
+ 
+@@ -829,22 +835,40 @@
+ 
+ 	flac_decoder = FLAC__stream_decoder_new ();
+ 
++#if defined(LEGACY_FLAC)
+ 	FLAC__stream_decoder_set_read_callback (flac_decoder, FLAC_read_callback);
+ 	FLAC__stream_decoder_set_write_callback (flac_decoder, FLAC_write_callback);
+ 	FLAC__stream_decoder_set_metadata_callback (flac_decoder, FLAC_metadata_callback);
+ 	FLAC__stream_decoder_set_error_callback (flac_decoder, FLAC_error_callback);
++#endif
+ 
+ 	callback_data = g_new0 (CallbackData, 1);
+ 	callback_data->handle = handle;
+ 	callback_data->comment = comment;
++#if defined(LEGACY_FLAC)
+ 	FLAC__stream_decoder_set_client_data (flac_decoder, callback_data);
++#endif
+ 
+ 	/* by default, only the STREAMINFO block is parsed and passed to
+ 	 * the metadata callback.  Here we instruct the decoder to also
+ 	 * pass us the VORBISCOMMENT block if there is one. */
+ 	FLAC__stream_decoder_set_metadata_respond (flac_decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
+ 
++#if defined(LEGACY_FLAC)
+ 	FLAC__stream_decoder_init (flac_decoder);
++#else
++	FLAC__stream_decoder_init_stream (flac_decoder,
++					 FLAC_read_callback,
++					 NULL,
++					 NULL,
++					 NULL,
++					 NULL,
++					 FLAC_write_callback,
++					 FLAC_metadata_callback,
++					 FLAC_error_callback,
++					 callback_data
++					 );
++#endif
+ 
+ 	/* this runs the decoding process, calling the callbacks as appropriate */
+ 	if (FLAC__stream_decoder_process_until_end_of_metadata (flac_decoder) == 0) {

@@ -19,6 +19,7 @@
 VERSION = $(shell date +%Y%m%d) (-current)
 #VERSION = 0.6 (Terminus)
 PO_DIR=~/darcs/translations/po
+XML_PATH = /usr/share/sgml/docbook/dtd/xml-dtd-4.2
 
 # force the usage of gcj, we have no time to test fop with other jdks
 export JAVA_HOME = /usr
@@ -109,9 +110,10 @@ images:
 
 %.xml: %.txt
 	asciidoc -a toc -a numbered -b docbook $(basename $@).txt
+	sed -i '/<!DOCTYPE/s|\("http[^"].*"\)|"file://$(XML_PATH)/docbookx.dtd"|' $@
 
 %.fo: %.xml
-	xsltproc /etc/asciidoc/docbook-xsl/fo.xsl $(basename $@).xml > $(basename $@).fo
+	xsltproc --nonet --path $(XML_PATH) /etc/asciidoc/docbook-xsl/fo.xsl $(basename $@).xml > $(basename $@).fo
 	sed -i 's/sans-serif,Symbol,ZapfDingbats/DejaVuSans/g' $(basename $@).fo
 	sed -i 's/serif,Symbol,ZapfDingbats/DejaVuSerif/g' $(basename $@).fo
 	sed -i 's|\(src="./images/icons/[^"]\+\).png"|\1.jpg"|g' $(basename $@).fo

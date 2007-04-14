@@ -140,7 +140,7 @@ devel.txt: $(DEVEL_SOURCES) $(DYNAMIC_SOURCES)
 
 packages.txt: packages.txt.in
 	( cat packages.txt.in; \
-	for i in `find ../source -maxdepth 5 -name README.Frugalware`; \
+	for i in `find ../source -maxdepth 5 -name README.Frugalware|sort`; \
 	do \
 		pkgname=`echo $$i |sed 's|.*/\(.*\)/README.Frugalware|\1|'`; \
 		echo -e "== $$pkgname\n"; \

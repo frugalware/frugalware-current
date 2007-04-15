@@ -46,7 +46,7 @@ fi
 
 if [ -z "$_F_sourceforge_mirror" ]; then
 	# set our preferred mirror
-	_F_sourceforge_mirror="heanet"
+	_F_sourceforge_mirror="mesh"
 fi
 
 if [ -z "$_F_sourceforge_dirname" ]; then

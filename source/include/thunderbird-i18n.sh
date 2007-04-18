@@ -31,11 +31,11 @@
 # * groups()
 # * archs()
 ###
-up2date="1.5.0.7"
+up2date="2.0.0.0"
 url="http://www.mozilla.org/projects/l10n/mlp.html"
 source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linux-i686/xpi/$_F_thunderbird_lang.xpi)
 options=('scriptlet')
-depends=('thunderbird>=1.5.0.7')
+depends=("thunderbird>=$pkgver")
 makedepends=('unzip')
 groups=('locale-extra')
 archs=('i686' 'x86_64')

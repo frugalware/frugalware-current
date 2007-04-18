@@ -3,11 +3,11 @@
 # Contributor: Krisztian VASAS <iron@frugalware.org>
 
 pkgname=thunderbird
-pkgver=1.5.0.10
+pkgver=2.0.0.0
 pkgrel=1
 pkgdesc="Mozilla Thunderbird mail and newsgroup client"
 url="http://www.mozilla.org/products/thunderbird/"
-depends=('gtk+2' 'libidl' 'nss>=3.11.3-2' 'pango' 'cairo')
+depends=('gtk+2>=2.10.11' 'nss>=3.11.5' 'pango>=1.16.2' 'cairo>=1.4.4' 'libstdc++' 'libxt' 'libidl' 'libxcb' 'freetype2>=2.3.4')
 makedepends=('zip')
 groups=('xapps')
 archs=('i686' 'x86_64')
@@ -23,19 +23,18 @@ source=(http://releases.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/so
 	18-firefox-1.5-makeopts.patch \
 	19-$pkgname-1.5-locale.diff \
 	20-use-pangocairo.patch \
-	21-use-system-nss.patch \
 	mozilla-$pkgname.desktop \
 	$pkgname.desktop
 	$pkgname-frugalware-default-prefs.js \
-	$pkgname.install \
 	$pkgname.png \
-	$pkgname-rebuild-databases.pl \
-	$pkgname)
-signatures=("${source[0]}.asc" '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '')
+	$pkgname-rebuild-databases.pl)
+signatures=("${source[0]}.asc" '' '' '' '' '' '' '' '' '' '' '' '' '' '')
 
 build()
 {
 	Fcd mozilla
+	## lalala same as FF
+	sed -i '/layout.css.dpi/s/-1/72/' modules/libpref/src/init/all.js || Fdie
 	export MOZ_PROJECT=mail
 	export CFLAGS="$CFLAGS -fno-strict-aliasing"
 	export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing"
@@ -45,7 +44,7 @@ build()
 	Fsed '\-0' '\-9' config/make-jars.pl
 
 	# For better reading...
-	ac_cv_visibility_pragma=no Fmake \
+	Fmake \
 	--with-default-mozilla-five-home=/usr/lib/thunderbird \
 	--with-distribution-id=Frugalware \
 	--with-system-jpeg \
@@ -57,7 +56,6 @@ build()
 	--with-pthreads \
 	--disable-xprint \
 	--disable-xinerama \
-	--disable-svg \
 	--disable-pedantic \
 	--disable-calendar \
 	--disable-jsd \
@@ -69,13 +67,13 @@ build()
 	--disable-activex \
 	--disable-debug \
 	--disable-tests \
-	--disable-strip \
 	--disable-dtd-debug \
 	--disable-logging \
 	--disable-toolkit-qt \
 	--disable-toolkit-xlib \
 	--disable-toolkit-gtk \
-	--enable-optimize="$CFLAGS" \
+	--disable-optimize \
+	--disable-svg \
 	--enable-xft \
 	--enable-mathml \
 	--enable-xsl \
@@ -84,9 +82,11 @@ build()
 	--enable-strip-libs \
 	--enable-xterm-updates \
 	--enable-application=mail
-	--enable-extensions=wallet,spellcheck,xmlextras,webservices \
-	--enable-necko-protocols=http,file,jar,viewsource,res,data \
-	--enable-image-decoders=png,gif,jpeg,bmp \
+	--enable-extensions \
+	--enable-necko-protocols=all \
+	--enable-necko-small-buffers \
+	--enable-image-decoders=all \
+	--enable-image-encoders=all \
 	--enable-toolkit-gtk2 \
 	--enable-default-toolkit=gtk2 \
 	--enable-ipv6 \
@@ -95,10 +95,14 @@ build()
 	--enable-pango \
 	--enable-canvas \
 	--enable-system-cairo
+	##--enable-svg \
+	##--enable-svg-renderer=cairo
 	
 	Fmakeinstall
 
 	## kill this $pkgver stuff && symlink later on
+	Fsed "$pkgname-$pkgver" "$pkgname" $Fdestdir/usr/lib/pkgconfig/*.pc
+	Fsed "$pkgname-$pkgver" "$pkgname" $Fdestdir/usr/bin/$pkgname
 	Fmv /usr/lib/$pkgname-$pkgver /usr/lib/$pkgname
 	Fmv /usr/include/$pkgname-$pkgver /usr/include/$pkgname
 	Fmv /usr/share/idl/$pkgname-$pkgver /usr/share/idl/$pkgname
@@ -122,10 +126,6 @@ build()
 	# Install thunderbird-rebuild-databases.pl
 	Fexe /usr/lib/$pkgname/$pkgname-rebuild-databases.pl
 
-	# Install thunderbird.sh.
-	Fmv /usr/bin/$pkgname /usr/lib/$pkgname/
-	Fexe /usr/bin/$pkgname
-
 	# Install thunderbird-frugalware-default-prefs.js.
 	sed "s/FW_VR/$pkgver-$pkgrel/" $Fsrcdir/$pkgname-frugalware-default-prefs.js > \
 		$Fdestdir/usr/lib/$pkgname/greprefs/all-frugalware.js
@@ -141,9 +141,7 @@ build()
 	# Install KDE menu file.
 	Ffile /usr/share/applnk/Internet/mozilla-$pkgname.desktop
 
-#	Fmv /usr/bin/defaults/profile/prefs.js \
-#		/usr/lib/thunderbird-$pkgver/defaults/profile
-#	Frm /usr/bin/defaults
+
 }
 
 # optimization OK

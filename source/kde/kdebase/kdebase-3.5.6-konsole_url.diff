@@ -1,0 +1,147 @@
+Ported from http://bugs.kde.org/show_bug.cgi?id=94075
+diff -Naur kdebase-3.5.6/konsole/konsole.orig/konsole.cpp kdebase-3.5.6/konsole/konsole/konsole.cpp
+--- kdebase-3.5.6/konsole/konsole.orig/konsole.cpp	2007-04-18 23:57:04.000000000 +0200
++++ kdebase-3.5.6/konsole/konsole/konsole.cpp	2007-04-19 00:01:55.000000000 +0200
+@@ -114,6 +114,7 @@
+ #include <knotifydialog.h>
+ #include <kprinter.h>
+ #include <kaccelmanager.h>
++#include <kurifilter.h>
+ 
+ #include <kaction.h>
+ #include <kshell.h>
+@@ -268,6 +269,7 @@
+ ,sessionNumberMapper(0)
+ ,sl_sessionShortCuts(0)
+ ,s_workDir(workdir)
++,m_filterData(0)
+ {
+   isRestored = b_inRestore;
+   connect( &m_closeTimeout, SIGNAL(timeout()), this, SLOT(slotCouldNotClose()));
+@@ -346,6 +348,8 @@
+ 
+ Konsole::~Konsole()
+ {
++    delete m_filterData;
++
+     sessions.first();
+     while(sessions.current())
+     {
+@@ -718,6 +722,11 @@
+ 
+       m_copyClipboard->plug(m_rightButton);
+       m_pasteClipboard->plug(m_rightButton);
++
++      m_openSelection = new KPopupMenu(this);
++      m_rightButton->insertItem( i18n("&Open.."), m_openSelection );
++      connect(m_openSelection, SIGNAL(aboutToShow()), SLOT(slotOpenSelection()));
++
+       if (m_signals)
+          m_rightButton->insertItem(i18n("&Send Signal"), m_signals);
+ 
+@@ -3953,6 +3962,34 @@
+   m_finddialog->result();
+ }
+ 
++void Konsole::slotOpenSelection()
++{
++  delete m_filterData;
++
++  m_openSelection->clear();
++  disconnect(m_openSelection, SIGNAL(activated(int)), this, SLOT(slotOpenURI(int)));
++
++  QString selection = se->getEmulation()->getSelection();
++  QString curdir = baseURL().path();
++
++  if ( QFile::exists( curdir + selection ) ) {
++     selectedURL = QString(curdir + selection);
++  } else {
++     selectedURL = QString(selection);
++  }
++
++  m_filterData = new KURIFilterData( selectedURL );
++  KURIFilter::self()->filterURI( *(m_filterData) );
++  m_openSelection->insertItem( SmallIconSet( m_filterData->iconName() ),i18n( "%1" ).arg(m_filterData->uri().url()), 1 );
++
++  connect(m_openSelection, SIGNAL(activated(int)), SLOT(slotOpenURI(int)));
++}
++
++void Konsole::slotOpenURI(int)
++{
++  (void) new KRun( m_filterData->uri() );
++}
++
+ void Konsole::slotFindNext()
+ {
+   if( !m_finddialog ) {
+diff -Naur kdebase-3.5.6/konsole/konsole.orig/konsole.h kdebase-3.5.6/konsole/konsole/konsole.h
+--- kdebase-3.5.6/konsole/konsole.orig/konsole.h	2007-01-15 12:32:17.000000000 +0100
++++ kdebase-3.5.6/konsole/konsole/konsole.h	2007-04-19 00:01:55.000000000 +0200
+@@ -64,6 +64,7 @@
+ class KRadioAction;
+ class KTabWidget;
+ class QToolButton;
++class KURIFilterData;
+ 
+ // Defined in main.C
+ const char *konsole_shell(QStrList &args);
+@@ -203,6 +204,9 @@
+   void loadScreenSessions();
+   void updateFullScreen(bool on);
+ 
++  void slotOpenSelection();
++  void slotOpenURI(int n);
++
+   void slotSaveSettings();
+   void slotSaveSessionsProfile();
+   void slotConfigureNotifications();
+@@ -365,6 +369,7 @@
+   KAction       *m_print;
+   KAction       *m_quit;
+   KAction       *m_tabDetachSession;
++  KPopupMenu    *m_openSelection;
+ 
+   KActionCollection *m_shortcuts;
+ 
+@@ -375,6 +380,7 @@
+   bool         m_find_first;
+   bool         m_find_found;
+   QString      m_find_pattern;
++  QString  selectedURL;
+ 
+   int cmd_serial;
+   int cmd_first_screen;
+@@ -438,6 +444,7 @@
+   QString  s_workDir;
+ 
+   QColor    m_tabColor;
++  KURIFilterData* m_filterData;
+ };
+ 
+ class QSpinBox;
+diff -Naur kdebase-3.5.6/konsole/konsole.orig/TEmulation.cpp kdebase-3.5.6/konsole/konsole/TEmulation.cpp
+--- kdebase-3.5.6/konsole/konsole.orig/TEmulation.cpp	2007-01-15 12:32:17.000000000 +0100
++++ kdebase-3.5.6/konsole/konsole/TEmulation.cpp	2007-04-18 23:58:59.000000000 +0200
+@@ -395,6 +395,11 @@
+   QApplication::clipboard()->setText(t);
+ }
+ 
++QString TEmulation::getSelection() {
++  if (connected) return scr->getSelText(true);
++  return QString::null;
++}
++
+ void TEmulation::streamHistory(QTextStream* stream) {
+   scr->streamHistory(stream);
+ }
+diff -Naur kdebase-3.5.6/konsole/konsole.orig/TEmulation.h kdebase-3.5.6/konsole/konsole/TEmulation.h
+--- kdebase-3.5.6/konsole/konsole.orig/TEmulation.h	2006-10-01 19:32:08.000000000 +0200
++++ kdebase-3.5.6/konsole/konsole/TEmulation.h	2007-04-18 23:58:59.000000000 +0200
+@@ -59,6 +59,7 @@
+  
+   virtual void clearSelection();
+   virtual void copySelection();
++  virtual QString getSelection();
+   virtual void onSelectionBegin(const int x, const int y, const bool columnmode);
+   virtual void onSelectionExtend(const int x, const int y);
+   virtual void setSelection(const bool preserve_line_breaks);

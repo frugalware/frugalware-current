@@ -317,7 +317,7 @@ Fbuildkernel()
 }
 
 ###
-# * build() just calls Fbuildskel()
+# * build() just calls Fbuildkernel()
 ###
 build()
 {

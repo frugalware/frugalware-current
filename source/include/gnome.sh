@@ -38,7 +38,7 @@ if [ -z "$_F_gnome_name" ]; then
 fi
 
 if [ -z "$_F_gnome_devel" ]; then
-	_F_gnome_devel="y"
+	_F_gnome_devel="n"
 fi
 
 # don't document this function, it's used only for source()

@@ -143,6 +143,9 @@ fi
 ###
 url="http://www.kernel.org"
 rodepends=('module-init-tools' 'sed')
+if [ "`vercmp 2.6.21 $_F_kernel_ver`" -le 0 ]; then
+	rodepends=(${rodepends[@]} 'alsa-firmware')
+fi
 if [ -z "$_F_kernel_name" ]; then
 	makedepends=('unifdef')
 fi

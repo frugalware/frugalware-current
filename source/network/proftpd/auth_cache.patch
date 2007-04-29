@@ -1,0 +1,363 @@
+diff -urNad proftpd-dfsg-1.3.0~/include/auth.h proftpd-dfsg-1.3.0/include/auth.h
+--- proftpd-dfsg-1.3.0~/include/auth.h	2007-04-17 23:42:54.000000000 +0200
++++ proftpd-dfsg-1.3.0/include/auth.h	2007-04-17 23:43:42.000000000 +0200
+@@ -86,6 +86,7 @@
+ config_rec *pr_auth_get_anon_config(pool *p, char **, char **, char **);
+ 
+ /* For internal use only. */
++int init_auth(void);
+ int set_groups(pool *, gid_t, array_header *);
+ 
+ #endif /* PR_MODULES_H */
+diff -urNad proftpd-dfsg-1.3.0~/modules/mod_core.c proftpd-dfsg-1.3.0/modules/mod_core.c
+--- proftpd-dfsg-1.3.0~/modules/mod_core.c	2007-04-17 23:43:42.000000000 +0200
++++ proftpd-dfsg-1.3.0/modules/mod_core.c	2007-04-17 23:43:42.000000000 +0200
+@@ -4403,6 +4403,8 @@
+   config_rec *c = NULL;
+   unsigned int *debug_level = NULL;
+ 
++  init_auth();
++
+   /* Check for a server-specific TimeoutIdle. */
+   c = find_config(main_server->conf, CONF_PARAM, "TimeoutIdle", FALSE);
+   if (c != NULL)
+diff -urNad proftpd-dfsg-1.3.0~/src/auth.c proftpd-dfsg-1.3.0/src/auth.c
+--- proftpd-dfsg-1.3.0~/src/auth.c	2007-04-17 23:43:42.000000000 +0200
++++ proftpd-dfsg-1.3.0/src/auth.c	2007-04-17 23:44:48.000000000 +0200
+@@ -30,6 +30,10 @@
+ 
+ #include "conf.h"
+ 
++static pool *auth_pool = NULL;
++static pr_table_t *auth_tab = NULL;
++static const char *trace_channel = "auth";
++
+ /* The difference between this function, and pr_cmd_alloc(), is that this
+  * allocates the cmd_rec directly from the given pool, whereas pr_cmd_alloc()
+  * will allocate a subpool from the given pool, and allocate its cmd_rec
+@@ -63,7 +67,7 @@
+   return c;
+ }
+ 
+-static modret_t *dispatch_auth(cmd_rec *cmd, char *match) {
++static modret_t *dispatch_auth(cmd_rec *cmd, char *match, module **m) {
+   authtable *start_tab = NULL, *iter_tab = NULL;
+   modret_t *mr = NULL;
+ 
+@@ -74,6 +78,10 @@
+   while (iter_tab) {
+     pr_signals_handle();
+ 
++    if (m && *m && *m != iter_tab->m) {
++      goto next;
++    }
++ 
+     pr_log_debug(DEBUG6, "dispatching auth request \"%s\" to module mod_%s",
+       match, iter_tab->m->name);
+ 
+@@ -83,9 +91,19 @@
+       break;
+ 
+     if (MODRET_ISHANDLED(mr) ||
+-        MODRET_ISERROR(mr))
++        MODRET_ISERROR(mr)) {
++
++      /* Return a pointer, if requested, to the module which answered the
++       * auth request.  This is used, for example, by auth_getpwnam() for
++       * associating the answering auth module with the data looked up.
++       */
++      if (m)
++        *m = iter_tab->m;
++
+       break;
++    }
+ 
++  next:
+     iter_tab = pr_stash_get_symbol(PR_SYM_AUTH, match, iter_tab,
+       &cmd->stash_index);
+  
+@@ -93,7 +111,7 @@
+        /* We have looped back to the start.  Break out now and do not loop
+         * around again (and again, and again...)
+         */
+-       mr = PR_DECLINED(cmd);
++       mr = DECLINED(cmd);
+        break;
+      }
+   }
+@@ -106,7 +124,7 @@
+   modret_t *mr = NULL;
+ 
+   cmd = make_cmd(p, 0);
+-  mr = dispatch_auth(cmd, "setpwent");
++  mr = dispatch_auth(cmd, "setpwent", NULL);
+ 
+   if (cmd->tmp_pool) {
+     destroy_pool(cmd->tmp_pool);
+@@ -121,13 +139,20 @@
+   modret_t *mr = NULL;
+ 
+   cmd = make_cmd(p, 0);
+-  mr = dispatch_auth(cmd, "endpwent");
++  mr = dispatch_auth(cmd, "endpwent", NULL);
+ 
+   if (cmd->tmp_pool) {
+     destroy_pool(cmd->tmp_pool);
+     cmd->tmp_pool = NULL;
+   }
+ 
++  if (auth_tab) {
++    pr_log_debug(DEBUG5, "emptying authcache");
++    (void) pr_table_empty(auth_tab);
++    (void) pr_table_free(auth_tab);
++    auth_tab = NULL;
++  }
++
+   return;
+ }
+ 
+@@ -136,7 +161,7 @@
+   modret_t *mr = NULL;
+ 
+   cmd = make_cmd(p, 0);
+-  mr = dispatch_auth(cmd, "setgrent");
++  mr = dispatch_auth(cmd, "setgrent", NULL);
+ 
+   if (cmd->tmp_pool) {
+     destroy_pool(cmd->tmp_pool);
+@@ -151,7 +176,7 @@
+   modret_t *mr = NULL;
+ 
+   cmd = make_cmd(p, 0);
+-  mr = dispatch_auth(cmd, "endgrent");
++  mr = dispatch_auth(cmd, "endgrent", NULL);
+ 
+   if (cmd->tmp_pool) {
+     destroy_pool(cmd->tmp_pool);
+@@ -167,7 +192,7 @@
+   struct passwd *res = NULL;
+ 
+   cmd = make_cmd(p, 0);
+-  mr = dispatch_auth(cmd, "getpwent");
++  mr = dispatch_auth(cmd, "getpwent", NULL);
+ 
+   if (MODRET_ISHANDLED(mr) && MODRET_HASDATA(mr))
+     res = mr->data;
+@@ -201,7 +226,7 @@
+   struct group *res = NULL;
+ 
+   cmd = make_cmd(p, 0);
+-  mr = dispatch_auth(cmd, "getgrent");
++  mr = dispatch_auth(cmd, "getgrent", NULL);
+ 
+   if (MODRET_ISHANDLED(mr) && MODRET_HASDATA(mr))
+     res = mr->data;
+@@ -228,11 +253,13 @@
+   cmd_rec *cmd = NULL;
+   modret_t *mr = NULL;
+   struct passwd *res = NULL;
++  module *m = NULL;
+ 
+   cmd = make_cmd(p, 1, name);
+-  mr = dispatch_auth(cmd, "getpwnam");
++  mr = dispatch_auth(cmd, "getpwnam", &m);
+ 
+-  if (MODRET_ISHANDLED(mr) && MODRET_HASDATA(mr))
++  if (MODRET_ISHANDLED(mr) &&
++      MODRET_HASDATA(mr))
+     res = mr->data;
+ 
+   if (cmd->tmp_pool) {
+@@ -257,6 +284,46 @@
+     return NULL;
+   }
+ 
++  if (!auth_tab && auth_pool) {
++    auth_tab = pr_table_alloc(auth_pool, 0);
++  }
++
++  if (m && auth_tab) {
++    int count = 0;
++    void *value = NULL;
++
++    value = palloc(auth_pool, sizeof(module *));
++    *((module **) value) = m;
++
++    count = pr_table_exists(auth_tab, name);
++    if (count <= 0) {
++      if (pr_table_add(auth_tab, pstrdup(auth_pool, name), value,
++          sizeof(module *)) < 0) {
++        pr_log_debug(DEBUG3,
++          "error adding module 'mod_%s.c' for user '%s' to the authcache: %s",
++          m->name, name, strerror(errno));
++
++      } else {
++        pr_log_debug(DEBUG5,
++          "stashed module 'mod_%s.c' for user '%s' in the authcache",
++          m->name, name);
++      }
++
++    } else {
++      if (pr_table_set(auth_tab, pstrdup(auth_pool, name), value,
++          sizeof(module *)) < 0) {
++        pr_log_debug(DEBUG3,
++          "error setting module 'mod_%s.c' for user '%s' in the authcache: %s",
++          m->name, name, strerror(errno));
++
++      } else {
++        pr_log_debug(DEBUG5,
++          "stashed module 'mod_%s.c' for user '%s' in the authcache",
++          m->name, name);
++      }
++    }
++  }
++
+   pr_log_debug(DEBUG10, "retrieved UID %lu for user '%s'",
+     (unsigned long) res->pw_uid, name);
+   return res;
+@@ -268,7 +335,7 @@
+   struct passwd *res = NULL;
+ 
+   cmd = make_cmd(p, 1, (void *) &uid);
+-  mr = dispatch_auth(cmd, "getpwuid");
++  mr = dispatch_auth(cmd, "getpwuid", NULL);
+ 
+   if (MODRET_ISHANDLED(mr) && MODRET_HASDATA(mr))
+     res = mr->data;
+@@ -306,7 +373,7 @@
+   struct group *res = NULL;
+ 
+   cmd = make_cmd(p, 1, name);
+-  mr = dispatch_auth(cmd, "getgrnam");
++  mr = dispatch_auth(cmd, "getgrnam", NULL);
+ 
+   if (MODRET_ISHANDLED(mr) && MODRET_HASDATA(mr))
+     res = mr->data;
+@@ -339,7 +406,7 @@
+   struct group *res = NULL;
+ 
+   cmd = make_cmd(p, 1, (void *) &gid);
+-  mr = dispatch_auth(cmd, "getgrgid");
++  mr = dispatch_auth(cmd, "getgrgid", NULL);
+ 
+   if (MODRET_ISHANDLED(mr) && MODRET_HASDATA(mr))
+     res = mr->data;
+@@ -369,10 +436,25 @@
+ int pr_auth_authenticate(pool *p, const char *name, const char *pw) {
+   cmd_rec *cmd = NULL;
+   modret_t *mr = NULL;
++  module *m = NULL;
+   int res = PR_AUTH_NOPWD;
+ 
+   cmd = make_cmd(p, 2, name, pw);
+-  mr = dispatch_auth(cmd, "auth");
++
++  if (auth_tab) {
++
++    /* Fetch the specific module to be used for authenticating this user. */
++    void *v = pr_table_get(auth_tab, name, NULL);
++    if (v) {
++      m = *((module **) v);
++
++      pr_log_debug(DEBUG4,
++        "using module 'mod_%s.c' from authcache to authenticate user '%s'",
++        m->name, name);
++    }
++  }
++
++  mr = dispatch_auth(cmd, "auth", m ? &m : NULL);
+ 
+   if (MODRET_ISHANDLED(mr))
+     res = MODRET_HASDATA(mr) ? PR_AUTH_RFC2228_OK : PR_AUTH_OK;
+@@ -391,10 +473,25 @@
+ int pr_auth_check(pool *p, const char *cpw, const char *name, const char *pw) {
+   cmd_rec *cmd = NULL;
+   modret_t *mr = NULL;
++  module *m = NULL;
+   int res = PR_AUTH_BADPWD;
+ 
+   cmd = make_cmd(p, 3, cpw, name, pw);
+-  mr = dispatch_auth(cmd, "check");
++
++  if (auth_tab) {
++
++    /* Fetch the specific module to be used for authenticating this user. */
++    void *v = pr_table_get(auth_tab, name, NULL);
++    if (v) {
++      m = *((module **) v);
++
++      pr_log_debug(DEBUG4,
++        "using module 'mod_%s.c' from authcache to authenticate user '%s'",
++        m->name, name);
++    }
++  }
++
++  mr = dispatch_auth(cmd, "check", m ? &m : NULL);
+ 
+   if (MODRET_ISHANDLED(mr))
+     res = MODRET_HASDATA(mr) ? PR_AUTH_RFC2228_OK : PR_AUTH_OK;
+@@ -413,7 +510,7 @@
+   int res = TRUE;
+ 
+   cmd = make_cmd(p, 1, name);
+-  mr = dispatch_auth(cmd, "requires_pass");
++  mr = dispatch_auth(cmd, "requires_pass", NULL);
+ 
+   if (MODRET_ISHANDLED(mr))
+     res = FALSE;
+@@ -438,7 +535,7 @@
+   memset(namebuf, '\0', sizeof(namebuf));
+ 
+   cmd = make_cmd(p, 1, (void *) &uid);
+-  mr = dispatch_auth(cmd, "uid2name");
++  mr = dispatch_auth(cmd, "uid2name", NULL);
+ 
+   if (MODRET_ISHANDLED(mr) && MODRET_HASDATA(mr)) {
+     res = mr->data;
+@@ -463,7 +560,7 @@
+   memset(namebuf, '\0', sizeof(namebuf));
+ 
+   cmd = make_cmd(p, 1, (void *) &gid);
+-  mr = dispatch_auth(cmd, "gid2name");
++  mr = dispatch_auth(cmd, "gid2name", NULL);
+ 
+   if (MODRET_ISHANDLED(mr) && MODRET_HASDATA(mr)) {
+     res = mr->data;
+@@ -485,7 +582,7 @@
+   uid_t res = (uid_t) -1;
+ 
+   cmd = make_cmd(p, 1, name);
+-  mr = dispatch_auth(cmd, "name2uid");
++  mr = dispatch_auth(cmd, "name2uid", NULL);
+ 
+   if (MODRET_ISHANDLED(mr))
+     res = *((uid_t *) mr->data);
+@@ -506,7 +603,7 @@
+   gid_t res = (gid_t) -1;
+ 
+   cmd = make_cmd(p, 1, name);
+-  mr = dispatch_auth(cmd, "name2gid");
++  mr = dispatch_auth(cmd, "name2gid", NULL);
+ 
+   if (MODRET_ISHANDLED(mr))
+     res = *((gid_t *) mr->data);
+@@ -538,7 +635,7 @@
+   cmd = make_cmd(p, 3, name, group_ids ? *group_ids : NULL,
+     group_names ? *group_names : NULL);
+ 
+-  mr = dispatch_auth(cmd, "getgroups");
++  mr = dispatch_auth(cmd, "getgroups", NULL);
+ 
+   if (MODRET_ISHANDLED(mr) && MODRET_HASDATA(mr)) {
+     res = *((int *) mr->data);
+@@ -832,3 +929,10 @@
+   return res;
+ }
+ 
++/* Internal use only.  To be called in the session process. */
++int init_auth(void) {
++  auth_pool = make_sub_pool(permanent_pool);
++  pr_pool_tag(auth_pool, "Auth API");
++
++  return 0;
++}

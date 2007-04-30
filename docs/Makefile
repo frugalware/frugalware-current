@@ -57,6 +57,8 @@ MERGE = : > $(2); \
 	sed -i '/^~\{2,\}$$/s/~/^/g' $(2); \
 	sed -i '1i include::header.txt[]\n' $(2)
 
+# the last two sed hacks are po4a bugs and are reported to upstream by hermier.
+# if they fix it, we can remove them later
 I18NBUILD = po4a -k 0 po4a.cfg; \
 		darcs revert -a po/*.po; \
 		for i in $(LANGS); \
@@ -68,6 +70,8 @@ I18NBUILD = po4a -k 0 po4a.cfg; \
 			done; \
 			sed -i 's| ../source | ../../source |' $$i/Makefile; \
 			sed -i 's/^\(=\+\)/\n\1/' $$i/*.txt; \
+			sed -i 's/\([^ ]\)  \* /\1\n* /g' $$i/*.txt; \
+			sed -i '/^\..* \* /s/ \* /\n* /g' $$i/*.txt; \
 			$(MAKE) -C $$i $(1) || exit 1; \
 		done
 

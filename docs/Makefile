@@ -18,7 +18,7 @@
 
 VERSION = $(shell date +%Y%m%d) (-current)
 #VERSION = 0.6 (Terminus)
-PO_DIR=~/darcs/translations/po
+PO_DIR ?= ~/darcs/translations/po
 XML_PATH = /usr/share/sgml/docbook/dtd/xml-dtd-4.2
 
 # force the usage of gcj, we have no time to test fop with other jdks

@@ -42,12 +42,10 @@ eval `dircolors -t`
 biff y
 
 # Append any additional csh scripts found in /etc/profile.d/:
-[ -d /etc/profile.d ]
-if ($status == 0) then
+if ( -d /etc/profile.d ) then
         set nonomatch
         foreach file ( /etc/profile.d/*.csh )
-                [ -x $file ]
-                if ($status == 0) then
+                if ( -r $file ) then
                         source $file
                 endif
         end

@@ -1,0 +1,51 @@
+# Compiling Time: 5.65 SBU
+# Maintainer: AlexExtreme <alex@alex-smith.me.uk>
+
+pkgname=xulrunner
+pkgver=1.8.1.3
+pkgrel=1
+pkgdesc="XULRunner is a Mozilla runtime package that can be used to bootstrap XUL+XPCOM applications that are as rich as Firefox and Thunderbird."
+url="http://developer.mozilla.org/en/docs/XULRunner"
+depends=('gtk+2>=2.10.12' 'libidl' 'nss>=3.11.5-1')
+makedepends=('zip' 'pkgconfig' 'python>=2.5')
+groups=('xlib')
+archs=('i686')
+up2date="lynx -dump 'http://releases.mozilla.org/pub/mozilla.org/xulrunner/releases/?C=M;O=D' | grep -m2 '\[DIR\]' | sed '/Parent/d' | sed 's/.*\]//' | sed 's/\/.*//'"
+source=(http://frugalware.org/~alex/tarballs/xulrunner/$pkgname-$pkgver-source.tar.bz2 \
+	xulrunner-1.8.1.3-bug310924.patch xulrunner-1.8.1.3-bug325644.patch mozconfig)
+signatures=(${source[0]}.asc '' '' '')
+unset MAKEFLAGS
+_F_cd_path="mozilla"
+
+build() {
+	Fcd
+	Fpatchall
+	
+	# x86_64 fixes
+	[ "${CARCH}" = "x86_64" ] && echo "ac_cv_visibility_pragma=no" >> $Fsrcdir/mozconfig
+	
+	# Get our optimization flags in
+	sed "s/#OPTIMIZE#/${CFLAGS}/g" $Fsrcdir/mozconfig > .mozconfig || Fdie
+	
+	# Build it
+	make -f client.mk build || Fdie
+	Fmakeinstall DISTDIR=$Fdestdir
+	
+	Fmv /usr/include/$pkgname-$pkgver /usr/include/$pkgname
+	Fmv /usr/lib/$pkgname-$pkgver /usr/lib/$pkgname
+	Fmv /usr/share/idl/$pkgname-$pkgver /usr/share/idl/$pkgname
+	Fln $pkgname /usr/include/$pkgname-$pkgver
+	Fln $pkgname /usr/lib/$pkgname-$pkgver
+	Fln $pkgname /usr/share/idl/$pkgname-$pkgver
+
+	Frm /usr/bin/defaults
+	
+	# nss and nspr aren't built, remove stuff for them
+	Frm /usr/lib/pkgconfig/xulrunner-ns{s,pr}.pc
+	Frm /usr/share/aclocal
+	
+	# Remove versioned directories from .pc files
+	sed -i -e "s/xulrunner-${pkgver}/xulrunner/" $Fdestdir/usr/lib/pkgconfig/*.pc || Fdie
+}
+
+# optimization OK

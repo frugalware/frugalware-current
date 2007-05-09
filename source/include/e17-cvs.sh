@@ -43,6 +43,13 @@ source=(http://ftp.frugalware.org/pub/other/e17/packages/$_F_e17_name/$_F_e17_na
 up2date="lynx -dump http://frugalware.org/~voroskoi/e17.up2date |sed -n '1 p'"
 
 ###
+# == APPENDED VARIABLES
+# * cvs to makedepends()
+###
+
+makedepends=(${makedepends[@]} 'cvs')
+
+###
 # == PROVIDED FUNCTIONS
 # * build()
 ###

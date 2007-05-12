@@ -2,14 +2,14 @@
 # Maintainer: AlexExtreme <alex@alex-smith.me.uk>
 
 pkgname=avahi
-pkgver=0.6.18
+pkgver=0.6.19
 pkgrel=1
 pkgdesc="A multicast/unicast DNS-SD framework"
 archs=('i686' 'x86_64')
 url="http://www.avahi.org"
 groups=('network')
 depends=('dbus-python>=0.80.2' 'libcap' 'nss-mdns' 'gdbm' 'libdaemon' 'shadow>=4.0.18.1-4')
-makedepends=('mono' 'pygtk' 'qt' 'qt4')
+makedepends=('mono' 'pygtk' 'qt' 'qt4' 'gtk2-sharp')
 backup=(etc/avahi/avahi-daemon.conf)
 conflicts=('mdnsresponder')
 replaces=('mdnsresponder')
@@ -17,28 +17,35 @@ provides=('mdnsresponder')
 up2date="lynx -dump http://avahi.org/download/ | Flasttar"
 options=('scriptlet')
 source=(http://avahi.org/download/$pkgname-$pkgver.tar.gz \
-	rc.avahi-daemon{,-hu.po} rc.avahi-dnsconfd{,-hu.po} README.Frugalware)
+	rc.avahi-daemon{,-hu.po} rc.avahi-dnsconfd{,-hu.po} README.Frugalware \
+	$pkgname-$pkgver-fix-zssh-build.patch)
+Finclude mono
+sha1sums=('367322064a5dd66a0e69c75df9407ab3518aebdc' \
+          'f66dd6671c303d5e5ba137b023786af3336957f0' \
+          '5f6b99e4917458b24736519bdd1e510763310589' \
+          '723e2e691d35063bd8aefeaf1063fdba812a9249' \
+          'b31a9b9bf972739d2976ef510690968851e8b588' \
+          '3cb0c4904bc323cba78234e4c5430478636fbf44' \
+	  '8996872a1eca3f26934b1a4720f4b1d86b02ae81')
 
-subpkgs=('avahi-glib' 'avahi-sharp' 'avahi-qt3' 'avahi-python' 'avahi-compat' 'avahi-gtk2' 'avahi-qt4' 'libavahi-ui')
+subpkgs=('avahi-glib' 'avahi-sharp' 'avahi-qt3' 'avahi-python' 'avahi-compat' 'avahi-gtk2' 'avahi-qt4' 'avahi-dnsconfd' 'libavahi-ui' 'libavahi-ui-sharp')
 subdescs=('Glib bindings for Avahi' 'Mono C# bindings for Avahi' 'QT3 bindings for Avahi' \
 	  'Python bindings for Avahi' 'mDNSresponder and Howl compatibility libraries/headers for Avahi' \
-	  'GUI GTK based tools for Avahi' 'QT4 bindings for Avahi' 'User interface library for Avahi')
+	  'GUI GTK based tools for Avahi' 'QT4 bindings for Avahi' 'Discovers DNS servers broadcast with Avahi on a local network' \
+	  'User interface library for Avahi' 'Mono bindings for Avahi-UI')
 subdepends=("glib2 $pkgname=$pkgver" "mono $pkgname=$pkgver" "qt $pkgname=$pkgver" "python>=2.5 $pkgname=$pkgver" "$pkgname=$pkgver" \
-	    "avahi-python=$pkgver libglade pygtk avahi-glib=$pkgver" "qt4 $pkgname=$pkgver" "gtk+2 $pkgname=$pkgver")
-subgroups=('network' 'gnome-extra' 'kde' 'network' 'network' 'gnome' 'kde-extra' 'gnome')
-subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
-Finclude mono
-sha1sums=('cec71de1b8cd939e847972dfea33217999bf7cd0'\
-          'f66dd6671c303d5e5ba137b023786af3336957f0'\
-          '5f6b99e4917458b24736519bdd1e510763310589'\
-          '723e2e691d35063bd8aefeaf1063fdba812a9249'\
-          'b31a9b9bf972739d2976ef510690968851e8b588'\
-          '3cb0c4904bc323cba78234e4c5430478636fbf44')
+	    "avahi-python=$pkgver libglade pygtk libavahi-ui=$pkgver avahi-glib=$pkgver" "qt4 $pkgname=$pkgver" "$pkgname=$pkgver" \
+	    "gtk+2 $pkgname=$pkgver" "gtk2-sharp libavahi-ui=$pkgver")
+subgroups=('network' 'gnome-extra' 'kde' 'network' 'network' 'gnome' 'kde-extra' 'network-extra' 'gnome' 'gnome-extra')
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' \
+	  'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
+
 unset MAKEFLAGS
 
 build() {
 	Fmonoexport
 	Fpatchall
+	Fautoreconf
 	Fmake --enable-qt4 \
 		--disable-monodoc \
 		--disable-doxygen-doc \
@@ -56,6 +63,10 @@ build() {
 	Frm usr/bin/avahi-bookmarks
 	Frm usr/man/man1/avahi-bookmarks.*
 	
+	# Install the init scripts
+	Frcd2 avahi-daemon
+	Frcd2 avahi-dnsconfd
+	
 	# Compatibility stuff
 	Fln avahi-compat-libdns_sd/dns_sd.h usr/include
 	Fln avahi-compat-howl usr/include/howl
@@ -67,7 +78,11 @@ build() {
 	Fsplit avahi-glib usr/lib/libavahi-glib*
 	Fsplit avahi-glib usr/lib/pkgconfig/avahi-glib.pc
 	
-	# Now avahi-sharp
+	# libavahi-ui-sharp
+	Fsplit libavahi-ui-sharp usr/lib/mono/gac/avahi-ui-sharp
+	Fsplit libavahi-ui-sharp usr/lib/mono/avahi-ui-sharp
+	
+	# avahi-sharp
 	Fsplit avahi-sharp usr/lib/mono
 	Fsplit avahi-sharp usr/lib/pkgconfig/avahi-sharp.pc
 	
@@ -98,15 +113,20 @@ build() {
 	Fsplit avahi-gtk2 usr/share/man/man1/avahi-discover.*
 	Fsplit avahi-gtk2 usr/share/applications
 	Fsplit avahi-gtk2 usr/share/avahi/interfaces
+	Fsplit avahi-gtk2 usr/bin/bssh
+	Fsplit avahi-gtk2 usr/bin/bvnc
 	
 	# libavahi-ui
 	Fsplit libavahi-ui usr/include/avahi-ui
 	Fsplit libavahi-ui usr/lib/libavahi-ui*
 	Fsplit libavahi-ui usr/lib/pkgconfig/avahi-ui.pc
 	
-	# Install the init scripts
-	Frcd2 avahi-daemon
-	Frcd2 avahi-dnsconfd
+	# avahi-dnsconfd
+	Fsplit avahi-dnsconfd usr/sbin/avahi-dnsconfd
+	Fsplit avahi-dnsconfd etc/rc.d/rc.avahi-dnsconfd
+	Fsplit avahi-dnsconfd etc/avahi/avahi-dnsconfd.action
+	Fsplit avahi-dnsconfd usr/share/man/man8/avahi-dnsconfd*
+	Fsplit avahi-dnsconfd lib/initscripts/messages/hu_HU/LC_MESSAGES/avahi-dnsconfd.mo
 }
 
 # optimization OK

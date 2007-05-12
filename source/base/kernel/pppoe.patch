@@ -1,0 +1,41 @@
+From: Florian Zumbiehl <florz@florz.de>
+Date: Fri, 20 Apr 2007 23:58:14 +0000 (-0700)
+Subject: [PPPOE]: memory leak when socket is release()d before PPPIOCGCHAN has been called ...
+X-Git-Url: http://git.kernel.org/?p=linux%2Fkernel%2Fgit%2Ftorvalds%2Flinux-2.6.git;a=commitdiff_plain;h=202a03acf9994076055df40ae093a5c5474ad0bd
+
+[PPPOE]: memory leak when socket is release()d before PPPIOCGCHAN has been called on it
+
+below you find a patch that fixes a memory leak when a PPPoE socket is
+release()d after it has been connect()ed, but before the PPPIOCGCHAN ioctl
+ever has been called on it.
+
+This is somewhat of a security problem, too, since PPPoE sockets can be
+created by any user, so any user can easily allocate all the machine's
+RAM to non-swappable address space and thus DoS the system.
+
+Is there any specific reason for PPPoE sockets being available to any
+unprivileged process, BTW? After all, you need a packet socket for the
+discovery stage anyway, so it's unlikely that any unprivileged process
+will ever need to create a PPPoE socket, no? Allocating all session IDs
+for a known AC is a kind of DoS, too, after all - with Juniper ERXes,
+this is really easy, actually, since they don't ever assign session ids
+above 8000 ...
+
+Signed-off-by: Florian Zumbiehl <florz@florz.de>
+Acked-by: Michal Ostrowski <mostrows@earthlink.net>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+
+diff --git a/drivers/net/pppox.c b/drivers/net/pppox.c
+index 9315046..3f8115d 100644
+--- a/drivers/net/pppox.c
++++ b/drivers/net/pppox.c
+@@ -58,7 +58,7 @@ void pppox_unbind_sock(struct sock *sk)
+ {
+ 	/* Clear connection to ppp device, if attached. */
+ 
+-	if (sk->sk_state & (PPPOX_BOUND | PPPOX_ZOMBIE)) {
++	if (sk->sk_state & (PPPOX_BOUND | PPPOX_CONNECTED | PPPOX_ZOMBIE)) {
+ 		ppp_unregister_channel(&pppox_sk(sk)->chan);
+ 		sk->sk_state = PPPOX_DEAD;
+ 	}

@@ -1,0 +1,1201 @@
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/auth.c rt2400/Module/auth.c
+--- rt2400-1.2.2-b3/Module/auth.c	2005-07-30 18:36:25.000000000 +0200
++++ rt2400/Module/auth.c	2007-04-25 05:14:51.000000000 +0200
+@@ -120,7 +120,8 @@
+ 
+     if(AuthReqParmSanity(pAd, Elem->Msg, Elem->MsgLen, &Addr, &Timeout, &Alg)) 
+     {
+-        // reset timer
++		// reset timer if caller isn't the timer function itself
++		if (timer_pending(&pAd->Mlme.AuthAux.AuthTimer))
+         del_timer_sync(&pAd->Mlme.AuthAux.AuthTimer);
+         pAd->Mlme.AuthAux.Addr = Addr;
+         pAd->Mlme.AuthAux.Alg  = Alg;
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/load rt2400/Module/load
+--- rt2400-1.2.2-b3/Module/load	2005-07-30 18:36:23.000000000 +0200
++++ rt2400/Module/load	1970-01-01 01:00:00.000000000 +0100
+@@ -1,3 +0,0 @@
+-/sbin/insmod rt2400.o
+-/sbin/ifconfig ra0 inet 192.168.1.160 up
+-/sbin/route add default gw 192.168.1.1
+\ No newline at end of file
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/Makefile rt2400/Module/Makefile
+--- rt2400-1.2.2-b3/Module/Makefile	2005-07-30 18:36:24.000000000 +0200
++++ rt2400/Module/Makefile	2007-02-20 20:02:17.000000000 +0100
+@@ -74,6 +74,12 @@
+  MODULE_ROOT := /lib/modules/$(shell uname -r)/extra
+ endif
+ 
++ifdef KERNOUT
++	KERNEL_OUTPUT := KBUILD_OUTPUT=$(KERNOUT)
++else
++	KERNEL_OUTPUT :=
++endif
++
+ src ?= .
+ obj ?= .
+ 
+@@ -90,7 +96,7 @@
+ 	$(LD) $(EXTRA_LDFLAGS) -r -o $@ $($(MODULE_NAME)-objs)
+ endif
+ 
+-KBUILD_PARAMS := -C $(KERNEL_SOURCES) SUBDIRS=$(PWD)
++KBUILD_PARAMS := -C $(KERNEL_SOURCES) SUBDIRS=$(PWD) $(KERNEL_OUTPUT)
+ 
+ module:
+ 	@$(MAKE) $(KBUILD_PARAMS) modules; \
+@@ -106,10 +112,17 @@
+ 	exit 1; \
+ 	fi
+ 
++debugfs:
++	@$(MAKE) $(KBUILD_PARAMS) 'EXTRA_CFLAGS=-I$(src) -DRT2400_DBG -DRT2X00DEBUGFS' modules; \
++	if ! [ -f $(MODULE_OBJECT) ]; then \
++	echo "$(MODULE_OBJECT) failed to build!"; \
++	exit 1; \
++	fi
++
+ clean:
+ 	@rm -f $(RESMAN_GLUE_OBJS) $(RESMAN_CORE_OBJS) .*.{cmd,flags}
+ 	@rm -f $(MODULE_NAME).{o,ko,mod.{o,c}} built-in.o $(VERSION_HEADER) *~
+-	@rm -fr .tmp_versions
++	@rm -fr .tmp_versions Module.symvers
+ 
+ modules_install: 
+     ifeq ($(PATCHLEVEL),4)
+@@ -123,6 +136,7 @@
+     else
+ 	echo "2.6 module install"
+ 	make $(KBUILD_PARAMS) modules_install
++	/sbin/depmod -a
+     endif
+ 
+ install: modules_install
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/mlme.c rt2400/Module/mlme.c
+--- rt2400-1.2.2-b3/Module/mlme.c	2005-07-30 18:36:25.000000000 +0200
++++ rt2400/Module/mlme.c	2007-05-03 11:25:06.000000000 +0200
+@@ -57,12 +57,6 @@
+     
+     do 
+     {
+-        Status = MlmeQueueInit(&pAd->Mlme.Queue);
+-        if(Status != NDIS_STATUS_SUCCESS) 
+-        {
+-            break;
+-        }
+-
+         pAd->Mlme.Running = FALSE;
+         spin_lock_init(&pAd->Mlme.TaskLock);
+ 
+@@ -152,14 +146,17 @@
+     }
+     spin_unlock(&pAd->Mlme.TaskLock);
+ 
+-    while (!MlmeQueueEmpty(&pAd->Mlme.Queue)) 
+-    {
++    while (TRUE) {
++    	spin_lock(&pAd->Mlme.Queue.Lock);
++	    if (!MlmeDequeue(&pAd->Mlme.Queue, &Elem)) {
++			spin_unlock(&pAd->Mlme.Queue.Lock);
++			break;
++	    }
++    	spin_unlock(&pAd->Mlme.Queue.Lock);
++        if (pAd->PortCfg.BssType == BSS_MONITOR)
++        	continue;
+         //From message type, determine which state machine I should drive
+-        if (MlmeDequeue(&pAd->Mlme.Queue, &Elem) && pAd->PortCfg.BssType != BSS_MONITOR) 
+-        {
+-            // if dequeue success
+-            switch (Elem->Machine) 
+-            {
++        switch (Elem->Machine) {
+                 case ASSOC_STATE_MACHINE:
+                     StateMachinePerformAction(pAd, &pAd->Mlme.AssocMachine, Elem);
+                     break;
+@@ -183,11 +180,6 @@
+             // free MLME element
+             Elem->Occupied = FALSE;
+             Elem->MsgLen = 0;
+-            
+-        }
+-        else {
+-            printk(KERN_ERR DRV_NAME ": ERROR: empty Elem in MlmeQueue\n");
+-        }
+     }
+ 
+     spin_lock(&pAd->Mlme.TaskLock);
+@@ -1394,21 +1386,16 @@
+ {
+     INT Tail;
+ 
+-    if (MlmeQueueFull(Queue)) 
+-    {
++    spin_lock(&Queue->Lock);
++    if (Queue->Num == MAX_LEN_OF_MLME_QUEUE) {
++	    spin_unlock(&Queue->Lock);
+         printk(KERN_ERR DRV_NAME ": MlmeEnqueue full, msg dropped and may corrupt MLME\n");
+         return FALSE;
+     }
+-
+-    spin_lock(&(Queue->Lock));
+-    Tail = Queue->Tail;
+-    Queue->Tail++;
++    Tail = Queue->Tail++;
++    Queue->Tail %= MAX_LEN_OF_MLME_QUEUE;
+     Queue->Num++;
+-    if (Queue->Tail == MAX_LEN_OF_MLME_QUEUE) 
+-    {
+-        Queue->Tail = 0;
+-    }
+-    spin_unlock(&(Queue->Lock));
++    spin_unlock(&Queue->Lock);
+     DBGPRINT(RT_DEBUG_INFO, "MlmeEnqueue, num=%d\n",Queue->Num);
+  
+     Queue->Entry[Tail].Occupied = TRUE;
+@@ -1443,30 +1430,25 @@
+     MACFRAME    *Fr = (MACFRAME *)Msg;
+     ULONG        MsgType;
+ 
+-    if (MlmeQueueFull(Queue) || Fr->Hdr.Type != BTYPE_MGMT) 
++    if ((Fr->Hdr.Type != BTYPE_MGMT) || (!MsgTypeSubst(Fr, &Machine, &MsgType)))
+     {
+-        printk(KERN_ERR DRV_NAME ": MlmeEnqueueForRecv (queue full error)\n");
++        printk(KERN_ERR DRV_NAME ": MlmeEnqueueForRecv (MsgType error)\n");
+         return FALSE;
+     }
+ 
+-    if (!MsgTypeSubst(Fr, &Machine, &MsgType)) 
+-    {
+-        printk(KERN_ERR DRV_NAME ": MlmeEnqueueForRecv (MsgType error)\n");
++    spin_lock(&Queue->Lock);
++    if (Queue->Num == MAX_LEN_OF_MLME_QUEUE) {
++	    spin_unlock(&(Queue->Lock));
++        printk(KERN_ERR DRV_NAME ": MlmeEnqueueForRecv (queue full error)\n");
+         return FALSE;
+     }
+-    
+-    // OK, we got all the informations, it is time to put things into queue
+-    spin_lock(&(Queue->Lock));
+-    Tail = Queue->Tail;
+-    Queue->Tail++;
++    Tail = Queue->Tail++;
++    Queue->Tail %= MAX_LEN_OF_MLME_QUEUE;
+     Queue->Num++;
+-    if (Queue->Tail == MAX_LEN_OF_MLME_QUEUE) 
+-    {
+-        Queue->Tail = 0;
+-    }
+-    spin_unlock(&(Queue->Lock));
++    spin_unlock(&Queue->Lock);
+     DBGPRINT(RT_DEBUG_INFO, "MlmeEnqueueForRecv, num=%d\n",Queue->Num);
+     
++    // OK, we got all the informations, it is time to put things into queue
+     Queue->Entry[Tail].Occupied = TRUE;
+     Queue->Entry[Tail].Machine = Machine;
+     Queue->Entry[Tail].MsgType = MsgType;
+@@ -1483,6 +1465,7 @@
+ }
+ 
+ /*! \brief   Dequeue a message from the MLME Queue
++ * 			WARNING: Must be call with Mlme.Queue.Lock held
+  *  \param  *Queue    The MLME Queue
+  *  \param  *Elem     The message dequeued from MLME Queue
+  *  \return  TRUE if the Elem contains something, FALSE otherwise
+@@ -1493,56 +1476,16 @@
+     IN MLME_QUEUE *Queue, 
+     OUT MLME_QUEUE_ELEM **Elem) 
+ {
+-    spin_lock(&(Queue->Lock));
+-    *Elem = &(Queue->Entry[Queue->Head]);
++	if (Queue->Num == 0)
++		return FALSE;
++    *Elem = &Queue->Entry[Queue->Head++];
++    Queue->Head %= MAX_LEN_OF_MLME_QUEUE;
+     Queue->Num--;
+-    Queue->Head++;
+-    if (Queue->Head == MAX_LEN_OF_MLME_QUEUE) 
+-    {
+-        Queue->Head = 0;
+-    }
+-    spin_unlock(&(Queue->Lock));
+     DBGPRINT(RT_DEBUG_INFO, "MlmeDequeue, num=%d\n",Queue->Num);
+ 
+     return TRUE;
+ }
+ 
+-/*! \brief  test if the MLME Queue is empty
+- *  \param  *Queue    The MLME Queue
+- *  \return TRUE if the Queue is empty, FALSE otherwise
+- *  \pre
+- *  \post
+- */
+-BOOLEAN MlmeQueueEmpty(
+-    IN MLME_QUEUE *Queue) 
+-{
+-    BOOLEAN Ans;
+-
+-    spin_lock(&(Queue->Lock));
+-    Ans = (Queue->Num == 0);
+-    spin_unlock(&(Queue->Lock));
+-
+-    return Ans;
+-}
+-
+-/*! \brief   test if the MLME Queue is full
+- *  \param   *Queue      The MLME Queue
+- *  \return  TRUE if the Queue is empty, FALSE otherwise
+- *  \pre
+- *  \post
+- */
+-BOOLEAN MlmeQueueFull(
+-    IN MLME_QUEUE *Queue) 
+-{
+-    BOOLEAN Ans;
+-
+-    spin_lock(&(Queue->Lock));
+-    Ans = (Queue->Num == MAX_LEN_OF_MLME_QUEUE);
+-    spin_unlock(&(Queue->Lock));
+-
+-    return Ans;
+-}
+-
+ /*! \brief   The destructor of MLME Queue
+  *  \param 
+  *  \return
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/rt2x00debug.h rt2400/Module/rt2x00debug.h
+--- rt2400-1.2.2-b3/Module/rt2x00debug.h	1970-01-01 01:00:00.000000000 +0100
++++ rt2400/Module/rt2x00debug.h	2007-02-20 20:02:17.000000000 +0100
+@@ -0,0 +1,76 @@
++/*
++	Copyright (C) 2004 - 2007 rt2x00 SourceForge Project
++	<http://rt2x00.serialmonkey.com>
++
++	This program is free software; you can redistribute it and/or modify
++	it under the terms of the GNU General Public License as published by
++	the Free Software Foundation; either version 2 of the License, or
++	(at your option) any later version.
++
++	This program is distributed in the hope that it will be useful,
++	but WITHOUT ANY WARRANTY; without even the implied warranty of
++	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++	GNU General Public License for more details.
++
++	You should have received a copy of the GNU General Public License
++	along with this program; if not, write to the
++	Free Software Foundation, Inc.,
++	59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++ */
++
++/*
++	Module: rt2x00debug
++	Abstract: Data structures for the rt2x00debug module.
++	Supported chipsets: RT2460, RT2560, RT2570,
++	rt2561, rt2561s, rt2661 & rt2573.
++ */
++
++typedef void (debug_access_t)(void *dev, const unsigned long word, void *data);
++
++struct rt2x00debug_reg {
++	debug_access_t *read;
++	debug_access_t *write;
++
++	unsigned int word_size;
++	unsigned int length;
++};
++
++struct rt2x00debug {
++	/*
++	 * Name of the interface.
++	 */
++	char intf_name[16];
++
++	/*
++	 * Reference to the modules structure.
++	 */
++	struct module *owner;
++
++	/*
++	 * Driver module information
++	 */
++	char *mod_name;
++	char *mod_version;
++
++	/*
++	 * Register access information.
++	 */
++	struct rt2x00debug_reg reg_csr;
++	struct rt2x00debug_reg reg_eeprom;
++	struct rt2x00debug_reg reg_bbp;
++
++	/*
++	 * Pointer to driver structure where
++	 * this debugfs entry belongs to.
++	 */
++	void *dev;
++
++	/*
++	 * Pointer to rt2x00debug private data,
++	 * individual driver should not touch this.
++	 */
++	void *priv;
++};
++
++extern int rt2x00debug_register(struct rt2x00debug *debug);
++extern void rt2x00debug_deregister(struct rt2x00debug *debug);
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/rt_config.h rt2400/Module/rt_config.h
+--- rt2400-1.2.2-b3/Module/rt_config.h	2005-07-30 18:38:09.000000000 +0200
++++ rt2400/Module/rt_config.h	2007-05-10 10:45:32.000000000 +0200
+@@ -39,8 +39,8 @@
+ #define	__RT_CONFIG_H__
+ 
+ #define	DRV_NAME	"rt2400"
+-#define DRV_VERSION	"1.2.2 BETA3"
+-#define DRV_RELDATE	"2005/07/31"
++#define DRV_VERSION	"1.2.2 - CVS"
++#define DRV_RELDATE	"CVS Release"
+ 
+ /* Keep these in sync with the strings above */
+ #define DRV_VERSION_MAJOR 1
+@@ -48,7 +48,7 @@
+ #define DRV_VERSION_SUB   2 
+ #define DRV_BUILD_YEAR    2005
+ #define DRV_BUILD_MONTH   7 
+-#define DRV_BUILD_DAY     31 
++#define DRV_BUILD_DAY     11
+ 
+ #define	PROFILE_PATH	"/etc/Ralink/RT2400/RT2400.dat"
+ 
+@@ -74,7 +74,6 @@
+ #include <linux/skbuff.h>
+ #include <linux/init.h>
+ #include <linux/delay.h>
+-#include <linux/ethtool.h>
+ #include <linux/wireless.h>
+ #include <linux/proc_fs.h>
+ #include <linux/delay.h>
+@@ -95,7 +94,7 @@
+ 
+ // The type definition has to be placed before including rt2460.h
+ #ifndef ULONG
+-#define	CHAR			char
++#define	CHAR			signed char
+ #define	INT				int
+ #define	UINT			u32
+ #define ULONG			u32
+@@ -124,6 +123,7 @@
+ #define NDIS_STATUS_FAILURE		0x01
+ #define	NDIS_STATUS_RESOURCES	0x03
+ 
++#include	"rt2x00debug.h"
+ #include	"rt2460.h"
+ #include	"rtmp_def.h"
+ #include	"rtmp.h"
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/rtmp.h rt2400/Module/rtmp.h
+--- rt2400-1.2.2-b3/Module/rtmp.h	2005-07-30 18:36:23.000000000 +0200
++++ rt2400/Module/rtmp.h	2007-04-25 07:28:43.000000000 +0200
+@@ -721,6 +721,8 @@
+ 	unsigned long			CSRBaseAddress;     // PCI MMIO Base Address, all access will use
+                                                 // NdisReadRegisterXx or NdisWriteRegisterXx
+ 
++	struct rt2x00debug debug;
++
+     // configuration
+     UCHAR                   PermanentAddress[MAC_ADDR_LEN];    // Factory default MAC address
+     UCHAR                   CurrentAddress[MAC_ADDR_LEN];      // User changed MAC address
+@@ -859,10 +861,16 @@
+ 	IN	struct pci_dev				*pPci_Dev, 
+ 	IN	const struct pci_device_id	*ent);
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+ irqreturn_t RTMPIsr(
+        int             irq,
+        void            *dev_instance,
+        struct pt_regs  *rgs);
++#else
++irqreturn_t RTMPIsr(
++       int             irq,
++       void            *dev_instance);
++#endif
+ 
+ #if WIRELESS_EXT >= 12
+ struct iw_statistics *RT2400_get_wireless_stats(
+@@ -1293,12 +1301,6 @@
+     IN MLME_QUEUE *Queue, 
+     OUT MLME_QUEUE_ELEM **Elem);
+ 
+-BOOLEAN  MlmeQueueEmpty(
+-    IN MLME_QUEUE *Queue);
+-
+-BOOLEAN  MlmeQueueFull(
+-    IN MLME_QUEUE *Queue);
+-
+ BOOLEAN  MsgTypeSubst(
+     IN MACFRAME *Fr, 
+     OUT INT *Machine, 
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/rtmp_info.c rt2400/Module/rtmp_info.c
+--- rt2400-1.2.2-b3/Module/rtmp_info.c	2005-07-30 18:36:25.000000000 +0200
++++ rt2400/Module/rtmp_info.c	2007-05-12 22:58:45.000000000 +0200
+@@ -117,7 +117,6 @@
+ 	RT_VERSION_INFO						DriverVersionInfo;
+ 	BOOLEAN								RadioState;
+ #ifdef RT2400_DBG
+-	NDIS_802_11_RATES				Rates;
+ 	RT_802_11_HARDWARE_REGISTER			HardwareRegister;
+ #endif
+ 
+@@ -167,6 +166,7 @@
+ 		case SIOCSIWESSID:  //Set ESSID
+ 			{
+ 				struct iw_point *erq = &wrq->u.essid;
++				ULONG Length;
+ 
+ 				memset(&Ssid, 0x00, sizeof(NDIS_802_11_SSID));
+ 
+@@ -178,12 +178,18 @@
+ 						break;
+ 					}
+ 
+-					if (copy_from_user(Ssid.Ssid, erq->pointer, (erq->length - 1)))
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
++					Length = erq->length - 1;
++#else
++					Length = erq->length;
++#endif
++
++					if (copy_from_user(Ssid.Ssid, erq->pointer, Length))
+ 					{
+ 						Status = -EFAULT;
+ 						break;
+ 					}
+-					Ssid.SsidLength = erq->length - 1;
++					Ssid.SsidLength = Length;
+ 				}
+ 				else
+ 					Ssid.SsidLength = 0;  // ANY ssid 
+@@ -554,7 +560,12 @@
+                         if (pAd->PortCfg.BssType == BSS_MONITOR)
+                         {
+                               pAd->net_dev->type = 801;
+-                              RTMP_IO_WRITE32(pAd, RXCSR0, 0x4e); 
++                              RTMP_IO_WRITE32(pAd, RXCSR0, 0x46);
++                        }
++			else if (pAd->bAcceptPromiscuous == TRUE)
++			{
++			      pAd->net_dev->type = 1;
++			      RTMP_IO_WRITE32(pAd, RXCSR0, 0x6e);
+                         }
+                         else
+                         {
+@@ -692,13 +703,13 @@
+ 					}
+ 					
+ 					wrq->u.data.length = BssLen;
+-					copy_to_user(wrq->u.data.pointer, pBssidList, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, pBssidList, wrq->u.data.length));
+ 					break;
+ 
+ 				case RTLINUX_GET_MEDIA_CONNECT_STATUS:
+ 		            DBGPRINT(RT_DEBUG_INFO, "INFO::RTLINUX_GET_MEDIA_CONNECT_STATUS \n");
+ 					wrq->u.data.length=sizeof(NDIS_MEDIA_STATE);
+-					copy_to_user(wrq->u.data.pointer, &pAd->MediaState, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &pAd->MediaState, wrq->u.data.length));
+ 					break;
+ 
+ 				case RTLINUX_GET_OID_802_11_BSSID:
+@@ -708,7 +719,7 @@
+ 		                DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_BSSID(=%02x:%02x:%02x:%02x:%02x:%02x)\n",
+ 		                         Bssid[0],Bssid[1],Bssid[2],Bssid[3],Bssid[4],Bssid[5]);
+ 		                wrq->u.data.length = MAC_ADDR_LEN;
+-		                copy_to_user(wrq->u.data.pointer, &Bssid, wrq->u.data.length);
++		                if (copy_to_user(wrq->u.data.pointer, &Bssid, wrq->u.data.length));
+ 		            } 
+ 		            else 
+ 		            {
+@@ -742,7 +753,7 @@
+ 		            DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_SSID (Len=%d, ssid=%s...)\n", Ssid.SsidLength,Ssid.Ssid);
+ 
+ 					wrq->u.data.length=sizeof(NDIS_802_11_SSID);
+-					copy_to_user(wrq->u.data.pointer, &Ssid, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &Ssid, wrq->u.data.length));
+ 					break;
+ 
+ 				case RTLINUX_GET_OID_802_11_CONFIGURATION:
+@@ -757,7 +768,7 @@
+ 					DBGPRINT(RT_DEBUG_TRACE, "INFO::OID_802_11_CONFIGURATION(BeaconPeriod=%d,AtimW=%d,Channel=%d) \n",
+ 						Configuration.BeaconPeriod, Configuration.ATIMWindow, pAd->PortCfg.Channel);
+ 					wrq->u.data.length = sizeof(NDIS_802_11_CONFIGURATION);
+-					copy_to_user(wrq->u.data.pointer, &Configuration, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &Configuration, wrq->u.data.length));
+ 					break;
+ 				
+ 				case RTLINUX_GET_RT_OID_802_11_QUERY_LINK_STATUS:
+@@ -775,13 +786,13 @@
+ 		            LinkStatus.TxByteCount = pAd->RalinkCounters.TransmittedByteCount;
+ 							
+ 					wrq->u.data.length = sizeof(RT_802_11_LINK_STATUS);
+-					copy_to_user(wrq->u.data.pointer, &LinkStatus, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &LinkStatus, wrq->u.data.length));
+ 					break;
+ 
+ 				case RTLINUX_GET_OID_802_11_RSSI:
+ 					Rssi = pAd->PortCfg.LastRssi - RSSI_TO_DBM_OFFSET;
+ 					wrq->u.data.length = sizeof(NDIS_802_11_RSSI);
+-					copy_to_user(wrq->u.data.pointer, &Rssi, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &Rssi, wrq->u.data.length));
+ 					DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_RSSI(=%d)\n", Rssi);
+ 					break;
+ 
+@@ -794,7 +805,7 @@
+ 		                ulInfo = Ndis802_11AutoUnknown;
+ 										
+ 					wrq->u.data.length = sizeof(NDIS_802_11_NETWORK_INFRASTRUCTURE);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+ 
+ 					DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_INFRASTRUCTURE_MODE(=%d)\n", ulInfo);
+ 					break;
+@@ -804,7 +815,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&BssType, wrq->u.data.pointer, wrq->u.data.length);		                
++		            	if (copy_from_user(&BssType, wrq->u.data.pointer, wrq->u.data.length));
+ 		                if (BssType == Ndis802_11IBSS) 
+ 		                {
+ 		                    pAd->PortCfg.BssType = BSS_INDEP;
+@@ -831,7 +842,7 @@
+ 						ulInfo = pAd->PortCfg.CurrentTxAntenna;
+ 
+ 					wrq->u.data.length = sizeof(ulInfo);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+ 
+ 					DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_TX_ANTENNA_SELECTED(=%d)\n", ulInfo);
+ 					break;
+@@ -841,7 +852,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&Antenna, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&Antenna, wrq->u.data.pointer, wrq->u.data.length));
+ 		                if (Antenna == 0xFFFFFFFF) 
+ 						{// Diversity
+ 							pAd->PortCfg.CurrentTxAntenna = (UCHAR)Antenna;
+@@ -877,7 +888,7 @@
+ 						ulInfo = pAd->PortCfg.CurrentRxAntenna;
+ 
+ 					wrq->u.data.length = sizeof(ulInfo);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+ 
+ 					DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_RX_ANTENNA_SELECTED(=%d)\n", ulInfo);
+             		break;
+@@ -887,7 +898,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&Antenna, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&Antenna, wrq->u.data.pointer, wrq->u.data.length));
+ 		                if(Antenna == 0xFFFFFFFF) 
+ 						{// Diversity
+ 							pAd->PortCfg.CurrentRxAntenna = (UCHAR)Antenna;
+@@ -918,9 +929,9 @@
+ 
+ 				case RTLINUX_GET_OID_802_11_DESIRED_RATES:
+ 					wrq->u.data.length = sizeof(NDIS_802_11_RATES);
+-					copy_to_user(wrq->u.data.pointer, &pAd->PortCfg.DesiredRates, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &pAd->PortCfg.DesiredRates, wrq->u.data.length));
+ 		            DBGPRINT(RT_DEBUG_INFO, "INFO::RTLINUX_GET_OID_802_11_DESIRED_RATES (%d,%d,%d,%d,%d,%d,%d,%d)\n",
+-		                Rates[0],Rates[1],Rates[2],Rates[3],Rates[4],Rates[5],Rates[6],Rates[7]);
++		                pAd->PortCfg.DesiredRates[0],pAd->PortCfg.DesiredRates[1],pAd->PortCfg.DesiredRates[2],pAd->PortCfg.DesiredRates[3],pAd->PortCfg.DesiredRates[4],pAd->PortCfg.DesiredRates[5],pAd->PortCfg.DesiredRates[6],pAd->PortCfg.DesiredRates[7]);
+ 					break;
+ 
+ 				case RTLINUX_SET_OID_802_11_DESIRED_RATES:
+@@ -928,7 +939,7 @@
+ 		                Status = -EINVAL;
+ 		            else
+ 		            {
+-		            	copy_from_user(&pAd->PortCfg.DesiredRates, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&pAd->PortCfg.DesiredRates, wrq->u.data.pointer, wrq->u.data.length));
+ 		                // Changing DesiredRate may affect the MAX TX rate we used to TX frames out
+ 		                MlmeUpdateTxRates(pAd);
+ 		            }
+@@ -942,7 +953,7 @@
+ 				case RTLINUX_GET_OID_802_11_QUERY_PREAMBLE:
+ 					ulInfo = pAd->PortCfg.TxPreamble;
+ 					wrq->u.data.length = sizeof(RT_802_11_PREAMBLE);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+             		DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_QUERY_PREAMBLE(=%d)\n", ulInfo);
+             		break;
+ 
+@@ -951,7 +962,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&Preamble, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&Preamble, wrq->u.data.pointer, wrq->u.data.length));
+ 		                if (Preamble == Rt802_11PreambleShort)
+ 		                {
+ 		                    pAd->PortCfg.WindowsTxPreamble = Preamble;
+@@ -973,7 +984,7 @@
+ 				case RTLINUX_GET_OID_802_11_TX_POWER_LEVEL:
+ 					ulInfo = (ULONG)pAd->PortCfg.TxPower;
+ 					wrq->u.data.length = sizeof(NDIS_802_11_TX_POWER_LEVEL);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+             		DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_TX_POWER_LEVEL(=%d)\n", ulInfo);
+             		break;
+ 
+@@ -982,7 +993,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&TxPowerLevel, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&TxPowerLevel, wrq->u.data.pointer, wrq->u.data.length));
+ 		                if (TxPowerLevel > MAX_TX_POWER_LEVEL)
+ 		                    Status = -EINVAL;
+ 		                else
+@@ -994,7 +1005,7 @@
+ 				case RTLINUX_GET_OID_802_11_RTS_THRESHOLD:
+ 					ulInfo = pAd->PortCfg.RtsThreshold;
+ 					wrq->u.data.length = sizeof(NDIS_802_11_RTS_THRESHOLD);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+ 		            DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_RTS_THRESHOLD(=%d)\n", ulInfo);
+ 					break;
+ 
+@@ -1003,7 +1014,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&RtsThresh, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&RtsThresh, wrq->u.data.pointer, wrq->u.data.length));
+ 						if (RtsThresh > MAX_RTS_THRESHOLD)
+ 		                    Status = -EINVAL;
+ 		                else 
+@@ -1017,7 +1028,7 @@
+ 		            if (pAd->PortCfg.bFragmentZeroDisable == TRUE)
+ 		            	ulInfo = 0;
+ 		            wrq->u.data.length = sizeof(NDIS_802_11_FRAGMENTATION_THRESHOLD);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+ 		            DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_FRAGMENTATION_THRESHOLD(=%d)\n", ulInfo);
+ 		            break;
+ 
+@@ -1026,7 +1037,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&FragThresh, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&FragThresh, wrq->u.data.pointer, wrq->u.data.length));
+ 		                pAd->PortCfg.bFragmentZeroDisable = FALSE;
+ 		                if (FragThresh > MAX_FRAG_THRESHOLD || FragThresh < MIN_FRAG_THRESHOLD)
+ 		                {
+@@ -1052,7 +1063,7 @@
+ 		            else 
+ 		                ulInfo = Ndis802_11AuthModeAutoSwitch;
+ 		            wrq->u.data.length = sizeof(NDIS_802_11_AUTHENTICATION_MODE);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+ 
+ 		            DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_AUTHENTICATION_MODE(=%d)\n", ulInfo);
+ 		            break;
+@@ -1062,7 +1073,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&AuthMode, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&AuthMode, wrq->u.data.pointer, wrq->u.data.length));
+ 		                if (AuthMode == Ndis802_11AuthModeOpen)
+ 		            	    pAd->PortCfg.AuthAlgorithm = AUTH_MODE_OPEN;
+ 		                else if (AuthMode == Ndis802_11AuthModeShared)
+@@ -1091,7 +1102,7 @@
+ 						}
+ 		            }
+ 		            wrq->u.data.length = sizeof(NDIS_802_11_WEP_STATUS);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+ 					
+ 		            DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_WEP_STATUS(=%d)\n", ulInfo);
+ 		            break;
+@@ -1101,7 +1112,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&WepStatus, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&WepStatus, wrq->u.data.pointer, wrq->u.data.length));
+ 		                if (WepStatus == Ndis802_11WEPEnabled)
+ 		                    pAd->PortCfg.PrivacyInvoked = TRUE;
+ 		                else if (WepStatus == Ndis802_11WEPDisabled)
+@@ -1117,7 +1128,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&KeyIdx, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&KeyIdx, wrq->u.data.pointer, wrq->u.data.length));
+ 						if (KeyIdx & 0x80000000)
+ 						{
+                 			// Should never set default bit when remove key
+@@ -1137,7 +1148,7 @@
+ 
+ 				case RTLINUX_SET_OID_802_11_ADD_WEP:
+ 					DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_SET_OID_802_11_ADD_WEP\n");
+-					copy_from_user(&WepKey, wrq->u.data.pointer, wrq->u.data.length);
++					if (copy_from_user(&WepKey, wrq->u.data.pointer, wrq->u.data.length));
+ 					KeyIdx = WepKey.KeyIndex & 0x0fffffff;
+            			
+ 					// it is a shared key
+@@ -1163,7 +1174,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&Config, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&Config, wrq->u.data.pointer, wrq->u.data.length));
+ 		                pAd->PortCfg.IbssConfig.BeaconPeriod = (USHORT) Config.BeaconPeriod;
+ 		                pAd->PortCfg.IbssConfig.AtimWin = (USHORT) Config.ATIMWindow;
+ 		                if (Config.DSConfig == 2484000)
+@@ -1180,7 +1191,7 @@
+ 				case RTLINUX_GET_OID_802_11_POWER_MODE:
+ 					ulInfo = pAd->PortCfg.WindowsPowerMode;
+ 					wrq->u.data.length = sizeof(NDIS_802_11_POWER_MODE);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+ 		            DBGPRINT(RT_DEBUG_TRACE, "INFO::RTLINUX_GET_OID_802_11_POWER_MODE(=%d)\n", ulInfo);
+ 		            break;
+ 
+@@ -1189,7 +1200,7 @@
+ 		                Status = -EINVAL;
+ 		            else 
+ 		            {
+-		            	copy_from_user(&PowerMode, wrq->u.data.pointer, wrq->u.data.length);
++		            	if (copy_from_user(&PowerMode, wrq->u.data.pointer, wrq->u.data.length));
+ 
+ 		                // save user's policy here, but not change PortCfg.Psm immediately
+ 		                if (PowerMode == Ndis802_11PowerModeCAM) 
+@@ -1235,7 +1246,7 @@
+ 			            Status = -EINVAL;
+ 		            else 
+ 		            {
+-		                copy_from_user(&Ssid, wrq->u.data.pointer, wrq->u.data.length);
++		                if (copy_from_user(&Ssid, wrq->u.data.pointer, wrq->u.data.length));
+ 		                
+ 		    	        if(Ssid.SsidLength > IW_ESSID_MAX_SIZE)
+ 				            Status = -EINVAL;
+@@ -1278,21 +1289,21 @@
+ 		            Statistics.MulticastReceivedFrameCount = pAd->WlanCounters.MulticastReceivedFrameCount;
+ 		            Statistics.FCSErrorCount = pAd->WlanCounters.FCSErrorCount;
+ 		            wrq->u.data.length = sizeof(NDIS_802_11_STATISTICS);
+-					copy_to_user(wrq->u.data.pointer, &Statistics, wrq->u.data.length);					
++					if (copy_to_user(wrq->u.data.pointer, &Statistics, wrq->u.data.length));
+ 		            break;
+ 
+ 				case RTLINUX_GET_OID_GEN_RCV_OK:
+ 					DBGPRINT(RT_DEBUG_INFO, "INFO::RTLINUX_GET_OID_GEN_RCV_OK \n");
+ 					ulInfo = pAd->Counters.GoodReceives;
+ 					wrq->u.data.length = sizeof(ulInfo);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+ 					break;
+ 
+ 				case RTLINUX_GET_OID_GEN_RCV_NO_BUFFER:
+ 					DBGPRINT(RT_DEBUG_INFO, "INFO::RTLINUX_GET_OID_GEN_RCV_NO_BUFFER \n");
+ 					ulInfo = pAd->Counters.RxNoBuffer;
+ 					wrq->u.data.length = sizeof(ulInfo);
+-					copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &ulInfo, wrq->u.data.length));
+ 					break;
+ 
+ 				case RTLINUX_SET_RT_OID_802_11_RESET_COUNTERS:
+@@ -1306,7 +1317,7 @@
+ 				case RTLINUX_GET_OID_802_3_CURRENT_ADDRESS:
+ 					DBGPRINT(RT_DEBUG_INFO, "INFO::RTLINUX_GET_OID_802_3_CURRENT_ADDRESS \n");
+ 					wrq->u.data.length = MAC_ADDR_LEN;
+-					copy_to_user(wrq->u.data.pointer, &pAd->CurrentAddress, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &pAd->CurrentAddress, wrq->u.data.length));
+ 					break;
+ 
+ 				case RTLINUX_GET_VERSION_INFO:
+@@ -1318,7 +1329,7 @@
+ 					DriverVersionInfo.DriverBuildMonth   = DRV_BUILD_MONTH;
+ 					DriverVersionInfo.DriverBuildDay     = DRV_BUILD_DAY;
+ 					wrq->u.data.length = sizeof(RT_VERSION_INFO);
+-					copy_to_user(wrq->u.data.pointer, &DriverVersionInfo, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &DriverVersionInfo, wrq->u.data.length));
+ 					break;
+ 
+ #ifdef RT2400_DBG
+@@ -1387,7 +1398,7 @@
+ #endif
+ 				case RTLINUX_SET_RT_OID_802_11_SET_RADIO:
+ 					DBGPRINT(RT_DEBUG_INFO, "INFO::RTLINUX_SET_RT_OID_802_11_SET_RADIO \n");
+-					copy_from_user(&RadioState, wrq->u.data.pointer, wrq->u.data.length);
++					if (copy_from_user(&RadioState, wrq->u.data.pointer, wrq->u.data.length));
+ 					if (pAd->PortCfg.bRadio != RadioState)
+ 					{
+ 						pAd->PortCfg.bRadio = RadioState;
+@@ -1401,12 +1412,12 @@
+ 				case RTLINUX_GET_RT_OID_802_11_QUERY_RADIO:
+ 					DBGPRINT(RT_DEBUG_INFO, "INFO::RTLINUX_GET_RT_OID_802_11_QUERY_RADIO \n");
+ 					wrq->u.data.length = sizeof(pAd->PortCfg.bRadio);
+-					copy_to_user(wrq->u.data.pointer, &pAd->PortCfg.bRadio, wrq->u.data.length);
++					if (copy_to_user(wrq->u.data.pointer, &pAd->PortCfg.bRadio, wrq->u.data.length));
+ 					break;
+ 					
+ 				case RTLINUX_RT_OID_802_11_SET_COUNTRY_REGION:
+ 					DBGPRINT(RT_DEBUG_INFO, "INFO::RTLINUX_RT_OID_802_11_SET_COUNTRY_REGION \n");
+-					copy_from_user(&pAd->PortCfg.CountryRegion, wrq->u.data.pointer, wrq->u.data.length);
++					if (copy_from_user(&pAd->PortCfg.CountryRegion, wrq->u.data.pointer, wrq->u.data.length));
+ 					break;
+ 					
+ 				default:
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/rtmp_init.c rt2400/Module/rtmp_init.c
+--- rt2400-1.2.2-b3/Module/rtmp_init.c	2005-07-30 18:36:25.000000000 +0200
++++ rt2400/Module/rtmp_init.c	2007-03-21 05:12:20.000000000 +0100
+@@ -777,7 +777,12 @@
+ 	}
+ 	
+ 	// Kick Rx
+-	if (pAd->bAcceptPromiscuous == TRUE)
++        if (pAd->PortCfg.BssType == BSS_MONITOR)
++	{
++		// Register bits to receive everything
++		RTMP_IO_WRITE32(pAd, RXCSR0, 0x46);
++	}
++	else if (pAd->bAcceptPromiscuous == TRUE)
+         {
+                 // Register bits with "drop unicast not to me disabled"
+                 RTMP_IO_WRITE32(pAd, RXCSR0, 0x6e);
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/rtmp_main.c rt2400/Module/rtmp_main.c
+--- rt2400-1.2.2-b3/Module/rtmp_main.c	2005-07-30 18:36:25.000000000 +0200
++++ rt2400/Module/rtmp_main.c	2007-03-21 05:12:20.000000000 +0100
+@@ -51,13 +51,29 @@
+ 
+ //	Global static variable, Debug level flag
+ // Don't hide this behind debug define. There should be as little difference between debug and no-debug as possible.
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+ int	debug = 0;	/* Default is off. */
++static char *ifname = NULL;
++
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+ MODULE_PARM(debug, "i");
++MODULE_PARM(ifname, "s");
++#else
++module_param(debug, int, 0);
++module_param(ifname, charp, 0);
++#endif
++
++MODULE_PARM_DESC(debug, "Enable level: accepted values: 1 to switch debug on, 0 to switch debug off.");
++MODULE_PARM_DESC(ifname, "Network device name (default ra%d)");
++#else
++int	debug = 0;	/* Default is off. */
++module_param(debug, int, 0);
+ MODULE_PARM_DESC(debug, "Enable level: accepted values: 1 to switch debug on, 0 to switch debug off.");
+ 
+ static char *ifname = NULL;
+-MODULE_PARM(ifname, "s");
++module_param(ifname, charp, 0);
+ MODULE_PARM_DESC(ifname, "Network device name (default ra%d)");
++#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0) */
+ 
+ // The driver version information
+ static char version[] __devinitdata =
+@@ -68,6 +84,99 @@
+ MODULE_DESCRIPTION("Ralink RT2400 802.11b WLAN driver " DRV_VERSION " " DRV_RELDATE);
+ MODULE_LICENSE("GPL");
+ 
++#ifdef RT2X00DEBUGFS
++/*
++ * Register layout information.
++ */
++#define CSR_REG_BASE			0x0000
++#define CSR_REG_SIZE			0x014c
++#define EEPROM_BASE			0x0000
++#define EEPROM_SIZE			0x0100
++#define BBP_SIZE			0x0020
++
++static void rt2400pci_read_csr(void *dev, const unsigned long word,
++		void *data)
++{
++	RTMP_ADAPTER *pAd = dev;
++
++	RTMP_IO_READ32(pAd, CSR_REG_BASE + (word * sizeof(u32)), (u32*)data);
++}
++
++static void rt2400pci_write_csr(void *dev, const unsigned long word,
++	void *data)
++{
++	RTMP_ADAPTER *pAd = dev;
++
++	RTMP_IO_WRITE32(pAd, word, *((u32*)data));
++}
++
++static void rt2400pci_read_eeprom(void *dev, const unsigned long word,
++		void *data)
++{
++	RTMP_ADAPTER *pAd = dev;
++
++	*((u16*)data) = RTMP_EEPROM_READ16(pAd, word * sizeof(u16));
++}
++
++static void rt2400pci_write_eeprom(void *dev, const unsigned long word,
++	void *data)
++{
++	/* DANGEROUS, DON'T DO THIS! */
++}
++
++static void rt2400pci_read_bbp(void *dev, const unsigned long word,
++		void *data)
++{
++	RTMP_ADAPTER *pAd = dev;
++
++	RTMP_BBP_IO_READ32_BY_REG_ID(pAd, word, ((u8*)data));
++}
++
++static void rt2400pci_write_bbp(void *dev, const unsigned long word,
++	void *data)
++{
++	RTMP_ADAPTER *pAd = dev;
++
++	RTMP_BBP_IO_WRITE32_BY_REG_ID(pAd, word, *((u8*)data));
++}
++
++static void rt2400pci_open_debugfs(RTMP_ADAPTER *pAd)
++{
++	struct rt2x00debug *debug = &pAd->debug;
++
++	debug->owner 			= THIS_MODULE;
++	debug->mod_name			= DRV_NAME;
++	debug->mod_version		= DRV_VERSION;
++	debug->reg_csr.read		= rt2400pci_read_csr;
++	debug->reg_csr.write		= rt2400pci_write_csr;
++	debug->reg_csr.word_size	= sizeof(u32);
++	debug->reg_csr.length		= CSR_REG_SIZE;
++	debug->reg_eeprom.read		= rt2400pci_read_eeprom;
++	debug->reg_eeprom.write		= rt2400pci_write_eeprom;
++	debug->reg_eeprom.word_size	= sizeof(u16);
++	debug->reg_eeprom.length	= EEPROM_SIZE;
++	debug->reg_bbp.read		= rt2400pci_read_bbp;
++	debug->reg_bbp.write		= rt2400pci_write_bbp;
++	debug->reg_bbp.word_size	= sizeof(u8);
++	debug->reg_bbp.length		= BBP_SIZE;
++	debug->dev 			= pAd;
++
++	snprintf(debug->intf_name, sizeof(debug->intf_name),
++		"%s", pAd->net_dev->name);
++
++	if (rt2x00debug_register(debug))
++		printk(KERN_ERR "Failed to register debug handler.\n");
++}
++
++static void rt2400pci_close_debugfs(RTMP_ADAPTER *pAd)
++{
++	rt2x00debug_deregister(&pAd->debug);
++}
++#else /* RT2X00DEBUGFS */
++static inline void rt2400pci_open_debugfs(RTMP_ADAPTER *pAd){}
++static inline void rt2400pci_close_debugfs(RTMP_ADAPTER *pAd){}
++#endif /* RT2X00DEBUGFS */
++
+ static INT __devinit RT2400_init_one (
+ 	IN	struct pci_dev				*pPci_Dev,
+ 	IN	const struct pci_device_id	*ent)
+@@ -132,8 +241,8 @@
+ 	csr_addr =  ioremap(pci_resource_start(pPci_Dev, 0), pci_resource_len(pPci_Dev, 0));
+ 	if (!csr_addr) 
+ 	{
+-		DBGPRINT(RT_DEBUG_TRACE, "ioremap failed for device %s, region 0x%X @ 0x%lX\n",
+-			print_name, (ULONG)pci_resource_len(pPci_Dev, 0), pci_resource_start(pPci_Dev, 0));
++		DBGPRINT(RT_DEBUG_TRACE, "ioremap failed for device %s, region 0x%X @ 0x%X\n",
++			print_name, (ULONG)pci_resource_len(pPci_Dev, 0), (ULONG)pci_resource_start(pPci_Dev, 0));
+ 		goto err_out_free_mmio_region;
+ 	}
+ 
+@@ -166,7 +275,7 @@
+ 	net_dev->stop = RT2400_close;
+ 	net_dev->get_stats = RT2400_get_ether_stats;
+ 
+-#if WIRELESS_EXT >= 12
++#if WIRELESS_EXT >= 12 && WIRELESS_EXT < 17
+ 	net_dev->get_wireless_stats = RT2400_get_wireless_stats;
+ #endif
+ 
+@@ -186,8 +295,8 @@
+ 	if (Status)
+ 		goto err_out_unmap;
+ 
+-	printk(KERN_INFO DRV_NAME ": %s at 0x%lx, VA 0x%1lx, IRQ %d.\n",
+-		net_dev->name, pci_resource_start(pPci_Dev, 0), (unsigned long)csr_addr, pPci_Dev->irq);
++	printk(KERN_INFO DRV_NAME ": %s at 0x%x, VA 0x%1lx, IRQ %d.\n",
++		net_dev->name, (ULONG)pci_resource_start(pPci_Dev, 0), (unsigned long)csr_addr, pPci_Dev->irq);
+ 
+ 	// Set driver data
+ 	pci_set_drvdata(pPci_Dev, net_dev);
+@@ -201,6 +310,14 @@
+ 	// but it is useful for the settings iwconfig doesn't let you at
+ 	PortCfgInit(pAd);
+ 
++        Status = MlmeQueueInit(&pAd->Mlme.Queue);
++        if(Status != NDIS_STATUS_SUCCESS)
++        {
++            goto err_out;
++        }
++
++	rt2400pci_open_debugfs(pAd);
++
+ 	return 0;
+ 
+ err_out_unmap:
+@@ -391,10 +508,16 @@
+ 		
+ 	========================================================================
+ */
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+ irqreturn_t RTMPIsr(
+        int             irq,
+        void            *dev_instance,
+        struct pt_regs  *rgs)
++#else
++irqreturn_t RTMPIsr(
++       int             irq,
++       void            *dev_instance)
++#endif
+ {
+ 	struct net_device	*net_dev = (struct net_device*) dev_instance;
+ 	PRTMP_ADAPTER		pAd = netdev_priv(net_dev);
+@@ -614,7 +737,12 @@
+ 	// TODO: set_multicast_list
+ 	RTMP_ADAPTER *pAd;
+         pAd = netdev_priv(net_dev);
+-        if (net_dev->flags&IFF_PROMISC)
++	if (pAd->PortCfg.BssType == BSS_MONITOR)
++	{
++	      RTMP_IO_WRITE32(pAd, RXCSR0, 0x46);
++	      DBGPRINT(RT_DEBUG_TRACE,"rt2500 acknowledge MONITOR on\n");
++	}
++        else if (net_dev->flags&IFF_PROMISC)
+         {
+               pAd->bAcceptPromiscuous = TRUE;
+               RTMP_IO_WRITE32(pAd, RXCSR0, 0x6e);
+@@ -624,7 +752,7 @@
+         {
+               pAd->bAcceptPromiscuous = FALSE;
+               RTMP_IO_WRITE32(pAd, RXCSR0, 0x7e);
+-              DBGPRINT(RT_DEBUG_TRACE, "rt2400 acknowledge PROMISC off\n");
++              DBGPRINT(RT_DEBUG_TRACE, "rt2400 acknowledge MONITOR/PROMISC off\n");
+         }
+ 
+ }
+@@ -715,6 +843,9 @@
+ 	IN	struct pci_dev	*pPci_Dev)
+ {
+ 	struct net_device	*net_dev = pci_get_drvdata(pPci_Dev);
++	RTMP_ADAPTER	*pAd = netdev_priv(net_dev);
++
++	rt2400pci_close_debugfs(pAd);
+ 
+ 	// Unregister network device
+ 	unregister_netdev(net_dev);
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/TESTING rt2400/Module/TESTING
+--- rt2400-1.2.2-b3/Module/TESTING	2005-07-30 18:36:23.000000000 +0200
++++ rt2400/Module/TESTING	2007-05-07 14:23:28.000000000 +0200
+@@ -1,36 +1,63 @@
+-Below is information on how you can help out the team with testing
+-of the rt2400 kernel module.
++Below are the steps you need to follow to help out the team with
++testing/debugging of the rt2400 kernel module:
+ 
+-1. Get the latest source from the CVS tree. Easiest way todo this is to
+-sign up to SourceForge and then use the commands below to get the current
+-mainline source (as last time I checked anon-cvs was not working 100%)
+ 
+-export CVS_RSH=ssh
+-cvs -d:ext:username@cvs.sf.net:/cvsroot/rt2400 co source
++1. Get the latest source from the CVS tree.
++     Easiest way to do this is to download the hourly tarball from our website:
++     http://rt2x00.serialmonkey.com/rt2400-cvs-daily.tar.gz
++     Alternatively, you can anonymously check out the current CVS code:
++     $ cvs -d:pserver:anonymous@rt2400.cvs.sourceforge.net:/cvsroot/rt2400 login
++     $ cvs -z3 -d:pserver:anonymous@rt2400.cvs.sourceforge.net:/cvsroot/rt2400 \
++           co -P source/rt2400
+ 
+-2. Enable module debugging. Todo this run 'make clean' to remove any
+-compiled objects you have and then run 'make debug; make install'.
+-This will recompile the Module with debugging turned on and reinstall
+-it over your existing module. 
++2. Compile the module with debug logging:
++     $ make clean
++     $ make debug
+ 
+-3. Compile and install the module as per the INSTALL instructions.
++3. Ensure there are no copies of the module left in memory:
++     # ifconfig ra0 down
++     # rmmod rt2400
+ 
+-4. Load the module with full debug enabled using the command
+-	modprobe rt2400 debug=5
++4. Load the module with full debug enabled:
++     # insmod rt2400.ko debug=5
++     Then proceed as usual (config, ifup, etc)...
+ 
+-5. Any bugs/issues you find please report the following information
+-to the rt2400-devel mailing list
+-	* Steps to reproduce
+-	* The last few lines of your debugging output which should go
+-          through syslog and end up somewhere like /var/log/messages
+-          or /var/log/debug (depending on your syslog config)
+-	* Your hardware architecture (i.e. x86, AMD64, Sparc)
+-	* Your kernel version (i.e. 2.4.25 or 2.6.4)
+-	* Your rt2400 hardware manufacturer and model
+-	* Anything else you may think will help us resolve the issue
+-	  (even a patch if you are so inclined)
++5. Check the debug output.
++     It is located in your system log file (most likely /var/log/debug or
++     /var/log/syslog). If you don't see any debug you probably need to add the
++     following line to your /etc/syslog.conf and reboot:
++          kern.=debug       /var/log/debug
++     If you system hard-locks before it's able to log anything interesting
++     in these files, you'll have to rely on the netconsole module to remotely
++     log your kernel messages to another box (see netconsole.txt in your
++     kernel sources Documentation folder).
+ 
+-5. Sign up to the rt2400-devel mailing list and watch out for requests
+-for testing. Whenever we do major changes to the source and always
+-just before a release we will call for testing to be done before we
+-make the general release. 
++6. Report the following to the rt2400-devel mailing list (or rt2400 forum):
++     * Steps to reproduce the bug
++     * The _whole_content_ of your debugging output 
++     * Your module details, i.e. the output of:
++         # modinfo rt2400.ko
++     * Your kernel details, i.e. the output of:
++         $ uname -a
++     * Your rt2400 hardware manufacturer, model and revision
++     * Anything else you think may help us resolve the issue (even a patch if
++       you are so inclined)
++
++7. Monitor the mailing list (or forum thread) for replies/further queries.  :-)
++
++
++Whenever we do major changes to the source - and always just before a release -
++we will call for testing to be done before we make the general release. You're
++very much welcome to help us with this testing and report any success/issue you
++experience with this code.
++
++
++!!!! NOTE !!!!
++
++AS PER STEP 6 ABOVE: Please provide the *whole* debug output! The last few lines
++are hardly any good.
++If it's large (which it will be) then GZip it. Either attach it to your forum
++post or, if you're going to report via the mailing list, upload it somewhere and
++give a link to it (or email it directly to the developer you are working with).
++
++!!!! END NOTE !!!! 
+diff -Naur -duwbB rt2400-1.2.2-b3/Module/unload rt2400/Module/unload
+--- rt2400-1.2.2-b3/Module/unload	2005-07-30 18:36:26.000000000 +0200
++++ rt2400/Module/unload	1970-01-01 01:00:00.000000000 +0100
+@@ -1,2 +0,0 @@
+-/sbin/ifconfig ra0 down
+-/sbin/rmmod rt2400
+\ No newline at end of file

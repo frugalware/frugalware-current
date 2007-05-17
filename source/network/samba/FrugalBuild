@@ -3,9 +3,9 @@
 # Contributor: VMiklos <vmiklos@frugalware.org>
 
 pkgname=samba
-pkgver=3.0.24
+pkgver=3.0.25
 pkgextraver=
-pkgrel=2
+pkgrel=1
 pkgdesc="SMB file and print server."
 url="http://www.samba.org"
 backup=(etc/logrotate.d/samba)
@@ -17,19 +17,18 @@ archs=('i686' 'x86_64')
 up2date="lynx -dump http://ftp.samba.org/samba/ftp|grep tar.gz$|sed 's/.*-\(.*\)\.t.*/\1/;s/$pkgextraver//;q'"
 source=(http://ftp.samba.org/samba/ftp/stable/$pkgname-$pkgver$pkgextraver.tar.gz samba.logrotate rc.samba)
 
-subpkgs=('libsmbclient' 'samba-client')
-subdescs=('SMB client library.' 'SMB client tools.')
-subdepends=('libldap' 'heimdal>=0.8 db readline popt')
-subrodepends=('' "libsmbclient=$pkgver")
-subgroups=('lib' 'network')
-subarchs=('i686 x86_64' 'i686 x86_64')
+subpkgs=('libsmbclient' 'samba-client' 'samba-swat')
+subdescs=('SMB client library.' 'SMB client tools.' 'Swat config tool for samba.')
+subdepends=('libldap' 'heimdal>=0.8 db readline popt' '')
+subrodepends=('' "libsmbclient=$pkgver" 'samba')
+subgroups=('lib' 'network' 'network')
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
 
 build()
 {
 	unset MAKEFLAGS
-	Fcd
 	Fpatchall
-	cd source
+	Fcd $pkgname-$pkgver$pkgextraver/source
 	Fmake --localstatedir=/var --bindir=/usr/bin \
         	--sbindir=/usr/sbin --with-lockdir=/var/cache/samba \
 		--sysconfdir=/etc --with-configdir=/etc/samba \
@@ -38,30 +37,31 @@ build()
 	        --enable-cups --with-fhs --with-acl-support --with-automount \
 		--with-smbmount --with-quotas --with-syslog --with-utmp \
 		--with-libsmbclient --with-winbind
-	
-	gcc $CFLAGS $LDFLAGS client/mount.cifs.c -o bin/mount.cifs
-	
-	Fmkdir /var/spool /var/samba /var/log/samba /var/cache/samba
-	Fmkdir /etc/samba/private
-	chmod 700 $Fdestdir/etc/samba/private
+	Fmkdir /var/spool /var/samba /var/log/samba /var/cache/samba /etc/samba/private
+	chmod 700 $Fdestdir/etc/samba/private || Fdie
 	
 	Fmakeinstall
-	Fexerel bin/mount.cifs /sbin/mount.cifs
 	
 	Fln samba/libsmbclient.so /usr/lib/libsmbclient.so
 	Fln samba/libsmbclient.so /usr/lib/libsmbclient.so.0
-	chmod 644 $Fdestdir/usr/include/*.h
-	cat ../examples/smb.conf.default \
-		| sed 's|log file = .*$|log file = /var/log/samba/log.%m|g' \
-		>$Fdestdir/etc/samba/smb.conf.default
-	Ffile samba.logrotate /etc/logrotate.d/samba
+	chmod 644 $Fdestdir/usr/include/*.h || Fdie
+
+	# these links are necessary for mount
 	Fln /usr/bin/smbmount /sbin/mount.smbfs
-	
+	Fln /usr/sbin/mount.cifs /sbin/mount.cifs
+	Fln /usr/sbin/umount.cifs /sbin/umount.cifs
+
+	# smb.conf
+	Ffilerel ../examples/smb.conf.default /etc/samba/smb.conf.default
+	Fsed 'log file = .*$' 'log file = /var/log/samba/log.%m' $Fdestdir/etc/samba/smb.conf.default
+
+	Ffile samba.logrotate /etc/logrotate.d/samba
 	Frcd
-	
+
 	# resolve conflicts with tdb
 	Frm /usr/bin/tdbdump
 
+	# Split
 	Fsplit libsmbclient usr/lib/libsmbclient.so*
 	Fsplit libsmbclient usr/lib/samba/libsmbclient.so
 
@@ -80,10 +80,13 @@ build()
 			Fsplit samba-client usr/share/man/man8/mount.$i.8
 			Fsplit samba-client usr/share/man/man8/umount.$i.8
 			Fsplit samba-client usr/sbin/umount.$i
+			Fsplit samba-client sbin/umount.$i
 		fi
 	done
+	Fsplit samba-swat usr/sbin/swat
+	Fsplit samba-swat usr/share/swat
 }
-sha1sums=('216020b58abca191b8146f76f98a8bda3508fcd3'\
+sha1sums=('413fb84366e4bc98a64398996d6944f8fb8e0f7f'\
           '13fd371189bfe637f3f13c62d44d9e761268119e'\
           '0e407642fe6aa0c032df38aac3815eb08f07e35b')
 

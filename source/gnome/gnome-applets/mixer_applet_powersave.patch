@@ -1,0 +1,67 @@
+diff --git a/mixer/applet.c b/mixer/applet.c
+index 3d74f36..70456a1 100644
+--- a/mixer/applet.c
++++ b/mixer/applet.c
+@@ -81,7 +81,6 @@ static void	gnome_volume_applet_orientation	(PanelApplet *applet,
+ 
+ static void	gnome_volume_applet_refresh	(GnomeVolumeApplet *applet,
+ 						 gboolean           force_refresh);
+-static gboolean	cb_check			(gpointer   data);
+ 
+ static void	cb_volume			(GtkAdjustment *adj,
+ 						 gpointer   data);
+@@ -375,6 +374,24 @@ select_element_and_track (GnomeVolumeApplet *applet,
+   return TRUE;
+ }
+ 
++static void
++cb_mixer_mute_toggled (GstMixerTrack *track, gboolean mute, gpointer data)
++{
++  GnomeVolumeApplet *applet = GNOME_VOLUME_APPLET (data);
++
++  g_warning ("mute toggled");
++  gnome_volume_applet_refresh (applet, TRUE);
++}
++
++static void
++cb_mixer_volume_changed (GstMixerTrack *track, gpointer volumes, gpointer data)
++{
++  GnomeVolumeApplet *applet = GNOME_VOLUME_APPLET (data);
++
++  g_warning ("volume changed");
++  gnome_volume_applet_refresh (applet, TRUE);
++}
++
+ gboolean
+ gnome_volume_applet_setup (GnomeVolumeApplet *applet,
+ 			   GList *elements)
+@@ -438,9 +455,12 @@ gnome_volume_applet_setup (GnomeVolumeApplet *applet,
+ 
+   gnome_volume_applet_refresh (applet, TRUE);
+   if (res) {
+-    applet->timeout = g_timeout_add (100, cb_check, applet);
++    GList *l;
++    for (l = applet->tracks; l; l = l->next) {
++      g_signal_connect (G_OBJECT (l->data),"volume_changed", G_CALLBACK (cb_mixer_volume_changed), applet);
++      g_signal_connect (G_OBJECT (l->data),"mute_toggled", G_CALLBACK (cb_mixer_mute_toggled), applet);
++    }
+   }
+-
+   if (res) {
+     /* gconf */
+     key = panel_applet_gconf_get_full_key (PANEL_APPLET (applet),
+@@ -1154,14 +1174,6 @@ gnome_volume_applet_refresh (GnomeVolumeApplet *applet,
+ 				"state", mute ? "1" : "0", NULL);
+ }
+ 
+-static gboolean
+-cb_check (gpointer data)
+-{
+-  gnome_volume_applet_refresh (GNOME_VOLUME_APPLET (data), FALSE);
+-
+-  return TRUE;
+-}
+-
+ /*
+  * GConf callback.
+  */

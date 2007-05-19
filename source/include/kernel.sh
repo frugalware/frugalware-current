@@ -48,7 +48,7 @@ Finclude kernel-version
 # * _F_kernel_git if set, the version of the git patch to use (example: "3")
 # * _F_kernel_dontsedarch: if set, don't replace 486 with your CARCH in the kernel config
 # * _F_kernel_dontfakeversion if set, don't replace the kernel version string
-# with a generate one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
+# with a generated one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
 # * _F_kernel_manualamd64: if set, don't update the config automatically to add
 # 32bit emulation support on x86_64
 # * _F_kernel_uname: specify the kernel version manually (defaults to

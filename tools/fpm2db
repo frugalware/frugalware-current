@@ -25,6 +25,7 @@ class package:
 		self.parentgrp=parentgrp
 		self.parent_id=0
 		self.updateable=True
+		self.nobuild = False
 
 		self.pkgname = re.sub("-[^-]+-[^-]+-[^-]+.fpm", "", fpm)
 		if not self.parent:
@@ -37,18 +38,23 @@ class package:
 		try:
 			os.stat(fpm)
 		except OSError:
-			self.updateable=False
-			return
+			# check if this is a nobuild fpm
+			if self.getnobuild():
+				self.nobuild = True
+			else:
+				self.updateable=False
+				return
 
 		self.files=[]
-		socket = os.popen("pacman-g2 -Ql -p %s" % fpm)
-		while True:
-			file = socket.readline().strip().replace("%s " % self.pkgname, "")
-			if not file:
-				break
-			else:
-				self.files.append(file)
-		socket.close()
+		if not self.nobuild:
+			socket = os.popen("pacman-g2 -Ql -p %s" % fpm)
+			while True:
+				file = socket.readline().strip().replace("%s " % self.pkgname, "")
+				if not file:
+					break
+				else:
+					self.files.append(file)
+			socket.close()
 
 		self.conflicts=[]
 		self.depends=[]
@@ -59,7 +65,34 @@ class package:
 		self.url=None
 		self.builddate=None
 		self.usize=None
-		socket = os.popen("pacman-g2 -Qi -p %s" % fpm)
+		if not self.nobuild:
+			socket = os.popen("pacman-g2 -Qi -p %s" % fpm)
+		else:
+			command = """
+source /usr/lib/frugalware/fwmakepkg
+source %s
+
+[ -z "$conflicts" ] && conflicts=('None')
+[ -z "$depends" ] && depends=('None')
+[ -z "$groups" ] && groups=('None')
+[ -z "$license" ] && license=('None')
+[ -z "$provides" ] && provides=('None')
+
+cat << EOF
+Conflicts With : ${conflicts[@]}
+Depends On     : ${depends[@]}
+Groups         : ${groups[@]}
+License        : ${license[@]}
+Provides       : ${provides[@]}
+Description    : $pkgdesc
+URL            : $url
+Build Date     : $(date -u "+%%a %%b %%e %%H:%%M:%%S %%Y" --date="`stat -c "%%y" %s`") UTC
+Size           : 0
+EOF
+			"""
+
+			fb = "../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent)
+			socket = os.popen(command % (fb, fb))
 		buf = ''.join(socket.readlines()).replace('\n ', ' ')
 		socket.close()
 		for line in re.sub(' {2,}', ' ', buf).split('\n'):
@@ -97,33 +130,55 @@ class package:
 
 		self.maintainer=None
 		try:
-			socket = open("../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent))
-			while True:
-				line = socket.readline()
-				if not line:
-					break
-				if line[:14] != "# Maintainer: ":
-					continue
-				# FIXME: we here hardcore the encoding of the FBs
-				self.maintainer = line[14:].strip().decode('latin1')
-				break
-			socket.close()
+			self.maintainer = self.getmaintainer()
 		except IOError:
 			# this happens when the group is changed but there was
 			# no rebuild. we don't want to update the db in this
 			# case
 			self.uploader=None
 
-		ctx = sha.new()
-		socket = open(fpm)
-		while True:
-			buf = socket.read(16384)
-			if not buf:
-				break
-			ctx.update(buf)
-		self.sha1sum = ctx.hexdigest()
+		if not self.nobuild:
+			ctx = sha.new()
+			socket = open(fpm)
+			while True:
+				buf = socket.read(16384)
+				if not buf:
+					break
+				ctx.update(buf)
+			self.sha1sum = ctx.hexdigest()
+			self.size=os.stat(fpm).st_size
+		else:
+			self.sha1sum = ""
+			self.size = 0
 
-		self.size=os.stat(fpm).st_size
+	def getmaintainer(self):
+		ret = ""
+		socket = open("../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent))
+		while True:
+			line = socket.readline()
+			if not line:
+				break
+			if line[:14] != "# Maintainer: ":
+				continue
+			# FIXME: we here hardcore the encoding of the FBs
+			ret = line[14:].strip().decode('latin1')
+			break
+		socket.close()
+		return ret
+
+	def getnobuild(self):
+		command = '    source /usr/lib/frugalware/fwmakepkg'
+		command += ' ; source %s'
+		command += ' ; [ -n "${nobuild}" ] && exit 1'
+		command += ' ; echo ${options[@]} | grep -q nobuild && exit 1'
+		command += ' ; exit 0'
+
+		fb = "../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent)
+		try:
+			os.stat(fb)
+		except OSError:
+			return False
+		return os.system(command % fb)
 
 	def splitver(self, pkg):
 		for i in ['>=', '<=', '=']:

@@ -11,19 +11,20 @@ for i in `find source -name FrugalBuild`
 do
 	cd `dirname $i` || continue
 	startdir=`pwd`
-	unset pkgname pkgver pkgrel archs subpkgs groups
+	unset pkgname pkgver pkgrel archs subpkgs groups nobuild options
 	for j in `set|grep ^_F_|sed 's/=.*//'`; do unset $j; done
 	. FrugalBuild || echo "errors parsing the FrugalBuild"
-	if [ -z "$pkgname" -o "$nobuild" -o "`check_option NOBUILD`" ]; then
-		cd $CWD
-		continue
-	fi
 	for j in ${archs[@]}
 	do
 		echo ${sqlarchs[@]} |grep -q $j || continue
 		cd $CWD/frugalware-$j
-		echo ../tools/fpm2db -f $pkgname-$pkgver-$pkgrel-$j.fpm
-		../tools/fpm2db -f $pkgname-$pkgver-$pkgrel-$j.fpm || exit 1
+		if [ ! "`check_option NOBUILD`" ]; then
+			echo ../tools/fpm2db -f $pkgname-$pkgver-$pkgrel-$j.fpm
+			../tools/fpm2db -f $pkgname-$pkgver-$pkgrel-$j.fpm || exit 1
+		else
+			echo ../tools/fpm2db -f $pkgname-$pkgver-$pkgrel-$j.fpm -g $groups
+			../tools/fpm2db -f $pkgname-$pkgver-$pkgrel-$j.fpm -g $groups || exit 1
+		fi
 		if [ ! -z "$subpkgs" ]; then
 			for k in "${subpkgs[@]}"
 			do

@@ -1,59 +1,49 @@
-# Compiling Time: 2.81 SBU
+# Compiling Time: 5.03 SBU
 # Contributor: Zsolt Szalai <xbit@frugalware.org>
 # Maintainer: voroskoi <voroskoi@frugalware.org>
 
 pkgname=blender
-pkgver=2.43
+pkgver=2.44
 pkgextraver=
-pkgrel=2
+pkgrel=1
 pkgdesc="A 3D modeling/rendering/animation/gaming application"
 url="http://blender.org"
 Finclude python
-depends=('mesa' 'gettext' 'freealut' 'libjpeg' 'libpng' "python>=$_F_python_ver" 'ffmpeg>=20070422' 'openexr>=1.4.0a' 'libtiff')
+depends=('libjpeg' 'libpng' 'freetype2' 'freealut' 'openexr' 'ffmpeg>=20070422' 'libgcc' 'openal>=0.0.8-4' "python>=$_F_python_ver" 'libtiff')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
-makedepends=('scons' 'ftgl')
+makedepends=('cmake' 'ftgl')
 up2date="lynx -dump 'http://download.blender.org/source/?C=M;O=D'|grep tar.gz$|sed -ne 's/.*r-\(.*\)\.tar.gz/\1/' -e s/$pkgextraver// -e '$ p'"
 source=(http://download.blender.org/source/$pkgname-$pkgver$pkgextraver.tar.gz \
 	blender.desktop blender.png py$_F_python_ver.patch)
 
 build() {
-	Fcd
 	Fpatchall
-	scons \
-		REL_CCFLAGS="$CXXFLAGS" \
-		WITH_BF_FFMPEG=1 \
-		WITH_BF_PLAYER=0 \
-		BF_INSTALLDIR=$Fdestdir/usr/lib/blender \
-		BF_FTGL=/usr \
-		BF_FTGL_INC=/usr/include/FTGL \
-		BF_FTGL_LIB=ftgl \
-		BF_PYTHON_VERSION=$_F_python_ver \
-		BF_PYTHON_INC=/usr/include/python$_F_python_ver \
-		|| Fdie
+	#Fsed 'ADD_LIBRARY(${name} ${INC_ALL} ${sources})' 'ADD_LIBRARY(${name} SHARED ${INC_ALL} ${sources})' CMake/macros.cmake
+	mkdir -p ../build || Fdie
+	cd ../build || Fdie
+	cmake ../$pkgname-$pkgver -DCMAKE_INSTALL_PREFIX=$Fprefix \
+		-DWITH_BULLET=ON -DWITH_ELBEEM=ON -DWITH_FFMPEG=ON -DWITH_GAMEENGINE=ON \
+		-DWITH_INTERNATIONAL=ON -DWITH_OPENAL=ON -DWITH_OPENEXR=ON \
+		-DWITH_PLAYER=ON -DWITH_QUICKTIME=OFF -DWITH_VERSE=ON -DYESIAMSTUPID=ON || Fdie
+	make || Fdie
 
-	install -d ./release/plugins/include || Fdie
-	install -m 644 source/blender/blenpluginapi/*.h ./release/plugins/include || Fdie
-	chmod +x ./release/plugins/bmake || Fdie
-	make -C ./release/plugins || Fdie
-
-#	cp -a ./release/bpydata ../../pkg/usr/lib/blender || Fdie
-	cp -a ./release/scripts ../../pkg/usr/lib/blender || Fdie
-	cp -a ./bin/.blender/locale ../../pkg/usr/lib/blender || Fdie
-	install -m 644 ./bin/.blender/.Blanguages ../../pkg/usr/lib/blender || Fdie
-	install -m 644 ./bin/.blender/.bfont.ttf ../../pkg/usr/lib/blender || Fdie
+	Fmkdir $Fprefix/lib/blender
+	mv bin/.blender/* $Fdestdir/$Fprefix/lib/blender || Fdie
+	Fexerel bin/blender $Fprefix/bin/blender
+	Fexerel bin/blenderplayer $Fprefix/bin/blenderplayer
+	Ffile $pkgname-$pkgver/source/blender/blenpluginapi/*.h $Fprefix/lib/blender/plugins/include
+	Fcprrel bin/plugins $Fprefix/lib/blender
+	chmod +x $Fdestdir/$Fprefix/lib/blender/plugins/bmake || Fdie
+	make -C $Fdestdir/$Fprefix/lib/blender/plugins || Fdie
+	Ffilerel bin/*.{txt,html} /usr/share/doc/blender-$pkgver
 	Ffile /usr/share/pixmaps/blender.png
 	Ffile /usr/share/applications/blender.desktop
-	Frm /usr/lib/blender/.blender
-	Frm /usr/lib/blender/*.{txt,pdf,html}
-	Fmkdir /usr/bin
-	Fmv /usr/lib/blender/blender /usr/bin/
-	#Fmv /usr/lib/blender/blenderplayer /usr/bin/
+	Ffilerel lib/* $Fprefix/lib
 }
-
-
-sha1sums=('de9ba15fb40d962e56deebdea13a3a68b3ae6532'\
+sha1sums=('1571e412c21d3746516d730ae13a83d69a81807c'\
           '44ee67a0ed814481aacca0dfc8cf45ae7a48eed5'\
           '5d2583d847735c913c26c96ace8192a646323da8'\
           'c7357731664aa7fa704d05d74b75d9e101cf7af5')
+
 # optimization OK

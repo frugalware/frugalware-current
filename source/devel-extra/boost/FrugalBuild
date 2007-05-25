@@ -1,62 +1,70 @@
-# Compiling Time: 4.26 SBU
+# Compiling Time: 2.33 SBU
 # Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=boost
-pkgver=1.33.1
-pkgrel=2
+pkgver=1.34.0
+pkgrel=1
 pkgdesc="Boost Libraries for C++"
 _F_sourceforge_ext=".tar.bz2"
-Finclude sourceforge
+Finclude sourceforge python
 url="http://boost.org/"
-depends=('libstdc++' 'python')
+depends=('libstdc++' 'python' 'icu' 'bzip2' 'zlib')
 makedepends=('boost-jam')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
-up2date="lynx -dump 'http://sourceforge.net/project/showfiles.php?group_id=7586' | grep -v beta|grep -om1 'boost\(.*\)tar.bz2'|sed 's/.*t_\(.*\).t.*/\1/;s/_/./g'"
-source=(${source/-$pkgver/_${pkgver//./_}})
-sha1sums=('22682f75ff0d1ea548688e78c8cca83d599ca576')
+up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=7586 | grep 'Latest.*Notes' | sed -n 's/.*\]\([0-9\.]\+\) \[.*/\1/;1 p'"
+source=(${source/-$pkgver/_${pkgver//./_}} no_version_for_include_kthx.patch \
+	boostjam_x86_64.patch)
+_F_cd_path="${pkgname}_`echo $pkgver|tr . _`"
+sha1sums=('d2fdb4535a13566917fe3d8377b017f094933641'\
+          'ed54f5fe28c801e240fa87f3641de1b1184dfe20'\
+          'f183bdd5970e67ac2d9062ec1834eb22233ede03')
 
-build() {
-	Fcd ${pkgname}_`echo $pkgver | sed -e 's/\./_/' | sed -e 's/\./_/'`
+build()
+{
+	Fcd
 	Fpatchall
-	
-	BOOST_TOOLSET="gcc"
-	TOOLSET_NAME="gcc"
-	SOSUFFIX="so"
-	BOOSTJAM=/usr/bin/bjam
-	BUILD="release <runtime-link>dynamic"
-	BUILD="${BUILD} <threading>multi"
-	PYTHON_VERSION=`python -V 2>&1 |sed 's,.* \([0-9]\.[0-9]\)\(\.[0-9]\)\?.*,\1,'`
+	if [ "$CARCH" != "x86_64" ] ; then
+	# NOTE boost-jam does not work with stage so ...
+	cd tools/jam/src || Fdie
+	sh build.sh gcc || Fdie
+	cd $Fsrcdir/$_F_cd_path || Fdie
+	## Some Options we set
+	    BOOSTJAM="tools/jam/src/bin.linuxx86/bjam"
+	fi
+	if [ "$CARCH" == "x86_64" ] ; then
+	    BOOSTJAM="/usr/bin/bjam"
+	fi
+	OPTIONS="release debug-symbols=off optimization=off threading=single,multi"
+	JOBS="$MAKEFLAGS"
 
-	${BOOSTJAM} -sBOOST_ROOT="$Fsrcdir" \
-	    -sPYTHON_ROOT=/usr \
-	    -sPYTHON_VERSION=${PYTHON_VERSION} \
-	    -sTOOLS=${BOOST_TOOLSET} \
-	    -sBUILD="${BUILD}" \
-	    --prefix=$Fdestdir/usr \
-	    --layout=system
+	${BOOSTJAM} \
+		${JOBS} \
+		-sHAVE_ICU=1 -sICU_PATH=/usr \
+	    	-sBOOST_ROOT="$Fsrcdir" \
+	    	-sPYTHON_ROOT=/usr \
+	    	-sPYTHON_VERSION="$_F_python_ver" \
+	    	${OPTIONS} \
+	    	--prefix="$Fdestdir/usr" \
+		--exec-prefix="$Fdestdir/usr" \
+		--includedir="$Fdestdir/usr/include" \
+		--libdir="$Fdestdir/usr/lib" \
+	    	--toolset=gcc stage || Fdie
 
-	${BOOSTJAM} -sBOOST_ROOT="$Fsrcdir" \
-	    -sPYTHON_ROOT=/usr \
-	    -sPYTHON_VERSION=${PYTHON_VERSION} \
-	    -sTOOLS=${BOOST_TOOLSET} \
-	    -sBUILD="${BUILD}" \
-	    --prefix=$Fdestdir/usr \
-	    --layout=system install || return 1
+	${BOOSTJAM} \
+	    	${JOBS} \
+		-sHAVE_ICU=1 -sICU_PATH=/usr \
+	    	-sBOOST_ROOT="$Fsrcdir" \
+	    	-sPYTHON_ROOT=/usr \
+	    	-sPYTHON_VERSION="$_F_python_ver" \
+	    	${OPTIONS} \
+		--prefix="$Fdestdir/usr" \
+		--exec-prefix="$Fdestdir/usr" \
+		--includedir="$Fdestdir/usr/include" \
+		--libdir="$Fdestdir/usr/lib" \
+		--toolset=gcc install || Fdie
 	
-	cd $Fsrcdir/${pkgname}_`echo $pkgver | sed -e 's/\./_/' | sed -e 's/\./_/'`/tools/build/
+	cd $Fsrcdir/$_F_cd_path/tools/build/
 	Fmkdir usr/share/boost
-	cp -a b* index.html v1/ v2/ $Fdestdir/usr/share/boost/
-
-        cd $Fdestdir/usr/lib
-
-### Braindead thing ....
-
-	for fn in `ls -1 *.${SOSUFFIX}| cut -d- -f1 | sed 's/\.so//g' | sort | uniq`; do
-		Fln "$fn-mt.${SOSUFFIX}" "/usr/lib/$fn-gcc.${SOSUFFIX}"
-	done
-
-	for fn in `ls -1 *.a| cut -d- -f1 | sed 's/\.a//g' | sort | uniq`; do
-		Fln "$fn-mt.a" "/usr/lib/$fn-gcc.a"
-	done
+	cp -a b* index.html  v2/ $Fdestdir/usr/share/boost/
 }

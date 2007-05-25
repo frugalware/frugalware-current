@@ -3,11 +3,11 @@
 
 pkgname=gcc
 pkgver=4.2.0
-pkgrel=1
+pkgrel=2
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
 depends=('binutils' 'libstdc++')
-makedepends=('mpfr' 'gcc-gnat' 'gtk+2' 'libart_lgpl' 'libxtst' 'zip')
+makedepends=('mpfr' 'gcc-gnat' 'gtk+2' 'libart_lgpl' 'libxtst' 'zip' 'xulrunner')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('i686' 'x86_64')
@@ -55,6 +55,13 @@ build()
 	unset MAKEFLAGS # this is needed by libffi FIXME FIXME FIXME because of
 	                # this the whole build is slow as hell!11
 	Fsed '../lib64 ../lib' '. ../lib' gcc/config/i386/t-linux64
+	# no fixincludes, thanks
+	Fsed '\./fixinc\.sh' '-c true' gcc/Makefile.in
+	# fix for newer xulrunner
+	Fsed 'xulrunner-plugin' 'xulrunner-plugin xulrunner-xpcom' libjava/classpath/configure.ac
+	cd libjava/classpath
+	autoconf || return 1
+	cd -
 	Fpatchall
 	mkdir ../$pkgname-build
 	cd ../$pkgname-build
@@ -65,21 +72,12 @@ build()
 	--enable-languages=c,ada,c++,fortran,java,objc,obj-c++,treelang \
 	--enable-threads=posix \
 	--enable-__cxa_atexit \
-	--enable-java-awt=xlib,gtk
+	--enable-java-awt=xlib,gtk \
+	--enable-plugin
 
 	make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" bootstrap || return 1
 	
 	Fmakeinstall
-
-	# include/ contains install-tools/include/* and headers that were fixed
-	# up by fixincludes, we don't want former
-	for i in `find $Fdestdir/usr/lib/gcc/$CHOST/$pkgver/include/ -name \*.h`
-	do
-		if grep -q 'It has been auto-edited by fixincludes from' \
-			$i; then
-			rm -f $i
-		fi
-	done
 
 	# conflicts with binutils
 	Frm /usr/bin/c++filt /usr/lib/libiberty.a

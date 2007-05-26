@@ -2,9 +2,9 @@
 # Maintainer: Janny <janny@frugalware.org>
 
 pkgname=tightvnc
-pkgver=1.3.8
+pkgver=1.3.9
 extraver=_unixsrc
-pkgrel=2
+pkgrel=1
 pkgdesc="VNC Unix server && viewer"
 _F_sourceforge_dirname="vnc-tight"
 _F_sourceforge_ext=".tar.bz2"
@@ -12,20 +12,23 @@ Finclude sourceforge
 url="http://www.tightvnc.com"
 license="GPL"
 depends=('libjpeg' 'libxaw' 'zlib')
-makedepends=('imake' 'gccmakedep')
+makedepends=('imake' 'gccmakedep' 'tcp_wrappers')
 conflict=('vnc')
 archs=('i686' 'x86_64')
 groups=('xapps-extra')
 up2date="lynx -dump $url/download.html |grep $pkgname-.*\.tar\.bz2 |tail -n 1 |sed -n 's/.*-\(.*\)\.t.*/\1/;1 p;' |sed 's/$extraver//'"
-source=(${source/$pkgver/$pkgver$extraver} tightvnc-1.3dev7-x86_64-fix.patch X7.patch)
-sha1sums=('1c733cb8525c6259a9cb6b35ca5a82ba02eb725c'\
-          '42bc2b534ec9327d6b8ba9a8b3f4ff22f2660734'\
-          '768a80e8d78dff817de408317e8382a6d4611ea4')
+source=(${source/$pkgver/$pkgver$extraver} X7.patch) #tightvnc-1.3dev7-x86_64-fix.patch)
+sha1sums=('a9529a262a060517402fb9845ef63a0d18c3141f' \
+	'768a80e8d78dff817de408317e8382a6d4611ea4')
+#          '42bc2b534ec9327d6b8ba9a8b3f4ff22f2660734'\
 
 build() {
+	unset MAKEFLAGS
 	# make global
 	cd $Fsrcdir/vnc_unixsrc || Fdie
+	Fsed "/usr/local/vnc/classes" "/usr/lib/vnc/classes" vncserver
 	Fpatchall
+	patch < vnc-xclients.patch || Fdie
 	
 	xmkmf -a || Fdie
 	make CDEBUGFLAGS="$CFLAGS" World || Fdie
@@ -33,7 +36,8 @@ build() {
 	# building Xvnc
 	cd Xvnc || Fdie
 	./configure || Fdie
-	make CDEBUGFLAGS="${CFLAGS}" || Fdie
+	make EXTRA_LIBRARIES="-lwrap -lnss_nis" CDEBUGFLAGS="$CFLAGS" \
+	     EXTRA_DEFINES="-DUSE_LIBWRAP=1" || Fdie
 
 	# copying files
 	Fmkdir /usr/bin
@@ -41,6 +45,7 @@ build() {
 	cd .. || Fdie
 	./vncinstall $Fdestdir/usr/bin $Fdestdir/usr/man || Fdie
 	Ffilerel classes/* /usr/lib/vnc/classes
+	Fdesktop "vncviewer" "krfb.png"
 }
 
 # optimization OK

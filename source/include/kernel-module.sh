@@ -34,10 +34,26 @@ Finclude kernel-version
 #         Fbuild
 # }
 # --------------------------------------------------
+#
+# If you want to build a module for a custom kernel, then you need to set three
+# options. Here is an example:
+#
+# --------------------------------------------------
+# _F_kernelmod_name="-xen0"
+# _F_kernelmod_ver=2.6.19
+# _F_kernelmod_rel=2
+# --------------------------------------------------
+#
 # NOTE: You need to use Fcheckkernel to prevent crosscompilation or that
 # comment to be sure about there will be no wrong module will be built by
 # accident! See the 'Kernel modules' section of 'makepkg' document for more
 # info.
+#
+# == OPTIONS
+# * _F_kernelmod_name: build module for a custom kernel - built using
+# _F_kernel_name (optional, defaults to "")
+# * _F_kernelmod_ver: kernel version (required if _F_kernelmod_name is set)
+# * _F_kernelmod_rel: kernel release (required if _F_kernelmod_name is set)
 #
 # == OVERWRITTEN VARIABLES
 # * _F_kernelmod_uname: the output of the uname -r command of the official kernel
@@ -47,11 +63,15 @@ Finclude kernel-version
 # * makedepends()
 # * install
 ###
-_F_kernelmod_uname=$_F_kernelver_ver-fw$_F_kernelver_rel
-_F_kernelmod_pkgver=${_F_kernelmod_uname/fw}
+if [ -z "$_F_kernelmod_name" ]; then
+	_F_kernelmod_ver="$_F_kernelver_ver"
+	_F_kernelmod_rel="$_F_kernelver_rel"
+fi
+_F_kernelmod_uname=$_F_kernelmod_ver$_F_kernelmod_name-fw$_F_kernelmod_rel
+_F_kernelmod_pkgver=$_F_kernelmod_ver-$_F_kernelmod_rel
 _F_kernelmod_dir=/lib/modules/$_F_kernelmod_uname
-depends=("kernel$_F_kernel_name=$_F_kernelmod_pkgver")
-makedepends=("kernel$_F_kernel_name-source=$_F_kernelmod_pkgver")
+depends=("kernel$_F_kernelmod_name=$_F_kernelmod_pkgver")
+makedepends=("kernel$_F_kernelmod_name-source=$_F_kernelmod_pkgver")
 install=$Fincdir/kernel-module.install
 
 ###

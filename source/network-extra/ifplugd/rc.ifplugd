@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# Copyright (C) 2007 Alex Smith
+# rc.ifplugd for Frugalware
+# Distributed under the GPL license
+
+# chkconfig: 2345 10 89
+# description: Brings networks interfaces up and down automatically when \
+#              the cable is removed / inserted
+
+source /lib/initscripts/functions
+TEXTDOMAINDIR=/lib/initscripts/functions
+TEXTDOMAIN=ifplugd
+
+actions=(restart start stop status)
+daemon=$"Interface Plugging daemon"
+
+CFG=/etc/ifplugd/ifplugd.conf
+IFPLUGD=/usr/sbin/ifplugd
+
+test -x $IFPLUGD || exit 0
+
+if [ `id -u` != "0" ] && [ "$1" = "start" -o "$1" = "stop" ] ; then
+	echo "You must be root to start, stop or restart ifplugd."
+	exit 1
+fi
+
+[ -f $CFG ] && . $CFG
+[ "x$INTERFACES" = "xauto" ] && INTERFACES="`cat /proc/net/dev | awk '{ print $1 }' | egrep '^(eth|wlan)' | cut -d: -f1`"
+
+rc_start() {
+	ret=0
+	start_msg
+        for IF in $INTERFACES; do
+		A="`eval echo \$\{ARGS_${IF}\}`"
+		[ -z "$A" ] && A="$ARGS"
+		$IFPLUGD -i $IF $A
+		ret=$(($ret + $?))
+        done
+	ok $ret
+}
+
+rc_stop() {
+	ret=0
+	stop_msg
+        for IF in $INTERFACES; do 
+		$IFPLUGD -k -i $IF
+		ret=$(($ret + $?))
+        done
+	ok $ret
+}
+
+rc_status() {
+	for IF in $INTERFACES ; do
+		$IFPLUGD -c -i $IF
+	done
+}
+
+rc_exec $1

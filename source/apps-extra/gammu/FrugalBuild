@@ -3,7 +3,7 @@
 
 pkgname=gammu
 pkgver=1.11.91
-pkgrel=1
+pkgrel=2
 pkgdesc="Mobile phones tools for Unix (Linux)"
 url="http://www.gammu.org/wiki/index.php?title=Gammu:Main_Page"
 backup=(etc/gammu/gammurc)
@@ -12,7 +12,12 @@ makedepends=('mysql' 'cmake')
 groups=('apps-extra')
 archs=('x86_64' 'i686')
 up2date="lynx -dump http://dl.cihar.com/gammu/releases/|Flasttarbz2"
-source=(http://dl.cihar.com/gammu/releases/$pkgname-$pkgver.tar.bz2)
+source=(http://dl.cihar.com/gammu/releases/$pkgname-$pkgver.tar.bz2 \
+	gammurc-path-fix.patch)
+
+# NOTE: check new releases about cmake bug in gammu. 
+# dont use make install DESTDIR=** things. Use the right cmake way if they fixed
+# it. -krix-
 
 build()
 {
@@ -21,11 +26,14 @@ build()
 	    CXXFLAGS="$CXXFLAGS -fPIC"
 	fi
 	Fcd
+	# Fix for config file. Put that config file into /etc/gammu/
+	Fpatch gammurc-path-fix.patch
 	mkdir build || Fdie
 	cd build || Fdie
 	cmake .. \
-		-DCMAKE_INSTALL_PREFIX="$Fdestdir/usr" \
+		-DCMAKE_INSTALL_PREFIX="/usr" \
 		-DENABLE_SHARED=ON \
+		-DENABLE_STATIC=ON \
 		-DWITH_NOKIA_SUPPORT=ON \
 		-DWITH_Bluez=ON \
 		-DWITH_IrDA=ON \
@@ -36,11 +44,16 @@ build()
 		-DCMAKE_CXX_FLAGS="$CXXFLAGS" \
 		-DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS"
 	make || Fdie
-	make install || Fdie
+	make install DESTDIR=$Fdestdir || Fdie
 	# Fixup for .so :P
 	chmod +x $Fdestdir/usr/lib/*.so || Fdie
+	# Install sample config file under /etc/gammu/gammurc
+	Fmkdir etc/gammu
+	cp -a $Fdestdir/usr/share/doc/$pkgname-$pkgver/examples/config/gammurc \
+	    $Fdestdir/etc/gammu/
 }
 	
-sha1sums=('554436b09369d72f82b9a6f69210850da0fdeb4f')
+sha1sums=('554436b09369d72f82b9a6f69210850da0fdeb4f'\
+          '68632cf0b015118b7a9c97d9b905fe47bcd927d4')
 
 # optimization OK

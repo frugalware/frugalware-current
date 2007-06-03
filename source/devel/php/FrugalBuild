@@ -4,7 +4,7 @@
 
 pkgname=php
 pkgver=5.2.3
-pkgrel=1
+pkgrel=2
 pkgdesc="A widely-used general-purpose scripting language"
 url="http://www.php.net"
 backup=(etc/{php.ini,httpd/conf/modules.d/$pkgname.conf})
@@ -88,24 +88,28 @@ build()
 		--with-sqlite=shared"
 	
 	## this is true for both
+	# OK make install does not really like SMP and random dies so ..
+	JOBS="$MAKEFLAGS"
+	unset MAKEFLAGS
+	Fcd
 	Fpatchall
 	## PHP-CGI first
-	Fmkdir usr/lib/php
 	Fmessage "Building PHP-CGI.."
-        ./buildconf --force
-        Fmake ${phpconfig} \
+        sh buildconf --force || Fdie
+	## do we really need this ? --disable-all ..
+        Fconf \
+		${phpconfig} \
 		--enable-fastcgi \
 		--enable-cgi \
 		--enable-discard-path \
 		--enable-force-cgi-redirect
-	
+	make ${JOBS} || Fdie
 	make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php PEAR_INSTALLDIR=/usr/share/pear install || Fdie
 	## remove stuff is in php
 	Fcd $Fdestdir
 	Frm etc ./{.registry,.channels,.depdb*,.lock,.file*} usr/{include,share,lib,man}
-	Frm usr/bin/{phpize,php-config,pecl,pear*}
+	Frm usr/bin/{phpize,php-config,pecl,pear*,php}
 	
-	Fmv usr/bin/php usr/bin/php-cgi
 	## yeah mv because Fdoc will not work
 	## and if I don't move it it will be installed in PHP build as well =)
 	Fmkdir usr/share/doc/$pkgname-cgi-$pkgver
@@ -116,8 +120,9 @@ build()
 	# clean
 	Fmessage "Building PHP ..."
 	make distclean || Fdie
-	./buildconf --force 
-	Fmake ${phpconfig} --with-apxs2
+	sh buildconf --force || Fdie
+	Fconf ${phpconfig} --with-apxs2
+	make ${JOBS} || Fdie
 	Fmkdir usr/lib/apache
 	Fsed "-i -a -n php5" "-i -n php5" Makefile
 	make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php PEAR_INSTALLDIR=/usr/share/pear install || Fdie

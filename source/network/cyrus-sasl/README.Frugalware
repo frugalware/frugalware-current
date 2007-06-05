@@ -1,0 +1,120 @@
+=== Configuring
+
+This mini-howto helps you to install the saslauthd server using postfix which
+will authenticate using users and passwords from `/etc/{passwd,shadow}`.
+
+First install the necessary packages:
+
+--------------
+# pacman-g2 -S postfix saslauthd
+--------------
+
+Enable sasl in postfix's config by appending the following lines to
+`/etc/postfix/main.cf`:
+
+--------------
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_local_domain = $myhostname
+smtpd_sasl_security_options = noanonymous
+--------------
+
+You may want to append
+
+--------------
+broken_sasl_auth_clients = yes
+--------------
+
+as well.
+
+Put the following lines to `/usr/lib/sasl2/smtpd.conf`:
+
+--------------
+pwcheck_method: saslauthd
+mech_list: PLAIN LOGIN
+--------------
+
+Edit `/etc/sysconfig/saslauthd` by changing the following lines:
+
+--------------
+SASL_DIE=1
+--------------
+
+to
+
+--------------
+SASL_DIE=0
+--------------
+
+and
+
+--------------
+auth_mechanism=""
+--------------
+
+to
+
+--------------
+auth_mechanism="shadow"
+--------------
+
+Now you can start saslauthd by
+
+--------------
+service saslauthd start
+--------------
+
+as well as enabled in by default on startup:
+
+--------------
+service saslauthd add
+--------------
+
+Issue `id postfix` and see if the `daemon` group is listed. If not, then add
+`postfix` to the `daemon` group:
+
+--------------
+usermod -G daemon postfix
+--------------
+
+Finally restart postfix:
+
+--------------
+service postfix restart
+--------------
+
+Compeleted!
+
+=== Verifying
+
+We test it using telnet. We need perl to generate the string for the SASL
+authentication:
+
+--------------
+$ perl -MMIME::Base64 -e 'print encode_base64("vmiklos\0vmiklos\0secret");'
+dm1pa2xvcwB2bWlrbG9zAHNlY3JldA==
+--------------
+
+Then use telnet:
+
+--------------
+$ telnet host.com 25
+Trying ip...
+Connected to host.com.
+Escape character is '^]'.
+220 host.com ESMTP Postfix
+ehlo my.dhcp
+250-host.com
+250-PIPELINING
+250-SIZE 10240000
+250-VRFY
+250-ETRN
+250-AUTH LOGIN PLAIN
+250-ENHANCEDSTATUSCODES
+250-8BITMIME
+250 DSN
+AUTH PLAIN dm1pa2xvcwB2bWlrbG9zAHNlY3JldA==
+235 2.0.0 Authentication successful
+quit
+221 2.0.0 Bye
+Connection closed by foreign host.
+--------------

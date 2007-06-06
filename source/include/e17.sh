@@ -32,6 +32,6 @@
 # * source()
 # * up2date
 ###
-url="http://enlightenment.freedesktop.org/"
+url="http://download.enlightenment.org/"
 source=($url/files/$pkgname-$pkgver.tar.gz)
-up2date="lynx -dump $url |grep =$pkgname |sed -e 's/.*$pkgname-\(.*\).t.*/\1/' |Fsort |sed -n '$ p'"
+up2date="lynx -dump $url/snapshots/\$(lynx -dump http://download.enlightenment.org/snapshots/ |sed -ne 's#.*shots/\(.*\)#\1#;$ p') |grep /$pkgname |Flasttar"

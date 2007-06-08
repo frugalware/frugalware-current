@@ -67,6 +67,7 @@ I18NBUILD = po4a -k 0 po4a.cfg; \
 					`which cp` -v $$j $$i/; \
 			done; \
 			sed -i 's| ../source | ../../source |' $$i/Makefile; \
+			sed -i 's| -maxdepth 3 | -maxdepth 4 |' $$i/Makefile; \
 			sed -i 's/^\(=\+\)/\n\1/' $$i/*.txt; \
 			$(MAKE) -C $$i $(1) || exit 1; \
 		done
@@ -140,11 +141,10 @@ devel.txt: $(DEVEL_SOURCES) $(DYNAMIC_SOURCES)
 
 packages.txt: packages.txt.in
 	( cat packages.txt.in; \
-	for i in `find ../source -maxdepth 5 -name README.Frugalware|sort`; \
+	for i in `find ../source -maxdepth 3 -name README.Frugalware|sed 's|.*/\(.*\)/README.Frugalware|\1|'|sort`; \
 	do \
-		pkgname=`echo $$i |sed 's|.*/\(.*\)/README.Frugalware|\1|'`; \
-		echo -e "== $$pkgname\n"; \
-		cat $$i; \
+		echo -e "== $$i\n"; \
+		cat ../source/*/$$i/README.Frugalware; \
 		echo ""; \
 	done ) >packages.txt
 

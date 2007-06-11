@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# (c) 2007 Miklos Vajna <vmiklos@frugalware.org>
+# rc.uml for Frugalware
+# distributed under GPL License
+
+# chkconfig: 2345 44 56
+# description: Manage UML machines
+
+source /lib/initscripts/functions
+TEXTDOMAINDIR=/lib/initscripts/functions
+TEXTDOMAIN=uml
+
+actions=(restart start status stop)
+daemon=$"User Mode Linux machines"
+
+pid="cat /var/run/uml0.pid 2> /dev/null"
+
+rc_start()
+{
+	start_msg
+	if [ -n "`type -p linux`" -a "$(eval ${pid})" == "" ]; then
+		source /etc/sysconfig/uml
+		num=0
+		for i in "${machines[@]}"
+		do
+			linux $i &> /var/log/uml$num.log &
+			echo $! > /var/run/uml$num.pid
+			num=$(($num+1))
+		done
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_stop()
+{
+	stop_msg
+	if [ "$(eval ${pid})" != "" ] ; then
+		for i in /var/run/uml*.pid
+		do
+			id=$(grep '\.uml/' /var/log/$(basename $i .pid).log |sed -n 's|.*/\(.*\)/mconsole|\1|;$ p')
+			uml_mconsole $id cad >/dev/null
+			rm -f $i
+		done
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1

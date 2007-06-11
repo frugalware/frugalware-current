@@ -1,0 +1,165 @@
+=== Creating a root image
+
+Create a big empty file:
+
+----
+# dd if=/dev/zero of=root_fs bs=1M count=1000
+----
+
+Format it:
+
+----
+# mke2fs -F -j root_fs
+----
+
+Mount it:
+
+----
+# mkdir uml
+# mount root_fs -o loop uml
+# cd uml
+----
+
+Install `base` and `openssh`:
+
+----
+# mkdir -p var/log tmp
+# pacman-g2 -Sy base openssh -r ./
+----
+
+Create `etc/fstab` with the following contents:
+
+----
+none             /proc            proc        defaults         0   0
+none             /sys             sysfs       defaults         0   0
+devpts           /dev/pts         devpts      gid=5,mode=620   0   0
+/dev/ubda        /                ext3        defaults         1   1
+----
+
+Create `etc/sysconfig/keymap` with the following contents:
+
+----
+keymap=us
+----
+
+Create `etc/profile.d/lang.sh` with the following contents:
+
+----
+export LANG=en_US
+export LC_ALL=$LANG
+----
+
+We want networking, put the followings to `etc/sysconfig/network/default`:
+
+----
+[eth0]
+options = 192.168.0.1
+gateway = default gw 192.168.0.254
+----
+
+If you want to use multiple virtual machines, use `192.168.0.2`, `192.168.0.3`
+and so on instead.
+
+Let's copy in the terminal device and change our root:
+
+----
+# cp -a /dev/tty dev/
+# chroot ./
+----
+
+Create a regular user:
+
+----
+# adduser
+----
+
+Remove unnecessary services and enable ssh:
+
+----
+# service keymap del
+# service time del
+# rm /etc/rc.d/rcS.d/S18rc.time
+# service sshd add
+----
+
+Remove unnecessary packages:
+
+----
+# pacman-g2 -R gpm kernel
+----
+
+Change `/etc/inittab` so that ctrl-alt-del will halt (and not reboot the
+system).  Change the line
+
+----
+ca::ctrlaltdel:/sbin/shutdown -t5 -r now
+----
+
+to
+
+----
+ca::ctrlaltdel:/sbin/shutdown -t5 -h now
+----
+
+Exit from the chroot and umount:
+
+----
+# exit
+# cd ..
+# umount uml
+----
+
+You're ready, let's register it!
+
+=== Configuration file
+
+You should edit `/etc/sysconfig/uml`. Each item in the machines array defines a
+virtual machine. Here is an example:
+
+----
+machines=('ubd0=/home/uml/root_fs_0 eth0=tuntap,,,192.168.0.254 mem=128MB con0=null,fd:1 con=null')
+----
+
+This does the following:
+
+* root fs will be /home/uml/root_fs_0
+
+* the IP of the host will be 192.168.0.254
+
+* allocate 128MB of memory
+
+* disable console input, console output will be stdout (that'll be logged to `/var/log`)
+
+* disable other consoles (we don't need them, we can use ssh)
+
+=== Configuring the host network
+
+First you need the `tun` kernel module:
+
+----
+# modprobe tun
+# echo tun >> /etc/sysconfig/module
+----
+
+Second, you need NAT. Let's assume you access the external network via the
+`eth0` interface, then edit `/etc/sysconfig/network/default` and search the end
+of the `[eth0]` section. Just append
+
+----
+post_up = iptables -t nat -A POSTROUTING -j MASQUERADE
+----
+
+to the section. After a
+
+----
+# netconfig restart
+----
+
+NAT will be enabled.
+
+Now you can easily start/stop your machines using the usual `service uml
+start/stop` command.
+
+// TODO: How to start X?
+
+// vim: ft=asciidoc

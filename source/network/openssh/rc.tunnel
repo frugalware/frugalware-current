@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# (c) 2007 Miklos Vajna <vmiklos@frugalware.org>
+# rc.tunnel for Frugalware
+# distributed under GPL License
+
+# chkconfig: 2345 44 56
+# description: Manage UML machines
+
+source /lib/initscripts/functions
+TEXTDOMAINDIR=/lib/initscripts/functions
+TEXTDOMAIN=tunnel
+
+actions=(restart start status stop)
+daemon=$"OpenSSH Tunnels"
+
+pid="cat /var/run/tunnel0.pid 2> /dev/null"
+
+rc_start()
+{
+	start_msg
+	if [[ "$(eval ${pid})" == "" ]] ; then
+		source /etc/sysconfig/tunnel
+		num=0
+		for i in "${tunnels[@]}"
+		do
+			ssh $i 'while true; do echo -n .;sleep 5m; done' &> /var/log/tunnel$num.log &
+			echo $! > /var/run/tunnel$num.pid
+			num=$(($num+1))
+		done
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_stop()
+{
+	stop_msg
+	if [[ "$(eval ${pid})" != "" ]] ; then
+		for i in /var/run/tunnel*.pid
+		do
+			[ -n "`cat $i`" ] && kill `cat $i`
+			rm -f $i
+		done
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1
+
+# vim: ft=sh

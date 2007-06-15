@@ -19,7 +19,7 @@ pid="cat /var/run/uml0.pid 2> /dev/null"
 rc_start()
 {
 	start_msg
-	if [ -n "`type -p linux`" -a "$(eval ${pid})" == "" ]; then
+	if [[ "$(eval ${pid})" == "" ]] ; then
 		source /etc/sysconfig/uml
 		num=0
 		for i in "${machines[@]}"
@@ -34,20 +34,62 @@ rc_start()
 	fi
 }
 
+rc_status()
+{
+	msg "$daemon are"
+	if ! ls /var/run/uml*.pid &>/dev/null; then
+		ok 998
+		return
+	fi
+	# if one of the machines is running then the service is on
+	for i in /var/run/uml*.pid
+	do
+		if [ -d "/proc/`cat $i`" ]; then
+			ok 997
+			return 0
+		fi
+	done
+	ok 998
+	return 1
+}
+
 rc_stop()
 {
+	# defaults
+	SHUTDOWN_POLL=2
+	SHUTDOWN_TIMEOUT=300
+	source /etc/sysconfig/uml
 	stop_msg
-	if [ "$(eval ${pid})" != "" ] ; then
+	if [[ "$(eval ${pid})" != "" ]] ; then
+		# send ctrl-alt-del to each machine
 		for i in /var/run/uml*.pid
 		do
 			id=$(grep '\.uml/' /var/log/$(basename $i .pid).log |sed -n 's|.*/\(.*\)/mconsole|\1|;$ p')
 			uml_mconsole $id cad >/dev/null
-			rm -f $i
 		done
-		ok $?
+		# now wait till they are shut down
+		TIME=0
+		while true
+		do
+			if ! rc_status &>/dev/null; then
+				rm -f /var/run/uml*.pid
+				ok 0
+				return
+			fi
+			echo -n .
+			sleep $SHUTDOWN_POLL
+			TIME=`expr $TIME + $SHUTDOWN_POLL`
+			if [ $TIME -gt $SHUTDOWN_TIMEOUT ]; then
+				break
+			fi
+		done
+		rm -f /var/run/uml*.pid
+		ok 1
 	else
 		ok 999
 	fi
 }
 
 rc_exec $1
+
+# vim: ft=sh

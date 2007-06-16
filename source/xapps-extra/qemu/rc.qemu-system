@@ -1,0 +1,91 @@
+#!/bin/bash
+
+# (c) 2007 Miklos Vajna <vmiklos@frugalware.org>
+# rc.qemu-system for Frugalware
+# distributed under GPL License
+
+# chkconfig: 2345 44 56
+# description: Manage UML machines
+
+source /lib/initscripts/functions
+TEXTDOMAINDIR=/lib/initscripts/functions
+TEXTDOMAIN=qemu-system
+
+actions=(restart start status stop)
+daemon=$"Qemu virtual machines"
+
+pid="cat /var/run/qemu0.pid 2> /dev/null"
+
+rc_start()
+{
+	start_msg
+	if [[ "$(eval ${pid})" == "" ]] ; then
+		source /etc/sysconfig/qemu-system
+		num=0
+		for i in "${machines[@]}"
+		do
+			$i -monitor unix:/var/run/qemu$num.sock,server,nowait &> /var/log/qemu$num.log &
+			echo $! > /var/run/qemu$num.pid
+			num=$(($num+1))
+		done
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_status()
+{
+	msg "$daemon are"
+	if ! ls /var/run/qemu*.pid &>/dev/null; then
+		ok 998
+		return
+	fi
+	# if one of the machines is running then the service is on
+	for i in /var/run/qemu*.pid
+	do
+		if [ -d "/proc/`cat $i`" ]; then
+			ok 997
+			return 0
+		fi
+	done
+	ok 998
+	return 1
+}
+
+rc_stop()
+{
+	source /etc/sysconfig/qemu-system
+	stop_msg
+	if [[ "$(eval ${pid})" != "" ]] ; then
+		# send ctrl-alt-del to each machine
+		for i in /var/run/qemu*.sock
+		do
+			python -c "import socket; sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); \
+sock.connect('$i'); \
+sock.send('sendkey ctrl-alt-delete\n')"
+		done
+		# now wait till they are shut down
+		TIME=0
+		while true
+		do
+			if ! rc_status &>/dev/null; then
+				rm -f /var/run/qemu*.pid
+				ok 0
+				return
+			fi
+			echo -n .
+			sleep $SHUTDOWN_POLL
+			TIME=`expr $TIME + $SHUTDOWN_POLL`
+			if [ $TIME -gt $SHUTDOWN_TIMEOUT ]; then
+				break
+			fi
+		done
+		rm -f /var/run/qemu*.pid
+		ok 1
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1

@@ -612,7 +612,7 @@ Frcd() {
 		Fexe /etc/rc.d/rc.$1
 		Ffile ../messages/* /etc/rc.d/rc.messages/
 	else
-		Frcd "$pkgname"
+		Frcd "$_F_rcd_name"
 	fi
 }
 

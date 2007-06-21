@@ -33,5 +33,5 @@
 # * up2date
 ###
 url="http://download.enlightenment.org/"
-source=($url/files/$pkgname-$pkgver.tar.gz)
+source=($url/snapshots/2007-06-17/$pkgname-$pkgver.tar.gz)
 up2date="lynx -dump $url/snapshots/\$(lynx -dump http://download.enlightenment.org/snapshots/ |sed -ne 's#.*shots/\(.*\)#\1#;$ p') |grep /$pkgname |Flasttar"

@@ -3,7 +3,7 @@
 
 pkgname=git
 pkgver=1.5.2.2
-pkgrel=1
+pkgrel=2
 pkgdesc="the stupid content tracker"
 url="http://www.kernel.org/pub/software/scm/git/"
 depends=('curl>=7.16.0' 'openssl')
@@ -11,13 +11,23 @@ groups=('devel-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump '$url/?C=M;O=D'|grep bz2$|sed -n 's/.*-\(.*\)\.t.*/\1/;1 p'"
 source=($url/$pkgname-$pkgver.tar.bz2 \
-$url/git-manpages-$pkgver.tar.bz2)
-signatures=(${source[0]}.sign ${source[1]}.sign)
+$url/git-manpages-$pkgver.tar.bz2 \
+gitweb.modules.d gitweb.conf README.Frugalware)
+signatures=(${source[0]}.sign ${source[1]}.sign '' '' '')
+
+subpkgs=('gitweb')
+subdescs=('Web interface for Git.')
+subdepends=("git=$pkgver")
+subbackup=('etc/gitweb.conf etc/httpd/conf/modules.d/gitweb.conf')
+subgroups=('network-extra')
+subarchs=('i686 x86_64')
 
 build()
 {
 	Fsed '^\(CFLAGS =\) .*' "\1 $CFLAGS" Makefile
-	Fsed 'prefix = $(HOME)' 'prefix = /usr' Makefile
+	# fix path, we do not put the contrib dir to the documentation folder
+	Fsed 'doc/' '' templates/hooks--post-receive
+	make configure || return 1
 	Fmkdir /usr/bin
 	Fbuild
 	Fdocrel Documentation/SubmittingPatches Documentation/technical/*
@@ -25,6 +35,16 @@ build()
 	# libgit
 	Ffilerel /usr/lib/libgit.a
 	Ffilerel *.h /usr/include/git/
+
+	# contrib dir
+	Fcprrel contrib /usr/share/git-core/
+
+	# gitweb
+	Fmkdir /var/www/gitweb
+	cp gitweb/git* $Fdestdir/var/www/gitweb
+	Ffile gitweb.modules.d /etc/httpd/conf/modules.d/gitweb.conf
+	Ffile /etc/gitweb.conf
+	Fsplit gitweb /etc /var
 
 	# man pages
 	cd $Fsrcdir
@@ -34,6 +54,7 @@ build()
 		Fmanrel *
 		cd ..
 	done
+	Fdoc README.Frugalware
 }
 
 

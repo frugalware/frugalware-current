@@ -46,6 +46,7 @@ up2date='lynx -dump "http://rubyforge.vm.bytemark.co.uk/gems/" | grep "$pkgname-
 Finstallgem() {
 	gem install "$pkgname" --local --version "$pkgver" --install-dir . --ignore-dependencies
 	cd gems/"$pkgname"-"$pkgver"
+	Fpatchall
 	libdir=`ruby -r rbconfig -e 'print Config::CONFIG["rubylibdir"]'`
 	archdir=`ruby -r rbconfig -e 'print Config::CONFIG["archdir"]'`
 	if [ -d bin ]; then

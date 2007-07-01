@@ -6,10 +6,13 @@ pkgname=openoffice.org
 # uncomment this to get a -devel build
 #options=('devel')
 if [ ! "`check_option DEVEL`" ]; then
-	upstream=2.2
+	upstream=2.2.1
+	branch=2-2
+	tree=oof680
+	milestone=18
 	pkgver=$upstream
 	pkgrel=1
-	snapshot=20070402
+	snapshot=20070628
 else
 	upstream=2.2.0
 	tree=oof680
@@ -32,9 +35,9 @@ makedepends=('curl' 'intltool' 'tcsh' 'pam-headers' 'firefox' 'apache-ant' 'gcc-
 groups=('xapps')
 archs=('i686' 'x86_64')
 if [ ! "`check_option DEVEL`" ]; then
-	up2date="lynx -source -dump http://www.openoffice.org/|grep download|sed -n 's|.*OpenOffice.org \([0-9.]\+\)<.*|\1|;$ p'"
-	source=(http://ftp.frugalware.org/pub/other/sources/ooo-build/ooo-build-${pkgver//./-}-$snapshot.tar.bz2 \
-		http://hu.openoffice.org/source/browse/*checkout*/hu/src/$upstream.0/SDF/hu.sdf.bz2)
+	up2date="lynx -dump $url |grep version:|sed 's/.*: //'"
+	source=(http://ftp.frugalware.org/pub/other/sources/ooo-build/ooo-build-$branch-$snapshot.tar.bz2 \
+		http://hu.openoffice.org/source/browse/*checkout*/hu/src/2.2.0/SDF/hu.sdf.bz2)
 	signatures=($source.asc '')
 else
 	up2date="lynx -dump http://svn.gnome.org/viewcvs/*checkout*/ooo-build/trunk/configure.in|grep ^DEFAULT_TAG|sed 's/DEFAULT_TAG=\(.*\)-\(.*\)/${pkgver%%oo*}\1_\2/'"
@@ -44,7 +47,7 @@ else
 fi
 options=(${options[@]} 'scriptlet')
 _F_gnome_desktop="y"
-Finclude gnome-scriptlet
+Finclude gnome-scriptlet mono
 unset install
 
 subpkgs=("$pkgname-kde" "$pkgname-gnome")
@@ -95,8 +98,9 @@ done
 # http://wiki.frugalware.org/OOo_building
 
 build() {
+	Fmonoexport
 	if [ ! "`check_option DEVEL`" ]; then
-		Fcd ooo-build-$upstream
+		Fcd ooo-build-${branch//-/.}
 	else
 		Fcd ooo-build
 	fi
@@ -123,6 +127,7 @@ build() {
 
 	# Other options.
 	Fconfopts="$Fconfopts \
+		--with-tag=$tree-m$milestone \
 		--with-gcc-speedup=ccache \
 		--with-openclipart=/usr/share/openclipart \
 		--enable-gtk \
@@ -137,13 +142,11 @@ build() {
 	Fsed "AC_PACKAGE_VERSION" "$pkgver-$pkgrel" configure.in
 	autoconf || return 1
 
-	## Ffix env C{XX}FLAGS also Fkill 'mtune' ( don't _use_ -0[1-9] here ) O or Os nothing else... Fthx 
-	## Fand Fwhy Fthey Fare Fdoing Fsomething Fcrappy Flike Fthis ? ;)
-	#export ARCH_FLAGS="`echo $CFLAGS|sed 's/-O[0-9]/-Os/g'` -fno-strict-aliasing"
+	# Optimize build.
 	export ARCH_FLAGS="$CFLAGS"
 
 	if [ "`check_option DEVEL`" ]; then
-		Fconf --with-lang="en-US de es fr hu" --with-tag=$tree-m$milestone
+		Fconf --with-lang="en-US de es fr hu"
 	else
 		Fconf --with-lang=ALL
 	fi
@@ -186,6 +189,7 @@ build() {
 		Fmessage "Unsplitted languages: $misslangs"
 		return 1
 	fi
+	Fmonocleanup
 }
 
 # optimization OK

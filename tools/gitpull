@@ -1,0 +1,28 @@
+#!/bin/bash
+
+server="rsync://rsync.frugalware.org/pub/other/homepage-ng/git/repos/"
+
+cd `dirname $0`/../repos
+: > projects.list
+for i in `rsync $server|sed 's/.* \([^ ]\)/\1/;1 d'`
+do
+	if [ -d $i ]; then
+		cd $i
+		git pull -q
+		cd ..
+	else
+		git clone -q $server/$i/.git
+	fi
+	rm -rf $i/.git/refs/remotes
+	rsync $server/$i/.git/owner $i/.git/
+	rsync $server/$i/.git/description $i/.git/
+	python -c "import os; sock = os.popen('rsync -l $server/$i'); buf = sock.read(); sock.close(); print 'rsync://rsync.frugalware.org' + os.path.abspath('$server/$i/../'[len('rsync://rsync.frugalware.org'):] + buf.split(' -> ')[1].strip()) + '/.git'" > $i/.git/cloneurl
+	echo "http://git.frugalware.org/repos/$i/.git" >> $i/.git/cloneurl
+	python -c "import os; sock = os.popen('rsync -l $server/$i'); buf = sock.read(); sock.close(); print 'nick@git.frugalware.org:/home/ftp' + os.path.abspath('$server/$i/../'[len('rsync://rsync.frugalware.org'):] + buf.split(' -> ')[1].strip()) + ' (for developers only)'" >> $i/.git/cloneurl
+	if [ -f $i/.git/owner ]; then
+		owner=$(python -c "from urllib import urlencode; owner='$(cat $i/.git/owner)'; print urlencode({'':owner.strip()})[1:]")
+	else
+		owner="Unknown"
+	fi
+	echo "$i%2F.git $owner" >> projects.list
+done

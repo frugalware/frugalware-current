@@ -519,6 +519,9 @@ Fmake() {
 		make || Fdie
 	elif [ -f setup.py ]; then
 		python setup.py build "$@" || Fdie
+	else
+		Fmessage "No Makefile or setup.py found!"
+		Fdie
 	fi
 }
 

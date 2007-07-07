@@ -58,7 +58,6 @@ MERGE = : > $(2); \
 	sed -i '1i include::header.txt[]\n' $(2)
 
 I18NBUILD = po4a -k 0 po4a.cfg; \
-		darcs revert -a po/*.po; \
 		for i in $(LANGS); \
 		do \
 			for j in Makefile $(shell grep link:.*html index.txt|grep -v manual.html |sed 's/.*:\(.*\)\[.*/\1/;s/html/txt/g'); \

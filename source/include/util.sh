@@ -519,6 +519,9 @@ Fmake() {
 		make || Fdie
 	elif [ -f setup.py ]; then
 		python setup.py build "$@" || Fdie
+	else
+		Fmessage "No Makefile or setup.py found!"
+		Fdie
 	fi
 }
 
@@ -555,6 +558,9 @@ Fmakeinstall() {
 		fi
 	elif [ -f setup.py ]; then
 		python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
+	else
+		Fmessage "No Makefile or setup.py found!"
+		Fdie
 	fi
 	if [ -e $Fdestdir/usr/info/dir ]; then
 		Frm /usr/info/dir

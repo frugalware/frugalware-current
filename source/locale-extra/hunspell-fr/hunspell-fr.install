@@ -1,27 +1,43 @@
 PLANG=fr_FR
 post_install()
 {
-	/usr/sbin/update-alternatives --install /usr/share/myspell/default.aff default.aff /usr/share/myspell/$PLANG.aff 01
-	/usr/sbin/update-alternatives --install /usr/share/myspell/default.dic default.dic /usr/share/myspell/$PLANG.dic 01
+	# oldskull alternatives: bye-bye
+	if [ $(readlink /usr/share/myspell/default.aff | grep alternatives) ]; then
+		rm -f /usr/share/myspell/default.aff
+	fi
+	if [ $(readlink /usr/share/myspell/default.dic | grep alternatives) ]; then
+		rm -f /usr/share/myspell/default.dic
+	fi
+	rm -f /etc/alternatives/default.{aff,dic}
+	# if there is no default dictionary, then install one
+	if [ ! -L /usr/share/myspell/default.aff ]; then
+		ln -s /usr/share/myspell/$PLANG.aff /usr/share/myspell/default.aff
+	fi
+	if [ ! -L /usr/share/myspell/default.dic ]; then
+		ln -s /usr/share/myspell/$PLANG.dic /usr/share/myspell/default.dic
+	fi
 }
 
-pre_remove()
+post_remove()
 {
-	/usr/sbin/update-alternatives --remove default.aff /usr/share/myspell/$PLANG.aff
-	/usr/sbin/update-alternatives --remove default.dic /usr/share/myspell/$PLANG.dic
+	# if we removed the default, then set up a new default (if any)
+	if [ "$(readlink /usr/share/myspell/default.aff)" == "/usr/share/myspell/$PLANG.aff" ]; then
+		rm -f /usr/share/myspell/default.aff
+		if [ -e /usr/share/myspell/*.aff ]; then
+			ln -s $(ls -1 /usr/share/myspell/*.aff 2>/dev/null | grep -v default | head -n 1 | sed 's/\*//') /usr/share/myspell/default.aff
+		fi
+	fi
+	if [ "$(readlink /usr/share/myspell/default.dic)" == "/usr/share/myspell/$PLANG.dic" ]; then
+		rm -f /usr/share/myspell/default.dic
+		if [ -e /usr/share/myspell/*.dic ]; then
+			ln -s $(ls -1 /usr/share/myspell/*.dic 2>/dev/null | grep -v default | head -n 1 | sed 's/\*//') /usr/share/myspell/default.dic
+		fi
+	fi
 }
 
 post_upgrade()
 {
-	aff=`readlink /etc/alternatives/default.aff`
-	if [ "$aff" == "/usr/share/myspell/$PLANG.aff" ]; then
-		/usr/sbin/update-alternatives --set default.aff /usr/share/myspell/$PLANG.aff
-	fi
-	dic=`readlink /etc/alternatives/default.dic`
-	if [ "$dic" == "/usr/share/myspell/$PLANG.dic" ]; then
-		/usr/sbin/update-alternatives --set default.dic /usr/share/myspell/$PLANG.dic
-	fi
-	exit 0
+	post_install
 }
 
 op=$1

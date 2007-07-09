@@ -84,4 +84,10 @@ cd ..
 (gen_output $logdir "-current Testsuite" ""; gen_output $logdir/stable "-stable Testsuite" "$stabledir"; gen_output $logdir/s "-current Statistics" "s") \
 	| mail -r "Frugalware Testsuite <noreply@frugalware.org>" \
 	-s "Testsuite results for `date +%Y-%m-%d`" frugalware-devel@frugalware.org
+if [ -e $HOME/dead.letter ]; then
+	# ugly hack
+	cat $HOME/dead.letter | mail -r "Frugalware Testsuite <noreply@frugalware.org>" \
+	-s "Testsuite results for `date +%Y-%m-%d`" frugalware-devel@frugalware.org
+	rm $HOME/dead.letter
+fi
 rm -rf $logdir

@@ -1,0 +1,132 @@
+Index: 1.0/administrator/includes/admin.php
+===================================================================
+--- 1.0/administrator/includes/admin.php	(revision 7831)
++++ 1.0/administrator/includes/admin.php	(revision 7832)
+@@ -323,7 +323,7 @@
+ 		$wrongSettingsTexts[] = 'PHP register_globals setting is `ON` instead of `OFF`';
+ 	}
+ 	if ( RG_EMULATION != 0 ) {
+-		$wrongSettingsTexts[] = 'Joomla! RG_EMULATION setting is `ON` instead of `OFF` in file globals.php <br /><span style="font-weight: normal; font-style: italic; color: #666;">`ON` by default for compatibility reasons</span>';
++		$wrongSettingsTexts[] = 'Joomla! &quot;Register Globals Emulation&quot; setting is `ON`. &nbsp; To disable Register Globals Emulation, navigate to Site -> Global Configuration -> Server, select `OFF`, and save.<br /><span style="font-weight: normal; font-style: italic; color: #666;">Register Globals Emulation is `ON` by default for backward compatibility.</span>';
+ 	}
+ 
+ 	if ( count($wrongSettingsTexts) ) {
+Index: 1.0/administrator/index.php
+===================================================================
+--- 1.0/administrator/index.php	(revision 7831)
++++ 1.0/administrator/index.php	(revision 7832)
+@@ -95,8 +95,7 @@
+ 		session_start();
+ 
+ 		// construct Session ID
+-		$logintime 	= time();
+-		$session_id = md5( $my->id . $my->username . $my->usertype . $logintime );
++		$session_id = session_id();
+ 		
+ 		// add Session ID entry to DB
+ 		$query = "INSERT INTO #__session"
+Index: 1.0/includes/joomla.php
+===================================================================
+--- 1.0/includes/joomla.php	(revision 7831)
++++ 1.0/includes/joomla.php	(revision 7832)
+@@ -764,11 +764,11 @@
+ 		$my->gid 		= intval( mosGetParam( $_SESSION, 'session_gid', '' ) );
+ 		$my->params		= mosGetParam( $_SESSION, 'session_user_params', '' );
+ 
+-		$session_id 	= mosGetParam( $_SESSION, 'session_id', '' );
++		$old_session_id	= mosGetParam( $_SESSION, 'session_id', '' );
+ 		$logintime 		= mosGetParam( $_SESSION, 'session_logintime', '' );
+ 
+ 		// check to see if session id corresponds with correct format
+-		if ( $session_id == md5( $my->id . $my->username . $my->usertype . $logintime ) ) {
++		if (strlen($old_session_id) == 32) {
+ 			// if task action is to `save` or `apply` complete action before doing session checks.
+ 			if ($task != 'save' && $task != 'apply') {
+ 				// test for session_life_admin
+@@ -789,11 +789,24 @@
+ 				$this->_db->setQuery( $query );
+ 				$this->_db->query();
+ 
++				// destroy the old session
++				$oldSession	= $_SESSION;
++				session_destroy();
++
++				// create a clean session
++				session_start();
++				session_regenerate_id();
++
++				// restore the old session state with a new id
++				$_SESSION				= $oldSession;
++				$_SESSION['session_id'] = session_id();
++
+ 				// update session timestamp
+ 				$current_time = time();
+ 				$query = "UPDATE #__session"
+ 				. "\n SET time = " . $this->_db->Quote( $current_time )
+-				. "\n WHERE session_id = " . $this->_db->Quote( $session_id )
++				. "\n , session_id = " . $this->_db->Quote( session_id() )
++				. "\n WHERE session_id = " . $this->_db->Quote( $old_session_id )
+ 				;
+ 				$this->_db->setQuery( $query );
+ 				$this->_db->query();
+@@ -804,7 +817,7 @@
+ 				// check against db record of session
+ 				$query = "SELECT COUNT( session_id )"
+ 				. "\n FROM #__session"
+-				. "\n WHERE session_id = " . $this->_db->Quote( $session_id )
++				. "\n WHERE session_id = " . $this->_db->Quote( session_id() )
+ 				. "\n AND username = ". $this->_db->Quote( $my->username )
+ 				. "\n AND userid = ". intval( $my->id )
+ 				;
+@@ -860,7 +873,7 @@
+ 					$_SESSION['task'] 	= $task;
+ 				}
+ 			}
+-		} else if ($session_id == '') {
++		} else if ($old_session_id == '') {
+ 			// no session_id as user has not attempted to login, or session.auto_start is switched on
+ 			if (ini_get( 'session.auto_start' ) || !ini_get( 'session.use_cookies' )) {
+ 				echo "<script>document.location.href='index.php?mosmsg=You need to login. If PHP\'s session.auto_start setting is on or session.use_cookies setting is off, you may need to correct this before you will be able to login.'</script>\n";
+@@ -2478,6 +2491,9 @@
+ 			return false;
+ 		}
+ 
++		$ignoreList = array('description');
++		$this->filter($ignoreList);
++
+ 		// check for existing name
+ 		$query = "SELECT id"
+ 		. "\n FROM #__categories "
+@@ -2544,6 +2560,10 @@
+ 			$this->_error = "Your Section must have a name.";
+ 			return false;
+ 		}
++
++		$ignoreList = array('description');
++		$this->filter($ignoreList);
++
+ 		// check for existing name
+ 		$query = "SELECT id"
+ 		. "\n FROM #__sections "
+@@ -2742,6 +2762,10 @@
+ 	function check() {
+ 		$this->id = (int) $this->id;
+ 		$this->params = (string) trim( $this->params . ' ' );
++
++		$ignoreList = array( 'link' );
++		$this->filter( $ignoreList );
++
+ 		return true;
+ 	}
+ }
+@@ -3152,6 +3176,10 @@
+ 		$msg = $iFilter->process( $msg );
+ 	}
+ 
++	// Strip out any line breaks and throw away the rest
++	$url = preg_split("/[\r\n]/", $url);
++	$url = $url[0];
++
+ 	if ($iFilter->badAttributeValue( array( 'href', $url ))) {
+ 		$url = $GLOBALS['mosConfig_live_site'];
+ 	}

@@ -1,0 +1,1692 @@
+diff -Naur cdemu-0.8/cdemu cdemu-203/cdemu
+--- cdemu-0.8/cdemu	2006-08-05 04:38:56.000000000 +0200
++++ cdemu-203/cdemu	2007-01-06 18:04:36.000000000 +0100
+@@ -24,14 +24,13 @@
+ Options:
+   -d, --device    use the given device
+   -h, --help      show this screen
+-  -s, --status    shows the status of all virtual drives
+   -u, --unload    unloads the given device
+   -v, --verbose   be verbose
+   -V, --version   show version and copyright notice
+ 
+ CD image description files:
+   foobar.cue   (CDRWin)
+-  foobar.iso   (ISO9660)
++  foobar.iso   (ISO-9660)
+   foobar.mds   (Alchol 120%)
+   foobar.ccd   (CloneCD)
+   foobar.nrg   (Nero Burning ROM)
+@@ -39,7 +38,6 @@
+ Examples:
+   cdemu 0 foobar.cue   load cd
+   cdemu -u 0           unload cd
+-  cdemu -s             status
+ 
+ Report bugs to <cdemu-devel@lists.sourceforge.net>
+ """
+@@ -47,6 +45,7 @@
+ import getopt
+ import sys
+ import os
++import os.path
+ import re
+ import string
+ 
+@@ -92,9 +91,21 @@
+             sys.exit()
+         if o in ["-s", "--status"]:
+             try:
+-                print open ("/proc/cdemu","r").read()
++                cde_devdir = "/sys/bus/virtual/devices"
++                print "reading status from: %s" % (cde_devdir)
++                print "device, loaded-status, image name, number of tracks."
++                devices = os.listdir(cde_devdir)
++                devices.sort()
++                for device in devices:
++                    loaded = open(os.path.join(cde_devdir, device, "loaded")).read()[0]
++                    if loaded != "0":
++                        image = open(os.path.join(cde_devdir, device, "image")).read()[0]
++                    else:
++                        image = "(not loaded)"
++                    tracks = open(os.path.join(cde_devdir, device, "tracks")).read()[0]
++                    print "%s [%s]: %s (%s)" % (device, loaded, image, tracks)
+             except:
+-                print "cdemu: cdemu kernel module not loaded"
++                print "cdemu: Unavailable in this snapshot"
+             sys.exit(1)
+         if o in ["-u", "--unload"]: unload = 1
+         if o in ["-v", "--verbose"]: libcdemu.verbose = 1
+diff -Naur cdemu-0.8/cdemu_core.c cdemu-203/cdemu_core.c
+--- cdemu-0.8/cdemu_core.c	2006-08-05 04:38:56.000000000 +0200
++++ cdemu-203/cdemu_core.c	2007-01-11 22:50:46.000000000 +0100
+@@ -26,26 +26,56 @@
+ #include "cdemu_kernel.h"
+ #include "cdemu.h"
+ 
++static inline long cdemu_getoffset(struct cdemu_device *vc, int track, int lba);
++static inline void lba_to_msf(int lba, unsigned short *m, unsigned short *s, unsigned short *f);
++static inline int msf_to_lba(int m, int s, int f);
++static inline int cdemu_mode_2_sector_size(int mode);
++static void convert_track_mode(struct cdrom_tocentry *ep, int mode);
++static int cdemu_findtrack(struct cdemu_device *vc, int sector);
++static int read_toc_header(struct cdrom_tochdr *hp, struct cdemu_device *vc);
++static void get_toc_entry(struct cdrom_tocentry *ep, struct cdemu_device *vc);
++static int cdemu_read_actor_bio(read_descriptor_t *desc, struct page *page,
++                                unsigned long offset, unsigned long size);
++static int cdemu_transfer_bio(struct cdemu_device *vc, struct bio *bio, sector_t sector);
++static int unload_cd(struct cdemu_device *vc);
++
+ /* *********************************************************************** */
+ /*                        helper functions (generic kernel)                */
+ /* *********************************************************************** */
+ 
+-static inline int cdemu_msf_2_sector(int minute, int second, int frame)
++static inline long cdemu_getoffset(struct cdemu_device *vc, int track, int lba)
+ {
+-	return frame + (second + minute * 60 ) * 75;
++	return vc->tracks[track].start_offset + 
++	(lba - vc->tracks[track].start_sector) * cdemu_mode_2_sector_size(vc->tracks[track].mode);
++}
++
++static inline void lba_to_msf(int lba, unsigned short *m, unsigned short *s, unsigned short *f)
++{
++	lba += CD_MSF_OFFSET;
++	lba &= 0xffffff;  /* negative lbas use only 24 bits */
++	*m = lba / (CD_SECS * CD_FRAMES);
++	lba %= (CD_SECS * CD_FRAMES);
++	*s = lba / CD_FRAMES;
++	*f = lba % CD_FRAMES;
++}
++
++
++static inline int msf_to_lba(int m, int s, int f)
++{
++	return (((m * CD_SECS) + s) * CD_FRAMES + f) - CD_MSF_OFFSET;
+ }
+ 
+ static inline int cdemu_mode_2_sector_size(int mode)
+ {
+ 	switch (mode) {
+-		case AUDIO:			return CD_FRAMESIZE_RAW;
+-        case AUDIO_2448:    return CD_FRAMESIZE_RAW+CD_FRAMESIZE_SUB;
+-        case MODE1_2448:    return CD_FRAMESIZE_RAW+CD_FRAMESIZE_SUB;
++		case AUDIO:		return CD_FRAMESIZE_RAW;
++		case AUDIO_2448:	return CD_FRAMESIZE_RAW+CD_FRAMESIZE_SUB;
++		case MODE1_2448:	return CD_FRAMESIZE_RAW+CD_FRAMESIZE_SUB;
+ 		case MODE1_2352:	return CD_FRAMESIZE_RAW;
+ 		case MODE1_2048:	return CD_FRAMESIZE;
+ 		case MODE2_2352:	return CD_FRAMESIZE_RAW;
+ 		case MODE2_2336:	return CD_FRAMESIZE_RAW0;
+-		default:			return 0;
++		default:		return 0;
+ 	}
+ }
+ 
+@@ -118,20 +148,23 @@
+ }
+ 
+ static int cdemu_read_actor_bio(read_descriptor_t *desc, struct page *page,
+-    unsigned long offset, unsigned long size) {
+-  struct bio *bio = desc->arg.data;
+-  char *src_buf = kmap_atomic(page, KM_USER0) + offset;
+-  char *dst_buf = kmap_atomic(bio_page(bio), KM_USER1) + bio_offset(bio);
+-
+-  if (size > desc->count)
+-    size = desc->count;
+-
+-  memcpy(dst_buf, src_buf, size);
+-
+-  kunmap_atomic(src_buf, KM_USER0);
+-  kunmap_atomic(dst_buf, KM_USER1);
+-  cond_resched();
+-  return 0;
++                                unsigned long offset, unsigned long size)
++{
++	struct bio *bio = desc->arg.data;
++	char *src_buf = kmap_atomic(page, KM_USER0) + offset;
++	char *dst_buf = kmap_atomic(bio_page(bio), KM_USER1) + bio_offset(bio);
++
++	if (size > desc->count - desc->written)
++		size = desc->count - desc->written;
++
++	memcpy(dst_buf + desc->written, src_buf, size);
++	desc->written += size;
++
++	kunmap_atomic(src_buf, KM_USER0);
++	kunmap_atomic(dst_buf, KM_USER1);
++	cond_resched();
++
++	return size;
+ }
+ 
+ static int cdemu_transfer_bio(struct cdemu_device *vc, struct bio *bio, sector_t sector)
+@@ -158,6 +191,12 @@
+ 		case MODE1_2048:
+ 			offset = 0;
+ 			break;
++		case MODE2_2352:
++			offset = CD_SYNC_SIZE + CD_HEAD_SIZE + CD_SUBHEAD_SIZE;
++			break;
++		case MODE2_2336:
++			offset = CD_SUBHEAD_SIZE;
++			break;
+ 		default:
+ 			if (printk_ratelimit())
+ 				printk_cdemu(KERN_WARNING, "Normal read not possible for track mode '%i'\n", vc->tracks[track].mode);
+@@ -165,9 +204,7 @@
+ 	}
+ 
+ 	/* get the mode of the bin file part and calc the positon */
+-	startposition = vc->tracks[track].start_offset +
+-	                (sector - vc->tracks[track].start_sector)
+-	                * cdemu_mode_2_sector_size(vc->tracks[track].mode);
++	startposition = cdemu_getoffset(vc, track, sector);
+ 
+ 	/* we only support read, and we told the kernel that, 
+ 	 * so we won't check it here */
+@@ -176,7 +213,7 @@
+ 	retval = vc->backing_file->f_op->sendfile(vc->backing_file,
+ 		&position, bio_iovec(bio)->bv_len, cdemu_read_actor_bio, bio);
+ 	if (retval < 0) {
+-		dprintk("cdemu_transfer: retval error %i\n", retval);
++		dprintk("cdemu_transfer: retval error %i\n", (int) retval);
+ 		return retval;
+ 	} else {
+ 		return 0;
+@@ -196,7 +233,11 @@
+ 		return -EACCES;
+ 
+ 	/* just close the bin file */
++	set_capacity(vc->gd, 0);
+ 	vc->loaded = 0;
++	vc->size = 0;
++	vc->num_tracks = 0;
++	strncpy(vc->comment, "", CDEMU_COMMENT_SIZE);
+ 	fput(vc->backing_file);
+ 	DOWN_MODULE_USE();
+ 
+@@ -377,14 +418,24 @@
+ 	return 0;
+ }
+ 
+-static int cdemu_reset(struct cdrom_device_info *cdi)
++static int cdemu_reset_helper(struct device *dev, void *ptr)
+ {
+-	int i;
++	struct cdemu_device *vc;
++	
++	vc = to_cdemu_device(dev);
++	if(!vc)
++		return -1;
+ 
++	unload_cd(vc);
++	
++	return 0;
++}
++
++static int cdemu_reset(struct cdrom_device_info *cdi)
++{
+ 	dprintk("cdemu_reset: start\n");
+ 
+-	for (i = 0; i < cdemu_count; ++i)
+-		unload_cd(&cdemu_dev[i]);
++	device_for_each_child(&virtual_bus, NULL, &cdemu_reset_helper);
+ 
+ 	return 0;
+ }
+@@ -423,11 +474,89 @@
+ 	}
+ }
+ 
+-/* RENE: no idea how I should implement that ... so just say we set it */
++/* RENE: no idea how I should implement that ... so just print that command */
+ static int cdemu_generic_packet(struct cdrom_device_info *cdi, 
+-                                struct packet_command *dummy)
++                                struct packet_command *pc)
+ {
+-	dprintk("cdemu_generic_packet: start\n");
++	int ret = -EIO;
++	int i;
++	dprintk("cdemu_generic_packet: start -");
++	for (i = 0; i < CDROM_PACKET_SIZE; i++)
++		printk(" %.2x", pc->cmd[i]);
++	printk("\n");
++
++	if (pc->sense) {
++		dprintk("cdemu_generic_packet: sense unknown\n");
++		pc->sense->sense_key = 0x05;
++		pc->sense->asc = 0x20;
++		pc->sense->ascq = 0x00;
++	}
++
++	pc->stat = ret;
++	return ret;	
++}
++
++static int cdemu_read_data(struct cdrom_device_info *cdi, __u8 __user *ubuf, int lba, int nframes, int mode)
++{
++	struct cdemu_device *vc = cdi->handle;
++	ssize_t delta = -1, retval = 0;
++	int t, frame_size;
++	size_t size;
++	loff_t off;
++	
++	t = cdemu_findtrack(vc, lba);
++	off = cdemu_getoffset(vc, t, lba);
++	frame_size = cdemu_mode_2_sector_size(mode);
++	size = nframes * frame_size;
++
++	dprintk("cdemu_read_data: reading %d frame(s) starting at lba %d\n", nframes, lba);
++
++	if (vc->tracks[t].mode == mode)
++		delta = 0;
++	else
++	{
++		switch (vc->tracks[t].mode)
++		{
++		case AUDIO_2448:
++			if (mode == AUDIO)
++				delta = CD_FRAMESIZE_SUB;
++			break;
++		case MODE1_2448:
++			if (mode == MODE1_2352)
++				delta = CD_FRAMESIZE_SUB;
++			break;
++		}
++	}
++
++
++	if (delta == 0)
++		retval = vc->backing_file->f_op->read(vc->backing_file, ubuf, size, &off);
++	else if (delta > 0)
++	{
++		dprintk("cdemu_read_data: scatter-gather %d frames\n", nframes);
++
++		while (nframes-- > 0)
++		{
++			ssize_t read = vc->backing_file->f_op->read(vc->backing_file, ubuf, frame_size, &off);
++
++			if (read != frame_size)
++				break;
++
++			retval += read;
++			off += delta;
++			ubuf += frame_size;
++		}
++	}
++	else
++		dprintk("cdemu_read_data: source mode %d, but target mode %d!\n", vc->tracks[t].mode, mode);
++
++	if (retval != size)
++	{
++		dprintk("cdemu_read_data: only %i bytes read\n", retval);
++
++		return -EIO;
++	}
++
+ 	return 0;
+ }
+ 
+@@ -438,10 +567,11 @@
+ 	struct cdrom_msf msf;
+ 	struct cdemu_info cdemu_info;
+ 
+-	loff_t position;
+-	int sector;
+-	int track;
+-	int tmp;
++	sector_t gd_sector;
++	loff_t   position;
++	int      sector;
++	int      track;
++	int      tmp;
+ 
+ 	dprintk("cdemu_ioctl: start\n");
+ 
+@@ -466,7 +596,7 @@
+ 			if (copy_from_user(&msf, (void *) arg, sizeof(msf)))
+ 				return -EFAULT;
+ 
+-			sector = cdemu_msf_2_sector(msf.cdmsf_min0, msf.cdmsf_sec0, msf.cdmsf_frame0);
++			sector = msf_to_lba(msf.cdmsf_min0, msf.cdmsf_sec0, msf.cdmsf_frame0);
+ 			track = cdemu_findtrack(vc, sector);
+ 
+ 			/* get the mode of the bin file part and calc the positon */
+@@ -486,17 +616,52 @@
+ 			}
+ 
+ 			if (cmd == CDROMREADRAW) {
+-				tmp = generic_file_read(vc->backing_file, (void*)arg, CD_FRAMESIZE_RAW, &position);
++				struct iovec local_iov = { .iov_base = (void*)arg, .iov_len = CD_FRAMESIZE_RAW };
++				struct kiocb kiocb;
++				
++				init_sync_kiocb(&kiocb, vc->backing_file);
++				tmp = generic_file_aio_read(&kiocb, &local_iov, 1, position);
++				if (-EIOCBQUEUED == tmp)
++					tmp = wait_on_sync_kiocb(&kiocb);      
++
+ 				if (tmp != CD_FRAMESIZE_RAW)
+-					dprintk("only read %i bytes\n",tmp);
++						dprintk("only read %i bytes\n",tmp);
+ 			} else {	/*CDROMREADCOOKED*/
+-				tmp = generic_file_read(vc->backing_file, (void*)arg, CD_FRAMESIZE, &position);
++				struct iovec local_iov = { .iov_base = (void*)arg, .iov_len = CD_FRAMESIZE };
++				struct kiocb kiocb;
++				
++				init_sync_kiocb(&kiocb, vc->backing_file);
++				tmp = generic_file_aio_read(&kiocb, &local_iov, 1, position);
++				if (-EIOCBQUEUED == tmp)
++					tmp = wait_on_sync_kiocb(&kiocb);
++
+ 				if (tmp != CD_FRAMESIZE)
+ 					dprintk("only read %i bytes\n",tmp);
+ 			}
+ 
+ 			return 0;
++		case CDROMREADAUDIO:
++			{
++			struct cdrom_read_audio ra;
++			int lba;
++
++			if (copy_from_user(&ra, (struct cdrom_read_audio *) arg, sizeof(ra)))
++				return -EFAULT;
++
++			if (ra.addr_format == CDROM_MSF)
++				lba = msf_to_lba(ra.addr.msf.minute,
++						ra.addr.msf.second,
++						ra.addr.msf.frame);
++			else if (ra.addr_format == CDROM_LBA)
++				lba = ra.addr.lba;
++			else
++				return -EINVAL;
++
++			if (lba < 0 || ra.nframes <= 0 || ra.nframes > CD_FRAMES)
++				return -EINVAL;
+ 
++			return cdemu_read_data(cdi, ra.buf, lba, ra.nframes, AUDIO);
++			}
+ 		case CDROMSEEK:			/* seek msf address - not supported */
+ 			return 0;
+ 
+@@ -527,8 +692,22 @@
+ 			printk_cdemu(KERN_INFO, "loaded %s cd (%i track[s]) on drive %s by uid %i\n",
+ 			             vc->comment, vc->num_tracks, cdi->name, vc->uid);
+ 
+-			/* hard coded to get the size of the first track */
+-			vc->size = vc->tracks[1].start_sector * CD_FRAMESIZE;
++			for (tmp = 0; tmp <= vc->num_tracks; tmp++)
++			{
++				dprintk("cdemu_ioctl: track %d: %02d:%02d:%02d (%lu), offset %lu\n", (tmp == vc->num_tracks) ? CDROM_LEADOUT : tmp + 1,
++						vc->tracks[tmp].minute,
++						vc->tracks[tmp].second,
++						vc->tracks[tmp].frame,
++						vc->tracks[tmp].start_sector,
++						vc->tracks[tmp].start_offset);
++			}
++
++			/* set size of device to image size */
++			track = vc->num_tracks;
++			vc->size = vc->tracks[track].start_sector * CD_FRAMESIZE;
++			gd_sector = vc->size / KERNEL_SECTOR_SIZE;
++			set_capacity(vc->gd, gd_sector);
++			dprintk("cdemu_ioctl: loading ... size (2048 bytes/sector): %i, sectors (512 bytes/sector): %i\n", vc->size, (int) gd_sector);
+ 
+ 			/* only inc use count if there was no cd in the drive */
+ 			if (!vc->loaded)
+@@ -554,10 +733,7 @@
+ {
+ 	dprintk("cdemu_block_open: start\n");
+ 
+-	if (inode \
+-		&& inode->i_bdev \
+-		&& inode->i_bdev->bd_disk \
+-		&& inode->i_bdev->bd_disk->private_data) {
++	if (inode && inode->i_bdev && inode->i_bdev->bd_disk && inode->i_bdev->bd_disk->private_data) {
+ 		struct cdemu_device *vc = (struct cdemu_device *)inode->i_bdev->bd_disk->private_data;
+ 		dprintk("cdemu_block_open: going into cdrom_open()\n");
+ 		return cdrom_open(&vc->info, inode, file);
+@@ -571,10 +747,7 @@
+ {
+ 	dprintk("cdemu_block_release: start\n");
+ 
+-	if (inode \
+-		&& inode->i_bdev \
+-		&& inode->i_bdev->bd_disk \
+-		&& inode->i_bdev->bd_disk->private_data) {
++	if (inode && inode->i_bdev && inode->i_bdev->bd_disk && inode->i_bdev->bd_disk->private_data) {
+ 		struct cdemu_device *vc = (struct cdemu_device *)inode->i_bdev->bd_disk->private_data;
+ 		return cdrom_release(&vc->info, file);
+ 	}
+@@ -587,10 +760,7 @@
+ {
+ 	dprintk("cdemu_block_ioctl: start\n");
+ 
+-	if (inode \
+-		&& inode->i_bdev \
+-		&& inode->i_bdev->bd_disk \
+-		&& inode->i_bdev->bd_disk->private_data) {
++	if (inode && inode->i_bdev && inode->i_bdev->bd_disk && inode->i_bdev->bd_disk->private_data) {
+ 		struct cdemu_device *vc = (struct cdemu_device *)inode->i_bdev->bd_disk->private_data;
+     
+ 		int ret = cdemu_ioctl(&vc->info, cmd, arg);
+diff -Naur cdemu-0.8/cdemu.h cdemu-203/cdemu.h
+--- cdemu-0.8/cdemu.h	2006-08-05 04:38:56.000000000 +0200
++++ cdemu-203/cdemu.h	2006-10-11 21:11:56.000000000 +0200
+@@ -45,11 +45,12 @@
+ 
+ #define	CDEMU_COMMENT_SIZE		256
+ #define	CDEMU_MAX_TRACKS		47
++
+ struct cdemu_info {
+-	tTrack						tracks[CDEMU_MAX_TRACKS];
+-	unsigned int				ffd;
+-	int							num_tracks;
+-	char						comment[CDEMU_COMMENT_SIZE];
++	tTrack				tracks[CDEMU_MAX_TRACKS];
++	unsigned int			ffd;
++	int				num_tracks;
++	char				comment[CDEMU_COMMENT_SIZE];
+ };
+ 
+ #endif /* __CDEMU_H__ */
+diff -Naur cdemu-0.8/cdemu_kernel.h cdemu-203/cdemu_kernel.h
+--- cdemu-0.8/cdemu_kernel.h	2006-08-05 04:38:56.000000000 +0200
++++ cdemu-203/cdemu_kernel.h	2006-10-11 21:11:56.000000000 +0200
+@@ -29,10 +29,13 @@
+ 
+ #define MAJOR_NR 0
+ #define	DEVICE_NR(device)			MINOR(device)	/* has no partition bits */
+-#define	DEVICE_NAME					"cdemu"			/* name for messaging */
+-#define	DEVICE_NO_RANDOM							/* no entropy to contribute */
++#define	DEVICE_NAME				"cdemu"		/* name for messaging */
++#define	DEVICE_NO_RANDOM					/* no entropy to contribute */
+ #define	DEVICE_REQUEST				cdemu_request
+-#define	DEVICE_OFF(d)								/* do-nothing */
++#define	DEVICE_OFF(d)						/* do-nothing */
++
++#define DRIVER_NAME				"cdemu"
++#define BUS_NAME				"virtual"
+ 
+ #include <linux/module.h>			/* try_module_get,module_put */
+ #include <linux/init.h>				/* init/exit funcs */
+@@ -41,10 +44,11 @@
+ #include <linux/genhd.h>			/* the generic disk interface */
+ #include <linux/cdrom.h>			/* cdrom declarations */
+ #include <linux/file.h>				/* fput */
++#include <linux/device.h>			/* device functions */
+ #include <linux/highmem.h>			/* kmap functions */
+ #include <asm/current.h>			/* access to the 'current' struct */
+-#include <linux/moduleparam.h>		/* MODULE_AUTHOR,module_parm */
+-#include <linux/buffer_head.h>		/* buffer operations */
++#include <linux/moduleparam.h>			/* MODULE_AUTHOR,module_parm */
++#include <linux/buffer_head.h>			/* buffer operations */
+ #include <linux/bio.h>
+ #include <scsi/sg.h>
+ 
+@@ -52,30 +56,40 @@
+ #include <linux/devfs_fs_kernel.h>
+ #endif
+ 
+-#include "cdemu_proc.h"
+ #include "cdemu.h"
+ #define	CDEMU_MODULE_VERSION		CDEMU_VERSION
+ 
+ struct cdemu_device {
+-	int							number;
+-	dev_t						device;
+-	tTrack						tracks[CDEMU_MAX_TRACKS];
+-	int							num_tracks;		/* number of tracks on the cd */
+-	struct file					*backing_file;
+-	int							loaded;
+-	int							uid;			/* user who mounted cd */
+-	int							media_changed;
+-	int							locked;
+-	int							pause;
+-	char						comment[CDEMU_COMMENT_SIZE];
+-	int							size;
+-	spinlock_t					lock;
+-	struct cdrom_device_info	info;
+-	struct request_queue		*queue;
++	int					number;
++	dev_t					device;
++	tTrack					tracks[CDEMU_MAX_TRACKS];
++	int					num_tracks;		/* number of tracks on the cd */
++	struct file				*backing_file;
++	int					loaded;
++	int					uid;			/* user who mounted cd */
++	int					media_changed;
++	int					locked;
++	int					pause;
++	char					comment[CDEMU_COMMENT_SIZE];
++	int					size;
++	spinlock_t				lock;
++	struct cdrom_device_info		info;
++	struct request_queue			*queue;
+ 	struct gendisk				*gd;
+-	struct block_device			*bdev;
++	struct device				dev;
++};
++
++#define to_cdemu_device(n) container_of(n, struct cdemu_device, dev)
++
++struct cdemu_driver {
++	char			*version;
++	int			major;
++	int			count;
++	struct device_driver	drv;
+ };
+ 
++#define to_cdemu_driver(n) container_of(n, struct cdemu_driver, drv)
++
+ #define CDEMU_DEBUG
+ #ifdef CDEMU_DEBUG
+ #define	dprintk(msg, args...) \
+@@ -90,21 +104,24 @@
+ 		printk(lvl "cdemu:%i: " msg, __LINE__, ## args); \
+ 	} while(0)
+ 
+-#define	AUDIO						0
+-#define	MODE1						1
+-#define	MODE2						2
+-#define AUDIO_2448                  10
+-#define MODE1_2448                  20
+-#define	MODE1_2352					30
+-#define MODE1_2048                  40
+-#define	MODE2_2352					50
+-#define	MODE2_2336					60
+-
+-#define	CDEMU_LOADCD				0x5400			/* load the virtual cd */
+-#define	CDEMU_UNLOADCD				0x5401			/* unload the virtual cd*/
+-
+-extern int cdemu_major, cdemu_count;
+-extern struct cdemu_device *cdemu_dev;
++#define	AUDIO			0
++#define	MODE1			1
++#define	MODE2			2
++#define AUDIO_2448		10
++#define MODE1_2448		20
++#define	MODE1_2352		30
++#define MODE1_2048		40
++#define	MODE2_2352		50
++#define	MODE2_2336		60
++
++#define	CDEMU_LOADCD		0x5400			/* load the virtual cd */
++#define	CDEMU_UNLOADCD		0x5401			/* unload the virtual cd*/
++
++#define KERNEL_SECTOR_SIZE	512
++
++extern struct cdemu_driver cdemu_drv;
++extern struct bus_type virtual_bus_type;
++extern struct device virtual_bus;
+ 
+ #define	UP_MODULE_USE()		try_module_get(THIS_MODULE)
+ #define	DOWN_MODULE_USE()	module_put(THIS_MODULE)
+diff -Naur cdemu-0.8/cdemu_mod.c cdemu-203/cdemu_mod.c
+--- cdemu-0.8/cdemu_mod.c	2006-08-05 04:38:56.000000000 +0200
++++ cdemu-203/cdemu_mod.c	2006-10-22 20:35:25.000000000 +0200
+@@ -23,205 +23,458 @@
+  *                                                                         *
+  ***************************************************************************/
+ 
+-/*
+- * Version 0.7 - 2004-12-8
+- * works with current 2.6 kernels
+- *
+- * Version 0.6 - 2003-10-13
+- * add linux-2.6.x support and break up code to try to
+- * blur the differences between 2.4.x and 2.6.x
+- *
+- * Version 0.5 - 2003-07-02
+- * rename to CDemu
+- * rewrite of major parts to be 100% compatible to a cdrom
+- * user space interface changed for new userspace program
+-
+- * Version 0.4 - 2003-04-08
+- * removed sys_call_table use
+- * fixed bug with devfsd
+- * some extra error handling for the userspace program
+-
+- * Version 0.3 - 2003-01-11
+- * added check if a "cd is loaded"
+- * removed all warnings
+- * code cleanup
+-
+- * Version 0.2 - 2003-01-12
+- * support for proc fs
+- * changed the vclib.c so it can be used by gui programs
+-
+- * Version 0.1 - 2003-01-10
+- * first test release (data and raw mode work - but no checks, if you do 
+- * something wrong you'll kill the kernel ;-)
+- *
+- */
+ 
+ #include "cdemu_kernel.h"
+ #include "cdemu.h"
+ 
++#define MIN_CDEMUS      1     /* Minimum number of block devices */
++#define MAX_CDEMUS      255   /* 2.6 can have more than this but who would use it ? */
++#define DEFAULT_CDEMUS  4     /* Default number of block devices */
++
++/* external stuff */
+ extern struct cdrom_device_ops cdemu_dops;
+ extern struct block_device_operations cdemu_bdops;
+ extern void cdemu_request(request_queue_t*);
+ extern int cdemu_make_request(request_queue_t*, struct bio*);
+ 
+-int cdemu_major = MAJOR_NR;
+-int cdemu_count = 8;
+-struct cdemu_device *cdemu_dev;
++/* bus functions */
++static int virtual_bus_remove(struct device *dev);
++static void virtual_bus_shutdown(struct device *dev);
++static void virtual_bus_release(struct device *bus);
++
++/* driver functions */
++static ssize_t show_driver_version(struct device_driver *drv, char *buf);
++static ssize_t show_driver_devices(struct device_driver *drv, char *buf);
++static ssize_t store_driver_devices(struct device_driver *drv, const char *buf, size_t count);
++static int store_driver_devices_helper(struct device *dev, void *ptr);
++
++/* device functions */
++static void cdemu_device_release(struct device *dev);
++static struct cdemu_device *add_cdemu_device(int i);
++static int remove_cdemu_device_helper(struct device *dev, void *ptr);
++
++static ssize_t show_device_attr(struct device *dev, struct device_attribute *attr, char *buf);
++
++/* global variables */
++struct cdemu_driver cdemu_drv = {
++	.version = CDEMU_VERSION,
++	.major = MAJOR_NR,
++	.count = DEFAULT_CDEMUS,
++	.drv = {
++		.name   = DRIVER_NAME,
++		.bus    = &virtual_bus_type,
++		.owner  = THIS_MODULE
++	}
++};
++
++struct bus_type virtual_bus_type = {
++	.name     = BUS_NAME,
++	.remove   = &virtual_bus_remove,
++	.shutdown = &virtual_bus_shutdown
++};
+ 
+-static int __init cdemu_init(void)
++struct device virtual_bus = {
++	.bus_id  = BUS_NAME,
++	.bus     = NULL,
++	.parent  = NULL,
++	.release = &virtual_bus_release
++};
++
++struct devices_vars {
++	int n;
++	int old, new;
++};
++
++static int driver_was_registered = 0;		/* did the driver already exist? */
++
++static DRIVER_ATTR(version, 0444, show_driver_version, NULL);
++static DRIVER_ATTR(devices, 0664, show_driver_devices, store_driver_devices);
++
++static DEVICE_ATTR(major, 0444, show_device_attr, NULL);
++static DEVICE_ATTR(minor, 0444, show_device_attr, NULL);
++static DEVICE_ATTR(loaded, 0444, show_device_attr, NULL);
++static DEVICE_ATTR(image, 0444, show_device_attr, NULL);
++static DEVICE_ATTR(tracks, 0444, show_device_attr, NULL);
++
++
++
++static int virtual_bus_remove(struct device *dev)
+ {
+-/* check if the kernelparmeter is correct and register the block devices */
+-#define	MIN_CDEMUS	1		/* should be self explanatory ... */
+-#define	MAX_CDEMUS	255		/* 2.6 can have more than this but who would use it ? */
++	if(!dev)
++		return -1;
+ 
+-	int i;
+-	struct cdemu_device *vc;
++	dprintk("%s: device %s\n", __FUNCTION__, dev->bus_id);
++
++	return 0;
++}
++
++static void virtual_bus_shutdown(struct device *dev)
++{
++	if(!dev)
++		return;
++
++	dprintk("%s: device %s\n", __FUNCTION__, dev->bus_id);
++}
++
++static void virtual_bus_release(struct device *bus) 
++{
++	if(!bus)
++		return;
++
++	dprintk("%s: bus %s\n", __FUNCTION__, bus->bus_id);
++}
++
++static ssize_t show_driver_version(struct device_driver *drv, char *buf)
++{
++	struct cdemu_driver *cdrv;
++
++	cdrv = to_cdemu_driver(drv);
++	if(!drv || !buf || !cdrv)
++		return -1;
++
++	return snprintf(buf, PAGE_SIZE, "%s\n", cdrv->version);
++}
++
++static ssize_t show_driver_devices(struct device_driver *drv, char *buf)
++{
++	struct cdemu_driver *cdrv;
+ 
+-	dprintk("cdemu_init: start\n");
++	cdrv = to_cdemu_driver(drv);
++	if(!drv || !buf || !cdrv)
++		return -1;
+ 
+-	if ((cdemu_count < MIN_CDEMUS) || (cdemu_count > MAX_CDEMUS)) {
+-		printk_cdemu(KERN_WARNING, "invalid cdemu_count (must be between %i and %i), using default (%i)\n",
+-		             MIN_CDEMUS, MAX_CDEMUS, MIN_CDEMUS);
+-		cdemu_count = 8;
+-	}
+-
+-	i = 
+-	register_blkdev(cdemu_major, DEVICE_NAME);
+-	if (i < 0) {
+-		printk_cdemu(KERN_ERR, "unable to register block device #%i for cdemu device\n", cdemu_major);
+-		return -EBUSY;
+-	} else if (i)
+-		cdemu_major = i;
+-
+-	/* allocate cdemu_count entries in our struct */
+-	cdemu_dev = kmalloc(cdemu_count * sizeof(struct cdemu_device), GFP_KERNEL);
+-	if (!cdemu_dev) {
+-		printk_cdemu(KERN_ERR, "could not kmalloc enough memory for %i cdemu devices\n", cdemu_count);
+-		goto out_nomem;
++	return snprintf(buf, PAGE_SIZE, "%i\n", cdrv->count);
++}
++
++static int store_driver_devices_helper(struct device *dev, void *ptr)
++{
++	struct devices_vars *dv;
++	
++	dv = (struct devices_vars *) ptr;
++	if(!dev || !ptr || !dv)
++		return -1;
++
++	/* remove devices */
++	if(dv->n >= dv->new)
++		remove_cdemu_device_helper(dev, NULL);
++
++	dv->n++;
++
++	return 0;
++}
++
++static ssize_t store_driver_devices(struct device_driver *drv, const char *buf, size_t count)
++{
++	char *endp;
++	struct devices_vars dv;
++
++	if(!drv || !buf)
++		return -1;
++
++	endp = (char *) buf + count - 1;
++	dv.old = cdemu_drv.count;
++	dv.new = simple_strtol(buf, &endp, 10);
++
++	dprintk("%s: old device count: %i, new device count: %i.\n", __FUNCTION__, dv.old, dv.new);
++
++	if((dv.new < MIN_CDEMUS) || (dv.new > MAX_CDEMUS) || (dv.new == dv.old))
++		return (ssize_t) count;
++
++	if(dv.new < dv.old) {
++		/* remove devices */
++		dv.n = 0;
++		device_for_each_child(&virtual_bus, &dv, &store_driver_devices_helper);
++	}
++	else {
++		/* add devices */
++		for(dv.n = dv.old; dv.n < dv.new; dv.n++) {
++			if(!add_cdemu_device(dv.n))
++				return -1;
++		}
+ 	}
+ 
+-#if defined(CONFIG_DEVFS_FS)
+-	devfs_mk_dir("cdemu");
+-#endif
++	cdemu_drv.count = dv.new;
++
++	return (ssize_t) count;
++}
++
++static void cdemu_device_release(struct device *dev)
++{
++	if(!dev)
++		return;
++
++	dprintk("%s: device %s\n", __FUNCTION__, dev->bus_id);
++
++	/* Do only LDM related releasing here */
++}
++
++static struct cdemu_device *add_cdemu_device(int i)
++{
++	struct cdemu_device *vc;
++
++	/* allocate device */
++	vc = kmalloc(sizeof(struct cdemu_device), GFP_KERNEL);
++	if(!vc)
++		goto add_device_free;
++	memset(vc, 0, sizeof(struct cdemu_device));
++
++	/* init device fields */	
++	vc->number = i;
++	vc->loaded = 0;
++	vc->media_changed = 0;
++	vc->locked = 0;
++	vc->pause = 0;
++	vc->info.ops = &cdemu_dops;
++	vc->info.speed = 0; /* FIXME max_speed */
++	vc->info.handle = vc;
++	vc->info.capacity = 1;
++	snprintf(vc->info.name, 20, "%s%i", DEVICE_NAME, i);
++	spin_lock_init(&vc->lock);
++	dprintk("%s: making cdrom #%i [%p]: %s\n", __FUNCTION__, vc->number, vc, vc->info.name);
++
++	/* register with the linux device model */
++	vc->dev.bus = &virtual_bus_type;
++	vc->dev.driver = &cdemu_drv.drv; /* driver binding; if set to NULL invokes match & probe */
++	vc->dev.release = &cdemu_device_release;
++	vc->dev.parent = &virtual_bus;
++	strncpy(vc->dev.bus_id, vc->info.name, BUS_ID_SIZE);
++	if(device_register(&vc->dev))
++		goto add_device_free;
++	if(device_create_file(&vc->dev, &dev_attr_major))
++		goto add_device_unregister;
++	if(device_create_file(&vc->dev, &dev_attr_minor))
++		goto add_device_unregister;
++	if(device_create_file(&vc->dev, &dev_attr_loaded))
++		goto add_device_unregister;
++	if(device_create_file(&vc->dev, &dev_attr_image))
++		goto add_device_unregister;
++	if(device_create_file(&vc->dev, &dev_attr_tracks))
++		goto add_device_unregister;
++
++	/* register with the uniform cdrom driver */
++	vc->gd = alloc_disk(1);
++	if (!vc->gd)
++		goto add_device_out;
++	vc->gd->major = cdemu_drv.major;
++	vc->gd->first_minor = i;
++	snprintf(vc->gd->disk_name, 32, "%s%i", DEVICE_NAME, i);
++	vc->gd->fops = &cdemu_bdops;
++	vc->gd->private_data = vc;
++	vc->gd->flags = GENHD_FL_REMOVABLE | GENHD_FL_CD;
++	vc->gd->driverfs_dev = &vc->dev;
++	set_capacity(vc->gd, 0);
++
++	if(register_cdrom(&vc->info))
++		printk(KERN_WARNING "%s: cannot register cdrom\n", __FUNCTION__);
++
++	vc->queue = blk_alloc_queue(GFP_KERNEL);
++	blk_queue_make_request(vc->queue, cdemu_make_request);
++	if (!vc->queue)
++		goto add_device_out;
++	vc->gd->queue = vc->queue;
++	add_disk(vc->gd);
+ 
+-	for (i = 0; i < cdemu_count; ++i) {
+-		vc = &cdemu_dev[i];
+-		memset(vc, 0, sizeof(struct cdemu_device));
+-		vc->number = i;
+-		vc->loaded = 0;
+-		vc->media_changed = 0;
+-		vc->locked = 0;
+-		vc->pause = 0;
+-		vc->bdev = NULL;
+-		vc->info.ops = &cdemu_dops;
+-		vc->info.speed = 0; /* FIXME max_speed */
+-		vc->info.capacity = 1;
+-		vc->info.handle = vc;
+-		sprintf(vc->info.name, "%s%i", DEVICE_NAME, i);
+-		spin_lock_init(&vc->lock);
+-		dprintk("cdemu_init: making cdrom #%i [%p]: %s\n", vc->number, vc, vc->info.name);
+-
+-		/* register with the uniform cdrom driver */
+-		vc->gd = alloc_disk(1);
+-		if (!vc->gd)
+-			goto out;
+-		vc->gd->major = cdemu_major;
+-		vc->gd->first_minor = i;
+-		sprintf(vc->gd->disk_name, "%s%i", DEVICE_NAME, i);
+-		vc->gd->fops = &cdemu_bdops;
+-		vc->gd->private_data = vc;
+-		vc->gd->flags = GENHD_FL_REMOVABLE | GENHD_FL_CD;
+-		set_capacity(vc->gd, 0);
+-		register_cdrom(&vc->info);
+-		vc->queue = blk_alloc_queue(GFP_KERNEL);
+-		blk_queue_make_request(vc->queue, cdemu_make_request);
+-		if (!vc->queue)
+-			goto out;
+-		vc->gd->queue = vc->queue;
+-		add_disk(vc->gd);
+ #ifdef CONFIG_DEVFS_FS
+-		devfs_mk_bdev(MKDEV(vc->gd->major, vc->gd->first_minor),
+-		              S_IFBLK|S_IRUSR|S_IWUSR,
+-		              "cdemu/%i", i);
++	devfs_mk_bdev(MKDEV(vc->gd->major, vc->gd->first_minor),
++	              S_IFBLK|S_IRUSR|S_IWUSR,
++	              "cdemu/%i", i);
+ #endif
++
++	return vc;
++
++add_device_out:
++	if (vc->gd) {
++		put_disk(vc->gd);
++		del_gendisk(vc->gd);
++		vc->gd = NULL;
+ 	}
++	if (vc->queue) {
++		blk_put_queue(vc->queue);
++		vc->queue = NULL;
++	}
++
++	unregister_cdrom(&vc->info);
++
++add_device_unregister:
++	device_unregister(&vc->dev);
++
++add_device_free:
++	kfree(vc);
++
++	return NULL;
++}
+ 
+-	if (!cdemu_proc_make()) {
+-		dprintk("cdemu_init: Error registering /proc entry!\n");
+-		goto out_freeall;
++static int remove_cdemu_device_helper(struct device *dev, void *ptr)
++{
++	struct cdemu_device *vc;
++
++	vc = to_cdemu_device(dev);
++	if (!dev || !vc)
++		return -1;
++		
++	dprintk("%s: removing cdrom #%i [%p]: %s\n", __FUNCTION__, vc->number, vc, vc->dev.bus_id);
++
++	if (vc->gd) {
++		put_disk(vc->gd);
++		del_gendisk(vc->gd);
++		vc->gd = NULL;
++	}
++	if (vc->queue) {
++		blk_put_queue(vc->queue);
++		vc->queue = NULL;
+ 	}
++	
++	if (unregister_cdrom(&vc->info))
++		printk(KERN_WARNING "%s: cannot unregister cdrom\n", __FUNCTION__);
++
++#ifdef CONFIG_DEVFS_FS
++	dprintk("%s: removing devfs\n", __FUNCTION__);
++	devfs_remove("cdemu/%i", vc->number);
++#endif
++
++	device_unregister(dev);
++
++	kfree(vc);
+ 
+-	/* all done report our success */
+-	dprintk("cdemu_init: loaded (max %i devices)\n", cdemu_count);
+-	dprintk("cdemu_init: end\n");
+-	printk_cdemu(KERN_INFO, "ver " CDEMU_MODULE_VERSION " loaded.  Registered %i cdemus.\n", cdemu_count); 
+ 	return 0;
++}
+ 
+-out:
+-	for (i = 0; i < cdemu_count; ++i) {
+-		vc = &cdemu_dev[i];
+-		if (vc->queue)
+-			blk_put_queue(vc->queue);
+-		if (vc->gd) {
+-			put_disk(vc->gd);
+-			del_gendisk(vc->gd);
+-		}
++static ssize_t show_device_attr(struct device *dev, struct device_attribute *attr, char *buf)
++{
++	struct cdemu_device *vc;
++	ssize_t             retval;
++	
++	vc = to_cdemu_device(dev);
++	retval = 0;
++	if(!dev || !attr || !buf || !vc)
++		return 0;
++
++	dprintk("%s: device %s\n", __FUNCTION__,dev->bus_id);
++	
++	/* choose one of the device attributes */
++	if (attr == &dev_attr_major) {
++		retval = snprintf(buf, PAGE_SIZE, "%i\n", vc->gd->major);
++	}
++	else if(attr == &dev_attr_minor) {
++		retval = snprintf(buf, PAGE_SIZE, "%i\n", vc->gd->first_minor);
++	}
++	else if(attr == &dev_attr_loaded) {
++		retval = snprintf(buf, PAGE_SIZE, "%i\n", vc->loaded);
++	}
++	else if(attr == &dev_attr_image) {
++		retval = snprintf(buf, PAGE_SIZE, "%s\n", vc->comment);
++	}
++	else if(attr == &dev_attr_tracks) {
++		retval = snprintf(buf, PAGE_SIZE, "%i\n", vc->num_tracks);
+ 	}
+-out_freeall:
+-	kfree(cdemu_dev);
+-out_nomem:
+-	if (unregister_blkdev(cdemu_major, DEVICE_NAME))
+-		printk_cdemu(KERN_ERR, "unable to unregister block device\n");
+ 
+-	printk_cdemu(KERN_ERR, "cdemu_init: ran out of memory\n");
+-	return -ENOMEM;
++	return retval;
+ }
+ 
+-static void __exit cdemu_exit(void)
++static int __init cdemu_init(void)
+ {
+-	int i;
+-	struct cdemu_device *vc;
++	int i, retval;
+ 
+-	dprintk("cdemu_exit: start\n");
++	dprintk("%s: start\n", __FUNCTION__);
+ 
+-	/* get rid of the proc stuff */
+-	cdemu_proc_remove();
++	/* register bus */
++	dprintk("%s: registering bus: %s\n", __FUNCTION__, virtual_bus_type.name);
++	if(bus_register(&virtual_bus_type))
++		goto out;
++	if(device_register(&virtual_bus))
++		goto out_bus_unregister;
++
++	/* register driver */
++	if(!driver_find(DRIVER_NAME, &virtual_bus_type)) {
++		dprintk("%s: registering driver: %s\n", __FUNCTION__, cdemu_drv.drv.name);
++		driver_was_registered = 0;
++		if(driver_register(&cdemu_drv.drv))
++			goto out_bus_unregister;
++		if(driver_create_file(&cdemu_drv.drv, &driver_attr_version))
++			goto out_driver_unregister;
++		if(driver_create_file(&cdemu_drv.drv, &driver_attr_devices))
++			goto out_driver_unregister;
++	}
++	else {
++		driver_was_registered = 1; /* not possible? */
++	}
+ 
+-	for (i = 0; i < cdemu_count; ++i) {
+-		vc = &cdemu_dev[i];
+-		dprintk("cdemu_exit: unregistering cdrom #%i [%p]: %s\n", vc->number, vc, vc->info.name);
+-#ifdef CONFIG_DEVFS_FS
+-		devfs_remove("cdemu/%i", i);
++	/* check if the kernel parameter is correct and register the block devices */
++	if ((cdemu_drv.count < MIN_CDEMUS) || (cdemu_drv.count > MAX_CDEMUS)) {
++		printk_cdemu(KERN_WARNING, "invalid cdemu_count (must be in range [%i, %i]), using default (%i)\n",
++		             MIN_CDEMUS, MAX_CDEMUS, DEFAULT_CDEMUS);
++		cdemu_drv.count = DEFAULT_CDEMUS;
++	}
++
++	retval = register_blkdev(cdemu_drv.major, DEVICE_NAME);
++	if (retval < 0) {
++		printk_cdemu(KERN_ERR, "unable to register block device #%i for cdemu device\n", cdemu_drv.major);
++		goto out_blkdev;
++	} else if (retval)
++		cdemu_drv.major = retval;
++
++#if defined(CONFIG_DEVFS_FS)
++	devfs_mk_dir("cdemu");
+ #endif
+-		if (vc->bdev) {
+-			dprintk("cdemu_exit: punting bdev\n");
+-			invalidate_bdev(vc->bdev, 1);
+-			bdput(vc->bdev);
+-		}
+-		if (vc->gd) {
+-			dprintk("cdemu_exit: punting gendisk\n");
+-			del_gendisk(vc->gd);
+-			put_disk(vc->gd);
+-		}
+-		if (vc->queue) {
+-			dprintk("cdemu_exit: punting queue\n");
+-			blk_put_queue(vc->queue);
+-		}
+-		if (unregister_cdrom(&vc->info))
+-			printk(KERN_WARNING "cdemu: cannot unregister cdrom\n");
++
++	for (i = 0; i < cdemu_drv.count; ++i) {
++		if(!add_cdemu_device(i))
++			goto out_free_devices;
+ 	}
+ 
++	/* all done report our success */
++	dprintk("%s: loaded (%i devices)\n", __FUNCTION__, cdemu_drv.count);
++	dprintk("%s: end\n", __FUNCTION__);
++	printk_cdemu(KERN_INFO, "cdemu ver. " CDEMU_MODULE_VERSION " loaded.  Registered %i cdemus.\n", cdemu_drv.count); 
++
++	return 0;
++
++out_free_devices:
++	device_for_each_child(&virtual_bus, NULL, &remove_cdemu_device_helper);
++
++out_blkdev:
++        if (unregister_blkdev(cdemu_drv.major, DEVICE_NAME))
++                printk_cdemu(KERN_ERR, "unable to unregister block device\n");
++
++out_driver_unregister:
++	driver_unregister(&cdemu_drv.drv);
++
++out_bus_unregister:
++	device_unregister(&virtual_bus);
++	bus_unregister(&virtual_bus_type);
++
++out:
++        printk_cdemu(KERN_ERR, "cdemu_init: ran out of memory\n");
++
++        return -ENOMEM;
++}
++
++static void __exit cdemu_exit(void)
++{
++	dprintk("%s: start\n", __FUNCTION__);
++
++	device_for_each_child(&virtual_bus, NULL, &remove_cdemu_device_helper);
++
+ #if defined(CONFIG_DEVFS_FS)
+ 	devfs_remove("cdemu");
+ #endif
+ 
+-	if (unregister_blkdev(cdemu_major, DEVICE_NAME))
++	if (unregister_blkdev(cdemu_drv.major, DEVICE_NAME))
+ 		printk_cdemu(KERN_ERR, "unable to unregister block device\n");
+ 
+-	kfree(cdemu_dev);
++	/* unregister driver */
++	if(!driver_was_registered) {
++		dprintk("%s: unregistering driver: %s\n", __FUNCTION__, cdemu_drv.drv.name);
++		driver_unregister(&cdemu_drv.drv);
++	}
++
++	/* unregister bus */
++	dprintk("%s: unregistering bus: %s\n", __FUNCTION__, virtual_bus_type.name);
++	device_unregister(&virtual_bus);
++	bus_unregister(&virtual_bus_type);
+ 
+-	dprintk("cdemu_exit: end\n");
+-	printk_cdemu(KERN_INFO, "ver " CDEMU_MODULE_VERSION " unloaded.  Unregistered %i cdemus.\n", cdemu_count); 
++	dprintk("%s: end\n", __FUNCTION__);
++	printk_cdemu(KERN_INFO, "cdemu ver. " CDEMU_MODULE_VERSION " unloaded.  Unregistered %i cdemus.\n", cdemu_drv.count); 
+ }
+ 
+ module_init(cdemu_init);
+@@ -230,7 +483,7 @@
+ #if !defined(MODULE)
+ static int __init cdemu_count_setup(char *str)
+ {
+-	cdemu_count = simple_strtol(str, NULL, 0);
++	cdemu_drv.count = simple_strtol(str, NULL, 0);
+ 	return 1;
+ }
+ 
+@@ -238,8 +491,9 @@
+ #endif
+ 
+ MODULE_AUTHOR("Robert Penz <robert.penz@outertech.com>, Mike Frysinger <vapier@gmail.com>");
+-MODULE_DESCRIPTION("CD Emulator for bin/cue images ver " CDEMU_MODULE_VERSION);
++MODULE_DESCRIPTION("CD Emulator for CD images ver. " CDEMU_MODULE_VERSION);
+ MODULE_LICENSE("GPL");
+-module_param(cdemu_major, int, 0);
+-module_param(cdemu_count, int, 0);
+-MODULE_PARM_DESC(cdemu_count, "Maximum number of virtual cdroms (1-255)");
++module_param_named(cdemu_major, cdemu_drv.major, int, 0444);
++module_param_named(cdemu_count, cdemu_drv.count, int, 0444);
++MODULE_PARM_DESC(cdemu_major, "Major number to use for devices.");
++MODULE_PARM_DESC(cdemu_count, "Number of virtual cdroms must be within the range [1, 255].");
+diff -Naur cdemu-0.8/cdemu_proc.c cdemu-203/cdemu_proc.c
+--- cdemu-0.8/cdemu_proc.c	2006-08-05 04:38:56.000000000 +0200
++++ cdemu-203/cdemu_proc.c	1970-01-01 01:00:00.000000000 +0100
+@@ -1,67 +0,0 @@
+-/**
+- * File: cdemu_proc.c
+- * Authors: Robert Penz <robert.penz@outertech.com>
+- *          Mike Frysinger <vapier@gmail.com>
+- * Copyright 2002-2005
+- */
+-
+-/***************************************************************************
+- *                                                                         *
+- *   This program is free software; you can redistribute it and/or modify  *
+- *   it under the terms of the GNU General Public License as published by  *
+- *   the Free Software Foundation; either version 2 of the License, or     *
+- *   (at your option) any later version.                                   *
+- *                                                                         *
+- *   This program is distributed in the hope that it will be useful,       *
+- *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+- *   GNU General Public License for more details.                          *
+- *                                                                         *
+- *   You should have received a copy of the GNU General Public License     *
+- *   along with this program; if not, write to the Free Software           *
+- *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.             *
+- *                                                                         *
+- ***************************************************************************/
+-
+-#include "cdemu_kernel.h"
+-#include "cdemu.h"
+-
+-#ifdef CONFIG_PROC_FS
+-
+-#include <linux/proc_fs.h>
+-static struct proc_dir_entry* proc_entry;
+-
+-int proc_read(char *buf, char **start, off_t offset, int count, int *eof, void *data)
+-{
+-	int len = 0;
+-	int i;
+-	len += snprintf(len+buf, 1024, "Drive Loaded Comment\n");
+-	for (i=0; i < cdemu_count; i++) {
+-		if (cdemu_dev[i].loaded == 0)
+-			len += snprintf(len+buf, 1024, "%3i:     %i   NO_CD_LOADED\n", i,
+-				cdemu_dev[i].loaded);
+-		else
+-			len += snprintf(len+buf, 1024, "%3i:     %i   %s\n", i,
+-				cdemu_dev[i].loaded, cdemu_dev[i].comment);
+-	}
+-	*eof = 1;
+-	return len;
+-}
+-
+-int cdemu_proc_make(void)
+-{
+-	proc_entry = create_proc_entry(DEVICE_NAME, 0444, NULL);
+-	if (proc_entry)
+-		proc_entry->read_proc = proc_read;
+-	else
+-		return 0;
+-	return 1;
+-}
+-
+-void cdemu_proc_remove(void)
+-{
+-	if (proc_entry)
+-		remove_proc_entry("cdemu", NULL);
+-}
+-
+-#endif
+diff -Naur cdemu-0.8/cdemu_proc.h cdemu-203/cdemu_proc.h
+--- cdemu-0.8/cdemu_proc.h	2006-08-05 04:38:56.000000000 +0200
++++ cdemu-203/cdemu_proc.h	1970-01-01 01:00:00.000000000 +0100
+@@ -1,37 +0,0 @@
+-/**
+- * File: cdemu_proc.c
+- * Authors: Robert Penz <robert.penz@outertech.com>
+- *          Mike Frysinger <vapier@gmail.com>
+- * Copyright 2002-2005
+- */
+-
+-/***************************************************************************
+- *                                                                         *
+- *   This program is free software; you can redistribute it and/or modify  *
+- *   it under the terms of the GNU General Public License as published by  *
+- *   the Free Software Foundation; either version 2 of the License, or     *
+- *   (at your option) any later version.                                   *
+- *                                                                         *
+- *   This program is distributed in the hope that it will be useful,       *
+- *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+- *   GNU General Public License for more details.                          *
+- *                                                                         *
+- *   You should have received a copy of the GNU General Public License     *
+- *   along with this program; if not, write to the Free Software           *
+- *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.             *
+- *                                                                         *
+- ***************************************************************************/
+-
+-#ifdef CONFIG_PROC_FS
+-
+-#include <linux/proc_fs.h>
+-int cdemu_proc_make(void);
+-void cdemu_proc_remove(void);
+-
+-#else
+-
+-#define cdemu_proc_make() 1
+-#define cdemu_proc_remove()
+-
+-#endif
+diff -Naur cdemu-0.8/ChangeLog cdemu-203/ChangeLog
+--- cdemu-0.8/ChangeLog	2006-08-05 04:38:56.000000000 +0200
++++ cdemu-203/ChangeLog	2006-09-14 23:57:44.000000000 +0200
+@@ -50,3 +50,40 @@
+ 0.1.0
+ * first test release (data and raw mode work - but no checks, if you do something
+   wrong you'll kill the kernel ;-)
++
++---
++
++/*
++ * TODO: Merge this changelog from cdemu_mod.c properly.
++ *
++ * Version 0.7 - 2004-12-8
++ * works with current 2.6 kernels
++ *
++ * Version 0.6 - 2003-10-13
++ * add linux-2.6.x support and break up code to try to
++ * blur the differences between 2.4.x and 2.6.x
++ *
++ * Version 0.5 - 2003-07-02
++ * rename to CDemu
++ * rewrite of major parts to be 100% compatible to a cdrom
++ * user space interface changed for new userspace program
++	   
++ * Version 0.4 - 2003-04-08
++ * removed sys_call_table use
++ * fixed bug with devfsd
++ * some extra error handling for the userspace program
++	       
++ * Version 0.3 - 2003-01-11
++ * added check if a "cd is loaded"
++ * removed all warnings
++ * code cleanup
++		   
++ * Version 0.2 - 2003-01-12
++ * support for proc fs
++ * changed the vclib.c so it can be used by gui programs
++		      
++ * Version 0.1 - 2003-01-10
++ * first test release (data and raw mode work - but no checks, if you do
++ * something wrong you'll kill the kernel ;-)
++ *
++ */
+diff -Naur cdemu-0.8/libcdemu.py cdemu-203/libcdemu.py
+--- cdemu-0.8/libcdemu.py	2006-08-05 04:38:56.000000000 +0200
++++ cdemu-203/libcdemu.py	2007-01-11 22:50:46.000000000 +0100
+@@ -146,6 +146,69 @@
+ 
+     return iso_filename, entries
+ 
++def parse_mds_track(mds_content, track_offset):
++    mds_extrablock_size = 0x08
++    mds_footer_size = 0x16
++
++    mode = read_binary("H", mds_content, track_offset+0x0000)
++
++    flags = read_binary("B", mds_content, track_offset+0x0002)
++    ctrl = flags & 0xf
++    adr = (flags >> 4) & 0xf
++
++    tno = read_binary("B", mds_content, track_offset+0x0003)
++    point = read_binary("B", mds_content, track_offset+0x0004)
++    min = read_binary("B", mds_content, track_offset+0x0005)
++    sec = read_binary("B", mds_content, track_offset+0x0006)
++    frac = read_binary("B", mds_content, track_offset+0x0007)
++    zero = read_binary("B", mds_content, track_offset+0x0008)
++    pmin = read_binary("B", mds_content, track_offset+0x0009)
++    psec = read_binary("B", mds_content, track_offset+0x000a)
++    pfrac = read_binary("B", mds_content, track_offset+0x000b)
++    extra_offset = read_binary("L", mds_content, track_offset+0x000c)
++    sectorsize = read_binary("H", mds_content, track_offset+0x0010)
++    lba = read_binary("L", mds_content, track_offset+0x0024)
++    offset = read_binary("Q", mds_content, track_offset+0x0028)
++
++    if point <= 0x99:
++	pregap = read_binary("l", mds_content, extra_offset+0x0000)
++	sectors = read_binary("l", mds_content, extra_offset+0x0004)
++    else:
++    	pregap = 0
++	sectors = 0
++
++    if verbose:
++	    print "    point: %2x, mode: %3x, control: %x, adr: %i, MSF: %02i:%02i:%02i, P-MSF: %02i:%02i:%02i, sector size: %4i, lba: %i, sectors: %i, offset: %i" % \
++	      (point, mode, ctrl, adr, min, sec, frac, pmin, psec, pfrac, sectorsize, lba, sectors, offset)
++
++    return [point, mode, sectorsize, lba, sectors, offset]
++
++def parse_mds_session(mds_content, session_offset):
++    pregap_corr = read_binary("l", mds_content, session_offset + 0x0000)
++    num_sectors = read_binary("L", mds_content, session_offset + 0x0004)
++    num_tracks = read_binary("B", mds_content, session_offset + 0x000a)
++    num_leadins = read_binary("B", mds_content, session_offset + 0x000b)
++    first_track = read_binary("B", mds_content, session_offset + 0x000c)
++    last_track = read_binary("B", mds_content, session_offset + 0x000e)
++    tracks_offset = read_binary("L", mds_content, session_offset + 0x0014)
++
++    if verbose:
++	print "  pregap_corr: %i, num_sectors: %i, num_tracks: %i, num_leadins: %i, first_track: %i, last_track: %i, tracks_offset: %i" % \
++		(pregap_corr, num_sectors, num_tracks, num_leadins, first_track, last_track, tracks_offset)
++
++    track_struct_size = 0x50
++
++    session = []
++
++    # read datablocks and extrablocks
++    for i in range(0, num_tracks):
++	track = parse_mds_track(mds_content, tracks_offset + track_struct_size * i)
++	# writing data to entries
++	if track[0] < 0xa0:
++	    session.append(track)
++
++    return session
++
+ def parse_mds(mds_filename):
+     "returns the supposable bin_filename and raw entries, if something went \
+     wrong it throws an exception"
+@@ -161,54 +224,27 @@
+     if mds_content[0x0000:0x0010] != "MEDIA DESCRIPTOR":
+         raise CDEmu_Error, "Invalid data in <%s>. It is not an MDF/MDS file." % mds_filename
+ 
+-    # get some data from header
+-    mds_header_size = 0x70
+-    mds_datablock_size = 0x50
+-    mds_extrablock_size = 0x08
+-    mds_footer_size = 0x16
+     mds_version = read_binary("B", mds_content, 0x0010)
+     mds_revision = read_binary("B", mds_content, 0x0011)
+-    mds_numsectors = read_binary("L", mds_content, 0x005c)
+-    mds_datablocks = read_binary("B", mds_content, 0x0062)
+-    mds_leadinblocks = read_binary("B", mds_content, 0x0063)
+-    mds_sessions = read_binary("B", mds_content, 0x0064)
+-    mds_tracks = read_binary("B", mds_content, 0x0066)
+-    mds_datablocks_offset = read_binary("L", mds_content, 0x006c)
+-    mds_extrablocks_offset = mds_datablocks_offset + mds_datablock_size * mds_datablocks
++    mds_sessions = read_binary("H", mds_content, 0x0014)
++    mds_sessions_offset = read_binary("L", mds_content, 0x0050)
+     if verbose:
+         print "MDS/MDF version: %i.%i" % (mds_version, mds_revision)
+-        print "datablocks: %i, lead-in blocks: %i, track blocks: %i, sessions?: %i" % (mds_datablocks, mds_leadinblocks, mds_tracks, mds_sessions)
+-        print "numsectors: %i, datablocks offset: %i, extrablocks offset: %i" % (mds_numsectors, mds_datablocks_offset, mds_extrablocks_offset)
++        print "sessions: %i" % (mds_sessions)
+ 
+     # set name of binary cd-image
+     bin_filename = os.path.splitext(os.path.basename(mds_filename))[0] + ".mdf";
+     if verbose:
+         print "binfile: %s" % bin_filename
+ 
+-    # making sure table is empty
++    mds_session_size = 0x18
++
+     entries = []
+ 
+-    # read datablocks and extrablocks
+-    for datablock in range(0, mds_datablocks):
+-        datablock_offset = mds_datablocks_offset+mds_datablock_size*datablock;
+-        extrablock_offset = mds_extrablocks_offset+mds_extrablock_size*datablock;
+-        mode = read_binary("B", mds_content, datablock_offset+0x0000)
+-        flags = read_binary("H", mds_content, datablock_offset+0x0002)
+-        track = read_binary("B", mds_content, datablock_offset+0x0004)
+-        pmin = read_binary("B", mds_content, datablock_offset+0x0009)
+-        psec = read_binary("B", mds_content, datablock_offset+0x000a)
+-        pfrac = read_binary("B", mds_content, datablock_offset+0x000b)
+-        sectorsize = read_binary("H", mds_content, datablock_offset+0x0010)
+-        sector = read_binary("L", mds_content, datablock_offset+0x0024)
+-        offset = read_binary("Q", mds_content, datablock_offset+0x0028)
+-        pregap = read_binary("L", mds_content, extrablock_offset+0x0000);
+-        sectors = read_binary("L", mds_content, extrablock_offset+0x0004);
+-        if verbose:
+-            print "datablock: %3i, track: %2x, mode: %2x, flags: %x, sector size: %i, MSF: %02i:%02i.%02i, sector: %i, offset: %i, pregap: %i, sectors: %i" % \
+-                  (datablock, track, mode, flags, sectorsize, pmin, psec, pfrac, sector, offset, pregap, sectors)
+-        # writing data to entries
+-        if track < 0xa0:
+-            entries.append([track, mode, sectorsize, sector, sectors, offset])
++    for session in range(0, mds_sessions):
++	print "session %i:" % (session)
++	entries = parse_mds_session(mds_content, mds_sessions_offset + mds_session_size * session)
++	break
+ 
+     entries.sort() # python is sexy.
+ 
+@@ -542,10 +578,11 @@
+     if mode == 1: return MODE1_2352
+     if mode == 2: return MODE2_2352
+   
+-    raise CDEmu_Error, "Unkown mode number:", mode
++    raise CDEmu_Error, "Unknown mode number: %i" % (mode)
+ 
+ def get_mode_mds(mode, sectsize):
+     "converts the data to our internal mode consts"
++    mode &= 0xff
+     if mode == 0xa9:
+         if sectsize == 2448: return AUDIO_2448
+         else: return AUDIO
+@@ -559,7 +596,7 @@
+         elif sectsize == 2336: return MODE2_2336
+         else: return MODE2
+   
+-    raise CDEmu_Error, "Unkown mode number:", mode
++    raise CDEmu_Error, "Unknown mode number: %i" % (mode)
+ 
+ def get_mode_nrg(mode, sectsize):
+     "converts the data to our internal mode consts"
+@@ -573,7 +610,7 @@
+         elif sectsize == 2336: return MODE2_2336
+         else: return MODE2
+   
+-    raise CDEmu_Error, "Unkown mode number:", mode
++    raise CDEmu_Error, "Unknown mode number: %i" % (mode)
+ 
+ def mode_2_sectorsize(mode):
+     if mode == AUDIO: return CD_FRAMESIZE_RAW
+@@ -584,7 +621,7 @@
+     if mode == MODE2_2352: return CD_FRAMESIZE_RAW
+     if mode == MODE2_2336: return CD_FRAMESIZE_RAW0
+ 
+-    raise CDEmu_Error, "Unkown mode number:", mode
++    raise CDEmu_Error, "Unknown mode number: %i" % (mode)
+ 
+ def get_msf(s):
+     "converts 00:00:00 to 3 integers, take the 01 index if there is a choise - min, sec, frame"
+@@ -599,10 +636,11 @@
+ 
+ def msf_2_sector(min, sec, frame):
+     "converts the msf to sector"
+-    return frame + (sec + min * 60 ) * 75;
++    return frame + (sec + min * 60 ) * 75 - CD_MSF_OFFSET;
+ 
+ def sector_2_msf(sector):
+     "and the other way round - min,sec,frame"
++    sector += CD_MSF_OFFSET
+     sector, frame = divmod(sector, 75)
+     sector, sec = divmod(sector, 60)
+     return sector, sec, frame
+@@ -618,10 +656,9 @@
+         # mode / minute / second / frame
+         mode = get_mode_cue(raw_entries[i][CUE_MODE])
+         min, sec, frame = get_msf(raw_entries[i][CUE_INDEXES])
+-        # svcds need 2 sec offset, don't really know why .. its just so ;-)
+-        if mode == MODE2_2352:
+-            sec+=2
+-        start_sector = msf_2_sector(min, sec, frame)
++	# CUE's MSF should be offset by 00:02:00
++        start_sector = msf_2_sector(min, sec, frame) + CD_MSF_OFFSET
++        min, sec, frame = sector_2_msf(start_sector)
+         
+         if i == 0:
+             start_offset = 0
+diff -Naur cdemu-0.8/Makefile cdemu-203/Makefile
+--- cdemu-0.8/Makefile	2006-08-05 04:38:56.000000000 +0200
++++ cdemu-203/Makefile	2007-01-11 22:25:48.000000000 +0100
+@@ -2,7 +2,7 @@
+ # $Header$
+ 
+ PREFIX = /usr
+-SRCS = cdemu_core.c cdemu_mod.c cdemu_proc.c
++SRCS = cdemu_core.c cdemu_mod.c
+ OBJS = $(patsubst %.c,%.o, $(SRCS))
+ 
+ #
+@@ -28,7 +28,7 @@
+ KERN_INC = $(KERN_DIR)/include
+ 
+ ifeq ($(KERN_SRC),no)
+-    $(error You'll need sources for your (at least 2.6.16) kernel)
++    $(error You'll need sources for your (at least 2.6) kernel)
+ endif
+ 
+ 
+@@ -56,18 +56,17 @@
+ # to keep this stuff readable
+ #
+ ifndef MK_INC
+-	MK_INC = $(PWD)
++	MK_INC = $(shell pwd)
+ endif
+ ifeq ($(KERN_MAJ),2.4)
+-        $(error You'll need at least 2.6.16 kernel)
++        $(error You'll need at least 2.6 kernel)
+ endif
+ ifeq ($(KERN_MAJ),2.6)
+ 	KERN_MICRO = $(shell echo $(KERN_VER) | sed 's/2\.6\.\([0123456789]*\).*/\1/')
+ 	ifeq ($(shell test "$(KERN_MICRO)" -lt "16" >& /dev/null && echo yes),yes)
+-                $(error You'll need at least 2.6.16 kernel)
+-	else
+-		MODVAR = M
++                $(warning Kernel 2.6.16 is the minimum recommended kernel version)
+ 	endif
++	MODVAR = M
+ 	include $(MK_INC)/mk/linux-2.6
+ endif
+ 
+diff -Naur cdemu-0.8/TODO cdemu-203/TODO
+--- cdemu-0.8/TODO	2006-08-05 04:38:56.000000000 +0200
++++ cdemu-203/TODO	2006-10-15 15:40:15.000000000 +0200
+@@ -1,14 +1,12 @@
+ USER:
+ 
+-- a GUI program to controll all (for KDE, Wolfgang Koller <viras@suselinuxsupport.de> wrote
++- A GUI program to controll all (for KDE, Wolfgang Koller <viras@suselinuxsupport.de> wrote
+   applet (http://www.suselinuxsupport.de/en/index.php?location=downloads#KCDemu)
++- Userspace library for cd-image access. (Rok)
+ 
+ KERNEL:
+ 
+ - Get someone to do SMP testing on a regular basis.
+-- make nodes/devices/memory dynamic ... create gendisk's whenever a cd 
+-  is loaded and delete them when cd is unloaded ...
+-- Memory mapped IO (mmap).
+-- Support for pregaps, postgaps and subchannels, ECC and reading cd-text.
+-- SysFS/ProcFS.
+-- Packet commands.
++- Memory mapped IO (mmap) and/or shared memory.
++- Support for pregaps, postgaps and subchannels, ECC and reading cd-text. (Pawel)
++- More ATAPI packet commands.

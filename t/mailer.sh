@@ -85,9 +85,7 @@ cd ..
 	| mail -r "Frugalware Testsuite <noreply@frugalware.org>" \
 	-s "Testsuite results for `date +%Y-%m-%d`" frugalware-devel@frugalware.org
 if [ -e $HOME/dead.letter ]; then
-	# ugly hack
-	cat $HOME/dead.letter | mail -r "Frugalware Testsuite <noreply@frugalware.org>" \
-	-s "Testsuite results for `date +%Y-%m-%d`" frugalware-devel@frugalware.org
-	rm $HOME/dead.letter
+	# wtf
+	set &> ~/log
 fi
 rm -rf $logdir

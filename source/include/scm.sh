@@ -90,7 +90,7 @@ elif [ "$_F_scm_type" == "subversion" ]; then
 	makedepends=(${makedepends[@]} 'subversion')
 elif [ "$_F_scm_type" == "git" ]; then
 	up2date="date +%Y%m%d%H%M%S --date '`curl -I $_F_scm_url/HEAD 2>&1|sed -n '/^Last-Modified/s/^[^:]*: //p'`'"
-	makedepends=(${makedepends[@]} 'cogito')
+	makedepends=(${makedepends[@]} 'git')
 elif [ "$_F_scm_type" == "mercurial" ]; then
 	# it seems that _every_ repo url has the same web interface which has a nice rss
 	up2date="date +%Y%m%d%H%M%S --date '`lynx -dump $_F_scm_url/?style=rss|grep pubDate|sed 's/.*>\(.*\)<.*/\1/;q'`'"
@@ -131,7 +131,7 @@ Funpack_scm()
 		svn co $_F_scm_url $_F_scm_module || Fdie
 		Fcd $_F_scm_module
 	elif [ "$_F_scm_type" == "git" ]; then
-		cg-clone $_F_scm_url || Fdie
+		git clone $_F_scm_url || Fdie
 		Fcd `echo $_F_scm_url |sed 's|.*/\(.*\)\..*|\1|'`
 	elif [ "$_F_scm_type" == "mercurial" ]; then
 		hg clone $_F_scm_url || Fdie

@@ -28,6 +28,7 @@ class Options:
 		self.root = os.path.join(os.environ['HOME'], "git")
 
 def update(options):
+	os.makedirs(options.root)
 	os.chdir(options.root)
 	sock = os.popen("ssh %s@%s ls -l %s" % (options.login, server, repodir))
 	buf = sock.readlines()
@@ -36,15 +37,19 @@ def update(options):
 	for i in buf:
 		path = os.path.abspath(os.path.join(repodir, i.strip().split(" ")[-1]))
 		repo = os.path.split(path)[-1]
+		if repo.startswith("frugalware-"):
+			local = repo[len("frugalware-"):]
+		else:
+			local = repo
 		url = "%s@%s:%s" % (options.login, server, path)
 		print "Updating '%s':" % repo
 		try:
 			old = os.getcwd()
-			os.chdir(repo)
+			os.chdir(local)
 			os.system("git pull")
 			os.chdir(old)
 		except OSError:
-			os.system("git clone %s" % url)
+			os.system("git clone %s %s" % (url, repo))
 
 def usage(ret):
 	print __doc__

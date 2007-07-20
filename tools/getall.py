@@ -69,7 +69,7 @@ def main():
 		if opt in ("-l", "--login"):
 			options.login = arg
 		if opt in ("-r", "--root"):
-			option.root = arg
+			options.root = arg
 		if opt in ("-v", "--version"):
 			print "getall %s" % __version__
 			sys.exit(0)

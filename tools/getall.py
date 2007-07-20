@@ -28,8 +28,10 @@ class Options:
 		self.root = os.path.join(os.environ['HOME'], "git")
 
 def update(options):
-	os.makedirs(options.root)
-	os.chdir(options.root)
+	try:
+		os.chdir(options.root)
+	except OSError:
+		os.makedirs(options.root)
 	sock = os.popen("ssh %s@%s ls -l %s" % (options.login, server, repodir))
 	buf = sock.readlines()
 	sock.close()

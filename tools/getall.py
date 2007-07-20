@@ -51,7 +51,7 @@ def update(options):
 			os.system("git pull")
 			os.chdir(old)
 		except OSError:
-			os.system("git clone %s %s" % (url, repo))
+			os.system("git clone %s %s" % (url, local))
 
 def usage(ret):
 	print __doc__

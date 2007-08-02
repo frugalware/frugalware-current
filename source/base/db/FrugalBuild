@@ -2,21 +2,26 @@
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=db
-pkgver=4.5.20
+pkgver=4.6.18
 pkgrel=1
 pkgdesc="The Berkeley DB embedded database system"
 url="http://www.sleepycat.com"
-if [ "$CARCH" != "ppc" ]; then
+# maybe later we can enable java for i686 & x86_64
+ENABLE_JAVA=${ENABLE_JAVA:-0}
+if [ "$ENABLE_JAVA" = "1" ]; then
 	Finclude java
 	makedepends=(${makedepends[@]} 'java-gcj-compat')
 fi
 depends=('libstdc++')
 groups=('base' 'chroot-core')
 archs=('i686' 'x86_64' 'ppc')
-up2date="lynx -dump http://www.oracle.com/technology/software/products/berkeley-db/index.html|grep '\]Berkeley DB'|sed 's/.*DB \([^ ]*\) .*/\1/'"
+up2date="lynx -dump http://www.oracle.com/technology/software/products/berkeley-db/index.html|grep '\]Berkeley DB'|sed 's/.*DB \([^ ]*\) .*/\1/;q'"
 source=(http://download.oracle.com/berkeley-db/db-$pkgver.tar.gz \
 	db-4.5.20-java-gcj.patch)
+sha1sums=('26c127ddd814da97e7492959ffacdd1897f73645' \
+          'c8063bb1e85f0a8d4ed420d43f2e165e6ba625fe')
 [ "$CARCH" == "x86_64" ] && Fconfopts="$Fconfopts --with-mutex=x86/gcc-assembly"
+[ "$ENABLE_JAVA" = "1" ] && Fconfopts="$Fconfopts --enable-java"
 
 ###
 # NOTE! Every time you bump this package, perl-berkeleydb needs bumping, too!
@@ -26,21 +31,15 @@ build()
 {
 	Fpatchall
 	cd build_unix
-	[ "$CARCH" != "ppc" ] && \
-		../dist/configure $Fconfopts --enable-compat185 \
-			--enable-shared --enable-static --enable-cxx \
-			--enable-java
-
-	[  "$CARCH" == "ppc" ] && \
-		../dist/configure $Fconfopts --enable-compat185 \
-			--enable-shared --enable-static --enable-cxx
+	../dist/configure $Fconfopts --enable-compat185 \
+		--enable-shared --enable-static --enable-cxx
 
 	make LIBSO_LIBS=-lpthread || return 1
 	
 	Fmakeinstall
 	
 	Fmkdir /usr/share/java
-	if [ "$CARCH" != "ppc" ]; then
+	if [ "$ENABLE_JAVA" = "1" ]; then
 		Fmv /usr/lib/db.jar /usr/share/java/
 		# FIXME: Fjar's -Wl,-Bsymbolic causes DatabaseConfig.DEFAULT to return null.
 		# Doing just the same thing without -Wl,-Bsymbolic works.
@@ -58,6 +57,3 @@ build()
 }
 
 # optimization ok
-
-sha1sums=('0e5a6c152c5d7089899481d9de689d1f7e77bde1' \
-	  'c8063bb1e85f0a8d4ed420d43f2e165e6ba625fe')

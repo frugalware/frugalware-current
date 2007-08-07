@@ -1,0 +1,84 @@
+#!/usr/bin/env python
+
+import os, stat, time, sys
+
+fpms = {
+		'i686': [],
+		'x86_64': []
+		}
+
+def how_old(epoch):
+	age = int(time.time()) - int(epoch)
+	if age > 60*60*24*365*2:
+		s = str(age/60/60/24/365)
+		s += " years"
+	elif age > 60*60*24*(365/12)*2:
+		s = str(age/60/60/24/(365/12))
+		s += " months"
+	elif age > 60*60*24*7*2:
+		s = str(age/60/60/24/7)
+		s += " weeks"
+	elif age > 60*60*24*2:
+		s = str(age/60/60/24)
+		s += " days"
+	elif age > 60*60*2:
+		s = str(age/60/60)
+		s += " hours"
+	elif age > 60*2:
+		s = str(age/60)
+		s += " minutes"
+	else:
+		s = str(age)
+		s += " seconds"
+	return s
+
+def tobuild(pkg):
+	ret = []
+	# Build the command to read the FrugalBuilds
+	command = 'cd %s; '
+	command += 'source /usr/lib/frugalware/fwmakepkg'
+	command += ' ; source FrugalBuild'
+	command += ' ; [ -n "${nobuild}" ] && exit'
+	command += ' ; echo ${options[@]} | grep -q nobuild && exit'
+	command += ' ; echo "${pkgname}-${pkgver}-${pkgrel}"'
+	command += ' ; echo "${archs[@]}"'
+	sock = os.popen(command % os.path.split(pkg)[0])
+	lines = sock.readlines()
+	sock.close()
+	if not len(lines):
+		return ret
+	archs = lines[1].strip().split()
+	for i in archs:
+		if i not in fpms.keys():
+			continue
+		full = "-".join([lines[0].strip(), i])
+		try:
+			os.stat("frugalware-%s/%s.fpm" % (i, full))
+		except OSError:
+			ret.append(full)
+	return ret
+
+if len(sys.argv) > 1:
+	if sys.argv[1] == "--help":
+		print "not yet synced packages"
+		sys.exit(0)
+
+os.chdir("../..")
+
+for root, dirs, files in os.walk("source"):
+	for file in files:
+		if file == "FrugalBuild":
+			fb = os.path.join(root, file)
+			missing = tobuild(fb)
+			for i in missing:
+				old = os.stat(fb)[stat.ST_MTIME]
+				fpms[i.split('-')[-1]].append("%s is missing (FB is %s old)" % (i, how_old(old)))
+archs = fpms.keys()
+archs.sort()
+sorted = []
+for i in archs:
+	v = fpms[i]
+	v.sort()
+	sorted.extend(v)
+for i in sorted:
+	print i

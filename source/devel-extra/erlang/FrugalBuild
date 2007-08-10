@@ -1,0 +1,59 @@
+# Compiling Time: 0.57 SBU
+# Maintainer: VMiklos <vmiklos@frugalware.org>
+
+pkgname=erlang
+pkgver=11B_5
+ertsver=5.5.5
+interfacever=3.5.5.3
+pkgrel=1
+pkgdesc="A programming language designed at the Ericsson Computer Science Laboratory."
+url="http://www.erlang.org/"
+depends=('glibc' 'unixodbc' 'ncurses')
+makedepends=('j2sdk')
+groups=('devel-extra')
+archs=('i686')
+up2date="lynx -dump http://www.erlang.org/download.html|grep readme$|sed 's/.*_R\(.*\)\.readme/\1/;s/-/_/;q'"
+source=(http://www.erlang.org/download/otp_src_R${pkgver/_/-}.tar.gz \
+	http://www.erlang.org/download/otp_doc_html_R${pkgver/_/-}.tar.gz \
+	http://www.erlang.org/download/otp_doc_man_R${pkgver/_/-}.tar.gz)
+sha1sums=('c03569f0387b04b0afcc5f59983792676fd4382b' \
+          'a44439ec924c35896b3cdb534f5001daf6e2e8dd' \
+          '3809faa63ac3420fd03291443bf0a73075a4781f')
+
+build()
+{
+	Fcd otp_src_R${pkgver/_/-}
+	Fmake
+	Fmakeinstall
+	# remove references to Fdestdir
+	Fsed "$Fdestdir" "" $Fdestdir/usr/lib/erlang/bin/erl
+	Fsed "$Fdestdir" "" $Fdestdir/usr/lib/erlang/bin/start
+	grep -rle "$Fdestdir" $Fdestdir//usr/lib/erlang/erts-$ertsver | xargs sed -i -e "s|$Fdestdir||g"
+	# create symlinks to /usr
+	Fmkdir /usr/bin
+	Fln /usr/lib/erlang/bin/erl /usr/bin/erl
+	Fln /usr/lib/erlang/bin/erlc /usr/bin/erlc
+	Fln /usr/lib/erlang/bin/ear /usr/bin/ear
+	Fln /usr/lib/erlang/bin/escript /usr/bin/escript
+	Fln /usr/lib/erlang/lib/erl_interface-$interfacever/bin/erl_call /usr/bin/erl_call
+	Fln /usr/lib/erlang/erts-$ertsver/bin/beam /usr/bin/beam
+	# man pages
+	cd $Fsrcdir
+	for i in man/man* ; do
+		Fmkdir /usr/share/${i}erl
+	done
+	for i in man/man*/*.[1-9]; do
+		# avoid namespace collisions
+		mv $i ${i}erl
+		Ffilerel ${i}erl /usr/share/man/man${i##*.}erl/
+	done
+	# html doc
+	mkdir html
+	cd html
+	Fextract $Fsrcdir/otp_doc_html_R${pkgver/_/-}.tar.gz
+	cd ..
+	Fmkdir /usr/share/doc/$pkgname-$pkgver
+	Fcpr html /usr/share/doc/$pkgname-$pkgver/html
+}
+
+# optimization OK

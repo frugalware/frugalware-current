@@ -3,15 +3,16 @@
 
 pkgname=glibc
 pkgver=2.6.1
-pkgrel=1
+pkgrel=2
 pkgdesc="GNU C Library"
 url="http://www.gnu.org/software/libc/libc.html"
 depends=()
+makedepends=('grep>=2.5.3-2')
 groups=('base' 'chroot-core')
 archs=('i686' 'x86_64' 'ppc')
 up2date="lynx -dump http://ftp.gnu.org/gnu/glibc/?M=A|grep 'glibc-[0-9\.]*tar.gz$'|Flasttar"
-source=(http://ftp.gnu.org/pub/gnu/glibc/glibc-$pkgver.tar.bz2)
-signatures=("$source.sig")
+source=(http://ftp.gnu.org/pub/gnu/glibc/glibc-$pkgver.tar.bz2 initfini.patch)
+signatures=("$source.sig" '')
 
 if [ "$CARCH" == "i686" ]; then
 	subpkgs=('glibc-xen')
@@ -32,8 +33,9 @@ _build()
 	mkdir ../glibc-build || Fdie
 	cd ../glibc-build || Fdie
 	../glibc-$pkgver/configure --prefix=/usr --with-tls --with-__thread \
-		--enable-add-ons=nptl --enable-kernel=2.6.0 --enable-bind-now \
-		--without-cvs --without-selinux || Fdie
+		--enable-add-ons=nptl --enable-kernel=2.6.0 --without-cvs \
+		--without-selinux --enable-shared --enable-bind-now \
+		--enable-static --enable-all-warnings || Fdie
 
 	make || Fdie
 
@@ -50,8 +52,8 @@ build()
 	# no multilib thanks
 	Fsed 'x86_64 \| ' '' sysdeps/unix/sysv/linux/configure{,.in}
 	Fpatchall
-	## fix BUILD
-	Fsed '$(MAKEINFO)' '$(MAKEINFO) --force --no-validate' manual/Makefile
+	export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing"
+	export CFLAGS="$CFLAGS -fno-strict-aliasing"
 	if [ "$CARCH" == "i686" ]; then
 		xenflag="-mno-tls-direct-seg-refs"
 		export CFLAGS="$CFLAGS $xenflag"

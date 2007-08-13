@@ -3,11 +3,11 @@
 
 pkgname=gcc
 pkgver=4.2.1
-pkgrel=2
+pkgrel=3
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils' 'libstdc++')
-makedepends=('mpfr' 'gcc-gnat' 'gtk+2' 'libart_lgpl' 'libxtst' 'zip' 'xulrunner')
+depends=('binutils>=2.17.50.0.18' 'libstdc++')
+makedepends=('mpfr' 'gcc-gnat' 'gtk+2' 'libart_lgpl' 'libxtst' 'zip' 'xulrunner' 'grep>=2.5.3-2' 'glibc>=2.6.1-2')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('i686' 'x86_64')
@@ -50,8 +50,6 @@ subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64'
 	'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' \
 	'i686 x86_64')
 
-[ "$CARCH" == "x86_64" ] && Fconfopts="$Fconfopts --libdir=/usr/lib --disable-multilib"
-
 build()
 {
 	Fsed '../lib64 ../lib' '. ../lib' gcc/config/i386/t-linux64
@@ -63,22 +61,46 @@ build()
 	autoconf || return 1
 	cd -
 	Fpatchall
-	mkdir ../$pkgname-build
-	cd ../$pkgname-build
+	mkdir ../$pkgname-build || Fdie
+	cd ../$pkgname-build || Fdie
 	CC="$FCC gcc" CFLAGS="$CFLAGS" CXXFLAGS="$CFLAGS" XCFLAGS="$CFLAGS" \
 	TCFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" \
-	../$pkgname-$pkgver/configure $Fconfopts \
-	--enable-shared \
-	--enable-languages=c,ada,c++,fortran,java,objc,obj-c++,treelang \
-	--enable-threads=posix \
-	--enable-__cxa_atexit \
-	--enable-java-awt=gtk \
-	--enable-plugin
+	../$pkgname-$pkgver/configure \
+		$Fconfopts \
+		--enable-shared \
+		--enable-languages=c,ada,c++,fortran,java,objc,obj-c++,treelang \
+		--enable-threads=posix \
+		--enable-__cxa_atexit \
+		--enable-java-awt=gtk \
+		--enable-gtk-cairo \
+		--enable-plugin \
+		--with-system-zlib \
+		--libdir=/usr/lib \
+		--disable-multilib \
+		--disable-libjava-multilib \
+		--enable-target-optspace \
+		--enable-bootstrap
 
 	make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" bootstrap || return 1
-	
+
 	unset MAKEFLAGS #this is needed by libffi
 	Fmakeinstall
+
+	# fix some junk in la files
+	for lafile in `find $Fdestdir -name "*.la"`
+        do
+                sed -i 's|-L.*/gcc-build/.*/./gcc||g' $lafile
+        done
+
+	# these does not work , unless using --whole-archive
+	find $Fdestdir -name libgcj.a \
+                -o -name libgcj-tools.a \
+                -o -name libgij.a \
+                -o -name libgtkpeer.a \
+                -o -name libjawt.a \
+                -o -name libjvm.a \
+                -o -name libgcj_bc.a | xargs rm -f \
+                || return 1
 
 	# conflicts with binutils
 	Frm /usr/bin/c++filt /usr/lib/libiberty.a
@@ -101,10 +123,6 @@ build()
 	Fln ../../../../libgnarl-${pkgver%.*}.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnarl-${pkgver%.*}.so
 	Fln ../../../../libgnat-${pkgver%.*}.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnat.so
 	Fln ../../../../libgnat-${pkgver%.*}.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnat-${pkgver%.*}.so
-
-	# gcj -static doesn't work properly anyway, unless using --whole-archive
-	# and saving 35mb is not so bad
-	Frm /usr/lib/libgcj.a
 
 	# cp ffitarget.h to /usr/include needed to work include <ffi.h> good
 	Fcp /usr/lib/gcc/$CHOST/$pkgver/include/ffitarget.h \

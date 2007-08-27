@@ -809,6 +809,22 @@ Flasttarbz2()
 }
 
 ###
+# * Fup2gnugz(): Up2date line for programs hosted at ftp.gnu.org ( tar.gz )
+##
+Fup2gnugz()
+{
+	up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname-\(.*\).tar.gz$'|sort -n -r|head -n1|Flasttar"
+}
+
+###
+# * Fup2gnubz2(): Up2date line for programs hosted at ftp.gnu.org ( tar.bz2 )
+##
+Fup2gnubz2()
+{
+        up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname-\(.*\).tar.bz2$'|sort -n -r|head -n1|Flasttarbz2"
+}
+
+###
 # * Fdesktop(): Creates a .desktop file for graphical applications. Parameters:
 # 1) name of the executable binary 2) icon name from /usr/share/pixmaps 3)
 # categori(es) (optional). You can choose one or more from the followings:

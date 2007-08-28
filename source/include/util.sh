@@ -589,7 +589,9 @@ Fmakeinstall() {
 	fi
 	if [ -e $Fsrcdir/rc.$_F_rcd_name ] && \
 		grep -q "source /lib/initscripts/functions" $Fsrcdir/rc.$_F_rcd_name; then
-		Frcd2 $_F_rcd_name
+		if echo ${source[@]}|grep -q rc.$_F_rcd_name; then
+			Frcd2 $_F_rcd_name
+		fi
 	fi
 }
 

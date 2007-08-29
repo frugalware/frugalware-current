@@ -589,7 +589,9 @@ Fmakeinstall() {
 	fi
 	if [ -e $Fsrcdir/rc.$_F_rcd_name ] && \
 		grep -q "source /lib/initscripts/functions" $Fsrcdir/rc.$_F_rcd_name; then
-		Frcd2 $_F_rcd_name
+		if echo ${source[@]}|grep -q rc.$_F_rcd_name; then
+			Frcd2 $_F_rcd_name
+		fi
 	fi
 }
 
@@ -806,6 +808,22 @@ Flasttgz()
 Flasttarbz2()
 {
 	grep 'tar.bz2\($\|#\)'|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'
+}
+
+###
+# * Fup2gnugz(): Up2date line for programs hosted at ftp.gnu.org ( tar.gz )
+##
+Fup2gnugz()
+{
+	up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname-\(.*\).tar.gz$'|sort -n -r|head -n1|Flasttar"
+}
+
+###
+# * Fup2gnubz2(): Up2date line for programs hosted at ftp.gnu.org ( tar.bz2 )
+##
+Fup2gnubz2()
+{
+        up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname-\(.*\).tar.bz2$'|sort -n -r|head -n1|Flasttarbz2"
 }
 
 ###

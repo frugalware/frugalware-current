@@ -2,40 +2,49 @@
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=git
-pkgver=1.5.2.5
+USE_DEVEL=${USE_DEVEL:-""}
+pkgver=1.5.3.1
+[ $USE_DEVEL ] && pkgver=1.5.3.rc7.30.g947ad2
 pkgrel=1
-pkgdesc="the stupid content tracker"
+pkgdesc="A fast, scalable, distributed revision control system."
 url="http://www.kernel.org/pub/software/scm/git/"
 depends=('curl>=7.16.0' 'openssl')
 makedepends=('asciidoc' 'docbook-xsl>=1.73.0-2' 'docbook-xml' 'sgml-common' 'xmlto')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump '$url/?C=M;O=D'|grep 'git-[0-9.]*.tar.bz2$'|sed -n 's/.*-\(.*\)\.t.*/\1/;1 p'"
-source=($url/$pkgname-$pkgver.tar.bz2 \
-gitweb.modules.d gitweb.conf README.Frugalware)
-signatures=(${source[0]}.sign '' '' '')
+if ! [ $USE_DEVEL ]; then
+	source=($url/$pkgname-$pkgver.tar.bz2)
+	signatures=(${source[0]}.sign '' '' '')
+fi
+source=(${source[@]} gitweb.modules.d gitweb.conf README.Frugalware)
 options=('scriptlet')
 
-subpkgs=('gitweb' 'gitk')
-subdescs=('Web interface for Git.' 'Tk based git repository browser')
-subdepends=("git=$pkgver" "git=$pkgver tk")
-subbackup=('etc/gitweb.conf etc/httpd/conf/modules.d/gitweb.conf' '')
-subgroups=('network-extra' 'xapps-extra')
-subarchs=('i686 x86_64' 'i686 x86_64')
+subpkgs=('gitweb' 'git-gui' 'gitk')
+subdescs=('Web interface for Git.' 'Git GUI tool.' 'Git revision tree visualiser.')
+subdepends=("git=$pkgver" "git=$pkgver tk" "git=$pkgver tk")
+subbackup=('etc/gitweb.conf etc/httpd/conf/modules.d/gitweb.conf' '' '')
+subgroups=('network-extra' 'xapps-extra' 'xapps-extra')
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
+
+if [ $USE_DEVEL ]; then
+	_F_scm_type="git"
+	_F_scm_url="git://git.kernel.org/pub/scm/git/git.git"
+	Finclude scm
+fi
 
 build()
 {
-	Fsed '^\(CFLAGS =\) .*' "\1 $CFLAGS" Makefile
-	# fix path, we do not put the contrib dir to the documentation folder
+	[ $USE_DEVEL ] && Funpack_scm
+
+	# undebianize
 	Fsed 'doc/' '' templates/hooks--post-receive
-	# fix default gitconfig
-	Fsed '\(ETC_GITCONFIG =\) .*' '\1 /etc/gitconfig' Makefile
-	make configure || return 1
-	Fmkdir /usr/bin
-	Fpatchall
+	Fsed ' (on debian)' '' templates/hooks--post-receive
+
 	Fconf
-	make ASCIIDOC8=YesPlease all doc || return 1
-	Fmakeinstall install-doc
+	make V=1 CLFAGS="$CFLAGS" ASCIIDOC8=YesPlease ETC_GITCONFIG=/etc/gitconfig all doc || return 1
+	Fmakeinstall install-doc ETC_GITCONFIG=/etc/gitconfig mandir=/usr/share/man
+	Ffilerel perl/private-Error.pm /usr/lib/perl5/site_perl/current/Error.pm
 	make -C Documentation WEBDOC_DEST=$Fdestdir/usr/share/doc/$pkgname-$pkgver/html install-webdoc || return 1
 	Fdocrel Documentation/SubmittingPatches
 	Fdocrel Documentation/technical
@@ -49,15 +58,23 @@ build()
 
 	# gitweb
 	Fmkdir /var/www/gitweb
+	rm gitweb/gitweb.perl
 	cp gitweb/git* $Fdestdir/var/www/gitweb
 	Ffile gitweb.modules.d /etc/httpd/conf/modules.d/gitweb.conf
 	Ffile /etc/gitweb.conf
 	Fsplit gitweb /etc /var
 	Fdoc README.Frugalware
 
+	# git-gui
+	Fsplit git-gui usr/bin/git-{gui,citool}
+	Fsplit git-gui usr/share/git-gui
+	Fsplit git-gui usr/share/man/man1/git-{gui,citool}.1
+	Fsplit git-gui usr/share/doc/git-$pkgver/html/git-{gui,citool}.{html,txt}
+
 	# gitk
 	Fsplit gitk usr/bin/gitk
 	Fsplit gitk usr/share/man/man1/gitk.1
+	Fsplit git-gui usr/share/doc/git-$pkgver/html/gitk.{html,txt}
 }
 
 # optimization OK

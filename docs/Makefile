@@ -104,13 +104,13 @@ images:
 	ln -s /etc/asciidoc/images ./
 
 %.html: %.txt
-	asciidoc -a toc -a numbered $(basename $@).txt
+	asciidoc -a toc -a numbered -a sectids $(basename $@).txt
 
 %.text: %.html
 	lynx -dump $(basename $@).html > $@
 
 %.xml: %.txt
-	asciidoc -a toc -a numbered -b docbook $(basename $@).txt
+	asciidoc -a toc -a numbered -a sectids -b docbook $(basename $@).txt
 	sed -i '/<!DOCTYPE/s|\("http[^"].*"\)|"file://$(XML_PATH)/docbookx.dtd"|' $@
 
 %.fo: %.xml
@@ -127,7 +127,7 @@ images:
 	sed 's/@VERSION@/$(VERSION)/' $(basename $@).txt.in > $@
 
 index.html: index.txt header.txt
-	asciidoc -a numbered $(basename $@).txt
+	asciidoc -a numbered -a sectids $(basename $@).txt
 
 manual.txt: $(MANUAL_SOURCES) $(DYNAMIC_SOURCES)
 	$(call MERGE,index.txt,manual.txt)

@@ -884,8 +884,8 @@ Fdesktop2()
 		dicon=$_F_desktop_icon
 	fi
 
-	if [ ! -z $_F_desktop_exec ] ; then
-		dexec=$_F_desktop_exec
+	if [ ! -z "$_F_desktop_exec" ] ; then
+		dexec="$_F_desktop_exec"
 	else
 		dexec=$pkgname
 	fi

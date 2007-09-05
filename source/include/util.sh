@@ -963,6 +963,22 @@ Fsplit()
 	done
 }
 
+##
+# * Fuse(): Checks a use variable. Parameter: a use variable. Example: Fuse
+# $USE_DEVEL.
+##
+Fuse()
+{
+	if [ "$1" = "n" ]; then
+		return 1
+	elif [ "$1" = "y" ]; then
+		return 0
+	else
+		Fmessage "Unknown use variable!"
+		Fdie
+	fi
+}
+
 ###
 # * check_option(): Check if a logical flag is defined in options() or not.
 # Parameter: name of the logical flag. Example: if [ "`check_option DEVEL`" ];

@@ -133,7 +133,7 @@ Funpack_scm()
 	elif [ "$_F_scm_type" == "git" ]; then
 		if [ -d $pkgname ]; then
 			cd $pkgname
-			git pull
+			git pull && git checkout -f
 		else
 			git clone $_F_scm_url $pkgname || Fdie
 			cd $pkgname

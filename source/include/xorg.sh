@@ -29,6 +29,8 @@
 # * _F_xorg_name (defaults to $pkgname): if you want to use a custom package
 # name (for example the upstream name contains uppercase letters) then use this
 # to declare the real name
+# * _F_xorg_ind (defaults to ""): if set, use the individual folder, not the
+# release one
 ###
 if [ -z "$_F_xorg_name" ]; then
 	_F_xorg_name=$pkgname
@@ -59,7 +61,11 @@ if [[ $pkgname =~ ^xf86-input- ]]; then
 	makedepends=('inputproto' 'randrproto')
 fi
 url="http://xorg.freedesktop.org"
-_F_xorg_release_dir="X11R7.3/src"
+if [ -z "$_F_xorg_ind" ]; then
+	_F_xorg_release_dir="X11R7.3/src"
+else
+	_F_xorg_release_dir="individual"
+fi
 _F_xorg_dir=`echo ${groups[$((${#groups[@]}-1))]}|sed 's/xorg-\(.*\)/\1/;s/s$//'`
 _F_xorg_version="X11R7."
 [ "$_F_xorg_name" = "xorg-server" ] && _F_xorg_dir="xserver"

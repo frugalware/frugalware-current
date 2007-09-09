@@ -791,21 +791,21 @@ Fautoreconf() {
 # Extension of the archive is given as argument.
 ###
 Flastarchive() {
-	grep "$1\(\$\|#\)"|sed -n "s/.*-\(.*\)$1/\1/;\$ p"
+	grep "\($1\)\(\$\|\#\)"|sed -n "s/.*-\(.*\)\($1\).*/\1/;$ p"
 }
 
 ###
 # * Flasttar(): Extracts version from a page's last tar.gz link.
 ###
 Flasttar() {
-	Flastarchive '\.tar\(\|\.gz\|\.bz2\)\|\.tgz'
+	Flastarchive '\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
 }
 
 ###
 # * Flasttgz(): Extracts version from a page's last tgz link.
 ###
 Flasttgz() {
-	Flastarchive '\.tgz\(\|\.gz\)'
+	Flastarchive '\.tgz'
 }
 
 ###

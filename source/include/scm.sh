@@ -139,12 +139,12 @@ Funpack_scm()
 			cd $pkgname
 		fi
 		if [ -n "$_F_scm_tag" ]; then
-			if [ -d .git/refs/tags/$_F_scm_tag ]; then
-				# this is a tag
-				git checkout $_F_scm_tag || Fdie
-			else
+			if [ -f .git/refs/remotes/origin/$_F_scm_tag ]; then
 				# this is a branch
 				git checkout origin/$_F_scm_tag || Fdie
+			else
+				# this is a tag or commit
+				git checkout $_F_scm_tag || Fdie
 			fi
 		fi
 	elif [ "$_F_scm_type" == "mercurial" ]; then

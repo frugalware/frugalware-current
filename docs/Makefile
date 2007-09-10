@@ -21,8 +21,7 @@ VERSION = $(shell date +%Y%m%d) (-current)
 PO_DIR ?= ~/git/translations/po
 XML_PATH = /usr/share/sgml/docbook/dtd/xml-dtd-4.2
 
-# force the usage of gcj, we have no time to test fop with other jdks
-export JAVA_HOME = /usr
+export JAVA_HOME = /usr/lib/java/jre
 
 # metadocuments
 GENERATED = index.html manual.html index-user.html user.html index-devel.html devel.html

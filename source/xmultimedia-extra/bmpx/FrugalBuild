@@ -2,7 +2,7 @@
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=bmpx
-pkgver=0.40.1
+pkgver=0.40.3
 basever=0.40
 pkgrel=1
 pkgdesc="A media player that features support for specifications like XDS DnD, XSPF and DBus."
@@ -21,9 +21,16 @@ options=('scriptlet')
 groups=('xmultimedia-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump 'http://bmpx.beep-media-player.org/site/Downloads#BMP_Source_Download'|grep -m1 '.tar.bz2'|sed 's/.*-\(.*\).t.*/\1/'"
-source=(http://files.beep-media-player.org/releases/$basever/$pkgname-$pkgver.tar.bz2 fw.patch)
-sha1sums=('c2d69fd8909d1d7a69ff13eee149084da9b802f0' \
-          'aab55940e8776ece490f3d1bc183dbed860ff246')
+source=(http://files.beep-media-player.org/releases/$basever/$pkgname-$pkgver.tar.bz2 \
+	00-revert-liking-workarounds.patch \
+	01-fw_builduser.patch \
+	02-configure.patch \
+	03-no-ggdb3-when-debug-is-off.patch)
+sha1sums=('9ae2e9342bbde9c10449fb12306efd7156054139' \
+          'c0ecd2b222ec79e73c1e0981e54cfe0d42a07619' \
+          'a8aabe4db10959e488ffdc38881c88a7cd72855e' \
+          '36a4a69332e0488b4c3b225859f062a70c93f980' \
+          '1ae574ae83b692518ebbcf2251b96b5d33d966e5')
 
 subpkgs=("$pkgname-lastfm-firefox-plugin")
 subdescs=("Firefox LastFM plugin for $pkgname")
@@ -33,7 +40,21 @@ subarchs=('i686 x86_64')
 
 build()
 {
-	Fbuild \
+	Fcd
+	Fpatchall
+	Fautoreconf
+	unset MAKEFLAGS
+	# do _not_ remove that or it won't build
+	export CFLAGS="$(echo $CFLAGS|sed 's/-O2/-Os/')"
+	export CXXFLAGS="$(echo $CXXFLAGS|sed 's/-O2/-Os/')"
+	# this is because LD >=2.17 changed 'symbols in discarded sections' 
+	# to a 'error' from a 'warning' and now some C++ apps may break , 
+	# this is one of them =)
+	# TODO: - work it out with nullptr for BMPx ( add some --enable-ld-workaround option to configure ? )
+	#       - revert that changes in LD and let it be a 'warning' again for FW ? .. looks like the ld folks want to so
+	#       - http://sourceware.org/ml/binutils/2007-09/msg00096.html
+	export LDFLAGS="$LDFLAGS -Wl,--noinhibit-exec"
+	Fconf \
 		--enable-hal \
                 --enable-sid \
 		--enable-modplug \
@@ -44,6 +65,8 @@ build()
 		--with-boost-iostreams="boost_iostreams-gcc42-mt" \
 		--with-tr1
 		##--enable-debug#
+	make || Fdie
+	Fmakeinstall
 	## broken symlink
         Frm /usr/bin/bmp2
         Fln /usr/bin/beep-media-player-2 /usr/bin/bmp2

@@ -8,17 +8,19 @@ for i in `rsync $server|sed 's/.* \([^ ]\)/\1/;1 d'`
 do
 	if [ -d $i.git ]; then
 		cd $i.git
-		git fetch -q $server/$i/.git
-		cd ..
+		git fetch -q origin
+		git update-ref HEAD refs/remotes/origin/master
 	else
 		git clone --bare -q $server/$i/.git $i.git
+		cd $i.git
+		git remote add origin $server/$i/.git
 	fi
+	cd ..
 	rm -rf $i.git/refs/remotes
 	rsync $server/$i/.git/owner $i.git/
 	rsync $server/$i/.git/description $i.git/
-	python -c "import os; sock = os.popen('rsync -l $server/$i'); buf = sock.read(); sock.close(); print 'rsync://rsync.frugalware.org' + os.path.abspath('$server/$i/../'[len('rsync://rsync.frugalware.org'):] + buf.split(' -> ')[1].strip()) + '/.git'" > $i.git/cloneurl
-	echo "http://git.frugalware.org/repos/$i/.git" >> $i.git/cloneurl
-	python -c "import os; sock = os.popen('rsync -l $server/$i'); buf = sock.read(); sock.close(); print 'nick@git.frugalware.org:/home/ftp' + os.path.abspath('$server/$i/../'[len('rsync://rsync.frugalware.org'):] + buf.split(' -> ')[1].strip()) + ' (for developers only)'" >> $i.git/cloneurl
+	echo "Anonymous Access: http://git.frugalware.org/repos/$i/.git" > $i.git/cloneurl
+	python -c "import os; sock = os.popen('rsync -l $server/$i'); buf = sock.read(); sock.close(); print 'Developer Access via SSH: nick@git.frugalware.org:/home/ftp' + os.path.abspath('$server/$i/../'[len('rsync://rsync.frugalware.org'):] + buf.split(' -> ')[1].strip())" >> $i.git/cloneurl
 	if [ -f $i.git/owner ]; then
 		owner=$(python -c "from urllib import urlencode; owner='$(cat $i.git/owner)'; print urlencode({'':owner.strip()})[1:]")
 	else

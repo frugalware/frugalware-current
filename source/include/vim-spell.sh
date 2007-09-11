@@ -65,6 +65,10 @@ build()
 	mkdir $pkgname-$pkgver
 	mv * $pkgname-$pkgver
 	Fcd
-	ls *.spl &>/dev/null && Ffilerel *.spl /usr/share/vim/spell/
-	ls *.sug &>/dev/null && Ffilerel *.sug /usr/share/vim/spell/
+	if ls *.spl &>/dev/null; then
+		Ffilerel *.spl /usr/share/vim/spell/
+	fi
+	if ls *.sug &>/dev/null; then
+		Ffilerel *.sug /usr/share/vim/spell/
+	fi
 }

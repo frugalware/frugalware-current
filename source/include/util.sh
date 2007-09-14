@@ -23,7 +23,7 @@
 # NOTE: You don't need to use Finclude util, it is automatically included.
 #
 # == OPTIONS
-# * _F_cd_path (defaults to $pkgname-$pkgver$pkgextraver)
+# * _F_cd_path (defaults to $pkgname$Fpkversep$pkgver$pkgextraver)
 # * _F_conf_configure (defaults to ./configure)
 # * _F_conf_perl_pipefrom: if set, pipe the output of this command in Fconf()
 # for perl packages
@@ -60,6 +60,8 @@
 # Since util.sh is included before the FrugalBuild you may modify these
 # variables, they won't be overwritten by util.sh again.
 #
+# * Fpkgversep (defaults to -): the separator between the package name
+# and the package version in the package archive filename.
 # * Fsrcdir
 # * Fdestdir
 # * Fprefix
@@ -70,6 +72,7 @@
 # * Fconfopts
 # * LDFLAGS
 ###
+Fpkversep="-"
 Fsrcdir="$startdir/src"
 Fdestdir="$startdir/pkg"
 Fprefix="/usr"
@@ -110,7 +113,7 @@ Fcd() {
 			cd "$Fsrcdir/$1" || Fdie
 		elif [ "$#" -eq 0 ]; then
 			if [ -z "$_F_cd_path" ]; then
-				_F_cd_path="$pkgname-$pkgver$pkgextraver"
+				_F_cd_path="$pkgname$Fpkversep$pkgver$pkgextraver"
 			fi
 			Fcd "$_F_cd_path"
 		fi
@@ -787,27 +790,32 @@ Fautoreconf() {
 }
 
 ###
+# * Flastarchive: Extracts version from a page's last archive.
+# Extension of the archive is given as argument.
+###
+Flastarchive() {
+	grep "\($1\)\(\$\|\#\)"|sed -n "s/.*$Fpkversep\(.*\)\($1\).*/\1/;$ p"
+}
+
+###
 # * Flasttar(): Extracts version from a page's last tar.gz link.
 ###
-Flasttar()
-{
-	grep 'tar.gz\($\|#\)'|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'
+Flasttar() {
+	Flastarchive '\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
 }
 
 ###
 # * Flasttgz(): Extracts version from a page's last tgz link.
 ###
-Flasttgz()
-{
-	grep 'tgz\($\|#\)'|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'
+Flasttgz() {
+	Flastarchive '\.tgz'
 }
 
 ###
 # * Flasttarbz2(): Extracts version from a page's last tar.bz2 link.
 ###
-Flasttarbz2()
-{
-	grep 'tar.bz2\($\|#\)'|sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'
+Flasttarbz2() {
+	Flastarchive '\.tar\.bz2'
 }
 
 ###
@@ -815,7 +823,7 @@ Flasttarbz2()
 ##
 Fup2gnugz()
 {
-	up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname-\(.*\).tar.gz$'|sort -n -r|head -n1|Flasttar"
+	up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname$Fpkversep\(.*\).tar.gz$'|sort -n -r|head -n1|Flasttar"
 }
 
 ###
@@ -823,7 +831,7 @@ Fup2gnugz()
 ##
 Fup2gnubz2()
 {
-        up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname-\(.*\).tar.bz2$'|sort -n -r|head -n1|Flasttarbz2"
+        up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname$Fpkversep\(.*\).tar.bz2$'|sort -n -r|head -n1|Flasttarbz2"
 }
 
 ###

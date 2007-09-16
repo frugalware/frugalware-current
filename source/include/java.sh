@@ -80,8 +80,8 @@ Fgcj()
 	if [ ! -d "`dirname $output`" ]; then
 		mkdir -p "`dirname $output`" || Fdie
 	fi
-	echo "gcj $CFLAGS --main=$main -o $output $@"
-	gcj $CFLAGS --main=$main -o $output $@ || Fdie
+	echo "gcj ${CFLAGS/O2/O0} --main=$main -o $output $@"
+	gcj ${CFLAGS/O2/O0} --main=$main -o $output $@ || Fdie
 }
 
 ###
@@ -95,8 +95,8 @@ Fgcjshared()
 	if [ ! -d "`dirname $output`" ]; then
 		mkdir -p "`dirname $output`" || Fdie
 	fi
-	echo "gcj -shared $CFLAGS $_F_java_cflags $_F_java_ldflags -o $output $@"
-	gcj -shared $CFLAGS $_F_java_cflags $_F_java_ldflags -o $output $@ || Fdie
+	echo "gcj -shared ${CFLAGS/O2/O0} $_F_java_cflags $_F_java_ldflags -o $output $@"
+	gcj -shared ${CFLAGS/O2/O0} $_F_java_cflags $_F_java_ldflags -o $output $@ || Fdie
 }
 
 ###

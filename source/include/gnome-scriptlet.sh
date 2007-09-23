@@ -30,7 +30,7 @@
 # Finclude gnome-scriptlet
 # sha1sums=('e43940d202e6af08ac69ec8129fa52be2a99300d')
 # --------------------------------------------------
-# NOTE: Please don't forget to include the necessary packgages (scrollkeeper,
+# NOTE: Please don't forget to include the necessary packgages (rarian,
 # desktop-file-utils etc.) in the depends(). At the moment gnome-scriptlet.sh
 # won't do this for you.
 #
@@ -38,7 +38,7 @@
 # * _F_gnome_schemas() - if declared, gconf will be called to register them
 # * _F_gnome_entries() - same as above except for gconf .entries files
 # * _F_gnome_desktop - set to "y" if your package provides a .desktop file
-# * _F_gnome_scrollkeeper - set to "y" if you want to run scrollkeeper
+# * _F_gnome_scrollkeeper - set to "y" if you want to run rarian
 # * _F_gnome_mime - set to "y" if your package provides a mime type
 # * _F_gnome_iconcache - set to "y" if your package provides an icon in
 # /usr/share/icons/hicolor

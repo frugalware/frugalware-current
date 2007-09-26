@@ -83,8 +83,8 @@ Farchs=('i686' 'x86_64' 'ppc')
 Fconfopts="--prefix=$Fprefix"
 _gccver=`gcc -dumpversion`
 if [ "${_gccver%%.?}" == "4.2" ]; then
-	[ -n "$CFLAGS" ] && export CFLAGS="$CFLAGS -fno-strict-aliasing"
-	[ -n "$CXXFLAGS" ] && export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing"
+	export CFLAGS="$CFLAGS -fno-strict-aliasing"
+	export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing"
 fi
 export LDFLAGS="-Wl,--hash-style=both"
 

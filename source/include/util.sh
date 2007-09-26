@@ -81,11 +81,10 @@ Flocalstatedir="/var"
 Fmenudir="/usr/share/applications"
 Farchs=('i686' 'x86_64' 'ppc')
 Fconfopts="--prefix=$Fprefix"
-if [ -n "$CFLAGS" ]; then
-	_gccver=`gcc -dumpversion`
-	if [ "${_gccver%%.?}" == "4.2" ]; then
-		export CFLAGS="$CFLAGS -fno-strict-aliasing"
-	fi
+_gccver=`gcc -dumpversion`
+if [ "${_gccver%%.?}" == "4.2" ]; then
+	[ -n "$CFLAGS" ] && export CFLAGS="$CFLAGS -fno-strict-aliasing"
+	[ -n "$CXXFLAGS" ] && export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing"
 fi
 export LDFLAGS="-Wl,--hash-style=both"
 

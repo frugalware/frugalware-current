@@ -61,6 +61,7 @@ Fmonocleanup() {
 # * Fbuild_mono(): improves build() to make use of these functions
 ###
 Fbuild_mono() {
+	unset MAKEFLAGS
 	Fmonoexport
 	Fbuild
 	Fmonocompileaot

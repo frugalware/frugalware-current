@@ -17,21 +17,25 @@
 
 XML_PATH = /usr/share/sgml/docbook/dtd/xml-dtd-4.2
 
-all: $(subst .sh,.sh.3,$(wildcard *.sh))
+all: $(subst .sh,.sh.3,$(wildcard *.sh)) fwmakepkg.3
 
 stat:
 	@echo $(shell ls *.3|wc -l)/$(shell ls *.sh|wc -l)
 
 %.sh.txt: %.sh
-	sed -n 's/^#\( \|$$\)//;/^###/,/^###/p' $(basename $@)|sed 's/^###//' > $@
+	sed -n 's/^#\( \|$$\)//;/^###/,/^###/p' $^|sed 's/^###//' > $@
 
-%.sh.xml: %.sh.txt
-	asciidoc -d manpage -b docbook $(basename $@).txt
+%.xml: %.txt
+	asciidoc -d manpage -b docbook $^
 	sed -i '/<!DOCTYPE/s|\("http[^"].*"\)|"file://$(XML_PATH)/docbookx.dtd"|' $@
 
-%.sh.3: %.sh.xml
-	xsltproc --nonet --path $(XML_PATH) /etc/asciidoc/docbook-xsl/manpage.xsl $(basename $@).xml
+%.3: %.xml
+	xsltproc --nonet --path $(XML_PATH) /etc/asciidoc/docbook-xsl/manpage.xsl $^
 	sed -i 's/\\(bu/*/' $@
+
+fwmakepkg.txt: fwmakepkg.txt.in $(wildcard *.sh)
+	cat fwmakepkg.txt.in > fwmakepkg.txt
+	ls *.sh|sed '$$!s/\(.*\)$$/\*\1\*(3),/;$$s/\(.*\)$$/*\1*(3)/' >> fwmakepkg.txt
 
 clean:
 	rm -f *.3 *.txt *.xml

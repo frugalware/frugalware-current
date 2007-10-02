@@ -67,7 +67,7 @@
 # * _F_scm_url: url of the repo - required
 # * _F_scm_password: password of the repo - required for cvs
 # * _F_scm_module: name of the module to check out - required for cvs
-# * _F_scm_tag: name of the tag/branch to use - implemented for darcs/cvs/git
+# * _F_scm_tag: name of the tag/branch to use - implemented for darcs/cvs/svn/git
 ###
 
 # slice the / suffix if there is any
@@ -128,7 +128,11 @@ Funpack_scm()
 		fi
 		Fcd $_F_scm_module
 	elif [ "$_F_scm_type" == "subversion" ]; then
-		svn co $_F_scm_url $pkgname || Fdie
+		if [ -z "$_F_scm_tag" ]; then
+			svn co $_F_scm_url $pkgname || Fdie
+		else
+			svn co -r $_F_scm_tag $_F_scm_url $pkgname || Fdie
+		fi
 		Fcd $pkgname
 	elif [ "$_F_scm_type" == "git" ]; then
 		if [ -d $pkgname ]; then

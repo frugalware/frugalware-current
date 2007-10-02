@@ -60,7 +60,6 @@
 # --------------------------------------------------
 # _F_scm_type="subversion"
 # _F_scm_url="svn://svn.mplayerhq.hu/mplayer/trunk"
-# _F_scm_module="mplayer"
 # --------------------------------------------------
 # == OPTIONS
 # * _F_scm_type: can be darcs, cvs, subversion, git, mercurial or bzr - required

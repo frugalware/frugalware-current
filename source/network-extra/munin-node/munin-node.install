@@ -1,24 +1,27 @@
 post_install()
 {
-	# if munin pkg not installed then create user&group
-	if [ ! -f /usr/bin/munin-cron ]; then
-	    /usr/sbin/groupadd munin
-	    /usr/sbin/useradd -g munin -d /var/lib/munin -s /bin/false \
-		-c "Munin User" munin
+	if ! grep -q '^munin:' /etc/group ; then
+		groupadd -g 47 munin
 	fi
-	
+	if ! grep -q '^munin:' /etc/passwd ; then
+		useradd -u 47 -g 47 -s /bin/false -c "Munin User" -d /var/lib/munin munin
+	fi
+
+	# permissions
+	chown -R munin:munin /var/log/munin
+	chown -R munin:munin /var/lib/munin
+	chown -R munin:munin /var/run/munin
+
 	# init plugins
-	echo -n "Initializing plugins.."
-        munin-node-configure --shell | sh
-	echo " done."
+	munin-node-configure --shell | sh
 }
 
 pre_remove()
 {
 	test -d /etc/munin/plugins/ && for plugin in $(find /etc/munin/plugins/ -type l); do
-	    if [ ! -e $(readlink $plugin) ]; then
-	    rm $plugin
-	    fi
+		if [ ! -e $(readlink $plugin) ]; then
+			rm $plugin
+		fi
 	done
 }
 
@@ -26,8 +29,8 @@ post_remove()
 {
 	# if munin pkg installed then don't remove user&group
 	if [ ! -f /usr/bin/munin-cron ]; then
-            /usr/sbin/userdel -r munin >/dev/null 2>&1
-            /usr/sbin/groupdel munin >/dev/null 2>&1
+		/usr/sbin/userdel -r munin >/dev/null 2>&1
+		/usr/sbin/groupdel munin >/dev/null 2>&1
 	fi
 	
 	# delete dangling symlinks
@@ -37,9 +40,7 @@ post_remove()
 
 post_upgrade()
 {
-        echo -n "Initializing new plugins.."
-        munin-node-configure --shell --newer "${0%-*}" | sh
-	echo " done."
+	munin-node-configure --shell --newer "${0%-*}" | sh
 }
 
 op=$1

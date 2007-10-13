@@ -1,1 +1,1 @@
-export PATH=$PATH:/usr/lib/acroread/bin
+export PATH=$PATH:/usr/lib/acroread/Adobe/Reader8/bin

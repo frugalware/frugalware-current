@@ -6,19 +6,20 @@ cd `dirname $0`/../repos
 : > projects.list.new
 for i in `rsync $server|sed 's/.* \([^ ]\)/\1/;1 d'`
 do
+	giturl=`python -c "import os; sock = os.popen('rsync -l $server/$i'); buf = sock.read(); sock.close(); print 'git://git.frugalware.org' + os.path.abspath('$server/$i/../'[len('rsync://rsync.frugalware.org'):] + buf.split(' -> ')[1].strip())"`
 	if [ -d $i.git ]; then
 		cd $i.git
 		git fetch -q origin
 	else
-		git clone --bare -q $server/$i/.git $i.git
+		git clone --bare -q $giturl $i.git
 		cd $i.git
-		git remote add --mirror origin $server/$i/.git
+		git remote add --mirror origin $giturl
 	fi
 	cd ..
 	rsync $server/$i/.git/owner $i.git/
 	rsync $server/$i/.git/description $i.git/
-	echo "Anonymous Access: http://git.frugalware.org/repos/$i/.git" > $i.git/cloneurl
-	python -c "import os; sock = os.popen('rsync -l $server/$i'); buf = sock.read(); sock.close(); print 'Developer Access: \${USER}@git.frugalware.org:/home/ftp' + os.path.abspath('$server/$i/../'[len('rsync://rsync.frugalware.org'):] + buf.split(' -> ')[1].strip())" >> $i.git/cloneurl
+	echo "$giturl" > $i.git/cloneurl
+	echo "http://git.frugalware.org/repos/$i/.git" >> $i.git/cloneurl
 	if [ -f $i.git/owner ]; then
 		owner=$(python -c "from urllib import urlencode; owner='$(cat $i.git/owner)'; print urlencode({'':owner.strip()})[1:]")
 	else

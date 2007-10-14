@@ -24,8 +24,10 @@ for i in ['frugalware-%s' % arch]:
 	pacman.initialize(root)
 	if os.getcwd().split('/')[-2] == "frugalware-current":
 		treename = "frugalware-current"
+		archive = treename
 	else:
 		treename = "frugalware"
+		archive = treename + "-stable"
 	db = pacman.db_register(treename)
 	pacman.db_setserver(db, "file://" + os.getcwd() + "/../frugalware-" + arch)
 	pacman.db_update(1, db)
@@ -43,4 +45,4 @@ for i in ['frugalware-%s' % arch]:
 		if j not in fdb and j != treename + ".fdb":
 			print "frugalware-" + arch + "/" + j
 			if remove:
-				os.unlink("../frugalware-" + arch + "/" + j)
+				os.rename("../frugalware-" + arch + "/" + j, "/home/ftp/pub/archive/fpmjunk/" + archive + "/frugalware-" + arch + "/" + j)

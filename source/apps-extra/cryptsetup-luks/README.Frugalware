@@ -1,31 +1,113 @@
 Follow these steps to when using `cryptsetup-luks`:
 
-Creating
-~~~~~~~~
+=== Creating
 
 ----
-cryptsetup luksFormat /dev/partition
-cryptsetup luksOpen /dev/partition label
-mke2fs -j /dev/mapper/label
-mount /dev/mapper/label /mnt/label
+# cryptsetup luksFormat /dev/partition
+# cryptsetup luksOpen /dev/partition label
+# mke2fs -j /dev/mapper/label
+# mount /dev/mapper/label /mnt/label
 ----
 
-Mounting
-~~~~~~~~
+=== Mounting
 
 Of course later you don't have to use `luksFormat` and `mke2fs`:
 
 ----
-cryptsetup luksOpen /dev/partition label
-mount /dev/mapper/label /mnt/label
+# cryptsetup luksOpen /dev/partition label
+# mount /dev/mapper/label /mnt/label
 ----
 
-Umounting
-~~~~~~~~~
+=== Umounting
 
 ----
-umount /mnt/label
-cryptsetup luksClose label
+# umount /mnt/label
+# cryptsetup luksClose label
 ----
 
-Really simple :-)
+=== Encrypting your home partition
+
+NOTE: You have need to install the `sharutils` package to do the followings!
+
+* List these modules in `/etc/sysconfig/modules`:
+
+----
+aes
+aes-i586
+sha256
+dm-crypt
+----
+
+* Move all data from `/home` to a secure place (in this example
+`/media/sda1/home`)
+
+----
+# cp -arvx /home /media/sda1/
+----
+
+* Umount `/home` (in this example `/dev/hda6`) and fill it with random
+numbers:
+
+----
+# umount /home
+# dd if=/dev/urandom of=/dev/hda6
+----
+
+* Create the encrypted partition:
+
+----
+# cryptsetup -y luksFormat /dev/hda6
+----
+
+Here we will be asked for a password which will be necessary to access `/home`
+at boot time.
+
+* Open the encrypted partition and create its file system (`ext3` in this
+example):
+
+----
+# cryptsetup luksOpen /dev/hda6 home
+# mkfs.ext3 /dev/mapper/home
+----
+
+* Mount the home partition and copy the contents of original home:
+
+----
+# mount /dev/mapper/home /home
+# cp -arvx /media/sda1/home /home
+----
+
+* Edit the home related line in `/etc/fstab`:
+
+----
+/dev/mapper/home	/home	ext3	noatime	0	0
+----
+
+* Create `/etc/rc.d/rc.crypt` script with the following content:
+
+----
+#!/bin/sh
+
+/usr/sbin/cryptsetup luksOpen /dev/hda6 home
+/bin/mount /dev/mapper/home /home
+----
+
+* Enable it:
+
+----
+# ln -s /etc/rc.d/rc.crypt /etc/rc.d/rcS.d/S15rc.crypt
+----
+
+You have to delay the splash screen, so that you can type your password before
+the splash appears:
+
+----
+# mv /etc/rc.d/rcS.d/S03rc.splash /etc/rc.d/rcS.d/S15rc.splash
+----
+
+(It will ask the password between the lvm and the splash service.)
+
+Now the system can be restarted and the password will be asked to access home
+partition boot-time.
+
+NOTE: The English keyboard map will be used at that point of the boot process.

@@ -32,6 +32,7 @@
 # * pkgname
 # * pkgrel
 # * url
+# * depends()
 # * rodepends()
 # * groups()
 # * archs()
@@ -42,6 +43,7 @@ pkgname=vim-spell-$_F_vim_lang
 pkgrel=1
 pkgdesc="$_F_vim_desc spellcheck files for VIM."
 url="http://ftp.vim.org/pub/vim/unstable/runtime/spell/"
+depends=()
 rodepends=('vim>=7.0')
 groups=('locale-extra')
 archs=('i686' 'x86_64')

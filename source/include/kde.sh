@@ -66,7 +66,7 @@ fi
 ## TODO: add mirror option
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	url="http://www.kde.org"
-	_F_kde_ver=3.5.7
+	_F_kde_ver=3.5.8
 	pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$_F_kde_ver/src"
 	up2date="lynx -dump http://www.kde.org/download/|grep '$_F_kde_name'|sed -n '1 p'|sed 's/.*-\([^ ]*\) .*/\1/'"
 	source=($pkgurl/$_F_kde_name-$pkgver.tar.bz2)

@@ -23,7 +23,7 @@
 # NOTE: You don't need to use Finclude util, it is automatically included.
 #
 # == OPTIONS
-# * _F_cd_path (defaults to $pkgname$Fpkversep$pkgver$pkgextraver)
+# * _F_cd_path (defaults to $pkgname$Fpkgversep$pkgver$pkgextraver)
 # * _F_conf_configure (defaults to ./configure)
 # * _F_conf_perl_pipefrom: if set, pipe the output of this command in Fconf()
 # for perl packages
@@ -72,7 +72,7 @@
 # * Fconfopts
 # * LDFLAGS
 ###
-Fpkversep="-"
+Fpkgversep="-"
 Fsrcdir="$startdir/src"
 Fdestdir="$startdir/pkg"
 Fprefix="/usr"
@@ -118,7 +118,7 @@ Fcd() {
 			cd "$Fsrcdir/$1" || Fdie
 		elif [ "$#" -eq 0 ]; then
 			if [ -z "$_F_cd_path" ]; then
-				_F_cd_path="$pkgname$Fpkversep$pkgver$pkgextraver"
+				_F_cd_path="$pkgname$Fpkgversep$pkgver$pkgextraver"
 			fi
 			Fcd "$_F_cd_path"
 		fi
@@ -799,7 +799,7 @@ Fautoreconf() {
 # Extension of the archive is given as argument.
 ###
 Flastarchive() {
-	grep "\($1\)\(\$\|\#\)"|sed -n "s/.*$Fpkversep\(.*\)\($1\).*/\1/;$ p"
+	grep "\($1\)\(\$\|\#\)"|sed -n "s/.*$Fpkgversep\(.*\)\($1\).*/\1/;$ p"
 }
 
 ###
@@ -828,7 +828,7 @@ Flasttarbz2() {
 ##
 Fup2gnugz()
 {
-	up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname$Fpkversep\(.*\).tar.gz$'|sort -n -r|head -n1|Flasttar"
+	up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname$Fpkgversep\(.*\).tar.gz$'|sort -n -r|head -n1|Flasttar"
 }
 
 ###
@@ -836,7 +836,7 @@ Fup2gnugz()
 ##
 Fup2gnubz2()
 {
-        up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname$Fpkversep\(.*\).tar.bz2$'|sort -n -r|head -n1|Flasttarbz2"
+        up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|grep '$pkgname$Fpkgversep\(.*\).tar.bz2$'|sort -n -r|head -n1|Flasttarbz2"
 }
 
 ###

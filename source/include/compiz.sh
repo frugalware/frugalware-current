@@ -39,9 +39,9 @@ if [ -z "$_F_compiz_name" ]; then
 fi
 
 if [ -z "$_F_compiz_version" ]; then
-	_F_compiz_version=$pkgver
-else
 	_F_compiz_version=$compizver
+else
+	_F_compiz_version=$pkgver
 fi
 
 ###

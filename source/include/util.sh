@@ -824,7 +824,7 @@ Flasttarbz2() {
 }
 
 ###
-# * Fup2gnugz(): Up2date line for programs hosted at ftp.gnu.org ( tar.gz )
+# * Fup2gnugz(): Up2date line for programs hosted at ftp.gnu.org ( tar.gz ).
 ##
 Fup2gnugz()
 {
@@ -832,7 +832,7 @@ Fup2gnugz()
 }
 
 ###
-# * Fup2gnubz2(): Up2date line for programs hosted at ftp.gnu.org ( tar.bz2 )
+# * Fup2gnubz2(): Up2date line for programs hosted at ftp.gnu.org ( tar.bz2 ).
 ##
 Fup2gnubz2()
 {

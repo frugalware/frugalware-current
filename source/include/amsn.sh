@@ -42,7 +42,7 @@ fi
 # == OVERWRITTEN VARIABLES
 # * groups
 ###
-groups=('xapps-extra' 'amsn-plugin')
+groups=('xapps-extra' 'amsn-plugins')
 
 ###
 # == APPENDED VARIABLES

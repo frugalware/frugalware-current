@@ -90,7 +90,7 @@ options=(${options[@]} 'scriptlet')
 ###
 Fbuild_kernelmod_scriptlet()
 {
-	cp $Fincdir/kernel-module.install $Fsrcdir
+	cp $Fincdir/kernel-module.install ${Fsrcdir%/src}
 	Fsed '$_F_kernelmod_uname' "$_F_kernelmod_uname" ${Fsrcdir%/src}/$_F_kernelmod_scriptlet
 }
 

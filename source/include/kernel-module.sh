@@ -50,6 +50,7 @@ Finclude kernel-version
 # info.
 #
 # == OPTIONS
+# * _F_kernelmod_scriptlet: the kernel module install script
 # * _F_kernelmod_name: build module for a custom kernel - built using
 # _F_kernel_name (optional, defaults to "")
 # * _F_kernelmod_ver: kernel version (required if _F_kernelmod_name is set)
@@ -63,6 +64,9 @@ Finclude kernel-version
 # * makedepends()
 # * install
 ###
+if [ -z "$_F_kernelmod_scriptlet" ]; then
+	_F_kernelmod_scriptlet="kernel-module.install"
+fi
 if [ -z "$_F_kernelmod_name" ]; then
 	_F_kernelmod_ver="$_F_kernelver_ver"
 	_F_kernelmod_rel="$_F_kernelver_rel"
@@ -72,13 +76,23 @@ _F_kernelmod_pkgver=$_F_kernelmod_ver-$_F_kernelmod_rel
 _F_kernelmod_dir=/lib/modules/$_F_kernelmod_uname
 depends=("kernel$_F_kernelmod_name=$_F_kernelmod_pkgver")
 makedepends=("kernel$_F_kernelmod_name-source=$_F_kernelmod_pkgver")
-install=$Fincdir/kernel-module.install
+install=$_F_kernelmod_scriptlet
 
 ###
 # == APPENDED VARIABLES
 # * scriptlet to options()
 ###
 options=(${options[@]} 'scriptlet')
+
+###
+# * Fbuild_kernelmod_scriptlet() generates a scriptlet for the given package from
+# the template according to the declared options
+###
+Fbuild_kernelmod_scriptlet()
+{
+	cp $Fincdir/kernel-module.install ${Fsrcdir%/src}
+	Fsed '$_F_kernelmod_uname' "$_F_kernelmod_uname" ${Fsrcdir%/src}/$_F_kernelmod_scriptlet
+}
 
 ###
 # == PROVIDED FUNCTIONS

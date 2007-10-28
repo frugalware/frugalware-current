@@ -1,0 +1,193 @@
+diff -Naur linux-wlan-ng-0.2.8/CHANGES linux-wlan-ng-export/CHANGES
+--- linux-wlan-ng-0.2.8/CHANGES	2007-05-04 14:29:27.000000000 +0200
++++ linux-wlan-ng-export/CHANGES	2007-10-16 16:07:27.000000000 +0200
+@@ -41,6 +41,11 @@
+ * Intersil Corporation as part of PRISM(R) chipset product development.
+ *
+ * --------------------------------------------------------------------
++ - Support 2.6.23 kernels. (With apologies to Martin Dauskardt for a 
++   misapplied patch)
++ - Support "Intersil Americas USB 802.11b WLAN DEVICE" (Peter Levart)
++ - Tweaks to support Fedora 7 (Dan Williams)
++ - Support 2.6.22 kernels
+ 0.2.8
+  - Fix up a pile of sparse warnings (Pavel Roskin)
+  - Support 2.6.20 kernels (Pavel Roskin)
+diff -Naur linux-wlan-ng-0.2.8/Configure linux-wlan-ng-export/Configure
+--- linux-wlan-ng-0.2.8/Configure	2007-05-08 00:00:22.000000000 +0200
++++ linux-wlan-ng-export/Configure	2007-10-16 16:43:56.000000000 +0200
+@@ -277,9 +277,9 @@
+ fi
+ write_bool KERN_2_6_17
+ 
+-if [ $VERSION_CODE -gt `version 2 6 21` ] ; then
++if [ $VERSION_CODE -gt `version 2 6 22` ] ; then
+     $ECHO "******* WARNING WARNING WARNING *******"
+-    $ECHO "Kernels newer than 2.6.21.x are not supported."
++    $ECHO "Kernels newer than 2.6.23.x are not supported."
+     $ECHO "******* WARNING WARNING WARNING *******"
+ fi
+ 
+diff -Naur linux-wlan-ng-0.2.8/etc/udev/rules.d/40-prism2.rules linux-wlan-ng-export/etc/udev/rules.d/40-prism2.rules
+--- linux-wlan-ng-0.2.8/etc/udev/rules.d/40-prism2.rules	2006-06-26 17:03:27.000000000 +0200
++++ linux-wlan-ng-export/etc/udev/rules.d/40-prism2.rules	2007-06-20 16:53:45.000000000 +0200
+@@ -1 +1,2 @@
+-ACTION=="add",BUS=="usb",DRIVER=="prism2_usb" ,RUN+="/etc/wlan/wlan-udev.sh %k"
++#ACTION=="add",BUS=="usb",DRIVER=="prism2_usb" ,RUN+="/etc/wlan/wlan-udev.sh %k"
++KERNEL="wlan*",ACTION=="add",DRIVERS=="prism2_usb" ,RUN+="/etc/wlan/wlan-udev.sh %k"
+diff -Naur linux-wlan-ng-0.2.8/Makefile linux-wlan-ng-export/Makefile
+--- linux-wlan-ng-0.2.8/Makefile	2005-02-24 18:59:10.000000000 +0100
++++ linux-wlan-ng-export/Makefile	2007-10-16 16:43:56.000000000 +0200
+@@ -76,6 +76,8 @@
+ all:    config.mk
+ 	set -e; for d in $(DIRS); do $(MAKE) -C $$d ; done
+ 
++distclean: mrproper
++
+ mrproper: clean
+ 	rm -f config.out
+ 	rm -f tags.linux tags TAGS
+diff -Naur linux-wlan-ng-0.2.8/src/include/wlan/wlan_compat.h linux-wlan-ng-export/src/include/wlan/wlan_compat.h
+--- linux-wlan-ng-0.2.8/src/include/wlan/wlan_compat.h	2007-02-28 16:44:02.000000000 +0100
++++ linux-wlan-ng-export/src/include/wlan/wlan_compat.h	2007-09-18 18:51:48.000000000 +0200
+@@ -479,6 +479,18 @@
+ #endif
+ #endif /* _LINUX_PROC_FS_H */
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)
++#define skb_reset_mac_header(__a)  (__a)->mac.raw = (__a)->data
++#define SKB_MAC_HEADER(__a) (__a)->mac.raw
++#else
++#define SKB_MAC_HEADER(__a) (__a)->mac_header
++#endif
++
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
++#define IRQF_DISABLED SA_INTERRUPT
++#define IRQF_SHARED   SA_SHIRQ
++#endif
++
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0))
+ #ifndef INIT_TQUEUE
+ #define PREPARE_TQUEUE(_tq, _routine, _data)                    \
+diff -Naur linux-wlan-ng-0.2.8/src/p80211/p80211conv.c linux-wlan-ng-export/src/p80211/p80211conv.c
+--- linux-wlan-ng-0.2.8/src/p80211/p80211conv.c	2007-03-19 16:37:00.000000000 +0100
++++ linux-wlan-ng-export/src/p80211/p80211conv.c	2007-10-16 16:44:37.000000000 +0200
+@@ -497,8 +497,16 @@
+ 
+ 	}
+ 
++        /*
++         * Note that eth_type_trans() expects an skb w/ skb->data pointing
++         * at the MAC header, it then sets the following skb members:
++         * skb->mac_header, 
++         * skb->data, and
++         * skb->pkt_type.
++         * It then _returns_ the value that _we're_ supposed to stuff in
++         * skb->protocol.  This is nuts.
++         */
+ 	skb->protocol = eth_type_trans(skb, netdev);
+-	skb->mac.raw = (unsigned char *) e_hdr; /* new MAC header */
+ 
+         /* jkriegl: process signal and noise as set in hfa384x_int_rx() */
+ 	/* jkriegl: only process signal/noise if requested by iwspy */
+diff -Naur linux-wlan-ng-0.2.8/src/p80211/p80211netdev.c linux-wlan-ng-export/src/p80211/p80211netdev.c
+--- linux-wlan-ng-0.2.8/src/p80211/p80211netdev.c	2007-03-19 16:37:00.000000000 +0100
++++ linux-wlan-ng-export/src/p80211/p80211netdev.c	2007-09-18 18:39:19.000000000 +0200
+@@ -389,7 +389,8 @@
+ 
+ 				/* set up various data fields */
+ 				skb->dev = dev;
+-				skb->mac.raw = skb->data ;
++				skb_reset_mac_header(skb);
++
+ 				skb->ip_summed = CHECKSUM_NONE;
+ 				skb->pkt_type = PACKET_OTHERHOST;
+ 				skb->protocol = htons(ETH_P_80211_RAW); 
+@@ -929,8 +930,8 @@
+ 		dev->open =		p80211knetdev_open;
+ 		dev->stop =		p80211knetdev_stop;
+ 
+-#ifdef CONFIG_NET_WIRELESS
+-#if ((WIRELESS_EXT < 17) && (WIRELESS_EXT < 21))
++#if defined(CONFIG_NET_WIRELESS) || defined(WIRELESS_EXT)
++#if (WIRELESS_EXT < 17)
+ 		dev->get_wireless_stats = p80211wext_get_wireless_stats;
+ #endif
+ #if WIRELESS_EXT > 12
+diff -Naur linux-wlan-ng-0.2.8/src/prism2/driver/hfa384x.c linux-wlan-ng-export/src/prism2/driver/hfa384x.c
+--- linux-wlan-ng-0.2.8/src/prism2/driver/hfa384x.c	2007-03-19 16:37:00.000000000 +0100
++++ linux-wlan-ng-export/src/prism2/driver/hfa384x.c	2007-06-20 16:45:49.000000000 +0200
+@@ -3645,7 +3645,7 @@
+ 		/* the prism2 cards don't return the FCS */
+ 		datap = skb_put(skb, WLAN_CRC_LEN);
+ 		memset (datap, 0xff, WLAN_CRC_LEN);
+-		skb->mac.raw = skb->data;
++		skb_reset_mac_header(skb);
+ 
+ 		/* Attach the rxmeta, set some stuff */
+ 		p80211skb_rxmeta_attach(wlandev, skb);
+diff -Naur linux-wlan-ng-0.2.8/src/prism2/driver/hfa384x_usb.c linux-wlan-ng-export/src/prism2/driver/hfa384x_usb.c
+--- linux-wlan-ng-0.2.8/src/prism2/driver/hfa384x_usb.c	2007-03-19 16:37:00.000000000 +0100
++++ linux-wlan-ng-export/src/prism2/driver/hfa384x_usb.c	2007-06-20 16:45:49.000000000 +0200
+@@ -4255,7 +4255,7 @@
+ 		/* The prism2 series does not return the CRC */
+ 		memset(skb_put(skb, WLAN_CRC_LEN), 0xff, WLAN_CRC_LEN);
+ 
+-		skb->mac.raw = skb->data;
++		skb_reset_mac_header(skb);
+ 
+ 		/* Attach the rxmeta, set some stuff */
+ 		p80211skb_rxmeta_attach(wlandev, skb);
+diff -Naur linux-wlan-ng-0.2.8/src/prism2/driver/prism2_pci.c linux-wlan-ng-export/src/prism2/driver/prism2_pci.c
+--- linux-wlan-ng-0.2.8/src/prism2/driver/prism2_pci.c	2007-03-19 16:37:00.000000000 +0100
++++ linux-wlan-ng-export/src/prism2/driver/prism2_pci.c	2007-10-16 16:07:27.000000000 +0200
+@@ -163,7 +163,7 @@
+ 	 * _know_ things are alright.  A test routine would help.
+ 	 */
+        	request_irq(wlandev->netdev->irq, hfa384x_interrupt, 
+-		SA_SHIRQ, wlandev->name, wlandev);
++		    IRQF_SHARED, wlandev->name, wlandev);
+ 
+ 	wlandev->msdstate = WLAN_MSD_HWPRESENT;
+ 
+@@ -275,7 +275,7 @@
+ static int __init prism2pci_init(void)
+ {
+         WLAN_LOG_NOTICE("%s Loaded\n", version);
+-	return pci_module_init(&prism2_pci_drv_id);
++	return pci_register_driver(&prism2_pci_drv_id);
+ };
+ 
+ static void __exit prism2pci_cleanup(void)
+diff -Naur linux-wlan-ng-0.2.8/src/prism2/driver/prism2_plx.c linux-wlan-ng-export/src/prism2/driver/prism2_plx.c
+--- linux-wlan-ng-0.2.8/src/prism2/driver/prism2_plx.c	2007-03-19 16:37:00.000000000 +0100
++++ linux-wlan-ng-export/src/prism2/driver/prism2_plx.c	2007-10-16 16:07:27.000000000 +0200
+@@ -272,7 +272,7 @@
+ 	 * _know_ things are alright.  A test routine would help.
+ 	 */
+        	request_irq(wlandev->netdev->irq, hfa384x_interrupt, 
+-		SA_SHIRQ, wlandev->name, wlandev);
++		    IRQF_SHARED, wlandev->name, wlandev);
+ 
+ 	wlandev->msdstate = WLAN_MSD_HWPRESENT;
+ 
+@@ -420,7 +420,7 @@
+ static int __init prism2plx_init(void)
+ {
+         WLAN_LOG_NOTICE("%s Loaded\n", version);
+-	return pci_module_init(&prism2_plx_drv_id);
++	return pci_register_driver(&prism2_plx_drv_id);
+ };
+ 
+ static void __exit prism2plx_cleanup(void)
+diff -Naur linux-wlan-ng-0.2.8/src/prism2/driver/prism2_usb.c linux-wlan-ng-export/src/prism2/driver/prism2_usb.c
+--- linux-wlan-ng-0.2.8/src/prism2/driver/prism2_usb.c	2007-03-19 16:37:00.000000000 +0100
++++ linux-wlan-ng-export/src/prism2/driver/prism2_usb.c	2007-09-18 18:35:12.000000000 +0200
+@@ -13,6 +13,7 @@
+            .driver_info = (unsigned long) name
+ 
+ static struct usb_device_id usb_prism_tbl[] = {
++        {PRISM_USB_DEVICE(0x0707, 0xee04, "Intersil Americas USB 802.11b WLAN DEVICE")},
+ 	{PRISM_USB_DEVICE(0x04bb, 0x0922, "IOData AirPort WN-B11/USBS")},
+ 	{PRISM_USB_DEVICE(0x07aa, 0x0012, "Corega Wireless LAN USB Stick-11")},
+ 	{PRISM_USB_DEVICE(0x09aa, 0x3642, "Prism2.x 11Mbps WLAN USB Adapter")},

@@ -1,0 +1,86 @@
+--- lib/modules/fglrx/build_mod/firegl_public.c.orig	2007-08-10 23:59:21.000000000 +0200
++++ lib/modules/fglrx/build_mod/firegl_public.c	2007-08-13 20:00:26.000000000 +0200
+@@ -214,6 +214,56 @@
+ #define preempt_enable()
+ #endif
+ 
++#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,22)
++#if defined(__i386__)
++#define ptep_test_and_clear_dirty(vma, addr, ptep) ({                  \
++       int __ret = 0;                                                  \
++       if (pte_dirty(*(ptep)))                                         \
++               __ret = test_and_clear_bit(_PAGE_BIT_DIRTY,             \
++                                               &(ptep)->pte_low);      \
++       if (__ret)                                                      \
++               pte_update((vma)->vm_mm, addr, ptep);                   \
++       __ret;                                                          \
++})
++
++static inline int pte_read(pte_t pte)	{ return (pte).pte_low & _PAGE_USER; }
++static inline int pte_user(pte_t pte)	{ return (pte).pte_low & _PAGE_USER; }
++#ifdef CONFIG_X86_PAE
++/*
++ * Is the pte executable?
++ */
++static inline int pte_x(pte_t pte)
++{
++        return !(pte_val(pte) & _PAGE_NX);
++}
++ 
++/*
++ * All present user-pages with !NX bit are user-executable:
++ */
++static inline int pte_exec(pte_t pte)
++{
++        return pte_user(pte) && pte_x(pte);
++}
++#else
++static inline int pte_exec(pte_t pte)
++{
++        return pte_user(pte);
++}
++#endif	/* PAE */
++
++#elif defined(__x86_64__)
++static inline int ptep_test_and_clear_dirty(struct vm_area_struct *vma,
++					unsigned long addr, pte_t *ptep)
++{
++	if (!pte_dirty(*ptep))
++		return 0;
++	return test_and_clear_bit(_PAGE_BIT_DIRTY, &ptep->pte);
++}
++static inline int pte_read(pte_t pte)	{ return pte_val(pte) & _PAGE_USER; }
++static inline int pte_exec(pte_t pte)	{ return !(pte_val(pte) & _PAGE_NX); }
++#endif
++#endif
++
+ // ============================================================
+ /* globals */
+ 
+@@ -2356,7 +2406,7 @@ void ATI_API_CALL __ke_put_vm_page_table
+ #ifndef ptep_clear_flush_dirty
+ #define ptep_clear_flush_dirty(__vma, __address, __ptep) \
+ ({							 \
+-    int __dirty = ptep_test_and_clear_dirty(__ptep);	 \
++    int __dirty = ptep_test_and_clear_dirty(__vma, __address, __ptep);	 \
+     if (__dirty)					 \
+         flush_tlb_page(__vma, __address);		 \
+     __dirty;						 \
+@@ -5303,7 +5353,7 @@ unsigned int ATI_API_CALL KAS_Spinlock_R
+ /** \brief Type definition of the structure describing Slab Cache object */
+ typedef struct tag_kasSlabCache_t
+ {
+-    kmem_cache_t* cache;        /* OS slab cache object */
++    struct kmem_cache *cache;	/* OS slab cache object */
+     spinlock_t lock;            /* OS spinlock object protecting the cache */
+     unsigned int routine_type;  /* Type of routine the cache might be accessed from */
+     char name[14];              /* Cache object name (kernel 2.4 restricts its length to 19 chars) */
+@@ -5349,7 +5399,7 @@ unsigned int ATI_API_CALL KAS_SlabCache_
+     DBG_TRACE("creating slab object '%s'", slabcache_obj->name);
+ 
+     if ((slabcache_obj->cache =
+-            kmem_cache_create(slabcache_obj->name, iEntrySize, 0, 0, NULL, NULL)))
++            kmem_cache_create(slabcache_obj->name, iEntrySize, 0, 0, NULL)))
+     {
+         ret = 1;
+     }

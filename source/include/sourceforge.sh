@@ -32,13 +32,16 @@
 # * _F_sourceforge_name (defaults to $pkgname): if you want to use a custom
 # package name (for example the upstream name contains uppercase letters) then
 # use this to declare the real name
-# * _F_sourceforge_mirror (defaults to heanet): the sourceforge mirror to use
+# * _F_sourceforge_mirror (defaults to mesh): the sourceforge mirror to use
 # * _F_sourceforge_dirname (default to $_F_sourceforge_name): if the source
 # tarball uses a name different to the sourceforge project name, then use this
 # option to declare the project name
 # * _F_sourceforge_ext (defaults to .tar.gz): extension of the source tarball
 # * _F_sourceforge_broken_up2date: if set, try an other method for up2date, try
 # this if the normal up2date does not work, maybe this will
+# *_F_sourceforge_prefix (no defaults):  used to correct the standard up2date
+# but does not work when _F_sourceforge_broken_up2date is set. As example $pkgver
+# should be 1.2.3 but you get V1.2.3 in such a case you can set _F_sourceforge_prefix="V"
 ###
 if [ -z "$_F_sourceforge_name" ]; then
 	_F_sourceforge_name=$pkgname

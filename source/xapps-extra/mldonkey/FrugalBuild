@@ -1,0 +1,63 @@
+# Compiling Time: 0.67 SBU
+# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
+
+pkgname=mldonkey
+pkgver=2.9.2
+pkgrel=1
+pkgdesc="mldonkey is a new client to access the eDonkey network."
+_F_sourceforge_ext=".tar.bz2"
+Finclude sourceforge
+source=($source mldonkey-stop-mlnet  mldonkey-wrapper)
+depends=('librsvg' 'gd' 'lablgtk2>=2.10.0' 'lablgtk2-rsvg>=2.10.0' \
+	'file' 'libstdc++' 'zlib')
+makedepends=('rpm') # weird 
+rodepends=('wget')
+options=('scriptlet')
+groups=('xapps-extra')
+archs=('x86_64' 'i686')
+sha1sums=('59c4216a67876a3af7015f7826c960306650ae34' \
+          'afe04b3baec6306375b8550a86978ca648d98a5a' \
+          '437e8f224c89cc8b6aedcdeeb5172eeed14cd9f4')
+
+build()
+{
+	Fcd
+	unset MAKEFLAGS
+	Fconf \
+		--sysconfdir=/etc/mldonkey \
+	    	--sharedstatedir=/var/mldonkey \
+	    	--localstatedir=/var/mldonkey \
+	    	--enable-checks \
+	    	--enable-pthread \
+	    	--enable-pthread-lib \
+	    	--enable-gui=newgui2 \
+		--enable-gnutella2 \
+		--enable-gnutella
+	# NOTE gnutella* is not maintained but is working fine 
+	# at the moment so we can use it
+	export OCAMLRUNPARAM="l=256M"
+	make || Fdie
+	Fmakeinstall
+	## Some strange HACKS for now but I don't want to add any _init_ scripts
+	## Running this as root or system users is _weird_. There is a option to
+	## run_as_user but I don't like that right now =)
+	## TODO : Do this better and add some config file
+	Ffilerel packages/rpm/mldonkey-icon-48.png /usr/share/pixmaps/$pkgname.png
+	_F_desktop_name="MLDonkey GUI"
+	_F_desktop_icon="$pkgname.png"
+	_F_desktop_exec="/usr/bin/$pkgname-wrapper"
+	_F_desktop_categories="GTK;Network;P2P;"
+	Fdesktop2
+	_F_desktop_name="Stop MLNet Daemon"
+	_F_desktop_desc="Wrapper for stopping MLNet."
+	_F_desktop_icon="$pkgname.png"
+	_F_desktop_exec="/usr/bin/$pkgname-stop-mlnet"
+	_F_desktop_filename="$pkgname-mlnet"
+	_F_desktop_categories="GTK;Network;P2P;"
+	Fdesktop2
+	Fsed "StartupNotify=.*" "StartupNotify=false" $Fdestdir/$Fmenudir/$pkgname-mlnet.desktop
+	Fexe /usr/bin/$pkgname-wrapper
+	Fexe /usr/bin/$pkgname-stop-mlnet	 
+}
+
+# optimization OK

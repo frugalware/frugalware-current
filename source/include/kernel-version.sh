@@ -18,4 +18,4 @@
 # don't touch these!
 _F_kernelver_ver=2.6.22
 _F_kernelver_rel=6
-_F_kernelver_stable=9
+_F_kernelver_stable=10

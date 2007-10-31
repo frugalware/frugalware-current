@@ -445,9 +445,9 @@ Fpatch() {
 	Fcd
 	local i level="1"
 	Fmessage "Using patch: $1"
-	if [ -n "`echo "$1" | grep '\.\(patch[0-9]*\|diff\)\.gz$'`" ]; then
+	if [ -n "`echo "$1" | grep '\.gz$'`" ]; then
 		i=`basename "$1" .gz`
-	elif [ -n "`echo "$1" | grep '\.\(patch[0-9]*\|diff\)\.bz2$'`" ]; then
+	elif [ -n "`echo "$1" | grep '\.bz2$'`" ]; then
 		i=`basename "$1" .bz2`
 	else
 		i=$1

@@ -806,7 +806,7 @@ Flastarchive() {
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi
-	grep ".*$_F_archive_name$Fpkgversep.*\($1\).*"|sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/;$ p"|Fsort|tail -n1
+	sed -n "s/.*\/$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | Fsort | tail -n1
 }
 
 ###

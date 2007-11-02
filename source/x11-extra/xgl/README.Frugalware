@@ -1,109 +1,230 @@
-Introduction
-~~~~~~~~~~~~
-
-1. Xgl server
+1. *Xgl server*
 +
-Xgl is a new hardware accelerated X server. Although it is still in development,
-It's found OK for day-to-day use. It's especially good for Gnome and Xfce users
-who want a bit of Mac OS X-like eye-candy.
+Xgl is a hardware accelerated X server. It renders everything that gets drawn 
+to the screen with OpenGL to allow for fancy effects like wobbly windows, 
+translucency, etc. The disadvantage to Xgl is that programs that already use 
+OpenGL will not work on it. Xgl is only recommended if you do not have a 
+graphics card that supports GLX_EXT_texture_from_pixmap.
 
-2. Compiz
+2. *AIGLX*
 +
-Compiz is a new window manager that has been specifically designed to be used
-with Xgl. Unfortunately, if you are a KDE user, this will not work for you
-(yet). Compiz provides some great effects demonstrated in the images/movies
-below.
+Accelerated Indirect GLX ("AIGLX") is an open source project founded by Red Hat 
+and the Fedora Linux community to allow accelerated indirect GLX rendering 
+capabilities to X.Org and DRI drivers. This allows remote X clients to get fully 
+hardware accelerated rendering over the GLX protocol; coincidentally, this development 
+was required for OpenGL compositing window managers (such as Compiz) to function with 
+hardware acceleration.
 
-See it in action
-~~~~~~~~~~~~~~~~
-
-1. Screenshots
+3. *Compiz Fusion*
 +
-* Desktop switcher cube:
-  http://frugalware.org/~alex/xgl/cube.png
-* Scale, the Expose-like window switcher:
-  http://frugalware.org/~alex/xgl/expose.png
-* Translucency effects:
-  http://frugalware.org/~alex/xgl/translucency.png
-* More translucency effects:
-  http://frugalware.org/~alex/xgl/moretranslucency.png
-* Translucency with Scale
-  http://frugalware.org/~alex/xgl/translucexpose.png
-* Alt+Tab replacement:
-  http://frugalware.org/~alex/xgl/switcher.png
-* Wobbling windows:
-  http://frugalware.org/~alex/xgl/wobble.png
+Compiz Fusion is the result of a merge between the well-known Beryl composite window 
+manager and Compiz Extras, a community set of improvements to the Compiz composite window 
+manager. Compiz Fusion aims to provide an easy and fun-to-use windowed environment, 
+allowing use of the graphics hardware to render each individual window and the entire 
+screen, to provide some impressive effects, speed and usefulness.
 
-2. Movies
-+
-We currently have 2 movies of Xgl in action. We may add more in the future.
-Note that these movies may jump or skip bits, as they were filmed on my trusty
-700Mhz Pentium 3 :)
+NOTE: Before starting with installing compiz fusion, make sure you remove all
+beryl packages installed on your system. Beryl is now merged with compiz-fusion
+and is no longer supported on frugalware.
 
-* Demo 1 (1024x768, 4.9MB, AVI format):
-  http://frugalware.org/~alex/xgl/video1.avi
-* Demo 2 (1024x768, 6.4MB, AVI format):
-  http://frugalware.org/~alex/xgl/video2.avi
+=== Setting it up
 
-Getting it working (for Gnome)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This section describes how to setup Xgl or AIGLX depending on which graphics card you have.
 
-Note that this *only* works for nVidia, i810 and ATI users currently! nVidia users, 
-please make sure that you have the nVidia binary drivers set up and working correctly
-(pacman-g2 -Sy nvidia)
+==== Intel Graphics Cards (i810)
 
-Fire up your Gnome Terminal, Xterm, Linux Console, or whatever. Do
+This section describes how to setup Xgl/AIGLX on computers having Intel Graphics Cards.
+First, make sure that the Intel Xorg drivers are installed. You can install it using:
 
-------
-$ su -
-------
+---------------------------
+# pacman-g2 -S xf86-video-i810
+---------------------------
 
-Enter your root password, then run:
+I would recommend using AIGLX and NOT xgl for intel users. This is because Xgl works extermely slow on
+such cards. On the other hand, AIGLX is much faster than Xgl and is easier to setup. This section 
+describes how to setup AIGLX for Intel GMA series cards.
+
+You have to edit the '/etc/X11/xorg.conf' as root.
+
+Look for Section "Module" and make sure that the following lines exist in that section
+
+----------------
+  Load    "dri"
+  Load    "glx"
+  Load    "dbe"
+----------------
+
+Now, look for Section "Device" and add the following lines to it
+
+---------------------------------------------
+  Option      "XAANoOffscreenPixmaps" "true"
+  Option      "DRI"                   "true"
+---------------------------------------------
+
+And add this to Section "ServerLayout"
+
+-----------------------------
+  Option      "AIGLX"  "true"
+-----------------------------
+
+Now look for Section "DRI". Create it if it doesn't exist and make sure it looks like the following
+
+---------------------
+  Section     "DRI"
+  	Group       "video"
+  	Mode        0660
+  EndSection
+---------------------
+
+Finally, add this line to Section "Extensions"
+
+--------------------------------
+  "Option" "Composite" "Enable"
+--------------------------------
+
+Save the file and exit the editor. Reboot your system. Your system should now be set up to use Compiz Fusion.
+Now read on to the Window Manager setup section!
+
+==== NVIDIA Graphics Cards
+
+If you have an nVidia card, you're in luck - you can use all the fancy effects without the need for Xgl. 
+This means you'll get much better performance. First of all, you'll need the latest nVidia drivers (100.14.11-6). 
+Install them if you haven't already done it.
+
+------------------
+# pacman-g2 -Sy nvidia
+------------------
+
+Now, as i stated earlier, you can use it with or without Xgl. Both the ways are described below.
+
+===== Without XGL
+
+You have to edit the '/etc/X11/xorg.conf' as root.
+
+First find the Device section for your nVidia card. Add the following line to it:
+
+--------------------------------------------
+ Option      "XAANoOffscreenPixmaps" "false"
+--------------------------------------------
+
+Now go to the Screen section. Make sure the following lines are there:
+
+-------------------------------------------
+ Option     "AddARGBGLXVisuals" "True"
+ Option     "RenderAccel" "true"
+ Option     "Coolbits" "1"
+ Option     "TripleBuffer" "true"
+ Option     "AllowGLXWithComposite" "True"
+-------------------------------------------
+
+Finally, make sure the Composite extension is enabled. If it's not, add these lines to the bottom of the file:
 
 ---------------------------------------
-# pacman-g2 -Sy mesa-cvs xgl compiz desktop-effects
+ Section "Extensions"
+    Option     "Composite" "Enable"
+ EndSection
 ---------------------------------------
 
-Now run:
+Save the file, and then reboot. Your system should now be set up to use Compiz Fusion.
 
--------------------------
+===== With XGL
+
+This section describes how to use Xgl on a system with an Nvidia card.
+First of all, you'll need to install Xgl. This can be done by running:
+
+-----------------
+#  pacman-g2 -Sy xgl
+-----------------
+
+Once installed, xgl can be enabled by initiating the following command (as root) :
+
+--------------------------
 # fw-xgl-control --enable
--------------------------
+--------------------------
 
-Now you can reboot (or run gdm-restart as root, for advanced users), and hopefully 
-you will be running on a nice fancy desktop :)
+To disable Xgl, run the following command (as root) :
 
-Getting it working (for KDE)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------
+# fw-xgl-control --disable
+---------------------------
 
-Note that this *only* works for nVidia, i810 and ATI users currently! nVidia users, 
-please make sure that you have the nVidia binary drivers set up and working correctly
-(pacman-g2 -Sy nvidia)
+Every time xgl is enabled or disabled, you need to restart GDM. This can be
+done by running the following command (as root) :
 
-Fire up your Konsole, Xterm, Linux Console, or whatever. Do
+--------------
+# gdm-restart
+--------------
 
-------
-$ su -
-------
+Now read on to the Window Manager setup section!
 
-Enter your root password, then run:
+=== Window Manager Setup
 
-------------------------------------------------------------------------------------
-# pacman-g2 -Sy xgl kicker-compiz taskbar-compiz beryl beryl-manager beryl-plugins \
-           beryl-dbus beryl-settings emerald emerald-themes
-------------------------------------------------------------------------------------
+Now you need to install a window manager to be able to get all these fancy effects. Frugalware currently has 
+compiz-fusion window manager that can be used with XGL or AIGLX. 
+Note that Frugalware no longer supports Beryl.
 
-Now run:
+==== Compiz Fusion
 
--------------------------
-# fw-xgl-control --enable
--------------------------
+This section describes how to setup / use Compiz Fusion as the window manager with XGL / AIGLX depending
+on your Desktop environment.
 
-Now you can reboot (or restart KDM, for advanced users), and hopefully 
-you will be running on a nice fancy desktop :)
+===== XFCE
 
-Extra resources
-~~~~~~~~~~~~~~~
+Run the following command (as root) to install the necessary packages:
 
-* http://en.opensuse.org/Xgl[SuSE Xgl page]
-* http://gentoo-wiki.com/HOWTO_XGL[Gentoo Wiki HOWTO] - Contains usage info for all the effects
+-------------------------------------------------------------------------
+#  pacman-g2 -Sy compiz compiz-emerald compiz-emerald-themes fusion-icon ccsm
+-------------------------------------------------------------------------
+
+Now you can simply fire up Fusion Icon from your Xfce menu. An icon should appear in your system tray. 
+Right click it and go to Select Window Manager. Choose "Compiz" from the list. If at any time you wish to 
+return to your normal window manager, just select it from the fusion icon.
+
+If it works, you should add fusion-icon to the startup programs in your desktop environment. This can be 
+done by going to *Settings -> Autostarted Applications* in your Xfce menu.
+
+===== GNOME
+
+Run the following command (as root) to install the necessary packages:
+
+------------------------------------------
+# pacman-g2 -Sy compiz-gnome fusion-icon ccsm
+------------------------------------------
+
+Now you can simply fire up Fusion Icon from your GNOME menu. An icon should appear in your system tray. 
+Right click it and go to Select Window Manager. Choose "Compiz" from the list. If at any time you wish to 
+return to your normal window manager, just select it from the fusion icon.
+
+If it works, you should add fusion-icon to the startup programs so that it automatically starts everytime 
+you login into GNOME. This can be done by going to *System -> Preferences -> Sessions -> Startup Programs* 
+in your Gnome menu.
+
+By default, compiz-gnome is shipped with gtk-window-decorator. Gnome users can also use Emerald as 
+a window decorator with compiz. To install emerald, run (as root):
+
+--------------------------------------------------
+# pacman-g2 -Sy compiz-emerald compiz-emerald-themes
+--------------------------------------------------
+
+Once installed, you can switch to emerald as the window decorator. To do this, just right click the Fusion icon, 
+navigate to "Select Window Decorator" and select "emerald" from the list.
+
+===== KDE
+
+Run the following command (as root) to install the necessary packages:
+
+----------------------------------------------------------------------
+# pacman-g2 -Sy compiz-kde fusion-icon ccsm taskbar-compiz kicker-compiz
+----------------------------------------------------------------------
+
+You can now use compiz by starting Fusion Icon from the KDE menu.
+
+By default, compiz-kde is shipped with kde-window-decorator. Kde users can also use Emerald as 
+a window decorator with compiz. To install emerald, run (as root):
+
+--------------------------------------------------
+# pacman-g2 -Sy compiz-emerald compiz-emerald-themes
+--------------------------------------------------
+
+Once installed, you can switch to emerald as the window decorator. To do this, just right click the Fusion icon, 
+navigate to "Select Window Decorator" and select "emerald" from the list.

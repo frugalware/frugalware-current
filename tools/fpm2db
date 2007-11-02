@@ -126,7 +126,7 @@ EOF
 			elif key == "Description":
 				# FIXME: we here hardcore the encoding of the FBs
 				if not self.desc:
-					self.desc = "".join(line.split(' : ')[1:]).replace(r"'", r"\'").decode('latin1')
+					self.desc = "".join(line.split(' : ')[1:]).decode('latin1')
 			elif key == "URL":
 				self.url = "".join(line.split(' : ')[1:])
 			elif key == "Build Date":
@@ -202,29 +202,28 @@ EOF
 		for i in li:
 			if i == "None":
 				return
-			self.cursor.execute("""insert into %s (pkg_id, %s)
-					values ('%d', '%s');""" % (member,
-						member[:-1], self.id, i))
+			self.cursor.execute("""insert into %s (pkg_id, %s) values (%%s, %%s);""" % (member,
+				member[:-1]), (self.id, i))
 
 	def insertgroups(self):
 		for i in self.groups:
 			# get the group id or insert it if necessary
-			self.cursor.execute("select id from groups where name = '%s' limit 1" % i)
+			self.cursor.execute("select id from groups where name = %s limit 1", (i))
 			row = self.cursor.fetchone()
 			if row:
 				gid = row['id']
 			else:
-				self.cursor.execute("insert into groups (name) values ('%s');" % (i))
+				self.cursor.execute("insert into groups (name) values (%s);", (i))
 				self.cursor.execute("SELECT LAST_INSERT_ID()")
 				row = self.cursor.fetchone()
 				gid = row['LAST_INSERT_ID()']
 			# now link the pkg with this group
 			self.cursor.execute("""insert into ct_groups (pkg_id,
-					group_id) values ('%d', '%d');""" %
+					group_id) values (%s, %s);""",
 					(self.id, gid))
 
 	def dellist(self, member):
-		self.cursor.execute("delete from %s where pkg_id = %d" % (member, self.id))
+		self.cursor.execute("delete from %s where pkg_id = %d" % (member, int(self.id)))
 
 	def insertlistid(self, member):
 		li = getattr(self, member)
@@ -237,8 +236,8 @@ EOF
 			else:
 				ver=None
 			# get the id of i
-			self.cursor.execute("""select id from packages where pkgname = '%s'
-				and arch = '%s' and fwver = '%s' limit 1""" %
+			self.cursor.execute("""select id from packages where pkgname = %s
+				and arch = %s and fwver = %s limit 1""",
 				(i, self.arch, self.fwver))
 			row = self.cursor.fetchone()
 			if row:
@@ -248,13 +247,12 @@ EOF
 				continue
 			if not ver:
 				self.cursor.execute("""insert into %s (pkg_id,
-						%s_id) values ('%d', '%d');""" %
-						(member, member[:-1], self.id,
-							id))
+						%s_id) values (%%s, %%s);""" % (member, member[:-1]),
+						(self.id, id))
 			else:
 				self.cursor.execute("""insert into %s (pkg_id,
-				%s_id, version) values ('%d', '%d', '%s');""" %
-				(member, member[:-1], self.id, id, ver))
+				%s_id, version) values (%%s, %%s, %%s);""" % (member, member[:-1]),
+				(self.id, id, ver))
 
 	def insertlists(self):
 		for i in ["depends", "conflicts", "provides"]:
@@ -270,7 +268,7 @@ EOF
 	def delete(self):
 		# check if there is such a package & get the id
 		self.cursor.execute("""select id from packages where pkgname =
-				'%s' and arch = '%s' and fwver = '%s'""" %
+				%s and arch = %s and fwver = %s""",
 				(self.parent, self.arch, self.fwver))
 		row = self.cursor.fetchone()
 		if row:
@@ -289,8 +287,8 @@ EOF
 		if not self.updateable:
 			print "Can't find the package!"
 			return
-		self.cursor.execute("""select id, pkgver from packages where pkgname = '%s'
-			and arch = '%s' and fwver = '%s' limit 1""" %
+		self.cursor.execute("""select id, pkgver from packages where pkgname = %s
+			and arch = %s and fwver = %s limit 1""",
 			(self.pkgname, self.arch, self.fwver))
 		row = self.cursor.fetchone()
 		if row and row['pkgver'] == self.pkgver:
@@ -298,19 +296,19 @@ EOF
 		elif row:
 			self.id = row['id']
 		# uploader_id and parent_id
-		self.cursor.execute("select id from uploaders where login = '%s' limit 1" % (self.uploader))
+		self.cursor.execute("select id from uploaders where login = %s limit 1", (self.uploader))
 		row = self.cursor.fetchone()
 		if row:
 			self.uploader_id = row['id']
 		else:
-			self.cursor.execute("insert into uploaders (login) values ('%s');" % (self.uploader))
+			self.cursor.execute("insert into uploaders (login) values (%s);", (self.uploader))
 			self.cursor.execute("SELECT LAST_INSERT_ID()")
 			row = self.cursor.fetchone()
 			self.uploader_id = row['LAST_INSERT_ID()']
 
 		if self.parent:
-			self.cursor.execute("""select id from packages where pkgname = '%s'
-				and arch = '%s' and fwver = '%s' limit 1""" %
+			self.cursor.execute("""select id from packages where pkgname = %s
+				and arch = %s and fwver = %s limit 1""",
 				(self.parent, self.arch, self.fwver))
 			row = self.cursor.fetchone()
 			if row:
@@ -322,10 +320,10 @@ EOF
 			insert into packages
 			(pkgname, pkgver, `desc`, url, sha1sum, arch,
 			size, usize, parent_id, maintainer, uploader_id, fwver, builddate)
-			VALUES ('%s', '%s', '%s', '%s', '%s', '%s',
-			'%d', '%d', '%d', '%s', '%d',
-			'%s', '%s');
-			''' % (self.pkgname, self.pkgver, self.desc, self.url, self.sha1sum, self.arch,
+			VALUES (%s, %s, %s, %s, %s, %s,
+			%s, %s, %s, %s, %s,
+			%s, %s);
+			''', (self.pkgname, self.pkgver, self.desc, self.url, self.sha1sum, self.arch,
 				self.size, self.usize, self.parent_id, self.maintainer, self.uploader_id,
 				self.fwver, time.strftime("%Y-%m-%d %H:%M:%S", time.strptime(self.builddate))))
 			self.cursor.execute("SELECT LAST_INSERT_ID()")
@@ -333,11 +331,11 @@ EOF
 			self.id = row['LAST_INSERT_ID()']
 			self.insertlists()
 		else:
-			self.cursor.execute(''' update packages set pkgname = '%s',
-			pkgver = '%s', `desc` = '%s', url = '%s', sha1sum =
-			'%s', arch = '%s', size = '%d', usize = '%d', parent_id
-			= '%d', maintainer = '%s', uploader_id = '%d', fwver =
-			'%s', builddate = '%s' where id = '%d' ''' %
+			self.cursor.execute(''' update packages set pkgname = %s,
+			pkgver = %s, `desc` = %s, url = %s, sha1sum =
+			%s, arch = %s, size = %s, usize = %s, parent_id
+			= %s, maintainer = %s, uploader_id = %s, fwver =
+			%s, builddate = %s where id = %s ''',
 			(self.pkgname, self.pkgver, self.desc, self.url,
 			self.sha1sum, self.arch, self.size, self.usize,
 			self.parent_id, self.maintainer, self.uploader_id,

@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# (c) 2007 Miklos Vajna <vmiklos@frugalware.org>
+# rc.ipv6tunnel for Frugalware
+# distributed under GPL License
+
+# chkconfig: 2345 44 56
+# description: Manage IPv6 tunneles.
+
+source /lib/initscripts/functions
+TEXTDOMAINDIR=/lib/initscripts/functions
+TEXTDOMAIN=ipv6tunnel
+
+actions=(restart start status stop)
+daemon=$"IPv6 Tunnels"
+
+pid="grep -q sixbongw /proc/net/dev"
+
+source /etc/sysconfig/ipv6tunnel
+
+rc_start()
+{
+	start_msg
+	if ! $pid; then
+		ip tunnel add sixbongw mode sit remote $remote local $local ttl 64
+		ifconfig sixbongw up
+		for i in "${addresses[@]}"
+		do
+			ifconfig sixbongw add $i
+		done
+		route -A inet6 add ::/0 dev sixbongw
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_stop()
+{
+	stop_msg
+	if $pid; then
+		route -A inet6 del ::/0 dev sixbongw
+		for i in "${addresses[@]}"
+		do
+			ifconfig sixbongw del $i
+		done
+		ifconfig sixbongw down
+		ip tunnel del sixbongw
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1
+
+# vim: ft=sh

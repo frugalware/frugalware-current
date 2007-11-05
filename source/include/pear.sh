@@ -41,7 +41,7 @@ pkgrel=1
 url="http://pear.php.net/package/$_F_pear_name"
 groups=('devel-extra')
 archs=('i686' 'x86_64') # it's safe to add x86_64 by default
-up2date="lynx -dump http://pear.php.net/package/$_F_pear_name|grep released|sed 's/.*\]\([^ ]*\) (.*/\1/'"
+up2date="lynx -dump http://pear.php.net/package/$_F_pear_name|grep stable.*released|sed 's/.*\]\([^ ]*\) (.*/\1/'"
 source=(http://pear.php.net/get/$_F_pear_name-$pkgver.tgz)
 install=src/pear.install
 

@@ -15,8 +15,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-XML_PATH = /usr/share/sgml/docbook/dtd/xml-dtd-4.2
-
 all: $(subst .sh,.sh.3,$(wildcard *.sh)) fwmakepkg.3
 
 stat:
@@ -25,13 +23,8 @@ stat:
 %.sh.txt: %.sh
 	sed -n 's/^#\( \|$$\)//;/^###/,/^###/p' $^|sed 's/^###//' > $@
 
-%.xml: %.txt
-	asciidoc -d manpage -b docbook $^
-	sed -i '/<!DOCTYPE/s|\("http[^"].*"\)|"file://$(XML_PATH)/docbookx.dtd"|' $@
-
-%.3: %.xml
-	xsltproc --nonet --path $(XML_PATH) /etc/asciidoc/docbook-xsl/manpage.xsl $^
-	sed -i 's/\\(bu/*/' $@
+%.3: %.txt
+	a2x -d manpage -f manpage $^
 
 fwmakepkg.txt: fwmakepkg.txt.in $(wildcard *.sh)
 	cat fwmakepkg.txt.in > fwmakepkg.txt

@@ -39,9 +39,9 @@
 # * _F_sourceforge_ext (defaults to .tar.gz): extension of the source tarball
 # * _F_sourceforge_broken_up2date: if set, try an other method for up2date, try
 # this if the normal up2date does not work, maybe this will
-# *_F_sourceforge_prefix (no defaults):  used to correct the standard up2date
-# but does not work when _F_sourceforge_broken_up2date is set. As example $pkgver
-# should be 1.2.3 but you get V1.2.3 in such a case you can set _F_sourceforge_prefix="V"
+# *_F_sourceforge_prefix (no defaults):  used to correct the up2date output
+# As example $pkgver should be 1.2.3 but you get V1.2.3 in such a case you can
+# set _F_sourceforge_prefix="V"
 # *_F_sourceforge_sep ( defaults to - ): used for source() only right now. As example
 # for an "baz_1.2.3.tar.gz" tarball you should use _F_sourceforge_sep="_"
 ###
@@ -80,6 +80,6 @@ url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
 if [ $_F_sourceforge_broken_up2date -eq 0 ]; then
 	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep -m1 'Latest \[.*\]'|sed 's/.*]$_F_sourceforge_prefix\(.*\) \[.*\].*/\1/;s/-/_/g'"
 else
- 	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep -m1 '$_F_sourceforge_name\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name\(.*\)$_F_sourceforge_ext.*/\1/;s/-/_/g;s/_//1'"
+ 	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep -m1 '$_F_sourceforge_name\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name$_F_sourceforge_prefix\(.*\)$_F_sourceforge_ext.*/\1/;s/-/_/g;s/_//1'"
 fi
 source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/$_F_sourceforge_dirname/$_F_sourceforge_name$_F_sourceforge_sep${pkgver//_/-}$_F_sourceforge_ext)

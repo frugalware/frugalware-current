@@ -108,19 +108,8 @@ images:
 %.text: %.html
 	lynx -dump $(basename $@).html > $@
 
-%.xml: %.txt
-	asciidoc -a toc -a numbered -a sectids -b docbook $(basename $@).txt
-	sed -i '/<!DOCTYPE/s|\("http[^"].*"\)|"file://$(XML_PATH)/docbookx.dtd"|' $@
-
-%.fo: %.xml
-	xsltproc --nonet --path $(XML_PATH) /etc/asciidoc/docbook-xsl/fo.xsl $(basename $@).xml > $(basename $@).fo
-	sed -i 's/sans-serif,Symbol,ZapfDingbats/DejaVuSans/g' $(basename $@).fo
-	sed -i 's/serif,Symbol,ZapfDingbats/DejaVuSerif/g' $(basename $@).fo
-	sed -i 's|\(src="./images/icons/[^"]\+\).png"|\1.jpg"|g' $(basename $@).fo
-	sed -i 's/bgcolor="[^"]\+"//g;s/border-right-color=""//g;s/border-bottom-color=""//g' $(basename $@).fo
-
-%.pdf: %.fo images
-	fop -c /usr/share/fop/dejavu-ttf.xml $(basename $@).fo $(basename $@).pdf
+%.pdf: %.txt
+	a2x -a toc -a numbered -a sectids -f pdf $^
 
 %.txt: %.txt.in
 	sed 's/@VERSION@/$(VERSION)/' $(basename $@).txt.in > $@

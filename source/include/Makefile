@@ -24,7 +24,7 @@ stat:
 	sed -n 's/^#\( \|$$\)//;/^###/,/^###/p' $^|sed 's/^###//' > $@
 
 %.3: %.txt
-	a2x -d manpage -f manpage $^
+	a2x -f manpage $^
 
 fwmakepkg.txt: fwmakepkg.txt.in $(wildcard *.sh)
 	cat fwmakepkg.txt.in > fwmakepkg.txt

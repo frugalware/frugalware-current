@@ -24,6 +24,7 @@
 #
 # == OPTIONS
 # * _F_archive_name (defaults to $pkgname)
+# * _F_archive_nosort (defaults to no, so sorting is enabled by default)
 # * _F_cd_path (defaults to $_F_archive_name$Fpkgversep$pkgver$pkgextraver)
 # * _F_conf_configure (defaults to ./configure)
 # * _F_conf_perl_pipefrom: if set, pipe the output of this command in Fconf()
@@ -806,7 +807,11 @@ Flastarchive() {
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi
-	sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | Fsort | tail -n1
+	if [ -z "$_F_archive_nosort" ]; then
+		sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | Fsort | tail -n1
+	else
+		sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | tail -n1
+	fi
 }
 
 ###

@@ -676,9 +676,15 @@ Facu() {
 
 ###
 # * Fsort(): Similar to sort, but handles versions (i.e. 1.9 vs 1.10 vs 2.0)
-# correctly. Uses vercmp from pacman. Reads the version list from stdin.
+# correctly. Uses versort from pacman. Reads the version list from stdin.
+# Uses vercmp from pacman when versort is not found.
 ###
 Fsort() {
+	if [ -x /usr/bin/versort ]; then
+		/usr/bin/versort
+	else
+	
+	# Deprecated method of sorting, it's too much slow
 	local i= items= left=0
 	items=( `cat|tr '\n' ' '` )
 	while [[ ${left} -lt ${#items[@]} ]] ; do
@@ -695,6 +701,8 @@ Fsort() {
 		left=$(( ${left} + 1 ))
 	done
 	echo ${items[@]}|sed 's/ /\n/g'
+
+	fi
 }
 
 ###

@@ -24,6 +24,7 @@
 #
 # == OPTIONS
 # * _F_archive_name (defaults to $pkgname)
+# * _F_archive_nosort (defaults to no, so sorting is enabled by default)
 # * _F_cd_path (defaults to $_F_archive_name$Fpkgversep$pkgver$pkgextraver)
 # * _F_conf_configure (defaults to ./configure)
 # * _F_conf_perl_pipefrom: if set, pipe the output of this command in Fconf()
@@ -675,9 +676,15 @@ Facu() {
 
 ###
 # * Fsort(): Similar to sort, but handles versions (i.e. 1.9 vs 1.10 vs 2.0)
-# correctly. Uses vercmp from pacman. Reads the version list from stdin.
+# correctly. Uses versort from pacman. Reads the version list from stdin.
+# Uses vercmp from pacman when versort is not found.
 ###
 Fsort() {
+	if [ -x /usr/bin/versort ]; then
+		/usr/bin/versort
+	else
+	
+	# Deprecated method of sorting, it's too much slow
 	local i= items= left=0
 	items=( `cat|tr '\n' ' '` )
 	while [[ ${left} -lt ${#items[@]} ]] ; do
@@ -694,6 +701,8 @@ Fsort() {
 		left=$(( ${left} + 1 ))
 	done
 	echo ${items[@]}|sed 's/ /\n/g'
+
+	fi
 }
 
 ###
@@ -806,7 +815,11 @@ Flastarchive() {
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi
-	sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | Fsort | tail -n1
+	if [ -z "$_F_archive_nosort" ]; then
+		sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | Fsort | tail -n1
+	else
+		sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | tail -n1
+	fi
 }
 
 ###

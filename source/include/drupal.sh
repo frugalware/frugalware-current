@@ -56,7 +56,7 @@ else
 	filever=${pkgver//_dev*/_dev}
 	source=(http://ftp.drupal.org/files/projects/$_F_drupal_module-${filever//_/-}.tar.gz)
 fi
-options=('stick')
+options=('stick' 'nodocs')
 
 ###
 # == PROVIDED FUNCTIONS

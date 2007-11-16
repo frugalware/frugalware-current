@@ -35,7 +35,7 @@
 # == OVERWRITTEN VARIABLES
 # * pkgname
 # * url
-# * depends()
+# * rodepends()
 # * groups()
 # * archs()
 # * up2date
@@ -44,7 +44,7 @@
 ###
 pkgname=drupal-$_F_drupal_module
 url="http://drupal.org/project/$_F_drupal_module"
-depends=('drupal>=5.0')
+rodepends=('drupal>=5.0' ${rodepends[@]})
 groups=('network-extra')
 archs=('i686' 'x86_64')
 if [ $_F_drupal_dev == 0 ]; then

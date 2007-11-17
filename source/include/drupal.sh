@@ -48,7 +48,7 @@ rodepends=('drupal>=5.0' ${rodepends[@]})
 groups=('network-extra')
 archs=('i686' 'x86_64')
 if [ $_F_drupal_dev == 0 ]; then
-	up2date="lynx -dump http://drupal.org/project/$_F_drupal_module | grep 'http://.*$_F_drupal_ver.*[^v]\.tar\.gz' | sed 's/.*$_F_drupal_module-\(.*\)\.tar.*/\1/;s/-/_/'"
+	up2date="lynx -dump http://drupal.org/project/$_F_drupal_module | grep 'http://.*$_F_drupal_ver.*[^v]\.tar\.gz' | sed 's/.*$_F_drupal_module-\(.*\)\.tar.*/\1/;y/-/_/'"
 	source=(http://ftp.drupal.org/files/projects/$_F_drupal_module-${pkgver//_/-}.tar.gz)
 else
 #	up2date="lynx -dump http://drupal.org/project/$_F_drupal_module | grep '$_F_drupal_ver.*-dev[0-9][0-9]\]Download' | sed 's/.*$_F_drupal_module-\(.*\)\.tar.*/\1/;s/-/_/'"

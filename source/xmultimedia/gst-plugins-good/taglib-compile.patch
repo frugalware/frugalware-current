@@ -1,0 +1,164 @@
+diff -Naur gst-plugins-good-0.10.6/ext/taglib/gstapev2mux.cc gst-plugins-good-0.10.6-p/ext/taglib/gstapev2mux.cc
+--- gst-plugins-good-0.10.6/ext/taglib/gstapev2mux.cc	2006-05-30 16:35:17.000000000 +0200
++++ gst-plugins-good-0.10.6-p/ext/taglib/gstapev2mux.cc	2007-11-20 04:44:40.000000000 +0100
+@@ -90,7 +90,10 @@
+   gst_element_class_add_pad_template (element_class,
+       gst_static_pad_template_get (&src_template));
+ 
+-  gst_element_class_set_details (element_class, &gst_apev2_mux_details);
++  gst_element_class_set_details_simple (element_class,
++      "TagLib-based APEv2 Muxer", "Formatter/Metadata",
++      "Adds an APEv2 header to the beginning of files using taglib",
++      "Sebastian DrÃ¶ge <slomo@circular-chaos.org>");
+ 
+   GST_DEBUG_CATEGORY_INIT (gst_apev2_mux_debug, "apev2mux", 0,
+       "taglib-based APEv2 tag muxer");
+@@ -145,6 +148,16 @@
+       apev2tag->setArtist (String::String (artist, String::UTF8));
+     }
+     g_free (artist);
++  } else if (strcmp (tag, GST_TAG_COMPOSER) == 0) {
++    char *composer;
++
++    result = gst_tag_list_get_string_index (list, tag, 0, &composer);
++    if (result != FALSE) {
++      GST_DEBUG ("Setting composer to %s", composer);
++      apev2tag->addValue (String::String ("COMPOSER", String::UTF8),
++          String::String (composer, String::UTF8));
++    }
++    g_free (composer);
+   } else if (strcmp (tag, GST_TAG_GENRE) == 0) {
+     char *genre;
+ 
+diff -Naur gst-plugins-good-0.10.6/ext/taglib/gstid3v2mux.cc gst-plugins-good-0.10.6-p/ext/taglib/gstid3v2mux.cc
+--- gst-plugins-good-0.10.6/ext/taglib/gstid3v2mux.cc	2007-06-13 11:21:10.000000000 +0200
++++ gst-plugins-good-0.10.6-p/ext/taglib/gstid3v2mux.cc	2007-11-20 04:44:13.000000000 +0100
+@@ -61,6 +61,8 @@
+ #include <uniquefileidentifierframe.h>
+ #include <attachedpictureframe.h>
+ #include <commentsframe.h>
++#include <unknownframe.h>
++#include <id3v2synchdata.h>
+ #include <id3v2tag.h>
+ #include <gst/tag/tag.h>
+ 
+@@ -69,12 +71,6 @@
+ GST_DEBUG_CATEGORY_STATIC (gst_id3v2_mux_debug);
+ #define GST_CAT_DEFAULT gst_id3v2_mux_debug
+ 
+-static const GstElementDetails gst_id3v2_mux_details =
+-GST_ELEMENT_DETAILS ("TagLib-based ID3v2 Muxer",
+-    "Formatter/Metadata",
+-    "Adds an ID3v2 header to the beginning of MP3 files using taglib",
+-    "Christophe Fergeau <teuf@gnome.org>");
+-
+ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
+     GST_PAD_SRC,
+     GST_PAD_ALWAYS,
+@@ -95,7 +91,10 @@
+   gst_element_class_add_pad_template (element_class,
+       gst_static_pad_template_get (&src_template));
+ 
+-  gst_element_class_set_details (element_class, &gst_id3v2_mux_details);
++  gst_element_class_set_details_simple (element_class,
++      "TagLib-based ID3v2 Muxer", "Formatter/Metadata",
++      "Adds an ID3v2 header to the beginning of MP3 files using taglib",
++      "Christophe Fergeau <teuf@gnome.org>");
+ 
+   GST_DEBUG_CATEGORY_INIT (gst_id3v2_mux_debug, "id3v2mux", 0,
+       "taglib-based ID3v2 tag muxer");
+@@ -322,7 +321,14 @@
+     GST_TAG_MUSICBRAINZ_ALBUMID, "MusicBrainz Album Id", "musicbrainz_albumid"}, {
+     GST_TAG_MUSICBRAINZ_ALBUMARTISTID, "MusicBrainz Album Artist Id",
+           "musicbrainz_albumartistid"}, {
+-    GST_TAG_MUSICBRAINZ_TRMID, "MusicBrainz TRM Id", "musicbrainz_trmid"}
++    GST_TAG_MUSICBRAINZ_TRMID, "MusicBrainz TRM Id", "musicbrainz_trmid"}, {
++    GST_TAG_CDDA_MUSICBRAINZ_DISCID, "MusicBrainz DiscID",
++          "musicbrainz_discid"}, {
++      /* the following one is more or less made up, there seems to be little
++       * evidence that any popular application is actually putting this info
++       * into TXXX frames; the first one comes from a musicbrainz wiki 'proposed
++       * tags' page, the second one is analogue to the vorbis/ape/flac tag. */
++    GST_TAG_CDDA_CDDB_DISCID, "CDDB DiscID", "discid"}
+   };
+   guint i, idx;
+ 
+@@ -518,6 +524,47 @@
+   }
+ }
+ 
++static void
++add_uri_tag (ID3v2::Tag * id3v2tag, const GstTagList * list,
++    const gchar * tag, guint num_tags, const gchar * frame_id)
++{
++  gchar *url = NULL;
++
++  g_assert (frame_id != NULL);
++
++  /* URI tags are limited to one of each per taglist */
++  if (gst_tag_list_get_string_index (list, tag, 0, &url) && url != NULL) {
++    guint url_len;
++
++    url_len = strlen (url);
++    if (url_len > 0 && gst_uri_is_valid (url)) {
++      ID3v2::FrameFactory * factory = ID3v2::FrameFactory::instance ();
++      ID3v2::Frame * frame;
++      char *data;
++
++      data = g_new0 (char, 10 + url_len);
++
++      memcpy (data, frame_id, 4);
++      memcpy (data + 4, ID3v2::SynchData::fromUInt (url_len).data (), 4);
++      memcpy (data + 10, url, url_len);
++      ByteVector bytes (data, 10 + url_len);
++
++      g_free (data);
++
++      frame = factory->createFrame (bytes, (TagLib::uint) 4);
++      if (frame) {
++        id3v2tag->addFrame (frame);
++
++        GST_LOG ("%s: %s = '%s'", frame_id, tag, url);
++      }
++    } else {
++      GST_WARNING ("Tag %s does not contain a valid URI (%s)", tag, url);
++    }
++
++    g_free (url);
++  }
++}
++
+ /* id3demux produces these for frames it cannot parse */
+ #define GST_ID3_DEMUX_TAG_ID3V2_FRAME "private-id3v2-frame"
+ 
+@@ -532,6 +579,7 @@
+   GST_TAG_TITLE, add_text_tag, "TIT2"}, {
+   GST_TAG_ALBUM, add_text_tag, "TALB"}, {
+   GST_TAG_COPYRIGHT, add_text_tag, "TCOP"}, {
++  GST_TAG_COMPOSER, add_text_tag, "TCOM"}, {
+   GST_TAG_GENRE, add_text_tag, "TCON"}, {
+   GST_TAG_COMMENT, add_comment_tag, ""}, {
+   GST_TAG_EXTENDED_COMMENT, add_comment_tag, ""}, {
+@@ -543,14 +591,20 @@
+   GST_TAG_MUSICBRAINZ_ALBUMID, add_musicbrainz_tag, "\001"}, {
+   GST_TAG_MUSICBRAINZ_ALBUMARTISTID, add_musicbrainz_tag, "\002"}, {
+   GST_TAG_MUSICBRAINZ_TRMID, add_musicbrainz_tag, "\003"}, {
++  GST_TAG_CDDA_MUSICBRAINZ_DISCID, add_musicbrainz_tag, "\004"}, {
++  GST_TAG_CDDA_CDDB_DISCID, add_musicbrainz_tag, "\005"}, {
+   GST_TAG_MUSICBRAINZ_TRACKID, add_unique_file_id_tag, ""}, {
+-  GST_TAG_MUSICBRAINZ_SORTNAME, add_text_tag, "TSOP"}, {
++  GST_TAG_ARTIST_SORTNAME, add_text_tag, "TSOP"}, {
++  GST_TAG_ALBUM_SORTNAME, add_text_tag, "TSOA"}, {
++  GST_TAG_TITLE_SORTNAME, add_text_tag, "TSOT"}, {
+   GST_TAG_TRACK_NUMBER, add_count_or_num_tag, "TRCK"}, {
+   GST_TAG_TRACK_COUNT, add_count_or_num_tag, "TRCK"}, {
+   GST_TAG_ALBUM_VOLUME_NUMBER, add_count_or_num_tag, "TPOS"}, {
+   GST_TAG_ALBUM_VOLUME_COUNT, add_count_or_num_tag, "TPOS"}, {
+   GST_TAG_ENCODER, add_encoder_tag, ""}, {
+-  GST_TAG_ENCODER_VERSION, add_encoder_tag, ""}
++  GST_TAG_ENCODER_VERSION, add_encoder_tag, ""}, {
++  GST_TAG_COPYRIGHT_URI, add_uri_tag, "WCOP"}, {
++  GST_TAG_LICENSE_URI, add_uri_tag, "WCOP"}
+ };
+ 
+ 

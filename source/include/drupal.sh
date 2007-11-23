@@ -2,7 +2,7 @@
 
 ###
 # = drupal.sh(3)
-# CSÉCSY László <boobaa@frugalware.org>
+# CSÃ‰CSY LÃ¡szlÃ³ <boobaa@frugalware.org>
 #
 # == NAME
 # drupal.sh - for Frugalware
@@ -13,7 +13,7 @@
 # == EXAMPLE
 # --------------------------------------------------
 # # Compiling Time: 0 SBU
-# # Maintainer: CSÉCSY László <boobaa@frugalware.org>
+# # Maintainer: CSÃ‰CSY LÃ¡szlÃ³ <boobaa@frugalware.org>
 #
 # _F_drupal_module=image
 # pkgver=5.x_1.6

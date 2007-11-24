@@ -53,6 +53,9 @@ Fbuildpear()
 {
 	# install the package
 	pear install --nodeps -R $Fdestdir $_F_pear_name-$pkgver.tgz || Fdie
+	cd $Fdestdir/usr/share/pear
+	Fpatchall
+	cd - >/dev/null
 	# remove the common files, they will be updated by the scriptlet
 	Frm /usr/share/pear/{.channels,.registry,.depdb,.depdblock,.filemap,.lock} /tmp
 	# the package.xml is required to update the common files

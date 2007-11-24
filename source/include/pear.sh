@@ -37,7 +37,7 @@
 # * install
 ###
 pkgname=php-pear-`echo $_F_pear_name|tr [A-Z] [a-z]`
-pkgrel=1
+[ -z "$pkgrel" ] && pkgrel=1
 url="http://pear.php.net/package/$_F_pear_name"
 groups=('devel-extra')
 archs=('i686' 'x86_64') # it's safe to add x86_64 by default

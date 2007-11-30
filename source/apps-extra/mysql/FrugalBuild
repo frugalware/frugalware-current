@@ -3,11 +3,11 @@
 
 pkgname=mysql
 pkgver=5.0.45
-pkgrel=1
+pkgrel=4
 extrapkgver=
 pkgdesc="A fast SQL database server"
 url="http://www.mysql.com/"
-backup=(etc/my.cnf)
+backup=(etc/my.cnf etc/sysconfig/mysqld)
 depends=('libstdc++' 'ncurses' 'perl-dbi')
 rodepends=('perl-dbd-mysql' "libmysqlclient=$pkgver")
 makedepends=('procps' 'openssl' 'zlib')
@@ -15,14 +15,15 @@ groups=('apps-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://dev.mysql.com/|grep 'Generally Available'|sed 's/.* \([0-9.]*\) .*/\1/;s/$extrapkgver//;q'"
 mirror="http://mysql.mirrors.crysys.hit.bme.hu/"
-source=($mirror/Downloads/MySQL-5.0/$pkgname-$pkgver$extrapkgver.tar.gz rc.mysqld my.cnf)
-signatures=("${source[0]}.asc" '' '')
+source=($mirror/Downloads/MySQL-5.0/$pkgname-$pkgver$extrapkgver.tar.gz rc.mysqld my.cnf mysqld \
+	CVE-2007-5925.patch)
+signatures=("${source[0]}.asc" '' '' '' '')
 
-subpkgs=('libmysqlclient')
-subdescs=('MySQL client library.')
-subdepends=('openssl zlib')
-subgroups=('lib')
-subarchs=('i686 x86_64')
+subpkgs=('libmysqlclient' 'libmysqld')
+subdescs=('MySQL client library.' 'Embedded MySQL Server Library')
+subdepends=('openssl zlib' 'libstdc++ openssl zlib')
+subgroups=('lib' 'lib')
+subarchs=('i686 x86_64' 'i686 x86_64')
 
 build()
 {
@@ -37,7 +38,10 @@ build()
 		--enable-thread-safe-client \
 		--with-raid \
 		--with-client-ldflags=-lstdc++ \
-		--with-comment="Frugalware Linux - ${pkgname}-${pkgver}"
+		--with-comment="Frugalware Linux - ${pkgname}-${pkgver}" \
+		--with-embedded-server \
+                --with-extra-tools \
+                --with-embedded-privilege-control
 	Fsed '^.*HAVE_GETHOSTBYNAME_R_GLIBC2_STYLE.*$' '#define HAVE_GETHOSTBYNAME_R_GLIBC2_STYLE' config.h
 	Fsed 'size_socket' 'socklen_t' sql/mysqld.cc
 	Fsed 'testdir = $(benchdir_root)' 'testdir = $(benchdir_root)/share/mysql' mysql-test/Makefile
@@ -45,16 +49,22 @@ build()
 	make || return 1
 	
 	Fmakeinstall
+	Fln mysql/libmysqld.a /usr/lib/
 	Fln mysql/libmysqlclient.so /usr/lib/
 	Fln mysql/libmysqlclient.so.15 /usr/lib/
 	Fln mysql/libmysqlclient_r.so.15 /usr/lib/
 	Ffile my.cnf /etc/my.cnf
 	Frcd mysqld
+	Ffile /etc/sysconfig/mysqld
 	Fmkdir /var/run/mysql
 	chown 27.27 $Fdestdir/var/run/mysql || Fdie
 
 	Fsplit libmysqlclient usr/lib/libmysqlclient*
 	Fsplit libmysqlclient usr/lib/mysql/libmysqlclient*
+	
+	Fsplit libmysqld usr/lib/mysql/libmysqld.a
+	Fsplit libmysqld usr/lib/libmysqld.a
+	Fsplit libmysqld usr/bin/*_embedded
 }
 
 # optimization ok

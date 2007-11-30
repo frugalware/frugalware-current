@@ -1071,7 +1071,7 @@ Fextract() {
 		cmd="tar --use-compress-program=bzip2 -xf $file" ;;
 		*.tar)
 		cmd="tar -xf $file" ;;
-		*.zip)
+		*.zip|*.xpi)
 		unziphack=1
 		cmd="unzip -qqo $file" ;;
 		*.cpio.gz)

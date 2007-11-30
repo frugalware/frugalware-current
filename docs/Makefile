@@ -103,19 +103,19 @@ images:
 	ln -s /etc/asciidoc/images ./
 
 %.html: %.txt
-	asciidoc -a toc -a numbered -a sectids $(basename $@).txt
+	asciidoc -a toc -a numbered -a sectids -a lang=$(shell basename `pwd`|sed 's/docs//') $(basename $@).txt
 
 %.text: %.html
 	lynx -dump $(basename $@).html > $@
 
 %.pdf: %.txt
-	a2x -a toc -a numbered -a sectids -f pdf $^
+	a2x -a toc -a numbered -a sectids -f pdf -a lang=$(shell basename `pwd`|sed 's/docs//') $^
 
 %.txt: %.txt.in
 	sed 's/@VERSION@/$(VERSION)/' $(basename $@).txt.in > $@
 
 index.html: index.txt header.txt
-	asciidoc -a numbered -a sectids $(basename $@).txt
+	asciidoc -a numbered -a sectids -a lang=$(shell basename `pwd`|sed 's/docs//') $(basename $@).txt
 
 manual.txt: $(MANUAL_SOURCES) $(DYNAMIC_SOURCES)
 	$(call MERGE,index.txt,manual.txt)

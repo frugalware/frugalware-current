@@ -37,7 +37,7 @@
 # * install
 ###
 pkgname=php-pear-`echo $_F_pear_name|tr [A-Z] [a-z]`
-pkgrel=1
+[ -z "$pkgrel" ] && pkgrel=1
 url="http://pear.php.net/package/$_F_pear_name"
 groups=('devel-extra')
 archs=('i686' 'x86_64') # it's safe to add x86_64 by default
@@ -53,6 +53,9 @@ Fbuildpear()
 {
 	# install the package
 	pear install --nodeps -R $Fdestdir $_F_pear_name-$pkgver.tgz || Fdie
+	cd $Fdestdir/usr/share/pear
+	Fpatchall
+	cd - >/dev/null
 	# remove the common files, they will be updated by the scriptlet
 	Frm /usr/share/pear/{.channels,.registry,.depdb,.depdblock,.filemap,.lock} /tmp
 	# the package.xml is required to update the common files

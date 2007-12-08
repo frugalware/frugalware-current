@@ -1,25 +1,31 @@
 # Compiling Time: 2.33 SBU
-# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
+# Maintainer: crazy <crazy@frugalware.org>
+# Contributor: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=boost
-pkgver=1.34.0
-pkgrel=5
-pkgdesc="Boost Libraries for C++"
+pkgver=1.34.1
+pkgrel=1
+pkgdesc="Boost header files , examples and tools"
 _F_sourceforge_ext=".tar.bz2"
 Finclude sourceforge python
 url="http://boost.org/"
-depends=('libstdc++' 'python' 'icu>=3.8' 'bzip2' 'zlib')
-makedepends=('boost-jam')
+depends=()
+makedepends=('boost-jam>=3.1.16' 'python' 'icu>=3.8' 'bzip2' 'zlib')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=7586 | grep 'Latest.*Notes' | sed -n 's/.*\]\([0-9\.]\+\) \[.*/\1/;1 p'"
-source=(${source/-$pkgver/_${pkgver//./_}} no_version_for_include_kthx.patch \
-	boostjam_x86_64.patch gcc42_atomicity_h.patch)
+source=(${source/-$pkgver/_${pkgver//./_}})
 _F_cd_path="${pkgname}_`echo $pkgver|tr . _`"
-sha1sums=('d2fdb4535a13566917fe3d8377b017f094933641'\
-          'ed54f5fe28c801e240fa87f3641de1b1184dfe20'\
-          'f183bdd5970e67ac2d9062ec1834eb22233ede03'\
-          '4885396af53aa6a959cd6adb92d826acfa204d5a')
+sha1sums=('b771271d5cbd3bdb0f119dd66dfd36bad7a66866')
+
+subpkgs=("libboost" "libboost-mt" "libboost-static" "libboost-mt-static")
+subdescs=('Boost libraries.' 'Boost libraries with multithreading support.' \
+	  'Boost libraries statically linked.' 'Boost libraries with multithreading support statically linked.')
+subdepends=('icu libgcc bzip2 zlib' \
+	    'icu libgcc bzip2 zlib' \
+	    '' '')
+subgroups=('devel-extra' 'devel-extra' 'devel-extra' 'devel-extra')
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
 
 build()
 {
@@ -27,7 +33,7 @@ build()
 	Fpatchall
 	Fsed "-O3" "$CXXFLAGS -fno-strict-aliasing" tools/build/v2/tools/gcc.jam
 	BOOSTJAM="/usr/bin/bjam"
-	OPTIONS="release debug-symbols=off optimization=speed threading=single,multi -d2"
+	OPTIONS="release debug-symbols=off optimization=speed threading=single,multi -d+2"
 	JOBS="$MAKEFLAGS"
 
 	${BOOSTJAM} \
@@ -41,7 +47,8 @@ build()
 		--exec-prefix="$Fdestdir/usr" \
 		--includedir="$Fdestdir/usr/include" \
 		--libdir="$Fdestdir/usr/lib" \
-	    	--toolset=gcc stage || Fdie
+		--toolset=gcc \
+	    	--layout=system || Fdie
 
 	${BOOSTJAM} \
 	    	${JOBS} \
@@ -54,11 +61,20 @@ build()
 		--exec-prefix="$Fdestdir/usr" \
 		--includedir="$Fdestdir/usr/include" \
 		--libdir="$Fdestdir/usr/lib" \
-		--toolset=gcc install || Fdie
+		--toolset=gcc \
+		--layout=system install || Fdie
 	
 	cd $Fsrcdir/$_F_cd_path/tools/build/
 	Fmkdir usr/share/boost
-	cp -a b* index.html  v2/ $Fdestdir/usr/share/boost/
+	rm -rf v2/debian || Fdie
+	cp -a b* index.html  v2/ $Fdestdir/usr/share/boost/ || Fdie
+	
+	Fsplit libboost-mt usr/lib/libboost_*-mt.so
+	Fsplit libboost-mt-static  usr/lib/libboost_*-mt.a
+
+	Fsplit libboost usr/lib/libboost_*.so
+	Fsplit libboost-static usr/lib/libboost_*.a
+	
 }
 
 # optimization OK

@@ -32,9 +32,7 @@
 # project name
 ###
 
-if [ ! -z $_F_xfce_name ] ; then
-	_F_archive_name=$_F_xfce_name
-else
+if [ -z $_F_xfce_name ] ; then
 	_F_xfce_name=$pkgname
 fi
 
@@ -46,22 +44,27 @@ if [ -z $_F_xfce_goodies_dir ] ; then
 	_F_xfce_goodies_dir=$_F_xfce_name
 fi
 
+if [ -z $_F_archive_name ] ; then
+	_F_archive_name=$_F_xfce_name
+fi
+
 ###
 # == OVERWRITTEN VARIABLES
 # * url
 # * up2date
 # * source()
 ###
+
 if echo ${groups[*]} | grep -q goodies ; then
 	url="http://goodies.xfce.org/projects/panel-plugins/${_F_xfce_name}"
 	dlurl="http://goodies.xfce.org/releases/$_F_xfce_goodies_dir/"
-	up2date="lynx -dump $dlurl | grep "$_F_xfce_name-.*${_F_xfce_goodies_ext}$" | sed -n 's/.*-\(.*\)\.t.*/\1/;$ p'"
+	up2date="lynx -dump $dlurl | grep "$_F_xfce_name-.*${_F_xfce_goodies_ext}$" | Flasttar"
 	source=($dlurl/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
 else
 	url="http://www.xfce.org/"
 	preup2date="lynx -dump http://www.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"
 	dlurl="$url/archive/xfce-4.4.2/src"
-	up2date="lynx -dump $url/archive/xfce-\$($preup2date)/src/ | grep $_F_xfce_name | Flasttarbz2"
+	up2date="lynx -dump $url/archive/xfce-\$($preup2date)/src/ | Flasttar"
 	source=($dlurl/$_F_xfce_name-$pkgver.tar.bz2)
 fi
 

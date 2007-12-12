@@ -32,7 +32,9 @@
 # project name
 ###
 
-if [ -z $_F_xfce_name ] ; then
+if [ ! -z $_F_xfce_name ] ; then
+	_F_archive_name=$_F_xfce_name
+else
 	_F_xfce_name=$pkgname
 fi
 

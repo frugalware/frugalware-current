@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+"""fpm2irc - announces a package on IRC 
+Usage: python fpm2irc [options]
+
+Options:
+	-f ..., --fpm=...       The .fpm package.
+	-g ..., --grp=...       The group of the .fpm package. (optional for !nobuild pkgs)
+"""
+
+import sys, getopt, os, time, socket
+
+chans = ["#frugalware", "#frugalware.fr"]
+sockpath = "/home/ftp/pub/other/people/vmiklos/mxw/mxw2.sock"
+
+def usage():
+	print __doc__
+
+def main(argv):
+	fpm = None
+	grp = None
+	nobuild = False
+
+	# option parsing
+	try:
+		opts, args = getopt.getopt(argv, "f:g:", ["fpm=", "grp="])
+	except getopt.GetoptError:
+		usage()
+		sys.exit(1)
+
+	for opt, arg in opts:
+		if opt in ("-f", "--fpm"):
+			fpm = arg
+		elif opt in ("-g", "--grp"):
+			grp = arg
+			nobuild = True
+	
+	if not fpm:
+		raise "missing -f package!"
+	os.unsetenv("LANG")
+	os.unsetenv("LC_ALL")
+
+	try:
+		os.stat(fpm)
+	except OSError:
+		if nobuild:
+			raise "missing -g group!"
+	
+	if not grp:
+		sock = os.popen("pacman-g2 -Qi -p %s" % fpm)
+		lines = sock.readlines()
+		sock.close()
+
+		for i in lines:
+			if i.startswith("Groups"):
+				grp = i.split(' : ')[1].split(' ')[0]
+				break
+		if not grp:
+			raise "can't determine group for %s!" % fpm
+	
+	if 'uploader' in os.environ.keys():
+		uploader = os.environ['uploader']
+	else:
+		uploader = os.environ['HOME'].split('/')[-1]
+
+	lines = []
+	for i in chans:
+		chan = i
+		if uploader[:8] == "syncpkgd" and chan == "#frugalware":
+			chan = "#frugalware.dev"
+		lines.append("""c.privmsg("%s", "14packages7 %s3 %s/%s")""" % (
+			chan, uploader, grp, os.path.basename(fpm[:-4])))
+
+	client = socket.socket ( socket.AF_UNIX, socket.SOCK_DGRAM )
+	client.connect (sockpath)
+	client.send ("\n".join(lines))
+	client.close()
+
+	# to avoid floods
+	time.sleep(2)
+
+if __name__ == "__main__":
+	main(sys.argv[1:])

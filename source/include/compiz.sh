@@ -36,6 +36,8 @@ compizver=0.6.0
 
 if [ -z "$_F_compiz_name" ]; then
 	_F_compiz_name=$pkgname
+else # -n $_F_compiz_name
+	_F_archive_name=$_F_compiz_name
 fi
 
 if [ -z "$_F_compiz_version" ]; then

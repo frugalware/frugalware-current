@@ -14,6 +14,8 @@
 mount / -o rw,remount
 mount none -t sysfs /sys
 
+export MODPROBE_OPTIONS="--use-backlist"
+
 . /etc/udev/udev.conf
 
 prog=udev
@@ -21,38 +23,6 @@ sysfs_dir=/sys
 bin=/sbin/udev
 udevd=/sbin/udevd
 udev_root="/dev"
-
-run_udev () {
-	# handle block devices and their partitions
-	for i in ${sysfs_dir}/block/*; do
-		# add each drive
-		export DEVPATH=${i#${sysfs_dir}}
-		#echo "$DEVPATH"
-		$bin block
-
-		# add each partition, on each device
-		for j in $i/*; do
-			if [ -f $j/dev ]; then
-				export DEVPATH=${j#${sysfs_dir}}
-				#echo "$DEVPATH"
-				$bin block
-			fi
-		done
-	done
-	# all other device classes
-	for i in ${sysfs_dir}/class/*; do
-		for j in $i/*; do
-			if [ -f $j/dev ]; then
-				export DEVPATH=${j#${sysfs_dir}}
-				CLASS=`echo ${i#${sysfs_dir}} | \
-					cut --delimiter='/' --fields=3-`
-				#echo "$DEVPATH"
-				$bin $CLASS
-			fi
-		done
-	done
-	return 0
-}
 
 make_extra_nodes () {
 	# there are a few things that sysfs does not export for us.
@@ -70,6 +40,13 @@ make_extra_nodes () {
 	mkdir $udev_root/shm
 }
 
+start()
+{
+	/sbin/udevadm trigger
+	# Wait for udev events
+	/sbin/udevadm settle
+}
+
 # don't use udev if sysfs is not mounted.
 if [ ! -d $sysfs_dir/block ]; then
 	exit 1
@@ -83,11 +60,6 @@ export ACTION=add
 export UDEV_NO_SLEEP=1
 #echo "Creating initial udev device nodes:"
 
-# You can use the shell scripts above by calling run_udev or execute udevstart
-# which does the same thing, but much faster by not using shell.
-# Only comment out one of the following lines.
-#run_udev
-/sbin/udevstart
 
 #echo "making extra nodes"
 make_extra_nodes
@@ -103,13 +75,18 @@ if ! [ `pidof -o %PPID /sbin/udevd` ]; then
 	/sbin/udevd --daemon
 fi
 
+mkdir -p /dev/.udev/queue
+start
+
 # Make udevsend the hotplug multiplexer
 if [ -f "/sys/class/tty/console/uevent" ]; then
 	# trigger the sorted events
 	echo -e '\000\000\000\000' > /proc/sys/kernel/hotplug
-else
-	echo "/sbin/udevsend" > /proc/sys/kernel/hotplug
-fi 
+fi
+
+## just in case we have a box with a lot USB or external HW try detecting again
+start
+
 mount / -o ro,remount
 
 # end of rc.udev

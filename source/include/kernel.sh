@@ -154,7 +154,7 @@ if [ -z "$_F_kernel_name" ]; then
 fi
 groups=('base')
 archs=('i686' 'x86_64')
-options=('nodocs')
+options=('nodocs' 'genscriptlet')
 up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
 source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
 signatures=("${source[0]}.sign" '')

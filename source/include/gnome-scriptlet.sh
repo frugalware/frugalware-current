@@ -69,6 +69,12 @@ fi
 install="$_F_gnome_scriptlet"
 
 ###
+# == APPENDED VARIABLES
+# * genscriptlet to options()
+###
+options=(${options[@]} 'genscriptlet')
+
+###
 # == PROVIDED FUNCTIONS
 # * Fbuild_slice_scrollkeeper() removes scrollkeeper-update from Makefile.in
 # and omf.make

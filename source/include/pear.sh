@@ -46,6 +46,12 @@ source=(http://pear.php.net/get/$_F_pear_name-$pkgver.tgz)
 install=src/pear.install
 
 ###
+# == APPENDED VARIABLES
+# * genscriptlet to options()
+###
+options=(${options[@]} 'genscriptlet')
+
+###
 # == PROVIDED FUNCTIONS
 # * Fbuildpear()
 ###

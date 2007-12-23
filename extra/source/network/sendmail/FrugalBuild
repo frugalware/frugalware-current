@@ -1,0 +1,102 @@
+# Last Modified: Mon Aug  2 10:19:41 CEST 2004
+# Compiling Time: ~3 minutes
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=sendmail
+pkgver=8.13.1
+pkgrel=1
+pkgdesc="Eric Allman's mail transfer agent"
+url="http://www.sendmail.org/"
+depends=('db' 'glibc' 'openssl' 'procmail')
+provides=('mta')
+backup=(etc/mail/{access,access.db,aliases,aliases.db,domaintable,domaintable.db,local-host-names,mailertable,mailertable.db,Makefile,trusted-users,virtusertable,virtusertable.db,sendmail.cf,submit.cf})
+up2date=`lynx -dump http://www.sendmail.org/|grep available|sed -n -e 's/.*Sendmail \(.*\) is .*/\1/' -e '1 p'`
+source=(ftp://ftp.sendmail.org/pub/$pkgname/$pkgname.$pkgver.tar.gz \
+	site.config.m4 linux.uucp.mc sendmail-frugalware-tls.mc \
+	sendmail-frugalware.mc rc.sendmail cf2mc)
+md5sums=('5407db289086261d7e7a09920d2ea14e' '510cd71daf9b4541a157398127b741b8' \
+	 '2fdc9e4d0953e13ea7369730bab77148' '59f4762d9675f6f40ce2bd737c3107b8' \
+	 '098e510c7372ab5ee3fdaddba096faf6' '090db057bab895cfb82580881efdead6' \
+	 'e4831625e5596e3a7b40ac06331f7ab8')
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver
+	cp $startdir/src/site.config.m4 devtools/Site/site.config.m4
+
+	# build .cf files
+	cd cf/cf
+	mkdir -p $startdir/pkg/usr/share/sendmail
+	for i in linux.uucp sendmail-frugalware sendmail-frugalware-tls
+	do
+		cp $startdir/src/$i.mc .
+		cp $i.mc config.mc
+		sh Build config.cf
+		mv config.cf $startdir/pkg/usr/share/sendmail/$i.cf
+	done
+
+	# add sample config
+	mkdir -p $startdir/pkg/etc/mail
+	cp $startdir/pkg/usr/share/sendmail/sendmail-frugalware.cf \
+		$startdir/pkg/etc/mail/sendmail.cf
+	cp submit.cf $startdir/pkg/etc/mail/submit.cf
+
+	# build
+	cd ../../
+	make O="$CFLAGS" || return 1
+
+	# install binaries and manpages
+	mkdir -p $startdir/pkg/usr/man/man{1,5,8}
+	install -m644 sendmail/{mailq.1,newaliases.1} \
+		$startdir/pkg/usr/man/man1/
+	cd obj.`uname -srm | tr ' ' '.'`/sendmail
+	install -D sendmail $startdir/pkg/usr/sbin/sendmail
+	install -m644 aliases.5 $startdir/pkg/usr/man/man5/
+	install -m644 sendmail.8 $startdir/pkg/usr/man/man8/
+	install -m644  statistics $startdir/pkg/etc/mail/statistics
+	install -m644  ../../sendmail/helpfile $startdir/pkg/etc/mail/helpfile
+	for i in makemap mailstats smrsh mail.local editmap
+	do
+		cd ../$i
+		install $i $startdir/pkg/usr/sbin/$i
+		install -m644 $i.8 $startdir/pkg/usr/man/man8/
+	done
+	for i in praliases rmail
+	do
+		cd ../$i
+		install -D $i $startdir/pkg/usr/bin/$i
+		install -m644 $i.8 $startdir/pkg/usr/man/man8/
+	done
+	cd ../vacation
+	install vacation $startdir/pkg/usr/bin/vacation
+	install -m644 vacation.1 $startdir/pkg/usr/man/man1/
+
+	# libmilter
+	cd $startdir/src/$pkgname-$pkgver/libmilter
+	./Build
+	cd ..
+	mkdir -p $startdir/pkg/usr/include/libmilter
+	cp -a include/libmilter/{mfapi.h,mfdef.h} \
+		$startdir/pkg/usr/include/libmilter
+	install -D -m644 obj.*/libmilter/libmilter.a $startdir/pkg/usr/lib/libmilter.a
+
+	# misc
+	cp -a $startdir/mail/* $startdir/pkg/etc/mail/
+	mkdir -p $startdir/pkg/var/spool/{clientmqueue,mqueue}
+	chmod 770 $startdir/pkg/var/spool/clientmqueue
+	chown smmsp.smmsp $startdir/pkg/var/spool/clientmqueue
+	chmod 700 $startdir/pkg/var/spool/mqueue
+	chown root.mail $startdir/pkg/var/spool/mqueue
+	mkdir -p $startdir/pkg/etc/rc.d/rc.messages
+	install -m755 $startdir/rc.$pkgname $startdir/pkg/etc/rc.d/rc.$pkgname
+	install -m644 $startdir/messages/$pkgname.* \
+		$startdir/pkg/etc/rc.d/rc.messages
+	
+	# users may want to create their own cf's
+	mkdir -p $startdir/pkg/usr/share/sendmail/cf
+	cd $startdir/pkg/usr/share/sendmail/cf
+	cp -a $startdir/src/sendmail-$pkgver/cf/README .
+	for i in cf domain feature hack m4 mailer ostype sh siteconfig ; do
+		cp -a $startdir/src/sendmail-$pkgver/cf/$i .
+	done
+	cp -f $startdir/src/cf2mc cf/Build
+}

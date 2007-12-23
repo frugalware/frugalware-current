@@ -1,0 +1,96 @@
+--- rc.udev.in-0.4	2004-04-03 23:00:34.000000000 +0200
++++ rc.udev.in-0.5	2004-05-13 12:13:36.000000000 +0200
+@@ -5,10 +5,21 @@
+ 	ls -l $1 |cut -d '>' -f 2|cut -d " " -f 2
+ }
+ 
++if [ -e /etc/sysconfig/submount ]; then
++	. /etc/sysconfig/submount
++fi
++
++if [ "$mode" == "symlink" -o "$mode" == "dirs" -o "$mode" == "auto" ]; then
++
+ # cleaning up
+-(cd /dev; rm -rf cdrom cdrecorder dvd dvdrecorder)
++(cd /dev; rm -rf floppy cdrom cdrecorder dvd dvdrecorder)
+ 
+ # creating symlinks
++
++if [ -e /dev/fd0 ]; then
++	(cd /dev; ln -s fd0 floppy)
++fi
++
+ id=1
+ for i in `cat /proc/sys/dev/cdrom/info |grep name`
+ do
+@@ -38,6 +49,62 @@
+ 	fi
+ done
+ 
++if [ "$mountopts" != "" ]; then
++	mountopts=,$mountopts
++fi
++
++if [ "$mode" == "dirs" ]; then
++	(cd /mnt; rm -rf floppy cdrom cdrecorder dvd dvdrecorder)
++	if [ -e /dev/floppy ]; then
++		(
++		cd /etc
++		cat fstab |grep -v ^/dev/floppy>fstab.new
++		mv -f fstab.new fstab
++		echo "/dev/floppy /mnt/floppy auto user,noauto$mountopts 0 0" >>fstab
++		)
++		mkdir /mnt/floppy
++	fi
++
++	for i in cdrom cdrecorder dvd dvdrecorder
++	do
++		if [ -e /dev/$i ]; then
++			(
++			cd /etc
++			cat fstab |grep -v ^/dev/$i>fstab.new
++			mv -f fstab.new fstab
++			echo "/dev/$i /mnt/$i auto ro,user,noauto$mountopts 0 0" >>fstab
++			)
++			mkdir /mnt/$i
++		fi
++	done
++fi
++
++if [ "$mode" == "auto" ]; then
++	(cd /mnt; rm -rf floppy cdrom cdrecorder dvd dvdrecorder)
++	if [ -e /dev/floppy ]; then
++		(
++		cd /etc
++		cat fstab |grep -v ^/dev/floppy>fstab.new
++		mv -f fstab.new fstab
++		echo "/dev/floppy /mnt/floppy subfs fs=floppyfss$mountopts 0 0" >>fstab
++		)
++		mkdir /mnt/floppy
++	fi
++
++	for i in cdrom cdrecorder dvd dvdrecorder
++	do
++		if [ -e /dev/$i ]; then
++			(
++			cd /etc
++			cat fstab |grep -v ^/dev/$i>fstab.new
++			mv -f fstab.new fstab
++			echo "/dev/$i /mnt/$i subfs fs=auto,ro,user$mountopts 0 0" >>fstab
++			)
++			mkdir /mnt/$i
++		fi
++	done
++fi
++
+ # creating missing symlinks
+ 
+ # chechking for cdrecorder (dvdrecorder can be)
+@@ -83,5 +150,7 @@
+ 	fi
+ fi
+ 
++fi
++
+ (cd /dev; . /etc/sysconfig/udev)
+ mount / -o ro,remount

@@ -1,0 +1,87 @@
+# end of start_udev by Greg Kroah-Hartman
+
+# funtions
+what_is () {
+	ls -l $1 |cut -d '>' -f 2|cut -d " " -f 2
+}
+
+# cleaning up
+(cd /dev; rm -rf cdrom cdrecorder dvd dvdrecorder)
+
+# creating symlinks
+id=1
+for i in `cat /proc/sys/dev/cdrom/info |grep name`
+do
+	if [ "$id" == 1 -o "$id" == 2 ]; then
+		id=$(($id+1))
+	else
+		# checking for dvdrecorder
+		if [ `cat /proc/sys/dev/cdrom/info |grep "Can write DVD-R:"|tr "\t" " "|cut -d : -f 2|tr -s " "|cut -d " " -f $(($id-1))` == 1 ]; then
+			(cd /dev; ln -s $i dvdrecorder)
+		
+		# checking for cdrecorder
+		elif [ `cat /proc/sys/dev/cdrom/info |grep "Can write CD-R:"|tr "\t" " "|cut -d : -f 2|tr -s " "|cut -d " " -f $(($id-1))` == 1 ]; then
+			(cd /dev; ln -s $i cdrecorder)
+			if [ `cat /proc/sys/dev/cdrom/info |grep "Can read DVD:"|tr "\t" " "|cut -d : -f 2|tr -s " "|cut -d " " -f $(($id-1))` == 1 ]; then
+				(cd /dev; ln -s $i cdrecorder+dvd)
+			fi
+		
+		# checking for dvd
+		elif [ `cat /proc/sys/dev/cdrom/info |grep "Can read DVD:"|tr "\t" " "|cut -d : -f 2|tr -s " "|cut -d " " -f $(($id-1))` == 1 ]; then
+			(cd /dev; ln -s $i dvd)
+		
+		# cdrom
+		else
+			(cd /dev; ln -s $i cdrom)
+		fi
+		id=$(($id+1))
+	fi
+done
+
+# creating missing symlinks
+
+# chechking for cdrecorder (dvdrecorder can be)
+
+if ! [ -L /dev/cdrecorder ]; then
+	if [ -L /dev/dvdrecorder ]; then
+		(cd /dev; ln -s `what_is dvdrecorder` cdrecorder)
+	fi
+fi
+		
+# chechking for dvd (dvdrecorder or cdrecorder can be)
+
+if ! [ -L /dev/dvd ]; then
+	if [ -L /dev/dvdrecorder ]; then
+		(cd /dev; ln -s `what_is dvdrecorder` dvd)
+	fi
+fi
+if ! [ -L /dev/dvd ]; then
+	if [ -L /dev/cdrecorder+dvd ]; then
+		(cd /dev; mv cdrecorder+dvd dvd)
+	else
+		(cd /dev; rm -f cdrecorder+dvd)
+	fi
+else
+	(cd /dev; rm -f cdrecorder+dvd)
+fi
+
+# chechking for cdrom (dvdrecorder, cdrecorder or dvd can be)
+
+if ! [ -L /dev/cdrom ]; then
+	if [ -L /dev/dvd ]; then
+		(cd /dev; ln -s `what_is dvd` cdrom)
+	fi
+	if ! [ -L /dev/cdrom ]; then
+		if [ -L /dev/cdrecorder ]; then
+			(cd /dev; ln -s `what_is cdrecorder` cdrom)
+		fi
+	fi
+	if ! [ -L /dev/cdrom ]; then
+		if [ -L /dev/dvdrecorder ]; then
+			(cd /dev; ln -s `what_is dvdrecorder` cdrom)
+		fi
+	fi
+fi
+
+(cd /dev; . /etc/sysconfig/udev)
+mount / -o ro,remount

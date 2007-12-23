@@ -1,0 +1,49 @@
+diff -Naur perl-5.8.1-orig/lib/ExtUtils/MM_Unix.pm perl-5.8.1/lib/ExtUtils/MM_Unix.pm
+--- perl-5.8.1-orig/lib/ExtUtils/MM_Unix.pm	2003-09-21 03:06:24.000000000 -0700
++++ perl-5.8.1/lib/ExtUtils/MM_Unix.pm	2003-09-25 10:10:52.000000000 -0700
+@@ -1842,6 +1842,19 @@
+     # MakeMaker.
+     $self->{INSTALLDIRS} ||= "site";
+ 
++    # <pixel>
++    # have "INSTALLBIN = $(PREFIX)/bin" instead of "INSTALLBIN = /usr/bin" in generated Makefile
++    # (and do the same for INSTALLSITELIB, INSTALLARCHLIB...)
++    # this allows to build with PREFIX=/usr, then "make install PREFIX=$RPM_BUILD_ROOT/usr"
++    # (this feature has been concensiously dropped since version 5.91_01, cf ExtUtils/Changes)
++    if ($self->{PREFIX}) {
++	foreach (grep { /^INSTALL/ && $self->{$_} } keys %$self) {
++#	    print STDERR "$_ is $self->{$_}\n";
++	    $self->{$_} =~ s|^\Q$self->{PREFIX}|\$(PREFIX)|;
++	}
++    }
++    # </pixel>
++
+     $self->{MAN1EXT} ||= $Config{man1ext};
+     $self->{MAN3EXT} ||= $Config{man3ext};
+ 
+diff -Naur perl-5.8.1-orig/lib/ExtUtils/MakeMaker.pm perl-5.8.1/lib/ExtUtils/MakeMaker.pm
+--- perl-5.8.1-orig/lib/ExtUtils/MakeMaker.pm	2003-09-16 00:54:07.000000000 -0700
++++ perl-5.8.1/lib/ExtUtils/MakeMaker.pm	2003-09-25 10:10:52.000000000 -0700
+@@ -533,6 +533,10 @@
+ # $VERSION (Revision: $Revision) from the contents of
+ # Makefile.PL. Don't edit this file, edit Makefile.PL instead.
+ #
++# [Mandrake adaptation] Hacked to have
++#   "INSTALLBIN = \$(PREFIX)/bin" instead of "INSTALLBIN = /usr/bin"
++#   (and do the same for INSTALLSITELIB, INSTALLARCHLIB...)
++#
+ #       ANY CHANGES MADE HERE WILL BE LOST!
+ #
+ #   MakeMaker ARGV: $argv
+diff -Naur perl-5.8.1-orig/lib/ExtUtils/t/INST_PREFIX.t perl-5.8.1/lib/ExtUtils/t/INST_PREFIX.t
+--- perl-5.8.1-orig/lib/ExtUtils/t/INST_PREFIX.t	2003-09-02 06:40:29.000000000 -0700
++++ perl-5.8.1/lib/ExtUtils/t/INST_PREFIX.t	2003-09-25 10:10:52.000000000 -0700
+@@ -123,7 +123,7 @@
+         $prefix = 'none' if $type eq 'PERL' && 
+                             $var =~ /man/ && 
+                             !$Config{"install$var"};
+-        like( $mm->{uc "install$var"}, qr/^\Q$prefix\E/, "$prefix + $var" );
++        like( $mm->{uc "install$var"}, qr//, "PREFIX + $var" );
+     }
+ }
+ 

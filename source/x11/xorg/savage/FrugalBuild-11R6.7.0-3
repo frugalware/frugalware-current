@@ -1,0 +1,51 @@
+# Last Modified: Tue Jun 29 11:02:54 CEST 2004
+# Compiling Time: ~2 hours
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=xorg
+pkgver=11R6.7.0
+pkgrel=3
+pkgdesc="A fork of the XFree86 Project with a GPL-compatible license"
+url="http://www.x.org"
+backup=(usr/X11R6/lib/X11/icons/default/index.theme etc/X11/xdm/Xsession)
+depends=('glibc' 'freetype1' 'fontconfig' 'gcc')
+conflicts=('xfree86')
+provides=('x')
+makedepends=('perl')
+install=$pkgname.install
+up2date=`lynx -dump http://freedesktop.org/~xorg/|grep 'Release '|cut -d n -f 3|sed 's/ Release /R/'|cut -d ' ' -f 2`
+source=(http://freedesktop.org/~xorg/X${pkgver}/src/X${pkgver}-src{1,2,3,4,5}.tar.gz \
+        http://www.joerg-pommnitz.de/TrueType/ttmkfdir.tar.gz Xsession X${pkgver}-kernel26.diff)
+md5sums=('22465263bae7a2e9f5ad77e172cf1ab5' '6ef4e8f7647a28f080c10ea1bcf01f79' \
+         '4c7144786522bbce383b21ace72bf669' '4f2ed6fe4378fe60b58b8b4c8487cab0' \
+         '87177e6e6ac5b2d7de6a032ee8641ec1' 'dcf6aa4d28f5c52acf2bb57f49f53089' \
+	 'b6f825ad58d17b0c1b091731210b14fc' '58f1056545490c74b0f2d5f79ae3e91b')
+
+# This package won't build against flex 2.5.31
+# please use the 2.5.4a version
+
+build() {
+  cd $startdir/src
+  make FREETYPE_INCL=/usr/include/freetype || return 1
+  install -D ttmkfdir $startdir/pkg/usr/X11R6/bin/ttmkfdir
+  
+  patch -p0 < X${pkgver}-kernel26.diff
+  cd $startdir/src/xc
+  echo $'#define HasZlib YES\n' >config/cf/host.def
+  echo $'#define HasNCurses YES\n' >>config/cf/host.def
+  echo $'#define HasFontconfig YES\n' >>config/cf/host.def
+  echo $'#define HasFreetype2 YES\n' >>config/cf/host.def
+  echo $'#define HasExpat YES\n' >>config/cf/host.def
+
+  make World || return 1
+
+  make DESTDIR=$startdir/pkg install
+  make DESTDIR=$startdir/pkg install.man
+  
+  cp -f $startdir/src/Xsession $startdir/pkg/etc/X11/xdm/Xsession
+  
+  (cd $startdir/pkg/usr/include && ln -sf ../X11R6/include/X11 X11)
+  (cd $startdir/pkg/usr/include && ln -sf ../X11R6/include/GL GL)
+  
+  mv $startdir/pkg/usr/X11R6/lib/pkgconfig $startdir/pkg/usr/lib/
+}

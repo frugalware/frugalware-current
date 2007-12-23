@@ -1,0 +1,56 @@
+# Last Modified: Tue Sep 14 19:08:34 CEST 2004
+# Compiling Time: ~5 minutes
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=cups
+pkgver=1.1.21
+pkgrel=1
+pkgdesc="The CUPS Printing System"
+url="http://www.cups.org/"
+depends=('openssl' 'libtiff' 'libjpeg' 'libpng')
+backup=(etc/cups/{printers.conf,classes.conf,client.conf,cupsd.conf,mime.types,mime.convs,ppds.dat} etc/printcap)
+install=$pkgname.install
+up2date=`lynx -dump 'http://www.cups.org/news.php' |grep 'Common UNIX Printing System'|grep -v rc|sed -n '1 p'|tr -s ' '|cut -d ' ' -f 9`
+source=(ftp://ftp.easysw.com/pub/cups/$pkgver/cups-$pkgver-source.tar.bz2 \
+	rc.cups printcap ppds.dat.gz)
+md5sums=('54e9b0d9c0bdb45b956f88c14793ef65' '6d2b38afba6e0ccf85f751e3c8e97982' \
+	 '7874f10c10b5f1ec9a347d66cf0a5cc2' '9109931f8f149a718209421dfbd0da37')
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver
+	./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
+		    --with-logdir=/var/log/cups \
+		    --with-docdir=/usr/share/cups/doc --enable-ssl=yes \
+		    --disable-pam
+
+	make || return 1
+
+	make BUILDROOT=$startdir/pkg install
+	install -m644 $startdir/src/ppds.dat $startdir/pkg/etc/cups/
+	# init scripts
+	rm -rf $startdir/pkg/etc/rc.d/{init.d,rc?.d}
+	mkdir -p $startdir/pkg/etc/rc.d/rc.messages
+	install -m755 $startdir/rc.$pkgname $startdir/pkg/etc/rc.d/rc.$pkgname
+	install -m644 $startdir/messages/$pkgname.* \
+		$startdir/pkg/etc/rc.d/rc.messages/
+	# printcap
+	install -m644 $startdir/src/printcap $startdir/pkg/etc/
+	mkdir $startdir/pkg/usr/etc
+	( cd $startdir/pkg/usr/etc && ln -sf /etc/printcap printcap )
+	# samba support
+	( cd $startdir/pkg/usr/lib/cups/backend
+	  if [ ! -r smb ]; then
+	  ln -sf /usr/bin/smbspool smb
+	  fi )
+	# fix perms on /var/spool
+	chmod 755 $startdir/pkg/var/spool
+	
+	# remove 'cat?'
+	cd $startdir/pkg
+	for i in `find * -type d -name cat?`
+	do
+		rm -rf $i
+	done
+}
+
+# vim: ft=sh

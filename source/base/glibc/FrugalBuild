@@ -1,0 +1,37 @@
+# Last Modified: Thu Aug  5 09:45:52 CEST 2004
+# Compiling Time: ~1,5 hours
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=glibc
+pkgver=2.3.3
+pkgrel=1
+pkgdesc="GNU C Library"
+url="http://www.gnu.org/software/libc"
+depends=()
+up2date=`lynx -dump 'http://ftp.gnu.org/pub/gnu/glibc/?M=D'|grep linuxthreads.*tar.gz$|sed -n -e 's/.*linuxthreads-\(.*\)\.tar\.gz$/\1/' -e '1 p'`
+source=(ftp://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-$pkgver.tar.gz \
+        ftp://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-linuxthreads-$pkgver.tar.gz \
+	glibc-$pkgver-gcc34.diff)
+md5sums=('b45c4cfa714a4688c319149c15a1e060' '9006b8bff18beb864f6053857f25b410' \
+	 'e9ac70903065526222320b0a4482478a')
+
+build() {
+  cd $startdir/src/$pkgname-$pkgver
+  patch -p1 < $startdir/src/glibc-$pkgver-gcc34.diff
+  mv ../linuxthreads_db ./
+  mv ../linuxthreads ./
+  mkdir ../glibc-build
+  cd ../glibc-build
+  ../$pkgname-$pkgver/configure --prefix=/usr --enable-add-ons=linuxthreads
+
+  make CFLAGS+="-fno-unit-at-a-time" || return 1
+
+  make install_root=$startdir/pkg install
+  make install_root=$startdir/pkg localedata/install-locales
+  rm -rf $startdir/pkg/etc/ld.so.cache $startdir/pkg/etc/localtime
+  cd $startdir/src/$pkgname-$pkgver/linuxthreads/man
+  make CFLAGS+="-fno-unit-at-a-time" || return 1
+  mkdir -p $startdir/pkg/usr/man/man3
+  cp *.3thr $startdir/pkg/usr/man/man3
+  install -D -m644 $startdir/src/$pkgname-$pkgver/nscd/nscd.conf $startdir/pkg/etc/nscd.conf
+}

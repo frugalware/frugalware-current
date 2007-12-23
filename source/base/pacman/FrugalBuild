@@ -1,0 +1,59 @@
+# Last Modified: Wed Oct 27 22:16:26 CEST 2004
+# Compiling Time: ~1 minute
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=pacman
+pkgver=2.9.2
+pkgrel=2
+pkgdesc="A .tar.gz based package manager with dependency support"
+url="http://www.archlinux.org/pacman"
+backup=('etc/pacman.conf' 'etc/makepkg.conf')
+makedepends=('libtar')
+install=pacman.install
+up2date=`lynx -dump http://www.archlinux.org/pacman/|grep released|sed -n -e 's/.* v\(.*\) .*/\1/' -e '1 p'`
+source=(ftp://ftp.archlinux.org/other/pacman/$pkgname-$pkgver.tar.gz \
+        $pkgname-$pkgver-up2date.diff checkworld movepkg pacman.conf)
+md5sums=('f73ed0d84573dfc8fdab541ce55447bd' \
+	 'c9df850b65e792bc6b57ff9443ce5d77' 'e7ec4065949552c6f9491c73bf67a379' \
+	 '6be7fd5f62894978c6620e588e41c39f' 'a6c42c6d38098733bced460b1172657a')
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver
+	# begin patching
+	for i in `grep -R pkg.tar.gz *|cut -d : -f 1|sort -u`
+	do
+		sed -i 's/pkg.tar.gz/fpm/g' $i
+	done
+	for i in `grep -R db.tar.gz *|cut -d : -f 1|sort -u`
+	do
+		sed -i 's/db.tar.gz/fdb/g' $i
+	done
+	sed -i -e 's/^export USE_COLOR="n"/export USE_COLOR="y"/' \
+		etc/makepkg.conf
+	sed -i -e 's|Arch Linux (http://www.archlinux.org)|Frugalware Linux (http://www.frugalware.org)|' scripts/makepkg
+	for i in `grep -R PKGBUILD *|cut -d : -f 1|sort -u`
+	do
+		sed -i 's/PKGBUILD/FrugalBuild/g' $i
+	done
+	# english dates
+	sed -i 's/\(umask [0-9]*$\)/\1\nunset LC_ALL LANG/' scripts/makepkg
+	# hack for gensync for faster creating fdbs (up2date is unnecessary)
+	sed -i -e 's%source $1 || return 1%cat $1 |grep -v "up2date=\\`" >/tmp/.FrugalBuild\n\tsource /tmp/.FrugalBuild || return 1\n\trm /tmp/.FrugalBuild%' \
+		-e 's%source $file\(.*\)%cat $file |grep -v "up2date=\\`" >/tmp/.FrugalBuild\n\tsource /tmp/.FrugalBuild\1\n\trm /tmp/.FrugalBuild%' \
+		scripts/gensync
+	# up2date feature
+	patch -p1 < $startdir/src/$pkgname-$pkgver-up2date.diff
+	# end of patching
+	./configure --prefix=/usr
+	
+	make || return 1
+	
+	make DESTDIR=$startdir/pkg install
+	install -m755 $startdir/src/checkworld $startdir/pkg/usr/bin/
+	install -m755 $startdir/src/movepkg $startdir/pkg/usr/bin/
+	install -m644 $startdir/src/pacman.conf $startdir/pkg/etc/
+	mkdir -p $startdir/pkg/etc/pacman.d/
+	install -m644 $startdir/conf/* $startdir/pkg/etc/pacman.d/
+}
+
+# vim: ft=sh

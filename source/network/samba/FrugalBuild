@@ -1,0 +1,50 @@
+# Last Modified: Fri Aug 20 17:30:53 CEST 2004
+# Compiling Time: ~22 minutes
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=samba
+pkgver=3.0.7
+pkgrel=1
+pkgdesc="SMB file and print server"
+url="http://www.samba.org"
+backup=(etc/logrotate.d/samba)
+depends=('popt' 'cups' 'openldap' 'openssl')
+up2date=`lynx -dump 'http://hu.samba.org/samba/ftp/?M=D'|grep LATEST|sed -n -e 's/LATEST-IS-SAMBA-//' -e 's/-/\./g' -e '1 p'|tr -s ' '|cut -d ' ' -f 4|cut -d ] -f 2`
+source=(http://hu.samba.org/samba/ftp/$pkgname-$pkgver.tar.gz \
+        samba.logrotate rc.samba)
+md5sums=('5906341429e64214909865a4be92e4ab' '20b7581d231ea42b0c9c16ed789852ce' \
+         '116dcc2c9ae269a298cbc6c1385b79b4')
+
+build() {
+  cd $startdir/src/$pkgname-$pkgver/source
+  ./configure --prefix=/usr --localstatedir=/var --bindir=/usr/bin \
+              --sbindir=/usr/sbin --with-lockdir=/var/cache/samba \
+	      --sysconfdir=/etc --with-configdir=/etc/samba \
+	      --with-privatedir=/etc/samba/private \
+	      --with-swatdir=/usr/share/swat \
+              --enable-cups --with-fhs --with-acl-support --with-automount \
+	      --with-smbmount --with-quotas --with-syslog --with-utmp \
+	      --with-libsmbclient --with-winbind
+
+  make || return 1
+  
+  mkdir -p $startdir/pkg/var/{spool/samba,log/samba,cache/samba}
+  mkdir -p $startdir/pkg/etc/samba/private
+  chmod 700 $startdir/pkg/etc/samba/private
+  
+  make DESTDIR=$startdir/pkg install
+  
+  chmod 644 $startdir/pkg/usr/include/*.h
+  cat ../examples/smb.conf.default | sed 's|log file = .*$|log file = /var/log/samba/log.%m|g' >$startdir/pkg/etc/samba/smb.conf.default
+  install -D -m644 $startdir/src/samba.logrotate $startdir/pkg/etc/logrotate.d/samba
+  ln -sf /usr/bin/smbmount $startdir/pkg/sbin/mount.smbfs
+
+  mkdir -p $startdir/pkg/etc/rc.d/rc.messages
+  install -m755 $startdir/src/rc.samba $startdir/pkg/etc/rc.d/rc.samba
+  cp -a $startdir/messages/samba.* $startdir/pkg/etc/rc.d/rc.messages/
+
+  # resolve conflicts with tdb
+  rm -f $startdir/pkg/usr/bin/tdbdump
+}
+
+# vim: ft=sh

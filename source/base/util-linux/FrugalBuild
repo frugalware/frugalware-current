@@ -1,0 +1,68 @@
+# Last Modified: Wed Sep 29 19:12:39 CEST 2004
+# Compiling Time: ~2 minutes
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=util-linux
+pkgver=2.12
+pkgrel=12
+pkgdesc="Miscellaneous system utilities for Linux"
+backup=(etc/sysconfig/console)
+depends=('bash' 'glibc' 'ncurses')
+install=$pkgname.install
+up2date=`lynx -dump http://ftp.cwi.nl/aeb/util-linux/|grep tar.gz |grep -v pre|tail -n 1|tr '-' '\n'|tail -n 1|sed 's/.tar.gz//'`
+source=(http://ftp.cwi.nl/aeb/util-linux/util-linux-$pkgver.tar.gz \
+        rc.swap rc.mount rc.time rc.console rc.rmount timeconfig)
+md5sums=('997adf78b98d9d1c5db4f37ea982acff' '3344ad80af979ea48d2d06b04ef2e409' \
+         '01dff76a0fbb725cab32890776cc189a' '6db2767ad7735311c090d9d29a972f7b' \
+	 'ee5175b3bae3a977d091fee0744ba316' '2de72d68b27dc764650c2a712e4fb39d' \
+	 '3b07c6c4799e32a858b71eda33bbcedb')
+
+# compiles only with kernel headers v2.4 :-(
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver
+	./configure
+
+	make HAVE_SLN=yes ADD_RAW=yes || return 1
+  
+	# installing
+	make HAVE_SLN=yes ADD_RAW=yes DESTDIR=$startdir/pkg install
+
+	# remove conflicting files
+	rm -f $startdir/pkg/bin/kill
+	rm -f $startdir/pkg/usr/share/man/man1/kill.*
+	rm -f $startdir/pkg/usr/bin/write
+	rm -f $startdir/pkg/usr/share/man/man1/write.*
+	rm -f $startdir/pkg/usr/bin/setfdprm
+  
+	# init scripts
+	mkdir -p $startdir/pkg/etc/rc.d/rc.messages
+	for i in swap mount time console rmount
+	do
+		install -m755 $startdir/rc.$i $startdir/pkg/etc/rc.d/rc.$i
+		install -m644 $startdir/messages/$i.* \
+			$startdir/pkg/etc/rc.d/rc.messages
+	done
+
+	# our getty :)
+	echo '#!/bin/bash' >frugalwaregetty
+	echo 'clear' >>frugalwaregetty
+	echo 'setleds +num -caps -scroll </dev/$2' >>frugalwaregetty
+	echo '/sbin/agetty $*' >>frugalwaregetty
+	install -m755 frugalwaregetty $startdir/pkg/sbin/
+
+	# console config
+	mkdir -p $startdir/pkg/etc/sysconfig/
+	echo "idle=15">$startdir/pkg/etc/sysconfig/console
+
+	# timeconfig
+	mkdir -p $startdir/pkg/var/lib/frugalware/{system,messages}
+	install -m755 $startdir/src/timeconfig \
+	$startdir/pkg/var/lib/frugalware/system/
+	install -m644 $startdir/messages/timeconfig.* \
+	$startdir/pkg/var/lib/frugalware/messages/
+	cd $startdir/pkg/sbin/
+	ln -s ../var/lib/frugalware/system/timeconfig ./
+}
+
+# vim: ft=sh

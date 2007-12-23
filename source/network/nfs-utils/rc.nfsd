@@ -1,0 +1,47 @@
+#!/bin/sh
+
+# (c) 2003 Vajna Miklos <mamajom@axelero.hu>
+# rc.nfsd for FrugalWare
+# distributed under GPL License
+
+. /etc/rc.d/rc.functions
+
+# chkconfig: 2345 60 20
+# description: NFS is a popular protocol for file sharing across TCP/IP \
+#              networks. This service provides NFS server functionality, \
+#              which is configured via the /etc/exports file.
+
+
+if [ "$1" = "stop" ]; then
+	stop "$stopnfsd "
+	killall lockd 2> /dev/null
+	killall rpc.statd 2> /dev/null
+	killall rpc.mountd 2> /dev/null
+	killall nfsd 2> /dev/null
+	sleep 1
+	killall -9 nfsd 2> /dev/null
+	killall rpc.rquotad 2> /dev/null
+	/usr/sbin/exportfs -au 2> /dev/null
+	ok $?
+elif [ "$1" = "restart" ]; then
+	"$0" stop
+	sleep 1
+	"$0" start
+else # start
+	start "$startnfsd "
+	if [ ! -r /etc/exports ]; then
+		ok 1 # no config file
+		exit 1
+	elif ! fgrep '/' /etc/exports 1> /dev/null 2> /dev/null ; then
+		ok 1 # only comments
+		exit 1
+	fi
+	# load kernel module if necessary
+	[ -z "`/sbin/lsmod | grep "^nfsd "`" ] && /sbin/modprobe nfsd
+	/usr/sbin/exportfs -r >/dev/null 2>/dev/null
+	/usr/sbin/rpc.rquotad >/dev/null
+	# start 8 nfsd servers by default (an old Sun standard):
+	/usr/sbin/rpc.nfsd 8 >/dev/null
+	/usr/sbin/rpc.mountd >/dev/null
+	ok $?
+fi

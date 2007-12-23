@@ -1,0 +1,58 @@
+# Last Modified: Fri Jul 23 20:18:09 CEST 2004
+# Compiling Time: ~1 minute
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=udev
+pkgver=030
+pkgrel=2
+pkgdesc="A userspace implementation of devfs"
+backup=(etc/udev/udev.{conf,permissions,rules} etc/sysconfig/udev)
+depends=('glibc' 'hotplug')
+conflicts=('devfsd')
+install=$pkgname.install
+up2date=`lynx -dump 'http://www.kernel.org/pub/linux/utils/kernel/hotplug/?C=M&O=D' |grep udev|grep tar.gz|grep -v sign|sed -n '1 p'|tr -s ' '|cut -d ' ' -f 4|sed 's/.tar.gz//'|cut -d - -f 2`
+source=(http://kernel.org/pub/linux/utils/kernel/hotplug/$pkgname-$pkgver.tar.gz rc.udev udev)
+md5sums=('efb022c9b416e2aa05a4d7698eb3c489' 'a7b57464238544fed2d3538120bf5ee7' \
+         'ccf00c9c689e0feedb441485e8dd6caf')
+
+build() {
+  cd $startdir/src/$pkgname-$pkgver
+  sed -i 's|udevdir = ${prefix}/udev|udevdir = ${prefix}/dev|' Makefile
+  ( cd etc/udev
+    mv -f udev.permissions.slackware udev.permissions )
+  
+  make || return 1
+
+  make DESTDIR=$startdir/pkg install
+  
+  # making initscript
+  
+  mkdir $startdir/pkg/etc/rc.d/
+  cat >$startdir/pkg/etc/rc.d/rc.udev <<EOF
+#!/bin/bash
+
+# (c) 2004 Vajna Miklos <mamajom@axelero.hu>
+# rc.udev for FrugalWare
+# distriuted under GPL license
+
+mount / -o rw,remount
+
+mount none -t sysfs /sys
+
+EOF
+  cat $startdir/src/$pkgname-$pkgver/extras/start_udev \
+    |sed 's/echo "/#echo "/' \
+    |sed 's/exit 0/#exit 0/' >>$startdir/pkg/etc/rc.d/rc.udev
+  cat $startdir/src/rc.udev.in >>$startdir/pkg/etc/rc.d/rc.udev
+  chmod 755 $startdir/pkg/etc/rc.d/rc.udev
+  
+  # end of creating init script
+  
+  install -D -m644 $startdir/src/udev $startdir/pkg/etc/sysconfig/udev
+  mkdir $startdir/pkg/dev
+  cd $startdir/pkg/dev
+  mknod -m 700 console c 5 1
+  mknod -m 600 null c 1 3
+}
+
+# vim: ft=sh

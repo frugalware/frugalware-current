@@ -1,0 +1,42 @@
+# Last Modified: Thu Sep 16 11:34:01 CEST 2004
+# Compiling Time: ~3 minutes
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=postfix
+pkgver=2.1.5
+pkgrel=1
+pkgdesc="A fast, easy to administer, and secure MTA"
+url="http://www.postfix.org/"
+depends=('glibc' 'db' 'pcre')
+provides=('mta')
+backup=(etc/mail/{aliases,aliases.db} etc/postfix/{main.cf,master.cf})
+install="$pkgname.install"
+mirror="http://www2.pcl.fr/mirrors/www.postfix.org/source"
+up2date=`lynx -dump $mirror/official/\?M=D|grep postfix-[0-9\.]*tar.gz$|sed -n -e 's|.*l/postfix-\(.*\)\.tar\.gz$|\1|' -e '1 p'`
+source=($mirror/official/$pkgname-$pkgver.tar.gz rc.$pkgname)
+md5sums=('bcaa4aac80595d04c60c72844203a04d' '469a3ba7df1e1e9e3f649a3d481657e6')
+
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver
+	
+	make OPT="${CFLAGS}" || return 1
+	
+	sh postfix-install -non-interactive \
+		install_root="$startdir/pkg" \
+		daemon_directory="/usr/lib/$pkgname" \
+		sample_directory="/etc/$pkgname/sample" \
+		manpage_directory="/usr/man"
+	
+	# aliases
+	sed -i 's|\(^#alias_maps = netinfo:/aliases$\)|\1\nalias_maps = hash:/etc/postfix/aliases|' $startdir/pkg/etc/postfix/main.cf
+	sed -i 's|\(^#alias_database = hash:/etc/aliases, hash:/opt/majordomo/aliases$\)|\1\nalias_database = hash:/etc/postfix/aliases|' $startdir/pkg/etc/postfix/main.cf
+	
+	# init script
+	mkdir -p $startdir/pkg/etc/rc.d/rc.messages
+	install -m755 $startdir/rc.$pkgname $startdir/pkg/etc/rc.d/rc.$pkgname
+	install -m644 $startdir/messages/$pkgname.* \
+		$startdir/pkg/etc/rc.d/rc.messages/
+}
+
+# vim: ft=sh

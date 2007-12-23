@@ -1,0 +1,38 @@
+# Last Modified: Fri Aug 20 17:41:16 CEST 2004
+# Compiling Time: ~2,5 hours
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=qt
+pkgver=3.3.3
+pkgrel=1
+pkgdesc="The QT gui toolkit."
+url="http://www.trolltech.com/products/qt/index.html"
+pkgfqn=${pkgname}-x11-free-${pkgver}
+install=qt.install
+depends=('x' 'libpng' 'libjpeg')
+up2date=`lynx -dump http://www.trolltech.com/download/qt/x11.html|grep tar.bz2|sed -n '1 p'|cut -d - -f 4|sed 's/.tar.bz2//'`
+source=(ftp://ftp.trolltech.com/qt/source/${pkgfqn}.tar.bz2 qt.profile)
+md5sums=('3e0a0c8429b0a974b39b5f535ddff01c' '8c8deb0afa7663d11e4e7eaa190b0232')
+
+export QTDIR=$startdir/src/$pkgfqn
+export PATH=${QTDIR}/bin:${PATH}
+export LD_LIBRARY_PATH=${QTDIR}/lib:${LD_LIBRARY_PATH}
+
+build() {
+	cd $startdir/src/$pkgfqn
+	echo "yes" | ./configure -prefix /usr/lib/qt-$pkgver -system-zlib \
+		-qt-gif -system-libpng -system-libjpeg -plugin-imgfmt-mng \
+		-thread -no-stl -no-g++-exceptions 
+	# fix the broken makefiles
+	sed -i 's|[[:space:]]*strip.*doc/html.*$|#|g' src/Makefile
+	# optimize the build
+	sed -i "s:-O2:${CFLAGS}:g" mkspecs/linux-g++/qmake.conf
+
+	make || return 1
+	
+	make INSTALL_ROOT=$startdir/pkg install
+	install -D -m755 $startdir/qt.profile $startdir/pkg/etc/profile.d/qt.sh
+	(cd $startdir/pkg/usr/lib; ln -s qt-$pkgver qt)
+}
+
+# vim: ft=sh

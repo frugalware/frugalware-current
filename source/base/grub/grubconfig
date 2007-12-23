@@ -1,0 +1,118 @@
+#!/bin/sh
+
+# (c) 2003-2004 Vajna Miklos <mamajom@axelero.hu>
+# grubconfig for FrugalWare
+# distributed under GPL License
+
+. /var/lib/frugalware/messages/rc.messages
+
+### constatnts
+logdev=/dev/tty4
+
+### strings
+grubbacktitle="$instgrub - FrugalWare `cat /etc/frugalware-release |cut -d ' ' -f 2` $setup"
+
+### functions
+ask_towhere()
+{
+	typef=`mktemp /tmp/tmp.XXXXXX`
+	dialog --backtitle "$grubbacktitle" --title "$towheret" \
+		--aspect 20 --menu "$towhered" 0 0 0 \
+		"$mbr" "$mbrd" "$floppy" "$floppyd" "$root" "$rootd" \
+		2>$typef || exit 1
+	type=`cat $typef`
+	rm $typef
+}
+
+grub_install()
+{
+	if [ "$1" == "$mbr" ]; then
+		device=`fdisk -l|grep ^Disk|sed -n -e 's/^Disk \(.*\): .*/\1/' -e '1 p'`
+	elif [ "$1" == "$floppy" ]; then
+		device=/dev/fd0
+	elif [ "$1" == "$root" ]; then
+		device=`df /|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`
+	else
+		exit 1
+	fi
+	dialog --backtitle "$grubbacktitle" --title "$workt" \
+		--aspect 20 --infobox "$workd" 0 0
+	grub-install $device >$logdev 2>&1 || exit 1
+}
+
+grub_convert()
+{
+	disk=`echo $1|sed 's/[0-9]*$//'`
+	partnum=`echo $1|sed 's|/dev/[a-z]*||'`
+	grubdisk=`grep $disk /boot/grub/device.map |sed 's/(\(.*\))\t.*/\1/'`
+	echo "($grubdisk,$(($partnum-1)))"
+}
+
+create_menu()
+{
+	# variables
+	bootdev=`df /boot|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`
+	grubbootdev=`grub_convert $bootdev`
+	rootdev=`df /|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`
+	grubrootdev=`grub_convert $rootdev`
+	
+	# hack for /boot
+	if [ "`df /boot|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`" = \
+		"`df /|grep ^/dev|tr -s ' '|cut -d ' ' -f 1`" ]; then
+		bootstring=/boot
+	fi
+
+	# header
+	echo "# $bootstring/grub/menu.lst - configuration file for GRUB"
+	echo "# This file is generated automatically by Frugalware Setup"
+	echo "# menu.lst for Frugalware, `date`"
+	echo "default=0"
+	echo "timeout=5"
+	echo "gfxmenu $grubbootdev$bootstring/grub/message"
+	echo ""
+
+	# root partition
+	echo "title `cat /etc/frugalware-release` - `uname -r`"
+	echo "	kernel $grubbootdev$bootstring/vmlinuz ro root=$rootdev quiet vga=788"
+
+	# linux partitions
+	for i in `fdisk -l|grep 'Linux$'|cut -d ' ' -f 1|grep -v "\($rootdev\|$bootdev\)"`
+	do
+		grubi=`grub_convert $i`
+		echo "title Linux ($i)"
+		echo "	kernel $grubi/boot/vmlinuz root=$i ro"
+	done
+
+	# dos partitions
+	for i in `fdisk -l|egrep 'Win95 F|Win98 F|HPFS|W95 F|FAT12|FAT16'|cut -d ' ' -f 1`
+	do
+		grubi=`grub_convert $i`
+		echo "title Windows ($i)"
+		echo "	rootnoverify $grubi"
+		echo "	chainloader +1"
+	done
+}
+
+### main
+
+# preparing
+if ! [ -d /proc/1 ]; then
+	noproc=1
+	mount /proc
+	/etc/rc.d/rc.udev
+	mount / -o rw,remount
+	cat /proc/mounts |grep -v root >/etc/mtab
+fi
+
+ask_towhere # type now is in $type
+grub_install $type # installs grub
+# backups menu.lst
+[ -e /boot/grub/menu.lst ] && mv -f /boot/grub/menu.lst /boot/grub/menu.lst.old
+create_menu >/boot/grub/menu.lst 2>$logdev # creates menu.lst
+
+# finalizing
+if [ "$noproc" == 1 ]; then
+	umount /dev
+	umount /sys
+	umount /proc
+fi

@@ -1,0 +1,286 @@
+\documentclass[a4paper,11pt,AnyOtherOptionalOptions]{article}
+\usepackage{url}
+\usepackage{verbatim}
+
+\begin{document}
+\title{How to make packages for Frugalware?}
+\author{Miklós Vajna}
+\date{\today}
+\maketitle
+
+\section{Introduction}
+Frugalware stands of thousands of packages. All the files in the distribution belongs to a package. You can easily query that what package does the specified file belongs to. If we want to know what package /etc/frugalware-release is contained by, then we use:
+\begin{verbatim}
+vmiklos@vmhome:~# grep -R etc/frugalware-release /var/lib/pacman/local/*
+/var/lib/pacman/local/frugalware-0.0.92-1/files:etc/frugalware-release
+\end{verbatim}
+If you browse the FST (Frugalware Source Tree), there are currently two repos. Their name is frugalware and extra. The frugalware repo contains the most of packages. The extra repo is on the 2nd cd: localization packages and packages that conflicts other packages in the frugalware repo. For example it's no good installing two MTAs at the same time: the frualware repo contains postfix, and the extra contains sendmail. The exim package will be in the extra repo, too.
+
+Each repo has a source and a binary directory. The frugalware's directories are source/ and frugalware/. The extra's are extra/source/ and extra/frugalware/. The binary packages in in the binary directory of the repo. The package's source are a little bit more complex. Each packge has a category, and each category and package have it's own directory in the sources dir.
+
+Let's see an example. You search for the cabextract package. Then the binary pacakge will be named frugalware/cabextract-version-release.fpm and it's sources will be placed in the source/apps/cabextract dir.
+
+In the package's own dir, we store everything that is required to compile the package. You may say that we only should store the paches and so, but in our opinion it's very annoying when you want to recompile a package and because of some other reasons the original server is slow, or unreachable.
+
+Besides the sources there is a FrugalBuild file in each package's directory. That is a simple shell script, that will be included by makepkg. So in the FrugalBuild scripts you can use everything that can be used in a shell script.
+
+In brief, packaging means collecting the sources, addig additional files (for example init scripts or config files) and writing the FrugalBuild script.
+
+\section{Recompiling packages}
+
+Before creating a new package, in this howto first we will recompile an existing package. That's very simple. In our example we will recompile the mplayer package. I assume you already downloaded the FST.
+
+\begin {verbatim}
+cd <FST>/source/xapps/mplayer
+makepkg -c
+movepkg
+\end{verbatim}
+
+First we enter the directory of mplayer, then (like make and Makefile) we run makepkg that will build the package according to the parameters described in FrugalBuild. We usually use the -c option to clean up the sources and the uncompressed package files after a successfull build. If we want to replace the old package with the new one, we use movepkg. That will delete the old mplayer package, and will move our just compiled package to the <FST>/frugalware directory.
+
+In the next section we will see an example for a simple FrugalBuild script.
+
+\section{A simple example}
+Let's see a simple example, the FrugalBuild script of the cabextract package.
+\begin{verbatim}
+# Last Modified: Sun Mar 21 16:54:50 CET 2004
+# Compiling Time: ~1 minute
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=cabextract
+pkgver=1.0
+pkgrel=1
+pkgdesc="a program to extract Microsoft Cabinet files"
+url="http://www.kyz.uklinux.net/cabextract.php"
+depends=('glibc')
+up2date=`lynx -dump http://www.kyz.uklinux.net/cabextract.php |grep 'cabextract source code'|sed 's/.*t-\(.*\)\.t.*/\1/'`
+source=(http://www.kyz.uklinux.net/downloads/$pkgname-$pkgver.tar.gz)
+md5sums=('8fde8ad86f7144943b7e4e5a2da7eddb')
+
+build() {
+        cd $startdir/src/$pkgname-$pkgver
+        ./configure --prefix=/usr
+	
+        make || return 1
+	
+        make DESTDIR=$startdir/pkg install
+}
+
+# vim: ft=sh
+\end{verbatim}
+
+And here comes the description for each line:
+\begin{verbatim}
+# Last Modified: Sun Mar 21 16:54:50 CET 2004
+\end{verbatim}
+
+If you modifies the FrugalBuild script, you should update this field. The date should be in English. That can be proceeded by unsetting LC_ALL and LANG enviroment variables. For example I use LC_ALL=hu_HU, so I simply made an alias and took it to my .bash_login:
+\begin{verbatim}
+alias edate="LANG= LC_ALL= date"
+\end{verbatim}
+\begin{verbatim}
+# Compiling Time: ~1 minute
+\end{verbatim}
+
+You should write here how much time did the package to built. Of course, this will depend on your hardware, it's better to know the time on your machine, than to know nothing. In future, we maybe convert these times to SBUs. (See \url{http://www.linuxfromscratch.org/lfs/view/stable/chapter04/aboutsbus.html} for more information on SBUs)
+
+\begin{verbatim}
+# Maintainer: VMiklos <mamajom@axelero.hu>
+\end{verbatim}
+
+If you will be the maintainer of the package, write your name or nick and mail address here. If you suspect you won't maintain the package write Contributor instead of Maintainer, and then the Maintainer will add its line later.
+
+\begin{verbatim}
+pkgname=cabextract
+\end{verbatim}
+
+This will be the name of the package. It's allowed to contain numbers, hyphens (-), etc., but should be lowercase.
+
+\begin{verbatim}
+pkgver=1.0
+\end{verbatim}
+
+The package's version. Hyphens are not allowed, so a 1.0-6111 will be usually converted to 1.0_6111.
+
+\begin{verbatim}
+pkgrel=1
+\end{verbatim}
+
+If you recompile a package, you should increase this number. If you upgrade to a newer version, don't forget to reset this number back to 1. If you design a new package, set this to 1.
+
+\begin{verbatim}
+pkgdesc="a program to extract Microsoft Cabinet files"
+\end{verbatim}
+
+A short one-line description for the package. Usually taken from the project's homepage.
+
+\begin{verbatim}
+url="http://www.kyz.uklinux.net/cabextract.php"
+\end{verbatim}
+
+The website's of the project.
+
+\begin{verbatim}
+depends=('glibc')
+\end{verbatim}
+
+List of the dependencies of the package, defined in a bash array. Usually you should compile a package at least two times: first with {\tt depends=()} and then you should run {\tt ldd /usr/bin/binaryname} for each binary. And then from the list you can see what other packages is the package linked with. Reading the README or INSTALL file is also a good idea to find out the dependencies.
+
+\begin{verbatim}
+up2date=`lynx -dump http://www.kyz.uklinux.net/cabextract.php |grep 'cabextract source code'|sed 's/.*t-\(.*\)\.t.*/\1/'`
+\end{verbatim}
+
+A short command that will give us the latest stable version of the package. This helps maintainers to keep the FST up to date. Usually this string consists of three parts: an {\tt lynx -dump someurl}, a {\tt grep foo}, and a {\tt sed} command. We use the http protocoll if possible, but sometimes we have to use ftp. In that case instead of {\tt lynx -dump} you should use {\tt wget --passive-ftp -O - -q}. Of course, you could use wget all the time, but lynx is more simple. The sed command could be replaced with the combination of {\tt tr} and {\tt cut} if you prefer them and you disklike sed. The example used above would be the following with cut and tr:
+
+\begin{verbatim}
+up2date=`lynx -dump http://www.kyz.uklinux.net/cabextract.php |grep 'cabextractsource code'|tr -s ' '|cut -d ' ' -f 6`
+\end{verbatim}
+
+\begin{verbatim}
+source=(http://www.kyz.uklinux.net/downloads/$pkgname-$pkgver.tar.gz)
+\end{verbatim}
+
+Here you define the sources of the package in a bash array. You can use simple filenames for patches, or additional files when you place them in the same directory as the FrugalBuild script is in. You can urls if you want {\tt makepkg} to download it automatically. It's important to place \textit{all} sources in the package's directory including the source files that you can download from a site.
+
+\begin{verbatim}
+md5sums=('8fde8ad86f7144943b7e4e5a2da7eddb')
+\end{verbatim}
+
+Another bash array to prevent compiling from wrong sources. Of course this is useless if you download, run {\tt md5sum foo.tar.gz}, if possible try fetching md5sums from the projects website. It's a good idea to leave a comment above this line about where to find these md5sums. For example in the codecs package:
+
+\begin{verbatim}
+# see http://www1.mplayerhq.hu/MPlayer/releases/codecs/MD5SUMS
+md5sums=('9c51a70a6d14c064d9a80ac818c37584')
+\end{verbatim}
+
+\begin{verbatim}
+
+build() {
+        cd $startdir/src/$pkgname-$pkgver
+        ./configure --prefix=/usr
+	
+        make || return 1
+	
+        make DESTDIR=$startdir/pkg install
+}
+\end{verbatim}
+
+Finally we define a build function that will build the package. Here we have a {\tt \$startdir} variable, so all sources will be extracted in the {\tt \$startdir/src} directory and {\tt \$startdir/pkg} will be the root directory of the package. So basically the build function will do four tasks: entering the the program's source dir, running the configure script, compiling the package (and cancelling the package making procedure if it fails) and installing the compiled binaries. Most cases you should use {\tt make DESTDIR=\$startdir/pkg install} or {\tt make prefix=\$startdir/pkg/usr install} for installing binaries. Just have a look at the program's makefile to see that wich of two will work for the specified package.
+
+\begin{verbatim}
+# vim: ft=sh
+\end{verbatim}
+
+At the bottom of the script you could add some editor-specific info, for example this tells vim that the format of this script is in shell-script (it can't suspect that as no #!/bin/bash at the top of the file).
+
+\section{Full reference}
+
+Now here are the full list of directives available.
+
+First, let's start with the \textbf{install} directive. Here you can refer to an install file (usually \$pkgname.install) to use. In the install file you can define actions to be executed after installing, after upgrading, before removing, and after removing. Here are an example, so that everything will be clear about it:
+
+\begin{verbatim}
+# $1:  the new package version
+post_install()
+{
+        /bin/true
+}
+
+# $1:  the new package version
+# $2:  the old package version
+post_upgrade()
+{
+        /bin/true
+}
+
+# $1:  the old package version
+pre_remove()
+{
+        /bin/true
+}
+
+# $1:  the old package version
+post_remove()
+{
+        /bin/true
+}
+
+op=$1
+shift
+$op $*
+
+# vim: ft=sh
+\end{verbatim}
+
+For now, these are sufficent, but maybe in future we will have to create pre_install and  pre_upgrade. If you want to do exactly the same after upgrading as after intalling feel free to use {\tt post_install \$1} in the {\tt post_upgrade()} function.
+
+So save this file as foo.install and use the {\tt install=\$pkgname.install} directive in the FrugalBuild script.
+You may specify the install script in the souce array, but it is not necessary.
+
+The \textbf{pkgname}, \textbf{pkgver}, \textbf{pkgrel}, \textbf{url}, \textbf{source} and \textbf{md5sums} directives were discusssed in the previous section.
+
+The \textbf{groups} directive can be specified if you create packages for a project that issue their stuff in more than one tarball. The kde project is a good example. In kde packages we use the following line:
+\begin{verbatim}
+groups=('kde')
+\end{verbatim}
+
+The user can easily view or install these groups:
+\begin{verbatim}
+vmiklos@vmhome:~# pacman -Sg
+kde
+vmiklos@vmhome:~$ su -c 'pacman -S kde'
+Password:
+:: group kde:
+    arts kdeaccessibility kdeaddons kdeadmin kdeartwork kdebase kdebindings
+    kdeedu kdegames kdegraphics kdelibs kdemultimedia kdenetwork kdepim kdesdk
+    kdetoys kdeutils kdevelop kdewebdev
+    Install whole content? [Y/n]
+\end{verbatim}
+
+As you can see, we currently use this only for kde.
+
+The \textbf{backup} array is used to make some files in the package as a config file. If possible, we don't modify config files during an upgrade. For more information about this see the \textit{handling config files} section in the pacman manpage.
+
+The \textbf{depends} array has been already discussed, except I haven't mentioned before that the elements may include version informations: for example:
+\begin{verbatim}
+pkgname=kdewebdev
+depends=('kdelibs=3.3.0')
+\end{verbatim}
+
+Here you can use {\tt <>}, {\tt <=}, {\tt >=} or {\tt =} operators.
+
+The \textbf{makedepends} array defines packages required only in build time. For example if the source is in srpm format maybe alien is a build-time requirement.
+
+In the \textbf{conflicts} array you can define a list of packages that can't be installed if you want to install this package. Let's see an another example:
+
+\begin{verbatim}
+pkgname=blackbox
+conflicts=('fluxbox')
+\end{verbatim}
+
+This is required as both of them includes a {\tt bsetbg} command and the two program is different. In this case the fluxbox package also have to contain this line ({\tt conflicts=('blackbox')}). Of course, if two or more package conflicts each other, only one of them can be placed in the frugalware repo. 
+
+The \textbf{provides} array is used to create virtual dependencies. This means postfix and sendmail also provides mta or, a better example, xfree and xorg provides x too. So qt will contain the following line:
+\begin{verbatim}
+pkgname=qt
+depends=('x' 'libpng' 'libjpeg')
+\end{verbatim}
+
+The user has the ability to choose between xfree and xorg.
+
+The last one in this list is the \textbf{replaces} directive. The module-init-tools package is a good example:
+\begin{verbatim}
+pkgname=module-init-tools
+replaces=('modutils')
+conflicts=('modutils')
+\end{verbatim}
+
+As you can see, we often make such new packages also conflicts with each other. Using the replaces directive when users use {\tt pacman -Su} next time, if modutils is installed (probably :)), they will be asked to remove modutils and to install module-init-tools.
+
+\section{Compiling the package}
+
+That's fairly simple. In the package directory you should do exactly the same as described in the \textit{Recompiling packages} section. If you want to contribute this package to the Frugalware project, please do \textit{not} do a movepkg. Upload the whole package dir (including the binary package) to {\tt ftp://ftp.frugalware.org/incoming} and send a mail to the frugalware-devel list.
+
+Happy packaging :)
+
+\end{document}

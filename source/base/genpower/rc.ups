@@ -1,0 +1,39 @@
+#!/bin/sh
+
+# (c) 2003 Vajna Miklos <mamajom@axelero.hu>
+# (c)      Patrick J. Volkerding, <volkerdi@slackware.com>
+# rc.ups for FrugalWare
+# distributed under GPL License
+
+. /etc/rc.d/rc.functions
+
+# chkconfig: 2345 98 98
+# description: Monitor the UPS with genpowerd
+
+[ -e /etc/sysconfig/ups ] && . /etc/sysconfig/ups || exit 1
+
+if [ "$1" = "stop" ]; then
+	stop "$stopups"
+	# see if this is a powerfail situation:
+	if grep FAIL /etc/upsstatus 1> /dev/null 2> /dev/null ; then
+		# signal UPS to shut off the inverter:
+		/sbin/genpowerd -k $device $type
+		if ! [ "$?" = 0 ]; then
+			echo -n ": $editconfig"
+		fi
+	fi
+	ok $?
+elif [ "$1" = "restart" ]; then
+	"$0" stop
+	sleep 1
+	"$0" start
+else # start
+	start "$startups"
+	if [ -z "$device" ]; then
+		echo -n ": $editconfig"
+		ok 1
+	else
+		/sbin/genpowerd $device $type
+		ok $?
+	fi
+fi

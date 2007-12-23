@@ -1,0 +1,102 @@
+--- rc.mysqld-4.0.20-1	2004-03-30 17:47:30.000000000 +0200
++++ rc.mysqld-4.0.20-2	2004-06-22 10:01:58.000000000 +0200
+@@ -1,4 +1,10 @@
+-#!/bin/bash
++#!/bin/sh
++
++# (c) 2003-2004 Vajna Miklos <mamajom@axelero.hu>
++# rc.mysqld for FrugalWare
++# distributed under GPL License
++
++. /etc/rc.d/rc.functions
+ 
+ # PLEASE REMEMBER TO SET A PASSWORD FOR THE MySQL root USER !
+ # To do so, start the server, then issue the following commands:
+@@ -6,59 +12,42 @@
+ # mysqladmin -u root -h $hostname password 'new-password'
+ # See the manual for more instructions.
+ 
+-PID=`pidof -o %PPID /usr/bin/mysqld`
++# before start
++
+ if [ ! `egrep '^mysql:' /etc/group` ]; then
+-  echo "Adding mysql group"
+-  groupadd -g 89 mysql
++	echo "Adding mysql group"
++	groupadd -g 89 mysql
+ fi
++
+ if [ ! `egrep '^mysql:' /etc/passwd` ]; then
+-  echo "Adding mysql user"
+-  useradd -u 89 -g mysql -d /var/lib/mysql -s /bin/false mysql
+-  [ -d /var/lib/mysql ] && chown -R mysql.mysql /var/lib/mysql
++	echo "Adding mysql user"
++	useradd -u 89 -g mysql -d /var/lib/mysql -s /bin/false mysql
++	[ -d /var/lib/mysql ] && chown -R mysql.mysql /var/lib/mysql
+ fi
+ 
+ if [ ! -d /var/lib/mysql ]; then
+-  mkdir /var/lib/mysql
+-  /usr/bin/mysql_install_db --datadir=/var/lib/mysql --user=mysql
+-  chown -R mysql.mysql /var/lib/mysql    
++	mkdir /var/lib/mysql
++	/usr/bin/mysql_install_db --datadir=/var/lib/mysql --user=mysql
++	chown -R mysql.mysql /var/lib/mysql
+ fi
+ 
+ if [ ! -e /var/log/mysqld.log ]; then
+-  touch /var/log/mysqld.log
+-  chown mysql /var/log/mysqld.log
++	touch /var/log/mysqld.log
++	chown mysql /var/log/mysqld.log
+ fi
+ 
+-case "$1" in
+-  start)
+-    echo "Starting MySQL"
+-    if [ -z "$PID" ]; then
+-       /usr/bin/mysqld_safe &> /dev/null &
+-      if [ $? -gt 0 ]; then
+-        exit 1
+-      else
+-        sleep 1 # wait on children
+-        echo `pidof -o %PPID /usr/bin/mysqld` > /var/run/mysqld.pid
+-      fi
+-    else
+-      exit 1
+-    fi
+-    ;;
+-
+-  stop)
+-    echo "Stopping MySQL Daemon"
+-    [ ! -z "$PID" ]  && kill $PID &> /dev/null
+-    if [ $? -gt 0 ]; then
+-      exit 1
+-    else
+-      rm /var/run/mysqld.pid &> /dev/null
+-    fi
+-    ;;
+-
+-  restart)
+-    $0 stop
+-    sleep 1
+-    $0 start
+-    ;;
+-  *)
+-    echo "usage: $0 {start|stop|restart}"  
+-esac
++# checking what to do now
++
++if [ "$1" = "stop" ]; then
++	stop "$stopmysqld"
++	killall mysqld
++	ok $?
++elif [ "$1" = "restart" ]; then
++	"$0" stop
++	sleep 1
++	"$0" start
++else # start
++	start "$startmysqld"
++	/usr/bin/mysqld_safe >/dev/null &
++	ok $?
++fi

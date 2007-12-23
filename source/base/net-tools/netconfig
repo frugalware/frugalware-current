@@ -1,0 +1,204 @@
+#!/bin/sh
+
+# (c) 2003-2004 Vajna Miklos <mamajom@axelero.hu>
+# netconfig for Frugalware
+# distributed under GPL License
+# Copyright 1993-2003 Patrick J. Volkerding, All rights reserved
+# Patrick J. Volkerding's scripts were distributed under an OSI approved
+# BSD License, which can be found in the COPYRIGHT file.
+
+. /var/lib/frugalware/messages/rc.messages
+
+### defaults
+# filenames
+ifacefile="/etc/sysconfig/interfaces"
+resolvfile="/etc/resolv.conf"
+hostfile="/etc/hosts"
+netfile="/etc/networks"
+USE_DHCP=""
+DHCP_HOSTNAME=""
+LOOPBACK="no"
+
+### strings
+netbacktitle="$netconfigbt - FrugalWare `cat /etc/frugalware-release |cut -d ' ' -f 2` $setup"
+
+### functions
+gethostname()
+{
+	hnamefile=`mktemp`
+	dialog --backtitle "$netbacktitle" --title "$hostnamet" \
+		--inputbox "$hostnamed" 0 0 \
+		frugalware.example.net 2>$hnamefile|| ext
+	hname=`cat $hnamefile|sed 's/\([.^\.]*\)\..*/\1/'`
+	dname=`cat $hnamefile|sed "s/^$hname.//"`
+	rm $hnamefile
+	echo $hname.$dname > /etc/HOSTNAME
+}
+
+getnettype() # $1: hostname
+{
+	nettf=`mktemp`
+	dialog --backtitle "$netbacktitle" --title "$nettypet" \
+		--default-item lo --menu "$nettyped" 0 0 0 \
+		"static" "$staticd" "dhcp" "$dhcpd" "lo" "$lod" 2>$nettf || ext
+	nettype=`cat $nettf`
+	rm $nettf
+}
+
+setstatic()
+{
+	# ip address
+	enteripf=`mktemp`
+	dialog --backtitle "$netbacktitle" --title "$enteript" \
+		--inputbox "$enteripd" 0 0 10.0.0.1 2>$enteripf|| ext
+	IPADDR=`cat $enteripf`
+	rm $enteripf
+	
+	# netmask
+	enternmf=`mktemp`
+	dialog --backtitle "$netbacktitle" --title "$enternmt" \
+		--inputbox "$enternmd" 0 0 255.255.255.0 2>$enternmf|| ext
+	NETMASK=`cat $enternmf`
+	rm $enternmf
+
+	# broadcast/network can be generated automatically
+	BROADCAST=`ipmask $NETMASK $IPADDR | cut -f 1 -d ' '`
+	NETWORK=`ipmask $NETMASK $IPADDR | cut -f 2 -d ' '`
+
+	# gateway
+	entergwf=`mktemp`
+	dialog --backtitle "$netbacktitle" --title "$entergwt" \
+		--inputbox "$entergwd" 0 0 2>$entergwf|| ext
+	GATEWAY=`cat $entergwf`
+	rm $entergwf
+
+	# dns
+	enterdnsf=`mktemp`
+	dialog --backtitle "$netbacktitle" --title "$enterdnst" \
+		--inputbox "$enterdnsd" 0 0 2>$enterdnsf|| ext
+	NAMESERVER=`cat $enterdnsf`
+	rm $enterdnsf
+}
+
+setdhcp()
+{
+	USE_DHCP="yes"
+	dhcphf=`mktemp`
+	dialog --backtitle "$netbacktitle" --title "$setdhcpt" \
+		--inputbox "$setdhcpd" 0 0 2>$dhcphf || ext
+	DHCP_HOSTNAME=`cat $dhcphf`
+	rm $dhcphf
+}
+
+ext() # wrapper script
+{
+	dialog --backtitle "$netbacktitle" --msgbox "$extd" 0 0
+	exit 1
+}
+
+create_config()
+{
+	# /etc/sysconfig/interfaces
+	
+	# IFIPADDR same as IPADDR excet for lo, as in that case IPADDR
+	# in /etc/sysconfig/interfaces will be ""
+	
+	IFIPADDR=$IPADDR && IFNETMASK=$NETMASK
+	[ "$IFIPADDR" == "127.0.0.1" ] && unset IFIPADDR IFNETMASK
+	
+	cat << EOF > $ifacefile
+# /etc/sysconfig/interfaces
+#
+# This file contains the configuration settings for network interfaces.
+# If USE_DHCP[interface] is set to "yes", this overrides any other settings.
+# If you don't have an interface, leave the settings null ("").
+
+# Config information for eth0:
+IPADDR[0]="$IFIPADDR"
+NETMASK[0]="$IFNETMASK"
+USE_DHCP[0]="$USE_DHCP"
+DHCP_HOSTNAME[0]="$DHCP_HOSTNAME"
+
+# Config information for eth1:
+IPADDR[1]=""
+NETMASK[1]=""
+USE_DHCP[1]=""
+DHCP_HOSTNAME[1]=""
+
+# Config information for eth2:
+IPADDR[2]=""
+NETMASK[2]=""
+USE_DHCP[2]=""
+DHCP_HOSTNAME[2]=""
+
+# Config information for eth3:
+IPADDR[3]=""
+NETMASK[3]=""
+USE_DHCP[3]=""
+DHCP_HOSTNAME[3]=""
+
+# Default gateway IP address:
+GATEWAY="$GATEWAY"
+
+# Change this to "yes" for debugging output to stdout.  Unfortunately,
+# /sbin/hotplug seems to disable stdout so you'll only see debugging output
+# when rc.interfaces is called directly.
+DEBUG_ETH_UP="no"
+EOF
+	chmod 644 $ifacefile
+
+	# /etc/networks
+	cat <<EOF >$netfile
+#
+# networks      This file describes a number of netname-to-address
+#               mappings for the TCP/IP subsystem.  It is mostly
+#               used at boot time, when no name servers are running.
+#
+
+loopback        127.0.0.0
+localnet        $NETWORK
+
+# End of networks.
+EOF
+	chmod 644 $netfile
+
+	# /etc/hosts
+	cat << EOF >$hostfile
+#
+# hosts         This file describes a number of hostname-to-address
+#               mappings for the TCP/IP subsystem.  It is mostly
+#               used at boot time, when no name servers are running.
+#               On small systems, this file can be used instead of a
+#               "named" name server.  Just add the names, addresses
+#               and any aliases to this file...
+#
+
+# For loopbacking.
+127.0.0.1               localhost
+$IPADDR         $hname.$dname $hname
+
+# End of hosts.
+EOF
+	chmod 644 $hostfile
+
+	# /etc/resolv.conf
+	if ! [ -z "$NAMESERVER" ]; then
+		echo "search $dname" >$resolvfile
+		echo "nameserver $NAMESERVER" >>$resolvfile
+	else
+		echo "search $dname" >$resolvfile
+	fi
+	chmod 644 $resolvfile
+}
+
+### main
+gethostname # hostname now in $hname and $dname
+getnettype $hname.$dname # type now in $nettype
+if [ "$nettype" == "static" ]; then
+	setstatic
+elif [ "$nettype" == "dhcp" ]; then
+	setdhcp	
+else # lo
+	LOOPBACK="yes"
+fi
+create_config # this will create config files

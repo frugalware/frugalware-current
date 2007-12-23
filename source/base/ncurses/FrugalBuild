@@ -1,0 +1,43 @@
+# Last Modified: Sun Mar 14 19:47:31 CET 2004
+# Compiling Time: ~7 minutes
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=ncurses
+pkgver=5.4
+pkgrel=1
+pkgdesc="A System V Release 4.0 curses emulation library"
+url="http://www.gnu.org/software/ncurses/ncurses.html"
+depends=('glibc')
+up2date=`lynx -dump 'http://ftp.gnu.org/pub/gnu/ncurses/?M=D' |grep 'tar.gz ' |sed -n '1 p'|tr -s ' '|cut -d ' ' -f 4 |cut -d - -f 2|sed 's/.tar.gz//'`
+source=(ftp://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-$pkgver.tar.gz \
+        Eterm.ti rxvt.terminfo screeninfo.src)
+md5sums=('069c8880072060373290a4fefff43520' '0378ad30ca37e13bfc2528f427b3c436' \
+         'bab15c67f70798dae3afab65643ac6ad' '917241b16d4bb81c6257da3f4318df67')
+
+build() {
+  cd $startdir/src/$pkgname-$pkgver
+  ./configure --prefix=/usr \
+     --with-shared --with-normal --without-debug \
+     --with-install-prefix=$startdir/pkg
+  make || return 1
+  make install
+  
+  # Set TERMINFO to point to the package:
+  export TERMINFO=$startdir/pkg/usr/share/terminfo
+  # Update screen entry:
+  progs/tic -v $startdir/src/screeninfo.src
+  # Update rxvt entry:
+  progs/tic -v $startdir/src/rxvt.terminfo
+  # Update Eterm entry:
+  progs/tic -v $startdir/src/Eterm.ti
+  unset TERMINFO
+
+  # moving libs from /usr/lib to /lib
+  mkdir -p $startdir/pkg/lib
+  cd $startdir/pkg/usr/lib
+  mv libncurses.so.$pkgver ../../lib
+  ln -sf ../../lib/libncurses.so.$pkgver libncurses.so.$pkgver
+  cd $startdir/pkg/lib
+  ln -sf libncurses.so.$pkgver libncurses.so.5
+  rm -f $startdir/pkg/lib/libcurses.so
+}

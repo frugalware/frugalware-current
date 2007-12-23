@@ -1,0 +1,34 @@
+# Last Modified: Thu Oct 21 20:29:23 CEST 2004
+# Compiling Time: ~1 minute
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=udev
+pkgver=042
+pkgrel=1
+pkgdesc="A userspace implementation of devfs"
+backup=(etc/udev/udev.{conf,permissions,rules} etc/sysconfig/udev)
+depends=('glibc' 'hotplug')
+conflicts=('devfsd')
+install=$pkgname.install
+up2date=`lynx -dump 'http://www.kernel.org/pub/linux/utils/kernel/hotplug/?C=M&O=D' |grep udev|grep tar.gz|grep -v sign|sed -n '1 p'|tr -s ' '|cut -d ' ' -f 4|sed 's/.tar.gz//'|cut -d - -f 2`
+source=(http://kernel.org/pub/linux/utils/kernel/hotplug/$pkgname-$pkgver.tar.gz rc.udev udev $pkgname-$pkgver-fixperms.diff)
+md5sums=('e50e4b099eec46f44bdc86733683cfe0' 'b1c500ebadf07c7abbb0a1a9d768755b'\
+         '0d2cf01654b1792332353261526f0129' '4b037efb60a816b35c60c73c26c2e6f1')
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver
+	patch -p1 < $startdir/src/$pkgname-$pkgver-fixperms.diff
+	# patch -p1 < $startdir/src/$pkgname-$pkgver-nondebian.diff
+	sed -i 's|udevdir = ${prefix}/udev|udevdir = ${prefix}/dev|' Makefile
+	( cd etc/udev && mv -f udev.permissions.slackware udev.permissions )
+	
+	make || return 1
+	
+	make DESTDIR=$startdir/pkg install
+	install -D $startdir/src/rc.udev $startdir/pkg/etc/rc.d/rc.udev
+	install -D -m644 $startdir/src/udev $startdir/pkg/etc/sysconfig/udev
+	mknod -m 700 $startdir/pkg/dev/console c 5 1
+	mknod -m 600 $startdir/pkg/dev/null c 1 3
+}
+
+# vim: ft=sh

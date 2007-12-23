@@ -1,0 +1,68 @@
+#!/bin/sh
+
+# (c) 2003 Vajna Miklos <mamajom@axelero.hu>
+# (c)      Patrick J. Volkerding, <volkerdi@slackware.com>
+# rc.mount for FrugalWare
+# distributed under GPL License
+
+. /etc/rc.d/rc.functions
+
+# chkconfig: - 00 97
+# description: Mount/umount local filesystems
+
+if [ "$1" = "stop" ]; then
+	if [ "$2" = 0 -o "$2" = 6 ]; then
+		start "$umountlocal"
+		umount -a -r -t nonfs,noumsdos,nosmbfs,noproc
+		ok $?
+		
+		# don't remount UMSDOS root volumes
+		if [ ! "`mount | head -n 1 | cut -d ' ' -f 5`" = "umsdos" ]; then
+			start "$remountro"
+			mount -n -o remount,ro /
+			ok $?
+		fi
+	fi
+	# this never hurts :)
+	sync
+elif [ "$1" = "restart" ]; then
+	"$0" stop
+	sleep 1
+	"$0" start
+else # start
+	# See if a forced filesystem check was requested at shutdown:
+	if [ -r /etc/forcefsck ]; then
+		ffsck="-f"
+	fi
+	
+	# Check all the non-root filesystems:
+	if  ! [ -r /etc/fastboot ]; then
+		start "$chknonroot"
+		/sbin/fsck $ffsck -C -R -A -a >/dev/null
+		ok $?
+	fi
+
+	# mount non-root file systems in fstab (but not NFS or SMB 
+	# because TCP/IP is not yet configured):
+	start "$mountlocal"
+	mount -a -t nonfs,nosmbfs,noproc,nosysfs
+	ok $?
+
+	# Clean up some temporary files:
+	/bin/rm -f /var/run/utmp /var/run/*pid /etc/nologin /var/run/lpd* \
+		/var/run/ppp* /etc/dhcpc/dhcpcd-eth0.pid /etc/forcefsck \
+		/etc/fastboot
+
+	# Create a fresh utmp file:
+	cat /dev/null > /var/run/utmp
+
+	if cat /etc/fstab | grep ' / ' | grep umsdos 1> /dev/null 2> /dev/null ; then
+		rfstype="umsdos"
+	fi
+	if [ "$rfstype" = "umsdos" ]; then
+		# we need to update any files added in DOS:
+		start "$umssync"
+		umssync -r99 -v- /
+		ok $?
+	fi
+fi

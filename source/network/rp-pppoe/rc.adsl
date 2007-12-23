@@ -1,0 +1,36 @@
+#!/bin/sh
+
+# (c) 2003 Vajna Miklos <mamajom@axelero.hu>
+# rc.adsl for FrugalWare
+# distributed under GPL License
+
+. /etc/rc.d/rc.functions
+
+# chkconfig: 2345 15 85
+# description: Init script to bring up a PPPoE link
+
+if [ "$1" = "stop" ]; then
+	stop "$stopadsl"
+	if [ -e /var/run/adsl.gw ]; then
+		route del default gw `cat /var/run/adsl.gw`
+		rm /var/run/adsl.gw
+	fi
+	adsl-stop &>/dev/null
+	ok $?
+elif [ "$1" = "restart" ]; then
+	"$0" stop
+	sleep 1
+	"$0" start
+else # start
+	start "$startadsl"
+	rm -f /var/run/adsl.gw
+	adsl-start &>/dev/null
+	ok $?
+
+	currentgw=`route -n|grep ppp0|sed 's/[0-9\.]* *\([0-9\.]*\) .*/\1/'|grep -v 0.0.0.0`
+	necessarygw=`ifconfig ppp0|grep inet|sed 's/ *inet addr:\([0-9\.]*\) *.*/\1/'`
+	if ! [ "$currentgw"  == "$necessarygw" ]; then
+		route add default gw `adsl-status |sed -n '3 p'|cut -d : -f 2|cut -d ' ' -f 1`
+		echo "$necessarygw" >/var/run/adsl.gw
+	fi
+fi

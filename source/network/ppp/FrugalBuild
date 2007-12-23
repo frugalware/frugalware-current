@@ -1,0 +1,34 @@
+# Last Modified: Sun Aug  8 20:02:43 CEST 2004
+# Compiling Time: ~1 minute
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=ppp
+pkgver=2.4.2
+pkgrel=1
+pkgdesc="The PPP (Point-to-Point Protocol) daemon"
+url="http://www.samba.org/ppp/"
+depends=('glibc')
+backup=('etc/ppp/chap-secrets' 'etc/ppp/pap-secrets' 'etc/ppp/options')
+up2date=`wget --passive-ftp -O - -q ftp://ftp.samba.org/pub/ppp/|grep ppp-.[0-9\.]*\.tar\.gz|tail -n 1|sed 's/.*ppp-\([0-9\.]*\)\.tar\.gz<.*/\1/'`
+source=(ftp://ftp.samba.org/pub/ppp/ppp-$pkgver.tar.gz)
+md5sums=('362bcf218fba8afbb9afbee7471e5dac')
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver
+	# begin patching - CFLAGS and the last one for enabling active filter
+	sed -i "s/-O2 -pipe -Wall -g/${CFLAGS}/" pppd/Makefile.linux
+	sed -i "s/-g -O2/${CFLAGS}/" pppd/plugins/Makefile.linux
+	sed -i "s/-g/${CFLAGS}/" pppd/plugins/pppoe/Makefile.linux
+	sed -i "s/-O2/${CFLAGS}/" pppstats/Makefile.linux
+	sed -i "s/-O2 -g -pipe/${CFLAGS}/" chat/Makefile.linux
+	sed -i "s/-O/${CFLAGS}/" pppdump/Makefile.linux
+	sed -i "s/^#FILTER=y/FILTER=y/" pppd/Makefile.linux
+	# end of patching
+	./configure 
+
+	make || return 1
+
+	make DESTDIR=$startdir/pkg install
+	mkdir -p $startdir/pkg/etc/ppp/peers
+	install -m600 etc.ppp/{pap,chap}-secrets $startdir/pkg/etc/ppp/
+}

@@ -1,0 +1,48 @@
+#!/bin/sh
+
+# (c) 2003 Vajna Miklos <mamajom@axelero.hu>
+# rc.postgresql for FrugalWare
+# distributed under GPL License
+
+. /etc/rc.d/rc.functions
+
+# chkconfig: 2345 75 25
+# description: Starts and stops the PostgreSQL backend daemon that handles \
+#              all database requests.
+
+if [ "$1" = "stop" ]; then
+	stop "$stoppostgresql"
+	su postgres -c "/usr/bin/pg_ctl -D /var/lib/pgsql/data \
+		-l /var/log/postgresql.log -w stop" 2>&1 |logger
+	ok $?
+elif [ "$1" = "restart" ]; then
+	"$0" stop
+	sleep 1
+	"$0" start
+else # start
+	start "$startpostgresql"
+	# pgdb group
+	[ `egrep '^pgdb:' /etc/group` ] || groupadd -g 28 pgdb
+	# postgres user
+	if [ ! `egrep '^postgres:' /etc/passwd` ]; then
+		useradd -u 28 -g pgdb -d /var/lib/pgsql -s /bin/bash \
+			postgres
+		[ -d /var/lib/pgsql ] && \
+			chown -R postgres.pgdb /var/lib/pgsql
+	fi
+	# create db
+	if [ ! -d /var/lib/pgsql ]; then
+		mkdir -p /var/lib/pgsql/data
+		chown postgres.pgdb /var/lib/pgsql/data
+		su postgres -c "/usr/bin/initdb -D /var/lib/pgsql/data" \
+			2>&1 |logger
+	fi
+	# log
+	if [ ! -e /var/log/postgresql.log ]; then
+		touch /var/log/postgresql.log
+		chown postgres /var/log/postgresql.log
+	fi
+	su postgres -c "/usr/bin/pg_ctl -D /var/lib/pgsql/data \
+		-l /var/log/postgresql.log -w start" 2>&1 |logger
+	ok $?
+fi

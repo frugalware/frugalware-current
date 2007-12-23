@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# PLEASE REMEMBER TO SET A PASSWORD FOR THE MySQL root USER !
+# To do so, start the server, then issue the following commands:
+# mysqladmin -u root password 'new-password'
+# mysqladmin -u root -h $hostname password 'new-password'
+# See the manual for more instructions.
+
+PID=`pidof -o %PPID /usr/bin/mysqld`
+if [ ! `egrep '^mysql:' /etc/group` ]; then
+  echo "Adding mysql group"
+  groupadd -g 89 mysql
+fi
+if [ ! `egrep '^mysql:' /etc/passwd` ]; then
+  echo "Adding mysql user"
+  useradd -u 89 -g mysql -d /var/lib/mysql -s /bin/false mysql
+  [ -d /var/lib/mysql ] && chown -R mysql.mysql /var/lib/mysql
+fi
+
+if [ ! -d /var/lib/mysql ]; then
+  mkdir /var/lib/mysql
+  /usr/bin/mysql_install_db --datadir=/var/lib/mysql --user=mysql
+  chown -R mysql.mysql /var/lib/mysql    
+fi
+
+if [ ! -e /var/log/mysqld.log ]; then
+  touch /var/log/mysqld.log
+  chown mysql /var/log/mysqld.log
+fi
+
+case "$1" in
+  start)
+    echo "Starting MySQL"
+    if [ -z "$PID" ]; then
+       /usr/bin/mysqld_safe &> /dev/null &
+      if [ $? -gt 0 ]; then
+        exit 1
+      else
+        sleep 1 # wait on children
+        echo `pidof -o %PPID /usr/bin/mysqld` > /var/run/mysqld.pid
+      fi
+    else
+      exit 1
+    fi
+    ;;
+
+  stop)
+    echo "Stopping MySQL Daemon"
+    [ ! -z "$PID" ]  && kill $PID &> /dev/null
+    if [ $? -gt 0 ]; then
+      exit 1
+    else
+      rm /var/run/mysqld.pid &> /dev/null
+    fi
+    ;;
+
+  restart)
+    $0 stop
+    sleep 1
+    $0 start
+    ;;
+  *)
+    echo "usage: $0 {start|stop|restart}"  
+esac

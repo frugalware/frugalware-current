@@ -1,0 +1,56 @@
+# Last Modified: Tue Aug  3 10:23:28 CEST 2004
+# Compiling Time: ~7 minutes
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=coreutils
+pkgver=5.2.1
+pkgrel=5
+pkgdesc="These are the GNU core utilities, the basic command line programs"
+url="http://www.gnu.org/software/coreutils"
+depends=('bash' 'glibc')
+up2date=`lynx -dump 'http://ftp.gnu.org/pub/gnu/coreutils/?M=D' |grep tar.gz |grep -v .sig|sed -n '1 p'|tr -s ' '|cut -d ' ' -f 4|sed 's/.tar.gz//'|cut -d - -f 2`
+source=(ftp://ftp.gnu.org/gnu/$pkgname/$pkgname-$pkgver.tar.gz \
+        dircolors.1 dircolors.c dircolors.h DIR_COLORS)
+md5sums=('83a485c9fa9e18903351d7b51bdc5719' \
+         '7839e2612eef7539c43ce5ad4d2717b0' 'f4d3dd1be6adea0639f36d2b1f52a280' \
+	 '95fc2d3d28d7d808c1225795830ef9de' 'd8eca968e0cc3a45d71411c0bfe45432')
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver
+	./configure --prefix=/usr
+
+	make || return 1
+
+	make DESTDIR=$startdir/pkg install
+	# dircolors
+	cp -f $startdir/src/dircolors.c src/dircolors.c
+	cp -f $startdir/src/dircolors.h src/dircolors.h
+	( cd src ; make )
+	install src/dircolors $startdir/pkg/usr/bin/
+	install -m644 $startdir/src/dircolors.1 $startdir/pkg/usr/man/man1/
+	install -D -m644 $startdir/src/DIR_COLORS $startdir/pkg/etc/DIR_COLORS
+
+	# ginstall
+	cd $startdir/pkg/usr/bin && ln -sf install ginstall
+	cd $startdir/pkg/usr/man/man1 && ln -sf install.1.gz ginstall.1.gz
+ 
+	# cosmetics :)
+	cd $startdir/pkg/usr/bin
+	ln -sf test [
+	mkdir -p $startdir/pkg/{bin,sbin,usr/sbin}
+	mv date echo false pwd stty true uname cat ../../bin
+	mv dd cp df du ln ls mv rm dir sync vdir chgrp chmod chown ../../bin
+	mv mkdir mknod rmdir shred touch mkfifo dircolors ../../bin
+	mv chroot ../sbin
+
+	# confilicts with procps
+	rm $startdir/pkg/usr/bin/uptime $startdir/pkg/usr/man/man1/uptime.*
+	rm $startdir/pkg/usr/bin/kill $startdir/pkg/usr/man/man1/kill.*
+	# confilicts with shadow
+	rm $startdir/pkg/usr/bin/su $startdir/pkg/usr/man/man1/su.*
+	rm $startdir/pkg/usr/bin/groups $startdir/pkg/usr/man/man1/groups.*
+	# conflicts with net-tools
+	rm $startdir/pkg/usr/bin/hostname $startdir/pkg/usr/man/man1/hostname.*
+}
+
+# vim: ft=sh

@@ -1,0 +1,37 @@
+<?php
+$fwshortabout="A Frugalware egy általános célú Linux-disztribúció, mely a középhaladó felhasználóknak lett kitalálva, akik nem ijednek meg a karakteres felülettõl.";
+$fwabout= array (
+	array ("Milyen ágai vannak a Frugalware -nek?", 
+		"Jelenleg <i>current</i> és <i>testing</i> ág van. A Frugalware egyelõre még igencsak fejlesztés alatt áll, de elegendõ tesztelés után tervezünk egy <i>stable</i> ágat is."), 
+	array ("Mirõl szól a  &quot;Frugalware Filozófia&quot;?",
+		"Röviden: egyszerûség, multimédia, dizájn. Megpróbálunk egy egyszerû, mégis könnyen használható rendszert készíteni. Az eredeti forráshoz lehetõleg minél közelebb álló, friss es stabil szoftvert próbálunk kiadni, mert véleményünk szerint a legtöbb szoftver úgy jó, ahogy van, nem igényel módosítást."), 
+	array ("Mi a Frugalware licence?", 
+		"Ez egy jó kérdés. A legtöbb, a Frugalware-ben található szoftver vagy GPL, vagy BSD kompatibilis licenccel rendelkezik. Ezekrõl bõvebben az adott csomag forrásában található LICENSE vagy COPYRIGHT fájlban olvashat. A Frugalware csapat által írt részek (FrugalBuild szkriptek, telepítõ, weboldal, stb) GPL licenc alatt lettek kiadva. Hogy ne legyen ennyire egyszerû a dolog, a telepítõ szkript némely része Patrick J. Volkerding munkája. Az általunk hozzáadott rész GPL -es, de Patrick J. Volkerding kódja még mindig BSD licencû. Bõvebb információért tekintse meg a COPYRIGHT fájlt a Frugalware Forrásfa gyökérkönyvtárában."),
+	array ("Milyen csomagkezelõt használ a Frugalware?",
+	"Nincs sajátunk, Judd Vinet nagyszerû, <a href=\"http://www.archlinux.org/pacman\">pacman</a> nevû csomagkezelõjét használjuk. Ez egy tar.gz alapú csomagkezelõ, hasonló a Slackware által használt .tgz -hez. A csomagjaink kiterjesztése .fpm a hagyományos forráskódtól való könnyû megkülönböztetés miatt. A Slackware szkriptjeitõl eltérõen, a pacman C -ben lett írva, magyarul jóval gyorsabb annál."),
+	array ("Hogy kezeli a Frugalware az \"elavult\" csomagok frissítését?",
+		"Nincs külön programunk a csomagok frissítésére, mindezt a pacman kezeli. A csomagadatbázis frissítéséhez használja a <tt>pacman&nbsp;-Sy</tt>, a frissített adatbázisban levõ csomagok frissítéséhez pedig a <tt>pacman&nbsp;-Su</tt> parancsot. Egy csomagot a <tt>pacman&nbsp;-S&nbsp;csomagnév</tt> paranccsal lehet telepíteni (a szükséges függõségekkel együtt) közvetlenül valamelyik tükörszerverrõl. Bõvebb információért nézze meg a pacman manual (man) oldalát."),
+	array ("Van-e közösségi támogatás a Frugalware-hez?",
+		"Jelenleg 3 levelezõlistánk és egy IRC csatornánk van, ahol kapcsolatba léphet velünk és más felhasználókkal, valamint segítséget kérhet. Az IRC csatorna a Freenode hálózatán van (szerver: irc.freenode.net, csatorna: #frugalware). A levelezõ listákkal kapcsolatban bõvebb információt <a href=\"mailman/listinfo\">itt</a> találhat."),
+	array ("Van kereskedelmi támogatás a Frugalware-hez?",
+		"Nem, nincs és jelenleg nem is tervezzük."),
+	array ("Kinek ajánlott a Frugalware használata?",
+		"A Frugalware a \"középhaladó\" felhasználóknak lett tervezve. A Frugalware telepítése nem egy nagy varázslat, de természetesen tudni kell, mi is az a partíció, az MBR (Master Boot Record), stb."),
+	array ("Hogy lehet valaki fejlesztõ?",
+		"Kedvet kapott? :) Ha a Frugalware-t CDrõl telepíti, töltse le a teljes Frugalware Forrásfát. Ez a DVD verziónál a lemezen megtalálható. Ezután csak kezdjen el játszani a FrugalBuild szkriptekkel, példaként használható a <a href=\"packages.php?pkgname=cabextract\">cabextract</a> csomag. Próbálja meg tökéletesíteni õket, vagy készítsen csomagot egy eddig nem támogatott programból. Ezek után küldje el a patch -et a <a href=\"mailman/listinfo/frugalware-devel\">frugalware-devel</a> levelezõlistára. Innentõl már minden menni fog a maga útján."),
+	array ("Mit csinál egy fejlesztõ?",
+		"Röviden: amit akar, ha betart néhány szabályt. Karbantartja a csomagokat: újrafordítja õket ha újabb verzió jelenik meg, és frissíti a FrugalBuild szkripteket, hogy jól mûködjenek az új verzióval is. Új csomagkészítõ szkriptet készíthet egy korábban nem létezõ csomaghoz. Cikkeket írhat a Frugalware-rõl, vagy bármi mást, ami kapcsolatban van a Frugalware közösséggel. Ha segíteni kíván, de nem szertne belefolyni komolyabban a fejlesztésbe, akkor segíthet a Frugalware más nyelvekre való fordításában. És persze boldogan fogadunk adományokat is. :)"),
+	array ("Kik fejlesztik a Frugalware-t?",
+		"Egy fiatalokból álló csoport, de az életkor nem meghatározó tényezõ a fejleszõvé váláshoz."),
+	array ("A Frugalware speciálisan valamilyen célra készült?",
+		"Nem, ez egy általános célú disztribúció, munkaállomásnak és szervernek egyaránt."),
+	array ("Tervezik-e egy live cd kiadását?",
+		"Igen, tervbe van véve, mint sok egyéb újdonság, de jelenleg még nincs live cdnk."),
+	array ("Támogat a Frugalware az angolon kívül más nyelveket is?",
+		"Igen, támogat. (Ezt is magyarul olvassa :-)) Ha a rendszerindító vagy a telepítõ szkriptek nem érhetõk el az adott nyelven, akkor az egyszerûen csak azt jelenti, hogy még nincs lefordítva."),
+	array ("Mi a helyzet az ázsiai nyelvekkel?",
+		"A Frugalware nem támogatja az ázsiai nyelveket."),
+	array ("Mely architektúrákat támogatja a Frugalware?",
+		"Jelenleg csak az x86, azon belül is csak az i686 (Pentium Pro és az annál újabb utasításkészletû) processzorok támogatottak. Ha van rá igény, nyitunk egy i386 portot is, de jelenleg sajnos nincs erõforrásunk újrafordítani és kezelni ezeket a csomagokat. Jelenleg nincs nem-x86 architektúrájú hardverünk, de szívesen fogadunk bármilyen patch-et vagy erõfeszítést nem-x86-ra optimalizált csomagok készítéséhez.")
+	);
+?>

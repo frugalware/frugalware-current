@@ -1,0 +1,74 @@
+How to make a patch for newer pacman version
+============================================
+
+1. Replace all pkg.tar.gz to fpm
+
+   grep -R pkg.tar.gz * |wc
+   
+   This will be about 18 and should be 0
+   
+   for i in doc/makepkg.8.in scripts/makeworld scripts/makepkg scripts/gensync src/pacman.c src/pacsync.c src/package.c
+   do
+       sed -i 's/pkg.tar.gz/fpm/g' $i
+   done
+   
+2. Repeat this with 's/db.tar.gz/fdb/g' (8 -> 0):
+   for i in doc/pacman.8.in scripts/gensync src/pacsync.c
+   do
+       sed -i 's/db.tar.gz/fdb/g' $i
+   done
+
+3. makepkg.conf
+      Turn -march optimalization to -mtune
+      Let PACKAGER="FrugalWare <mamajom@axelero.hu>"
+      Enable colorized messages
+
+4. 's/PKGBUILD/FrugalBuild/g' (28 -> 0)
+   for i in ChangeLog doc/makepkg.8.in doc/pacman.8.in scripts/gensync scripts/makeworld scripts/makepkg
+   do
+       sed -i 's/PKGBUILD/FrugalBuild/g' $i
+   done
+
+5. English dates
+   
+   scripts/makepkg: about line 294, after two lines, begining with unset, put
+      the following line:
+
+   unset LC_ALL LANG
+
+6. up2date feature (scripts/makepkg)
+   
+   Put the following 22 lines before the '# retrieve sources' (about line 374):
+
+# version checking
+if [ "x$up2date" == "x" ]; then
+	warning "Version checking informations are missing. Cannot check for newer version."
+else
+	msg "Checking for newer version..."
+	errors=0
+	if [ "$pkgver" != "$up2date" ]; then
+		echo "   FAILED"
+		if [ `type -p lynx` ]; then
+			errors=1
+		else
+	    		warning "The lynx program is missing.  Cannot check for newer version!"
+		fi
+	elif [ "$pkgver" == "$up2date" ]; then
+	        echo "    Passed"
+	fi
+	if [ $errors -gt 0 ]; then
+		error "Newer version available! ($pkgver < $up2date)"
+		exit 1
+	fi
+fi
+
+7. up2date fix for gensync
+
+   Replace the 'source $1 || return 1' line in functions get_md5checksum()
+   and db_write_entry() to:
+   
+cat $1 |grep -v 'up2date=`' >/tmp/.FrugalBuild
+source /tmp/.FrugalBuild || return 1
+rm /tmp/.FrugalBuild
+
+Done!

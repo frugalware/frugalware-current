@@ -1,0 +1,45 @@
+# Last Modified: Sat Aug 21 19:24:23 CEST 2004
+# Compiling Time: ~2 minute
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=mailman
+pkgver=2.1.5
+pkgrel=1
+pkgdesc="Mailing list manager with built in web access"
+url="http://www.list.org/"
+depends=('python' 'apache' 'mta')
+backup=('home/mailman/Mailman/mm_cfg.py')
+install=$pkgname.install
+up2date=`lynx -dump $url|grep current|sed 's/.* \(.*\), .*/\1/'`
+source=(ftp://ftp.gnu.org/gnu/$pkgname/$pkgname-$pkgver.tgz)
+md5sums=('f5f56f04747cd4aff67427e7a45631af')
+
+build() {
+	# mailman user & group
+	if ! grep -q ^mailman /etc/passwd ; then
+		groupadd -g 80 mailman
+		useradd -u 80 -g mailman -d /home/mailman -s /bin/false mailman
+		mkdir -p /home/mailman
+		chown mailman.mailman /home/mailman
+		chmod 2775 /home/mailman
+		added=1
+	fi
+	# mailman home dir
+	mkdir -p $startdir/pkg/home/mailman
+	chown mailman.mailman $startdir/pkg/home/mailman
+	chmod 2775 $startdir/pkg/home/mailman
+	cd $startdir/src/$pkgname-$pkgver
+	./configure --with-mail-gid=nogroup --prefix=/home/mailman
+	
+	make || return 1
+
+	make prefix=$startdir/pkg/home/mailman \
+		var_prefix=$startdir/pkg/home/mailman install
+	# remove mailman user & group
+	if [ $added ]; then
+		userdel mailman
+		rmdir /home/mailman
+	fi
+}
+
+# vim: ft=sh

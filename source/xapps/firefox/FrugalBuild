@@ -1,0 +1,56 @@
+# Last Modified: Sun Sep 19 12:50:15 CEST 2004
+# Compiling Time: ~2,1 hours
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=firefox
+pkgver=0.10.1
+pkgver2=1.0PR
+pkgrel=1
+pkgdesc="The Browser, Reloaded"
+url="http://www.mozilla.org/projects/firefox"
+depends=('gtk+2' 'libidl' 'gcc')
+makedepends=('zip')
+up2date=`lynx -dump 'http://ftp.mozilla.org/pub/mozilla.org/firefox/releases/?M=D'|grep '[0-9]/$'|sed -ne 's|.*/\(.*\)/$|\1|' -e '1 p'`
+source=(ftp://ftp.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/$pkgname-$pkgver2-source.tar.bz2 \
+	config $pkgname-$pkgver-user.tar.bz2 $pkgname-$pkgver-kde.diff)
+md5sums=('ff9eae3b90b8573bf44293ea44bf3c50' '1b177e97b10136bc17f0a19eb572c27a' \
+	 '48baf2f328e6478812c24e59037ff99c' 'da3da5ee9e34e51de4d67bb608124e85')
+
+build() {
+	cd $startdir/src/mozilla
+	sed "s/-march i686/$CFLAGS/" $startdir/src/config >.mozconfig
+	export MOZ_PHOENIX=1
+	
+	make -f client.mk build || return 1
+	make || return 1
+	
+	mkdir -p $startdir/pkg/usr
+	make DESTDIR=$startdir/pkg install
+	
+	# compatibility
+	cd $startdir/pkg/usr/include
+	ln -s firefox-$pkgver firefox
+	cd $startdir/pkg/usr/lib
+	ln -s firefox-$pkgver firefox
+	cd $startdir/pkg/usr/share/idl
+	ln -s firefox-$pkgver firefox
+	
+	# plugins
+	cd $startdir/pkg/usr/lib/firefox
+	mv plugins plugins.orig
+	ln -sf /usr/lib/mozilla/plugins ./
+
+	# fix for non-root users
+	cd $startdir/pkg/usr/lib/firefox
+	tar xvjf $startdir/src/$pkgname-$pkgver-user.tar.bz2
+
+	# conflicts with mozilla
+	rm $startdir/pkg/usr/share/aclocal/nspr.m4
+
+	# kde icon
+	mkdir $startdir/pkg/opt
+	cd $startdir/pkg/opt
+	patch -p0 < $startdir/src/$pkgname-$pkgver-kde.diff
+}
+
+# vim: ft=sh

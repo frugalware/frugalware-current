@@ -1,0 +1,56 @@
+# Last Modified: Sat Sep 11 14:44:21 CEST 2004
+# Compiling Time: ~2 hours
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=xorg
+pkgver=11R6.8.0
+pkgrel=1
+pkgdesc="A fork of the XFree86 Project with a GPL-compatible license"
+url="http://www.x.org"
+backup=(usr/X11R6/lib/X11/icons/default/index.theme etc/X11/xdm/Xsession)
+depends=('glibc' 'freetype1' 'fontconfig' 'gcc')
+conflicts=('xfree86')
+provides=('x')
+makedepends=('perl')
+install=$pkgname.install
+up2date=`lynx -dump http://freedesktop.org/~xorg/|grep 'Release '|cut -d n -f 3|sed 's/ Release /R/'|cut -d ' ' -f 2`
+source=(http://freedesktop.org/~xorg/X${pkgver}/src/X${pkgver}-src{1,2,3,4,5,6,7}.tar.gz \
+	http://www.joerg-pommnitz.de/TrueType/ttmkfdir.tar.gz Xsession desktop)
+md5sums=('c31a2e1c226e659c2ff29abfe55386e3' '4089bb6efb6c5bc73fbcfc23fafcb0c8' \
+	 '488a5ebbbdf48d974efbc3a0bde92bf4' '0ffaef789784ae16ca263e7ae60db656' \
+	 'af129720efbe82a1a82505c23227f70b' '4be7648c1512d5da7e738e500dd5ba30' \
+	 '888ced8bc85fbd2bd4880dba23a7f44a' 'dcf6aa4d28f5c52acf2bb57f49f53089' \
+	 'c5b7ddaef2a29196c9b0f0f7dae4465d' '8aa39dfdf87365c2cfa8db3adef8a3fd')
+
+# This package won't build against flex 2.5.31
+# please use the 2.5.4a version
+
+build() {
+	cd $startdir/src
+	make FREETYPE_INCL=/usr/include/freetype || return 1
+	install -D ttmkfdir $startdir/pkg/usr/X11R6/bin/ttmkfdir
+	
+	cd $startdir/src/xc
+	echo $'#define HasZlib YES\n' >config/cf/host.def
+	echo $'#define HasNCurses YES\n' >>config/cf/host.def
+	echo $'#define HasFontconfig YES\n' >>config/cf/host.def
+	echo $'#define HasFreetype2 YES\n' >>config/cf/host.def
+	echo $'#define HasExpat YES\n' >>config/cf/host.def
+
+	make World || return 1
+
+	make DESTDIR=$startdir/pkg install
+	make DESTDIR=$startdir/pkg install.man
+  
+	cp -f $startdir/src/Xsession $startdir/pkg/etc/X11/xdm/Xsession
+	chmod +x $startdir/pkg/etc/X11/xinit/xinitrc
+	install -D -m644 $startdir/src/desktop \
+		$startdir/pkg/etc/sysconfig/desktop
+	
+	(cd $startdir/pkg/usr/include && ln -sf ../X11R6/include/X11 X11)
+	(cd $startdir/pkg/usr/include && ln -sf ../X11R6/include/GL GL)
+
+	mv $startdir/pkg/usr/X11R6/lib/pkgconfig $startdir/pkg/usr/lib/
+}
+
+# vim: ft=sh

@@ -1,0 +1,137 @@
+# end of start_udev by Greg Kroah-Hartman
+
+# rc.udev version 0.9
+
+if [ -e /etc/sysconfig/submount ]; then
+	. /etc/sysconfig/submount
+fi
+
+if [ "$mode" == "symlink" -o "$mode" == "dirs" -o "$mode" == "auto" ]; then
+
+# cleaning up
+(cd /dev; rm -rf floppy cdrom cdrecorder dvd dvdrecorder)
+
+# creating symlinks
+
+if [ -e /dev/fd0 ]; then
+	(cd /dev; ln -s fd0 floppy)
+fi
+
+id=1
+for i in `cat /proc/sys/dev/cdrom/info |grep name`
+do
+	if [ "$id" == 1 -o "$id" == 2 ]; then
+		id=$(($id+1))
+	else
+		# checking for dvdrecorder
+		if [ `cat /proc/sys/dev/cdrom/info |grep "Can write DVD-R:"|tr "\t" " "|cut -d : -f 2|tr -s " "|cut -d " " -f $(($id-1))` == 1 ]; then
+			(cd /dev; [ -e dvdrecorder ] ||ln -s $i dvdrecorder)
+		
+		# checking for cdrecorder
+		elif [ `cat /proc/sys/dev/cdrom/info |grep "Can write CD-R:"|tr "\t" " "|cut -d : -f 2|tr -s " "|cut -d " " -f $(($id-1))` == 1 ]; then
+			(cd /dev; [ -e cdrecorder ] ||ln -s $i cdrecorder)
+			if [ `cat /proc/sys/dev/cdrom/info |grep "Can read DVD:"|tr "\t" " "|cut -d : -f 2|tr -s " "|cut -d " " -f $(($id-1))` == 1 ]; then
+				(cd /dev; [ -e cdrecorder+dvd ] ||ln -s $i cdrecorder+dvd)
+			fi
+		
+		# checking for dvd
+		elif [ `cat /proc/sys/dev/cdrom/info |grep "Can read DVD:"|tr "\t" " "|cut -d : -f 2|tr -s " "|cut -d " " -f $(($id-1))` == 1 ]; then
+			(cd /dev; [ -e dvd ] ||ln -s $i dvd)
+		
+		# cdrom
+		else
+			(cd /dev; [ -e cdrom ] ||ln -s $i cdrom)
+		fi
+		id=$(($id+1))
+	fi
+done
+
+if [ "$mountopts" != "" ]; then
+	mountopts=,$mountopts
+fi
+
+if [ "$mode" == "dirs" ]; then
+	(cd /mnt; rm -rf floppy cdrom cdrecorder dvd dvdrecorder)
+	cat /etc/fstab |grep -v ^/dev/floppy>/etc/fstab.new
+	mv -f /etc/fstab.new /etc/fstab
+	if [ -e /dev/floppy ]; then
+		(cd /etc; echo "/dev/floppy /mnt/floppy auto user,noauto$mountopts 0 0" >>fstab)
+		mkdir /mnt/floppy
+	fi
+
+	for i in cdrom cdrecorder dvd dvdrecorder
+	do
+		cat /etc/fstab |grep -v ^/dev/$i>/etc/fstab.new
+		mv -f /etc/fstab.new /etc/fstab
+		if [ -e /dev/$i ]; then
+			(cd /etc; echo "/dev/$i /mnt/$i auto ro,user,noauto$mountopts 0 0" >>fstab)
+			mkdir /mnt/$i
+		fi
+	done
+fi
+
+if [ "$mode" == "auto" ]; then
+	(cd /mnt; rm -rf floppy cdrom cdrecorder dvd dvdrecorder)
+	cat /etc/fstab |grep -v ^/dev/floppy>/etc/fstab.new
+	mv -f /etc/fstab.new /etc/fstab
+	if [ -e /dev/floppy ]; then
+		(cd /etc; echo "/dev/floppy /mnt/floppy subfs fs=floppyfss$mountopts 0 0" >>fstab)
+		mkdir /mnt/floppy
+	fi
+
+	for i in cdrom cdrecorder dvd dvdrecorder
+	do
+		cat /etc/fstab |grep -v ^/dev/$i>/etc/fstab.new
+		mv -f /etc/fstab.new /etc/fstab
+		if [ -e /dev/$i ]; then
+			(cd /etc; echo "/dev/$i /mnt/$i subfs fs=auto,ro,user$mountopts 0 0" >>fstab)
+			mkdir /mnt/$i
+		fi
+	done
+fi
+
+# creating missing symlinks
+
+# chechking for cdrecorder (dvdrecorder can be)
+
+if ! [ -L /dev/cdrecorder ]; then
+	if [ -L /dev/dvdrecorder ]; then
+		(cd /dev; ln -s `readlink dvdrecorder` cdrecorder)
+	fi
+fi
+		
+# chechking for dvd (dvdrecorder or cdrecorder can be)
+
+if ! [ -L /dev/dvd ]; then
+	if [ -L /dev/dvdrecorder ]; then
+		(cd /dev; ln -s `readlink dvdrecorder` dvd)
+	fi
+fi
+if ! [ -L /dev/dvd ]; then
+	if [ -L /dev/cdrecorder+dvd ]; then
+		(cd /dev; mv cdrecorder+dvd dvd)
+	fi
+fi
+
+# chechking for cdrom (dvdrecorder, cdrecorder or dvd can be)
+
+if ! [ -L /dev/cdrom ]; then
+	if [ -L /dev/dvd ]; then
+		(cd /dev; ln -s `readlink dvd` cdrom)
+	fi
+	if ! [ -L /dev/cdrom ]; then
+		if [ -L /dev/cdrecorder ]; then
+			(cd /dev; ln -s `readlink cdrecorder` cdrom)
+		fi
+	fi
+	if ! [ -L /dev/cdrom ]; then
+		if [ -L /dev/dvdrecorder ]; then
+			(cd /dev; ln -s `readlink dvdrecorder` cdrom)
+		fi
+	fi
+fi
+
+fi
+
+(cd /dev; . /etc/sysconfig/udev)
+mount / -o ro,remount

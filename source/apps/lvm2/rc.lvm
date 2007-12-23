@@ -1,0 +1,40 @@
+#!/bin/sh
+
+# (c) 2003 Vajna Miklos <mamajom@axelero.hu>
+# (c)      Patrick J. Volkerding, <volkerdi@slackware.com>
+# rc.lvm for FrugalWare
+# distributed under GPL License
+
+. /etc/rc.d/rc.functions
+
+# chkconfig: - 00 98
+# description: Activate/deactivate volume groups
+
+# initialize the Logical Volume Manager if /etc/lvmtab is found
+# to use LVM you must run /sbin/vgscan yourself the first time
+
+if [ "$1" = "stop" ]; then
+	if [ "$2" = 0 -o "$2" = 6 ]; then
+		if [ -r /etc/lvmtab ]; then
+			start "$vgoff"
+			/sbin/vgchange -an
+			ok $?
+		fi
+		# sleep 1 fixes problems with some hard drives that don't
+		# otherwise finish syncing before reboot or poweroff
+		sleep 1
+		# this is to ensure all processes have completed on SMP machines
+		wait
+	fi
+elif [ "$1" = "restart" ]; then
+	"$0" stop
+	sleep 1
+	"$0" start
+else # start
+	if [ -r /etc/lvmtab ]; then
+		start "$vgchange "
+	# scan for new volume groups and make them available for the kernel
+		/sbin/vgscan && /sbin/vgchange -ay
+		ok $?
+	fi
+fi

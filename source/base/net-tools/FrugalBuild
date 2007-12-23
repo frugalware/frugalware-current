@@ -1,0 +1,56 @@
+# Last Modified: Tue Oct 12 22:21:03 CEST 2004
+# Compiling Time: ~1 minute
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=net-tools
+pkgver=1.60
+pkgrel=7
+pkgdesc="Important tools for controlling the network subsystem"
+depends=('glibc')
+install=$pkgname.install
+up2date=`lynx -dump http://www.tazenda.demon.co.uk/phil/net-tools/|tail -n 1|tr '-' '\n'|sed 's/.tar.bz2//'|tail -n 1`
+source=(http://www.tazenda.demon.co.uk/phil/net-tools/$pkgname-$pkgver.tar.bz2 \
+        $pkgname-$pkgver-configure.diff $pkgname-$pkgver-gcc34.diff \
+	$pkgname-$pkgver-i18n.diff rc.hostname rc.interfaces netconfig ipmask.c)
+md5sums=('888774accab40217dde927e21979c165' '8f57d49f985441ebf3cbd5fc6cde7e43' \
+         'de179aba910e9ac7d49a5f1f1dce5eb3' 'a9f59f7e076930e366cf7f3050583a33' \
+	 'b85bc0f91cd0823ec8ba341a1fdbc7ea' '185d47ff21d37fad7fb4773ffdcd51f5' \
+	 'e5e534ebc4aec3d156ed3db870effc0c' 'b5c0a7ca246bb93bbbcf717edc5e4ba0')
+
+# TODO: built with kernel-headers 2.4
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver
+	patch -p1 < $startdir/src/$pkgname-$pkgver-gcc34.diff
+	patch -p1 < $startdir/src/$pkgname-$pkgver-i18n.diff
+
+	patch -p1 < $startdir/src/$pkgname-$pkgver-configure.diff
+
+	make || return 1
+
+	make BASEDIR=$startdir/pkg update
+	mkdir -p $startdir/pkg/usr/bin
+	(cd $startdir/pkg/usr/bin; ln -s ../../bin/hostname ./)
+  
+	mkdir -p $startdir/pkg/etc/rc.d/rc.messages
+	install -m755 $startdir/rc.hostname $startdir/pkg/etc/rc.d/rc.hostname
+	install -m644 $startdir/messages/hostname.* \
+		$startdir/pkg/etc/rc.d/rc.messages
+	install -m755 $startdir/src/rc.interfaces $startdir/pkg/etc/rc.d/
+	
+	mkdir -p $startdir/pkg/var/lib/frugalware/{system,messages}
+	install -m755 $startdir/src/netconfig \
+		$startdir/pkg/var/lib/frugalware/system/
+	install -m644 $startdir/messages/netconfig.* \
+		$startdir/pkg/var/lib/frugalware/messages/
+	mkdir -p $startdir/pkg/sbin
+	cd $startdir/pkg/sbin/
+	ln -s ../var/lib/frugalware/system/netconfig ./
+
+	# ipmask
+	cd $startdir/src
+	cc -s -O2 -o ipmask ipmask.c
+	install -D -m755 ipmask $startdir/pkg/bin/ipmask
+}
+
+# vim: ft=sh

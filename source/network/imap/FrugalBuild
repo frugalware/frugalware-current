@@ -1,0 +1,65 @@
+# Last Modified: Wed Aug 18 22:01:42 CEST 2004
+# Compiling Time: ~2 minutes
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=imap
+pkgver=2004a
+pkgrel=1
+pkgdesc="An IMAP/POP server"
+url="http://www.washington.edu/imap"
+depends=('openssl')
+up2date=`lynx -dump 'http://ftp.ntua.gr/pub/net/mail/imap/?M=D'|grep imap-.*tar.gz$|grep -v DEV|sed -n -e 's/.*p-\([0-9a-z\.]*\).tar.gz$/\1/' -e '1 p'`
+source=(ftp://ftp.cac.washington.edu/imap/$pkgname-$pkgver.tar.Z)
+md5sums=('34d2c66271302cd2f926094fb5e8705d')
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver
+	# CFLAGS and ssl location
+	( cd src/osdep/unix
+	  sed -i -e "s/-g -fno-omit-frame-pointer -O6/${CFLAGS}/" \
+		-e 's|SSLDIR=/usr/local/ssl|SSLDIR=/usr|' \
+		-e 's|SSLCERTS=$(SSLDIR)/certs|SSLCERTS=/etc/ssl/certs|' \
+		Makefile )
+	
+	yes | make slx SPECIALAUTHENTICATORS=ssl SSLTYPE=unix || return 1
+	
+	# installing binaries
+	install -D -m755 imapd/imapd $startdir/pkg/usr/sbin/imapd
+	# install them, but we use popa3d by default
+	install -D -m755 ipopd/ipop2d $startdir/pkg/usr/sbin/ipop2d
+	install -D -m755 ipopd/ipop3d $startdir/pkg/usr/sbin/ipop3d
+	
+	# installing header files
+	mkdir -p $startdir/pkg/usr/include/imap/
+	cd c-client
+	install -m644 {c-client,mail,imap4r1,rfc822,linkage,misc,smtp,nntp,osdep,env_unix,env,fs,ftl,nl,tcp}.h $startdir/pkg/usr/include/imap/
+	install -D -m644 c-client.a $startdir/pkg/usr/lib/c-client.a
+	cd ..
+	( cd $startdir/pkg/usr/lib/ && ln -sf c-client.a libc-client.a)
+
+	# creating ssl certs
+	for i in imapd ipop3d
+	do
+		umask 077
+		temp1=`mktemp`
+		temp2=`mktemp`
+		openssl req -newkey rsa:1024 -keyout $temp1 \
+			-nodes -x509 -days 365 -out  $temp2 << EOF
+--
+SomeState
+SomeCity
+SomeOrganization
+SomeOrganizationalUnit
+localhost.localdomain
+root@localhost.localdomain
+EOF
+		cat $temp1 >$i.pem
+		echo "" >>$i.pem
+		cat $temp2 >>$i.pem
+		rm $temp1 $temp2
+		install -D -m600 $i.pem $startdir/pkg/etc/ssl/certs/$i.pem
+		umask 022
+	done
+}
+
+# vim: ft=sh

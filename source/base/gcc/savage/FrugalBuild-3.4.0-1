@@ -1,0 +1,46 @@
+# Last Modified: Thu Apr 22 21:15:20 CEST 2004
+# Compiling Time: ~2 hours
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=gcc
+pkgver=3.4.0
+pkgrel=1
+pkgdesc="The GNU Compiler Collection"
+url="http://gcc.gnu.org"
+depends=('glibc' 'binutils')
+up2date=`lynx -dump http://gcc.gnu.org/releases.html|grep -1 Release|grep '\['|tr -s ' '|cut -d ' ' -f 3`
+source=(ftp://gcc.gnu.org/pub/gcc/releases/gcc-$pkgver/$pkgname-$pkgver.tar.bz2 \
+        ftp://gcc.gnu.org/pub/gcc/releases/gcc-$pkgver/$pkgname-3.3.3.tar.bz2)
+md5sums=('85c6fc83d51be0fbb4f8205accbaff59' '3c6cfd9fcd180481063b4058cf6faff2')
+
+build() {
+  cd $startdir/src/$pkgname-$pkgver
+  mkdir ../$pkgname-build
+  cd ../$pkgname-build
+  ../$pkgname-$pkgver/configure --prefix=/usr --enable-shared \
+     --enable-languages=c,c++,objc,java --enable-threads=posix \
+     --enable-__cxa_atexit
+  make bootstrap || return 1
+  make DESTDIR=$startdir/pkg install || return 1
+  rm -rf $startdir/pkg/usr/bin/c++filt $startdir/pkg/usr/lib/libiberty.a
+  mkdir -p $startdir/pkg/lib
+  (cd $startdir/pkg/lib; ln -s ../usr/bin/cpp)
+  (cd $startdir/pkg/usr/bin; ln -sf gcc cc; ln -sf g++ c++)
+
+  # creating libstdc++.so.5 from gcc 3.3.3
+  export CFLAGS="`echo $CFLAGS|sed 's/mtune/mcpu/'`"
+  export CXXFLAGS="`echo $CXXFLAGS|sed 's/mtune/mcpu/'`"
+  mkdir ../gcc33-build
+  cd ../gcc33-build
+  ../gcc-3.3.3/configure --prefix=/usr --enable-shared \
+     --enable-languages=c,c++,objc --enable-threads=posix \
+     --enable-__cxa_atexit
+  make bootstrap || return 1
+  mkdir $startdir/pkg33
+  make DESTDIR=$startdir/pkg33 install || return 1
+  cd $startdir/pkg33/usr/lib
+  rm -rf gcc-lib libgcc* libobjc* libsupc* libiberty*
+  rm -f libstdc++.{so,a,la}
+  mv * $startdir/pkg/usr/lib/
+  rm -rf $startdir/pkg33
+}

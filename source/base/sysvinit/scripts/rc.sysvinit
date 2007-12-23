@@ -1,0 +1,39 @@
+#!/bin/sh
+
+# (c) 2003 Vajna Miklos <mamajom@axelero.hu>
+# from an example from Miquel van Smoorenburg <miquels@cistron.nl>
+# rc.sysvinit for FrugalWare
+# distributed under GPL License
+
+splash_prog () {
+	[ -e /proc/splash ] && echo "show $((65534 / 100 * $1))" >/proc/splash
+}
+
+# Run kill scripts in the previous runlevel if not "none"
+if ! [ "$PREVLEVEL" = "N" ]; then
+	for script in /etc/rc.d/rc$RUNLEVEL.d/K* ; do
+		$script stop $RUNLEVEL
+		if [ "$3" = "K" ]; then
+			[ -z "$prog" ] && prog=$1
+			prog=$(($prog+(($2-$1)/`ls /etc/rc.d/rc$RUNLEVEL.d/K*|wc -l`)))
+			splash_prog $prog
+		fi
+	done
+	unset prog
+else
+	# ugly hack
+	stty onlcr 0>&1
+	[ -d /proc/1 ] || mount none -t proc /proc
+fi
+
+# Now do the startup scripts:
+for script in /etc/rc.d/rc$RUNLEVEL.d/S* ; do
+	$script start $RUNLEVEL
+	if [ "$3" = "S" ]; then
+		[ -z "$prog" ] && prog=$1
+		prog=$(($prog+(($2-$1)/`ls /etc/rc.d/rc$RUNLEVEL.d/S*|wc -l`)))
+		splash_prog $prog
+	fi
+done
+
+splash_prog $2

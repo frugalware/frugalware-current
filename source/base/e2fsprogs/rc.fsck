@@ -1,0 +1,97 @@
+#!/bin/sh
+
+# (c) 2003-2004 Vajna Miklos <mamajom@axelero.hu>
+# rc.fsck for Frugalware
+# distributed under GPL License
+# Copyright 1993-2003 Patrick J. Volkerding, All rights reserved
+# Patrick J. Volkerding's scripts were distributed under an OSI approved
+# BSD License, which can be found in the COPYRIGHT file.
+
+. /etc/rc.d/rc.functions
+
+if [ "$1" = "start" ]; then
+	# Test to see if the root partition is read-only, like it ought to be.
+	if touch /fsrwtestfile 2>/dev/null; then
+		rm -f /fsrwtestfile
+		rw=yes
+	else
+		start "$fsstatro"
+		rw=no
+		ok $?
+	fi
+	
+	# See if a forced filesystem check was requested at shutdown:
+	if [ -r /etc/forcefsck ]; then
+		ffsck="-f"
+	fi
+	
+	# Check the root filesystem:
+	if [ ! $rw = yes ]; then
+		if [ ! -r /etc/fastboot ]; then
+			start "$fscheck"
+			/sbin/fsck $ffsck -C -a /
+			fsstate=$?
+			ok $?
+		else
+			fsstate=0
+		fi
+	
+		# An error code of 2 or higher will require a reboot.
+		if [ $fsstate -ge 2 ]; then
+			# An error code equal to or greater than 4 means that some
+			# errors could not be corrected.  This requires manual 
+			# attention, so we offer a chance to try to fix the
+			# problem in single-user mode:
+			if [ $fsstate -ge 4 ]; then
+				echo -e "$greater4"
+				PS1="($repairfs) \#"; export PS1
+				sulogin
+			else # With an error code of 2 or 3,
+			     # reboot the machine automatically:
+				echo -e "$autoreboot"
+			fi
+			echo "$umountfs"
+			umount -a -r
+			mount -n -o remount,ro /
+			echo "$rebootsys"
+			sleep 2
+			reboot -f
+		fi
+		# Remount the root filesystem in read-write mode
+		start "$remountrw"
+		mount -w -n -o remount /
+		if [ $? -gt 0 ] ; then
+			ok 1
+			echo -e "$failedrw"
+			read junk;
+		else
+			ok 0
+		fi
+	else
+		start "$fsstatrw"
+		if cat /etc/fstab | grep ' / ' | grep umsdos 1> /dev/null 2> /dev/null ; then
+			rfstype="umsdos"
+		fi
+		if [ ! "$rfstype" = "umsdos" ]; then # no warning for UMSDOS
+			ok 1
+			echo -e "$rwwarning"
+			read junk;
+		else
+			ok 0
+		fi
+	fi # Done checking root filesystem
+	
+	# Any /etc/mtab that exists here is old, so we delete it to start over:
+	/bin/rm -f /etc/mtab*
+	# Remounting the / partition will initialize the new /etc/mtab:
+	mount -w -o remount /
+	
+	# Fix /etc/mtab to list sys and proc if they were not yet entered in
+	# /etc/mtab because / was still mounted read-only:
+	if [ -d /proc/sys ]; then
+		mount -f proc /proc -t proc
+	fi
+	if [ -d /sys/bus ]; then
+		mount -f sysfs /sys -t sysfs
+	fi
+fi

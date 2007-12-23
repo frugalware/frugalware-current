@@ -1,0 +1,42 @@
+# Last Modified: Wed Oct 27 19:39:30 CEST 2004
+# Compiling Time: ~26 minutes
+# Maintainer: VMiklos <mamajom@axelero.hu>
+
+pkgname=mysql
+pkgver=4.1.7
+pkgrel=1
+pkgdesc="A fast SQL database server"
+backup=(etc/my.cnf)
+depends=('openssl' 'zlib' 'gcc')
+up2date=`lynx -dump http://dev.mysql.com/|grep -1 'Database Server'|sed -n -e 's/.* \(.*\)$/\1/' -e '3 p'`
+#mirror="http://ftp.heanet.ie/mirrors/www.mysql.com"
+mirror="http://mirrors.hpcf.upr.edu/mysql"
+source=($mirror/Downloads/MySQL-4.1/$pkgname-$pkgver.tar.gz rc.mysqld my.cnf)
+md5sums=('04c08d2a5cc39050d9fa4727f8f197e8' \
+	 'f872b54595e501e798b6c10dac03cb32' 'e88779427156367763b420bacc96ae9f')
+
+build() {
+	cd $startdir/src/$pkgname-$pkgver
+	./configure --prefix=/usr --libexecdir=/usr/sbin \
+		--without-debug --without-docs --without-bench \
+		--with-innodb --enable-local-infile --with-openssl
+	# small fixes
+	cp config.h config.h.old
+	cat config.h.old | sed 's/^.*HAVE_GETHOSTBYNAME_R_GLIBC2_STYLE.*$/#define HAVE_GETHOSTBYNAME_R_GLIBC2_STYLE|/g' >config.h
+	cp sql/mysqld.cc sql/mysqld.cc.old
+	cat sql/mysqld.cc.old | sed 's/size_socket/socklen_t/g' >sql/mysqld.cc
+	cp sql/mini_client.cc sql/mini_client.cc.old
+	cat sql/mini_client.cc.old | sed 's/SOCKOPT_OPTLEN_TYPE/socklen_t/g' \
+		>sql/mini_client.cc
+	
+	make || return 1
+	
+	make DESTDIR=$startdir/pkg install
+	cd $startdir/pkg/usr/lib && ln -sf mysql/libmysqlclient.so ./
+	install -D -m644 $startdir/src/my.cnf $startdir/pkg/etc/my.cnf
+	mkdir -p $startdir/pkg/etc/rc.d/rc.messages/
+	install -m755 $startdir/src/rc.mysqld $startdir/pkg/etc/rc.d/rc.mysqld
+	cp -a $startdir/messages/mysqld.* $startdir/pkg/etc/rc.d/rc.messages/
+}
+
+# vim: ft=sh

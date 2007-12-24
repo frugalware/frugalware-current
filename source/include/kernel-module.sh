@@ -80,9 +80,9 @@ install=$_F_kernelmod_scriptlet
 
 ###
 # == APPENDED VARIABLES
-# * scriptlet to options()
+# * scriptlet and genscriptlet to options()
 ###
-options=(${options[@]} 'scriptlet')
+options=(${options[@]} 'scriptlet' 'genscriptlet')
 
 ###
 # * Fbuild_kernelmod_scriptlet() generates a scriptlet for the given package from

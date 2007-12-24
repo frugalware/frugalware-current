@@ -31,3 +31,9 @@
 # * install
 ###
 install=$Fincdir/texinfo.install
+
+###
+# == APPENDED VARIABLES
+# * genscriptlet to options()
+###
+options=(${options[@]} 'genscriptlet')

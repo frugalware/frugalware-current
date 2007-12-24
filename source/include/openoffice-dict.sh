@@ -58,6 +58,12 @@ _F_openoffice_option() {
 }
 
 ###
+# == APPENDED VARIABLES
+# * genscriptlet to options()
+###
+options=(${options[@]} 'genscriptlet')
+
+###
 # == PROVIDED FUNCTIONS
 # * Fopenoffice_dictbuild()
 ###

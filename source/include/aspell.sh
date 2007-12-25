@@ -24,10 +24,16 @@
 #
 # == OPTIONS
 # * _F_aspell_lang: the language of the dictionary
-# * _F_aspell_ver (defaults to 6): the dictionary is made for this version of aspell
+# * _F_aspell_ver (defaults to 6, or to 5, if pkgver starts with '0.5'): the dictionary is made for this version of aspell
 # * _F_aspell_noverstrip: don't unset _F_aspell_ver even if it is '5'
 ###
-[ -z "$_F_aspell_ver" ] && _F_aspell_ver=6
+if [ -z "$_F_aspell_ver" ]; then
+	if [ "${pkgver:0:3}" == "0.5" ]; then
+		_F_aspell_ver=5
+	else
+		_F_aspell_ver=6
+	fi
+fi
 [ "$_F_aspell_ver" = "5" ] && [ -z "$_F_aspell_noverstrip" ] && unset _F_aspell_ver
 
 ###

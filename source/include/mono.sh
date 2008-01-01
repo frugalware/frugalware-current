@@ -31,6 +31,11 @@
 # == PROVIDED FUNCTIONS
 # * Fmonoexport(): creates MONO_SHARED_DIR
 ###
+
+if [ -z "$_F_mono_aot" ]; then
+        _F_mono_aot=1
+fi
+
 Fmonoexport() {
 	Fmessage "Exporting weird MONO_SHARED_DIR..."
 	export MONO_SHARED_DIR=$Fdestdir/weird
@@ -64,7 +69,9 @@ Fbuild_mono() {
 	unset MAKEFLAGS
 	Fmonoexport
 	Fbuild
+if [ "$_F_mono_aot" -eq 1 ]; then
 	Fmonocompileaot
+fi
 	Fmonocleanup
 }
 

@@ -48,7 +48,7 @@ def update(options):
 		try:
 			old = os.getcwd()
 			os.chdir(local)
-			os.system("git pull")
+			os.system("dg pull -a")
 			os.chdir(old)
 		except OSError:
 			os.system("git clone %s %s" % (url, local))

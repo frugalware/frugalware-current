@@ -952,7 +952,7 @@ MimeType=$dmime
 EOF
 
 	if [ ! -z $_F_desktop_show_in ] ; then
-		echo "OnlyShowIn=$dshowin;" >> $Fdestdir$Fmenudir/$pkgname.desktop
+		echo "OnlyShowIn=$dshowin;" >> $Fdestdir$Fmenudir/$deskfilename
 	fi
 }
 

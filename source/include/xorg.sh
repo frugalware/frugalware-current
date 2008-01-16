@@ -61,11 +61,17 @@ if [[ $pkgname =~ ^xf86-input- ]]; then
 	makedepends=('inputproto' 'randrproto')
 fi
 url="http://xorg.freedesktop.org"
-if [ -z "$_F_xorg_ind" ]; then
-	_F_xorg_release_dir="X11R7.3/src"
-else
+
+# set individual to be 1 , released xorg is crap at the moment , no way to get something
+# usable from there.
+_F_xorg_ind=1
+
+if [ "$_F_xorg_ind" -eq 1 ]; then
 	_F_xorg_release_dir="individual"
+else
+	_F_xorg_release_dir="X11R7.3/src"
 fi
+
 _F_xorg_dir=`echo ${groups[$((${#groups[@]}-1))]}|sed 's/xorg-\(.*\)/\1/;s/s$//'`
 _F_xorg_version="X11R7."
 [ "$_F_xorg_name" = "xorg-server" ] && _F_xorg_dir="xserver"

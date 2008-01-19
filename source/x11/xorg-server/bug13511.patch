@@ -1,0 +1,37 @@
+From 60144ac814ee26e151186f7c93cb1a273468d497 Mon Sep 17 00:00:00 2001
+From: Peter Hutterer <peter@cs.unisa.edu.au>
+Date: Wed, 19 Dec 2007 16:20:36 +1030
+Subject: [PATCH] include: never overwrite realInputProc with enqueueInputProc. Bug #13511
+
+In some cases (triggered by a key repeat during a sync grab) XKB unwrapping
+can overwrite the device's realInputProc with the enqueueInputProc. When the
+grab is released and the events are replayed, we end up in an infinite loop.
+Each event is replayed and in replaying pushed to the end of the queue again.
+
+This fix is a hack only. It ensures that the realInputProc is never
+overwritten with the enqueueInputProc.
+
+This fixes Bug #13511 (https://bugs.freedesktop.org/show_bug.cgi?id=13511)
+(cherry picked from commit eace88989c3b65d5c20e9f37ea9b23c7c8e19335)
+(cherry picked from commit 50e80c39870adfdc84fdbc00dddf1362117ad443)
+---
+ include/xkbsrv.h |    3 ++-
+ 1 files changed, 2 insertions(+), 1 deletions(-)
+
+diff --git a/include/xkbsrv.h b/include/xkbsrv.h
+index 167dbec..9174eb6 100644
+--- a/include/xkbsrv.h
++++ b/include/xkbsrv.h
+@@ -258,7 +258,8 @@ typedef struct
+ 	    device->public.processInputProc = proc; \
+ 	oldprocs->processInputProc = \
+ 	oldprocs->realInputProc = device->public.realInputProc; \
+-	device->public.realInputProc = proc; \
++	if (proc != device->public.enqueueInputProc) \
++		device->public.realInputProc = proc; \
+ 	oldprocs->unwrapProc = device->unwrapProc; \
+ 	device->unwrapProc = unwrapproc;
+ 
+-- 
+1.5.3.8
+

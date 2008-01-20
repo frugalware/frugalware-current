@@ -1,0 +1,63 @@
+From: Balazs Scheidler <bazsi@balabit.hu>
+Date: Thu, 22 Nov 2007 14:39:14 +0000 (+0100)
+Subject: fixed possible segmentation fault in input parsing (DoS possibility)
+X-Git-Tag: v2.0.6~8
+X-Git-Url: http://git.balabit.hu/?p=bazsi%2Fsyslog-ng-2.0.git;a=commitdiff_plain;h=3126ebad217e7fd6356f4733ca33f571aa87a170;hp=09c462b997a2f34ce8bf541d20736cba47532911
+
+fixed possible segmentation fault in input parsing (DoS possibility)
+
+2007-11-22  Balazs Scheidler <bazsi@balabit.hu>
+
+	* src/logmsg.c (log_msg_parse): fixed possible NULL pointer
+	  dereference in log message parsing
+
+	* tests/unit/test_msgparse.c: added testcases for improperly
+	  formatted ISO timestamps that can cause a segfault
+---
+
+diff --git a/src/logmsg.c b/src/logmsg.c
+index b4354bf..e1bf5ea 100644
+--- a/src/logmsg.c
++++ b/src/logmsg.c
+@@ -208,8 +208,10 @@ log_msg_parse(LogMessage *self, gchar *data, gint length, guint flags, regex_t *
+       self->stamp.time.tv_usec = 0;
+       
+       p = memchr(src, ' ', left);
+-      
+-      stamp_length = (p - src);
++      if (p)
++        stamp_length = (p - src);
++      else
++        stamp_length = left;
+       
+       g_string_assign_len(&self->date, src, stamp_length);
+       
+diff --git a/tests/unit/test_msgparse.c b/tests/unit/test_msgparse.c
+index 003950b..2d630a3 100644
+--- a/tests/unit/test_msgparse.c
++++ b/tests/unit/test_msgparse.c
+@@ -198,6 +198,24 @@ main(int argc G_GNUC_UNUSED, char *argv[] G_GNUC_UNUSED)
+            "%bzorp openvpn[2499]: PTHREAD support initialized" // msg
+            );
+ 
++  testcase("<7>2006-10-29T02:00:00.156+01:00 ", 0, NULL,
++           7, 			// pri
++           1162083600, 156000, 3600,	// timestamp (sec/usec/zone)
++           NULL,                // originally formatted timestamp
++           "",	        	// host
++           "",		// openvpn
++           "" // msg
++           );
++
++  testcase("<7>2006-10-29T02:00:00.156+01:00", 0, NULL,
++           7, 			// pri
++           1162083600, 156000, 3600,	// timestamp (sec/usec/zone)
++           NULL,                // originally formatted timestamp
++           "",	        	// host
++           "",		// openvpn
++           "" // msg
++           );
++
+   testcase("<7>2006-10-29T02:00:00.156+01:00 ctld snmpd[2499]: PTHREAD support initialized", 0, "^ctld",
+            7, 			// pri
+            1162083600, 156000, 3600,	// timestamp (sec/usec/zone)

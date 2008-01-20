@@ -29,8 +29,9 @@
 # * _F_gnome_name (defaults to $pkgname): if you want to use a custom package
 # name (for example the upstream name contains uppercase letters) then use this
 # to declare the real name
-# * _F_gnome_devel: if set, the unsable version will be used
-# NOTE: this is currently enabled by default for -current
+# * _F_gnome_devel: if set, the <number>.<odd> versions will not be ignored.
+# This is something you want for packages which are not part of GNOME releases
+# (like intltool) and where the <odd> number does not mean instability.
 ###
 
 if [ -z "$_F_gnome_name" ]; then

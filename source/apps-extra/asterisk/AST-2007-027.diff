@@ -1,0 +1,153 @@
+--- channels/chan_sip.c	2007/12/18 18:23:06	93667
++++ channels/chan_sip.c	2007/12/18 18:29:39	93668
+@@ -149,6 +149,7 @@
+ #include "asterisk/compiler.h"
+ #include "asterisk/threadstorage.h"
+ #include "asterisk/translate.h"
++#include "asterisk/dnsmgr.h"
+ 
+ #ifndef FALSE
+ #define FALSE    0
+@@ -2497,9 +2498,35 @@
+ 	unsigned short portnum;
+ 
+ 	/* First check on peer name */
+-	if (newpeername) 
+-		var = ast_load_realtime("sippeers", "name", newpeername, NULL);
+-	else if (sin) {	/* Then check on IP address */
++	if (newpeername) {
++		var = ast_load_realtime("sippeers", "name", newpeername, "host", "dynamic", NULL);
++		if (!var && sin) {
++			var = ast_load_realtime("sippeers", "name", newpeername, "host", ast_inet_ntoa(sin->sin_addr), NULL);
++			if (!var) {
++				var = ast_load_realtime("sippeers", "name", newpeername, NULL);
++				/*!\note
++				 * If this one loaded something, then we need to ensure that the host
++				 * field matched.  The only reason why we can't have this as a criteria
++				 * is because we only have the IP address and the host field might be
++				 * set as a name (and the reverse PTR might not match).
++				 */
++				if (var) {
++					for (tmp = var; tmp; tmp = tmp->next) {
++						if (!strcasecmp(var->name, "host")) {
++							struct in_addr sin2 = { 0, };
++							struct ast_dnsmgr_entry *dnsmgr = NULL;
++							if ((ast_dnsmgr_lookup(tmp->value, &sin2, &dnsmgr) < 0) || (memcmp(&sin2, &sin->sin_addr, sizeof(sin2)) != 0)) {
++								/* No match */
++								ast_variables_destroy(var);
++								var = NULL;
++							}
++							break;
++						}
++					}
++				}
++			}
++		}
++	} else if (sin) {	/* Then check on IP address */
+ 		iabuf = ast_inet_ntoa(sin->sin_addr);
+ 		portnum = ntohs(sin->sin_port);
+ 		sprintf(portstring, "%d", portnum);
+--- channels/chan_iax2.c	2007/12/18 18:23:06	93667
++++ channels/chan_iax2.c	2007/12/18 18:29:39	93668
+@@ -2680,9 +2680,11 @@
+ 	time_t regseconds = 0, nowtime;
+ 	int dynamic=0;
+ 
+-	if (peername)
+-		var = ast_load_realtime("iaxpeers", "name", peername, NULL);
+-	else {
++	if (peername) {
++		var = ast_load_realtime("iaxpeers", "name", peername, "host", "dynamic", NULL);
++		if (!var && sin)
++			var = ast_load_realtime("iaxpeers", "name", peername, "host", ast_inet_ntoa(sin->sin_addr));
++	} else if (sin) {
+ 		char porta[25];
+ 		sprintf(porta, "%d", ntohs(sin->sin_port));
+ 		var = ast_load_realtime("iaxpeers", "ipaddr", ast_inet_ntoa(sin->sin_addr), "port", porta, NULL);
+@@ -2694,6 +2696,29 @@
+ 			}
+ 		}
+ 	}
++	if (!var) { /* Last ditch effort */
++		var = ast_load_realtime("iaxpeers", "name", peername, NULL);
++		/*!\note
++		 * If this one loaded something, then we need to ensure that the host
++		 * field matched.  The only reason why we can't have this as a criteria
++		 * is because we only have the IP address and the host field might be
++		 * set as a name (and the reverse PTR might not match).
++		 */
++		if (var) {
++			for (tmp = var; tmp; tmp = tmp->next) {
++				if (!strcasecmp(tmp->name, "host")) {
++					struct in_addr sin2 = { 0, };
++					struct ast_dnsmgr_entry *dnsmgr = NULL;
++					if ((ast_dnsmgr_lookup(tmp->value, &sin2, &dnsmgr) < 0) || (memcmp(&sin2, &sin->sin_addr, sizeof(sin2)) != 0)) {
++						/* No match */
++						ast_variables_destroy(var);
++						var = NULL;
++					}
++					break;
++				}
++			}
++		}
++	}
+ 	if (!var)
+ 		return NULL;
+ 
+@@ -2769,13 +2794,45 @@
+ 	return peer;
+ }
+ 
+-static struct iax2_user *realtime_user(const char *username)
++static struct iax2_user *realtime_user(const char *username, struct sockaddr_in *sin)
+ {
+ 	struct ast_variable *var;
+ 	struct ast_variable *tmp;
+ 	struct iax2_user *user=NULL;
+ 
+-	var = ast_load_realtime("iaxusers", "name", username, NULL);
++	var = ast_load_realtime("iaxusers", "name", username, "host", "dynamic", NULL);
++	if (!var)
++		var = ast_load_realtime("iaxusers", "name", username, "host", ast_inet_ntoa(sin->sin_addr));
++	if (!var && sin) {
++		char porta[6];
++		snprintf(porta, sizeof(porta), "%d", ntohs(sin->sin_port));
++		var = ast_load_realtime("iaxusers", "name", username, "ipaddr", ast_inet_ntoa(sin->sin_addr), "port", porta, NULL);
++		if (!var)
++			var = ast_load_realtime("iaxusers", "ipaddr", ast_inet_ntoa(sin->sin_addr), "port", porta, NULL);
++	}
++	if (!var) { /* Last ditch effort */
++		var = ast_load_realtime("iaxusers", "name", username, NULL);
++		/*!\note
++		 * If this one loaded something, then we need to ensure that the host
++		 * field matched.  The only reason why we can't have this as a criteria
++		 * is because we only have the IP address and the host field might be
++		 * set as a name (and the reverse PTR might not match).
++		 */
++		if (var) {
++			for (tmp = var; tmp; tmp = tmp->next) {
++				if (!strcasecmp(tmp->name, "host")) {
++					struct in_addr sin2 = { 0, };
++					struct ast_dnsmgr_entry *dnsmgr = NULL;
++					if ((ast_dnsmgr_lookup(tmp->value, &sin2, &dnsmgr) < 0) || (memcmp(&sin2, &sin->sin_addr, sizeof(sin2)) != 0)) {
++						/* No match */
++						ast_variables_destroy(var);
++						var = NULL;
++					}
++					break;
++				}
++			}
++		}
++	}
+ 	if (!var)
+ 		return NULL;
+ 
+@@ -4970,7 +5027,7 @@
+ 	}
+ 	user = best;
+ 	if (!user && !ast_strlen_zero(iaxs[callno]->username)) {
+-		user = realtime_user(iaxs[callno]->username);
++		user = realtime_user(iaxs[callno]->username, sin);
+ 		if (user && !ast_strlen_zero(iaxs[callno]->context) &&			/* No context specified */
+ 		    !apply_context(user->contexts, iaxs[callno]->context)) {		/* Context is permitted */
+ 			user = user_unref(user);

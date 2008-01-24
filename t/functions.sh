@@ -2,6 +2,7 @@
 
 in_array()
 {
+	local i
 	needle=$1
 	shift 1
 	# array() undefined

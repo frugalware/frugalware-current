@@ -48,8 +48,6 @@ Finclude kernel-version
 # * _F_kernel_git if set, the version of the git patch to use (example: "3")
 # * _F_kernel_dontfakeversion if set, don't replace the kernel version string
 # with a generated one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
-# * _F_kernel_manualamd64: if set, don't update the config automatically to add
-# 32bit emulation support on x86_64
 # * _F_kernel_uname: specify the kernel version manually (defaults to
 # $_F_kernel_name-fw$_F_kernel_rel)
 #
@@ -98,6 +96,10 @@ if [ -z "$_F_kernel_uname" ]; then
 fi
 
 if [ -n "$_F_kernel_dontsedarch" ]; then
+	Fmessage "This option was removed and does nothing at the moment, please update your FrugalBuild!."
+fi
+
+if [ -n "$_F_kernel_manualamd64" ]; then
 	Fmessage "This option was removed and does nothing at the moment, please update your FrugalBuild!."
 fi
 
@@ -234,15 +236,13 @@ fi
 Fbuildkernel()
 {
 	Fcd linux-$_F_kernel_ver
-	cp $Fsrcdir/config .config
-	## FIXME: We *NEED* a proper config .. that is err -- crazy --
-	if [ "$CARCH" = "x86_64" -a -z "$_F_kernel_manualamd64" ]; then
-		echo -e "CONFIG_IA32_EMULATION=y
-		CONFIG_IA32_AOUT=y
-		CONFIG_COMPAT=y
-		CONFIG_SYSVIPC_COMPAT=y
-		CONFIG_UID16=y" >> .config
+	if [ -e "config.$CARCH" ]; then
+		cp $Fsrcdir/config.$CARCH .config || Fdie
+	else
+		cp $Fsrcdir/config .config || Fdie
 	fi
+
+
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver
 	[ $_F_kernel_mm -gt 0 ] && Fpatch $_F_kernel_mmver
@@ -255,7 +255,8 @@ Fbuildkernel()
 	done
 	# remove unneded localversions
 	rm -f localversion-*
-	if [ "$CARCH" = "x86_64" -a -z "$_F_kernel_manualamd64" ]; then
+	## FIXME: remove that after 0.8
+	if [ "$CARCH" = "x86_64" ]; then
 		yes "" | make config
 	else
 		make silentoldconfig || Fdie

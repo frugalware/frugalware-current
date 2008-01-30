@@ -46,11 +46,8 @@ Finclude kernel-version
 # * _F_kernel_rc: if set, the version of the rc patch to use (example: "6")
 # * _F_kernel_mm: if set, the version of the mm patch to use (example: "2")
 # * _F_kernel_git if set, the version of the git patch to use (example: "3")
-# * _F_kernel_dontsedarch: if set, don't replace 486 with your CARCH in the kernel config
 # * _F_kernel_dontfakeversion if set, don't replace the kernel version string
 # with a generated one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
-# * _F_kernel_manualamd64: if set, don't update the config automatically to add
-# 32bit emulation support on x86_64
 # * _F_kernel_uname: specify the kernel version manually (defaults to
 # $_F_kernel_name-fw$_F_kernel_rel)
 #
@@ -91,14 +88,19 @@ if [ -z "$_F_kernel_git" ]; then
 	_F_kernel_git=0
 fi
 
-if [ -z "$_F_kernel_dontsedarch" ]; then
-	_F_kernel_dontsedarch=0
-fi
 if [ -z "$_F_kernel_dontfakeversion" ]; then
 	_F_kernel_dontfakeversion=0
 fi
 if [ -z "$_F_kernel_uname" ]; then
 	_F_kernel_uname="$_F_kernel_name-fw$_F_kernel_rel"
+fi
+
+if [ -n "$_F_kernel_dontsedarch" ]; then
+	Fmessage "This option was removed and does nothing at the moment, please update your FrugalBuild!."
+fi
+
+if [ -n "$_F_kernel_manualamd64" ]; then
+	Fmessage "This option was removed and does nothing at the moment, please update your FrugalBuild!."
 fi
 
 _F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
@@ -188,8 +190,16 @@ if [ $_F_kernel_git -gt 0 ]; then
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
 fi
 
-[ "$CARCH" == "x86_64" ] && MARCH=K8
-echo "$CARCH" |grep -q 'i.86' && KARCH=i386
+if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
+	if [ "$CARCH" = "x86_64" ]; then
+		MARCH=K8
+		KARCH=x86
+	fi
+	echo "$CARCH" |grep -q 'i.86' && KARCH=x86
+else
+	[ "$CARCH" == "x86_64" ] && MARCH=K8
+	echo "$CARCH" |grep -q 'i.86' && KARCH=i386
+fi
 
 ###
 # * subpkg()
@@ -226,17 +236,13 @@ fi
 Fbuildkernel()
 {
 	Fcd linux-$_F_kernel_ver
-	cp $Fsrcdir/config .config
-	if [ $_F_kernel_dontsedarch -eq 0 ]; then
-		Fsed "486" "`echo ${MARCH:-$CARCH}|sed 's/^i//'`" .config
+	if [ -e "config.$CARCH" ]; then
+		cp $Fsrcdir/config.$CARCH .config || Fdie
+	else
+		cp $Fsrcdir/config .config || Fdie
 	fi
-	if [ "$CARCH" = "x86_64" -a -z "$_F_kernel_manualamd64" ]; then
-		echo -e "CONFIG_IA32_EMULATION=y
-		CONFIG_IA32_AOUT=y
-		CONFIG_COMPAT=y
-		CONFIG_SYSVIPC_COMPAT=y
-		CONFIG_UID16=y" >> .config
-	fi
+
+
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver
 	[ $_F_kernel_mm -gt 0 ] && Fpatch $_F_kernel_mmver
@@ -249,33 +255,35 @@ Fbuildkernel()
 	done
 	# remove unneded localversions
 	rm -f localversion-*
-	if [ $_F_kernel_dontsedarch -eq 0 ]; then
+	## FIXME: remove that after 0.8
+	if [ "$CARCH" = "x86_64" ]; then
 		yes "" | make config
 	else
 		make silentoldconfig || Fdie
 	fi
+	## FIXME: remove or do it right -- crazy --
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
 		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
 		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_uname" Makefile
 	fi
-	
+
 	## let we do kernel$_F_kernel_name-source before make
 	Fmkdir /usr/src
-	cp -Ra $Fsrcdir/linux-$_F_kernel_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname
-	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS}
+	cp -Ra $Fsrcdir/linux-$_F_kernel_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
+	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
 	Fsplit kernel$_F_kernel_name-source usr/src
 
 	## now the kernel$_F_kernel_name-docs
 	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_uname
 	cp -Ra $Fsrcdir/linux-$_F_kernel_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
-	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname
+	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
         ## do we need to ln /usr/share/doc ?!
 	Fsplit kernel$_F_kernel_name-docs usr/src
 
 	if [ -z "$_F_kernel_name" ]; then
-		make INSTALL_HDR_PATH=$Fdestdir/usr headers_install
-		Frm /usr/include/scsi
+		make INSTALL_HDR_PATH=$Fdestdir/usr headers_install || Fdie
+		[ -e $Fdestdir/usr/include/scsi ] && Frm /usr/include/scsi
 		Fsplit kernel-headers /usr
 	fi
 	## now time to eat some cookies and wait kernel got compiled :)
@@ -289,17 +297,20 @@ Fbuildkernel()
 	else
 		make || Fdie
 	fi
-	
+
 	Fmkdir /boot
 	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_uname
 	if [ ! -z "$_F_kernel_vmlinuz" ]; then
 		Ffilerel $_F_kernel_vmlinuz /boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
 	else
-		Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage \
-			/boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
+		if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
+			Ffilerel arch/x86/boot/bzImage /boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
+		else
+			Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage /boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
+		fi
 	fi
 	Fmkdir /lib/modules
-	make INSTALL_MOD_PATH=$Fdestdir modules_install
+	make INSTALL_MOD_PATH=$Fdestdir modules_install || Fdie
 	# dump symol versions so that later builds will have dependencies and
 	# modversions
 	Ffilerel System.map /boot/System.map-$_F_kernel_ver$_F_kernel_uname
@@ -312,10 +323,10 @@ Fbuildkernel()
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/source
 
 	# scriptlets
-	cp $Fincdir/kernel.install $Fsrcdir
+	cp $Fincdir/kernel.install $Fsrcdir || Fdie
 	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel.install
 	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel.install
-	cp $Fincdir/kernel-source.install $Fsrcdir
+	cp $Fincdir/kernel-source.install $Fsrcdir || Fdie
 	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel-source.install
 	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel-source.install
 	Fsed '$_F_kernel_name' "$_F_kernel_name" $Fsrcdir/kernel-source.install

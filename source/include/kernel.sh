@@ -158,8 +158,8 @@ groups=('base')
 archs=('i686' 'x86_64')
 options=('nodocs' 'genscriptlet')
 up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
-source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
-signatures=("${source[0]}.sign" '')
+source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config.i686 config.x86_64)
+signatures=("${source[0]}.sign" '' '')
 install="src/kernel.install"
 
 for i in ${_F_kernel_patches[@]}

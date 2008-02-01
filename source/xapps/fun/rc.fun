@@ -4,7 +4,7 @@
 # rc.fun for Frugalware
 # distributed under GPL License
 
-# chkconfig: 2345 50 15
+# chkconfig: 2345 99 15
 # description: Frugalware Update Notifier (FUN)
 
 source /lib/initscripts/functions

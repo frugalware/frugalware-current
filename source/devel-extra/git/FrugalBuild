@@ -3,14 +3,19 @@
 
 USE_DEVEL=${USE_DEVEL:-"n"}
 
+# most people won't need the html version of manpages, but we don't want to
+# break git help -w
+USE_HTMLMAN=${USE_HTMLMAN:-"y"}
+
 pkgname=git
-pkgver=1.5.3.8
-Fuse $USE_DEVEL && pkgver=1.5.3.rc7.30.g947ad2
+pkgver=1.5.4
+Fuse $USE_DEVEL && pkgver=1.5.4.rc5
 pkgrel=1
 pkgdesc="A fast, scalable, distributed revision control system."
 url="http://www.kernel.org/pub/software/scm/git/"
 depends=('curl>=7.16.0' 'openssl')
-makedepends=('asciidoc' 'docbook-xsl>=1.73.0-2' 'docbook-xml' 'sgml-common' 'xmlto' 'cpio')
+backup=(etc/sysconfig/git)
+makedepends=('asciidoc' 'docbook-xsl>=1.73.0-2' 'docbook-xml' 'docbook2x' 'sgml-common' 'xmlto' 'cpio')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump '$url/?C=M;O=D'|grep 'git-[0-9.]*.tar.bz2$'|sed -n 's/.*-\(.*\)\.t.*/\1/;1 p'"
@@ -20,6 +25,7 @@ if ! Fuse $USE_DEVEL; then
 fi
 source=(${source[@]} gitweb.modules.d gitweb.conf README.Frugalware rc.git git.sysconfig)
 options=('scriptlet')
+Finclude texinfo
 
 subpkgs=('gitweb' 'git-gui' 'gitk')
 subdescs=('Web interface for Git.' 'Git GUI tool.' 'Git revision tree visualiser.')
@@ -31,6 +37,7 @@ subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
 if Fuse $USE_DEVEL; then
 	_F_scm_type="git"
 	_F_scm_url="git://git.kernel.org/pub/scm/git/git.git"
+	_F_scm_tag="v${pkgver/.rc/-rc}"
 	Finclude scm
 fi
 
@@ -46,17 +53,21 @@ build()
 	Fsed ' (on debian)' '' templates/hooks--post-receive
 
 	# don't install the source of the manpages
-	Fsed ' \*.txt' '' Documentation/install-webdoc.sh
+	Fsed '\t\*.txt ' '\t' Documentation/install-webdoc.sh
 
-	# we don't need the html version of manpages
-	Fsed '^DOC_HTML=.*' 'DOC_HTML=' Documentation/Makefile
+	# fix the path of html manpages
+	Fsed 'htmldir=$(sharedir)/doc/git-doc' "htmldir=\$(sharedir)/doc/git-$pkgver" Makefile
 
-	# also we want proper manlinks (how ugly docbook is)
-	sed -i -e "/^\tmv \$@+ \$@/i\\\\tsed -i 's|git<ulink url=\"\\\\([^\"]\\\\+\\\\)\">\\\\([0-9]\\\\)</ulink>|<emphasis role=\"strong\">\\\\1</emphasis>(\\\\2)|g' \$@+" -e "s/^sed/\\\\tsed/" Documentation/Makefile
+	if ! Fuse $USE_HTMLMAN; then
+		# we don't need the html version of manpages
+		Fsed '^DOC_HTML=.*' 'DOC_HTML=' Documentation/Makefile
+	fi
 
 	Fconf
-	make V=1 CLFAGS="$CFLAGS" ASCIIDOC8=YesPlease ETC_GITCONFIG=/etc/gitconfig all doc test || return 1
-	Fmakeinstall install-doc ETC_GITCONFIG=/etc/gitconfig mandir=/usr/share/man
+	make V=1 CLFAGS="$CFLAGS" ASCIIDOC8=YesPlease \
+		ETC_GITCONFIG=/etc/gitconfig DOCBOOK2X_TEXI=docbook2texi \
+		all doc info test || return 1
+	Fmakeinstall install-doc install-info ETC_GITCONFIG=/etc/gitconfig mandir=/usr/share/man
 	Ffilerel perl/private-Error.pm /usr/lib/perl5/site_perl/current/Error.pm
 	make -C Documentation WEBDOC_DEST=$Fdestdir/usr/share/doc/$pkgname-$pkgver install-webdoc || return 1
 	# broken symlink
@@ -90,10 +101,12 @@ build()
 	Fsplit git-gui usr/bin/git-{gui,citool}
 	Fsplit git-gui usr/share/git-gui
 	Fsplit git-gui usr/share/man/man1/git-{gui,citool}.1
+	Fsplit git-gui usr/share/doc/git-$pkgver/git-{gui,citool}.html
 
 	# gitk
 	Fsplit gitk usr/bin/gitk
 	Fsplit gitk usr/share/man/man1/gitk.1
+	Fsplit gitk usr/share/doc/git-$pkgver/gitk.html
 }
 
 # optimization OK

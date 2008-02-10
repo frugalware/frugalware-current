@@ -321,7 +321,7 @@ Fman() {
 	local i
 	for i in $@
 	do
-		Ffile /usr/share/man/man${i##*.}/$i
+		Ffile $i /usr/share/man/man${i##*.}/`basename $i`
 	done
 }
 
@@ -333,7 +333,7 @@ Fmanrel() {
 	local i
 	for i in $@
 	do
-		Ffilerel /usr/share/man/man${i##*.}/$i
+		Ffilerel $i /usr/share/man/man${i##*.}/`basename $i`
 	done
 }
 

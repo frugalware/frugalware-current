@@ -18,7 +18,7 @@
 # archs=('i686' 'x86_64')
 # Finclude beryl
 # depends=("beryl-plugins=$pkgver" 'gtk+2' 'librsvg' 'dbus-glib>=0.71-2')
-# makedepends=('intltool' 'perl-xml')
+# makedepends=('intltool' 'perl-xml-parser')
 # sha1sums=('7552df78bdeaee2fd601f2b22f21ec34d778113d')
 # --------------------------------------------------
 #

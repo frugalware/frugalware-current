@@ -64,7 +64,7 @@
 [ -z "$_F_cd_path" ] && _F_cd_path="$_F_perl_sourcename-$pkgver"
 pkgname="perl-`echo $_F_perl_name|tr [A-Z] [a-z]`"
 [ -z "$pkgrel" ] && pkgrel=1
-depends=(${depends[@]} 'perl')
+depends=(${depends[@]} 'perl>=5.10.0-2')
 makedepends=(${makedepends[@]} 'perl-libwww')
 groups=('devel-extra')
 archs=('i686')

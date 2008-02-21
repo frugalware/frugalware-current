@@ -240,6 +240,7 @@ fi
 Fbuildkernel()
 {
 	Fcd linux-$_F_kernel_ver
+	make clean || Fdie
 	if [ -e "$Fsrcdir/config.$CARCH" ]; then
 		cp $Fsrcdir/config.$CARCH .config || Fdie
 	else

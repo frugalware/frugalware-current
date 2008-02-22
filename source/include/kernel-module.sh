@@ -32,6 +32,7 @@ Finclude kernel-version
 #         # no Fcheckkernel, crosscompilation verified
 #         Fsed '$(shell uname -r)' "$_F_kernelmod_uname" Makefile
 #         Fbuild
+#         Fbuild_kernelmod_scriptlet
 # }
 # --------------------------------------------------
 #
@@ -85,6 +86,7 @@ install=$_F_kernelmod_scriptlet
 options=(${options[@]} 'scriptlet' 'genscriptlet')
 
 ###
+# == PROVIDED FUNCTIONS
 # * Fbuild_kernelmod_scriptlet() generates a scriptlet for the given package from
 # the template according to the declared options
 ###
@@ -95,7 +97,6 @@ Fbuild_kernelmod_scriptlet()
 }
 
 ###
-# == PROVIDED FUNCTIONS
 # * Fcheckkernel: Checks if the version of the running kernel equals to the
 # installed one, this is required if the crosscompilation is not verified.
 # Never use this function outside build().

@@ -18,31 +18,36 @@ daemon=$"WINE"
 rc_start()
 {
 	start_msg
-	retval=0
-	if [ ! -e /proc/sys/fs/binfmt_misc ] ; then
-		modprobe binfmt_misc
-		retval=$?
+	if ls /proc/sys/fs/binfmt_misc/windows* &>/dev/null; then
+		ok 999
+		return 1
 	fi
-	if [ ! -e /proc/sys/fs/binfmt_misc/register ] && (( $retval == 0 )) ; then
-		mount -t binfmt_misc none /proc/sys/fs/binfmt_misc
-		retval=$?
+	modprobe binfmt_misc
+	echo ':windowsPE:M::PE::/usr/bin/wine:' >/proc/sys/fs/binfmt_misc/register
+	echo ':windows:M::MZ::/usr/bin/wine:' >/proc/sys/fs/binfmt_misc/register
+	ok $?
+}
+
+rc_status()
+{
+	status_msg $"Wine binary format handlers are"
+	if ! ls /proc/sys/fs/binfmt_misc/windows* &>/dev/null; then
+		ok 998
+	else
+		ok 997
 	fi
-	if (( $retval == 0 )) ; then
-		echo ':windowsPE:M::PE::/usr/bin/wine:' >/proc/sys/fs/binfmt_misc/register
-		echo ':windows:M::MZ::/usr/bin/wine:' >/proc/sys/fs/binfmt_misc/register
-		retval=$?
-	fi
-	ok $retval
 }
 
 rc_stop()
 {
 	stop_msg
+	if ! ls /proc/sys/fs/binfmt_misc/windows &>/dev/null; then
+		ok 999
+		return 1
+	fi
 	echo "-1" >/proc/sys/fs/binfmt_misc/windows
 	echo "-1" >/proc/sys/fs/binfmt_misc/windowsPE
 	ok $?
 }
 
 rc_exec $1
-
-# vim: ft=sh

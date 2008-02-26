@@ -17,26 +17,34 @@ actions=(start stop restart)
 rc_start()
 {
 	msg $"Registering .NET IL binaries with mono"
-	if [ -d /proc/sys/fs/binfmt_misc ] ; then
-		mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc
-		echo ':CLR:M::MZ::/usr/bin/mono:' > /proc/sys/fs/binfmt_misc/register
-		ok $?
-	else
+	if ls /proc/sys/fs/binfmt_misc/CLR &>/dev/null; then
 		ok 999
+		return 1
+	fi
+	modprobe binfmt_misc
+	echo ':CLR:M::MZ::/usr/bin/mono:' > /proc/sys/fs/binfmt_misc/register
+	ok $?
+}
+
+rc_status()
+{
+	status_msg $"Mono binary format handlers are"
+	if ! ls /proc/sys/fs/binfmt_misc/CLR &>/dev/null; then
+		ok 998
+	else
+		ok 997
 	fi
 }
 
 rc_stop()
 {
 	msg $"Unregistering .NET IL binaries"
-	if [ -f /proc/sys/fs/binfmt_misc/CLR ] ; then
-		echo '-1' > /proc/sys/fs/binfmt_misc/CLR
-		ok $?
-	else
+	if ! ls /proc/sys/fs/binfmt_misc/CLR &>/dev/null; then
 		ok 999
+		return 1
 	fi
+	echo '-1' > /proc/sys/fs/binfmt_misc/CLR
+	ok $?
 }
 
 rc_exec $1
-
-# vim: ft=sh

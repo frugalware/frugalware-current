@@ -27,17 +27,35 @@ post_install() {
 	if [ "$exist" -eq 0 ]; then
 		echo nvidia >> /etc/sysconfig/modules
 	fi
-	/sbin/depmod -a $_F_kernelmod_uname
-	/sbin/modprobe nvidia
+	/sbin/depmod -ea $_F_kernelmod_uname
+	## if nvidia dependent kernel is the current kernel
+	if [ -e /lib/modules/`uname -r`/kernel/drivers/video/nvidia.ko ]; then
+		## Try to load it
+		/sbin/modprobe nvidia
+	fi
 }
 
 post_upgrade() {
-	post_install $1
+	echo -n "Runing depmod for nvidia kernel module for kernel $_F_kernelmod_uname ..."
+	/sbin/depmod -ea $_F_kernelmod_uname
+	echo " done."
+        ## if that exisit we bumped / upgraded the package only no new kernel
+	## on a new kernel we do nothing because one has to reboot anyway
+	if [ -e /lib/modules/`uname -r`/kernel/drivers/video/nvidia.ko ]; then
+		## see if is loaded , if yes kill it and modprobe again if not do nothing
+		if grep -q nvidia /proc/modules; then
+			echo -n "Reloading nvidia kernel module.."
+				modprobe --remove nvidia
+				sleep 1
+				modprobe nvidia
+			echo " done."
+		fi
+	fi
 }
 
 pre_remove() {
 	if test `lsmod | grep ^nvidia | wc -l` -gt 0; then
-		/sbin/rmmod nvidia
+		/sbin/modprobe --remove nvidia
 	fi
 
 	if [ -e /etc/X11/xorg.conf ]; then

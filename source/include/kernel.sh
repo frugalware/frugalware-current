@@ -96,11 +96,11 @@ if [ -z "$_F_kernel_uname" ]; then
 fi
 
 if [ -n "$_F_kernel_dontsedarch" ]; then
-	Fmessage "This option was removed and does nothing at the moment, please update your FrugalBuild!."
+	Fmessage "Option _F_kernel_dontsedarch was removed and does nothing at the moment, please update your FrugalBuild!."
 fi
 
 if [ -n "$_F_kernel_manualamd64" ]; then
-	Fmessage "This option was removed and does nothing at the moment, please update your FrugalBuild!."
+	Fmessage "Option _F_kernel_manualamd64 was removed and does nothing at the moment, please update your FrugalBuild!."
 fi
 
 _F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc

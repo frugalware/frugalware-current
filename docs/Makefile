@@ -138,6 +138,11 @@ packages.txt: packages.txt.in
 clean:
 	rm -rf *.html *.pdf *.text $(GENERATED_SOURCES) $(LANGS)
 
+# deletes interim files like .xml or .fo but leaves the result (.pdf,
+# etc) untouched
+cronclean:
+	rm -rf {*/,}*.xml {*/,}*.fo po
+
 # checks if all the txts are included in index.txt
 # -2 is for the two tags: index-user.txt and index-devel.txt
 check: clean

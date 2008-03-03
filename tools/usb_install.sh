@@ -166,7 +166,7 @@ ver=`grep '<version>' volumes.xml |sed 's/.*>\(.*\)<.*/\1/'`
 [ -z "$ver" ] && ver=`date +%Y%m%d`
 rel=`grep '<codename>' volumes.xml |sed 's/.*>\(.*\)<.*/\1/'`
 [ -z "$rel" ] && rel="-current"
-size=`echo "$(gzip --list initrd-$(uname -m).img.gz|grep initrd-$(uname -m).img|sed 's/.*[0-9]\+ \+\([0-9]\+\) .*/\1/')/1024"|bc`
+size=$(expr $(zcat initrd-$(uname -m).img.gz | wc --bytes) / 1024)
 echo "default=0
 timeout=10
 gfxmenu /boot/grub/message

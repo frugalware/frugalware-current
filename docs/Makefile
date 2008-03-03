@@ -141,7 +141,7 @@ clean:
 # deletes interim files like .xml or .fo but leaves the result (.pdf,
 # etc) untouched
 cronclean:
-	rm -rf {*/,}*.xml {*/,}*.fo po
+	find docs ! -name authors.xml -a -name '*.xml' -o -name '*.fo' -o -name po|xargs rm -rfv
 
 # checks if all the txts are included in index.txt
 # -2 is for the two tags: index-user.txt and index-devel.txt

@@ -1,0 +1,760 @@
+Index: gpac-0.4.4/configure
+===================================================================
+--- gpac-0.4.4.orig/configure
++++ gpac-0.4.4/configure
+@@ -69,6 +69,8 @@ has_ipv6="no"
+ has_dvb4linux="no"
+ has_openjpeg="no"
+ gprof_build="no"
++PIC_CFLAGS=""
++want_pic="no"
+ 
+ win32="no"
+ mingw32="no"
+@@ -121,6 +123,7 @@ echo "  --mozdir=MOZ_PATH        specify
+ echo ""
+ echo "  --enable-debug           produce debug version"
+ echo "  --enable-gprof           enable profiling"
++echo "  --enable-pic             enable Position Independant Code for shared objects"
+ echo "  --track-memory           enables tracking of all memory allocated by gpac"
+ echo "  --disable-fragments      disable movie fragments in ISO media support"
+ echo "  --disable-opt            disable GCC optimizations"
+@@ -195,7 +198,8 @@ case "$cpu" in
+       if [ -z "`echo $CFLAGS | grep -- -m32`"  ]; then
+         cpu="x86_64"
+         #that's a bit crude...
+-        CFLAGS="$CFLAGS -fPIC -DPIC"
++        PIC_CFLAGS="-fPIC -DPIC"
++        want_pic="yes"
+       fi
+     fi
+   ;;
+@@ -826,6 +830,8 @@ for opt do
+   ;;
+   --enable-gprof) gprof_build="yes";
+   ;;
++  --enable-pic) PIC_CFLAGS="-fPIC -DPIC"; want_pic="yes";
++  ;;
+   --disable-opt) no_gcc_opt="yes"
+   ;;
+   --disable-ipv6) has_ipv6="no"
+@@ -1209,6 +1215,8 @@ echo "RANLIB=$ranlib" >> config.mak
+ echo "STRIP=$strip" >> config.mak
+ echo "OPTFLAGS=$CFLAGS" >> config.mak
+ echo "CPPFLAGS=$CPPFLAGS" >> config.mak
++echo "PIC_CFLAGS=$PIC_CFLAGS" >> config.mak
++echo "WANT_PIC=$want_pic" >> config.mak
+ echo "LDFLAGS=$LDFLAGS" >> config.mak
+ echo "SHFLAGS=$SHFLAGS" >> config.mak
+ 
+@@ -1422,4 +1430,7 @@ if [ ! -d "./bin/gcc/temp" ]; then
+ 	mkdir ./bin/gcc/temp
+ fi
+ 
++echo '%.opic : %.c' >> config.mak
++echo '	$(CC) $(CFLAGS) $(PIC_CFLAGS) -c $< -o $@' >> config.mak
++
+ echo "Done - type 'make help' for make info, 'make' to build"
+Index: gpac-0.4.4/src/Makefile
+===================================================================
+--- gpac-0.4.4.orig/src/Makefile
++++ gpac-0.4.4/src/Makefile
+@@ -157,6 +157,12 @@ endif
+ EXTRALIBS+=$(GPAC_SH_FLAGS)
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ SRCS := $(OBJS:.o=.c) 
+ 
+ all: lib
+@@ -204,10 +210,10 @@ else
+ 	$(CC) $(CFLAGS) -c -o $@ $< 
+ endif
+ 
+-$(LIB): $(LIBGPAC_UTILS) $(LIBGPAC_IETF) $(LIBGPAC_BIFS) $(LIBGPAC_ODF) $(LIBGPAC_LASER) isomedia scenegraph mcrypt mediatools sceneman term render
++$(LIB): $(LIBGPAC_UTILS) $(LIBGPAC_IETF) $(LIBGPAC_BIFS) $(LIBGPAC_ODF) $(LIBGPAC_LASER) $(OBJSPIC) isomedia scenegraph mcrypt mediatools sceneman term render
+ 	ar cr ../bin/gcc/libgpac_static.a $(OBJS)
+ 	ranlib ../bin/gcc/libgpac_static.a
+-	$(CC) $(SHFLAGS) -Wl,-soname,$(LIB) $(LDFLAGS) -o ../bin/gcc/$@ $(OBJS) $(EXTRALIBS)
++	$(CC) $(SHFLAGS) -Wl,-soname,$(LIB) $(LDFLAGS) -o ../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS)
+ 
+ dep: depend
+ 
+Index: gpac-0.4.4/modules/aac_in/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/aac_in/Makefile
++++ gpac-0.4.4/modules/aac_in/Makefile
+@@ -37,11 +37,18 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols aac_in.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) -L../../bin/gcc -lgpac $(EXTRALIBS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) -L../../bin/gcc -lgpac $(EXTRALIBS)
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/alsa/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/alsa/Makefile
++++ gpac-0.4.4/modules/alsa/Makefile
+@@ -22,10 +22,16 @@ SRCS := $(OBJS:.o=.c) 
+ 
+ LIB=gm_alsa.$(DYN_LIB_SUFFIX)
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac -lasound
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac -lasound
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/bifs_dec/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/bifs_dec/Makefile
++++ gpac-0.4.4/modules/bifs_dec/Makefile
+@@ -24,11 +24,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols bifs_dec.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/ctx_load/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/ctx_load/Makefile
++++ gpac-0.4.4/modules/ctx_load/Makefile
+@@ -24,11 +24,18 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols ctx_load.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/dummy_in/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/dummy_in/Makefile
++++ gpac-0.4.4/modules/dummy_in/Makefile
+@@ -24,11 +24,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols dummy_in.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/ffmpeg_in/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/ffmpeg_in/Makefile
++++ gpac-0.4.4/modules/ffmpeg_in/Makefile
+@@ -38,11 +38,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols ffmpeg_in.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) -L../../bin/gcc $(LOCAL_LIB) $(LINKLIBS) $(EXTRALIBS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) -L../../bin/gcc $(LOCAL_LIB) $(LINKLIBS) $(EXTRALIBS)
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/ft_font/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/ft_font/Makefile
++++ gpac-0.4.4/modules/ft_font/Makefile
+@@ -28,11 +28,17 @@ endif
+ LINKVAR=-L../../bin/gcc -lgpac $(FT_LIBS)
+ 
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(LINKVAR) $(EXTRALIBS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(LINKVAR) $(EXTRALIBS)
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/img_in/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/img_in/Makefile
++++ gpac-0.4.4/modules/img_in/Makefile
+@@ -87,11 +87,17 @@ LINKLIBS+=-lwinmm
+ LDFLAGS+=-export-symbols img_in.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L$(LOCAL_LIB) $(LINKLIBS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L$(LOCAL_LIB) $(LINKLIBS)
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/ismacryp/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/ismacryp/Makefile
++++ gpac-0.4.4/modules/ismacryp/Makefile
+@@ -24,11 +24,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols ismacryp.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/isom_in/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/isom_in/Makefile
++++ gpac-0.4.4/modules/isom_in/Makefile
+@@ -24,11 +24,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols isom_in.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) -L../../bin/gcc -lgpac $(EXTRALIBS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) -L../../bin/gcc -lgpac $(EXTRALIBS)
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/laser_dec/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/laser_dec/Makefile
++++ gpac-0.4.4/modules/laser_dec/Makefile
+@@ -24,11 +24,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols laser_dec.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/mp3_in/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/mp3_in/Makefile
++++ gpac-0.4.4/modules/mp3_in/Makefile
+@@ -39,11 +39,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols mp3_in.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) -L../../bin/gcc -lgpac $(EXTRALIBS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) -L../../bin/gcc -lgpac $(EXTRALIBS)
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/mpegts_in/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/mpegts_in/Makefile
++++ gpac-0.4.4/modules/mpegts_in/Makefile
+@@ -29,11 +29,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols mpegts_in.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/odf_dec/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/odf_dec/Makefile
++++ gpac-0.4.4/modules/odf_dec/Makefile
+@@ -24,11 +24,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols odf_dec.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/ogg/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/ogg/Makefile
++++ gpac-0.4.4/modules/ogg/Makefile
+@@ -62,11 +62,17 @@ LDFLAGS+=-export-symbols ogg.def 
+ endif
+ 
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L$(LOCAL_LIB) $(LINKLIBS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L$(LOCAL_LIB) $(LINKLIBS)
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/oss_audio/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/oss_audio/Makefile
++++ gpac-0.4.4/modules/oss_audio/Makefile
+@@ -31,10 +31,16 @@ SRCS := $(OBJS:.o=.c) 
+ 
+ LIB=gm_oss_audio.$(DYN_LIB_SUFFIX)
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac $(OSS_LDFLAGS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac $(OSS_LDFLAGS)
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/raw_out/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/raw_out/Makefile
++++ gpac-0.4.4/modules/raw_out/Makefile
+@@ -24,11 +24,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols raw_out.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/render2d/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/render2d/Makefile
++++ gpac-0.4.4/modules/render2d/Makefile
+@@ -38,11 +38,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols render2d.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(LINKFLAGS) $(EXTRALIBS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(LINKFLAGS) $(EXTRALIBS)
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/render3d/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/render3d/Makefile
++++ gpac-0.4.4/modules/render3d/Makefile
+@@ -44,11 +44,17 @@ LDFLAGS+=-export-symbols render3d.def 
+ else
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(LINKFLAGS) $(EXTRALIBS) $(OGL_LIBS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(LINKFLAGS) $(EXTRALIBS) $(OGL_LIBS)
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/rtp_in/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/rtp_in/Makefile
++++ gpac-0.4.4/modules/rtp_in/Makefile
+@@ -25,11 +25,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols rtp_in.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) -L../../bin/gcc -lgpac $(EXTRALIBS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) -L../../bin/gcc -lgpac $(EXTRALIBS)
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/saf_in/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/saf_in/Makefile
++++ gpac-0.4.4/modules/saf_in/Makefile
+@@ -25,11 +25,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols saf_in.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/sdl_out/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/sdl_out/Makefile
++++ gpac-0.4.4/modules/sdl_out/Makefile
+@@ -31,11 +31,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols sdl_out.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(SDL_LIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(SDL_LIBS) -L../../bin/gcc -lgpac
+ 
+ %.o: %.c
+ 	$(CC) $(CFLAGS) -c -o $@ $< 
+Index: gpac-0.4.4/modules/soft_raster/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/soft_raster/Makefile
++++ gpac-0.4.4/modules/soft_raster/Makefile
+@@ -30,11 +30,18 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols rast_soft.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/svg_in/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/svg_in/Makefile
++++ gpac-0.4.4/modules/svg_in/Makefile
+@@ -29,11 +29,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols svg_in.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac -lz
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac -lz
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/timedtext/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/timedtext/Makefile
++++ gpac-0.4.4/modules/timedtext/Makefile
+@@ -24,11 +24,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols timedtext.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c
+Index: gpac-0.4.4/modules/x11_out/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/x11_out/Makefile
++++ gpac-0.4.4/modules/x11_out/Makefile
+@@ -47,11 +47,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols  
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) -lX11 -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) -lX11 -L../../bin/gcc -lgpac
+ 
+ %.o: %.c
+ 	$(CC) $(CFLAGS) -c -o $@ $< 
+Index: gpac-0.4.4/modules/xvid_dec/Makefile
+===================================================================
+--- gpac-0.4.4.orig/modules/xvid_dec/Makefile
++++ gpac-0.4.4/modules/xvid_dec/Makefile
+@@ -31,11 +31,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols xvid_dec.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) -L../../bin/gcc -lgpac $(EXTRALIBS)
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) -L../../bin/gcc -lgpac $(EXTRALIBS)
+ 
+ 
+ %.o: %.c
+Index: gpac/modules/amr_float_dec/Makefile
+===================================================================
+--- gpac.orig/modules/amr_float_dec/Makefile
++++ gpac/modules/amr_float_dec/Makefile
+@@ -41,11 +41,17 @@ ifeq ($(CONFIG_WIN32),yes)
+ LDFLAGS+=-export-symbols amr_float_dec.def 
+ endif
+ 
++ifeq ($(WANT_PIC),yes)
++OBJSPIC=$(OBJS:.o=.opic)
++else
++OBJSPIC=$(OBJS)
++endif
++
+ all: $(LIB)
+ 
+ 
+-$(LIB): $(OBJS)
+-	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJS) $(EXTRALIBS) -L../../bin/gcc -lgpac
++$(LIB): $(OBJSPIC)
++	$(CC) $(SHFLAGS) $(LDFLAGS) -o ../../bin/gcc/$@ $(OBJSPIC) $(EXTRALIBS) -L../../bin/gcc -lgpac
+ 
+ 
+ %.o: %.c

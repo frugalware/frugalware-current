@@ -15,6 +15,7 @@
 # * _F_kernelver_rel: the kernel release
 # * _F_kernelver_stable: the number of the -stable patch to use (if any)
 ###
+# don't touch these two!
 _F_kernelver_ver=2.6.24
 _F_kernelver_rel=3
 _F_kernelver_stable=3

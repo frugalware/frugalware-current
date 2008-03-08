@@ -2,21 +2,27 @@
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=gcc
-pkgver=4.2.3
+pkgver=4.3.0
 pkgrel=1
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils>=2.18.50.0.3' 'libstdc++')
-makedepends=('mpfr' 'gcc-gnat' 'gtk+2' 'libart_lgpl' 'libxtst' 'zip' 'xulrunner' 'grep>=2.5.3-2' 'glibc>=2.6.1-2')
+depends=('binutils>=2.18.50.0.4' 'libstdc++' 'glibc' 'mpfr')
+makedepends=('mpfr' 'gcc-gnat' 'gtk+2' 'libart_lgpl' 'libxtst' 'zip' 'xulrunner' 'grep>=2.5.3-2' \
+	'glibc>=2.6.1-2' 'ecj' 'gpm' 'libxml2' 'freetype2' 'libice' 'libxtst' 'libxau' 'libxdmcp' \
+	'libxdamage' 'alsa-lib' 'pacman-g2>=3.6.8-3')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('i686' 'x86_64')
 options=('scriptlet')
 up2date="lynx -dump $url|grep Current|sed 's/.*GCC //'"
-source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2 \
+#source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2 \
+source=(ftp://ftp.gwdg.de/pub/misc/gcc/releases/$pkgname-$pkgver/$pkgname-$pkgver.tar.bz2 \
 	ftp://gcc.gnu.org/pub/gcc/libstdc++/doxygen/libstdc++-man-4.2.2.tar.bz2 \
 	README.Frugalware)
-signatures=("$source.sig" '' '')
+#signatures=("$source.sig" '' '')
+sha1sums=('d6ae7f024b99ba9b85f253fdeb00a9a1d6f1fc8d' \
+          'd3c9af69bb788334a67039bbe056606e8590a8a7' \
+          '9ff2a95f1336cfbf90a7852f34f1db0b31c82dca')
 
 subpkgs=('libgcc' 'libstdc++' \
 	 'libgnat' 'gcc-gnat' \
@@ -32,12 +38,22 @@ subdescs=('GCC shared support library' 'GNU Standard C++ Library' \
 	  'Treelang support for GCC' \
 	  'FFI libraries from GCC' 'SSP libraries from GCC' \
 	  'GNU OpenMP runtime library')
-subdepends=('glibc' 'libgcc' \
-	    'libgcc' "gcc=$pkgver libgnat" \
-	    'glibc' "gcc=$pkgver mpfr libgfortran" \
-	    'libgcc zip' 'libgcj gtk+2 libart_lgpl libxtst' "gcc=$pkgver libgcj" \
-	    'libgcc' "gcc=$pkgver libobjc" "gcc=$pkgver libobjc" \
-	    "gcc=$pkgver" "glibc" "glibc" "glibc")
+subdepends=('glibc' \
+	    'libgcc' \
+	    'libgcc' \
+	    "glibc mpfr" \
+	    'glibc' \
+	    "glibc  mpfr" \
+	    'libgcc zlib alsa-lib' \
+	    'libgcj libart_lgpl gtk+2 libxml2 freetype2 libice libxtst libxau libxdmcp libxdamage libstdc++' \
+	    "libgcj zlib libgcj mpfr" \
+	    'libgcc' \
+	    "glibc  mpfr" \
+	    "glibc  mpfr" \
+	    "glibc  mpfr" \
+	    "glibc" \
+	    "glibc" \
+	    "glibc")
 subbackup=('' '' '' '' '' '' "usr/lib/gcj-$pkgver/classmap.db" '' '' '' '' '' '' '' '' '')
 subgroups=('base chroot-core' 'base chroot-core' \
 	   'lib-extra' 'devel-extra' \
@@ -72,6 +88,8 @@ build()
 		--enable-threads=posix \
 		--enable-__cxa_atexit \
 		--enable-java-awt=gtk \
+		--with-ecj \
+		--with-ecj-jar=/usr/share/java/eclipse-ecj.jar \
 		--enable-gtk-cairo \
 		--enable-plugin \
 		--with-system-zlib \
@@ -79,10 +97,20 @@ build()
 		--disable-multilib \
 		--disable-libjava-multilib \
 		--enable-target-optspace \
-		--enable-bootstrap
+		--enable-bootstrap \
+		--with-bugurl="http://bugs.frugalware.org/" \
+		--with-pkgversion="Frugalware Linux" \
+		--enable-linux-futex \
+		--disable-dependency-tracking \
+		--enable-libstdcxx-allocator=new \
+		--enable-hash-synchronization \
+		--disable-libstdcxx-pch \
+		--build=$CARCH-frugalware-linux
+	
+	## libstdcxx-pch is really a waste of space , nothing need nor uses that
 
 	make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" bootstrap || return 1
-
+	
 	unset MAKEFLAGS #this is needed by libffi
 	Fmakeinstall
 
@@ -140,12 +168,42 @@ build()
 	# libstdc++
 	Fsplit libstdc++ usr/lib/libstdc++.*
 	Fsplit libstdc++ usr/man/man3/
+	## always do this java stuff before gnat because gnat splits with gnat*
+	## and we got now 'gnat'ive2ascii which is java stuff ;)
+	## NOTE: old gcj-${pkgver} is now gcj-${pkgver}-xx
+	gcjpkgver=$(basename $Fdestdir/usr/lib/gcj-${pkgver}*)
+	# libgcj-awt
+        Fsplit libgcj-awt usr/lib/gcc/$CHOST/$pkgver/include/jawt*.h
+        Fsplit libgcj-awt usr/lib/${gcjpkgver}/lib{jawt,gcjwebplugin,gtkpeer}.*
+        Fsplit libgcj-awt usr/include/c++/$pkgver/gnu/awt
+        Fsplit libgcj-awt usr/include/c++/$pkgver/gnu/java/awt
+        Fsplit libgcj-awt usr/include/c++/$pkgver/java/awt
+	Fsplit libgcj-awt usr/include/c++/$pkgver/sun/awt
+        # libgcj
+	## org , sun are libgcj incldes also
+        Fsplit libgcj usr/include/c++/$pkgver/[gjos]*
+        Fsplit libgcj usr/lib/pkgconfig/libgcj-${pkgver%.*}.pc
+	## maybe we should add some libgcj-tools or libgcj-utils package ? - crazy -
+        Fsplit libgcj usr/bin/{jv-convert,gij,gjar,grmi*,gcj-dbtool,gorbd,gappletviewer,gjarsigner,gkeytool,addr2name.awk}
+	Fsplit libgcj usr/bin/{gtnameserv,gnative2ascii,gserialver,gc-analyze}
+        Fsplit libgcj usr/man/man1/{gjarsigner,gkeytool,gjar,jv-convert,gij,grmi*,gorbd,gcj-dbtool,gtnameserv}.1*
+	Fsplit libgcj usr/man/man1/{gnative2ascii,gserialver,gappletviewer,gc-analyze}.1*
+        Fsplit libgcj usr/lib/libgcj*
+        Fsplit libgcj usr/lib/libgij*
+        Fsplit libgcj usr/share/java
+        Fsplit libgcj usr/lib/security
+        Fsplit libgcj usr/lib/logging.properties
+        Fsplit libgcj usr/lib/${gcjpkgver}
+        # gcc-gcj
+        Fsplit gcc-gcj usr/bin/{gcj,$CHOST-gcj,gcjh,gjavah,jcf-dump}
+        Fsplit gcc-gcj usr/man/man1/{gcj,gcjh,gjavah,jcf-dump}.1*
+        Fsplit gcc-gcj usr/info/gcj*
+        Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$pkgver/{jc1,jvgenmain,ecj1}
 	# libgnat
 	Fsplit libgnat usr/lib/libgnat*.so
 	Fsplit libgnat usr/lib/libgnarl*.so
 	# gcc-gnat
 	Fsplit gcc-gnat usr/bin/gnat*
-	Fsplit gcc-gnat usr/bin/gpr*
 	Fsplit gcc-gnat usr/info/gnat*
 	Fsplit gcc-gnat usr/lib/gcc/$CHOST/$pkgver/adainclude
 	Fsplit gcc-gnat usr/lib/gcc/$CHOST/$pkgver/adalib
@@ -157,28 +215,6 @@ build()
 	Fsplit gcc-gfortran usr/man/man1/gfortran.1*
 	Fsplit gcc-gfortran usr/info/gfortran*
 	Fsplit gcc-gfortran usr/libexec/gcc/$CHOST/$pkgver/f951
-	# libgcj-awt
-	Fsplit libgcj-awt usr/lib/gcc/$CHOST/$pkgver/include/jawt*.h
-	Fsplit libgcj-awt usr/lib/gcj-$pkgver/lib{jawt,gcjwebplugin,gtkpeer}.*
-	Fsplit libgcj-awt usr/include/c++/$pkgver/gnu/awt
-	Fsplit libgcj-awt usr/include/c++/$pkgver/gnu/java/awt
-	Fsplit libgcj-awt usr/include/c++/$pkgver/java/awt
-	# libgcj
-	Fsplit libgcj usr/include/c++/$pkgver/[gj]*
-	Fsplit libgcj usr/lib/pkgconfig/libgcj-${pkgver%.*}.pc
-	Fsplit libgcj usr/bin/{jv-convert,gij,jar,grmic,grmiregistry,gcj-dbtool,gappletviewer,gjarsigner,gkeytool}
-	Fsplit libgcj usr/man/man1/{jv-convert,gij,grmic,grmiregistry,gcj-dbtool}.1*
-	Fsplit libgcj usr/lib/libgcj*
-	Fsplit libgcj usr/lib/libgij*
-	Fsplit libgcj usr/share/java
-	Fsplit libgcj usr/lib/security
-	Fsplit libgcj usr/lib/logging.properties
-	Fsplit libgcj usr/lib/gcj-$pkgver
-	# gcc-gcj
-	Fsplit gcc-gcj usr/bin/{gcj,$CHOST-gcj,gcjh,$CHOST-gcjh,gjnih,jcf-dump,jv-scan}
-	Fsplit gcc-gcj usr/man/man1/{gcj,gcjh,gjnih,jcf-dump,jv-scan}.1*
-	Fsplit gcc-gcj usr/info/gcj*
-	Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$pkgver/{jc1,jvgenmain}
 	# libobjc
 	Fsplit libobjc usr/lib/libobjc*
 	# gcc-objc

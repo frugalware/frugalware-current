@@ -75,8 +75,8 @@ fi
 _F_kernelmod_uname=$_F_kernelmod_ver$_F_kernelmod_name-fw$_F_kernelmod_rel
 _F_kernelmod_pkgver=$_F_kernelmod_ver-$_F_kernelmod_rel
 _F_kernelmod_dir=/lib/modules/$_F_kernelmod_uname
-depends=("kernel$_F_kernelmod_name=$_F_kernelmod_pkgver")
-makedepends=("kernel$_F_kernelmod_name-source=$_F_kernelmod_pkgver")
+depends=("kernel$_F_kernelmod_name>=$_F_kernelmod_pkgver")
+makedepends=("kernel$_F_kernelmod_name-source>=$_F_kernelmod_pkgver")
 install=$_F_kernelmod_scriptlet
 
 ###

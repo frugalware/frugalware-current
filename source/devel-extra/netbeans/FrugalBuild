@@ -2,40 +2,51 @@
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=netbeans
-pkgver=5.5.1
-pkgdate=200704122300
-pkgrel=2
+pkgver=6.0.1
+pkgrel=1
+pkgdate=200801291616
 pkgdesc="The original free Java IDE, and so much more."
 url="http://www.netbeans.info/"
-depends=('j2sdk')
+depends=('j2sdk' 'ruby')
 makedepends=('apache-ant')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
-up2date="lynx -dump $url/downloads/index.php|grep IDE|sed 's/.*IDE \(.*\) Download.*/\1/;q'"
-source=(http://us2-mirror.netbeans.info/download/${pkgver//./_}/fcs/$pkgdate/netbeans-${pkgver//./_}-ide_sources.tar.bz2 \
-	netbeans-5.0-classpath.diff \
-	netbeans)
-sha1sums=('b4235a16b0edb8048bfd4173803d65712c618ac9' \
-          'd8c652541c8b91c3dcb27f507ac75311bf37b965' \
-          '572bf826930f9f7ebac988895cc7d0465f4ebfd8')
+pkgurl="http://download.netbeans.org/$pkgname/${pkgver%.?}/final/zip/"
+up2date="lynx -dump $pkgurl | grep $pkgurl$pkgname- | tail -1 | cut -d- -f2"
+source=(http://download.netbeans.org/$pkgname/${pkgver%.?}/final/zip/$pkgname-$pkgver-$pkgdate-src.zip)
+sha1sums=('f9b28b303bf83c51cb1415312d7a654b2421fad4')
+
+_F_desktop_name="$pkgname"
+_F_desktop_icon="/usr/lib/netbeans/nb6.0/netbeans.png"
+_F_desktop_categories="KDE;GNOME;Development;IDE;"
 
 build()
 {
-	Fcd netbeans-src
-	Fpatchall
-	cd nbbuild
-
+	echo "nb.clusters.list=nb.cluster.nb,nb.cluster.platform,nb.cluster.ide,nb.cluster.ruby,nb.cluster.java,nb.cluster.apisupport,nb.cluster.harness" >> nbbuild/user.build.properties
 	# for now build using Sun's javac
 	export JAVA_HOME=/usr/lib/java
-	ant -D{ant.jar,antsrc.cp}=/usr/share/java/ant.jar build-nozip || return 1
 
+	#if you want latest source
+	#ant -f build.xml checkout || return 1
+
+	# -Dpermit.jdk6.builds=true to force jdk6 and not 5
+	ANT_OPTS="-Xmx512M" ant -f nbbuild/build.xml \
+		-Dstop.when.broken.modules=true -Dbuild.compiler.deprecation=true \
+		-Dpermit.jdk6.builds=true || return 1
+		
 	# bin non-Linux binaries
-	find netbeans -type f -name "*.exe" -o -name "*.cmd" -o -name "*.bat" -o -name "*.dll" -exec rm -f {} \;
-	cd netbeans
-	Fmkdir /usr/lib/netbeans/
+	find nbbuild -type f -name "*.exe" -o \
+ 		-name "*.cmd" -o \
+		-name "*.bat" -o \
+ 		-name "*.dll" \
+		-exec rm -f {} \;
+
 	# the real installation
+	cd nbbuild/netbeans
+	Fmkdir /usr/lib/netbeans
 	cp -a * $Fdestdir/usr/lib/netbeans || return 1
-	# our wrapper
-	Fexe /usr/bin/netbeans
-	Fdesktop "/usr/bin/$pkgname" "/usr/lib/netbeans/nb5.0/netbeans.png" "KDE;GNOME;Development;IDE;"
+
+	# for launch
+	Fwrapper '/usr/lib/netbeans/bin/netbeans $@' netbeans
+	Fdesktop2
 }

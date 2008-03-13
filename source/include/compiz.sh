@@ -32,7 +32,7 @@
 # to declare the real version
 ###
 
-compizver=0.6.0
+compizver=0.7.2
 
 if [ -z "$_F_compiz_name" ]; then
 	_F_compiz_name=$pkgname
@@ -57,7 +57,11 @@ pkgver=$_F_compiz_version
 pkgdesc="Compiz is a compositing window manager using GLX_EXT_texture_from_pixmap"
 url="http://www.compiz-fusion.org/"
 up2date="lynx -dump http://releases.compiz-fusion.org/$_F_compiz_version/ | grep $_F_compiz_name | Flasttarbz2"
-source=(http://releases.compiz-fusion.org/$_F_compiz_version/$_F_compiz_name-$pkgver.tar.bz2)
+if [ $_F_compiz_name == "compiz" ]; then
+	source=(http://releases.compiz-fusion.org/$_F_compiz_version/compiz/$_F_compiz_name-$pkgver.tar.bz2)
+else
+	source=(http://releases.compiz-fusion.org/$_F_compiz_version/$_F_compiz_name-$pkgver.tar.bz2)
+fi
 _F_cd_path="$_F_compiz_name-$_F_compiz_version"
 
 ###

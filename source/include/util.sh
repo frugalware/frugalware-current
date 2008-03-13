@@ -82,12 +82,9 @@ Fsysconfdir="/etc"
 Flocalstatedir="/var"
 Fmenudir="/usr/share/applications"
 Farchs=('i686' 'x86_64' 'ppc')
+Fbuildchost="`arch`-frugalware-linux"
 Fconfopts="--prefix=$Fprefix"
-_gccver=`type -p gcc >/dev/null && gcc -dumpversion`
-if [ "${_gccver%%.?}" == "4.2" ]; then
-	export CFLAGS="$CFLAGS -fno-strict-aliasing"
-	export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing"
-fi
+## Move to makepkg.conf for Kalgan+1
 export LDFLAGS="-Wl,--hash-style=both"
 
 ###
@@ -505,6 +502,8 @@ Fconf() {
 			Fconfopts="$Fconfopts --sysconfdir=$Fsysconfdir"
 		grep -q localstatedir $_F_conf_configure && \
 			Fconfopts="$Fconfopts --localstatedir=$Flocalstatedir"
+		grep -q 'build=' $_F_conf_configure && \
+			Fconfopts="$Fconfopts --build=$Fbuildchost"
 		$_F_conf_configure $Fconfopts "$@" || Fdie
 	elif [ -f Makefile.PL ]; then
 		if [ -z "$_F_conf_perl_pipefrom" ]; then

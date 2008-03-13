@@ -1,0 +1,103 @@
+diff -urN org.eclipse.jdt.core/org/eclipse/jdt/internal/compiler/batch/Main.java org.eclipse.jdt.core/org/eclipse/jdt/internal/compiler/batch/Main.java
+--- org.eclipse.jdt.core/org/eclipse/jdt/internal/compiler/batch/Main.java	2007-02-12 19:46:45.000000000 +0100
++++ org.eclipse.jdt.core/org/eclipse/jdt/internal/compiler/batch/Main.java	2007-03-03 19:56:45.000000000 +0100
+@@ -2723,6 +2723,10 @@
+ 	ArrayList currentRuleSpecs = new ArrayList(defaultSize);
+ 	StringTokenizer tokenizer = new StringTokenizer(currentPath,
+ 			File.pathSeparator + "[]", true); //$NON-NLS-1$
++	ArrayList tokens = new ArrayList();
++	while (tokenizer.hasMoreTokens()) {
++		tokens.add(tokenizer.nextToken());
++	}
+ 	// state machine
+ 	final int start = 0; 
+ 	final int readyToClose = 1;
+@@ -2737,14 +2741,20 @@
+ 	// 'path[' 'path1;path2['
+ 	final int rulesReadyToClose = 6;
+ 	// 'path[rule' 'path[rule1;rule2'
++	final int bracketOpened = 7;
++	// '.*[.*'
++	final int bracketClosed = 8;
++	// '.*([.*])+'
+ 	final int error = 99;
+ 	int state = start;
+ 	String token = null;
+-	while (tokenizer.hasMoreTokens() && state != error) {
+-		token = tokenizer.nextToken();
++    int cursor = 0, tokensNb = tokens.size(), bracket = -1;
++    while (cursor < tokensNb && state != error) {
++        token = (String) tokens.get(cursor++);
+ 		if (token.equals(File.pathSeparator)) {
+ 			switch (state) {
+ 			case start:
++	        case bracketOpened:
+ 				break;
+ 			case readyToClose:
+ 			case readyToCloseEndingWithRules:
+@@ -2757,14 +2767,21 @@
+ 			case rulesReadyToClose:
+ 				state = rulesNeedAnotherRule;
+ 				break;
++			case bracketClosed:
++				cursor = bracket + 1;
++				state = rulesStart;
++				break;
+ 			default:
+ 				state = error;
+ 			}
+ 		} else if (token.equals("[")) { //$NON-NLS-1$
+ 			switch (state) {
+ 			case readyToClose:
+-				state = rulesStart;
++				bracket = cursor - 1;
++			case bracketClosed:
++				state = bracketOpened;
+ 				break;
++			case bracketOpened:
+ 			default:
+ 				state = error;
+ 			}
+@@ -2773,6 +2790,10 @@
+ 			case rulesReadyToClose:
+ 				state = readyToCloseEndingWithRules;
+ 				break;
++			case bracketOpened:
++				state = bracketClosed;
++				break;
++			case bracketClosed:
+ 			default:
+ 				state = error;
+ 			}
+@@ -2789,10 +2810,22 @@
+ 				state = rulesReadyToClose;
+ 				currentRuleSpecs.add(token);
+ 				break;
++            case bracketClosed:
++                for (int i = bracket; i < cursor ; i++) {
++                	currentClasspathName += (String) tokens.get(i);
++                }
++			    state = readyToClose;
++			    break;
++			case bracketOpened:
++			    break;
+ 			default:
+ 				state = error;
+ 			}
+ 		}
++		if (state == bracketClosed && cursor == tokensNb) {
++			cursor = bracket + 1;
++			state = rulesStart;
++		}
+ 	}
+ 	switch(state) {
+ 		case readyToClose:
+@@ -2801,6 +2834,8 @@
+ 			addNewEntry(paths, currentClasspathName, currentRuleSpecs, 
+ 				customEncoding, isSourceOnly);
+ 			break;
++        case bracketOpened:
++        case bracketClosed:
+ 		default :
+ 			// we go on anyway
+ 			this.logger.logIncorrectClasspath(currentPath);

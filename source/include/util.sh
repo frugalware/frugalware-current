@@ -517,6 +517,8 @@ Fconf() {
 		ruby extconf.rb --prefix="$Fprefix" "$@" || Fdie
 	elif [ -f configure.rb ]; then
 		./configure.rb --prefix="$Fprefix" "$@" || Fdie
+	elif [ -f setup.rb ]; then
+		ruby setup.rb config "$@" || Fdie
 	fi
 }
 
@@ -531,6 +533,8 @@ Fmake() {
 		make || Fdie
 	elif [ -f setup.py ]; then
 		python setup.py build "$@" || Fdie
+	elif [ -f setup.rb ]; then
+		ruby setup.rb setup "$@" || Fdie
 	else
 		Fmessage "No Makefile or setup.py found!"
 		Fdie
@@ -570,6 +574,8 @@ Fmakeinstall() {
 		fi
 	elif [ -f setup.py ]; then
 		python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
+	elif [ -f setup.rb ]; then
+		ruby setup.rb install --prefix=$Fdestdir || Fdie
 	else
 		Fmessage "No Makefile or setup.py found!"
 		Fdie

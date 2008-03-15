@@ -24,6 +24,16 @@
 # sha1sums=('2712601395ec0a059263b730b10db9f93cd5a1f1')
 # --------------------------------------------------
 #
+# == OPTIONS
+# * _F_gem_name (defaults to $pkgname): if you want to use a custom
+# package name (for example the upstream name contains uppercase letters) then
+# use this to declare the real name
+###
+if [ -z "$_F_gem_name" ]; then
+	_F_gem_name=$pkgname
+fi
+
+###
 # == APPENDED VARIABLES
 # * ruby to depends()
 # * rubygems to makedepends()
@@ -36,16 +46,16 @@ makedepends=(${makedepends[@]} 'rubygems')
 # * source()
 # * up2date
 ###
-source=(http://gems.rubyforge.org/gems/"$pkgname"-"$pkgver".gem)
-up2date='lynx -dump "http://rubyforge.vm.bytemark.co.uk/gems/" | grep "$pkgname-[0-9.]\+.gem$" | sed "s/.*$pkgname-\(.*\).gem.*/\1/" | Fsort | tail -n 1'
+source=(http://gems.rubyforge.org/gems/"$_F_gem_name"-"$pkgver".gem)
+up2date='lynx -dump "http://rubyforge.vm.bytemark.co.uk/gems/" | grep "$_F_gem_name-[0-9.]\+.gem$" | sed "s/.*$_F_gem_name-\(.*\).gem.*/\1/" | Fsort | tail -n 1'
 
 ###
 # == PROVIDED FUNCTIONS
 # * Finstallgem()
 ###
 Finstallgem() {
-	gem install "$pkgname" --local --version "$pkgver" --install-dir . --ignore-dependencies
-	cd gems/"$pkgname"-"$pkgver"
+	gem install "$_F_gem_name" --local --version "$pkgver" --install-dir . --ignore-dependencies
+	cd gems/"$_F_gem_name"-"$pkgver"
 	Fpatchall
 	libdir=`ruby -r rbconfig -e 'print Config::CONFIG["rubylibdir"]'`
 	archdir=`ruby -r rbconfig -e 'print Config::CONFIG["archdir"]'`
@@ -63,13 +73,13 @@ Finstallgem() {
 		cp -R ext/* "$Fdestdir"/"$archdir" || Fdie
 	fi
 	if [ -d doc -a -n "`ls doc`" ]; then
-		Fmkdir /usr/share/doc/"$pkgname"-"$pkgver"
-		if [ -d doc/"$pkgname"-"$pkgver" -a -n "`ls doc/$pkgname-$pkgver`" ]; then
-			cp -R doc/"$pkgname"-"$pkgver"/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
-			rm -rf doc/"$pkgname"-"$pkgver"/ || Fdie
+		Fmkdir /usr/share/doc/"$_F_gem_name"-"$pkgver"
+		if [ -d doc/"$_F_gem_name"-"$pkgver" -a -n "`ls doc/$_F_gem_name-$pkgver`" ]; then
+			cp -R doc/"$_F_gem_name"-"$pkgver"/* "$Fdestdir"/usr/share/doc/"$_F_gem_name"-"$pkgver" || Fdie
+			rm -rf doc/"$_F_gem_name"-"$pkgver"/ || Fdie
 		fi
 		if [ -n "`ls doc`" ]; then
-			cp -R doc/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
+			cp -R doc/* "$Fdestdir"/usr/share/doc/"$_F_gem_name"-"$pkgver" || Fdie
 		fi
 	fi
 	mv `find . -mindepth 1 -maxdepth 1 -type f` $Fsrcdir

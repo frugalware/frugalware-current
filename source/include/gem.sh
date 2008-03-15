@@ -73,13 +73,13 @@ Finstallgem() {
 		cp -R ext/* "$Fdestdir"/"$archdir" || Fdie
 	fi
 	if [ -d doc -a -n "`ls doc`" ]; then
-		Fmkdir /usr/share/doc/"$_F_gem_name"-"$pkgver"
-		if [ -d doc/"$_F_gem_name"-"$pkgver" -a -n "`ls doc/$_F_gem_name-$pkgver`" ]; then
-			cp -R doc/"$_F_gem_name"-"$pkgver"/* "$Fdestdir"/usr/share/doc/"$_F_gem_name"-"$pkgver" || Fdie
+		Fmkdir /usr/share/doc/"$pkgname"-"$pkgver"
+		if [ -d doc/"$_F_gem_name"-"$pkgver" -a -n "`ls doc/$pkgname-$pkgver`" ]; then
+			cp -R doc/"$_F_gem_name"-"$pkgver"/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
 			rm -rf doc/"$_F_gem_name"-"$pkgver"/ || Fdie
 		fi
 		if [ -n "`ls doc`" ]; then
-			cp -R doc/* "$Fdestdir"/usr/share/doc/"$_F_gem_name"-"$pkgver" || Fdie
+			cp -R doc/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
 		fi
 	fi
 	mv `find . -mindepth 1 -maxdepth 1 -type f` $Fsrcdir

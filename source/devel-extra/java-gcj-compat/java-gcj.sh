@@ -6,3 +6,8 @@
 if [ -z "$java" -o "$java" == "gcj" ]; then
 	export JAVA_HOME=/usr
 fi
+if [ -z "$CLASSPATH" ]; then
+	export CLASSPATH=/usr/share/java/libgcj-@GCCVER@.jar
+else
+	export CLASSPATH=$CLASSPATH:/usr/share/java/libgcj-@GCCVER@.jar
+fi

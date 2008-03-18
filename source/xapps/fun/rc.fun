@@ -11,7 +11,7 @@ source /lib/initscripts/functions
 
 TEXTDOMAIN=fun
 TEXTDOMAINDIR=/lib/initscripts/messages
-actions=(restart start stop)
+actions=(restart status start stop)
 daemon=$"Frugalware Update Notifier daemon"
 pid="pidof fund 2> /dev/null"
 

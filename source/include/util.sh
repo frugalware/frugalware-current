@@ -1099,6 +1099,8 @@ Fextract() {
 		cmd="gunzip -f $file" ;;
 		*.bz2)
 		cmd="bunzip2 -f $file" ;;
+		*.7z)
+		cmd="7z x $file" ;;
 		*)
 		cmd="" ;;
 	esac

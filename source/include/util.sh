@@ -813,39 +813,51 @@ Fautoreconf() {
 }
 
 ###
-# * Flastarchive: Extracts version from a page's last archive.
-# Extension of the archive is given as argument.
+# * Flastarchive: Extracts last archive version from a page. Parameters: 1)
+# url (optional) of the page, else stdin if not present 2) extension_filter
+# for the archive type
 ###
 Flastarchive() {
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi
-	if [ -z "$_F_archive_nosort" ]; then
-		sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | Fsort | tail -n1
+	if [ $# -gt 1 ]; then
+		lynx -dump $1 | Flastarchive $2
 	else
-		sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | tail -n1
+		if [ -z "$_F_archive_nosort" ]; then
+			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | Fsort | tail -n1
+		else
+			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | tail -n1
+		fi
 	fi
 }
 
 ###
-# * Flasttar(): Extracts version from a page's last tar.gz link.
+# * Flasttar(): A convenience function to Flastarchive for all the known tar
+# ball extension. Parameters: 1) url (optional) see Flastarchive
 ###
 Flasttar() {
-	Flastarchive '\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
+	Flastarchive $1 '\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
 }
 
 ###
-# * Flasttgz(): Extracts version from a page's last tgz link.
+# * Flasttgz(): A convenience function to Flastarchive for the tgz extension.
+# Parameters: 1) url (optional) see Flastarchive
+#
+# NOTE: this function is obsolete, use Flasttar instead.
 ###
 Flasttgz() {
-	Flastarchive '\.tgz'
+	Flastarchive $1 '\.tgz'
 }
 
 ###
-# * Flasttarbz2(): Extracts version from a page's last tar.bz2 link.
+# * Flasttarbz2(): A convenience function to Flastarchive for the tar.bz2
+# extension. Parameters: 1) url (optional) see Flastarchive
+#
+# NOTE: this function is obsolete, use Flasttar instead.
 ###
 Flasttarbz2() {
-	Flastarchive '\.tar\.bz2'
+	Flastarchive $1 '\.tar\.bz2'
 }
 
 ###
@@ -853,7 +865,7 @@ Flasttarbz2() {
 ##
 Fup2gnugz()
 {
-	up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|Flasttar"
+	up2date="Flasttar 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'"
 }
 
 ###
@@ -861,7 +873,7 @@ Fup2gnugz()
 ##
 Fup2gnubz2()
 {
-        up2date="lynx -dump 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'|Flasttarbz2"
+        up2date="Flasttarbz2 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'"
 }
 
 ###
@@ -1087,6 +1099,8 @@ Fextract() {
 		cmd="gunzip -f $file" ;;
 		*.bz2)
 		cmd="bunzip2 -f $file" ;;
+		*.7z)
+		cmd="7z x $file" ;;
 		*)
 		cmd="" ;;
 	esac

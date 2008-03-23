@@ -1,19 +1,51 @@
-# Compiling Time: 40.46 SBU
+# Compiling Time: 12.94 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=ghc
-pkgver=6.6.1
-pkgrel=2
+pkgver=6.8.2
+pkgrel=1
 pkgdesc="The Glasgow Haskell Compiler"
 url="http://www.haskell.org/ghc/"
-depends=('gmp' 'readline')
-makedepends=('ghc')
-conflicts=('ghc-bin')
+depends=('gmp' 'readline' 'gcc-3.3')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://www.haskell.org/ghc/download.html|grep Current|sed 's/.*(\(.*\))/\1/'"
-source=(http://www.haskell.org/$pkgname/dist/$pkgver/$pkgname-$pkgver-src.tar.bz2 \
-	http://www.haskell.org/$pkgname/dist/$pkgver/$pkgname-$pkgver-src-extralibs.tar.bz2)
+if [ "$CARCH" == "i686" ]; then
+	_arch=i386
+else
+	_arch=$CARCH
+fi
+source=(http://www.haskell.org/ghc/dist/$pkgver/ghc-$pkgver-src.tar.bz2 \
+	http://www.haskell.org/ghc/dist/$pkgver/ghc-$pkgver-src-extralibs.tar.bz2 \
+	http://www.haskell.org/ghc/dist/$pkgver/ghc-$pkgver-$_arch-unknown-linux.tar.bz2)
 # optimization OK
-sha1sums=('eaa385f68ffe7806c4145e2944c3e4216d01f160'\
-          '1398f6c35191d52410a2e066b382635dff0d8d6d')
+sha1sums=('1f40b0ee2e51be1208fdb579ce4998181ec36a40' \
+          'b8c9ff989a87e2699a08e595523faa8d11e6e7dc')
+if [ "$CARCH" == "i686" ]; then
+	sha1sums=(${sha1sums[@]} '278563d48c058490717847d80918717d2afc1af1')
+elif [ "$CARCH" == "x86_64" ]; then
+	sha1sums=(${sha1sums[@]} '2a7c04adfee144bcfcf01ceaf2093eb4a3bbdea6')
+fi
+NOEXTRACT=1
+
+build()
+{
+	# hack!
+	mkdir lib
+	cd lib
+	ln -sf /usr/lib/libreadline.so libreadline.so.4
+	export LD_LIBRARY_PATH=`pwd`
+	cd ..
+
+	tar xf ghc-$pkgver-$_arch-unknown-linux.tar.bz2
+	mv ghc-$pkgver ghc-$pkgver-binary
+	cd ghc-$pkgver-binary
+	./configure --prefix=$Fsrcdir/binary
+	make install
+	export PATH=$Fsrcdir/binary/bin:$PATH
+
+	cd $Fsrcdir
+	tar xf ghc-$pkgver-src.tar.bz2
+	tar xf ghc-$pkgver-src-extralibs.tar.bz2
+	Fbuild --with-gcc=gcc-3.3
+}

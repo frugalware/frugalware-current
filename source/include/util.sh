@@ -154,12 +154,18 @@ Frm() {
 }
 
 ###
-# * Fcp(): Copy file(s) under $Fdestdir. First parameter: name of the file,
-# second parameter: path of the destination.
+# * Fcp(): Copy file(s) to $Fdestdir recursively from $Fsrcdir. First
+# parameter: name of the file, second parameter: path of the destination.
 ###
 Fcp() {
 	Fmessage "Copying file(s): $1"
-	cp "$Fdestdir/"$1 "$Fdestdir"/$2 || Fdie
+	if [ -e "$Fdestdir/"$1 ]; then
+		# Compatibility
+		warning "Deprecated usage of $*"
+		cp "$Fdestdir/"$1 "$Fdestdir"/$2 || Fdie
+	else
+		cp -a "$Fsrcdir/"$1 "$Fdestdir"/$2 || Fdie
+	fi
 }
 
 ###
@@ -168,7 +174,18 @@ Fcp() {
 ###
 Fcpr() {
 	Fmessage "Copying file(s) recursive: $1"
+	warning "Fcpr is deprecated in favor of Fcp"
 	cp -a "$Fsrcdir/"$1 "$Fdestdir"/$2 || Fdie
+}
+
+###
+# * Fcprel(): Copy file(s) to $Fdestdir recursively from the current working
+# directory. First parameter: name of the file, second parameter: path of the
+# destination.
+###
+Fcprel() {
+	Fmessage "Copying file(s): $1"
+	cp -a $1 "$Fdestdir"/$2 || Fdie
 }
 
 ###
@@ -178,6 +195,7 @@ Fcpr() {
 ###
 Fcprrel() {
 	Fmessage "Copying file(s) recursive: $1"
+	warning "Fcprrel is deprecated in favor of Fcprel"
 	cp -a $1 "$Fdestdir"/$2 || Fdie
 }
 

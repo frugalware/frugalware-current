@@ -1,57 +1,60 @@
-# Compiling Time: 2.55 SBU
+# Compiling Time: 1.05 SBU
 # Maintainer: VMiklos <vmiklos@frugalware.org>
 
 pkgname=ecj
-pkgver=3.2.2
+pkgver=3.3.2
 date=200802211800
-gccver=4.3.0
-pkgrel=4
+pkgrel=1
 pkgdesc="Ecj is the Java bytecode compiler of the Eclipse Project."
 url="http://www.eclipse.org/"
+Finclude java
+makedepends=('gcc-gcj>=4.3.0' 'fastjar')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://download.eclipse.org/eclipse/downloads/|grep Release|sed -n 's/.*]\([0-9\.]*\) .*/\1/;1 p'"
-## NOTE: when you bump that package you should _NOT_ use the source as is from ecplipe because 
-## it does not have any version and we end up to package it wrong.
-## Also when you bump this package create a new dir in sources/ecj on our ftp ( eg: 3.3.1 )
-## get the ecjsrc.zip from eclipse and 'be sure is the version you want to bump to' and move it
-## to be ecjsrc-$the_version.zip ( eg: ecjsrc-3.3.1.zip ) in that folder.
-## NOTE2: 3.3* series have some problems with gcj 4.3* , until we figure why do not bump
-## this package to any 3.3* series
-## If someone wonders why we drop back to 3.2.2 that is simply because we used 3.2.2 and not 3.3.1.1 =)
-## and this version does work.
-## NOTE3: Before you push an new update please _check_ if is working , to make a broken version
-## compile again is a lot work 
-#source=(http://download.eclipse.org/eclipse/downloads/drops/R-$pkgver-$date/ecjsrc.zip \
-source=(http://ftp.frugalware.org/pub/other/sources/$pkgname/$pkgver/ecjsrc-$pkgver.zip \
-	ecj-gcj.patch ecj-square-bracket-classpath.diff)
-sha1sums=('50f6b20a1542176e46d48fa522b9f24b2399878b' \
-          'e79f7ca323e4e5dac8b15f498626413ffb7977cb' \
-          '9824cc2be79d66e03705d89b3445400d097d52a6')
-Finclude java
-options=('force')
-makedepends=("gcc-gcj>=$gccver" "ecj>=3.2.2-3" "java-gcj-compat>=1.0.77-2")
+# NOTE: when you bump that package you should _NOT_ use the source as is from ecplipe because 
+# it does not have any version and we end up to package it wrong.
+# Also when you bump this package create a new dir in sources/ecj on our ftp ( eg: 3.3.1 )
+# get the ecjsrc.zip from eclipse and 'be sure is the version you want to bump to' and move it
+# to be ecjsrc-$the_version.zip ( eg: ecjsrc-3.3.1.zip ) in that folder.
+source=(http://ftp.frugalware.org/pub/other/sources/$pkgname/$pkgver/ecj{src-$pkgver.zip,-$pkgver.jar} \
+	ecj-gcj.patch)
+sha1sums=('c9229f01f991777829279d9907069e81857516ca' \
+          '079d78d640d24ba08a5873ffcf7a8f7c120c60a1' \
+          'eac4e5245f92cca3260dbfd7090b710e73df5e62')
 _F_cd_path="."
+
+ecj()
+{
+	jar=$1
+	shift
+	echo gij -cp $jar org.eclipse.jdt.internal.compiler.batch.Main $@ || Fdie
+	gij -cp $jar org.eclipse.jdt.internal.compiler.batch.Main $@ || Fdie
+}
 
 build()
 {
 	Fpatchall
-	# this will be a separete package since these must be compiled with ecj
+	# this will be a separete package
 	rm -f org/eclipse/jdt/core/JDTCompilerAdapter.java
-	rm -rf org/eclipse/jdt/internal/antadapter
+	rm -rf org/eclipse/jdt/internal/antadapter \
+		org/eclipse/jdt/internal/compiler/tool \
+		org/eclipse/jdt/internal/compiler/apt
 
-	rm -fr org/eclipse/jdt/internal/compiler/tool/ \
-		org/eclipse/jdt/internal/compiler/apt/
-
-	echo gcj -encoding ISO-8859-1 -C `find org/ -name '*.java'`
-	gcj -encoding ISO-8859-1 -C `find org/ -name '*.java'` || return 1
-
+	Fjavacleanup org
+	ecj ecj-$pkgver.jar `find org/ -name '*.java'` || return 1
 	find -name '*.class' -o -name '*.properties' -o -name '*.rsc' | \
-		xargs jar cf eclipse-ecj.jar
+		xargs fastjar cf eclipse-ecj-bootstrap.jar
+
+	# build again
+	Fjavacleanup org
+	ecj eclipse-ecj-bootstrap.jar `find org/ -name '*.java'` || return 1
+	find -name '*.class' -o -name '*.properties' -o -name '*.rsc' | \
+		xargs fastjar cf eclipse-ecj.jar
+
 	Ffilerel /usr/share/java/eclipse-ecj.jar
 	Fgcj org.eclipse.jdt.internal.compiler.batch.Main $Fdestdir/usr/bin/ecj \
 		$Fdestdir/usr/share/java/eclipse-ecj.jar
 }
 
 # optimization OK
-

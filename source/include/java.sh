@@ -119,10 +119,12 @@ Fjar()
 
 ###
 # * Fjavacleanup(): cleans up the source tree (jar and class files) before
-# building
+# building. optional parameter: root of the source tree
 ###
 Fjavacleanup()
 {
-	find . -name "*.class" -exec rm -vf {} \;
-	find . -name "*.jar" -exec rm -vf {} \;
+	local root="."
+	[ -n "$1" ] && root=$1
+	find $root -name "*.class" -exec rm -vf {} \;
+	find $root -name "*.jar" -exec rm -vf {} \;
 }

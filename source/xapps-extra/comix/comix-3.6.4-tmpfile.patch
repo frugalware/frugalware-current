@@ -1,0 +1,163 @@
+--- comix-3.6.4/comix.tmpfile	2008-04-03 01:23:35.000000000 +0900
++++ comix-3.6.4/comix	2008-04-03 01:23:35.000000000 +0900
+@@ -47,6 +47,8 @@
+ import subprocess
+ import string
+ 
++import tempfile
++
+ try:
+     import pygtk
+     pygtk.require('2.0')
+@@ -257,6 +259,8 @@
+     window_height = 0
+     colour_adjust_signal_kill = False
+     colour_adjust_dialog_displayed = False
++
++    _tmp_dir = None
+     
+     def close_application(self, widget, event=None):
+         
+@@ -270,8 +274,8 @@
+         self.prefs['page of last file'] = self.file_number
+         if os.path.exists(self.base_dir):
+             shutil.rmtree(self.base_dir)
+-            if len(os.listdir('/tmp/comix')) == 0:
+-                shutil.rmtree('/tmp/comix')
++            if len(os.listdir(self._tmp_dir)) == 0:
++                shutil.rmtree(self._tmp_dir)
+         self.exit = True
+ 
+         # =======================================================
+@@ -369,9 +373,9 @@
+         # =======================================================
+         if os.path.exists(self.base_dir):
+             shutil.rmtree(self.base_dir)
+-        if os.path.isdir('/tmp/comix'):
+-            if len(os.listdir('/tmp/comix')) == 0:
+-                shutil.rmtree('/tmp/comix')
++        if os.path.isdir(self._tmp_dir):
++            if len(os.listdir(self._tmp_dir)) == 0:
++                shutil.rmtree(self._tmp_dir)
+ 
+         
+         # =======================================================
+@@ -8027,7 +8031,7 @@
+             return False
+         
+         # We don't want to open files from our selves.
+-        if selection.data.startswith('file:///tmp/comix/'):
++        if selection.data.startswith('file://' + self._tmp_dir):
+             return
+         
+         uri = selection.data.strip()
+@@ -10543,15 +10547,20 @@
+         # The dir is /tmp/comix/<num> where <num> is 1 or higher
+         # depending on the number of Comix sessions opened.
+         # =======================================================
+-        if not os.path.exists('/tmp/comix/'):
+-            os.makedirs('/tmp/comix/')
+-            os.chmod('/tmp/comix/', 0700)
++        #if not os.path.exists('/tmp/comix/'):
++        #    os.makedirs('/tmp/comix/')
++        #    os.chmod('/tmp/comix/', 0700)
++
++        self._tmp_dir = tempfile.mkdtemp(prefix='comix.', suffix=os.sep, 
++             dir = '/tmp')
++        self._tmp_dir += "/"
++
+         dir_number = 1
+         while 1:
+-            if not os.path.exists('/tmp/comix/' + str(dir_number)):
+-                os.mkdir('/tmp/comix/' + str(dir_number))
+-                os.chmod('/tmp/comix/' + str(dir_number), 0700)
+-                self.base_dir = '/tmp/comix/' + str(dir_number) + '/'
++            if not os.path.exists(self._tmp_dir + str(dir_number)):
++                os.mkdir(self._tmp_dir + str(dir_number))
++                os.chmod(self._tmp_dir + str(dir_number), 0700)
++                self.base_dir = self._tmp_dir + str(dir_number) + '/'
+                 break
+             dir_number += 1
+             
+--- comix-3.6.4/mime/comicthumb.tmpfile	2008-04-03 01:23:35.000000000 +0900
++++ comix-3.6.4/mime/comicthumb	2008-04-03 01:29:52.000000000 +0900
+@@ -24,6 +24,7 @@
+ import shutil
+ 
+ import subprocess
++import tempfile
+ 
+ try:
+     import Image
+@@ -51,9 +52,13 @@
+     sys.exit(1)
+ 
+ # temp directory needed for multiple archives
+-if not os.path.exists('/tmp/comicthumb/'):
+-    os.makedirs('/tmp/comicthumb/')
+-    os.chmod('/tmp/comicthumb/', 0700)
++#if not os.path.exists('/tmp/comicthumb/'):
++#    os.makedirs('/tmp/comicthumb/')
++#    os.chmod('/tmp/comicthumb/', 0700)
++_tmp_dir = tempfile.mkdtemp(prefix='comixthumb', suffix=os.sep, 
++        dir = '/tmp')
++_tmp_dir += "/"
++
+ 
+ # return the first image in the list
+ def first_image (filelist):
+@@ -104,10 +109,10 @@
+         else:
+             subarchive = first_archive(zipfiles)
+             if subarchive:
+-                output = open("/tmp/comicthumb/archive%d" % (depth), "wb")
++                output = open( _tmp_dir + "archive%d" % (depth), "wb")
+                 output.write(zip.read(subarchive))
+                 output.close()
+-                return get_image("/tmp/comicthumb/archive%d" % (depth),
++                return get_image( _tmp_dir + "archive%d" % (depth),
+                     depth + 1)
+     elif tarfile.is_tarfile(compressed_file):
+         TYPE = TYPE or 'cbt'
+@@ -122,10 +127,10 @@
+         else:
+             subarchive = first_archive(tarfiles)
+             if subarchive:
+-                output = open("/tmp/comicthumb/archive%d" % (depth), "wb")
++                output = open( _tmp_dir + "archive%d" % (depth), "wb")
+                 output.write(tar.extractfile(subarchive).read())
+                 output.close()
+-                return get_image("/tmp/comicthumb/archive%d" % (depth),
++                return get_image( _tmp_dir + "archive%d" % (depth),
+                     depth + 1)
+     elif open(compressed_file, 'rb').read(4) == 'Rar!':
+         TYPE = TYPE or 'cbr'
+@@ -159,7 +164,7 @@
+             if subarchive:
+                 #os.popen('%s p -inul -- "%s" "%s" > "/tmp/comicthumb/archive%d"'
+                     #% (rar, compressed_file, subarchive, depth), "r")
+-                filen = "/tmp/comicthumb/archive%d"%(depth)
++                filen = _tmp_dir + "archive%d"%(depth)
+                 try:
+                    os.remove(filen)
+                 except:
+@@ -170,7 +175,7 @@
+                     [rar, 'p', '-inul', '--', compressed_file, subarchive],
+                     stdout = fdp).wait()
+                 fp.close()
+-                return get_image("/tmp/comicthumb/archive%d" % (depth), 
++                return get_image( _tmp_dir + "archive%d" % (depth), 
+                     depth + 1)
+     return picture
+ 
+@@ -226,8 +231,8 @@
+     exit_flag = 1
+ 
+ # remove tempory stuff
+-if os.path.isdir('/tmp/comicthumb/'):
+-    shutil.rmtree('/tmp/comicthumb/')
++if os.path.isdir(_tmp_dir):
++    shutil.rmtree(_tmp_dir)
+ 
+ # and exit
+ sys.exit(exit_flag)

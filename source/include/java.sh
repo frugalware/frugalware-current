@@ -39,6 +39,8 @@
 # 'ecj', can be 'gcj', too.
 # * _F_java_cflags (defaults to -fPIC -findirect-dispatch -fjni): compiler flags passed to the bytecompiler (gcj)
 # * _F_java_ldflags (defaults to -Wl,-Bsymbolic): linker flags passed to the bytecompiler (gcj)
+# * _F_javacleanup_opts: you can set this to define some exclude patterns if
+# you really need (for bootstrapping) some binary jars.
 ###
 if [ -z "$_F_java_cflags" ]; then
 	_F_java_cflags="-fPIC -findirect-dispatch -fjni"
@@ -125,6 +127,6 @@ Fjavacleanup()
 {
 	local root="."
 	[ -n "$1" ] && root=$1
-	find $root -name "*.class" -exec rm -vf {} \;
-	find $root -name "*.jar" -exec rm -vf {} \;
+	find $root -name "*.class" $_F_javacleanup_opts -exec rm -vf {} \;
+	find $root -name "*.jar" $_F_javacleanup_opts -exec rm -vf {} \;
 }

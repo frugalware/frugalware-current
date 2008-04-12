@@ -1,0 +1,228 @@
+From 5345bb49077bfda9fabd048e563f9e7077fe335d Mon Sep 17 00:00:00 2001
+From: Eric Blake <ebb9@byu.net>
+Date: Fri, 7 Dec 2007 11:55:18 -0700
+Subject: [PATCH] Minor security fix: Quote output of mkstemp.
+
+* src/builtin.c (mkstemp_helper): Produce quoted output.
+* doc/m4.texinfo (Mkstemp): Update the documentation and tests.
+* NEWS: Document this change.
+
+Signed-off-by: Eric Blake <ebb9@byu.net>
+(cherry picked from commit bd9900d65eb9cd5add0f107e94b513fa267495ba)
+---
+ ChangeLog      |    7 +++++
+ NEWS           |    6 ++++
+ doc/m4.texinfo |   73 +++++++++++++++++++++++++++++++++++++++++++++----------
+ src/builtin.c  |   43 +++++++++++++++++++-------------
+ 4 files changed, 97 insertions(+), 32 deletions(-)
+
+diff --git a/doc/m4.texinfo b/doc/m4.texinfo
+index 3539860..de85c7f 100644
+--- a/doc/m4.texinfo
++++ b/doc/m4.texinfo
+@@ -5786,7 +5786,7 @@ builtin macro, @code{mkstemp}, for making a temporary file:
+ 
+ @deffn Builtin mkstemp (@var{template})
+ @deffnx Builtin maketemp (@var{template})
+-Expands to a name of a new, empty file, made from the string
++Expands to the quoted name of a new, empty file, made from the string
+ @var{template}, which should end with the string @samp{XXXXXX}.  The six
+ @samp{X} characters are then replaced with random characters matching
+ the regular expression @samp{[a-zA-Z0-9._-]}, in order to make the file
+@@ -5798,7 +5798,8 @@ account, and at most only the current user can read and write the file.
+ 
+ The traditional behavior, standardized by @acronym{POSIX}, is that
+ @code{maketemp} merely replaces the trailing @samp{X} with the process
+-id, without creating a file, and without ensuring that the resulting
++id, without creating a file or quoting the expansion, and without
++ensuring that the resulting
+ string is a unique file name.  In part, this means that using the same
+ @var{template} twice in the same input file will result in the same
+ expansion.  This behavior is a security hole, as it is very easy for
+@@ -5822,6 +5823,8 @@ chosen:
+ @comment ignore
+ @example
+ $ @kbd{m4}
++define(`tmp', `oops')
++@result{}
+ maketemp(`/tmp/fooXXXXXX')
+ @result{}/tmp/fooa07346
+ ifdef(`mkstemp', `define(`maketemp', defn(`mkstemp'))',
+@@ -5839,31 +5842,73 @@ Unless you use the @option{--traditional} command line option (or
+ version of @code{maketemp} is secure.  This means that using the same
+ template to multiple calls will generate multiple files.  However, we
+ recommend that you use the new @code{mkstemp} macro, introduced in
+-@acronym{GNU} M4 1.4.8, which is secure even in traditional mode.
++@acronym{GNU} M4 1.4.8, which is secure even in traditional mode.  Also,
++as of M4 1.4.11, the secure implementation quotes the resulting file
++name, so that you are guaranteed to know what file was created even if
++the random file name happens to match an existing macro.  Notice that
++this example is careful to use @code{defn} to avoid unintended expansion
++of @samp{foo}.
+ 
+ @example
+ $ @kbd{m4}
+-syscmd(`echo foo??????')dnl
+-@result{}foo??????
+-define(`file1', maketemp(`fooXXXXXX'))dnl
+-ifelse(esyscmd(`echo foo??????'), `foo??????', `no file', `created')
++define(`foo', `errprint(`oops')')
++@result{}
++syscmd(`rm -f foo-??????')sysval
++@result{}0
++define(`file1', maketemp(`foo-XXXXXX'))dnl
++ifelse(esyscmd(`echo \` foo-?????? \''), ` foo-?????? ',
++       `no file', `created')
+ @result{}created
+-define(`file2', maketemp(`fooXX'))dnl
+-define(`file3', mkstemp(`fooXXXXXX'))dnl
+-ifelse(len(file1), len(file2), `same length', `different')
++define(`file2', maketemp(`foo-XX'))dnl
++define(`file3', mkstemp(`foo-XXXXXX'))dnl
++ifelse(len(defn(`file1')), len(defn(`file2')),
++       `same length', `different')
+ @result{}same length
+-ifelse(file1, file2, `same', `different file')
++ifelse(defn(`file1'), defn(`file2'), `same', `different file')
+ @result{}different file
+-ifelse(file2, file3, `same', `different file')
++ifelse(defn(`file2'), defn(`file3'), `same', `different file')
+ @result{}different file
+-ifelse(file1, file3, `same', `different file')
++ifelse(defn(`file1'), defn(`file3'), `same', `different file')
+ @result{}different file
+-syscmd(`rm 'file1 file2 file3)
++syscmd(`rm 'defn(`file1') defn(`file2') defn(`file3'))
+ @result{}
+ sysval
+ @result{}0
+ @end example
+ 
++@ignore
++@c Not worth documenting, but make sure we don't leave trailing NUL in
++@c the expansion.
++
++@example
++syscmd(`rm -f foo??????')sysval
++@result{}0
++len(mkstemp(`fooXXXXX'))
++@result{}9
++syscmd(`rm foo??????')sysval
++@result{}0
++@end example
++
++@c Likewise, and ensure that traditional mode leaves the result unquoted
++@c without creating a file.
++
++@comment options: -G
++@example
++syscmd(`rm -f foo-*')sysval
++@result{}0
++len(maketemp(`foo-XXXXX'))
++@error{}m4:stdin:2: recommend using mkstemp instead
++@result{}9
++define(`abc', `def')
++@result{}
++maketemp(`foo-abc')
++@result{}foo-def
++@error{}m4:stdin:4: recommend using mkstemp instead
++syscmd(`test -f foo-*')sysval
++@result{}1
++@end example
++@end ignore
++
+ @node Miscellaneous
+ @chapter Miscellaneous builtin macros
+ 
+diff --git a/src/builtin.c b/src/builtin.c
+index 746e6a9..e4d67a7 100644
+--- a/src/builtin.c
++++ b/src/builtin.c
+@@ -1,7 +1,7 @@
+ /* GNU m4 -- A simple macro processor
+ 
+-   Copyright (C) 1989, 1990, 1991, 1992, 1993, 1994, 2000, 2004, 2006, 2007
+-   Free Software Foundation, Inc.
++   Copyright (C) 1989, 1990, 1991, 1992, 1993, 1994, 2000, 2004, 2006,
++   2007, 2008 Free Software Foundation, Inc.
+ 
+    This file is part of GNU M4.
+ 
+@@ -1344,35 +1344,42 @@ m4_sinclude (struct obstack *obs, int argc, token_data **argv)
+ | Use the first argument as at template for a temporary file name.  |
+ `------------------------------------------------------------------*/
+ 
+-/* Add trailing 'X' to NAME if necessary, securely create the file,
+-   and place the new file name on OBS.  */
++/* Add trailing 'X' to PATTERN of length LEN as necessary, then
++   securely create the file, and place the quoted new file name on
++   OBS.  Report errors on behalf of ME.  */
+ static void
+-mkstemp_helper (struct obstack *obs, const char *name)
++mkstemp_helper (struct obstack *obs, const char *me, const char *pattern,
++		size_t len)
+ {
+   int fd;
+-  int len;
+   int i;
++  char *name;
+ 
+   /* Guarantee that there are six trailing 'X' characters, even if the
+-     user forgot to supply them.  */
+-  len = strlen (name);
+-  obstack_grow (obs, name, len);
++     user forgot to supply them.  Output must be quoted if
++     successful.  */
++  obstack_grow (obs, lquote.string, lquote.length);
++  obstack_grow (obs, pattern, len);
+   for (i = 0; len > 0 && i < 6; i++)
+-    if (name[--len] != 'X')
++    if (pattern[len - i - 1] != 'X')
+       break;
+-  for (; i < 6; i++)
+-    obstack_1grow (obs, 'X');
+-  obstack_1grow (obs, '\0');
++  obstack_grow0 (obs, "XXXXXX", 6 - i);
++  name = (char *) obstack_base (obs) + lquote.length;
+ 
+   errno = 0;
+-  fd = mkstemp ((char *) obstack_base (obs));
++  fd = mkstemp (name);
+   if (fd < 0)
+     {
+-      M4ERROR ((0, errno, "cannot create tempfile `%s'", name));
++      M4ERROR ((0, errno, "cannot create tempfile `%s'", pattern));
+       obstack_free (obs, obstack_finish (obs));
+     }
+   else
+-    close (fd);
++    {
++      close (fd);
++      /* Remove NUL, then finish quote.  */
++      obstack_blank (obs, -1);
++      obstack_grow (obs, rquote.string, rquote.length);
++    }
+ }
+ 
+ static void
+@@ -1415,7 +1422,7 @@ m4_maketemp (struct obstack *obs, int argc, token_data **argv)
+ 	}
+     }
+   else
+-    mkstemp_helper (obs, ARG (1));
++    mkstemp_helper (obs, ARG (0), ARG (1), strlen (ARG (1)));
+ }
+ 
+ static void
+@@ -1423,7 +1430,7 @@ m4_mkstemp (struct obstack *obs, int argc, token_data **argv)
+ {
+   if (bad_argc (argv[0], argc, 2, 2))
+     return;
+-  mkstemp_helper (obs, ARG (1));
++  mkstemp_helper (obs, ARG (0), ARG (1), strlen (ARG (1)));
+ }
+ 
+ /*----------------------------------------.
+-- 
+1.5.5
+

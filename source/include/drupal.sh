@@ -44,7 +44,11 @@
 ###
 pkgname=drupal-$_F_drupal_module
 url="http://drupal.org/project/$_F_drupal_module"
-rodepends=('drupal>=5.0' ${rodepends[@]})
+if [ $_F_drupal_ver == "5.x" ]; then
+	rodepends=('drupal>=5.0' ${rodepends[@]})
+else
+	rodepends=('drupal6>=6.2' ${rodepends[@]})
+fi
 groups=('network-extra')
 archs=('i686' 'x86_64')
 if [ $_F_drupal_dev == 0 ]; then

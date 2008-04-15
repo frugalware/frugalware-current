@@ -42,11 +42,12 @@
 # * source()
 # * options()
 ###
-pkgname=drupal-$_F_drupal_module
 url="http://drupal.org/project/$_F_drupal_module"
 if [ $_F_drupal_ver == "5.x" ]; then
+	pkgname=drupal-$_F_drupal_module
 	rodepends=('drupal>=5.0' ${rodepends[@]})
 else
+	pkgname=drupal6-$_F_drupal_module
 	rodepends=('drupal6>=6.2' ${rodepends[@]})
 fi
 groups=('network-extra')
@@ -68,8 +69,13 @@ options=('stick' 'nodocs')
 ###
 Fbuild_drupal()
 {
-	Fmkdir var/www/drupal/sites/all/modules
-	mv $Fsrcdir/$_F_drupal_module $Fdestdir/var/www/drupal/sites/all/modules/$_F_drupal_module
+	if [ $_F_drupal_ver == "5.x" ]; then
+		Fmkdir var/www/drupal/sites/all/modules
+		mv $Fsrcdir/$_F_drupal_module $Fdestdir/var/www/drupal/sites/all/modules/$_F_drupal_module
+	else
+		Fmkdir var/www/drupal6/sites/all/modules
+		mv $Fsrcdir/$_F_drupal_module $Fdestdir/var/www/drupal6/sites/all/modules/$_F_drupal_module
+	fi
 }
 
 ###

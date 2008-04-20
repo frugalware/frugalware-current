@@ -1,16 +1,15 @@
-diff --git a/mixer/applet.c b/mixer/applet.c
-index 3d74f36..70456a1 100644
---- a/mixer/applet.c
-+++ b/mixer/applet.c
-@@ -81,7 +81,6 @@ static void	gnome_volume_applet_orientation	(PanelApplet *applet,
+diff -Naur gnome-applets-2.22.1.orig/mixer/applet.c gnome-applets-2.22.1/mixer/applet.c
+--- gnome-applets-2.22.1.orig/mixer/applet.c	2008-04-11 23:13:34.000000000 +0200
++++ gnome-applets-2.22.1/mixer/applet.c	2008-04-11 23:19:42.000000000 +0200
+@@ -80,7 +80,6 @@
  
- static void	gnome_volume_applet_refresh	(GnomeVolumeApplet *applet,
+ static gboolean	gnome_volume_applet_refresh	(GnomeVolumeApplet *applet,
  						 gboolean           force_refresh);
 -static gboolean	cb_check			(gpointer   data);
  
  static void	cb_volume			(GtkAdjustment *adj,
  						 gpointer   data);
-@@ -375,6 +374,24 @@ select_element_and_track (GnomeVolumeApplet *applet,
+@@ -350,6 +349,24 @@
    return TRUE;
  }
  
@@ -35,7 +34,7 @@ index 3d74f36..70456a1 100644
  gboolean
  gnome_volume_applet_setup (GnomeVolumeApplet *applet,
  			   GList *elements)
-@@ -438,9 +455,12 @@ gnome_volume_applet_setup (GnomeVolumeApplet *applet,
+@@ -413,7 +430,11 @@
  
    gnome_volume_applet_refresh (applet, TRUE);
    if (res) {
@@ -46,18 +45,52 @@ index 3d74f36..70456a1 100644
 +      g_signal_connect (G_OBJECT (l->data),"mute_toggled", G_CALLBACK (cb_mixer_mute_toggled), applet);
 +    }
    }
--
+ 
    if (res) {
-     /* gconf */
-     key = panel_applet_gconf_get_full_key (PANEL_APPLET (applet),
-@@ -1154,14 +1174,6 @@ gnome_volume_applet_refresh (GnomeVolumeApplet *applet,
- 				"state", mute ? "1" : "0", NULL);
+@@ -1129,50 +1150,6 @@
+   return did_change;
  }
  
 -static gboolean
 -cb_check (gpointer data)
 -{
--  gnome_volume_applet_refresh (GNOME_VOLUME_APPLET (data), FALSE);
+-  static int      time_counter  = -1;
+-  static int      timeout       = 15;
+-  static gboolean recent_change = FALSE;
+-  gboolean        did_change;
+-
+-  time_counter++;
+-
+-  /*
+-   * This timeout is called 10 times per second.  Only do the update every
+-   * 15 times this function is called (every 1.5 seconds), unless the value
+-   * actually changed.
+-   */
+-  if (time_counter % timeout == 0 || recent_change) {
+-     did_change = gnome_volume_applet_refresh (GNOME_VOLUME_APPLET (data),
+-                                               FALSE);
+-
+-     /*
+-      * If a change was done, set recent_change so that the update is
+-      * done 10 times a second for 10 seconds and reset the counter to 0.
+-      * This way we update frequently for 10 seconds after the last time
+-      * the value is actually changed.
+-      */
+-     if (did_change) {
+-        recent_change = TRUE;
+-        time_counter = 0;
+-        timeout      = 100;
+-     } else if (time_counter % timeout == 0) {
+-        /*
+-         * When the counter gets to the timeout, reset recent_change and
+-         * time_counter so we go back to the behavior where we only check
+-         * every 15 times the function is called.
+-         */
+-        recent_change = FALSE;
+-        time_counter  = 0;
+-        timeout       = 15;
+-     }
+-  }
 -
 -  return TRUE;
 -}

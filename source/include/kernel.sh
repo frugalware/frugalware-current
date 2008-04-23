@@ -196,7 +196,6 @@ fi
 
 if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
 	if [ "$CARCH" = "x86_64" ]; then
-		MARCH=K8
 		KARCH=x86
 	fi
 	echo "$CARCH" |grep -q 'i.86' && KARCH=x86
@@ -260,12 +259,8 @@ Fbuildkernel()
 	done
 	# remove unneded localversions
 	rm -f localversion-*
-	## FIXME: remove that after 0.8
-	if [ "$CARCH" = "x86_64" ]; then
-		yes "" | make config
-	else
-		make silentoldconfig || Fdie
-	fi
+	make silentoldconfig || Fdie
+
 	## FIXME: remove or do it right -- crazy --
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
 		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile

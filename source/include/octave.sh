@@ -41,7 +41,7 @@ up2date="lynx -dump http://octave.sourceforge.net/\$(echo ${pkgname} |sed 's/oct
 # * Fbuild_octave()
 ###
 
-Fbuild_ocatve() {
+Fbuild_octave() {
 	unset TERM
 	Fcd
 	Fpatchall

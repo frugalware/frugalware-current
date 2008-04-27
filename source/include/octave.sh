@@ -28,7 +28,7 @@ conflicts=(${conflicts[@]} 'octave-forge')
 
 ###
 # == OVERWRITTEN VARIABLES
-# * _F_cd_path 
+# * _F_cd_path
 # * up2date
 ###
 
@@ -38,11 +38,18 @@ up2date="lynx -dump http://octave.sourceforge.net/\$(echo ${pkgname} |sed 's/oct
 
 ###
 # == PROVIDED FUNCTIONS
-# * build()
+# * Fbuild_octave()
 ###
 
-build() {
+Fbuild_ocatve() {
 	unset TERM
+	Fcd
+	Fpatchall
 	Fmake
 	Fmakeinstall DISTPKG="frugalware"
+}
+
+build()
+{
+	Fbuild_octave
 }

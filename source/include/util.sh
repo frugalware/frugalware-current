@@ -553,6 +553,14 @@ Fmake() {
 		python setup.py build "$@" || Fdie
 	elif [ -f setup.rb ]; then
 		ruby setup.rb setup "$@" || Fdie
+	elif [ -f build.xml ]; then
+		if declare -f Fant >/dev/null; then
+			Fjavacleanup
+			Fant "$@" || Fdie
+		else
+			Fmessage "build.xml found, but missing Finclude java!"
+			Fdie
+		fi
 	else
 		Fmessage "No Makefile or setup.py found!"
 		Fdie

@@ -602,6 +602,16 @@ Fmakeinstall() {
 		python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
 	elif [ -f setup.rb ]; then
 		ruby setup.rb install --prefix=$Fdestdir || Fdie
+	elif [ -f build.xml ]; then
+		if declare -f Fjar >/dev/null; then
+			for i in ${_F_java_jars[@]}
+			do
+				Fjar $i || Fdie
+			done
+		else
+			Fmessage "build.xml found, but missing Finclude java!"
+			Fdie
+		fi
 	else
 		Fmessage "No Makefile or setup.py found!"
 		Fdie

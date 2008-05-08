@@ -57,6 +57,8 @@ fi
 
 if [ -z "$_F_sourceforge_dirname" ]; then
 	_F_sourceforge_dirname="$_F_sourceforge_name"
+else
+	_F_sourceforge_broken_up2date=1
 fi
 
 if [ -z "$_F_sourceforge_ext" ]; then

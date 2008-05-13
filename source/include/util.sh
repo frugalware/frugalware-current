@@ -389,7 +389,7 @@ Fdocrel() {
 	for i in $@
 	do
 		if [ -d "$i" ]; then
-			Fcprrel "$i" "/usr/share/doc/$pkgname-$pkgver/"
+			Fcprel "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		else
 		Ffilerel "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		local j

@@ -54,7 +54,7 @@ do
 			. FrugalBuild || echo "errors parsing `pwd`/FrugalBuild for $j"
 			for k in $pkgname ${subpkgs[@]}
 			do
-				echo $k-$pkgver-$pkgrel
+				echo $k
 			done
 		done
 	fi
@@ -65,7 +65,7 @@ for i in frugalware-$1
 do
 	cd $i
 	tar xf frugalware-current.fdb -C $fdb_tmp
-	ls $fdb_tmp
+	ls $fdb_tmp |sed 's/-[^-]\+-[^-]\+$//'
 	rm -rf $fdb_tmp
 	mkdir -p $fdb_tmp
 	cd ..

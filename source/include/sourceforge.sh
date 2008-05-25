@@ -45,6 +45,9 @@
 # * _F_sourceforge_sep ( defaults to - ): used for source() only right now. As example
 # for an "baz_1.2.3.tar.gz" tarball you should use _F_sourceforge_sep="_" , for empty
 # values use _F_sourceforge_sep="None" that way you can dowload such foo1234.tgz
+# * _F_sourceforge_pkgver ( defaults to $pkgver ) : Some packages are called foo-1.2.3
+# but the source is called different from $pkgver , e.g: foo-123 , foo-12.3 , in such
+# a case _F_sourceforge_pkgver may help to avoid custom $source
 ###
 if [ -z "$_F_sourceforge_name" ]; then
 	_F_sourceforge_name=$pkgname

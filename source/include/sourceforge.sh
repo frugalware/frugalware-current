@@ -50,6 +50,10 @@ if [ -z "$_F_sourceforge_name" ]; then
 	_F_sourceforge_name=$pkgname
 fi
 
+if [ -z "$_F_sourceforge_pkgver" ]; then
+	_F_sourceforge_pkgver=$pkgver
+fi
+
 if [ -z "$_F_sourceforge_mirror" ]; then
 	# set our preferred mirror
 	_F_sourceforge_mirror="mesh"
@@ -88,4 +92,4 @@ if [ $_F_sourceforge_broken_up2date -eq 0 ]; then
 else
  	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep -m1 '$_F_sourceforge_name\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name$_F_sourceforge_prefix\(.*\)$_F_sourceforge_ext.*/\1/;s/-/_/g;s/_//1'"
 fi
-source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/${_F_sourceforge_name}${_F_sourceforge_sep}${pkgver//_/-}${_F_sourceforge_ext})
+source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver//_/-}${_F_sourceforge_ext})

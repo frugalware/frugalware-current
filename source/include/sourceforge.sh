@@ -33,7 +33,7 @@
 # package name (for example the upstream name contains uppercase letters) then
 # use this to declare the real name
 # * _F_sourceforge_mirror (defaults to mesh): the sourceforge mirror to use
-# * _F_sourceforge_dirname (default to $_F_sourceforge_name): if the source
+# * _F_sourceforge_dirname (default to $pkgname): if the source
 # tarball uses a name different to the sourceforge project name, then use this
 # option to declare the project name
 # * _F_sourceforge_ext (defaults to .tar.gz): extension of the source tarball
@@ -63,7 +63,7 @@ if [ -z "$_F_sourceforge_mirror" ]; then
 fi
 
 if [ -z "$_F_sourceforge_dirname" ]; then
-	_F_sourceforge_dirname="$_F_sourceforge_name"
+	_F_sourceforge_dirname=$pkgname
 else
 	_F_sourceforge_broken_up2date=1
 fi

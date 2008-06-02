@@ -136,6 +136,7 @@ fi
 # * rodepends
 # * makedepends
 # * groups
+# * replaces
 # * archs
 # * options()
 # * up2date
@@ -160,6 +161,8 @@ options=('nodocs' 'genscriptlet')
 up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
 if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
 	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config.i686 config.x86_64)
+	# this can be removed after Frualware 0.9 is out
+	replaces=('ipw3945')
 else
 	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
 fi

@@ -39,6 +39,7 @@ fi
 Fmonoexport() {
 	Fmessage "Exporting weird MONO_SHARED_DIR..."
 	export MONO_SHARED_DIR=$Fdestdir/weird
+	export XDG_CONFIG_HOME=$Fdestdir/weird
 	mkdir -p $MONO_SHARED_DIR
 }
 

@@ -1,39 +1,33 @@
 # Compiling Time: 3.03 SBU
-# Maintainer: Janny <janny@frugalware.org>
+# Maintainer: Janos Kovacs <janny@frugalware.org>
 # Contributor: AlexExtreme <alex@alex-smith.me.uk>
 
 pkgname=virtualbox
 realname=VirtualBox
-pkgver=1.5.6_1
-pkgrel=9
+pkgver=1.6.2
+pkgrel=1
 pkgdesc="InnoTek VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
-_F_kernelmod_scriptlet=$pkgname.install
 Finclude kernel-module
-depends=(${depends[@]} 'gcc' 'xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'qt' 'libidl' 'sdl' \
-	 'hal' 'libstdc++5' 'alsa-lib')
+_F_kernelmod_scriptlet=${pkgname}.install
+depends=(${depends[@]} 'xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'qt' 'libidl' 'sdl' \
+	 'hal' 'libstdc++5' 'alsa-lib' 'qt4')
+makedepends=(${makedepends[@]} 'gcc-4.1')
 # For get-vbox-additions
 rodepends=('wget')
 groups=('xapps-extra')
 archs=('i686' '!x86_64')
 up2date="lynx -dump http://www.virtualbox.org/wiki/Downloads | grep 'OSE tarball' | sed 's/.*VirtualBox //' | sed 's/ OSE.*//'"
-source=(http://www.virtualbox.org/download/$(echo $pkgver|sed 's/_.*//')/${realname}-${pkgver/_/-}_OSE.tar.bz2 \
-	vboxsvc virtualbox get-vbox-additions README.Frugalware 60-virtualbox.rules \
-	use-o3-to-workaround-gcc-ice.diff virtualbox-gcc43-fixes.diff virtualbox-validate-op-gcc43.diff \
-	kernel-2.6.25.patch)
-sha1sums=('1cb11c012b9143e14f2eada645757cae8886d0d1' \
+source=(http://www.virtualbox.org/download/${pkgver}/${realname}-${pkgver}-OSE.tar.bz2 \
+	vboxsvc virtualbox get-vbox-additions README.Frugalware 60-virtualbox.rules)
+_F_cd_path="${realname}-${pkgver}"
+options=('scriptlet' 'genscriptlet')
+sha1sums=('6811a580b70e651f36002f344033e1db1858fdef' \
           'e32ebff11bb235b50f8826b70d85dbcf4a56aee4' \
           '3c0c856b9ad5f186405e87cf6eac09f1060b62cd' \
           '07f49d0c5fac8311ec87d1a38a981de9ba3a4e07' \
           '155be5405f4c91e5c7f4a51b5bac8fc4760a894c' \
-          'b9cb188f62148603b78a0b8c04b6fff369bb7b62' \
-          'f8875f474975d33ef2c8707bde4710c7c72f9727' \
-          '17f6f99a344ac9a088fef826249a38e6cce2c11d' \
-          'c2d014abf3801f0a87142fc3a6d08a782cd5ef9c' \
-          '6dfbfe1c50b78b17a6091e229abef77bf6e084ee')
-_F_cd_path="${realname}-$(echo $pkgver|sed 's/_.*//')_OSE"
-vboxrealpkgver="$(echo $pkgver|sed 's/_.*//')"
-options=('scriptlet')
+          'b9cb188f62148603b78a0b8c04b6fff369bb7b62')
 
 _F_desktop_name="$realname"
 _F_desktop_desc="InnoTek VirtualBox virtualization program"
@@ -43,11 +37,6 @@ _F_desktop_categories="System;"
 
 build() {
 	Fcd
-	Fpatchall
-
-	# Desktop file
-        Ffilerel src/VBox/Installer/linux/VBox.png /usr/share/pixmaps/vbox.png
-        Fdesktop2
 
 	## yeah fscking realize is 2007 and xfree died long time ago .. WTH!
 	Fsed '/usr/X11R6/bin/xterm' '/usr/bin/xterm' \
@@ -56,26 +45,12 @@ build() {
 	Fsed 'X11R6/' '' Config.kmk
 
 	# Configure and load our options
-	./configure \
-		--disable-pulse \
-		--with-xalan="-lxalan-c" \
-		--with-xerces="-lxerces-c" \
-		--with-qt-dir="/usr/lib/qt" || Fdie
+	./configure --with-gcc-compat=/usr/bin/gcc-4.1 --disable-pulse || Fdie
 	source ./env.sh || Fdie
-
-	# Build verbose so we can see what this *nice* kmk is doing ... -- crazy --
-	# FIXME: figure the other kmk crap switches and force building with our LDFLAGS etc -- crazy --
-	#kmk KBUILD_VERBOSE=2 \
-	#	TOOL_GCC3_CFLAGS="${CFLAGS}" TOOL_GCC3_CXXFLAGS="${CXXFLAGS}" TOOL_GCC3_LDFLAGS="${LDFLAGS}" \
-	#	TOOL_GCC3_CFLAGS.release="${CFLAGS}" TOOL_GCC3_CXXFLAGS.release="${CXXFLAGS}" all || Fdie
 
 	kmk KBUILD_VERBOSE=2 all || Fdie
 
 	# Kernel module
-	# Always create the dirs before 'make ...' because there is a check to test the dirs
-	# Anyway this is a 'chroot|cross building' problem only -- crazy --
-	# FIXME: kill that from here and use the kernel-module-src tarball
-	#        there is no need to rebuild all that while an kernel bump -- crazy --
 	Fmkdir ${_F_kernelmod_dir}/kernel/misc
 	cd out/linux.x86/release/bin/src || Fdie
 	make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=$Fdestdir/${_F_kernelmod_dir} \
@@ -89,18 +64,20 @@ build() {
 	rm -rf sdk src tst* testcase additions/src || Fdie
 	rm -f vboxdrv.ko SUPInstall SUPUninstall || Fdie
 	cp -R * $Fdestdir/usr/lib/VirtualBox/ || Fdie
-	## FIXME: that has to be done different - crazy -
 	for each in VBox{BFE,Manage,SDL,SVC,XPCOMIPCD,Tunctl} VirtualBox vditool additions/vboxadd-timesync ; do
 		chmod 0755 $Fdestdir/usr/lib/VirtualBox/${each} || Fdie
 	done
 
+	# Desktop file
+        Fln "/usr/lib/VirtualBox/VBox.png" "/usr/share/pixmaps/vbox.png"
+        Fdesktop2
+
 	# Install the wrappers
-	# FIXME: these wrappers are weird , do it different in 0.9 -- crazy --
 	Fexerel $Fsrcdir/vboxsvc /usr/bin/vboxsvc
 	Fexerel $Fsrcdir/virtualbox /usr/bin/virtualbox
-	## do it automagically so we don't forget to bump the version by accident =) (FS#2760)
 	Fsed "version=" "version=$vboxrealpkgver" $Fsrcdir/get-vbox-additions
 	Fexerel $Fsrcdir/get-vbox-additions /usr/bin/get-vbox-additions
+
 	## udev rule
 	Fexerel $Fsrcdir/60-virtualbox.rules /etc/udev/rules.d/60-virtualbox.rules
 

@@ -1,0 +1,64 @@
+# Compiling Time: 4.43 SBU
+# Contributor: VMiklos <vmiklos@frugalware.org>
+# Maintainer: Janny <janny@frugalware.org>
+
+pkgname=gcc-4.1
+pkgver=4.1.2
+pkgrel=1
+pkgdesc="The GNU Compiler Collection (4.1.x series)"
+url="http://gcc.gnu.org/gcc-4.1/"
+depends=('binutils' 'libstdc++')
+groups=('devel-extra')
+archs=('i686' 'x86_64')
+up2date="lynx -dump $url |grep 'GCC.*[0-9]$' |sed -n 's/.*C \(.*\)/\1/;1 p'"
+source=(ftp://gcc.gnu.org/pub/gcc/releases/gcc-$pkgver/gcc-$pkgver.tar.bz2)
+sha1sums=('7981b8d1b58b10ddfd7d5142eab16352d9206f3b')
+[ "$CARCH" == "x86_64" ] && Fconfopts="$Fconfopts --libdir=/usr/lib --disable-multilib"
+
+build()
+{
+	Fcd gcc-$pkgver
+	Fsed '../lib64 ../lib' '. ../lib' gcc/config/i386/t-linux64
+	mkdir ../$pkgname-build
+	cd ../$pkgname-build
+	CC="$FCC gcc" CFLAGS="$CFLAGS" CXXFLAGS="$CFLAGS" XCFLAGS="$CFLAGS" \
+	TCFLAGS="$CFLAGS" \
+	../gcc-$pkgver/configure $Fconfopts \
+		--enable-languages=c,c++ --enable-threads=posix \
+		--enable-__cxa_atexit --program-suffix=-4.1
+	
+	make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" bootstrap || return 1
+	
+	Fmakeinstall
+
+	# include/ contains install-tools/include/* and headers that were fixed
+	# up by fixincludes, we don't want former
+	for i in `find $Fdestdir/usr/lib/gcc/$CHOST/$pkgver/include/ -name \*.h`
+	do
+		if grep -q 'It has been auto-edited by fixincludes from' \
+			$i; then
+			rm -f $i
+		fi
+	done
+
+	Frm '/usr/bin/c++filt*' /usr/lib/libiberty.a
+	Fmkdir /lib
+	Fln ../usr/bin/cpp-4.1 /lib/cpp-4.1
+	Fln gcc-4.1 /usr/bin/cc-4.1
+	Fln g++-4.1 /usr/bin/c++-4.1
+	# conflicts
+	Frm usr/lib/libobjc.*
+	Frm usr/man/man1/{cpp.1,gcov.1} /usr/man/man7
+	Frm usr/info/gccinstall.info
+	Frm usr/share/locale/*/LC_MESSAGES/gcc.mo
+	Frm usr/lib/libstdc++.{a,la,so}
+	Frm usr/lib/libsupc++.*
+	Frm usr/share/locale/*/LC_MESSAGES/libstdc++.mo
+	Frm usr/lib/libstdc++.*
+	Frm usr/lib/libgcc_*
+	Frm usr/lib/libmudflap.* usr/lib/libmudflapth.*
+	Frm usr/lib/libssp.* usr/lib/libssp_nonshared.*
+	Frm usr/share/locale/*/LC_MESSAGES/cpplib.mo
+}
+
+# optimization ok

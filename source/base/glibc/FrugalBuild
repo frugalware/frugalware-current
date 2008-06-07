@@ -12,23 +12,17 @@ rodepends=('tzdata')
 groups=('base' 'chroot-core')
 archs=('i686' 'x86_64' 'ppc')
 Fup2gnugz
+## probably no releases as tarball anymore , see :
+## http://sources.redhat.com/ml/libc-alpha/2008-05/msg00069.html
 source=(http://ftp.gnu.org/pub/gnu/glibc/glibc-$pkgver.tar.bz2 \
 	glibc-2.7-fnstsw.diff)
 signatures=("$source.sig" '')
 
-## XEN disabled for 0.7
-#if [ "$CARCH" == "i686" ]; then
-#	subpkgs=('glibc-xen')
-#	subdescs=('GNU C Library for Xen.')
-#	subdepends=()
-#	subconflicts=('glibc')
-#	subprovides=('glibc')
-#	subgroups=('base-extra')
-#	subarchs=('i686')
-#fi
-
-_build()
+build()
 {
+	Fcd
+	Fsed 'x86_64 \| ' '' sysdeps/unix/sysv/linux/configure{,.in}
+	Fpatchall
 	Ffilerel nscd/nscd.conf /etc/nscd.conf
 	## use Fdie here and kill the build
 	## if we get any errors. -- crazy --
@@ -38,6 +32,7 @@ _build()
 	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CXX="g++" CC="gcc"  \
 	../glibc-$pkgver/configure \
 		--prefix=/usr \
+		--libdir=/usr/lib \
 		--with-tls \
 		--with-__thread \
 		--enable-add-ons=nptl \
@@ -63,24 +58,6 @@ _build()
 
 	Frm /usr/share/info/dir
 	cd - >/dev/null
-}
-
-build()
-{
-	# no multilib thanks
-	Fsed 'x86_64 \| ' '' sysdeps/unix/sysv/linux/configure{,.in}
-	Fpatchall
-	export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing"
-	export CFLAGS="$CFLAGS -fno-strict-aliasing"
-	## XEN stuff disable for 0.7
-	#if [ "$CARCH" == "i686" ]; then
-	#	xenflag="-mno-tls-direct-seg-refs"
-	#	export CFLAGS="$CFLAGS $xenflag"
-	#	_build || return 1
-	#	Fsplit glibc-xen /etc /lib /sbin /usr
-	#	export CFLAGS="${CFLAGS/ $xenflag}"
-	#fi
-	_build || Fdie
 }
 
 # optimization ok

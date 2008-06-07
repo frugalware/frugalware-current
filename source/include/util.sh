@@ -548,7 +548,7 @@ Fmake() {
 	Fconf "$@"
 	Fmessage "Compiling..."
 	if [ -f GNUmakefile -o -f makefile -o -f Makefile ]; then
-		make || Fdie
+		make CFLAGS="$CFLAGS" || Fdie
 	elif [ -f setup.py ]; then
 		python setup.py build "$@" || Fdie
 	elif [ -f setup.rb ]; then

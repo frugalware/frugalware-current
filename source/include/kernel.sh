@@ -249,6 +249,9 @@ Fbuildkernel()
 		cp $Fsrcdir/config .config || Fdie
 	fi
 
+	if [ -n "$_F_kernel_stable" ]; then
+		sed -i "/Linux kernel version:/s/: .*/: $_F_kernel_ver.$_F_kernel_stable/" .config
+	fi
 
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver

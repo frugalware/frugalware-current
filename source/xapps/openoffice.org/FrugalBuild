@@ -5,29 +5,34 @@
 pkgname=openoffice.org
 USE_DEVEL=${USE_DEVEL:-"n"}
 if ! Fuse $USE_DEVEL; then
-	upstream=2.4
-	branch=
+	upstream=2.4.1
+	branch=-2-4-1
 	tree=ooh680
-	milestone=12
+	dir=`echo $tree|tr [a-z] [A-Z]`
+	milestone=17
 	pkgver=$upstream
 	pkgrel=1
-	snapshot=r12054
+	snapshot=r12728
 else
-	upstream=2.4
-	branch=
+	upstream=2.4.1
+	branch=-2-4-1
 	tree=ooh680
-	milestone=6
+	dir=`echo $tree|tr [a-z] [A-Z]`
+	milestone=17
 	pkgver=$upstream${tree}_m$milestone
 	pkgrel=1
-	snapshot=r11544
+	snapshot=r12728
 fi
 pkgdesc="OpenOffice.org, a full office productivity suite."
 url="http://www.openoffice.org/"
+_F_gnome_desktop="y"
+Finclude gnome-scriptlet mono java
+unset install
 depends=('libxml2' 'libart_lgpl' 'libsndfile' 'libgcj-awt>=4.1.1-6' 'nas' 'fontconfig' 'libpng' 'imagemagick' \
 	 'flex' 'neon>=0.26.1' 'bison' 'zip' 'unzip' 'expat' 'cups' 'desktop-file-utils' 'perl-archive-zip' \
 	 'unixodbc' 'libxaw' 'libxslt' 'startup-notification' 'libwpd>=0.8.13')
 # this is here as gstreamer is only a makedepend
-rodepends=('flac')
+rodepends=('flac' 'dejavu-ttf')
 makedepends=('curl' 'intltool' 'tcsh' 'pam-headers' 'firefox' 'apache-ant' 'gcc-gcj' 'kdelibs>=3.5.5' \
 	     'evolution-data-server-ldap' 'boost' 'icu' 'hunspell' 'imake' 'gccmakedep' 'xalan-j' \
 	     'patch>=2.5.9' 'openclipart' 'xorg-server' 'gstreamer' 'gst-plugins-base' 'gnome-vfs' \
@@ -41,13 +46,12 @@ else
 	up2date="lynx -dump http://svn.gnome.org/viewcvs/ooo-build/trunk/configure.in?view=markup |grep ^DEFAULT_TAG|sed 's/DEFAULT_TAG=\(.*\)-\(.*\)/$upstream\1_\2/'"
 fi
 source=(http://ftp.frugalware.org/pub/other/sources/ooo-build/ooo-build$branch-$snapshot.tar.bz2 \
-	http://hu.openoffice.org/source/browse/*checkout*/hu/src/2.3.0/SDF/hu.sdf \
-	no-oc.diff)
-signatures=($source.asc '' '')
+	http://download.go-oo.org/$dir/$tree-m$milestone-core.tar.bz2 \
+	http://download.go-oo.org/$dir/$tree-m$milestone-lang.tar.bz2 \
+	http://download.go-oo.org/$dir/$tree-m$milestone-system.tar.bz2)
+signatures=($source.asc '' '' '')
+NOEXTRACT=1
 options=(${options[@]} 'scriptlet')
-_F_gnome_desktop="y"
-Finclude gnome-scriptlet mono
-unset install
 
 subpkgs=("$pkgname-kde" "$pkgname-gnome")
 subdescs=("$pkgname kde integration" "$pkgname gnome integration")
@@ -98,25 +102,27 @@ done
 
 build() {
 	Fmonoexport
+	Fextract ooo-build$branch-$snapshot.tar.bz2
 	if [ -n "$branch" ]; then
 		Fcd ooo-build-$(echo $branch|sed 's/^-//;s/-/./g')
 	else
 		Fcd ooo-build
 	fi
 
-	# Extra localizations
-	cp $Fsrcdir/hu.sdf src/GSI_hu.sdf || return 1
+	# Predownloaded tarballs
+	for i in $Fsrcdir/$tree-m$milestone-*
+	do
+		ln -sf $i src/
+	done
 
 	# Remove our patches so that incremental build will be possible.
-	rm -f patches/src680/no-oc.diff
+	#rm -f patches/src680/no-oc.diff
 	Fpatchall
-	# this would fail to apply
-	sed -i '/xulrunner-1.9.diff/d' patches/src680/apply
 
 	# SMP build
 	if [ ! -z "$MAKEFLAGS" ]; then
-		# Uncomment this if you really want an smp build. It may or may not work.
-		#Fconfopts="$Fconfopts --with-num-cpus=${MAKEFLAGS/-j}"
+		# Comment this out if you think the build failed because of being SMP.
+		Fconfopts="$Fconfopts --with-num-cpus=${MAKEFLAGS/-j}"
 		unset MAKEFLAGS
 	fi
 
@@ -130,19 +136,14 @@ build() {
 		--enable-hunspell \
 		--with-binsuffix=no \
 		--disable-dependency-tracking \
-		--with-fonts \
 		--with-installed-ooo-dirname=openoffice.org \
-		--with-mono-gac-root=/usr/lib \
-		--with-system-mozilla=firefox"
+		--with-mono-gac-root=/usr/lib"
 
 	# Set our version.
 	Fsed "AC_PACKAGE_VERSION" "$pkgver-$pkgrel" configure.in
 	autoconf || return 1
 
 	# Optimize build.
-	## HACK! don't remove or it eats your box got killed here while
-	## eating 3G mem ...
-	export CFLAGS="$(echo $CFLAGS|sed 's/-O2/-O0/')"
 	export ARCH_FLAGS="$CFLAGS"
 
 	if ! Fuse $USE_DEVEL; then

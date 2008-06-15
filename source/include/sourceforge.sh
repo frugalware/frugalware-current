@@ -97,7 +97,7 @@ else
 fi
 ## we have now regular $pkgver so use s/_/-/ but in case we have a custom _F_sourceforge_pkgver
 ## which is for 'source only' we don't need that since $pkgver is right already
-if [ -z $_F_sourceforge_pkgver ]; then
+if [ "$_F_sourceforge_pkgver" == "$pkgver" ]; then
 	source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver//_/-}${_F_sourceforge_ext})
 else
 	source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext})

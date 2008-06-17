@@ -58,11 +58,9 @@ _F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 # * source
 # * archs
 ###
-
-archs=('i686' 'x86_64')
-url="http://roscidus.com/desktop/software"
-up2date="lynx -dump 'http://sourceforge.net/project/showfiles.php?group_id=7023' | grep $_F_rox_updatename | head -n1 | sed 's|$_F_rox_updateext.*$||' | sed 's|^.*-||'"
-source=(http://downloads.sourceforge.net/rox/$pkgname$_F_rox_seperator$pkgver$_F_rox_updateext)
+_F_rox_index_page="http://roscidus.com/desktop/software"
+A=`lynx -dump '$_F_rox_index_page' | grep "$_F_rox_appname --" | sed -n '1p' | sed 's|.*\[\(.*\)].*|\1|'`
+url=`lynx -dump '$_F_rox_index_page' | grep ' $A. ' | sed 's|^.* ||'`
 
 ###
 # == PROVIDED FUNCTIONS

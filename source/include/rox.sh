@@ -12,21 +12,20 @@
 #
 # == EXAMPLE
 # --------------------------------------------------
-# pkgname=rox-load
-# pkgver=2.1.4
+# pkgname=rox-lib
+# pkgver=2.0.5
 # pkgrel=1
-# pkgdesc="This applet displays the load average of your system."
-# url="http://www.kerofin.demon.co.uk/rox/load.html"
-# license="GPL2"
-# up2date="lynx -dump $url|grep 'Load [0-9\.]\+[0-9]'|tail -n 1|cut -d ' ' -f 8"
-# source=(http://www.kerofin.demon.co.uk/rox/Load-$pkgver.tar.gz $pkgname)
-# sha1sums=('1be4ef2394dbdebaab9ebf7240aae93ee3a13177' \
-#           'b181a0765fb3323072aba1dfb4ac7abd6907c9fd')
-# groups=('rox-extra')
-# archs=('i686')
-# depends=('libgtop' 'rox-clib')
-# _F_rox_name="Load"
+# pkgdesc="An essential library for ROX Desktop."
+# _F_rox_name="ROX-Lib"
+# _F_rox_sep=2-
+# _F_sourceforge_name=${pkgname}2
+# _F_sourceforge_ext=.tar.bz2
 # Finclude rox
+# _F_rox_name=${_F_rox_name}2
+# rodepends=('rox-filer' 'pygtk')
+# groups=(${groups[@]} 'rox-core')
+# archs=('i686')
+# sha1sums=('62283301b4f2bb9fda5cafcd0785d4a8aa156914')
 # --------------------------------------------------
 #
 # == OPTIONS

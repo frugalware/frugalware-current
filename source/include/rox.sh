@@ -64,8 +64,8 @@ fi
 url=$url2
 options=(${options[@]} 'nodocs')
 groups=('rox-extra')
-unset A
-unset url2
+A=
+url2=
 
 ###
 # == PROVIDED FUNCTIONS
@@ -86,7 +86,7 @@ Frox_compile()
 
 Frox_mkdir()
 {
-	Fmkdir $_F_rox_fullpath /usr/share/doc
+	Fmkdir $_F_rox_installpath /usr/share/doc
 }
 
 Frox_setup()
@@ -108,18 +108,18 @@ Frox_setup()
 Frox_install()
 {
 	Fcp $_F_rox_appdir $_F_rox_installpath
-	Fmv $_F_rox_fullpath/Help /usr/share/doc/$pkgname-$pkgver
-	Fln /usr/share/doc/$pkgname-$pkgver $_F_rox_fullpath/Help
+	Fmv $_F_rox_installpath/Help /usr/share/doc/$pkgname-$pkgver
+	Fln /usr/share/doc/$pkgname-$pkgver $_F_rox_installpath/Help
 	Fdirschmod $_F_rox_installpath +r
 }
 
 Frox_cleanup()
 {
-	[ -d $Fdestdir/$_F_rox_fullpath/src ] && Frm $_F_rox_fullpath/src
-	[ -d $Fdestdir/$_F_rox_fullpath/build ] && Frm $_F_rox_fullpath/build
-	[ -f $Fdestdir/$_F_rox_fullpath/.cvsignore ] && Frm $_F_rox_fullpath/.cvsignore
-	[ -f $Fdestdir/$_F_rox_fullpath/.gitignore ] && Frm $_F_rox_fullpath/.gitignore
-	if [ -f $Fdestdir/$_F_rox_fullpath/.DirIcon ]; then
+	[ -d $Fdestdir/$_F_rox_installpath/src ] && Frm $_F_rox_installpath/src
+	[ -d $Fdestdir/$_F_rox_installpath/build ] && Frm $_F_rox_installpath/build
+	[ -f $Fdestdir/$_F_rox_installpath/.cvsignore ] && Frm $_F_rox_installpath/.cvsignore
+	[ -f $Fdestdir/$_F_rox_installpath/.gitignore ] && Frm $_F_rox_installpath/.gitignore
+	if [ -f $Fdestdir/$_F_rox_installpath/.DirIcon ]; then
 		if file .DirIcon | grep -q SVG; then
 			rodepends=(${rodepends[@]} 'librsvg')
 		fi

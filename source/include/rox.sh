@@ -63,6 +63,7 @@ if lynx -dump "$url2" | grep -q sourceforge.net; then
 fi
 url=$url2
 options=(${options[@]} 'nodocs')
+groups=('rox-extra')
 unset A
 unset url2
 

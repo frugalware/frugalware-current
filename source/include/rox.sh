@@ -30,17 +30,15 @@
 # --------------------------------------------------
 #
 # == OPTIONS
-# * _F_rox_appname - name of the rox app to install (mandatory)
-# * _F_rox_subdir - used to divide rox apps into group dirs (optional)
-# * _F_rox_updatename - used to finetune the default up2date (optional)
-# * _F_rox_updateext - used to finetune the default up2date (optional)
-# * _F_rox_seperator - use if you have an unusual directory path to the appdir (optional)
+# * _F_rox_appname - real name of the rox app, defaults to $pkgname
+# * _F_rox_subdir - used to install the rox app to a subdir of the install
+# path
+# * _F_rox_seperator - used to change the seperator between version and
+# $_F_rox_appname, if applicable.
 ###
 
-[ -z "$_F_rox_appname" ] && Fdie
+[ -z "$_F_rox_appname" ] && _F_rox_appname=$pkgname
 [ -z "$_F_rox_subdir" ] && _F_rox_subdir=
-[ -z "$_F_rox_updatename" ] && _F_rox_updatename=$pkgname
-[ -z "$_F_rox_updateext" ] && _F_rox_updateext=.tar.bz2
 [ -z "$_F_rox_seperator" ] && _F_rox_seperator=-
 if [ "`echo $pkgname | grep 'lib'`" != "" ]; then
 	_F_rox_installpath=/usr/lib/
@@ -54,7 +52,7 @@ _F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 # * url
 # * up2date
 # * source
-# * archs
+# * options
 ###
 _F_rox_index_page="http://roscidus.com/desktop/software"
 A=`lynx -dump '$_F_rox_index_page' | grep "$_F_rox_appname --" | sed -n '1p' | sed 's|.*\[\(.*\)].*|\1|'`

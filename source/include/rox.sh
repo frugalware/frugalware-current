@@ -25,49 +25,120 @@
 # groups=('rox-extra')
 # archs=('i686')
 # depends=('libgtop' 'rox-clib')
-# _F_app_dir="Load"
+# _F_rox_appname="Load"
 # Finclude rox
 # --------------------------------------------------
 #
 # == OPTIONS
-# * _F_app_dir: the name of the rox applet
+# * _F_rox_appname - name of the rox app to install (mandatory)
+# * _F_rox_subdir - used to divide rox apps into group dirs (optional)
+# * _F_rox_lib - set to 1 if installing a rox library (optional)
+# * _F_rox_updatename - used to finetune the default up2date (optional)
+# * _F_rox_updateext - used to finetune the default up2date (optional)
+# * _F_rox_seperator - use if you have an unusual directory path to the appdir (optional)
 ###
 
-[ -z "$_F_app_dir" ] && Fdie
+[ -z "$_F_rox_appname" ] && Fdie
+[ -z "$_F_rox_lib" ] && _F_rox_lib=0
+[ -z "$_F_rox_subdir" ] && _F_rox_subdir=
+[ -z "$_F_rox_updatename" ] && _F_rox_updatename=$pkgname
+[ -z "$_F_rox_updateext" ] && _F_rox_updateext=.tar.bz2
+[ -z "$_F_rox_seperator" ] && _F_rox_seperator=-
+if [ "$_F_rox_lib" -eq 1 ]; then
+	_F_rox_installpath=/usr/lib/
+else
+	_F_rox_installpath=/usr/share/Apps/
+fi
+_F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 
 ###
 # == OVERWRITTEN VARIABLES
-# * options
+# * url
+# * up2date
+# * source
+# * archs
 ###
-options=('nobuild')
+
+archs=('i686' 'x86_64')
+url="http://roscidus.com/desktop/software"
+up2date="lynx -dump 'http://sourceforge.net/project/showfiles.php?group_id=7023' | grep $_F_rox_updatename | head -n1 | sed 's|$_F_rox_updateext.*$||' | sed 's|^.*-||'"
+source=(http://downloads.sourceforge.net/rox/$pkgname$_F_rox_seperator$pkgver$_F_rox_updateext)
 
 ###
 # == PROVIDED FUNCTIONS
-# * Froxbuild()
+# * Frox_compile()
+# * Frox_mkdir()
+# * Frox_setup()
+# * Frox_install()
+# * Frox_cleanup()
+# * Fbuild_rox()
 ###
-Froxbuild()
+
+Frox_compile()
 {
-	Fcd $_F_app_dir
-	if [ -d src ] ; then ./AppRun --compile || Fdie ; fi
-	if [ -f libdir ] ; then Fsed '/usr/apps' '/usr/share/Apps' libdir ; fi
-	Fmkdir /usr/{bin,share/{Apps,doc}}
-	Fcpr $_F_app_dir /usr/share/Apps/
-	[ -d $Fdestdir/usr/share/Apps/$_F_app_dir/src ] && \
-		Frm /usr/share/Apps/$_F_app_dir/src
-	[ -f $Fdestdir/usr/share/Apps/$_F_app_dir/.cvsignore ] && \
-		Frm /usr/share/Apps/$_F_app_dir/.cvsignore
-	Fln /usr/share/Apps/$F_appdir/Help /usr/share/doc/$pkgname-$pkgver
-	if [ -f $Fsrcdir/$pkgname ] ; then
-		Fexe /usr/bin/$pkgname
-	else
-		Fln /usr/share/Apps/$_F_app_dir/AppRun /usr/bin/$pkgname
+	if [ -d $Fsrcdir/$_F_rox_appdir/src ]; then 
+		./AppRun --compile CC="gcc $CFLAGS" || Fdie
 	fi
 }
 
+Frox_mkdir()
+{
+	[ "$_F_rox_lib" -eq 0 ] && Fmkdir /usr/bin
+	Fmkdir $_F_rox_fullpath /usr/share/doc
+}
+
+Frox_setup()
+{
+	if [ ! -d "$Fsrcdir/$_F_rox_appname" ]; then
+		if [ -d "$Fsrcdir/$pkgname$_F_rox_seperator$pkgver/$_F_rox_appname" ]; then
+			_F_rox_appdir=$pkgname$_F_rox_seperator$pkgver/$_F_rox_appname
+		else
+			error "The appdir cannot be found."
+			Fdie
+		fi
+	else
+		_F_rox_appdir=$_F_rox_appname
+	fi
+	Fcd $_F_rox_appdir
+	_F_rox_fullpath=$_F_rox_installpath/$_F_rox_appname
+}
+
+Frox_install()
+{
+	Fcp $_F_rox_appdir $_F_rox_installpath
+	Fmv $_F_rox_fullpath/Help /usr/share/doc/$pkgname-$pkgver
+	Fln /usr/share/doc/$pkgname-$pkgver $_F_rox_fullpath/Help
+
+	if [ "$_F_rox_lib" -eq 0 ]; then
+		if [ -f $Fsrcdir/$pkgname ]; then
+			Fexe /usr/bin/$pkgname
+		fi
+	fi
+}
+
+Frox_cleanup()
+{
+	[ -d $Fdestdir/$_F_rox_fullpath/src ] && Frm $_F_rox_fullpath/src
+	[ -d $Fdestdir/$_F_rox_fullpath/build ] && Frm $_F_rox_fullpath/build
+	[ -f $Fdestdir/$_F_rox_fullpath/.cvsignore ] && Frm $_F_rox_fullpath/.cvsignore
+	[ -f $Fdestdir/$_F_rox_fullpath/.gitignore ] && Frm $_F_rox_fullpath/.gitignore
+}
+
+Fbuild_rox()
+{
+	Frox_setup
+	Frox_compile
+	Frox_mkdir
+	Frox_install
+	Frox_cleanup
+	Fmessage "Entering final preparation phase..."
+}
+
 ###
-# * build() just calls Froxbuild()
+# * build() simply calls Fbuild_rox()
 ###
+
 build()
 {
-	Froxbuild
+	Fbuild_rox
 }

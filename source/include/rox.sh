@@ -25,22 +25,22 @@
 # groups=('rox-extra')
 # archs=('i686')
 # depends=('libgtop' 'rox-clib')
-# _F_rox_appname="Load"
+# _F_rox_name="Load"
 # Finclude rox
 # --------------------------------------------------
 #
 # == OPTIONS
-# * _F_rox_appname - real name of the rox app, defaults to $pkgname
+# * _F_rox_name - real name of the rox app, defaults to $pkgname
 # * _F_rox_subdir - used to install the rox app to a subdir of the install
 # path
-# * _F_rox_seperator - used to change the seperator between version and
-# $_F_rox_appname, if applicable.
+# * _F_rox_sep - used to change the seperator between version and
+# $_F_rox_name, if applicable.
 ###
 
-[ -z "$_F_rox_appname" ] && _F_rox_appname=$pkgname
+[ -z "$_F_rox_name" ] && _F_rox_name=$pkgname
 [ -z "$_F_rox_subdir" ] && _F_rox_subdir=
-[ -z "$_F_rox_seperator" ] && _F_rox_seperator=-
-if [ "`echo $pkgname | grep 'lib'`" != "" ]; then
+[ -z "$_F_rox_sep" ] && _F_rox_sep=-
+if echo $pkgname | grep -q lib; then
 	_F_rox_installpath=/usr/lib/
 else
 	_F_rox_installpath=/usr/share/Apps/
@@ -55,9 +55,9 @@ _F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 # * options (nodocs appended)
 ###
 _F_rox_index_page="http://roscidus.com/desktop/software"
-A=`lynx -dump '$_F_rox_index_page' | grep "$_F_rox_appname --" | sed -n '1p' | sed 's|.*\[\(.*\)].*|\1|'`
-url2=`lynx -dump '$_F_rox_index_page' | grep ' $A. ' | sed 's|^.* ||'`
-if [ "`lynx -dump '$url2' | grep 'sourceforge'`" != "" ]; then
+A=`lynx -dump "$_F_rox_index_page" | grep "$_F_rox_name --" | sed -n '1p' | sed 's|.*\[\(.*\)].*|\1|'`
+url2=`lynx -dump "$_F_rox_index_page" | grep ' $A. ' | sed 's|^.* ||'`
+if lynx -dump "$url2" | grep -q sourceforge.net; then
         _F_sourceforge_dirname=rox
         Finclude sourceforge
 fi
@@ -90,18 +90,18 @@ Frox_mkdir()
 
 Frox_setup()
 {
-	if [ ! -d "$Fsrcdir/$_F_rox_appname" ]; then
-		if [ -d "$Fsrcdir/$pkgname$_F_rox_seperator$pkgver/$_F_rox_appname" ]; then
-			_F_rox_appdir=$pkgname$_F_rox_seperator$pkgver/$_F_rox_appname
+	if [ ! -d "$Fsrcdir/$_F_rox_name" ]; then
+		if [ -d "$Fsrcdir/$pkgname$_F_rox_sep$pkgver/$_F_rox_name" ]; then
+			_F_rox_appdir=$pkgname$_F_rox_sep$pkgver/$_F_rox_name
 		else
 			error "The appdir cannot be found."
 			Fdie
 		fi
 	else
-		_F_rox_appdir=$_F_rox_appname
+		_F_rox_appdir=$_F_rox_name
 	fi
 	Fcd $_F_rox_appdir
-	_F_rox_installpath="$_F_rox_installpath$_F_rox_appname"
+	_F_rox_installpath="$_F_rox_installpath$_F_rox_name"
 }
 
 Frox_install()
@@ -119,7 +119,7 @@ Frox_cleanup()
 	[ -f $Fdestdir/$_F_rox_fullpath/.cvsignore ] && Frm $_F_rox_fullpath/.cvsignore
 	[ -f $Fdestdir/$_F_rox_fullpath/.gitignore ] && Frm $_F_rox_fullpath/.gitignore
 	if [ -f $Fdestdir/$_F_rox_fullpath/.DirIcon ]; then
-		if [ "`file .DirIcon | grep SVG`" != "" ]; then
+		if file .DirIcon | grep -q SVG; then
 			rodepends=(${rodepends[@]} 'librsvg')
 		fi
 	fi

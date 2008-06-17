@@ -58,9 +58,16 @@ _F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 ###
 _F_rox_index_page="http://roscidus.com/desktop/software"
 A=`lynx -dump '$_F_rox_index_page' | grep "$_F_rox_appname --" | sed -n '1p' | sed 's|.*\[\(.*\)].*|\1|'`
-url=`lynx -dump '$_F_rox_index_page' | grep ' $A. ' | sed 's|^.* ||'`
+url2=`lynx -dump '$_F_rox_index_page' | grep ' $A. ' | sed 's|^.* ||'`
+if [ "`lynx -dump '$url2' | grep 'sourceforge'`" != "" ]; then
+        _F_sourceforge_dirname=rox
+        Finclude sourceforge
+fi
+url=$url2
 # disable nodocs since we already handle that
 options=(${options[@]} 'nodocs')
+unset A
+unset url2
 
 ###
 # == PROVIDED FUNCTIONS

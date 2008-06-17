@@ -32,19 +32,17 @@
 # == OPTIONS
 # * _F_rox_appname - name of the rox app to install (mandatory)
 # * _F_rox_subdir - used to divide rox apps into group dirs (optional)
-# * _F_rox_lib - set to 1 if installing a rox library (optional)
 # * _F_rox_updatename - used to finetune the default up2date (optional)
 # * _F_rox_updateext - used to finetune the default up2date (optional)
 # * _F_rox_seperator - use if you have an unusual directory path to the appdir (optional)
 ###
 
 [ -z "$_F_rox_appname" ] && Fdie
-[ -z "$_F_rox_lib" ] && _F_rox_lib=0
 [ -z "$_F_rox_subdir" ] && _F_rox_subdir=
 [ -z "$_F_rox_updatename" ] && _F_rox_updatename=$pkgname
 [ -z "$_F_rox_updateext" ] && _F_rox_updateext=.tar.bz2
 [ -z "$_F_rox_seperator" ] && _F_rox_seperator=-
-if [ "$_F_rox_lib" -eq 1 ]; then
+if [ "`echo $pkgname | grep 'lib'`" != "" ]; then
 	_F_rox_installpath=/usr/lib/
 else
 	_F_rox_installpath=/usr/share/Apps/
@@ -61,6 +59,8 @@ _F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 _F_rox_index_page="http://roscidus.com/desktop/software"
 A=`lynx -dump '$_F_rox_index_page' | grep "$_F_rox_appname --" | sed -n '1p' | sed 's|.*\[\(.*\)].*|\1|'`
 url=`lynx -dump '$_F_rox_index_page' | grep ' $A. ' | sed 's|^.* ||'`
+# disable nodocs since we already handle that
+options=(${options[@]} 'nodocs')
 
 ###
 # == PROVIDED FUNCTIONS

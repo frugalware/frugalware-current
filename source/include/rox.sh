@@ -2,7 +2,7 @@
 
 ###
 # = rox.sh(3)
-# Marcus Habermehl <bmh1980@frugalware.org>
+# James Buren <ryuo@frugalware.org>
 #
 # == NAME
 # rox.sh - for Frugalware
@@ -50,9 +50,9 @@ _F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 ###
 # == OVERWRITTEN VARIABLES
 # * url
-# * up2date
-# * source
-# * options
+# * up2date (only for sourceforge)
+# * source (only for sourceforge)
+# * options (nodocs appended)
 ###
 _F_rox_index_page="http://roscidus.com/desktop/software"
 A=`lynx -dump '$_F_rox_index_page' | grep "$_F_rox_appname --" | sed -n '1p' | sed 's|.*\[\(.*\)].*|\1|'`
@@ -62,7 +62,6 @@ if [ "`lynx -dump '$url2' | grep 'sourceforge'`" != "" ]; then
         Finclude sourceforge
 fi
 url=$url2
-# disable nodocs since we already handle that
 options=(${options[@]} 'nodocs')
 unset A
 unset url2
@@ -79,14 +78,13 @@ unset url2
 
 Frox_compile()
 {
-	if [ -d $Fsrcdir/$_F_rox_appdir/src ]; then 
+	if [ -d $Fsrcdir/$_F_rox_appdir/src ]; then
 		./AppRun --compile CC="gcc $CFLAGS" || Fdie
 	fi
 }
 
 Frox_mkdir()
 {
-	[ "$_F_rox_lib" -eq 0 ] && Fmkdir /usr/bin
 	Fmkdir $_F_rox_fullpath /usr/share/doc
 }
 
@@ -103,7 +101,7 @@ Frox_setup()
 		_F_rox_appdir=$_F_rox_appname
 	fi
 	Fcd $_F_rox_appdir
-	_F_rox_fullpath=$_F_rox_installpath/$_F_rox_appname
+	_F_rox_installpath="$_F_rox_installpath$_F_rox_appname"
 }
 
 Frox_install()
@@ -111,12 +109,7 @@ Frox_install()
 	Fcp $_F_rox_appdir $_F_rox_installpath
 	Fmv $_F_rox_fullpath/Help /usr/share/doc/$pkgname-$pkgver
 	Fln /usr/share/doc/$pkgname-$pkgver $_F_rox_fullpath/Help
-
-	if [ "$_F_rox_lib" -eq 0 ]; then
-		if [ -f $Fsrcdir/$pkgname ]; then
-			Fexe /usr/bin/$pkgname
-		fi
-	fi
+	Fdirschmod $_F_rox_installpath +r
 }
 
 Frox_cleanup()
@@ -125,6 +118,11 @@ Frox_cleanup()
 	[ -d $Fdestdir/$_F_rox_fullpath/build ] && Frm $_F_rox_fullpath/build
 	[ -f $Fdestdir/$_F_rox_fullpath/.cvsignore ] && Frm $_F_rox_fullpath/.cvsignore
 	[ -f $Fdestdir/$_F_rox_fullpath/.gitignore ] && Frm $_F_rox_fullpath/.gitignore
+	if [ -f $Fdestdir/$_F_rox_fullpath/.DirIcon ]; then
+		if [ "`file .DirIcon | grep SVG`" != "" ]; then
+			rodepends=(${rodepends[@]} 'librsvg')
+		fi
+	fi
 }
 
 Fbuild_rox()
@@ -134,7 +132,6 @@ Fbuild_rox()
 	Frox_mkdir
 	Frox_install
 	Frox_cleanup
-	Fmessage "Entering final preparation phase..."
 }
 
 ###

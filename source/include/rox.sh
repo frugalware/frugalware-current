@@ -107,7 +107,7 @@ Frox_setup()
 
 Frox_install()
 {
-	Fcp $_F_rox_appdir $_F_rox_installpath
+	Fcp $_F_rox_appdir `echo "$_F_rox_installpath" | sed 's|\(.*\)/.*|\1|'`
 	Fmv $_F_rox_installpath/Help /usr/share/doc/$pkgname-$pkgver
 	Fln /usr/share/doc/$pkgname-$pkgver $_F_rox_installpath/Help
 	Fdirschmod $_F_rox_installpath +r

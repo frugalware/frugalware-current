@@ -39,6 +39,7 @@ rodepends=('firefox>=3.0')
 makedepends=('unzip')
 groups=('locale-extra')
 archs=('i686' 'x86_64')
+options=('noversrc')
 
 ###
 # == PROVIDED FUNCTIONS

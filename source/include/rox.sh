@@ -30,6 +30,8 @@
 #
 # == OPTIONS
 # * _F_rox_name - real name of the rox app, defaults to $pkgname
+# * _F_rox_override - set to 1 if you wish to disable automatic detection
+# of url, and up2date/source if sourceforge is used.
 # * _F_rox_subdir - used to install the rox app to a subdir of the install
 # path
 # * _F_rox_sep - used to change the seperator between version and
@@ -39,6 +41,7 @@
 [ -z "$_F_rox_name" ] && _F_rox_name=$pkgname
 [ -z "$_F_rox_subdir" ] && _F_rox_subdir=
 [ -z "$_F_rox_sep" ] && _F_rox_sep=-
+[ -z "$_F_rox_override" ] && _F_rox_override=0
 if echo $pkgname | grep -q lib; then
 	_F_rox_installpath=/usr/lib/
 else
@@ -53,18 +56,21 @@ _F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 # * source (only for sourceforge)
 # * options (nodocs appended)
 ###
-_F_rox_index_page="http://roscidus.com/desktop/software"
-A=`lynx -dump "$_F_rox_index_page" | grep "]$_F_rox_name --" | sed -n '1p' | sed 's|.*\[\(.*\)].*|\1|'`
-url2=`lynx -dump "$_F_rox_index_page" | grep " $A. " | sed 's|^.* ||'`
-if lynx -dump "$url2" | grep -v http://sourceforge.net/projects/rox | grep -q sourceforge.net; then
-        _F_sourceforge_dirname=rox
-        Finclude sourceforge
+if [ "$_F_rox_override" -eq 0 ]; then
+	_F_rox_index_page="http://roscidus.com/desktop/software"
+	A=`lynx -dump "$_F_rox_index_page" | grep "]$_F_rox_name --" | sed -n '1p' | sed 's|.*\[\(.*\)].*|\1|'`
+	url2=`lynx -dump "$_F_rox_index_page" | grep " $A. " | sed 's|^.* ||'`
+	if lynx -dump "$url2" | grep -v http://sourceforge.net/projects/rox | grep -q sourceforge.net; then
+        	_F_sourceforge_dirname=rox
+        	Finclude sourceforge
+	fi
+	url=$url2
+	unset A
+	unset url2
 fi
-url=$url2
+
 options=(${options[@]} 'nodocs')
 groups=('rox-extra')
-A=
-url2=
 
 ###
 # == PROVIDED FUNCTIONS

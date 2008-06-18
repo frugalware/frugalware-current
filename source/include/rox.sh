@@ -61,7 +61,7 @@ if [ "$_F_rox_override" -eq 0 ]; then
 	A=`lynx -dump "$_F_rox_index_page" | grep "]$_F_rox_name --" | sed -n '1p' | sed 's|.*\[\(.*\)].*|\1|'`
 	url2=`lynx -dump "$_F_rox_index_page" | grep " $A. " | sed 's|^.* ||'`
 	if lynx -dump "$url2" | grep -v http://sourceforge.net/projects/rox | grep -q sourceforge.net; then
-        	_F_sourceforge_dirname=rox
+        	[ -z "$_F_sourceforge_dirname" ] && _F_sourceforge_dirname=rox
         	Finclude sourceforge
 	fi
 	url=$url2

@@ -64,7 +64,8 @@ Fxpiinstall()
 		Fmkdir /usr/lib/firefox/extensions/$_F_firefox_id
 		cd $Fdestdir/usr/lib/firefox/extensions/$_F_firefox_id
 	fi
-	unzip -qqo $Fsrcdir/$_F_firefox_ext-$pkgver.xpi || return 1
+	unzip -qqo $Fsrcdir/$_F_firefox_ext-$pkgver.xpi || Fdie
+	chmod 644 install.rdf || Fdie
 	Fpatchall
 	if [ -z "$_F_firefox_nocurly" ]; then
 		Ffile /usr/lib/firefox/extensions/\{$_F_firefox_id\}/chrome.manifest

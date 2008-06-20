@@ -124,11 +124,6 @@ Frox_cleanup()
 	[ -d $Fdestdir/$_F_rox_installpath/build ] && Frm $_F_rox_installpath/build
 	[ -f $Fdestdir/$_F_rox_installpath/.cvsignore ] && Frm $_F_rox_installpath/.cvsignore
 	[ -f $Fdestdir/$_F_rox_installpath/.gitignore ] && Frm $_F_rox_installpath/.gitignore
-	if [ -f $Fdestdir/$_F_rox_installpath/.DirIcon ]; then
-		if file .DirIcon | grep -q SVG; then
-			rodepends=(${rodepends[@]} 'librsvg')
-		fi
-	fi
 }
 
 Fbuild_rox()

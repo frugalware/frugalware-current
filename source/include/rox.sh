@@ -133,6 +133,7 @@ Fbuild_rox()
 	Frox_mkdir
 	Frox_install
 	Frox_cleanup
+	Fmessage "Entering packaging phase..."
 }
 
 ###

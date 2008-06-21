@@ -17,4 +17,4 @@
 ###
 _F_kernelver_ver=2.6.25
 _F_kernelver_rel=6
-_F_kernelver_stable=6
+_F_kernelver_stable=7

@@ -1,0 +1,288 @@
+diff -Naur libxml++-2.22.0/libxml++/nodes/element.cc libxml++-2.23.1/libxml++/nodes/element.cc
+--- libxml++-2.22.0/libxml++/nodes/element.cc	2008-01-17 14:56:54.000000000 +0530
++++ libxml++-2.23.1/libxml++/nodes/element.cc	2008-06-24 18:59:04.000000000 +0530
+@@ -156,6 +156,40 @@
+   return 0;
+ }
+ 
++TextNode* Element::add_child_text(xmlpp::Node* previous_sibling, const Glib::ustring& content)
++{
++  if(!previous_sibling)
++    return 0;
++
++  if(cobj()->type == XML_ELEMENT_NODE)
++  {
++     xmlNode* node = xmlNewText((const xmlChar*)content.c_str());
++
++     // Use the result, because node can be freed when merging text nodes:
++     node = xmlAddNextSibling(previous_sibling->cobj(), node); 
++
++     return static_cast<TextNode*>(node->_private);
++  }
++  return 0;
++}
++
++TextNode* Element::add_child_text_before(xmlpp::Node* next_sibling, const Glib::ustring& content)
++{
++  if(!next_sibling)
++    return 0;
++
++  if(cobj()->type == XML_ELEMENT_NODE)
++  {
++     xmlNode* node = xmlNewText((const xmlChar*)content.c_str());
++
++     // Use the result, because node can be freed when merging text nodes:
++     node = xmlAddPrevSibling(next_sibling->cobj(), node); 
++
++     return static_cast<TextNode*>(node->_private);
++  }
++  return 0;
++}
++
+ bool Element::has_child_text() const
+ {
+   return get_child_text() != 0;
+diff -Naur libxml++-2.22.0/libxml++/nodes/element.h libxml++-2.23.1/libxml++/nodes/element.h
+--- libxml++-2.22.0/libxml++/nodes/element.h	2008-01-17 14:56:54.000000000 +0530
++++ libxml++-2.23.1/libxml++/nodes/element.h	2008-06-24 18:59:04.000000000 +0530
+@@ -94,6 +94,26 @@
+    */
+   TextNode* add_child_text(const Glib::ustring& content = Glib::ustring());
+ 
++  /** Add a new text node after the specified existing child node.
++   *
++   * @newin2p24
++   *
++   * @param previous_sibling An existing child node.
++   * @param content The text. This should be unescaped - see ContentNode::set_content().
++   * @returns The new text node.
++   */
++  TextNode* add_child_text(xmlpp::Node* previous_sibling, const Glib::ustring& content = Glib::ustring());
++
++  /** Add a new text node before the specified existing child node.
++   *
++   * @newin2p24
++   *
++   * @param next_sibling An existing child node.
++   * @param content The text. This should be unescaped - see ContentNode::set_content().
++   * @returns The new text node.
++   */
++  TextNode* add_child_text_before(xmlpp::Node* next_sibling, const Glib::ustring& content = Glib::ustring());
++
+   /** Set the text of the first text node, adding one if necessary.
+    * This is a convenience method, meant as an alternative to iterating over all the child nodes to find the first suitable node then and setting the text directly.
+    * @param content The text. This should be unescaped - see ContentNode::set_content().
+diff -Naur libxml++-2.22.0/libxml++/nodes/node.cc libxml++-2.23.1/libxml++/nodes/node.cc
+--- libxml++-2.22.0/libxml++/nodes/node.cc	2008-01-17 14:56:54.000000000 +0530
++++ libxml++-2.23.1/libxml++/nodes/node.cc	2008-06-24 18:59:04.000000000 +0530
+@@ -97,7 +97,55 @@
+ Element* Node::add_child(const Glib::ustring& name,
+                          const Glib::ustring& ns_prefix)
+ {
+-   xmlNode* node = 0;
++  _xmlNode* child = create_new_child_node(name, ns_prefix);
++  if(!child)
++    return 0;
++
++  _xmlNode* node = xmlAddChild(impl_, child);
++  if(node)
++    return static_cast<Element*>(node->_private);
++  else
++     return 0;
++}
++
++Element* Node::add_child(xmlpp::Node* previous_sibling, 
++                         const Glib::ustring& name,
++                         const Glib::ustring& ns_prefix)
++{
++  if(!previous_sibling)
++    return 0;
++
++  _xmlNode* child = create_new_child_node(name, ns_prefix);
++  if(!child)
++    return 0;
++
++  _xmlNode* node = xmlAddNextSibling(previous_sibling->cobj(), child);
++  if(node)
++    return static_cast<Element*>(node->_private);
++  else
++     return 0;
++}
++
++Element* Node::add_child_before(xmlpp::Node* next_sibling, 
++                         const Glib::ustring& name,
++                         const Glib::ustring& ns_prefix)
++{
++  if(!next_sibling)
++    return 0;
++
++  _xmlNode* child = create_new_child_node(name, ns_prefix);
++  if(!child)
++    return 0;
++
++  _xmlNode* node = xmlAddPrevSibling(next_sibling->cobj(), child);
++  if(node)
++    return static_cast<Element*>(node->_private);
++  else
++     return 0;
++}
++
++_xmlNode* Node::create_new_child_node(const Glib::ustring& name, const Glib::ustring& ns_prefix)
++{
+    xmlNs* ns = 0;
+ 
+    if(impl_->type != XML_ELEMENT_NODE)
+@@ -124,14 +172,10 @@
+      }
+    }
+ 
+-   node = xmlAddChild(impl_, xmlNewNode(ns, (const xmlChar*)name.c_str()));
+-
+-   if(node)
+-     return static_cast<Element*>(node->_private);
+-   else
+-     return 0;
++   return xmlNewNode(ns, (const xmlChar*)name.c_str());
+ }
+ 
++
+ void Node::remove_child(Node* node)
+ {
+   //TODO: Allow a node to be removed without deleting it, to allow it to be moved?
+diff -Naur libxml++-2.22.0/libxml++/nodes/node.h libxml++-2.23.1/libxml++/nodes/node.h
+--- libxml++-2.22.0/libxml++/nodes/node.h	2007-08-13 18:17:18.000000000 +0530
++++ libxml++-2.23.1/libxml++/nodes/node.h	2008-06-24 18:59:04.000000000 +0530
+@@ -20,7 +20,8 @@
+ }
+ #endif //DOXYGEN_SHOULD_SKIP_THIS
+ 
+-namespace xmlpp {
++namespace xmlpp
++{
+ 
+ class TextNode;
+ class Element;
+@@ -50,7 +51,7 @@
+    */
+   void set_name(const Glib::ustring& name);
+ 
+-  /** Set the namespace prefix used by the node
++  /** Set the namespace prefix used by the node.
+    * If no such namespace prefix has been declared then this method will throw an exception.
+    * @param ns_prefix The namespace prefix.
+    */
+@@ -64,32 +65,32 @@
+    */
+   int get_line() const;
+   
+-  /** Get the parent element for this node 
++  /** Get the parent element for this node.
+    * @returns The parent node
+    */
+   const Element* get_parent() const;  
+ 
+-  /** Get the parent element for this node 
++  /** Get the parent element for this node.
+    * @returns The parent node
+    */
+   Element* get_parent();  
+ 
+-  /** Get the next sibling for this node 
++  /** Get the next sibling for this node.
+    * @returns The next sibling
+    */
+   const Node* get_next_sibling() const;  
+ 
+-  /** Get the next sibling for this node 
++  /** Get the next sibling for this node.
+    * @returns The next sibling
+    */
+   Node* get_next_sibling();  
+ 
+-  /** Get the previous sibling for this node 
++  /** Get the previous sibling for this node .
+    * @returns The previous sibling
+    */
+   const Node* get_previous_sibling() const;  
+ 
+-  /** Get the previous sibling for this node 
++  /** Get the previous sibling for this node.
+    * @returns The previous sibling
+    */
+   Node* get_previous_sibling();  
+@@ -106,7 +107,7 @@
+    */
+   const NodeList get_children(const Glib::ustring& name = Glib::ustring()) const;
+ 
+-  /** Add a child element to this node
++  /** Add a child element to this node.
+    * @param name The new node name
+    * @param ns_prefix The namespace prefix. If the prefix has not been declared then this method will throw an exception.
+    * @returns The newly-created element
+@@ -114,6 +115,30 @@
+   Element* add_child(const Glib::ustring& name,
+                      const Glib::ustring& ns_prefix = Glib::ustring());
+ 
++  /** Add a child element to this node after the specified existing child node.
++   *
++   * @newin2p24
++   *
++   * @param previous_sibling An existing child node.
++   * @param name The new node name
++   * @param ns_prefix The namespace prefix. If the prefix has not been declared then this method will throw an exception.
++   * @returns The newly-created element
++   */
++  Element* add_child(xmlpp::Node* previous_sibling, const Glib::ustring& name,
++                     const Glib::ustring& ns_prefix = Glib::ustring());
++
++  /** Add a child element to this node before the specified existing child node.
++   *
++   * @newin2p24
++   *
++   * @param next_sibling An existing child node.
++   * @param name The new node name
++   * @param ns_prefix The namespace prefix. If the prefix has not been declared then this method will throw an exception.
++   * @returns The newly-created element
++   */
++  Element* add_child_before(xmlpp::Node* next_sibling, const Glib::ustring& name,
++                     const Glib::ustring& ns_prefix = Glib::ustring());
++
+   /** Remove the child node.
+    * @param node The child node to remove. This Node will be deleted and therefore unusable after calling this method.
+    */
+@@ -127,12 +152,12 @@
+   Node* import_node(const Node* node, bool recursive = true);
+ 
+   
+-  /** Return the XPath of this node
++  /** Return the XPath of this node.
+    * @result The XPath of the node.
+    */
+   Glib::ustring get_path() const;
+ 
+-  /** Find nodes from a XPath expression
++  /** Find nodes from a XPath expression.
+    * @param xpath The XPath of the nodes.
+    */
+   NodeSet find(const Glib::ustring& xpath) const;
+@@ -141,7 +166,7 @@
+    */
+   typedef std::map<Glib::ustring, Glib::ustring> PrefixNsMap;
+ 
+-  /** Find nodes from a XPath expression
++  /** Find nodes from a XPath expression.
+    * @param xpath The XPath of the nodes.
+    * @param namespaces A map of namespace prefixes to namespace URIs to be used while finding.
+    */
+@@ -154,6 +179,11 @@
+   ///Access the underlying libxml implementation.
+   const _xmlNode* cobj() const;
+ 
++protected:
++
++  ///Create the C instance ready to be added to the parent node.
++  _xmlNode* create_new_child_node(const Glib::ustring& name, const Glib::ustring& ns_prefix);
++
+ private:
+   _xmlNode* impl_;
+ };

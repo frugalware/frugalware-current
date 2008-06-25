@@ -32,9 +32,11 @@
 # == OPTIONS
 # * _F_rox_name - real name of the rox app, defaults to $pkgname
 # * _F_rox_use_sourceforge - enable the use of sourceforge, and some other
-# defaults that go with it
+# defaults that go with it (do not use with the others)
 # * _F_rox_use_kerofin - enable the use of one of the other sources of rox
-# desktop software
+# desktop software (do not use with the others)
+# * _F_rox_use_rox4debian - enable the use of one of the other sources of rox
+# desktop software (do not use with the others)
 # * _F_rox_subdir - used to install the rox app to a subdir of the install
 # path
 # * _F_rox_sep - used to change the seperator between version and
@@ -46,6 +48,7 @@
 [ -z "$_F_rox_sep" ] && _F_rox_sep=-
 [ -z "$_F_rox_use_sourceforge" ] && _F_rox_use_sourceforge=0
 [ -z "$_F_rox_use_kerofin" ] && _F_rox_use_kerofin=0
+[ -z "$_F_rox_use_rox4debian" ] && _F_rox_use_rox4debian=0
 if echo $pkgname | grep -q lib; then
 	_F_rox_installpath=/usr/lib/
 else
@@ -73,6 +76,19 @@ if [ "$_F_rox_use_kerofin" -eq 1 ]; then
 	_F_archive_name="$_F_rox_name"
 	up2date="Flasttar $url"
 	source=($_F_rox_kerofin_url/$_F_rox_name-$pkgver.tar.gz)
+fi
+
+if [ "$_F_rox_use_rox4debian" -eq 1 ]; then
+	_F_rox_rox4debian_url="ftp://ftp.berlios.de/pub/rox4debian"
+	if echo $pkgname | grep -q lib; then
+		_F_rox_rox4debian_url="$_F_rox_rox4debian_url/libs"
+	else
+		_F_rox_rox4debian_url="$_F_rox_rox4debian_url/apps"
+	fi
+	url="$_F_rox_rox4debian_url"
+	_F_archive_name="$_F_rox_name"
+	up2date="Flasttar $url"
+	source=($_F_rox_rox4debian_url/$_F_rox_name-$pkgver.tgz)
 fi
 
 options=(${options[@]} 'nodocs')

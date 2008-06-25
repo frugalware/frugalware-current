@@ -33,6 +33,8 @@
 # * _F_rox_name - real name of the rox app, defaults to $pkgname
 # * _F_rox_use_sourceforge - enable the use of sourceforge, and some other
 # defaults that go with it
+# * _F_rox_use_kerofin - enable the use of one of the other sources of rox
+# desktop software
 # * _F_rox_subdir - used to install the rox app to a subdir of the install
 # path
 # * _F_rox_sep - used to change the seperator between version and
@@ -43,6 +45,7 @@
 [ -z "$_F_rox_subdir" ] && _F_rox_subdir=
 [ -z "$_F_rox_sep" ] && _F_rox_sep=-
 [ -z "$_F_rox_use_sourceforge" ] && _F_rox_use_sourceforge=0
+[ -z "$_F_rox_use_kerofin" ] && _F_rox_use_kerofin=0
 if echo $pkgname | grep -q lib; then
 	_F_rox_installpath=/usr/lib/
 else
@@ -62,6 +65,14 @@ if [ "$_F_rox_use_sourceforge" -eq 1 ]; then
 	_F_sourceforge_dirname=rox
 	Finclude sourceforge
 	unset url
+fi
+
+if [ "$_F_rox_use_kerofin" -eq 1 ]; then
+	_F_rox_kerofin_url="http://www.kerofin.demon.co.uk/rox"
+	url="$_F_rox_kerofin_url/$pkgname.html"
+	_F_archive_name="$_F_rox_name"
+	up2date="Flasttar $url"
+	source=($_F_rox_kerofin_url/$_F_rox_name-$pkgver.tar.gz)
 fi
 
 options=(${options[@]} 'nodocs')

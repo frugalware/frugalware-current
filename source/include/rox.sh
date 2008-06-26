@@ -64,8 +64,9 @@ _F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 
 ###
 # == OVERWRITTEN VARIABLES
-# * up2date (only for sourceforge)
-# * source (only for sourceforge)
+# * url (predefined for all but sourceforge mirrors)
+# * up2date (only for predefined mirrors)
+# * source (only for predefined mirrors)
 # * options (nodocs appended)
 # * groups
 ###
@@ -76,10 +77,11 @@ if [ "$_F_rox_use_sourceforge" -eq 1 ]; then
 	unset url
 fi
 
+_F_archive_name="$_F_rox_name"
+
 if [ "$_F_rox_use_kerofin" -eq 1 ]; then
 	_F_rox_kerofin_url="http://www.kerofin.demon.co.uk/rox"
 	url="$_F_rox_kerofin_url/$pkgname.html"
-	_F_archive_name="$_F_rox_name"
 	up2date="Flasttar $url"
 	source=($_F_rox_kerofin_url/$_F_rox_name-$pkgver.tar.gz)
 fi
@@ -92,7 +94,6 @@ if [ "$_F_rox_use_rox4debian" -eq 1 ]; then
 		_F_rox_rox4debian_url="$_F_rox_rox4debian_url/apps"
 	fi
 	url="$_F_rox_rox4debian_url"
-	_F_archive_name="$_F_rox_name"
 	up2date="Flasttar $url"
 	source=($_F_rox_rox4debian_url/$_F_rox_name-$pkgver.tgz)
 fi
@@ -100,7 +101,6 @@ fi
 if [ "$_F_rox_use_hayber" -eq 1 ]; then
 	_F_rox_hayber_url="http://www.hayber.us/rox"
 	url="$_F_rox_hayber_url/$_F_rox_name"
-	_F_archive_name="$_F_rox_name"
 	up2date="Flasttar $_F_rox_hayber_url/$_F_rox_hayber_subdir"
 	source=($_F_rox_hayber_url/$_F_rox_hayber_subdir/$_F_rox_name-$pkgver.tgz)
 fi

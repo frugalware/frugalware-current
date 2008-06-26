@@ -37,6 +37,10 @@
 # desktop software (do not use with the others)
 # * _F_rox_use_rox4debian - enable the use of one of the other sources of rox
 # desktop software (do not use with the others)
+# * _F_rox_use_hayber - enable the user of one of the other sources of rox
+# desktop software (do not use with the others)
+# * _F_rox_hayber_subdir - use to change the subdir that is used for up2date
+# and source in hayber mirror setup, defaults to $pkgname
 # * _F_rox_subdir - used to install the rox app to a subdir of the install
 # path
 # * _F_rox_sep - used to change the seperator between version and
@@ -49,6 +53,8 @@
 [ -z "$_F_rox_use_sourceforge" ] && _F_rox_use_sourceforge=0
 [ -z "$_F_rox_use_kerofin" ] && _F_rox_use_kerofin=0
 [ -z "$_F_rox_use_rox4debian" ] && _F_rox_use_rox4debian=0
+[ -z "$_F_rox_use_hayber" ] && _F_rox_use_hayber=0
+[ -z "$_F_rox_hayber_subdir" ] && _F_rox_hayber_subdir=$pkgname
 if echo $pkgname | grep -q lib; then
 	_F_rox_installpath=/usr/lib/
 else
@@ -89,6 +95,14 @@ if [ "$_F_rox_use_rox4debian" -eq 1 ]; then
 	_F_archive_name="$_F_rox_name"
 	up2date="Flasttar $url"
 	source=($_F_rox_rox4debian_url/$_F_rox_name-$pkgver.tgz)
+fi
+
+if [ "$_F_rox_use_hayber" -eq 1 ]; then
+	_F_rox_hayber_url="http://www.hayber.us/rox"
+	url="$_F_rox_hayber_url/$_F_rox_name"
+	_F_archive_name="$_F_rox_name"
+	up2date="Flasttar $_F_rox_hayber_url/$_F_rox_hayber_subdir"
+	source=($_F_rox_hayber_url/$_F_rox_hayber_subdir/$_F_rox_name-$pkgver.tgz)
 fi
 
 options=(${options[@]} 'nodocs')

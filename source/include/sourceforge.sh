@@ -91,9 +91,9 @@ fi
 ###
 url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
 if [ $_F_sourceforge_broken_up2date -eq 0 ]; then
-	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep -m1 'Latest \[.*\]'|sed 's/.*]$_F_sourceforge_prefix\(.*\) \[.*\].*/\1/;s/-/_/g'"
+	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -m1 'Latest \[.*\]'|sed 's/.*]$_F_sourceforge_prefix\(.*\) \[.*\].*/\1/;s/-/_/g'"
 else
- 	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;q')|grep -m1 '$_F_sourceforge_name\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name$_F_sourceforge_prefix\(.*\)$_F_sourceforge_ext.*/\1/;s/-/_/g;s/_//1'"
+	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -m1 '$_F_sourceforge_name\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name$_F_sourceforge_prefix\(.*\)$_F_sourceforge_ext.*/\1/;s/-/_/g;s/_//1'"
 fi
 ## we have now regular $pkgver so use s/_/-/ but in case we have a custom _F_sourceforge_pkgver
 ## which is for 'source only' we don't need that since $pkgver is right already

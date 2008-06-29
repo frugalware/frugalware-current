@@ -2,8 +2,7 @@
 # Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=nss
-pkgver=3.11.7
-nspr_version=4.6
+pkgver=3.12
 pkgrel=1
 pkgdesc="NSS library from mozilla.org"
 url="http://www.mozilla.org/projects/security/pki/nss/"
@@ -11,7 +10,7 @@ pkgurl="http://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/"
 groups=('lib')
 archs=('i686' 'x86_64')
 license="MPL GPL"
-depends=('glibc' 'nspr>=4.6.7')
+depends=('glibc' 'nspr>=4.7.1' 'sqlite3')
 up2date="lynx -dump '$pkgurl?C=M;D=A'|grep NSS|sed -n 's/.*NSS_\(.*\)_RTM.*/\1/;s/_/./g;$ p'"
 source=($pkgurl/NSS_${pkgver//./_}_RTM/src/$pkgname-$pkgver.tar.gz \
 	nss-config.in nss.pc.in)
@@ -19,35 +18,36 @@ source=($pkgurl/NSS_${pkgver//./_}_RTM/src/$pkgname-$pkgver.tar.gz \
 build() {
 	Fcd
 	unset MAKEFLAGS
-	BUILD_OPT=1
-	export BUILD_OPT
-	PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
-	export PKG_CONFIG_ALLOW_SYSTEM_LIBS
-	PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
-	export 	PKG_CONFIG_ALLOW_SYSTEM_CFLAGS
+	export PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
+	export 	PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
 	NSPR_INCLUDE_DIR=`/usr/bin/pkg-config --cflags-only-I nspr | sed 's/-I//'`
-	NSPR_LIB_DIR=`/usr/bin/pkg-config --libs-only-L nspr | sed 's/-L//'`
+	NSPR_LIB_DIR=/usr/lib
 	export NSPR_INCLUDE_DIR
 	export NSPR_LIB_DIR
-	NS_USE_GCC=1
-	export NS_USE_GCC
+	export NS_USE_GCC=1
 	export NSS_ENABLE_ECC=1
-	[ "$CARCH" == "x86_64" ] && export USE_64=1
+	export NSDISTMODE=copy
+	export NSS_USE_SYSTEM_SQLITE=1
+	if [ "$CARCH" == "x86_64" ]; then
+		export USE_64=1
+		export CFLAGS="$CFLAGS -fPIC"
+	fi
 
 	Fmkdir /usr/bin
 	Fmkdir /usr/lib/pkgconfig
 
-	make -C ./mozilla/security/coreconf || Fdie
-	make -C ./mozilla/security/dbm || Fdie
-	make -C ./mozilla/security/nss || Fdie
+	make  BUILD_OPT=1 XCFLAGS="$CFLAGS" -C ./mozilla/security/coreconf || Fdie
+	make  BUILD_OPT=1 XCFLAGS="$CFLAGS" -C ./mozilla/security/dbm || Fdie
+	make  BUILD_OPT=1 XCFLAGS="$CFLAGS" -C ./mozilla/security/nss || Fdie
 
+	## FIXME: need patch - crazy -
 	cat $Fsrcdir/nss.pc.in > $Fdestdir/usr/lib/pkgconfig/nss.pc || Fdie
-	sed -i -e "s,%libdir%,/usr/lib,g" \
-	    -i -e "s,%prefix%,/usr,g" \
-	    -i -e "s,%exec_prefix%,/usr,g" \
-	    -i -e "s,%includedir%,/usr/include/nss3,g" \
-	    -i -e "s,%NSPR_VERSION%,${nspr_version},g" \
-	    -i -e "s,%NSS_VERSION%,${pkgver},g" \
+	sed -i -e "s,@libdir@,/usr/lib,g" \
+	    -i -e "s,@prefix@,/usr,g" \
+	    -i -e "s,@exec_prefix@,/usr,g" \
+	    -i -e "s,@includedir@,/usr/include/nss3,g" \
+	    -i -e "s,@NSPR_VERSION@,`nspr-config --version`,g" \
+	    -i -e "s,@NSS_VERSION@,${pkgver},g" \
 	    $Fdestdir/usr/lib/pkgconfig/nss.pc || Fdie
 
 	NSS_VMAJOR=`cat mozilla/security/nss/lib/nss/nss.h | grep "#define.*NSS_VMAJOR" | awk '{print $3}'`
@@ -70,31 +70,27 @@ build() {
 	Fmkdir /usr/{lib,bin,include/nss3}
 
 	# Shared libs install
-	for file in libnss3.so libssl3.so libsmime3.so libsoftokn3.so libnssckbi.so libfreebl3.so
+	for file in *.so
 	do
 	    install -m 755 mozilla/dist/*.OBJ/lib/$file $Fdestdir/usr/lib || Fdie
 	done
 
-	# Static libs and chk files install
-	for file in libsoftokn3.chk libfreebl3.chk libcrmf.a libnssb.a libnssckfw.a
+	# Static libs and chk files install , FIXME - figure all static libs -- crazy --
+	for file in *.chk libcrmf.a libnss*.a
 	do
 	    install -m 644 mozilla/dist/*.OBJ/lib/$file $Fdestdir/usr/lib || Fdie
 	done
 
-	# Binaries install
-	for file in certutil modutil pk12util signtool ssltap
-	do
-	    install -m 755 mozilla/dist/*.OBJ/bin/$file $Fdestdir/usr/bin || Fdie
-	done
+	install -m 755 mozilla/dist/*.OBJ/bin/* $Fdestdir/usr/bin || Fdie
 
 	# Header files install
-	for file in mozilla/dist/public/nss/*.h
+	for file in mozilla/dist/{public,private}/nss/*.h
 	do
 	    install -m 644 $file $Fdestdir/usr/include/nss3 || Fdie
 	done
 }
 
-sha1sums=('501af41c4abc2300de2e5f90311583f47c19888c' \
-          '7b9ee5db74e006eb520e9c71d4a88d606be4e8d1' \
-          '37de504fcc1c5b78e6199930b0e664e7269e0e99')
+sha1sums=('6b8e83c0931cfad161aae993d344687b67f317aa' \
+          '0227f94c745519b67b1b530e6cc116e8069a6b43' \
+          'ae2d58b2aa31ce0426541e8c76aeda7a8d34c8cf')
 # optimization OK

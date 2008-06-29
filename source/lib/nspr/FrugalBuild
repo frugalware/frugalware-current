@@ -2,7 +2,7 @@
 # Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=nspr
-pkgver=4.6.7
+pkgver=4.7.1
 pkgrel=1
 pkgdesc="NSPR library from mozilla.org"
 url="http://www.mozilla.org/projects/nspr/"
@@ -12,51 +12,35 @@ archs=('i686' 'x86_64')
 license="MPL GPL"
 depends=('glibc')
 up2date="lynx -dump '$pkgurl'|sort -n -r|head -n 2|sort -n|head -n 1|sed -e 's/.*v//' -e 's|/||g'"
-source=($pkgurl/v${pkgver}/src/$pkgname-$pkgver.tar.gz \
-	nspr-config-pc.patch0 nspr.pc.in nspr-config-vars.in)
+source=($pkgurl/v${pkgver}/src/$pkgname-$pkgver.tar.gz pkgconfig.patch)
+sha1sums=('df14fe3e934da4b4555929d741e41079d32b8a24' \
+          '5602ab7ef3b50491238eae6f947c6140afcb1f84')
 
-# Taken from Fedora :) Thx for it.
-
-build() {
-	[ "$CARCH" == "x86_64" ] && amd64opts="--enable-64bit"
+build()
+{
+	if [ "$CARCH" == "x86_64" ]; then
+		opts="--enable-64bit"
+	fi
 	Fcd
-	cp ./mozilla/nsprpub/config/nspr-config.in ./mozilla/nsprpub/config/nspr-config-pc.in || Fdie
-	Fpatch nspr-config-pc.patch0
-	cp $Fsrcdir/nspr-config-vars.in ./mozilla/nsprpub/config/ || Fdie
-	./mozilla/nsprpub/configure --prefix=/usr \
+	Fpatchall
+	cd mozilla/nsprpub || Fdie
+	Fconf \
 		--libdir=/usr/lib \
 		--includedir=/usr/include/nspr4 \
-		--enable-optimize="$CFLAGS" \
-		--disable-debug $amd64opts
+		--disable-optimize \
+		--disable-debug \
+		--enable-strip \
+		--with-pthreads \
+		--enable-ipv6 \
+		$opts
+	## do not use Fmakeinstall here
 	make || Fdie
-	DESTDIR=$Fdestdir make real_install || Fdie
-	NSPR_LIBS=`./config/nspr-config --libs`
-	NSPR_CFLAGS=`./config/nspr-config --cflags`
-	NSPR_VERSION=`./config/nspr-config --version`
-	Fmkdir /usr/lib/pkgconfig/
-	cat ./config/nspr-config-vars > $Fdestdir/usr/lib/pkgconfig/nspr.pc || Fdie
-	cat $Fsrcdir/nspr.pc.in >> $Fdestdir/usr/lib/pkgconfig/nspr.pc
-	sed -i -e "s,%libdir%,/usr/lib,g" \
-		-i -e "s,%prefix%,/usr,g" \
-		-i -e "s,%exec_prefix%,/usr,g" \
-		-i -e "s,%includedir%,/usr/include/nspr4,g" \
-		-i -e "s,%NSPR_VERSION%,$NSPR_VERSION,g" \
-		-i -e "s,%FULL_NSPR_LIBS%,$NSPR_LIBS,g" \
-		-i -e "s,%FULL_NSPR_CFLAGS%,$NSPR_CFLAGS,g" \
-		$Fdestdir/usr/lib/pkgconfig/nspr.pc || Fdie
-	Fmkdir /usr/bin
-	cp ./config/nspr-config-pc $Fdestdir/usr/bin/nspr-config || Fdie
-	Frm /usr/bin/compile-et.pl
-	Frm /usr/bin/pterr.*
-	Frm /usr/lib/libnspr4.a
-	Frm /usr/lib/libplc4.a
-	Frm /usr/lib/libplds4.a
-	Frm /usr/share/aclocal/nspr.m4
-	Frm /usr/include/nspr4/md
+	make DESTDIR=$Fdestdir install || Fdie
+	Frm usr/bin/compile-et.pl
+	Frm usr/bin/pterr.*
+	Frm usr/lib/*.a
+	Frm usr/share/aclocal
+	Frm usr/include/nspr4/md
 }
 
-sha1sums=('cf45319d02285ec5479445a1e9adfb9e94f55a6a' \
-          '86f7724760f3d4c0295829b4a8b7e8685bccd588' \
-          '6d3a40116e513721b782ad25d21447e3d3a91d6d' \
-          'ca1ec22ec23134e8aab2589db33057439a75c2bd')
 # optimization OK

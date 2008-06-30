@@ -4,11 +4,12 @@
 
 pkgname=firefox
 pkgver=3.0
-pathver=3.0 # version used in path names
-pkgrel=1
+pathver=${pkgver} # version used in path names
+pkgrel=2
 pkgdesc="Mozilla Firefox web browser"
 url="http://www.mozilla.org/products/firefox/"
-depends=('gtk+2' 'libidl' 'desktop-file-utils' 'nss>=3.11.3-2' 'glibc>=2.6' 'dbus-glib' 'curl')
+depends=('gtk+2' 'libidl' 'desktop-file-utils' 'nss>=3.12' 'glibc>=2.6' 'dbus-glib' 'curl' 'nspr>=4.7.1' \
+	'lcms' 'libxau' 'libxdmcp' 'libxft' 'libxt' 'libstdc++' 'libxdamage' 'libice' 'bzip2' )
 makedepends=('zip')
 groups=('xapps')
 archs=('i686' 'x86_64')
@@ -20,26 +21,61 @@ source=(http://releases.mozilla.org/pub/mozilla.org/firefox/releases/$pkgver/sou
 	02-$pkgname-2.0-homepage.patch \
 	# Autodetect language.
 	03-lang_detection.diff \
-	config \
 	ffremote \
 	$pkgname.desktop)
-signatures=("${source[0]}.asc" '' '' '' '' '' '')
+signatures=("${source[0]}.asc" '' '' '' '' '')
+options=('scriptlet')
 
 build() {
-	unset MAKEFLAGS
 	Fcd mozilla
-	sed "s/-march=i686 -O2 -pipe/$CFLAGS/" $startdir/src/config > .mozconfig
-	# fix buggy dpi default value
-	sed -i '/layout.css.dpi/s/-1/72/' modules/libpref/src/init/all.js || return 1
-	export MOZ_PHOENIX=1
-	Fpatchall
 	
-	Fsed "ac_cv_visibility_pragma=yes" "ac_cv_visibility_pragma=no" configure
-	make -f client.mk build || Fdie
-	make || Fdie
+	## broken sqlite3 pc file
+	Fsed 'SQLITE_VERSION=3.5.4' 'SQLITE_VERSION=3.5' configure
+	
+	export MOZILLA_OFFICIAL=1
+	export BUILD_OFFICIAL=1
 
-	Fmkdir /usr
-	Fmakeinstall
+	Fsed '\-0' '\-9' config/make-jars.pl
+
+	Fbuild \
+	--with-default-mozilla-five-home=/usr \
+	--with-system-nspr \
+	--with-system-nss \
+	--with-system-jpeg \
+	--with-system-zlib \
+	--with-system-bz2 \
+	--with-pthreads \
+	--with-distribution-id=Frugalware \
+	--enable-crypto \
+	--enable-official-branding \
+	--enable-svg \
+	--enable-mathml \
+	--enable-strip \
+	--enable-xft \
+	--enable-toolkit-cairo-gtk2 \
+	--enable-default-toolkit=cairo-gtk2 \
+	--enable-nspr-autoconf \
+	--enable-single-profile \
+	--enable-application=browser \
+	--enable-image-decoders=all \
+	--enable-image-encoders=all \
+	--enable-system-cairo \
+	--enable-safe-browsing \
+	--enable-system-lcms \
+	--enable-system-sqlite \
+	--enable-necko-protocols=all \
+	--disable-debug \
+	--disable-tests \
+	--disable-mochitest \
+	--disable-logging \
+	--disable-installer \
+	--disable-activex \
+	--disable-activex-scripting \
+	--disable-pedantic \
+	--disable-mailnews \
+	--disable-calendar \
+	--disable-composer \
+	--disable-profilesharing
 
 	# Get rid of versions in path names.
 	Fmv /usr/include/$pkgname-$pathver /usr/include/$pkgname
@@ -71,14 +107,13 @@ build() {
 
 	# Install icon for the menu file.
 	Fmkdir /usr/share/pixmaps/
-	Fln /usr/lib/$pkgname/icons/mozicon50.xpm /usr/share/pixmaps/$pkgname.xpm
+	Fln /usr/lib/$pkgname/icons/mozicon128.png /usr/share/pixmaps/$pkgname.png
 
 	# Install menu file.
 	Ffile /usr/share/applications/$pkgname.desktop
 
 	# Change the default icons
 	Fln /usr/lib/$pkgname/icons /usr/lib/$pkgname/chrome/icons/default
-	Fln /usr/lib/$pkgname/chrome/chromelist.txt /usr/lib/$pkgname/chrome/installed-chrome.txt
 }
 
 # optimization OK

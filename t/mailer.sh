@@ -76,6 +76,9 @@ fi
 cd s
 for i in *
 do
+	if [[ $i =~ sh$ ]] || [[ $i =~ py$ ]]; then
+		continue
+	fi
 	[ -x $i ] || chmod +x $i
 	./$i > $logdir/s/$i
 done

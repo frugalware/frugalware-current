@@ -72,6 +72,8 @@ Fxpiinstall()
 	else
 		Ffile /usr/lib/firefox/extensions/$_F_firefox_id/chrome.manifest
 	fi
+	Fdirschmod  /usr/lib/firefox/extensions 755
+	Ffileschmod /usr/lib/firefox/extensions 644
 }
 
 ###

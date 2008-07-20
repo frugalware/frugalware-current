@@ -88,7 +88,7 @@ elif [ "$_F_scm_type" == "subversion" ]; then
 	up2date="echo -n svn; svn log $_F_scm_url --limit=1 |sed -n '/^r/s/r\([0-9]\+\) .*/\1/p'"
 	makedepends=(${makedepends[@]} 'subversion')
 elif [ "$_F_scm_type" == "git" ]; then
-	up2date="date +%Y%m%d%H%M%S --date '`curl -I $_F_scm_url/HEAD 2>&1|sed -n '/^Last-Modified/s/^[^:]*: //p'`'"
+	up2date="echo -n ${pkgver%%.g*}.g;git ls-remote $_F_scm_url|sed 's/^\(.\{7\}\).*/\1/;q'"
 	makedepends=(${makedepends[@]} 'git')
 elif [ "$_F_scm_type" == "mercurial" ]; then
 	# it seems that _every_ repo url has the same web interface which has a nice rss

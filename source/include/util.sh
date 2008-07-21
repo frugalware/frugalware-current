@@ -636,7 +636,8 @@ Fmakeinstall() {
 		find $Fdestdir/usr/lib/perl5/site_perl -name perllocal.pod -exec rm {} \;
 		find $Fdestdir/usr/lib/perl5/site_perl -name .packlist -exec rm {} \;
 		rmdir -p --ignore-fail-on-non-empty \
-			$Fdestdir/usr/lib/perl5/site_perl/current/*/auto/*/*
+			$Fdestdir/usr/lib/perl5/site_perl/current/*/auto/{*,*/*} \
+			&>/dev/null
 	fi
 
 	# rc script

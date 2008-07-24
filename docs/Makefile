@@ -1,6 +1,6 @@
 # Makefile for Frugalware documentation
 #
-# Copyright (C) 2005-2007 Miklos Vajna <vmiklos@frugalware.org>
+# Copyright (C) 2005, 2006, 2007, 2008 Miklos Vajna <vmiklos@frugalware.org>
 # Copyright (C) 2007 Andras Voroskoi <voroskoi@frugalware.org>
 #
 # This program is free software; you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-VERSION = $(shell date +%Y%m%d) (-current)
+VERSION = $(shell git describe) (-current)
 #VERSION = 0.6 (Terminus)
 PO_DIR ?= ~/git/translations/po
 XML_PATH = /usr/share/sgml/docbook/dtd/xml-dtd-4.2

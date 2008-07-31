@@ -25,6 +25,7 @@
 # source=(http://images.wikia.com/sawfish/images//2/25/$_F_sawfish_file)
 # Finclude sawfish-script
 # sha1sums=('7d65e7924ae73a3863a0e535939b4a8983bf49af')
+# --------------------------------------------------
 #
 # == OPTIONS
 # * _F_sawfish_name: set to name of script, must be entered

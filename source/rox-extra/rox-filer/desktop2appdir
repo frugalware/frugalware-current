@@ -1,0 +1,50 @@
+#!/bin/sh
+# Warning: This shell script was written for frugalware, and will not work with
+# other distros. You have been warned.
+#
+
+printhelp()
+{
+	echo "Usage: `basename $0` [desktop file]"
+	exit 1
+}
+
+[ -z "$1" ] && printhelp
+if ! echo "$1" | grep -q '.desktop$'; then
+	printhelp
+fi
+if [ ! -f "$1" ]; then
+	echo "No such file or directory: $1"
+	exit 1
+fi
+
+EXEC=`grep '^Exec=' "$1" | sed 's|^Exec=\(.*\)|\1|' | gawk '{print $1}'`
+NAME=`grep '^Name=' "$1" | sed 's|^Name=\(.*\)|\1|'`
+COMMENT=`grep '^Comment=' "$1" | sed 's|^Comment=\(.*\)|\1|'`
+ICON=`grep '^Icon=' "$1" | sed 's|^Icon=\(.*\)|\1|'`
+ICON=`find -L /usr/share/pixmaps -name "$ICON*" | head -n1`
+OWNER=`pacman -Qo "$1" | gawk '{print $1}'`
+HELP=`find -L /usr/share/doc -name "$OWNER*" | head -n1`
+
+if [ ! -d "$PWD/$NAME" ]; then
+	mkdir -p "$PWD/$NAME"
+else
+	echo "The directory $PWD/$NAME must not exist."
+	exit 1
+fi
+
+cd "$PWD/$NAME"
+ln -sf "`which "$EXEC"`" AppRun           # symlink to executable
+[ -d "$HELP" ] && ln -s "$HELP" Help     # symlink system doc folder, if it exists
+[ -f "$ICON" ] && ln -s "$ICON" .DirIcon # symlink to system icon, if it exists
+echo -e "\
+<?xml version=\"1.0\"?>\n\
+<AppInfo>\n\
+  <Summary>$COMMENT</Summary>\n\
+  <About>\n\
+    <Purpose>$COMMENT</Purpose>\n\
+    <Version>`pacman -Qi "$OWNER" | grep 'Version.*:' | sed 's|^.*: \(.*\)|\1|'`</Version>\n\
+    <Homepage>`pacman -Qi "$OWNER" | grep 'URL.*:' | sed 's|^.*: \(.*\)|\1|'`</Homepage>\n\
+    <License>`pacman -Qi "$OWNER" | grep 'License.*:' | sed 's|^.*: \(.*\)|\1|'`</License>\n\
+  </About>\n\
+</AppInfo>" > AppInfo.xml

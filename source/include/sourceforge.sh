@@ -59,7 +59,8 @@ fi
 
 if [ -z "$_F_sourceforge_mirror" ]; then
 	# set our preferred mirror
-	_F_sourceforge_mirror="mesh"
+	#_F_sourceforge_mirror="mesh"
+	_F_sourceforge_mirror="dfn"
 fi
 
 if [ -z "$_F_sourceforge_dirname" ]; then

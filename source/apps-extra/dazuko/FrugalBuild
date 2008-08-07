@@ -2,36 +2,28 @@
 # Maintainer: Janos Kovacs <janny@frugalware.org>
 
 pkgname=dazuko
-pkgver=2.3.4
-redirver=0.2
-pkgrel=19
+pkgver=2.3.6pre1
+realver=${pkgver/pre/-pre}
+redirver=0.3-pre3
+pkgrel=1
 pkgdesc="On-access virus scanning kernel interface"
 url="http://www.dazuko.org"
 license="GPL-2 BSD"
 _F_kernelmod_scriptlet=$pkgname.install
 Finclude kernel-module
-depends=(${depends[@]} "redirfs=$redirver")
+depends=(${depends[@]} "redirfs=${redirver/-//}")
 archs=('i686' 'x86_64')
 groups=('apps-extra')
 up2date="lynx -dump '$url/files/?M=O' | grep -v source |grep -v birthday|grep -v pre|Flasttar"
-source=(http://www.dazuko.org/files/$pkgname-$pkgver.tar.gz \
-	http://ftp.frugalware.org/pub/other/sources/redirfs/redirfs-0.2.tar.gz \
-	README.Frugalware \
-	0001-add-xp_set_path-function-necessary-for-RedirFS-su.patch \
-	0002-source-code-to-compile-Dazuko-as-an-RedirFS-filter.patch \
-	0003-add-enable-redirfs-to-build-Dazuko-as-a-RedirF.patch \
-	0004-2.6.25.patch)
-sha1sums=('271d0a23d7aed2555f023141504386b6042a5efa' \
-          'c736b6a9b9cb0540010eb865febfd4f3b1fe6d82' \
-          '8292447cba4bdab9dfbb8169c011e74559a00804' \
-          'eebf571563481dba5bce10900b02bff5d6e30b78' \
-          '4f6b6b45a2be49a4e90fd7fb2ad4e40d9e50c436' \
-          'd45e7a44154f61d79f54c940ba6fa6085c88cbf6' \
-          '23c91ff1a89042d3006209408111a20d40168983')
+source=(http://ftp.frugalware.org/pub/other/sources/$pkgname/$pkgname-$realver.tgz \
+	http://www.redirfs.org/packages/redirfs-$redirver.tar.gz \
+	README.Frugalware)
+sha1sums=('bc4573734c75e7ec0d9819c95d45b6f5c4a28db2' \
+          'fdc988fa877d9d9b8dcd46405e6dfc83971aed9e' \
+          '8292447cba4bdab9dfbb8169c011e74559a00804')
 
 build() {
-	Fcd
-	ln -s redirfs-$redirver ../redirfs
+	Fcd $pkgname-$realver
 	# Patch needed by some F-Secure softwares
 	patch -p0 < patch_fsecure_init_event.diff || Fdie
 	# no Fcheckkernel, crosscompilation verified
@@ -39,11 +31,12 @@ build() {
 	Fsed '`uname -r`' "$_F_kernelmod_uname" configure
 	find . -type f -exec sed -i '/#include <linux\/config.h>/d' {} \;
 	./configure --system=linux26 --disable-chroot-support \
-		--without-dep --enable-event-init-module --enable-redirfs || Fdie
-	make || Fdie
+		--without-dep --enable-event-init-module --enable-redirfs \
+		--redirfsdir=`pwd`/../redirfs-$redirver || Fdie
+	make V=1 || Fdie
 	Ffilerel $_F_kernelmod_dir/extra/$pkgname.ko
 	make -C library || Fdie
-	Ffile $pkgname-${pkgver//_/-}/library/libdazuko.a /usr/lib/libdazuko.a
+	Ffilerel library/libdazuko.a /usr/lib/libdazuko.a
 	Fdoc README.Frugalware
 	Fbuild_kernelmod_scriptlet
 }

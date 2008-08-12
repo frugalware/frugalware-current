@@ -1,6 +1,8 @@
 # Compiling Time: 26.48 SBU
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
+USE_JAVA=${USE_JAVA:-"y"}
+
 pkgname=gcc
 pkgver=4.3.1
 pkgrel=3
@@ -23,44 +25,45 @@ signatures=("$source.sig" '' '')
 subpkgs=('libgcc' 'libstdc++' \
 	 'libgnat' 'gcc-gnat' \
 	 'libgfortran' 'gcc-gfortran' \
-	 'libgcj' 'libgcj-awt' 'gcc-gcj' \
 	 'libobjc' 'gcc-objc' 'gcc-objc++' \
-	 'gcc-treelang' 'libffi' 'libssp' 'libgomp')
+	 'gcc-treelang' 'libssp' 'libgomp')
+Fuse $USE_JAVA && subpkgs=("${subpkgs[@]}" 'libffi' 'libgcj' 'libgcj-awt' 'gcc-gcj')
 subdescs=('GCC shared support library' 'GNU Standard C++ Library' \
 	  'Ada 95 runtime shared libraries' 'Ada 95 support for GCC' \
 	  'Fortran 95 runtime' 'Fortran 95 support for GCC' \
-	  'Java runtime library for gcc' 'AWT peer libraries for libgcj' 'Java support for GCC' \
 	  'Objective-C runtime' 'Objective-C support for GCC' 'Objective-C++ support for GCC' \
 	  'Treelang support for GCC' \
-	  'FFI libraries from GCC' 'SSP libraries from GCC' \
+	  'SSP libraries from GCC' \
 	  'GNU OpenMP runtime library')
+Fuse $USE_JAVA && subdescs=("${subdescs[@]}" 'FFU kubrarues from GCC' 'Java runtime library for gcc' 'AWT peer libraries for libgcj' 'Java support for GCC')
 subdepends=('glibc' \
 	    'libgcc' \
 	    'libgcc' \
 	    "glibc mpfr" \
 	    'glibc' \
 	    "glibc mpfr libgfortran" \
-	    'libgcc zlib alsa-lib' \
-	    'libgcj libart_lgpl gtk+2 libxml2 freetype2 libice libxtst libxau libxdmcp libxdamage libstdc++' \
-	    "libgcj zlib ecj mpfr" \
 	    'libgcc' \
 	    "glibc  mpfr" \
 	    "glibc  mpfr" \
 	    "glibc  mpfr" \
 	    "glibc" \
-	    "glibc" \
 	    "glibc")
-subbackup=('' '' '' '' '' '' "usr/lib/gcj-$pkgver/classmap.db" '' '' '' '' '' '' '' '' '')
+Fuse $USE_JAVA && subdepends=("${subdepends[@]}" 'glibc' 'libgcc zlib alsa-lib' \
+	    'libgcj libart_lgpl gtk+2 libxml2 freetype2 libice libxtst libxau libxdmcp libxdamage libstdc++' \
+	    "libgcj zlib ecj mpfr")
+Fuse $USE_JAVA && subbackup=('' '' '' '' '' '' "usr/lib/gcj-$pkgver/classmap.db" '' '' '' '' '' '' '' '' '')
 subgroups=('base chroot-core' 'base chroot-core' \
 	   'lib-extra' 'devel-extra' \
 	   'lib-extra' 'devel-extra' \
-	   'lib' 'xlib' 'devel-extra' \
 	   'lib-extra' 'devel-extra' 'devel-extra' \
-	   'devel-extra' 'lib' 'lib' 'lib')
-subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64'
-	'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64'
-	'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' \
-	'i686 x86_64')
+	   'devel-extra' 'lib' 'lib')
+Fuse $USE_JAVA && subgroups=("${subgroups[@]}" 'lib' 'lib' 'xlib' 'devel-extra')
+i=0
+while [ $i -lt ${#subpkgs[@]} ]
+do
+	subarchs=("${subarchs[@]}" "i686 x86_64")
+	i=$(($i+1))
+done
 
 build()
 {
@@ -70,28 +73,34 @@ build()
 	Fsed '\./fixinc\.sh' '-c true' gcc/Makefile.in
 	Fpatchall
 	## well reconf / autoreconf is br0ken in gcc .. so do it that way heh
-	Fsed '--with-fastjar=$JAR' '--with-fastjar=/usr/bin/fastjar'  libjava/configure
+	Fuse $USE_JAVA && Fsed '--with-fastjar=$JAR' '--with-fastjar=/usr/bin/fastjar'  libjava/configure
 
-	mkdir ../$pkgname-build || Fdie
+	mkdir -p ../$pkgname-build || Fdie
 	cd ../$pkgname-build || Fdie
+
+	if Fuse $USE_JAVA; then
+		Fconfopts="$Fconfopts --enable-languages=c,ada,c++,fortran,java,objc,obj-c++,treelang \
+		--enable-java-awt=gtk \
+		--with-ecj-jar=/usr/share/java/eclipse-ecj.jar \
+		--disable-libjava-multilib"
+	else
+		Fconfopts="$Fconfopts --enable-languages=c,ada,c++,fortran,objc,obj-c++,treelang"
+	fi
+
 	CC="$FCC gcc" CFLAGS="$CFLAGS" CXXFLAGS="$CFLAGS" XCFLAGS="$CFLAGS" \
 	TCFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" \
 	../$pkgname-$pkgver/configure \
 		$Fconfopts \
 		--enable-shared \
-		--enable-languages=c,ada,c++,fortran,java,objc,obj-c++,treelang \
 		--enable-threads=posix \
 		--enable-__cxa_atexit \
-		--enable-java-awt=gtk \
 		--with-fastjar=/usr/bin/fastjar \
 		--with-ecj \
-		--with-ecj-jar=/usr/share/java/eclipse-ecj.jar \
 		--enable-gtk-cairo \
 		--enable-plugin \
 		--with-system-zlib \
 		--libdir=/usr/lib \
 		--disable-multilib \
-		--disable-libjava-multilib \
 		--enable-target-optspace \
 		--enable-bootstrap \
 		--with-bugurl="http://bugs.frugalware.org/" \
@@ -154,9 +163,11 @@ build()
 	Fln ../../../../libgnat-${pkgver%.*}.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnat.so
 	Fln ../../../../libgnat-${pkgver%.*}.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnat-${pkgver%.*}.so
 
+	if Fuse $USE_JAVA; then
 	# cp ffitarget.h to /usr/include needed to work include <ffi.h> good
 	Fcp /usr/lib/gcc/$CHOST/$pkgver/include/ffitarget.h \
 		/usr/include/ffitarget.h
+	fi
 
 	# documentation
 	Fdoc README.Frugalware
@@ -170,38 +181,40 @@ build()
 	# libstdc++
 	Fsplit libstdc++ usr/lib/libstdc++.*
 	Fsplit libstdc++ usr/man/man3/
-	## always do this java stuff before gnat because gnat splits with gnat*
-	## and we got now 'gnat'ive2ascii which is java stuff ;)
-	## NOTE: old gcj-${pkgver} is now gcj-${pkgver}-xx
-	gcjpkgver=$(basename $Fdestdir/usr/lib/gcj-${pkgver}*)
-	# libgcj-awt
-        Fsplit libgcj-awt usr/lib/gcc/$CHOST/$pkgver/include/jawt*.h
-        Fsplit libgcj-awt usr/lib/${gcjpkgver}/lib{jawt,gcjwebplugin,gtkpeer}.*
-        Fsplit libgcj-awt usr/include/c++/$pkgver/gnu/awt
-        Fsplit libgcj-awt usr/include/c++/$pkgver/gnu/java/awt
-        Fsplit libgcj-awt usr/include/c++/$pkgver/java/awt
-	Fsplit libgcj-awt usr/include/c++/$pkgver/sun/awt
-        # libgcj
-	## org , sun are libgcj incldes also
-        Fsplit libgcj usr/include/c++/$pkgver/[gj]*
-	Fsplit libgcj usr/include/c++/$pkgver/{sun,org}
-        Fsplit libgcj usr/lib/pkgconfig/libgcj-${pkgver%.*}.pc
-	## maybe we should add some libgcj-tools or libgcj-utils package ? - crazy -
-        Fsplit libgcj usr/bin/{jv-convert,gij,gjar,grmi*,gcj-dbtool,gorbd,gappletviewer,gjarsigner,gkeytool,addr2name.awk}
-	Fsplit libgcj usr/bin/{gtnameserv,gnative2ascii,gserialver,gc-analyze}
-        Fsplit libgcj usr/man/man1/{gjarsigner,gkeytool,gjar,jv-convert,gij,grmi*,gorbd,gcj-dbtool,gtnameserv}.1*
-	Fsplit libgcj usr/man/man1/{gnative2ascii,gserialver,gappletviewer,gc-analyze}.1*
-        Fsplit libgcj usr/lib/libgcj*
-        Fsplit libgcj usr/lib/libgij*
-        Fsplit libgcj usr/share/java
-        Fsplit libgcj usr/lib/security
-        Fsplit libgcj usr/lib/logging.properties
-        Fsplit libgcj usr/lib/${gcjpkgver}
-        # gcc-gcj
-        Fsplit gcc-gcj usr/bin/{gcj,$CHOST-gcj,gcjh,gjavah,jcf-dump}
-        Fsplit gcc-gcj usr/man/man1/{gcj,gcjh,gjavah,jcf-dump}.1*
-        Fsplit gcc-gcj usr/info/gcj*
-        Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$pkgver/{jc1,jvgenmain,ecj1}
+	if Fuse $USE_JAVA; then
+		## always do this java stuff before gnat because gnat splits with gnat*
+		## and we got now 'gnat'ive2ascii which is java stuff ;)
+		## NOTE: old gcj-${pkgver} is now gcj-${pkgver}-xx
+		gcjpkgver=$(basename $Fdestdir/usr/lib/gcj-${pkgver}*)
+		# libgcj-awt
+		Fsplit libgcj-awt usr/lib/gcc/$CHOST/$pkgver/include/jawt*.h
+		Fsplit libgcj-awt usr/lib/${gcjpkgver}/lib{jawt,gcjwebplugin,gtkpeer}.*
+		Fsplit libgcj-awt usr/include/c++/$pkgver/gnu/awt
+		Fsplit libgcj-awt usr/include/c++/$pkgver/gnu/java/awt
+		Fsplit libgcj-awt usr/include/c++/$pkgver/java/awt
+		Fsplit libgcj-awt usr/include/c++/$pkgver/sun/awt
+		# libgcj
+		## org , sun are libgcj incldes also
+		Fsplit libgcj usr/include/c++/$pkgver/[gj]*
+		Fsplit libgcj usr/include/c++/$pkgver/{sun,org}
+		Fsplit libgcj usr/lib/pkgconfig/libgcj-${pkgver%.*}.pc
+		## maybe we should add some libgcj-tools or libgcj-utils package ? - crazy -
+		Fsplit libgcj usr/bin/{jv-convert,gij,gjar,grmi*,gcj-dbtool,gorbd,gappletviewer,gjarsigner,gkeytool,addr2name.awk}
+		Fsplit libgcj usr/bin/{gtnameserv,gnative2ascii,gserialver,gc-analyze}
+		Fsplit libgcj usr/man/man1/{gjarsigner,gkeytool,gjar,jv-convert,gij,grmi*,gorbd,gcj-dbtool,gtnameserv}.1*
+		Fsplit libgcj usr/man/man1/{gnative2ascii,gserialver,gappletviewer,gc-analyze}.1*
+		Fsplit libgcj usr/lib/libgcj*
+		Fsplit libgcj usr/lib/libgij*
+		Fsplit libgcj usr/share/java
+		Fsplit libgcj usr/lib/security
+		Fsplit libgcj usr/lib/logging.properties
+		Fsplit libgcj usr/lib/${gcjpkgver}
+		# gcc-gcj
+		Fsplit gcc-gcj usr/bin/{gcj,$CHOST-gcj,gcjh,gjavah,jcf-dump}
+		Fsplit gcc-gcj usr/man/man1/{gcj,gcjh,gjavah,jcf-dump}.1*
+		Fsplit gcc-gcj usr/info/gcj*
+		Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$pkgver/{jc1,jvgenmain,ecj1}
+	fi
 	# libgnat
 	Fsplit libgnat usr/lib/libgnat*.so
 	Fsplit libgnat usr/lib/libgnarl*.so
@@ -228,10 +241,12 @@ build()
 	Fsplit gcc-treelang usr/bin/gtreelang
 	Fsplit gcc-treelang usr/info/treelang*
 	Fsplit gcc-treelang usr/libexec/gcc/$CHOST/$pkgver/tree1
-	# libffi
-	Fsplit libffi usr/lib/libffi*
-	Fsplit libffi usr/lib/gcc/$CHOST/$pkgver/include/ffi*
-	Fsplit libffi usr/include/ffi*
+	if Fuse $USE_JAVA; then
+		# libffi
+		Fsplit libffi usr/lib/libffi*
+		Fsplit libffi usr/lib/gcc/$CHOST/$pkgver/include/ffi*
+		Fsplit libffi usr/include/ffi*
+	fi
 	# libssp
 	Fsplit libssp usr/lib/libssp*
 	Fsplit libssp usr/lib/gcc/$CHOST/$pkgver/include/ssp/

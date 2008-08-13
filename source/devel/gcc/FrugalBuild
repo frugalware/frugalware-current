@@ -6,6 +6,7 @@ if [ "$CARCH" != "ppc" ]; then
 else
 	USE_JAVA=${USE_JAVA:-"n"}
 fi
+USE_OBJC=${USE_OBJC:-"y"}
 
 pkgname=gcc
 pkgver=4.3.1
@@ -29,39 +30,39 @@ signatures=("$source.sig" '' '')
 subpkgs=('libgcc' 'libstdc++' \
 	 'libgnat' 'gcc-gnat' \
 	 'libgfortran' 'gcc-gfortran' \
-	 'libobjc' 'gcc-objc' 'gcc-objc++' \
 	 'gcc-treelang' 'libssp' 'libgomp')
 Fuse $USE_JAVA && subpkgs=("${subpkgs[@]}" 'libffi' 'libgcj' 'libgcj-awt' 'gcc-gcj')
+Fuse $USE_OBJC && subpkgs=("${subpkgs[@]}" 'libobjc' 'gcc-objc' 'gcc-objc++')
 subdescs=('GCC shared support library' 'GNU Standard C++ Library' \
 	  'Ada 95 runtime shared libraries' 'Ada 95 support for GCC' \
 	  'Fortran 95 runtime' 'Fortran 95 support for GCC' \
-	  'Objective-C runtime' 'Objective-C support for GCC' 'Objective-C++ support for GCC' \
 	  'Treelang support for GCC' \
 	  'SSP libraries from GCC' \
 	  'GNU OpenMP runtime library')
 Fuse $USE_JAVA && subdescs=("${subdescs[@]}" 'FFU kubrarues from GCC' 'Java runtime library for gcc' 'AWT peer libraries for libgcj' 'Java support for GCC')
+Fuse $USE_OBJC && subdescs=("${subdescs[@]}" 'Objective-C runtime' 'Objective-C support for GCC' 'Objective-C++ support for GCC')
 subdepends=('glibc' \
 	    'libgcc' \
 	    'libgcc' \
 	    "glibc mpfr" \
 	    'glibc' \
 	    "glibc mpfr libgfortran" \
-	    'libgcc' \
-	    "glibc  mpfr" \
-	    "glibc  mpfr" \
 	    "glibc  mpfr" \
 	    "glibc" \
 	    "glibc")
 Fuse $USE_JAVA && subdepends=("${subdepends[@]}" 'glibc' 'libgcc zlib alsa-lib' \
 	    'libgcj libart_lgpl gtk+2 libxml2 freetype2 libice libxtst libxau libxdmcp libxdamage libstdc++' \
 	    "libgcj zlib ecj mpfr")
+Fuse $USE_OBJC && subdepends=("${subdepends[@]}" 'libgcc' \
+	    "glibc  mpfr" \
+	    "glibc  mpfr")
 Fuse $USE_JAVA && subbackup=('' '' '' '' '' '' "usr/lib/gcj-$pkgver/classmap.db" '' '' '' '' '' '' '' '' '')
 subgroups=('base chroot-core' 'base chroot-core' \
 	   'lib-extra' 'devel-extra' \
 	   'lib-extra' 'devel-extra' \
-	   'lib-extra' 'devel-extra' 'devel-extra' \
 	   'devel-extra' 'lib' 'lib')
 Fuse $USE_JAVA && subgroups=("${subgroups[@]}" 'lib' 'lib' 'xlib' 'devel-extra')
+Fuse $USE_OBJC && subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra' 'devel-extra')
 i=0
 while [ $i -lt ${#subpkgs[@]} ]
 do
@@ -82,26 +83,27 @@ build()
 	mkdir -p ../$pkgname-build || Fdie
 	cd ../$pkgname-build || Fdie
 
+	langlist="c,ada,c++,fortran,treelang"
 	if Fuse $USE_JAVA; then
-		Fconfopts="$Fconfopts --enable-languages=c,ada,c++,fortran,java,objc,obj-c++,treelang \
-		--enable-java-awt=gtk \
+		langlist="$langlist,java"
+		Fconfopts="$Fconfopts --enable-java-awt=gtk \
+		--with-fastjar=/usr/bin/fastjar \
+		--with-ecj \
 		--with-ecj-jar=/usr/share/java/eclipse-ecj.jar \
+		--enable-gtk-cairo \
+		--enable-plugin \
 		--disable-libjava-multilib"
-	else
-		Fconfopts="$Fconfopts --enable-languages=c,ada,c++,fortran,objc,obj-c++,treelang"
 	fi
+	Fuse $USE_OBJC && langlist="$langlist,objc,obj-c++"
 
 	CC="$FCC gcc" CFLAGS="$CFLAGS" CXXFLAGS="$CFLAGS" XCFLAGS="$CFLAGS" \
 	TCFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" \
 	../$pkgname-$pkgver/configure \
 		$Fconfopts \
+		--enable-languages=$langlist \
 		--enable-shared \
 		--enable-threads=posix \
 		--enable-__cxa_atexit \
-		--with-fastjar=/usr/bin/fastjar \
-		--with-ecj \
-		--enable-gtk-cairo \
-		--enable-plugin \
 		--with-system-zlib \
 		--libdir=/usr/lib \
 		--disable-multilib \
@@ -235,12 +237,14 @@ build()
 	Fsplit gcc-gfortran usr/man/man1/gfortran.1*
 	Fsplit gcc-gfortran usr/info/gfortran*
 	Fsplit gcc-gfortran usr/libexec/gcc/$CHOST/$pkgver/f951
-	# libobjc
-	Fsplit libobjc usr/lib/libobjc*
-	# gcc-objc
-	Fsplit gcc-objc usr/libexec/gcc/$CHOST/$pkgver/cc1obj
-	# gcc-objc++
-	Fsplit gcc-objc++ usr/libexec/gcc/$CHOST/$pkgver/cc1objplus
+	if Fuse $USE_OBJC; then
+		# libobjc
+		Fsplit libobjc usr/lib/libobjc*
+		# gcc-objc
+		Fsplit gcc-objc usr/libexec/gcc/$CHOST/$pkgver/cc1obj
+		# gcc-objc++
+		Fsplit gcc-objc++ usr/libexec/gcc/$CHOST/$pkgver/cc1objplus
+	fi
 	# gcc-treelang
 	Fsplit gcc-treelang usr/bin/gtreelang
 	Fsplit gcc-treelang usr/info/treelang*

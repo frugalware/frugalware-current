@@ -9,6 +9,7 @@ fi
 USE_OBJC=${USE_OBJC:-"y"}
 USE_ADA=${USE_ADA:-"y"}
 USE_TREELANG=${USE_TREELANG:-"y"}
+USE_FORTRAN=${USE_FORTRAN:-"y"}
 
 pkgname=gcc
 pkgver=4.3.1
@@ -16,7 +17,6 @@ pkgrel=3
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
 depends=('binutils>=2.18.50.0.8-3' 'libstdc++' 'glibc>=2.8-2' 'mpfr>=2.3.1-2')
-makedepends=('mpfr' 'grep>=2.5.3-2' 'libtool' 'pacman-g2>=3.7.0-3')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('i686' 'x86_64' 'ppc')
@@ -28,21 +28,15 @@ source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2 \
 signatures=("$source.sig" '' '')
 
 subpkgs=('libgcc' 'libstdc++' \
-	 'libgfortran' 'gcc-gfortran' \
 	 'libssp' 'libgomp')
 subdescs=('GCC shared support library' 'GNU Standard C++ Library' \
-	  'Fortran 95 runtime' 'Fortran 95 support for GCC' \
-	  'SSP libraries from GCC' \
-	  'GNU OpenMP runtime library')
+	  'SSP libraries from GCC' 'GNU OpenMP runtime library')
 subdepends=('glibc' \
 	    'libgcc' \
-	    'glibc' \
-	    "glibc mpfr libgfortran" \
 	    "glibc" \
 	    "glibc")
-subbackup=('' '' '' '' '' '')
+subbackup=('' '' '' '')
 subgroups=('base chroot-core' 'base chroot-core' \
-	   'lib-extra' 'devel-extra' \
 	   'lib' 'lib')
 if Fuse $USE_JAVA; then
 	subpkgs=("${subpkgs[@]}" 'libffi' 'libgcj' 'libgcj-awt' 'gcc-gcj')
@@ -80,6 +74,14 @@ if Fuse $USE_TREELANG; then
 	subbackup=("${subbackup[@]}" '')
 	subgroups=("${subgroups[@]}" 'devel-extra')
 fi
+if Fuse $USE_FORTRAN; then
+	subpkgs=("${subpkgs[@]}" 'libgfortran' 'gcc-gfortran')
+	subdescs=("${subdescs[@]}" 'Fortran 95 runtime' 'Fortran 95 support for GCC')
+	subdepends=("${subdepends[@]}" 'glibc' "glibc mpfr libgfortran")
+	subbackup=("${subbackup[@]}" '' '')
+	subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra')
+	makedepends=("${makedepends[@]}" 'mpfr')
+fi
 i=0
 while [ $i -lt ${#subpkgs[@]} ]
 do
@@ -100,7 +102,7 @@ build()
 	mkdir -p ../$pkgname-build || Fdie
 	cd ../$pkgname-build || Fdie
 
-	langlist="c,c++,fortran"
+	langlist="c,c++"
 	if Fuse $USE_JAVA; then
 		langlist="$langlist,java"
 		Fconfopts="$Fconfopts --enable-java-awt=gtk \
@@ -114,6 +116,7 @@ build()
 	Fuse $USE_OBJC && langlist="$langlist,objc,obj-c++"
 	Fuse $USE_ADA && langlist="$langlist,ada"
 	Fuse $USE_TREELANG && langlist="$langlist,treelang"
+	Fuse $USE_FORTRAN && langlist="$langlist,fortran"
 
 	CC="$FCC gcc" CFLAGS="$CFLAGS" CXXFLAGS="$CFLAGS" XCFLAGS="$CFLAGS" \
 	TCFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" \
@@ -174,7 +177,7 @@ build()
 	Fln g++ /usr/bin/c++
 	Fmkdir /lib
 	Fln ../usr/bin/cpp /lib/cpp
-	Fln gfortran /usr/bin/f95
+	Fuse $USE_FORTRAN && Fln gfortran /usr/bin/f95
 
 	if Fuse $USE_ADA; then
 		Fln gcc /usr/bin/gnatgcc
@@ -254,13 +257,15 @@ build()
 		Fsplit gcc-gnat usr/lib/gcc/$CHOST/$pkgver/adalib
 		Fsplit gcc-gnat usr/libexec/gcc/$CHOST/$pkgver/gnat1
 	fi
-	# libgfortran
-	Fsplit libgfortran usr/lib/libgfortran.*
-	# gcc-gfortran
-	Fsplit gcc-gfortran usr/bin/{gfortran,$CHOST-gfortran,f95}
-	Fsplit gcc-gfortran usr/man/man1/gfortran.1*
-	Fsplit gcc-gfortran usr/info/gfortran*
-	Fsplit gcc-gfortran usr/libexec/gcc/$CHOST/$pkgver/f951
+	if Fuse $USE_FORTRAN; then
+		# libgfortran
+		Fsplit libgfortran usr/lib/libgfortran.*
+		# gcc-gfortran
+		Fsplit gcc-gfortran usr/bin/{gfortran,$CHOST-gfortran,f95}
+		Fsplit gcc-gfortran usr/man/man1/gfortran.1*
+		Fsplit gcc-gfortran usr/info/gfortran*
+		Fsplit gcc-gfortran usr/libexec/gcc/$CHOST/$pkgver/f951
+	fi
 	if Fuse $USE_OBJC; then
 		# libobjc
 		Fsplit libobjc usr/lib/libobjc*

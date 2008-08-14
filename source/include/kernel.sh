@@ -50,6 +50,7 @@ Finclude kernel-version
 # with a generated one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
 # * _F_kernel_uname: specify the kernel version manually (defaults to
 # $_F_kernel_name-fw$_F_kernel_rel)
+# * _F_kernel_path: vmlinuz on x86, vmlinux on ppc
 #
 # == OVERWRITTEN VARIABLES
 # * pkgver (if not set)
@@ -114,6 +115,13 @@ if [ $_F_kernel_rc -gt 0 ]; then
 else
 	_F_kernel_gitver=$_F_kernel_ver-git$_F_kernel_git
 fi
+if [ -z "$_F_kernel_path" ]; then
+	if [ "$CARCH" != "ppc" ]; then
+		_F_kernel_path=vmlinuz
+	else
+		_F_kernel_path=vmlinux
+	fi
+fi
 
 ###
 # * pkgname
@@ -156,17 +164,18 @@ if [ -z "$_F_kernel_name" ]; then
 	makedepends=('unifdef')
 fi
 groups=('base')
-archs=('i686' 'x86_64')
+archs=('i686' 'x86_64' 'ppc')
 options=('nodocs' 'genscriptlet')
 up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
 if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
-	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config.i686 config.x86_64)
+	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 \
+		config.i686 config.x86_64 config.ppc)
 	# this can be removed after Frualware 0.9 is out
 	replaces=('ipw3945' 'linux-uvc')
 else
 	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
 fi
-signatures=("${source[0]}.sign" '' '')
+signatures=("${source[0]}.sign" '' '' '')
 install="src/kernel.install"
 
 for i in ${_F_kernel_patches[@]}
@@ -218,7 +227,7 @@ fi
 ###
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
 subdepends=("make gcc kernel-headers kernel$_F_kernel_name-docs" "kernel$_F_kernel_name")
-subarchs=('i686 x86_64' 'i686 x86_64')
+subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
 subinstall=('src/kernel-source.install' '')
 suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
@@ -226,7 +235,7 @@ if [ -z "$_F_kernel_name" ]; then
 	subdepends=("${subdepends[@]}" '')
 	subgroups=('devel' 'apps' 'devel devel-core')
 	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')
-	subarchs=("${subarchs[@]}" 'i686 x86_64')
+	subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 	subinstall=("${subinstall[@]}" '')
 	suboptions=("${suboptions[@]}" '')
 else
@@ -307,12 +316,14 @@ Fbuildkernel()
 	Fmkdir /boot
 	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_uname
 	if [ ! -z "$_F_kernel_vmlinuz" ]; then
-		Ffilerel $_F_kernel_vmlinuz /boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
+		Ffilerel $_F_kernel_vmlinuz /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 	else
-		if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
-			Ffilerel arch/x86/boot/bzImage /boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
+		if [ "$CARCH" = "ppc" ]; then
+			Fexerel $_F_kernel_path /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
+		elif [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
+			Ffilerel arch/x86/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		else
-			Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage /boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
+			Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		fi
 	fi
 	Fmkdir /lib/modules
@@ -332,6 +343,7 @@ Fbuildkernel()
 	cp $Fincdir/kernel.install $Fsrcdir || Fdie
 	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel.install
 	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel.install
+	Fsed '$_F_kernel_path' "$_F_kernel_path" $Fsrcdir/kernel.install
 	cp $Fincdir/kernel-source.install $Fsrcdir || Fdie
 	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel-source.install
 	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel-source.install

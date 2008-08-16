@@ -1,0 +1,45 @@
+From http://sourceware.org/cgi-bin/cvsweb.cgi/src/bfd/elf32-ppc.c.diff?r1=1.241&r2=1.242&cvsroot=src
+
+Comment from http://sourceware.org/ml/binutils/2008-08/msg00040.html:
+
+Fixes a bug in ppc ld --relax.  If relaxing code which has PLTREL24
+relocs with the magic got2 offset addends (as in -fPIC) and the
+PLTREL24 symbol resolves locally rather than going via the plt, then
+the addend made its way into the trampoline.  Typically this meant
+that the trampoline bounced 32k away from where it should have landed.
+
+In practice: makes ld --relax not segfault. :)
+
+===================================================================
+RCS file: /cvs/src/src/bfd/elf32-ppc.c,v
+retrieving revision 1.241
+retrieving revision 1.242
+diff -u -r1.241 -r1.242
+--- src/bfd/elf32-ppc.c	2008/07/26 13:10:47	1.241
++++ src/bfd/elf32-ppc.c	2008/08/06 07:29:31	1.242
+@@ -5797,6 +5797,8 @@
+ 	  irel->r_info = ELF32_R_INFO (ELF32_R_SYM (irel->r_info),
+ 				       stub_rtype);
+ 	  irel->r_offset = trampoff + insn_offset;
++	  if (r_type == R_PPC_PLTREL24)
++	    irel->r_addend = 0;
+ 
+ 	  /* Record the fixup so we don't do it again this section.  */
+ 	  f = bfd_malloc (sizeof (*f));
+@@ -5879,7 +5881,7 @@
+ 
+       isec->size = (isec->size + 3) & (bfd_vma) -4;
+       /* Branch around the trampolines.  */
+-      val = trampoff - isec->size + 0x48000000;
++      val = B + trampoff - isec->size;
+       dest = contents + isec->size;
+       isec->size = trampoff;
+       bfd_put_32 (abfd, val, dest);
+@@ -6911,7 +6913,6 @@
+ 	      relocation = (htab->plt->output_section->vma
+ 			    + htab->plt->output_offset
+ 			    + ent->plt.offset);
+-	    addend = 0;
+ 	  }
+ 	  if (r_type == R_PPC_RELAX32_PLT)
+ 	    goto relax32;

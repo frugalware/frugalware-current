@@ -2,42 +2,47 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 if [ "$CARCH" != "ppc" ]; then
-	USE_JAVA=${USE_JAVA:-"y"}
+	USE_JAVA=${USE_JAVA:-"n"}
 else
 	USE_JAVA=${USE_JAVA:-"n"}
 fi
-USE_OBJC=${USE_OBJC:-"y"}
-USE_ADA=${USE_ADA:-"y"}
-USE_TREELANG=${USE_TREELANG:-"y"}
-USE_FORTRAN=${USE_FORTRAN:-"y"}
+USE_CPP=${USE_CPP:-"n"}
+USE_OBJC=${USE_OBJC:-"n"}
+USE_ADA=${USE_ADA:-"n"}
+USE_TREELANG=${USE_TREELANG:-"n"}
+USE_FORTRAN=${USE_FORTRAN:-"n"}
 
 pkgname=gcc
 pkgver=4.3.1
 pkgrel=3
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils>=2.18.50.0.8-3' 'libstdc++' 'glibc>=2.8-2' 'mpfr>=2.3.1-2')
+depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'mpfr>=2.3.1-2')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('i686' 'x86_64' 'ppc')
 options=('scriptlet')
 up2date="lynx -dump $url|grep Current|sed 's/.*GCC //'"
 source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2 \
-	ftp://gcc.gnu.org/pub/gcc/libstdc++/doxygen/libstdc++-man.20080508.tar.bz2 \
 	README.Frugalware)
-signatures=("$source.sig" '' '')
+signatures=("$source.sig" '')
 
-subpkgs=('libgcc' 'libstdc++' \
-	 'libssp' 'libgomp')
-subdescs=('GCC shared support library' 'GNU Standard C++ Library' \
+subpkgs=('libgcc' 'libssp' 'libgomp')
+subdescs=('GCC shared support library' \
 	  'SSP libraries from GCC' 'GNU OpenMP runtime library')
-subdepends=('glibc' \
-	    'libgcc' \
-	    "glibc" \
-	    "glibc")
-subbackup=('' '' '' '')
-subgroups=('base chroot-core' 'base chroot-core' \
-	   'lib' 'lib')
+subdepends=('glibc' 'glibc' 'glibc')
+subbackup=('' '' '')
+subgroups=('base chroot-core' 'lib' 'lib')
+if Fuse $USE_CPP; then
+	depends=("${depends[@]}" 'libstdc++')
+	source=("${source[@]}" ftp://gcc.gnu.org/pub/gcc/libstdc++/doxygen/libstdc++-man.20080508.tar.bz2)
+	signatures=("${signatures[@]}" '')
+	subpkgs=("${subpkgs[@]}" 'libstdc++')
+	subdescs=("${subdescs[@]}" 'GNU Standard C++ Library')
+	subdepends=("${subdepends[@]}" 'libgcc')
+	subbackup=("${subbackup[@]}" '')
+	subgroups=("${subgroups[@]}" 'base chroot-core')
+fi
 if Fuse $USE_JAVA; then
 	subpkgs=("${subpkgs[@]}" 'libffi' 'libgcj' 'libgcj-awt' 'gcc-gcj')
 	subdescs=("${subdescs[@]}" 'FFU kubrarues from GCC' 'Java runtime library for gcc' 'AWT peer libraries for libgcj' 'Java support for GCC')
@@ -102,7 +107,7 @@ build()
 	mkdir -p ../$pkgname-build || Fdie
 	cd ../$pkgname-build || Fdie
 
-	langlist="c,c++"
+	langlist="c"
 	if Fuse $USE_JAVA; then
 		langlist="$langlist,java"
 		Fconfopts="$Fconfopts --enable-java-awt=gtk \
@@ -111,7 +116,15 @@ build()
 		--with-ecj-jar=/usr/share/java/eclipse-ecj.jar \
 		--enable-gtk-cairo \
 		--enable-plugin \
-		--disable-libjava-multilib"
+		--disable-libjava-multilib \
+		--enable-hash-synchronization"
+	fi
+	if Fuse $USE_CPP; then
+		langlist="$langlist,c++"
+		## libstdcxx-pch is really a waste of space , nothing need nor uses that
+		Fconfopts="$Fconfopts --enable-__cxa_atexit \
+			--enable-libstdcxx-allocator=new \
+			--disable-libstdcxx-pch"
 	fi
 	Fuse $USE_OBJC && langlist="$langlist,objc,obj-c++"
 	Fuse $USE_ADA && langlist="$langlist,ada"
@@ -129,7 +142,6 @@ build()
 		--enable-languages=$langlist \
 		--enable-shared \
 		--enable-threads=posix \
-		--enable-__cxa_atexit \
 		--with-system-zlib \
 		--libdir=/usr/lib \
 		--disable-multilib \
@@ -139,12 +151,7 @@ build()
 		--with-pkgversion="Frugalware Linux" \
 		--enable-linux-futex \
 		--disable-dependency-tracking \
-		--enable-libstdcxx-allocator=new \
-		--enable-hash-synchronization \
-		--disable-libstdcxx-pch \
 		--build=$CARCH-frugalware-linux
-
-	## libstdcxx-pch is really a waste of space , nothing need nor uses that
 
 	make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" bootstrap || return 1
 
@@ -178,9 +185,11 @@ build()
 
 	# symlinks for backward compatibility
 	Fln gcc /usr/bin/cc
-	Fln g++ /usr/bin/c++
-	Fmkdir /lib
-	Fln ../usr/bin/cpp /lib/cpp
+	if Fuse $USE_CPP; then
+		Fln g++ /usr/bin/c++
+		Fmkdir /lib
+		Fln ../usr/bin/cpp /lib/cpp
+	fi
 	Fuse $USE_FORTRAN && Fln gfortran /usr/bin/f95
 
 	if Fuse $USE_ADA; then
@@ -206,16 +215,20 @@ build()
 
 	# documentation
 	Fdoc README.Frugalware
-	Fmkdir /usr/man/man3
-	# Note: man snapshots are called man.$snapshot and released tarballs are man-$the_version
-	cp $Fsrcdir/libstdc++-man.20080508/man3/* $Fdestdir/usr/man/man3/ || Fdie
+	if Fuse $USE_CPP; then
+		Fmkdir /usr/man/man3
+		# Note: man snapshots are called man.$snapshot and released tarballs are man-$the_version
+		cp $Fsrcdir/libstdc++-man.20080508/man3/* $Fdestdir/usr/man/man3/ || Fdie
+	fi
 
 	# split the pkg
 	# libgcc
 	Fsplit libgcc usr/lib/libgcc_*
-	# libstdc++
-	Fsplit libstdc++ usr/lib/libstdc++.*
-	Fsplit libstdc++ usr/man/man3/
+	if Fuse $USE_CPP; then
+		# libstdc++
+		Fsplit libstdc++ usr/lib/libstdc++.*
+		Fsplit libstdc++ usr/man/man3/
+	fi
 	if Fuse $USE_JAVA; then
 		## always do this java stuff before gnat because gnat splits with gnat*
 		## and we got now 'gnat'ive2ascii which is java stuff ;)

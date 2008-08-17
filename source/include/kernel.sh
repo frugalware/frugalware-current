@@ -122,6 +122,7 @@ if [ -z "$_F_kernel_path" ]; then
 		_F_kernel_path=vmlinux
 	fi
 fi
+[ "$CARCH" = "ppc" ] && export LDFLAGS="${LDFLAGS/-Wl,/}"
 
 ###
 # * pkgname

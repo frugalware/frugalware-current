@@ -1,16 +1,17 @@
 # Compiling Time: 26.48 SBU
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
+USE_CPP=${USE_CPP:-"y"}
 if [ "$CARCH" != "ppc" ]; then
 	USE_JAVA=${USE_JAVA:-"y"}
 else
 	USE_JAVA=${USE_JAVA:-"n"}
 fi
-USE_CPP=${USE_CPP:-"y"}
 USE_OBJC=${USE_OBJC:-"y"}
 USE_ADA=${USE_ADA:-"y"}
 USE_TREELANG=${USE_TREELANG:-"y"}
 USE_FORTRAN=${USE_FORTRAN:-"y"}
+USE_SHARED=${USE_SHARED:-"y"}
 
 pkgname=gcc
 pkgver=4.3.1
@@ -27,12 +28,14 @@ source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2 \
 	README.Frugalware)
 signatures=("$source.sig" '')
 
-subpkgs=('libgcc' 'libssp' 'libgomp')
-subdescs=('GCC shared support library' \
-	  'SSP libraries from GCC' 'GNU OpenMP runtime library')
-subdepends=('glibc' 'glibc' 'glibc')
-subbackup=('' '' '')
-subgroups=('base chroot-core' 'lib' 'lib')
+if Fuse $USE_SHARED; then
+	subpkgs=('libgcc' 'libssp' 'libgomp')
+	subdescs=('GCC shared support library' \
+	'SSP libraries from GCC' 'GNU OpenMP runtime library')
+	subdepends=('glibc' 'glibc' 'glibc')
+	subbackup=('' '' '')
+	subgroups=('base chroot-core' 'lib' 'lib')
+fi
 if Fuse $USE_CPP; then
 	depends=("${depends[@]}" 'libstdc++')
 	source=("${source[@]}" ftp://gcc.gnu.org/pub/gcc/libstdc++/doxygen/libstdc++-man.20080508.tar.bz2)
@@ -153,10 +156,18 @@ build()
 		--disable-dependency-tracking \
 		--build=$CARCH-frugalware-linux
 
-	make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" bootstrap || return 1
+	if Fuse $USE_SHARED; then
+		make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" bootstrap || return 1
+	else
+		make all-gcc || return 1
+	fi
 
-	unset MAKEFLAGS #this is needed by libffi
-	Fmakeinstall
+	if Fuse $USE_SHARED; then
+		unset MAKEFLAGS #this is needed by libffi
+		Fmakeinstall
+	else
+		make install-gcc DESTDIR=$Fdestdir || return 1
+	fi
 
 	if [ -d $Fdestdir/usr/lib64 ]; then
                Fmessage "Killing multilib CRAP!"
@@ -223,7 +234,7 @@ build()
 
 	# split the pkg
 	# libgcc
-	Fsplit libgcc usr/lib/libgcc_*
+	Fuse $USE_SHARED && Fsplit libgcc usr/lib/libgcc_*
 	if Fuse $USE_CPP; then
 		# libstdc++
 		Fsplit libstdc++ usr/lib/libstdc++.*
@@ -303,12 +314,14 @@ build()
 		Fsplit libffi usr/lib/gcc/$CHOST/$pkgver/include/ffi*
 		Fsplit libffi usr/include/ffi*
 	fi
-	# libssp
-	Fsplit libssp usr/lib/libssp*
-	Fsplit libssp usr/lib/gcc/$CHOST/$pkgver/include/ssp/
-	# libgomp
-	Fsplit libgomp usr/info/libgomp.info
-	Fsplit libgomp usr/lib/libgomp.*
+	if Fuse $USE_SHARED; then
+		# libssp
+		Fsplit libssp usr/lib/libssp*
+		Fsplit libssp usr/lib/gcc/$CHOST/$pkgver/include/ssp/
+		# libgomp
+		Fsplit libgomp usr/info/libgomp.info
+		Fsplit libgomp usr/lib/libgomp.*
+	fi
 }
 
 # optimization OK

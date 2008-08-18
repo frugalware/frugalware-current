@@ -120,17 +120,18 @@ Fexec() {
 # optional source directory, default is $_F_cd_path.
 ###
 Fcd() {
+	if [ -z "$_F_archive_name" ]; then
+		_F_archive_name="$pkgname"
+	fi
+	if [ -z "$_F_cd_path" ]; then
+		_F_cd_path="$_F_archive_name$Fpkgversep$pkgver$pkgextraver"
+	fi
+
 	if [ "$Fsrcdir" = `pwd` ]; then
 		if [ "$#" -eq 1 ]; then
 			Fmessage "Going to the source directory..."
 			cd "$Fsrcdir/$1" || Fdie
 		elif [ "$#" -eq 0 ]; then
-			if [ -z "$_F_archive_name" ]; then
-				_F_archive_name="$pkgname"
-			fi
-			if [ -z "$_F_cd_path" ]; then
-				_F_cd_path="$_F_archive_name$Fpkgversep$pkgver$pkgextraver"
-			fi
 			Fcd "$_F_cd_path"
 		fi
 	fi
@@ -523,7 +524,11 @@ Fconf() {
 	Fmessage "Configuring..."
 	if [ -z "$_F_conf_configure" ]; then
 		_F_conf_configure="./configure"
+		if [ ! -x "$_F_conf_configure" ]; then
+			_F_conf_configure="$Fsrcdir/$_F_cd_path/configure"
+		fi
 	fi
+
 	if [ -x $_F_conf_configure ]; then
 		grep -q sysconfdir $_F_conf_configure && \
 			Fconfopts="$Fconfopts --sysconfdir=$Fsysconfdir"
@@ -869,6 +874,7 @@ Flastarchive() {
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi
+
 	if [ $# -gt 1 ]; then
 		lynx -dump $1 | Flastarchive $2
 	else

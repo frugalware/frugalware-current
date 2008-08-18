@@ -1,13 +1,20 @@
 # Compiling Time: 0.50 SBU
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
+if [ "$CARCH" != "ppc" ]; then
+	USE_GUI=${USE_GUI:-"y"}
+else
+	USE_GUI=${USE_GUI:-"n"}
+fi
+
 pkgname=vim
 pkgver=7.2
 pkgrel=1
 pkgdesc="VIM - Vi IMproved console"
 url="http://www.vim.org"
 depends=('ncurses')
-makedepends=('gpm>=1.20.5-2' 'gtk+2')
+makedepends=('gpm>=1.20.5-2')
+Fuse $USE_GUI && makedepends=("${makedepends[@]}" 'gtk+2')
 groups=('apps')
 options=('scriptlet')
 archs=('i686' 'x86_64' 'ppc')
@@ -22,25 +29,29 @@ sha1sums=('76f6a5a97746db06bd4786984a116793a16e3e10' \
           '985911e5902d495897105cdd1570dfe47adfa254' \
           '95dfc37b411419f85774e143252d380d94804569')
 
-subpkgs=('gvim')
-subdescs=("VIM - Vi IMproved console (GTK version)")
-subdepends=("vim=$pkgver gpm>=1.20.5-2 gtk+2")
-subgroups=('xapps')
-subarchs=('i686 x86_64')
+if Fuse $USE_GUI; then
+	subpkgs=('gvim')
+	subdescs=("VIM - Vi IMproved console (GTK version)")
+	subdepends=("vim=$pkgver gpm>=1.20.5-2 gtk+2")
+	subgroups=('xapps')
+	subarchs=('i686 x86_64')
+fi
 
 build()
 {
 	Fcd vim${pkgver/.}
 	Fpatchall
 	cd src
-	# first build gvim
-	Fmake --with-x --enable-gui=gtk2 --enable-multibyte
-	make DESTDIR=$Fdestdir VIMRTDIR= installvimbin
-	Fmv /usr/bin/vim /usr/bin/gvim
-	Fln /usr/bin/gvim /usr/bin/gview
-	Ficon ../gvim.xpm
-	Fdesktop gvim gvim.xpm "Utility;TextEditor;"
-	make distclean || return 1
+	if Fuse $USE_GUI; then
+		# first build gvim
+		Fmake --with-x --enable-gui=gtk2 --enable-multibyte
+		make DESTDIR=$Fdestdir VIMRTDIR= installvimbin
+		Fmv /usr/bin/vim /usr/bin/gvim
+		Fln /usr/bin/gvim /usr/bin/gview
+		Ficon ../gvim.xpm
+		Fdesktop gvim gvim.xpm "Utility;TextEditor;"
+		make distclean || return 1
+	fi
 
 	# now vim
 	Fmake --localstatedir=/var/lib/$pkgname --disable-gpm --with-x=no \
@@ -50,7 +61,9 @@ build()
 	Fcp /usr/share/vim/vimrc_example.vim /usr/share/vim/vimrc
 	Fdoc README.Frugalware
 
-	Fsplit gvim usr/bin/g{vim,view}
-	Fsplit gvim usr/share/{applications,pixmaps}
+	if Fuse $USE_GUI; then
+		Fsplit gvim usr/bin/g{vim,view}
+		Fsplit gvim usr/share/{applications,pixmaps}
+	fi
 }
 # optimization ok

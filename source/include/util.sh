@@ -107,6 +107,15 @@ Fdie() {
 }
 
 ###
+# * Fexec(): Display and execute the command line passed as parameter. Note that
+# it cannot be used in a pipe context. Parameters: the command line to execute.
+###
+Fexec() {
+	Fmessage "$*"
+	"$@"
+}
+
+###
 # * Fcd(): Go to the source directory if it is $Fsrcdir currently. Parameter:
 # optional source directory, default is $_F_cd_path.
 ###
@@ -522,21 +531,21 @@ Fconf() {
 			Fconfopts="$Fconfopts --localstatedir=$Flocalstatedir"
 		grep -q 'build=' $_F_conf_configure && \
 			Fconfopts="$Fconfopts --build=$Fbuildchost"
-		$_F_conf_configure $Fconfopts "$@" || Fdie
+		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie
 	elif [ -f Makefile.PL ]; then
 		if [ -z "$_F_conf_perl_pipefrom" ]; then
-			perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+			Fexec perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
 		else
 			$_F_conf_perl_pipefrom | perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
 		fi
 		unset _F_conf_perl_pipefrom
 		Fsed `perl -e 'printf "%vd", $^V'` "current" Makefile
 	elif [ -f extconf.rb ]; then
-		ruby extconf.rb --prefix="$Fprefix" "$@" || Fdie
+		Fexec ruby extconf.rb --prefix="$Fprefix" "$@" || Fdie
 	elif [ -f configure.rb ]; then
-		./configure.rb --prefix="$Fprefix" "$@" || Fdie
+		Fexec ./configure.rb --prefix="$Fprefix" "$@" || Fdie
 	elif [ -f setup.rb ]; then
-		ruby setup.rb config "$@" || Fdie
+		Fexec ruby setup.rb config "$@" || Fdie
 	fi
 }
 

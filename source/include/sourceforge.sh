@@ -29,51 +29,57 @@
 # --------------------------------------------------
 #
 # == OPTIONS
-# * _F_sourceforge_name (defaults to $pkgname): if you want to use a custom
-# package name (for example the upstream name contains uppercase letters) then
-# use this to declare the real name
+# * _F_sourceforge_realname (defaults to $_F_sourceforge_auto_realname): if you want to use
+# a custom package name (for example the upstream name contains uppercase letters)
+# and _F_sourceforge_auto_realname isn't working then use this to declare the real
+# name ( used in up2date only )
+# * _F_sourceforge_name ( defaults to $pkgname): same as _F_sourceforge_realname
+# but it can be used for both source() and up2date
 # * _F_sourceforge_mirror (defaults to mesh): the sourceforge mirror to use
 # * _F_sourceforge_dirname (default to $pkgname): if the source
 # tarball uses a name different to the sourceforge project name, then use this
 # option to declare the project name
 # * _F_sourceforge_ext (defaults to .tar.gz): extension of the source tarball
-# * _F_sourceforge_broken_up2date: if set, try an other method for up2date, try
-# this if the normal up2date does not work, maybe this will
 # * _F_sourceforge_prefix (no defaults):  used to correct the up2date output
 # As example $pkgver should be 1.2.3 but you get V1.2.3 in such a case you can
 # set _F_sourceforge_prefix="V"
-# * _F_sourceforge_sep ( defaults to - ): used for source() only right now. As example
+# * _F_sourceforge_sep ( defaults to - ): used for source() and up2date. As example
 # for an "baz_1.2.3.tar.gz" tarball you should use _F_sourceforge_sep="_" , for empty
 # values use _F_sourceforge_sep="None" that way you can dowload such foo1234.tgz
 # * _F_sourceforge_pkgver ( defaults to $pkgver ) : Some packages are called foo-1.2.3
 # but the source is called different from $pkgver , e.g: foo-123 , foo-12.3 , in such
 # a case _F_sourceforge_pkgver may help to avoid custom $source
+#
+# == DEPRECATED OPTIONS
+# * _F_sourceforge_broken_up2date: it does nothing at the moment and will be removed
+# before 1.0 is out
 ###
+
 if [ -z "$_F_sourceforge_name" ]; then
-	_F_sourceforge_name=$pkgname
+        _F_sourceforge_name=$pkgname
 fi
 
 if [ -z "$_F_sourceforge_pkgver" ]; then
-	_F_sourceforge_pkgver=$pkgver
+	_F_sourceforge_pkgver=${pkgver//_/-}
 fi
 
 if [ -z "$_F_sourceforge_mirror" ]; then
 	# set our preferred mirror
-	#_F_sourceforge_mirror="mesh"
-	_F_sourceforge_mirror="dfn"
+	_F_sourceforge_mirror="mesh"
+	#_F_sourceforge_mirror="dfn"
 fi
 
 if [ -z "$_F_sourceforge_dirname" ]; then
 	_F_sourceforge_dirname=$pkgname
-else
-	_F_sourceforge_broken_up2date=1
 fi
 
 if [ -z "$_F_sourceforge_ext" ]; then
 	_F_sourceforge_ext=".tar.gz"
 fi
 
-if [ -z "$_F_sourceforge_broken_up2date" ]; then
+if [ -n "$_F_sourceforge_broken_up2date" ]; then
+	warning "_F_sourceforge_broken_up2date is deprecated and does nothing at the moment!"
+	warning "Please update your FrugalBuild."
         _F_sourceforge_broken_up2date=0
 fi
 
@@ -84,6 +90,8 @@ fi
 if [ -n "$_F_sourceforge_sep" ] && [ "$_F_sourceforge_sep" = "None" ]; then
         _F_sourceforge_sep=""
 fi
+
+
 ###
 # == OVERWRITTEN VARIABLES
 # * url
@@ -91,15 +99,13 @@ fi
 # * source()
 ###
 url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
-if [ $_F_sourceforge_broken_up2date -eq 0 ]; then
-	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -m1 'Latest \[.*\]'|sed 's/.*]$_F_sourceforge_prefix\(.*\) \[.*\].*/\1/;s/-/_/g'"
-else
-	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -m1 '$_F_sourceforge_name\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name$_F_sourceforge_prefix\(.*\)$_F_sourceforge_ext.*/\1/;s/-/_/g;s/_//1'"
+if [ -z "$_F_sourceforge_realname" ]; then
+	## Since the realname may differ on each new release of an package
+	## we try to set it automatically but only if _F_sourceforge_realname is
+	## is not used.
+	## DO NOT USE THIS HACK IN ANY OTHER SCHEMA FILE
+	_F_sourceforge_auto_realname=`lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -v '+' | grep -i -m1 "   \(\[[0-9][0-9]\]\)${_F_sourceforge_name} "|sed 's/^[ \t]*//;s/ \[.*//;s/.*]//'`
+	_F_sourceforge_realname="$_F_sourceforge_auto_realname"
 fi
-## we have now regular $pkgver so use s/_/-/ but in case we have a custom _F_sourceforge_pkgver
-## which is for 'source only' we don't need that since $pkgver is right already
-if [ "$_F_sourceforge_pkgver" == "$pkgver" ]; then
-	source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver//_/-}${_F_sourceforge_ext})
-else
-	source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext})
-fi
+up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -v '+' | grep -m1 '   \(\[[0-9][0-9]\]\)${_F_sourceforge_realname} '| sed 's/\(\[[0-9][0-9]\]\)Release.*//g;s/.*]//g;s/$_F_sourceforge_prefix\(.*\) \([a-zA-Z]\).*/\1/;s/${_F_sourceforge_realname}${_F_sourceforge_sep}//g;s/${_F_sourceforge_realname} //;s/-/_/g;s/ _.*//g;s/ \(.*\).*//g'"
+source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext})

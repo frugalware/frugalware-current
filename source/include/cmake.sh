@@ -74,8 +74,7 @@ CMake_conf()
 ###
 CMake_prepare_build()
 {
-	Fcd $_F_cd_path
-	echo $pwd
+	Fcd
 	Fpatchall
 	if [ "$_F_cmake_in_source_build" -eq "0" ]; then
 		if [ -d  "build" ]; then

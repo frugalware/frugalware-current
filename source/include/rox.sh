@@ -45,6 +45,8 @@
 # path
 # * _F_rox_sep - used to change the seperator between version and
 # $_F_rox_name, if applicable.
+# * _F_rox_sourceforge_override - set to 1 if you wish to manually specify
+# _F_sourceforge_name and _F_sourceforge_realname, defaults to 0
 ###
 
 [ -z "$_F_rox_name" ] && _F_rox_name=$pkgname
@@ -55,6 +57,7 @@
 [ -z "$_F_rox_use_rox4debian" ] && _F_rox_use_rox4debian=0
 [ -z "$_F_rox_use_hayber" ] && _F_rox_use_hayber=0
 [ -z "$_F_rox_hayber_subdir" ] && _F_rox_hayber_subdir=$pkgname
+[ -z "$_F_rox_sourceforge_override" ] && _F_rox_sourceforge_override=0
 if echo $pkgname | grep -q lib; then
 	_F_rox_installpath=/usr/lib/
 else
@@ -73,6 +76,10 @@ _F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 
 if [ "$_F_rox_use_sourceforge" -eq 1 ]; then
 	_F_sourceforge_dirname=rox
+	if [ "$_F_rox_sourceforge_override" -eq 0 ]; then
+		_F_sourceforge_name=$_F_rox_name
+		_F_sourceforge_realname=$_F_rox_name
+	fi
 	Finclude sourceforge
 	unset url
 fi

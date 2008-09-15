@@ -207,16 +207,6 @@ if [ $_F_kernel_git -gt 0 ]; then
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
 fi
 
-if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
-	if [ "$CARCH" = "x86_64" ]; then
-		KARCH=x86
-	fi
-	echo "$CARCH" |grep -q 'i.86' && KARCH=x86
-else
-	[ "$CARCH" == "x86_64" ] && MARCH=K8
-	echo "$CARCH" |grep -q 'i.86' && KARCH=i386
-fi
-
 ###
 # * subpkg()
 # * subdepends()
@@ -321,10 +311,8 @@ Fbuildkernel()
 	else
 		if [ "$CARCH" = "ppc" ]; then
 			Fexerel $_F_kernel_path /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
-		elif [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
-			Ffilerel arch/x86/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		else
-			Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
+			Ffilerel arch/x86/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		fi
 	fi
 	Fmkdir /lib/modules

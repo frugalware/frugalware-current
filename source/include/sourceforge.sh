@@ -91,6 +91,18 @@ if [ -n "$_F_sourceforge_sep" ] && [ "$_F_sourceforge_sep" = "None" ]; then
         _F_sourceforge_sep=""
 fi
 
+_F_sourceforge_up2date()
+{
+	local auto_realname=""
+	if [ -z "$_F_sourceforge_realname" ]; then
+		## Since the realname may differ on each new release of an package
+		## we try to set it automatically but only if _F_sourceforge_realname is
+		## is not used.
+		auto_realname=`lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -v '       + ' | grep -i -m1 "   \(\[[0-9][0-9]\]\)${_F_sourceforge_name} "|sed 's/^[ \t]*//;s/ \[.*//;s/.*]//;s/ _.*//g;s/ \(.*\).*//g'`
+		_F_sourceforge_realname="$auto_realname"
+	fi
+	lynx -dump http://sourceforge.net/project/showfiles.php?group_id=$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -v '       + ' | grep -m1 "   \(\[[0-9][0-9]\]\)${_F_sourceforge_realname} "| sed "s/\(\[[0-9][0-9]\]\)Release.*//g;s/.*]//g;s/$_F_sourceforge_prefix\(.*\) \([a-zA-Z]\).*/\1/;s/${_F_sourceforge_realname}${_F_sourceforge_sep}//g;s/${_F_sourceforge_realname} //;s/-/_/g;s/ _.*//g;s/ \(.*\).*//g"
+}
 
 ###
 # == OVERWRITTEN VARIABLES
@@ -99,13 +111,7 @@ fi
 # * source()
 ###
 url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
-if [ -z "$_F_sourceforge_realname" ]; then
-	## Since the realname may differ on each new release of an package
-	## we try to set it automatically but only if _F_sourceforge_realname is
-	## is not used.
-	## DO NOT USE THIS HACK IN ANY OTHER SCHEMA FILE
-	_F_sourceforge_auto_realname=`lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -v '       + ' | grep -i -m1 "   \(\[[0-9][0-9]\]\)${_F_sourceforge_name} "|sed 's/^[ \t]*//;s/ \[.*//;s/.*]//;s/ _.*//g;s/ \(.*\).*//g'`
-	_F_sourceforge_realname="$_F_sourceforge_auto_realname"
-fi
-up2date="lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -v '       + ' | grep -m1 '   \(\[[0-9][0-9]\]\)${_F_sourceforge_realname} '| sed 's/\(\[[0-9][0-9]\]\)Release.*//g;s/.*]//g;s/$_F_sourceforge_prefix\(.*\) \([a-zA-Z]\).*/\1/;s/${_F_sourceforge_realname}${_F_sourceforge_sep}//g;s/${_F_sourceforge_realname} //;s/-/_/g;s/ _.*//g;s/ \(.*\).*//g'"
+# this is needed because without the param tools assume we are using the
+# old-style up2dates
+up2date="_F_sourceforge_up2date fake_param"
 source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext})

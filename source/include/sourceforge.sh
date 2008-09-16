@@ -93,15 +93,28 @@ fi
 
 _F_sourceforge_up2date()
 {
-	local auto_realname=""
+	local gid="" auto_realname=""
+	gid=$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')
 	if [ -z "$_F_sourceforge_realname" ]; then
 		## Since the realname may differ on each new release of an package
 		## we try to set it automatically but only if _F_sourceforge_realname is
 		## is not used.
-		auto_realname=`lynx -dump http://sourceforge.net/project/showfiles.php?group_id=\$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -v '       + ' | grep -i -m1 "   \(\[[0-9][0-9]\]\)${_F_sourceforge_name} "|sed 's/^[ \t]*//;s/ \[.*//;s/.*]//;s/ _.*//g;s/ \(.*\).*//g'`
+		auto_realname=$(lynx -dump http://sourceforge.net/project/showfiles.php?group_id=$gid | \
+			grep -v '       + ' | \
+			grep -i -m1 "   \(\[[0-9][0-9]\]\)${_F_sourceforge_name} " | \
+			sed 's/^[ \t]*//;s/ \[.*//;s/.*]//;s/ _.*//g;s/ \(.*\).*//g')
 		_F_sourceforge_realname="$auto_realname"
 	fi
-	lynx -dump http://sourceforge.net/project/showfiles.php?group_id=$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')|grep -v '       + ' | grep -m1 "   \(\[[0-9][0-9]\]\)${_F_sourceforge_realname} "| sed "s/\(\[[0-9][0-9]\]\)Release.*//g;s/.*]//g;s/$_F_sourceforge_prefix\(.*\) \([a-zA-Z]\).*/\1/;s/${_F_sourceforge_realname}${_F_sourceforge_sep}//g;s/${_F_sourceforge_realname} //;s/-/_/g;s/ _.*//g;s/ \(.*\).*//g"
+	lynx -dump http://sourceforge.net/project/showfiles.php?group_id=$gid | \
+		grep -v '       + ' | \
+		grep -m1 "   \(\[[0-9][0-9]\]\)${_F_sourceforge_realname} " | \
+		sed "s/\(\[[0-9][0-9]\]\)Release.*//g
+			s/.*]//g;s/$_F_sourceforge_prefix\(.*\) \([a-zA-Z]\).*/\1/
+			s/${_F_sourceforge_realname}${_F_sourceforge_sep}//g
+			s/${_F_sourceforge_realname} //
+			s/-/_/g
+			s/ _.*//g
+			s/ \(.*\).*//g"
 }
 
 ###

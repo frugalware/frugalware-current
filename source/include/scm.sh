@@ -154,8 +154,14 @@ Funpack_scm()
 		hg clone $_F_scm_url || Fdie
 		Fcd ${_F_scm_url##*/}
 	elif [ "$_F_scm_type" == "bzr" ]; then
-		bzr branch $_F_scm_url || Fdie
-		Fcd ${_F_scm_url##*/}
+		if [ ! -d "${_F_scm_url##*/}" ]; then
+			bzr branch $_F_scm_url || Fdie
+			Fcd ${_F_scm_url##*/}
+		else
+			Fcd ${_F_scm_url##*/}
+			bzr revert || Fdie
+			bzr pull || Fdie
+		fi
 	fi
 }
 

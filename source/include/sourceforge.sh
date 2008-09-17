@@ -94,7 +94,7 @@ fi
 _F_sourceforge_up2date()
 {
 	local gid="" auto_realname=""
-	gid=$(lynx -dump $url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')
+	gid=$(lynx -dump $_F_sourceforge_url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')
 	if [ -z "$_F_sourceforge_realname" ]; then
 		## Since the realname may differ on each new release of an package
 		## we try to set it automatically but only if _F_sourceforge_realname is
@@ -123,7 +123,10 @@ _F_sourceforge_up2date()
 # * up2date
 # * source()
 ###
-url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
+_F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
+if [ -z "$url" ]; then
+	url="$_F_sourceforge_url"
+fi
 # this is needed because without the param tools assume we are using the
 # old-style up2dates
 up2date="_F_sourceforge_up2date fake_param"

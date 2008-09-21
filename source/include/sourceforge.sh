@@ -101,14 +101,14 @@ _F_sourceforge_up2date()
 		## is not used.
 		auto_realname=$(lynx -dump http://sourceforge.net/project/showfiles.php?group_id=$gid | \
 			grep -v '       + ' | \
-			grep -i -m1 "   \(\[[0-9][0-9]\]\)${_F_sourceforge_name} " | \
+			grep -i -m1 "   \(\[[0-9]\{2,\}\]\)${_F_sourceforge_name} " | \
 			sed 's/^[ \t]*//;s/ \[.*//;s/.*]//;s/ _.*//g;s/ \(.*\).*//g')
 		_F_sourceforge_realname="$auto_realname"
 	fi
 	lynx -dump http://sourceforge.net/project/showfiles.php?group_id=$gid | \
 		grep -v '       + ' | \
-		grep -m1 "   \(\[[0-9][0-9]\]\)${_F_sourceforge_realname} " | \
-		sed "s/\(\[[0-9][0-9]\]\)Release.*//g
+		grep -m1 "   \(\[[0-9]\{2,\}\]\)${_F_sourceforge_realname} " | \
+		sed "s/\(\[[0-9]\{2,\}\]\)Release.*//g
 			s/.*]//g;s/$_F_sourceforge_prefix\(.*\) \([a-zA-Z]\).*/\1/
 			s/${_F_sourceforge_realname}${_F_sourceforge_sep}//g
 			s/${_F_sourceforge_realname} //

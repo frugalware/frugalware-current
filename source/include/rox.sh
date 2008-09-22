@@ -74,8 +74,8 @@ _F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 if [ "$_F_rox_use_sourceforge" -eq 1 ]; then
 	_F_sourceforge_dirname=rox
 	[ -z "$_F_sourceforge_realname" ] && _F_sourceforge_realname="$_F_rox_name"
-	[ -z "$_F_sourceforge_name" ] && _F_sourceforge_name="$_F_rox_name"
 	Finclude sourceforge
+	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?\$(curl -s 'http://sourceforge.net/project/showfiles.php?group_id=7023' | grep '>${_F_sourceforge_realname}<' | sed 's|amp\;||' | grep -o 'group_id=\(.*\)&package_id=\(.*\)[0-9]') | grep -o '${_F_sourceforge_name}${_F_sourceforge_sep}\(.*\)${_F_sourceforge_ext}' | Flastarchive '${_F_sourceforge_ext}'"
 	unset url
 fi
 

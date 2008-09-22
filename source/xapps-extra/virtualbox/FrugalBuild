@@ -4,30 +4,32 @@
 
 pkgname=virtualbox
 realname=VirtualBox
-pkgver=1.6.2
-pkgrel=5
+pkgver=2.0.2
+pkgrel=1
 pkgdesc="InnoTek VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 Finclude kernel-module
 _F_kernelmod_scriptlet=${pkgname}.install
+install=${pkgname}.install
 depends=(${depends[@]} 'xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'qt' 'libidl' 'sdl' \
-	 'hal' 'libstdc++5' 'alsa-lib')
+	 'hal' 'libstdc++5' 'alsa-lib' 'qt4-linguist')
 makedepends=(${makedepends[@]} 'gcc-4.1')
 # For get-vbox-additions
 rodepends=('wget')
 groups=('xapps-extra')
 archs=('i686' '!x86_64')
 up2date="lynx -dump ${url}|grep released|sed 's/.* \([0-9.]*\) .*/\1/;q'"
-source=(http://www.virtualbox.org/download/${pkgver}/${realname}-${pkgver}-OSE.tar.bz2 \
-	vboxsvc virtualbox get-vbox-additions README.Frugalware 60-virtualbox.rules)
+source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver}-OSE.tar.bz2 \
+	vboxsvc virtualbox get-vbox-additions 60-virtualbox.rules virtualbox.install README.Frugalware)
 _F_cd_path="${realname}-${pkgver}"
 options=('scriptlet' 'genscriptlet')
-sha1sums=('6811a580b70e651f36002f344033e1db1858fdef' \
+sha1sums=('cdc51cc4e5ff189cf9eff832179494009df1334a' \
           'e32ebff11bb235b50f8826b70d85dbcf4a56aee4' \
           '3c0c856b9ad5f186405e87cf6eac09f1060b62cd' \
           '07f49d0c5fac8311ec87d1a38a981de9ba3a4e07' \
-          '155be5405f4c91e5c7f4a51b5bac8fc4760a894c' \
-          'b9cb188f62148603b78a0b8c04b6fff369bb7b62')
+          'b9cb188f62148603b78a0b8c04b6fff369bb7b62' \
+          'bf4bee9647bb3bf941ae99f3b4dd775f17df16dc' \
+          '155be5405f4c91e5c7f4a51b5bac8fc4760a894c')
 
 _F_desktop_name="$realname"
 _F_desktop_desc="InnoTek VirtualBox virtualization program"
@@ -45,7 +47,8 @@ build() {
 	Fsed 'X11R6/' '' Config.kmk
 
 	# Configure and load our options
-	./configure --with-gcc-compat=/usr/bin/gcc-4.1 --disable-pulse || Fdie
+	./configure --with-gcc-compat=/usr/bin/gcc-4.1 \
+		--disable-pulse --disable-hardening || Fdie
 	source ./env.sh || Fdie
 
 	kmk KBUILD_VERBOSE=2 all || Fdie
@@ -53,19 +56,19 @@ build() {
 	# Kernel module
 	Fmkdir ${_F_kernelmod_dir}/kernel/misc
 	cd out/linux.x86/release/bin/src || Fdie
-	make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=$Fdestdir/${_F_kernelmod_dir} \
+	make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \
 		MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc || Fdie
 	make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=$Fdestdir/${_F_kernelmod_dir} \
-		MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=$Fdestdir install || Fdie
+		MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=${Fdestdir} install || Fdie
 
 	# Install it
-	cd $Fsrcdir/$_F_cd_path/out/linux.x86/release/bin || Fdie
+	cd ${Fsrcdir}/${_F_cd_path}/out/linux.x86/release/bin || Fdie
 	Fmkdir /usr/lib/VirtualBox
 	rm -rf sdk src tst* testcase additions/src || Fdie
 	rm -f vboxdrv.ko SUPInstall SUPUninstall || Fdie
-	cp -R * $Fdestdir/usr/lib/VirtualBox/ || Fdie
+	cp -R * ${Fdestdir}/usr/lib/VirtualBox/ || Fdie
 	for each in VBox{BFE,Manage,SDL,SVC,XPCOMIPCD,Tunctl} VirtualBox vditool additions/vboxadd-timesync ; do
-		chmod 0755 $Fdestdir/usr/lib/VirtualBox/${each} || Fdie
+		chmod 0755 ${Fdestdir}/usr/lib/VirtualBox/${each} || Fdie
 	done
 
 	# Desktop file
@@ -73,13 +76,16 @@ build() {
         Fdesktop2
 
 	# Install the wrappers
-	Fexerel $Fsrcdir/vboxsvc /usr/bin/vboxsvc
-	Fexerel $Fsrcdir/virtualbox /usr/bin/virtualbox
-	Fsed "version=" "version=$vboxrealpkgver" $Fsrcdir/get-vbox-additions
-	Fexerel $Fsrcdir/get-vbox-additions /usr/bin/get-vbox-additions
+	Fexerel ${Fsrcdir}/vboxsvc /usr/bin/vboxsvc
+	Fexerel ${Fsrcdir}/virtualbox /usr/bin/virtualbox
+	Fsed "version=" "version=${vboxrealpkgver}" ${Fsrcdir}/get-vbox-additions
+	Fexerel ${Fsrcdir}/get-vbox-additions /usr/bin/get-vbox-additions
 
 	## udev rule
-	Fexerel $Fsrcdir/60-virtualbox.rules /etc/udev/rules.d/60-virtualbox.rules
+	Fexerel ${Fsrcdir}/60-virtualbox.rules /etc/udev/rules.d/60-virtualbox.rules
+
+	## Hacking files permission
+	chmod 4511 ${Fdestdir}/usr/lib/VirtualBox/{VirtualBox,VBoxSDL,VBoxHeadless} || Fdie
 
 	Fbuild_kernelmod_scriptlet
 }

@@ -47,6 +47,10 @@ Fmonoexport() {
 # * Fmonoccompileaot(): AOT all of the libraries in the pkg
 ###
 Fmonocompileaot() {
+	if [ "$CARCH" == "ppc" ]; then
+		Fmessage "AOTing not supported on this platform"
+		return
+	fi
 	Fmessage "AOTing all of the libraries..."
 	for i in $Fdestdir/usr/lib/mono/gac/*/*/*.dll
 	do

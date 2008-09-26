@@ -39,8 +39,6 @@
 # desktop software (do not use with the others)
 # * _F_rox_use_hayber - enable the user of one of the other sources of rox
 # desktop software (do not use with the others)
-# * _F_rox_hayber_subdir - use to change the subdir that is used for up2date
-# and source in hayber mirror setup, defaults to $pkgname
 # * _F_rox_subdir - used to install the rox app to a subdir of the install
 # path
 # * _F_rox_sep - used to change the seperator between version and
@@ -54,7 +52,6 @@
 [ -z "$_F_rox_use_kerofin" ] && _F_rox_use_kerofin=0
 [ -z "$_F_rox_use_rox4debian" ] && _F_rox_use_rox4debian=0
 [ -z "$_F_rox_use_hayber" ] && _F_rox_use_hayber=0
-[ -z "$_F_rox_hayber_subdir" ] && _F_rox_hayber_subdir=$pkgname
 if echo $pkgname | grep -q lib; then
 	_F_rox_installpath=/usr/lib/
 else
@@ -101,10 +98,10 @@ if [ "$_F_rox_use_rox4debian" -eq 1 ]; then
 fi
 
 if [ "$_F_rox_use_hayber" -eq 1 ]; then
-	_F_rox_hayber_url="http://www.hayber.us/rox"
-	url="$_F_rox_hayber_url/$_F_rox_name"
-	up2date="Flasttar $_F_rox_hayber_url/$_F_rox_hayber_subdir"
-	source=($_F_rox_hayber_url/$_F_rox_hayber_subdir/$_F_rox_name-$pkgver.tgz)
+	[ -z "$_F_googlecode_name" ] && _F_googlecode_name="$_F_rox_name"
+	[ -z "$_F_googlecode_ext" ] && _F_googlecode_ext=".tgz"
+	[ -z "$_F_googlecode_dirname" ] && _F_googlecode_dirname="rox-$pkgname"
+	Finclude googlecode
 fi
 
 options=(${options[@]} 'nodocs')

@@ -96,7 +96,7 @@ CMake_prepare_build()
 CMake_make()
 {
 	CMake_prepare_build
-	CMake_conf
+	CMake_conf "$@"
 	## do _not_ use any F* stuff here , cmake does not like it
 	make || Fdie
 }
@@ -106,8 +106,7 @@ CMake_make()
 ###
 CMake_build()
 {
-
-	CMake_make
+	CMake_make "$@"
 	make DESTDIR=$Fdestdir install || Fdie
 }
 

@@ -78,7 +78,7 @@ up2date="lynx -dump 'http://hackage.haskell.org/packages/archive/$_F_haskell_nam
 # == APPENDED VARIABLES
 # * options: add genscriptlet to options
 ###
-options=(${options[@]} 'genscriptlet')
+options=(${options[@]} 'scriptlet' 'genscriptlet')
 
 ###
 # == PROVIDED FUNCTIONS

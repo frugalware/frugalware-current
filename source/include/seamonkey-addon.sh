@@ -31,6 +31,7 @@
 ###
 
 if [ -z "$_F_seamonkey_name" ]; then
+	Fmessage "You must specify the _F_seamonkey_name variable."
 	Fdie
 else
 	pkgname="seamonkey-$_F_seamonkey_name"

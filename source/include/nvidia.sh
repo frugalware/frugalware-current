@@ -104,9 +104,18 @@ Finclude kernel-module
 
 ###
 # == PROVIDED FUNCTIONS
+# * Fbuild_nvidia_scriptlet: Build the nvidia scriplet
 # * Fbuild_nvidia: Builds the software
 # * build(): just calls Fbuild_nvidia
 ###
+
+Fbuild_nvidia_scriptlet()
+{
+	cp $Fincdir/nvidia.install ${Fsrcdir%/src}
+	Fsed '$pkgname' "$pkgname" ${Fsrcdir%/src}/$_F_kernelmod_scriptlet
+	Fsed '$pkgver' "$pkgver" ${Fsrcdir%/src}/$_F_kernelmod_scriptlet
+	Fbuild_kernelmod_scriptlet
+}
 
 Fbuild_nvidia() {
 	cd $Fsrcdir
@@ -163,10 +172,7 @@ Fbuild_nvidia() {
 	make SYSSRC=$_F_kernelmod_dir/build module || Fdie
 	cd ../../.. || Fdie
 	Ffilerel usr/src/nv/nvidia.ko $_F_kernelmod_dir/kernel/drivers/video/nvidia.ko
-
-	# Kernel module scriptlet
-	cp $Fincdir/nvidia.install ${Fsrcdir%/src}
-	Fbuild_kernelmod_scriptlet
+	Fbuild_nvidia_scriptlet
 
 	# Documentation
 	Fdoc $_F_cd_path/LICENSE

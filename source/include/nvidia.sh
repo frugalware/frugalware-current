@@ -29,6 +29,8 @@
 # * _F_nvidia_pkgnum (defaults guessed using _F_nvidia_arch): the nvidia package number
 # * _F_nvidia_linkver (defaults to pkgver): the link number used by the nvidia shared libraries
 # * _F_nvidia_install (defaults to nvidia.install): Install file
+# * _F_nvidia_legacyver (optionnal): version string has found at http://www.nvidia.com/object/unix.html 
+# * _F_nvidia_up2date (defaults depends of _F_nvidia_legacyver): an up2date grep string that will be followed
 ###
 # General variables
 if [ -z "$_F_nvidia_arch" ]; then
@@ -36,17 +38,12 @@ if [ -z "$_F_nvidia_arch" ]; then
 		_F_nvidia_arch=x86
 	elif [ "$CARCH" == "x86_64" ]; then
 		_F_nvidia_arch=x86_64
-	else
-		Fmessage "Unkown nvidia arch for $CARCH"
-		Fdie
 	fi
 fi
 if [ -z "$_F_nvidia_pkgnum" ]; then
 	case "$_F_nvidia_arch" in
 	x86)	_F_nvidia_pkgnum=1;;
 	x86_64)	_F_nvidia_pkgnum=2;;
-	*)	Fmessage "Unkown default nvidia pkgnum for $_F_nvidia_arch"
-		Fdie
 	esac
 fi
 if [ -z "$_F_nvidia_name" ]; then
@@ -57,6 +54,13 @@ if [ -z "$_F_nvidia_linkver" ]; then
 fi
 if [ -z "$_F_nvidia_install" ]; then
 	_F_nvidia_install="nvidia.install"
+fi
+if [ -z "$_F_nvidia_up2date" ]; then
+	if [ -z "$_F_nvidia_legacyver" ]; then
+		_F_nvidia_up2date="Latest Version:"
+	else
+		_F_nvidia_up2date="Latest Legacy GPU Version ($_F_nvidia_legacyver series):"
+	fi
 fi
 
 ###
@@ -71,9 +75,9 @@ fi
 ###
 groups=('x11-extra')
 pkgdesc="3D accelerated display driver for Nvidia cards"
-url="http://www.nvidia.com/object/linux_display_archive.html"
-source=(ftp://download.nvidia.com/XFree86/Linux-$_F_nvidia_arch/$pkgver/$_F_nvidia_name.run)
-up2date="lynx -dump http://www.nvidia.com/object/unix.html|grep -m1 'Latest Version:'|sed 's/.*]//;s/-/_/'"
+url="http://www.nvidia.com/object/unix.html"
+source=(http://us.download.nvidia.com/XFree86/Linux-$_F_nvidia_arch/$pkgver/$_F_nvidia_name.run)
+up2date="lynx -dump http://www.nvidia.com/object/unix.html|grep -m1 '"$_F_nvidia_up2date"'|sed 's/.*]//;s/-/_/'"
 
 _F_cd_path=$_F_nvidia_name
 _F_kernelmod_scriptlet=$_F_nvidia_install
@@ -162,9 +166,11 @@ Fbuild_nvidia() {
 	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA.so"
 	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA.so.1"
 	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA_dynamic.so.1"
-	Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libnvidia-wfb.so"
-	Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libnvidia-wfb.so.1"
-	Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libwfb.so"
+	if [ -e "/usr/lib/xorg/modules/libnvidia-wfb.so.$_F_nvidia_linkver" ]; then
+		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libnvidia-wfb.so"
+		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libnvidia-wfb.so.1"
+		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libwfb.so"
+	fi
 
 	# Kernel module
 	cd usr/src/nv || Fdie

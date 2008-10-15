@@ -290,6 +290,7 @@ Fbuildkernel()
 	if [ -z "$_F_kernel_name" ]; then
 		make INSTALL_HDR_PATH=$Fdestdir/usr headers_install || Fdie
 		[ -e $Fdestdir/usr/include/scsi ] && Frm /usr/include/scsi
+		[ -e $Fdestdir/usr/include/drm ] && Frm /usr/include/drm
 		Fsplit kernel-headers /usr
 	fi
 	## now time to eat some cookies and wait kernel got compiled :)

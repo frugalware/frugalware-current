@@ -11,7 +11,7 @@ if ! Fuse $USE_DEVEL; then
 	dir=`echo $tree|tr [a-z] [A-Z]`
 	milestone=9
 	pkgver=$upstream
-	pkgrel=1
+	pkgrel=2
 	snapshot=r14295
 else
 	upstream=3.0
@@ -21,7 +21,7 @@ else
 	milestone=9
 	pkgver=$upstream${tree}_m$milestone
 	pkgrel=3
-	snapshot=r14231
+	snapshot=r14295
 fi
 pkgdesc="OpenOffice.org, a full office productivity suite."
 url="http://www.openoffice.org/"
@@ -65,6 +65,7 @@ subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
 subgroups=('kde-extra' 'gnome-extra' 'devel-extra')
 subinstall=("" "$_F_gnome_scriptlet" "")
 
+ooodicts="af cs da de es et fr gl hu it lt ne nl pl pt ru sk sl sv sw th vi zu"
 ooosubpkgs=('de' 'es' 'fr' 'hu')
 ooosubdescs=('German' 'Spanish' 'French' 'Hungarian')
 if ! Fuse $USE_DEVEL; then
@@ -88,7 +89,11 @@ done
 i=0
 while [ $i -lt ${#ooosubpkgs[@]} ]
 do
-	subinstall=("${subinstall[@]}" '')
+	if echo "$ooodicts"|grep -q ${ooosubpkgs[$i]}; then
+		subinstall=("${subinstall[@]}" "openoffice.org-i18n-${ooosubpkgs[$i]}.install")
+	else
+		subinstall=("${subinstall[@]}" '')
+	fi
 	i=$(($i+1))
 done
 
@@ -101,10 +106,39 @@ do
         i=$(($i+1))
 done
 
-# You can find a few random notes about building OOo here:
-# http://wiki.frugalware.org/OOo_building
+gen_dict_scriptlet()
+{
+	lang=$1
+	out=$2
+	cat >${Fsrcdir%/src}/$out <<EOF
+post_install()
+{
+	unopkg add --shared /usr/lib/openoffice.org/share/extension/install/dict-$lang.oxt 2>/dev/null
+}
 
-build() {
+pre_upgrade()
+{
+	pre_remove
+}
+
+post_upgrade()
+{
+	post_install
+}
+
+pre_remove()
+{
+	unopkg remove --shared \$(unopkg list --shared|grep "^Identifier: org.openoffice.$lang"|sed 's/Identifier: //')
+}
+
+op=\$1
+shift
+\$op \$*
+EOF
+}
+
+build()
+{
 	Fmonoexport
 	Fextract ooo-build$branch-$snapshot.tar.bz2
 	if [ -n "$branch" ]; then
@@ -119,6 +153,13 @@ build() {
 		ln -sf $i src/
 	done
 
+	# Generate the dict scriptlets
+	gen_dict_scriptlet en openoffice.org.install
+	for i in $ooodicts
+	do
+		gen_dict_scriptlet $i openoffice.org-i18n-$i.install
+	done
+
 	# Remove our patches so that incremental build will be possible.
 	#rm -f patches/src680/ecj-is-gcj.diff
 	Fpatchall
@@ -126,7 +167,7 @@ build() {
 	# SMP build
 	if [ ! -z "$MAKEFLAGS" ]; then
 		# Comment this out if you think the build failed because of being SMP.
-		#Fconfopts="$Fconfopts --with-num-cpus=${MAKEFLAGS/-j}"
+		Fconfopts="$Fconfopts --with-num-cpus=${MAKEFLAGS/-j}"
 		unset MAKEFLAGS
 	fi
 
@@ -162,6 +203,8 @@ build() {
 
 	# Permission fixes
 	find $Fdestdir/usr/lib/openoffice.org/program -name "*.so" ! -perm 755 -exec chmod 755 {} \;
+
+	# Fix invalid hardwired mktemp path in unopkg
 	Fsed /bin/mktemp mktemp $Fdestdir/usr/lib/openoffice.org/program/unopkg
 
 	# Enable the mozilla plugin
@@ -171,58 +214,41 @@ build() {
 	# Split out the i18n stuff
 	for i in "${ooosubpkgs[@]}"
 	do
+		# en-GB -> en-gb
 		spkg=`echo $i|tr [A-Z] [a-z]`
-		for j in usr/lib/$pkgname/basis3.0/share/registry/res/$i/ usr/lib/$pkgname/basis3.0/share/template/$i/ \
-			usr/lib/$pkgname/basis3.0/help/$i/ usr/lib/$pkgname/basis3.0/program/resource/*680$i.res \
-			usr/lib/openoffice.org/basis3.0/presets/config/*_$i.* \
-			usr/lib/openoffice.org/basis3.0/share/autocorr/acor_$i*.dat \
-			usr/lib/openoffice.org/basis3.0/share/autotext/$i/ usr/lib/openoffice.org/share/readme/LICENSE_$i* \
-			usr/lib/openoffice.org/basis3.0/share/samples/$i/ \
-			usr/lib/openoffice.org/basis3.0/share/registry/modules/org/openoffice/Setup/Langpack-$i.xcu \
-			usr/lib/openoffice.org/basis3.0/share/template/wizard/letter/$i/ \
-			usr/lib/openoffice.org/basis3.0/share/wordbook/$i/
-			#usr/lib/openoffice.org/basis3.0/share/config/soffice.cfg/modules/*/accelerator/$i/
-		do
-			if ls $Fdestdir/$j &>/dev/null; then
-				Fsplit openoffice.org-i18n-$spkg $j
-			fi
-		done
+		# en-GB -> en_GB
+		upkg=`echo $i|sed 's/-/_/g'`
+		Fsplit openoffice.org-i18n-$spkg $(grep -v '^%dir' build/lang_${upkg}_list.txt)
+		if echo "$ooodicts"|grep -q $i; then
+			Fsplit openoffice.org-i18n-$spkg /usr/lib/openoffice.org/share/extension/install/dict-$i.oxt
+		fi
 	done
 
 	## Split KDE stuff
-	for kde in fps_kde.uno.so kdebe*.uno.so kde-open-url libvclplug_kde*.so libkabdrv*.so
-	do
-		Fsplit $pkgname-kde usr/lib/openoffice.org/basis3.0/program/$kde
-	done
-	Fsplit $pkgname-kde usr/lib/openoffice.org/program/kdefilepicker
-	## Split GNOME stuff
-	for gnome in gnome-open-ur* fps_gnome.uno.so \
-		libvclplug_gtk*.so libeggtray* libqstart_gtk* ucpgvfs1.uno.so \
-		gconfbe* libevoab*.so
-	do
-		Fsplit $pkgname-gnome usr/lib/openoffice.org/basis3.0/program/$gnome
-	done
+	Fsplit $pkgname-kde $(grep -v '^%dir' build/kde_list.txt)
 
+	## Split GNOME stuff
+	Fsplit $pkgname-gnome $(grep -v '^%dir' build/gnome_list.txt)
 	Fbuild_gnome_scriptlet
 
 	# Split SDK
-	Fmkdir usr/share/doc/$pkgname-$pkgver/
-	Fmv usr/share/doc/packages/OpenOffice.org/sdk usr/share/doc/$pkgname-$pkgver/
-	Frm usr/share/doc/packages/
-	for i in usr/share/openoffice.org \
-		usr/share/idl \
-		usr/share/doc/$pkgname-$pkgver/sdk \
-		usr/lib/openoffice.org/basis3.0/sdk \
-		usr/include
-	do
-		Fsplit $pkgname-sdk $i
-	done
+	Fsplit $pkgname-sdk $(grep -v '^%dir' build/sdk_list.txt)
+	Fsplit $pkgname-sdk $(grep -v '^%dir' build/sdk_doc_list.txt)
 
 	# Check for missing language packs.
-	misslangs="`find $Fdestdir |grep registry/res/.*/org|sed 's|.*registry/res/\(.*\)/org.*|\1|'|grep -v en-US |sort -u`"
+	misslangs="`find $Fdestdir -type f |grep registry/res/.*/org|sed 's|.*registry/res/\(.*\)/org.*|\1|'|grep -v en-US |sort -u`"
 	if [ -n "$misslangs" ]; then
 		Fmessage "Unsplitted languages: $misslangs"
 		return 1
+	fi
+
+	if ! Fuse $USE_DEVEL; then
+		# Check for missing dict packs.
+		missdicts="`find $Fdestdir -type f |grep dict-.*oxt |sed 's/.*dict-\(.*\).oxt/\1/'|grep -v en|sort -u`"
+		if [ -n "$missdicts" ]; then
+			Fmessage "Unsplitted dicts: $missdicts"
+			return 1
+		fi
 	fi
 	Fmonocleanup
 }

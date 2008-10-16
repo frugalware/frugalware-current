@@ -374,8 +374,8 @@ Fdoc() {
 	local i
 	for i in $@
 	do
-		if [ -d "$i" ]; then
-			Fcpr "$Fsrcdir/$i" "/usr/share/doc/$pkgname-$pkgver/"
+		if [ -d "$Fsrcdir/$i" ]; then
+			Fcp "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		else
 		Ffile "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		local j

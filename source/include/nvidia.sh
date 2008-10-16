@@ -127,62 +127,84 @@ Fbuild_nvidia() {
 	Fcd
 	Fpatchall
 
-	# Install the binaries
-	Fexerel usr/bin/nvidia-* /usr/bin/
-
-	# Xorg modules
-	Fmkdir usr/lib/xorg/
-	Fcp $_F_cd_path/usr/X11R6/lib/modules /usr/lib/xorg/modules
-
-	# Libraries
-	Fexerel usr/lib/*.so* /usr/lib/
-	Fexerel usr/lib/libGL.la /usr/lib/libGL.la
-	Fsed "__LIBGL_PATH__" "/usr/lib" $Fdestdir/usr/lib/libGL.la
-
-	# Weird TLS stuff
-	Fmkdir usr/lib/tls
-	Fexerel usr/lib/tls/*.so* /usr/lib/tls/
-	Fexerel usr/X11R6/lib/libXv* /usr/lib/
-
-	# Data
-	Fmkdir usr/share
-	Fcp $_F_cd_path/usr/share/pixmaps /usr/share/
-	Fcp $_F_cd_path/usr/share/applications /usr/share/
-	Fcp $_F_cd_path/usr/share/man /usr/
-	Frm usr/man/man1/nvidia-installer.1.gz
-	Fsed "__UTILS_PATH__" "/usr/bin" $Fdestdir/usr/share/applications/nvidia-settings.desktop
-	Fsed "__PIXMAP_PATH__" "/usr/share/pixmaps" $Fdestdir/usr/share/applications/nvidia-settings.desktop
-
-	# Library links
-	Fln "libGL.so.$_F_nvidia_linkver" "/usr/lib/libGL.so"
-	Fln "libGL.so.$_F_nvidia_linkver" "/usr/lib/libGL.so.1"
-	Fln "libGL.so.$_F_nvidia_linkver" "/usr/lib/libGL.so.1.2"
-	Fln "libGLcore.so.$_F_nvidia_linkver" "/usr/lib/libGLcore.so.1"
-	Fln "libnvidia-cfg.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-cfg.so.1"
-	Fln "libnvidia-cfg.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-cfg.so"
-	Fln "libnvidia-tls.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-tls.so.1"
-	Fln "libnvidia-tls.so.$_F_nvidia_linkver" "/usr/lib/tls/libnvidia-tls.so.1"
-	Fln "libglx.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/extensions/libglx.so"
-	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA.so"
-	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA.so.1"
-	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA_dynamic.so.1"
-	if [ -e "/usr/lib/xorg/modules/libnvidia-wfb.so.$_F_nvidia_linkver" ]; then
-		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libnvidia-wfb.so"
-		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libnvidia-wfb.so.1"
-		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libwfb.so"
-	fi
-
-	# Kernel module
+	# Build the kernel module
 	cd usr/src/nv || Fdie
 	ln -s Makefile.kbuild Makefile || Fdie
 	make SYSSRC=$_F_kernelmod_dir/build module || Fdie
 	cd ../../.. || Fdie
+
+	# Install the kernel module
 	Ffilerel usr/src/nv/nvidia.ko $_F_kernelmod_dir/kernel/drivers/video/nvidia.ko
 	Fbuild_nvidia_scriptlet
 
+	# Install the binaries
+	Fexerel usr/bin/nvidia-* /usr/bin/
+
+	# Install the includes
+	# GL includes conflicts with mesa ones, remove for now
+#	Fmkdir usr/include/GL/
+#	Ffilerel usr/include/GL/* /usr/include/GL/
+	if [ -d usr/include/cuda ]; then
+		Fmkdir usr/include/cuda
+		Ffilerel usr/include/cuda/* /usr/include/cuda/
+	fi
+
+	# Install the xorg modules
+	Fmkdir usr/lib/xorg/modules/drivers
+	Fexerel usr/X11R6/lib/modules/drivers/*.so* /usr/lib/xorg/modules/drivers/
+	Fmkdir usr/lib/xorg/modules/extensions
+	Fexerel usr/X11R6/lib/modules/extensions/*.so* /usr/lib/xorg/modules/extensions/
+	Fln "libglx.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/extensions/libglx.so"
+	if [ -e "usr/lib/xorg/modules/libnvidia-wfb.so.$_F_nvidia_linkver" ]; then
+		Fexerel usr/X11R6/lib/modules/libnvidia-wfb.so* /usr/lib/xorg/modules/
+		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libnvidia-wfb.so"
+		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libwfb.so"
+	fi
+
+	# Install the libraries
+	Fexerel usr/lib/*.so* /usr/lib/
+	Fexerel usr/lib/libGL.la /usr/lib/libGL.la
+	Fexerel usr/X11R6/lib/*.so* /usr/lib/
+	Fsed "__LIBGL_PATH__" "/usr/lib" $Fdestdir/usr/lib/libGL.la
+	Fln "libGL.so.$_F_nvidia_linkver" "/usr/lib/libGL.so"
+	Fln "libGL.so.$_F_nvidia_linkver" "/usr/lib/libGL.so.1"
+	Fln "libGL.so.$_F_nvidia_linkver" "/usr/lib/libGL.so.1.2"
+	Fln "libGLcore.so.$_F_nvidia_linkver" "/usr/lib/libGLcore.so"
+	Fln "libGLcore.so.$_F_nvidia_linkver" "/usr/lib/libGLcore.so.1"
+	Fln "libnvidia-tls.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-tls.so"
+	Fln "libnvidia-tls.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-tls.so.1"
+	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA.so"
+	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA.so.1"
+	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA_dynamic.so"
+	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA_dynamic.so.1"
+	if [ -e "/usr/lib/libnvidia-cfg.so.$_F_nvidia_linkver" ]; then
+		Fln "libnvidia-cfg.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-cfg.so"
+		Fln "libnvidia-cfg.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-cfg.so.1"
+	fi
+	if [ -e "/usr/lib/libcuda.so.$_F_nvidia_linkver" ]; then
+		Fln "libcuda.so.$_F_nvidia_linkver" "/usr/lib/libcuda.so"
+		Fln "libcuda.so.$_F_nvidia_linkver" "/usr/lib/libcuda.so.1"
+	fi
+
+	# Weird TLS stuff
+	Fmkdir usr/lib/tls
+	Fexerel usr/lib/tls/*.so* /usr/lib/tls/
+	Fln "libnvidia-tls.so.$_F_nvidia_linkver" "/usr/lib/tls/libnvidia-tls.so"
+	Fln "libnvidia-tls.so.$_F_nvidia_linkver" "/usr/lib/tls/libnvidia-tls.so.1"
+
+	# Data
+	Fmkdir usr/share/applications
+	Ffilerel usr/share/applications/* /usr/share/applications/
+	Fmkdir usr/share/pixmaps
+	Ffilerel usr/share/pixmaps/* /usr/share/pixmaps/
+	Fmkdir usr/man/man1
+	Ffilerel usr/share/man/man1/* /usr/man/man1/
+	Frm usr/man/man1/nvidia-installer.1.gz
+	Fsed "__UTILS_PATH__" "/usr/bin" $Fdestdir/usr/share/applications/nvidia-settings.desktop
+	Fsed "__PIXMAP_PATH__" "/usr/share/pixmaps" $Fdestdir/usr/share/applications/nvidia-settings.desktop
+
 	# Documentation
-	Fdoc $_F_cd_path/LICENSE
-	Fcp $_F_cd_path/usr/share/doc/* /usr/share/doc/$pkgname-$pkgver/
+	Fdocrel LICENSE usr/share/doc/*
 	Fln "$pkgname-$pkgver" "/usr/share/doc/$pkgname"
 }
 

@@ -155,7 +155,7 @@ Fbuild_nvidia() {
 	Fmkdir usr/lib/xorg/modules/extensions
 	Fexerel usr/X11R6/lib/modules/extensions/*.so* /usr/lib/xorg/modules/extensions/
 	Fln "libglx.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/extensions/libglx.so"
-	if [ -e "usr/lib/xorg/modules/libnvidia-wfb.so.$_F_nvidia_linkver" ]; then
+	if [ -e "usr/X11R6/lib/modules/libnvidia-wfb.so.$_F_nvidia_linkver" ]; then
 		Fexerel usr/X11R6/lib/modules/libnvidia-wfb.so* /usr/lib/xorg/modules/
 		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libnvidia-wfb.so"
 		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libwfb.so"
@@ -177,11 +177,11 @@ Fbuild_nvidia() {
 	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA.so.1"
 	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA_dynamic.so"
 	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA_dynamic.so.1"
-	if [ -e "/usr/lib/libnvidia-cfg.so.$_F_nvidia_linkver" ]; then
+	if [ -e "usr/lib/libnvidia-cfg.so.$_F_nvidia_linkver" ]; then
 		Fln "libnvidia-cfg.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-cfg.so"
 		Fln "libnvidia-cfg.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-cfg.so.1"
 	fi
-	if [ -e "/usr/lib/libcuda.so.$_F_nvidia_linkver" ]; then
+	if [ -e "usr/lib/libcuda.so.$_F_nvidia_linkver" ]; then
 		Fln "libcuda.so.$_F_nvidia_linkver" "/usr/lib/libcuda.so"
 		Fln "libcuda.so.$_F_nvidia_linkver" "/usr/lib/libcuda.so.1"
 	fi

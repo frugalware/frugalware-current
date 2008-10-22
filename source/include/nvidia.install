@@ -1,3 +1,44 @@
+module_isloaded() {
+	if [ `lsmod | grep ^nvidia | wc -l` -gt 0 ]; then
+		return 0
+	fi
+	return 1
+}
+
+module_load() {
+	echo -n "Loading nvidia kernel module... "
+	## if nvidia dependent kernel is the current kernel
+	if [ -e /lib/modules/`uname -r`/kernel/drivers/video/nvidia.ko ]; then
+		if modprobe nvidia --syslog; then
+			echo "done."
+			return 0
+		else
+			echo "FAILURE."
+			echo "WARNING: Check why nvidia refused to load using dmesg."
+		fi
+	else
+		echo "FAILURE."
+		echo "WARNING: Kernel was updated, you have to restart so this change take effect."
+	fi
+	return 1
+}
+
+module_unload() {
+	echo -n "Unloading nvidia kernel module... "
+	if module_isloaded; then
+		if modprobe --remove nvidia --syslog; then
+			echo "done."
+			return 1
+		else
+			echo "FAILURE."
+			echo "WARNING: You have to restart X for this change to take effect !"
+		fi
+	else
+		echo "skipped."
+	fi
+	return 1
+}
+
 post_install() {
 	echo "*** In order to use this package you have to accept Nvidia's license which"
 	echo "*** can be found at /usr/share/doc/$pkgname-$pkgver/LICENSE."
@@ -15,11 +56,7 @@ post_install() {
 		echo nvidia >> /etc/sysconfig/modules
 	fi
 	/sbin/depmod -ea $_F_kernelmod_uname
-	## if nvidia dependent kernel is the current kernel
-	if [ -e /lib/modules/`uname -r`/kernel/drivers/video/nvidia.ko ]; then
-		## Try to load it
-		/sbin/modprobe nvidia
-	fi
+	module_load
 }
 
 post_upgrade() {
@@ -29,20 +66,17 @@ post_upgrade() {
         ## if that exisit we bumped / upgraded the package only no new kernel
 	## on a new kernel we do nothing because one has to reboot anyway
 	if [ -e /lib/modules/`uname -r`/kernel/drivers/video/nvidia.ko ]; then
-		## see if is loaded , if yes kill it and modprobe again if not do nothing
-		if grep -q nvidia /proc/modules; then
-			echo -n "Reloading nvidia kernel module.."
-				modprobe --remove nvidia
-				sleep 1
-				modprobe nvidia
-			echo " done."
+		## try to unload it, on success try to load it again
+		if module_unload; then
+			sleep 1
+			module_load
 		fi
 	fi
 }
 
 pre_remove() {
-	if test `lsmod | grep ^nvidia | wc -l` -gt 0; then
-		/sbin/modprobe --remove nvidia
+	if unload_module; then
+		echo "WARNING: You have to restart X for this change to take effet !"
 	fi
 	
 	if [ -e /etc/X11/xorg.conf ]; then

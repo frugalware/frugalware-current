@@ -76,7 +76,9 @@ fi
 groups=('x11-extra')
 pkgdesc="3D accelerated display driver for Nvidia cards"
 url="http://www.nvidia.com/object/unix.html"
-source=(http://us.download.nvidia.com/XFree86/Linux-$_F_nvidia_arch/$pkgver/$_F_nvidia_name.run)
+if [ -n "$_F_nvidia_arch" ]; then
+	source=(http://us.download.nvidia.com/XFree86/Linux-$_F_nvidia_arch/$pkgver/$_F_nvidia_name.run)
+fi
 up2date="lynx -dump http://www.nvidia.com/object/unix.html|grep -m1 '"$_F_nvidia_up2date"'|sed 's/.*]//;s/-/_/'"
 
 _F_cd_path=$_F_nvidia_name

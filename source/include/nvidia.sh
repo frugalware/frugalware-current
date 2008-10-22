@@ -90,11 +90,13 @@ _F_kernelmod_scriptlet=$_F_nvidia_install
 # * conflicts: add libgl and libglx to conflicts
 # * provides: add ligl and libglx to provides
 # * options: add nostrip to options
+# * removes: temporary fix for some nvidia mess, has to be removed after Frugalware 1.0
 ###
 depends=(${depends[@]} 'xorg-server>=1.1.0' 'pkgconfig')
 conflicts=(${conflicts[@]} 'libgl' 'libglx')
 provides=(${provides[@]} 'libgl' 'libglx')
 options=(${options[@]} 'nostrip')
+removes=(${removes[@]} 'usr/lib/libcuda.so.1' 'usr/lib/libnvidia-cfg.so.1')
 
 if [ "$pkgname" != "nvidia" ]; then
 	conflicts=(${conflicts[@]} 'nvidia')

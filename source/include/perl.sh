@@ -70,11 +70,18 @@ archs=('i686')
 
 ###
 # == PROVIDED FUNCTIONS
-# * build()
+# * Fbuild_perl(): improves build() to make use of these functions
 ###
-build()
+Fbuild_perl()
 {
 	Fcd $_F_cd_path
 	Fbuild
 	Frm /usr/lib/perl5/current
+}
+
+###
+# * build() just calls Fbuild_perl()
+###
+build() {
+	Fbuild_perl
 }

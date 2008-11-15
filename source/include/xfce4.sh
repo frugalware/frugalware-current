@@ -63,7 +63,7 @@ if echo ${groups[*]} | grep -q goodies ; then
 else
 	url="http://www.xfce.org/"
 	preup2date="lynx -dump http://www.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"
-	dlurl="$url/archive/xfce-4.5.91/src"
+	dlurl="$url/archive/xfce-4.5.92/src"
 	up2date="lynx -dump $url/archive/xfce-\$($preup2date)/src/ | Flasttar"
 	source=($dlurl/$_F_xfce_name-$pkgver.tar.bz2)
 fi

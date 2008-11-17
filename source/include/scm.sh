@@ -114,7 +114,7 @@ Funpack_scm()
 		if [ -d "${_F_scm_url##*/}" ]; then
 			darcs pull $extra || Fdie
 		else
-			darcs get --partial $_F_scm_url $extra || Fdie
+			darcs get --lazy $_F_scm_url $extra || Fdie
 		fi
 		Fcd ${_F_scm_url##*/}
 	elif [ "$_F_scm_type" == "cvs" ]; then

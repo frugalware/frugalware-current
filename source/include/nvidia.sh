@@ -152,7 +152,7 @@ Fbuild_nvidia() {
 		Fmkdir usr/include/cuda
 		Ffilerel usr/include/cuda/* /usr/include/cuda/
 	fi
-	if [ -d usr/unclude/vdpau ]; then
+	if [ -d usr/include/vdpau ]; then
 		Fmkdir usr/include/vdpau
 		Ffilerel usr/include/vdpau/* /usr/include/vdpau/
 	fi

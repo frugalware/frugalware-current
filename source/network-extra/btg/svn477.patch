@@ -1,0 +1,114 @@
+Index: daemon/context.cpp
+===================================================================
+--- daemon/context.cpp	(revision 476)
++++ daemon/context.cpp	(revision 477)
+@@ -546,7 +546,19 @@
+             {
+                boost::filesystem::path targetFilename(targetPath);
+                BTG_MNOTICE(logWrapper(), "Attempt to get info from '" << targetPath << "'");
+-               tinfo.reset(new libtorrent::torrent_info(targetFilename));
++
++               std::vector<char> contents;
++               if (libtorrent::load_file(targetFilename, contents) == 0)
++                  {
++                     BTG_MNOTICE(logWrapper(), "Loaded " << targetFilename << " into buffer, size " << contents.size() << " bytes.");
++                  }
++               else
++                  {
++                     BTG_MNOTICE(logWrapper(), "Failed to load " << targetFilename << " into buffer.");
++                     gotInfo = false;
++                  }
++
++               tinfo.reset(new libtorrent::torrent_info(&contents[0], contents.size()));
+             }
+          catch (std::exception& e)
+             {
+@@ -742,7 +754,7 @@
+                filetrack_->remove(tempDir_, fileTrackFilename);
+             }
+ 
+-         BTG_MEXIT(logWrapper(), "add", "");
++         BTG_MEXIT(logWrapper(), "add", toString(status));
+          return status;
+       }
+ 
+@@ -774,7 +786,7 @@
+                BTG_ERROR_LOG(logWrapper(), "Attempt to write '" << targetPath << "' failed");
+             }
+ 
+-         BTG_MEXIT(logWrapper(), "add", status);
++         BTG_MEXIT(logWrapper(), "add", toString(status));
+          return status;
+       }
+ 
+@@ -2553,6 +2565,27 @@
+ 
+          filter_->set(*torrent_session);
+       }
++      
++      std::string Context::toString(addResult const _addresult) const
++      {
++         std::string s;
++         switch(_addresult)
++            {
++            case ERR_UNDEFINED:
++               s = "ERR_UNDEFINED";
++               break;
++            case ERR_OK:
++               s = "ERR_OK";
++               break;
++            case ERR_EXISTS:
++               s = "ERR_EXISTS";
++               break;
++            case ERR_LIBTORRENT:
++               s = "ERR_LIBTORRENT";
++               break;
++            }
++         return s;
++      }
+ 
+       Context::~Context()
+       {
+Index: daemon/context_file.cpp
+===================================================================
+--- daemon/context_file.cpp	(revision 476)
++++ daemon/context_file.cpp	(revision 477)
+@@ -30,6 +30,8 @@
+ #include <libtorrent/identify_client.hpp>
+ #include <algorithm>
+ 
++#include <boost/version.hpp>
++
+ namespace btg
+ {
+    namespace daemon
+@@ -264,7 +266,14 @@
+                            return true;
+                         }
+                   }
+-               else if (itr->leaf() == file_name) // see below
++
++#if BOOST_VERSION > 103500
++               // 1.36.x and so on.
++               else if (itr->filename() == file_name) // see below
++#else
++               // Below 1.35.x.
++               else if (itr->path() == file_name) // see below
++#endif
+                   {
+                      BTG_MEXIT(logWrapper(), "find_file", true);
+                      return true;
+Index: daemon/context.h
+===================================================================
+--- daemon/context.h	(revision 476)
++++ daemon/context.h	(revision 477)
+@@ -707,6 +707,9 @@
+                /// Set peer ID (read from configuration, converting it
+                /// to a format used by libtorrent).
+                void setPeerIdFromConfig();
++               
++               std::string toString(addResult const _addresult) const;
++
+ #if (BTG_LT_0_14)
+                /// Convert a libtorrent bitfield into a vector of bits.
+                /// 

@@ -1,0 +1,139 @@
+Index: bcore/externalization/xmlrpc.cpp
+===================================================================
+--- bcore/externalization/xmlrpc.cpp	(revision 469)
++++ bcore/externalization/xmlrpc.cpp	(revision 470)
+@@ -222,8 +222,8 @@
+ 
+          void XMLRPC::getBuffer(dBuffer & _buffer)
+          {
+-            char* buff;
+-            int   buffsize;
++            char* buff     = 0;
++            int   buffsize = 0;
+ 
+             XMLRPC_REQUEST_OUTPUT_OPTIONS opt = XMLRPC_RequestGetOutputOptions(xmlrpc_request);
+ 
+Index: bcore/transport/tcpipbase.cpp
+===================================================================
+--- bcore/transport/tcpipbase.cpp	(revision 469)
++++ bcore/transport/tcpipbase.cpp	(revision 470)
+@@ -142,6 +142,7 @@
+             }
+ 
+          t_byteP message = new t_byte[message_size];
++         memset(message, 0, message_size);
+ 
+          if (message == 0)
+             {
+Index: daemon/daemonhandler.cpp
+===================================================================
+--- daemon/daemonhandler.cpp	(revision 469)
++++ daemon/daemonhandler.cpp	(revision 470)
+@@ -1281,6 +1281,7 @@
+             }
+ 
+          delete _command;
++         _command = 0;
+ 
+          BTG_MNOTICE(logWrapper(), "data (out): " << sendBuffer_.size() << " bytes");
+ 
+Index: daemon/context.cpp
+===================================================================
+--- daemon/context.cpp	(revision 469)
++++ daemon/context.cpp	(revision 470)
+@@ -62,6 +62,10 @@
+ #include <libtorrent/extensions/ut_pex.hpp>
+ #endif
+ 
++#if BTG_LT_0_14
++#include <libtorrent/alert.hpp>
++#endif
++
+ namespace btg
+ {
+    namespace daemon
+@@ -220,11 +224,20 @@
+ 
+                this->setNormalHttpSettings();
+ 
+-               // From the libtorrent manual.
+-               // Events that can be considered normal, but still deserves
+-               // an event. This could be a piece hash that fails.
++#if (BTG_LT_0_12 || BTG_LT_0_13)
+                torrent_session->set_severity_level(libtorrent::alert::info);
++#elif BTG_LT_0_14
++               {
++                  int amask = 
++                     libtorrent::alert::error_notification | 
++                     libtorrent::alert::port_mapping_notification | 
++                     libtorrent::alert::tracker_notification | 
++                     libtorrent::alert::status_notification | 
++                     libtorrent::alert::progress_notification;
+ 
++                  torrent_session->set_alert_mask(amask);
++               }
++#endif
+                setPeerIdFromConfig();
+             }
+       }
+@@ -1186,7 +1199,11 @@
+             case libtorrent::torrent_status::checking_files:
+                ts = Status::ts_checking;
+                break;
++#if (BTG_LT_0_12) || (BTG_LT_0_13)
+             case libtorrent::torrent_status::connecting_to_tracker:
++#elif BTG_LT_0_14
++            case libtorrent::torrent_status::downloading_metadata:
++#endif
+                ts = Status::ts_connecting;
+                break;
+             case libtorrent::torrent_status::downloading:
+@@ -1815,7 +1832,11 @@
+             {
+             case libtorrent::torrent_status::queued_for_checking:
+             case libtorrent::torrent_status::checking_files:
++#if (BTG_LT_0_12) || (BTG_LT_0_13)
+             case libtorrent::torrent_status::connecting_to_tracker:
++#elif BTG_LT_0_14
++            case libtorrent::torrent_status::downloading_metadata:
++#endif
+             case libtorrent::torrent_status::downloading:
+                if (!moveToWorkingDir(_torrent_id))
+                   {
+@@ -1965,8 +1986,11 @@
+ 
+          // Get the status from libtorrent:
+          libtorrent::torrent_status status = ti->handle.status();
+-
++#if (BTG_LT_0_12) || (BTG_LT_0_13)
+          if ((status.state == libtorrent::torrent_status::connecting_to_tracker)
++#elif BTG_LT_0_14
++         if ((status.state == libtorrent::torrent_status::downloading_metadata)
++#endif
+              ||
+              (status.state == libtorrent::torrent_status::downloading)
+              ||
+Index: daemon/context_file.cpp
+===================================================================
+--- daemon/context_file.cpp	(revision 469)
++++ daemon/context_file.cpp	(revision 470)
+@@ -521,6 +521,7 @@
+             {
+                torrentInfo *ti       = tii->second;
+ 
++#if (BTG_LT_0_12 || BTG_LT_0_13)
+                // Get the fast resume data.
+                libtorrent::entry torrent_entry = ti->handle.write_resume_data();
+ 
+@@ -559,6 +560,11 @@
+ 
+                BTG_MNOTICE(logWrapper(), "wrote fast resume data for '" << filename << "'");
+                out.close();
++#elif BTG_LT_0_14
++               // The actual writting is done using a callback.
++               // TODO: implement this!
++               ti->handle.save_resume_data();
++#endif
+             }
+ 
+          op_status = true;

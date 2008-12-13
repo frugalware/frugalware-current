@@ -66,13 +66,16 @@ fi
 ###
 # == OVERWRITTEN VARIABLES
 # * install
-# * source
+# * url
 # * up2date
+# * source
 ###
 
-install=$_F_haskell_install
+url="http://hackage.haskell.org/cgi-bin/hackage-scripts/package/$_F_haskell_name"
+[ -n "$_F_archive_name" ] || _F_archive_name="$_F_haskell_name"
+up2date="Flasttar http://hackage.haskell.org/cgi-bin/hackage-scripts/package/$_F_haskell_name"
 source=(http://hackage.haskell.org/packages/archive/${_F_haskell_name}/${pkgver}/${_F_haskell_prefix}${_F_haskell_name}${_F_haskell_sep}${pkgver}${_F_haskell_ext})
-up2date="lynx -dump 'http://hackage.haskell.org/packages/archive/$_F_haskell_name/?C=M;O=A'|grep 'http:'|sed 's/.*\/\([0-9].*\)\/.*/\1/'|tail -n1"
+install=$_F_haskell_install
 
 ###
 # == APPENDED VARIABLES
@@ -100,7 +103,7 @@ Fbuild_haskell() {
   Fcd
   Fpatchall
   runhaskell $_F_haskell_setup configure $_F_haskell_confopts || Fdie
-  runhaskell $_F_haskell_setup build
+  runhaskell $_F_haskell_setup build || Fdie
   Fbuild_haskell_regscripts
   runhaskell $_F_haskell_setup copy --destdir=$Fdestdir
 }

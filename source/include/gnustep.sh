@@ -36,6 +36,8 @@ if [ -z $_F_gnustep_category ] ; then
 	_F_gnustep_category="core"
 fi
 
+_F_archive_name=$_F_gnustep_name
+
 ###
 # == OVERWRITTEN VARIABLES
 # * url
@@ -48,7 +50,7 @@ Fprefix="/usr/lib/GNUstep"
 groups=('gnustep')
 url="http://www.gnustep.org/"
 dlurl="http://ftpmain.gnustep.org/pub/gnustep/$_F_gnustep_category/"
-up2date="lynx -dump $url/resources/downloads.php | grep -m1 $_F_gnustep_name | Flasttar"
+up2date="lynx -dump $url/resources/downloads.php | Flasttar"
 source=($dlurl/${_F_gnustep_name}-${pkgver}.tar.gz)
 
 ###

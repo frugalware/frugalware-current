@@ -521,7 +521,6 @@ Fpatchall() {
 ###
 Fconf() {
 	Fcd
-	Fconfopts="--prefix=$Fprefix"
 	Fmessage "Configuring..."
 	if [ -z "$_F_conf_configure" ]; then
 		_F_conf_configure="./configure"

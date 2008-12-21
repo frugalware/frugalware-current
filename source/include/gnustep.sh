@@ -59,7 +59,7 @@ source=($dlurl/${_F_gnustep_name}-${pkgver}.tar.gz)
 ###
 options=(${options[@]} 'scriptlet')
 
-Fgnustepinit()
+Fgnustep_init()
 {
 	Fmessage "sourcing /etc/profile.d/GNUstep.sh"
 	source /etc/profile.d/GNUstep.sh || Fdie
@@ -67,15 +67,17 @@ Fgnustepinit()
 	Fconfopts="--prefix=$Fprefix"
 }
 
-Fbuild_gnustep()
+Fgnustep_build()
 {
 	Fgnustepinit
-	Fbuild
+	Fconf
+	make || Fdie
+	make DESTDIR=$Fdestdir install || Fdie
 }
 
 build()
 {
-	Fbuild_gnustep
+	Fgnustep_build
 }
 
 

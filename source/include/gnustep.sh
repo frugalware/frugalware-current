@@ -47,7 +47,7 @@ _F_archive_name=$_F_gnustep_name
 ###
 
 Fprefix="/usr/lib/GNUstep"
-groups=('gnustep')
+groups=('gnustep-extra')
 url="http://www.gnustep.org/"
 dlurl="http://ftpmain.gnustep.org/pub/gnustep/$_F_gnustep_category/"
 up2date="lynx -dump $url/resources/downloads.php | Flasttar"
@@ -64,6 +64,7 @@ Fgnustepinit()
 	Fmessage "sourcing /etc/profile.d/GNUstep.sh"
 	source /etc/profile.d/GNUstep.sh || Fdie
 	Fprefix="/usr/lib/GNUstep"
+	Fconfopts="--prefix=$Fprefix"
 }
 
 Fbuild_gnustep()

@@ -62,7 +62,9 @@ options=(${options[@]} 'scriptlet')
 Fgnustep_init()
 {
 	Fmessage "sourcing /etc/profile.d/GNUstep.sh"
-	source /etc/profile.d/GNUstep.sh || Fdie
+	if [ ! $_F_gnustep_name == "gnustep-make" ]; then
+		source /etc/profile.d/GNUstep.sh || Fdie
+	fi
 	Fprefix="/usr/lib/GNUstep"
 	Fconfopts="--prefix=$Fprefix"
 }

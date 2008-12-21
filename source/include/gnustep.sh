@@ -69,7 +69,7 @@ Fgnustep_init()
 
 Fgnustep_build()
 {
-	Fgnustepinit
+	Fgnustep_init
 	Fconf
 	make || Fdie
 	make DESTDIR=$Fdestdir install || Fdie

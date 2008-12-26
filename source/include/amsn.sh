@@ -38,10 +38,14 @@ if [ -z "$_F_amsn_name" ]; then
 	exit 1
 fi
 
+
 ###
 # == OVERWRITTEN VARIABLES
 # * groups
+# * up2date
 ###
+
+up2date="lynx -dump 'http://sourceforge.net/project/showfiles.php?group_id=54091&package_id=134844' | grep -om1 '$_F_amsn_name-\(.*\).zip' | sed 's/.*-\(.*\).zip.*/\1/'"
 groups=('xapps-extra' 'amsn-plugins')
 
 ###

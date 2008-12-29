@@ -4,29 +4,33 @@
 
 pkgname=boost
 pkgver=1.37.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Boost header files , examples and tools"
 _F_sourceforge_ext=".tar.bz2"
 Finclude sourceforge python
 url="http://boost.org/"
 depends=()
-makedepends=('boost-jam>=3.1.16' 'python' 'icu>=4.0' 'bzip2' 'zlib')
+makedepends=('boost-jam>=3.1.17' 'python>=2.6' 'icu>=4.0' 'bzip2' 'zlib')
 groups=('devel-extra')
 archs=('i686' 'x86_64' 'ppc')
 source=(${source/-$pkgver/_${pkgver//./_}})
 _F_cd_path="${pkgname}_`echo $pkgver|tr . _`"
 sha1sums=('c0d0cf9ad8d954507824aed51a3e93e6a9da1d99')
 
-subpkgs=("libboost" "libboost-mt")
-subdescs=('Boost libraries.' 'Boost libraries with multithreading support.')
-subdepends=('icu>=4.0 libgcc bzip2 zlib' 'icu>=4.0 libgcc bzip2 zlib')
-subgroups=('devel-extra' 'devel-extra')
-subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
+subpkgs=("libboost" "libboost-mt" "libboost-static" "libboost-mt-static")
+subdescs=('Boost libraries.' 'Boost libraries with multithreading support.' \
+	'Boost libraries statically linked.' 'Boost libraries with multithreading support statically linked.')
+subdepends=('icu>=4.0 libgcc bzip2 zlib' 'icu>=4.0 libgcc bzip2 zlib' '' '')
+subgroups=('devel-extra' 'devel-extra' 'devel-extra' 'devel-extra')
+subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 pcc' 'i686 x86_64 pcc')
 
 build()
 {
 	Fcd
 	Fpatchall
+	if [ "$CARCH" == "x86_64" ]; then ## maybe PPC ?
+		export CXXFLAGS="$CXXFLAGS -fPIC -DPIC"
+	fi
 	Fsed "-O3" "$CXXFLAGS -Wno-deprecated" tools/build/v2/tools/gcc.jam
 	BOOSTJAM="/usr/bin/bjam"
 	OPTIONS="release debug-symbols=off optimization=speed threading=single,multi -d+2"
@@ -66,12 +70,12 @@ build()
 		--without-mpi \
 		--toolset=gcc \
 		--layout=system install || Fdie
-	
+
 	cd $Fsrcdir/$_F_cd_path/tools/build/ || Fdie
 	Fmkdir usr/share/boost
 	rm -rf v2/debian || Fdie
 	cp -a b* index.html  v2/ $Fdestdir/usr/share/boost/ || Fdie
-	
+
 	## remove usr/lib/libboost_wave.so that links on -mt libs so it should not be build
 	## like this at all and only the -mt one should be used , like for thread one etc
 	Frm usr/lib/libboost_wave.so
@@ -80,7 +84,8 @@ build()
 
 	Fsplit libboost-mt usr/lib/libboost_*-mt.so
 	Fsplit libboost usr/lib/libboost_*.so
-	
+	Fsplit libboost-mt-static usr/lib/libboost_*-mt.a
+	Fsplit libboost-static usr/lib/libboost_*.a
 }
 
 # optimization OK

@@ -1023,7 +1023,6 @@ Fdesktop2()
 	Fmessage "Installing desktop file: $deskfilename"
 	cat > $Fdestdir$Fmenudir/$deskfilename << EOF
 [Desktop Entry]
-Encoding=UTF-8
 Name=$dname
 Comment=$ddesc
 Exec=$dexec

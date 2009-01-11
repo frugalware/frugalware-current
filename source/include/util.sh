@@ -25,6 +25,10 @@
 # == OPTIONS
 # * _F_archive_name (defaults to $pkgname)
 # * _F_archive_nosort (defaults to no, so sorting is enabled by default)
+# * _F_archive_grep (defaults to empty): grep for a regexp before
+# searching for the version
+# * _F_archive_grepv (defaults to empty): grep -v for a regexp before
+# searching for the version
 # * _F_cd_path (defaults to $_F_archive_name$Fpkgversep$pkgver$pkgextraver)
 # * _F_conf_configure (defaults to ./configure)
 # * _F_conf_perl_pipefrom: if set, pipe the output of this command in Fconf()
@@ -871,12 +875,21 @@ Fautoreconf() {
 # for the archive type
 ###
 Flastarchive() {
+	local lynx="lynx -dump"
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi
 
 	if [ $# -gt 1 ]; then
-		lynx -dump $1 | Flastarchive $2
+		if [ -n "$_F_archive_grep" ]; then
+			$lynx $1 | grep -- "$_F_archive_grep" | Flastarchive $2
+			return
+		fi
+		if [ -n "$_F_archive_grepv" ]; then
+			$lynx $1 | grep -v -- "$_F_archive_grepv" | Flastarchive $2
+			return
+		fi
+		$lynx $1 | Flastarchive $2
 	else
 		if [ -z "$_F_archive_nosort" ]; then
 			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | Fsort | tail -n1
@@ -1010,7 +1023,6 @@ Fdesktop2()
 	Fmessage "Installing desktop file: $deskfilename"
 	cat > $Fdestdir$Fmenudir/$deskfilename << EOF
 [Desktop Entry]
-Encoding=UTF-8
 Name=$dname
 Comment=$ddesc
 Exec=$dexec

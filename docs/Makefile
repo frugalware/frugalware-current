@@ -63,6 +63,7 @@ I18NBUILD = po4a -k 0 po4a.cfg; \
 			sed -i 's| ../source | ../../source |' $$i/Makefile; \
 			sed -i 's| -maxdepth 3 | -maxdepth 4 |' $$i/Makefile; \
 			sed -i 's/^\(=\+\)/\n\1/' $$i/*.txt; \
+			cp merge.conf $$i/; \
 			$(MAKE) -C $$i $(1) || exit 1; \
 		done
 

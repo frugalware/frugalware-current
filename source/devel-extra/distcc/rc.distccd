@@ -4,26 +4,41 @@
 # rc.distccd for Frugalware
 # distributed under GPL License
 
-. /etc/rc.d/rc.functions
+source /lib/initscripts/functions
 . /etc/sysconfig/distccd || exit 1
 
 # chkconfig: 2345 50 50
 # description: Start/stop distccd daemon
 
-if [ "$1" = "stop" ]; then
-	stop "$stopdistccd"
-	killall distccd
-	ok $?
-elif [ "$1" = "restart" ]; then
-	"$0" stop
-	sleep 1
-	"$0" start
-else # start
-	start "$startdistccd"
-	if [ ! -e /var/log/distccd.log ]; then
-		touch /var/log/distccd.log
+daemon=$"distccd"
+actions=(start stop status restart)
+
+pid="pidof distccd 2> /dev/null"
+
+rc_start()
+{
+	start_msg
+	if [ -z "$(eval $pid)" ]; then
+		if [ ! -e /var/log/distccd.log ]; then
+			touch /var/log/distccd.log
         	chown distccd /var/log/distccd.log
+		fi
+		/usr/bin/distccd $DISTCCD_ARGS
+		ok $?
+	else
+		ok 999
 	fi
-	/usr/bin/distccd $DISTCCD_ARGS
-	ok $?
-fi
+}
+
+rc_stop()
+{
+	stop_msg
+	if [ -n "$(eval $pid)" ]; then
+		killall distccd
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1

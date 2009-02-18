@@ -115,7 +115,7 @@ images:
 	sed 's/@VERSION@/$(VERSION)/' $^ > $@
 
 index.html: index.txt header.txt
-	asciidoc -a numbered -a sectids -a lang=$(shell basename `pwd`|sed 's/docs//') $^
+	asciidoc -a numbered -a sectids -a lang=$(shell basename `pwd`|sed 's/docs//') $<
 
 manual.txt: $(MANUAL_SOURCES) $(DYNAMIC_SOURCES)
 	$(call MERGE,index.txt,manual.txt)

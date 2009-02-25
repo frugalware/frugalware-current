@@ -110,12 +110,12 @@ fi
 
 if [ ! -z "$_F_kde_id" ]; then
         url="http://www.kde-apps.org/content/show.php?content=$_F_kde_id"
-        up2date="lynx -dump -nolist $url|grep -m1 'Version:'|sed 's/.*: *\(.*\)$/\1/'"
+        up2date="lynx -dump $url|sed  -n '/\[.*\] Content/!d;n;p;n;p;n;p;n;p' | sed 's/^[ \t]*//;s/[ \t]*$//'|grep '^[0-9]'"
 fi
 
 if [ ! -z "$_F_kde_id2" ]; then
         url="http://www.kde-look.org/content/show.php?content=$_F_kde_id2"
-        up2date="lynx -dump -nolist $url|grep -m1 'Version:'|sed 's/.*: *\(.*\)$/\1/'"
+        up2date="lynx -dump $url|sed  -n '/\[.*\] Content/!d;n;p;n;p;n;p;n;p' | sed 's/^[ \t]*//;s/[ \t]*$//'|grep '^[0-9]'"
 fi
 
 ###

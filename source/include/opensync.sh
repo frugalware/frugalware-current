@@ -12,7 +12,15 @@
 #
 # == EXAMPLE
 # --------------------------------------------------
-#
+# pkgname=libopensync-plugin-kdepim
+# pkgver=0.22
+# pkgrel=1
+# pkgdesc="file-sync plugin for opensync"
+# Finclude opensync
+# depends=('libopensync' 'kdepim>=3.5.9')
+# groups=('kde-extra')
+# archs=('i686' 'x86_64')
+# sha1sums=('591fa5ebdaa87bb75fe557156bb09d8bbffd2ebd')
 # --------------------------------------------------
 ###
 

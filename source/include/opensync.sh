@@ -45,9 +45,11 @@ options=(${options[@]} 'scriptlet')
 Fbuild_opensync()
 {
 	Fcd
+	Fpatchall
         Fsed '-Werror' '' src/Makefile.am
         Fautoreconf
-        Fbuild
+        Fmake
+	Fmakeinstall
 
 }
 

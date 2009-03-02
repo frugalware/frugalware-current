@@ -93,12 +93,11 @@ options=(${options[@]} 'scriptlet')
 ###
 # * Fconfopts
 ###
-Fconfopts="$Fconfopts \
-                --disable-dependency-tracking \
+Fconfopts="--disable-dependency-tracking \
                 --with-gnu-ld \
                 --enable-gcc-hidden-visibility \
                 --enable-new-ldflags \
-		--disable-final"
+		--disable-final $Fconfopts"
 
 if [ "$_F_kde_build_debug" -eq 1 ]; then
         Fconfopts="$Fconfopts --enable-debug --with-debug"

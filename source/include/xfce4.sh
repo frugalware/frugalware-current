@@ -68,9 +68,9 @@ if echo ${groups[*]} | grep -q goodies ; then
 	source=($dlurl/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
 else
 	url="http://www.xfce.org/"
-	preup2date="lynx -dump http://www.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"
+	preup2date="lynx -dump http://mocha.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"
 	dlurl="$url/archive/${_F_xfce_ver}/src"
-	up2date="lynx -dump $url/archive/xfce-\$($preup2date)/src/ | Flasttar"
+	up2date="lynx -dump http://mocha.xfce.org/archive/xfce-\$($preup2date)/src/ | Flasttar"
 	source=($dlurl/$_F_xfce_name-$pkgver.tar.bz2)
 fi
 

@@ -64,7 +64,7 @@ fi
 if [ "$pkgname" = "kdelibs" ]; then
 	makedepends=("${makedepends[@]}")
 else
-	makedepends=("${makedepends[@]}" 'kdelibs-compiletime')
+	makedepends=("${makedepends[@]}" 'kdelibs')
 fi
 
 ###

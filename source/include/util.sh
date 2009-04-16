@@ -279,7 +279,7 @@ Fdirschmod() {
 }
 
 ###
-# Ffileschmod(): Changes the permissions of all file(s) inside $Fdestdir. First
+# * Ffileschmod(): Changes the permissions of all file(s) inside $Fdestdir. First
 # parameter: where to start "find", second parameter: octal mode or
 # [+-][rwxstugo].
 ###

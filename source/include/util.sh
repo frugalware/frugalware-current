@@ -90,6 +90,7 @@ Fbuildchost="`arch`-frugalware-linux"
 Fconfopts="--prefix=$Fprefix"
 ## Move to makepkg.conf for Kalgan+1
 export LDFLAGS="-Wl,--hash-style=both"
+unset LANG LC_ALL
 
 ###
 # == PROVIDED FUNCTIONS

@@ -871,6 +871,19 @@ Fautoreconf() {
 }
 
 ###
+# * Fsanitizeversion: Clear/fix some common version string common problems on
+# an automatized version output (also remove pkgextraver ending). Parameters:
+# 1) version (optional) to clean, else stdin if not present
+###
+Fsanitizeversion() {
+	if [ $# -gt 0 ]; then
+		echo "$1" | Fsanitizeversion
+	else
+		sed "s/$pkgextraver$//;s/-/_/g;s/%2B/+/g"
+	fi
+}
+
+###
 # * Flastarchive: Extracts last archive version from a page. Parameters: 1)
 # url (optional) of the page, else stdin if not present 2) extension_filter
 # for the archive type

@@ -24,6 +24,8 @@
 #
 # == OPTIONS
 # * _F_archive_name (defaults to $pkgname)
+# * _F_archive_nolinksonly (defaults to no, so that only links are proceeded by
+# default)
 # * _F_archive_nosort (defaults to no, so sorting is enabled by default)
 # * _F_archive_grep (defaults to empty): grep for a regexp before
 # searching for the version
@@ -890,6 +892,11 @@ Fsanitizeversion() {
 ###
 Flastarchive() {
 	local lynx="lynx -dump"
+
+	if [ -z "$_F_archive_nolinksonly" ]; then
+		lynx="$lynx -listonly"
+	fi
+
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi

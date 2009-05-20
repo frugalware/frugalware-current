@@ -1,0 +1,46 @@
+From 7103157c8bbf37a56c7c385198267120f72b7866 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 14 May 2009 18:29:03 +0200
+Subject: [PATCH] blkid: blkid_do_safeprobe() has to be tolerant to RAIDs
+
+It's pretty generic that RAID signature is on the same device as FS
+signature. We have to be tolerant and ignore filesystems signatures
+on such devices. The RAID signature is always preferred.
+
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ shlibs/blkid/src/probe.c |    9 ++++++++-
+ 1 files changed, 8 insertions(+), 1 deletions(-)
+
+diff --git a/shlibs/blkid/src/probe.c b/shlibs/blkid/src/probe.c
+index b0c0be8..af22e34 100644
+--- a/libs/blkid/src/probe.c
++++ b/libs/blkid/src/probe.c
+@@ -529,6 +529,10 @@ int blkid_do_probe(blkid_probe pr)
+  * This is the same function as blkid_do_probe(), but returns only one result
+  * (cannot be used in while()) and checks for ambivalen results (more
+  * filesystems on the device) -- in such case returns -2.
++ *
++ * The function does not check for filesystems when a RAID signature is
++ * detected.  The function also does not check for collision between RAIDs. The
++ * first detected RAID is returned.
+  */
+ int blkid_do_safeprobe(blkid_probe pr)
+ {
+@@ -544,9 +548,12 @@ int blkid_do_safeprobe(blkid_probe pr)
+ 			first.nvals = pr->nvals;
+ 			first.idx = pr->idx;
+ 		}
++		count++;
++
++		if (idinfos[pr->idx]->usage & BLKID_USAGE_RAID)
++			break;
+ 		if (!(idinfos[pr->idx]->flags & BLKID_IDINFO_TOLERANT))
+ 			intol++;
+-		count++;
+ 	}
+ 	if (rc < 0)
+ 		return rc;		/* error */
+-- 
+1.6.2.5
+

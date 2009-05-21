@@ -32,22 +32,22 @@
 # * _F_sourceforge_realname (defaults to $_F_sourceforge_auto_realname): if you want to use
 # a custom package name (for example the upstream name contains uppercase letters)
 # and _F_sourceforge_auto_realname isn't working then use this to declare the real
-# name ( used in up2date only )
-# * _F_sourceforge_name ( defaults to $pkgname): same as _F_sourceforge_realname
+# name (used in up2date only)
+# * _F_sourceforge_name (defaults to $pkgname): same as _F_sourceforge_realname
 # but it can be used for both source() and up2date
 # * _F_sourceforge_mirror (defaults to mesh): the sourceforge mirror to use
 # * _F_sourceforge_dirname (default to $pkgname): if the source
 # tarball uses a name different to the sourceforge project name, then use this
 # option to declare the project name
 # * _F_sourceforge_ext (defaults to .tar.gz): extension of the source tarball
-# * _F_sourceforge_prefix (no defaults):  used to correct the up2date output
+# * _F_sourceforge_prefix (no defaults): used to correct the up2date output
 # As example $pkgver should be 1.2.3 but you get V1.2.3 in such a case you can
 # set _F_sourceforge_prefix="V"
-# * _F_sourceforge_sep ( defaults to - ): used for source() and up2date. As example
-# for an "baz_1.2.3.tar.gz" tarball you should use _F_sourceforge_sep="_" , for empty
+# * _F_sourceforge_sep (defaults to "-"): used for source() and up2date. As example
+# for an "baz_1.2.3.tar.gz" tarball you should use _F_sourceforge_sep="_", for empty
 # values use _F_sourceforge_sep="None" that way you can dowload such foo1234.tgz
-# * _F_sourceforge_pkgver ( defaults to $pkgver ) : Some packages are called foo-1.2.3
-# but the source is called different from $pkgver , e.g: foo-123 , foo-12.3 , in such
+# * _F_sourceforge_pkgver (defaults to $pkgver): Some packages are called foo-1.2.3
+# but the source is called different from $pkgver, e.g: foo-123 or foo-12.3, in such
 # a case _F_sourceforge_pkgver may help to avoid custom $source
 #
 # == DEPRECATED OPTIONS
@@ -56,7 +56,7 @@
 ###
 
 if [ -z "$_F_sourceforge_name" ]; then
-        _F_sourceforge_name=$pkgname
+	_F_sourceforge_name=$pkgname
 fi
 
 if [ -z "$_F_sourceforge_pkgver" ]; then
@@ -80,7 +80,7 @@ fi
 if [ -n "$_F_sourceforge_broken_up2date" ]; then
 	warning "_F_sourceforge_broken_up2date is deprecated and does nothing at the moment!"
 	warning "Please update your FrugalBuild."
-        _F_sourceforge_broken_up2date=0
+	_F_sourceforge_broken_up2date=0
 fi
 
 if [ -z "$_F_sourceforge_sep" ]; then
@@ -88,7 +88,7 @@ if [ -z "$_F_sourceforge_sep" ]; then
 fi
 
 if [ -n "$_F_sourceforge_sep" ] && [ "$_F_sourceforge_sep" = "None" ]; then
-        _F_sourceforge_sep=""
+	_F_sourceforge_sep=""
 fi
 
 _F_sourceforge_up2date()

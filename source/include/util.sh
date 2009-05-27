@@ -541,7 +541,7 @@ Fconf() {
 			Fconfopts="$Fconfopts --sysconfdir=$Fsysconfdir"
 		grep -q localstatedir $_F_conf_configure && \
 			Fconfopts="$Fconfopts --localstatedir=$Flocalstatedir"
-		grep -q 'build=' $_F_conf_configure && \
+		grep -q -- '--build=' $_F_conf_configure && \
 			Fconfopts="$Fconfopts --build=$Fbuildchost"
 		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie
 	elif [ -f Makefile.PL ]; then

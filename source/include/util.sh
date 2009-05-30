@@ -881,7 +881,7 @@ Fsanitizeversion() {
 	if [ $# -gt 0 ]; then
 		echo "$1" | Fsanitizeversion
 	else
-		sed "s/$pkgextraver$//;s/-/_/g;s/%2B/+/g"
+		sed "s/%2B/+/g;s/$pkgextraver$//;s/-/_/g"
 	fi
 }
 

@@ -1,0 +1,105 @@
+# Compiling Time: 2.82 SBU
+# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
+
+pkgname=abiword
+pkgver=2.6.8
+#for now same version
+pkgverplugin=2.6.8
+abivers=2.6
+pkgrel=1
+pkgdesc="AbiWord is a free word processing program similar to Microsoft(R) Word."
+url="http://www.abisource.com"
+groups=('xapps-extra')
+archs=('i686' 'x86_64' 'ppc')
+depends=('pango' 'libpng' 'fontconfig' 'freetype2' 'libxft' \
+	'enchant' 'perl' 'fribidi' 'wv' 'atk' 'cairo' 'libxau' 'libxdmcp' \
+	'libsm' 'libxdamage' 'libxinerama' 'libxi' 'libxrandr' \
+	'libxcursor' 'openssl' 'libjpeg' 'libglade')
+makedepends=('libgnomeprintui' 'goffice'  'boost'\
+	'libgda' 'libgnomedb' 'loudmouth' 'gtkmathview')
+options=('scriptlet')
+_F_gnome_desktop="y"
+_F_gnome_mime="y"
+Finclude gnome-scriptlet
+up2date="lynx -dump http://www.abisource.com/|grep -m1 'stable release is'|tr -d  '[:alpha:] [:blank:]' |sed 's/\(.*\)./\1/;s/.//6'"
+source=($url/downloads/$pkgname/$pkgver/source/$pkgname-$pkgver.tar.gz \
+	$url/downloads/abiword/$pkgver/source/abiword-plugins-$pkgverplugin.tar.gz \
+	$pkgname-kde.desktop $pkgname-gnome.desktop)
+sha1sums=('fc979982edc3445385705afdb1e2ebb1fa53a4f6' \
+          'fa8ad1985de5523f9993cef93af0dad174e8e5a5' \
+          'aac82c38acc4ee80d461d15e2e4ead64a627d51c' \
+          '29683d951cd471a97cf146961618c1770e902ade')
+license="GPL2"
+conflicts=('abiword-gnome')
+
+subpkgs=("abiword-gnome" "abiword-plugins-gnome" "abiword-plugins" "abiword-plugins-mathview" "abiword-plugins-xmmp")
+subconflicts=('abiword' '' '' '' '')
+subprovides=('abiword' '' '' '' '')
+subdescs=('Abiword with gnome printing support' 'Abiword gnome plugins' 'Abiword plugins' \
+	'Abiword plugins mathview' 'Abiword plugins xmmp')
+subdepends=("pango libpng fontconfig freetype2 libxft \
+	enchant perl fribidi wv atk cairo libxau libxdmcp \
+	libsm libxdamage libxinerama libxi libxrandr \
+	libxcursor openssl libjpeg libglade libgnomeprintui goffice" \
+	"abiword-gnome libgnomedb libgda" "abiword" \
+	"abiword gtkmathview" "abiword loudmouth")
+subgroups=('gnome-extra' 'gnome-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra')
+subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 ppc')
+subinstall=("$_F_gnome_scriptlet" "" "" "" "")
+
+#When we bump it verify if abiscan is already broken
+#If not add it to abiword-plugin-gnome
+
+build() {
+	unset MAKEFLAGS
+
+	#first build plugins
+	Fcd
+	cd ../abiword-plugins-$pkgverplugin || Fdie
+	#plugin abiscan broken with new 'gnome-scan'
+	Fbuild --with-abiword=../abiword-$pkgver -disable-abiscan
+
+	#gnome plugins
+	Fsplit abiword-plugins-gnome /usr/lib/abiword-$abivers/plugins/libLoadBindings*
+	Fsplit abiword-plugins-gnome /usr/lib/abiword-$abivers/plugins/libAbiCommand*
+	Fsplit abiword-plugins-gnome /usr/lib/abiword-$abivers/plugins/libPresentation*
+
+	Fsplit abiword-plugins-xmmp /usr/lib/abiword-$abivers/plugins/libAbiCollab*
+
+	Fsplit abiword-plugins-mathview /usr/lib/abiword-$abivers/plugins/libAbiMathView*
+
+	#plugins don't depend gnome*
+	Fsplit abiword-plugins /usr
+
+	#build abiword
+	cd ../$pkgname-$pkgver || Fdie
+	# Install menu file.
+	rm $pkgname.desktop || Fdie
+	cp ../$pkgname-gnome.desktop $pkgname.desktop || Fdie
+	Fsed 'icondir = $(datadir)/icons' 'icondir = $(datadir)/pixmaps' GNUmakefile.in
+	Fmake --enable-libabiword \
+	--enable-threads \
+	--enable-scripting \
+	--enable-printing --enable-gucharmap
+	Fmakeinstall
+	Fsplit abiword-gnome /usr
+	Fbuild_gnome_scriptlet
+
+	make distclean || Fdie
+	# Install menu file.
+	rm $pkgname.desktop || Fdie
+	cp ../$pkgname-kde.desktop $pkgname.desktop || Fdie
+	#broken configure
+	Fsed "print=true" "print=false" configure
+	Fmake --enable-libabiword \
+	--enable-threads \
+	--enable-scripting \
+	--disable-embedded \
+	--disable-printing --disable-gucharmap \
+	--disable-gnomevfs --disable-gnomeui
+	Fmakeinstall
+	Fbuild_gnome_scriptlet
+
+}
+
+# optimization OK

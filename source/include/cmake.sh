@@ -61,6 +61,7 @@ CMake_conf()
 		-DSYSCONF_INSTALL_DIR=/etc \
 		-DLIB_SUFFIX="" \
 		-DLIB_INSTALL_DIR=/usr/lib \
+		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DLOCALSTATE_INSTALL_DIR=/var \
 		-DCMAKE_BUILD_TYPE="$_F_cmake_type" \
 		-DCMAKE_VERBOSE_MAKEFILE="$_F_cmake_verbose" \

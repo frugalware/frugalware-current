@@ -1,0 +1,54 @@
+--- esperanza-0.4.0.orig/src/lib/playlistmodel.h
++++ esperanza-0.4.0/src/lib/playlistmodel.h
+@@ -128,7 +128,11 @@
+ 	private:
+ 		bool handle_list (const Xmms::List< unsigned int > &list);
+ 		bool handle_change (const Xmms::Dict &chg);
++#if (XMMS_IPC_PROTOCOL_VERSION > 10)
++		bool handle_update_pos (const Xmms::Dict &pos);
++#else
+ 		bool handle_update_pos (const unsigned int &pos);
++#endif
+ 		bool handle_pls_loaded (const std::string &);
+         bool handle_current_pls (const std::string &);
+ 
+--- esperanza-0.4.0.orig/src/lib/playlistmodel.cpp
++++ esperanza-0.4.0/src/lib/playlistmodel.cpp
+@@ -27,6 +27,9 @@
+ 
+ #include "playlistmodel.h"
+ 
++// Used to check for Protocolversion at compiletime
++#include <xmmsc/xmmsc_idnumbers.h>
++
+ PlaylistModel::PlaylistModel (QObject *parent, XClient *client, const QString &name) : QAbstractItemModel (parent)
+ {
+ //	m_columns.append ("#");
+@@ -108,6 +111,19 @@
+ 	return true;
+ }
+ 
++#if (XMMS_IPC_PROTOCOL_VERSION > 10)
++bool
++PlaylistModel::handle_update_pos (const Xmms::Dict &posdict)
++{
++	QString changed_pl = XClient::stdToQ (posdict.get<std::string> ("name"));
++	if (changed_pl == m_name) {
++		uint32_t pos = posdict.get<uint32_t> ("position");
++		m_current_pos = pos;
++		emit dataChanged(index (pos, 0), index (pos, m_columns.size ()));
++	}
++	return true;
++}
++#else
+ bool
+ PlaylistModel::handle_update_pos (const uint32_t &pos)
+ {
+@@ -115,6 +131,7 @@
+ 	emit dataChanged(index (pos, 0), index (pos, m_columns.size ()));
+ 	return true;
+ }
++#endif
+ 
+ QList<QString>
+ PlaylistModel::columns () const

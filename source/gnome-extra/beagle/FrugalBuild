@@ -1,37 +1,56 @@
-# Compiling time: 1.24 SBU
-# Maintainer: AlexExtreme <alex@alex-smith.me.uk>
+# Compiling time: 0.17 SBU
+# Maintainer: bouleetbil <bouleetbil@frogdev.info>
+# Contributor: AlexExtreme <alex@alex-smith.me.uk>
 
 pkgname=beagle
-pkgver=0.2.18
+pkgver=0.3.9
 pkgrel=1
 pkgdesc="Search tool that ransacks your personal information space"
-url="http://beagle-project.org"
-depends=('gecko-sharp' 'gmime>=2.2.3-1' 'libexif' 'sqlite3' 'libxscrnsaver' 'perl-xml-parser' \
-	'wv' 'gnome-sharp' 'gsf-sharp' 'galago-sharp')
-makedepends=('intltool' 'pygtk' 'zip' 'unzip' 'evolution-sharp>=0.13.3' 'python>=2.5' 'thunderbird' 'scrnsaverproto')
-backup=('etc/beagle/crawl-applications' 'etc/beagle/crawl-documentation' 'etc/beagle/crawl-windows')
+depends=('gecko-sharp' 'gmime>=2.4.3' 'libexif' 'sqlite3' 'libxscrnsaver' 'perl-xml-parser' \
+	'wv' 'gnome-sharp' 'gsf-sharp' 'galago-sharp' 'gmime-sharp' 'ndesk-dbus-glib' \
+	'taglib-sharp')
+makedepends=('intltool' 'evolution-sharp>=0.18.0' 'thunderbird' \
+	'monodoc' 'scrnsaverproto' 'zip')
+backup=('etc/beagle/crawl-rules/crawl-applications' 'etc/beagle/crawl-rules/crawl-documentation' \
+	'etc/beagle/crawl-rules/crawl-executables' 'etc/beagle/crawl-rules/crawl-monodoc' \
+	'etc/beagle/crawl-rules/crawl-windows')
 groups=('gnome-extra')
 archs=('i686' 'x86_64')
-Finclude gnome mono python
-sha1sums=('02b37003e3fc223f074b0b27cc1351f9f1964ff4')
+_F_gnome_devel="y"
+_F_gnome_desktop="y"
+Finclude gnome mono gnome-scriptlet
+install=$pkgname.install
+url="http://beagle-project.org"
+source=($source Fix_gmime.diff)
+sha1sums=('5fdba6ffd4a210076a954cc22f5b940705b71a6e' \
+          'e2c63baaefc1a00af666854e604ae9084bada0d8')
 
-subpkgs=("$pkgname-evolution" "lib$pkgname" "$pkgname-gui" "$pkgname-thunderbird" "$pkgname-mozilla")
-subdescs=('Beagle evolution bindings.' 'Beagle client library.' 'Desktop Search Application.' 'Beagle backend for thunderbird' 'Beagle extension for Mozilla')
-subdepends=("$pkgname=$pkgver evolution-sharp>=0.13.3" 'libxml2 glib2 glibc python>=2.5' "$pkgname=$pkgver" "$pkgname=$pkgver thunderbird" "$pkgname=$pkgver")
-subgroups=('gnome-extra' 'lib-extra' 'gnome-extra' 'gnome-extra' 'gnome-extra')
-suboptions=('scriptlet' 'scriptlet' 'scriptlet' 'scriptlet' 'scriptlet')
-subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
+subpkgs=("$pkgname-evolution" "$pkgname-thunderbird" "$pkgname-mozilla" "$pkgname-gui")
+subdescs=('Beagle evolution bindings.' 'Beagle backend for thunderbird' 'Beagle extension for Mozilla' 'Desktop Search Application.')
+subdepends=("$pkgname=$pkgver evolution-sharp>=0.18.0" "$pkgname=$pkgver thunderbird" "$pkgname=$pkgver" "$pkgname=$pkgver")
+subgroups=('gnome-extra' 'gnome-extra' 'gnome-extra' 'gnome-extra')
+suboptions=('scriptlet' 'scriptlet' 'scriptlet' 'scriptlet')
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
+subinstall=("" "" "" "$_F_gnome_scriptlet")
+Fconfopts="${Fconfopts[@]} --enable-inotify --disable-schemas-install --enable-thunderbird"
+
+#TODO this version doesn't support epiphany-2.24 when we bump it verifiy if that work and split it
 
 build()
 {
 	Fmonoexport
-	
-	Fbuild --enable-inotify --disable-schemas-install --enable-python --enable-thunderbird
-	
+
+	Fcd
+	Fpatchall
+	Fautoreconf
+	Fmake
+	Fmakeinstall	
+	#Fbuild
+
 	# OnlyShowIn values so we don't get the Gnome GUI's showing in KDE
 	echo 'OnlyShowIn=GNOME;' >> $Fdestdir/usr/share/applications/beagle-search.desktop
 	echo 'OnlyShowIn=GNOME;' >> $Fdestdir/usr/share/applications/beagle-settings.desktop
-	
+
 	# Move autostart files to the correct location
 	Fmv /etc/xdg /usr/share/gnome
 	
@@ -40,23 +59,31 @@ build()
 	
 	# "Install" the Mozilla extension
 	Fmkdir /usr/share/doc/$pkgname-$pkgver/mozilla-extension
-	cp mozilla-extension/beagle.xpi $Fdestdir/usr/share/doc/$pkgname-$pkgver/mozilla-extension/ || Fdie
-	cp mozilla-extension/README $Fdestdir/usr/share/doc/$pkgname-$pkgver/mozilla-extension/ || Fdie
-	
+	cp firefox-extension/beagle.xpi $Fdestdir/usr/share/doc/$pkgname-$pkgver/mozilla-extension/ || Fdie
+	cp firefox-extension/README $Fdestdir/usr/share/doc/$pkgname-$pkgver/mozilla-extension/ || Fdie
+	# "Install" the Thunderbird extension
+	Fmkdir /usr/share/doc/$pkgname-$pkgver/thunderbird-extension
+	cp thunderbird-extension/beagle.xpi $Fdestdir/usr/share/doc/$pkgname-$pkgver/thunderbird-extension/ || Fdie
+
 	# Split out the packages
 	Fsplit $pkgname-evolution usr/lib/beagle/Backends/EvolutionBackends.*
+	
 	Fsplit $pkgname-thunderbird usr/lib/beagle/Backends/ThunderbirdBackends.*
-	Fsplit lib$pkgname usr/include/libbeagle
-	Fsplit lib$pkgname usr/lib/libbeagle.*
-	Fsplit lib$pkgname $_F_python_libdir
-	Fsplit lib$pkgname usr/lib/pkgconfig/libbeagle-*
-	Fsplit $pkgname-gui usr/bin/beagle-{imlogviewer,search,settings}
-	Fsplit $pkgname-gui usr/lib/beagle/{Images.dll*,UiUtil.dll*,ImLogViewer.exe*,Search.exe*,Settings.exe*,libbeagleuiglue*}
-	Fsplit $pkgname-gui usr/share/applications/*.desktop
-	Fsplit $pkgname-gui usr/share/pixmaps/
-	Fsplit $pkgname-gui usr/share/gnome/autostart/beagle-search-autostart.desktop
+	Fsplit $pkgname-thunderbird usr/share/doc/$pkgname-$pkgver/thunderbird-extension
+
 	Fsplit $pkgname-mozilla usr/share/doc/$pkgname-$pkgver/mozilla-extension
 	
+	Fsplit $pkgname-gui usr/bin/beagle-imlogviewer
+	Fsplit $pkgname-gui usr/bin/beagle-settings
+	Fsplit $pkgname-gui usr/bin/beagle-search
+	Fsplit $pkgname-gui usr/lib/pkgconfig/beagle-ui-0.0.pc
+	Fsplit $pkgname-gui usr/lib/beagle/ImLogViewer*
+	Fsplit $pkgname-gui usr/lib/beagle/Beagle.Search*
+	Fsplit $pkgname-gui usr/lib/beagle/Settings*
+	Fsplit $pkgname-gui usr/share/applications
+	
+	Fbuild_gnome_scriptlet
+
 	Fmonocleanup
 }
 

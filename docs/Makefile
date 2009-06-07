@@ -45,16 +45,12 @@ GENERATED_SOURCES = packages.txt manual.txt user.txt devel.txt po images $(DYNAM
 LANGS = $(shell grep '\[po4a_langs\]' po4a.cfg |sed 's/\[po4a_langs\] //')
 
 MERGE = : > $(2); \
-	for i in `cat $(1) |grep link:.*html |sed 's/.*:\(.*\).html\[.*/\1.txt/'`; \
+	for i in header.txt `cat $(1) |grep link:.*html |sed 's/.*:\(.*\).html\[.*/\1.txt/'`; \
 	do \
 		[ "$$i" = "$(2)" ] && continue; \
-		cat $$i >> $(2); \
+		echo "include::$$i[]" >> $(2); \
 		echo >> $(2); \
-	done; \
-	sed -i 's/^\(=\+ \)/=\1/' $(2); \
-	sed -i '/^\^\{2,\}$$/s/\^/+/g' $(2); \
-	sed -i '/^~\{2,\}$$/s/~/^/g' $(2); \
-	sed -i '1i include::header.txt[]\n' $(2)
+	done
 
 I18NBUILD = po4a -k 0 po4a.cfg; \
 		for i in $(LANGS); \
@@ -67,6 +63,7 @@ I18NBUILD = po4a -k 0 po4a.cfg; \
 			sed -i 's| ../source | ../../source |' $$i/Makefile; \
 			sed -i 's| -maxdepth 3 | -maxdepth 4 |' $$i/Makefile; \
 			sed -i 's/^\(=\+\)/\n\1/' $$i/*.txt; \
+			cp merge.conf $$i/; \
 			$(MAKE) -C $$i $(1) || exit 1; \
 		done
 
@@ -103,19 +100,22 @@ images:
 	ln -s /etc/asciidoc/images ./
 
 %.html: %.txt
-	asciidoc -a toc -a numbered -a sectids -a lang=$(shell basename `pwd`|sed 's/docs//') $(basename $@).txt
+	if [[ "(manual.txt|user.txt|devel.txt)" =~ "$^" ]]; then CONF="--conf-file=merge.conf"; fi; \
+	asciidoc $$CONF -a toc -a numbered -a sectids -a lang=$(shell basename `pwd`|sed 's/docs//') $^
 
-%.text: %.html
-	lynx -dump $(basename $@).html > $@
+%.text: %.txt
+	if [[ "(manual.txt|user.txt|devel.txt)" =~ "$^" ]]; then CONF="--conf-file=merge.conf"; fi; \
+	a2x --asciidoc-opts="$$CONF" -a toc -a numbered -a sectids -f text -a lang=$(shell basename `pwd`|sed 's/docs//') $^
 
 %.pdf: %.txt
-	a2x -a toc -a numbered -a sectids -f pdf -a lang=$(shell basename `pwd`|sed 's/docs//') $^
+	if [[ "(manual.txt|user.txt|devel.txt)" =~ "$^" ]]; then CONF="--conf-file=merge.conf"; fi; \
+	a2x --asciidoc-opts="$$CONF" -a toc -a numbered -a sectids -f pdf -a lang=$(shell basename `pwd`|sed 's/docs//') $^
 
 %.txt: %.txt.in
-	sed 's/@VERSION@/$(VERSION)/' $(basename $@).txt.in > $@
+	sed 's/@VERSION@/$(VERSION)/' $^ > $@
 
 index.html: index.txt header.txt
-	asciidoc -a numbered -a sectids -a lang=$(shell basename `pwd`|sed 's/docs//') $(basename $@).txt
+	asciidoc -a numbered -a sectids -a lang=$(shell basename `pwd`|sed 's/docs//') $<
 
 manual.txt: $(MANUAL_SOURCES) $(DYNAMIC_SOURCES)
 	$(call MERGE,index.txt,manual.txt)

@@ -3,21 +3,21 @@
 # Contributor: VMiklos <vmiklos@frugalware.org>
 
 pkgname=php
-pkgver=5.2.6
-pkgrel=1
+pkgver=5.2.9
+pkgrel=3
 pkgdesc="A widely-used general-purpose scripting language"
 url="http://www.php.net"
 backup=(etc/{php.ini,httpd/conf/modules.d/$pkgname.conf})
-depends=('openssl' 'libjpeg' 'freetype2>=2.3.1' 'libpng' 'gdbm' 'libxslt' 'curl>=7.16.1' 'libxml2' 'libmcrypt' \
-	'libidn' 'libmysqlclient' 'libpq>=8.2.3' 'sqlite3' 're2c')
+depends=('openssl' 'libjpeg' 'freetype2>=2.3.1' 'libpng' 'gdbm' 'libxslt' 'curl>=7.19.0' 'libxml2' 'libmcrypt' \
+	'libidn' 'libmysqlclient>=5.1.34' 'libpq>=8.2.3' 'sqlite3' 're2c')
 provides=('php-pear-archive_tar' 'php-pear-console_getopt' 'php-pear-pear')
-makedepends=('apache' 'imap>=2006e-2' 'bzip2' 'mta' 'tidy' 'freetds' 'mysql' \
-	'postgresql>=8.2.3' 'openldap' 'libldap' 'unixodbc' 'mhash')
+makedepends=('apache' 'imap>=2006e-2' 'bzip2' 'mta' 'tidy' 'freetds' 'mysql>=5.1.34' \
+	'postgresql>=8.2.3' 'openldap' 'libldap>=2.4.16' 'unixodbc' 'mhash')
 groups=('devel')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://www.php.net/downloads.php |grep 'Complete Source Code' -3|sed -n 's/.*P \(.*\)/\1/;2 p'"
 source=(http://www.php.net/distributions/$pkgname-$pkgver.tar.gz \
-	php.ini php.conf README.Frugalware)
+	php.ini php.conf README.Frugalware phpize.in.patch)
 
 subpkgs=("$pkgname-cgi")
 suboptions=('nodocs') ## its depends on PHP and the same files are installed etc
@@ -48,6 +48,7 @@ build()
                 --enable-pcntl \
                 --enable-sysvmsg \
                 --enable-mbstring \
+		--enable-soap=shared \
 		--with-pdo-odbc=shared,unixODBC,/usr \
 		--with-pdo-pgsql=shared,/usr \
 		--with-pdo-mysql=shared,/usr \
@@ -84,13 +85,18 @@ build()
 		--with-mime-magic \
 		--with-sqlite=shared \
 		--with-mhash=shared,/usr"
-	
+
 	## this is true for both
 	# OK make install does not really like SMP and random dies so ..
 	JOBS="$MAKEFLAGS"
 	unset MAKEFLAGS
 	Fcd
 	Fpatchall
+	# these are for freetds-compat.patch
+	aclocal || Fdie
+	Fautoreconf
+	# see http://bugs.gentoo.org/show_bug.cgi?id=217392
+	sed -re 's:(#ifdef HAVE_CONFIG_H.*):#define _GNU_SOURCE\n\1:' -i ext/posix/posix.c
 	## PHP-CGI first
 	Fmessage "Building PHP-CGI.."
         sh buildconf --force || Fdie
@@ -105,9 +111,9 @@ build()
 	make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php PEAR_INSTALLDIR=/usr/share/pear install || Fdie
 	## remove stuff is in php
 	Fcd $Fdestdir
-	Frm etc ./{.registry,.channels,.depdb*,.lock,.file*} usr/{include,share,lib,man}
+	Frm etc ./{.registry,.channels,.depdb*,.lock,.file*} usr/{include,share,lib,man} usr/php/man
 	Frm usr/bin/{phpize,php-config,pecl,pear*,php}
-	
+
 	## yeah mv because Fdoc will not work
 	## and if I don't move it it will be installed in PHP build as well =)
 	Fmkdir usr/share/doc/$pkgname-cgi-$pkgver
@@ -128,10 +134,12 @@ build()
 	Ffile /etc/httpd/conf/modules.d/$pkgname.conf
 	Ffile /etc/php.ini
 	Fln /etc/php.ini /usr/lib/php.ini
+	cat /usr/share/aclocal/libtool.m4 > $Fdestdir/usr/lib/php/build/libtool.m4
 }
-sha1sums=('54058c73eb5a314eb2b31925477f298d898b520a' \
+sha1sums=('0a11b64068ef009e89641df8c1cce02dbf0250bf' \
           '9ba6e9430bdba5f6ab2bad15e7cc354d0ea3fd58' \
           '0850ef23512a02e8460dc36f08f453d148dcd9df' \
-          '40ae88f0721e02a2c75de76be342c51c85bf734d')
+          '40ae88f0721e02a2c75de76be342c51c85bf734d' \
+          '4c598e1c8683518090f7a0e9fef01c57593137c8')
 
 # optimization OK

@@ -3,25 +3,29 @@
 
 pkgname=wlan-ng
 pkgver=0.2.9
-pkgrel=4
+pkgrel=13
 pkgdesc="Wireless Lan modules"
 url="http://www.linux-wlan.org/"
+
 Finclude kernel-module
-depends=(${depends[@]} 'bash')
+depends=('kernel>=2.6.29' 'bash')
+makedepends=('kernel-source')
+unset install
+
 groups=('network-extra')
 archs=('i686' 'x86_64')
 backup=(etc/wlan/wlan.conf)
 up2date="lynx -dump ftp://ftp.linux-wlan.org/pub/linux-wlan-ng/|grep tar.bz2$|sed -n 's/.*g-\(.*\)\.t.*/\1/;s/-//;$ p'"
 source=(ftp://ftp.linux-wlan.org/pub/linux-wlan-ng/linux-$pkgname-$pkgver.tar.bz2 \
-	rc.wlan kernel-2.6.26.patch)
+	rc.wlan)
 sha1sums=('e6b8e37bbe3b6d2d17dea5d8db782cad7f84a64e' \
-          'b5b76089293cf11ab5c5f634f1c3b8dd7f4c34a7' \
-          '6c7b50d0d57edcb6d018292ddfe72304a555bb42')
+          'b5b76089293cf11ab5c5f634f1c3b8dd7f4c34a7')
 
 build()
 {
 	# no Fcheckkernel, crosscompilation verified
 	Fcd linux-$pkgname-$pkgver
+	find . -name '*.c' -exec sed -i '/semaphore.h/d' {} \;
 	Fsed '`uname -r`' "$_F_kernelmod_uname" Configure
 	find . -type f -exec sed -i '/#include <linux\/config.h>/d' {} \;
 	Fsed "TARGET_ROOT_ON_HOST=" "TARGET_ROOT_ON_HOST=$Fdestdir" config.in
@@ -31,12 +35,23 @@ build()
 	Fsed "PRISM2_PCMCIA=y" "PRISM2_PCMCIA=n" config.in
 	Fpatchall
 	make auto_config
-	make all || return 1
-	make install
-	Fmv /usr/local/man /usr/man
+	dirs="mkmeta nwepgen prism2/download wlancfg wlanctl"
+	cd src
+	for i in $dirs
+	do
+		cd $i
+		Fmessage "Building $i"
+		make || return 1
+		cd - >/dev/null
+	done
+	for i in $dirs ../etc
+	do
+		cd $i
+		make install || return 1
+		cd - >/dev/null
+	done
 	Frm /init.d
 	Frcd wlan
-	Fbuild_kernelmod_scriptlet
 }
 
 # optimization OK

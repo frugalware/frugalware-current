@@ -28,7 +28,8 @@
 # --------------------------------------------------
 #
 # == OPTIONS
-# * _F_amsn_name : no default it HAS to be set because we use amsn-plugin-xxxx as $pkgname
+# * _F_achive_name: (defaults to $_F_amsn_name) see util.sh
+# * _F_amsn_name: no default it HAS to be set because we use amsn-plugin-xxxx as $pkgname
 # * _F_amsn_clean_files: lists files have to be removed from package (e.g: foo.exe )
 ###
 
@@ -38,10 +39,17 @@ if [ -z "$_F_amsn_name" ]; then
 	exit 1
 fi
 
+if [ -z "$_F_archive_name" ]; then
+	_F_archive_name=$_F_amsn_name
+fi
+
 ###
 # == OVERWRITTEN VARIABLES
 # * groups
+# * up2date
 ###
+
+up2date="Flastarchive 'http://sourceforge.net/project/showfiles.php?group_id=54091&package_id=134844' '\.zip'"
 groups=('xapps-extra' 'amsn-plugins')
 
 ###

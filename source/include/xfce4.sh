@@ -48,6 +48,14 @@ if [ -z $_F_archive_name ] ; then
 	_F_archive_name=$_F_xfce_name
 fi
 
+if [ -z $_F_xfce_ver ]; then
+	_F_xfce_ver="4.6.1"
+fi
+
+if [ -z $pkgver ]; then
+	pkgver=${_F_xfce_ver}
+fi
+
 ###
 # == OVERWRITTEN VARIABLES
 # * url
@@ -62,9 +70,9 @@ if echo ${groups[*]} | grep -q goodies ; then
 	source=($dlurl/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
 else
 	url="http://www.xfce.org/"
-	preup2date="lynx -dump http://www.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"
-	dlurl="$url/archive/xfce-4.4.3/src"
-	up2date="lynx -dump $url/archive/xfce-\$($preup2date)/src/ | Flasttar"
+	preup2date="lynx -dump http://mocha.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"
+	dlurl="http://mocha.xfce.org/archive/xfce-${_F_xfce_ver}/src"
+	up2date="lynx -dump http://mocha.xfce.org/archive/xfce-\$($preup2date)/src/ | Flasttar"
 	source=($dlurl/$_F_xfce_name-$pkgver.tar.bz2)
 fi
 
@@ -73,3 +81,4 @@ fi
 # * scriptlet to options()
 ###
 options=(${options[@]} 'scriptlet')
+

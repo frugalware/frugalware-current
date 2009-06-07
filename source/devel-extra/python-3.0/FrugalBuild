@@ -1,0 +1,64 @@
+# Compiling Time: 0.96 SBU
+# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
+
+USE_GUI=${USE_GUI:-"y"}
+
+pkgname=python-3.0
+pkgver=3.0.1
+shortpkgver=3.0 # 2.3 if $pkgver=2.3.4
+pkgrel=1
+pkgdesc="A high-level scripting language"
+url="http://www.python.org"
+depends=('glibc>=2.8-3' 'bzip2>=1.0.5-2' 'gdbm>=1.8.3-5' 'openssl>=0.9.8-14' 'glib2>=2.16.4-2')
+makedepends=('sqlite3')
+Fuse $USE_GUI && makedepends=(${makedepends[@]} 'tk>=8.5' 'gtk+2')
+groups=('devel-extra')
+archs=('i686' 'x86_64' 'ppc')
+options=('scriptlet')
+_F_archive_name="Python"
+_F_archive_ext=".tgz"
+up2date="Flasttar $url/download/"
+source=(http://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.bz2)
+sha1sums=('6206059f0c04336e8d6550d2cdd88ab91f2657ff')
+
+subpkgs=("$pkgname-tools" "$pkgname-sqlite3")
+subdescs=("Optional development tools to extending Python" "Python support for sqlite3")
+subgroups=('devel-extra' 'devel-extra')
+subdepends=('python-3.0' "python-3.0=$pkgver-$pkgrel")
+subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
+
+[ "$CARCH" == "x86_64" ] && export CFLAGS="$CFLAGS -fPIC"
+
+build()
+{
+	Fcd Python-$pkgver
+	Fpatchall
+	Fconf --prefix=/usr --with-threads --enable-shared --enable-ipv6 || return 1
+	Fsed 'mozilla-firefox' 'firefox' Lib/webbrowser.py
+	make || return 1
+	Fmakeinstall || return 1
+	Frm /usr/bin/python
+	Fmv /usr/bin/2to3{,$shortpkgver}
+	Fmv /usr/bin/idle{,$shortpkgver}
+	Fmv /usr/bin/pydoc{,$shortpkgver}
+	Fmv /usr/bin/smtpd{,$shortpkgver}.py
+	# subpkg python-tools
+	for f in Tools/* ; do
+		if [ -d $f ] ; then
+			Fcp Python-$pkgver/$f /usr/lib/python$shortpkgver/site-packages/ || Fdie
+			Fsplit $pkgname-tools usr/lib/python$shortpkgver/site-packages/`echo $f|sed 's|Tools/||'`
+		fi
+	done
+	Fln /usr/lib/python$shortpkgver/site-packages/i18n/msgfmt.py /usr/bin/msgfmt.py
+	Fln /usr/lib/python$shortpkgver/site-packages/i18n/pygettext.py /usr/bin/pygettext.py
+	Fln /usr/lib/python$shortpkgver/site-packages/modulator/modulator.py /usr/bin/modulator.py
+	Fln /usr/lib/python$shortpkgver/site-packages/pynche/pynche /usr/bin/pynche
+	Fmv /usr/bin/msgfmt{,$shortpkgver}.py
+	Fmv /usr/bin/pygettext{,$shortpkgver}.py
+	Fmv /usr/bin/modulator{,$shortpkgver}.py
+	Fmv /usr/bin/pynche{,$shortpkgver}
+	Fsplit $pkgname-tools usr/bin/{{msgfmt,pygettext,modulator}$shortpkgver.py,pynche$shortpkgver}
+	Fsplit $pkgname-sqlite3 usr/lib/python$shortpkgver/{sqlite3,lib-dynload/_sqlite3.so,test/test_sqlite.py*}
+}
+
+# optimization OK

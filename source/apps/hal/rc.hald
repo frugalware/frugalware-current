@@ -4,48 +4,61 @@
 # rc.hald for Frugalware
 # distributed under GPL License
 
-. /etc/rc.d/rc.functions
-
 # chkconfig: 2345 98 02
-# description: This is a daemon for collecting and maintaing information
+# description: This is a daemon for collecting and maintaining information \
 #              about hardware from several sources.
 
-PID=`pidof -o %PPID /usr/sbin/hald`
+source /lib/initscripts/functions
 
+daemon=$"HAL daemon"
+actions=(start stop restart status)
+pid_dbus="pidof -o %PPID /usr/bin/dbus-daemon"
+pid="pidof -o %PPID /usr/sbin/hald"
 
-if [ "$1" = "stop" ]; then
-	stop "$stophald"
-	[ ! -z "$PID" ] && kill $PID &> /dev/null
-	ok $?
-elif [ "$1" = "restart" ]; then
-	"$0" stop
-	sleep 1
-	"$0" start
-else # start
-	start "$starthald"
-	## need be here without this use hal does not work
-	if ! grep -q '^hald:' /etc/group; then
+rc_start()
+{
+	start_msg
+	if [ -z "$(eval $pid_dbus)" -o -n "$(eval $pid)" ]; then
+		ok 999
+	else
+		# hald won't be functional without its own group, so add it if
+		# it's missing
+		if ! grep -q '^hald:' /etc/group; then
         	echo -n "Adding hald group..."
         	groupadd -g 39 hald
         	echo -e "done."
-	fi
-
-	if ! grep -q '^hald:' /etc/passwd; then
+		fi
+		
+		if ! grep -q '^hald:' /etc/passwd; then
         	echo -n "Adding hald user..."
         	useradd -c 'HAL Daemon' -u 39 -g hald -G cdrom,floppy,camera,storage -d '/' -s /bin/false hald
-        	## kill password
+		# lock the account we just created
         	passwd -l hald
         	echo -e "done."
-	fi
-	if [ ! -d /var/run/hald ]; then
-		mkdir -p /var/run/hald
-		chown hald:hald /var/run/hald
-	else
-		chown hald:hald /var/run/hald
-	fi
+		fi
 		
-	if [ -z "$PID" ]; then
+		if [ ! -d /var/run/hald ]; then
+			mkdir -p /var/run/hald
+			chown hald:hald /var/run/hald
+		else
+			chown hald:hald /var/run/hald
+		fi
+
 	 	/usr/sbin/hald --daemon=yes
+		ok $?
 	fi
-	ok $?
-fi
+}
+
+rc_stop()
+{
+	stop_msg
+	if [ -n "$(eval $pid)" ] ; then
+		kill "$(eval $pid)"
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1
+

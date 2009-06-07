@@ -29,7 +29,7 @@
 # * _F_perl_ext (defaults to .tar.gz): extension of the source tarball
 # * _F_perl_sourcename (defaults to _F_perl_name): name of the source tarball
 # without pkgver and _F_perl_ext
-# * _F_perl_url (defaults to ftp://cpan.org/authors/id/)
+# * _F_perl_url (defaults to http://search.cpan.org/CPAN/authors/id/)
 # * _F_perl_no_url: if set, don't overwrite $url
 # * _F_perl_no_up2date: if set, don't set $up2date
 # * _F_perl_no_source: if set, don't set $source()
@@ -46,7 +46,7 @@
 }
 [ -z "$_F_perl_ext" ] && _F_perl_ext=".tar.gz"
 [ -z "$_F_perl_sourcename" ] && _F_perl_sourcename="$_F_perl_name"
-[ -z "$_F_perl_url" ] && _F_perl_url="ftp://cpan.org/authors/id/"
+[ -z "$_F_perl_url" ] && _F_perl_url="http://search.cpan.org/CPAN/authors/id/"
 [ -z "$_F_perl_no_url" ] && url="http://cpan.org/"
 [ -z "$_F_perl_no_up2date" ] && up2date="lynx -dump -nolist 'http://search.cpan.org/search?query="$_F_perl_name"&mode=module'|grep -m1 "$_F_perl_name-"|sed -e 's/.*"$_F_perl_name"-\(.*\) .*/\1/' -e 's/ .*//'"
 [ -z "$_F_perl_no_source" ] && source=($_F_perl_url$_F_perl_author/$_F_perl_sourcename-$pkgver$_F_perl_ext)
@@ -70,11 +70,18 @@ archs=('i686')
 
 ###
 # == PROVIDED FUNCTIONS
-# * build()
+# * Fbuild_perl(): improves build() to make use of these functions
 ###
-build()
+Fbuild_perl()
 {
 	Fcd $_F_cd_path
 	Fbuild
 	Frm /usr/lib/perl5/current
+}
+
+###
+# * build() just calls Fbuild_perl()
+###
+build() {
+	Fbuild_perl
 }

@@ -24,7 +24,13 @@
 #
 # == OPTIONS
 # * _F_archive_name (defaults to $pkgname)
+# * _F_archive_nolinksonly (defaults to no, so that only links are proceeded by
+# default)
 # * _F_archive_nosort (defaults to no, so sorting is enabled by default)
+# * _F_archive_grep (defaults to empty): grep for a regexp before
+# searching for the version
+# * _F_archive_grepv (defaults to empty): grep -v for a regexp before
+# searching for the version
 # * _F_cd_path (defaults to $_F_archive_name$Fpkgversep$pkgver$pkgextraver)
 # * _F_conf_configure (defaults to ./configure)
 # * _F_conf_perl_pipefrom: if set, pipe the output of this command in Fconf()
@@ -86,6 +92,7 @@ Fbuildchost="`arch`-frugalware-linux"
 Fconfopts="--prefix=$Fprefix"
 ## Move to makepkg.conf for Kalgan+1
 export LDFLAGS="-Wl,--hash-style=both"
+unset LANG LC_ALL
 
 ###
 # == PROVIDED FUNCTIONS
@@ -275,7 +282,7 @@ Fdirschmod() {
 }
 
 ###
-# Ffileschmod(): Changes the permissions of all file(s) inside $Fdestdir. First
+# * Ffileschmod(): Changes the permissions of all file(s) inside $Fdestdir. First
 # parameter: where to start "find", second parameter: octal mode or
 # [+-][rwxstugo].
 ###
@@ -374,8 +381,8 @@ Fdoc() {
 	local i
 	for i in $@
 	do
-		if [ -d "$i" ]; then
-			Fcpr "$Fsrcdir/$i" "/usr/share/doc/$pkgname-$pkgver/"
+		if [ -d "$Fsrcdir/$i" ]; then
+			Fcp "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		else
 		Ffile "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		local j
@@ -534,7 +541,7 @@ Fconf() {
 			Fconfopts="$Fconfopts --sysconfdir=$Fsysconfdir"
 		grep -q localstatedir $_F_conf_configure && \
 			Fconfopts="$Fconfopts --localstatedir=$Flocalstatedir"
-		grep -q 'build=' $_F_conf_configure && \
+		grep -q -- '--build=' $_F_conf_configure && \
 			Fconfopts="$Fconfopts --build=$Fbuildchost"
 		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie
 	elif [ -f Makefile.PL ]; then
@@ -866,22 +873,51 @@ Fautoreconf() {
 }
 
 ###
+# * Fsanitizeversion: Clear/fix some common version string common problems on
+# an automatized version output (also remove pkgextraver ending). Parameters:
+# 1) version (optional) to clean, else stdin if not present
+###
+Fsanitizeversion() {
+	if [ $# -gt 0 ]; then
+		echo "$1" | Fsanitizeversion
+	else
+		sed "s/%2B/+/g;s/$pkgextraver$//;s/-/_/g"
+	fi
+}
+
+###
 # * Flastarchive: Extracts last archive version from a page. Parameters: 1)
 # url (optional) of the page, else stdin if not present 2) extension_filter
 # for the archive type
 ###
 Flastarchive() {
+	local lynx="lynx -dump"
+
+	if [ -z "$_F_archive_nolinksonly" ]; then
+		lynx="$lynx -listonly"
+	fi
+
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi
 
 	if [ $# -gt 1 ]; then
-		lynx -dump $1 | Flastarchive $2
+		if [ -n "$_F_archive_grep" ]; then
+			$lynx $1 | grep -- "$_F_archive_grep" | Flastarchive $2
+			return
+		fi
+		if [ -n "$_F_archive_grepv" ]; then
+			$lynx $1 | grep -v -- "$_F_archive_grepv" | Flastarchive $2
+			return
+		fi
+		$lynx $1 | Flastarchive $2
 	else
 		if [ -z "$_F_archive_nosort" ]; then
-			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | Fsort | tail -n1
+			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" \
+				| Fsort | tail -n1 | Fsanitizeversion
 		else
-			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | tail -n1
+			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" \
+				| tail -n1 | Fsanitizeversion
 		fi
 	fi
 }
@@ -1010,7 +1046,6 @@ Fdesktop2()
 	Fmessage "Installing desktop file: $deskfilename"
 	cat > $Fdestdir$Fmenudir/$deskfilename << EOF
 [Desktop Entry]
-Encoding=UTF-8
 Name=$dname
 Comment=$ddesc
 Exec=$dexec

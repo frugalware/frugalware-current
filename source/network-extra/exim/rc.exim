@@ -11,7 +11,7 @@ source /lib/initscripts/functions
 TEXTDOMAIN=exim
 TEXTDOMAINDIR=/lib/initscripts/messages
 
-actions=(restart start stop)
+actions=(restart start stop status)
 #daemon=$"Exim"
 source /etc/sysconfig/exim4
 DAEMON=/usr/sbin/exim
@@ -29,13 +29,13 @@ rc_start()
 	case ${QUEUERUNNER} in
 		combined)
 			start_msg $"Starting exim and queuerunner (combined)"
-			$DAEMON -bd "-q${QFLAGS}${QUEUEINTERVAL}" \
-				"${COMMONOPTIONS}" "${QUEUERUNNEROPTIONS}" "${SMTPLISTENEROPTIONS}"
+			$DAEMON -oP "${PIDFILE}" -bd "-q${QFLAGS}${QUEUEINTERVAL}"
+				#"${COMMONOPTIONS}" "${QUEUERUNNEROPTIONS}" "${SMTPLISTENEROPTIONS}"
 			ok $?
 		;;
 		separate)
 			start_msg $"Starting exim"
-			$DAEMON -bd "${SMTPLISTENEROPTIONS}" "${COMMONOPTIONS}"
+			$DAEMON -oP ${PIDFILE} -bd "${SMTPLISTENEROPTIONS}" "${COMMONOPTIONS}"
 			ok $?
 			start_msg $"Starting exim queuerunner"
 			$DAEMON -oP "$QRPIDFILE" \
@@ -50,7 +50,8 @@ rc_start()
 		;;
 		no|ppp)
 			start_msg $"Starting exim (noqueue)"
-			$DAEMON -bd "${SMTPLISTENEROPTIONS}"
+			$DAEMON -oP "${PIDFILE}" -bd "${SMTPLISTENEROPTIONS}"
+			ok $?
 		;;
 		nodaemon)
 		;;
@@ -59,27 +60,35 @@ rc_start()
 
 rc_status()
 {
-	echo "Not implemented"
-#	status_msg $"Exim is"
-#	if ! ls /proc/sys/fs/binfmt_misc/windows* &>/dev/null; then
-#		ok 998
-#	else
-#		ok 997
-#	fi
+	pid='x'
+	qrpid='x'
+	[ -f ${PIDFILE} ] && pid=`cat ${PIDFILE}`
+	[ -f ${QRPIDFILE} ] && qrpid=`cat ${QRPIDFILE}`
+	status_msg $"Exim is"
+	if [ -d /proc/$pid -o -d /proc/$qrpid ]; then
+		ok 997
+	else
+		ok 998
+	fi
 }
 
 rc_stop()
 {
 	stop_msg $"Stopping exim"
-	if [ -f "$QRPIDFILE" ]; then
+	ret=1
+	if [ -f $QRPIDFILE ]; then
 		qrpid=`cat $QRPIDFILE`
 		kill $qrpid
+		ret=$?
+		rm ${QRPIDFILE}
 	fi
-	if [ -f "$PIDFILE" ]; then
+	if [ -f $PIDFILE ]; then
 		pid=`cat $PIDFILE`
 		kill $pid
+		ret=$?
+		rm ${PIDFILE}
 	fi
-	ok $?
+	ok $ret
 }
 
 rc_exec $1

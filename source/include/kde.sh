@@ -66,7 +66,7 @@ fi
 ## TODO: add mirror option
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	url="http://www.kde.org"
-	_F_kde_ver=3.5.9
+	_F_kde_ver=3.5.10
 	pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$_F_kde_ver/src"
 	#up2date="lynx -dump http://www.kde.org/download/|grep '$_F_kde_name'|sed -n '1 p'|sed 's/.*-\([^ ]*\) .*/\1/'"
 	up2date=$_F_kde_ver
@@ -93,12 +93,11 @@ options=(${options[@]} 'scriptlet')
 ###
 # * Fconfopts
 ###
-Fconfopts="$Fconfopts \
-                --disable-dependency-tracking \
+Fconfopts="--disable-dependency-tracking \
                 --with-gnu-ld \
                 --enable-gcc-hidden-visibility \
                 --enable-new-ldflags \
-		--disable-final"
+		--disable-final $Fconfopts"
 
 if [ "$_F_kde_build_debug" -eq 1 ]; then
         Fconfopts="$Fconfopts --enable-debug --with-debug"
@@ -110,12 +109,12 @@ fi
 
 if [ ! -z "$_F_kde_id" ]; then
         url="http://www.kde-apps.org/content/show.php?content=$_F_kde_id"
-        up2date="lynx -dump -nolist $url|grep -m1 'Version:'|sed 's/.*: *\(.*\)$/\1/'"
+        up2date="lynx -dump $url|sed  -n '/\[.*\] Content/!d;n;p;n;p;n;p;n;p' | sed 's/^[ \t]*//;s/[ \t]*$//'|grep '^[0-9]'"
 fi
 
 if [ ! -z "$_F_kde_id2" ]; then
         url="http://www.kde-look.org/content/show.php?content=$_F_kde_id2"
-        up2date="lynx -dump -nolist $url|grep -m1 'Version:'|sed 's/.*: *\(.*\)$/\1/'"
+        up2date="lynx -dump $url|sed  -n '/\[.*\] Content/!d;n;p;n;p;n;p;n;p' | sed 's/^[ \t]*//;s/[ \t]*$//'|grep '^[0-9]'"
 fi
 
 ###

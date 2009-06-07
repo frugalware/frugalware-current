@@ -171,8 +171,8 @@ up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-
 if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
 	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 \
 		config.i686 config.x86_64 config.ppc)
-	# this can be removed after Frualware 0.9 is out
-	replaces=('ipw3945' 'linux-uvc')
+	# this can be removed after Frualware 1.0 is out
+	replaces=('gspcav1' 'atl2')
 else
 	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
 fi
@@ -290,6 +290,7 @@ Fbuildkernel()
 	if [ -z "$_F_kernel_name" ]; then
 		make INSTALL_HDR_PATH=$Fdestdir/usr headers_install || Fdie
 		[ -e $Fdestdir/usr/include/scsi ] && Frm /usr/include/scsi
+		[ -e $Fdestdir/usr/include/drm ] && Frm /usr/include/drm
 		Fsplit kernel-headers /usr
 	fi
 	## now time to eat some cookies and wait kernel got compiled :)

@@ -31,7 +31,7 @@
 # * archs()
 ###
 
-up2date="3.0.3"
+up2date="3.0.10"
 source=(http://releases.mozilla.org/pub/mozilla.org/firefox/releases/${up2date}/linux-i686/xpi/$_F_firefox_lang.xpi)
 pkgname=firefox-`echo $_F_firefox_lang|tr [A-Z] [a-z]`
 url="http://www.mozilla.org/projects/l10n/mlp.html"

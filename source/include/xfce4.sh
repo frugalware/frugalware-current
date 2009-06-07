@@ -48,7 +48,9 @@ if [ -z $_F_archive_name ] ; then
 	_F_archive_name=$_F_xfce_name
 fi
 
-_F_xfce_ver="4.6.1"
+if [ -z $_F_xfce_ver ]; then
+	_F_xfce_ver="4.6.1"
+fi
 
 if [ -z $pkgver ]; then
 	pkgver=${_F_xfce_ver}

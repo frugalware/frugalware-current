@@ -12,15 +12,17 @@ source /lib/initscripts/functions
 
 daemon=$"HAL daemon"
 actions=(start stop restart status)
+pid_dbus="pidof -o %PPID /usr/bin/dbus-daemon"
 pid="pidof -o %PPID /usr/sbin/hald"
 
 rc_start()
 {
 	start_msg
-	if [ ! -z "$(eval $pid)" ]; then
+	if [ -z "$(eval $pid_dbus)" -o -n "$(eval $pid)" ]; then
 		ok 999
 	else
-		## need be here without this use hal does not work
+		# hald won't be functional without its own group, so add it if
+		# it's missing
 		if ! grep -q '^hald:' /etc/group; then
         	echo -n "Adding hald group..."
         	groupadd -g 39 hald
@@ -30,7 +32,7 @@ rc_start()
 		if ! grep -q '^hald:' /etc/passwd; then
         	echo -n "Adding hald user..."
         	useradd -c 'HAL Daemon' -u 39 -g hald -G cdrom,floppy,camera,storage -d '/' -s /bin/false hald
-        	## kill password
+		# lock the account we just created
         	passwd -l hald
         	echo -e "done."
 		fi

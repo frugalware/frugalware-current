@@ -1196,7 +1196,7 @@ Fextract() {
 	if [ "$cmd" != "" ]; then
 		msg "    $cmd"
 		$cmd
-		ret = $?
+		ret=$?
 		if [ $ret -ne 0 ]; then
 			# unzip will return a 1 as a warning, it is not an error
 			if [ "$unziphack" != "1" -o $ret -ne 1 ]; then

@@ -146,9 +146,8 @@ Fbuild_nvidia() {
 	Fexerel usr/bin/nvidia-* /usr/bin/
 
 	# Install the includes
-	# GL includes conflicts with mesa ones, remove for now
-#	Fmkdir usr/include/GL/
-#	Ffilerel usr/include/GL/* /usr/include/GL/
+	Fmkdir usr/include/GL/
+	Ffilerel usr/include/GL/* /usr/include/GL/
 	if [ -d usr/include/cuda ]; then
 		Fmkdir usr/include/cuda
 		Ffilerel usr/include/cuda/* /usr/include/cuda/
@@ -164,11 +163,12 @@ Fbuild_nvidia() {
 	Fmkdir usr/lib/xorg/modules/extensions
 	Fexerel usr/X11R6/lib/modules/extensions/*.so* /usr/lib/xorg/modules/extensions/
 	Fln "libglx.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/extensions/libglx.so"
-	if [ -e "usr/X11R6/lib/modules/libnvidia-wfb.so.$_F_nvidia_linkver" ]; then
-		Fexerel usr/X11R6/lib/modules/libnvidia-wfb.so* /usr/lib/xorg/modules/
-		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libnvidia-wfb.so"
-		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libwfb.so"
-	fi
+	# libnvidia-wfb.so is a libwfb replacement if xorg-server don't provides it
+#	if [ -e "usr/X11R6/lib/modules/libnvidia-wfb.so.$_F_nvidia_linkver" ]; then
+#		Fexerel usr/X11R6/lib/modules/libnvidia-wfb.so* /usr/lib/xorg/modules/
+#		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libnvidia-wfb.so"
+#		Fln "libnvidia-wfb.so.$_F_nvidia_linkver" "/usr/lib/xorg/modules/libwfb.so"
+#	fi
 
 	# Install the libraries
 	Fexerel usr/lib/*.so* /usr/lib/

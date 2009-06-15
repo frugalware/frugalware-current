@@ -93,7 +93,7 @@ _F_kernelmod_scriptlet=$_F_nvidia_install
 # * options: add nostrip to options
 # * removes: temporary fix for some nvidia mess, has to be removed after Frugalware 1.0
 ###
-depends=(${depends[@]} 'xorg-server>=1.6.1-7' 'pkgconfig')
+depends=(${depends[@]} 'xorg-server>=1.6.1-8' 'pkgconfig')
 conflicts=(${conflicts[@]} 'libgl' 'libglx')
 provides=(${provides[@]} 'libgl' 'libglx')
 options=(${options[@]} 'nostrip')

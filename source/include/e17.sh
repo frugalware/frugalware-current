@@ -32,6 +32,7 @@
 # * source()
 # * up2date
 ###
+makedepends=(${makedepends[@]} 'doxygen')
 url="http://download.enlightenment.org/"
 if [ -z ${_F_e17_snap} ]; then
 	source=($url/releases/${pkgname}-${pkgver}.tar.bz2)

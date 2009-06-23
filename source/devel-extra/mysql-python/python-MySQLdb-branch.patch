@@ -1,0 +1,244 @@
+Index: MySQLdb/setup.py
+===================================================================
+--- MySQLdb/setup.py	(.../tags/MySQLdb-1.2.2)	(wersja 560)
++++ MySQLdb/setup.py	(.../branches/MySQLdb-1.2)	(wersja 560)
+@@ -2,11 +2,10 @@
+ 
+ import os
+ import sys
+-import ez_setup; ez_setup.use_setuptools()
+ from setuptools import setup, Extension
+ 
+ if sys.version_info < (2, 3):
+-    raise Error, "Python-2.3 or newer is required"
++    raise Error("Python-2.3 or newer is required")
+ 
+ if os.name == "posix":
+     from setup_posix import get_config
+Index: MySQLdb/README
+===================================================================
+--- MySQLdb/README	(.../tags/MySQLdb-1.2.2)	(wersja 560)
++++ MySQLdb/README	(.../branches/MySQLdb-1.2)	(wersja 560)
+@@ -21,6 +21,10 @@
+     - Make sure you have the Python development headers and libraries
+       (python-devel).
+ 
+++ setuptools
++
++  * http://pypi.python.org/pypi/setuptools
++
+ + MySQL 3.23.32 or higher
+ 
+   * http://www.mysql.com/downloads/
+@@ -35,11 +39,22 @@
+ 
+   * MySQL-4.0 is supported, but not tested and slightly discouraged.
+ 
+-  * MySQL-4.1 is supported and tested. The prepared statements API is not
+-    supported, and won't be until MySQLdb-1.3 or 2.0.
++  * MySQL-4.1 is supported. The prepared statements API is not
++    supported, and won't be until MySQLdb-1.3 or 2.0, if ever.
+ 
+   * MySQL-5.0 is supported and tested, including stored procedures.
+       
++  * MySQL-5.1 is supported (currently a release candidate) but untested.
++    It should work.
++
++  * MySQL-6.0 is sorta-kinda-supported (currently alpha) but untested.
++    It should work.
++
++  * Drizzle <https://launchpad.net/drizzle> is a fork of MySQL. So far
++    the C API looks really similar except everything is renamed.
++    Drizzle support probably won't happen in 1.2. There may be have to
++    be an entirely different module, but still using DB-API.
++
+   * MaxDB, formerly known as SAP DB (and maybe Adabas D?), is a
+     completely different animal. Use the sapdb.sql module that comes
+     with MaxDB.
+@@ -94,7 +109,6 @@
+ .. _Cygwin: http://www.cygwin.com/
+ 
+ 
+-
+ Building and installing
+ -----------------------
+ 
+@@ -213,8 +227,7 @@
+ Gentoo Linux
+ ............
+ 
+-Packaged as `mysql-python`_. Gentoo is also my preferred development platform,
+-though I have also done some with Ubuntu lately. ::
++Packaged as `mysql-python`_. ::
+ 
+       # emerge sync
+       # emerge mysql-python
+Index: MySQLdb/MySQLdb/converters.py
+===================================================================
+--- MySQLdb/MySQLdb/converters.py	(.../tags/MySQLdb-1.2.2)	(wersja 560)
++++ MySQLdb/MySQLdb/converters.py	(.../branches/MySQLdb-1.2)	(wersja 560)
+@@ -34,15 +34,19 @@
+ 
+ from _mysql import string_literal, escape_sequence, escape_dict, escape, NULL
+ from constants import FIELD_TYPE, FLAG
+-from sets import BaseSet, Set
+ from times import *
+ import types
+ import array
+ 
++try:
++    set
++except NameError:
++    from sets import Set as set
++
+ def Bool2Str(s, d): return str(int(s))
+ 
+ def Str2Set(s):
+-    return Set([ i for i in s.split(',') if i ])
++    return set([ i for i in s.split(',') if i ])
+ 
+ def Set2Str(s, d):
+     return string_literal(','.join(s), d)
+@@ -126,7 +130,7 @@
+     types.BooleanType: Bool2Str,
+     DateTimeType: DateTime2literal,
+     DateTimeDeltaType: DateTimeDelta2literal,
+-    Set: Set2Str,
++    set: Set2Str,
+     FIELD_TYPE.TINY: int,
+     FIELD_TYPE.SHORT: int,
+     FIELD_TYPE.LONG: long,
+Index: MySQLdb/MySQLdb/__init__.py
+===================================================================
+--- MySQLdb/MySQLdb/__init__.py	(.../tags/MySQLdb-1.2.2)	(wersja 560)
++++ MySQLdb/MySQLdb/__init__.py	(.../branches/MySQLdb-1.2)	(wersja 560)
+@@ -31,25 +31,20 @@
+ from MySQLdb.times import Date, Time, Timestamp, \
+     DateFromTicks, TimeFromTicks, TimestampFromTicks
+ 
+-from sets import ImmutableSet
+-class DBAPISet(ImmutableSet):
++try:
++    frozenset
++except NameError:
++    from sets import ImmutableSet as frozenset
+ 
++class DBAPISet(frozenset):
++
+     """A special type of set for which A == x is true if A is a
+     DBAPISet and x is a member of that set."""
+ 
+-    def __ne__(self, other):
+-        from sets import BaseSet
+-        if isinstance(other, BaseSet):
+-            return super(DBAPISet.self).__ne__(self, other)
+-        else:
+-            return other not in self
+-
+     def __eq__(self, other):
+-        from sets import BaseSet
+-        if isinstance(other, BaseSet):
+-            return super(DBAPISet, self).__eq__(self, other)
+-        else:
+-            return other in self
++        if isinstance(other, DBAPISet):
++            return not self.difference(other)
++        return other in self
+ 
+ 
+ STRING    = DBAPISet([FIELD_TYPE.ENUM, FIELD_TYPE.STRING,
+@@ -65,6 +60,18 @@
+ DATETIME  = TIMESTAMP
+ ROWID     = DBAPISet()
+ 
++def test_DBAPISet_set_equality():
++    assert STRING == STRING
++
++def test_DBAPISet_set_inequality():
++    assert STRING != NUMBER
++
++def test_DBAPISet_set_equality_membership():
++    assert FIELD_TYPE.VAR_STRING == STRING
++
++def test_DBAPISet_set_inequality_membership():
++    assert FIELD_TYPE.DATE != STRING
++
+ def Binary(x):
+     return str(x)
+ 
+Index: MySQLdb/MySQLdb/cursors.py
+===================================================================
+--- MySQLdb/MySQLdb/cursors.py	(.../tags/MySQLdb-1.2.2)	(wersja 560)
++++ MySQLdb/MySQLdb/cursors.py	(.../branches/MySQLdb-1.2)	(wersja 560)
+@@ -6,7 +6,14 @@
+ """
+ 
+ import re
+-insert_values = re.compile(r"\svalues\s*(\(((?<!\\)'.*?\).*(?<!\\)?'|.)+?\))", re.IGNORECASE)
++
++restr = (r"\svalues\s*"
++        r"(\(((?<!\\)'[^\)]*?\)[^\)]*(?<!\\)?'"
++        r"|[^\(\)]|"
++        r"(?:\([^\)]*\))"
++        r")+\))")
++
++insert_values= re.compile(restr)
+ from _mysql_exceptions import Warning, Error, InterfaceError, DataError, \
+      DatabaseError, OperationalError, IntegrityError, InternalError, \
+      NotSupportedError, ProgrammingError
+Index: MySQLdb/MySQLdb/connections.py
+===================================================================
+--- MySQLdb/MySQLdb/connections.py	(.../tags/MySQLdb-1.2.2)	(wersja 560)
++++ MySQLdb/MySQLdb/connections.py	(.../branches/MySQLdb-1.2)	(wersja 560)
+@@ -32,7 +32,7 @@
+         connection.messages.append(error)
+     del cursor
+     del connection
+-    raise errorclass, errorvalue
++    raise errorclass(errorvalue)
+ 
+ 
+ class Connection(_mysql.connection):
+@@ -277,7 +277,7 @@
+                 super(Connection, self).set_character_set(charset)
+             except AttributeError:
+                 if self._server_version < (4, 1):
+-                    raise NotSupportedError, "server is too old to set charset"
++                    raise NotSupportedError("server is too old to set charset")
+                 self.query('SET NAMES %s' % charset)
+                 self.store_result()
+         self.string_decoder.charset = charset
+@@ -287,7 +287,7 @@
+         """Set the connection sql_mode. See MySQL documentation for
+         legal values."""
+         if self._server_version < (4, 1):
+-            raise NotSupportedError, "server is too old to set sql_mode"
++            raise NotSupportedError("server is too old to set sql_mode")
+         self.query("SET SESSION sql_mode='%s'" % sql_mode)
+         self.store_result()
+         
+Index: MySQLdb/MANIFEST.in
+===================================================================
+--- MySQLdb/MANIFEST.in	(.../tags/MySQLdb-1.2.2)	(wersja 560)
++++ MySQLdb/MANIFEST.in	(.../branches/MySQLdb-1.2)	(wersja 560)
+@@ -11,7 +11,6 @@
+ include test_MySQLdb_capabilities.py
+ include metadata.cfg
+ include site.cfg
+-include ez_setup.py
+ include setup_common.py
+ include setup_posix.py
+ include setup_windows.py
+Index: MySQLdb/metadata.cfg
+===================================================================
+--- MySQLdb/metadata.cfg	(.../tags/MySQLdb-1.2.2)	(wersja 560)
++++ MySQLdb/metadata.cfg	(.../branches/MySQLdb-1.2)	(wersja 560)
+@@ -1,6 +1,6 @@
+ [metadata]
+-version: 1.2.2
+-version_info: (1,2,2,'final',0)
++version: 1.2.3
++version_info: (1,2,3,'beta',1)
+ description: Python interface to MySQL
+ long_description: 
+         =========================

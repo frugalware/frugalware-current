@@ -39,6 +39,7 @@ fi
 Fmonoexport() {
 	Fmessage "Exporting weird MONO_SHARED_DIR..."
 	export MONO_SHARED_DIR=$Fdestdir/weird
+	export XDG_CONFIG_HOME=$Fdestdir/weird
 	mkdir -p $MONO_SHARED_DIR
 }
 
@@ -46,6 +47,10 @@ Fmonoexport() {
 # * Fmonoccompileaot(): AOT all of the libraries in the pkg
 ###
 Fmonocompileaot() {
+	if [ "$CARCH" == "ppc" ]; then
+		Fmessage "AOTing not supported on this platform"
+		return
+	fi
 	Fmessage "AOTing all of the libraries..."
 	for i in $Fdestdir/usr/lib/mono/gac/*/*/*.dll
 	do
@@ -68,7 +73,7 @@ Fmonocleanup() {
 Fbuild_mono() {
 	unset MAKEFLAGS
 	Fmonoexport
-	Fbuild
+	Fbuild $@
 if [ "$_F_mono_aot" -eq 1 ]; then
 	Fmonocompileaot
 fi

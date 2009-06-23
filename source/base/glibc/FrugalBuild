@@ -1,47 +1,45 @@
 # Compiling time: 8.20 SBU
-# Maintainer: VMiklos <vmiklos@frugalware.org>
+# Maintainer: crazy <crazy@frugalware.org>
+# Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=glibc
-pkgver=2.7
-pkgrel=3
+pkgver=2.10.1
+pkgrel=1
 pkgdesc="GNU C Library"
 url="http://www.gnu.org/software/libc/libc.html"
 depends=()
-makedepends=('binutils>=2.18.50.0.4-2' 'gcc>=4.3.0-2' 'grep>=2.5.3-2')
+makedepends=('binutils>=2.19.1' 'gcc>=4.3.3' 'grep>=2.5.3-4' 'zlib>=1.2.3-6' 'pacman-g2>=3.7.0-4')
+# for memusagestat
+makedepends=("${makedepends[@]}" 'gd')
 rodepends=('tzdata')
 groups=('base' 'chroot-core')
 archs=('i686' 'x86_64' 'ppc')
-Fup2gnugz
-source=(http://ftp.gnu.org/pub/gnu/glibc/glibc-$pkgver.tar.bz2 \
-	glibc-2.7-fnstsw.diff)
-signatures=("$source.sig" '')
+source=(http://ftp.gnu.org/pub/gnu/glibc/glibc-$pkgver.tar.bz2)
+up2date="lynx -dump http://repo.or.cz/w/glibc.git?a=tags|grep tags/glibc-|sed 's/.*glibc-//;q'"
+sha1sums=('cb478cf9d6e2c905a1a4f4a2cae44a320b8dc50b')
 
-## XEN disabled for 0.7
-#if [ "$CARCH" == "i686" ]; then
-#	subpkgs=('glibc-xen')
-#	subdescs=('GNU C Library for Xen.')
-#	subdepends=()
-#	subconflicts=('glibc')
-#	subprovides=('glibc')
-#	subgroups=('base-extra')
-#	subarchs=('i686')
-#fi
-
-_build()
+build()
 {
+	Fcd $pkgname-$pkgver
+	Fsed 'x86_64 \| ' '' sysdeps/unix/sysv/linux/configure{,.in}
+	Fpatchall
 	Ffilerel nscd/nscd.conf /etc/nscd.conf
 	## use Fdie here and kill the build
 	## if we get any errors. -- crazy --
 	rm -rf ../glibc-build || Fdie
 	mkdir ../glibc-build || Fdie
 	cd ../glibc-build || Fdie
+	# glibc complains about our default flags are not agressive enough. let
+	# it use its own default ones
+	[ "$CARCH" = "ppc" ] && unset CFLAGS CXXFLAGS
 	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CXX="g++" CC="gcc"  \
-	../glibc-$pkgver/configure \
+	../$pkgname-$pkgver/configure \
 		--prefix=/usr \
+		--libdir=/usr/lib \
 		--with-tls \
 		--with-__thread \
 		--enable-add-ons=nptl \
-		--enable-kernel=2.6.0 \
+		--enable-kernel=2.6.24 \
 		--without-cvs \
 		--without-selinux \
 		--enable-shared \
@@ -55,7 +53,7 @@ _build()
 	make install_root=$Fdestdir install || Fdie
 	make install_root=$Fdestdir localedata/install-locales || Fdie
 	Frm /etc/ld.so.cache
-	## conflicting files with tzdata 
+	## conflicting files with tzdata
 	Frm etc/localtime
 	Frm usr/share/zoneinfo
 	Frm usr/sbin/{zdump,zic}
@@ -63,24 +61,6 @@ _build()
 
 	Frm /usr/share/info/dir
 	cd - >/dev/null
-}
-
-build()
-{
-	# no multilib thanks
-	Fsed 'x86_64 \| ' '' sysdeps/unix/sysv/linux/configure{,.in}
-	Fpatchall
-	export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing"
-	export CFLAGS="$CFLAGS -fno-strict-aliasing"
-	## XEN stuff disable for 0.7
-	#if [ "$CARCH" == "i686" ]; then
-	#	xenflag="-mno-tls-direct-seg-refs"
-	#	export CFLAGS="$CFLAGS $xenflag"
-	#	_build || return 1
-	#	Fsplit glibc-xen /etc /lib /sbin /usr
-	#	export CFLAGS="${CFLAGS/ $xenflag}"
-	#fi
-	_build || Fdie
 }
 
 # optimization ok

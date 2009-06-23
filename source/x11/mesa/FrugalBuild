@@ -4,32 +4,30 @@
 
 pkgname=mesa
 origname=Mesa
-pkgver=7.0.2
-pkgrel=2
+pkgver=7.4.2
+pkgrel=5
 pkgdesc="Mesa is a 3D graphics library"
 _F_sourceforge_dirname="mesa3d"
 _F_sourceforge_name="MesaLib"
 Finclude sourceforge
 url="http://mesa3d.sourceforge.net/"
 # libgl: provided by libgl, fglrx and nvidia packages
-depends=('expat' 'libx11>=1.1.3-2' 'libxext>=1.0.3' 'libxxf86vm>=1.0.1-2' 'libxi>=1.1.3' 'libxmu>=1.0.3-2' \
-	'libice>=1.0.4' 'libdrm>=2.3.0-2' 'libxdamage>=1.1.1' 'libxfixes>=4.0.3-2' 'libxcb>=1.1' 'expat' 'libgcc')
+depends=('libx11>=1.2.1' 'libxext>=1.0.5-3' 'libxxf86vm>=1.0.2' 'libxi>=1.2.1' 'libxmu>=1.0.4-2' 'dri2proto>=2.0' \
+	'libice>=1.0.5' 'libdrm>=2.4.11' 'libxdamage>=1.1.1-3' 'libxfixes>=4.0.3-4' 'libxcb>=1.3' 'expat' 'libgcc')
 makedepends=('makedepend' 'glproto>=1.4.9' 'xf86vidmodeproto')
 rodepends=('libgl') # should be =$pkgver but we cannot do that while fglrx and nvidia
-archs=('i686' 'x86_64')
+archs=('i686' 'x86_64' 'ppc')
 groups=('x11' 'xorg-core' 'xorg-libs')
 source=($source \
 	http://$_F_sourceforge_mirror.dl.sourceforge.net/sourceforge/$_F_sourceforge_dirname/MesaDemos-$pkgver.tar.bz2 \
-	missing-glw.pc.in.patch \
-	change-default-dri-driver-dir-X7.1.patch \
-	mesa-build-config.patch libGL.la libGLU.la)
+        libGL.la libGLU.la)
 
 subpkgs=('libgl' 'mesademos')
 subdescs=('Mesa OpenGL files.' 'OpenGL demonstration and test programs.')
 subconflicts=('fglrx nvidia' '')
-subdepends=('libxxf86vm>=1.0.1-2 libdrm>=2.3.0' "mesa=$pkgver libstdc++")
+subdepends=('libxxf86vm>=1.0.2 libdrm>=2.4.11' "mesa=$pkgver libstdc++")
 subgroups=('x11' 'x11')
-subarchs=('i686 x86_64' 'i686 x86_64')
+subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
 
 # NOTE: If you bump version (major or minor) you need to review the symlinking at the end of this
 #       file !!!! On minor bump last number will be changed.
@@ -39,39 +37,26 @@ subarchs=('i686 x86_64' 'i686 x86_64')
 build() {
 	Fcd $origname-$pkgver
 
-	[ "$CARCH" == "i686" ] && CONFIG=linux-dri-x86
-	[ "$CARCH" == "x86_64" ] && CONFIG=linux-dri-x86-64
-	[ "$CARCH" == "ppc" ] && CONFIG=linux-dri-ppc
-	Fpatchall
-	HOSTCONF="configs/${CONFIG}"
+	Fconf   --prefix=/usr \
+                --with-dri-driverdir=/usr/lib/dri \
+                --with-dri-drivers=yes \
+                --enable-glx-tls \
+                --with-driver=dri \
+                --enable-xcb
 
-	echo "OPT_FLAGS = ${CFLAGS} -fno-strict-aliasing" >> ${HOSTCONF}
-	echo "SRC_DIRS = glx/x11 mesa glu glw" >> ${HOSTCONF}
-	echo "USING_EGL = 0" >> ${HOSTCONF}
-	echo "PROGRAM_DIRS =" >> ${HOSTCONF}
-	echo "DEFINES += -DUSE_XCB" >> "${HOSTCONF}"
-	## solution for xcb stolen from gentoo =)
-	echo "X11_INCLUDES += `pkg-config --cflags-only-I xcb` `pkg-config --cflags-only-I x11-xcb` `pkg-config --cflags-only-I xcb-glx`" >> ${HOSTCONF}
-	echo "GL_LIB_DEPS += `pkg-config --libs xcb` `pkg-config --libs x11-xcb` `pkg-config --libs xcb-glx`" >> ${HOSTCONF}
-	echo "INSTALL_DIR = /usr" >> "${HOSTCONF}"
-	echo 'DRI_DRIVER_INSTALL_DIR = /usr/lib/dri' >> ${HOSTCONF}
-	# hakish fix these warning about missing header files ..
-	echo "MKDEP_OPTIONS = -fdepend -I$(gcc -print-search-dirs|head -n1|sed 's/.*: //')include" >> ${HOSTCONF}
-	export DRI_DRIVER_DIR="/usr/lib/dri"
-	
-	make ${CONFIG} || Fdie
+	make || Fdie
 
 	Fmkdir /usr
-	
+
 	# br0ken on SMP
 	unset MAKEFLAGS
 	make  DESTDIR=$Fdestdir install || Fdie
-	
+
 	cd progs/xdemos || Fdie
 	make glxgears glxinfo glxdemo glxheads || Fdie
 	Fexerel glxgears glxinfo glxdemo glxheads /usr/bin
 	cd ../.. || Fdie
-	
+
 	Fmkdir /usr/share/doc/$pkgname-$pkgver
 	cp -r docs/{README.*,*.html,COPYING} \
 		$Fdestdir/usr/share/doc/$pkgname-$pkgver/ || Fdie
@@ -79,24 +64,27 @@ build() {
 	# Copy our .la files and chmod them with a+rx
 	cp -ar $Fsrcdir/lib{GL,GLU}.la $Fdestdir/usr/lib || Fdie
 	chmod a+rx $Fdestdir/usr/lib/lib{GL,GLU}.la || Fdie
-	
+
 	Fln libGLU.so.1.3.070002 /usr/lib/libGLU.so.1.3
 	Fln libGLw.so.1.0.0 /usr/lib/libGLw.so.1.0
 
 	# Remove glut.h because it conflicts with freeglut :P
 	Frm /usr/include/GL/glut.h
 
+	# Remove dri_interface.h because it conflicts with xf86driproto :P
+	#Frm /usr/include/GL/internal/dri_interface.h
+
+	Fsplit libgl usr/include/GL/{gl.h,glext.h,glx.h,glxext.h,gl_mangle.h,*mesa.h}
 	Fsplit libgl usr/lib/libGL.so*
 	Fsplit libgl usr/lib/libGL.la
-	
+	# Should be moved to libgl but nvidia don't provide one
+#	Fsplit libgl usr/lib/pkgconfig/gl.pc
+
 	Fsplit mesademos usr/bin/{glxgears,glxinfo,glxdemo,glxheads}
 }
 
-sha1sums=('5a95a2a0ce055997747eaf66725aec77de318dc5' \
-          '83ac3f19cf7e388a23904afa25af5c65c4ec8deb' \
-          'faeea09e2113541f226ac7c1c29a477ee23ef4e7' \
-          '426b0b08617ec19cba41ab20f3891cab82f205a2' \
-          'f7f706ec568a80543c6d6096b3d8a833b80399ed' \
+sha1sums=('9282b528cff21f17d6b4335e745cecbdb82bfc5d' \
+          'cbba586829c76a5e7a54a906567b4b2174d6e1aa' \
           '650973d708466f5c4c21e70c1f1f6c118b27e614' \
           '12c57ac5e7e8a94d4d41b0f37b0fb3f470791c39')
 # optimization OK

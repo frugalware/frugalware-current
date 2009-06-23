@@ -1,35 +1,57 @@
-#!/bin/sh
+#!/bin/bash
 
-# (c) 2003-2004 Vajna Miklos <vmiklos@frugalware.org>
+# (c) 2003, 2004, 2009 Vajna Miklos <vmiklos@frugalware.org>
 # (c) 2005 Laszlo Dvornik <dvornik@gnome.hu>
+# (c) 2005 Marcus Habermehl <bmh1980de@yahoo.de>
 # rc.syslog for Frugalware
 # distributed under GPL License
 
-. /etc/rc.d/rc.functions
-
 # chkconfig: 2345 12 88
 # description: Syslog is the facility by which many daemons use to log \
-#	       messages to various system log files. It is a good idea to \
-#	       always run syslog.
+#              messages to various system log files. It is a good idea to \
+#              always run syslog.
 
-if [ "$1" = "stop" ]; then
-	stop "$stopsyslog"
-	killall syslogd 2> /dev/null
-	killall klogd 2> /dev/null
-	ok $?
-elif [ "$1" = "restart" ]; then
-	"$0" stop
-	sleep 1
-	"$0" start
-else # start
-	start "$startsyslog"
-	/usr/sbin/syslogd
-	# This prevents syslogd/klogd race condition on SMP kernels.
-	if [ `grep ^processor /proc/cpuinfo|sed -n 's/.*: \(.*\)/\1/;$ p'` -ge '1' ]; then
-		sleep 1
+source /lib/initscripts/functions
+TEXTDOMAIN=syslog
+TEXTDOMAINDIR=/lib/initscripts/messages
+
+actions=(restart start status stop)
+daemon=$"logging"
+
+# It's enough to check for syslogd, klog runs on top of syslogd
+pid="cat /var/run/syslogd.pid 2> /dev/null"
+
+rc_start()
+{
+	start_msg
+	if [ -z "$(eval $pid)" ]; then
+		/usr/sbin/syslogd
+		# This prevents syslogd/klogd race condition on SMP
+		# kernels.
+		if [ `grep ^processor /proc/cpuinfo|sed -n 's/.*: \(.*\)/\1/;$ p'` -ge '1' ]; then
+			sleep 1
+		fi
+		# '-c 3' = display level 'error' or higher messages on
+		# console
+		# '-x' = turn off broken EIP translation
+		/usr/sbin/klogd -c 3 -x
+		pidof klogd > /var/run/klogd.pid
+		ok $?
+	else
+		ok 999
 	fi
-	# '-c 3' = display level 'error' or higher messages on console
-	# '-x' = turn off broken EIP translation
-	/usr/sbin/klogd -c 3 -x
-	ok $?
-fi
+}
+
+rc_stop()
+{
+	stop_msg
+	if [ -n "$(eval $pid)" ]; then
+		kill "$(eval $pid)"
+		kill $(cat /var/run/klogd.pid)
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1

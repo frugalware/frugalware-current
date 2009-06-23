@@ -42,7 +42,7 @@ for i in ['frugalware-%s' % arch]:
 	pacman.release()
 	shutil.rmtree(root)
 	for j in os.listdir(os.getcwd() + "/../frugalware-" + arch):
-		if j not in fdb and j != treename + ".fdb":
+		if j not in fdb and j != treename + ".fdb" and j != ".gitignore":
 			print "frugalware-" + arch + "/" + j
 			if remove:
 				os.rename("../frugalware-" + arch + "/" + j, "/home/ftp/pub/archive/fpmjunk/" + archive + "/frugalware-" + arch + "/" + j)

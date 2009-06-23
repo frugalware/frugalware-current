@@ -13,6 +13,22 @@ you need a graphical system, then you'll need the second CD as well.
 NOTE: Don't download CDs 3-11 unless you don't have an internet connection!
 You can install language packs later from FTP servers if you need them.
 
+On PPC, to boot from an external CD drive, you will need to use the Open
+Firmware prompt, since Open Firmware does not search external optical
+devices by default. To get to the prompt, hold down Command+Option+o+f
+all together while booting.
+
+You will need to work out where the optical device appears in the device
+tree. Type `dev / ls` and `devalias` at the Open Firmware prompt to get
+a list of all known devices and device aliases.
+
+Example, in case the path is `/pci@f2000000/usb@1b/disk@1`:
+
+----
+devalias cd /pci@f2000000/usb@1b/disk@1
+boot cd:,\\:tbxi
+----
+
 === Installing from DVD
 
 If you don't have any Internet connection but you want language packs and
@@ -34,6 +50,24 @@ or unnecessary packages.
 
 Cons: No offline installation possible, high bandwidth or hours of patience
 required for a full installation.
+
+An alternate way of doing this is to just copy the contents of the ISO
+image to your hard drive and use your existing boot manager to boot it.
+
+Typically you can add a new entry to your existing GRUB installation on
+i686 or x86_64 (in this case you just have to copy the commands from the
+`menu.lst` file from the image) or you can boot yaboot from Open
+Firmware on PPC. (See below on how to invoke Open Firmware.) Once you
+have the Open Firmware prompt, for example in case the `boot` directory
+is copied to the root directory of the 5th partition of your hard disk:
+
+----
+boot hd:5,\boot\yaboot\yaboot
+----
+
+Pros: No USB stick or (re)writeable CD needed.
+
+Cons: Possible only in case you have some kind of bootloader available.
 
 === USB image
 
@@ -60,9 +94,54 @@ dd if=frugalware-<version>-<arch>-usb.img of=\\?\Device\Harddisk1\Partition0 \
 	bs=1M --size --progress
 ----
 
+On PPC, create a partition of type "Apple_Bootstrap" on your USB stick using
+`mac-fdisk` and extract the image there. For example:
+
+----
+# dd if=/dev/zero of=/dev/sda bs=1M count=1
+# mac-fdisk /dev/sda
+/dev/sda
+Command (? for help): i
+size of 'device' is 1014784 blocks:
+new size of 'device' is 1014784 blocks
+Command (? for help): p
+/dev/sda
+        #                    type name                length   base    ( size )  system
+/dev/sda1     Apple_partition_map Apple                   63 @ 1       ( 31.5k)  Partition map
+/dev/sda2              Apple_Free Extra              1014720 @ 64      (495.5M)  Free space
+
+Block size=512, Number of Blocks=1014784
+DeviceType=0x0, DeviceId=0x0
+
+Command (? for help): C
+First block: 64
+Length (in blocks, kB (k), MB (M) or GB (G)): 1014720
+Name of partition: boot
+Type of partition: Apple_Bootstrap
+Command (? for help): w
+Command (? for help): q
+# cat frugalware-0.9-ppc-usb.img > /dev/sda2
+----
+
 Pros: No need to burn any CD.
 
 Cons: You have to be able to boot from USB.
+
+On PPC, to boot from a USB stick, you will need to use the Open Firmware
+prompt, since Open Firmware does not search USB storage devices by
+default. To get to the prompt, hold down Command+Option+o+f all together
+while booting.
+
+You will need to work out where the USB storage device appears in the
+device tree. Type `dev / ls` and `devalias` at the Open Firmware prompt
+to get a list of all known devices and device aliases.
+
+Example, in case the path is `/pci@f2000000/usb@1b`:
+
+----
+devalias usb0 /pci@f2000000/usb@1b
+boot usb0/disk:2,\yaboot
+----
 
 === TFTP image
 
@@ -200,6 +279,10 @@ IMPORTANT: Do not worry if you misconfigured something! Just press <Cancel>
 in the next dialog and you will see the menu. Just go back to the given part
 and you can reconfigure it.
 
+NOTE: If you install Frugalware in a VMware virtual machine, then don't
+forget to use an IDE disk for the root partition, otherwise you will not
+be able to boot the system after the installation!
+
 - After downloading and burning the CDs/DVD, insert the first CD/DVD to your
 CD/DVD drive, and reboot your computer. In the grub menu, you can disable
 the framebuffer, if a framebuffer with resolution 1024x768 is not suitable
@@ -237,6 +320,11 @@ select the partitioning program in the next dialog, currently fdisk and cfdisk
 are included. You should create at least one partition with type 'Linux', and
 it is recommended to create a swap partition (with type 'Linux swap'). The swap
 size should be 500-1000MB. When you have finished partitioning, press <Continue>.
+
+NOTE: On PPC, first you *must* create an `Apple Partition Map` and an
+`Apple Bootstrap` first (in this order). Use the `i` and `b` commands of
+`mac-fdisk` to do so. Then you can create your `Linux swap` and `Linux`
+partitions using `C` and `c`.
 
 - The following list displays your swap partitions, here you can choose which
 swap partitions are allowed to be used by Frugalware. Then setup formats

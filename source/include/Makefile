@@ -1,6 +1,6 @@
 # Makefile for Frugalware documentation
 #
-# Copyright (C) 2007 Miklos Vajna <vmiklos@frugalware.org>
+# Copyright (C) 2007, 2008 Miklos Vajna <vmiklos@frugalware.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,6 +15,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
+FST_VERSION := $(shell sed 's/.* \(.*\) .*/\1/' /etc/frugalware-release)
+FST_DATE := $(shell date +%Y-%m-%d)
+
 all: $(subst .sh,.sh.3,$(wildcard *.sh)) fwmakepkg.3
 
 stat:
@@ -24,7 +27,8 @@ stat:
 	sed -n 's/^#\( \|$$\)//;/^###/,/^###/p' $^|sed 's/^###//' > $@
 
 %.3: %.txt
-	a2x -f manpage $^
+	a2x --asciidoc-opts="-f asciidoc.conf" -a \
+		fst_version=$(FST_VERSION) -a fst_date=$(FST_DATE) -f manpage $^
 
 fwmakepkg.txt: fwmakepkg.txt.in $(wildcard *.sh)
 	cat fwmakepkg.txt.in > fwmakepkg.txt

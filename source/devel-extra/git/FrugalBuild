@@ -1,5 +1,5 @@
-# Compiling Time: 2.59 SBU
-# Maintainer: VMiklos <vmiklos@frugalware.org>
+# Compiling Time: 1.80 SBU
+# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 USE_DEVEL=${USE_DEVEL:-"n"}
 
@@ -8,19 +8,19 @@ USE_DEVEL=${USE_DEVEL:-"n"}
 USE_HTMLMAN=${USE_HTMLMAN:-"y"}
 
 pkgname=git
-pkgver=1.5.5
-Fuse $USE_DEVEL && pkgver=1.5.5.rc3
+pkgver=1.6.3.2
+Fuse $USE_DEVEL && pkgver=1.6.1.87.g1562445
 pkgrel=1
 pkgdesc="A fast, scalable, distributed revision control system."
-url="http://www.kernel.org/pub/software/scm/git/"
-depends=('curl>=7.16.0' 'openssl' 'perl>=5.10.0')
+url="http://git-scm.com/"
+depends=('curl>=7.19.0' 'openssl' 'perl-error')
 backup=(etc/sysconfig/git)
-makedepends=('asciidoc' 'docbook-xsl>=1.73.0-2' 'docbook-xml' 'docbook2x' 'sgml-common' 'xmlto' 'cpio')
+makedepends=('asciidoc' 'docbook-xsl>=1.73.0-2' 'docbook-xml' 'docbook2x' 'sgml-common' 'xmlto' 'dblatex')
 groups=('devel-extra')
-archs=('i686' 'x86_64')
-up2date="lynx -dump '$url/?C=M;O=D'|grep 'git-[0-9.]*.tar.bz2$'|sed -n 's/.*-\(.*\)\.t.*/\1/;1 p'"
+archs=('i686' 'x86_64' 'ppc')
+up2date="Flasttar $url"
 if ! Fuse $USE_DEVEL; then
-	source=($url/$pkgname-$pkgver.tar.bz2)
+	source=(http://www.kernel.org/pub/software/scm/git/$pkgname-$pkgver.tar.bz2)
 	signatures=(${source[0]}.sign '' '' '' '' '')
 fi
 source=(${source[@]} gitweb.modules.d gitweb.conf README.Frugalware rc.git git.sysconfig)
@@ -32,12 +32,12 @@ subdescs=('Web interface for Git.' 'Git GUI tool.' 'Git revision tree visualiser
 subdepends=("git=$pkgver" "git=$pkgver tk" "git=$pkgver tk")
 subbackup=('etc/gitweb.conf etc/httpd/conf/modules.d/gitweb.conf' '' '')
 subgroups=('network-extra' 'xapps-extra' 'xapps-extra')
-subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
+subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 ppc')
 
 if Fuse $USE_DEVEL; then
 	_F_scm_type="git"
 	_F_scm_url="git://git.kernel.org/pub/scm/git/git.git"
-	_F_scm_tag="v${pkgver/.rc/-rc}"
+	_F_scm_tag="v${pkgver//./-}"
 	Finclude scm
 fi
 
@@ -49,8 +49,8 @@ build()
 	fi
 
 	# undebianize
-	Fsed 'doc/' '' templates/hooks--post-receive
-	Fsed ' (on debian)' '' templates/hooks--post-receive
+	Fsed 'doc/' '' templates/hooks--post-receive.sample
+	Fsed ' (on debian)' '' templates/hooks--post-receive.sample
 
 	# don't install the source of the manpages
 	Fsed '\t\*.txt ' '\t' Documentation/install-webdoc.sh
@@ -61,12 +61,11 @@ build()
 	fi
 
 	Fconf
-	build_settings="V=1 ETC_GITCONFIG=/etc/gitconfig htmldir=/usr/share/doc/$pkgname-$pkgver mandir=/usr/share/man"
-	# hack, probably fakeroot bug
-	rm -f t/{t1004-read-tree-m-u-wf,t7300-clean}.sh
-	make $build_settings DOCBOOK2X_TEXI=docbook2texi all doc info test || return 1
-	Fmakeinstall $build_settings install-doc install-info
-	Ffilerel perl/private-Error.pm /usr/lib/perl5/site_perl/current/Error.pm
+	build_settings="V=1 ETC_GITCONFIG=/etc/gitconfig htmldir=/usr/share/doc/$pkgname-$pkgver \
+		mandir=/usr/share/man pdfdir=/usr/share/doc/$pkgname-$pkgver \
+		DOCBOOK2X_TEXI=docbook2texi"
+	make $build_settings all doc info pdf || return 1
+	Fmakeinstall $build_settings install-doc install-info install-pdf
 	make -C Documentation WEBDOC_DEST=$Fdestdir/usr/share/doc/$pkgname-$pkgver install-webdoc || return 1
 	# broken symlink
 	Frm /usr/share/doc/git-$pkgver/index.html
@@ -78,7 +77,7 @@ build()
 	Ffilerel *.h /usr/include/git/
 
 	# contrib dir
-	Fcprrel contrib /usr/share/git-core/
+	Fcprel contrib /usr/share/git-core/
 
 	# bash completion
 	Fln /usr/share/git-core/contrib/completion/git-completion.bash /etc/bash_completion.d/git
@@ -96,7 +95,7 @@ build()
 	Ffile git.sysconfig /etc/sysconfig/git
 
 	# git-gui
-	Fsplit git-gui usr/bin/git-{gui,citool}
+	Fsplit git-gui usr/libexec/git-core/git-{gui,gui--askpass,citool}
 	Fsplit git-gui usr/share/git-gui
 	Fsplit git-gui usr/share/man/man1/git-{gui,citool}.1
 	Fsplit git-gui usr/share/doc/git-$pkgver/git-{gui,citool}.html

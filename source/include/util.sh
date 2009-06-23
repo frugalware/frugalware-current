@@ -24,7 +24,13 @@
 #
 # == OPTIONS
 # * _F_archive_name (defaults to $pkgname)
+# * _F_archive_nolinksonly (defaults to no, so that only links are proceeded by
+# default)
 # * _F_archive_nosort (defaults to no, so sorting is enabled by default)
+# * _F_archive_grep (defaults to empty): grep for a regexp before
+# searching for the version
+# * _F_archive_grepv (defaults to empty): grep -v for a regexp before
+# searching for the version
 # * _F_cd_path (defaults to $_F_archive_name$Fpkgversep$pkgver$pkgextraver)
 # * _F_conf_configure (defaults to ./configure)
 # * _F_conf_perl_pipefrom: if set, pipe the output of this command in Fconf()
@@ -86,6 +92,7 @@ Fbuildchost="`arch`-frugalware-linux"
 Fconfopts="--prefix=$Fprefix"
 ## Move to makepkg.conf for Kalgan+1
 export LDFLAGS="-Wl,--hash-style=both"
+unset LANG LC_ALL
 
 ###
 # == PROVIDED FUNCTIONS
@@ -107,21 +114,31 @@ Fdie() {
 }
 
 ###
+# * Fexec(): Display and execute the command line passed as parameter. Note that
+# it cannot be used in a pipe context. Parameters: the command line to execute.
+###
+Fexec() {
+	Fmessage "$*"
+	"$@"
+}
+
+###
 # * Fcd(): Go to the source directory if it is $Fsrcdir currently. Parameter:
 # optional source directory, default is $_F_cd_path.
 ###
 Fcd() {
+	if [ -z "$_F_archive_name" ]; then
+		_F_archive_name="$pkgname"
+	fi
+	if [ -z "$_F_cd_path" ]; then
+		_F_cd_path="$_F_archive_name$Fpkgversep$pkgver$pkgextraver"
+	fi
+
 	if [ "$Fsrcdir" = `pwd` ]; then
 		if [ "$#" -eq 1 ]; then
 			Fmessage "Going to the source directory..."
 			cd "$Fsrcdir/$1" || Fdie
 		elif [ "$#" -eq 0 ]; then
-			if [ -z "$_F_archive_name" ]; then
-				_F_archive_name="$pkgname"
-			fi
-			if [ -z "$_F_cd_path" ]; then
-				_F_cd_path="$_F_archive_name$Fpkgversep$pkgver$pkgextraver"
-			fi
 			Fcd "$_F_cd_path"
 		fi
 	fi
@@ -265,7 +282,7 @@ Fdirschmod() {
 }
 
 ###
-# Ffileschmod(): Changes the permissions of all file(s) inside $Fdestdir. First
+# * Ffileschmod(): Changes the permissions of all file(s) inside $Fdestdir. First
 # parameter: where to start "find", second parameter: octal mode or
 # [+-][rwxstugo].
 ###
@@ -364,8 +381,8 @@ Fdoc() {
 	local i
 	for i in $@
 	do
-		if [ -d "$i" ]; then
-			Fcpr "$Fsrcdir/$i" "/usr/share/doc/$pkgname-$pkgver/"
+		if [ -d "$Fsrcdir/$i" ]; then
+			Fcp "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		else
 		Ffile "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		local j
@@ -389,7 +406,7 @@ Fdocrel() {
 	for i in $@
 	do
 		if [ -d "$i" ]; then
-			Fcprrel "$i" "/usr/share/doc/$pkgname-$pkgver/"
+			Fcprel "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		else
 		Ffilerel "$i" "/usr/share/doc/$pkgname-$pkgver/"
 		local j
@@ -484,7 +501,7 @@ Fpatch() {
 Fpatchall() {
 	local patch="" patcharch=""
 	for i in ${source[@]}; do
-		if [ -n "`echo "$i" | grep \.patch[0-9]*$`" -o -n "`echo "$i" | grep \.diff$`" -o -n "`echo "$i" | grep '\.\(patch[0-9]*\|diff\)\.\(gz\|bz2\)$'`" ]; then
+		if [ -n "`echo "$i" | grep '\.patch[0-9]*$'`" -o -n "`echo "$i" | grep '\.diff$'`" -o -n "`echo "$i" | grep '\.\(patch[0-9]*\|diff\)\.\(gz\|bz2\)$'`" ]; then
 			patch=`strip_url "$i"`
 			patcharch=`echo $patch|sed 's/.*-\([^-]\+\)\.\(diff\|patch0\?\)$/\1/'`
 			if [ "$patcharch" != "$patch" ] && echo ${Farchs[@]}|grep -q $patcharch; then
@@ -514,29 +531,33 @@ Fconf() {
 	Fmessage "Configuring..."
 	if [ -z "$_F_conf_configure" ]; then
 		_F_conf_configure="./configure"
+		if [ ! -x "$_F_conf_configure" ]; then
+			_F_conf_configure="$Fsrcdir/$_F_cd_path/configure"
+		fi
 	fi
+
 	if [ -x $_F_conf_configure ]; then
 		grep -q sysconfdir $_F_conf_configure && \
 			Fconfopts="$Fconfopts --sysconfdir=$Fsysconfdir"
 		grep -q localstatedir $_F_conf_configure && \
 			Fconfopts="$Fconfopts --localstatedir=$Flocalstatedir"
-		grep -q 'build=' $_F_conf_configure && \
+		grep -q -- '--build=' $_F_conf_configure && \
 			Fconfopts="$Fconfopts --build=$Fbuildchost"
-		$_F_conf_configure $Fconfopts "$@" || Fdie
+		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie
 	elif [ -f Makefile.PL ]; then
 		if [ -z "$_F_conf_perl_pipefrom" ]; then
-			perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+			Fexec perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
 		else
 			$_F_conf_perl_pipefrom | perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
 		fi
 		unset _F_conf_perl_pipefrom
 		Fsed `perl -e 'printf "%vd", $^V'` "current" Makefile
 	elif [ -f extconf.rb ]; then
-		ruby extconf.rb --prefix="$Fprefix" "$@" || Fdie
+		Fexec ruby extconf.rb --prefix="$Fprefix" "$@" || Fdie
 	elif [ -f configure.rb ]; then
-		./configure.rb --prefix="$Fprefix" "$@" || Fdie
+		Fexec ./configure.rb --prefix="$Fprefix" "$@" || Fdie
 	elif [ -f setup.rb ]; then
-		ruby setup.rb config "$@" || Fdie
+		Fexec ruby setup.rb config "$@" || Fdie
 	fi
 }
 
@@ -553,6 +574,14 @@ Fmake() {
 		python setup.py build "$@" || Fdie
 	elif [ -f setup.rb ]; then
 		ruby setup.rb setup "$@" || Fdie
+	elif [ -f build.xml ]; then
+		if declare -f Fant >/dev/null; then
+			Fjavacleanup
+			Fant "$@" || Fdie
+		else
+			Fmessage "build.xml found, but missing Finclude java!"
+			Fdie
+		fi
 	else
 		Fmessage "No Makefile or setup.py found!"
 		Fdie
@@ -594,6 +623,16 @@ Fmakeinstall() {
 		python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
 	elif [ -f setup.rb ]; then
 		ruby setup.rb install --prefix=$Fdestdir || Fdie
+	elif [ -f build.xml ]; then
+		if declare -f Fjar >/dev/null; then
+			for i in ${_F_java_jars[@]}
+			do
+				Fjar $i || Fdie
+			done
+		else
+			Fmessage "build.xml found, but missing Finclude java!"
+			Fdie
+		fi
 	else
 		Fmessage "No Makefile or setup.py found!"
 		Fdie
@@ -617,6 +656,9 @@ Fmakeinstall() {
 	if [ -d $Fdestdir/usr/lib/perl5/site_perl ]; then
 		find $Fdestdir/usr/lib/perl5/site_perl -name perllocal.pod -exec rm {} \;
 		find $Fdestdir/usr/lib/perl5/site_perl -name .packlist -exec rm {} \;
+		rmdir -p --ignore-fail-on-non-empty \
+			$Fdestdir/usr/lib/perl5/site_perl/current/*/auto/{*,*/*} \
+			&>/dev/null
 	fi
 
 	# rc script
@@ -831,21 +873,51 @@ Fautoreconf() {
 }
 
 ###
+# * Fsanitizeversion: Clear/fix some common version string common problems on
+# an automatized version output (also remove pkgextraver ending). Parameters:
+# 1) version (optional) to clean, else stdin if not present
+###
+Fsanitizeversion() {
+	if [ $# -gt 0 ]; then
+		echo "$1" | Fsanitizeversion
+	else
+		sed "s/%2B/+/g;s/$pkgextraver$//;s/-/_/g"
+	fi
+}
+
+###
 # * Flastarchive: Extracts last archive version from a page. Parameters: 1)
 # url (optional) of the page, else stdin if not present 2) extension_filter
 # for the archive type
 ###
 Flastarchive() {
+	local lynx="lynx -dump"
+
+	if [ -z "$_F_archive_nolinksonly" ]; then
+		lynx="$lynx -listonly"
+	fi
+
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi
+
 	if [ $# -gt 1 ]; then
-		lynx -dump $1 | Flastarchive $2
+		if [ -n "$_F_archive_grep" ]; then
+			$lynx $1 | grep -- "$_F_archive_grep" | Flastarchive $2
+			return
+		fi
+		if [ -n "$_F_archive_grepv" ]; then
+			$lynx $1 | grep -v -- "$_F_archive_grepv" | Flastarchive $2
+			return
+		fi
+		$lynx $1 | Flastarchive $2
 	else
 		if [ -z "$_F_archive_nosort" ]; then
-			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | Fsort | tail -n1
+			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" \
+				| Fsort | tail -n1 | Fsanitizeversion
 		else
-			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" | tail -n1
+			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" \
+				| tail -n1 | Fsanitizeversion
 		fi
 	fi
 }
@@ -974,7 +1046,6 @@ Fdesktop2()
 	Fmessage "Installing desktop file: $deskfilename"
 	cat > $Fdestdir$Fmenudir/$deskfilename << EOF
 [Desktop Entry]
-Encoding=UTF-8
 Name=$dname
 Comment=$ddesc
 Exec=$dexec
@@ -1125,9 +1196,10 @@ Fextract() {
 	if [ "$cmd" != "" ]; then
 		msg "    $cmd"
 		$cmd
-		if [ $? -ne 0 ]; then
+		ret=$?
+		if [ $ret -ne 0 ]; then
 			# unzip will return a 1 as a warning, it is not an error
-			if [ "$unziphack" != "1" -o $? -ne 1 ]; then
+			if [ "$unziphack" != "1" -o $ret -ne 1 ]; then
 				error "Failed to extract ${file}"
 				msg "Aborting..."
 				Fdie

@@ -50,6 +50,7 @@ Finclude kernel-version
 # with a generated one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
 # * _F_kernel_uname: specify the kernel version manually (defaults to
 # $_F_kernel_name-fw$_F_kernel_rel)
+# * _F_kernel_path: vmlinuz on x86, vmlinux on ppc
 #
 # == OVERWRITTEN VARIABLES
 # * pkgver (if not set)
@@ -114,6 +115,14 @@ if [ $_F_kernel_rc -gt 0 ]; then
 else
 	_F_kernel_gitver=$_F_kernel_ver-git$_F_kernel_git
 fi
+if [ -z "$_F_kernel_path" ]; then
+	if [ "$CARCH" != "ppc" ]; then
+		_F_kernel_path=vmlinuz
+	else
+		_F_kernel_path=vmlinux
+	fi
+fi
+[ "$CARCH" = "ppc" ] && export LDFLAGS="${LDFLAGS/-Wl,/}"
 
 ###
 # * pkgname
@@ -136,6 +145,7 @@ fi
 # * rodepends
 # * makedepends
 # * groups
+# * replaces
 # * archs
 # * options()
 # * up2date
@@ -155,15 +165,18 @@ if [ -z "$_F_kernel_name" ]; then
 	makedepends=('unifdef')
 fi
 groups=('base')
-archs=('i686' 'x86_64')
+archs=('i686' 'x86_64' 'ppc')
 options=('nodocs' 'genscriptlet')
 up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
 if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
-	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config.i686 config.x86_64)
+	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 \
+		config.i686 config.x86_64 config.ppc)
+	# this can be removed after Frualware 1.0 is out
+	replaces=('gspcav1' 'atl2')
 else
 	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
 fi
-signatures=("${source[0]}.sign" '' '')
+signatures=("${source[0]}.sign" '' '' '')
 install="src/kernel.install"
 
 for i in ${_F_kernel_patches[@]}
@@ -194,17 +207,6 @@ if [ $_F_kernel_git -gt 0 ]; then
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
 fi
 
-if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
-	if [ "$CARCH" = "x86_64" ]; then
-		MARCH=K8
-		KARCH=x86
-	fi
-	echo "$CARCH" |grep -q 'i.86' && KARCH=x86
-else
-	[ "$CARCH" == "x86_64" ] && MARCH=K8
-	echo "$CARCH" |grep -q 'i.86' && KARCH=i386
-fi
-
 ###
 # * subpkg()
 # * subdepends()
@@ -216,7 +218,7 @@ fi
 ###
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
 subdepends=("make gcc kernel-headers kernel$_F_kernel_name-docs" "kernel$_F_kernel_name")
-subarchs=('i686 x86_64' 'i686 x86_64')
+subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
 subinstall=('src/kernel-source.install' '')
 suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
@@ -224,7 +226,7 @@ if [ -z "$_F_kernel_name" ]; then
 	subdepends=("${subdepends[@]}" '')
 	subgroups=('devel' 'apps' 'devel devel-core')
 	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')
-	subarchs=("${subarchs[@]}" 'i686 x86_64')
+	subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 	subinstall=("${subinstall[@]}" '')
 	suboptions=("${suboptions[@]}" '')
 else
@@ -247,6 +249,9 @@ Fbuildkernel()
 		cp $Fsrcdir/config .config || Fdie
 	fi
 
+	if [ -n "$_F_kernel_stable" ]; then
+		sed -i "/Linux kernel version:/s/: .*/: $_F_kernel_ver.$_F_kernel_stable/" .config
+	fi
 
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver
@@ -260,12 +265,8 @@ Fbuildkernel()
 	done
 	# remove unneded localversions
 	rm -f localversion-*
-	## FIXME: remove that after 0.8
-	if [ "$CARCH" = "x86_64" ]; then
-		yes "" | make config
-	else
-		make silentoldconfig || Fdie
-	fi
+	make silentoldconfig || Fdie
+
 	## FIXME: remove or do it right -- crazy --
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
 		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
@@ -289,6 +290,7 @@ Fbuildkernel()
 	if [ -z "$_F_kernel_name" ]; then
 		make INSTALL_HDR_PATH=$Fdestdir/usr headers_install || Fdie
 		[ -e $Fdestdir/usr/include/scsi ] && Frm /usr/include/scsi
+		[ -e $Fdestdir/usr/include/drm ] && Frm /usr/include/drm
 		Fsplit kernel-headers /usr
 	fi
 	## now time to eat some cookies and wait kernel got compiled :)
@@ -306,12 +308,12 @@ Fbuildkernel()
 	Fmkdir /boot
 	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_uname
 	if [ ! -z "$_F_kernel_vmlinuz" ]; then
-		Ffilerel $_F_kernel_vmlinuz /boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
+		Ffilerel $_F_kernel_vmlinuz /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 	else
-		if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
-			Ffilerel arch/x86/boot/bzImage /boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
+		if [ "$CARCH" = "ppc" ]; then
+			Fexerel $_F_kernel_path /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		else
-			Ffilerel arch/${KARCH:-$CARCH}/boot/bzImage /boot/vmlinuz-$_F_kernel_ver$_F_kernel_uname
+			Ffilerel arch/x86/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		fi
 	fi
 	Fmkdir /lib/modules
@@ -331,6 +333,7 @@ Fbuildkernel()
 	cp $Fincdir/kernel.install $Fsrcdir || Fdie
 	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel.install
 	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel.install
+	Fsed '$_F_kernel_path' "$_F_kernel_path" $Fsrcdir/kernel.install
 	cp $Fincdir/kernel-source.install $Fsrcdir || Fdie
 	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel-source.install
 	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel-source.install

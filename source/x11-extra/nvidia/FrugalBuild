@@ -1,89 +1,13 @@
 # Compiling Time: 0.01 SBU
-# Maintainer: hermier <hermier@frugalware.org>
+# Maintainer: Michel Hermier <hermier@frugalware.org>
 
 pkgname=nvidia
-pkgver=169.12
-pkgrel=4
-pkgdesc="3D accelerated display driver for Nvidia cards"
-url="http://www.nvidia.com/object/linux_display_archive.html"
-conflicts=('libgl' 'libglx')
-provides=('libgl' 'libglx')
-groups=('x11-extra')
-archs=('i686' 'x86_64')
-up2date="lynx -dump http://www.nvidia.com/object/unix.html|grep -m1 'Latest Version:'|sed 's/.*]//;s/-/_/'"
-if echo "$CARCH" | grep -q 'i.86'; then
-	_arch=x86
-	sha1sums=('6ce789da785bf109fcb213db755eaf6975de2e46')
-	pkgnum=1
-elif [ "$CARCH" == "x86_64" ]; then
-	_arch=x86_64
-	sha1sums=('62f9e1055ce6cd4d7806757ece0a144695ef12ff')
-	pkgnum=2
-fi
-source=(http://us.download.nvidia.com/XFree86/Linux-$_arch/$pkgver/NVIDIA-Linux-$_arch-$pkgver-pkg$pkgnum.run)
-options=('nostrip')
-_F_kernelmod_scriptlet=$pkgname.install
-Finclude kernel-module
-depends=(${depends[@]} 'xorg-server>=1.1.0' 'pkgconfig')
+pkgver=185.18.14
+pkgrel=2
+archs=('i686' 'x86_64' '!ppc')
+Finclude nvidia
+case "$_F_nvidia_arch" in
+x86)    sha1sums=('2572d9da13e2a0d68d8367d1d1b279c436c0c934');;
+x86_64) sha1sums=('7b7c41028247070c24f5088a028f07fe910e4023');;
+esac
 
-build() {  
-	nvdir=NVIDIA-Linux-$_arch-$pkgver-pkg$pkgnum
-	cd $Fsrcdir
-	sh $nvdir.run --extract-only
-	Fcd $nvdir/
-	Fpatchall
-	
-	# Install the binaries
-	Fexerel usr/bin/nvidia-* /usr/bin/
-	
-	# Xorg modules
-	Fmkdir usr/lib/xorg/
-	Fcpr $nvdir/usr/X11R6/lib/modules /usr/lib/xorg/modules
-	
-	# Libraries
-	Fexerel usr/lib/*.so* /usr/lib/
-	Fexerel usr/lib/libGL.la /usr/lib/libGL.la
-	Fsed "__LIBGL_PATH__" "/usr/lib" $Fdestdir/usr/lib/libGL.la
-	
-	# Weird TLS stuff
-	Fmkdir usr/lib/tls
-	Fexerel usr/lib/tls/*.so* /usr/lib/tls/
-	Fexerel usr/X11R6/lib/libXv* /usr/lib/
-	
-	# Data
-	Fmkdir usr/share
-	Fcpr $nvdir/usr/share/pixmaps /usr/share/
-	Fcpr $nvdir/usr/share/applications /usr/share/
-	Fcpr $nvdir/usr/share/man /usr/
-	Frm usr/man/man1/nvidia-installer.1.gz
-	Fsed "__UTILS_PATH__" "/usr/bin" $Fdestdir/usr/share/applications/nvidia-settings.desktop
-	Fsed "__PIXMAP_PATH__" "/usr/share/pixmaps" $Fdestdir/usr/share/applications/nvidia-settings.desktop
-	
-	# Library links
-	Fln "libGL.so.$pkgver" "/usr/lib/libGL.so"
-	Fln "libGL.so.$pkgver" "/usr/lib/libGL.so.1"
-	Fln "libGL.so.$pkgver" "/usr/lib/libGL.so.1.2"
-	Fln "libGLcore.so.$pkgver" "/usr/lib/libGLcore.so.1"
-	Fln "libnvidia-cfg.so.$pkgver" "/usr/lib/libnvidia-cfg.so.1"
-	Fln "libnvidia-cfg.so.$pkgver" "/usr/lib/libnvidia-cfg.so"
-	Fln "libnvidia-tls.so.$pkgver" "/usr/lib/libnvidia-tls.so.1"
-	Fln "libnvidia-tls.so.$pkgver" "/usr/lib/tls/libnvidia-tls.so.1"
-	Fln "libglx.so.$pkgver" "/usr/lib/xorg/modules/extensions/libglx.so"
-	Fln "libXvMCNVIDIA.so.$pkgver" "/usr/lib/libXvMCNVIDIA.so"
-	Fln "libXvMCNVIDIA.so.$pkgver" "/usr/lib/libXvMCNVIDIA.so.1"
-	Fln "libXvMCNVIDIA.so.$pkgver" "/usr/lib/libXvMCNVIDIA_dynamic.so.1"
-	Fln "libnvidia-wfb.so.$pkgver" "/usr/lib/xorg/modules/libnvidia-wfb.so"
-	Fln "libnvidia-wfb.so.$pkgver" "/usr/lib/xorg/modules/libnvidia-wfb.so.1"
-	Fln "libnvidia-wfb.so.$pkgver" "/usr/lib/xorg/modules/libwfb.so"
-	
-	cd usr/src/nv || Fdie
-	ln -s Makefile.kbuild Makefile || Fdie
-	make SYSSRC=$_F_kernelmod_dir/build module || Fdie
-	cd ../../.. || Fdie
-	Ffilerel usr/src/nv/nvidia.ko $_F_kernelmod_dir/kernel/drivers/video/nvidia.ko
-
-	Fdoc $nvdir/LICENSE
-	Fcpr $nvdir/usr/share/doc/* /usr/share/doc/$pkgname-$pkgver/
-	Fln "$pkgname-$pkgver" "/usr/share/doc/$pkgname"
-	Fbuild_kernelmod_scriptlet
-}

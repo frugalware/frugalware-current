@@ -2,7 +2,7 @@
 
 ###
 # = rox.sh(3)
-# Marcus Habermehl <bmh1980@frugalware.org>
+# James Buren <ryuo@frugalware.org>
 #
 # == NAME
 # rox.sh - for Frugalware
@@ -12,62 +12,170 @@
 #
 # == EXAMPLE
 # --------------------------------------------------
-# pkgname=rox-load
-# pkgver=2.1.4
+# pkgname=rox-lib
+# pkgver=2.0.5
 # pkgrel=1
-# pkgdesc="This applet displays the load average of your system."
-# url="http://www.kerofin.demon.co.uk/rox/load.html"
-# license="GPL2"
-# up2date="lynx -dump $url|grep 'Load [0-9\.]\+[0-9]'|tail -n 1|cut -d ' ' -f 8"
-# source=(http://www.kerofin.demon.co.uk/rox/Load-$pkgver.tar.gz $pkgname)
-# sha1sums=('1be4ef2394dbdebaab9ebf7240aae93ee3a13177' \
-#           'b181a0765fb3323072aba1dfb4ac7abd6907c9fd')
-# groups=('rox-extra')
-# archs=('i686')
-# depends=('libgtop' 'rox-clib')
-# _F_app_dir="Load"
+# pkgdesc="An essential library for ROX Desktop."
+# _F_rox_name="ROX-Lib"
+# _F_rox_sep=2-
+# _F_rox_use_sourceforge=1
+# _F_sourceforge_name=${pkgname}2
+# _F_sourceforge_ext=.tar.bz2
 # Finclude rox
+# _F_rox_name=${_F_rox_name}2
+# rodepends=('rox-filer' 'pygtk')
+# groups=(${groups[@]} 'rox-core')
+# archs=('i686')
+# sha1sums=('62283301b4f2bb9fda5cafcd0785d4a8aa156914')
 # --------------------------------------------------
 #
 # == OPTIONS
-# * _F_app_dir: the name of the rox applet
+# * _F_rox_name - real name of the rox app, defaults to $pkgname
+# * _F_rox_use_sourceforge - enable the use of sourceforge, and some other
+# defaults that go with it (do not use with the others)
+# * _F_rox_use_kerofin - enable the use of one of the other sources of rox
+# desktop software (do not use with the others)
+# * _F_rox_use_rox4debian - enable the use of one of the other sources of rox
+# desktop software (do not use with the others)
+# * _F_rox_use_hayber - enable the user of one of the other sources of rox
+# desktop software (do not use with the others)
+# * _F_rox_subdir - used to install the rox app to a subdir of the install
+# path
+# * _F_rox_sep - used to change the seperator between version and
+# $_F_rox_name, if applicable.
 ###
 
-[ -z "$_F_app_dir" ] && Fdie
+[ -z "$_F_rox_name" ] && _F_rox_name=$pkgname
+[ -z "$_F_rox_subdir" ] && _F_rox_subdir=
+[ -z "$_F_rox_sep" ] && _F_rox_sep=-
+[ -z "$_F_rox_use_sourceforge" ] && _F_rox_use_sourceforge=0
+[ -z "$_F_rox_use_kerofin" ] && _F_rox_use_kerofin=0
+[ -z "$_F_rox_use_rox4debian" ] && _F_rox_use_rox4debian=0
+[ -z "$_F_rox_use_hayber" ] && _F_rox_use_hayber=0
+if echo $pkgname | grep -q lib; then
+	_F_rox_installpath=/usr/lib/
+else
+	_F_rox_installpath=/usr/share/Apps/
+fi
+_F_rox_installpath="$_F_rox_installpath$_F_rox_subdir"
 
 ###
 # == OVERWRITTEN VARIABLES
-# * options
+# * url (predefined for all but sourceforge mirrors)
+# * up2date (only for predefined mirrors)
+# * source (only for predefined mirrors)
+# * options (nodocs appended)
+# * groups
 ###
-options=('nobuild')
+
+if [ "$_F_rox_use_sourceforge" -eq 1 ]; then
+	_F_sourceforge_dirname=rox
+	[ -z "$_F_sourceforge_realname" ] && _F_sourceforge_realname="$_F_rox_name"
+	Finclude sourceforge
+	up2date="lynx -dump http://sourceforge.net/project/showfiles.php?\$(curl -s 'http://sourceforge.net/project/showfiles.php?group_id=7023' | grep '>${_F_sourceforge_realname}<' | sed 's|amp\;||' | grep -o 'group_id=\(.*\)&package_id=\(.*\)[0-9]') | grep -o '${_F_sourceforge_name}${_F_sourceforge_sep}\(.*\)${_F_sourceforge_ext}' | versort | tail -n1 | sed 's|${_F_sourceforge_name}${_F_sourceforge_sep}\(.*\)${_F_sourceforge_ext}|\1|'"
+	unset url
+fi
+
+_F_archive_name="$_F_rox_name"
+
+if [ "$_F_rox_use_kerofin" -eq 1 ]; then
+	_F_rox_kerofin_url="http://www.kerofin.demon.co.uk/rox"
+	url="$_F_rox_kerofin_url/$pkgname.html"
+	up2date="Flasttar $url"
+	source=($_F_rox_kerofin_url/$_F_rox_name-$pkgver.tar.gz)
+fi
+
+if [ "$_F_rox_use_rox4debian" -eq 1 ]; then
+	_F_rox_rox4debian_url="ftp://ftp.berlios.de/pub/rox4debian"
+	if echo $pkgname | grep -q lib; then
+		_F_rox_rox4debian_url="$_F_rox_rox4debian_url/libs"
+	else
+		_F_rox_rox4debian_url="$_F_rox_rox4debian_url/apps"
+	fi
+	url="$_F_rox_rox4debian_url"
+	up2date="Flasttar $url"
+	source=($_F_rox_rox4debian_url/$_F_rox_name-$pkgver.tgz)
+fi
+
+if [ "$_F_rox_use_hayber" -eq 1 ]; then
+	[ -z "$_F_googlecode_name" ] && _F_googlecode_name="$_F_rox_name"
+	[ -z "$_F_googlecode_ext" ] && _F_googlecode_ext=".tgz"
+	[ -z "$_F_googlecode_dirname" ] && _F_googlecode_dirname="rox-$pkgname"
+	Finclude googlecode
+fi
+
+options=(${options[@]} 'nodocs')
+groups=('rox-extra')
 
 ###
 # == PROVIDED FUNCTIONS
-# * Froxbuild()
+# * Frox_compile()
+# * Frox_mkdir()
+# * Frox_setup()
+# * Frox_install()
+# * Frox_cleanup()
+# * Fbuild_rox()
 ###
-Froxbuild()
+
+Frox_compile()
 {
-	Fcd $_F_app_dir
-	if [ -d src ] ; then ./AppRun --compile || Fdie ; fi
-	if [ -f libdir ] ; then Fsed '/usr/apps' '/usr/share/Apps' libdir ; fi
-	Fmkdir /usr/{bin,share/{Apps,doc}}
-	Fcpr $_F_app_dir /usr/share/Apps/
-	[ -d $Fdestdir/usr/share/Apps/$_F_app_dir/src ] && \
-		Frm /usr/share/Apps/$_F_app_dir/src
-	[ -f $Fdestdir/usr/share/Apps/$_F_app_dir/.cvsignore ] && \
-		Frm /usr/share/Apps/$_F_app_dir/.cvsignore
-	Fln /usr/share/Apps/$F_appdir/Help /usr/share/doc/$pkgname-$pkgver
-	if [ -f $Fsrcdir/$pkgname ] ; then
-		Fexe /usr/bin/$pkgname
-	else
-		Fln /usr/share/Apps/$_F_app_dir/AppRun /usr/bin/$pkgname
+	if [ -d $Fsrcdir/$_F_rox_appdir/src ]; then
+		./AppRun --compile CC="gcc $CFLAGS" || Fdie
 	fi
 }
 
+Frox_mkdir()
+{
+	Fmkdir $_F_rox_installpath /usr/share/doc
+}
+
+Frox_setup()
+{
+	if [ ! -d "$Fsrcdir/$_F_rox_name" ]; then
+		if [ -d "$Fsrcdir/$pkgname$_F_rox_sep$pkgver/$_F_rox_name" ]; then
+			_F_rox_appdir=$pkgname$_F_rox_sep$pkgver/$_F_rox_name
+		else
+			error "The appdir cannot be found."
+			Fdie
+		fi
+	else
+		_F_rox_appdir=$_F_rox_name
+	fi
+	Fcd $_F_rox_appdir
+	_F_rox_installpath="$_F_rox_installpath$_F_rox_name"
+}
+
+Frox_install()
+{
+	Fcp $_F_rox_appdir `echo "$_F_rox_installpath" | sed 's|\(.*\)/.*|\1|'`
+	Fmv $_F_rox_installpath/Help /usr/share/doc/$pkgname-$pkgver
+	Fln /usr/share/doc/$pkgname-$pkgver $_F_rox_installpath/Help
+	Fdirschmod $_F_rox_installpath +r
+}
+
+Frox_cleanup()
+{
+	[ -d $Fdestdir/$_F_rox_installpath/src ] && Frm $_F_rox_installpath/src
+	[ -d $Fdestdir/$_F_rox_installpath/build ] && Frm $_F_rox_installpath/build
+	[ -f $Fdestdir/$_F_rox_installpath/.cvsignore ] && Frm $_F_rox_installpath/.cvsignore
+	[ -f $Fdestdir/$_F_rox_installpath/.gitignore ] && Frm $_F_rox_installpath/.gitignore
+}
+
+Fbuild_rox()
+{
+	Frox_setup
+	Frox_compile
+	Frox_mkdir
+	Frox_install
+	Frox_cleanup
+	Fmessage "Entering packaging phase..."
+}
+
 ###
-# * build() just calls Froxbuild()
+# * build() simply calls Fbuild_rox()
 ###
+
 build()
 {
-	Froxbuild
+	Fbuild_rox
 }

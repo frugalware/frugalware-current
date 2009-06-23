@@ -29,6 +29,10 @@ if [ -z "$_F_cmake_color" ]; then
 	_F_cmake_color="OFF"
 fi
 
+if [ -z "$_F_cmake_in_source_build" ]; then
+	_F_cmake_in_source_build=0
+fi
+
 ###
 # == APPENDED VARIABLES
 # * cmake to makedepends()
@@ -46,17 +50,24 @@ CMake_conf()
 	## LIB_INSTALL_DIR -> libdir
 	## LOCALSTATE_INSTALL_DIR -> localstatedir
 
+	if [ "$_F_cmake_in_source_build" -eq "0" ]; then
+		_F_cmake_src=".."
+	else
+		_F_cmake_src="."
+	fi
+
 	cmake \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DSYSCONF_INSTALL_DIR=/etc \
 		-DLIB_SUFFIX="" \
 		-DLIB_INSTALL_DIR=/usr/lib \
+		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DLOCALSTATE_INSTALL_DIR=/var \
 		-DCMAKE_BUILD_TYPE="$_F_cmake_type" \
 		-DCMAKE_VERBOSE_MAKEFILE="$_F_cmake_verbose" \
 		-DCMAKE_COLOR_MAKEFILE="$_F_cmake_color" \
 		-DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS" \
-		$_F_cmake_confopts "$@" .. || Fdie
+		$_F_cmake_confopts "$@" $_F_cmake_src || Fdie
 }
 
 ###
@@ -66,13 +77,17 @@ CMake_prepare_build()
 {
 	Fcd
 	Fpatchall
-	if [ -d  "build" ]; then
-		rm -rf build || Fdie
-		mkdir build || Fdie
-		cd build || Fdie
+	if [ "$_F_cmake_in_source_build" -eq "0" ]; then
+		if [ -d  "build" ]; then
+			rm -rf build || Fdie
+			mkdir build || Fdie
+			cd build || Fdie
+		else
+			mkdir build || Fdie
+			cd build || Fdie
+		fi
 	else
-		mkdir build || Fdie
-		cd build || Fdie
+		export CMAKE_IN_SOURCE_BUILD=1
 	fi
 }
 
@@ -82,7 +97,7 @@ CMake_prepare_build()
 CMake_make()
 {
 	CMake_prepare_build
-	CMake_conf
+	CMake_conf "$@"
 	## do _not_ use any F* stuff here , cmake does not like it
 	make || Fdie
 }
@@ -92,8 +107,7 @@ CMake_make()
 ###
 CMake_build()
 {
-
-	CMake_make
+	CMake_make "$@"
 	make DESTDIR=$Fdestdir install || Fdie
 }
 

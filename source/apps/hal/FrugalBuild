@@ -3,45 +3,47 @@
 # Contributor: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=hal
-pkgver=0.5.10
-pkgrel=4
+pkgver=0.5.11
+pkgrel=8
 pkgdesc="Hardware Abstraction Layer"
 url="http://www.freedesktop.org/wiki/Software/hal"
-depends=('dbus-glib>=0.74' 'udev>=100' 'glib2' 'libcap' 'dbus>=1.1.2' \
+depends=('dbus-glib>=0.74' 'udev>=132' 'util-linux-ng>=2.15' 'glib2' 'libcap' 'dbus>=1.2.12-4' \
 	'libusb' 'popt' 'pciutils' 'parted>=1.8.8' 'shadow>=4.0.18.1-2' \
 	'dmidecode' 'usbutils' 'zlib')
-makedepends=('pkgconfig' 'perl-xml-parser' 'intltool')
-rodepends=('hal-info>=20071030')
+makedepends=('pkgconfig' 'perl-xml-parser' 'intltool' 'gperf')
+rodepends=('hal-info>=20080508')
 groups=('apps')
 replaces=('submount')
 options=('scriptlet')
-archs=('i686' 'x86_64')
+archs=('i686' 'x86_64' 'ppc')
 up2date="lynx -dump 'http://hal.freedesktop.org/releases/?C=M;O=A'|grep -v 'hal-info'|grep -v 'gnome'|grep -v PolicyKit|Flasttar"
 source=(http://hal.freedesktop.org/releases/$pkgname-$pkgver.tar.gz \
 	rc.hald \
-	01-parted.patch \
-	hal.conf.in.patch \
-	hal-device-manager.desktop \
 	ntfs-3g.patch \
 	suspend_hibernate.patch \
-	hal-performance_pci.ids_v5.diff)
-sha1sums=('8d67499df61590c11fd3203004d69e8a45abb8fa' \
-          'ab629a3ea7df51df48abad30731590b8e86e908f' \
-          '1d411b592b781336c5ff7ca2b4a2ad208af5acbe' \
-          'be12d1327ca93e1830c5784f395e904b107f1947' \
-          '0c4968cbb842bdae350901728d81eed9895445fa' \
+	hal-performance_pci.ids_v5.diff \
+	hal.conf.patch newer-udev.patch \
+	move-from-libvolume_id-to-libblkid.patch \
+	storage-mount-fix.patch)
+sha1sums=('f51366229e5dd6d5d72d60114fdef76bf5feba26' \
+          '9b5b15a5e36d4b74e8632548f48d865d7e1f7ceb' \
           '2273e77c0c3c52aca31294b2b1a829937d0a3c18' \
           '2fab4fd75f1359b0838748dfae4d749eb26b64b9' \
-          '654235977c83f76433f9737f37b8a18f04136b35')
-
+          '654235977c83f76433f9737f37b8a18f04136b35' \
+          '9d7ea8f348b2de6aa1bf42cf0cb7ab2b19a03bd2' \
+          'f99e64227cf66f2eee6ed852542db7b5cb038299' \
+          '8c40f44c189b36cecc5fce79e4f47d4d0eaf8ccd' \
+          'de56c6990b48f0bfe257dd4b4151aad52725ded2')
 
 build()
 {
 	Fcd
 	Fpatchall
-	Fautoreconf
-	#autoreconf -v -i -f -d --warnings=all || return 1
-	## TODO: figure this acpi stuff
+	rm hal.conf || Fdie
+	autoconf || return 1
+	# hack to avoid automake
+	Fsed '@VOLUME_ID_CFLAGS@' '@BLKID_CFLAGS@' hald/linux/probing/Makefile.in
+	Fsed '@VOLUME_ID_LIBS@' '@BLKID_LIBS@' hald/linux/probing/Makefile.in
 	Fconf \
 		--with-pid-file=/var/run/hald.pid \
 		--with-hal-user=hald \
@@ -62,7 +64,6 @@ build()
 		--host=${CHOST} \
 		--build=${CHOST}
 	# TODO: package pm-tools and libsmbios ..
-	### BLAHHHHHHHHHHHHH
 	Fmakeinstall
 	Frm /etc/hotplug.d
 	Fmkdir /media

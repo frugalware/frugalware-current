@@ -42,13 +42,18 @@
 # * source()
 # * options()
 ###
-pkgname=drupal-$_F_drupal_module
 url="http://drupal.org/project/$_F_drupal_module"
-rodepends=('drupal>=5.0' ${rodepends[@]})
+if [ $_F_drupal_ver == "5.x" ]; then
+	pkgname=drupal-$_F_drupal_module
+	rodepends=('drupal>=5.0' ${rodepends[@]})
+else
+	pkgname=drupal6-$_F_drupal_module
+	rodepends=('drupal6>=6.2' ${rodepends[@]})
+fi
 groups=('network-extra')
 archs=('i686' 'x86_64')
 if [ $_F_drupal_dev == 0 ]; then
-	up2date="lynx -dump http://drupal.org/project/$_F_drupal_module | grep 'http://.*$_F_drupal_ver.*[^a][^va]\.tar\.gz' | sed 's/.*$_F_drupal_module-\(.*\)\.tar.*/\1/;y/-/_/'"
+	up2date="lynx -dump http://drupal.org/project/$_F_drupal_module | grep -m1 'http://.*$_F_drupal_ver.*[^v]\.tar\.gz' | sed 's/.*$_F_drupal_module-\(.*\)\.tar.*/\1/;y/-/_/'"
 	source=(http://ftp.drupal.org/files/projects/$_F_drupal_module-${pkgver//_/-}.tar.gz)
 else
 #	up2date="lynx -dump http://drupal.org/project/$_F_drupal_module | grep '$_F_drupal_ver.*-dev[0-9][0-9]\]Download' | sed 's/.*$_F_drupal_module-\(.*\)\.tar.*/\1/;s/-/_/'"
@@ -64,8 +69,13 @@ options=('stick' 'nodocs')
 ###
 Fbuild_drupal()
 {
-	Fmkdir var/www/drupal/sites/all/modules
-	mv $Fsrcdir/$_F_drupal_module $Fdestdir/var/www/drupal/sites/all/modules/$_F_drupal_module
+	if [ $_F_drupal_ver == "5.x" ]; then
+		Fmkdir var/www/drupal/sites/all/modules
+		mv $Fsrcdir/$_F_drupal_module $Fdestdir/var/www/drupal/sites/all/modules/$_F_drupal_module
+	else
+		Fmkdir var/www/drupal6/sites/all/modules
+		mv $Fsrcdir/$_F_drupal_module $Fdestdir/var/www/drupal6/sites/all/modules/$_F_drupal_module
+	fi
 }
 
 ###

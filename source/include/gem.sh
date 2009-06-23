@@ -72,9 +72,9 @@ Finstallgem() {
 		Fmkdir "$archdir"
 		cp -R ext/* "$Fdestdir"/"$archdir" || Fdie
 	fi
-	if [ -d doc -a -n "`ls doc`" ]; then
+	if [ -d doc -a -n "`ls doc 2>/dev/null`" ]; then
 		Fmkdir /usr/share/doc/"$pkgname"-"$pkgver"
-		if [ -d doc/"$_F_gem_name"-"$pkgver" -a -n "`ls doc/$pkgname-$pkgver`" ]; then
+		if [ -d doc/"$_F_gem_name"-"$pkgver" -a -n "`ls doc/$pkgname-$pkgver 2>/dev/null`" ]; then
 			cp -R doc/"$_F_gem_name"-"$pkgver"/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
 			rm -rf doc/"$_F_gem_name"-"$pkgver"/ || Fdie
 		fi

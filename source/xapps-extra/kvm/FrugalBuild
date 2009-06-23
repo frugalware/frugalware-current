@@ -1,37 +1,45 @@
 # Compiling Time: 0.08 SBU
-# Maintainer: VMiklos <vmiklos@frugalware.org>
+# Maintainer: crazy <crazy@frugalware.org>
 # Contributor: AlexExtreme <alex@alex-smith.me.uk>
 
 pkgname=kvm
-pkgver=65
-pkgrel=1
+pkgver=84
+pkgrel=2
 pkgdesc="KVM is a kernel based virtual machine"
-url="http://kvm.sourceforge.net"
 groups=('xapps-extra')
-archs=('i686')
-Finclude sourceforge
+archs=('i686' 'x86_64')
+Finclude sourceforge kernel-module
+unset options install
+url="http://kvm.sourceforge.net"
 depends=('sdl' 'zlib')
-makedepends=('gcc-3.3')
-sha1sums=('4aad80cafec476c60a3d38ba05fce3728b06a470')
+makedepends=('kernel-source' 'git' 'rsync')
+options=('scriptlet')
+sha1sums=('ebdceb52227e2473ffefcadc7c4eaaa4190c2f7e')
 Fconfopts="--prefix=$Fprefix"
+
 
 # no changelog in the tarball, you can reach it here:
 # http://kvm.qumranet.com/kvmwiki/ChangeLog
 
-# i took this package as i maintain qemu, too but i don't have a kvm-able
-# machine, so if you want to take this package, feel free to contact me
-
 build() {
+	unset MAKEFLAGS
 	Fsed '/qemu"' '/qemu-kvm"' \
 		qemu/configure
-	Fbuild --with-patched-kernel --kerneldir=`pwd`/kernel
-	
+	Fsed 'lib64' 'lib' libkvm/config-x86_64.mak
+	Fbuild --with-patched-kernel --kerneldir=$_F_kernelmod_dir/build
+
 	# conflicts with kernel-headers
 	Frm /usr/include/linux
-	
+
 	# this hardwired x86_64 is so misleading..
 	Fmv /usr/bin/qemu-system-x86_64 /usr/bin/qemu-kvm
 	Fmv /usr/bin/qemu-img /usr/bin/qemu-img-kvm
+	Fmv /usr/bin/qemu-nbd /usr/bin/qemu-nbd-kvm
+
+	# add udev rules for kvm dev node
+	Fmkdir /etc/udev/rules.d
+	echo 'KERNEL=="kvm", NAME="%k", OWNER="root", GROUP="users", MODE="0660"' \
+	> $Fdestdir/etc/udev/rules.d/49-kvm.rules
 }
 
 # optimization OK

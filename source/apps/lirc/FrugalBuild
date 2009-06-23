@@ -1,0 +1,61 @@
+# Compiling Time: 0.24 SBU
+# Maintainer: voroskoi <voroskoi@frugalware.org>
+
+pkgname=lirc
+pkgver=0.8.5
+pkgrel=2
+pkgdesc="LIRC is a package that allows you to decode and send infra-red signals of many commonly used remote controls."
+url="http://www.lirc.org/"
+Finclude kernel-module sourceforge
+
+subpkgs=('lirc_modules')
+subdescs=('Kernel modules for lirc remote controls.')
+subdepends=($depends)
+subgroups=('apps')
+subarchs=('i686 x86_64')
+subinstall=$install
+
+depends=('alsa-lib' 'libusb')
+rodepends=("lirc_modules=$pkgver")
+groups=('apps')
+archs=('i686' 'x86_64')
+backup=(etc/lirc{d,md}.conf etc/sysconfig/lirc)
+source=(${source[@]} rc.lirc lirc.logrotate lirc.sysconfig README.Frugalware \
+	lirc-fix-conditional-ftdi.patch)
+unset install
+
+build() {
+	unset MAKEFLAGS
+	Fpatchall
+	Fautoreconf
+	Fconf --enable-sandboxed --with-driver=all \
+		--with-moduledir=$_F_kernelmod_dir/misc
+	# does not compile with SMP kernel
+	Fsed 'lirc_parallel' '' \
+		Makefile drivers/Makefile drivers/*/Makefile tools/Makefile
+	# disable lirc_gpio due to brokeness of kernel 2.6.23
+	Fsed "lirc_gpio" "" \
+		Makefile drivers/Makefile drivers/*/Makefile tools/Makefile
+	make || Fdie
+	make install DESTDIR=$Fdestdir || Fdie
+
+	# lircd.conf samples
+	Fmkdir /usr/share/remotes
+	Fcprrel remotes /usr/share/
+
+	Ffilerel contrib/lirc.rules /etc/udev/rules.d/60-lirc.rules
+	Fmkdir /etc/{logrotate.d,sysconfig}
+	Ffile lirc.logrotate /etc/logrotate.d/
+	Ffile lirc.sysconfig /etc/sysconfig/lirc
+	Frcd2
+	Fsplit lirc_modules lib/modules
+	Fbuild_kernelmod_scriptlet
+}
+sha1sums=('2ee0f0e74cf4f80c8a533ce1d0c33c78aa705127' \
+          '30a7d32e512af135840e657edfa0736ad9d53281' \
+          '4342b004eb53d51fcbb9af2cf136bb4990874608' \
+          '504e0cd04780e75b6a8ab6836815c1ed9058db78' \
+          '0b80c73e902920c028dca98a9006aaa313c6e120' \
+          '91b50e945a313ffdbc86bdab464d6b3f8ffbada7')
+
+# optimization OK

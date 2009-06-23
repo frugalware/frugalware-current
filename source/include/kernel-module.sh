@@ -61,8 +61,6 @@ Finclude kernel-version
 # * _F_kernelmod_uname: the output of the uname -r command of the official kernel
 # * _F_kernelmod_pkgver: the package version (pkgname-pkgrel) of the kernel
 # * _F_kernelmod_dir: the directory where the modules are (ie: /lib/modules/`uname -r`)
-# * depends()
-# * makedepends()
 # * install
 ###
 if [ -z "$_F_kernelmod_scriptlet" ]; then
@@ -75,14 +73,16 @@ fi
 _F_kernelmod_uname=$_F_kernelmod_ver$_F_kernelmod_name-fw$_F_kernelmod_rel
 _F_kernelmod_pkgver=$_F_kernelmod_ver-$_F_kernelmod_rel
 _F_kernelmod_dir=/lib/modules/$_F_kernelmod_uname
-depends=("kernel$_F_kernelmod_name=$_F_kernelmod_pkgver")
-makedepends=("kernel$_F_kernelmod_name-source=$_F_kernelmod_pkgver")
 install=$_F_kernelmod_scriptlet
 
 ###
 # == APPENDED VARIABLES
+# * kernel package name to depends()
+# * kernel package source to makedepends()
 # * scriptlet and genscriptlet to options()
 ###
+depends=(${depends[@]} "kernel$_F_kernelmod_name=$_F_kernelmod_pkgver")
+makedepends=(${depends[@]} "kernel$_F_kernelmod_name-source=$_F_kernelmod_pkgver")
 options=(${options[@]} 'scriptlet' 'genscriptlet')
 
 ###

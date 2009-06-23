@@ -1,28 +1,35 @@
-# Compiling Time: 0.01 SBU
-# Maintainer: VMiklos <vmiklos@frugalware.org>
+# Compiling Time: 0.63 SBU
+# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=fop
-pkgver=0.20.5
-pkgrel=3
+pkgver=0.95
+pkgrel=1
 pkgdesc="Formatting Objects Processor is a print formatter driven by XSL"
 url="http://xmlgraphics.apache.org/fop/"
-rodepends=('j2re' 'xml-commons-external')
+Finclude java
+depends=(${depends[@]} 'batik' 'avalon-framework' 'commons-logging' 'xmlgraphics-commons')
 groups=('apps-extra')
+replaces=('fop-devel')
 archs=('i686' 'x86_64')
-# it may be weird to use 'previous', but in fact it seem to be still more
-# stable then the newer 0.9x releases, which are marked as stable by upstream.
-# use fop-devel if you need that branch
-up2date="lynx -dump $url/compliance.html|grep '(previous)'|sed 's/.* \(.*\) (previous).*/\1/;q'"
-# TODO: build it from source
-source=(http://archive.apache.org/dist/xml/fop/fop-$pkgver-bin.tar.gz)
+_F_archive_grepv="beta"
+up2date="Flastarchive http://www.apache.org/dist/xmlgraphics/fop/source/ -src.tar.gz"
+source=(http://www.apache.org/dist/xmlgraphics/fop/source/fop-$pkgver-src.tar.gz)
 signatures=($source.asc)
 
 build()
 {
-	Fsed 'build/' '' fop.sh
-	sed '2itest "$FOP_HOME" || FOP_HOME=/usr/share/java/' fop.sh > fop
-	Fexerel /usr/bin/fop
-	Fln fop /usr/bin/fop.sh
-	Ffilerel lib/*.jar build/*.jar /usr/share/java/
-	Frm /usr/share/java/xml-apis.jar
+	Fcd
+	Fpatchall
+	Fjavacleanup
+	if [ "$CARCH" == "x86_64" ]; then
+		 export ANT_OPTS="-Xmx1024m"
+	fi
+	Fant codegen
+	Fant package
+	Fjar build/fop-sandbox.jar
+	Ffilerel build/fop.jar /usr/share/java/fop.jar
+	Fgcj org.apache.fop.cli.Main $Fdestdir/usr/bin/fop \
+		$Fdestdir/usr/share/java/fop.jar -lxmlgraphics-commons.jar \
+		-lavalon-framework.jar -lcommons-logging.jar -lcommons-io.jar \
+		-lbatik-util.jar -lxalan.jar -lserializer.jar -lxercesImpl.jar
 }

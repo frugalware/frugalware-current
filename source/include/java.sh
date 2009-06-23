@@ -41,6 +41,8 @@
 # * _F_java_ldflags (defaults to -Wl,-Bsymbolic): linker flags passed to the bytecompiler (gcj)
 # * _F_javacleanup_opts: you can set this to define some exclude patterns if
 # you really need (for bootstrapping) some binary jars.
+# * _F_java_jars: a bash array to specify what jars to install using Fjar in
+# Fmakeinstall if build.xml found
 ###
 if [ -z "$_F_java_cflags" ]; then
 	_F_java_cflags="-fPIC -findirect-dispatch -fjni"
@@ -55,8 +57,8 @@ fi
 # * depends()
 # * makedepends()
 ###
-depends=('libgcj')
-makedepends=('gcc-gcj' 'ant-eclipse-ecj')
+depends=('libgcj>=4.4.0')
+makedepends=('gcc-gcj>=4.4.0' 'ant-eclipse-ecj')
 
 ###
 # == PROVIDED FUNCTIONS
@@ -82,8 +84,8 @@ Fgcj()
 	if [ ! -d "`dirname $output`" ]; then
 		mkdir -p "`dirname $output`" || Fdie
 	fi
-	echo "gcj ${CFLAGS/O2/O0} ${_F_java_cflags/-fPIC } $_F_java_ldflags --main=$main -o $output $@"
-	gcj ${CFLAGS/O2/O0} ${_F_java_cflags/-fPIC } $_F_java_ldflags --main=$main -o $output $@ || Fdie
+	Fexec gcj ${CFLAGS/O2/O0} ${_F_java_cflags/-fPIC } $_F_java_ldflags \
+		--main=$main -o $output $@ || Fdie
 }
 
 ###
@@ -97,8 +99,8 @@ Fgcjshared()
 	if [ ! -d "`dirname $output`" ]; then
 		mkdir -p "`dirname $output`" || Fdie
 	fi
-	echo "gcj -shared ${CFLAGS/O2/O0} $_F_java_cflags $_F_java_ldflags -o $output $@"
-	gcj -shared ${CFLAGS/O2/O0} $_F_java_cflags $_F_java_ldflags -o $output $@ || Fdie
+	Fexec gcj -shared ${CFLAGS/O2/O0} $_F_java_cflags $_F_java_ldflags \
+		-o $output $@ || Fdie
 }
 
 ###

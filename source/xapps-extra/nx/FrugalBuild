@@ -1,0 +1,85 @@
+# Compiling Time: 6.38 SBU
+# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
+
+pkgname=nx
+pkgver=3.3.0
+pkgrel=2
+pkgdesc="NX provides a proxy system for the X Window System."
+url="http://www.nomachine.com"
+depends=('expat' 'audiofile' 'openssl' 'libjpeg' 'libpng' 'libxt>=1.0.3-3' 'libxp' 'libxdamage>=1.1.1-3' 'libxrandr>=1.3.0' 'libxtst')
+makedepends=('imake' 'inputproto')
+groups=('xapps-extra')
+replaces=('nx-x11' 'nxproxy')
+archs=('i686')
+up2date="lynx -dump $url/sources.php |grep nx-X11|sed 's/.*nx-X11-\(.*\)-.*/\1/;q'"
+source=(http://64.34.161.181/download/$pkgver/sources/nxproxy-$pkgver-2.tar.gz
+	http://64.34.161.181/download/$pkgver/sources/nxcomp-$pkgver-3.tar.gz
+	http://64.34.161.181/download/$pkgver/sources/nxcompext-$pkgver-3.tar.gz
+	http://64.34.161.181/download/$pkgver/sources/nxssh-$pkgver-1.tar.gz
+	http://64.34.161.181/download/$pkgver/sources/nxcompshad-$pkgver-3.tar.gz
+	http://64.34.161.181/download/$pkgver/sources/nx-X11-$pkgver-5.tar.gz
+	http://64.34.161.181/download/$pkgver/sources/nxauth-$pkgver-1.tar.gz
+	http://64.34.161.181/download/$pkgver/sources/nxagent-$pkgver-10.tar.gz
+	http://64.34.161.181/download/$pkgver/sources/nxscripts-$pkgver-1.tar.gz \
+	gcc44.diff)
+sha1sums=('3703e4e5d9097c54b34190fc2a17208385ec7533' \
+          '2d3f9a9b1a83b32d6e8cc69b9b10c1aacc1f0783' \
+          '4c811a6ebdebf2a975ee80bfbbed92af550e7082' \
+          'bca3771af0aa8fcc80bca867c5d8bbd646c9429a' \
+          '2a55519bee2a8b8fa5a6573904d3b098792cf51f' \
+          'dfaa8356f9627f30401ee36ad5d5883947feb1c3' \
+          'd8826654066e4a34ecf6ad903591e76924683d21' \
+          '9945f602f729220e7b1b44e79c4c2c6882fd61ad' \
+          '0513aed9cff11cc575dde7b03ecefb05a3c9376d' \
+          'd3c3ada10da075b935d344ce647fbd71183f80ca')
+_F_cd_path="./"
+
+build()
+{
+	Fcd
+	Fpatchall
+	for i in nxcomp nxcompshad nxproxy
+	do
+		cd $i || return 1
+		Fconf
+		make CCFLAGS="$CFLAGS" || return 1
+		cd ..
+	done
+	make -C nx-X11 World || return 1
+	cd nxssh || return 1
+	Fmake --without-zlib-version-check
+	cd ..
+	cd nxproxy || return 1
+	Fconf
+	make CCFLAGS="$CFLAGS" || return 1
+	cd ..
+
+	# install: handwork...
+	Fmkdir /usr/bin /usr/lib{,exec}/nx
+
+	Fexerel nx-X11/lib/X11/libX11.so.* \
+		nx-X11/lib/Xext/libXext.so.* \
+		nx-X11/lib/Xrender/libXrender.so.* \
+		/usr/lib/nx/
+	Fexerel nx-X11/programs/Xserver/nxagent \
+		/usr/libexec/nx/
+	cat >> nxwrapper << EOF
+#!/bin/sh
+
+export LD_LIBRARY_PATH=/usr/lib/nx:\$LD_LIBRARY_PATH
+exec /usr/libexec/nx/\$(basename \$0) "\$@"
+EOF
+	Fexerel /usr/libexec/nx/nxwrapper
+	Fln /usr/libexec/nx/nxwrapper /usr/bin/nxagent
+	Fexerel nxcomp/libXcomp.so.* /usr/lib/nx/
+	Fexerel nxcompext/libXcompext.so.* /usr/lib/nx/
+	Fexerel nxcompshad/libXcompshad.so.* /usr/lib/nx/
+	Fexerel nxssh/nxssh /usr/libexec/nx/
+	Fln /usr/libexec/nx/nxwrapper /usr/bin/nxssh
+	Fexerel nxproxy/nxproxy /usr/libexec/nx/
+	Fln /usr/libexec/nx/nxwrapper /usr/bin/nxproxy
+	Fdocrel nxscripts
+}
+
+
+# optimization OK

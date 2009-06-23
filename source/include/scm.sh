@@ -88,14 +88,14 @@ elif [ "$_F_scm_type" == "subversion" ]; then
 	up2date="echo -n svn; svn log $_F_scm_url --limit=1 |sed -n '/^r/s/r\([0-9]\+\) .*/\1/p'"
 	makedepends=(${makedepends[@]} 'subversion')
 elif [ "$_F_scm_type" == "git" ]; then
-	up2date="date +%Y%m%d%H%M%S --date '`curl -I $_F_scm_url/HEAD 2>&1|sed -n '/^Last-Modified/s/^[^:]*: //p'`'"
+	up2date="echo -n ${pkgver%%.g*}.g;git ls-remote $_F_scm_url|sed 's/^\(.\{7\}\).*/\1/;q'"
 	makedepends=(${makedepends[@]} 'git')
 elif [ "$_F_scm_type" == "mercurial" ]; then
 	# it seems that _every_ repo url has the same web interface which has a nice rss
 	up2date="date +%Y%m%d%H%M%S --date '`lynx -dump $_F_scm_url/?style=rss|grep pubDate|sed 's/.*>\(.*\)<.*/\1/;q'`'"
 	makedepends=(${makedepends[@]} 'mercurial')
 elif [ "$_F_scm_type" == "bzr" ]; then
-	up2date="bzr log -r revno:-1 $_F_scm_url|grep ^revno|sed 's/revno: //'"
+	up2date="bzr log -r revno:-1 $_F_scm_url|grep ^revno|sed 's/revno: /bzr/'"
 	makedepends=(${makedepends[@]} 'bzr')
 fi
 
@@ -114,7 +114,7 @@ Funpack_scm()
 		if [ -d "${_F_scm_url##*/}" ]; then
 			darcs pull $extra || Fdie
 		else
-			darcs get --partial $_F_scm_url $extra || Fdie
+			darcs get --lazy $_F_scm_url $extra || Fdie
 		fi
 		Fcd ${_F_scm_url##*/}
 	elif [ "$_F_scm_type" == "cvs" ]; then
@@ -154,8 +154,14 @@ Funpack_scm()
 		hg clone $_F_scm_url || Fdie
 		Fcd ${_F_scm_url##*/}
 	elif [ "$_F_scm_type" == "bzr" ]; then
-		bzr branch $_F_scm_url || Fdie
-		Fcd ${_F_scm_url##*/}
+		if [ ! -d "${_F_scm_url##*/}" ]; then
+			bzr branch --stacked $_F_scm_url || Fdie
+			Fcd ${_F_scm_url##*/}
+		else
+			Fcd ${_F_scm_url##*/}
+			bzr revert || Fdie
+			bzr pull || Fdie
+		fi
 	fi
 }
 

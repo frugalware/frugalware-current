@@ -4,39 +4,49 @@
 # rc.dbus for FrugalWare
 # distributed under GPL License
 
-. /etc/rc.d/rc.functions
-
 # chkconfig: 2345 97 03
 # description: This is a daemon which broadcasts notifications of system events
 #              and other messages.
-DPID="/var/run/dbus/dbus.pid"
 
-if [ "$1" = "stop" ]; then
-	stop "$stopdbus"
-	if [ -e $DPID ]; then
-	     killall dbus-daemon
-	     rm -f $DPID
-	fi
-	ok $?
-elif [ "$1" = "restart" ]; then
-	"$0" stop
-	sleep 1
-	"$0" start
-else # start
-	start "$startdbus"
-	## we need that
-	if [ ! -d /var/run/dbus ]; then
-	    mkdir /var/run/dbus
-	fi
-	## that too
-	chown messagebus:messagebus  /var/run/dbus
-	## bug #860
-	[ -d /usr/share/dbus-1/services ] || mkdir -p /usr/share/dbus-1/services
-	## this need be here
-	/usr/bin/dbus-uuidgen --ensure
-	if [ ! -e $DPID ]; then
-	   /usr/bin/dbus-daemon --system
-	fi
+source /lib/initscripts/functions
+actions=(start stop restart status)
+daemon=$"system message bus"
 
-	ok $?
-fi
+pid="cat /var/run/dbus/dbus.pid 2> /dev/null"
+
+rc_start()
+{
+	start_msg
+	# check if dbus is already running
+	if [ ! -z "$(eval $pid)" ]; then
+		ok 999
+	else
+		## we need that
+		if [ ! -d /var/run/dbus ]; then
+			mkdir /var/run/dbus
+		fi
+		## that too
+		chown messagebus:messagebus  /var/run/dbus
+		## bug #860
+		[ -d /usr/share/dbus-1/services ] || mkdir -p /usr/share/dbus-1/services
+		## this need be here
+		/usr/bin/dbus-uuidgen --ensure
+		/usr/bin/dbus-daemon --system
+		ok $?
+	fi
+}
+
+rc_stop()
+{
+	stop_msg
+	if [ -n "$(eval $pid)" ]; then
+		killall dbus-daemon
+		rm -f /var/run/dbus/dbus.pid
+		ok $?
+	else
+		ok 999
+	fi
+}
+
+rc_exec $1
+

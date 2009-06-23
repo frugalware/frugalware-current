@@ -1,7 +1,7 @@
 1. Preface
 +
 I was asked to set up VPN using PPTP. A much secure way to setup it up is using
-IPSec, more details 
+IPSec, more details
 http://www.schneier.com/paper-pptpv2.html[here].
 Also you could use ssh+pppd, but that's rather problematic on platforms
 other than Unix.
@@ -41,7 +41,6 @@ Then let's see that referred '/etc/ppp/options.pptpd':
 --------------------------------------------
 $ grep -v '^\(#\|$\)' /etc/ppp/options.pptpd
 name pptpd
-domain nemesis.example.net
 refuse-pap
 refuse-chap
 refuse-mschap
@@ -56,16 +55,15 @@ novjccomp
 nologfd
 ---------------------------------------------
 +
-nemesis.example.net is the full name of the machine, replace it to your one.
 After everything works fine, you can remove the "debug" line from the config.
 +
 Then add at least one user:
 +
-----------------------------------
+-------------------------------------------------------------
 # cat /etc/ppp/chap-secrets
-Password:
-vmiklos  pptpd   "secret"        *
-----------------------------------
+## client        server  secret                  IP addresses
+mylogin           *      stupidpassword          *
+-------------------------------------------------------------
 +
 The rest is about to allow pptp on the firewall (I'm assuming that you use the
 default Frugalware configuration: INPUT is on DROP by default, but FORWARD is
@@ -77,6 +75,27 @@ Add the following 2 lines to the filter section of '/etc/sysconfig/firewall':
 -A INPUT -p gre -j ACCEPT
 -A INPUT -p tcp -m tcp --dport 1723 -j ACCEPT
 ---------------------------------------------
++
+If you want to allow a client to access Internet via this pptp server, add the
+following line to the nat section of the same file (change ethX to the correct
+network interface):
++
+------------------------------------
+-A POSTROUTING -o ethX -j MASQUERADE
+------------------------------------
++
+Then check if you have PPP support in the kernel enabled:
++
+--------------------------
+# lsmod | grep ppp_generic
+--------------------------
++
+If there is no output, enable it:
++
+----------------------------------------------
+# modprobe ppp_generic
+# echo "ppp_generic" >> /etc/sysconfig/modules
+----------------------------------------------
 +
 Now we're ready to start:
 +
@@ -110,7 +129,7 @@ the following contents:
 +
 ---------------------------------------------
 $ grep -v '^\(#\|$\)' /etc/ppp/peers/mytunnel
-name vmiklos
+name mylogin
 remotename PPTP
 file /etc/ppp/options.pptp
 pty "pptp IP_OF_THE_SERVER --nolaunchpppd "
@@ -120,7 +139,7 @@ require-mppe
 Your /etc/ppp/chap-secrets should contain the following line:
 +
 --------------------------
-vmiklos  PPTP    secret  *
+mylogin  PPTP    secret  *
 --------------------------
 +
 We're ready to start the client:

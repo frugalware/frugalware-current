@@ -1,56 +1,70 @@
 # Compiling Time: 0.11 SBU
 # Contributor: Tuxbubling <tuxbubling@tiscali.fr>
-# Maintainer: VMiklos <vmiklos@frugalware.org>
+# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
+
+USE_GUI=${USE_GUI:-"y"}
 
 pkgname=distcc
 pkgver=2.18.3
-pkgrel=6
+pkgrel=9
 pkgdesc="A distributed C, C++, Obj C compiler"
 url="http://distcc.samba.org"
-depends=('popt>=1.13' 'gcc>=4.3.0-4')
-makedepends=('gtk+2 freetype2 libxau libxdmcp libxdamage libxext libxml2')
-rodepends=('shadow>=4.1.0-4')
+depends=('popt>=1.14-2' 'gcc>=4.3.1-3')
+rodepends=('shadow>=4.1.2.1-2')
 options=('scriptlet')
 groups=('devel-extra' 'chroot-core')
 backup=('etc/sysconfig/distccd')
-archs=('i686' 'x86_64')
+archs=('i686' 'x86_64' 'ppc')
 up2date="lynx -dump http://distcc.samba.org/download.html | grep tar.bz2 | sed -ne 's/.*-\(.*\)\.t.*/\1/;s/systray-plugin-//;1 p'"
 source=(http://distcc.samba.org/ftp/distcc/$pkgname-$pkgver.tar.bz2 \
 	rc.distccd \
 	distccd)
 sha1sums=('88e4c15826bdbc5a3de0f7c1bcb429e558c6976d' \
-          '48e10f06344f685a919c1e60703304df4e6f3a8d' \
+          '858b2052b43de850616ce29f0a3e658d484530c1' \
           '3a03e6937416dd3e1ce9b690857dcd5ed95cef50')
 
-subpkgs=("$pkgname-gui")
-subdescs=("GTK monitor for $pkgname")
-subdepends=('popt gtk+2 freetype2 libxau libxdmcp libxdamage libxext libxml2')
-subrodepends=("$pkgname=$pkgver desktop-file-utils")
-subgroups=('xapps-extra')
-subarchs=('i686 x86_64')
-subinstall=('distcc-gui.install')
+if Fuse $USE_GUI; then
+	makedepends=('gtk+2 freetype2 libxau libxdmcp libxdamage libxext libxml2')
+	subpkgs=("$pkgname-gui")
+	subdescs=("GTK monitor for $pkgname")
+	subdepends=('popt gtk+2 freetype2 libxau libxdmcp libxdamage libxext libxml2')
+	subrodepends=("$pkgname=$pkgver desktop-file-utils")
+	subgroups=('xapps-extra')
+	subarchs=('i686 x86_64 ppc')
+	subinstall=('distcc-gui.install')
+	Fconfopts="$Fconfopts --with-gtk"
+fi
 
 build()
 {
-	Fbuild --with-gtk --enable-rfc2553
+	Fbuild --enable-rfc2553
 	Ffile /etc/sysconfig/distccd
-	Frcd distccd
+	Frcd2 distccd
 	Fmv /usr/share/doc/$pkgname /usr/share/doc/$pkgname-$pkgver
 	Fmkdir /usr/lib/$pkgname/bin
-	for i in {$CHOST-,}{cc,c++,gcc,g++}
+	for i in $CHOST-{cc,c++,gcc,g++}
 	do
 		Fln /usr/bin/$pkgname /usr/lib/$pkgname/bin/$i
 	done
+	echo '#!/bin/bash' > $CHOST-wrapper
+	echo 'exec /usr/lib/distcc/bin/'$CHOST'-g${0:$[-2]} "$@"' >> $CHOST-wrapper
+	Fexerel /usr/lib/$pkgname/bin/$CHOST-wrapper
+	for i in cc c++ gcc g++
+	do
+		Fln $CHOST-wrapper /usr/lib/$pkgname/bin/$i
+	done
 	## brr fix up
-	Fmkdir usr/share/{pixmaps,applications}
-	Fmv /usr/bin/distccmon-gnome /usr/bin/distccmon-gtk
-	Fsed 'distccmon-gnome' 'distccmon-gtk' $Fdestdir/usr/share/distcc/*desktop
-	Fsed "Icon=.*" "Icon=distccmon-gtk.png" $Fdestdir/usr/share/distcc/*desktop
-	Fmv /usr/share/distcc/*desktop /usr/share/applications/distccmon-gtk.desktop
-	Fmv /usr/share/distcc/*.png usr/share/pixmaps/distccmon-gtk.png
-	Frm usr/share/distcc
-	Fsplit $pkgname-gui usr/share/{pixmaps,applications}
-	Fsplit $pkgname-gui usr/bin/distccmon-gtk
+	if Fuse $USE_GUI; then
+		Fmkdir usr/share/{pixmaps,applications}
+		Fmv /usr/bin/distccmon-gnome /usr/bin/distccmon-gtk
+		Fsed 'distccmon-gnome' 'distccmon-gtk' $Fdestdir/usr/share/distcc/*desktop
+		Fsed "Icon=.*" "Icon=distccmon-gtk.png" $Fdestdir/usr/share/distcc/*desktop
+		Fmv /usr/share/distcc/*desktop /usr/share/applications/distccmon-gtk.desktop
+		Fmv /usr/share/distcc/*.png usr/share/pixmaps/distccmon-gtk.png
+		Frm usr/share/distcc
+		Fsplit $pkgname-gui usr/share/{pixmaps,applications}
+		Fsplit $pkgname-gui usr/bin/distccmon-gtk
+	fi
 	
 }
 

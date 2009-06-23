@@ -1,48 +1,47 @@
-#!/bin/sh
-#
-#	/etc/rc.d/rc.preload
-#
-# Starts the preload daemon
-#
+#!/bin/bash
+
+# Copyright (c) 2009 Priyank Gosalia <priyankmg@gmail.com>
+# rc.preload for Frugalware
+# distributed under GPL License
+
 # chkconfig: 345 05 95
-# description: Not Yet Set
-# processname: preload
+# description: An adaptive readahead daemon
 
-# Source function library.
-. /etc/rc.d/rc.functions
+source /lib/initscripts/functions
 
-[ -x /usr/sbin/preload ] || exit 0
-
-if [ -f /etc/sysconfig/preload ]; then
-	. /etc/sysconfig/preload
-fi
+source /etc/sysconfig/preload
 
 MIN_MEMORY=${MIN_MEMORY:-256}
 # Check for > MIN_MEMORY MB
 free -m | awk '/Mem:/ {exit ($2 >= ('"$MIN_MEMORY"'))?0:1}' || exit 0
 
+daemon=$"preload daemon"
+actions=(start stop restart status)
+pid="pidof preload 2> /dev/null"
 
+rc_start()
+{
+	start_msg
+	if [ -z "$(eval $pid)" ]; then
+		/usr/sbin/preload $PRELOAD_OPTS
+		ok $?
+		touch /var/lock/subsys/preload
+	else
+		ok 999
+	fi
+}
 
-if [ "$1" = "stop" ]; then
-    stop "$stoppreload"
-    killall -SIGKILL preload
-    ok $?
-    rm -f /var/lock/subsys/preload
-    
-elif [ "$1" = "restart" ]; then
-    "$0" stop
-     sleep 1
-    "$0" start
+rc_stop()
+{
+	stop_msg
+	if [ -n "$(eval $pid)" ]; then
+		killall -SIGKILL preload
+		ok $?
+		rm -f /var/lock/subsys/preload
+	else
+		ok 999
+	fi
+}
 
-elif [ "$1" = "reload" ]; then
-    killall -HUP preload
+rc_exec $1
 
-else 
-   if [ ! -f /var/lock/subsys/preload ]; then
-     start "$startpreload"
-     /usr/sbin/preload $PRELOAD_OPTS
-     ok $?
-     touch /var/lock/subsys/preload
-  
-  fi
-fi

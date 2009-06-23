@@ -28,19 +28,28 @@ conflicts=(${conflicts[@]} 'octave-forge')
 
 ###
 # == OVERWRITTEN VARIABLES
-# * _F_cd_path 
+# * _F_cd_path
 # * up2date
 ###
 
+install="${Fincdir}/octave.install"
 _F_cd_path="${_F_sourceforge_name}-${pkgver}"
 up2date="lynx -dump http://octave.sourceforge.net/\$(echo ${pkgname} |sed 's/octave-//')/index.html |grep Version |sed 's/^.*\([0-9].[0-9].[0-9]\)/\1/'"
 
 ###
 # == PROVIDED FUNCTIONS
-# * build()
+# * Fbuild_octave()
 ###
 
-build() {
-	Fbuild
-	Frm /usr/share/octave/octave_packages
+Fbuild_octave() {
+	unset TERM
+	Fcd
+	Fpatchall
+	Fmake
+	Fmakeinstall DISTPKG="frugalware"
+}
+
+build()
+{
+	Fbuild_octave
 }

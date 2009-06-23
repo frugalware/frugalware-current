@@ -1,17 +1,15 @@
 # Compiling Time: 0.23 SBU
-# Maintainer: AlexExtreme <alex@alex-smith.me.uk>
-
-# Do NOT bump this package without explicit permission from the maintainer, and if you do get permission,
-# test it FULLY before pushing.
+# Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
+# Contributor: AlexExtreme <alex@alex-smith.me.uk>
 
 pkgname=tracker
-pkgver=0.6.4
-pkgrel=1
+pkgver=0.6.6
+pkgrel=2
 pkgdesc="Tracker is a first class object database, extensible tag/metadata database, search tool and indexer."
-depends=('gtk+2>=2.12.5' 'gmime' 'dbus-glib>=0.74' 'sqlite3' 'gamin' \
-	'poppler-glib>=0.6' 'libvorbis' 'libpng' 'libexif' 'libgsf' 'gstreamer' \
-	'gnome-desktop>=2.20.3' 'gnome-vfs>=2.20.0')
-makedepends=('intltool' 'perl-xml-parser')
+depends=('gtk+2>=2.14.4' 'dbus-glib>=0.76' 'sqlite3' 'gamin' \
+	'poppler-glib>=0.8.0' 'libvorbis' 'libpng' 'libexif' 'libgsf' 'gstreamer' \
+	'gnome-desktop>=2.24.2' 'gnome-vfs>=2.24.0' 'exempi')
+makedepends=('intltool' 'perl-xml-parser' 'deskbar-applet')
 groups=('gnome-extra')
 conflicts=('tracker-search-tool')
 provides=('tracker-search-tool')
@@ -22,25 +20,46 @@ _F_gnome_iconcache="y"
 Finclude gnome-scriptlet gnome
 url="http://www.gnome.org/~jamiemcc/tracker/"
 up2date="lynx -dump http://www.gnome.org/projects/tracker/download.html | Flasttar"
-source=($url/$pkgname-$pkgver.tar.gz trackerd.desktop trackerd_wrap)
-sha1sums=('bd299ea5eff2e15a61be57756090b2b4f67e8248' \
+gmimevers=2.2.23
+source=($url/$pkgname-$pkgver.tar.gz trackerd.desktop trackerd_wrap \
+	http://ftp.gnome.org/pub/gnome/sources/gmime/2.2/gmime-$gmimevers.tar.bz2 \
+	disable_DependGmime.diff Fix_IncludeGmime.diff)
+
+sha1sums=('2a904a29454ec7513ac5ecb91b8bddf0cf92617b' \
           'b6f38d8e9b40c8c78019d023caa688188fff3042' \
-          '830d6539fdbadf51a468cd6fa37ef5416ef2bc84')
+          '830d6539fdbadf51a468cd6fa37ef5416ef2bc84' \
+          'b7b59b47ae4ae4f03e9f3f1de62bc980c4baaf9e' \
+          '2c3e4b1655f3eb662bdcbed150f988db655fb642' \
+          'e2234ad88171200a16969c04a0d659de1b1a9d13')
 
 export CFLAGS="$CFLAGS -fno-strict-aliasing"
 unset MAKEFLAGS
 
-build() 
+#Don't forget to add gmime depend when bump package
+
+build()
 {
-	
-	Fbuild \
+	#for static build broken with new gmime
+	Fcd
+	mv ../gmime-$gmimevers/gmime/*.h src/trackerd/ || Fdie
+	mv ../gmime-$gmimevers/gmime/*.c src/trackerd/ || Fdie
+	mv ../gmime-$gmimevers/util/*.h src/trackerd/ || Fdie
+	mv ../gmime-$gmimevers/util/*.c src/trackerd/ || Fdie
+	Fpatchall || Fdie
+	libtoolize --force --copy || Fdie
+	aclocal || Fdie
+	autoconf || Fdie
+	automake || Fdie
+
+	Fmake \
 		--with-deskbar-applet-handler-dir=/usr/lib/deskbar-applet/handlers/ \
 		--disable-warnings --disable-debug
-	
+	Fmakeinstall
+
 	# Trackerd should run at login
 	Fmkdir /usr/share/gnome/autostart
 	cp $Fsrcdir/trackerd.desktop $Fdestdir/usr/share/gnome/autostart/ || Fdie
-	
+
 	# Wrapper to make it STFU
 	Fexerel $Fsrcdir/trackerd_wrap /usr/bin/trackerd_wrap
 	Fbuild_gnome_scriptlet

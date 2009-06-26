@@ -32,6 +32,12 @@
 # * source()
 # * up2date
 ###
+makedepends=(${makedepends[@]} 'doxygen')
 url="http://download.enlightenment.org/"
-source=($url/snapshots/LATEST/$pkgname-$pkgver.tar.bz2)
-up2date="lynx -dump $url/snapshots/\$(lynx -dump http://download.enlightenment.org/snapshots/ |sed -ne 's#.*shots/\(.*\)#\1#;$ p') |grep /$pkgname |Flasttar"
+if [ -z ${_F_e17_snap} ]; then
+	source=($url/releases/${pkgname}-${pkgver}.tar.bz2)
+	up2date="lynx -dump ${url}/releases |Flasttar"
+else
+	source=($url/snapshots/LATEST/$pkgname-$pkgver.tar.bz2)
+	up2date="lynx -dump $url/snapshots/\$(lynx -dump http://download.enlightenment.org/snapshots/ |sed -ne 's#.*shots/\(.*\)#\1#;$ p') |grep /$pkgname |Flasttar"
+fi

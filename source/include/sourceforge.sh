@@ -29,10 +29,6 @@
 # --------------------------------------------------
 #
 # == OPTIONS
-# * _F_sourceforge_realname (defaults to $_F_sourceforge_auto_realname): if you want to use
-# a custom package name (for example the upstream name contains uppercase letters)
-# and _F_sourceforge_auto_realname isn't working then use this to declare the real
-# name (used in up2date only)
 # * _F_sourceforge_name (defaults to $pkgname): same as _F_sourceforge_realname
 # but it can be used for both source() and up2date
 # * _F_sourceforge_mirror (defaults to mesh): the sourceforge mirror to use
@@ -91,32 +87,6 @@ if [ -n "$_F_sourceforge_sep" ] && [ "$_F_sourceforge_sep" = "None" ]; then
 	_F_sourceforge_sep=""
 fi
 
-_F_sourceforge_up2date()
-{
-	local gid="" auto_realname=""
-	gid=$(lynx -dump $_F_sourceforge_url|grep showfiles|sed 's/.*=\(.*\)/\1/;s/#downloads$//;q')
-	if [ -z "$_F_sourceforge_realname" ]; then
-		## Since the realname may differ on each new release of an package
-		## we try to set it automatically but only if _F_sourceforge_realname is
-		## is not used.
-		auto_realname=$(lynx -dump http://sourceforge.net/project/showfiles.php?group_id=$gid | \
-			grep -v '       + ' | \
-			grep -i -m1 "   \(\[[0-9]\{2,\}\]\)${_F_sourceforge_name} " | \
-			sed 's/^[ \t]*//;s/ \[.*//;s/.*]//;s/ _.*//g;s/ \(.*\).*//g')
-		_F_sourceforge_realname="$auto_realname"
-	fi
-	lynx -dump http://sourceforge.net/project/showfiles.php?group_id=$gid | \
-		grep -v '       + ' | \
-		grep -m1 "   \(\[[0-9]\{2,\}\]\)${_F_sourceforge_realname} " | \
-		sed "s/\(\[[0-9]\{2,\}\]\)Release.*//g
-			s/.*]//g;s/$_F_sourceforge_prefix\(.*\) \([a-zA-Z]\).*/\1/
-			s/${_F_sourceforge_realname}${_F_sourceforge_sep}//g
-			s/${_F_sourceforge_realname} //
-			s/-/_/g
-			s/ _.*//g
-			s/ \(.*\).*//g"
-}
-
 ###
 # == OVERWRITTEN VARIABLES
 # * url
@@ -127,7 +97,5 @@ _F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
 fi
-# this is needed because without the param tools assume we are using the
-# old-style up2dates
-up2date="_F_sourceforge_up2date fake_param"
+up2date="lynx -dump http://sourceforge.net/projects/$_F_sourceforge_dirname/files|grep -m1 '$_F_sourceforge_name\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name\(.*\)$_F_sourceforge_ext.*/\1/;s/-/_/g;s/_//1'"
 source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/"${_F_sourceforge_name}"${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext})

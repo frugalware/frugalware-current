@@ -4,8 +4,8 @@
 
 pkgname=mesa
 origname=Mesa
-pkgver=7.4.2
-pkgrel=7
+pkgver=7.4.4
+pkgrel=1
 pkgdesc="Mesa is a 3D graphics library"
 _F_sourceforge_dirname="mesa3d"
 _F_sourceforge_name="MesaLib"
@@ -15,19 +15,45 @@ url="http://mesa3d.sourceforge.net/"
 depends=('libx11>=1.2.1' 'libxext>=1.0.5-3' 'libxxf86vm>=1.0.2' 'libxi>=1.2.1' 'libxmu>=1.0.4-2' 'dri2proto>=2.0' \
 	'libice>=1.0.5' 'libdrm>=2.4.11' 'libxdamage>=1.1.1-3' 'libxfixes>=4.0.3-4' 'libxcb>=1.3' 'expat' 'libgcc')
 makedepends=('makedepend' 'glproto>=1.4.9' 'xf86vidmodeproto')
-rodepends=('libgl' 'libgl-headers') # should be =$pkgver but we cannot do that while fglrx and nvidia
+# should be mesa-*=$pkgver but apps should not depends on mesa anymore first, unless specific to mesa
+rodepends=('libgl' 'libgl-headers' 'libglu' 'libglw')
 archs=('i686' 'x86_64' 'ppc')
 groups=('x11' 'xorg-core' 'xorg-libs')
 source=($source \
 	http://$_F_sourceforge_mirror.dl.sourceforge.net/sourceforge/$_F_sourceforge_dirname/MesaDemos-$pkgver.tar.bz2 \
-        libGL.la libGLU.la)
+	libGL.la libGLU.la)
 
-subpkgs=('libgl' 'libgl-headers' 'mesademos')
-subdescs=('Mesa OpenGL files.' 'Mesa OpenGL headers files.' 'OpenGL demonstration and test programs.')
-subconflicts=('fglrx nvidia' 'nvidia' '')
-subdepends=('libxxf86vm>=1.0.2 libdrm>=2.4.11' '' "mesa=$pkgver libstdc++")
-subgroups=('x11' 'x11' 'x11')
-subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 ppc')
+subpkgs=('libgl' 'libgl-headers')
+subdescs=('Mesa OpenGL files.' 'Mesa OpenGL headers files.')
+subprovides=('mesa-libgl' 'mesa-libgl-headers')
+subconflicts=('fglrx nvidia' 'nvidia')
+subdepends=('libxxf86vm>=1.0.2 libdrm>=2.4.11' '')
+subgroups=('x11' 'x11')
+subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
+
+subpkgs=("${subpkgs[@]}" 'libglu')
+subdescs=("${subdescs[@]}" 'OpenGL Utility library.')
+subprovides=("${subprovides[@]}" 'mesa-libglu')
+subconflicts=("${subconflicts[@]}" '')
+subdepends=("${subdepends[@]}" 'libgl')
+subgroups=("${subgroups[@]}" 'x11')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+
+subpkgs=("${subpkgs[@]}" 'libglw')
+subdescs=("${subdescs[@]}" 'Xt/Motif OpenGL drawing area widget library.')
+subprovides=("${subprovides[@]}" 'mesa-libglw')
+subconflicts=("${subconflicts[@]}" '')
+subdepends=("${subdepends[@]}" 'libgl')
+subgroups=("${subgroups[@]}" 'x11')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+
+subpkgs=("${subpkgs[@]}" 'mesademos')
+subdescs=("${subdescs[@]}" 'OpenGL demonstration and test programs.')
+subprovides=("${subprovides[@]}" '')
+subconflicts=("${subconflicts[@]}" '')
+subdepends=("${subdepends[@]}" 'libgl')
+subgroups=("${subgroups[@]}" 'x11')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 
 # NOTE: If you bump version (major or minor) you need to review the symlinking at the end of this
 #       file !!!! On minor bump last number will be changed.
@@ -37,12 +63,12 @@ subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 ppc')
 build() {
 	Fcd $origname-$pkgver
 
-	Fconf   --prefix=/usr \
-                --with-dri-driverdir=/usr/lib/dri \
-                --with-dri-drivers=yes \
-                --enable-glx-tls \
-                --with-driver=dri \
-                --enable-xcb
+	Fconf	--prefix=/usr \
+		--with-dri-driverdir=/usr/lib/dri \
+		--with-dri-drivers=yes \
+		--enable-glx-tls \
+		--with-driver=dri \
+		--enable-xcb
 
 	make || Fdie
 
@@ -64,31 +90,34 @@ build() {
 	cp -r docs/{README.*,*.html,COPYING} \
 		$Fdestdir/usr/share/doc/$pkgname-$pkgver/ || Fdie
 
-	# Copy our .la files and chmod them with a+rx
-	cp -ar $Fsrcdir/lib{GL,GLU}.la $Fdestdir/usr/lib || Fdie
-	chmod a+rx $Fdestdir/usr/lib/lib{GL,GLU}.la || Fdie
+	# Install our .la files with r-xr-xr-x rights
+	Finstall 0555 lib{GL,GLU}.la /usr/lib/
 
-	Fln libGLU.so.1.3.070002 /usr/lib/libGLU.so.1.3
+	Fln libGLU.so.1.3.070404 /usr/lib/libGLU.so.1.3
 	Fln libGLw.so.1.0.0 /usr/lib/libGLw.so.1.0
 
 	# Remove glut.h because it conflicts with freeglut :P
 	Frm /usr/include/GL/glut.h
 
-	# Remove dri_interface.h because it conflicts with xf86driproto :P
-	#Frm /usr/include/GL/internal/dri_interface.h
+	Fsplit libgl usr/lib/libGL.*
+	Fsplit libgl usr/lib/dri/
+	Fsplit libgl usr/lib/pkgconfig/gl.pc
 
-	Fsplit libgl-headers usr/include/GL/{gl.h,glext.h,glx.h,glxext.h,gl_mangle.h,*mesa.h}
+	Fsplit libgl-headers usr/include/GL/{gl.h,glext.h,glx.h,glxext.h}
 
-	Fsplit libgl usr/lib/libGL.so*
-	Fsplit libgl usr/lib/libGL.la
-	# Should be moved to libgl but nvidia don't provide one
-#	Fsplit libgl usr/lib/pkgconfig/gl.pc
+	Fsplit libglu usr/lib/libGLU.*
+	Fsplit libglu usr/lib/pkgconfig/glu.pc
+	Fsplit libglu usr/include/GL/glu.h
+
+	Fsplit libglw usr/lib/libGLw.*
+	Fsplit libglw usr/lib/pkgconfig/glw.pc
+	Fsplit libglw usr/include/GL/GLw*
 
 	Fsplit mesademos usr/bin/{glxgears,glxinfo,glxdemo,glxheads}
 }
 
-sha1sums=('9282b528cff21f17d6b4335e745cecbdb82bfc5d' \
-          'cbba586829c76a5e7a54a906567b4b2174d6e1aa' \
+sha1sums=('2f8115457a03c60f61992d7956e7921cf7e7856b' \
+          '190b51dd1e456f12c70cd428ec47ca8de0ed72fe' \
           '650973d708466f5c4c21e70c1f1f6c118b27e614' \
           '12c57ac5e7e8a94d4d41b0f37b0fb3f470791c39')
 # optimization OK

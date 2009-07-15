@@ -5,7 +5,7 @@
 pkgname=mesa
 origname=Mesa
 pkgver=7.4.4
-pkgrel=1
+pkgrel=2
 pkgdesc="Mesa is a 3D graphics library"
 _F_sourceforge_dirname="mesa3d"
 _F_sourceforge_name="MesaLib"
@@ -23,35 +23,53 @@ source=($source \
 	http://$_F_sourceforge_mirror.dl.sourceforge.net/sourceforge/$_F_sourceforge_dirname/MesaDemos-$pkgver.tar.bz2 \
 	libGL.la libGLU.la)
 
-subpkgs=('libgl' 'libgl-headers')
-subdescs=('Mesa OpenGL files.' 'Mesa OpenGL headers files.')
-subprovides=('mesa-libgl' 'mesa-libgl-headers')
+subpkgs=('libgl' 'libgl-headers-mesa')
+subdescs=('Mesa DRI OpenGL files.' 'Mesa OpenGL headers files.')
+subprovides=('libgl-mesa-dri' 'libgl-headers')
+subreplaces=('' 'libgl-headers') # Remove libgl-headers after 1.1
 subconflicts=('fglrx nvidia' 'nvidia')
 subdepends=('libxxf86vm>=1.0.2 libdrm>=2.4.11' '')
+subrodepends=("libdri libgl-headers-mesa>=$pkgver-$pkgrel libglx" '')
 subgroups=('x11' 'x11')
 subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
 
+subpkgs=("${subpkgs[@]}" 'libgl-mesa-soft' 'libosmesa-x11')
+subdescs=("${subdescs[@]}" 'Mesa Software OpenGL files.' 'Mesa Offscreen OpenGL files.')
+subprovides=("${subprovides[@]}" 'libgl' 'libosmesa')
+subreplaces=("${subreplaces[@]}" 'libgl' '')
+subconflicts=("${subconflicts[@]}" 'libgl' '')
+subdepends=("${subdepends[@]}" '' '')
+subrodepends=("${subrodepends[@]}" "libgl-headers-mesa>=$pkgver-$pkgrel libdri" "libgl-mesa-soft>=$pkgver-$pkgrel")
+subgroups=("${subgroups[@]}" 'x11' 'x11')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc' 'i686 x86_64 ppc')
+
 subpkgs=("${subpkgs[@]}" 'libglu')
 subdescs=("${subdescs[@]}" 'OpenGL Utility library.')
-subprovides=("${subprovides[@]}" 'mesa-libglu')
+subprovides=("${subprovides[@]}" 'libglu-mesa')
+subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
-subdepends=("${subdepends[@]}" 'libgl')
+subdepends=("${subdepends[@]}" '')
+subrodepends=("${subrodepends[@]}" 'libgl')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 
 subpkgs=("${subpkgs[@]}" 'libglw')
 subdescs=("${subdescs[@]}" 'Xt/Motif OpenGL drawing area widget library.')
-subprovides=("${subprovides[@]}" 'mesa-libglw')
+subprovides=("${subprovides[@]}" 'libglw-mesa')
+subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
-subdepends=("${subdepends[@]}" 'libgl')
+subdepends=("${subdepends[@]}" '')
+subrodepends=("${subrodepends[@]}" 'libgl')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 
 subpkgs=("${subpkgs[@]}" 'mesademos')
 subdescs=("${subdescs[@]}" 'OpenGL demonstration and test programs.')
 subprovides=("${subprovides[@]}" '')
+subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
-subdepends=("${subdepends[@]}" 'libgl')
+subdepends=("${subdepends[@]}" '')
+subrodepends=("${subrodepends[@]}" 'libgl')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 
@@ -63,19 +81,37 @@ subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 build() {
 	Fcd $origname-$pkgver
 
-	Fconf	--prefix=/usr \
-		--with-dri-driverdir=/usr/lib/dri \
+	Fconfopts="--prefix=/usr --enable-xcb"
+
+	Fconf	--with-driver=xlib \
+		--with-osmesa-bits=32 \
+		--disable-glu \
+		--disable-glut \
+		--disable-glw \
+		--with-demos=no
+
+	make || Fdie
+
+	make  DESTDIR=$Fdestdir install || Fdie
+
+	Fsplit libgl-mesa-soft usr/lib/libGL.*
+	Fsplit libgl-mesa-soft usr/lib/pkgconfig/gl.pc
+
+	Fsplit libosmesa-x11 usr/lib/libOSMesa.*
+	Fsplit libosmesa-x11 usr/lib/pkgconfig/osmesa.pc
+	Fsplit libosmesa-x11 usr/include/GL/osmesa.h
+
+	make realclean || Fdie
+
+	Fconf	--with-dri-driverdir=/usr/lib/dri \
 		--with-dri-drivers=yes \
 		--enable-glx-tls \
-		--with-driver=dri \
-		--enable-xcb
+		--with-driver=dri
 
 	make || Fdie
 
 	Fmkdir /usr
 
-	# br0ken on SMP
-	unset MAKEFLAGS
 	make  DESTDIR=$Fdestdir install || Fdie
 	# required by xf86-video-nsc, for example
 	Fmkdir /usr/include/xorg
@@ -99,11 +135,14 @@ build() {
 	# Remove glut.h because it conflicts with freeglut :P
 	Frm /usr/include/GL/glut.h
 
+	# Remove to avoid a conflict with libosmesa
+	Frm libosmesa usr/include/GL/osmesa.h
+
 	Fsplit libgl usr/lib/libGL.*
 	Fsplit libgl usr/lib/dri/
 	Fsplit libgl usr/lib/pkgconfig/gl.pc
 
-	Fsplit libgl-headers usr/include/GL/{gl.h,glext.h,glx.h,glxext.h}
+	Fsplit libgl-headers-mesa usr/include/GL/{gl.h,glext.h,glx.h,glxext.h}
 
 	Fsplit libglu usr/lib/libGLU.*
 	Fsplit libglu usr/lib/pkgconfig/glu.pc

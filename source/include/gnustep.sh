@@ -50,7 +50,7 @@ Fprefix="/usr/lib/GNUstep"
 groups=('gnustep-extra')
 url="http://www.gnustep.org/"
 dlurl="http://ftpmain.gnustep.org/pub/gnustep/$_F_gnustep_category/"
-up2date="lynx -dump $url/resources/downloads.php | Flasttar"
+up2date="lynx -dump $url/resources/downloads.php | head -n1 | Flasttar"
 source=($dlurl/${_F_gnustep_name}-${pkgver}.tar.gz)
 
 ###

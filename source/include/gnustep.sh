@@ -43,10 +43,13 @@ _F_archive_name=$_F_gnustep_name
 # * url
 # * groups
 # * up2date
+# * makedepends
+# * groups
 # * source()
 ###
 
 Fprefix="/usr/lib/GNUstep"
+makedepends=('gnustep-make>=2.2.0' 'gcc-objc')
 groups=('gnustep-extra')
 url="http://www.gnustep.org/"
 dlurl="http://ftpmain.gnustep.org/pub/gnustep/$_F_gnustep_category/"

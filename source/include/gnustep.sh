@@ -38,6 +38,10 @@ fi
 
 _F_archive_name=$_F_gnustep_name
 
+_F_GNUSTEP_BASE="/usr/lib/GNUstep"
+_F_GNUSTEP_LOCAL="$_F_GNUSTEP_BASE/Local/Library"
+_F_GNUSTEP_SYSTEM="$_F_GNUSTEP_BASE/System/Library"
+
 ###
 # == OVERWRITTEN VARIABLES
 # * url
@@ -84,5 +88,3 @@ build()
 {
 	Fgnustep_build
 }
-
-

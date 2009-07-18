@@ -48,12 +48,14 @@ _F_GNUSTEP_SYSTEM="$_F_GNUSTEP_BASE/System/Library"
 # * groups
 # * up2date
 # * makedepends
+# * depends
 # * groups
 # * source()
 ###
 
 Fprefix="/usr/lib/GNUstep"
-makedepends=('gnustep-make>=2.2.0' 'gcc-objc')
+makedepends=('gcc-objc')
+depends=('gnustep-make>=2.2.0' 'libobjc>=4.4.0-6')
 groups=('gnustep-extra')
 url="http://www.gnustep.org/"
 dlurl="http://ftpmain.gnustep.org/pub/gnustep/$_F_gnustep_category/"
@@ -88,3 +90,4 @@ build()
 {
 	Fgnustep_build
 }
+

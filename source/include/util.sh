@@ -159,7 +159,7 @@ Fmkdir() {
 }
 
 ###
-# * Frm(): Deletes (rm -rf) a directory stucture under $Fdestdir. Parameter:
+# * Frm(): Deletes (rm -rf) a directory structure under $Fdestdir. Parameter:
 # name of the path to rm -rf (you can supply more than one).
 ###
 Frm() {
@@ -522,8 +522,8 @@ Fpatchall() {
 # add the --prefix=$Fprefix (defaults to /usr), --sysconfdir=$Fsysconfdir
 # (defaults to /etc) and the --localstatedir=$Flocalstatedir (defaults to /var)
 # switches. The two later will be added only if the configure script support
-# it. If you want to pre-set a switch (i.e. add a switch only on a ceratin arch
-# or so) apped the $Fconfopts variable. Parameter: switch(es) to pass to the
+# it. If you want to pre-set a switch (i.e. add a switch only on a certain arch
+# or so) append the $Fconfopts variable. Parameter: switch(es) to pass to the
 # configure script.
 ###
 Fconf() {
@@ -563,7 +563,7 @@ Fconf() {
 
 ###
 # * Fmake(): A wrapper to make and "python setup.py build" after calling
-# Fconf(). Paramter: switch(es) to pass to Fconf().
+# Fconf(). Parameter: switch(es) to pass to Fconf().
 ###
 Fmake() {
 	Fconf "$@"

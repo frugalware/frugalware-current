@@ -34,11 +34,22 @@
 up2date="$(_F_archive_name="thunderbird"; Flastarchive http://releases.mozilla.org/pub/mozilla.org/thunderbird/releases/latest/source '-source\.tar\.bz2')"
 url="http://www.mozilla.org/projects/l10n/mlp.html"
 source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linux-i686/xpi/$_F_thunderbird_lang.xpi)
-options=('scriptlet')
+options=('scriptlet' 'genscriptlet')
+install=${Fsrcdir%/src}/thunderbird-i18n.install
 rodepends=("thunderbird>=$pkgver")
 makedepends=('unzip')
 groups=('locale-extra')
 archs=('i686' 'x86_64')
+
+###
+# == PROVIDED FUNCTIONS
+# * Fbuild_thunderbird_i18n_scriptlet() generates a scriptlet for the given package from
+# the template according to the declared options
+###
+Fbuild_thunderbird_i18n_scriptlet()
+{
+	cp $Fincdir/thunderbird-i18n.install ${Fsrcdir%/src}
+}
 
 ###
 # == PROVIDED FUNCTIONS
@@ -50,4 +61,6 @@ build()
 	sed -i 's|chrome/||' chrome.manifest
 	Ffilerel chrome.manifest /usr/lib/thunderbird/chrome/$_F_thunderbird_lang.manifest
 	Ffilerel chrome/$_F_thunderbird_lang.jar /usr/lib/thunderbird/chrome/$_F_thunderbird_lang.jar
+
+	Fbuild_thunderbird_i18n_scriptlet
 }

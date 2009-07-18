@@ -35,7 +35,7 @@ up2date="$(_F_archive_name="thunderbird"; Flastarchive http://releases.mozilla.o
 url="http://www.mozilla.org/projects/l10n/mlp.html"
 source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linux-i686/xpi/$_F_thunderbird_lang.xpi)
 options=('scriptlet')
-depends=("thunderbird>=$pkgver")
+rodepends=("thunderbird>=$pkgver")
 makedepends=('unzip')
 groups=('locale-extra')
 archs=('i686' 'x86_64')

@@ -31,10 +31,10 @@
 # * groups()
 # * archs()
 ###
-up2date="$(_F_archive_name="thunderbird"; Flastarchive http://releases.mozilla.org/pub/mozilla.org/thunderbird/releases/latest/source '-source\.tar\.bz2')"
+up2date="eval \"_F_archive_name=thunderbird; Flastarchive http://releases.mozilla.org/pub/mozilla.org/thunderbird/releases/latest/source '-source\.tar\.bz2'\""
 url="http://www.mozilla.org/projects/l10n/mlp.html"
 source=(http://ftp.mozilla.org/pub/mozilla.org/thunderbird/releases/$pkgver/linux-i686/xpi/$_F_thunderbird_lang.xpi)
-options=('scriptlet' 'genscriptlet')
+options=('scriptlet' 'genscriptlet' 'noversrc')
 install=${Fsrcdir%/src}/thunderbird-i18n.install
 rodepends=("thunderbird>=$pkgver")
 makedepends=('unzip')

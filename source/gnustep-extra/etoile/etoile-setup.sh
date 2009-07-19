@@ -30,6 +30,8 @@ defaults write AZDock DockedApplications "$AZDOCK_APPS"
 
 # Set default font
 defaults write NSGlobalDomain NSFont 'DejaVuSans'
+defaults write NSGlobalDomain NSBoldFont 'DejaVuSans-Bold'
+defaults write NSGlobalDomain NSUserFixedPitchFont 'DejaVuSansMono'
 defaults write NSGlobalDomain NSFontSize 10
 
 # misc

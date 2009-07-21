@@ -38,19 +38,28 @@ fi
 
 _F_archive_name=$_F_gnustep_name
 
+_F_GNUSTEP_BASE="/usr/lib/GNUstep"
+_F_GNUSTEP_LOCAL="$_F_GNUSTEP_BASE/Local/Library"
+_F_GNUSTEP_SYSTEM="$_F_GNUSTEP_BASE/System/Library"
+
 ###
 # == OVERWRITTEN VARIABLES
 # * url
 # * groups
 # * up2date
+# * makedepends
+# * depends
+# * groups
 # * source()
 ###
 
 Fprefix="/usr/lib/GNUstep"
+makedepends=('gcc-objc')
+depends=('gnustep-make>=2.2.0' 'libobjc>=4.4.0-6')
 groups=('gnustep-extra')
 url="http://www.gnustep.org/"
 dlurl="http://ftpmain.gnustep.org/pub/gnustep/$_F_gnustep_category/"
-up2date="lynx -dump $url/resources/downloads.php | Flasttar"
+up2date="lynx -dump $url/resources/downloads.php | grep '${_F_gnustep_name}-\(.*\).tar.gz' | head -n1 | Flasttar"
 source=($dlurl/${_F_gnustep_name}-${pkgver}.tar.gz)
 
 ###
@@ -81,5 +90,4 @@ build()
 {
 	Fgnustep_build
 }
-
 

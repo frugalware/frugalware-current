@@ -89,7 +89,7 @@ Flocalstatedir="/var"
 Fmenudir="/usr/share/applications"
 Farchs=('i686' 'x86_64' 'ppc')
 Fbuildchost="`arch`-frugalware-linux"
-Fconfopts="--prefix=$Fprefix"
+Fconfopts=""
 ## Move to makepkg.conf for Kalgan+1
 export LDFLAGS="-Wl,--hash-style=both"
 unset LANG LC_ALL
@@ -561,6 +561,7 @@ Fconf() {
 	fi
 
 	if [ -x $_F_conf_configure ]; then
+		Fconfoptstryset "prefix" "$Fprefix"
 		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
 		Fconfoptstryset "localstatedir" "$Flocalstatedir"
 		Fconfoptstryset "build" "$Fbuildchost"

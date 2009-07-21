@@ -39,7 +39,7 @@ install=${Fsrcdir%/src}/thunderbird-i18n.install
 rodepends=("thunderbird>=$pkgver")
 makedepends=('unzip')
 groups=('locale-extra')
-archs=('i686' 'x86_64')
+archs=('i686' 'x86_64' 'ppc')
 
 ###
 # == PROVIDED FUNCTIONS

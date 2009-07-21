@@ -517,6 +517,30 @@ Fpatchall() {
 }
 
 ###
+# * Fconfoptstryset(): A utility function that try to append an option to
+# $Fconfopts if $_F_conf_configure supports it and is not already used in
+# $confopts. Parameters: 1) Name of the option 2) Value of the option.
+###
+Fconfoptstryset() {
+	if [ -z "$2" ]; then
+		return 0
+	fi
+
+	# check if $_F_conf_configure supports it
+	if ! grep -q -- "--$1=" $_F_conf_configure; then
+		return 1
+	fi
+
+	# check if it was not allready set in $Fconfopts
+	if echo "$Fconfopts" | grep -q -- "--$1=" - ; then
+		return 2
+	fi
+
+	Fconfopts="$Fconfopts --$1=$2"
+	return 0
+}
+
+###
 # * Fconf(): A wrapper to ./configure. It will try to run ./configure,
 # Makefile.PL, extconf.rb and configure.rb, respectively. It will automatically
 # add the --prefix=$Fprefix (defaults to /usr), --sysconfdir=$Fsysconfdir
@@ -537,12 +561,9 @@ Fconf() {
 	fi
 
 	if [ -x $_F_conf_configure ]; then
-		grep -q sysconfdir $_F_conf_configure && \
-			Fconfopts="$Fconfopts --sysconfdir=$Fsysconfdir"
-		grep -q localstatedir $_F_conf_configure && \
-			Fconfopts="$Fconfopts --localstatedir=$Flocalstatedir"
-		grep -q -- '--build=' $_F_conf_configure && \
-			Fconfopts="$Fconfopts --build=$Fbuildchost"
+		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
+		Fconfoptstryset "localstatedir" "$Flocalstatedir"
+		Fconfoptstryset "build" "$Fbuildchost"
 		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie
 	elif [ -f Makefile.PL ]; then
 		if [ -z "$_F_conf_perl_pipefrom" ]; then

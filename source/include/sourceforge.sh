@@ -97,5 +97,5 @@ _F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
 fi
-up2date="lynx -dump http://sourceforge.net/projects/$_F_sourceforge_dirname/files|grep -m1 '$_F_sourceforge_name$_F_sourceforge_sep\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name$_F_sourceforge_sep\(.*\)$_F_sourceforge_ext.*/\1/;s/-/_/g'"
+up2date="lynx -dump http://sourceforge.net/projects/$_F_sourceforge_dirname/files|grep -m1 '$_F_sourceforge_name$_F_sourceforge_sep\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name$_F_sourceforge_sep\(.*\)$_F_sourceforge_ext.*/\1/;s/$_F_sourceforge_prefix//;s/-/_/g'"
 source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/"${_F_sourceforge_name}"${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext})

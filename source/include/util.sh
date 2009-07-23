@@ -86,6 +86,7 @@ Fdestdir="$startdir/pkg"
 Fprefix="/usr"
 Fsysconfdir="/etc"
 Flocalstatedir="/var"
+Fmandir="/usr/share/man"
 Fmenudir="/usr/share/applications"
 Farchs=('i686' 'x86_64' 'ppc')
 Fbuildchost="`arch`-frugalware-linux"
@@ -564,6 +565,7 @@ Fconf() {
 		Fconfoptstryset "prefix" "$Fprefix"
 		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
 		Fconfoptstryset "localstatedir" "$Flocalstatedir"
+		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
 		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie
 	elif [ -f Makefile.PL ]; then

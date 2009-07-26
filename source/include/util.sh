@@ -766,7 +766,7 @@ Facu() {
 ###
 # * Fsort(): Similar to sort, but handles versions (i.e. 1.9 vs 1.10 vs 2.0)
 # correctly. Uses versort from pacman. Reads the version list from stdin.
-# Uses vercmp from pacman when versort is not found.
+# Uses vercmp from pacman-g2 when versort is not found.
 ###
 Fsort() {
 	if [ -x /usr/bin/versort ]; then

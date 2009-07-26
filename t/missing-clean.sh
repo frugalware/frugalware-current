@@ -42,7 +42,7 @@ do
 	cd `dirname $i` || continue
 	unset pkgname subpkgs pkgver pkgextraver pkgrel nobuild options archs
 	export startdir=`pwd`
-	. FrugalBuild || echo "errors while parsing the `pwd`/FrugalBuild"
+	. ./FrugalBuild || echo "errors while parsing the `pwd`/FrugalBuild"
 	if [ ! "$nobuild" -a ! "`check_option NOBUILD`" ]; then
 		for j in ${archs[@]}
 		do
@@ -51,7 +51,7 @@ do
 			unset pkgname subpkgs pkgver pkgrel pkgextraver source
 			for k in `set|grep ^_F_|sed 's/\(=.*\| ()\)//'`; do unset $k; done
 			export startdir=`pwd`
-			. FrugalBuild || echo "errors parsing `pwd`/FrugalBuild for $j"
+			. ./FrugalBuild || echo "errors parsing `pwd`/FrugalBuild for $j"
 			for k in $pkgname ${subpkgs[@]}
 			do
 				echo $k

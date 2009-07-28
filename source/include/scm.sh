@@ -85,7 +85,7 @@ elif [ "$_F_scm_type" == "cvs" ]; then
 	up2date="date +%Y%m%d"
 	makedepends=(${makedepends[@]} 'cvs')
 elif [ "$_F_scm_type" == "subversion" ]; then
-	up2date="echo -n svn; svn log $_F_scm_url --limit=1 |sed -n '/^r/s/r\([0-9]\+\) .*/\1/p'"
+	up2date="echo -n $pkgver|sed 's/[0-9]\+$//'; svn log $_F_scm_url --limit=1 |sed -n '/^r/s/r\([0-9]\+\) .*/\1/p'"
 	makedepends=(${makedepends[@]} 'subversion')
 elif [ "$_F_scm_type" == "git" ]; then
 	up2date="echo -n ${pkgver%%.g*}.g;git ls-remote $_F_scm_url|sed 's/^\(.\{7\}\).*/\1/;q'"

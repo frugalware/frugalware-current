@@ -1,11 +1,15 @@
 # Compiling time: 1.5 SBU
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
+USE_DEVEL=${USE_DEVEL:-"n"}
+
 pkgname=mplayer
 _F_archive_name=MPlayer
 pkgver=1.0rc2
+Fuse $USE_DEVEL && pkgver=1.0rc2.29455
 pkgextraver=
 pkgrel=12
+Fuse $USE_DEVEL && pkgrel=1
 pkgdesc="The Movie Player"
 url="http://www.mplayerhq.hu/"
 depends=('mesa' 'fontconfig' 'libstdc++' 'libdv' 'termcap' 'libjpeg' 'libmad' \
@@ -50,6 +54,14 @@ sha1sums=('e9b496f3527c552004ec6d01d6b43f196b43ce2d' \
           'dbb1eab7de79cbff3a15eeb8acbe34a853800afa' \
           'e4c28fa466118d07a3f7d8376b725eda2e196e21')
 
+if Fuse $USE_DEVEL; then
+	source=(${source[1]} ${source[2]} ${source[3]} ${source[4]} ${source[5]})
+	sha1sums=(${sha1sums[1]} ${sha1sums[2]} ${sha1sums[3]} ${sha1sums[4]} ${sha1sums[5]})
+	_F_scm_type="subversion"
+	_F_scm_url="svn://svn.mplayerhq.hu/mplayer/trunk"
+	Finclude scm
+fi
+
 # To add v4l support.
 # mknod -m 660 /dev/video0 c 81 0
 
@@ -62,13 +74,20 @@ subarchs=('i686 x86_64 ppc')
 
 build()
 {
+	if Fuse $USE_DEVEL; then
+		Funpack_scm
+	else
+		Fcd MPlayer-$pkgver$pkgextraver
+	fi
 	unset CFLAGS
-	Fcd MPlayer-$pkgver$pkgextraver
 	Fpatchall
+	if ! Fuse $USE_DEVEL; then
+		Fconfopts="$Fconfopts --disable-vidix-internal"
+	fi
 	Fmake --confdir=/etc/mplayer --enable-gui --language=all \
 		--enable-runtime-cpudetection --enable-liblzo \
 		--enable-largefiles --enable-mga --enable-xmga \
-		--enable-tdfxfb --disable-vidix-internal
+		--enable-tdfxfb
 	unset MAKEFLAGS
 	make DESTDIR=$Fdestdir install || Fdie
 	Fmkdir /usr/share/doc/$pkgname-$pkgver

@@ -31,11 +31,12 @@
 # * archs()
 ###
 
-up2date="3.5.1"
+up2date="3.5.2"
 source=(http://releases.mozilla.org/pub/mozilla.org/firefox/releases/${up2date}/linux-i686/xpi/$_F_firefox_lang.xpi)
 pkgname=firefox-`echo $_F_firefox_lang|tr [A-Z] [a-z]`
 url="http://www.mozilla.org/projects/l10n/mlp.html"
-rodepends=('firefox>=3.0')
+# Yeah, this is a bit hackish. ;)
+rodepends=("firefox>=$up2date")
 makedepends=('unzip')
 groups=('locale-extra')
 archs=('i686' 'x86_64')

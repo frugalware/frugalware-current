@@ -48,6 +48,7 @@ source=(http://pecl.php.net/get/$_F_pecl_name-$pkgver.tgz)
 Fbuildpecl()
 {
 	Fcd $_F_pecl_name-$pkgver
+	Fpatchall
 	phpize || Fdie
 	Fmake
 	cd modules

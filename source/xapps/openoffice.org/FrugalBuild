@@ -14,14 +14,14 @@ if ! Fuse $USE_DEVEL; then
 	pkgrel=2
 	snapshot=1850412
 else
-	upstream=3.1.0
-	branch=-3-1
+	upstream=3.1.1
+	branch=-3-1-1
 	tree=ooo310
 	dir=`echo $tree|tr [a-z] [A-Z]`
-	milestone=11
+	milestone=18
 	pkgver=$upstream${tree}_m$milestone
 	pkgrel=1
-	snapshot=bb48d86
+	snapshot=9-g19a0671
 fi
 pkgdesc="OpenOffice.org, a full office productivity suite."
 url="http://www.openoffice.org/"
@@ -52,19 +52,20 @@ else
 fi
 source=(http://ftp.frugalware.org/pub/other/sources/ooo-build/ooo-build$branch-$snapshot.tar.bz2 \
 http://download.go-oo.org/$dir/$tree-m$milestone-{ure,sdk,base,calc,writer,impress,artwork,filters,testing,bootstrap,libs-gui,libs-core,libs-extern,components,postprocess,libs-extern-sys,extensions,extras,help}.tar.bz2 \
-mono24-hack)
-signatures=($source.asc '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '')
+{xextproto71,mono24}-hack)
+signatures=($source.asc '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '')
 NOEXTRACT=1
 options=(${options[@]} 'scriptlet')
 
-subpkgs=("$pkgname-kde" "$pkgname-gnome" "$pkgname-sdk")
-subdescs=("$pkgname kde integration" "$pkgname gnome integration" "The OpenOffice.org Software Development Kit")
+subpkgs=("$pkgname-kde" "$pkgname-gnome" "$pkgname-sdk" "$pkgname-mono")
+subdescs=("$pkgname kde integration" "$pkgname gnome integration" "The OpenOffice.org Software Development Kit" "$pkgname mono integration")
 subdepends=("$pkgname=$pkgver kdelibs>=3.5.5" \
 	"$pkgname=$pkgver gnome-vfs libbonobo evolution-data-server-ldap" \
-	"$pkgname=$pkgver java-gcj-compat ecj")
-subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
-subgroups=('kde-extra' 'gnome-extra' 'devel-extra')
-subinstall=("" "$_F_gnome_scriptlet" "")
+	"$pkgname=$pkgver java-gcj-compat ecj" \
+	"$pkgname=$pkgver mono")
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
+subgroups=('kde-extra' 'gnome-extra' 'devel-extra' 'devel-extra')
+subinstall=("" "$_F_gnome_scriptlet" "" "")
 
 ooodicts="af cs da de es et fr gl hu it lt ne nl pl pt ru sk sl sr sv sw th vi zu"
 ooosubpkgs=('de' 'es' 'fr' 'hu')
@@ -143,12 +144,13 @@ build()
 {
 	Fmonoexport
 	Fextract ooo-build$branch-$snapshot.tar.bz2
-	if [ -n "$branch" ]; then
-		Fcd ooo-build-$(echo $branch|sed 's/^-//;s/-/./g')
+	if ! Fuse $USE_DEVEL; then
+		Fcd ooo-build-3.1
 	else
-		Fcd ooo-build
+		Fcd ooo-build$branch-$snapshot
 	fi
 	cp -fv $Fsrcdir/mono24-hack patches/hotfixes/mono24-hack.diff || Fdie
+	cp -fv $Fsrcdir/xextproto71-hack patches/hotfixes/xextproto71-hack.diff || Fdie
 
 	# Predownloaded tarballs
 	for i in $Fsrcdir/$tree-m$milestone-*
@@ -229,6 +231,7 @@ build()
 				Fsplit openoffice.org-i18n-$spkg $j
 			fi
 		done
+		rm build/lang_${upkg}_list.txt
 		if echo "$ooodicts"|grep -q $i && [ -e $Fdestdir/$dictpath/dict-$i.oxt ]; then
 			Fsplit openoffice.org-i18n-$spkg $dictpath/dict-$i.oxt
 		fi
@@ -236,14 +239,22 @@ build()
 
 	## Split KDE stuff
 	Fsplit $pkgname-kde $(grep -v '^%dir' build/kde_list.txt)
+	rm build/kde_list.txt
 
 	## Split GNOME stuff
 	Fsplit $pkgname-gnome $(grep -v '^%dir' build/gnome_list.txt)
+	rm build/gnome_list.txt
 	Fbuild_gnome_scriptlet
 
 	# Split SDK
 	Fsplit $pkgname-sdk $(grep -v '^%dir' build/sdk_list.txt)
+	rm build/sdk_list.txt
 	Fsplit $pkgname-sdk $(grep -v '^%dir' build/sdk_doc_list.txt)
+	rm build/sdk_doc_list.txt
+
+	# Split Mono
+	Fsplit $pkgname-mono $(grep -v '^%dir' build/mono_list.txt)
+	rm build/mono_list.txt
 
 	# Check for missing language packs.
 	misslangs="`find $Fdestdir -type f |grep registry/res/.*/org|sed 's|.*registry/res/\(.*\)/org.*|\1|'|grep -v en-US |sort -u`"
@@ -259,6 +270,15 @@ build()
 			Fmessage "Unsplitted dicts: $missdicts"
 			return 1
 		fi
+	fi
+
+	# Check for missing subpkgs.
+	# It's OK not to split these
+	rm build/{common,lang_en_US,nld}_list.txt
+	misspkgs="`find build -maxdepth 1 -name '*_list.txt'`"
+	if [ -n "$misspkgs" ]; then
+		Fmessage "Unsplitted subpkgs: $misspkgs"
+		return 1
 	fi
 	Fmonocleanup
 }

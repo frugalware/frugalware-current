@@ -167,7 +167,7 @@ fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc')
 options=('nodocs' 'genscriptlet')
-up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
+up2date="lynx -dump $url/kdist/finger_banner |grep stable|sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
 if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
 	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 \
 		config.i686 config.x86_64 config.ppc)

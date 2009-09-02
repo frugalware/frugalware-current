@@ -1,0 +1,140 @@
+From f440e333bb535854ed25e258fc502b1b6a8d5e44 Mon Sep 17 00:00:00 2001
+From: Peter Hutterer <peter.hutterer@who-t.net>
+Date: Mon, 22 Jun 2009 04:12:23 +0000
+Subject: Cope with ABI_XINPUT_VERSION 7 - requires button/axes labeling
+
+Signed-off-by: Peter Hutterer <peter.hutterer@who-t.net>
+---
+diff --git a/src/xf86Aiptek.c b/src/xf86Aiptek.c
+index a26ca60..8402c85 100644
+--- a/src/xf86Aiptek.c
++++ b/src/xf86Aiptek.c
+@@ -126,6 +126,12 @@
+ #include <string.h>
+ #include <math.h>
+ 
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++#include <X11/Xatom.h>
++#include <xserver-properties.h>
++#endif
++
++
+ static const char identification[] = "$Identification: 0 $";
+ static InputDriverPtr aiptekDrv;
+ static int debug_level = INI_DEBUG_LEVEL;
+@@ -1499,6 +1505,9 @@ xf86AiptekOpenDevice(DeviceIntPtr pDriver)
+      */
+     InitValuatorAxisStruct(pDriver,                 /* X resolution */
+                0,                                   /* axis_id */
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++               XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X),
++#endif
+                0,                                   /* min value */
+                device->xBottom - device->xTop,      /* max value */
+                LPI2CPM(375),                        /* resolution */
+@@ -1507,6 +1516,9 @@ xf86AiptekOpenDevice(DeviceIntPtr pDriver)
+ 
+     InitValuatorAxisStruct(pDriver,                 /* Y Resolution */
+                1,                                   /* axis_id */
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++               XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y),
++#endif
+                0,                                   /* min value */
+                device->yBottom - device->yTop,      /* max value */
+                LPI2CPM(375),                        /* resolution */
+@@ -1515,6 +1527,9 @@ xf86AiptekOpenDevice(DeviceIntPtr pDriver)
+ 
+     InitValuatorAxisStruct(pDriver,                 /* Pressure */
+                2,                                   /* axis_id */
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++               XIGetKnownProperty(AXIS_LABEL_PROP_ABS_PRESSURE),
++#endif
+                0,                                   /* min value */
+                511,                                 /* max value */
+                512,                                 /* resolution */
+@@ -1523,6 +1538,9 @@ xf86AiptekOpenDevice(DeviceIntPtr pDriver)
+ 
+     InitValuatorAxisStruct(pDriver,                 /* xTilt */
+                3,                                   /* axis id */
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++               XIGetKnownProperty(AXIS_LABEL_PROP_ABS_TILT_X),
++#endif
+                -128,                                /* min value */
+                127,                                 /* max value */
+                256,                                 /* resolution */
+@@ -1531,6 +1549,9 @@ xf86AiptekOpenDevice(DeviceIntPtr pDriver)
+ 
+     InitValuatorAxisStruct(pDriver,                 /* yTilt */
+                4,                                   /* axis_id */
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++               XIGetKnownProperty(AXIS_LABEL_PROP_ABS_TILT_Y),
++#endif
+                -128,                                /* min value */
+                127,                                 /* max value */
+                256,                                 /* resolution */
+@@ -1554,11 +1575,15 @@ static int
+ xf86AiptekProc(DeviceIntPtr pAiptek, int requestCode)
+ {
+     CARD8           map[512+1];
+-    int             numAxes;
+-    int             numButtons;
++    int             numAxes = 5; /* X, Y, Z, xTilt, yTilt */
++    int             numButtons = 5;
+     int             loop;
+     LocalDevicePtr  local  = (LocalDevicePtr)pAiptek->public.devicePrivate;
+     AiptekDevicePtr device = (AiptekDevicePtr)PRIVATE(pAiptek);
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++    Atom            btn_labels[numAxes];
++    Atom            axes_labels[numButtons];
++#endif
+ 
+     DBG(2, ErrorF("xf86AiptekProc() type=%s flags=%d request=%d\n",
+               (DEVICE_ID(device->flags) == STYLUS_ID) ? "stylus" :
+@@ -1570,15 +1595,27 @@ xf86AiptekProc(DeviceIntPtr pAiptek, int requestCode)
+         case DEVICE_INIT:
+         {
+             DBG(1, ErrorF("xf86AiptekProc request=INIT\n"));
+-            numAxes    = 5;            /* X, Y, Z, xTilt, yTilt */
+-            numButtons = 5;
+ 
+             for(loop=1; loop<=numButtons; ++loop)
+             {
+                 map[loop] = loop;
+             }
+ 
+-            if (InitButtonClassDeviceStruct(pAiptek,numButtons,map) == FALSE)
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++            btn_labels[0] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_LEFT);
++            btn_labels[1] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_MIDDLE);
++            btn_labels[2] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_RIGHT);
++            btn_labels[3] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_UP);
++            btn_labels[4] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_DOWN);
++
++            memset(axes_labels, 0, sizeof(axes_labels));
++#endif
++
++            if (InitButtonClassDeviceStruct(pAiptek,numButtons,
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++                        btn_labels,
++#endif
++                        map) == FALSE)
+             {
+                 ErrorF("Unable to init Button Class Device\n");
+                 return !Success;
+@@ -1609,8 +1646,13 @@ xf86AiptekProc(DeviceIntPtr pAiptek, int requestCode)
+                 return !Success;
+             }
+ 
++            /* we don't label the axes here, done later in
++             * xf86AiptedOpenDevice */
+             if (InitValuatorClassDeviceStruct(pAiptek,
+                    numAxes,
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++                   axes_labels,
++#endif
+ #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) < 3
+                    xf86GetMotionEvents,
+ #endif
+--
+cgit v0.8.2
+

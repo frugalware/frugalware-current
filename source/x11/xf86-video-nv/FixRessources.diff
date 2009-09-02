@@ -1,0 +1,195 @@
+From 445498d2cc977b8c4f22fca881c75637dc7b058a Mon Sep 17 00:00:00 2001
+From: Dave Airlie <airlied@redhat.com>
+Date: Tue, 28 Jul 2009 03:32:32 +0000
+Subject: nv: update for resources/RAC API removal
+
+---
+diff --git a/src/g80_driver.c b/src/g80_driver.c
+index 7e06358..17c85f0 100644
+--- a/src/g80_driver.c
++++ b/src/g80_driver.c
+@@ -29,8 +29,9 @@
+ #include <string.h>
+ 
+ #include <xf86_OSproc.h>
++#ifndef XSERVER_LIBPCIACCESS
+ #include <xf86Resources.h>
+-#include <xf86RandR12.h>
++#endif
+ #include <mipointer.h>
+ #include <mibstore.h>
+ #include <micmap.h>
+@@ -43,6 +44,7 @@
+ #include <X11/extensions/dpms.h>
+ #endif
+ 
++#include <xf86RandR12.h>
+ 
+ #include "nv_const.h"
+ #include "g80_type.h"
+@@ -229,8 +231,10 @@ G80PreInit(ScrnInfoPtr pScrn, int flags)
+     }
+ 
+     /* Disable VGA access */
++#ifndef XSERVER_LIBPCIACCESS
+     xf86SetOperatingState(resVgaIo, pEnt->index, ResUnusedOpr);
+     xf86SetOperatingState(resVgaMem, pEnt->index, ResDisableOpr);
++#endif
+ 
+     pScrn->monitor = pScrn->confScreen->monitor;
+ 
+@@ -314,11 +318,13 @@ G80PreInit(ScrnInfoPtr pScrn, int flags)
+     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "MMIO registers mapped at %p\n",
+                (void*)pNv->reg);
+ 
++#ifndef XSERVER_LIBPCIACCESS
+     if(xf86RegisterResources(pEnt->index, NULL, ResExclusive)) {
+         xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "xf86RegisterResources() found "
+                    "resource conflicts\n");
+         goto fail;
+     }
++#endif
+ 
+     pNv->architecture = pNv->reg[0] >> 20 & 0x1ff;
+     tmp = pNv->reg[0x0010020C/4];
+diff --git a/src/nv_driver.c b/src/nv_driver.c
+index 3a396e0..a7cf2dc 100644
+--- a/src/nv_driver.c
++++ b/src/nv_driver.c
+@@ -1264,8 +1264,10 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
+ #endif
+     }
+    
++#ifndef XSERVER_LIBPCIACCESS
+     xf86SetOperatingState(resVgaIo, pNv->pEnt->index, ResUnusedOpr);
+     xf86SetOperatingState(resVgaMem, pNv->pEnt->index, ResDisableOpr);
++#endif
+ 
+     /* Set pScrn->monitor */
+     pScrn->monitor = pScrn->confScreen->monitor;
+@@ -1642,6 +1644,7 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
+     xf86DrvMsg(pScrn->scrnIndex, from, "MMIO registers at 0x%lX\n",
+ 	       (unsigned long)pNv->IOAddress);
+      
++#ifndef XSERVER_LIBPCIACCESS
+     if (xf86RegisterResources(pNv->pEnt->index, NULL, ResExclusive)) {
+ 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+ 		"xf86RegisterResources() found resource conflicts\n");
+@@ -1649,6 +1652,7 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
+ 	NVFreeRec(pScrn);
+ 	return FALSE;
+     }
++#endif
+ 
+     switch (pNv->Chipset & 0x0ff0) {
+     case 0x0100:   /* GeForce 256 */
+diff --git a/src/nv_include.h b/src/nv_include.h
+index b579b37..4442621 100644
+--- a/src/nv_include.h
++++ b/src/nv_include.h
+@@ -8,7 +8,11 @@
+ /* All drivers should typically include these */
+ #include "xf86.h"
+ #include "xf86_OSproc.h"
++
++#ifndef XSERVER_LIBPCIACCESS
+ #include "xf86Resources.h"
++#include "xf86RAC.h"
++#endif
+ #include "compiler.h"
+ 
+ /* Drivers for PCI hardware need this */
+@@ -29,8 +33,6 @@
+ 
+ #include "vbe.h"
+ 
+-#include "xf86RAC.h"
+-
+ #include "nv_const.h"
+ 
+ #include "dixstruct.h"
+diff --git a/src/nv_video.c b/src/nv_video.c
+index e11e0d0..6b13e5f 100644
+--- a/src/nv_video.c
++++ b/src/nv_video.c
+@@ -4,7 +4,6 @@
+ 
+ #include "xf86.h"
+ #include "xf86_OSproc.h"
+-#include "xf86Resources.h"
+ #include "compiler.h"
+ #include "xf86PciInfo.h"
+ #include "xf86Pci.h"
+diff --git a/src/riva_driver.c b/src/riva_driver.c
+index 3540fe9..afe0972 100644
+--- a/src/riva_driver.c
++++ b/src/riva_driver.c
+@@ -396,8 +396,10 @@ RivaPreInit(ScrnInfoPtr pScrn, int flags)
+ #endif
+     }
+    
++#ifndef XSERVER_LIBPCIACCESS
+     xf86SetOperatingState(resVgaIo, pRiva->pEnt->index, ResUnusedOpr);
+     xf86SetOperatingState(resVgaMem, pRiva->pEnt->index, ResDisableOpr);
++#endif
+ 
+     /* Set pScrn->monitor */
+     pScrn->monitor = pScrn->confScreen->monitor;
+@@ -633,6 +635,7 @@ RivaPreInit(ScrnInfoPtr pScrn, int flags)
+     xf86DrvMsg(pScrn->scrnIndex, from, "MMIO registers at 0x%lX\n",
+ 	       (unsigned long)pRiva->IOAddress);
+      
++#ifndef XSERVER_LIBPCIACCESS
+     if (xf86RegisterResources(pRiva->pEnt->index, NULL, ResExclusive)) {
+ 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+ 		"xf86RegisterResources() found resource conflicts\n");
+@@ -640,7 +643,7 @@ RivaPreInit(ScrnInfoPtr pScrn, int flags)
+ 	RivaFreeRec(pScrn);
+ 	return FALSE;
+     }
+-
++#endif
+     Riva3Setup(pScrn);
+ 
+     /*
+diff --git a/src/riva_include.h b/src/riva_include.h
+index 6726fcc..a2064e1 100644
+--- a/src/riva_include.h
++++ b/src/riva_include.h
+@@ -6,7 +6,11 @@
+ /* All drivers should typically include these */
+ #include "xf86.h"
+ #include "xf86_OSproc.h"
++
++#ifndef XSERVER_LIBPCIACCESS
+ #include "xf86Resources.h"
++#include "xf86RAC.h"
++#endif
+ #include "compiler.h"
+ 
+ /* Drivers for PCI hardware need this */
+@@ -27,7 +31,6 @@
+ 
+ #include "vbe.h"
+ 
+-#include "xf86RAC.h"
+ 
+ #include "riva_const.h"
+ 
+diff --git a/src/riva_type.h b/src/riva_type.h
+index 5a1317f..456f813 100644
+--- a/src/riva_type.h
++++ b/src/riva_type.h
+@@ -56,8 +56,8 @@ typedef struct {
+ #else
+     pciVideoPtr         PciInfo;
+     PCITAG              PciTag;
+-#endif
+     xf86AccessRec       Access;
++#endif
+     int                 ChipRev;
+     Bool                Primary;
+     CARD32              IOAddress;
+--
+cgit v0.8.2
+

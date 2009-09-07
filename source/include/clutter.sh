@@ -2,7 +2,7 @@
 
 ###
 # = clutter.sh(3)
-# bouleetbil <vmiklos@frugalware.org>
+# bouleetbil <bouleetbil@frogdev.info>
 #
 # == NAME
 # clutter.sh - for Frugalware

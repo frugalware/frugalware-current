@@ -43,9 +43,6 @@ Finclude kernel-version
 # kernel version string)
 # * _F_kernel_stable: if set, the version of the stable patch to use (example:
 # "16", it will be set to _F_kernelver_stable if pkgrel is not specified)
-# * _F_kernel_rc: if set, the version of the rc patch to use (example: "6")
-# * _F_kernel_mm: if set, the version of the mm patch to use (example: "2")
-# * _F_kernel_git if set, the version of the git patch to use (example: "3")
 # * _F_kernel_dontfakeversion if set, don't replace the kernel version string
 # with a generated one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
 # * _F_kernel_uname: specify the kernel version manually (defaults to
@@ -77,18 +74,6 @@ if [ -z "$_F_kernel_stable" ]; then
 	_F_kernel_stable=0
 fi
 
-if [ -z "$_F_kernel_rc" ]; then
-	_F_kernel_rc=0
-fi
-
-if [ -z "$_F_kernel_mm" ]; then
-	_F_kernel_mm=0
-fi
-
-if [ -z "$_F_kernel_git" ]; then
-	_F_kernel_git=0
-fi
-
 if [ -z "$_F_kernel_dontfakeversion" ]; then
 	_F_kernel_dontfakeversion=0
 fi
@@ -96,17 +81,6 @@ if [ -z "$_F_kernel_uname" ]; then
 	_F_kernel_uname="$_F_kernel_name-fw$_F_kernel_rel"
 fi
 
-_F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
-if [ $_F_kernel_rc -gt 0 ]; then
-	_F_kernel_mmver=$_F_kernel_rcver-mm$_F_kernel_mm
-else
-	_F_kernel_mmver=$_F_kernel_ver-mm$_F_kernel_mm
-fi
-if [ $_F_kernel_rc -gt 0 ]; then
-	_F_kernel_gitver=$_F_kernel_rcver-git$_F_kernel_git
-else
-	_F_kernel_gitver=$_F_kernel_ver-git$_F_kernel_git
-fi
 if [ -z "$_F_kernel_path" ]; then
 	if [ "$CARCH" != "ppc" ]; then
 		_F_kernel_path=vmlinuz
@@ -181,24 +155,6 @@ done
 	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$_F_kernel_ver.$_F_kernel_stable.bz2) && \
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
 
-[ $_F_kernel_rc -gt 0 ] && \
-	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/testing/patch-$_F_kernel_rcver.bz2) && \
-	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
-
-if [ $_F_kernel_mm -gt 0 ]; then
-	if [ $_F_kernel_rc -gt 0 ]; then
-		source=(${source[@]} http://www.kernel.org/pub/linux/kernel/people/akpm/patches/2.6/$_F_kernel_rcver/$_F_kernel_mmver/$_F_kernel_mmver.bz2)
-	else
-		source=(${source[@]} http://www.kernel.org/pub/linux/kernel/people/akpm/patches/2.6/$_F_kernel_ver/$_F_kernel_mmver/$_F_kernel_mmver.bz2)
-	fi
-	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
-fi
-
-if [ $_F_kernel_git -gt 0 ]; then
-	source=(${source[@]} http://www.kernel.org/pub/linux/kernel/v2.6/snapshots/patch-$_F_kernel_gitver.bz2)
-	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
-fi
-
 ###
 # * subpkg()
 # * subdepends()
@@ -246,9 +202,6 @@ Fbuildkernel()
 	fi
 
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
-	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver
-	[ $_F_kernel_mm -gt 0 ] && Fpatch $_F_kernel_mmver
-	[ $_F_kernel_git -gt 0 ] && Fpatch patch-$_F_kernel_gitver
 	# not using Fpatchall here since not applying the patches from
 	# _F_kernel_patches() having the wrong extension would be stange :)
 	for i in ${_F_kernel_patches[@]}

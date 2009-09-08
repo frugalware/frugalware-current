@@ -96,14 +96,6 @@ if [ -z "$_F_kernel_uname" ]; then
 	_F_kernel_uname="$_F_kernel_name-fw$_F_kernel_rel"
 fi
 
-if [ -n "$_F_kernel_dontsedarch" ]; then
-	Fmessage "Option _F_kernel_dontsedarch was removed and does nothing at the moment, please update your FrugalBuild!."
-fi
-
-if [ -n "$_F_kernel_manualamd64" ]; then
-	Fmessage "Option _F_kernel_manualamd64 was removed and does nothing at the moment, please update your FrugalBuild!."
-fi
-
 _F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
 if [ $_F_kernel_rc -gt 0 ]; then
 	_F_kernel_mmver=$_F_kernel_rcver-mm$_F_kernel_mm

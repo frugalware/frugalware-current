@@ -38,7 +38,7 @@
 ###
 # General variables
 if [ -z "$_F_haskell_name" ]; then
-	_F_haskell_name=$pkgname
+	_F_haskell_name=${pkgname##haskell-}
 fi
 if [ -z "$_F_haskell_install" ]; then
 	_F_haskell_install="src/haskell.install"

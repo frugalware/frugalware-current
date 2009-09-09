@@ -53,6 +53,16 @@ Finclude kernel-version
 # * pkgver (if not set)
 # * pkgrel (if not set)
 ###
+
+USE_DEVEL=${USE_DEVEL:-"n"}
+
+if Fuse $USE_DEVEL; then
+	_F_kernelver_ver=2.6.31.rc9.13.g7c8460d
+	_F_kernelver_rel=1
+	_F_kernelver_stable=0
+	_F_kernel_dontfakeversion=1
+fi
+
 if [ -z "$pkgver" ]; then
 	pkgver=$_F_kernelver_ver
 fi
@@ -155,6 +165,15 @@ done
 	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$_F_kernel_ver.$_F_kernel_stable.bz2) && \
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
 
+if Fuse $USE_DEVEL; then
+	source=(config.i686 config.x86_64 config.ppc)
+	signatures=('' '' '')
+	_F_scm_type="git"
+	_F_scm_url="git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6"
+	_F_scm_tag="v${pkgver//./-}"
+	Finclude scm
+fi
+
 ###
 # * subpkg()
 # * subdepends()
@@ -189,6 +208,12 @@ fi
 ###
 Fbuildkernel()
 {
+	if Fuse $USE_DEVEL; then
+		[ -d linux-$_F_kernel_ver ] && mv linux-$_F_kernel_ver kernel
+		Funpack_scm
+		cd ..
+		mv kernel linux-$_F_kernel_ver
+	fi
 	Fcd linux-$_F_kernel_ver
 	make clean || Fdie
 	if [ -e "$Fsrcdir/config.$CARCH" ]; then
@@ -212,22 +237,25 @@ Fbuildkernel()
 	rm -f localversion-*
 	make silentoldconfig || Fdie
 
-	## FIXME: remove or do it right -- crazy --
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
 		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
 		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_uname" Makefile
+	else
+		make include/config/kernel.release
+		unset _F_kernel_ver
+		_F_kernel_uname=$(cat include/config/kernel.release)
 	fi
 
 	## let we do kernel$_F_kernel_name-source before make
 	Fmkdir /usr/src
-	cp -Ra $Fsrcdir/linux-$_F_kernel_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
-	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
+	cp -Ra $Fsrcdir/linux-* $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
+	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
 	Fsplit kernel$_F_kernel_name-source usr/src
 
 	## now the kernel$_F_kernel_name-docs
 	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_uname
-	cp -Ra $Fsrcdir/linux-$_F_kernel_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
+	cp -Ra $Fsrcdir/linux-*/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
 	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
         ## do we need to ln /usr/share/doc ?!
 	Fsplit kernel$_F_kernel_name-docs usr/src

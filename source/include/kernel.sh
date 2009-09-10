@@ -235,6 +235,7 @@ Fbuildkernel()
 	done
 	# remove unneded localversions
 	rm -f localversion-*
+	rm -f ../*.{gz,bz2,sign}
 	make silentoldconfig || Fdie
 
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then

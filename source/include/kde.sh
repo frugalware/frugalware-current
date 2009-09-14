@@ -26,7 +26,7 @@ Finclude cmake
 # --------------------------------------------------
 #
 # == OPTIONS
-# * _F_kde_ver (default: 4.3.0): The current KDE version.
+# * _F_kde_ver (default: 4.3.1): The current KDE version.
 # * _F_kde_name (defaults to $pkgname): if you want to use a custom package
 # name (for example the upstream name contains uppercase letters) then use this
 # to declare the real name
@@ -50,7 +50,7 @@ if [ -z "$_F_cmakekde_final" ]; then
 fi
 
 if [ -z "$_F_kde_ver" ]; then
-	_F_kde_ver=4.3.0
+	_F_kde_ver=4.3.1
 fi
 
 if [ -z "$_F_kde_name" ]; then
@@ -67,8 +67,8 @@ fi
 
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
-	_F_kde_mirror="http://kde-mirror.freenux.org"
-#	_F_kde_mirror="ftp://ftp.kde.org/pub/kde"
+	#_F_kde_mirror="http://kde-mirror.freenux.org"
+	_F_kde_mirror="ftp://ftp.kde.org/pub/kde"
 fi
 
 if [ -z "$_F_kde_dirname" ]; then

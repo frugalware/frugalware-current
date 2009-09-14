@@ -184,7 +184,8 @@ fi
 # * subdescs()
 ###
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
-subdepends=("make gcc kernel-headers kernel$_F_kernel_name-docs" "kernel$_F_kernel_name")
+subdepends=("make gcc kernel-headers" "")
+subrodepends=("kernel$_F_kernel_name-docs" "kernel$_F_kernel_name")
 subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
 subinstall=('src/kernel-source.install' '')
 suboptions=('nodocs' '')
@@ -235,6 +236,7 @@ Fbuildkernel()
 	done
 	# remove unneded localversions
 	rm -f localversion-*
+	rm -f ../*.{gz,bz2,sign}
 	make silentoldconfig || Fdie
 
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then

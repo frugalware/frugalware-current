@@ -4,7 +4,6 @@
 CHROOT=1
 . /usr/lib/frugalware/fwmakepkg
 
-sqlarchs=('i686' 'x86_64')
 cd ..
 CWD=`pwd`
 for i in `find source -name FrugalBuild`
@@ -16,7 +15,7 @@ do
 	. FrugalBuild || echo "errors parsing the FrugalBuild"
 	for j in ${archs[@]}
 	do
-		echo ${sqlarchs[@]} |grep -q $j || continue
+		echo ${Farchs[@]} |grep -q $j || continue
 		cd $CWD/frugalware-$j
 		if [ ! "`check_option NOBUILD`" ]; then
 			echo ../tools/fpm2db -f $pkgname-$pkgver-$pkgrel-$j.fpm

@@ -43,9 +43,6 @@ Finclude kernel-version
 # kernel version string)
 # * _F_kernel_stable: if set, the version of the stable patch to use (example:
 # "16", it will be set to _F_kernelver_stable if pkgrel is not specified)
-# * _F_kernel_rc: if set, the version of the rc patch to use (example: "6")
-# * _F_kernel_mm: if set, the version of the mm patch to use (example: "2")
-# * _F_kernel_git if set, the version of the git patch to use (example: "3")
 # * _F_kernel_dontfakeversion if set, don't replace the kernel version string
 # with a generated one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
 # * _F_kernel_uname: specify the kernel version manually (defaults to
@@ -56,6 +53,16 @@ Finclude kernel-version
 # * pkgver (if not set)
 # * pkgrel (if not set)
 ###
+
+USE_DEVEL=${USE_DEVEL:-"n"}
+
+if Fuse $USE_DEVEL; then
+	_F_kernelver_ver=2.6.31.rc9.13.g7c8460d
+	_F_kernelver_rel=1
+	_F_kernelver_stable=0
+	_F_kernel_dontfakeversion=1
+fi
+
 if [ -z "$pkgver" ]; then
 	pkgver=$_F_kernelver_ver
 fi
@@ -77,18 +84,6 @@ if [ -z "$_F_kernel_stable" ]; then
 	_F_kernel_stable=0
 fi
 
-if [ -z "$_F_kernel_rc" ]; then
-	_F_kernel_rc=0
-fi
-
-if [ -z "$_F_kernel_mm" ]; then
-	_F_kernel_mm=0
-fi
-
-if [ -z "$_F_kernel_git" ]; then
-	_F_kernel_git=0
-fi
-
 if [ -z "$_F_kernel_dontfakeversion" ]; then
 	_F_kernel_dontfakeversion=0
 fi
@@ -96,25 +91,6 @@ if [ -z "$_F_kernel_uname" ]; then
 	_F_kernel_uname="$_F_kernel_name-fw$_F_kernel_rel"
 fi
 
-if [ -n "$_F_kernel_dontsedarch" ]; then
-	Fmessage "Option _F_kernel_dontsedarch was removed and does nothing at the moment, please update your FrugalBuild!."
-fi
-
-if [ -n "$_F_kernel_manualamd64" ]; then
-	Fmessage "Option _F_kernel_manualamd64 was removed and does nothing at the moment, please update your FrugalBuild!."
-fi
-
-_F_kernel_rcver=${_F_kernel_ver%.*}.$((${_F_kernel_ver#*.*.}+1))-rc$_F_kernel_rc
-if [ $_F_kernel_rc -gt 0 ]; then
-	_F_kernel_mmver=$_F_kernel_rcver-mm$_F_kernel_mm
-else
-	_F_kernel_mmver=$_F_kernel_ver-mm$_F_kernel_mm
-fi
-if [ $_F_kernel_rc -gt 0 ]; then
-	_F_kernel_gitver=$_F_kernel_rcver-git$_F_kernel_git
-else
-	_F_kernel_gitver=$_F_kernel_ver-git$_F_kernel_git
-fi
 if [ -z "$_F_kernel_path" ]; then
 	if [ "$CARCH" != "ppc" ]; then
 		_F_kernel_path=vmlinuz
@@ -167,7 +143,7 @@ fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc')
 options=('nodocs' 'genscriptlet')
-up2date="lynx -dump $url/kdist/finger_banner |sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
+up2date="lynx -dump $url/kdist/finger_banner |grep stable|sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
 if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
 	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 \
 		config.i686 config.x86_64 config.ppc)
@@ -189,22 +165,13 @@ done
 	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$_F_kernel_ver.$_F_kernel_stable.bz2) && \
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
 
-[ $_F_kernel_rc -gt 0 ] && \
-	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/testing/patch-$_F_kernel_rcver.bz2) && \
-	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
-
-if [ $_F_kernel_mm -gt 0 ]; then
-	if [ $_F_kernel_rc -gt 0 ]; then
-		source=(${source[@]} http://www.kernel.org/pub/linux/kernel/people/akpm/patches/2.6/$_F_kernel_rcver/$_F_kernel_mmver/$_F_kernel_mmver.bz2)
-	else
-		source=(${source[@]} http://www.kernel.org/pub/linux/kernel/people/akpm/patches/2.6/$_F_kernel_ver/$_F_kernel_mmver/$_F_kernel_mmver.bz2)
-	fi
-	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
-fi
-
-if [ $_F_kernel_git -gt 0 ]; then
-	source=(${source[@]} http://www.kernel.org/pub/linux/kernel/v2.6/snapshots/patch-$_F_kernel_gitver.bz2)
-	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
+if Fuse $USE_DEVEL; then
+	source=(config.i686 config.x86_64 config.ppc)
+	signatures=('' '' '')
+	_F_scm_type="git"
+	_F_scm_url="git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6"
+	_F_scm_tag="v${pkgver//./-}"
+	Finclude scm
 fi
 
 ###
@@ -217,13 +184,15 @@ fi
 # * subdescs()
 ###
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
-subdepends=("make gcc kernel-headers kernel$_F_kernel_name-docs" "kernel$_F_kernel_name")
+subdepends=("make gcc kernel-headers" "")
+subrodepends=("kernel$_F_kernel_name-docs" "kernel$_F_kernel_name")
 subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
 subinstall=('src/kernel-source.install' '')
 suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
 	subpkgs=("${subpkgs[@]}" 'kernel-headers')
 	subdepends=("${subdepends[@]}" '')
+	subrodepends=("${subrodepends[@]}" '')
 	subgroups=('devel' 'apps' 'devel devel-core')
 	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')
 	subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
@@ -241,6 +210,12 @@ fi
 ###
 Fbuildkernel()
 {
+	if Fuse $USE_DEVEL; then
+		[ -d linux-$_F_kernel_ver ] && mv linux-$_F_kernel_ver kernel
+		Funpack_scm
+		cd ..
+		mv kernel linux-$_F_kernel_ver
+	fi
 	Fcd linux-$_F_kernel_ver
 	make clean || Fdie
 	if [ -e "$Fsrcdir/config.$CARCH" ]; then
@@ -254,9 +229,6 @@ Fbuildkernel()
 	fi
 
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
-	[ $_F_kernel_rc -gt 0 ] && Fpatch patch-$_F_kernel_rcver
-	[ $_F_kernel_mm -gt 0 ] && Fpatch $_F_kernel_mmver
-	[ $_F_kernel_git -gt 0 ] && Fpatch patch-$_F_kernel_gitver
 	# not using Fpatchall here since not applying the patches from
 	# _F_kernel_patches() having the wrong extension would be stange :)
 	for i in ${_F_kernel_patches[@]}
@@ -265,24 +237,28 @@ Fbuildkernel()
 	done
 	# remove unneded localversions
 	rm -f localversion-*
+	rm -f ../*.{gz,bz2,sign}
 	make silentoldconfig || Fdie
 
-	## FIXME: remove or do it right -- crazy --
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
 		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
 		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_uname" Makefile
+	else
+		make include/config/kernel.release
+		unset _F_kernel_ver
+		_F_kernel_uname=$(cat include/config/kernel.release)
 	fi
 
 	## let we do kernel$_F_kernel_name-source before make
 	Fmkdir /usr/src
-	cp -Ra $Fsrcdir/linux-$_F_kernel_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
-	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
+	cp -Ra $Fsrcdir/linux-* $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
+	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
 	Fsplit kernel$_F_kernel_name-source usr/src
 
 	## now the kernel$_F_kernel_name-docs
 	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_uname
-	cp -Ra $Fsrcdir/linux-$_F_kernel_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
+	cp -Ra $Fsrcdir/linux-*/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
 	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
         ## do we need to ln /usr/share/doc ?!
 	Fsplit kernel$_F_kernel_name-docs usr/src

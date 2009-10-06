@@ -50,7 +50,7 @@ if [ -z "$_F_cmakekde_final" ]; then
 fi
 
 if [ -z "$_F_kde_ver" ]; then
-	_F_kde_ver=4.3.1
+	_F_kde_ver=4.3.2
 fi
 
 if [ -z "$_F_kde_name" ]; then
@@ -82,6 +82,7 @@ fi
 # * up2date (if not set)
 # * source (if empty)
 # * _F_cd_path (if not set)
+# * makedepends (if not set)
 ###
 
 if [ -z "$pkgver" ]; then
@@ -93,7 +94,7 @@ if [ -z "$url" ]; then
 fi
 
 if [ -z "$up2date" ]; then
-	up2date="$pkgver"
+	up2date="lynx --dump http://www.kde.org | grep -m1 released | sed 's/\(.*\)KDE \(.*\) released/\2/'"
 fi
 
 if [ ${#source[@]} -eq 0 ]; then
@@ -102,6 +103,10 @@ fi
 
 if [ -z "$_F_cd_path" ]; then
         _F_cd_path=$_F_kde_name-$_F_kde_pkgver
+fi
+
+if [ -z "$makedepends" ]; then
+	makedepends=('automoc4')
 fi
 
 _F_cmake_confopts="$_F_cmake_confopts \

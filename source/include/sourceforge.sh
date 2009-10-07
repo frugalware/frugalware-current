@@ -98,6 +98,7 @@ if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
 fi
 _F_archive_name=$_F_sourceforge_name
+_F_archive_prefix=$_F_sourceforge_prefix
 Fpkgversep=$_F_sourceforge_sep
 up2date="Flastarchive http://sourceforge.net/projects/$_F_sourceforge_dirname/files $_F_sourceforge_ext"
 source=(http://${_F_sourceforge_mirror}.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/"${_F_sourceforge_name}"${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext})

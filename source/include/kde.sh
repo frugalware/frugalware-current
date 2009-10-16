@@ -191,6 +191,9 @@ CMakeKDE_build()
 {
 	CMakeKDE_make
 	make DESTDIR=$Fdestdir install || Fdie
+	if [ "$_F_kde_split_docs" == 1 ]; then
+	  Fsplit "$pkgname-docs" /usr/share/doc/HTML
+	fi
 }
 
 build()

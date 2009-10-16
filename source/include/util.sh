@@ -557,7 +557,7 @@ Fconf() {
 	Fmessage "Configuring..."
 	if [ -z "$_F_conf_configure" ]; then
 		_F_conf_configure="./configure"
-		if [ ! -x "$_F_conf_configure" ]; then
+		if [ ! -x "$_F_conf_configure" -a -n "$_F_conf_outsource" ]; then
 			_F_conf_configure="$Fsrcdir/$_F_cd_path/configure"
 		fi
 	fi

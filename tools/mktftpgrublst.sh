@@ -150,13 +150,13 @@ title Frugalware $ver ($rel) - ${kernel#*vmlinuz-}
 	$password
 	$bootcmd
 	root (nd)
-        kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=791
+        kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet
         initrd /initrd-$arch.img.gz
-title Frugalware $ver ($rel) - ${kernel#*vmlinuz-} (nofb)
+title Frugalware $ver ($rel) - ${kernel#*vmlinuz-} (vga fb)
 	$password
 	$bootcmd
 	root (nd)
-        kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=normal
+        kernel /`basename $kernel` initrd=initrd-$arch.img.gz load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=$size rw root=/dev/ram quiet vga=791
         initrd /initrd-$arch.img.gz" >menu.lst
 echo "done"
 

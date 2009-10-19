@@ -31,7 +31,7 @@
 # == OPTIONS
 # * _F_sourceforge_name (defaults to $pkgname): same as _F_sourceforge_realname
 # but it can be used for both source() and up2date
-# * _F_sourceforge_mirror (defaults to mesh): the sourceforge mirror to use
+# * _F_sourceforge_mirror (defaults to downloads): the sourceforge mirror to use
 # * _F_sourceforge_dirname (default to $pkgname): if the source
 # tarball uses a name different to the sourceforge project name, then use this
 # option to declare the project name
@@ -61,7 +61,7 @@ fi
 
 if [ -z "$_F_sourceforge_mirror" ]; then
 	# set our preferred mirror
-	_F_sourceforge_mirror="mesh"
+	_F_sourceforge_mirror="downloads"
 	#_F_sourceforge_mirror="dfn"
 fi
 
@@ -97,5 +97,8 @@ _F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
 fi
-up2date="lynx -dump http://sourceforge.net/projects/$_F_sourceforge_dirname/files|grep '$_F_sourceforge_name$_F_sourceforge_sep\(.*\)$_F_sourceforge_ext'|sed 's/.*$_F_sourceforge_name$_F_sourceforge_sep\(.*\)$_F_sourceforge_ext.*/\1/;s/$_F_sourceforge_prefix//;s/-/_/g' | Fsort | tail -n1 | Fsanitizeversion"
-source=(http://${_F_sourceforge_mirror}.dl.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/"${_F_sourceforge_name}"${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext})
+_F_archive_name=$_F_sourceforge_name
+_F_archive_prefix=$_F_sourceforge_prefix
+Fpkgversep=$_F_sourceforge_sep
+up2date="Flastarchive http://sourceforge.net/projects/$_F_sourceforge_dirname/files $_F_sourceforge_ext"
+source=(http://${_F_sourceforge_mirror}.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/"${_F_sourceforge_name}"${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext})

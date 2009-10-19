@@ -66,5 +66,6 @@ fi
 # * source()
 ###
 url="http://code.google.com/p/$_F_googlecode_dirname"
-up2date="lynx -dump http://code.google.com/p/$_F_googlecode_dirname/downloads/list|grep -m1 '$_F_googlecode_name\(.*\)$_F_googlecode_ext'|sed 's/.*$_F_googlecode_name\(.*\)$_F_googlecode_ext.*/\1/;s/-/_/g;s/_//1'"
+_F_archive_name="$_F_googlecode_name"
+up2date="Flastarchive http://code.google.com/p/$_F_googlecode_dirname/downloads/list $_F_googlecode_ext"
 source=(http://${_F_googlecode_dirname}.googlecode.com/files/${_F_googlecode_name}${_F_googlecode_sep}${pkgver//_/-}${_F_googlecode_ext})

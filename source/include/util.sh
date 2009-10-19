@@ -24,6 +24,7 @@
 #
 # == OPTIONS
 # * _F_archive_name (defaults to $pkgname)
+# * _F_archive_prefix (defaults to "")
 # * _F_archive_nolinksonly (defaults to no, so that only links are proceeded by
 # default)
 # * _F_archive_nosort (defaults to no, so sorting is enabled by default)
@@ -556,7 +557,7 @@ Fconf() {
 	Fmessage "Configuring..."
 	if [ -z "$_F_conf_configure" ]; then
 		_F_conf_configure="./configure"
-		if [ ! -x "$_F_conf_configure" ]; then
+		if [ ! -x "$_F_conf_configure" -a -n "$_F_conf_outsource" ]; then
 			_F_conf_configure="$Fsrcdir/$_F_cd_path/configure"
 		fi
 	fi
@@ -905,7 +906,7 @@ Fsanitizeversion() {
 	if [ $# -gt 0 ]; then
 		echo "$1" | Fsanitizeversion
 	else
-		sed "s/%2B/+/g;s/$pkgextraver$//;s/-/_/g"
+		sed "s/%2B/+/g;s/$pkgextraver$//;s/$_F_archive_prefix//;s/-/_/g"
 	fi
 }
 

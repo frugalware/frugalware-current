@@ -1,0 +1,105 @@
+# Global config:
+dn: cn=config
+objectClass: olcGlobal
+cn: config
+# Where the pid file is put. The init.d script
+# will not stop the server if you change this.
+olcPidFile: /var/openldap/run/slapd.pid
+# List of arguments that were passed to the server
+olcArgsFile: /var/openldap/run/slapd.args
+# Read slapd.conf(5) for possible values
+olcLogLevel: none
+# The tool-threads parameter sets the actual amount of cpu's that is used
+# for indexing.
+olcToolThreads: 1
+
+# Load dynamic backend modules
+dn: cn=module,cn=config
+objectClass: olcModuleList
+cn: module
+olcModulepath: /usr/lib/ldap
+olcModuleload: back_@backend@
+
+# Load schemas
+dn: cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: schema
+
+include: file:///etc/openldap/schema/core.ldif
+include: file:///etc/openldap/schema/cosine.ldif
+include: file:///etc/openldap/schema/nis.ldif
+include: file:///etc/openldap/schema/inetorgperson.ldif
+
+# Frontend settings
+dn: olcDatabase={-1}frontend,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcFrontendConfig
+olcDatabase: {-1}frontend
+# The maximum number of entries that is returned for a search operation
+olcSizeLimit: 500
+
+# Config db settings
+dn: olcDatabase=config,cn=config
+objectClass: olcDatabaseConfig
+olcDatabase: config
+olcRootDN: cn=admin,cn=config
+@olcRootPW@
+
+# Database settings
+dn: olcDatabase=@backend@,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olc@Backend@Config
+olcDatabase: @backend@
+# The base of your directory
+olcSuffix: @SUFFIX@
+# rootdn directive for specifying a superuser on the database. This is needed
+# for syncrepl.
+# olcRootDN: @ADMIN@
+# @olcRootPW@
+# Where the database file are physically stored
+olcDbDirectory: /var/openldap/openldap-data
+# The dbconfig settings are used to generate a DB_CONFIG file the first
+# time slapd starts.  They do NOT override existing an existing DB_CONFIG
+# file.  You should therefore change these settings in DB_CONFIG directly
+# or remove DB_CONFIG and restart slapd for changes to take effect.
+# For the Debian package we use 2MB as default but be sure to update this
+# value if you have plenty of RAM
+olcDbConfig: set_cachesize 0 2097152 0
+# Sven Hartge reported that he had to set this value incredibly high
+# to get slapd running at all. See http://bugs.debian.org/303057 for more
+# information.
+# Number of objects that can be locked at the same time.
+olcDbConfig: set_lk_max_objects 1500
+# Number of locks (both requested and granted)
+olcDbConfig: set_lk_max_locks 1500
+# Number of lockers
+olcDbConfig: set_lk_max_lockers 1500
+# Indexing options
+olcDbIndex: objectClass eq
+# Save the time that the entry gets modified
+olcLastMod: TRUE
+# Checkpoint the BerkeleyDB database periodically in case of system
+# failure and to speed slapd shutdown.
+olcDbCheckpoint: 512 30
+# The userPassword by default can be changed
+# by the entry owning it if they are authenticated.
+# Others should not be able to see it, except the
+# admin entry below
+# These access lines apply to database #1 only
+olcAccess: to attrs=userPassword,shadowLastChange by dn="@ADMIN@" write by anonymous auth by self write by * none
+# Ensure read access to the base for things like
+# supportedSASLMechanisms.  Without this you may
+# have problems with SASL not knowing what
+# mechanisms are available and the like.
+# Note that this is covered by the 'access to *'
+# ACL below too but if you change that as people
+# are wont to do you'll still need this if you
+# want SASL (and possible other things) to work 
+# happily.
+olcAccess: to dn.base="" by * read
+# The admin dn has full write access, everyone else
+# can read everything.
+olcAccess: to * by dn="@ADMIN@" write by * read
+# For Netscape Roaming support, each user gets a roaming
+# profile for which they have write access to
+#olcAccess: to dn=".*,ou=Roaming,o=morsnet" by dn="@ADMIN@" write by dnattr=owner write

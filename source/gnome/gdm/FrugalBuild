@@ -2,55 +2,73 @@
 # Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=gdm
-pkgver=2.20.5
-pkgrel=8
+pkgver=2.28.0
+pkgrel=3
 pkgdesc="GNOME Display Manager"
 url="http://www.gnome.org/"
-backup=(etc/gdm/custom.conf)
-depends=('zenity>=2.28.0' 'libgnomeui>=2.24.1-2' 'libxi' 'fontconfig' 'libxrandr>=1.2.2' 'librsvg>=2.26.0' \
-	 'libxinerama' 'libxcursor' 'libxevie' 'xorg-server>=1.6.1')
+backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin)
+depends=('zenity>=2.28.0' 'libgnomeui>=2.24.1-2' 'libxi' 'fontconfig' 'libxrandr>=1.2.2' \
+	 'librsvg>=2.26.0' 'gnome-keyring' 'consolekit>=0.3.0-3' 'libcanberra-gtk' \
+	 'libxinerama' 'libxcursor' 'libxevie' 'xorg-server>=1.6.1' 'gnome-applets' \
+	'pam')
 rodepends=('xsm' 'sessreg' 'gksu' 'xmessage')
 makedepends=('intltool' 'gnome-doc-utils')
 groups=('gnome' 'gnome-minimal')
 archs=('i686' 'x86_64' 'ppc')
 Finclude gnome
-source=(${source[@]} $pkgname-2.20.1-gdmconf.patch \
-	$pkgname-gksu_categories.patch \
-	fix_reboot_path.patch \
-	http://ftp.frugalware.org/pub/other/artwork/gdm-theme/GDM-Frugalware-1.1.tar.bz2)
-sha1sums=('04d92b6b9a8c005b4a687d477b813bb4a357abd6' \
-          'db576eb16baa10c95ce7143c5696594ee7b07744' \
-          '9665399f5ceaee25e5807f08c53456d5ac2a81fa' \
-          'b602b6805d1d4787e4404827abf3d6f346843317' \
-          '113b0b7f5caebbb72e184a3e36e54cdad7f1660a')
+source=(${source[@]}
+	libxklavier.diff \
+	polkit-gnome-authentication-agent-1.desktop)
+sha1sums=('e1975ccc92048de4b6e1e13a09b54a50d5fdb48a' \
+          '010cef9dccd94a68e8b41c2c7fa910af20e8b496' \
+          '93d1f9a7d068dd8e70c930abea9acf5b770a3485')
+
+conflicts=('fast-user-switch-applet')
+provides=('fast-user-switch-applet')
+replaces=('fast-user-switch-applet')
 
 build() {
-
-	export CFLAGS="$CFLAGS -fno-strict-aliasing"
-	Fcd
 	Fpatchall
 	Fautoreconf
-	intltoolize --force --copy || Fdie
-	find . -name Makefile.in -exec sed -i -e 's/-scrollkeeper-update.*//' {} \;
-	if [ -f omf.make ]; then
-		sed -i -e 's/-scrollkeeper-update.*//' omf.make
-	fi
-	Fmake --enable-authentication-scheme=shadow --disable-scrollkeeper --enable-ipv6 --with-x
+	Fmake --enable-authentication-scheme=pam \
+		--enable-profiling \
+		--enable-console-helper \
+		--disable-scrollkeeper \
+		--with-console-kit \
+		--with-pam-dir=/lib/security \
+		--with-pam-prefix=/etc
 	Fmakeinstall
-
-	Fmkdir /etc/X11
-	Fmv /usr/share/xsessions /etc/X11/sessions
-	Frm /etc/dm
 
 	chmod a+r $Fdestdir/var/gdm || Fdie
 	chown root:root $Fdestdir/var/gdm || Fdie
 
-	# Install our GDM theme.
-	mv $Fsrcdir/Frugalware $Fdestdir/usr/share/gdm/themes/Frugalware || Fdie
+	Fcp polkit-gnome-authentication-agent-1.desktop usr/share/gdm/autostart/LoginWindow/polkit-gnome-authentication-agent-1.desktop
+	
 
-	# Install the Login Window icon in the right place
-	Fmkdir /usr/share/applications
-	Fmv /usr/share/gdm/applications/gdmsetup.desktop /usr/share/applications/gdmsetup.desktop
+	#delete PAM default rules
+	Frm etc/pam.d/*
+
+cat > $Fdestdir/etc/pam.d/gdm << "EOF"
+#%PAM-1.0
+auth        required    pam_unix.so
+auth        requisite   pam_nologin.so
+account     required    pam_unix.so
+password    required    pam_unix.so
+session     required    pam_unix.so
+#Gnome Keyring's PAM Support
+#auth    optional        pam_gnome_keyring.so
+#session optional        pam_gnome_keyring.so  auto_start
+EOF
+
+cat > $Fdestdir/etc/pam.d/gdm-autologin << "EOF"
+#%PAM-1.0
+auth        required    pam_env.so
+auth        requisite   pam_nologin.so
+auth        required    pam_permit.so
+account     required    pam_unix.so
+password    required    pam_unix.so
+session     required    pam_unix.so
+EOF
 
 }
 

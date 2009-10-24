@@ -1,9 +1,27 @@
 post_install()
 {
+	/usr/sbin/useradd -M -u 42 -d /var/lib/gdm -s /sbin/nologin -r gdm > /dev/null 2>&1
+	/usr/sbin/usermod -d /var/lib/gdm -s /sbin/nologin gdm >/dev/null 2>&1
+	# ignore errors, as we can't disambiguate between gdm already existe
+
+	#can't use gnome-scriplet
+	echo -n "installing gconf schemas... "
+		for schema in "${schemas[@]}" ; do
+			GCONF_CONFIG_SOURCE=`/usr/bin/gconftool-2 --get-default-source` \
+				/usr/bin/gconftool-2 --makefile-install-rule  /etc/gconf/schemas/gdm-simple-greeter.schemas > /dev/null 2>&1
+		done
+		if [ -e /bin/pidof ]; then
+			kill -HUP `pidof /usr/libexec/gconfd-2` > /dev/null 2>&1
+		fi
+		echo "done."
+
+
 	chown -R nobody:gdm /var/gdm &> /dev/null
 	echo -n "updating scrollkeeper catalogue... "
 	rarian-sk-update -q > /dev/null 2>&1
 	echo "done."
+
+	
 	sed -i 's|usr/bin/gdm|usr/sbin/gdm|' /etc/sysconfig/desktop
 	sed -i 's|usr/sbin/gdm -nodaemon|usr/sbin/gdm --nodaemon|' /etc/sysconfig/desktop
 	sed 's|^#desktop="/usr/sbin/gdm --nodaemon"$|desktop="/usr/sbin/gdm --nodaemon"|' -i /etc/sysconfig/desktop

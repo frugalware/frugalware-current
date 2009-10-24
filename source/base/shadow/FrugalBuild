@@ -3,12 +3,16 @@
 
 pkgname=shadow
 pkgver=4.1.4.2
-pkgrel=2
+pkgrel=5
 pkgdesc="Shadow password file utilities"
 url="http://pkg-shadow.alioth.debian.org/"
 pkgurl="ftp://pkg-shadow.alioth.debian.org/pub/pkg-shadow"
-backup=(etc/{login.defs,group,passwd,shadow,adduser.conf} etc/limits)
-depends=('glibc>=2.8-3')
+backup=(etc/{login.defs,group,passwd,shadow,adduser.conf} etc/limits \
+	etc/pam.d/{chage,login,passwd,shadow,useradd,usermod,userdel} \
+        etc/pam.d/{chpasswd,newusers,groupadd,groupdel,groupmod} \
+        etc/pam.d/{chfn,chgpasswd,groupmems,chsh} \
+	etc/pam.d/{common-session,common-password,common-account,common-auth})
+depends=('glibc>=2.8-3' 'pam')
 rodepends=('frugalware>=0.8-2') # for /etc/issue
 groups=('base' 'chroot-core')
 archs=('i686' 'x86_64' 'ppc')
@@ -25,7 +29,7 @@ build()
 	# don't create a new group for each user by default
 	Fsed 'USERGROUPS_ENAB yes' 'USERGROUPS_ENAB no' etc/login.defs
 	Fbuild --enable-static=yes --enable-shared=no --disable-desrpc \
-		--mandir=/usr/man --without-selinux --without-libpam
+		--mandir=/usr/man --without-selinux
 	Frm /bin/{vigr,sg}
 	Frm /lib/lib{misc,shadow}.{a,la}
 	Ffilerel etc/login.defs /etc/login.defs
@@ -37,6 +41,103 @@ build()
 	Ffilerel etc/limits /etc/limits
 	Finstall 600 /etc/shadow
 	Ffile /etc/adduser.conf
+
+	# comment out login.defs options that pam hates
+	for FUNCTION in LASTLOG_ENAB MAIL_CHECK_ENAB \
+		        PORTTIME_CHECKS_ENAB CONSOLE \
+		        MOTD_FILE NOLOGINS_FILE PASS_MIN_LEN \
+		        SU_WHEEL_ONLY MD5_CRYPT_ENAB \
+		        CONSOLE_GROUPS ENVIRON_FILE \
+		        ULIMIT ENV_TZ ENV_HZ ENV_SUPATH \
+		        ENV_PATH QMAIL_DIR MAIL_DIR MAIL_FILE \
+		        CHFN_AUTH FAILLOG_ENAB QUOTAS_ENAB FTMP_FILE \
+		        OBSCURE_CHECKS_ENAB CRACKLIB_DICTPATH \
+		        PASS_CHANGE_TRIES PASS_ALWAYS_WARN ISSUE_FILE
+	do
+	    sed -i "s/^$FUNCTION/# &/" $Fdestdir/etc/login.defs
+	done
+
+# use frugalware configuration : no selinux for example
+
+	cat > $Fdestdir/etc/pam.d/login << "EOF"
+# Begin /etc/pam.d/login
+auth		include 	common-auth
+account 	include 	common-account
+password	include 	common-password
+session		include 	common-session
+# End /etc/pam.d/login
+EOF
+
+	cat > $Fdestdir/etc/pam.d/common-auth << "EOF"
+# Begin /etc/pam.d/common-auth
+auth	requisite	pam_nologin.so
+auth	required	pam_securetty.so
+auth	required	pam_env.so
+auth	sufficient	pam_unix.so likeauth nullok
+#auth	sufficient	pam_ldap.so use_first_pass
+auth	required	pam_deny.so
+# End /etc/pam.d/common-auth
+EOF
+
+	cat > $Fdestdir/etc/pam.d/common-account << "EOF"
+# Begin /etc/pam.d/common-account
+account     required       pam_access.so
+account     sufficient     pam_unix.so
+#account     sufficient     pam_ldap.so
+account     required       pam_deny.so
+# End /etc/pam.d/common-account
+EOF
+
+	cat > $Fdestdir/etc/pam.d/common-password << "EOF"
+# Begin /etc/pam.d/common-password
+password	sufficient	pam_unix.so use_authok nullok md5 shadow
+#password	sufficient	pam_ldap.so try_first_pass use_authok
+password	required	pam_deny.so
+# End /etc/pam.d/common-password
+EOF
+
+	cat > $Fdestdir/etc/pam.d/common-session << "EOF"
+# Begin /etc/pam.d/common-session
+session 	required	pam_limits.so
+session 	optional	pam_lastlog.so
+#session 	required	pam_mkhomedir.so skel=/etc/skel/ umask=0077
+session 	required	pam_unix.so
+#session 	optional	pam_ldap.so
+# End /etc/pam.d/common-session
+EOF
+
+	cat > $Fdestdir/etc/pam.d/passwd << "EOF"
+# Begin /etc/pam.d/passwd
+auth         include        common-auth
+account      include        common-account
+password     include        common-password
+session      include        common-session
+#password    optional       pam_gnome_keyring.so
+# End /etc/pam.d/passwd
+EOF
+
+	cat > $Fdestdir/etc/pam.d/su << "EOF"
+# Begin /etc/pam.d/su
+auth        sufficient      pam_rootok.so
+auth        required        pam_unix.so
+account     required        pam_unix.so
+session     optional        pam_mail.so     standard
+session     optional        pam_xauth.so
+session     required        pam_env.so
+session     required        pam_unix.so
+# End /etc/pam.d/su
+EOF
+
+	cat > $Fdestdir/etc/pam.d/chage << "EOF"
+# Begin /etc/pam.d/chage
+auth        sufficient      pam_rootok.so
+auth        required        pam_unix.so
+account     required        pam_unix.so
+session     required        pam_unix.so
+password    required        pam_permit.so
+# End /etc/pam.d/chage
+EOF
+
 }
 
 # optimization OK

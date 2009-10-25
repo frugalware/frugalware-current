@@ -57,7 +57,9 @@ Finclude kernel-version
 USE_DEVEL=${USE_DEVEL:-"n"}
 
 if Fuse $USE_DEVEL; then
-	_F_kernelver_ver=2.6.31.rc9.13.g7c8460d
+	# example for a tagged rc release: 2.6.32.rc5
+	# example for a random snapshot, based on git describe output: 2.6.32.rc5.81.g964fe08
+	_F_kernelver_ver=2.6.32.rc5
 	_F_kernelver_rel=1
 	_F_kernelver_stable=0
 	_F_kernel_dontfakeversion=1
@@ -170,7 +172,7 @@ if Fuse $USE_DEVEL; then
 	signatures=('' '' '')
 	_F_scm_type="git"
 	_F_scm_url="git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6"
-	_F_scm_tag="v${pkgver//./-}"
+	_F_scm_tag="v$(echo $pkgver|sed 's/\.rc/-rc/;s/\./-/g')"
 	Finclude scm
 fi
 

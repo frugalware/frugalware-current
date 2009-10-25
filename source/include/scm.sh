@@ -138,7 +138,7 @@ Funpack_scm()
 			cd $pkgname
 			git pull && git checkout -f
 		else
-			git clone $_F_scm_url $pkgname || Fdie
+			git clone $_F_scm_git_cloneopts $_F_scm_url $pkgname || Fdie
 			cd $pkgname
 		fi
 		if [ -n "$_F_scm_tag" ]; then

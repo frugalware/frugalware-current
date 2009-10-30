@@ -150,10 +150,6 @@ Fbuild_nvidia() {
 		Fmkdir usr/include/cuda
 		Ffilerel usr/include/cuda/* /usr/include/cuda/
 	fi
-	if [ -d usr/include/vdpau ]; then
-		Fmkdir usr/include/vdpau
-		Ffilerel usr/include/vdpau/* /usr/include/vdpau/
-	fi
 
 	# Install the xorg modules
 	Fmkdir usr/lib/xorg/modules/drivers
@@ -192,19 +188,10 @@ Fbuild_nvidia() {
 		Fln "libcuda.so.$_F_nvidia_linkver" "/usr/lib/libcuda.so"
 		Fln "libcuda.so.$_F_nvidia_linkver" "/usr/lib/libcuda.so.1"
 	fi
-	# libdvpau is now an external library
-#	if [ -e "usr/lib/libvdpau.so.$_F_nvidia_linkver" ]; then
-#		Fln "libvdpau.so.$_F_nvidia_linkver" "/usr/lib/libvdpau.so"
-#		Fln "libvdpau.so.$_F_nvidia_linkver" "/usr/lib/libvdpau.so.1"
-#	fi
 	if [ -e "usr/lib/libvdpau_nvidia.so.$_F_nvidia_linkver" ]; then
 		Fln "libvdpau_nvidia.so.$_F_nvidia_linkver" "/usr/lib/libvdpau_nvidia.so"
 		Fln "libvdpau_nvidia.so.$_F_nvidia_linkver" "/usr/lib/libvdpau_nvidia.so.1"
 	fi
-#	if [ -e "usr/lib/libvdpau_trace.so.$_F_nvidia_linkver" ]; then
-#		Fln "libvdpau_trace.so.$_F_nvidia_linkver" "/usr/lib/libvdpau_trace.so"
-#		Fln "libvdpau_trace.so.$_F_nvidia_linkver" "/usr/lib/libvdpau_trace.so.1"
-#	fi
 
 	# Weird TLS stuff
 	Fmkdir usr/lib/tls

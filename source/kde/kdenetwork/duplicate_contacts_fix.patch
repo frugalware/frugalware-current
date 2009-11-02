@@ -1,0 +1,81 @@
+--- kopete/libkopete/kopetecontactlist.cpp	2009/10/30 23:24:49	1042882
++++ kopete/libkopete/kopetecontactlist.cpp	2009/10/30 23:28:25	1042883
+@@ -54,6 +54,7 @@
+ {public:
+ 	/** Flag:  do not save the contact list until she is completely loaded */
+ 	bool loaded ;
++	bool terminated;
+ 
+ 	QList<MetaContact *> contacts;
+ 	QList<Group *> groups;
+@@ -86,6 +87,7 @@
+ 
+ 	//no contact list loaded yet, don't save them
+ 	d->loaded=false;
++	d->terminated = false;
+ 
+ 	// automatically save on changes to the list
+ 	d->saveTimer = new QTimer( this );
+@@ -381,6 +383,12 @@
+ 
+ void Kopete::ContactList::save()
+ {
++	if ( d->terminated )
++	{
++		kWarning(14010) << "Contact list terminated, abort saving";
++		return;
++	}
++
+ 	if( !d->loaded )
+ 	{
+ 		kDebug(14010) << "Contact list not loaded, abort saving";
+@@ -406,8 +414,21 @@
+ 	delete storage;
+ }
+ 
++void ContactList::shutdown()
++{
++	if ( !d->terminated )
++	{
++		save();
++		d->terminated = true;
++		d->saveTimer->stop();
++	}
++}
++
+ void ContactList::slotSaveLater()
+ {
++	if ( d->terminated )
++		return;
++
+ 	// if we already have a save scheduled, it will be cancelled. either way,
+ 	// start a timer to save the contact list a bit later.
+ 	d->saveTimer->start( 17100 /* 17,1 seconds */ );
+
+--- kopete/libkopete/kopetecontactlist.h	2009/10/30 23:24:49	1042882
++++ kopete/libkopete/kopetecontactlist.h	2009/10/30 23:28:25	1042883
+@@ -199,6 +199,12 @@
+ 
+ 	void save();
+ 
++	/**
++	 * @internal
++	 * Save and shutdown the contact list
++	 */
++	void shutdown();
++
+ signals:
+ 	/**
+ 	 * A meta contact was added to the contact list. Interested classes
+
+--- kopete/libkopete/kopetepluginmanager.cpp	2009/10/30 23:24:49	1042882
++++ kopete/libkopete/kopetepluginmanager.cpp	2009/10/30 23:28:25	1042883
+@@ -177,7 +177,7 @@
+ 	   from a OO point of view, theses lines should not be there, but i don't
+ 	   see better place -Olivier
+ 	*/
+-	Kopete::ContactList::self()->save();
++	Kopete::ContactList::self()->shutdown(); // Save and shutdown contact list
+ 	Kopete::AccountManager::self()->save();
+ 
+ 	// Remove any pending plugins to load, we're shutting down now :)

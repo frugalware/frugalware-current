@@ -20,7 +20,7 @@
 # _F_sourceforge_dirname=artwizaleczapka
 # _F_sourceforge_ext=.tar.bz2
 # _F_sourceforge_realname=iso-8859-1
-# _F_fonts_dir="/usr/lib/X11/fonts/TTF"
+# _F_fonts_subdir="TTF"
 # Finclude sourceforge fonts
 # groups=('xlib-extra')
 # archs=('i686' 'x86_64')
@@ -28,12 +28,14 @@
 # --------------------------------------------------
 #
 # == OPTIONS
-# * _F_fonts_dir (required): specifies the directory to install fonts to
+# * _F_fonts_subdir (required): specifies the directory to install fonts to
 ###
-if [ -z "$_F_fonts_dir" ]; then
-	error '$_F_fonts_dir is not defined.'
+if [ -z "$_F_fonts_subdir" ]; then
+	error '$_F_fonts_subdir is not defined.'
   Fdie
 fi
+
+_F_fonts_dir="/usr/lib/X11/fonts/$_F_fonts_subdir"
 
 ###
 # == OVERWRITTEN VARIABLES

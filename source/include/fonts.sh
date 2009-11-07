@@ -60,7 +60,7 @@ options=(${options[@]} 'genscriptlet')
 Fbuild_fonts() {
 
   # find and install all font extensions we support
-  for i in `find -iregex '.*\.\(ttf\|otf\|pcf\|pcf.gz\)'`; do
+  for i in `find -iregex '.*\.\(ttf\|otf\|pcf\|pcf.gz\|afm\|pfa\)'`; do
     Ffile "$i" "$_F_fonts_dir/`basename $i`"
   done
 

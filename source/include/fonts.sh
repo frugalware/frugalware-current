@@ -40,8 +40,10 @@ _F_fonts_dir="/usr/lib/X11/fonts/$_F_fonts_subdir"
 ###
 # == OVERWRITTEN VARIABLES
 # * install
+# * _F_cd_path
 ###
 install="src/fonts.install"
+_F_cd_path='.'
 
 ###
 # == APPENDED VARIABLES

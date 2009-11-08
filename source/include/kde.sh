@@ -50,7 +50,7 @@ if [ -z "$_F_cmakekde_final" ]; then
 fi
 
 if [ -z "$_F_kde_ver" ]; then
-	_F_kde_ver=4.3.2
+	_F_kde_ver=4.3.3
 fi
 
 if [ -z "$_F_kde_name" ]; then
@@ -106,7 +106,7 @@ if [ -z "$_F_cd_path" ]; then
 fi
 
 if [ -z "$makedepends" ]; then
-	makedepends=('automoc4')
+	makedepends=('automoc4' 'cmake')
 fi
 
 _F_cmake_confopts="$_F_cmake_confopts \

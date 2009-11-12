@@ -1,5 +1,7 @@
 #!/bin/sh
 
+Finclude cmake
+
 ###
 # = kde.sh(3)
 # Gabriel Craciunescu <crazy@frugalware.org>
@@ -13,159 +15,189 @@
 # == EXAMPLE
 # --------------------------------------------------
 # pkgname=kdegames
-# pkgver=3.5.6
+# pkgver=3.95.2
 # pkgrel=1
 # pkgdesc="Games for KDE."
 # groups=('kde')
 # archs=('i686' 'x86_64')
-# depends=('kdebase>=3.5.6' 'dbus>=0.93')
-# makedepends=('doxygen' 'qt-docs')
+# depends=('kdebase')
 # Finclude kde
 # sha1sums=('1848b81f890180b130000dd6004009d4acc98f48')
 # --------------------------------------------------
 #
 # == OPTIONS
+# * _F_kde_ver (default: 4.3.1): The current KDE version.
 # * _F_kde_name (defaults to $pkgname): if you want to use a custom package
 # name (for example the upstream name contains uppercase letters) then use this
 # to declare the real name
-# * _F_kde_build_debug (default: 0): enable debug support
-# * _F_kde_reconf (default: 0): run KDE's autoreconf
-# * _F_kde_split_docs (default: 0) split documentation
-# * _F_kde_defaults (default: 1): Don't overwrite url, up2date and source().
-# They are for 'kde core' and conflicts with other schemas, so that this way
-# you can disable them.
-# * _F_kde_do_not_compile: don't compile some subdir
-# * _F_kde_id: overwrite url and up2date for kde-apps.org
-# * _F_kde_id2: overwrite url and up2date for kde-look.org
+# * _F_kde_pkgver (defaults to $pkgver or to $_F_kde_ver if empty): the version of the package
+# used to construct the source.
+# * _F_kde_subpkgs (no defaults): Special array for splitting packages automatically.
+# * _F_cmakekde_final (default: TRUE): Enable finalisation of binaries (Optimize more)
 ###
+
+if [ -n "$_F_cmake_type" ] && [ "$_F_cmake_type" = "None" ]; then
+	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -DNDEBUG -DQT_NO_DEBUG"
+fi
+
+if [ -n "$_F_cmake_type" ] && [ "$_F_cmake_type" = "Debug" ]; then
+        _F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -ggdb3"
+	options=("${options[@]}" "nostrip")
+fi
+
+if [ -z "$_F_cmakekde_final" ]; then
+        _F_cmakekde_final="TRUE"
+fi
+
+if [ -z "$_F_kde_ver" ]; then
+	_F_kde_ver=4.3.3
+fi
 
 if [ -z "$_F_kde_name" ]; then
         _F_kde_name=$pkgname
 fi
-if [ -z "$_F_kde_build_debug" ]; then
-        _F_kde_build_debug=0
+
+if [ -z "$_F_kde_pkgver" ]; then
+	if [ -z "$pkgver" ]; then
+		_F_kde_pkgver="$_F_kde_ver"
+	else
+		_F_kde_pkgver="$pkgver"
+	fi
 fi
-if [ -z "$_F_kde_reconf" ]; then
-        _F_kde_reconf=0
+
+if [ -z "$_F_kde_mirror" ]; then
+	# set our preferred mirror
+	#_F_kde_mirror="http://kde-mirror.freenux.org"
+	_F_kde_mirror="ftp://ftp.kde.org/pub/kde"
 fi
-if [ -z "$_F_kde_split_docs" ]; then
-        _F_kde_split_docs=0
-fi
-if [ -z "$_F_kde_defaults" ]; then
-	_F_kde_defaults=1
+
+if [ -z "$_F_kde_dirname" ]; then
+	_F_kde_dirname="stable/$_F_kde_ver/src"
 fi
 
 ###
 # == OVERWRITTEN VARIABLES
-# * url
-# * _F_kde_ver
-# * up2date
-# * source
+# * pkgver (default to $_F_kde_ver if not set)
+# * url (if not set)
+# * up2date (if not set)
+# * source (if empty)
 # * _F_cd_path (if not set)
+# * makedepends (if not set)
 ###
-## TODO: add mirror option
-if [ "$_F_kde_defaults" -eq 1 ]; then
+
+if [ -z "$pkgver" ]; then
+	pkgver="$_F_kde_ver"
+fi
+
+if [ -z "$url" ]; then
 	url="http://www.kde.org"
-	_F_kde_ver=3.5.10
-	pkgurl="ftp://ftp.solnet.ch/mirror/KDE/stable/$_F_kde_ver/src"
-	#up2date="lynx -dump http://www.kde.org/download/|grep '$_F_kde_name'|sed -n '1 p'|sed 's/.*-\([^ ]*\) .*/\1/'"
-	up2date=$_F_kde_ver
-	source=($pkgurl/$_F_kde_name-$pkgver.tar.bz2)
 fi
+
+if [ -z "$up2date" ]; then
+	up2date="lynx --dump http://www.kde.org | grep -m1 released | sed 's/\(.*\)KDE \(.*\) released/\2/'"
+fi
+
+if [ ${#source[@]} -eq 0 ]; then
+	source=("$_F_kde_mirror/$_F_kde_dirname/$_F_kde_name-$_F_kde_pkgver.tar.bz2")
+fi
+
 if [ -z "$_F_cd_path" ]; then
-        _F_cd_path=$_F_kde_name-$pkgver
+        _F_cd_path=$_F_kde_name-$_F_kde_pkgver
 fi
 
-###
-# == APPENDED VARIABLES
-# * scriptlet to options()
-###
-# qt's post_install is essential for kde pkgs
-options=(${options[@]} 'scriptlet')
-## If someone want to work on this /etc move here is a way to do it. Just add ${kde_config} to Fconfopts
-## !!!BIG FAT WARNING!!!: THE WHOLE KDE AND _EVERY DAMN KDE_APP NEED BE REBUILD WITH THIS_.
-##			  KDE{APPS} NEED BE FORCED TO USE THIS BY DEFAULT
-## 			  !!! DO NOT EVER REMOVE THIS FROM DEFAULTS ONCE IS ADDED OR KDE BREAKS !!!
-
-#kde_config="kde_confdir=/etc/kde3/config \
-#            kde_kcfgdir=/etc/kde3/config.kcfg"
-
-###
-# * Fconfopts
-###
-Fconfopts="--disable-dependency-tracking \
-                --with-gnu-ld \
-                --enable-gcc-hidden-visibility \
-                --enable-new-ldflags \
-		--disable-final $Fconfopts"
-
-if [ "$_F_kde_build_debug" -eq 1 ]; then
-        Fconfopts="$Fconfopts --enable-debug --with-debug"
-else
-        Fconfopts="$Fconfopts --disable-debug --without-debug"
+if [ -z "$makedepends" ]; then
+	makedepends=('automoc4' 'cmake')
 fi
 
-## Things for kde apps
+_F_cmake_confopts="$_F_cmake_confopts \
+		-DCONFIG_INSTALL_DIR=/etc/kde/config \
+		-DKCFG_INSTALL_DIR=/etc/kde/config.kcfg \
+		-DICON_INSTALL_DIR=/usr/share/kde/icons \
+		-DKDE4_USE_ALWAYS_FULL_RPATH=ON \
+		-DKDE4_ENABLE_FINAL=$_F_cmakekde_final \
+		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
 
-if [ ! -z "$_F_kde_id" ]; then
-        url="http://www.kde-apps.org/content/show.php?content=$_F_kde_id"
-        up2date="lynx -dump $url|sed  -n '/\[.*\] Content/!d;n;p;n;p;n;p;n;p' | sed 's/^[ \t]*//;s/[ \t]*$//'|grep '^[0-9]'"
-fi
-
-if [ ! -z "$_F_kde_id2" ]; then
-        url="http://www.kde-look.org/content/show.php?content=$_F_kde_id2"
-        up2date="lynx -dump $url|sed  -n '/\[.*\] Content/!d;n;p;n;p;n;p;n;p' | sed 's/^[ \t]*//;s/[ \t]*$//'|grep '^[0-9]'"
-fi
-
-###
-# == PROVIDED FUNCTIONS
-# * Fbuild_kde_reconf(): run KDE's autoreconf
-###
-Fbuild_kde_reconf()
+kde_install()
 {
-        if [ "$_F_kde_reconf" -eq 1 ]; then
-                Fcd
-                Fpatchall
-                make -f admin/Makefile.common cvs || Fdie
-        fi
-}
+	## What is that ?
+	## - usually an 'normal' named 'project' looks like this:
+	## - 'foo' , 'doc/foo' and maybe 'doc/kcontrol/foo'
+	## These can be installed auto magically.
 
-###
-# * Fbuild_kde_split_docs(): splits KDE documentation if requested
-###
-Fbuild_kde_split_docs()
-{
-        if [ "$_F_kde_split_docs" -eq 1 ]; then
-                Fsplit $_F_kde_name-docs usr/share/doc
-        fi
-}
-
-
-###
-# * Fbuild_kde()
-###
-Fbuild_kde()
-{
-
-	if [  "$_F_kde_reconf" -eq 1 ]; then
-		Fbuild_kde_reconf
-		Fconf \
-		DO_NOT_COMPILE="$_F_kde_do_not_compile"
-		make || Fdie
-		Fmakeinstall
-	else
-		Fbuild \
-		DO_NOT_COMPILE="$_F_kde_do_not_compile"
+	# figure whatever it has docs
+	# TODO: add 'kcontrol' check ?!
+	if [ -d "doc" ]; then # does a doc folder exists ?
+		if [ -d "doc/$1" ]; then #  does the package has docs ?
+			Fmessage "Installing docs for $1."
+			## install docs
+			make -C "doc/$1" DESTDIR=$Fdestdir  install || Fdie
+		fi
 	fi
-	Fbuild_kde_split_docs
+	## install the package
+	make -C "$1" DESTDIR=$Fdestdir  install || Fdie
 }
 
+kde_split()
+{
+	kde_install "$1"
+	## figure whatever we have /etc
+	if [ -d "$startdir/pkg/etc" ]; then
+		Fsplit "$2" /usr /etc
+	else
+		Fsplit "$2" /usr
+	fi
+}
 
-###
-# * build(): just calls Fbuild_kde()
-###
+CMakeKDE_split()
+{
+	local i
+	local clean
+
+	## let's try that way
+	for i in ${_F_kde_subpkgs[@]}
+	do
+		## we use for weird or not logical names
+		## $pkgname-<the_weird_name>
+		clean=$(echo $i|sed 's/.*-//1') # foo-blah -> blah
+
+		## check whatever that project exists
+		if [ -d "$clean" ]; then
+			## split it
+			kde_split "$clean" "$i"
+		else
+			Fmessage "Aieee project $clean does NOT exists, don't know how to install and split :/ ( Typo? )"
+			Fdie
+		fi
+
+	done
+}
+
+CMakeKDE_export_flags()
+{
+	export CFLAGS="$CFLAGS -fno-strict-aliasing $_F_KDE_CXX_FLAGS"
+        export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing $_F_KDE_CXX_FLAGS"
+}
+
+CMakeKDE_make()
+{
+	CMakeKDE_export_flags
+	CMake_prepare_build
+	CMake_conf
+	## do _not_ use any F* stuff here , cmake does not like it
+	make || Fdie
+}
+
+CMakeKDE_build()
+{
+	CMakeKDE_make
+	make DESTDIR=$Fdestdir install || Fdie
+	if [ "$_F_kde_split_docs" == 1 ]; then
+	  Fsplit "$pkgname-docs" /usr/share/doc/HTML
+	fi
+}
+
 build()
 {
-        Fbuild_kde
+	CMakeKDE_build
 }
 

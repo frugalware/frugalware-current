@@ -67,5 +67,6 @@ fi
 ###
 url="http://code.google.com/p/$_F_googlecode_dirname"
 _F_archive_name="$_F_googlecode_name"
+Fpkgversep="$_F_googlecode_sep"
 up2date="Flastarchive http://code.google.com/p/$_F_googlecode_dirname/downloads/list $_F_googlecode_ext"
 source=(http://${_F_googlecode_dirname}.googlecode.com/files/${_F_googlecode_name}${_F_googlecode_sep}${pkgver//_/-}${_F_googlecode_ext})

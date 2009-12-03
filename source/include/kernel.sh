@@ -172,6 +172,7 @@ if Fuse $USE_DEVEL; then
 	signatures=('' '' '')
 	_F_scm_type="git"
 	_F_scm_url="git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6"
+	[ -d $HOME/git/linux-2.6 ] && _F_scm_git_cloneopts="--reference $HOME/git/linux-2.6"
 	if ! echo $pkgver |grep -q -- '\.g'; then
 		_F_scm_tag="v${pkgver//.rc/-rc}"
 	else

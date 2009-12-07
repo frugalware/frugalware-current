@@ -245,7 +245,7 @@ Fbuildkernel()
 	# remove unneded localversions
 	rm -f localversion-*
 	rm -f ../*.{gz,bz2,sign}
-	make silentoldconfig || Fdie
+	yes "" | make config
 
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
 		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile

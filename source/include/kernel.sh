@@ -269,12 +269,12 @@ Fbuildkernel()
 		[ -e $Fdestdir/usr/include/drm ] && Frm /usr/include/drm
 		Fsplit kernel-headers /usr
 	fi
-	## now time to eat some cookies and wait kernel got compiled :)
-	if [ -z "$_F_kernel_name" ]; then
+	if [ -z "$_F_kernel_name" -a $_F_kernel_dontfakeversion -eq 0 ]; then
 		# stock kernel, nobody interested in the buildsystem's details
 		Fsed '`whoami`' 'fst' scripts/mkcompile_h
 		Fsed '`hostname \| $UTS_TRUNCATE`' "`uname -m`.frugalware.org" scripts/mkcompile_h
 	fi
+	## now time to eat some cookies and wait kernel got compiled :)
 	if [ "$_F_kernel_verbose" ]; then
 		make V=1 || Fdie
 	else

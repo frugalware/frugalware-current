@@ -157,12 +157,6 @@ fi
 signatures=("${source[0]}.sign" '' '' '')
 install="src/kernel.install"
 
-for i in ${_F_kernel_patches[@]}
-do
-	source=(${source[@]} $i)
-	signatures=("${signatures[@]}" '')
-done
-
 [ "$_F_kernel_stable" -gt 0 ] && \
 	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$_F_kernel_ver.$_F_kernel_stable.bz2) && \
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
@@ -180,6 +174,12 @@ if Fuse $USE_DEVEL; then
 	fi
 	Finclude scm
 fi
+
+for i in ${_F_kernel_patches[@]}
+do
+	source=(${source[@]} $i)
+	signatures=("${signatures[@]}" '')
+done
 
 ###
 # * subpkg()

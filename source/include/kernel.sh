@@ -54,12 +54,7 @@ Finclude kernel-version
 # * pkgrel (if not set)
 ###
 
-USE_DEVEL=${USE_DEVEL:-"n"}
-
 if Fuse $USE_DEVEL; then
-	# example for a tagged rc release: 2.6.32.rc5
-	# example for a random snapshot, based on git describe output: 2.6.32.rc5.81.g964fe08
-	_F_kernelver_ver=2.6.32.rc5
 	_F_kernelver_rel=1
 	_F_kernelver_stable=0
 	_F_kernel_dontfakeversion=1
@@ -164,9 +159,7 @@ install="src/kernel.install"
 if Fuse $USE_DEVEL; then
 	source=(config.i686 config.x86_64 config.ppc)
 	signatures=('' '' '')
-	_F_scm_type="git"
-	_F_scm_url="git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6"
-	[ -d $HOME/git/linux-2.6 ] && _F_scm_git_cloneopts="--reference $HOME/git/linux-2.6"
+	[ -d $HOME/git/${_F_scm_url##*/} ] && _F_scm_git_cloneopts="--reference $HOME/git/${_F_scm_url##*/}"
 	if ! echo $pkgver |grep -q -- '\.g'; then
 		_F_scm_tag="v${pkgver//.rc/-rc}"
 	else

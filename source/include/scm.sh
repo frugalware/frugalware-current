@@ -143,6 +143,9 @@ Funpack_scm()
 			fi
 			git checkout -f
 		else
+			if [ -d $HOME/git/${_F_scm_url##*/} ]; then
+				_F_scm_git_cloneopts="$_F_scm_git_cloneopts --reference $HOME/git/${_F_scm_url##*/}"
+			fi
 			git clone $_F_scm_git_cloneopts $_F_scm_url $pkgname || Fdie
 			cd $pkgname
 		fi

@@ -159,7 +159,6 @@ install="src/kernel.install"
 if Fuse $USE_DEVEL; then
 	source=(config.i686 config.x86_64 config.ppc)
 	signatures=('' '' '')
-	[ -d $HOME/git/${_F_scm_url##*/} ] && _F_scm_git_cloneopts="--reference $HOME/git/${_F_scm_url##*/}"
 	_F_scm_tag="v$pkgver"
 	Finclude scm
 fi

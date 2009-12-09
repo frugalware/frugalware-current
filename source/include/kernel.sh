@@ -55,7 +55,6 @@ Finclude kernel-version
 ###
 
 if Fuse $USE_DEVEL; then
-	_F_kernelver_rel=1
 	_F_kernelver_stable=0
 	_F_kernel_dontfakeversion=1
 fi

@@ -160,11 +160,7 @@ if Fuse $USE_DEVEL; then
 	source=(config.i686 config.x86_64 config.ppc)
 	signatures=('' '' '')
 	[ -d $HOME/git/${_F_scm_url##*/} ] && _F_scm_git_cloneopts="--reference $HOME/git/${_F_scm_url##*/}"
-	if ! echo $pkgver |grep -q -- '\.g'; then
-		_F_scm_tag="v${pkgver//.rc/-rc}"
-	else
-		_F_scm_tag="v${pkgver//./-}"
-	fi
+	_F_scm_tag="v$pkgver"
 	Finclude scm
 fi
 

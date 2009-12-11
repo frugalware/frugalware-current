@@ -80,6 +80,7 @@
 # * Farchs
 # * Fconfopts
 # * LDFLAGS
+# * _F_gensciptlet_hooks
 ###
 Fpkgversep="-"
 Fsrcdir="$startdir/src"
@@ -92,6 +93,7 @@ Fmenudir="/usr/share/applications"
 Farchs=('i686' 'x86_64' 'ppc')
 Fbuildchost="`arch`-frugalware-linux"
 Fconfopts=""
+_F_gensciptlet_hooks=('Futil_genscriptlet_hook')
 ## Move to makepkg.conf for Kalgan+1
 export LDFLAGS="-Wl,--hash-style=both"
 unset LANG LC_ALL
@@ -487,6 +489,7 @@ Fpatch() {
 	else
 		i=$1
 	fi
+	sed 's/\r$//' "$Fsrcdir/$i" > "$Fsrcdir/$i"
 	if patch -Np0 --dry-run -i "$Fsrcdir/$i" >/dev/null && \
 		! patch -Np1 --dry-run -i "$Fsrcdir/$i" >/dev/null; then
 		level="0"
@@ -906,6 +909,7 @@ Fsanitizeversion() {
 	if [ $# -gt 0 ]; then
 		echo "$1" | Fsanitizeversion
 	else
+		# _F_archive_prefix place is questionable
 		sed "s/%2B/+/g;s/$pkgextraver$//;s/$_F_archive_prefix//;s/-/_/g"
 	fi
 }
@@ -1231,4 +1235,13 @@ Fextract() {
 			fi
 		fi
 	fi
+}
+
+###
+# * Futil_genscriptlet_hook(): the genscriplet hook for the util.sh variables.
+###
+Futil_genscriptlet_hook()
+{
+	Fsed '$pkgname' "$pkgname" $1
+	Fsed '$pkgver' "$pkgver" $1
 }

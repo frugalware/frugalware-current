@@ -487,6 +487,7 @@ Fpatch() {
 	else
 		i=$1
 	fi
+	sed 's/\r$//' "$Fsrcdir/$i" > "$Fsrcdir/$i"
 	if patch -Np0 --dry-run -i "$Fsrcdir/$i" >/dev/null && \
 		! patch -Np1 --dry-run -i "$Fsrcdir/$i" >/dev/null; then
 		level="0"

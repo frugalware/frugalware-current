@@ -1,0 +1,681 @@
+#!/bin/bash
+
+set -e
+
+# ===== Dumping and reloading using LDIF files ========================== {{{
+#
+# If incompatible changes are done to the database underlying a LDAP
+# directory we need to dump the contents and reload the data into a newly
+# created database after the new server was installed. The following
+# functions deal with this functionality.
+
+# ----- Configuration of this component --------------------------------  {{{
+#
+# Dumping the database can have negative effects on the system we are
+# running on. If there is a lot of data dumping it might fill a partition
+# for example. Therefore we must give the user exact control over what we
+# are doing.
+
+# Check if the user has enabled database dumping for the current situation.
+# Return success if yes.
+# Usage: if database_dumping_enabled; then ... fi
+database_dumping_enabled()
+{     # {{{
+	dialog --radiolist "Before upgrading to a new version of the OpenLDAP server, the data from your LDAP directories can be dumped into plain text files in the standard LDAP Data Interchange Format.\n\nDump databases to file on upgrade?" 0 0 0 "always" "" off "when needed" "" on "never" "" off 2>/tmp/answer
+	RET=$(cat /tmp/answer)
+	case "$RET" in
+		always)
+		;;
+		"when needed")
+			database_format_changed || return 1
+		;;
+		never)
+			return 1
+		;;
+		*)
+			echo >&2 "Unknown value for slapd/dump_database: $RET"
+			echo >&2 "Please report!"
+			exit 1
+		;;
+	esac
+}     # }}}
+
+# Check if the database format has changed since the old installed version
+# Return success if yes.
+# Usage: if database_format_changed; then
+database_format_changed()
+{     # {{{
+	if compare-versions "$OLD_VERSION" lt 2.4.14; then
+		return 0
+	else
+		return 1
+	fi
+}     # }}}
+
+# Figure out the directory we are dumping the database to and create it
+# if it does not exist.
+# Usage: destdir=`database_dumping_destdir`
+database_dumping_destdir()
+{     # {{{
+	local dir
+	dialog --inputbox "Please specify the directory where the LDAP databases will be exported. In this directory, several LDIF files will be created which correspond to the search bases located on the server. Make sure you have enough free space on the partition where the directory is located. The first occurrence of the string \"VERSION\" is replaced with the server version you are upgrading from.\n\nDirectory to use for dumped databases:" 0 0 "/var/openldap/backups/VERSION" 0 0 2>/tmp/answer
+	dir=`$(cat /tmp/answer) | sed -e "s/VERSION/$OLD_VERSION/"`
+	mkdir -p -m 700 "$dir"
+	echo $dir
+}     # }}}
+
+create_new_user()
+{     # {{{
+	if [ -z "`getent group openldap`" ]; then
+		groupadd -g 49 openldap
+	fi
+	if [ -z "`getent passwd openldap`" ]; then
+		echo -n "  Creating new user openldap... " >&2
+		useradd -M -u 49 -d /var/openldap/openldap-data -r -s /bin/false -g openldap openldap
+		echo "done." >&2
+	fi
+}     # }}}
+
+create_ldap_directories()
+{     # {{{
+	if [ ! -d /var/openldap/openldap-data ]; then
+		mkdir /var/openldap/openldap-data
+	fi
+	if [ ! -d /var/openldap/run ]; then
+		mkdir /var/openldap/run
+	fi
+	update_permissions /var/openldap/openldap-data
+	update_permissions /var/openldap/run
+	chmod 0755 /var/openldap/run
+}     # }}}
+
+update_permissions()
+{     # {{{
+	dir="$1"
+	[ -z "${SLAPD_USER}" ] || chown -R "${SLAPD_USER}" "${dir}"
+	[ -z "${SLAPD_GROUP}" ] || chgrp -R "${SLAPD_GROUP}" "${dir}"
+	chmod -R u=rwX,g=rX,o-rwx "${dir}"
+}     # }}}
+
+update_databases_permissions()
+{     # {{{
+	for suffix in `get_suffix`; do
+		dbdir=`get_directory $suffix`
+		update_permissions "$dbdir"
+	done
+}     # }}}
+
+# }}}
+
+# ----- Dumping and loading the data ------------------------------------ {{{
+
+# If the user wants us to dump the databases they are dumped to the
+# configured directory.
+dump_databases()
+{     # {{{
+	local db suffix file dir failed slapcat_opts
+
+	database_dumping_enabled || return 0
+
+	dir=`database_dumping_destdir`
+	echo >&2 "  Dumping to $dir: "
+	for suffix in `get_suffix`; do
+		file="$dir/$suffix.ldif"
+		echo -n "  - directory $suffix... " >&2
+		# Need to support slapd.d migration from preinst
+		if [ -f "${SLAPD_CONF}" ]; then
+			slapcat_opts="-f ${SLAPD_CONF}"
+		else
+			slapcat_opts="-F ${SLAPD_CONF}"
+		fi
+		slapcat ${slapcat_opts} -b "$suffix" > "$file" || failed=1
+		if [ "$failed" ]; then
+			rm -f "$file"
+			echo failed. >&2
+			exit 1
+		fi
+		echo "done." >&2
+	done
+}     # }}}
+
+load_databases()
+{     # {{{
+	local dir file db dbdir backupdir
+
+	dir=`database_dumping_destdir`
+	echo >&2 "  Loading from $dir: "
+	for suffix in `get_suffix`; do
+		dbdir=`get_directory $suffix`
+		if ! is_empty_dir "$dbdir"; then
+			echo >&2 \
+			  "  Directory $dbdir for $suffix not empty, aborting."
+			exit 1
+		fi
+
+		file="$dir/$suffix.ldif"
+		echo -n "  - directory $suffix... " >&2
+
+		# If there is an old DB_CONFIG file, restore it before
+		# running slapadd
+		backupdir=`compute_backup_path -n "$dbdir" "$suffix"`
+		if [ -e "$backupdir"/DB_CONFIG ]; then
+			cp -a "$backupdir"/DB_CONFIG "$dbdir"/
+		else
+			copy_example_DB_CONFIG "$dbdir"/
+		fi
+
+		capture_diagnostics slapadd -F "${SLAPD_CONF}" \
+			-q -b "$suffix" -l "$file" || failed=1
+		if [ "$failed" ]; then
+			rm -f "$dbdir"/*
+			echo failed. >&2
+			echo >&2
+			cat <<-EOF
+	Loading the database from the LDIF dump failed with the following
+	error while running slapadd:
+EOF
+			release_diagnostics "    "
+			exit 1
+		fi
+		echo "done." >&2
+
+		if [ -n "$SLAPD_USER" ] || [ -n "$SLAPD_GROUP" ]; then
+			echo -n "  - chowning database directory ($SLAPD_USER:$SLAPD_GROUP)... "
+			[ -z "$SLAPD_USER" ] || \
+				chown -R "$SLAPD_USER" "$dbdir"
+			[ -z "$SLAPD_GROUP" ] || \
+				chgrp -R "$SLAPD_GROUP" "$dbdir"
+			echo "done";
+		fi
+	done
+}     # }}}
+
+move_incompatible_databases_away()
+{     # {{{
+	echo >&2 "  Moving old database directories to /var/backups:"
+	for suffix in `get_suffix`; do
+		dbdir=`get_directory $suffix`
+		move_old_database_away "$dbdir" "$suffix"
+	done
+}     # }}}
+
+# The following functions need to support slapd.conf installations
+# as long as upgrading from slapd.conf environment is supported.
+# They're used to dump database in preinst which may have a slapd.conf file.
+# {{{
+
+get_suffix()
+{     # {{{
+	if [ -f "${SLAPD_CONF}" ]; then
+		for f in `get_all_slapd_conf_files`; do
+			grep '^suffix ' ${f} | sed 's/^suffix[[:space:]]\+\(.\+\)/\1/' | sed 's/"//g'
+		done
+	else
+		grep -h olcSuffix ${SLAPD_CONF}/cn\=config/olcDatabase* | cut -d: -f 2
+	fi
+}     # }}}
+
+get_directory()
+{     # {{{
+	# Returns the db directory for a given suffix
+	if [ -d "${SLAPD_CONF}" ] && echo `get_suffix` | grep -q "$1" ; then
+		grep "olcDbDirectory:" `grep -l "olcSuffix: $1" ${SLAPD_CONF}/cn\=config/olcDatabase*` | cut -d: -f 2 | sed 's/^  *//g'
+	elif [ -f "${SLAPD_CONF}" ]; then
+		# Extract the directory for the given suffix ($1)
+		for f in `get_all_slapd_conf_files`; do
+		awk  ' BEGIN { DB=0; SUF=""; DIR="" } ;
+		       /^database/ { DB=1; SUF=""; DIR="" } ; 
+		       DB==1 && /^suffix[ \t]+"?'$1'"?$/ { SUF=$2 ; } ; 
+		       DB==1 && /^directory/ { DIR=$2 ;} ; 
+		       DB==1 && SUF!="" && DIR!="" { sub(/^"/,"",DIR) ; sub(/"$/,"",DIR) ; print DIR; SUF=""; DIR="" }' "${f}"
+		done
+	else
+		return 1
+	fi
+}     # }}}
+
+# Returns the list of all the config files: slapd.conf and included files.
+get_all_slapd_conf_files()
+{     # {{{
+	echo ${SLAPD_CONF}
+	awk '
+BEGIN { I=0 }
+/^include/ {
+	sub(/include/," ");
+	I=1;
+}
+I==1 && /^[ \t]+/ {
+	split($0,F) ;
+	for (f in F)
+		if (!match(F[f],/schema/)) {
+			print F[f]
+		};
+	next;
+}
+I==1 { I=0 }
+' ${SLAPD_CONF}
+} # }}}
+
+# }}}
+
+# Compute the path to backup a database directory
+# Usage: compute_backup_path [-n] <dir> <basedn>
+compute_backup_path()
+{      # {{{
+	local dirname basedn ok_exists
+	if [ "$1" = "-n" ]; then
+		ok_exists=yes
+		shift
+	fi
+	dirname="$1"
+	basedn="$2"
+
+	# Computing the name of the backup directory from the old version,
+	# the suffix etc. all makes me feel worried. I'd rather have a
+	# directory name which is not going to exist. So the simple
+	# scheme we are using now is to compute the filename from the
+	# directory name and appending date and time. And we check if it
+	# exists to be really sure...  -- Torsten
+
+	local target
+	local id
+	id="$OLD_VERSION"
+	[ -n "$id" ] || id=`date +%Y%m%d-%H%M%S`
+	target="/var/backups/$basedn-$id.ldapdb"
+	# Configuration via dpkg-reconfigure. 
+	# The backup directory already exists when reconfigured 
+	# twice or more: append a timestamp.
+	if [ -e "${target}" ] && ([ "$MODE" = reconfigure ] || [ "$DEBCONF_RECONFIGURE" ]); then
+			 target="$target-`date +%Y%m%d-%H%M%S`"
+	fi
+	if [ -e "$target" ] && [ -z "$ok_exists" ]; then
+		echo >&2
+		echo >&2 "  Backup path $target exists. Giving up..."
+		exit 1
+	fi
+
+	echo "$target"
+}     # }}}
+
+# Move the old database away if it is still there
+#
+# In fact this function makes sure that the database directory is empty
+# and can be populated with a new database. If something is in the way
+# it is moved to a backup directory if the user accepted the debconf
+# option slapd/move_old_database. Otherwise we output a warning and let
+# the user fix it himself.
+# Usage: move_old_database_away <dbdir> [<basedn>]
+move_old_database_away()
+{     # {{{
+	local databasedir backupdir
+	databasedir="$1"
+	suffix="${2:-unknown}"
+
+	if [ ! -e "$databasedir" ] || is_empty_dir "$databasedir"; then
+		return 0
+	fi
+
+	# Note that we can't just move the database dir as it might be
+	# a mount point. Instead me move the content which might 
+	# include mount points as well anyway, but it's much less likely.
+	dialog --yesno "There are still files in $databasedir which will probably break the configuration process. If you enable this option, the maintainer scripts will move the old database files out of the way before.\n\nMove old database?" 0 0
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		backupdir=`compute_backup_path "$databasedir" "$suffix"`
+		echo -n "  - directory $suffix... " >&2
+		mkdir -p "$backupdir"
+		find "$databasedir" -mindepth 1 -maxdepth 1	\
+			-exec mv {} "$backupdir" \;
+		echo done. >&2
+	else
+		cat >&2 <<EOF
+  There are leftover files in $databasedir. This will probably break 
+  creating the initial directory. If that's the case please move away
+  stuff in there and retry the configuration.
+EOF
+	fi
+}     # }}}
+
+# Check if the user wants to configure everything himself (queries debconf)
+# Returns success if yes.
+manual_configuration_wanted()
+{     # {{{
+	dialog --defaultno --yesno "If you enable this option, no initial configuration or database will be created for you.\n\nOmit OpenLDAP server configuration?" 0 0
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		return 0
+	else
+		return 1
+	fi
+}     # }}}
+
+# Copy an example DB_CONFIG file
+# copy_example_DB_CONFIG <directory>
+copy_example_DB_CONFIG()
+{     # {{{
+	return 1
+	local directory srcdir
+
+	directory="$1"
+	srcdir="/usr/share/openldap"
+
+	if ! [ -f "${directory}/DB_CONFIG" ] && [ -d "$directory" ]; then
+		cp $srcdir/DB_CONFIG "${directory}/DB_CONFIG"
+	fi
+}     # }}}
+
+# Create a new configuration and directory
+create_new_configuration()
+{      # {{{
+	local basedn dc backend
+
+	# For the domain really.argh.org we create the basedn 
+	# dc=really,dc=argh,dc=org with the dc entry dc: really
+	dialog --inputbox "The DNS domain name is used to construct the base DN of the LDAP directory. For example, 'foo.example.org' will create the directory with 'dc=foo, dc=example, dc=org' as base DN.\n\nDNS domain name:" 0 0 2>/tmp/answer
+	RET=$(cat /tmp/answer)
+	local basedn="dc=`echo $RET | sed 's/^\.//; s/\./,dc=/g'`"
+	dc="`echo $RET | sed 's/^\.//; s/\..*$//'`"
+
+	dialog --radiolist "The HDB backend is recommended. HDB and BDB use similar storage formats, but HDB adds support for subtrrenames. Both support the same configuration options.\n\nDatabase backend to use:" 0 0 0 BDB "" off HDB "" on 2>/tmp/answer
+	RET=$(cat /tmp/answer)
+	backend="`echo $RET|tr A-Z a-z`"
+
+	# Looks like the following code is not needed as slapd is unconfigured
+	# first and stopped at that time. So no need to stop slapd at all here.
+
+	if [ -e "/var/openldap/openldap-data" ] && ! is_empty_dir /var/openldap/openldap-data; then
+		echo >&2 "  Moving old database directory to /var/backups:"
+		move_old_database_away /var/openldap/openldap-data
+	fi
+	create_ldap_directories
+	create_new_slapd_conf "$basedn" "$backend"
+	create_new_directory "$basedn" "$dc"
+
+	# Put the right permissions on this directory.
+	update_permissions /var/openldap/openldap-data
+}     # }}}
+
+# Creates a new slapd.d configuration for the suffix given
+# Usage: create_new_slapd_conf <basedn> <backend>
+create_new_slapd_conf()
+{     # {{{
+	local basedn backend conf_template
+
+	basedn="$1"
+	backend="$2"
+
+	# Get the admin password for the cn=config tree
+	dialog --insecure --passwordbox "Enter the admin password:" 0 0 2>/tmp/answer
+	# adminpw can have / character which would break sed
+	# further down.
+	adminpass=$(cat /tmp/answer | sed -e 's|/|\\/|g')
+	adminpass=`crypt_admin_pass $adminpass`
+	echo -n "  Creating initial slapd configuration... " >&2
+	[ -e "${SLAPD_CONF}" ] && rm -rf "${SLAPD_CONF}"
+	if [ "${METHOD}" == "old style" ]
+	then
+		echo "ittvagyok"
+		conf_template="/usr/share/openldap/slapd.init.conf"
+		sed <"$conf_template" \
+			-e "s/@RootPW@/$adminpass/g" \
+			-e "s/@backend@/$backend/g" \
+			-e "s/@SUFFIX@/$basedn/g" \
+			-e "s/@ADMIN@/cn=admin,$basedn/g" \
+			> ${SLAPD_CONF}
+	else
+		mkdir "${SLAPD_CONF}"
+		# Need to have a version of the backend name with the first
+		# letter capitalized (ex: olcBdbConfig or olcHdbConfig) to set
+		# the correct objectClass attribute in the db configuration.
+		local backend1="$(echo ${backend:0:1} | tr a-z A-Z)${backend:1}"
+		conf_template="/usr/share/openldap/slapd.init.ldif"
+		init_ldif=`mktemp /tmp/slapd_init.ldif.XXXXXXXXXX`
+		sed <"$conf_template" \
+			-e "s/@olcRootPW@/olcRootPW: $adminpass/g" \
+			-e "s/@backend@/$backend/g" \
+			-e "s/@Backend@/$backend1/g" \
+			-e "s/@SUFFIX@/$basedn/g" \
+			-e "s/@ADMIN@/cn=admin,$basedn/g" \
+			> ${init_ldif}
+		if [ "$adminpass" = "" ]; then
+			sed -i -e '/^olcRootPW: / d' ${init_ldif}
+		fi
+		capture_diagnostics slapadd -F "${SLAPD_CONF}" \
+			-b "cn=config" -l ${init_ldif} || failed=1
+		rm "${init_ldif}"
+	fi
+	if [ "$failed" ]; then
+		cat <<-EOF
+Loading the initial configuration from the ldif file (${init_ldif}) failed with the following
+error while running slapadd:
+EOF
+		release_diagnostics "    "
+		exit 1
+	fi
+	[ -f ${init_ldif} ] && rm -f ${init_ldif}
+	update_permissions "${SLAPD_CONF}"
+	echo "done." >&2
+}     # }}}
+
+# Make the value utf8 encoded. Takes one argument and utf8 encode it.
+# Usage: val=`encode_utf8 <value>`
+encode_utf8()
+{     # {{{
+	perl -e 'use Encode; print encode_utf8($ARGV[0]);' "$1"
+}     # }}}
+
+# Create a new directory. Takes the basedn and the dc value of that entry.
+# Other information is extracted from debconf.
+# Usage: create_new_directory <basedn> <dc>
+create_new_directory()
+{     # {{{
+	local basedn dc organization
+	basedn="$1"
+	dc="$2"
+
+	# Encode to utf8 and base64 encode the organization.
+	dialog --inputbox "Please enter the organization to use in the base DN of your LDAP directory.\n\nOrganization name:" 0 0 2>/tmp/answer
+	RET=$(cat /tmp/answer)
+	organization=`encode_utf8 "$RET"`
+
+	echo -n "  Creating initial LDAP directory... " >&2
+	init_ldif=`mktemp /tmp/slapd_init_dir.ldif.XXXXXXXXXX`
+	echo "dn: $basedn
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: $organization
+dc: $dc
+
+dn: cn=admin,$basedn
+objectClass: simpleSecurityObject
+objectClass: organizationalRole
+cn: admin
+description: LDAP administrator
+userPassword: $adminpass
+" > ${init_ldif}
+	capture_diagnostics slapadd $confplace "${SLAPD_CONF}" -b "${basedn}" -l ${init_ldif} || failed=1
+	if [ "$failed" ]; then
+		echo failed. >&2
+		echo >&2
+		cat <<-EOF
+Loading the initial directory structure from the ldif file (${init_ldif}) failed with the following
+error while running slapadd:
+EOF
+		release_diagnostics "    "
+		exit 1
+	fi
+	rm "${init_ldif}"
+	echo "done." >&2
+}     # }}}
+
+# Adds the "allow bind_v2" directive to the configuration if the user decided
+# he wants to have ldap v2 enabled.
+configure_v2_protocol_support()
+{     # {{{
+	local new_conf
+
+	dialog --defaultno --yesno "The obsolete LDAPv2 protocol is disabled by default in slapd. Programs and users should upgrade to LDAPv3.  If you have old programs which can't use LDAPv3, you should select this option and 'olcAllows: bind_v2' will be added to your cn=config directory.\n\nAllow LDAPv2 protocol?" 0 0
+	RET=$?
+	if [ "$RET" -ne 0 ]
+	then
+		if [ -f ${SLAPD_CONF} ]
+		then
+			sed -i ${SLAPD_CONF} -e "s/#@allow_v2@/#allow bind_v2/g"
+		fi
+		return 0
+	else
+		echo -n "  Enabling LDAPv2 support... " >&2
+
+		if [ -d "$SLAPD_CONF" ]; then
+			if ! grep -q -E '^olcAllows:[[:space:]]+bind_v2' "${SLAPD_CONF}/cn=config.ldif"; then
+				echo "olcAllows: bind_v2" >> "${SLAPD_CONF}/cn=config.ldif"
+			fi
+			echo "done" >&2
+			return 0
+		elif [ -f "${SLAPD_CONF}" ]
+		then
+			sed -i ${SLAPD_CONF} -e "s/#@allow_v2@/allow bind_v2/g"
+			echo "done" >&2
+			return 0
+		else
+			return 1
+		fi
+	fi
+
+	echo . >&2
+}     # }}}
+
+# Create a backup of the current configuration files.
+# Usage: backup_config_once
+backup_config_once()
+{     # {{{
+	local backupdir
+
+	if [ -z "$FLAG_CONFIG_BACKED_UP" ]; then
+		backupdir=`database_dumping_destdir`
+		if [ -e "$SLAPD_CONF" ]; then
+			cp -a "$SLAPD_CONF" "$backupdir"
+		fi
+		FLAG_CONFIG_BACKED_UP=yes
+	fi
+}     # }}}
+
+# Store the encrypted admin password into the debconf db
+# Usage: crypt_admin_pass clear_password
+# XXX: This is the standard unix crypt. Maybe we can get something stronger?
+crypt_admin_pass()
+{     # {{{
+	if [ ! -z "$1" ]
+	then
+		echo `slappasswd -h "{CRYPT}" -s "$1"`
+	fi
+}     # }}}
+
+# Check if a path refers to an empty directory
+# Usage: if is_empty_dir "$dir"; then ... fi
+is_empty_dir()
+{     # {{{
+	output=`find "$1" -type d -maxdepth 0 -empty 2>/dev/null`
+	if [ "$output" ]; then
+		return 0
+	else
+		return 1
+	fi
+}     # }}}
+
+# }}}
+
+# ----- Handling diagnostic output ------------------------------------ {{{
+#
+# Often you want to run a program while you are showing progress
+# information to the user. If the program you are running outputs some
+# diagnostics it will mess up your screen.
+#
+# This is what the following functions are designed for. When running the
+# program, use capture_diagnostics to store what the program outputs to
+# stderr and use release_diagnostics to write out the captured output.
+
+# Run the command passed and capture the diagnostic output in a temporary
+# file. You can dump that file using release_diagnostics.
+capture_diagnostics()
+{     # {{{
+	# Create the temporary file
+	local tmpfile
+	tmpfile=`mktemp`
+	exec 7<>"$tmpfile"
+	rm "$tmpfile"
+
+	# Run the program and capture stderr. If the program fails the
+	# function fails with the same status.
+	"$@" 2>&7 || return $?
+}     # }}}
+
+# Dump the diagnostic output captured via capture_diagnostics, optionally
+# prefixing each line.
+# Usage: release_diagnostics "prefix"
+release_diagnostics()
+{     # {{{
+	local script
+	script='
+		seek STDIN, 0, 0;
+		print "$ARGV[0]$_" while (<STDIN>);';
+	perl -e "$script" "$1" <&7
+}     # }}}
+
+# }}}
+
+# Configure slapd for the first time (when first installed)
+# Usage: postinst_initial_configuration
+postinst_initial_configuration()
+{     # {{{
+	if manual_configuration_wanted; then
+		echo "  Omitting slapd configuration as requested." >&2
+	else
+		create_new_configuration
+		configure_v2_protocol_support
+	fi
+}     # }}}
+
+# }}}
+
+# ===== Global variables ================================================ {{{
+#
+# At some points we need to know which version we are upgrading from if
+# any. More precisely we only care about the configuration and data we
+# might have laying around. Some parts also want to know which mode the
+# script is running in.
+
+# Source the init script configuration
+# See example file debian/slapd.default for variables defined here
+if [ -f "/etc/sysconfig/slapd" ]; then
+	. /etc/sysconfig/slapd
+fi
+
+adminpass=
+
+dialog --radiolist "Which configuration method do you want to use:" 0 0 0 "old style" "" on "new style" "" off 2>/tmp/answer
+METHOD=$(cat /tmp/answer)
+
+# Load the default location of the slapd config file
+if [ "$METHOD" == "old style" ]
+then
+	SLAPD_CONF="/etc/openldap/slapd.conf"
+	confplace="-f"
+else
+	SLAPD_CONF="/etc/openldap/slapd.d/"
+	confplace="-F"
+fi
+
+# Create a new user.  Don't create the user, however, if the local
+# administrator has already customized slapd to run as a different user.
+is_user_exist=$(getent passwd openldap | wc -l)
+if [ "openldap" = "$SLAPD_USER" ] && [ $is_user_exist -eq 0 ]; then
+	create_new_user
+fi
+
+postinst_initial_configuration
+
+# }}}
+
+# vim: set sw=8 foldmethod=marker:

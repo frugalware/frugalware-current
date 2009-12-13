@@ -2,40 +2,81 @@
 # Maintainer: James Buren <ryuo@frugalware.org>
 
 pkgname=mp
-pkgver=5.1.2
+pkgver=5.1.3
 pkgrel=2
-pkgdesc="A text editor for programmers. (common files)"
+_basedesc="A text editor for programmers."
+pkgdesc="$_basedesc (Common Files)"
 url="http://triptico.com/software/mp.html"
 depends=('grutatxt' 'mp_doccer')
+rodepends=('aspell' 'ctags')
 makedepends=('ncurses' 'gtk+2>=2.16.2-2' 'glibc' 'libxau' 'libxdmcp' 'freetype2' 'libxdamage' 'libxext' 'libxml2')
 groups=('lib-extra')
-# since we pull in pango...
-# disable docs since it autoinstalls them
 options=('scriptlet' 'nodocs')
 archs=('i686' 'x86_64')
 subpkgs=("$pkgname-ncurses" "$pkgname-gtk2")
-subdescs=("ncurses version of $pkgname." "gtk2 version of $pkgname.")
+subdescs=("$_basedesc (NCurses)" "$_basedesc (GTK+2)")
 subgroups=("apps-extra" "xapps-extra")
-subarchs=("i686" "x86_64")
+subarchs=("i686 x86_64" "i686 x86_64")
 subrodepends=("$pkgname ncurses" "$pkgname gtk+2 glibc libxau libxdmcp freetype2 libxdamage libxext libxml2")
 up2date="Flasttar $url"
-source=(http://triptico.com/download/$pkgname-$pkgver.tar.gz)
-sha1sums=('4df2b5c6d9df17307aee67646afd4f97ab4edba1')
+source=(http://triptico.com/download/$pkgname-$pkgver.tar.gz $pkgname.mpsl)
+backup=("/etc/$pkgname.mpsl")
+_F_desktop_name="Minimum Profit"
+_F_desktop_exec="$pkgname-5-gtk2"
+_F_desktop_icon="$pkgname"
+_F_desktop_categories="GTK;Development;Utility;TextEditor;"
+sha1sums=('f05b760b09126fe624703b5d9d4c280803a0c313' \
+          'fb4396c8be130d731f565858d8aa050535ce991f')
 unset MAKEFLAGS
 
-build()
-{
-	Fmkdir /usr/bin
+build() {
+	# set install path
 	Fsed "/usr/local" "/usr" {,mpdm/,mpsl/}config.sh
+	
+	# configure for ncurses binary	
 	./config.sh --without-gtk || Fdie
+	
+	# compile ncurses binary
 	Fmake
-	Fmakeinstall
-	Fmv /usr/bin/$pkgname-5 /usr/bin/$pkgname-5-ncurses
-	Fsplit $pkgname-ncurses /usr/bin/$pkgname-5-ncurses
+
+	# install ncurses binary
+	Fexerel $pkgname-5 /usr/bin/$pkgname-5-ncurses
+	
+	# configure for gtk2 binary
 	./config.sh --without-curses || Fdie
+	
+	# compile gtk2 binary
 	Fmake
+
+	# install gtk2 binary
 	Fexerel $pkgname-5 /usr/bin/$pkgname-5-gtk2
-	Fsplit $pkgname-gtk2 /usr/bin/$pkgname-5-gtk2
+	
+	# install the rest
+	Fmakeinstall
+	
+	# install icons
+	Ficonrel $pkgname.{xpm,png}
+
+	# install desktop file
+	Fdesktop2
+	
+	# install system-wide configuration
+	Ffile /etc/$pkgname.mpsl
+	
+	# remove redundant binary
+	Frm /usr/bin/$pkgname-5
+	
+	# move documentation to frugalware doc style
+	Fmv /usr/share/doc/$pkgname-5 /usr/share/doc/$pkgname-$pkgver
+	
+	# setup compatibility symlink
+	Fln /usr/share/doc/$pkgname-$pkgver /usr/share/doc/$pkgname-5
+	
+	# split ncurses subpkg
+	Fsplit $pkgname-ncurses /usr/bin/$pkgname-5-ncurses
+	
+	# split gtk2 subpkg
+	Fsplit $pkgname-gtk2 /usr/{bin/$pkgname-5-gtk2,share/{pixmaps,applications}}
 }
 
 # optimization OK

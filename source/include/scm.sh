@@ -136,18 +136,34 @@ Funpack_scm()
 	elif [ "$_F_scm_type" == "git" ]; then
 		if [ -d $pkgname ]; then
 			cd $pkgname
-			git pull && git checkout -f
+			if [ -n "$_F_scm_tag" ]; then
+				git fetch
+			else
+				git pull
+			fi
+			git checkout -f
 		else
+			if [ -d $HOME/git/${_F_scm_url##*/} ]; then
+				_F_scm_git_cloneopts="$_F_scm_git_cloneopts --reference $HOME/git/${_F_scm_url##*/}"
+			fi
 			git clone $_F_scm_git_cloneopts $_F_scm_url $pkgname || Fdie
 			cd $pkgname
 		fi
 		if [ -n "$_F_scm_tag" ]; then
-			if [ -f .git/refs/remotes/origin/$_F_scm_tag ]; then
+			# 1.6.6.rc1.52.gff86bdd -> 1.6.6.rc1.52-gff86bdd
+			# 1.6.6.rc1 -> 1.6.6-rc1
+			# 1.6.6 -> 1.6.6
+			if echo $_F_scm_tag |grep -q -- '\(\.g\|\.rc\)'; then
+				_F_scm_tag2=$(echo $_F_scm_tag|sed 's/\(.*\)\.\([^.]\)/\1-\2/')
+			else
+				_F_scm_tag2=$_F_scm_tag
+			fi
+			if [ -f .git/refs/remotes/origin/$_F_scm_tag2 ]; then
 				# this is a branch
-				git checkout origin/$_F_scm_tag || Fdie
+				git checkout origin/$_F_scm_tag2 || Fdie
 			else
 				# this is a tag or commit
-				git checkout $_F_scm_tag || Fdie
+				git checkout $_F_scm_tag2 || Fdie
 			fi
 		fi
 	elif [ "$_F_scm_type" == "mercurial" ]; then

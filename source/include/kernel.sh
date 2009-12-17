@@ -54,13 +54,7 @@ Finclude kernel-version
 # * pkgrel (if not set)
 ###
 
-USE_DEVEL=${USE_DEVEL:-"n"}
-
 if Fuse $USE_DEVEL; then
-	# example for a tagged rc release: 2.6.32.rc5
-	# example for a random snapshot, based on git describe output: 2.6.32.rc5.81.g964fe08
-	_F_kernelver_ver=2.6.32.rc5
-	_F_kernelver_rel=1
 	_F_kernelver_stable=0
 	_F_kernel_dontfakeversion=1
 fi
@@ -157,12 +151,6 @@ fi
 signatures=("${source[0]}.sign" '' '' '')
 install="src/kernel.install"
 
-for i in ${_F_kernel_patches[@]}
-do
-	source=(${source[@]} $i)
-	signatures=("${signatures[@]}" '')
-done
-
 [ "$_F_kernel_stable" -gt 0 ] && \
 	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$_F_kernel_ver.$_F_kernel_stable.bz2) && \
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
@@ -170,15 +158,15 @@ done
 if Fuse $USE_DEVEL; then
 	source=(config.i686 config.x86_64 config.ppc)
 	signatures=('' '' '')
-	_F_scm_type="git"
-	_F_scm_url="git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6"
-	if ! echo $pkgver |grep -q -- '\.g'; then
-		_F_scm_tag="v${pkgver//.rc/-rc}"
-	else
-		_F_scm_tag="v${pkgver//./-}"
-	fi
+	_F_scm_tag="v$pkgver"
 	Finclude scm
 fi
+
+for i in ${_F_kernel_patches[@]}
+do
+	source=(${source[@]} $i)
+	signatures=("${signatures[@]}" '')
+done
 
 ###
 # * subpkg()
@@ -244,7 +232,7 @@ Fbuildkernel()
 	# remove unneded localversions
 	rm -f localversion-*
 	rm -f ../*.{gz,bz2,sign}
-	make silentoldconfig || Fdie
+	yes "" | make config
 
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
 		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
@@ -275,12 +263,12 @@ Fbuildkernel()
 		[ -e $Fdestdir/usr/include/drm ] && Frm /usr/include/drm
 		Fsplit kernel-headers /usr
 	fi
-	## now time to eat some cookies and wait kernel got compiled :)
-	if [ -z "$_F_kernel_name" ]; then
+	if [ -z "$_F_kernel_name" -a $_F_kernel_dontfakeversion -eq 0 ]; then
 		# stock kernel, nobody interested in the buildsystem's details
 		Fsed '`whoami`' 'fst' scripts/mkcompile_h
 		Fsed '`hostname \| $UTS_TRUNCATE`' "`uname -m`.frugalware.org" scripts/mkcompile_h
 	fi
+	## now time to eat some cookies and wait kernel got compiled :)
 	if [ "$_F_kernel_verbose" ]; then
 		make V=1 || Fdie
 	else

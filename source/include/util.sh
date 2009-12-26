@@ -659,14 +659,14 @@ Fmakeinstall() {
 	Fmessage "Installing to the package directory..."
 	if [ -f GNUmakefile -o -f makefile -o -f Makefile ]; then
 		if grep -q DESTDIR GNUmakefile makefile Makefile 2>/dev/null; then
-			make DESTDIR="$Fdestdir" "$@" install || Fdie
+			Fexec make DESTDIR="$Fdestdir" "$@" install || Fdie
 		else
-			make prefix="$Fdestdir"/"$Fprefix" "$@" install || Fdie
+			Fexec make prefix="$Fdestdir"/"$Fprefix" "$@" install || Fdie
 		fi
 	elif [ -f setup.py ]; then
-		python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
+		Fexec python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
 	elif [ -f setup.rb ]; then
-		ruby setup.rb install --prefix=$Fdestdir || Fdie
+		Fexec ruby setup.rb install --prefix=$Fdestdir || Fdie
 	elif [ -f build.xml ]; then
 		if declare -f Fjar >/dev/null; then
 			for i in ${_F_java_jars[@]}

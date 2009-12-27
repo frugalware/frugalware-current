@@ -479,7 +479,7 @@ Fdeststrip() {
 __Fpatch() {
 	local level="0"
 	if ! patch -Np0 --dry-run -i "$Fsrcdir/$1" >/dev/null; then
-		if ! patch -Np1 --dry-run -i "$Fsrcdir/$1" >/dev/null; then
+		if ! patch -Np1 --dry-run -i "$Fsrcdir/$1"; then
 			return 1
 		fi
 		level="1"

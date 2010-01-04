@@ -26,7 +26,7 @@ Finclude cmake
 # --------------------------------------------------
 #
 # == OPTIONS
-# * _F_kde_ver (default: 4.3.1): The current KDE version.
+# * _F_kde_ver (defaults to the current KDE version)
 # * _F_kde_name (defaults to $pkgname): if you want to use a custom package
 # name (for example the upstream name contains uppercase letters) then use this
 # to declare the real name
@@ -36,21 +36,8 @@ Finclude cmake
 # * _F_cmakekde_final (default: TRUE): Enable finalisation of binaries (Optimize more)
 ###
 
-if [ -n "$_F_cmake_type" ] && [ "$_F_cmake_type" = "None" ]; then
-	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -DNDEBUG -DQT_NO_DEBUG"
-fi
-
-if [ -n "$_F_cmake_type" ] && [ "$_F_cmake_type" = "Debug" ]; then
-        _F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -ggdb3"
-	options=("${options[@]}" "nostrip")
-fi
-
-if [ -z "$_F_cmakekde_final" ]; then
-        _F_cmakekde_final="TRUE"
-fi
-
 if [ -z "$_F_kde_ver" ]; then
-	_F_kde_ver=4.3.3
+	_F_kde_ver=4.3.4
 fi
 
 if [ -z "$_F_kde_name" ]; then
@@ -75,8 +62,13 @@ if [ -z "$_F_kde_dirname" ]; then
 	_F_kde_dirname="stable/$_F_kde_ver/src"
 fi
 
+if [ -z "$_F_cmakekde_final" ]; then
+	_F_cmakekde_final="TRUE"
+fi
+
 ###
 # == OVERWRITTEN VARIABLES
+# * _F_archive_name (default to $_F_kde_name if not set)
 # * pkgver (default to $_F_kde_ver if not set)
 # * url (if not set)
 # * up2date (if not set)
@@ -84,6 +76,10 @@ fi
 # * _F_cd_path (if not set)
 # * makedepends (if not set)
 ###
+
+if [ -z "$_F_archive_name" ]; then
+	_F_archive_name="$_F_kde_name"
+fi
 
 if [ -z "$pkgver" ]; then
 	pkgver="$_F_kde_ver"
@@ -94,7 +90,7 @@ if [ -z "$url" ]; then
 fi
 
 if [ -z "$up2date" ]; then
-	up2date="lynx --dump http://www.kde.org | grep -m1 released | sed 's/\(.*\)KDE \(.*\) released/\2/'"
+	up2date="Flasttar http://kde.org/download/"
 fi
 
 if [ ${#source[@]} -eq 0 ]; then
@@ -105,8 +101,25 @@ if [ -z "$_F_cd_path" ]; then
         _F_cd_path=$_F_kde_name-$_F_kde_pkgver
 fi
 
-if [ -z "$makedepends" ]; then
-	makedepends=('automoc4' 'cmake')
+if [ "$_F_cmakekde_final" = "TRUE" ]; then
+	_F_cmake_type="None"
+fi
+
+###
+# == APPENDED VARIABLES
+# makedepends: append automoc4 unless building it.
+###
+if [ "$_F_kde_name" != 'automoc4' ]; then
+	makedepends=("${makedepends[@]}" 'automoc4')
+fi
+
+if [ "$_F_cmake_type" = "None" ]; then
+	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -DNDEBUG -DQT_NO_DEBUG"
+fi
+
+if [ "$_F_cmake_type" = "Debug" ]; then
+        _F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -ggdb3"
+	options=("${options[@]}" "nostrip")
 fi
 
 _F_cmake_confopts="$_F_cmake_confopts \

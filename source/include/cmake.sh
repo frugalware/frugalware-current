@@ -35,9 +35,9 @@ fi
 
 ###
 # == APPENDED VARIABLES
-# * cmake to makedepends()
+# * makedepends(): add cmake and pkgconfig
 ###
-makedepends=(${makedepends[@]} 'cmake')
+makedepends=(${makedepends[@]} 'cmake' 'pkgconfig')
 
 ###
 # == PROVIDED FUNCTIONS

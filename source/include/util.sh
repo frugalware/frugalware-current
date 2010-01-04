@@ -473,7 +473,23 @@ Fdeststrip() {
 }
 
 ###
-# * Fpatch(): Apply a patch with -p1 (or -p0 if -p1 fails). Parameter: Patch to
+# * __Fpatch(): Internal. Apply a patch with -p0 (or -p1 if -p0 fails).
+# Parameter: Patch to apply.
+###
+__Fpatch() {
+	local level="0"
+	if ! patch -Np0 --dry-run -i "$Fsrcdir/$1" >/dev/null; then
+		if ! patch -Np1 --dry-run -i "$Fsrcdir/$1"; then
+			return 1
+		fi
+		level="1"
+	fi
+	patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" || Fdie
+	return 0
+}
+
+###
+# * Fpatch(): Apply a patch. Parameter: Patch to
 # apply. A ".gz" or ".bz2" suffix will be ingored.
 ###
 Fpatch() {
@@ -487,12 +503,14 @@ Fpatch() {
 	else
 		i=$1
 	fi
-	sed -i 's/\r$//' "$Fsrcdir/$i"
-	if patch -Np0 --dry-run -i "$Fsrcdir/$i" >/dev/null && \
-		! patch -Np1 --dry-run -i "$Fsrcdir/$i" >/dev/null; then
-		level="0"
+	if ! __Fpatch "$i"; then
+		warning "Patch $i did not apply, trying a dos2unix line ending convertion."
+		sed -i 's/\r$//' "$Fsrcdir/$i"
+		if ! __Fpatch "$i"; then
+			error "Patch $i did not apply at all, check your patch"
+			Fdie
+		fi
 	fi
-	patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$i" || Fdie
 }
 
 ###
@@ -641,14 +659,14 @@ Fmakeinstall() {
 	Fmessage "Installing to the package directory..."
 	if [ -f GNUmakefile -o -f makefile -o -f Makefile ]; then
 		if grep -q DESTDIR GNUmakefile makefile Makefile 2>/dev/null; then
-			make DESTDIR="$Fdestdir" "$@" install || Fdie
+			Fexec make DESTDIR="$Fdestdir" "$@" install || Fdie
 		else
-			make prefix="$Fdestdir"/"$Fprefix" "$@" install || Fdie
+			Fexec make prefix="$Fdestdir"/"$Fprefix" "$@" install || Fdie
 		fi
 	elif [ -f setup.py ]; then
-		python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
+		Fexec python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
 	elif [ -f setup.rb ]; then
-		ruby setup.rb install --prefix=$Fdestdir || Fdie
+		Fexec ruby setup.rb install --prefix=$Fdestdir || Fdie
 	elif [ -f build.xml ]; then
 		if declare -f Fjar >/dev/null; then
 			for i in ${_F_java_jars[@]}

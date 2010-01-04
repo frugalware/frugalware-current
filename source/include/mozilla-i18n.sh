@@ -68,7 +68,7 @@ mozilla_i18n_lang_add() {
 	subdescs=("${subdescs[@]}" "${1} language support for ${_F_mozilla_i18n_name^}") # Requires a locale to name function.
 	subrodepends=("${subrodepends[@]}" "$_F_mozilla_i18n_name>=$pkgver")
 	subgroups=("${subgroups[@]}" "${groups[*]}")
-	subarchs=("${subarchs[@]}" "$archs")
+	subarchs=("${subarchs[@]}" "${archs[*]}")
 	sha1sums=("${sha1sums[@]}" "$2")
 }
 

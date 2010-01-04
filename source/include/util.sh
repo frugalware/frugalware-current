@@ -1125,24 +1125,29 @@ Fwrapper()
 # * Fsplit(): Moves a file pattern to a subpackage. Parameters: 1) name of the
 # subpackage 2) pattern of the files to move. Example: Fsplit libmysql /usr/lib.
 #
-# NOTE: never use a leading slash when using wildcards!
+# NOTE: You have to quote wildcards to split the proper files! (/foo/* => /foo/\*)
 ###
 Fsplit()
 {
-	local subpkg=$1
+	local i dir path subpkg=$1
 	shift 1
-	local i
-	local dir
-	local path
-	for i in $@
-	do
-		# split the / suffix if used
-		path=`echo $i|sed 's|/$||'`
+	if [ ! -d $startdir/pkg.$subpkg ]; then
+		# FIXME Compatibility: check for $subpkg in subpkgs
+		warning "Trying to move $@ to undeclared subpackage $subpkg"
+		mkdir -p $startdir/pkg.$subpkg/
+#		Fdie
+	fi
 
-		Fmessage "Moving $path to subpackage $subpkg"
-		dir=`echo $path|sed 's|/[^/]*$||'`
-		mkdir -p $startdir/pkg.$subpkg/$dir/
-		mv $Fdestdir/$path $startdir/pkg.$subpkg/$dir/ || Fdie
+	for i in "$@"
+	do
+		Fmessage "Moving $i to subpackage $subpkg"
+		for path in $Fdestdir/$i
+		do
+			path=`echo ${path%/}` # Remove / suffix if found
+			dir=`dirname ${path#$Fdestdir}` # Remove $Fdestdir prefix, and last dir element
+			mkdir -p $startdir/pkg.$subpkg/$dir/
+			mv $path $startdir/pkg.$subpkg/$dir/ || Fdie
+		done
 	done
 }
 

@@ -38,7 +38,8 @@ pkgrel=1
 url="http://pecl.php.net/package/$_F_pecl_name"
 groups=('devel-extra')
 archs=('i686')
-up2date="lynx -dump $url  |grep gz$|sed 's/.*-\(.*\)\.t.*/\1/;q'"
+_F_archive_name=$_F_pecl_name
+up2date="Flasttar $url"
 source=(http://pecl.php.net/get/$_F_pecl_name-$pkgver.tgz)
 
 ###

@@ -1170,8 +1170,8 @@ Fuse()
 check_option() {
 	local i
 	for i in ${options[@]}; do
-		local uc=`echo $i | tr [:lower:] [:upper:]`
-		local lc=`echo $i | tr [:upper:] [:lower:]`
+		local uc=`echo $i | tr '[:lower:]' '[:upper:]'`
+		local lc=`echo $i | tr '[:upper:]' '[:lower:]'`
 		if [ "$uc" = "$1" -o "$lc" = "$1" ]; then
 			echo $1
 			return

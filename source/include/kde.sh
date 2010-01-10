@@ -33,7 +33,8 @@ Finclude cmake
 # * _F_kde_pkgver (defaults to $pkgver or to $_F_kde_ver if empty): the version of the package
 # used to construct the source.
 # * _F_kde_subpkgs (no defaults): Special array for splitting packages automatically.
-# * _F_cmakekde_final (default: TRUE): Enable finalisation of binaries (Optimize more)
+# * _F_cmakekde_final (default: FALSE): Enable finalisation of binaries (Optimize more)
+# Disable by default since it is an optimisation not allways tested/available by upstream.
 ###
 
 if [ -z "$_F_kde_ver" ]; then
@@ -63,7 +64,7 @@ if [ -z "$_F_kde_dirname" ]; then
 fi
 
 if [ -z "$_F_cmakekde_final" ]; then
-	_F_cmakekde_final="TRUE"
+	_F_cmakekde_final="FALSE"
 fi
 
 ###

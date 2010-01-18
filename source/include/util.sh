@@ -473,6 +473,59 @@ Fdeststrip() {
 }
 
 ###
+# * Ftreecmp(): Compare 2 tree and do an action on a compare result. Parameters:
+# 1) Fist tree 2) Second tree 3) Action to perform on compared item. The item
+# is an inode item (relative to both tree) prefixed with '-', '=' or '+'
+# depending if it deleted, still present or added in the comparison from the
+# first tree to the second tree.
+###
+Ftreecmp() {
+	local line
+	if [ ! -d "$1" -o ! -d "$2" ]; then
+		Fmessage "$1 or $2 is not a directory"
+		Fdie
+	fi
+	if [ -z "$3" ]; then
+		Fmessage "Comparison function is empty"
+		Fdie
+	fi
+	diff --new-line-format='+%L' --old-line-format='-%L' --unchanged-line-format='=%L' \
+		<(cd "$1" && find $_F_treecmp_findopts | sort) \
+		<(cd "$2" && find $_F_treecmp_findopts | sort) \
+	| while read line
+	do
+		$3 $line
+	done
+}
+
+###
+# * __Ftreecmp_cleandestdir: Internal
+###
+__Ftreecmp_cleandestdir() {
+	case "$1" in
+	=*)	Frm "${1//=/}" ;;
+	esac
+}
+
+###
+# * Fcleandestdir(): Clean the $Fdestdir from subpackages files, to make
+# them conflict less. Parameters: The subpackages to use.
+###
+Fcleandestdir() {
+	local i
+	for i in "$@"
+	do
+		if [ ! -d "$Fdestdir.$i" ]; then
+			Fmessage "$i is not an existing subpackage."
+			Fdie
+		fi
+		Fmessage "Removing conflicting files with $i subpackage."
+		_F_treecmp_findopts='! -type d' \
+		Ftreecmp "$Fdestdir" "$Fdestdir.$i" __Ftreecmp_cleandestdir
+	done
+}
+
+###
 # * __Fpatch(): Internal. Apply a patch with -p0 (or -p1 if -p0 fails).
 # Parameter: Patch to apply.
 ###

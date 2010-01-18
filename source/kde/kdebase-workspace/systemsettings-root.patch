@@ -1,0 +1,101 @@
+diff -Naur kdebase-workspace-4.3.4/systemsettings/core/MenuItem.cpp kdebase-workspace-4.3.4-p/systemsettings/core/MenuItem.cpp
+--- kdebase-workspace-4.3.4/systemsettings/core/MenuItem.cpp	2009-06-23 13:14:38.000000000 +0200
++++ kdebase-workspace-4.3.4-p/systemsettings/core/MenuItem.cpp	2010-01-18 08:31:17.000000000 +0100
+@@ -42,6 +42,7 @@
+     int weight;
+     KService::Ptr service;
+     KCModuleInfo item;
++    bool needsRootPrivs;
+ };
+ 
+ MenuItem::MenuItem( bool isMenu, MenuItem * itsParent )
+@@ -49,6 +50,7 @@
+ {
+     d->parent = itsParent;
+     d->menu = isMenu;
++    d->needsRootPrivs = false;
+ 
+     if ( d->parent ) {
+         d->parent->children().append( this );
+@@ -117,11 +119,17 @@
+     return d->menu;
+ }
+ 
++bool MenuItem::needsRootPrivs() const
++{
++    return d->needsRootPrivs;
++}
++
+ void MenuItem::setService( const KService::Ptr& service )
+ {
+     d->service = service;
+     d->name = service->property("X-KDE-System-Settings-Category").toString();
+     d->item = KCModuleInfo( service->entryPath() );
++    d->needsRootPrivs = service->property("X-KDE-RootOnly", QVariant::Bool ).toBool();
+     const QVariant itemWeight = d->service->property( "X-KDE-Weight", QVariant::Int );
+     if( itemWeight.isValid() ) {
+         d->weight = itemWeight.toInt();
+diff -Naur kdebase-workspace-4.3.4/systemsettings/core/MenuItem.h kdebase-workspace-4.3.4-p/systemsettings/core/MenuItem.h
+--- kdebase-workspace-4.3.4/systemsettings/core/MenuItem.h	2009-05-19 14:06:29.000000000 +0200
++++ kdebase-workspace-4.3.4-p/systemsettings/core/MenuItem.h	2010-01-18 08:31:17.000000000 +0100
+@@ -148,6 +148,8 @@
+      */
+     void setService( const KService::Ptr& service );
+ 
++    bool needsRootPrivs() const;
++    
+ private:
+     class Private;
+     Private *const d;
+diff -Naur kdebase-workspace-4.3.4/systemsettings/core/ModuleView.cpp kdebase-workspace-4.3.4-p/systemsettings/core/ModuleView.cpp
+--- kdebase-workspace-4.3.4/systemsettings/core/ModuleView.cpp	2009-07-21 17:18:45.000000000 +0200
++++ kdebase-workspace-4.3.4-p/systemsettings/core/ModuleView.cpp	2010-01-18 08:31:17.000000000 +0100
+@@ -39,6 +39,7 @@
+ #include <KCModuleProxy>
+ #include <KStandardGuiItem>
+ #include <KDialogButtonBox>
++#include <KStandardDirs>
+ 
+ #include "MenuItem.h"
+ 
+@@ -124,6 +125,40 @@
+       return;
+     }
+ 
++    if ( menuItem->needsRootPrivs() )
++    {
++        QString kdesu = KStandardDirs::findExe( "kdesu" );
++        //kDebug() << "kdesu path:" << kdesu;
++
++        QString cmd = menuItem->service()->exec().trimmed();
++
++        /* Prepare the process to run the kcmshell */
++        if ( cmd.left(5) == "kdesu" )
++        {
++            cmd = cmd.remove(0,5).trimmed();
++
++            /* Remove all kdesu switches */
++            while ( cmd.length() > 1 && cmd[ 0 ] == '-' )
++                cmd = cmd.remove( 0, cmd.indexOf( ' ' ) ).trimmed();
++        }
++
++        if ( cmd.left(9) == "kcmshell4" )
++            cmd = cmd.remove(0,9).trimmed();
++
++        QStringList args;
++	if ( cmd.startsWith('/' ) )
++	   // call eg "/sbin/yast2"
++	   args << "-i" << QString( menuItem->service()->icon() ) << "-c" << cmd;
++	else
++           args << "-i" << QString( menuItem->service()->icon() ) << "-c" << QString( "%1 %2 --lang %3" ).arg( KStandardDirs::locate("exe", "kcmshell4") ).arg( cmd ).arg( KGlobal::locale()->language() );
++
++        kDebug() << "Starting root module: " << args;
++        QProcess::startDetached( kdesu, args );
++
++        return;
++    }
++
++
+     QList<KCModuleInfo*> modules;
+     if ( menuItem->children().empty() ) {
+         modules << &menuItem->item();

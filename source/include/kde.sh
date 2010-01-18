@@ -5,6 +5,7 @@ Finclude cmake
 ###
 # = kde.sh(3)
 # Gabriel Craciunescu <crazy@frugalware.org>
+# Michel Hermier <hermier@frugalware.org>
 #
 # == NAME
 # kde.sh - for Frugalware
@@ -33,8 +34,8 @@ Finclude cmake
 # * _F_kde_pkgver (defaults to $pkgver or to $_F_kde_ver if empty): the version of the package
 # used to construct the source.
 # * _F_kde_subpkgs (no defaults): Special array for splitting packages automatically.
-# * _F_cmakekde_final (default: FALSE): Enable finalisation of binaries (Optimize more)
-# Disable by default since it is an optimisation not allways tested/available by upstream.
+# * _F_kde_final (no defaults): Enable finalisation of binaries (Optimize more)
+# Use project default since it is an optimisation not allways tested/available by upstream.
 ###
 
 if [ -z "$_F_kde_ver" ]; then
@@ -63,8 +64,8 @@ if [ -z "$_F_kde_dirname" ]; then
 	_F_kde_dirname="stable/$_F_kde_ver/src"
 fi
 
-if [ -z "$_F_cmakekde_final" ]; then
-	_F_cmakekde_final="FALSE"
+if [ -n "$_F_kde_final" ]; then
+	_F_cmake_confopts="$_F_cmake_confopts -DKDE4_ENABLE_FINAL=$_F_kde_final"
 fi
 
 ###
@@ -102,36 +103,33 @@ if [ -z "$_F_cd_path" ]; then
         _F_cd_path=$_F_kde_name-$_F_kde_pkgver
 fi
 
-if [ "$_F_cmakekde_final" = "TRUE" ]; then
-	_F_cmake_type="None"
-fi
-
 ###
 # == APPENDED VARIABLES
 # makedepends: append automoc4 unless building it.
+# _F_cmake_confopts: append some kde specific options.
 ###
 if [ "$_F_kde_name" != 'automoc4' ]; then
 	makedepends=("${makedepends[@]}" 'automoc4')
 fi
 
-if [ "$_F_cmake_type" = "None" ]; then
-	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -DNDEBUG -DQT_NO_DEBUG"
-fi
-
-if [ "$_F_cmake_type" = "Debug" ]; then
-        _F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -ggdb3"
-	options=("${options[@]}" "nostrip")
-fi
+case "$_F_cmake_type" in
+None)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -DNDEBUG -DQT_NO_DEBUG";;
+Debug*)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -ggdb3";;
+esac
 
 _F_cmake_confopts="$_F_cmake_confopts \
 		-DCONFIG_INSTALL_DIR=/etc/kde/config \
 		-DKCFG_INSTALL_DIR=/etc/kde/config.kcfg \
 		-DICON_INSTALL_DIR=/usr/share/kde/icons \
 		-DKDE4_USE_ALWAYS_FULL_RPATH=ON \
-		-DKDE4_ENABLE_FINAL=$_F_cmakekde_final \
 		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
 
-kde_install()
+###
+# == PROVIDED FUNCTIONS
+# * KDE_project_install: Install a specific package. Parameters: 1) Name of the
+# project (Must also be the name of a directory).
+###
+KDE_project_install()
 {
 	## What is that ?
 	## - usually an 'normal' named 'project' looks like this:
@@ -144,40 +142,49 @@ kde_install()
 		if [ -d "doc/$1" ]; then #  does the package has docs ?
 			Fmessage "Installing docs for $1."
 			## install docs
-			make -C "doc/$1" DESTDIR=$Fdestdir  install || Fdie
+			make -C "doc/$1" DESTDIR="$Fdestdir" install || Fdie
 		fi
 	fi
 	## install the package
-	make -C "$1" DESTDIR=$Fdestdir  install || Fdie
+	make -C "$1" DESTDIR="$Fdestdir" install || Fdie
 }
 
-kde_split()
+###
+# * KDE_project_split(): Moves a KDE project to a subpackage. Parameters:
+# 1) name of the subpackage 2) Name of the project (see KDE_project_install).
+# Example: KDE_project_split kopete-irc kopete/protocols/irc
+###
+KDE_project_split()
 {
-	kde_install "$1"
-	## figure whatever we have /etc
-	if [ -d "$startdir/pkg/etc" ]; then
-		Fsplit "$2" /usr /etc
-	else
-		Fsplit "$2" /usr
-	fi
+	KDE_project_install "$2"
+	Fsplit "$1" /\*
 }
 
-CMakeKDE_split()
+###
+# * KDE_split(): Moves the _F_kde_subpkgs name list to subpackages. Parameters:
+# None. To find the projects dir, front "$pkgname-" and '-' are changed in '/'
+# to _F_kde_subpkgs names. That way one can produce subpackage for a
+# subdirectory project. Example: "kdelibs-kioslave-ftp" would search for
+# kioslave/ftp project subdir.
+###
+KDE_split()
 {
-	local i
-	local clean
+	local i clean
 
 	## let's try that way
-	for i in ${_F_kde_subpkgs[@]}
+	for i in "${_F_kde_subpkgs[@]}"
 	do
 		## we use for weird or not logical names
 		## $pkgname-<the_weird_name>
-		clean=$(echo $i|sed 's/.*-//1') # foo-blah -> blah
+		clean=$(eval "echo \"\${i/#$pkgname-/}\"") # Remove front "$pkgname-"
+		if [ ! -d "$clean" ]; then
+			clean="${clean//-//}" # Transform "-" into "/"
+		fi
 
 		## check whatever that project exists
 		if [ -d "$clean" ]; then
 			## split it
-			kde_split "$clean" "$i"
+			KDE_project_split "$i" "$clean"
 		else
 			Fmessage "Aieee project $clean does NOT exists, don't know how to install and split :/ ( Typo? )"
 			Fdie
@@ -186,32 +193,34 @@ CMakeKDE_split()
 	done
 }
 
-CMakeKDE_export_flags()
+KDE_export_flags()
 {
 	export CFLAGS="$CFLAGS -fno-strict-aliasing $_F_KDE_CXX_FLAGS"
-        export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing $_F_KDE_CXX_FLAGS"
+	export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing $_F_KDE_CXX_FLAGS"
 }
 
-CMakeKDE_make()
+KDE_make()
 {
-	CMakeKDE_export_flags
-	CMake_prepare_build
-	CMake_conf
-	## do _not_ use any F* stuff here , cmake does not like it
-	make || Fdie
+	KDE_export_flags
+	CMake_make "$@"
 }
 
-CMakeKDE_build()
+KDE_build()
 {
-	CMakeKDE_make
-	make DESTDIR=$Fdestdir install || Fdie
+	KDE_make "$@"
+	KDE_split
+	make DESTDIR="$Fdestdir" install || Fdie
+	Fcleandestdir "${_F_kde_subpkgs[@]}"
 	if [ "$_F_kde_split_docs" == 1 ]; then
 	  Fsplit "$pkgname-docs" /usr/share/doc/HTML
 	fi
 }
 
+###
+# build: just calls Fbuild_KDE
+###
 build()
 {
-	CMakeKDE_build
+	KDE_build
 }
 

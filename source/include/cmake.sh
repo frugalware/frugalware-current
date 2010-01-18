@@ -36,8 +36,14 @@ fi
 ###
 # == APPENDED VARIABLES
 # * makedepends(): add cmake and pkgconfig
+# * options(): add nostrip if _F_cmake_type is Debug*
 ###
 makedepends=(${makedepends[@]} 'cmake' 'pkgconfig')
+case "$_F_cmake_type" in
+Debug*)
+	options=("${options[@]}" 'nostrip')
+	;;
+esac
 
 ###
 # == PROVIDED FUNCTIONS

@@ -489,13 +489,13 @@ Ftreecmp() {
 		Fmessage "Comparison function is empty"
 		Fdie
 	fi
-	diff --new-line-format='+%L' --old-line-format='-%L' --unchanged-line-format='=%L' \
-		<(cd "$1" && find $_F_treecmp_findopts | sort) \
-		<(cd "$2" && find $_F_treecmp_findopts | sort) \
-	| while read line
-	do
-		$3 $line
-	done
+	#diff --new-line-format='+%L' --old-line-format='-%L' --unchanged-line-format='=%L' \
+	#	<(cd "$1" && find $_F_treecmp_findopts | sort) \
+	#	<(cd "$2" && find $_F_treecmp_findopts | sort) \
+	#| while read line
+	#do
+	#	$3 $line
+	#done
 }
 
 ###

@@ -480,7 +480,7 @@ Fdeststrip() {
 # first tree to the second tree.
 ###
 Ftreecmp() {
-	local line
+	local line old=$(mktemp) new=$(mktemp)
 	if [ ! -d "$1" -o ! -d "$2" ]; then
 		Fmessage "$1 or $2 is not a directory"
 		Fdie
@@ -489,13 +489,15 @@ Ftreecmp() {
 		Fmessage "Comparison function is empty"
 		Fdie
 	fi
-	diff --new-line-format='+%L' --old-line-format='-%L' --unchanged-line-format='=%L' \
-		<(cd "$1" && find $_F_treecmp_findopts | sort) \
-		<(cd "$2" && find $_F_treecmp_findopts | sort) \
+	(cd "$1" && find $_F_treecmp_findopts | sort) > $old
+	(cd "$2" && find $_F_treecmp_findopts | sort) > $new
+	diff --new-line-format='+%L' --old-line-format='-%L'
+		--unchanged-line-format='=%L' $old $new \
 	| while read line
 	do
 		$3 $line
 	done
+	rm $old $new
 }
 
 ###

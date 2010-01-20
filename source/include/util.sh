@@ -491,7 +491,7 @@ Ftreecmp() {
 	fi
 	(cd "$1" && find $_F_treecmp_findopts | sort) > $old
 	(cd "$2" && find $_F_treecmp_findopts | sort) > $new
-	diff --new-line-format='+%L' --old-line-format='-%L'
+	diff --new-line-format='+%L' --old-line-format='-%L' \
 		--unchanged-line-format='=%L' $old $new \
 	| while read line
 	do

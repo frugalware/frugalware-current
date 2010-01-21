@@ -28,6 +28,7 @@ Finclude cmake
 #
 # == OPTIONS
 # * _F_kde_ver (defaults to the current KDE version)
+# * _F_kde_qtver (defaults to the qt version required to build the current version)
 # * _F_kde_name (defaults to $pkgname): if you want to use a custom package
 # name (for example the upstream name contains uppercase letters) then use this
 # to declare the real name
@@ -40,6 +41,10 @@ Finclude cmake
 
 if [ -z "$_F_kde_ver" ]; then
 	_F_kde_ver=4.3.4
+fi
+
+if [ -z "$_F_kde_qtver" ]; then
+	_F_kde_qtver=4.6.0
 fi
 
 if [ -z "$_F_kde_name" ]; then

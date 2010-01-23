@@ -95,7 +95,7 @@ Fbuild_haskell_regscripts() {
   Fsed '$_F_haskell_register_dir' "$_F_haskell_register_dir" ${Fsrcdir%/src}/$_F_haskell_install
   runhaskell $_F_haskell_setup register --gen-script
   runhaskell $_F_haskell_setup unregister --gen-script
-  
+
   Fexerel register.sh /usr/share/haskell/$_F_haskell_register_dir/register.sh
   Fexerel unregister.sh usr/share/haskell/$_F_haskell_register_dir/unregister.sh
 }

@@ -792,7 +792,7 @@ Fsort() {
 	if [ -x /usr/bin/versort ]; then
 		/usr/bin/versort
 	else
-	
+
 	# Deprecated method of sorting, it's too much slow
 	local i= items= left=0
 	items=( `cat|tr '\n' ' '` )

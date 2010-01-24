@@ -147,6 +147,32 @@ Fcd() {
 }
 
 ###
+# * Fsubdestdir(): Output the subpackage Fdestdir (or Fdestdir if empty).
+# Parameter: optional subpkg name.
+###
+Fsubdestdir() {
+	local subpath="$Fdestdir"
+	if [ -n "$1" ]; then
+		subpath="$subpath.$1"
+	fi
+	if [ ! -d "$subpath" ]; then
+		Fmessage "$i is not an existing subpackage."
+		Fdie
+	fi
+	echo "$subpath"
+}
+
+Fsubdestdirinfo() {
+	if [ -n "$1" ]; then
+		if [ ! -d "$Fdestdir.$1" ]; then
+			Fmessage "$i is not an existing subpackage."
+			Fdie
+		fi
+		echo " in subpkg $1"
+	fi
+}
+
+###
 # * Fmkdir(): Creates a directory under $Fdestdir. Parameter: name of the
 # directory to create (you can supply more than one).
 ###
@@ -219,12 +245,30 @@ Fcprrel() {
 }
 
 ###
-# * Fmv(): Move a file under $Fdestdir. First parameter: name of the file,
-# second parameter: path of the destination.
+# * Fmv(): Move a file under $Fdestdir. Parameters: 1) name of the file
+# 2) destination.
 ###
 Fmv() {
-	Fmessage "Moving file(s): $1"
-	mv "$Fdestdir/"$1 "$Fdestdir"/$2 || Fdie
+	Fsubmv '' "$@"
+}
+
+###
+# * Fsubmv(): Move a file under the subpkg Fdestdir. Parameters: 1) name of the
+# subpackage 2) name of the file 2) destination
+###
+Fsubmv()
+{
+	local destdir="`Fsubdestdir "$1"`" i info="`Fsubdestdirinfo "$1"`"
+	Fmessage "Moving file(s)$info:"
+	msg2 "$2 -> $3"
+	for i in "$destdir"/$2 # expand $2 if possible
+	do
+		if [ ! -e "$i" ]; then # expand failed ?
+			Fmessage "No such file $2$info!! Typo? ($i)"
+			Fdie
+		fi
+		mv "$i" "$destdir/$3" || Fdie
+	done
 }
 
 ###

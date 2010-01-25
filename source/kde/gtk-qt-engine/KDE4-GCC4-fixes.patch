@@ -1,0 +1,53 @@
+diff -Naur gtk-qt-engine/ChangeLog gtk-qt-engine-p/ChangeLog
+--- gtk-qt-engine/ChangeLog	2008-03-11 02:30:19.000000000 +0100
++++ gtk-qt-engine-p/ChangeLog	2010-01-15 10:28:33.000000000 +0100
+@@ -7,3 +7,4 @@
+  * Updated .pot
+  * Included Czech translation by David Watzke
+  * Included Italian translation by Davide Madrisan
++ * Fix a crash in Firefox's open file dialog
+diff -Naur gtk-qt-engine/src/engine.cpp gtk-qt-engine-p/src/engine.cpp
+--- gtk-qt-engine/src/engine.cpp	2008-03-11 02:30:19.000000000 +0100
++++ gtk-qt-engine-p/src/engine.cpp	2010-01-15 10:28:33.000000000 +0100
+@@ -375,7 +375,7 @@
+ 		default: element = QStyle::PE_Frame;         break;
+ 	}
+ 	
+-	m_qtStyle->drawPrimitive(element, &option, &p);
++	m_qtStyle->drawPrimitive(element, &option, &p, m_dummyWidget);
+ 	
+ 	GTK_QT_FINISH
+ }
+@@ -638,6 +638,8 @@
+ 	
+ 	// Figure out where the slider is.  Hope this rect is the same size as oldSize
+ 	QRect sliderRect = m_qtStyle->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarSlider, m_dummyScrollBar);
++	if (sliderRect.width() < 0 || sliderRect.height() < 0) // Firefox again :(
++		return;
+ 	
+ 	// Get rid of the buttons so we're left with just the scrollbar slider of the size we were asked to draw
+ 	offscreenPixmap = offscreenPixmap.copy(sliderRect);
+diff -Naur gtk-qt-engine/src/qt_theme_draw.c gtk-qt-engine-p/src/qt_theme_draw.c
+--- gtk-qt-engine/src/qt_theme_draw.c	2008-03-11 02:30:19.000000000 +0100
++++ gtk-qt-engine-p/src/qt_theme_draw.c	2010-01-15 10:28:33.000000000 +0100
+@@ -19,6 +19,7 @@
+  ***************************************************************************/
+ 
+ #include <math.h>
++#include <stdlib.h>
+ #include <string.h>
+ #include <gtk/gtkprogressbar.h>
+ #include <gdk/gdk.h>
+diff -Naur gtk-qt-engine/src/rcproperties.cpp gtk-qt-engine-p/src/rcproperties.cpp
+--- gtk-qt-engine/src/rcproperties.cpp	2008-03-11 02:30:19.000000000 +0100
++++ gtk-qt-engine-p/src/rcproperties.cpp	2010-01-15 10:28:33.000000000 +0100
+@@ -131,7 +131,8 @@
+ 	
+ 	int availableSize = 200 - qtStyle->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarGroove, scrollBar).width();
+ 	s_scrollBarButtonCount = s_scrollBarHasForward1 + s_scrollBarHasBack1 + s_scrollBarHasForward2 + s_scrollBarHasBack2; // Evil
+-	s_scrollBarButtonSize = availableSize / s_scrollBarButtonCount;
++	if (s_scrollBarButtonCount != 0)
++		s_scrollBarButtonSize = availableSize / s_scrollBarButtonCount;
+ }
+ 
+ void RcProperties::setColorProperties()

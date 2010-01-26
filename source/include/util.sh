@@ -1234,7 +1234,7 @@ Fsplit()
 		# FIXME Compatibility: check for $subpkg in subpkgs
 		warning "Trying to move $@ to undeclared subpackage $subpkg"
 		mkdir -p $startdir/pkg.$subpkg/
-#		Fdie
+		Fdie
 	fi
 
 	for i in "$@"

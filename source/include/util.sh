@@ -151,15 +151,15 @@ Fcd() {
 # Parameter: optional subpkg name.
 ###
 Fsubdestdir() {
-	local subpath="$Fdestdir"
+	local subdestdir="$Fdestdir"
 	if [ -n "$1" ]; then
-		subpath="$subpath.$1"
+		subdestdir="$subidestdir.$1"
 	fi
-	if [ ! -d "$subpath" ]; then
+	if [ ! -d "$subdestdir" ]; then
 		Fmessage "$i is not an existing subpackage."
 		Fdie
 	fi
-	echo "$subpath"
+	echo "$subdestdir"
 }
 
 Fsubdestdirinfo() {
@@ -558,16 +558,13 @@ __Ftreecmp_cleandestdir() {
 # them conflict less. Parameters: The subpackages to use.
 ###
 Fcleandestdir() {
-	local i
+	local i subdestdir
 	for i in "$@"
 	do
-		if [ ! -d "$Fdestdir.$i" ]; then
-			Fmessage "$i is not an existing subpackage."
-			Fdie
-		fi
 		Fmessage "Removing conflicting files with $i subpackage."
+		subdestdir="`Fsubdestdir "$i"`"
 		_F_treecmp_findopts='! -type d' \
-		Ftreecmp "$Fdestdir" "$Fdestdir.$i" __Ftreecmp_cleandestdir
+		Ftreecmp "$Fdestdir" "$subdestdir" __Ftreecmp_cleandestdir
 	done
 }
 

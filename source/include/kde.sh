@@ -159,6 +159,7 @@ KDE_project_install()
 # 1) name of the subpackage 2) Name of the project (see KDE_project_install).
 # Example: KDE_project_split kopete-irc kopete/protocols/irc
 ###
+
 KDE_project_split()
 {
 	KDE_project_install "$2"
@@ -172,29 +173,46 @@ KDE_project_split()
 # subdirectory project. Example: "kdelibs-kioslave-ftp" would search for
 # kioslave/ftp project subdir.
 ###
+
+
+
+__KDE_split() # internal and should be extended to handle all kind paths
+{
+	## we use for weird or not logical names
+        ## $pkgname-<the_weird_name>
+	clean=$(eval "echo \"\${i/#$pkgname-/}\"") # Remove front "$pkgname-"
+	if [ ! -d "$clean" ]; then
+		clean="${clean//-//}" # Transform "-" into "/"
+	fi
+
+        ## check whatever that project exists
+	if [ -d "$clean" ]; then
+		## split it
+		KDE_project_split "$i" "$clean"
+	else
+		if [ -z "$_F_kde_subpkgs_custom_path" ]; then
+			Fmessage "Could not find $clean!! Maybe is not in the TOP_SRC dir? Or Typo?"
+                	Fdie
+		else
+			Fmessage "Could not find $clean but _F_kde_subpkgs_custom_path is set!"
+			Fmessage "Won't die() here, assuming build() will handle this package!..."
+		fi
+	fi
+}
+
 KDE_split()
 {
 	local i clean
-
 	## let's try that way
 	for i in "${_F_kde_subpkgs[@]}"
 	do
-		## we use for weird or not logical names
-		## $pkgname-<the_weird_name>
-		clean=$(eval "echo \"\${i/#$pkgname-/}\"") # Remove front "$pkgname-"
-		if [ ! -d "$clean" ]; then
-			clean="${clean//-//}" # Transform "-" into "/"
+		## Shall we add something more generic some _ignore= ?
+		## but for that we need some hacks in makepkg I guess
+		if [ "$i" == "$pkgname-docs" ]; then
+			Fmessage "Ignoring $pkgname-docs KDE_install() will take care.."
+			continue
 		fi
-
-		## check whatever that project exists
-		if [ -d "$clean" ]; then
-			## split it
-			KDE_project_split "$i" "$clean"
-		else
-			Fmessage "Aieee project $clean does NOT exists, don't know how to install and split :/ ( Typo? )"
-			Fdie
-		fi
-
+		__KDE_split
 	done
 }
 
@@ -210,15 +228,29 @@ KDE_make()
 	CMake_make "$@"
 }
 
+KDE_install()
+{
+	make DESTDIR="$Fdestdir" install || Fdie
+	if [ "$_F_kde_split_docs" == 1 ]; then
+          Fsplit "$pkgname-docs" /usr/share/doc/HTML
+        fi
+
+	if [ -n "$_F_kde_subpkgs" ]; then
+		Fmessage "Found _F_kde_subpkgs , cleaning up..."
+		Fcleandestdir "${_F_kde_subpkgs[@]}"
+
+	elif [ -z "$_F_kde_subpkgs" -o -n "$subpkgs" ]; then
+		Fmessage "Did not found _F_kde_subpkgs but we have subpkgs , cleaning up.."
+		Fcleandestdir "${subpkgs[@]}"
+	fi
+}
+
+
 KDE_build()
 {
 	KDE_make "$@"
 	KDE_split
-	make DESTDIR="$Fdestdir" install || Fdie
-	Fcleandestdir "${_F_kde_subpkgs[@]}"
-	if [ "$_F_kde_split_docs" == 1 ]; then
-	  Fsplit "$pkgname-docs" /usr/share/doc/HTML
-	fi
+	KDE_install
 }
 
 ###

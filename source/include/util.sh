@@ -153,7 +153,7 @@ Fcd() {
 Fsubdestdir() {
 	local subdestdir="$Fdestdir"
 	if [ -n "$1" ]; then
-		subdestdir="$subidestdir.$1"
+		subdestdir="$subdestdir.$1"
 	fi
 	if [ ! -d "$subdestdir" ]; then
 		Fmessage "$i is not an existing subpackage."

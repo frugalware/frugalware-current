@@ -231,18 +231,12 @@ KDE_make()
 KDE_install()
 {
 	make DESTDIR="$Fdestdir" install || Fdie
+	Fcleandestdir "${_F_kde_subpkgs[@]}"
+        Fcleandestdir "${subpkgs[@]}"
 	if [ "$_F_kde_split_docs" == 1 ]; then
           Fsplit "$pkgname-docs" /usr/share/doc/HTML
         fi
 
-	if [ -n "$_F_kde_subpkgs" ]; then
-		Fmessage "Found _F_kde_subpkgs , cleaning up..."
-		Fcleandestdir "${_F_kde_subpkgs[@]}"
-
-	elif [ -z "$_F_kde_subpkgs" -o -n "$subpkgs" ]; then
-		Fmessage "Did not found _F_kde_subpkgs but we have subpkgs , cleaning up.."
-		Fcleandestdir "${subpkgs[@]}"
-	fi
 }
 
 

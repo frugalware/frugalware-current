@@ -580,7 +580,13 @@ __Fpatch() {
 		fi
 		level="1"
 	fi
-	patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" || Fdie
+	# if we are here, the patch applied with -p1, so it's no good
+	# showing the output again
+	if [ "$level" = 1 ]; then
+		patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" >/dev/null || Fdie
+	else
+		patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" || Fdie
+	fi
 	return 0
 }
 

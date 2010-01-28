@@ -185,13 +185,27 @@ __KDE_split() # internal and should be extended to handle all kind paths
 		clean="${clean//-//}" # Transform "-" into "/"
 	fi
 
+
+	## we have such packages should be called lib<something> but upstream
+	## has the name without the lib .. try to figure that ..
+
+	if [ "`echo $clean | grep ^lib`" ]; then ## just lib<something> and not something<lib>
+		cleanlib=$(echo $clean | sed 's/lib//g')
+	fi
         ## check whatever that project exists
 	if [ -d "$clean" ]; then
 		## split it
+		Fmessage "Found Kde-Project "$clean" in TOP_SRC dir.. Splitting.."
 		KDE_project_split "$i" "$clean"
-	else
+	elif [ -d "libs/$clean" ]; then
+		Fmessage "Found Kde-Project "$clean" in libs/ dir.. Splitting."
+		KDE_project_split "$i" "libs/$clean"
+	elif [ -d "libs/$cleanlib" ]; then
+		Fmessage "Found Kde-Project "$cleanlib" ( subpkg_name lib$cleanlib ) in libs/ dir.. Splitting."
+		KDE_project_split "$i" "libs/$cleanlib"
+	else ## TODO: Add apps/*/<something> checks , maybe more paths ?
 		if [ -z "$_F_kde_subpkgs_custom_path" ]; then
-			Fmessage "Could not find $clean!! Maybe is not in the TOP_SRC dir? Or Typo?"
+			Fmessage "Could not find $clean!! Maybe is not in the TOP_SRC or libs dir? Or Typo?"
                 	Fdie
 		else
 			Fmessage "Could not find $clean but _F_kde_subpkgs_custom_path is set!"

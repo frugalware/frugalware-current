@@ -22,7 +22,7 @@ if [ -z "$_F_cmake_type" ]; then
 fi
 
 if [ -z "$_F_cmake_verbose" ]; then
-	_F_cmake_verbose="TRUE"
+	_F_cmake_verbose="FALSE"
 fi
 
 if [ -z "$_F_cmake_color" ]; then

@@ -122,12 +122,15 @@ None)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -DNDEBUG -DQT_NO_DEBUG";;
 Debug*)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -ggdb3";;
 esac
 
+## REMOVE: KDE4_USE_ALWAYS... option changed since 4.2*
+## think about CMAKE_SKIP_RPATH for 4.4
 _F_cmake_confopts="$_F_cmake_confopts \
 		-DCONFIG_INSTALL_DIR=/etc/kde/config \
 		-DKCFG_INSTALL_DIR=/etc/kde/config.kcfg \
 		-DICON_INSTALL_DIR=/usr/share/kde/icons \
 		-DKDE4_USE_ALWAYS_FULL_RPATH=ON \
 		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
+
 
 ###
 # == PROVIDED FUNCTIONS

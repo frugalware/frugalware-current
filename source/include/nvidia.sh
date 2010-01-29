@@ -29,7 +29,7 @@
 # * _F_nvidia_pkgnum (defaults guessed using _F_nvidia_arch): the nvidia package number
 # * _F_nvidia_linkver (defaults to pkgver): the link number used by the nvidia shared libraries
 # * _F_nvidia_install (defaults to nvidia.install): Install file
-# * _F_nvidia_legacyver (optionnal): version string has found at http://www.nvidia.com/object/unix.html 
+# * _F_nvidia_legacyver (optionnal): version string has found at http://www.nvidia.com/object/unix.html
 # * _F_nvidia_up2date (defaults depends of _F_nvidia_legacyver): an up2date grep string that will be followed
 ###
 # General variables

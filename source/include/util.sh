@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # No author, see below.
 
@@ -147,6 +147,32 @@ Fcd() {
 }
 
 ###
+# * Fsubdestdir(): Output the subpackage Fdestdir (or Fdestdir if empty).
+# Parameter: optional subpkg name.
+###
+Fsubdestdir() {
+	local subdestdir="$Fdestdir"
+	if [ -n "$1" ]; then
+		subdestdir="$subdestdir.$1"
+	fi
+	if [ ! -d "$subdestdir" ]; then
+		Fmessage "$i is not an existing subpackage."
+		Fdie
+	fi
+	echo "$subdestdir"
+}
+
+Fsubdestdirinfo() {
+	if [ -n "$1" ]; then
+		if [ ! -d "$Fdestdir.$1" ]; then
+			Fmessage "$i is not an existing subpackage."
+			Fdie
+		fi
+		echo " in subpkg $1"
+	fi
+}
+
+###
 # * Fmkdir(): Creates a directory under $Fdestdir. Parameter: name of the
 # directory to create (you can supply more than one).
 ###
@@ -219,12 +245,30 @@ Fcprrel() {
 }
 
 ###
-# * Fmv(): Move a file under $Fdestdir. First parameter: name of the file,
-# second parameter: path of the destination.
+# * Fmv(): Move a file under $Fdestdir. Parameters: 1) name of the file
+# 2) destination.
 ###
 Fmv() {
-	Fmessage "Moving file(s): $1"
-	mv "$Fdestdir/"$1 "$Fdestdir"/$2 || Fdie
+	Fsubmv '' "$@"
+}
+
+###
+# * Fsubmv(): Move a file under the subpkg Fdestdir. Parameters: 1) name of the
+# subpackage 2) name of the file 2) destination
+###
+Fsubmv()
+{
+	local destdir="`Fsubdestdir "$1"`" i info="`Fsubdestdirinfo "$1"`"
+	Fmessage "Moving file(s)$info:"
+	msg2 "$2 -> $3"
+	for i in "$destdir"/$2 # expand $2 if possible
+	do
+		if [ ! -e "$i" ]; then # expand failed ?
+			Fmessage "No such file $2$info!! Typo? ($i)"
+			Fdie
+		fi
+		mv "$i" "$destdir/$3" || Fdie
+	done
 }
 
 ###
@@ -473,6 +517,58 @@ Fdeststrip() {
 }
 
 ###
+# * Ftreecmp(): Compare 2 tree and do an action on a compare result. Parameters:
+# 1) Fist tree 2) Second tree 3) Action to perform on compared item. The item
+# is an inode item (relative to both tree) prefixed with '-', '=' or '+'
+# depending if it deleted, still present or added in the comparison from the
+# first tree to the second tree.
+###
+Ftreecmp() {
+	local line old=$(mktemp) new=$(mktemp)
+	if [ ! -d "$1" -o ! -d "$2" ]; then
+		Fmessage "$1 or $2 is not a directory"
+		Fdie
+	fi
+	if [ -z "$3" ]; then
+		Fmessage "Comparison function is empty"
+		Fdie
+	fi
+	(cd "$1" && find $_F_treecmp_findopts | sort) > $old
+	(cd "$2" && find $_F_treecmp_findopts | sort) > $new
+	diff --new-line-format='+%L' --old-line-format='-%L' \
+		--unchanged-line-format='=%L' $old $new \
+	| while read line
+	do
+		$3 $line
+	done
+	rm $old $new
+}
+
+###
+# * __Ftreecmp_cleandestdir: Internal
+###
+__Ftreecmp_cleandestdir() {
+	case "$1" in
+	=*)	Frm "${1//=/}" ;;
+	esac
+}
+
+###
+# * Fcleandestdir(): Clean the $Fdestdir from subpackages files, to make
+# them conflict less. Parameters: The subpackages to use.
+###
+Fcleandestdir() {
+	local i subdestdir
+	for i in "$@"
+	do
+		Fmessage "Removing conflicting files with $i subpackage."
+		subdestdir="`Fsubdestdir "$i"`"
+		_F_treecmp_findopts='! -type d' \
+		Ftreecmp "$Fdestdir" "$subdestdir" __Ftreecmp_cleandestdir
+	done
+}
+
+###
 # * __Fpatch(): Internal. Apply a patch with -p0 (or -p1 if -p0 fails).
 # Parameter: Patch to apply.
 ###
@@ -484,7 +580,13 @@ __Fpatch() {
 		fi
 		level="1"
 	fi
-	patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" || Fdie
+	# if we are here, the patch applied with -p1, so it's no good
+	# showing the output again
+	if [ "$level" = 1 ]; then
+		patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" >/dev/null || Fdie
+	else
+		patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" || Fdie
+	fi
 	return 0
 }
 
@@ -792,7 +894,7 @@ Fsort() {
 	if [ -x /usr/bin/versort ]; then
 		/usr/bin/versort
 	else
-	
+
 	# Deprecated method of sorting, it's too much slow
 	local i= items= left=0
 	items=( `cat|tr '\n' ' '` )
@@ -1125,24 +1227,29 @@ Fwrapper()
 # * Fsplit(): Moves a file pattern to a subpackage. Parameters: 1) name of the
 # subpackage 2) pattern of the files to move. Example: Fsplit libmysql /usr/lib.
 #
-# NOTE: never use a leading slash when using wildcards!
+# NOTE: You have to quote wildcards to split the proper files! (/foo/* => /foo/\*)
 ###
 Fsplit()
 {
-	local subpkg=$1
+	local i dir path subpkg=$1
 	shift 1
-	local i
-	local dir
-	local path
-	for i in $@
-	do
-		# split the / suffix if used
-		path=`echo $i|sed 's|/$||'`
+	if [ ! -d $startdir/pkg.$subpkg ]; then
+		# FIXME Compatibility: check for $subpkg in subpkgs
+		warning "Trying to move $@ to undeclared subpackage $subpkg"
+		mkdir -p $startdir/pkg.$subpkg/
+		Fdie
+	fi
 
-		Fmessage "Moving $path to subpackage $subpkg"
-		dir=`echo $path|sed 's|/[^/]*$||'`
-		mkdir -p $startdir/pkg.$subpkg/$dir/
-		mv $Fdestdir/$path $startdir/pkg.$subpkg/$dir/ || Fdie
+	for i in "$@"
+	do
+		Fmessage "Moving $i to subpackage $subpkg"
+		for path in $Fdestdir/$i
+		do
+			path=`echo ${path%/}` # Remove / suffix if found
+			dir=`dirname ${path#$Fdestdir}` # Remove $Fdestdir prefix, and last dir element
+			mkdir -p $startdir/pkg.$subpkg/$dir/
+			mv $path $startdir/pkg.$subpkg/$dir/ || Fdie
+		done
 	done
 }
 
@@ -1170,8 +1277,8 @@ Fuse()
 check_option() {
 	local i
 	for i in ${options[@]}; do
-		local uc=`echo $i | tr [:lower:] [:upper:]`
-		local lc=`echo $i | tr [:upper:] [:lower:]`
+		local uc=`echo $i | tr '[:lower:]' '[:upper:]'`
+		local lc=`echo $i | tr '[:upper:]' '[:lower:]'`
 		if [ "$uc" = "$1" -o "$lc" = "$1" ]; then
 			echo $1
 			return

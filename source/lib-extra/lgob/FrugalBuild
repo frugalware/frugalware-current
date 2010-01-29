@@ -1,0 +1,82 @@
+# Compiling Time: 0.02 SBU
+# Maintainer: James Buren <ryuo@frugalware.org>
+
+pkgname=lgob
+pkgver=9.11.2
+pkgrel=1
+pkgdesc="A suite of LUA bindings for various components of the GTK+ family."
+url="http://oproj.tuxfamily.org/wiki/doku.php?id=lgob/"
+depends=('lua' 'glibc')
+makedepends=('luafilesystem')
+conflicts=('lmedia' 'ldraw' 'lgui' 'lobj')
+replaces=('lmedia' 'ldraw' 'lgui' 'lobj')
+groups=('lib-extra')
+archs=('i686' 'x86_64')
+options=('scriptlet')
+_dl_url="http://downloads.tuxfamily.org/oproj/lgob"
+up2date="Flasttar $_dl_url"
+source=($_dl_url/$pkgname-$pkgver.tar.bz2)
+sha1sums=('de06386adca1aa0b7296c73c01c6ce57f31e1e24')
+
+subpkgs=("$pkgname-gobject" "$pkgname-cairo" "$pkgname-pango" \
+	 "$pkgname-pangocairo" "$pkgname-poppler" "$pkgname-atk" \
+	 "$pkgname-clutter" "$pkgname-gtk" "$pkgname-vte" "$pkgname-webkit" \
+	 "$pkgname-gstreamer" "$pkgname-goocanvas" "$pkgname-gtksourceview" \
+	 "$pkgname-gtkspell" "$pkgname-cluttergtk" "$pkgname-devel")
+
+subdescs=("$pkgdesc (gobject)" "$pkgdesc (cairo)" "$pkgdesc (pango)" \
+	  "$pkgdesc (pangocairo)" "$pkgdesc (poppler)" "$pkgdesc (atk)" \
+	  "$pkgdesc (clutter)" "$pkgdesc (gtk)" "$pkgdesc (vte)" \
+	  "$pkgdesc (webkit)" "$pkgdesc (gstreamer)" "$pkgdesc (goocanvas)" \
+	  "$pkgdesc (gtksourceview)" "$pkgdesc (gtkspell)" \
+	  "$pkgdesc (cluttergtk)" "$pkgdesc (devel)")
+
+subdepends=('glib2' 'cairo' 'pango' 'cairo pango' 'poppler-glib' 'atk' \
+	    'clutter' 'gtk+2' 'vte' 'webkit' 'gstreamer' 'goocanvas' \
+	    'gtksourceview' 'gtkspell' 'clutter-gtk' '')
+
+subgroups=('lib-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra' \
+	   'lib-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra' \
+	   'xmultimedia-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra' \
+	   'xlib-extra' 'devel-extra')
+
+subarchs=("${archs[*]}" "${archs[*]}" "${archs[*]}" "${archs[*]}" \
+	  "${archs[*]}" "${archs[*]}" "${archs[*]}" "${archs[*]}" \
+	  "${archs[*]}" "${archs[*]}" "${archs[*]}" "${archs[*]}" \
+	  "${archs[*]}" "${archs[*]}" "${archs[*]}" "${archs[*]}")
+
+_modules=('common' 'loader' 'gobject' 'cairo' 'pango' 'pangocairo' 'poppler' \
+	  'atk' 'clutter' 'gdk' 'gtk' 'vte' 'webkit' 'gstreamer' 'goocanvas' \
+	  'gtksourceview' 'gtkspell' 'cluttergtk')
+
+build() {
+	Fcd
+
+	make -C codegen install DESTDIR="$Fdestdir/usr" || Fdie
+
+	CC="gcc -I $Fdestdir/usr/include"
+
+	GENDIR="$Fdestdir/usr/share/lua/5.1/$pkgname"
+
+	GEN="lua -llfs -e'lfs.chdir(\"$GENDIR\")' $GENDIR/generator.lua"
+	
+	if [ $CARCH = "x86_64" ]; then
+		opts="AMD64=1"
+	fi
+	
+	for i in ${_modules[@]}; do
+		make -C $i $opts CC="$CC" GEN="$GEN" || Fdie
+		make -C $i DESTDIR="$Fdestdir/usr" install || Fdie
+	done
+	
+	Fdocrel {tests,examples}
+	
+	for i in ${subpkgs[@]}; do
+		[ $i != "$pkgname-gstreamer" ] && [ $i != "$pkgname-devel" ] &&
+		Fsplit $i /usr/lib/lua/5.1/$pkgname/${i/$pkgname-/}.so
+	done
+	
+	Fsplit $pkgname-gstreamer /usr/lib/lua/5.1/$pkgname/gst.so
+	Fsplit $pkgname-gtk       /usr/lib/lua/5.1/$pkgname/gdk.so
+	Fsplit $pkgname-devel     /usr/share/doc/$pkgname-$pkgver/{tests,examples}
+}

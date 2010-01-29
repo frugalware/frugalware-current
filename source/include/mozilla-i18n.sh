@@ -62,6 +62,9 @@ mozilla_i18n_foreach_lang() {
 	done
 }
 
+###
+# * mozilla_i18n_lang_add()
+###
 mozilla_i18n_lang_add() {
 	source=("${source[@]}" "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_name/releases/$pkgver/linux-i686/xpi/$1.xpi")
 	subpkgs=("${subpkgs[@]}" "$_F_mozilla_i18n_name-${1,,}")
@@ -72,6 +75,9 @@ mozilla_i18n_lang_add() {
 	sha1sums=("${sha1sums[@]}" "$2")
 }
 
+###
+# * mozilla_i18n_lang_fini()
+###
 mozilla_i18n_lang_fini() {
 	rodepends=("${rodepends[@]}" "${subpkgs[@]}")
 }
@@ -95,9 +101,6 @@ build() {
 	mozilla_i18n_foreach_lang mozilla_i18n_lang_install
 }
 
-###
-# == UTILITY FUNCTIONS
-###
 mozilla_i18n_lang_describe()
 {
 	echo "mozilla_i18n_lang_add \"$1\" '$(sha1sum $lang.xpi | awk '{print $1}')'"

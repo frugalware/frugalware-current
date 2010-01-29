@@ -64,8 +64,8 @@ build()
 {
 	Fcd $pkgname-${pkgver/r/-}
 	./configure
-	
+
 	make || return 1
-	
+
 	Fmakeinstall
 }

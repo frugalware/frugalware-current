@@ -1,0 +1,114 @@
+# Compiling Time: 17.03 SBU
+# Maintainer: DeX77 <dex@dragonslave.de>
+
+pkgname=kdebase-workspace
+pkgrel=1
+pkgdesc="Programs specific for the KDE4 desktop."
+groups=('kde')
+archs=('i686' 'x86_64')
+_F_cmakekde_final=OFF
+_F_kde_split_docs=1
+_F_cmake_confopts="-DKDE4_COMMON_PAM_SERVICE=system-auth"
+Finclude kde
+rodepends=('xorg-server>=1.6.1' 'kde-frugalware>=4.3' 'xsetroot' 'xmessage' 'xrandr' 'xset' 'xprop' 'xrdb')
+depends=('consolekit' 'libusb' 'libxcomposite' 'libxdamage' \
+	'libxklavier>=4.0' 'libxxf86misc' 'lmsensors' 'libxtst' \
+	"kdebase-runtime>=$_F_kde_ver" "kdepimlibs>=$_F_kde_ver" \
+	'polkit-qt' 'qimageblitz' 'xdg-utils' 'dbus-x11' 'libxscrnsaver' "kdelibs>=$_F_kde_ver")
+makedepends=("${makedepends[@]}" 'boost' 'bluez-libs' 'sip>=4.10' 'pyqt4>=4.7' "kdebindings")
+## xrdb needed by font part .. from code in fonts.cpp ->:
+## " proc << "xrdb" << "-quiet" << "-remove" << "-nocpp"; "
+source=("${source[@]}" \
+	xinitrc.kde \
+	kde.desktop \
+	01-oxygen-fixes.patch \
+	02-plasma-panel-defaults.patch \
+	03-default-fonts.patch \
+	04-systemsettings-root.patch \
+	05-Suse-kdm-make_it_cool.diff \
+	06-clock.patch \
+	07-kspalsh-fix.patch \
+	08-kwin-compositing-r300_r600.patch
+	09-solid-halpower-fix.patch)
+replaces=('ksensors' 'katapult' 'tastymenu' 'kbfx' 'kdesktop-menu' \
+	'kicker-compiz' 'taskbar-compiz' 'mtaskbar' 'ksmoothdock' \
+	'kompose' 'dbus-qt3')
+sha1sums=('703582cb8a3471c5821986dbdfc3c6deedac0ff3' \
+          '81092d3c9cfc08de1ac63c8318f0f1391501fb8d' \
+          'e1f706c984fc81633663c662e674b6f2c64d2f83' \
+          '11f6d3704bc72da1eed159fc2737b8f2e7234a91' \
+          '07702d5ee7cc1d07c933b025768f8dbd59e45c24' \
+          '03a6acd95841885d684fc05f53566a0e36dd600a' \
+          'da461b91ab3ffaa5d29e2c88448ed61ed280b652' \
+          '5b16b82ff8f0084d15db9adf98c423906ff816e9' \
+          '280a676b39bd2d0b10e2cdafe11c97a674f37f2b' \
+          'be19f30fcffd85e899d7557c4b483d5c16f15b7e' \
+          '5dd8a5b5b412d3fe6b388570333d9e27119ea646' \
+          '2b29fce4a542ecd33761f7ef10086b8016313496')
+
+subpkgs=("${subpkgs[@]}" "kdm")
+subdescs=("${subdescs[@]}" "KDE Display Manager")
+subdepends=("${subdepends[@]}" "kdelibs>=$_F_kde_ver")
+subgroups=("${subgroups[@]}" 'kde')
+subarchs=("${subarchs[@]}" 'i686 x86_64')
+
+_F_kde_subpkgs=("${subpkgs[@]}")
+
+subpkgs=("${subpkgs[@]}" "$pkgname-wallpapers")
+subdescs=("${subdescs[@]}" "Kdebase Workspace Wallpapers")
+subdepends=("${subdepends[@]}" '')
+subgroups=("${subgroups[@]}" 'kde-extra')
+subarchs=("${subarchs[@]}" 'i686 x86_64')
+
+subpkgs=("${subpkgs[@]}" "$pkgname-extra-cursors")
+subdescs=("${subdescs[@]}" "Kdebase Workspace Big Cursors")
+subdepends=("${subdepends[@]}" '')
+subgroups=("${subgroups[@]}" 'kde-extra')
+subarchs=("${subarchs[@]}" 'i686 x86_64')
+
+subpkgs=("${subpkgs[@]}" "$pkgname-docs")
+subdescs=("${subdescs[@]}" "Kdebase Workspace Documentation")
+subdepends=("${subdepends[@]}" '')
+subgroups=("${subgroups[@]}" 'docs-extra kde-docs')
+subarchs=("${subarchs[@]}" 'i686 x86_64')
+
+rodepends=("${rodepends[@]}" "kdm=${_F_kde_ver}")
+
+build()
+{
+	KDE_build
+
+	## xinitrc for KDE.
+        Fexe /etc/X11/xinit/xinitrc.kde
+
+        ## Session file.
+        Ffile /etc/X11/sessions/kde.desktop
+
+	## No go 48MB extra wallpapers ..
+	## Kill from here and move to subpackage...
+	## Keep Air but that is..
+
+	find "$Fdestdir/usr/share/wallpapers" -maxdepth 1 -type d|grep -v Air | grep [A-Z]| sed 's/.*pkg\///1' >wall_list || Fdie
+	Fmessage "Moving the following Wallpapers to $pkgname-wallpapers"
+	cat wall_list || Fdie
+	for i in `cat wall_list`
+	do
+		Fsplit $pkgname-wallpapers $i
+	done
+
+	## kdmrc is in kde-fw package
+	Fsubmv kdm /etc/kde/config/kdm/kdmrc /etc/kde/config/kdm/kdmrc-kde4-$pkgver.orig
+
+	## cursors location is broken so is the icon location broke
+	## in oxygen-icons package ;)
+
+	Fmkdir usr/share/icons
+	Fmv /usr/share/kde/icons/Oxygen_* /usr/share/icons/
+	Fsplit $pkgname-extra-cursors usr/share/icons/Oxygen_*_Big
+
+	## default ksplash ...
+	Fmv /usr/share/apps/ksplash/Themes/Default /usr/share/apps/ksplash/Themes/Default.kde4
+
+}
+# optimization OK
+

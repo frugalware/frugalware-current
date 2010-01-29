@@ -47,9 +47,11 @@ _F_cd_path='.'
 
 ###
 # == APPENDED VARIABLES
+# * makedepends
 # * rodepends
 # * options
 ###
+makedepends=(${makedepends[@]} 'bdftopcf')
 rodepends=(${rodepends[@]} 'mkfontscale' 'mkfontdir' 'fontconfig')
 options=(${options[@]} 'genscriptlet')
 
@@ -60,8 +62,15 @@ options=(${options[@]} 'genscriptlet')
 Fbuild_fonts() {
 
   # find and install all font extensions we support
-  for i in `find -iregex '.*\.\(ttf\|otf\|pcf\|pcf.gz\|afm\|pfa\)'`; do
+  for i in `find -iregex '.*\.\(spd\|bdf\|ttf\|otf\|pcf\|pcf.gz\|afm\|pfa\)'`; do
     Ffile "$i" "$_F_fonts_dir/`basename $i`"
+  done
+
+  # find any BDF fonts and convert them
+  for i in `find "$Fdestdir" -name "*.bdf"`; do
+    Fmessage "Converting BDF font to PCF font: $i"
+    bdftopcf "$i" -o "${i/bdf/pcf}" || Fdie
+    rm -f "$i" || Fdie
   done
 
   # find any uncompressed PCF fonts and compress them

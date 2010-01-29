@@ -148,9 +148,14 @@ KDE_project_install()
 	# TODO: add 'kcontrol' check ?!
 	if [ -d "doc" ]; then # does a doc folder exists ?
 		if [ -d "doc/$1" ]; then #  does the package has docs ?
-			Fmessage "Installing docs for $1."
+			Fmessage "Installing docs from TOP_SRC dir for $1."
 			## install docs
 			make -C "doc/$1" DESTDIR="$Fdestdir" install || Fdie
+		fi
+	elif [ -d "apps/doc" ]; then ## kdebase
+		if [ -d "apps/doc/$1" ]; then #  does the package has docs ?
+			Fmessage "Installing docs from apps/ dir for $1."
+			make -C "apps/doc/$1" DESTDIR="$Fdestdir" install || Fdie
 		fi
 	fi
 	## install the package
@@ -200,12 +205,21 @@ __KDE_split() # internal and should be extended to handle all kind paths
 		## split it
 		Fmessage "Found Kde-Project "$clean" in TOP_SRC dir.. Splitting.."
 		KDE_project_split "$i" "$clean"
+	elif [ -d "apps/$clean" ]; then ## kdebase again
+		Fmessage "Found Kde-Project "$clean" in apps/ dir.. Splitting.."
+		KDE_project_split "$i" "apps/$clean"
 	elif [ -d "libs/$clean" ]; then
 		Fmessage "Found Kde-Project "$clean" in libs/ dir.. Splitting."
 		KDE_project_split "$i" "libs/$clean"
 	elif [ -d "libs/$cleanlib" ]; then
 		Fmessage "Found Kde-Project "$cleanlib" ( subpkg_name lib$cleanlib ) in libs/ dir.. Splitting."
 		KDE_project_split "$i" "libs/$cleanlib"
+	elif [ -d "apps/lib/$clean" ]; then ## kdebase ;)
+		Fmessage "Found Kde-Project "$clean" in apps/lib/ dir.. Splitting."
+		KDE_project_split "$i" "apps/lib/$clean"
+	elif [ -d "apps/lib/$cleanlib" ]; then
+		Fmessage "Found Kde-Project "$cleanlib" ( subpkg_name lib$cleanlib ) in apps/lib/ dir.. Splitting."
+		KDE_project_split "$i" "apps/lib/$cleanlib"
 	else ## TODO: Add apps/*/<something> checks , maybe more paths ?
 		if [ -z "$_F_kde_subpkgs_custom_path" ]; then
 			Fmessage "Could not find $clean!! Maybe is not in the TOP_SRC or libs dir? Or Typo?"

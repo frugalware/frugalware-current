@@ -69,7 +69,7 @@ Fbuild_fonts() {
   # find any BDF fonts and convert them
   for i in `find "$Fdestdir" -name "*.bdf"`; do
     Fmessage "Converting BDF font to PCF font: $i"
-    bdftopcf "$i" -o "${i/bdf/pcf}" || Fdie
+    bdftopcf -t "$i" -o "${i/bdf/pcf}" || Fdie
     rm -f "$i" || Fdie
   done
 

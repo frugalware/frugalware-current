@@ -1,0 +1,81 @@
+# Compiling Time: 2.50 SBU
+# Maintainer: Devil505 <devil505linux@gmail.com>
+
+pkgname=chromium-browser
+pkgver=4.0.249.78
+pkgrel=1
+pkgdesc='An open-source browser project that aims to build a safer, faster, and more stable way for all users to experience the web'
+url='http://www.chromium.org/'
+depends=('nss' 'gconf' 'alsa-lib' 'hicolor-icon-theme' 'libxslt' 'ffmpeg')
+makedepends=('python' 'perl' 'gperf')
+license=('BSD')
+groups=('gnome-extra')
+archs=('i686')
+_F_gnome_iconcache="y"
+Finclude gnome-scriptlet
+up2date="Flasttar http://ftp.frugalware.org/pub/other/people/devil505/snapshots/$pkgname/"
+source=(http://ftp.frugalware.org/pub/other/people/devil505/snapshots/$pkgname/$pkgname-$pkgver.tar.bz2  \
+        $pkgname.desktop $pkgname.sh  \
+        drop_sse2.patch ffmpeg_branding_mime.patch libpng-1.4.patch)
+sha1sums=('e8ba3aa5f698341e521ecb7a9b47eaf90a3fcf4d' \
+          '78ed8913b8a598de6a9e45d206973a846dbe8a51' \
+          'e06de4aee77b3deb77e3b08ebb175ec02da42ced' \
+          '48c08d66c0c210cb8261207ef077157cdb1a12fb' \
+          '0c0cdd36beb0663a74136a98b501ab5e2d256d3a' \
+          '5e20f6b7e276ab300aa8d037de073703aa02d5a3')
+
+build() {
+        Fcd
+
+        export GYP_GENERATORS='make'
+        export BUILDTYPE='Release'
+        export GYP_DEFINES="gcc_version=44 \
+                no_strict_aliasing=1 \
+                linux_sandbox_path=/usr/lib/chromium/chromium-sandbox \
+                linux_strip_binary=1 \
+                release_extra_cflags='${CFLAGS}' \
+                ffmpeg_branding=Chrome \
+                use_system_libjpeg=1 \
+                use_system_libxml=1 \
+                use_system_libxslt=1 \
+                use_system_bzip2=1 \
+                use_system_libpng=1 \
+                use_system_ffmpeg=1 \
+                werror="
+
+        Fpatchall
+
+        export PATH=./depot_tools/:$PATH
+        gclient.py runhooks --force || Fdie
+
+        cd src || Fdie
+        make chrome chrome_sandbox || Fdie
+
+	Fmkdir usr/lib/chromium
+        Fexerel out/Release/chrome usr/lib/chromium/chromium
+        Finstallrel 4755 out/Release/chrome_sandbox usr/lib/chromium/chromium-sandbox
+	Ffileschown usr/lib/chromium/chromium-sandbox root root
+        Finstallrel 644 out/Release/chrome.pak usr/lib/chromium/chrome.pak
+
+        Fln /usr/lib/libavcodec.so.52 /usr/lib/chromium/libavcodec.so.52
+        Fln /usr/lib/libavformat.so.52 /usr/lib/chromium/libavformat.so.52
+        Fln /usr/lib/libavutil.so.50 /usr/lib/chromium/libavutil.so.50
+
+        cp -a out/Release/locales out/Release/resources  \
+	$Fdestdir/usr/lib/chromium/ || Fdie
+        find $Fdestdir/usr/lib/chromium/ -name '*.d' -type f -delete
+        Finstallrel 644 out/Release/chrome.1 usr/share/man/man1/chromium.1
+
+        Finstall 644 $pkgname.desktop usr/share/applications/$pkgname.desktop
+        for size in 16 32 48 256; do
+                install -m 0644 -D \
+                        chrome/app/theme/chromium/product_logo_${size}.png \
+                        $Fdestdir/usr/share/icons/hicolor/${size}x${size}/apps/$pkgname.png
+        done
+
+        Fexe $pkgname.sh usr/bin/$pkgname
+
+        Fdocrel LICENSE
+	Fbuild_gnome_scriptlet
+}
+

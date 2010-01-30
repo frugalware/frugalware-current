@@ -1,5 +1,20 @@
 #! /bin/bash
 
+if [ "$1" = "regen" ]; then
+	# Cleanup
+	rm -rf *.xpi
+	sed -i -r "/^mozilla_i18n_lang_(add|fini)/d" FrugalBuild
+
+	# Make FrugalBuild sourcing silent
+	Finclude() { false; }
+	source ./FrugalBuild
+
+	if [ -z "$_F_mozilla_i18n_name" -o -z "$pkgver" ]; then
+		echo "_F_mozilla_i18n_name and pkgver must be defined in your FrugalBuid"
+		exit 1;
+	fi
+fi
+
 ###
 # = mozilla-i18n.sh(3)
 # Michel Hermier <hermier@frugalware.org>
@@ -20,11 +35,16 @@
 #
 # == OPTIONS
 # * _F_mozilla_i18n_name (required): The name of the Mozilla project.
+# * _F_mozilla_i18n_xpidirname (optional): The directory to the xpi.
 # * _F_mozilla_i18n_mirror (optional): The name of the mirror to use.
 ###
 
+if [ -z "$_F_mozilla_i18n_xpidirname" ]; then
+	_F_mozilla_i18n_xpidirname="$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/$pkgver/linux-i686/xpi"
+fi
+
 if [ -z "$_F_mozilla_i18n_mirror" ]; then
-	_F_mozilla_i18n_mirror=ftp://ftp.mozilla.org/pub/mozilla.org
+	_F_mozilla_i18n_mirror="ftp://ftp.mozilla.org/pub/mozilla.org"
 fi
 
 ###
@@ -39,12 +59,12 @@ fi
 # * archs()
 ###
 if [ -z "$pkgname" ]; then
-	pkgname=$_F_mozilla_i18n_name-i18n
+	pkgname="$_F_mozilla_i18n_name-i18n"
 fi
 if [ -z "$pkdesc" ]; then
 	pkgdesc="Language support for ${_F_mozilla_i18n_name^}"
 fi
-up2date="eval \"_F_archive_name=$_F_mozilla_i18n_name; Flastarchive $_F_mozilla_i18n_mirror/$_F_mozilla_i18n_name/releases/latest/source '\.source\.tar\.bz2'\""
+up2date="eval \"_F_archive_name=$_F_mozilla_i18n_name; Flastarchive $_F_mozilla_i18n_mirror/$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/latest/source '\.source\.tar\.bz2'\""
 url="http://www.mozilla.org/projects/l10n/mlp.html"
 options=('noversrc')
 rodepends=("$_F_mozilla_i18n_name>=$pkgver" "${subpackage[@]}")
@@ -66,7 +86,7 @@ mozilla_i18n_foreach_lang() {
 # * mozilla_i18n_lang_add()
 ###
 mozilla_i18n_lang_add() {
-	source=("${source[@]}" "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_name/releases/$pkgver/linux-i686/xpi/$1.xpi")
+	source=("${source[@]}" "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_xpidirname/$1.xpi")
 	subpkgs=("${subpkgs[@]}" "$_F_mozilla_i18n_name-${1,,}")
 	subdescs=("${subdescs[@]}" "${1} language support for ${_F_mozilla_i18n_name^}") # Requires a locale to name function.
 	subrodepends=("${subrodepends[@]}" "$_F_mozilla_i18n_name>=$pkgver")
@@ -107,18 +127,10 @@ mozilla_i18n_lang_describe()
 }
 
 if [ "$1" = "regen" ]; then
-	Finclude() { false; } # Make FrugalBuild sourcing silent
-	source ./FrugalBuild
+	# Download the xpi
+	wget -r -nd "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_xpidirname/"
 
-	if [ -z "$_F_mozilla_i18n_name" -o -z "$pkgver" ]; then
-		echo "_F_mozilla_i18n_name and pkgver must be defined in your FrugalBuid"
-		exit 1;
-	fi
-
-	rm -rf *.xpi
-	wget -r -nd $_F_mozilla_i18n_mirror/$_F_mozilla_i18n_name/releases/$pkgver/linux-i686/xpi/
-
-sed -i -r "/^mozilla_i18n_lang_(add|fini)/d" FrugalBuild
+	# Regen
 	mozilla_i18n_foreach_lang mozilla_i18n_lang_describe >> FrugalBuild
 	echo "mozilla_i18n_lang_fini" >> FrugalBuild
 fi

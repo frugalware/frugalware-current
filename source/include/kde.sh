@@ -255,8 +255,9 @@ KDE_split()
 
 KDE_export_flags()
 {
-	export CFLAGS="$CFLAGS -fno-strict-aliasing $_F_KDE_CXX_FLAGS"
-	export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing $_F_KDE_CXX_FLAGS"
+	export CFLAGS="$CFLAGS $_F_KDE_CXX_FLAGS"
+	export CXXFLAGS="$CXXFLAGS  $_F_KDE_CXX_FLAGS"
+	export LDFLAGS="$LDFLAGS -Wl,--no-undefined -Wl,--as-needed"
 }
 
 KDE_make()

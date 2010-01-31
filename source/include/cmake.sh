@@ -39,18 +39,32 @@ fi
 # * options(): add nostrip if _F_cmake_type is Debug*
 ###
 makedepends=(${makedepends[@]} 'cmake' 'pkgconfig')
-case "$_F_cmake_type" in
-Debug*)
-	options=("${options[@]}" 'nostrip')
-	;;
-esac
 
 ###
 # == PROVIDED FUNCTIONS
+# * CMake_setup(): Setup packages depending on some _F_cmake_* options.
+###
+CMake_setup()
+{
+	local i
+
+	case "$_F_cmake_type" in
+	Debug*)
+		options=("${options[@]}" 'nostrip')
+		for i in $(seq 0 $((${#subpkgs[@]} - 1))); do
+			suboptions[$i]="${suboptions[$i]} nostrip"
+		done
+		;;
+	esac
+}
+
+###
 # * CMake_conf(): This is the 'configure' part but cmake way.
 ###
 CMake_conf()
 {
+	CMake_setup
+
 	## CMAKE_INSTALL_PREFIX -> prefix
 	## SYSCONF_INSTALL_DIR -> sysconfdir
 	## LIB_INSTALL_DIR -> libdir

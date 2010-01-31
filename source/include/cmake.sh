@@ -73,6 +73,7 @@ CMake_conf()
 		-DCMAKE_VERBOSE_MAKEFILE="$_F_cmake_verbose" \
 		-DCMAKE_COLOR_MAKEFILE="$_F_cmake_color" \
 		-DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS" \
+		-DCMAKE_SKIP_RPATH=ON \
 		$_F_cmake_confopts "$@" $_F_cmake_src || Fdie
 }
 

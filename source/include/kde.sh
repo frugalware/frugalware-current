@@ -128,7 +128,6 @@ _F_cmake_confopts="$_F_cmake_confopts \
 		-DCONFIG_INSTALL_DIR=/etc/kde/config \
 		-DKCFG_INSTALL_DIR=/etc/kde/config.kcfg \
 		-DICON_INSTALL_DIR=/usr/share/kde/icons \
-		-DKDE4_USE_ALWAYS_FULL_RPATH=ON \
 		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
 
 
@@ -156,6 +155,13 @@ KDE_project_install()
 		if [ -d "apps/doc/$1" ]; then #  does the package has docs ?
 			Fmessage "Installing docs from apps/ dir for $1."
 			make -C "apps/doc/$1" DESTDIR="$Fdestdir" install || Fdie
+		fi
+	fi
+
+	if [ -d "filters" ]; then # Koffice
+		if [ -d "filters/$1" ]; then
+			Fmessage "Installing filters from filters/ dir for $1."
+			make -C "filters/$1" DESTDIR="$Fdestdir" install || Fdie
 		fi
 	fi
 	## install the package
@@ -259,11 +265,24 @@ KDE_make()
 	CMake_make "$@"
 }
 
+
+
+KDE_make_split()
+{
+	KDE_make "$@"
+	KDE_split
+}
+
+KDE_cleanup()
+{
+	Fcleandestdir "${_F_kde_subpkgs[@]}"
+	Fcleandestdir "${subpkgs[@]}"
+}
+
 KDE_install()
 {
 	make DESTDIR="$Fdestdir" install || Fdie
-	Fcleandestdir "${_F_kde_subpkgs[@]}"
-        Fcleandestdir "${subpkgs[@]}"
+	KDE_cleanup
 	if [ "$_F_kde_split_docs" == 1 ]; then
           Fsplit "$pkgname-docs" /usr/share/doc/HTML
         fi
@@ -273,8 +292,7 @@ KDE_install()
 
 KDE_build()
 {
-	KDE_make "$@"
-	KDE_split
+	KDE_make_split
 	KDE_install
 }
 

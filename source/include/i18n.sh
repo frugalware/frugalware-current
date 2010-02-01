@@ -1,5 +1,19 @@
 #!/bin/bash
 
+###
+# = i18n.sh(3)
+# Michel Hermier <hermier@frugalware.org>
+#
+# == NAME
+# i18n.sh - for Frugalware
+#
+# == SYNOPSIS
+# Common schema for internationalization functions.
+#
+# == PROVIDED FUNCTIONS
+# * i18n_language_for_locale(): Get a human readable language name from
+# an encoded language.
+###
 i18n_language_for_locale() {
 	local lang locale="${1/-/_}"
 	case "$locale" in

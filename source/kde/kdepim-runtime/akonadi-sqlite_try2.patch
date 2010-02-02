@@ -1,0 +1,890 @@
+diff -Naur kdepim-runtime-4.3.5/kcm/CMakeLists.txt kdepim-runtime-4.3.5-p/kcm/CMakeLists.txt
+--- kdepim-runtime-4.3.5/kcm/CMakeLists.txt	2009-06-03 13:54:34.000000000 +0200
++++ kdepim-runtime-4.3.5-p/kcm/CMakeLists.txt	2010-02-02 21:41:34.000000000 +0100
+@@ -7,7 +7,10 @@
+ 
+ 
+ set(akonadi_server_kcm_srcs serverconfigmodule.cpp)
+-kde4_add_ui_files(akonadi_server_kcm_srcs serverconfigmodule.ui )
++kde4_add_ui_files(akonadi_server_kcm_srcs serverconfigmodule.ui
++                                          servermysqlstorage.ui
++                                          serversqlitestorage.ui
++                                          serverstoragedriver.ui)
+ kde4_add_plugin(kcm_akonadi_server ${akonadi_server_kcm_srcs})
+ target_link_libraries(kcm_akonadi_server  ${KDE4_KIO_LIBS} ${KDEPIMLIBS_AKONADI_LIBS} ${AKONADI_COMMON_LIBRARIES})
+ 
+diff -Naur kdepim-runtime-4.3.5/kcm/kcm_akonadi.desktop kdepim-runtime-4.3.5-p/kcm/kcm_akonadi.desktop
+--- kdepim-runtime-4.3.5/kcm/kcm_akonadi.desktop	2010-01-21 21:48:39.000000000 +0100
++++ kdepim-runtime-4.3.5-p/kcm/kcm_akonadi.desktop	2010-02-02 21:41:34.000000000 +0100
+@@ -16,11 +16,9 @@
+ Name=Akonadi Configuration
+ Name[ar]=ضبط اكوندا
+ Name[ca]=Configuració de l'Akonadi
+-Name[ca@valencia]=Configuració de l'Akonadi
+ Name[cs]=Nastavení Akonadi
+ Name[da]=Konfiguration af Akonadi
+ Name[de]=Akonadi-Einrichtung
+-Name[el]=Ρυθμίσεις του Akonadi
+ Name[en_GB]=Akonadi Configuration
+ Name[es]=Configuración de Akonadi
+ Name[et]=Akonadi seadistused
+@@ -28,13 +26,14 @@
+ Name[gl]=Configuración do Akonadi 
+ Name[hu]=Akonadi-beállítások
+ Name[it]=Configurazione di Akonadi
++Name[ja]=Akonadi の設定
+ Name[km]=ការ​កំណត់​រចនាសម្ព័ន្ធ Akonadi
++Name[ko]=Akonadi 설정
+ Name[lv]=Akonadi konfigurācija
+ Name[nb]=Akonadi-oppsett
+ Name[nds]=Akonadi-Instellen
+ Name[nl]=Akonadi-configuratie
+ Name[nn]=Akonadi-oppsett
+-Name[pa]=ਅਕੌਂਡੀ ਸੰਰਚਨਾ
+ Name[pl]=Konfiguracja Akonadi
+ Name[pt]=Configuração do Akonadi
+ Name[pt_BR]=Configuração do Akonadi
+@@ -50,7 +49,6 @@
+ Comment=Configuration of the Akonadi Personal Information Management framework
+ Comment[ar]=ضبط إطار إدارة المعلومات الشخصية اكوندا
+ Comment[ca]=Configuració de l'entorn de gestió d'informació personal de l'Akonadi
+-Comment[ca@valencia]=Configuració de l'entorn de gestió d'informació personal de l'Akonadi
+ Comment[da]=Konfiguration af Akonadi - framework til håndtering af personlig information (PIM)
+ Comment[de]=Einrichtung des persönlichen Informationsmanagement von Akonadi
+ Comment[el]=Ρύθμιση του διαχειριστή προσωπικών πληροφοριών του Akonadi
+diff -Naur kdepim-runtime-4.3.5/kcm/kcm_akonadi_resources.desktop kdepim-runtime-4.3.5-p/kcm/kcm_akonadi_resources.desktop
+--- kdepim-runtime-4.3.5/kcm/kcm_akonadi_resources.desktop	2010-01-21 21:48:39.000000000 +0100
++++ kdepim-runtime-4.3.5-p/kcm/kcm_akonadi_resources.desktop	2010-02-02 21:41:34.000000000 +0100
+@@ -1,5 +1,5 @@
+ [Desktop Entry]
+-Icon=network
++Icon=server-database
+ Type=Service
+ ServiceTypes=KCModule
+ 
+@@ -14,7 +14,6 @@
+ Name=Akonadi Resources Configuration
+ Name[ar]=ضبط موارد اكوندا
+ Name[ca]=Configuració de recursos de l'Akonadi
+-Name[ca@valencia]=Configuració de recursos de l'Akonadi
+ Name[cs]=Nastavení zdrojů Akonadi
+ Name[da]=Akonadi ressourcekonfiguration
+ Name[de]=Einrichtung der Akonadi-Ressourcen
+diff -Naur kdepim-runtime-4.3.5/kcm/kcm_akonadi_server.desktop kdepim-runtime-4.3.5-p/kcm/kcm_akonadi_server.desktop
+--- kdepim-runtime-4.3.5/kcm/kcm_akonadi_server.desktop	2010-01-21 21:48:39.000000000 +0100
++++ kdepim-runtime-4.3.5-p/kcm/kcm_akonadi_server.desktop	2010-02-02 21:41:34.000000000 +0100
+@@ -14,7 +14,6 @@
+ Name=Akonadi Server Configuration
+ Name[ar]=ضبط خادم اكوندا
+ Name[ca]=Configuració del servidor de l'Akonadi
+-Name[ca@valencia]=Configuració del servidor de l'Akonadi
+ Name[cs]=Nastavení serveru Akonadi
+ Name[da]=Konfiguration af Akonadi-server
+ Name[de]=Einrichtung des Akonadi-Servers
+diff -Naur kdepim-runtime-4.3.5/kcm/serverconfigmodule.cpp kdepim-runtime-4.3.5-p/kcm/serverconfigmodule.cpp
+--- kdepim-runtime-4.3.5/kcm/serverconfigmodule.cpp	2008-12-21 21:20:38.000000000 +0100
++++ kdepim-runtime-4.3.5-p/kcm/serverconfigmodule.cpp	2010-02-02 22:39:53.000000000 +0100
+@@ -24,7 +24,10 @@
+ #include <kpluginfactory.h>
+ #include <kpluginloader.h>
+ 
++#include <QComboBox>
+ #include <QSettings>
++#include <QStackedWidget>
++#include <QVBoxLayout>
+ 
+ #include <akonadi/control.h>
+ #include <akonadi/servermanager.h>
+@@ -41,15 +44,46 @@
+   KGlobal::locale()->insertCatalog( "kcm_akonadi" );
+   KGlobal::locale()->insertCatalog( "libakonadi" );
+ 
++  QVBoxLayout *layout = new QVBoxLayout( this );
++  setLayout( layout );
++
++  QWidget *storage_driver = new QWidget( this );
++  layout->addWidget( storage_driver );
++  ui_driver.setupUi( storage_driver );
++
++  m_stackWidget = new QStackedWidget( this );
++  layout->addWidget( m_stackWidget );
++
++  // supported drivers
++  ui_driver.driverBox->addItem( "Mysql", QVariant( "QMYSQL" ) );
++  ui_driver.driverBox->addItem( "SQlite", QVariant( "QSQLITE" ) );
++
+   setButtons( KCModule::Default | KCModule::Apply );
+-  ui.setupUi( this );
+-  connect( ui.startServer, SIGNAL(toggled(bool)), SLOT(changed()) );
+-  connect( ui.serverPath, SIGNAL(textChanged(QString)), SLOT(changed()) );
+-  connect( ui.name, SIGNAL(textChanged(QString)), SLOT(changed()) );
+-  connect( ui.host, SIGNAL(textChanged(QString)), SLOT(changed()) );
+-  connect( ui.username, SIGNAL(textChanged(QString)), SLOT(changed()) );
+-  connect( ui.password, SIGNAL(textChanged(QString)), SLOT(changed()) );
+-  connect( ui.options, SIGNAL(textChanged(QString)), SLOT(changed()) );
++
++  // MySQL
++  m_mysqlWidget = new QWidget( this );
++  m_stackWidget->addWidget( m_mysqlWidget );
++  ui_mysql.setupUi( m_mysqlWidget );
++
++  // SQlite
++  m_sqliteWidget = new QWidget( this );
++  m_stackWidget->addWidget( m_sqliteWidget );
++  ui_sqlite.setupUi( m_sqliteWidget );
++  m_stackWidget->setCurrentWidget( m_mysqlWidget );
++
++  QWidget *widget = new QWidget( this );
++  layout->addWidget( widget );
++  ui.setupUi( widget );
++
++  connect( ui_mysql.startServer, SIGNAL(toggled(bool)), SLOT(changed()) );
++  connect( ui_mysql.serverPath, SIGNAL(textChanged(QString)), SLOT(changed()) );
++  connect( ui_mysql.name, SIGNAL(textChanged(QString)), SLOT(changed()) );
++  connect( ui_mysql.host, SIGNAL(textChanged(QString)), SLOT(changed()) );
++  connect( ui_mysql.username, SIGNAL(textChanged(QString)), SLOT(changed()) );
++  connect( ui_mysql.password, SIGNAL(textChanged(QString)), SLOT(changed()) );
++  connect( ui_mysql.options, SIGNAL(textChanged(QString)), SLOT(changed()) );
++
++  connect( ui_sqlite.name, SIGNAL(textChanged(QString)), SLOT(changed()) );
+ 
+   connect( ui.startStopButton, SIGNAL(clicked()), SLOT(startStopClicked()) );
+   connect( ui.restartButton, SIGNAL(clicked()), SLOT(restartClicked()) );
+@@ -57,20 +91,37 @@
+ 
+   connect( ServerManager::self(), SIGNAL(started()), SLOT(updateStatus()) );
+   connect( ServerManager::self(), SIGNAL(stopped()), SLOT(updateStatus()) );
++
++  connect( ui_driver.driverBox, SIGNAL(currentIndexChanged( int )), SLOT(driverChanged(int)) );
++  connect( ui_driver.driverBox, SIGNAL(currentIndexChanged( int )), SLOT(changed()) );
+ }
+ 
+ void ServerConfigModule::load()
+ {
++
+   const QString serverConfigFile = XdgBaseDirs::akonadiServerConfigFile( XdgBaseDirs::ReadWrite );
+   QSettings settings( serverConfigFile, QSettings::IniFormat );
+   settings.beginGroup( "QMYSQL" );
+-  ui.startServer->setChecked( settings.value( "StartServer", true ).toBool() );
+-  ui.serverPath->setUrl( KUrl::fromPath( settings.value( "ServerPath", "" ).toString() ) );
+-  ui.name->setText( settings.value( "Name", "akonadi" ).toString() );
+-  ui.host->setText( settings.value( "Host", "" ).toString() );
+-  ui.username->setText( settings.value( "User", "" ).toString() );
+-  ui.password->setText( settings.value( "Password", "" ).toString() );
+-  ui.options->setText( settings.value( "Options", "" ).toString() );
++  ui_mysql.startServer->setChecked( settings.value( "StartServer", true ).toBool() );
++  ui_mysql.serverPath->setUrl( KUrl::fromPath( settings.value( "ServerPath", "" ).toString() ) );
++  ui_mysql.name->setText( settings.value( "Name", "akonadi" ).toString() );
++  ui_mysql.host->setText( settings.value( "Host", "" ).toString() );
++  ui_mysql.username->setText( settings.value( "User", "" ).toString() );
++  ui_mysql.password->setText( settings.value( "Password", "" ).toString() );
++  ui_mysql.options->setText( settings.value( "Options", "" ).toString() );
++  settings.endGroup();
++
++
++
++  // sqlite group
++  settings.beginGroup( "QSQLITE" );
++  ui_sqlite.name->setText( settings.value( "Name", "" ).toString() );
++  settings.endGroup();
++
++  // selected driver
++  settings.beginGroup( "GENERAL" );
++  ui_driver.driverBox->setCurrentIndex( ui_driver.driverBox->findData( settings.value ( "Driver", "QSQLITE" ) ) );
++  driverChanged( ui_driver.driverBox->currentIndex() );
+   settings.endGroup();
+ 
+   updateStatus();
+@@ -82,13 +133,23 @@
+   const QString serverConfigFile = XdgBaseDirs::akonadiServerConfigFile( XdgBaseDirs::ReadWrite );
+   QSettings settings( serverConfigFile, QSettings::IniFormat );
+   settings.beginGroup( "QMYSQL" );
+-  settings.setValue( "StartServer", ui.startServer->isChecked() );
+-  settings.setValue( "ServerPath", ui.serverPath->url().toLocalFile() );
+-  settings.setValue( "Name", ui.name->text() );
+-  settings.setValue( "Host", ui.host->text() );
+-  settings.setValue( "User", ui.username->text() );
+-  settings.setValue( "Password", ui.password->text() );
+-  settings.setValue( "Options", ui.options->text() );
++  settings.setValue( "StartServer", ui_mysql.startServer->isChecked() );
++  settings.setValue( "ServerPath", ui_mysql.serverPath->url().toLocalFile() );
++  settings.setValue( "Name", ui_mysql.name->text() );
++  settings.setValue( "Host", ui_mysql.host->text() );
++  settings.setValue( "User", ui_mysql.username->text() );
++  settings.setValue( "Password", ui_mysql.password->text() );
++  settings.setValue( "Options", ui_mysql.options->text() );
++  settings.endGroup();
++
++  // sqlite group
++  settings.beginGroup( "QSQLITE" );
++  settings.setValue( "Name", ui_sqlite.name->text() );
++  settings.endGroup();
++
++  // selected driver
++  settings.beginGroup( "GENERAL" );
++  settings.setValue( "Driver", ui_driver.driverBox->itemData( ui_driver.driverBox->currentIndex() ).toString() );
+   settings.endGroup();
+   settings.sync();
+ 
+@@ -97,21 +158,20 @@
+ 
+ void ServerConfigModule::defaults()
+ {
+-  ui.startServer->setChecked( true );
+-  // TODO: detect default server path
+-  ui.name->setText( "akonadi" );
++
++  	ui_driver.driverBox->setCurrentIndex( ui_driver.driverBox->findData ("QSQLITE") );
+ }
+ 
+ void ServerConfigModule::updateStatus()
+ {
+   if ( ServerManager::isRunning() ) {
+-    ui.statusLabel->setText( i18n( "<b>The Akonadi server is running.</b>" ) );
+-    ui.startStopButton->setText( i18n( "Stop" ) );
+-    ui.restartButton->setEnabled( true );
++     ui.statusLabel->setText( i18n( "<b>The Akonadi server is running.</b>" ) );
++     ui.startStopButton->setText( i18n( "Stop" ) );
++     ui.restartButton->setEnabled( true );
+   } else {
+-    ui.statusLabel->setText( i18n( "The Akonadi server is <b>not</b> running." ) );
+-    ui.startStopButton->setText( i18n( "Start" ) );
+-    ui.restartButton->setEnabled( false );
++     ui.statusLabel->setText( i18n( "The Akonadi server is <b>not</b> running." ) );
++     ui.startStopButton->setText( i18n( "Start" ) );
++     ui.restartButton->setEnabled( false );
+   }
+ }
+ 
+@@ -133,4 +193,15 @@
+   ServerManager::showSelfTestDialog( this );
+ }
+ 
++void ServerConfigModule::driverChanged( int index )
++{
++  if( ui_driver.driverBox->itemData( index ).toString() == "QSQLITE" ) {
++	m_stackWidget->setCurrentWidget( m_sqliteWidget );
++  }
++  else {
++	m_stackWidget->setCurrentWidget( m_mysqlWidget );
++  }
++}
++
++
+ #include "serverconfigmodule.moc"
+diff -Naur kdepim-runtime-4.3.5/kcm/serverconfigmodule.h kdepim-runtime-4.3.5-p/kcm/serverconfigmodule.h
+--- kdepim-runtime-4.3.5/kcm/serverconfigmodule.h	2008-11-04 18:13:01.000000000 +0100
++++ kdepim-runtime-4.3.5-p/kcm/serverconfigmodule.h	2010-02-02 21:41:34.000000000 +0100
+@@ -21,9 +21,15 @@
+ #define SERVERCONFIGMODULE_H
+ 
+ #include "ui_serverconfigmodule.h"
++#include "ui_servermysqlstorage.h"
++#include "ui_serversqlitestorage.h"
++#include "ui_serverstoragedriver.h"
+ 
+ #include <KCModule>
+ 
++class QComboBox;
++class QStackedWidget;
++
+ class ServerConfigModule : public KCModule
+ {
+   Q_OBJECT
+@@ -39,9 +45,19 @@
+     void startStopClicked();
+     void restartClicked();
+     void selfTestClicked();
++    void driverChanged(int);
+ 
+   private:
+     Ui::ServerConfigModule ui;
++    Ui::StorageDriver ui_driver;
++    Ui::MySQLStoragePage ui_mysql;
++    Ui::SQLITEStoragePage  ui_sqlite;
++
++    QStackedWidget *m_stackWidget;
++    QWidget *m_mysqlWidget;
++    QWidget *m_sqliteWidget;
++
++    QComboBox *m_driverBox;
+ };
+ 
+ #endif
+diff -Naur kdepim-runtime-4.3.5/kcm/serverconfigmodule.ui kdepim-runtime-4.3.5-p/kcm/serverconfigmodule.ui
+--- kdepim-runtime-4.3.5/kcm/serverconfigmodule.ui	2009-05-06 12:14:19.000000000 +0200
++++ kdepim-runtime-4.3.5-p/kcm/serverconfigmodule.ui	2010-02-02 21:41:34.000000000 +0100
+@@ -6,151 +6,12 @@
+    <rect>
+     <x>0</x>
+     <y>0</y>
+-    <width>444</width>
+-    <height>526</height>
++    <width>493</width>
++    <height>121</height>
+    </rect>
+   </property>
+   <layout class="QGridLayout" name="gridLayout_2">
+    <item row="0" column="0">
+-    <widget class="QCheckBox" name="startServer">
+-     <property name="whatsThis">
+-      <string>Choose whether Akonadi should use an internal or external MySQL server.</string>
+-     </property>
+-     <property name="text">
+-      <string>Use internal MySQL server</string>
+-     </property>
+-     <property name="checked">
+-      <bool>true</bool>
+-     </property>
+-    </widget>
+-   </item>
+-   <item row="1" column="0">
+-    <widget class="QGroupBox" name="groupBox_2">
+-     <property name="title">
+-      <string>Internal MySQL Server</string>
+-     </property>
+-     <layout class="QHBoxLayout" name="horizontalLayout">
+-      <item>
+-       <widget class="QLabel" name="label">
+-        <property name="text">
+-         <string>MySQL server executable:</string>
+-        </property>
+-        <property name="buddy">
+-         <cstring>serverPath</cstring>
+-        </property>
+-       </widget>
+-      </item>
+-      <item>
+-       <widget class="KUrlRequester" name="serverPath">
+-        <property name="whatsThis">
+-         <string>&lt;p&gt;&lt;b&gt;MySQL server location&lt;/b&gt;&lt;/p&gt;&lt;br&gt;Enter the location of your internal MySQL server or click on the Browse button.</string>
+-        </property>
+-       </widget>
+-      </item>
+-     </layout>
+-    </widget>
+-   </item>
+-   <item row="2" column="0">
+-    <widget class="QGroupBox" name="groupBox">
+-     <property name="enabled">
+-      <bool>false</bool>
+-     </property>
+-     <property name="title">
+-      <string>External MySQL Server</string>
+-     </property>
+-     <layout class="QFormLayout" name="formLayout">
+-      <item row="0" column="0">
+-       <widget class="QLabel" name="label_6">
+-        <property name="text">
+-         <string>Database name:</string>
+-        </property>
+-        <property name="buddy">
+-         <cstring>name</cstring>
+-        </property>
+-       </widget>
+-      </item>
+-      <item row="0" column="1">
+-       <widget class="KLineEdit" name="name">
+-        <property name="whatsThis">
+-         <string>&lt;p&gt;&lt;b&gt;Database Name&lt;/b&gt;&lt;/p&gt;&lt;br&gt;Enter the name of your Akonadi database on your external MySQL server.</string>
+-        </property>
+-       </widget>
+-      </item>
+-      <item row="1" column="0">
+-       <widget class="QLabel" name="label_2">
+-        <property name="text">
+-         <string>Host:</string>
+-        </property>
+-        <property name="buddy">
+-         <cstring>host</cstring>
+-        </property>
+-       </widget>
+-      </item>
+-      <item row="1" column="1">
+-       <widget class="KLineEdit" name="host">
+-        <property name="whatsThis">
+-         <string>&lt;p&gt;&lt;b&gt;Host&lt;/b&gt;&lt;/p&gt;&lt;br&gt;Enter the hostname or the IP address of the machine hosting your MySQL server.</string>
+-        </property>
+-       </widget>
+-      </item>
+-      <item row="2" column="0">
+-       <widget class="QLabel" name="label_3">
+-        <property name="text">
+-         <string>Username:</string>
+-        </property>
+-        <property name="buddy">
+-         <cstring>username</cstring>
+-        </property>
+-       </widget>
+-      </item>
+-      <item row="2" column="1">
+-       <widget class="KLineEdit" name="username">
+-        <property name="whatsThis">
+-         <string>Enter the username required to access your MySQL database.</string>
+-        </property>
+-       </widget>
+-      </item>
+-      <item row="3" column="0">
+-       <widget class="QLabel" name="label_4">
+-        <property name="text">
+-         <string>Password:</string>
+-        </property>
+-        <property name="buddy">
+-         <cstring>password</cstring>
+-        </property>
+-       </widget>
+-      </item>
+-      <item row="3" column="1">
+-       <widget class="KLineEdit" name="password">
+-        <property name="whatsThis">
+-         <string>Enter the password required to access your MySQL database.</string>
+-        </property>
+-        <property name="passwordMode">
+-         <bool>true</bool>
+-        </property>
+-       </widget>
+-      </item>
+-      <item row="4" column="0">
+-       <widget class="QLabel" name="label_5">
+-        <property name="text">
+-         <string>Options:</string>
+-        </property>
+-        <property name="buddy">
+-         <cstring>options</cstring>
+-        </property>
+-       </widget>
+-      </item>
+-      <item row="4" column="1">
+-       <widget class="KLineEdit" name="options">
+-        <property name="whatsThis">
+-         <string>&lt;p&gt;&lt;b&gt;External MySQL server options&lt;/b&gt;&lt;/p&gt;&lt;br&gt;If necessary, you may pass options to your MySQL server.</string>
+-        </property>
+-       </widget>
+-      </item>
+-     </layout>
+-    </widget>
+-   </item>
+-   <item row="3" column="0">
+     <widget class="QGroupBox" name="groupBox_3">
+      <property name="title">
+       <string>Status</string>
+@@ -219,80 +80,15 @@
+      </layout>
+     </widget>
+    </item>
+-   <item row="4" column="0">
+-    <spacer name="verticalSpacer">
+-     <property name="orientation">
+-      <enum>Qt::Vertical</enum>
+-     </property>
+-     <property name="sizeHint" stdset="0">
+-      <size>
+-       <width>20</width>
+-       <height>89</height>
+-      </size>
+-     </property>
+-    </spacer>
+-   </item>
+   </layout>
+  </widget>
+  <customwidgets>
+   <customwidget>
+-   <class>KLineEdit</class>
+-   <extends>QLineEdit</extends>
+-   <header>klineedit.h</header>
+-  </customwidget>
+-  <customwidget>
+    <class>KPushButton</class>
+    <extends>QPushButton</extends>
+    <header>kpushbutton.h</header>
+   </customwidget>
+-  <customwidget>
+-   <class>KUrlRequester</class>
+-   <extends>QFrame</extends>
+-   <header>kurlrequester.h</header>
+-  </customwidget>
+  </customwidgets>
+- <tabstops>
+-  <tabstop>startServer</tabstop>
+-  <tabstop>serverPath</tabstop>
+-  <tabstop>name</tabstop>
+-  <tabstop>host</tabstop>
+-  <tabstop>username</tabstop>
+-  <tabstop>password</tabstop>
+-  <tabstop>options</tabstop>
+- </tabstops>
+  <resources/>
+- <connections>
+-  <connection>
+-   <sender>startServer</sender>
+-   <signal>toggled(bool)</signal>
+-   <receiver>groupBox_2</receiver>
+-   <slot>setEnabled(bool)</slot>
+-   <hints>
+-    <hint type="sourcelabel">
+-     <x>53</x>
+-     <y>18</y>
+-    </hint>
+-    <hint type="destinationlabel">
+-     <x>56</x>
+-     <y>34</y>
+-    </hint>
+-   </hints>
+-  </connection>
+-  <connection>
+-   <sender>startServer</sender>
+-   <signal>toggled(bool)</signal>
+-   <receiver>groupBox</receiver>
+-   <slot>setDisabled(bool)</slot>
+-   <hints>
+-    <hint type="sourcelabel">
+-     <x>135</x>
+-     <y>20</y>
+-    </hint>
+-    <hint type="destinationlabel">
+-     <x>146</x>
+-     <y>110</y>
+-    </hint>
+-   </hints>
+-  </connection>
+- </connections>
++ <connections/>
+ </ui>
+diff -Naur kdepim-runtime-4.3.5/kcm/servermysqlstorage.ui kdepim-runtime-4.3.5-p/kcm/servermysqlstorage.ui
+--- kdepim-runtime-4.3.5/kcm/servermysqlstorage.ui	1970-01-01 01:00:00.000000000 +0100
++++ kdepim-runtime-4.3.5-p/kcm/servermysqlstorage.ui	2010-02-02 21:41:34.000000000 +0100
+@@ -0,0 +1,211 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<ui version="4.0">
++ <class>MySQLStoragePage</class>
++ <widget class="QWidget" name="MySQLStoragePage">
++  <property name="geometry">
++   <rect>
++    <x>0</x>
++    <y>0</y>
++    <width>467</width>
++    <height>311</height>
++   </rect>
++  </property>
++  <layout class="QGridLayout" name="gridLayout_2">
++   <item row="0" column="0">
++    <widget class="QCheckBox" name="startServer">
++     <property name="whatsThis">
++      <string>Choose whether Akonadi should use an internal or external MySQL server.</string>
++     </property>
++     <property name="text">
++      <string>Use internal MySQL server</string>
++     </property>
++     <property name="checked">
++      <bool>true</bool>
++     </property>
++    </widget>
++   </item>
++   <item row="1" column="0">
++    <widget class="QGroupBox" name="groupBox_2">
++     <property name="title">
++      <string>Internal MySQL Server</string>
++     </property>
++     <layout class="QHBoxLayout" name="horizontalLayout">
++      <item>
++       <widget class="QLabel" name="label">
++        <property name="text">
++         <string>MySQL server executable:</string>
++        </property>
++        <property name="buddy">
++         <cstring>serverPath</cstring>
++        </property>
++       </widget>
++      </item>
++      <item>
++       <widget class="KUrlRequester" name="serverPath">
++        <property name="whatsThis">
++         <string>&lt;p&gt;&lt;b&gt;MySQL server location&lt;/b&gt;&lt;/p&gt;&lt;br&gt;Enter the location of your internal MySQL server or click on the Browse button.</string>
++        </property>
++       </widget>
++      </item>
++     </layout>
++    </widget>
++   </item>
++   <item row="2" column="0">
++    <widget class="QGroupBox" name="groupBox">
++     <property name="enabled">
++      <bool>false</bool>
++     </property>
++     <property name="title">
++      <string>External MySQL Server</string>
++     </property>
++     <layout class="QFormLayout" name="formLayout">
++      <item row="0" column="0">
++       <widget class="QLabel" name="label_6">
++        <property name="text">
++         <string>Database name:</string>
++        </property>
++        <property name="buddy">
++         <cstring>name</cstring>
++        </property>
++       </widget>
++      </item>
++      <item row="0" column="1">
++       <widget class="KLineEdit" name="name">
++        <property name="whatsThis">
++         <string>&lt;p&gt;&lt;b&gt;Database Name&lt;/b&gt;&lt;/p&gt;&lt;br&gt;Enter the name of your Akonadi database on your external MySQL server.</string>
++        </property>
++       </widget>
++      </item>
++      <item row="1" column="0">
++       <widget class="QLabel" name="label_2">
++        <property name="text">
++         <string>Host:</string>
++        </property>
++        <property name="buddy">
++         <cstring>host</cstring>
++        </property>
++       </widget>
++      </item>
++      <item row="1" column="1">
++       <widget class="KLineEdit" name="host">
++        <property name="whatsThis">
++         <string>&lt;p&gt;&lt;b&gt;Host&lt;/b&gt;&lt;/p&gt;&lt;br&gt;Enter the hostname or the IP address of the machine hosting your MySQL server.</string>
++        </property>
++       </widget>
++      </item>
++      <item row="2" column="0">
++       <widget class="QLabel" name="label_3">
++        <property name="text">
++         <string>Username:</string>
++        </property>
++        <property name="buddy">
++         <cstring>username</cstring>
++        </property>
++       </widget>
++      </item>
++      <item row="2" column="1">
++       <widget class="KLineEdit" name="username">
++        <property name="whatsThis">
++         <string>Enter the username required to access your MySQL database.</string>
++        </property>
++       </widget>
++      </item>
++      <item row="3" column="0">
++       <widget class="QLabel" name="label_4">
++        <property name="text">
++         <string>Password:</string>
++        </property>
++        <property name="buddy">
++         <cstring>password</cstring>
++        </property>
++       </widget>
++      </item>
++      <item row="3" column="1">
++       <widget class="KLineEdit" name="password">
++        <property name="whatsThis">
++         <string>Enter the password required to access your MySQL database.</string>
++        </property>
++        <property name="passwordMode">
++         <bool>true</bool>
++        </property>
++       </widget>
++      </item>
++      <item row="4" column="0">
++       <widget class="QLabel" name="label_5">
++        <property name="text">
++         <string>Options:</string>
++        </property>
++        <property name="buddy">
++         <cstring>options</cstring>
++        </property>
++       </widget>
++      </item>
++      <item row="4" column="1">
++       <widget class="KLineEdit" name="options">
++        <property name="whatsThis">
++         <string>&lt;p&gt;&lt;b&gt;External MySQL server options&lt;/b&gt;&lt;/p&gt;&lt;br&gt;If necessary, you may pass options to your MySQL server.</string>
++        </property>
++       </widget>
++      </item>
++     </layout>
++    </widget>
++   </item>
++  </layout>
++ </widget>
++ <customwidgets>
++  <customwidget>
++   <class>KUrlRequester</class>
++   <extends>QFrame</extends>
++   <header>kurlrequester.h</header>
++  </customwidget>
++  <customwidget>
++   <class>KLineEdit</class>
++   <extends>QLineEdit</extends>
++   <header>klineedit.h</header>
++  </customwidget>
++ </customwidgets>
++ <tabstops>
++  <tabstop>startServer</tabstop>
++  <tabstop>serverPath</tabstop>
++  <tabstop>name</tabstop>
++  <tabstop>host</tabstop>
++  <tabstop>username</tabstop>
++  <tabstop>password</tabstop>
++  <tabstop>options</tabstop>
++ </tabstops>
++ <resources/>
++ <connections>
++  <connection>
++   <sender>startServer</sender>
++   <signal>toggled(bool)</signal>
++   <receiver>groupBox_2</receiver>
++   <slot>setEnabled(bool)</slot>
++   <hints>
++    <hint type="sourcelabel">
++     <x>53</x>
++     <y>18</y>
++    </hint>
++    <hint type="destinationlabel">
++     <x>56</x>
++     <y>34</y>
++    </hint>
++   </hints>
++  </connection>
++  <connection>
++   <sender>startServer</sender>
++   <signal>toggled(bool)</signal>
++   <receiver>groupBox</receiver>
++   <slot>setDisabled(bool)</slot>
++   <hints>
++    <hint type="sourcelabel">
++     <x>135</x>
++     <y>20</y>
++    </hint>
++    <hint type="destinationlabel">
++     <x>146</x>
++     <y>110</y>
++    </hint>
++   </hints>
++  </connection>
++ </connections>
++</ui>
+diff -Naur kdepim-runtime-4.3.5/kcm/serversqlitestorage.ui kdepim-runtime-4.3.5-p/kcm/serversqlitestorage.ui
+--- kdepim-runtime-4.3.5/kcm/serversqlitestorage.ui	1970-01-01 01:00:00.000000000 +0100
++++ kdepim-runtime-4.3.5-p/kcm/serversqlitestorage.ui	2010-02-02 21:50:14.000000000 +0100
+@@ -0,0 +1,60 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<ui version="4.0">
++ <class>SQLITEStoragePage</class>
++ <widget class="QWidget" name="SQLITEStoragePage">
++  <property name="geometry">
++   <rect>
++    <x>0</x>
++    <y>0</y>
++    <width>467</width>
++    <height>223</height>
++   </rect>
++  </property>
++  <layout class="QGridLayout" name="gridLayout_2">
++   <item row="0" column="0">
++    <widget class="QGroupBox" name="groupBox">
++     <property name="enabled">
++      <bool>true</bool>
++     </property>
++     <property name="title">
++      <string>External SQlite Server </string>
++     </property>
++     <layout class="QHBoxLayout" name="horizontalLayout">
++      <item>
++       <widget class="QLabel" name="label_6">
++        <property name="text">
++         <string>Database name:</string>
++        </property>
++        <property name="buddy">
++         <cstring>name</cstring>
++        </property>
++       </widget>
++      </item>
++      <item>
++       <widget class="KLineEdit" name="name">
++        <property name="enabled">
++         <bool>true</bool>
++        </property>
++        <property name="whatsThis">
++         <string>&lt;p&gt;&lt;b&gt;Database Name&lt;/b&gt;&lt;/p&gt;&lt;br&gt;Enter the name of your Akonadi database on your external SQlite server.</string>
++        </property>
++        <property name="autoFillBackground">
++         <bool>false</bool>
++        </property>
++       </widget>
++      </item>
++     </layout>
++    </widget>
++   </item>
++  </layout>
++ </widget>
++ <customwidgets>
++  <customwidget>
++   <class>KLineEdit</class>
++   <extends>QLineEdit</extends>
++   <header>klineedit.h</header>
++  </customwidget>
++ </customwidgets>
++ <resources/>
++ <connections/>
++</ui>
+diff -Naur kdepim-runtime-4.3.5/kcm/serverstoragedriver.ui kdepim-runtime-4.3.5-p/kcm/serverstoragedriver.ui
+--- kdepim-runtime-4.3.5/kcm/serverstoragedriver.ui	1970-01-01 01:00:00.000000000 +0100
++++ kdepim-runtime-4.3.5-p/kcm/serverstoragedriver.ui	2010-02-02 21:41:34.000000000 +0100
+@@ -0,0 +1,55 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<ui version="4.0">
++ <class>StorageDriver</class>
++ <widget class="QWidget" name="StorageDriver">
++  <property name="geometry">
++   <rect>
++    <x>0</x>
++    <y>0</y>
++    <width>467</width>
++    <height>105</height>
++   </rect>
++  </property>
++  <property name="sizePolicy">
++   <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
++    <horstretch>0</horstretch>
++    <verstretch>0</verstretch>
++   </sizepolicy>
++  </property>
++  <layout class="QGridLayout" name="gridLayout_2">
++   <item row="0" column="0">
++    <widget class="QGroupBox" name="groupBox_2">
++     <property name="sizePolicy">
++      <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
++       <horstretch>0</horstretch>
++       <verstretch>0</verstretch>
++      </sizepolicy>
++     </property>
++     <property name="title">
++      <string>Server database storage driver</string>
++     </property>
++     <layout class="QHBoxLayout" name="horizontalLayout">
++      <item>
++       <widget class="QLabel" name="label">
++        <property name="sizePolicy">
++         <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
++          <horstretch>0</horstretch>
++          <verstretch>0</verstretch>
++         </sizepolicy>
++        </property>
++        <property name="text">
++         <string>Database driver</string>
++        </property>
++       </widget>
++      </item>
++      <item>
++       <widget class="QComboBox" name="driverBox"/>
++      </item>
++     </layout>
++    </widget>
++   </item>
++  </layout>
++ </widget>
++ <resources/>
++ <connections/>
++</ui>

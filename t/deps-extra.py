@@ -26,7 +26,12 @@ while i:
 	pkg = pacman.void_to_PM_PKG(pacman.list_getdata(i))
 	pkgname = pacman.void_to_char(pacman.pkg_getinfo(pkg, pacman.PKG_NAME))
 	group = pacman.void_to_char(pacman.list_getdata(pacman.void_to_PM_LIST(pacman.pkg_getinfo(pkg, pacman.PKG_GROUPS))))
-	if group[-6:] == "-extra":
+	try:
+		if group[-6:] == "-extra":
+			i = pacman.list_next(i)
+			continue
+	except TypeError:
+		print "%s has no groups()" % pkgname
 		i = pacman.list_next(i)
 		continue
 	j = pacman.void_to_PM_LIST(pacman.pkg_getinfo(pkg, pacman.PKG_DEPENDS))

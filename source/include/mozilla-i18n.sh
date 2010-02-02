@@ -13,6 +13,8 @@ if [ "$1" = "regen" ]; then
 		echo "_F_mozilla_i18n_name and pkgver must be defined in your FrugalBuid"
 		exit 1;
 	fi
+else
+	Finclude i18n
 fi
 
 ###
@@ -88,7 +90,7 @@ mozilla_i18n_foreach_lang() {
 mozilla_i18n_lang_add() {
 	source=("${source[@]}" "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_xpidirname/$1.xpi")
 	subpkgs=("${subpkgs[@]}" "$_F_mozilla_i18n_name-${1,,}")
-	subdescs=("${subdescs[@]}" "${1} language support for ${_F_mozilla_i18n_name^}") # Requires a locale to name function.
+	subdescs=("${subdescs[@]}" "`i18n_language_from_locale "$1"` language support for ${_F_mozilla_i18n_name^}") # Requires a locale to name function.
 	subrodepends=("${subrodepends[@]}" "$_F_mozilla_i18n_name>=$pkgver")
 	subgroups=("${subgroups[@]}" "${groups[*]}")
 	subarchs=("${subarchs[@]}" "${archs[*]}")

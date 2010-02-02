@@ -123,7 +123,7 @@ build() {
 
 mozilla_i18n_lang_describe()
 {
-	echo "mozilla_i18n_lang_add \"$1\" '$(sha1sum $lang.xpi | awk '{print $1}')'"
+	echo "mozilla_i18n_lang_add '$1' '$(sha1sum $lang.xpi | awk '{print $1}')'"
 }
 
 if [ "$1" = "regen" ]; then

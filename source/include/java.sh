@@ -53,12 +53,12 @@ if [ -z "$_F_java_ldflags" ]; then
 fi
 
 ###
-# == OVERWRITTEN VARIABLES
+# == APPENDED VARIABLES
 # * depends()
 # * makedepends()
 ###
-depends=('libgcj>=4.4.0')
-makedepends=('gcc-gcj>=4.4.0' 'ant-eclipse-ecj')
+depends=("${depends[@]}" 'libgcj>=4.4.0')
+makedepends=("${makedepends[@]}" 'gcc-gcj>=4.4.0' 'ant-eclipse-ecj')
 
 ###
 # == PROVIDED FUNCTIONS

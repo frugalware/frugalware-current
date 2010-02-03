@@ -45,10 +45,6 @@
 # * _F_sourceforge_pkgver (defaults to $pkgver): Some packages are called foo-1.2.3
 # but the source is called different from $pkgver, e.g: foo-123 or foo-12.3, in such
 # a case _F_sourceforge_pkgver may help to avoid custom $source
-#
-# == DEPRECATED OPTIONS
-# * _F_sourceforge_broken_up2date: it does nothing at the moment and will be removed
-# before 1.0 is out
 ###
 
 if [ -z "$_F_sourceforge_name" ]; then
@@ -71,12 +67,6 @@ fi
 
 if [ -z "$_F_sourceforge_ext" ]; then
 	_F_sourceforge_ext=".tar.gz"
-fi
-
-if [ -n "$_F_sourceforge_broken_up2date" ]; then
-	warning "_F_sourceforge_broken_up2date is deprecated and does nothing at the moment!"
-	warning "Please update your FrugalBuild."
-	_F_sourceforge_broken_up2date=0
 fi
 
 if [ -z "$_F_sourceforge_sep" ]; then

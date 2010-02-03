@@ -20,7 +20,6 @@
 # _F_sourceforge_ext=".zip"
 # _F_sourceforge_dirname="amsn"
 # _F_sourceforge_name="$_F_amsn_name"
-# _F_sourceforge_broken_up2date=1
 # _F_amsn_clean_files=(Makefile Snapshot.exe snapshot.c)
 # Finclude sourceforge amsn
 # archs=('i686')

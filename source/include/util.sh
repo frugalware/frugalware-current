@@ -1323,9 +1323,9 @@ Fextract() {
 	tmp="$(echo "${file}" | tr 'A-Z' 'a-z')"
 	case "${tmp}" in
 		*.tar.gz|*.tar.z|*.tgz)
-		cmd="tar --use-compress-program=gzip -xf $file" ;;
+		cmd="tar --use-compress-program=gzip -xif $file" ;;
 		*.tar.bz2|*.tbz2)
-		cmd="tar --use-compress-program=bzip2 -xf $file" ;;
+		cmd="tar --use-compress-program=bzip2 -xif $file" ;;
 		*.tar)
 		cmd="tar -xf $file" ;;
 		*.zip|*.xpi)

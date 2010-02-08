@@ -91,13 +91,11 @@ _F_kernelmod_scriptlet=$_F_nvidia_install
 # * conflicts: add libgl, libgl-headers and libglx to conflicts
 # * provides: add libgl, libgl-headers and libglx to provides
 # * options: add nostrip to options
-# * removes: temporary fix for some nvidia mess, has to be removed after Frugalware 1.0
 ###
-depends=(${depends[@]} 'xorg-server>=1.6.1-8' 'pkgconfig')
+depends=(${depends[@]} 'libvdpau' 'xorg-server>=1.7.1' 'pkgconfig')
 conflicts=(${conflicts[@]} 'libgl' 'libgl-headers' 'libglx')
 provides=(${provides[@]} 'libgl' 'libgl-headers' 'libglx')
 options=(${options[@]} 'nostrip')
-removes=(${removes[@]} 'usr/lib/libcuda.so.1' 'usr/lib/libnvidia-cfg.so.1')
 
 if [ "$pkgname" != "nvidia" ]; then
 	conflicts=(${conflicts[@]} 'nvidia')
@@ -152,10 +150,6 @@ Fbuild_nvidia() {
 		Fmkdir usr/include/cuda
 		Ffilerel usr/include/cuda/* /usr/include/cuda/
 	fi
-	if [ -d usr/include/vdpau ]; then
-		Fmkdir usr/include/vdpau
-		Ffilerel usr/include/vdpau/* /usr/include/vdpau/
-	fi
 
 	# Install the xorg modules
 	Fmkdir usr/lib/xorg/modules/drivers
@@ -194,17 +188,9 @@ Fbuild_nvidia() {
 		Fln "libcuda.so.$_F_nvidia_linkver" "/usr/lib/libcuda.so"
 		Fln "libcuda.so.$_F_nvidia_linkver" "/usr/lib/libcuda.so.1"
 	fi
-	if [ -e "usr/lib/libvdpau.so.$_F_nvidia_linkver" ]; then
-		Fln "libvdpau.so.$_F_nvidia_linkver" "/usr/lib/libvdpau.so"
-		Fln "libvdpau.so.$_F_nvidia_linkver" "/usr/lib/libvdpau.so.1"
-	fi
 	if [ -e "usr/lib/libvdpau_nvidia.so.$_F_nvidia_linkver" ]; then
 		Fln "libvdpau_nvidia.so.$_F_nvidia_linkver" "/usr/lib/libvdpau_nvidia.so"
 		Fln "libvdpau_nvidia.so.$_F_nvidia_linkver" "/usr/lib/libvdpau_nvidia.so.1"
-	fi
-	if [ -e "usr/lib/libvdpau_trace.so.$_F_nvidia_linkver" ]; then
-		Fln "libvdpau_trace.so.$_F_nvidia_linkver" "/usr/lib/libvdpau_trace.so"
-		Fln "libvdpau_trace.so.$_F_nvidia_linkver" "/usr/lib/libvdpau_trace.so.1"
 	fi
 
 	# Weird TLS stuff

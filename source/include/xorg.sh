@@ -57,7 +57,7 @@ if [[ $pkgname =~ ^xf86-input- ]]; then
 	pkgdesc="X.Org driver for ${pkgname#xf86-input-} input devices"
 	groups=('x11' 'xorg-core' 'xorg-drivers')
 	archs=('i686' 'x86_64')
-	depends=('xorg-server>=1.6.1')
+	depends=('xorg-server>=1.7.0')
 	makedepends=('inputproto' 'randrproto')
 fi
 url="http://xorg.freedesktop.org"
@@ -77,7 +77,8 @@ _F_xorg_version="X11R7."
 [ "$_F_xorg_name" = "xorg-server" ] && _F_xorg_dir="xserver"
 _F_xorg_url="$url/releases/$_F_xorg_release_dir/$_F_xorg_dir/"
 license="GPL2"
-up2date="lynx -dump '$_F_xorg_url/?C=M;O=A' | grep '$_F_xorg_name-\(.*\).tar.bz2'|sed -n 's/.*$_F_xorg_name-\(.*\)\.t.*/\1/;$ p'"
+_F_archive_name="$_F_xorg_name"
+up2date="Flasttar $_F_xorg_url"
 source=($_F_xorg_url/$_F_xorg_name-$pkgver.tar.bz2)
 if [ -z "$_F_cd_path" ]; then
 	_F_cd_path="$_F_xorg_name-$pkgver"

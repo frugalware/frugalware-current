@@ -92,14 +92,14 @@ _F_kernelmod_scriptlet=$_F_nvidia_install
 # * provides: add libgl, libgl-headers and libglx to provides
 # * options: add nostrip to options
 ###
-depends=(${depends[@]} 'libvdpau' 'xorg-server>=1.7.1' 'pkgconfig')
-conflicts=(${conflicts[@]} 'libgl' 'libgl-headers' 'libglx')
-provides=(${provides[@]} 'libgl' 'libgl-headers' 'libglx')
-options=(${options[@]} 'nostrip')
+rodepends=("${rodepends[@]}" 'libvdpau' 'pkgconfig' 'xorg-server>=1.7.1')
+conflicts=("${conflicts[@]}" 'libgl' 'libgl-headers-mesa' 'libglx')
+provides=("${provides[@]}" 'libgl' 'libgl-headers-mesa' 'libglx')
+options=("${options[@]}" 'nostrip')
 
 if [ "$pkgname" != "nvidia" ]; then
-	conflicts=(${conflicts[@]} 'nvidia')
-	provides=(${provides[@]} 'nvidia')
+	conflicts=("${conflicts[@]}" 'nvidia')
+	provides=("${provides[@]}" 'nvidia')
 fi
 
 ###

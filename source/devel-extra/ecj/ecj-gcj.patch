@@ -1,7 +1,146 @@
-diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/internal/compiler/batch/GCCMain.java
---- org/eclipse/jdt/internal/compiler/batch/GCCMain.java	1970-01-01 01:00:00.000000000 +0100
-+++ org/eclipse/jdt/internal/compiler/batch/GCCMain.java	2007-03-03 19:55:20.000000000 +0100
-@@ -0,0 +1,494 @@
+--- gcc.properties
++++ gcc.properties
+@@ -0,0 +1,5 @@
++
++# GCCMain messages.
++gcc.zipArg=-fzip-target requires argument
++gcc.zipDepArg=-fzip-dependency requires argument
++gcc.noClasspath=no classpath specified
+--- org/eclipse/jdt/internal/compiler/lookup/Scope.java
++++ org/eclipse/jdt/internal/compiler/lookup/Scope.java
+@@ -3593,12 +3593,21 @@
+ 	}
+ 
+ 	// caveat: this is not a direct implementation of JLS
+-	protected final MethodBinding mostSpecificMethodBinding(MethodBinding[] visible, int visibleSize, TypeBinding[] argumentTypes, InvocationSite invocationSite, ReferenceBinding receiverType) {
++	protected final MethodBinding mostSpecificMethodBinding(MethodBinding[] visible, int visibleSize, TypeBinding[] argumentTypes, final InvocationSite invocationSite, ReferenceBinding receiverType) {
+ 		int[] compatibilityLevels = new int[visibleSize];
+ 		for (int i = 0; i < visibleSize; i++)
+ 			compatibilityLevels[i] = parameterCompatibilityLevel(visible[i], argumentTypes);
+ 
+-		boolean useTiebreakMethod = invocationSite.genericTypeArguments() == null;
++		InvocationSite tieBreakInvocationSite = new InvocationSite() {
++			public TypeBinding[] genericTypeArguments() { return null; } // ignore genericTypeArgs
++			public boolean isSuperAccess() { return invocationSite.isSuperAccess(); }
++			public boolean isTypeAccess() { return invocationSite.isTypeAccess(); }
++			public void setActualReceiverType(ReferenceBinding actualReceiverType) { /* ignore */}
++			public void setDepth(int depth) { /* ignore */}
++			public void setFieldIndex(int depth) { /* ignore */}
++			public int sourceStart() { return invocationSite.sourceStart(); }
++			public int sourceEnd() { return invocationSite.sourceStart(); }
++		};
+ 		MethodBinding[] moreSpecific = new MethodBinding[visibleSize];
+ 		int count = 0;
+ 		for (int level = 0, max = VARARGS_COMPATIBLE; level <= max; level++) {
+@@ -3607,7 +3616,7 @@
+ 				max = level; // do not examine further categories, will either return mostSpecific or report ambiguous case
+ 				MethodBinding current = visible[i];
+ 				MethodBinding original = current.original();
+-				MethodBinding tiebreakMethod = useTiebreakMethod ? current.tiebreakMethod() : current;
++				MethodBinding tiebreakMethod = current.tiebreakMethod();
+ 				for (int j = 0; j < visibleSize; j++) {
+ 					if (i == j || compatibilityLevels[j] != level) continue;
+ 					MethodBinding next = visible[j];
+@@ -3626,7 +3635,7 @@
+ 							methodToTest = pNext.originalMethod;
+ 						}
+ 					}
+-					MethodBinding acceptable = computeCompatibleMethod(methodToTest, tiebreakMethod.parameters, invocationSite);
++					MethodBinding acceptable = computeCompatibleMethod(methodToTest, tiebreakMethod.parameters, tieBreakInvocationSite);
+ 					/* There are 4 choices to consider with current & next :
+ 					 foo(B) & foo(A) where B extends A
+ 					 1. the 2 methods are equal (both accept each others parameters) -> want to continue
+--- org/eclipse/jdt/internal/compiler/lookup/BinaryTypeBinding.java
++++ org/eclipse/jdt/internal/compiler/lookup/BinaryTypeBinding.java
+@@ -325,6 +325,21 @@
+ 		if (needFieldsAndMethods) {
+ 			createFields(binaryType.getFields(), sourceLevel, missingTypeNames);
+ 			createMethods(binaryType.getMethods(), sourceLevel, missingTypeNames);
++			boolean isViewedAsDeprecated = isViewedAsDeprecated();
++			if (isViewedAsDeprecated) {
++				for (int i = 0, max = this.fields.length; i < max; i++) {
++					FieldBinding field = this.fields[i];
++					if (!field.isDeprecated()) {
++						field.modifiers |= ExtraCompilerModifiers.AccDeprecatedImplicitly;
++					}
++				}
++				for (int i = 0, max = this.methods.length; i < max; i++) {
++					MethodBinding method = this.methods[i];
++					if (!method.isDeprecated()) {
++						method.modifiers |= ExtraCompilerModifiers.AccDeprecatedImplicitly;
++					}
++				}
++			}
+ 		}
+ 		if (this.environment.globalOptions.storeAnnotations)
+ 			setAnnotations(createAnnotations(binaryType.getAnnotations(), this.environment, missingTypeNames));
+@@ -344,7 +359,6 @@
+ 		if (size > 0) {
+ 			this.fields = new FieldBinding[size];
+ 			boolean use15specifics = sourceLevel >= ClassFileConstants.JDK1_5;
+-			boolean isViewedAsDeprecated = isViewedAsDeprecated();
+ 			boolean hasRestrictedAccess = hasRestrictedAccess();
+ 			int firstAnnotatedFieldIndex = -1;
+ 			for (int i = 0; i < size; i++) {
+@@ -368,8 +382,6 @@
+ 				field.id = i; // ordinal
+ 				if (use15specifics)
+ 					field.tagBits |= binaryField.getTagBits();
+-				if (isViewedAsDeprecated && !field.isDeprecated())
+-					field.modifiers |= ExtraCompilerModifiers.AccDeprecatedImplicitly;
+ 				if (hasRestrictedAccess)
+ 					field.modifiers |= ExtraCompilerModifiers.AccRestrictedAccess;
+ 				if (fieldSignature != null)
+@@ -569,14 +581,11 @@
+ 		return;
+ 	}
+ 
+-	boolean isViewedAsDeprecated = isViewedAsDeprecated();
+ 	boolean hasRestrictedAccess = hasRestrictedAccess();
+ 	this.methods = new MethodBinding[total];
+ 	if (total == initialTotal) {
+ 		for (int i = 0; i < initialTotal; i++) {
+ 			MethodBinding method = createMethod(iMethods[i], sourceLevel, missingTypeNames);
+-			if (isViewedAsDeprecated && !method.isDeprecated())
+-				method.modifiers |= ExtraCompilerModifiers.AccDeprecatedImplicitly;
+ 			if (hasRestrictedAccess)
+ 				method.modifiers |= ExtraCompilerModifiers.AccRestrictedAccess;
+ 			this.methods[i] = method;
+@@ -585,8 +594,6 @@
+ 		for (int i = 0, index = 0; i < initialTotal; i++) {
+ 			if (iClinit != i && (toSkip == null || toSkip[i] != -1)) {
+ 				MethodBinding method = createMethod(iMethods[i], sourceLevel, missingTypeNames);
+-				if (isViewedAsDeprecated && !method.isDeprecated())
+-					method.modifiers |= ExtraCompilerModifiers.AccDeprecatedImplicitly;
+ 				if (hasRestrictedAccess)
+ 					method.modifiers |= ExtraCompilerModifiers.AccRestrictedAccess;
+ 				this.methods[index++] = method;
+--- org/eclipse/jdt/internal/compiler/ast/EqualExpression.java
++++ org/eclipse/jdt/internal/compiler/ast/EqualExpression.java
+@@ -811,7 +811,8 @@
+ 
+ 			// check whether comparing identical expressions
+ 			Binding leftDirect = Expression.getDirectBinding(this.left);
+-			if (leftDirect != null && leftDirect == Expression.getDirectBinding(this.right)) {
++			if (leftDirect != null && leftDirect == Expression.getDirectBinding(this.right)
++					&& !(this.right instanceof Assignment)) {
+ 				scope.problemReporter().comparingIdenticalExpressions(this);
+ 			}
+ 			return this.resolvedType = TypeBinding.BOOLEAN;
+@@ -848,7 +849,9 @@
+ 			// check whether comparing identical expressions
+ 			Binding leftDirect = Expression.getDirectBinding(this.left);
+ 			if (leftDirect != null && leftDirect == Expression.getDirectBinding(this.right)) {
+-				scope.problemReporter().comparingIdenticalExpressions(this);
++				if (!(this.right instanceof Assignment)) {
++					scope.problemReporter().comparingIdenticalExpressions(this);
++				}
+ 			}
+ 			return this.resolvedType = TypeBinding.BOOLEAN;
+ 		}
+--- org/eclipse/jdt/internal/compiler/batch/GCCMain.java
++++ org/eclipse/jdt/internal/compiler/batch/GCCMain.java
+@@ -0,0 +1,501 @@
 +/**
 + * 
 + */
@@ -27,9 +166,9 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +import java.util.zip.ZipEntry;
 +import java.util.zip.ZipOutputStream;
 +
-+import org.eclipse.jdt.core.compiler.InvalidInputException;
 +import org.eclipse.jdt.internal.compiler.ClassFile;
 +import org.eclipse.jdt.internal.compiler.CompilationResult;
++import org.eclipse.jdt.internal.compiler.env.AccessRestriction;
 +import org.eclipse.jdt.internal.compiler.env.AccessRule;
 +import org.eclipse.jdt.internal.compiler.env.AccessRuleSet;
 +import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
@@ -75,11 +214,12 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +	}
 +
 +	private void fail(Exception t) {
++		t.printStackTrace();
 +		this.logger.logException(t);
 +		System.exit(1);
 +	}
 +
-+	public CompilationUnit[] getCompilationUnits() throws InvalidInputException {
++	public CompilationUnit[] getCompilationUnits() {
 +		CompilationUnit[] units = super.getCompilationUnits();
 +		for (int i = 0; i < units.length; ++i)
 +			this.commandLineCompilationUnits.add(units[i]);
@@ -103,6 +243,16 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +			}
 +			zipStream = new ZipOutputStream(new BufferedOutputStream(os));
 +			zipStream.setMethod(ZipOutputStream.STORED);
++			// Sun/OpenJDK require at least one entry in the zip file.
++			ZipEntry entry = new ZipEntry(".dummy");
++			byte[] contents = new byte[0];
++			CRC32 crc = new CRC32();
++			crc.update(contents);
++			entry.setSize(contents.length);
++			entry.setCrc(crc.getValue());
++			zipStream.putNextEntry(entry);
++			zipStream.write(contents);
++			zipStream.closeEntry();
 +		}
 +		return zipStream;
 +	}
@@ -112,6 +262,16 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +			OutputStream os = new FileOutputStream(zipDependencyDestination);
 +			zipDependencyStream = new ZipOutputStream(new BufferedOutputStream(os));
 +			zipDependencyStream.setMethod(ZipOutputStream.STORED);
++			// Sun/OpenJDK require at least one entry in the zip file.
++			ZipEntry entry = new ZipEntry(".dummy");
++			byte[] contents = new byte[0];
++			CRC32 crc = new CRC32();
++			crc.update(contents);
++			entry.setSize(contents.length);
++			entry.setCrc(crc.getValue());
++			zipDependencyStream.putNextEntry(entry);
++			zipDependencyStream.write(contents);
++			zipDependencyStream.closeEntry();
 +		}
 +		return zipDependencyStream;
 +	}
@@ -174,20 +334,7 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +	private void addPath(ArrayList result, String currentClasspathName) {
 +		String customEncoding = null;
 +		AccessRule[] accessRules = new AccessRule[0];
-+		String templates[] = new String[AccessRuleSet.MESSAGE_TEMPLATES_LENGTH];
-+		templates[0] = this.bind(
-+			"template.restrictedAccess.type", //$NON-NLS-1$
-+			new String[] {"{0}", currentClasspathName}); //$NON-NLS-1$ 
-+		templates[1] = this.bind(
-+			"template.restrictedAccess.constructor", //$NON-NLS-1$
-+			new String[] {"{0}", currentClasspathName}); //$NON-NLS-1$ 
-+		templates[2] = this.bind(
-+			"template.restrictedAccess.method", //$NON-NLS-1$
-+			new String[] {"{0}", "{1}", currentClasspathName}); //$NON-NLS-1$ //$NON-NLS-2$ 
-+		templates[3] = this.bind(
-+			"template.restrictedAccess.field", //$NON-NLS-1$
-+			new String[] {"{0}", "{1}", currentClasspathName}); //$NON-NLS-1$ //$NON-NLS-2$ 
-+		AccessRuleSet accessRuleSet = new AccessRuleSet(accessRules, templates);
++		AccessRuleSet accessRuleSet = new AccessRuleSet(accessRules, AccessRestriction.COMMAND_LINE, currentClasspathName);
 +		FileSystem.Classpath currentClasspath = FileSystem
 +				.getClasspath(currentClasspathName,
 +						customEncoding, accessRuleSet);
@@ -203,8 +350,7 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +		}
 +	}
 +
-+	protected void handleWarningToken(String token, boolean isEnabling,
-+			boolean useEnableJavadoc) throws InvalidInputException {
++	protected void handleWarningToken(String token, boolean isEnabling) {
 +		// Recognize this for compatibility with older versions of gcj.
 +		if ("deprecated".equals(token)) //$NON-NLS-1$
 +			token = "deprecation"; //$NON-NLS-1$
@@ -232,7 +378,7 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +			}
 +			token = newToken.toString();
 +		}
-+		super.handleWarningToken(token, isEnabling, useEnableJavadoc);
++		super.handleWarningToken(token, isEnabling);
 +	}
 +
 +	private void turnWarningsToErrors() {
@@ -287,31 +433,31 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +		}
 +	}
 +
-+	private void handleWall(boolean enable) throws InvalidInputException {
++	private void handleWall(boolean enable) {
 +		// A somewhat arbitrary list.  We use the GCC names
 +		// here, and the local handleWarningToken translates
 +		// for us.
-+		handleWarningToken("constructor-name", enable, false);
-+		handleWarningToken("pkg-default-method", enable, false);
-+		handleWarningToken("masked-catch-block", enable, false);
-+		handleWarningToken("all-deprecation", enable, false);
-+		handleWarningToken("unused-local", enable, false);
-+		handleWarningToken("unused-label", enable, false);
-+		handleWarningToken("static-receiver", enable, false);
-+		handleWarningToken("indirect-static", enable, false);
-+		handleWarningToken("no-effect-assign", enable, false);
-+		handleWarningToken("char-concat", enable, false);
-+		handleWarningToken("useless-type-check", enable, false);
-+		handleWarningToken("final-bound", enable, false);
-+		handleWarningToken("assert-identifier", enable, false);
-+		handleWarningToken("enum-identifier", enable, false);
-+		handleWarningToken("finally", enable, false);
-+		handleWarningToken("varargs-cast", enable, false);
-+		handleWarningToken("unused", enable, false);
-+		handleWarningToken("forbidden", enable, false);
++		handleWarningToken("constructor-name", enable);
++		handleWarningToken("pkg-default-method", enable);
++		handleWarningToken("masked-catch-block", enable);
++		handleWarningToken("all-deprecation", enable);
++		handleWarningToken("unused-local", enable);
++		handleWarningToken("unused-label", enable);
++		handleWarningToken("static-receiver", enable);
++		handleWarningToken("indirect-static", enable);
++		handleWarningToken("no-effect-assign", enable);
++		handleWarningToken("char-concat", enable);
++		handleWarningToken("useless-type-check", enable);
++		handleWarningToken("final-bound", enable);
++		handleWarningToken("assert-identifier", enable);
++		handleWarningToken("enum-identifier", enable);
++		handleWarningToken("finally", enable);
++		handleWarningToken("varargs-cast", enable);
++		handleWarningToken("unused", enable);
++		handleWarningToken("forbidden", enable);
 +	}
 +
-+	public void configure(String[] argv) throws InvalidInputException {
++	public void configure(String[] argv) {
 +		if ((argv == null) || (argv.length == 0)) {
 +			// This is a "can't happen".
 +			System.exit(1);
@@ -333,7 +479,7 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +				try { // ensure encoding is supported
 +					new InputStreamReader(new ByteArrayInputStream(new byte[0]), encoding);
 +				} catch (UnsupportedEncodingException e) {
-+					throw new InvalidInputException(
++					throw new IllegalArgumentException(
 +						this.bind("configure.unsupportedEncoding", encoding)); //$NON-NLS-1$
 +				}
 +				this.options.put(CompilerOptions.OPTION_Encoding, encoding);
@@ -344,21 +490,21 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +					errorMessage.append("-d"); //$NON-NLS-1$
 +					errorMessage.append(' ');
 +					errorMessage.append(arg);
-+					throw new InvalidInputException(
++					throw new IllegalArgumentException(
 +						this.bind("configure.duplicateOutputPath", errorMessage.toString())); //$NON-NLS-1$
 +				}
-+				this.destinationPath = arg;
++				this.setDestinationPath(arg);
 +			} else if (currentArg.startsWith("-fbootclasspath=")) { //$NON-NLS-1$
 +				classpath = getArgument(currentArg);
 +			} else if (currentArg.equals("-fzip-target")) { //$NON-NLS-1$
 +				++i;
 +				if (i >= argv.length)
-+					throw new InvalidInputException(this.bind("gcc.zipArg")); //$NON-NLS-1$
++					throw new IllegalArgumentException(this.bind("gcc.zipArg")); //$NON-NLS-1$
 +				this.zipDestination = argv[i];
 +			} else if (currentArg.equals("-fzip-dependency")) { //$NON-NLS-1$
 +				++i;
 +				if (i >= argv.length)
-+					throw new InvalidInputException(this.bind("gcc.zipDepArg")); //$NON-NLS-1$
++					throw new IllegalArgumentException(this.bind("gcc.zipDepArg")); //$NON-NLS-1$
 +				this.zipDependencyDestination = argv[i];
 +			} else if (currentArg.startsWith("-g")) { //$NON-NLS-1$
 +				if (currentArg.equals("-g0")) { //$NON-NLS-1$
@@ -379,9 +525,9 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +			} else if (currentArg.equals("-Wno-all")) { //$NON-NLS-1$
 +				handleWall(false);
 +			} else if (currentArg.startsWith("-Wno-")) { //$NON-NLS-1$
-+				handleWarningToken(currentArg.substring(5), false, false);
++				handleWarningToken(currentArg.substring(5), false);
 +			} else if (currentArg.startsWith("-W")) { //$NON-NLS-1$
-+				handleWarningToken(currentArg.substring(2), true, false);
++				handleWarningToken(currentArg.substring(2), true);
 +			} else if (currentArg.equals("-w")) { //$NON-NLS-1$
 +				inhibitAllWarnings = true;
 +			} else if (currentArg.startsWith("-O")) { //$NON-NLS-1$
@@ -401,7 +547,7 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +				} else if (currentArg.equals("1.6") || currentArg.equals("6") || currentArg.equals("6.0")) { //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$
 +					this.options.put(CompilerOptions.OPTION_Source, CompilerOptions.VERSION_1_6);
 +				} else {
-+					throw new InvalidInputException(this.bind("configure.source", currentArg)); //$NON-NLS-1$
++					throw new IllegalArgumentException(this.bind("configure.source", currentArg)); //$NON-NLS-1$
 +				}
 +			} else if (currentArg.startsWith("-ftarget=")) { //$NON-NLS-1$
 +				currentArg = getArgument(currentArg);
@@ -420,7 +566,7 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +				} else if (currentArg.equals("jsr14")) { //$NON-NLS-1$
 +					this.options.put(CompilerOptions.OPTION_TargetPlatform, CompilerOptions.VERSION_JSR14);
 +				} else {
-+					throw new InvalidInputException(this.bind("configure.targetJDK", currentArg)); //$NON-NLS-1$
++					throw new IllegalArgumentException(this.bind("configure.targetJDK", currentArg)); //$NON-NLS-1$
 +				}
 +			} else if (currentArg.equals("-ffilelist-file")) { //$NON-NLS-1$
 +				haveFileList = true;
@@ -447,7 +593,7 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +		// Classpath processing.
 +		ArrayList result = new ArrayList();
 +		if (classpath == null)
-+			throw new InvalidInputException(this.bind("gcc.noClasspath")); //$NON-NLS-1$
++			throw new IllegalArgumentException(this.bind("gcc.noClasspath")); //$NON-NLS-1$
 +		parsePath(result, classpath);
 +
 +		// We must always create both output files, even if one is not used.
@@ -470,8 +616,8 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +		this.logger.logCommandLineArguments(argv);
 +		this.logger.logOptions(this.options);
 +		this.logger.logClasspath(this.checkedClasspaths);
-+		
-+		this.repetitions = 1;
++
++		this.maxRepetition = 1;
 +	}
 +
 +	public boolean compile(String[] argv) {
@@ -496,15 +642,3 @@ diff -urN org/eclipse/jdt/internal/compiler/batch/GCCMain.java org/eclipse/jdt/i
 +		System.exit(result ? 0 : 1);
 +	}
 +}
-diff -urN org/eclipse/jdt/internal/compiler/batch/messages.properties org/eclipse/jdt/internal/compiler/batch/messages.properties
---- org/eclipse/jdt/internal/compiler/batch/messages.properties	2007-02-12 19:46:33.000000000 +0100
-+++ org/eclipse/jdt/internal/compiler/batch/messages.properties	2007-03-03 19:55:20.000000000 +0100
-@@ -249,3 +249,8 @@
- template.restrictedAccess.constructor = The constructor {0} is not accessible due to restriction on classpath entry {1}
- template.restrictedAccess.field = The field {0} from the type {1} is not accessible due to restriction on classpath entry {2}
- template.restrictedAccess.method = The method {0} from the type {1} is not accessible due to restriction on classpath entry {2}
-+
-+# GCCMain messages.
-+gcc.zipArg=-fzip-target requires argument
-+gcc.zipDepArg=-fzip-dependency requires argument
-+gcc.noClasspath=no classpath specified

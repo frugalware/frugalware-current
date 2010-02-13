@@ -2,7 +2,7 @@
 # Maintainer: DeX77 <dex@dragonslave.de>
 
 pkgname=kdebase-workspace
-pkgrel=4
+pkgrel=5
 pkgdesc="Programs specific for the KDE4 desktop."
 groups=('kde')
 archs=('i686' 'x86_64' 'ppc')
@@ -14,10 +14,9 @@ rodepends=("${rodepends[@]}" 'xorg-server>=1.6.1' 'kde-frugalware>=4.3' \
 depends=('consolekit-x11' 'libusb' 'libxcomposite' 'libxdamage' \
 	'libxklavier>=4.0' 'libxxf86misc' 'lmsensors' 'libxtst' \
 	"kdebase-runtime>=${_F_kde_ver}-3" "kdepimlibs>=${_F_kde_ver}-2" \
-	'polkit-qt' 'qimageblitz' 'xdg-utils' 'dbus-x11' 'libxscrnsaver' "kdelibs>=${_F_kde_ver}-3" \
-	'libggadget' 'libggadget-qt')
-makedepends=("${makedepends[@]}" 'boost' 'bluez-libs' 'sip>=4.10' 'pyqt4>=4.7')
-[[ $CARCH != "ppc" ]] && makedepends=("${makedepends[@]}" "kdebindings>=$_F_kde_ver")
+	'polkit-qt-1>=0.95' 'qimageblitz' 'xdg-utils' 'dbus-x11' 'libxscrnsaver' "kdelibs>=${_F_kde_ver}-3" \
+	'libggadget' 'libggadget-qt' 'consolekit-x11')
+makedepends=("${makedepends[@]}" 'boost' 'bluez>=4.61')
 ## xrdb needed by font part .. from code in fonts.cpp ->:
 ## " proc << "xrdb" << "-quiet" << "-remove" << "-nocpp"; "
 source=("${source[@]}" \
@@ -36,7 +35,9 @@ source=("${source[@]}" \
 	09-solid-halpower-fix.patch \
 	10-kxftconfig-defaults.patch \
 	11-plasma-obvious-configure.diff \
-	12-cursors-location.patch)
+	12-cursors-location.patch \
+	13-polkit-kde-1.patch \
+	14-PyKde4.patch)
 replaces=('ksensors' 'katapult' 'tastymenu' 'kbfx' 'kdesktop-menu' \
 	'kicker-compiz' 'taskbar-compiz' 'mtaskbar' 'ksmoothdock' \
 	'kompose' 'dbus-qt3')
@@ -56,15 +57,15 @@ sha1sums=('703582cb8a3471c5821986dbdfc3c6deedac0ff3' \
           '2b29fce4a542ecd33761f7ef10086b8016313496' \
           'ff0ffac7528cf3a0c51f1f31933ac0ea059396b3' \
           '469e6e5c2893c662c3fde199bcb867d081ba3d50' \
-          '454f18f51d225d8e9c05985ea42a0a713727f964')
+          '454f18f51d225d8e9c05985ea42a0a713727f964' \
+          'f92fc315dd470c137cbd356cbb453636d0a85e89' \
+          '5fa17cf59d4a3eec413b44ef2abf11ed43da668a')
 
 subpkgs=("${subpkgs[@]}" "kdm")
 subdescs=("${subdescs[@]}" "KDE Display Manager")
 subdepends=("${subdepends[@]}" "kdelibs>=$_F_kde_ver")
 subgroups=("${subgroups[@]}" 'kde')
 subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
-
-_F_kde_subpkgs=("${subpkgs[@]}")
 
 subpkgs=("${subpkgs[@]}" "$pkgname-wallpapers")
 subdescs=("${subdescs[@]}" "Kdebase Workspace Wallpapers")
@@ -88,37 +89,36 @@ rodepends=("${rodepends[@]}" "kdm=${_F_kde_ver}")
 
 build()
 {
-	KDE_build
+	KDE_make
+
+	## Do all manually ..
+	KDE_project_install kdm
 
 	Finstall 0544 kde.pamd /etc/pam.d/kde
 	Finstall 0544 kde-np.pamd /etc/pam.d/kde-np
-
-	## xinitrc for KDE.
-        Fexe /etc/X11/xinit/xinitrc.kde
-
-        ## Session file.
-        Ffile /etc/X11/sessions/kde.desktop
+	Ffile /etc/X11/sessions/kde.desktop
+	Fsplit kdm /\*
 
 	## No go 48MB extra wallpapers ..
 	## Kill from here and move to subpackage...
 	## Keep Air but that is..
 
-	find "$Fdestdir/usr/share/wallpapers" -maxdepth 1 -type d|grep -v Air | grep [A-Z]| sed 's/.*pkg\///1' >wall_list || Fdie
-	Fmessage "Moving the following Wallpapers to $pkgname-wallpapers"
-	cat wall_list || Fdie
-	for i in `cat wall_list`
-	do
-		Fsplit $pkgname-wallpapers $i
-	done
+	KDE_project_install wallpapers
+	Frm usr/share/wallpapers/Air*
+	Fsplit $pkgname-wallpapers /\*
 
+	KDE_project_install cursors
 	Fsplit $pkgname-extra-cursors /usr/share/icons/Oxygen_*_Big
 
-	## default ksplash ...
-	Fmv /usr/share/apps/ksplash/Themes/Default /usr/share/apps/ksplash/Themes/Default.kde4
+	## xinitrc for KDE.
+        Fexe /etc/X11/xinit/xinitrc.kde
 
-	## kdm additional fixes ...
-	Fsplit kdm /etc/pam.d
-        Fsubmv kdm /etc/kde/config/kdm/kdmrc /etc/kde/config/kdm/kdmrc-kde4-$pkgver.orig
+	KDE_install
+
+	## default ksplash ...
+        Fmv /usr/share/apps/ksplash/Themes/Default /usr/share/apps/ksplash/Themes/Default.kde4
+	Fsubmv kdm /etc/kde/config/kdm/kdmrc /etc/kde/config/kdm/kdmrc-kde4-$pkgver.orig
+
 }
 
 # optimization OK

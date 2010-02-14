@@ -55,6 +55,7 @@ Fbuild_opensync()
 	Fcd
 	Fpatchall
         Fsed '-Werror' '' src/Makefile.am
+	Fsed 'libsoup-2.2' 'libsoup-2.4' configure.ac
         Fautoreconf
         Fmake
 	Fmakeinstall

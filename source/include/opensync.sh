@@ -44,7 +44,7 @@ source=($url/download/releases/$pkgver/$pkgname-$pkgver.tar.bz2)
 ###
 
 options=("${options[@]}" 'scriptlet')
-makedepends=("$makedpends[@]}" 'cmake')
+makedepends=("${makedpends[@]}" 'cmake')
 
 ###
 # == PROVIDED FUNCTIONS

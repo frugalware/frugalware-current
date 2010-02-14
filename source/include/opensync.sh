@@ -35,7 +35,7 @@
 url="http://www.opensync.org"
 # Note: there is no way to really get the up2date of the _next_ stable release
 # it will be 0.4x but this has to be monitored by the maintainers of these packages
-up2date="Flasttar http://opensync.org/wiki/releases/0.2x/download"
+up2date="Flasttar http://opensync.org/wiki/releases/0.39/download"
 source=($url/download/releases/$pkgver/$pkgname-$pkgver.tar.bz2)
 
 ###

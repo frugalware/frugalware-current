@@ -40,9 +40,11 @@ source=($url/download/releases/$pkgver/$pkgname-$pkgver.tar.bz2)
 ###
 # == APPENDED VARIABLES
 # * scriptlet to options()
+# * cmake to makedepends()
 ###
 
-options=(${options[@]} 'scriptlet')
+options=("${options[@]}" 'scriptlet')
+makedepends=("$makedpends[@]}" 'cmake')
 
 ###
 # == PROVIDED FUNCTIONS

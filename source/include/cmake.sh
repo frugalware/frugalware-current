@@ -127,6 +127,12 @@ CMake_make()
 	CMake_conf "$@"
 	## do _not_ use any F* stuff here , cmake does not like it
 	make || Fdie
+
+}
+
+CMake_install()
+{
+        make DESTDIR=$Fdestdir install/fast || Fdie
 }
 
 ###
@@ -135,7 +141,7 @@ CMake_make()
 CMake_build()
 {
 	CMake_make "$@"
-	make DESTDIR=$Fdestdir install || Fdie
+	CMake_install
 }
 
 ###

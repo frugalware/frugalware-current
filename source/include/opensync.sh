@@ -1,5 +1,6 @@
 #!/bin/sh
 
+Finclude cmake
 ###
 # = opensync.sh(3)
 # Gabriel Craciunescu <crazy@frugalware.org>
@@ -33,17 +34,17 @@
 ###
 
 url="http://www.opensync.org"
-# Note: there is no way to really get the up2date of the _next_ stable release
-# it will be 0.4x but this has to be monitored by the maintainers of these packages
-up2date="Flasttar http://opensync.org/wiki/releases/0.2x/download"
+up2date="Flasttar http://opensync.org/download/releases/0.39/"
 source=($url/download/releases/$pkgver/$pkgname-$pkgver.tar.bz2)
 
 ###
 # == APPENDED VARIABLES
 # * scriptlet to options()
+# * cmake to makedepends()
 ###
 
-options=(${options[@]} 'scriptlet')
+options=("${options[@]}" 'scriptlet')
+makedepends=("${makedpends[@]}" 'cmake')
 
 ###
 # == PROVIDED FUNCTIONS
@@ -52,12 +53,7 @@ options=(${options[@]} 'scriptlet')
 
 Fbuild_opensync()
 {
-	Fcd
-	Fpatchall
-        Fsed '-Werror' '' src/Makefile.am
-        Fautoreconf
-        Fmake
-	Fmakeinstall
+	CMake_build
 
 }
 

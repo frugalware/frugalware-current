@@ -1,0 +1,122 @@
+diff -Naur kbluetooth-0.4.1/src/obexserver/obexserversessionfiletransfer.cpp kbluetooth/src/obexserver/obexserversessionfiletransfer.cpp
+--- kbluetooth-0.4.1/src/obexserver/obexserversessionfiletransfer.cpp	2010-02-10 02:45:48.000000000 +0100
++++ kbluetooth/src/obexserver/obexserversessionfiletransfer.cpp	2010-02-15 14:13:55.000000000 +0100
+@@ -77,15 +77,24 @@
+ 	setTotalAmount(Bytes, m_totalFileSize);
+ 	setProcessedAmount(Bytes, 0);
+ 	m_dbusSession->call("Accept");
++	m_time = QTime::currentTime();
++	m_procesedBytes = 0;
+ }
+ 
+ void ObexServerSessionFileTransfer::slotTransferProgress(qulonglong transferred) {
+-	kDebug() << "Transfer progress ...";
+-	ulong currentPercent = percent();
++	kDebug() << "Transfer progress ..." << transferred;
++
++	QTime currentTime = QTime::currentTime();
++	int time = m_time.secsTo(currentTime);
++	if (time != 0) {
++		qulonglong diffBytes = transferred - m_procesedBytes;
++		float speed = diffBytes / time;
++		kDebug() << "Bytes: " << diffBytes << " Speed: " << speed;
++		emitSpeed(speed);
++		m_time = currentTime;
++		m_procesedBytes = transferred;
++	}
+ 	setProcessedAmount(Bytes, transferred);
+-	ulong newPercent = percent();
+-	double unit = m_totalFileSize / 100.0;
+-	emitSpeed(newPercent*unit - currentPercent*unit);
+ }
+ 
+ void ObexServerSessionFileTransfer::slotTransferCompleted() {
+diff -Naur kbluetooth-0.4.1/src/obexserver/obexserversessionfiletransfer.h kbluetooth/src/obexserver/obexserversessionfiletransfer.h
+--- kbluetooth-0.4.1/src/obexserver/obexserversessionfiletransfer.h	2010-02-10 02:45:48.000000000 +0100
++++ kbluetooth/src/obexserver/obexserversessionfiletransfer.h	2010-02-15 14:13:55.000000000 +0100
+@@ -61,6 +61,8 @@
+ 	QString m_remoteName;
+ 	QString m_remoteAddr;
+ 	Solid::Control::BluetoothRemoteDevice bluetoothDevice;
++	QTime m_time;
++	qlonglong m_procesedBytes;
+ };
+ 
+ #endif // OBEXSERVERSESSIONFILETRANSFER_H
+diff -Naur kbluetooth-0.4.1/src/obexsession/obexsession.cpp kbluetooth/src/obexsession/obexsession.cpp
+--- kbluetooth-0.4.1/src/obexsession/obexsession.cpp	2010-02-10 02:45:48.000000000 +0100
++++ kbluetooth/src/obexsession/obexsession.cpp	2010-02-15 14:13:56.000000000 +0100
+@@ -111,7 +111,9 @@
+ 
+ void ObexSession::disconnect()
+ {
++	kDebug() << "CAlling disconnect";
+ 	session->call("Disconnect");
++	session->call("Close");
+ }
+ 
+ void ObexSession::close()
+diff -Naur kbluetooth-0.4.1/src/obexsession/obexsessionfiletransfer.cpp kbluetooth/src/obexsession/obexsessionfiletransfer.cpp
+--- kbluetooth-0.4.1/src/obexsession/obexsessionfiletransfer.cpp	2010-02-10 02:45:48.000000000 +0100
++++ kbluetooth/src/obexsession/obexsessionfiletransfer.cpp	2010-02-15 14:13:56.000000000 +0100
+@@ -71,15 +71,24 @@
+ 	setTotalAmount(Bytes, totalSize);
+ 	m_totalFileSize = totalSize;
+ 	setProcessedAmount(Bytes, 0);
++	m_time = QTime::currentTime();
++	m_procesedBytes = 0;
+ }
+ 
+ void ObexSessionFileTransfer::slotTransferProgress(qulonglong transferred) {
+-	kDebug() << "Transfer progress ...";
+-	ulong currentPercent = percent();
++	kDebug() << "Transfer progress ..." << transferred;
++
++	QTime currentTime = QTime::currentTime();
++	int time = m_time.secsTo(currentTime);
++	if (time != 0) {
++		qulonglong diffBytes = transferred - m_procesedBytes;
++		float speed = diffBytes / time;
++		kDebug() << "Bytes: " << diffBytes << " Speed: " << speed;
++		emitSpeed(speed);
++		m_time = currentTime;
++		m_procesedBytes = transferred;
++	}
+ 	setProcessedAmount(Bytes, transferred);
+-	ulong newPercent = percent();
+-	double unit = m_totalFileSize / 100.0;
+-	emitSpeed(newPercent*unit - currentPercent*unit);
+ }
+ 
+ void ObexSessionFileTransfer::slotTransferCompleted() {
+diff -Naur kbluetooth-0.4.1/src/obexsession/obexsessionfiletransfer.h kbluetooth/src/obexsession/obexsessionfiletransfer.h
+--- kbluetooth-0.4.1/src/obexsession/obexsessionfiletransfer.h	2010-02-10 02:45:48.000000000 +0100
++++ kbluetooth/src/obexsession/obexsessionfiletransfer.h	2010-02-15 14:13:56.000000000 +0100
+@@ -21,6 +21,7 @@
+ #define OBEXSESSIONFILETRANSFER_H
+ 
+ #include <KJob>
++#include <QDate>
+ 
+ class ObexSession;
+ class QDBusInterface;
+@@ -48,5 +49,7 @@
+ 	QDBusInterface* m_dbusSession;
+ 	QString m_localPath;
+ 	qulonglong m_totalFileSize;
++	QTime m_time;
++	qlonglong m_procesedBytes;
+ };
+ #endif // OBEXSESSIONFILETRANSFER_H
+diff -Naur kbluetooth-0.4.1/src/trayicon.cpp kbluetooth/src/trayicon.cpp
+--- kbluetooth-0.4.1/src/trayicon.cpp	2010-02-10 02:45:48.000000000 +0100
++++ kbluetooth/src/trayicon.cpp	2010-02-15 14:13:56.000000000 +0100
+@@ -507,7 +507,7 @@
+ 		obexSessionReady();
+ 	}else{
+ 		kDebug() << "Calling disconnect";
+-		connect(session,SIGNAL(disconnected()),this,SLOT(fileTransferFinal()));
++		connect(session,SIGNAL(closed()),this,SLOT(fileTransferFinal()));
+ 		session->disconnect();
+ 	}
+ }

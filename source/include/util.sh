@@ -498,6 +498,7 @@ Fln() {
 # replacement 3) file(s) to edit in place.
 ###
 Fsed() {
+	local i
 	Fcd
 	for i in ${@:3:$#}; do
 		Fmessage "Using sed with file: $i"

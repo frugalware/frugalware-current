@@ -16,8 +16,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-VERSION = $(shell git describe) (-current)
-#VERSION = 0.6 (Terminus)
+VERSION = 1.2 (Locris)
 PO_DIR ?= ~/git/translations/po
 XML_PATH = /usr/share/sgml/docbook/dtd/xml-dtd-4.2
 

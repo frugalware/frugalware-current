@@ -4,8 +4,8 @@
 USE_DEVEL=${USE_DEVEL:-"n"}
 
 pkgname=libdrm
-pkgver=2.4.18
-pkgrel=1
+pkgver=2.4.17
+pkgrel=3
 pkgdesc="X.Org Userspace interface to kernel DRM services"
 url="http://xorg.freedesktop.org/"
 depends=('libpthread-stubs')
@@ -18,9 +18,16 @@ if Fuse $USE_DEVEL; then
 	Finclude scm
 else
 	up2date="Flasttar http://dri.freedesktop.org/libdrm/"
-	source=(http://dri.freedesktop.org/libdrm/libdrm-$pkgver.tar.bz2 Fix_include.diff)
-	sha1sums=('eaf66dd1a74e39830daab8249197e9eb02c5a81e' \
-          	'148669a50224824d6f64f87bfcae99b00b6f9e34')
+	source=("http://dri.freedesktop.org/libdrm/libdrm-$pkgver.tar.bz2")
+	sha1sums=('52f12fc75ecf3d0c2e89579b7454f040ac515aa6')
+
+	# Remove after kernel>=2.6.34 and the following temporary fix
+	# 2.4.17 is required for nouveau with kernel 2.6.33
+	source=("${source[@]}" 'nouveau_class.h')
+	sha1sums=("${sha1sums[@]}" '8f25600294ea685cfceb6e0a1c2623c241fb13db')
+	subrodepends=('kernel<=2.6.33')
+	Fconfopts="${Fconfopts[@]} --enable-radeon-experimental-api"
+	options=('force')
 fi
 
 build()
@@ -28,9 +35,13 @@ build()
 	if Fuse $USE_DEVEL; then
 		Funpack_scm
 		./autogen.sh
+	else
+		# Temporary fix
+		Fcd
+		Fexec cp -f $Fsrcdir/nouveau_class.h nouveau/
 	fi
-#	Missing --enable-libkms (does not compile for now)
 	Fbuild \
+		--enable-libkms \
 		--enable-intel \
 		--enable-radeon \
 		--enable-nouveau-experimental-api \

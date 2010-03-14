@@ -2,11 +2,14 @@
 # Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 # Contributor: crazy <crazy@frugalware.org>
 
+USE_DEVEL=${USE_DEVEL:-"n"}
+USE_GALLIUM=${USE_GALLIUM:-"y"}
+
 pkgname=mesa
 origname=Mesa
 _F_archive_name="MesaLib"
 pkgver=7.7
-pkgrel=3
+pkgrel=4
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 up2date="Flasttar ftp://ftp.freedesktop.org/pub/$pkgname/current/"
@@ -18,29 +21,37 @@ makedepends=('makedepend' 'glproto>=1.4.9' 'xf86vidmodeproto')
 rodepends=('libgl' 'libglu' 'libglw')
 archs=('i686' 'x86_64' 'ppc')
 groups=('x11' 'xorg-core' 'xorg-libs')
-source=(ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaLib-$pkgver.tar.bz2  \
-	ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaDemos-$pkgver.tar.bz2
-	libGL.la libGLU.la)
+if Fuse $USE_DEVEL; then
+	unset source sha1sums
+	pkgver=$pkgver.1.g13a13fc
+	pkgrel=0
+	_F_scm_type="git"
+	_F_scm_url="git://anongit.freedesktop.org/mesa/mesa"
+	Finclude scm
+else
+	source=("ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaLib-$pkgver.tar.bz2" \
+		"ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaDemos-$pkgver.tar.bz2")
+	sha1sums=('dc104df86f1cf777dac0bdbe8fd0a43c37918b66' \
+		'20168216275d8c6937c770b4fa4c95651660226c')
+fi
+
+source=("${source[@]}" \
+	libGL.la \
+	libGLU.la)
+
+sha1sums=("${sha1sums[@]}" \
+	'650973d708466f5c4c21e70c1f1f6c118b27e614' \
+	'12c57ac5e7e8a94d4d41b0f37b0fb3f470791c39')
 
 subpkgs=('libgl' 'libgl-headers-mesa')
 subdescs=('Mesa DRI OpenGL files.' 'Mesa OpenGL headers files.')
-subprovides=('libgl-mesa libgl-mesa-dri' 'libgl-headers')
-subreplaces=('' 'libgl-headers') # Remove libgl-headers after 1.1
-subconflicts=('fglrx nvidia' 'nvidia')
-subdepends=('libdrm>=2.4.11 libxcb>=1.3 libxdamage>=1.1.1-3 libxxf86vm>=1.0.2' '')
+subprovides=('libgl-mesa libgl-mesa-dri libgl-mesa-soft' 'libgl-headers')
+subreplaces=('libgl-mesa-soft' 'libgl-headers') # Remove libgl-headers after 1.1
+subconflicts=('fglrx libgl-mesa-soft nvidia' 'nvidia')
+subdepends=('libdrm>=2.4.17 libxcb>=1.3 libxdamage>=1.1.1-3 libxxf86vm>=1.0.2' '')
 subrodepends=("libdri libgl-headers-mesa>=$pkgver-$pkgrel libglx" '')
 subgroups=('x11' 'x11')
 subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
-
-subpkgs=("${subpkgs[@]}" 'libgl-mesa-soft' 'libosmesa-x11')
-subdescs=("${subdescs[@]}" 'Mesa Software OpenGL files.' 'Mesa Offscreen OpenGL files.')
-subprovides=("${subprovides[@]}" 'libgl libgl-mesa' 'libosmesa')
-subreplaces=("${subreplaces[@]}" '' '')
-subconflicts=("${subconflicts[@]}" 'libgl' '')
-subdepends=("${subdepends[@]}" '' '')
-subrodepends=("${subrodepends[@]}" "libgl-headers-mesa>=$pkgver-$pkgrel libdri" "libgl-mesa-soft>=$pkgver-$pkgrel")
-subgroups=("${subgroups[@]}" 'x11-extra' 'x11-extra')
-subarchs=("${subarchs[@]}" 'i686 x86_64 ppc' 'i686 x86_64 ppc')
 
 subpkgs=("${subpkgs[@]}" 'libglu')
 subdescs=("${subdescs[@]}" 'OpenGL Utility library.')
@@ -78,40 +89,31 @@ subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 #	Check: src/mesa/main/version.h for mesa proper version need for symlink.
 
 build() {
+	if Fuse $USE_DEVEL; then
+		Funpack_scm
+		./autogen.sh
+	fi
+
 	Fcd $origname-$pkgver
 
-	Fconfopts="--disable-egl --enable-glx-tls --enable-xcb"
+	if Fuse $USE_GALLIUM; then
+		Fconfopts="$Fconfopts --enable-gallium-nouveau --enable-gallium-radeon"
+	else
+		Fconfopts="$Fconfopts --disable-gallium"
+	fi
 
-	Fconf	--with-driver=xlib \
-		--with-osmesa-bits=32 \
-		--disable-glu \
-		--disable-glut \
-		--disable-glw \
-		--with-demos=no
-
-	make || Fdie
-
-	make  DESTDIR=$Fdestdir INSTALL_DIR=$Fdestdir/usr install || Fdie
-
-	Fsplit libgl-mesa-soft usr/lib/libGL.*
-	Fsplit libgl-mesa-soft usr/lib/pkgconfig/gl.pc
-
-	Fsplit libosmesa-x11 usr/lib/libOSMesa.*
-	Fsplit libosmesa-x11 usr/lib/pkgconfig/osmesa.pc
-	Fsplit libosmesa-x11 usr/include/GL/osmesa.h
-
-	make realclean || Fdie
-
-	Fconf	--with-dri-driverdir=/usr/lib/dri \
+	Fconf	--with-driver=dri \
+		--with-dri-driverdir=/usr/lib/dri \
 		--with-dri-drivers=yes \
+		--disable-egl \
 		--enable-glx-tls \
-		--with-driver=dri
+		--enable-xcb
 
 	make || Fdie
 
 	Fmkdir /usr
 
-	make  DESTDIR=$Fdestdir INSTALL_DIR=$Fdestdir/usr install || Fdie
+	make DESTDIR=$Fdestdir INSTALL_DIR=$Fdestdir/usr install || Fdie
 	# required by xf86-video-nsc, for example
 	Fmkdir /usr/include/xorg
 	Ffilerel src/mesa/x86/assyntax.h /usr/include/xorg
@@ -159,10 +161,5 @@ build() {
 	Fsplit mesademos usr/bin/{glxgears,glxinfo,glxdemo,glxheads}
 	Frm var
 }
-sha1sums=('dc104df86f1cf777dac0bdbe8fd0a43c37918b66' \
-          '20168216275d8c6937c770b4fa4c95651660226c' \
-          '650973d708466f5c4c21e70c1f1f6c118b27e614' \
-          '12c57ac5e7e8a94d4d41b0f37b0fb3f470791c39')
-
 
 # optimization OK

@@ -46,9 +46,8 @@ makedepends=(${makedepends[@]} 'rubygems')
 # * source()
 # * up2date
 ###
-source=(http://gems.rubyforge.org/gems/"$_F_gem_name"-"$pkgver".gem)
-# http://rubyforge.vm.bytemark.co.uk/gems/ very busy, temporary replaced by local mirror list
-up2date='lynx -dump "http://ftp.frugalware.org/pub/other/people/exceed/gem.html" | grep "$_F_gem_name-[0-9.]\+.gem$" | sed "s/.*$_F_gem_name-\(.*\).gem.*/\1/" | Fsort | tail -n 1'
+source=(http://rubygems.org/downloads/"$_F_gem_name"-"$pkgver".gem)
+up2date='lynx -dump http://rubygems.org/gems/$_F_gem_name | grep downloads/$_F_gem_name | sed "s/.*$_F_gem_name-\(.*\).gem.*/\1/"'
 
 ###
 # == PROVIDED FUNCTIONS

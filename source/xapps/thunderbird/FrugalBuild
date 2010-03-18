@@ -3,11 +3,12 @@
 # Contributor: Krisztian VASAS <iron@frugalware.org>
 
 pkgname=thunderbird
-pkgver=3.0.1
+pkgver=3.0.3
 pkgrel=1
 pkgdesc="Mozilla Thunderbird mail and newsgroup client"
 url="http://www.mozilla.org/products/thunderbird/"
-depends=('alsa-lib' 'curl' 'cairo>=1.4.14' 'dbus-glib' 'gtk+2>=2.16.2-2' 'libpng>=1.2.41-2' 'nss>=3.12' 'nspr>=4.7.1' 'pango>=1.16.2' 'wireless_tools' 'libstdc++' 'libxt>=1.0.5' 'libidl')
+depends=('alsa-lib' 'curl' 'cairo>=1.4.14' 'dbus-glib' 'gtk+2>=2.16.2-2' 'libpng>=1.2.41-2' 'nss>=3.12' \
+	'nspr>=4.7.1' 'pango>=1.16.2' 'wireless_tools' 'libstdc++' 'libxt>=1.0.5' 'libidl' 'sqlite3>=3.6.22-2')
 makedepends=('zip')
 groups=('xapps')
 archs=('i686' 'x86_64' 'ppc')
@@ -15,30 +16,30 @@ options=('scriptlet')
 up2date="Flastarchive http://releases.mozilla.org/pub/mozilla.org/thunderbird/releases/latest/source '\.source\.tar\.bz2'"
 source=(http://releases.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/source/$pkgname-$pkgver.source.tar.bz2 \
 	$pkgname.desktop \
-	$pkgname.install \
-	$pkgname.png \
 	mozilla-gcc44.patch \
 	thunderbird-locale.patch \
 	thunderbird-shared-error.patch)
-signatures=("${source[0]}.asc" '' '' '' '' '' '')
+signatures=("${source[0]}.asc" '' '' '' '')
 
 build()
 {
-	unset MAKEFLAGS
+	#unset MAKEFLAGS
 	Fcd comm-1.9.1
+
+	## and again > -Os broken weird .. use -Os here *again*
+	export CFLAGS="${CFLAGS[@]/-O2/-Os}"
+	export CXXFLAGS="${CXXFLAGS[@]/-O2/-Os}"
 
 	export MOZILLA_OFFICIAL=1
 	export BUILD_OFFICIAL=1
-
-	## lalala same as FF
-#	sed -i '/layout.css.dpi/s/-1/72/' mozilla/modules/libpref/src/init/all.js || Fdie
 
 	# Let jars get compressed.
 	Fsed '\-0' '\-9' mozilla/config/make-jars.pl
 
 	Fpatchall
 
-	ac_cv_visibility_pragma=no Fmake \
+	 ## ac_cv_visibility_pragma=no Fmake \
+		Fmake \
 		--disable-accessibility \
 		--disable-activex \
 		--disable-activex-scripting \
@@ -72,6 +73,7 @@ build()
 		--enable-reorder \
 		--enable-svg \
 		--enable-system-cairo \
+		--enable-system-sqlite \
 		--enable-xft \
 		--enable-xsl \
 		--enable-xterm-updates \
@@ -85,8 +87,6 @@ build()
 		--with-system-png \
 		--with-system-zlib
 
-#		--enable-optimize="$CFLAGS" \
-#		--enable-system-hunspell \
 
 	# Does not use Fmakeinstall here because DESDIR is not found in root Makefile
 	Fexec make DESTDIR="$Fdestdir" install
@@ -100,14 +100,9 @@ build()
 	Frm /usr/bin/$pkgname
 	Fln /usr/lib/$pkgname/$pkgname /usr/bin/$pkgname
 
-	# Install RSS feed support.
-#	Ffilerel mail/extensions/newsblog/rss.rdf \
-#		/usr/lib/$pkgname/defaults/isp/rss.rdf
-#	Ffilerel mailnews/base/ispdata/movemail.rdf \
-#		/usr/lib/$pkgname/defaults/isp/movemail.rdf
-
 	# Install icon for the menu file.
-	Ffile /usr/share/pixmaps/$pkgname.png
+	Finstallrel 0644 ./other-licenses/branding/thunderbird/mailicon256.png \
+		/usr/share/pixmaps/$pkgname.png
 
 	# Install menu file.
 	Ffile /usr/share/applications/$pkgname.desktop

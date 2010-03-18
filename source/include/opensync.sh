@@ -13,15 +13,15 @@ Finclude cmake
 #
 # == EXAMPLE
 # --------------------------------------------------
-# pkgname=libopensync-plugin-kdepim
-# pkgver=0.22
+# pkgname=libopensync-plugin-file
+# pkgver=0.39
 # pkgrel=1
 # pkgdesc="file-sync plugin for opensync"
 # Finclude opensync
-# depends=('libopensync' 'kdepim>=3.5.9')
-# groups=('kde-extra')
-# archs=('i686' 'x86_64')
-# sha1sums=('591fa5ebdaa87bb75fe557156bb09d8bbffd2ebd')
+# depends=('libopensync>=0.39' 'zlib' 'libxslt')
+# groups=('lib')
+# archs=('i686' 'x86_64' 'ppc')
+# sha1sums=('bbb540f954d0bb51b1126937ec3a2b4b9c5c297b')
 # --------------------------------------------------
 ###
 

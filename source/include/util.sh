@@ -494,15 +494,45 @@ Fln() {
 }
 
 ###
+# * __Fsed(): Private implementation of Fsed and Freplace. Parameters: 
+# 1) regexp (see man sed!) 2) replacement 3) file to edit in place.
+###
+__Fsed() {
+	if [ ! -e $i ]; then
+		error "File $i not found."
+		Fdie
+	fi
+	if [ ! -f $i ]; then
+		error "File $i is not a regular file."
+		Fdie
+	fi
+	sed -i -e "s|$1|$2|g" "$3" || Fdie
+}
+
+###
 # * Fsed(): Use sed on file(s). Parameters: 1) regexp (see man sed!) 2)
 # replacement 3) file(s) to edit in place.
 ###
 Fsed() {
 	local i
 	Fcd
-	for i in ${@:3:$#}; do
+	for i in "${@:3:$#}"; do
 		Fmessage "Using sed with file: $i"
-		sed -i -e "s|$1|$2|g" "$i" || Fdie
+		__Fsed "$1" "$2" "$i"
+	done
+}
+
+###
+# * Freplace(): Do some parameter substitution on file(s). The parameters 
+# should be escaped using the "@parameter@" syntax. Parameters:
+# 1) Variable to substituate 2) file(s) where the substitution happens.
+###
+Freplace() {
+	local i
+	Fcd
+	for i in "${@:2:$#}"; do
+		Fmessage "Subtituing $1 in file: $i"
+		eval "__Fsed '@$1@' \"\${$1}\" \"\$i\""
 	done
 }
 

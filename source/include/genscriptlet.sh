@@ -57,28 +57,28 @@
 # * install
 # * subinstall
 ###
-if [ -z "$_F_genscriptlet_install" ]; then
+if [ -n "$_F_genscriptlet_install" ]; then
 	if [ -z "$install" ]; then
+		install="${Fsrcdir}/$(basename "$_F_genscriptlet_install")"
+	else
 		error "_F_genscriptlet_install is used but install is allready defined."
 		plain "Check your FrugalBuild."
 		Fdie
-	else
-		install="src/$(basename \"$_F_genscriptlet_install\")"
 	fi
 fi
 
 if [ "${#_F_genscriptlet_subinstall[@]}" -gt 0 ]; then
-	if [ "${#subinstall[@]}" -gt 0 ]; then
-		error "_F_genscriptlet_subinstall is used but install is allready defined."
-		plain "Check your FrugalBuild."
-		Fdie
-	else
+	if [ "${#subinstall[@]}" -eq 0 ]; then
 		local file
 		subinstall=() # Really necessary ?
 		for file in "${_F_genscriptlet_subinstall[@]}"
 		do
-			subinstall=("${subintall[@]}" "src/$(basename \"$file\")")
+			subinstall=("${subintall[@]}" "${Fsrcdir}/$(basename "$file")")
 		done
+	else
+		error "_F_genscriptlet_subinstall is used but install is allready defined."
+		plain "Check your FrugalBuild."
+		Fdie
 	fi
 fi
 
@@ -86,7 +86,7 @@ fi
 # == APPENDED VARIABLES
 # * options()
 ###
-options=("${options[@]}" 'scriptlet' 'genscriptlet')
+options=("${options[@]}" 'genscriptlet')
 
 ###
 # == PROVIDED FUNCTIONS
@@ -94,10 +94,14 @@ options=("${options[@]}" 'scriptlet' 'genscriptlet')
 ###
 __Fgenscriptlet()
 {
-	local install_src="$1"
-	local install_dest="${Fsrcdir}/$(basename $install_src)"
+	Fmessage "Generating scriptlet: $(basename "$1")"
+	local install_dest="${Fsrcdir}/$(basename "$1")"
 
-	cp -f "$install_src" "$install_dest" || Fdie
+	if [ ! -e "$install_dest" ]; then
+		# if $install_dest don't exist, create it
+		Fmessage "Copying $1 to $install_dest"
+		cp -f "$1" "$install_dest" || Fdie
+	fi
 	for hook in "${_F_genscriptlet_hooks[@]}"
 	do
 		$hook "$install_dest"

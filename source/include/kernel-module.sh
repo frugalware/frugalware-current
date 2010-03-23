@@ -109,3 +109,17 @@ Fcheckkernel()
 		Fdie
 	fi
 }
+
+###
+# * Fkernelmod_genscriptlet_hook() is the genscriplet hook that substitute kernelmod
+# variables inside scriptlets.
+###
+Fkernelmod_genscriptlet_hook()
+{
+	Freplace '_F_kernelmod_dir' "$1"
+	Freplace '_F_kernelmod_pkgver' "$1"
+	Freplace '_F_kernelmod_rel' "$1"
+	Freplace '_F_kernelmod_uname' "$1"
+	Freplace '_F_kernelmod_ver' "$1"
+}
+

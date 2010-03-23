@@ -543,7 +543,7 @@ Freplace() {
 Fdeststrip() {
 	local i
 	for i in "$@"; do
-		Fsed "$Fdestdir" "" $Fdestdir/$i
+		Fsed "$Fdestdir" "" "$Fdestdir/$i"
 	done
 }
 
@@ -654,7 +654,7 @@ Fpatch() {
 ###
 Fpatchall() {
 	local patch="" patcharch=""
-	for i in ${source[@]}; do
+	for i in "${source[@]}"; do
 		if [ -n "`echo "$i" | grep '\.patch[0-9]*$'`" -o -n "`echo "$i" | grep '\.diff$'`" -o -n "`echo "$i" | grep '\.\(patch[0-9]*\|diff\)\.\(gz\|bz2\)$'`" ]; then
 			patch=`strip_url "$i"`
 			patcharch=`echo $patch|sed 's/.*-\([^-]\+\)\.\(diff\|patch0\?\)$/\1/'`

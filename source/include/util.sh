@@ -263,7 +263,7 @@ Fsubmv()
 	msg2 "$2 -> $3"
 	for i in "$destdir"/$2 # expand $2 if possible
 	do
-		if [ ! -e "$i" ]; then # expand failed ?
+		if [ ! -e "$i" -a ! -h "$i" ]; then # expand failed ?
 			Fmessage "No such file $2$info!! Typo? ($i)"
 			Fdie
 		fi

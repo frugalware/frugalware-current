@@ -543,7 +543,7 @@ Freplace() {
 Fdeststrip() {
 	local i
 	for i in "$@"; do
-		Fsed "$Fdestdir" "" "Fdestdir"/$i # expand $i if possible
+		Fsed "$Fdestdir" "" "$Fdestdir"/$i # expand $i if possible
 	done
 }
 

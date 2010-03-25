@@ -94,14 +94,22 @@ options=("${options[@]}" 'genscriptlet')
 ###
 __Fgenscriptlet()
 {
+	if [ -z "$1" ]; then
+		# Skipping empty genscriptlet file names.
+		return
+	fi
+
 	Fmessage "Generating scriptlet: $(basename "$1")"
+	local install_src="$1"
 	local install_dest="${Fsrcdir}/$(basename "$1")"
 
-	if [ ! -e "$install_dest" ]; then
-		# if $install_dest don't exist, create it
-		Fmessage "Copying $1 to $install_dest"
-		cp -f "$1" "$install_dest" || Fdie
+	if [ ! -e "$install_src" ]; then
+		# if $install_src don't exist, it is relative to $startdir
+		install_src="$startdir/$1"
 	fi
+	Fmessage "Copying $1 to $install_dest"
+	cp -f "$install_src" "$install_dest" || Fdie
+
 	for hook in "${_F_genscriptlet_hooks[@]}"
 	do
 		$hook "$install_dest"

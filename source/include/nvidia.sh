@@ -52,8 +52,11 @@ fi
 if [ -z "$_F_nvidia_linkver" ]; then
 	_F_nvidia_linkver=$pkgver
 fi
+if [ -z "$_F_nvidia_opencl_linkver" ]; then
+	_F_nvidia_opencl_linkver=1.0.0
+fi
 if [ -z "$_F_nvidia_install" ]; then
-	_F_nvidia_install="nvidia.install"
+	_F_nvidia_install="$Fincdir/nvidia.install"
 fi
 if [ -z "$_F_nvidia_up2date" ]; then
 	if [ -z "$_F_nvidia_legacyver" ]; then
@@ -118,10 +121,11 @@ Finclude kernel-module
 
 Fbuild_nvidia_scriptlet()
 {
-	cp $Fincdir/nvidia.install ${Fsrcdir%/src}
-	Fsed '$pkgname' "$pkgname" ${Fsrcdir%/src}/$_F_kernelmod_scriptlet
-	Fsed '$pkgver' "$pkgver" ${Fsrcdir%/src}/$_F_kernelmod_scriptlet
 	Fbuild_kernelmod_scriptlet
+
+	# Compatibility code remove after 1.3
+	Fsed '$pkgname' "$pkgname" "${Fsrcdir}/$(basename "$_F_kernelmod_scriptlet")"
+	Fsed '$pkgver' "$pkgver" "${Fsrcdir}/$(basename "$_F_kernelmod_scriptlet")"
 }
 
 Fbuild_nvidia() {
@@ -143,14 +147,6 @@ Fbuild_nvidia() {
 	# Install the binaries
 	Fexerel usr/bin/nvidia-* /usr/bin/
 
-	# Install the includes
-	Fmkdir usr/include/GL/
-	Ffilerel usr/include/GL/* /usr/include/GL/
-	if [ -d usr/include/cuda ]; then
-		Fmkdir usr/include/cuda
-		Ffilerel usr/include/cuda/* /usr/include/cuda/
-	fi
-
 	# Install the xorg modules
 	Fmkdir usr/lib/xorg/modules/drivers
 	Fexerel usr/X11R6/lib/modules/drivers/*.so* /usr/lib/xorg/modules/drivers/
@@ -165,37 +161,69 @@ Fbuild_nvidia() {
 #	fi
 
 	# Install the libraries
-	Fexerel usr/lib/*.so* /usr/lib/
+	Fmkdir /usr/include/GL/
+	Ffilerel usr/include/GL/* /usr/include/GL/
 	Fexerel usr/lib/libGL.la /usr/lib/libGL.la
-	Fexerel usr/X11R6/lib/*.so* /usr/lib/
 	Fsed "__LIBGL_PATH__" "/usr/lib" $Fdestdir/usr/lib/libGL.la
+	Fexerel "usr/lib/libGL.so.$_F_nvidia_linkver" /usr/lib/
 	Fln "libGL.so.$_F_nvidia_linkver" "/usr/lib/libGL.so"
 	Fln "libGL.so.$_F_nvidia_linkver" "/usr/lib/libGL.so.1"
 	Fln "libGL.so.$_F_nvidia_linkver" "/usr/lib/libGL.so.1.2"
+
+	Fexerel "usr/lib/libGLcore.so.$_F_nvidia_linkver" /usr/lib/
 	Fln "libGLcore.so.$_F_nvidia_linkver" "/usr/lib/libGLcore.so"
 	Fln "libGLcore.so.$_F_nvidia_linkver" "/usr/lib/libGLcore.so.1"
+
+	Fexerel "usr/lib/libnvidia-tls.so.$_F_nvidia_linkver" /usr/lib/
 	Fln "libnvidia-tls.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-tls.so"
 	Fln "libnvidia-tls.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-tls.so.1"
+
+	Ffilerel "usr/X11R6/lib/libXvMCNVIDIA.a" /usr/lib/
+	Fexerel "usr/X11R6/lib/libXvMCNVIDIA.so.$_F_nvidia_linkver" /usr/lib/
 	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA.so"
 	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA.so.1"
 	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA_dynamic.so"
 	Fln "libXvMCNVIDIA.so.$_F_nvidia_linkver" "/usr/lib/libXvMCNVIDIA_dynamic.so.1"
+
+	if [ -e "usr/lib/libOpenCL.so.$_F_nvidia_opencl_linkver" ]; then
+		Fmkdir /etc/OpenCL/vendors/
+		Ffilerel etc/OpenCL/vendors/nvidia.icd /etc/OpenCL/vendors/
+		Fmkdir /usr/include/CL/
+		Ffilerel usr/include/CL/* /usr/include/CL/
+		Fexerel "usr/lib/libOpenCL.so.$_F_nvidia_opencl_linkver" /usr/lib/
+		Fln "libOpenCL.so.$_F_nvidia_opencl_linkver" "/usr/lib/libOpenCL.so"
+		Fln "libOpenCL.so.$_F_nvidia_opencl_linkver" "/usr/lib/libOpenCL.so.1"
+	fi
+
 	if [ -e "usr/lib/libnvidia-cfg.so.$_F_nvidia_linkver" ]; then
+		Fexerel "usr/lib/libnvidia-cfg.so.$_F_nvidia_linkver" /usr/lib/
 		Fln "libnvidia-cfg.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-cfg.so"
 		Fln "libnvidia-cfg.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-cfg.so.1"
 	fi
+
+	if [ -e "usr/lib/libnvidia-compiler.so.$_F_nvidia_linkver" ]; then
+		Fexerel "usr/lib/libnvidia-compiler.so.$_F_nvidia_linkver" /usr/lib/
+		Fln "libnvidia-compiler.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-compiler.so"
+		Fln "libnvidia-compiler.so.$_F_nvidia_linkver" "/usr/lib/libnvidia-compiler.so.1"
+	fi
+
 	if [ -e "usr/lib/libcuda.so.$_F_nvidia_linkver" ]; then
+		Fmkdir /usr/include/cuda
+		Ffilerel usr/include/cuda/* /usr/include/cuda/
+		Fexerel "usr/lib/libcuda.so.$_F_nvidia_linkver" /usr/lib/
 		Fln "libcuda.so.$_F_nvidia_linkver" "/usr/lib/libcuda.so"
 		Fln "libcuda.so.$_F_nvidia_linkver" "/usr/lib/libcuda.so.1"
 	fi
+
 	if [ -e "usr/lib/libvdpau_nvidia.so.$_F_nvidia_linkver" ]; then
+		Fexerel "usr/lib/libvdpau_nvidia.so.$_F_nvidia_linkver" /usr/lib/
 		Fln "libvdpau_nvidia.so.$_F_nvidia_linkver" "/usr/lib/libvdpau_nvidia.so"
 		Fln "libvdpau_nvidia.so.$_F_nvidia_linkver" "/usr/lib/libvdpau_nvidia.so.1"
 	fi
 
 	# Weird TLS stuff
 	Fmkdir usr/lib/tls
-	Fexerel usr/lib/tls/*.so* /usr/lib/tls/
+	Fexerel "usr/lib/tls/libnvidia-tls.so.$_F_nvidia_linkver" /usr/lib/tls/
 	Fln "libnvidia-tls.so.$_F_nvidia_linkver" "/usr/lib/tls/libnvidia-tls.so"
 	Fln "libnvidia-tls.so.$_F_nvidia_linkver" "/usr/lib/tls/libnvidia-tls.so.1"
 

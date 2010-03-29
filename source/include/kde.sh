@@ -40,7 +40,7 @@ Finclude cmake
 ###
 
 if [ -z "$_F_kde_ver" ]; then
-	_F_kde_ver=4.3.5
+	_F_kde_ver=4.4.1
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
@@ -121,6 +121,9 @@ case "$_F_cmake_type" in
 None)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -DNDEBUG -DQT_NO_DEBUG";;
 Debug*)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -ggdb3";;
 esac
+
+
+_F_KDE_LD_FLAGS="-Wl,--no-undefined -Wl,--as-needed"
 
 ## REMOVE: KDE4_USE_ALWAYS... option changed since 4.2*
 ## think about CMAKE_SKIP_RPATH for 4.4
@@ -257,7 +260,7 @@ KDE_export_flags()
 {
 	export CFLAGS="$CFLAGS $_F_KDE_CXX_FLAGS"
 	export CXXFLAGS="$CXXFLAGS  $_F_KDE_CXX_FLAGS"
-	export LDFLAGS="$LDFLAGS -Wl,--no-undefined -Wl,--as-needed"
+	export LDFLAGS="$LDFLAGS $_F_KDE_LD_FLAGS"
 }
 
 KDE_make()

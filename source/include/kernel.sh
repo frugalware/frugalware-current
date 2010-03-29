@@ -112,6 +112,7 @@ if [ -z "$_F_kernel_name" ]; then
 else
 	pkgdesc="The Linux Kernel and modules (${_F_kernel_name/-} version)"
 fi
+
 ###
 # * url
 # * rodepends
@@ -309,6 +310,18 @@ Fbuildkernel()
 	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel-source.install
 	Fsed '$_F_kernel_name' "$_F_kernel_name" $Fsrcdir/kernel-source.install
 	Fsed '$_F_kernel_rel' "$_F_kernel_rel" $Fsrcdir/kernel-source.install
+}
+
+###
+# * Fkernel_genscriptlet_hook()
+###
+Fkernel_genscriptlet_hook()
+{
+	Freplace '_F_kernel_path' "$1"
+	Freplace '_F_kernel_name' "$1"
+	Freplace '_F_kernel_rel' "$1"
+	Freplace '_F_kernel_uname' "$1"
+	Freplace '_F_kernel_ver' "$1"
 }
 
 ###

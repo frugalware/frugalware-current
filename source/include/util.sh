@@ -263,7 +263,7 @@ Fsubmv()
 	msg2 "$2 -> $3"
 	for i in "$destdir"/$2 # expand $2 if possible
 	do
-		if [ ! -e "$i" ]; then # expand failed ?
+		if [ ! -e "$i" -a ! -h "$i" ]; then # expand failed ?
 			Fmessage "No such file $2$info!! Typo? ($i)"
 			Fdie
 		fi
@@ -494,15 +494,45 @@ Fln() {
 }
 
 ###
+# * __Fsed(): Private implementation of Fsed and Freplace. Parameters: 
+# 1) regexp (see man sed!) 2) replacement 3) file to edit in place.
+###
+__Fsed() {
+	if [ ! -e $i ]; then
+		error "File $i not found."
+		Fdie
+	fi
+	if [ ! -f $i ]; then
+		error "File $i is not a regular file."
+		Fdie
+	fi
+	sed -i -e "s|$1|$2|g" "$3" || Fdie
+}
+
+###
 # * Fsed(): Use sed on file(s). Parameters: 1) regexp (see man sed!) 2)
 # replacement 3) file(s) to edit in place.
 ###
 Fsed() {
 	local i
 	Fcd
-	for i in ${@:3:$#}; do
+	for i in "${@:3:$#}"; do
 		Fmessage "Using sed with file: $i"
-		sed -i -e "s|$1|$2|g" "$i" || Fdie
+		__Fsed "$1" "$2" "$i"
+	done
+}
+
+###
+# * Freplace(): Do some parameter substitution on file(s). The parameters 
+# should be escaped using the "@parameter@" syntax. Parameters:
+# 1) Variable to substituate 2) file(s) where the substitution happens.
+###
+Freplace() {
+	local i
+	Fcd
+	for i in "${@:2:$#}"; do
+		Fmessage "Subtituing $1 in file: $i"
+		eval "__Fsed '@$1@' \"\${$1}\" \"\$i\""
 	done
 }
 
@@ -513,7 +543,7 @@ Fsed() {
 Fdeststrip() {
 	local i
 	for i in "$@"; do
-		Fsed "$Fdestdir" "" $Fdestdir/$i
+		Fsed "$Fdestdir" "" "$Fdestdir"/$i # expand $i if possible
 	done
 }
 
@@ -624,7 +654,7 @@ Fpatch() {
 ###
 Fpatchall() {
 	local patch="" patcharch=""
-	for i in ${source[@]}; do
+	for i in "${source[@]}"; do
 		if [ -n "`echo "$i" | grep '\.patch[0-9]*$'`" -o -n "`echo "$i" | grep '\.diff$'`" -o -n "`echo "$i" | grep '\.\(patch[0-9]*\|diff\)\.\(gz\|bz2\)$'`" ]; then
 			patch=`strip_url "$i"`
 			patcharch=`echo $patch|sed 's/.*-\([^-]\+\)\.\(diff\|patch0\?\)$/\1/'`

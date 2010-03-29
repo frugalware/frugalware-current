@@ -61,10 +61,10 @@ Finclude kernel-version
 # * _F_kernelmod_uname: the output of the uname -r command of the official kernel
 # * _F_kernelmod_pkgver: the package version (pkgname-pkgrel) of the kernel
 # * _F_kernelmod_dir: the directory where the modules are (ie: /lib/modules/`uname -r`)
-# * install
+# * _F_genscriptlet_install: the _F_kernelmod_scriptlet value.
 ###
 if [ -z "$_F_kernelmod_scriptlet" ]; then
-	_F_kernelmod_scriptlet="kernel-module.install"
+	_F_kernelmod_scriptlet="$Fincdir/kernel-module.install"
 fi
 if [ -z "$_F_kernelmod_name" ]; then
 	_F_kernelmod_ver="$_F_kernelver_ver"
@@ -73,17 +73,21 @@ fi
 _F_kernelmod_uname=$_F_kernelmod_ver$_F_kernelmod_name-fw$_F_kernelmod_rel
 _F_kernelmod_pkgver=$_F_kernelmod_ver-$_F_kernelmod_rel
 _F_kernelmod_dir=/lib/modules/$_F_kernelmod_uname
-install=$_F_kernelmod_scriptlet
+_F_genscriptlet_install="$_F_kernelmod_scriptlet"
 
 ###
 # == APPENDED VARIABLES
 # * kernel package name to depends()
 # * kernel package source to makedepends()
-# * scriptlet and genscriptlet to options()
+# * scriptlet to options()
+# * Fkernelmod_genscriptlet_hook to _F_genscriptlet_hooks()
 ###
-depends=(${depends[@]} "kernel$_F_kernelmod_name=$_F_kernelmod_pkgver")
-makedepends=(${depends[@]} "kernel$_F_kernelmod_name-source=$_F_kernelmod_pkgver")
-options=(${options[@]} 'scriptlet' 'genscriptlet')
+depends=("${depends[@]}" "kernel$_F_kernelmod_name=$_F_kernelmod_pkgver")
+makedepends=("${depends[@]}" "kernel$_F_kernelmod_name-source=$_F_kernelmod_pkgver")
+options=("${options[@]}" 'scriptlet') # Required by kernel
+_F_genscriptlet_hooks=("${_F_genscriptlet_hooks[@]}" Fkernelmod_genscriptlet_hook)
+
+Finclude genscriptlet
 
 ###
 # == PROVIDED FUNCTIONS
@@ -92,8 +96,10 @@ options=(${options[@]} 'scriptlet' 'genscriptlet')
 ###
 Fbuild_kernelmod_scriptlet()
 {
-	cp $Fincdir/kernel-module.install ${Fsrcdir%/src}
-	Fsed '$_F_kernelmod_uname' "$_F_kernelmod_uname" ${Fsrcdir%/src}/$_F_kernelmod_scriptlet
+	Fgenscriptlet
+
+	# Compatibility code remove after 1.3
+	Fsed '$_F_kernelmod_uname' "$_F_kernelmod_uname" "${Fsrcdir}/$(basename "$_F_kernelmod_scriptlet")"
 }
 
 ###
@@ -109,3 +115,17 @@ Fcheckkernel()
 		Fdie
 	fi
 }
+
+###
+# * Fkernelmod_genscriptlet_hook() is the genscriplet hook that substitute kernelmod
+# variables inside scriptlets.
+###
+Fkernelmod_genscriptlet_hook()
+{
+	Freplace '_F_kernelmod_dir' "$1"
+	Freplace '_F_kernelmod_pkgver' "$1"
+	Freplace '_F_kernelmod_rel' "$1"
+	Freplace '_F_kernelmod_uname' "$1"
+	Freplace '_F_kernelmod_ver' "$1"
+}
+

@@ -65,8 +65,14 @@ if [ -z "$_F_kde_mirror" ]; then
 	_F_kde_mirror="ftp://ftp.kde.org/pub/kde"
 fi
 
+if [ -z "$_F_kde_unstable" ]; then
+	_F_kde_folder="stable"
+else
+	_F_kde_folder="unstable"
+fi
+
 if [ -z "$_F_kde_dirname" ]; then
-	_F_kde_dirname="stable/$_F_kde_ver/src"
+	_F_kde_dirname="$_F_kde_folder/$_F_kde_ver/src"
 fi
 
 if [ -n "$_F_kde_final" ]; then
@@ -97,7 +103,11 @@ if [ -z "$url" ]; then
 fi
 
 if [ -z "$up2date" ]; then
-	up2date="Flasttar http://kde.org/download/"
+	if [ -z "$_F_kde_unstable" ]; then
+		up2date="Flasttar http://kde.org/download/"
+	else
+		up2date=$pkgver
+	fi
 fi
 
 if [ ${#source[@]} -eq 0 ]; then
@@ -122,11 +132,8 @@ None)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -DNDEBUG -DQT_NO_DEBUG";;
 Debug*)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -ggdb3";;
 esac
 
-
 _F_KDE_LD_FLAGS="-Wl,--no-undefined -Wl,--as-needed"
 
-## REMOVE: KDE4_USE_ALWAYS... option changed since 4.2*
-## think about CMAKE_SKIP_RPATH for 4.4
 _F_cmake_confopts="$_F_cmake_confopts \
 		-DCONFIG_INSTALL_DIR=/etc/kde/config \
 		-DKCFG_INSTALL_DIR=/etc/kde/config.kcfg \
@@ -139,25 +146,82 @@ _F_cmake_confopts="$_F_cmake_confopts \
 # * KDE_project_install: Install a specific package. Parameters: 1) Name of the
 # project (Must also be the name of a directory).
 ###
+
+# stolen from makepkg ;))
+__kde_in_array()
+{
+        local i
+        _package=$1
+        shift 1
+        # array() undefined
+        [ -z "$1" ] && return 1
+        for i in "$@"
+        do
+                [ "$i" == "${_package}" ] && return 0
+        done
+        return 1
+}
+
+__KDE_pre_build_check()
+{
+
+	if [ -n "$_F_kde_no_auto_docs" ]; then
+		if __kde_in_array "$pkgname-docs" "${subpkgs[@]}"; then ## that is not allowed anymore
+			Fmessage "ERROR: You cannot have _F_kde_no_auto_docs AND $pkgname-docs set!!"
+                        Fmessage "ERROR: Fix your FrugalBuild.. Bailing out!"
+                        Fdie
+                fi
+	else
+		if ! __kde_in_array "$pkgname-docs" "${subpkgs[@]}"; then
+			Fmessage "ERROR: Cannot find $pkgname-docs in your subpkgs."
+			Fmessage "ERROR: If you don't want any -docs subpkg add _F_kde_no_auto_docs=1 to your FrugalBuild."
+			Fmessage "ERROR: Else copy and paste the following to your FrugalBuild:"
+				echo 'subpkgs=("${subpkgs[@]}" "$pkgname-docs")'
+				echo 'subdescs=("${subdescs[@]}" "$pkgname Documentation")'
+				echo 'subdepends=("${subdepends[@]}" "")'
+				if [ -n "$subrodepends" ]; then
+					echo 'subrodepends=("${subrodepends[@]}" "")'
+				fi
+				echo 'subgroups=("${subgroups[@]}" "docs-extra kde-docs")'
+				echo 'subarchs=("${subarchs[@]}" "i686 x86_64 ppc")'
+				Fdie
+		fi
+	fi
+
+	if [ -n "$_F_kde_no_compiletime" ]; then
+		if __kde_in_array "$pkgname-compiletime" "${subpkgs[@]}"; then ## not allowed will produce conflicts / empty packages
+			Fmessage "ERROR: You cannot have _F_kde_no_compiletime AND $pkgname-compiletime set!!"
+			Fmessage "ERROR: Fix your FrugalBuild.. Bailing out!"
+			Fdie
+		fi
+	else
+		if ! __kde_in_array "$pkgname-compiletime" "${subpkgs[@]}"; then
+			Fmessage "ERROR: Cannot find $pkgname-compiletime in your subpkgs."
+			Fmessage "ERROR: If you don't want -compiletime subpkg add _F_kde_no_compiletime=1 to your FrugalBuild."
+			Fmessage "ERROR: Fix your FrugalBuild.. Bailing out!"
+			Fdie
+		fi
+	fi
+
+	## TODO: add check for missing $CARCH in subarchs ( porting / splitting issues )
+}
+
+
 KDE_project_install()
 {
-	## What is that ?
-	## - usually an 'normal' named 'project' looks like this:
-	## - 'foo' , 'doc/foo' and maybe 'doc/kcontrol/foo'
-	## These can be installed auto magically.
-
-	# figure whatever it has docs
-	# TODO: add 'kcontrol' check ?!
-	if [ -d "doc" ]; then # does a doc folder exists ?
-		if [ -d "doc/$1" ]; then #  does the package has docs ?
-			Fmessage "Installing docs from TOP_SRC dir for $1."
-			## install docs
-			make -C "doc/$1" DESTDIR="$Fdestdir" install || Fdie
-		fi
-	elif [ -d "apps/doc" ]; then ## kdebase
-		if [ -d "apps/doc/$1" ]; then #  does the package has docs ?
-			Fmessage "Installing docs from apps/ dir for $1."
-			make -C "apps/doc/$1" DESTDIR="$Fdestdir" install || Fdie
+	## OK we want the docs to be in one place $pkgname-docs so..
+	if [ -n "$_F_kde_no_auto_docs" ]; then ## really do not use for kde<core_modules>
+		if [ -d "doc" ]; then # does a doc folder exists ?
+			if [ -d "doc/$1" ]; then #  does the package has docs ?
+				Fmessage "Installing docs from TOP_SRC dir for $1."
+				## install docs
+				make -C "doc/$1" DESTDIR="$Fdestdir" install || Fdie
+			elif [ -d "apps/doc" ]; then ## kdebase
+				if [ -d "apps/doc/$1" ]; then #  does the package has docs ?
+					Fmessage "Installing docs from apps/ dir for $1."
+					make -C "apps/doc/$1" DESTDIR="$Fdestdir" install || Fdie
+				fi
+			fi
 		fi
 	fi
 
@@ -169,13 +233,51 @@ KDE_project_install()
 	fi
 	## install the package
 	make -C "$1" DESTDIR="$Fdestdir" install || Fdie
+
+	 if [ -z "$_F_kde_no_auto_docs" ]; then
+                Frm usr/share/doc
+        fi
+
 }
+
 
 ###
 # * KDE_project_split(): Moves a KDE project to a subpackage. Parameters:
 # 1) name of the subpackage 2) Name of the project (see KDE_project_install).
 # Example: KDE_project_split kopete-irc kopete/protocols/irc
 ###
+
+__kde_remove_files()
+{
+	local i j
+	[ -z "$1" ] && Fdie
+	for i in `find $Fdestdir -name "$1"`
+	do
+		if [ -f "$i" ]; then
+			j=`echo $i|sed 's|.*/pkg/||g'`
+		 	Frm $j
+		else
+			Fdie
+		fi
+	done
+}
+
+__kde_find_split_files()
+{
+
+	local i j
+	[ -z "$1" ] && Fdie
+	[ -z "$2" ] && Fdie
+	for i in `find $Fdestdir ! -type d -name "$1" -prune`
+	do
+		if [ -f "$i" ]; then
+			j=`echo $i|sed 's|.*/pkg/||g'`
+			Fsplit $2 $j
+		else
+			Fdie
+		fi
+	done
+}
 
 KDE_project_split()
 {
@@ -220,6 +322,9 @@ __KDE_split() # internal and should be extended to handle all kind paths
 	elif [ -d "libs/$clean" ]; then
 		Fmessage "Found Kde-Project "$clean" in libs/ dir.. Splitting."
 		KDE_project_split "$i" "libs/$clean"
+	elif [ -d "$cleanlib" ]; then
+		Fmessage "Found Kde-Project "$cleanlib" ( subpkg_name lib$cleanlib ) in TOP_SRC dir.. Splitting.."
+		KDE_project_split "$i" "$cleanlib"
 	elif [ -d "libs/$cleanlib" ]; then
 		Fmessage "Found Kde-Project "$cleanlib" ( subpkg_name lib$cleanlib ) in libs/ dir.. Splitting."
 		KDE_project_split "$i" "libs/$cleanlib"
@@ -246,10 +351,13 @@ KDE_split()
 	## let's try that way
 	for i in "${_F_kde_subpkgs[@]}"
 	do
-		## Shall we add something more generic some _ignore= ?
-		## but for that we need some hacks in makepkg I guess
-		if [ "$i" == "$pkgname-docs" ]; then
-			Fmessage "Ignoring $pkgname-docs KDE_install() will take care.."
+               ## Shall we add something more generic some _ignore= ?
+               ## but for that we need some hacks in makepkg I guess
+               if [ "$i" == "$pkgname-docs" ]; then
+                       Fmessage "Ignoring $pkgname-docs KDE_install() will take care.."
+                       continue
+               elif [ "$i" == "$pkgname-compiletime" ]; then
+			Fmessage "Ignoring $pkgname-compiletime KDE_install() will take care.."
 			continue
 		fi
 		__KDE_split
@@ -270,9 +378,9 @@ KDE_make()
 }
 
 
-
 KDE_make_split()
 {
+	__KDE_pre_build_check
 	KDE_make "$@"
 	KDE_split
 }
@@ -286,11 +394,23 @@ KDE_cleanup()
 KDE_install()
 {
 	make DESTDIR="$Fdestdir" install || Fdie
-	KDE_cleanup
-	if [ "$_F_kde_split_docs" == 1 ]; then
-          Fsplit "$pkgname-docs" /usr/share/doc/HTML
+
+	if [ -z "$_F_kde_no_auto_docs" ]; then
+          	Fsplit "$pkgname-docs" usr/share/doc/HTML
         fi
 
+	KDE_cleanup
+
+	if [ -z "$_F_kde_no_compiletime" ]; then
+		if [ -d $Fdestdir/usr/include ]; then
+			Fsplit "$pkgname-compiletime" usr/include
+		fi
+		if [ -d $Fdestdir/usr/share/apps/cmake ]; then
+			Fsplit "$pkgname-compiletime" usr/share/apps/cmake
+		fi
+		__kde_find_split_files "*.cmake" "$pkgname-compiletime"
+		__kde_find_split_files "*.pc" "$pkgname-compiletime"
+	fi
 }
 
 

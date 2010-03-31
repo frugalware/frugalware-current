@@ -130,6 +130,7 @@ if [ -n "$_F_kde_id" ]; then
         up2date="lynx -dump  $url|grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed -e 's/^[ \t]*//'"
 	_F_kde_no_compiletime=1
 	_F_kde_no_auto_docs=1
+	_F_kde_defaults=0
 fi
 
 if [ -n "$_F_kde_id2" ]; then
@@ -137,7 +138,7 @@ if [ -n "$_F_kde_id2" ]; then
         up2date="lynx -dump  $url|grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed -e 's/^[ \t]*//'"
 	_F_kde_no_compiletime=1
         _F_kde_no_auto_docs=1
-
+	_F_kde_defaults=0
 fi
 
 ###

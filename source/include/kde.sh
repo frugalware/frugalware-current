@@ -79,6 +79,10 @@ if [ -n "$_F_kde_final" ]; then
 	_F_cmake_confopts="$_F_cmake_confopts -DKDE4_ENABLE_FINAL=$_F_kde_final"
 fi
 
+if [ -z "$_F_kde_defaults" ]; then
+	_F_kde_defaults=1
+fi
+
 ###
 # == OVERWRITTEN VARIABLES
 # * _F_archive_name (default to $_F_kde_name if not set)
@@ -102,20 +106,38 @@ if [ -z "$url" ]; then
 	url="http://www.kde.org"
 fi
 
-if [ -z "$up2date" ]; then
-	if [ -z "$_F_kde_unstable" ]; then
-		up2date="Flasttar http://kde.org/download/"
-	else
-		up2date=$pkgver
+if [ "$_F_kde_defaults" -eq 1 ]; then
+	if [ -z "$up2date" ]; then
+		if [ -z "$_F_kde_unstable" ]; then
+			up2date="Flasttar http://kde.org/download/"
+		else
+			up2date=$pkgver
+		fi
+	fi
+
+	if [ ${#source[@]} -eq 0 ]; then
+		source=("$_F_kde_mirror/$_F_kde_dirname/$_F_kde_name-$_F_kde_pkgver.tar.bz2")
 	fi
 fi
 
-if [ ${#source[@]} -eq 0 ]; then
-	source=("$_F_kde_mirror/$_F_kde_dirname/$_F_kde_name-$_F_kde_pkgver.tar.bz2")
-fi
 
 if [ -z "$_F_cd_path" ]; then
         _F_cd_path=$_F_kde_name-$_F_kde_pkgver
+fi
+
+if [ -n "$_F_kde_id" ]; then
+        url="http://www.kde-apps.org/content/show.php?content=$_F_kde_id"
+        up2date="lynx -dump  $url|grep -m1 grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed -e 's/^[ \t]*//'"
+	_F_kde_no_compiletime=1
+	_F_kde_no_auto_docs=1
+fi
+
+if [ -n "$_F_kde_id2" ]; then
+        url="http://www.kde-look.org/content/show.php?content=$_F_kde_id2"
+        up2date="lynx -dump  $url|grep -m1 grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed -e 's/^[ \t]*//'"
+	_F_kde_no_compiletime=1
+        _F_kde_no_auto_docs=1
+
 fi
 
 ###
@@ -380,7 +402,10 @@ KDE_make()
 
 KDE_make_split()
 {
+## only check on core stuff
+if [ "$_F_kde_defaults" -eq 1 ]; then
 	__KDE_pre_build_check
+fi
 	KDE_make "$@"
 	KDE_split
 }

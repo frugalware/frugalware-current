@@ -127,14 +127,14 @@ fi
 
 if [ -n "$_F_kde_id" ]; then
         url="http://www.kde-apps.org/content/show.php?content=$_F_kde_id"
-        up2date="lynx -dump  $url|grep -m1 grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed -e 's/^[ \t]*//'"
+        up2date="lynx -dump  $url|grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed -e 's/^[ \t]*//'"
 	_F_kde_no_compiletime=1
 	_F_kde_no_auto_docs=1
 fi
 
 if [ -n "$_F_kde_id2" ]; then
         url="http://www.kde-look.org/content/show.php?content=$_F_kde_id2"
-        up2date="lynx -dump  $url|grep -m1 grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed -e 's/^[ \t]*//'"
+        up2date="lynx -dump  $url|grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed -e 's/^[ \t]*//'"
 	_F_kde_no_compiletime=1
         _F_kde_no_auto_docs=1
 

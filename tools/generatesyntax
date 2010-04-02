@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# Authored by James Buren <ryuo@frugalware.org>
+# Generate FrugalBuild syntax highlighting for editors
+# Will not do all the work but will help with the tedious
+# task of updating the syntax as the schemas change
+
+# Output for nano editor
+nano_output() {
+
+  echo -n "color brightblue \"\\<("
+
+  echo -n $FUNCTIONS | sed 's| |\||g'
+
+  echo ")\\>\""
+
+  echo -n "color brightred \"^\\<("
+
+  echo -n $VARIABLES | sed 's| |\||g'
+
+  echo ")\\>\""
+
+}
+
+# Output for gtksourceview editors
+gtksourceview_output() {
+
+  echo "      <prefix>(?&lt;![\w\-\.])</prefix>"
+
+  echo "      <suffix>(?![\w\-\.])</suffix>"
+
+  for i in $FUNCTIONS; do
+    echo "      <keyword>$i</keyword>"
+  done
+
+}
+
+# Raw output
+raw_output() {
+
+	echo "Functions:"
+
+	for i in $FUNCTIONS; do
+		echo $i
+	done
+
+	echo "Variables:"
+
+	for i in $VARIABLES; do
+		echo $i
+	done
+
+}
+
+if [ -z $1 ]; then
+  echo "Usage: $0 <output format>"
+  exit 1
+fi
+
+# Schemas to search
+SCHEMAS=$(git rev-parse --show-cdup)/source/include/*.sh
+
+# Set base functions
+FUNCTIONS="Finclude"
+
+# Assemble names of all functions, filter out any starting with '__'
+FUNCTIONS="$FUNCTIONS $(grep -ho '^\w\+()\s*{\?' $SCHEMAS | sed 's|[(){ \t]||g' | sort -u)"
+
+# Define variables all FrugalBuilds may have
+VARIABLES="pkgname pkgver pkgrel pkgdesc pkgdesc_localized url license install"
+VARIABLES+=" up2date source sha1sums signatures groups archs backup depends"
+VARIABLES+=" makedepends rodepends conflicts provides removes replaces options"
+VARIABLES+=" subpkgs subdescs subdescs_localized sublicense subreplaces"
+VARIABLES+=" subgroups subdepends subrodepends subremoves subconflicts"
+VARIABLES+=" subprovides subbackup subinstall suboptions subarchs"
+
+# Append variables
+VARIABLES="$VARIABLES $(grep -hEo '(\$(F|_F_)\w+|(F|_F_)\w+=)' $SCHEMAS | sed 's|[\$=]||g' | sort -u)"
+
+if [ $1 == "nano" ]; then
+  nano_output
+elif [ $1 == "gtksourceview" ]; then
+  gtksourceview_output
+elif [ $1 == "raw" ]; then
+	raw_output
+fi

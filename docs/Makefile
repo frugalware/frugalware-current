@@ -111,7 +111,7 @@ images:
 
 %.pdf: %.txt
 	if [[ "(manual.txt|user.txt|devel.txt)" =~ "$^" ]]; then CONF="--conf-file=merge.conf"; fi; \
-	a2x --asciidoc-opts="$$CONF" -a toc -a numbered -a sectids -f pdf -a lang=$(call GETLANG) $^
+	a2x --asciidoc-opts="$$CONF" --dblatex-opts "-P latex.output.revhistory=0" -a toc -a numbered -a sectids -f pdf -a lang=$(call GETLANG) $^
 
 %.txt: %.txt.in
 	sed 's/@VERSION@/$(VERSION)/' $^ > $@

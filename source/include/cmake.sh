@@ -33,6 +33,10 @@ if [ -z "$_F_cmake_in_source_build" ]; then
 	_F_cmake_in_source_build=0
 fi
 
+if [ -z "$_F_cmake_rpath" ]; then
+        _F_cmake_rpah="OFF"
+fi
+
 ###
 # == APPENDED VARIABLES
 # * makedepends(): add cmake and pkgconfig
@@ -93,7 +97,7 @@ CMake_conf()
 		-DCMAKE_C_FLAGS="$CFLAGS" \
 		-DCMAKE_CXX_FLAGS_DEBUG="$CXXFLAGS" \
 		-DCMAKE_C_FLAGS_DEBUG="$CFLAGS" \
-		-DCMAKE_SKIP_RPATH=ON \
+		-DCMAKE_SKIP_RPATH="$_F_cmake_rpath" \
 		$_F_cmake_confopts "$@" $_F_cmake_src || Fdie
 }
 
@@ -127,14 +131,12 @@ CMake_make()
 	CMake_conf "$@"
 	## do _not_ use any F* stuff here , cmake does not like it
 	make || Fdie
-
 }
 
 CMake_install()
 {
-        make DESTDIR=$Fdestdir install/fast || Fdie
+	make DESTDIR=$Fdestdir install/fast || Fdie
 }
-
 ###
 # * CMake_build(): build() wrapper
 ###

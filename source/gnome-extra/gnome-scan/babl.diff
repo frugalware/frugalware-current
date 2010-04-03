@@ -1,0 +1,80 @@
+--- src/flegita-gimp-sink.c	2009-01-31 11:18:50.000000000 -0500
++++ src/flegita-gimp-sink.c.new	2010-01-15 09:20:56.300741963 -0500
+@@ -46,7 +46,7 @@
+ 	const GeglRectangle	*extent;
+ 	GeglRectangle	actual_extent;
+ 	gdouble			res;
+-	BablFormat		*format;
++	Babl			*format;
+ 	guint			image_type;
+ 	GimpPixelRgn	rgn;
+ 	gpointer		iter;
+@@ -136,13 +136,13 @@
+ fgs_create_image(FlegitaGimpSink *sink)
+ {
+ 	FlegitaGimpSinkPrivate *priv = GET_PRIVATE (sink);
+-	BablFormat *format = NULL;
++	Babl *format = NULL;
+ 	guint image_type = 0;
+ 	guint image_base_type = 0;
+ 
+ 	g_object_get (priv->buffer, "format", &format, NULL);
+ 
+-	switch (format->components) {
++	switch (babl_format_get_n_components(format)) {
+ 	case 1:
+ 		image_type = GIMP_GRAY_IMAGE;
+ 		image_base_type = GIMP_GRAY;
+@@ -164,17 +164,19 @@
+ 
+ /* Compute babl format and update layer type according to image type
+    (not incomming gegl buffer type) */
+-static BablFormat*
++static Babl*
+ fgs_compute_babl_format(FlegitaGimpSink *sink)
+ {
+ 	FlegitaGimpSinkPrivate *priv = GET_PRIVATE (sink);
+-	BablFormat *format = NULL;
++	Babl *format = NULL;
+ 	gchar*format_name = NULL;
+ 	gint i;
+ 	gint bps;
+ 
+ 	g_object_get (priv->buffer, "format", &format, NULL);
+-	bps = format->type[0]->bits;
++	bps = 8;
++	if (babl_format_get_type (format, 0) != babl_type ("u8"))
++		bps = 16;
+ 
+ 	switch (gimp_image_base_type(sink->image_ID)) {
+ 	case GIMP_GRAY:
+@@ -187,16 +189,15 @@
+ 		break;
+ 	}
+ 
+-	for (i = 0; i < format->components; i++) {
+-		g_debug (G_STRLOC ": component %i:%s use %i bits",i,
+-				 format->type[i]->instance.name,
+-				 format->type[i]->bits);
++	for (i = 0; i < babl_format_get_n_components(format); i++) {
++		g_debug (G_STRLOC ": component %i:%s",i,
++				 babl_get_name(babl_format_get_type(format, i)));
+ 	}
+ 	format_name = g_strdup_printf ("%s u%i", format_name, bps > 8 ? 16 : bps);
+ 
+ 	g_debug("Format is %s",	format_name);
+ 
+-	return (BablFormat*) babl_format (format_name);
++	return (Babl*) babl_format (format_name);
+ }
+ 
+ 
+@@ -278,7 +279,7 @@
+ 	FlegitaGimpSinkPrivate *priv = GET_PRIVATE (plugin);
+ 	GimpPixelRgn *rgn = &priv->rgn;
+ 
+-	gint chunk_size = rgn->w * rgn->h * priv->format->bytes_per_pixel;
++	gint chunk_size = rgn->w * rgn->h * babl_format_get_bytes_per_pixel(priv->format);
+ 	GeglRectangle rect = {
+ 		.x		= rgn->x + priv->extent->x,
+ 		.y		= rgn->y + priv->extent->y,

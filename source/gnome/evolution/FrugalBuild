@@ -2,14 +2,15 @@
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=evolution
-pkgver=2.28.2
-pkgrel=2
+pkgver=2.30.0.1
+evo_major=2.30
+pkgrel=1
 pkgdesc="Integrated mail, calendar and address book suite for GNOME"
-depends=('gail>=2.16.3' 'gal>=2.5.3-3' 'evolution-data-server>=2.28.2' 'gtkhtml>=3.28.2' \
-	'gnome-spell>=1.0.8-2' 'rarian' 'heimdal>=1.2.1' \
-	'evolution-data-server-ldap>=2.28.1' 'libbonobo>=2.24.0' 'nss>=3.12' 'nspr>=4.7.1' \
-	'libnotify' 'gnome-pilot-conduits>=2.0.17-3' 'db>=4.7.25')
-makedepends=('intltool' 'gnome-doc-utils>=0.14.0' 'openldap' 'psmisc' 'gnome-common')
+depends=('unique' \
+	'gst-plugins-base' 'gtkimageview')
+rodepends=("$pkgname-base" "$pkgname-audio")
+makedepends=('intltool' 'gnome-doc-utils>=0.14.0' 'openldap' \
+	'psmisc' 'gnome-common' 'krb5' 'gtk-doc')
 groups=('gnome')
 archs=('i686' 'x86_64' 'ppc')
 _F_gnome_schemas=('/etc/gconf/schemas/apps_evolution_addressbook.schemas' \
@@ -29,8 +30,52 @@ _F_gnome_iconcache="y"
 Finclude gnome gnome-scriptlet
 url="http://www.gnome.org/projects/evolution/"
 
-# Pilot conduits disabled atm :S
-# Still disabled at 2.12.0 :S
+subpkgs=("${subpkgs[@]}" "$pkgname-pst")
+subdescs=("${subdescs[@]}" "PST importer plugin for Evolution")
+subdepends=("${subdepends[@]}" "libytnef libpst")
+subrodepends=("${subrodepends[@]}" "$pkgname")
+subgroups=("${subgroups[@]}" 'gnome-extra')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+
+subpkgs=("${subpkgs[@]}" "$pkgname-conduit")
+subdescs=("${subdescs[@]}" "conduit plugin for Evolution")
+subdepends=("${subdepends[@]}" "gnome-pilot-conduits>=2.0.17-3")
+subrodepends=("${subrodepends[@]}" "$pkgname")
+subgroups=("${subgroups[@]}" 'gnome')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+
+subpkgs=("${subpkgs[@]}" "$pkgname-audio")
+subdescs=("${subdescs[@]}" "audio plugin for Evolution")
+subdepends=("${subdepends[@]}" "gst-plugins-base")
+subrodepends=("${subrodepends[@]}" "$pkgname")
+subgroups=("${subgroups[@]}" 'gnome')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+
+subpkgs=("${subpkgs[@]}" "$pkgname-base")
+subdescs=("${subdescs[@]}" "base library for Evolution")
+subdepends=("${subdepends[@]}" "gail>=2.20.0 evolution-data-server>=2.30.0 \
+	gtkhtml>=3.30.0 gnome-spell>=1.0.8-2 rarian libkrb5 \
+	evolution-data-server-ldap>=2.30.0 libbonobo>=2.24.3 nss>=3.12 nspr>=4.7.1 \
+	libnotify db>=4.7.25 gnome-pilot")
+subrodepends=("${subrodepends[@]}" "")
+subgroups=("${subgroups[@]}" 'gnome')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+
+subpkgs=("${subpkgs[@]}" "$pkgname-bogofilter")
+subdescs=("${subdescs[@]}" "bogofilter for Evolution")
+subdepends=("${subdepends[@]}" "bogofilter")
+subrodepends=("${subrodepends[@]}" "$pkgname")
+subgroups=("${subgroups[@]}" 'gnome-extra')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+
+subpkgs=("${subpkgs[@]}" "$pkgname-spamassassin")
+subdescs=("${subdescs[@]}" "spamassassin library for Evolution")
+subdepends=("${subdepends[@]}" "spamassassin")
+subrodepends=("${subrodepends[@]}" "$pkgname")
+subgroups=("${subgroups[@]}" 'gnome-extra')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+
+#TODO : added mono binding
 
 build() {
 	Fcd
@@ -61,13 +106,63 @@ build() {
 		--enable-dot-locking=no \
 		--enable-file-chooser=yes \
 		--enable-cairo-calendar=yes \
-		--disable-nm
+		--disable-nm \
+		--enable-pst-import
 	Fsed '.*KILL_PROCESS_CMD.*' '#define KILL_PROCESS_CMD "killall"' config.h
 	make || Fdie
 
 	Fmakeinstall GCONF_DISABLE_SCHEMA_INSTALL=1
+	#TODO : Should split all plugins
+	#PST
+	Fsplit $pkgname-pst usr/lib/$pkgname/$evo_major/plugins/org-gnome-pst-import.eplug
+	Fsplit $pkgname-pst usr/lib/$pkgname/$evo_major/plugins/liborg-gnome-pst-import.*
+
+	#conduit
+	Fsplit $pkgname-conduit usr/lib/evolution/$evo_major/*conduit*
+	Fsplit $pkgname-conduit usr/share/gnome-pilot/conduits
+
+	#audio
+	Fsplit $pkgname-audio usr/lib/evolution/$evo_major/plugins/org-gnome-audio-inline.eplug
+	Fsplit $pkgname-audio usr/lib/evolution/$evo_major/plugins/liborg-gnome-audio-inline.*
+
+	#bogofilter
+	Fsplit $pkgname-bogofilter usr/lib/$pkgname/$evo_major/plugins/org-gnome-bogo-junk-plugin.eplug
+	Fsplit $pkgname-bogofilter usr/lib/$pkgname/$evo_major/plugins/liborg-gnome-bogo-junk-plugin.*
+
+	#spamassassin
+	Fsplit $pkgname-spamassassin usr/lib/$pkgname/$evo_major/plugins/org-gnome-sa-junk-plugin.eplug
+	Fsplit $pkgname-spamassassin usr/lib/$pkgname/$evo_major/plugins/liborg-gnome-sa-junk-plugin.*
+
+	#base for frontend evolution as anjal
+	Fsplit $pkgname-base usr/include/evolution-$evo_major
+	Fsplit $pkgname-base usr/lib/pkgconfig/evolution-calendar.pc
+	Fsplit $pkgname-base usr/lib/pkgconfig/evolution-mail.pc
+	Fsplit $pkgname-base usr/lib/pkgconfig/evolution-plugin.pc
+	Fsplit $pkgname-base usr/lib/pkgconfig/evolution-shell.pc
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libcomposer.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libeabutil.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libecontacteditor.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libecontactlisteditor.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libemformat.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libemiscwidgets.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libeshell.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libessmime.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libetable.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libetext.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libetimezonedialog.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libeutil.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libevolution-a11y.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libevolution-addressbook-importers.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libevolution-calendar.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libevolution-calendar-importers.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libevolution-mail-importers.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libevolution-mail.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libevolution-smime.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libfilter.*
+	Fsplit $pkgname-base usr/lib/evolution/$evo_major/libmenus.*
+
 	Fbuild_gnome_scriptlet
 }
-sha1sums=('19e970417cc91c82a5279cfe5dd7262d9d4c3319')
+sha1sums=('3da664b85fab3084af5f1b8358d7f5a24833c80d')
 
 # optimization OK

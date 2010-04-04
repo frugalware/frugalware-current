@@ -39,6 +39,8 @@
 # desktop software (do not use with the others)
 # * _F_rox_use_hayber - enable the user of one of the other sources of rox
 # desktop software (do not use with the others)
+# * _F_rox_archive_name_override - override the default _F_archive_name if
+# requested
 # * _F_rox_subdir - used to install the rox app to a subdir of the install
 # path
 # * _F_rox_sep - used to change the seperator between version and
@@ -52,6 +54,7 @@
 [ -z "$_F_rox_use_kerofin" ] && _F_rox_use_kerofin=0
 [ -z "$_F_rox_use_rox4debian" ] && _F_rox_use_rox4debian=0
 [ -z "$_F_rox_use_hayber" ] && _F_rox_use_hayber=0
+[ -z "$_F_rox_archive_name_override" ] && _F_rox_archive_name_override=0
 if echo $pkgname | grep -q lib; then
 	_F_rox_installpath=/usr/lib/
 else
@@ -75,7 +78,7 @@ if [ "$_F_rox_use_sourceforge" -eq 1 ]; then
 	unset url
 fi
 
-_F_archive_name="$_F_rox_name"
+[ "$_F_rox_archive_name_override" -eq 1 ] && _F_archive_name="$_F_rox_name"
 
 if [ "$_F_rox_use_kerofin" -eq 1 ]; then
 	_F_rox_kerofin_url="http://www.kerofin.demon.co.uk/rox"

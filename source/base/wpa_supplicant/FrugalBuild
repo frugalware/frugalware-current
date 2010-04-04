@@ -7,12 +7,18 @@ else
 	USE_GUI=${USE_GUI:-"n"}
 fi
 
+USE_DBUS=${USE_DBUS:-"y"}
+
 pkgname=wpa_supplicant
 pkgver=0.6.10
-pkgrel=1
+pkgrel=2
 pkgdesc="Linux WPA/WPA2/IEEE 802.1X Supplicant"
 url="http://hostap.epitest.fi/wpa_supplicant/"
 depends=('openssl')
+if Fuse $USE_DBUS; then
+	depends=("${depends[@]}" 'dbus')
+fi
+
 backup=(etc/wpa_supplicant.conf)
 groups=('base')
 archs=('i686' 'x86_64' 'ppc')
@@ -36,8 +42,20 @@ build()
 	Fcd $pkgname-$pkgver/$pkgname
 	Fsed /usr/local /usr Makefile
 	cp $Fsrcdir/config .config
+	if Fuse $USE_DBUS; then
+		echo "CONFIG_CTRL_IFACE_DBUS=y" >> .config	
+	fi
 	Fsed 'dynamic_eap_methods' '' Makefile
 	Fbuild
+	if Fuse $USE_DBUS; then	
+		Fsed "/sbin" "/usr/sbin" dbus-wpa_supplicant.service
+		Fmkdir etc/dbus-1/system.d
+		Fmkdir usr/share/dbus-1/system-services
+		Fcp $pkgname-$pkgver/$pkgname/dbus-wpa_supplicant.conf \
+			etc/dbus-1/system.d/dbus-wpa_supplicant.conf
+		Fcp $pkgname-$pkgver/$pkgname/dbus-wpa_supplicant.service \
+			usr/share/dbus-1/system-services/fi.epitest.hostap.WPASupplicant.service
+	fi
 	Ffilerel /etc/wpa_supplicant.conf
 	cd wpa_gui
 	if Fuse $USE_GUI; then

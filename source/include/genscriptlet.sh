@@ -61,9 +61,7 @@ if [ -n "$_F_genscriptlet_install" ]; then
 	if [ -z "$install" ]; then
 		install="${Fsrcdir}/$(basename "$_F_genscriptlet_install")"
 	else
-		error "_F_genscriptlet_install is used but install is allready defined."
-		plain "Check your FrugalBuild."
-		Fdie
+		Fmessage "_F_genscriptlet_install is used but install is already defined."
 	fi
 fi
 
@@ -76,9 +74,7 @@ if [ "${#_F_genscriptlet_subinstall[@]}" -gt 0 ]; then
 			subinstall=("${subintall[@]}" "${Fsrcdir}/$(basename "$file")")
 		done
 	else
-		error "_F_genscriptlet_subinstall is used but install is allready defined."
-		plain "Check your FrugalBuild."
-		Fdie
+		Fmessage "_F_genscriptlet_subinstall is used but install is already defined."
 	fi
 fi
 

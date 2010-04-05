@@ -95,7 +95,7 @@ _F_kernelmod_scriptlet=$_F_nvidia_install
 # * provides: add libgl, libgl-headers and libglx to provides
 # * options: add nostrip to options
 ###
-rodepends=("${rodepends[@]}" 'libvdpau' 'pkgconfig' 'xorg-server>=1.7.1')
+rodepends=("${rodepends[@]}" 'libvdpau' 'nvidia-settings' 'nvidia-xconfig' 'pkgconfig' 'xorg-server>=1.7.1')
 conflicts=("${conflicts[@]}" 'libgl' 'libgl-headers-mesa' 'libglx')
 provides=("${provides[@]}" 'libgl' 'libgl-headers-mesa' 'libglx')
 options=("${options[@]}" 'nostrip')
@@ -235,12 +235,20 @@ Fbuild_nvidia() {
 	Fmkdir usr/man/man1
 	Ffilerel usr/share/man/man1/* /usr/man/man1/
 	Frm usr/man/man1/nvidia-installer.1.gz
-	Fsed "__UTILS_PATH__" "/usr/bin" $Fdestdir/usr/share/applications/nvidia-settings.desktop
-	Fsed "__PIXMAP_PATH__" "/usr/share/pixmaps" $Fdestdir/usr/share/applications/nvidia-settings.desktop
 
 	# Documentation
 	Fdocrel LICENSE usr/share/doc/*
 	Fln "$pkgname-$pkgver" "/usr/share/doc/$pkgname"
+
+	# Remove nvidia-setings
+	Frm /usr/bin/nvidia-settings
+	Frm /usr/man/man1/nvidia-settings.1.gz
+	Frm /usr/share/applications/nvidia-settings.\*
+	Frm /usr/share/pixmaps/nvidia-settings.\*
+
+	# Remove nvidia-xconfig
+	Frm /usr/bin/nvidia-xconfig
+	Frm /usr/man/man1/nvidia-xconfig.1.gz
 }
 
 build() {

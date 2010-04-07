@@ -3,7 +3,7 @@
 
 # Compiler flags (based on Debian's installation of lua)
 #LINKFLAGS = ['-g']
-CCFLAGS = ['-I/usr/include', '-O2', '-ansi', '-Wall']
+CCFLAGS = ['-I/usr/include', '-O2', '-ansi', '-Wall', '-fPIC']
 #CCFLAGS = ['-I/usr/include/lua50', '-g']
 
 # this is the default directory for installation. Files will be installed on

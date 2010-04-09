@@ -1063,12 +1063,20 @@ Fsanitizeversion() {
 }
 
 ###
+# * Fwcat: Extracts a page to stdout. Parameters: 1) url of the page.
+###
+Fwcat() {
+	# Note "-e robots=off" disable robots.txt grabbing
+	wget -O - -q --no-check-certificate "$1"
+}
+
+###
 # * Flastarchive: Extracts last archive version from a page. Parameters: 1)
 # url (optional) of the page, else stdin if not present 2) extension_filter
 # for the archive type
 ###
 Flastarchive() {
-	local lynx="lynx -dump"
+	local lynx="lynx -stdin -dump"
 
 	if [ -z "$_F_archive_nolinksonly" ]; then
 		lynx="$lynx -listonly"
@@ -1080,14 +1088,14 @@ Flastarchive() {
 
 	if [ $# -gt 1 ]; then
 		if [ -n "$_F_archive_grep" ]; then
-			$lynx $1 | grep -- "$_F_archive_grep" | Flastarchive $2
+			Fwcat $1 | $lynx | grep -- "$_F_archive_grep" | Flastarchive $2
 			return
 		fi
 		if [ -n "$_F_archive_grepv" ]; then
-			$lynx $1 | grep -v -- "$_F_archive_grepv" | Flastarchive $2
+			Fwcat $1 | $lynx | grep -v -- "$_F_archive_grepv" | Flastarchive $2
 			return
 		fi
-		$lynx $1 | Flastarchive $2
+		Fwcat $1 | $lynx | Flastarchive $2
 	else
 		if [ -z "$_F_archive_nosort" ]; then
 			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" \

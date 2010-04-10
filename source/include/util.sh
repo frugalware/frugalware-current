@@ -1362,11 +1362,11 @@ Fextract() {
 	tmp="$(echo "${file}" | tr 'A-Z' 'a-z')"
 	case "${tmp}" in
 		*.tar.gz|*.tar.z|*.tgz)
-		cmd="tar --use-compress-program=gzip -xif $file" ;;
+		cmd="tar $_F_extract_taropts --use-compress-program=gzip -xf $file" ;;
 		*.tar.bz2|*.tbz2)
-		cmd="tar --use-compress-program=bzip2 -xif $file" ;;
+		cmd="tar $_F_extract_taropts --use-compress-program=bzip2 -xf $file" ;;
 		*.tar)
-		cmd="tar -xf $file" ;;
+		cmd="tar $_F_extract_taropts -xf $file" ;;
 		*.zip|*.xpi)
 		unziphack=1
 		cmd="unzip -qqo $file" ;;

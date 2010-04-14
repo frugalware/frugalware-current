@@ -1066,8 +1066,14 @@ Fsanitizeversion() {
 # * Fwcat: Extracts a page to stdout. Parameters: 1) url of the page.
 ###
 Fwcat() {
+	# NOTE: wget is first because it handle https, while lynx don't support
+	# it without user interaction.
 	# Note "-e robots=off" disable robots.txt grabbing
-	wget -O - -q --no-check-certificate "$1"
+	wget -O - -q --no-check-certificate "$1" && return
+
+	# Use lynx in case wget failed since it support "broken" directory url.
+	# eg. when http://foo.com/bar instead of http://foo.com/bar/
+	lynx -source "$1" 2>/dev/null && return
 }
 
 ###
@@ -1076,26 +1082,25 @@ Fwcat() {
 # for the archive type
 ###
 Flastarchive() {
-	local lynx="lynx -stdin -dump"
-
-	if [ -z "$_F_archive_nolinksonly" ]; then
-		lynx="$lynx -listonly"
-	fi
-
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi
 
 	if [ $# -gt 1 ]; then
+		local filter lynx="lynx -dump"
+
+		if [ -z "$_F_archive_nolinksonly" ]; then
+			lynx="$lynx -listonly"
+		fi
+
 		if [ -n "$_F_archive_grep" ]; then
-			Fwcat $1 | $lynx | grep -- "$_F_archive_grep" | Flastarchive $2
-			return
+			filter="$filter | grep -- \"$_F_archive_grep\""
 		fi
 		if [ -n "$_F_archive_grepv" ]; then
-			Fwcat $1 | $lynx | grep -v -- "$_F_archive_grepv" | Flastarchive $2
-			return
+			filter="$filter | grep -v -- \"$_F_archive_grepv\""
 		fi
-		Fwcat $1 | $lynx | Flastarchive $2
+#		eval "$lynx \"$1\" $filter" | Flastarchive "$2" # possible optimisation
+		Fwcat "$1" | eval "$lynx -stdin $filter" | Flastarchive "$2"
 	else
 		if [ -z "$_F_archive_nosort" ]; then
 			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" \

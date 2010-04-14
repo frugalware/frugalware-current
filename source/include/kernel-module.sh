@@ -81,8 +81,8 @@ install=$_F_kernelmod_scriptlet
 # * kernel package source to makedepends()
 # * scriptlet and genscriptlet to options()
 ###
-depends=(${depends[@]} "kernel$_F_kernelmod_name=$_F_kernelmod_pkgver")
-makedepends=(${depends[@]} "kernel$_F_kernelmod_name-source=$_F_kernelmod_pkgver")
+depends=(${depends[@]} "kernel$_F_kernelmod_name>=$_F_kernelmod_pkgver")
+makedepends=(${depends[@]} "kernel$_F_kernelmod_name-source>=$_F_kernelmod_pkgver")
 options=(${options[@]} 'scriptlet' 'genscriptlet')
 
 ###

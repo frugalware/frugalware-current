@@ -1,21 +1,6 @@
 #! /bin/bash
 
-if [ "$1" = "regen" ]; then
-	# Cleanup
-	rm -rf *.xpi
-	sed -i -r "/^mozilla_i18n_lang_(add|fini)/d" FrugalBuild
-
-	# Make FrugalBuild sourcing silent
-	Finclude() { false; }
-	source ./FrugalBuild
-
-	if [ -z "$_F_mozilla_i18n_name" -o -z "$pkgver" ]; then
-		echo "_F_mozilla_i18n_name and pkgver must be defined in your FrugalBuid"
-		exit 1;
-	fi
-else
-	Finclude i18n
-fi
+Finclude i18n
 
 ###
 # = mozilla-i18n.sh(3)
@@ -123,16 +108,3 @@ build() {
 	mozilla_i18n_foreach_lang mozilla_i18n_lang_install
 }
 
-mozilla_i18n_lang_describe()
-{
-	echo "mozilla_i18n_lang_add '$1' '$(sha1sum $lang.xpi | awk '{print $1}')'"
-}
-
-if [ "$1" = "regen" ]; then
-	# Download the xpi
-	wget -r -nd "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_xpidirname/"
-
-	# Regen
-	mozilla_i18n_foreach_lang mozilla_i18n_lang_describe >> FrugalBuild
-	echo "mozilla_i18n_lang_fini" >> FrugalBuild
-fi

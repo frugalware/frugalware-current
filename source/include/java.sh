@@ -57,8 +57,8 @@ fi
 # * depends()
 # * makedepends()
 ###
-depends=("${depends[@]}" 'libgcj>=4.4.0')
-makedepends=("${makedepends[@]}" 'gcc-gcj>=4.4.0' 'ant-eclipse-ecj')
+depends=("${depends[@]}" 'libgcj>=4.5.0')
+makedepends=("${makedepends[@]}" 'gcc-gcj>=4.5.0' 'ant-eclipse-ecj')
 
 ###
 # == PROVIDED FUNCTIONS

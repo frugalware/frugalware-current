@@ -1370,6 +1370,8 @@ Fextract() {
 		cmd="tar $_F_extract_taropts --use-compress-program=gzip -xf $file" ;;
 		*.tar.bz2|*.tbz2)
 		cmd="tar $_F_extract_taropts --use-compress-program=bzip2 -xf $file" ;;
+		*.tar.lzma)
+		cmd="tar $_F_extract_taropts --use-compress-program=lzma -xf $file" ;;
 		*.tar)
 		cmd="tar $_F_extract_taropts -xf $file" ;;
 		*.zip|*.xpi)
@@ -1383,6 +1385,8 @@ Fextract() {
 		cmd="gunzip -f $file" ;;
 		*.bz2)
 		cmd="bunzip2 -f $file" ;;
+		*.lzma)
+		cmd="lzma -f $file" ;;
 		*.7z)
 		cmd="7z x $file" ;;
 		*)

@@ -80,6 +80,7 @@
 # * Farchs
 # * Fconfopts
 # * LDFLAGS
+# * _F_gensciptlet_hooks
 ###
 Fpkgversep="-"
 Fsrcdir="$startdir/src"
@@ -92,6 +93,7 @@ Fmenudir="/usr/share/applications"
 Farchs=('i686' 'x86_64' 'ppc')
 Fbuildchost="`arch`-frugalware-linux"
 Fconfopts=""
+_F_gensciptlet_hooks=('Futil_genscriptlet_hook')
 ## Move to makepkg.conf for Kalgan+1
 export LDFLAGS="-Wl,--hash-style=both"
 unset LANG LC_ALL
@@ -124,6 +126,38 @@ Fexec() {
 	"$@"
 }
 
+Fisfullpath() {
+	case "$1" in
+	/*) return 0;;
+	*) return 1;;
+	esac
+}
+
+###
+# Ffullpath(): Return the given path if it is a full (absolute) path, or the
+# full path of the given path resolved in the given base path.
+# Parameters: 1) optional base path, default is '.' 2) path to solve.
+###
+Ffullpath() {
+	local base
+	case "$#" in
+	1)	base='.'
+		;;
+	2)	base="$1"
+		shift
+		;;
+	*)	Fmessage "Ffullpath: Invalid number of argument."
+		Fdie
+		;;
+	esac
+
+	if Fisfullpath "$1"; then
+		echo "$1"
+	else
+		readlink -m "$base/$1"
+	fi
+}
+
 ###
 # * Fcd(): Go to the source directory if it is $Fsrcdir currently. Parameter:
 # optional source directory, default is $_F_cd_path.
@@ -140,7 +174,7 @@ Fcd() {
 		if [ "$#" -eq 1 ]; then
 			Fmessage "Going to the source directory..."
 			cd "$Fsrcdir/$1" || Fdie
-		elif [ "$#" -eq 0 ]; then
+		elif [ "$#" -eq 0 -a -d "$Fsrcdir/$_F_cd_path" ]; then
 			Fcd "$_F_cd_path"
 		fi
 	fi
@@ -254,7 +288,7 @@ Fmv() {
 
 ###
 # * Fsubmv(): Move a file under the subpkg Fdestdir. Parameters: 1) name of the
-# subpackage 2) name of the file 2) destination
+# subpackage 2) name of the file 3) destination
 ###
 Fsubmv()
 {
@@ -263,10 +297,6 @@ Fsubmv()
 	msg2 "$2 -> $3"
 	for i in "$destdir"/$2 # expand $2 if possible
 	do
-		if [ ! -e "$i" -a ! -h "$i" ]; then # expand failed ?
-			Fmessage "No such file $2$info!! Typo? ($i)"
-			Fdie
-		fi
 		mv "$i" "$destdir/$3" || Fdie
 	done
 }
@@ -489,8 +519,8 @@ Ficonrel() {
 ###
 Fln() {
 	Fmessage "Creating symlink(s): $1"
-	Fmkdir "`dirname $2`"
-	ln -sf $1 "$Fdestdir"/$2 || Fdie
+	Fmkdir "$(dirname "$2")"
+	ln -sf "$1" "$Fdestdir/$2" || Fdie
 }
 
 ###
@@ -1405,4 +1435,13 @@ Fextract() {
 			fi
 		fi
 	fi
+}
+
+###
+# * Futil_genscriptlet_hook(): the genscriplet hook for the util.sh variables.
+###
+Futil_genscriptlet_hook()
+{
+	Freplace 'pkgname' "$1"
+	Freplace 'pkgver' "$1"
 }

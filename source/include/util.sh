@@ -1402,6 +1402,8 @@ Fextract() {
 		cmd="tar $_F_extract_taropts --use-compress-program=bzip2 -xf $file" ;;
 		*.tar.lzma)
 		cmd="tar $_F_extract_taropts --use-compress-program=lzma -xf $file" ;;
+		*.tar.xz)
+		cmd="tar $_F_extract_taropts --use-compress-program=xz -xf $file" ;;
 		*.tar)
 		cmd="tar $_F_extract_taropts -xf $file" ;;
 		*.zip|*.xpi)
@@ -1416,7 +1418,9 @@ Fextract() {
 		*.bz2)
 		cmd="bunzip2 -f $file" ;;
 		*.lzma)
-		cmd="lzma -f $file" ;;
+		cmd="unlzma -f $file" ;;
+		*.xz)
+		cmd="unxz -f $file" ;;
 		*.7z)
 		cmd="7z x $file" ;;
 		*)

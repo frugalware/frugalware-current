@@ -124,7 +124,8 @@ fi
 # * up2date
 # * source()
 # * signatures()
-# * install
+# * _F_genscriptlet_install
+# * _F_genscriptlet_hooks
 ###
 url="http://www.kernel.org"
 rodepends=('module-init-tools' 'sed')
@@ -144,7 +145,7 @@ else
 	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
 fi
 signatures=("${source[0]}.sign" '' '' '')
-install="src/kernel.install"
+_F_genscriptlet_install="$Fincdir/kernel.install"
 
 [ "$_F_kernel_stable" -gt 0 ] && \
 	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$_F_kernel_ver.$_F_kernel_stable.bz2) && \
@@ -163,11 +164,13 @@ do
 	signatures=("${signatures[@]}" '')
 done
 
+_F_genscriptlet_hooks=("${_F_genscriptlet_hooks[@]}" Fkernel_genscriptlet_hook)
+
 ###
 # * subpkg()
 # * subdepends()
 # * subarchs()
-# * subinstall()
+# * _F_genscriptlet_subinstall()
 # * suboptions()
 # * subgroups()
 # * subdescs()
@@ -176,7 +179,7 @@ subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
 subdepends=("make gcc kernel-headers" "")
 subrodepends=("kernel$_F_kernel_name-docs" "kernel$_F_kernel_name")
 subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
-subinstall=('src/kernel-source.install' '')
+_F_genscriptlet_subinstall=("$Fincdir/kernel.install" '')
 suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
 	subpkgs=("${subpkgs[@]}" 'kernel-headers')
@@ -185,7 +188,7 @@ if [ -z "$_F_kernel_name" ]; then
 	subgroups=('devel' 'apps' 'devel devel-core')
 	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')
 	subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
-	subinstall=("${subinstall[@]}" '')
+	_F_genscriptlet_subinstall=("${_F_genscriptlet_subinstall[@]}" '')
 	suboptions=("${suboptions[@]}" '')
 else
 	subgroups=('devel-extra' 'apps-extra')

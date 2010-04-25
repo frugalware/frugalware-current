@@ -98,9 +98,9 @@ __Fgenscriptlet()
 	Fmessage "Generating scriptlet: $(basename "$1")"
 	local install_src="$1"
 	local install_dest="${Fsrcdir}/$(basename "$1")"
+	Fmessage "Ffullpath: $(Ffullpath "$startdir" "$1")"
 
-	if [ ! -e "$install_src" ]; then
-		# if $install_src don't exist, it is relative to $startdir
+	if ! Fisfullpath "$install_src"; then
 		install_src="$startdir/$1"
 	fi
 	Fmessage "Copying $1 to $install_dest"

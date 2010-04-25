@@ -1,0 +1,141 @@
+From 04a5cd704424a18140c686dfc22873abf41d4e66 Mon Sep 17 00:00:00 2001
+From: Kamil Dudka <kdudka@redhat.com>
+Date: Thu, 15 Apr 2010 20:57:40 +0200
+Subject: [PATCH] nano: multiple file editing insecurities (#582434)
+
+CVE-2010-1160
+CVE-2010-1161
+
+Signed-off-by: Kamil Dudka <kdudka@redhat.com>
+---
+ ChangeLog   |   17 +++++++++++++++-
+ src/files.c |   60 +++++++++++++++++++++++++++++++++++++++-------------------
+ 2 files changed, 56 insertions(+), 21 deletions(-)
+
+diff --git a/ChangeLog b/ChangeLog
+index 499a036..3a17c8e 100644
+--- a/ChangeLog
++++ b/ChangeLog
+@@ -1,9 +1,24 @@
++2010-04-09 Chris Allegretta <chrisa@asty.org>
++	* files.c (do_writeout): Better security fixes for backup file writing, 
++	  mangled from submission by Dan Rosenberg <dan.j.rosenberg at gmail>.
++
++2010-04-08 Chris Allegretta <chrisa@asty.org>
++	* files.c (do_writeout): Previous fixes should not cause a crash 
++	  when saving a new file.  Discovered by Mike Frysinger <vapier@gentoo.org>.
++
++2010-04-02 Chris Allegretta <chrisa@asty.org>
++	* files.c (do_writeout): Expand modification check to include both the
++	  original file's device ID and inode number as reasons to warn the 
++          user that the file has been modified.  Also abort on writing a backup
++	  file when its owner doesn't match the edited file. Based on security 
++	  analysis on nano by Dan Rosenberg.
++
+ GNU nano 2.0.9 - 2008.09.06
+ 2008-09-06 Chris Allegretta <chrisa@asty.org>
+ 	* po/* - Revert po files to 2.0.7 versions due to issues with 2.1 string differences.
+ 
+ GNU nano 2.0.8 - 2008.08.24
+-008-08-08 Magnus Granberg <zorry@ume.nu> / Adam Conrad <?>
++2008-08-08 Magnus Granberg <zorry@ume.nu> / Adam Conrad <?>
+         * files.c: (write_file): Add needed flags to open() calls when writing out files.  Fixes Savannah bug
+           #23827: Compilation fails with -D_FORTIFY_SOURCE=2
+ 
+diff --git a/src/files.c b/src/files.c
+index eb079e0..56ac04b 100644
+--- a/src/files.c
++++ b/src/files.c
+@@ -1402,6 +1402,7 @@ bool write_file(const char *name, FILE *f_open, bool tmp, append_type
+     if (ISSET(BACKUP_FILE) && !tmp && realexists && ((append !=
+ 	OVERWRITE || openfile->mark_set) ||
+ 	openfile->current_stat->st_mtime == st.st_mtime)) {
++	int backup_fd;
+ 	FILE *backup_file;
+ 	char *backupname;
+ 	struct utimbuf filetime;
+@@ -1474,21 +1475,41 @@ bool write_file(const char *name, FILE *f_open, bool tmp, append_type
+ 	    sprintf(backupname, "%s~", realname);
+ 	}
+ 
+-	/* Open the destination backup file.  Before we write to it, we
+-	 * set its permissions, so no unauthorized person can read it as
+-	 * we write. */
+-	backup_file = fopen(backupname, "wb");
++	/* First, unlink any existing backups.  Next, open the backup
++	   file with O_CREAT and O_EXCL.  If it succeeds, we
++	   have a file descriptor to a new backup file. */
++	if (unlink(backupname) < 0 && errno != ENOENT) {
++	    statusbar(_("Error writing backup file %s: %s"), backupname,
++			strerror(errno));
++	    free(backupname);
++	    goto cleanup_and_exit;
++	}
+ 
+-	if (backup_file == NULL || chmod(backupname,
+-		openfile->current_stat->st_mode) == -1) {
+-	    statusbar(_("Error writing %s: %s"), backupname,
++	backup_fd = open(backupname, O_WRONLY | O_CREAT | O_EXCL | O_APPEND,
++		S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
++	/* Now we've got a safe file stream.  If the previous open()
++	   call failed, this will return NULL. */
++	backup_file = fdopen(backup_fd, "wb");
++
++	if (backup_fd < 0 || backup_file == NULL) {
++	    statusbar(_("Error writing backup file %s: %s"), backupname,
++			strerror(errno));
++	    free(backupname);
++	    goto cleanup_and_exit;
++	}
++
++	if (fchmod(backup_fd, openfile->current_stat->st_mode) == -1 ||
++	    fchown(backup_fd, openfile->current_stat->st_uid,
++		   openfile->current_stat->st_gid) == -1 ) {
++	    statusbar(_("Error writing backup file %s: %s"), backupname,
+ 		strerror(errno));
+ 	    free(backupname);
+-	    if (backup_file != NULL)
+-		fclose(backup_file);
+-	    /* If we can't write to the backup, go on, since only saving
+-	     * the original file is better than saving nothing. */
+-	    goto skip_backup;
++	    fclose(backup_file);
++	    /* If we can't write to the backup, DONT go on, since
++	       whatever caused the backup file to fail (e.g. disk
++	       full may well cause the real file write to fail, which
++	       means we could lose both the backup and the original! */
++	    goto cleanup_and_exit;
+ 	}
+ 
+ #ifdef DEBUG
+@@ -1499,20 +1520,19 @@ bool write_file(const char *name, FILE *f_open, bool tmp, append_type
+ 	copy_status = copy_file(f, backup_file);
+ 
+ 	/* And set its metadata. */
+-	if (copy_status != 0 || chown(backupname,
+-		openfile->current_stat->st_uid,
+-		openfile->current_stat->st_gid) == -1 ||
+-		utime(backupname, &filetime) == -1) {
++	if (copy_status != 0  || utime(backupname, &filetime) == -1) {
+ 	    if (copy_status == -1) {
+ 		statusbar(_("Error reading %s: %s"), realname,
+ 			strerror(errno));
+ 		beep();
+ 	    } else
+-		statusbar(_("Error writing %s: %s"), backupname,
++		statusbar(_("Error writing backup file %s: %s"), backupname,
+ 			strerror(errno));
+-	    /* If we can't read from or write to the backup, go on,
+-	     * since only saving the original file is better than saving
+-	     * nothing. */
++	    /* If we can't write to the backup, DONT go on, since
++	       whatever caused the backup file to fail (e.g. disk
++	       full may well cause the real file write to fail, which
++	       means we could lose both the backup and the original! */
++	    goto cleanup_and_exit;
+ 	}
+ 
+ 	free(backupname);
+-- 
+1.6.6.1
+

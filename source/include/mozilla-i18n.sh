@@ -27,11 +27,11 @@ Finclude i18n
 ###
 
 if [ -z "$_F_mozilla_i18n_xpidirname" ]; then
-	_F_mozilla_i18n_xpidirname="$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/$pkgver/linux-i686/xpi/"
+	_F_mozilla_i18n_xpidirname="$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/$pkgver/linux-i686/xpi"
 fi
 
 if [ -z "$_F_mozilla_i18n_mirror" ]; then
-	_F_mozilla_i18n_mirror="ftp://ftp.mozilla.org/pub/mozilla.org/"
+	_F_mozilla_i18n_mirror="ftp://ftp.mozilla.org/pub/mozilla.org"
 fi
 
 ###
@@ -51,7 +51,7 @@ fi
 if [ -z "$pkdesc" ]; then
 	pkgdesc="Language support for ${_F_mozilla_i18n_name^}"
 fi
-up2date="eval \"_F_archive_name=$_F_mozilla_i18n_name; Flastarchive $_F_mozilla_i18n_mirror$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/latest/source/ '\.source\.tar\.bz2'\""
+up2date="eval \"_F_archive_name=$_F_mozilla_i18n_name; Flastarchive $_F_mozilla_i18n_mirror/$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/latest/source '\.source\.tar\.bz2'\""
 url="http://www.mozilla.org/projects/l10n/mlp.html"
 options=('noversrc')
 rodepends=("$_F_mozilla_i18n_name>=$pkgver" "${subpackage[@]}")
@@ -73,7 +73,7 @@ mozilla_i18n_foreach_lang() {
 # * mozilla_i18n_lang_add()
 ###
 mozilla_i18n_lang_add() {
-	source=("${source[@]}" "$_F_mozilla_i18n_mirror$_F_mozilla_i18n_xpidirname$1.xpi")
+	source=("${source[@]}" "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_xpidirname/$1.xpi")
 	subpkgs=("${subpkgs[@]}" "$_F_mozilla_i18n_name-${1,,}")
 	subdescs=("${subdescs[@]}" "`i18n_language_from_locale "$1"` language support for ${_F_mozilla_i18n_name^}") # Requires a locale to name function.
 	subrodepends=("${subrodepends[@]}" "$_F_mozilla_i18n_name>=$pkgver")

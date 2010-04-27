@@ -514,11 +514,13 @@ __Fsed() {
 # replacement 3) file(s) to edit in place.
 ###
 Fsed() {
-	local i
+	local i path
 	Fcd
 	for i in "${@:3:$#}"; do
-		Fmessage "Using sed with file: $i"
-		__Fsed "$1" "$2" "$i"
+		for path in $i; do # expand $i if possible
+			Fmessage "Using sed with file: $path"
+			__Fsed "$1" "$2" "$path"
+		done
 	done
 }
 
@@ -528,11 +530,13 @@ Fsed() {
 # 1) Variable to substituate 2) file(s) where the substitution happens.
 ###
 Freplace() {
-	local i
+	local i path
 	Fcd
 	for i in "${@:2:$#}"; do
-		Fmessage "Subtituing $1 in file: $i"
-		eval "__Fsed '@$1@' \"\${$1}\" \"\$i\""
+		for path in $i; do # expand $i if possible
+			Fmessage "Subtituing $1 in file: $path"
+			eval "__Fsed '@$1@' \"\${$1}\" \"\$path\""
+		done
 	done
 }
 

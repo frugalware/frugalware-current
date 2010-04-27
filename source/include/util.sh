@@ -254,7 +254,7 @@ Fmv() {
 
 ###
 # * Fsubmv(): Move a file under the subpkg Fdestdir. Parameters: 1) name of the
-# subpackage 2) name of the file 2) destination
+# subpackage 2) name of the file 3) destination
 ###
 Fsubmv()
 {
@@ -498,12 +498,12 @@ Fln() {
 # 1) regexp (see man sed!) 2) replacement 3) file to edit in place.
 ###
 __Fsed() {
-	if [ ! -e $i ]; then
-		error "File $i not found."
+	if [ ! -e "$3" ]; then
+		error "File $3 not found."
 		Fdie
 	fi
-	if [ ! -f $i ]; then
-		error "File $i is not a regular file."
+	if [ ! -f "$3" ]; then
+		error "File $3 is not a regular file."
 		Fdie
 	fi
 	sed -i -e "s|$1|$2|g" "$3" || Fdie

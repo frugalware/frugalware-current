@@ -1121,7 +1121,7 @@ Flastarchive() {
 # ball extension. Parameters: 1) url (optional) see Flastarchive
 ###
 Flasttar() {
-	Flastarchive $1 '\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
+	Flastarchive "$1" '\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
 }
 
 ###
@@ -1131,7 +1131,7 @@ Flasttar() {
 # NOTE: this function is obsolete, use Flasttar instead.
 ###
 Flasttgz() {
-	Flastarchive $1 '\.tgz'
+	Flastarchive "$1" '\.tgz'
 }
 
 ###
@@ -1141,7 +1141,7 @@ Flasttgz() {
 # NOTE: this function is obsolete, use Flasttar instead.
 ###
 Flasttarbz2() {
-	Flastarchive $1 '\.tar\.bz2'
+	Flastarchive "$1" '\.tar\.bz2'
 }
 
 ###

@@ -254,7 +254,7 @@ Fmv() {
 
 ###
 # * Fsubmv(): Move a file under the subpkg Fdestdir. Parameters: 1) name of the
-# subpackage 2) name of the file 2) destination
+# subpackage 2) name of the file 3) destination
 ###
 Fsubmv()
 {
@@ -498,12 +498,12 @@ Fln() {
 # 1) regexp (see man sed!) 2) replacement 3) file to edit in place.
 ###
 __Fsed() {
-	if [ ! -e $i ]; then
-		error "File $i not found."
+	if [ ! -e "$3" ]; then
+		error "File $3 not found."
 		Fdie
 	fi
-	if [ ! -f $i ]; then
-		error "File $i is not a regular file."
+	if [ ! -f "$3" ]; then
+		error "File $3 is not a regular file."
 		Fdie
 	fi
 	sed -i -e "s|$1|$2|g" "$3" || Fdie
@@ -514,11 +514,13 @@ __Fsed() {
 # replacement 3) file(s) to edit in place.
 ###
 Fsed() {
-	local i
+	local i path
 	Fcd
 	for i in "${@:3:$#}"; do
-		Fmessage "Using sed with file: $i"
-		__Fsed "$1" "$2" "$i"
+		for path in $i; do # expand $i if possible
+			Fmessage "Using sed with file: $path"
+			__Fsed "$1" "$2" "$path"
+		done
 	done
 }
 
@@ -528,11 +530,13 @@ Fsed() {
 # 1) Variable to substituate 2) file(s) where the substitution happens.
 ###
 Freplace() {
-	local i
+	local i path
 	Fcd
 	for i in "${@:2:$#}"; do
-		Fmessage "Subtituing $1 in file: $i"
-		eval "__Fsed '@$1@' \"\${$1}\" \"\$i\""
+		for path in $i; do # expand $i if possible
+			Fmessage "Subtituing $1 in file: $path"
+			eval "__Fsed '@$1@' \"\${$1}\" \"\$path\""
+		done
 	done
 }
 
@@ -1117,7 +1121,7 @@ Flastarchive() {
 # ball extension. Parameters: 1) url (optional) see Flastarchive
 ###
 Flasttar() {
-	Flastarchive $1 '\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
+	Flastarchive "$1" '\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
 }
 
 ###
@@ -1127,7 +1131,7 @@ Flasttar() {
 # NOTE: this function is obsolete, use Flasttar instead.
 ###
 Flasttgz() {
-	Flastarchive $1 '\.tgz'
+	Flastarchive "$1" '\.tgz'
 }
 
 ###
@@ -1137,7 +1141,7 @@ Flasttgz() {
 # NOTE: this function is obsolete, use Flasttar instead.
 ###
 Flasttarbz2() {
-	Flastarchive $1 '\.tar\.bz2'
+	Flastarchive "$1" '\.tar\.bz2'
 }
 
 ###
@@ -1372,6 +1376,8 @@ Fextract() {
 		cmd="tar $_F_extract_taropts --use-compress-program=bzip2 -xf $file" ;;
 		*.tar.lzma)
 		cmd="tar $_F_extract_taropts --use-compress-program=lzma -xf $file" ;;
+		*.tar.xz)
+		cmd="tar $_F_extract_taropts --use-compress-program=xz -xf $file" ;;
 		*.tar)
 		cmd="tar $_F_extract_taropts -xf $file" ;;
 		*.zip|*.xpi)
@@ -1386,7 +1392,9 @@ Fextract() {
 		*.bz2)
 		cmd="bunzip2 -f $file" ;;
 		*.lzma)
-		cmd="lzma -f $file" ;;
+		cmd="unlzma -f $file" ;;
+		*.xz)
+		cmd="unxz -f $file" ;;
 		*.7z)
 		cmd="7z x $file" ;;
 		*)

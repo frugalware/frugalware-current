@@ -1090,6 +1090,12 @@ Flastarchive() {
 		_F_archive_name="$pkgname"
 	fi
 
+	if [ -z "$1" ]; then
+		# If first parameter is empty, ignore it since it is optional
+		# Required by Flasttar/Flasttgz/Flasttarbz2
+		shift
+	fi
+
 	if [ $# -gt 1 ]; then
 		local filter lynx="lynx -dump"
 

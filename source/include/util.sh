@@ -604,20 +604,20 @@ Fcleandestdir() {
 }
 
 ###
-# * __Fpatch(): Internal. Apply a patch with -p0 (or -p1 if -p0 fails).
+# * __Fpatch(): Internal. Apply a patch with -p1 (or -p0 if -p1 fails).
 # Parameter: Patch to apply.
 ###
 __Fpatch() {
-	local level="0"
-	if ! patch -Np0 --dry-run -i "$Fsrcdir/$1" >/dev/null; then
-		if ! patch -Np1 --dry-run -i "$Fsrcdir/$1"; then
+	local level="1"
+	if ! patch -Np1 --dry-run -i "$Fsrcdir/$1" >/dev/null; then
+		if ! patch -Np0 --dry-run -i "$Fsrcdir/$1"; then
 			return 1
 		fi
-		level="1"
+		level="0"
 	fi
-	# if we are here, the patch applied with -p1, so it's no good
+	# if we are here, the patch applied with -p0, so it's no good
 	# showing the output again
-	if [ "$level" = 1 ]; then
+	if [ "$level" = 0 ]; then
 		patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" >/dev/null || Fdie
 	else
 		patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" || Fdie

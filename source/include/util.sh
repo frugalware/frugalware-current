@@ -631,7 +631,7 @@ __Fpatch() {
 ###
 Fpatch() {
 	Fcd
-	local i level="1"
+	local i
 	Fmessage "Using patch: $1"
 	if [ -n "`echo "$1" | grep '\.gz$'`" ]; then
 		i=`basename "$1" .gz`

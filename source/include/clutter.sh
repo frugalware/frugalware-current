@@ -83,5 +83,8 @@ archs=('i686' 'x86_64' 'ppc')
 ###
 # == APPENDED VARIABLES
 # * scriptlet to options()
+# * glproto to makedepends
 ###
 options=(${options[@]} 'scriptlet')
+makedepends=(${makedepends[@]} 'glproto')
+

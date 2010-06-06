@@ -315,7 +315,7 @@ __KDE_split()
 	if __KDE_split_pkg "$1" "${1//-//}"; then # Transform "-" into "/"
 		return 0
 	fi
-	clean="${1/#lib//}"
+	clean="${1/#lib/}"
 	if [ "$1" != "$clean" ] && \
 	   __KDE_split "$clean"; then # Remove front "lib"
 		return 0

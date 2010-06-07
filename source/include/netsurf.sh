@@ -35,6 +35,7 @@
 # * url
 # * up2date
 # * source()
+# * archs()
 ###
 url="http://www.netsurf-browser.org"
 if [ $_F_netsurf_project ]; then
@@ -45,6 +46,7 @@ else
 	up2date="Flasttar $url/downloads/gtk"
 	source=("$url/downloads/releases/$_F_netsurf_name-$pkgver-src.tar.gz")
 fi
+archs=('i686' 'x86_64' 'ppc')
 
 ###
 # == PROVIDED FUNCTIONS

@@ -277,6 +277,8 @@ Fbuildkernel()
 	else
 		if [ "$CARCH" = "ppc" ]; then
 			Fexerel $_F_kernel_path /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
+			Fexerel arch/powerpc/boot/zImage.chrp /boot/zImage.chrp-$_F_kernel_ver$_F_kernel_uname
+			Fexerel arch/powerpc/boot/zImage.pmac /boot/zImage.pmac-$_F_kernel_ver$_F_kernel_uname
 		else
 			Ffilerel arch/x86/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		fi

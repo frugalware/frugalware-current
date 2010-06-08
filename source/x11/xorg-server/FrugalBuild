@@ -4,18 +4,19 @@
 USE_DEVEL=${USE_DEVEL:-"n"}
 USE_DGA=${USE_DGA:-"y"}
 USE_KDRIVE=${USE_KDRIVE:-"y"}
-USE_HAL=${USE_HAL:-"n"}
+USE_UDEV=${USE_UDEV:-"n"}
 USE_SERVERDMX=${USE_SERVERDMX:-"y"}
+USE_MULTIBUFFER=${USE_MULTIBUFFER:-"n"}
 
 pkgname=xorg-server
-pkgver=1.7.6
-pkgrel=4
+pkgver=1.8.1
+pkgrel=1
 pkgdesc="Modular X.Org X Server"
 groups=('x11' 'xorg-core')
 archs=('i686' 'x86_64' 'ppc')
 depends=('libxfont>=1.4.0' 'libx11>=1.3' 'xtrans>=1.2.3' 'libxau>=1.0.5' \
 	'libxext>=1.0.99.4-1' 'libxkbfile>=1.0.5' 'libxdmcp>=1.0.2-2' 'libxmu>=1.0.4-2' 'libxrender>=0.9.4-3' \
-	'libxi>=1.2.1' 'freetype2' 'mesa>=7.7' 'font-cursor-misc>=1.0.0-3' 'font-misc-misc>=1.0.0-3' \
+	'libxi>=1.2.1' 'freetype2' 'mesa>=7.8' 'font-cursor-misc>=1.0.0-3' 'font-misc-misc>=1.0.0-3' \
 	'xbitmaps' 'xkeyboard-config>=1.6' 'iceauth>=1.0.2-3' 'rgb>=1.0.3' 'xauth>=1.0.3' 'xinit>=1.1.1' 'libxaw>=1.0.5' \
 	'libxpm>=3.5.7-2' 'libxxf86misc>=1.0.1-3' 'libxxf86vm>=1.0.1-3' 'libxkbui>=1.0.2-2' \
 	'xorg-cf-files' 'libxtst>=1.0.3-3' 'font-alias' 'libxcb>=1.4' 'pixman>=0.15.8' 'libpciaccess>=0.10.5' 'libxv>=1.0.4')
@@ -24,22 +25,20 @@ makedepends=('randrproto>=1.3.0' 'renderproto>=0.9.3' 'fixesproto' 'damageproto>
 	'compositeproto>=0.4' 'recordproto' 'resourceproto' 'videoproto>=2.2.2' 'scrnsaverproto' 'evieext' \
 	'trapproto' 'xineramaproto' 'fontsproto' 'kbproto' 'inputproto>=1.5' 'bigreqsproto' 'xcmiscproto' \
 	'glproto' 'xf86driproto>=2.0.4' 'libdrm>=2.4.11' 'printproto>=1.0.4' 'mkfontdir>=1.0.4' 'mkfontscale>=1.0.6-1' \
-	'fontcacheproto' 'xorg-sgml-doctools>=1.2' 'util-macros>=1.2.1' 'calibrateproto' 'libdmx>=1.0.2-3' 'libxres>=1.0.3-3' 'sdl' 'libxinerama>=1.0.3' 'bigreqsproto')
+	'fontcacheproto' 'xorg-sgml-doctools>=1.4' 'util-macros>=1.8.0' 'calibrateproto' 'libdmx>=1.0.2-3' 'libxres>=1.0.3-3' 'sdl' 'libxinerama>=1.0.3' 'bigreqsproto' 'font-util')
 rodepends=('libdri' 'libglx' 'xf86-input-mouse' 'xf86-input-keyboard' 'xf86-video-vesa')
 provides=('xorg-server-smi' 'xorg-server-vesa' 'xorg-server-via' 'lbxproxy' 'proxymngr')
 
 replaces=('xorg-server-smi' 'xorg-server-vesa' 'xorg-server-via' 'lbxproxy' 'proxymngr' \
-	'liblbxutil' 'xgl')
+	'liblbxutil' 'xgl' 'xorg-server-sdl')
 
 backup=('etc/sysconfig/desktop')
 Finclude sourceforge xorg
 source=(${source[@]} \
-	desktop \
-	xge-no-extension-events.diff)
+	desktop)
 
-sha1sums=('77a8c3dec86960e1be818df3a75d69b5fad6a3c0' \
-          '676c8ad10a362615ae54de825e37c18c1f69ae08' \
-          '3b70976077eda7dd6849409db7be5e9f7133c249')
+sha1sums=('cba0d3b3d28696609a1f9b110d4d129cd066e133' \
+          '676c8ad10a362615ae54de825e37c18c1f69ae08')
 
 if Fuse $USE_DEVEL; then
 	pkgver=1.6.3.901.151.g120286a
@@ -71,16 +70,18 @@ Fconfopts="${Fconfopts[@]}
 		--enable-install-setuid \
 		--enable-record"
 
-if Fuse $USE_HAL; then
-      	depends=(${depends[@]} 'dbus' 'hal')
+if Fuse $USE_UDEV; then
+      	depends=(${depends[@]} 'dbus' 'udev')
 	rodepends=(${rodepends[@]} 'xf86-input-evdev')
 	Fconfopts="${Fconfopts[@]} \
 		--enable-config-dbus \
-		--enable-config-hal"
+		--disable-config-hal \
+		--enable-config-udev"
 else
 	 Fconfopts="${Fconfopts[@]} \
                 --disable-config-dbus \
-                --disable-config-hal"
+                --disable-config-hal \
+		--disable-config-udev"
 fi
 
 subpkgs=('libdri' 'libglx')
@@ -93,26 +94,22 @@ subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
 
 if Fuse $USE_KDRIVE; then
 	subpkgs=("${subpkgs[@]}" "$pkgname-xephyr" \
-        	"$pkgname-fbdev" "$pkgname-sdl")
+        	"$pkgname-fbdev")
 	subdescs=("${subdescs[@]}" \
        		'KDrive xephyr X server' \
-       		'KDrive fbdev X server' \
-       		'KDrive sdl X server')
+       		'KDrive fbdev X server')
 	subdepends=("${subdepends[@]}" \
        		'libxext libxfont>=1.3.1-2 pixman' \
-       		'libxfont>=1.3.1-2 libxau pixman libxdmcp' \
-       		'libxfont>=1.3.1-2 libxau pixman libxdmcp sdl')
-	subgroups=("${subgroups[@]}" 'x11-extra' 'x11-extra' 'x11-extra')
-	subarchs=("${subarchs[@]}" 'i686 x86_64 !ppc' 'i686 !x86_64 !ppc' 'i686 x86_64 ppc')
+       		'libxfont>=1.3.1-2 libxau pixman libxdmcp')
+	subgroups=("${subgroups[@]}" 'x11-extra' 'x11-extra')
+	subarchs=("${subarchs[@]}" 'i686 x86_64 !ppc' 'i686 !x86_64 !ppc')
 	Fconfopts="${Fconfopts[@]}
                 --enable-xephyr \
-                --enable-xsdl \
                 --enable-xvfb \
                 --enable-kdrive"
 else
 	Fconfopts="${Fconfopts[@]}
 		--disable-xephyr \
-		--disable-xsdl \
 		--disable-xvfb \
 		--disable-kdrive"
 fi
@@ -124,8 +121,13 @@ if Fuse $USE_SERVERDMX; then
 	subgroups=("${subgroups[@]}" 'x11-extra')
 	subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 	Fconfopts="${Fconfopts[@]}
-                --enable-dmx \
-		--enable-multibuffer"
+                --enable-dmx"
+	if Fuse $USE_MULTIBUFFER; then
+		Fconfopts="${Fconfopts[@]} --enable-multibuffer"
+	else
+		Fconfopts="${Fconfopts[@]} --disable-multibuffer"
+	fi
+		
 else
 	Fconfopts="${Fconfopts[@]}
 		--disable-dmx \
@@ -170,15 +172,12 @@ build() {
 	if Fuse $USE_SERVERDMX; then
 		## -dmx
 		Fsplit $pkgname-dmx \
-			usr/bin/{Xdmx,dmxaddinput,dmxaddscreen,dmxreconfig,dmxresize,dmxrminput,dmxrmscreen,dmxtodmx,dmxwininfo,vdltodmx,xdmx,xdmxconfig}
+			usr/bin/{Xdmx,dmxaddinput,dmxaddscreen,dmxreconfig,dmxresize,dmxrminput,dmxrmscreen,dmxtodmx,dmxwininfo,vdltodmx,xdmxconfig}
 		Fsplit $pkgname-dmx usr/share/man/man1/*dmx*
 	fi
 	if Fuse $USE_KDRIVE; then
 		## -xephyr
 		Fsplit $pkgname-xephyr usr/bin/Xephyr
-
-		## -sdl
-		Fsplit $pkgname-sdl usr/bin/Xsdl
 
 		## -fbdev
 		Fsplit $pkgname-fbdev usr/bin/Xfbdev

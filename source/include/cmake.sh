@@ -34,7 +34,7 @@ if [ -z "$_F_cmake_in_source_build" ]; then
 fi
 
 if [ -z "$_F_cmake_rpath" ]; then
-        _F_cmake_rpah="OFF"
+        _F_cmake_rpath="OFF"
 fi
 
 ###

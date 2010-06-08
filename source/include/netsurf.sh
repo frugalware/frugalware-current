@@ -24,11 +24,11 @@
 # == OPTIONS
 # * _F_netsurf_name (defaults to $pkgname): supply the name to use for the
 # source directory and tar ball
-# * _F_netsurf_project (defaults to true): whether to treat this package as
+# * _F_netsurf_project (defaults to 1): whether to treat this package as
 # a netsurf project or not
 ###
 [ -z "$_F_netsurf_name"    ] && _F_netsurf_name=$pkgname
-[ -z "$_F_netsurf_project" ] && _F_netsurf_project=true
+[ -z "$_F_netsurf_project" ] && _F_netsurf_project=1
 
 ###
 # == OVERWRITTEN VARIABLES
@@ -38,12 +38,12 @@
 # * archs()
 ###
 url="http://www.netsurf-browser.org"
-if [ $_F_netsurf_project ]; then
+if [ "$_F_netsurf_project" -eq 1 ]; then
 	url="$url/projects/$_F_netsurf_name"
 	up2date="Flastarchive $url -src.tar.gz"
 	source=("${url/$_F_netsurf_name/releases/}/$_F_netsurf_name-$pkgver-src.tar.gz")
 else
-	up2date="Flasttar $url/downloads/gtk"
+	up2date="Flastarchive $url/downloads/gtk -src.tar.gz"
 	source=("$url/downloads/releases/$_F_netsurf_name-$pkgver-src.tar.gz")
 fi
 archs=('i686' 'x86_64' 'ppc')
@@ -53,18 +53,16 @@ archs=('i686' 'x86_64' 'ppc')
 # * Fbuildnetsurfproject
 ###
 
-Fbuildnetsurfproject() {
+Fbuildnetsurf() {
 	Fcd
 	make PREFIX=/usr || Fdie
 	make PREFIX=/usr DESTDIR="$Fdestdir" install || Fdie
 }
 
 ###
-# * build() just calls Fbuildnetsurfproject (only if a netsurf project)
+# * build() just calls Fbuildnetsurf
 ###
 
-if [ $_F_netsurf_project ]; then
-	build() {
-		Fbuildnetsurfproject
-	}
-fi
+build() {
+	Fbuildnetsurf
+}

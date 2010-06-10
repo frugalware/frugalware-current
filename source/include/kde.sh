@@ -44,7 +44,7 @@ if [ -z "$_F_kde_ver" ]; then
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
-	_F_kde_qtver=4.6.2-3
+	_F_kde_qtver=4.6.3
 fi
 
 if [ -z "$_F_kde_name" ]; then

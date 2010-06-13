@@ -122,6 +122,7 @@ Fdie() {
 Fexec() {
 	Fmessage "$*"
 	"$@"
+	return $?
 }
 
 ###

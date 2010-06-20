@@ -385,12 +385,12 @@ KDE_install()
 {
 	make DESTDIR="$Fdestdir" install || Fdie
 
+	KDE_cleanup
+
 	if __kde_in_array "$pkgname-docs" "${subpkgs[@]}" \
 		&& [ -d $Fdestdir/usr/share/doc -a ! -d $startdir/pkg.$pkgname-docs/usr/share/doc ]; then
           	Fsplit "$pkgname-docs" usr/share/doc
         fi
-
-	KDE_cleanup
 
 	if __kde_in_array "$pkgname-compiletime" "${subpkgs[@]}"; then
 		if [ -d $Fdestdir/usr/include ]; then

@@ -204,12 +204,15 @@ KDE_project_install()
 		fi
 	fi
 	## install the package
+	Fmessage "Installing main files for $1."
 	make -C "$1" DESTDIR="$Fdestdir" install || Fdie
 	## install the documentation
-	if __kde_in_array "$pkgname-docs" "${subpkgs[@]}" \
-		&& [ -d $Fdestdir/usr/share/doc -a ! -d $startdir/pkg.$pkgname-docs/usr/share/doc ]; then
+	if __kde_in_array "$pkgname-docs" "${subpkgs[@]}"; then
 		# documentation is in $pkgname-docs so ...
-		Fsplit "$pkgname-docs" usr/share/doc
+		if [ -d "$Fdestdir/usr/share/doc" ]; then
+#			Fsplit "$pkgname-docs" usr/share/doc
+			Frm usr/share/doc
+		fi
 	else
 		# documentation is per package so ...
 		local path
@@ -387,8 +390,7 @@ KDE_install()
 
 	KDE_cleanup
 
-	if __kde_in_array "$pkgname-docs" "${subpkgs[@]}" \
-		&& [ -d $Fdestdir/usr/share/doc -a ! -d $startdir/pkg.$pkgname-docs/usr/share/doc ]; then
+	if __kde_in_array "$pkgname-docs" "${subpkgs[@]}" && [ -d $Fdestdir/usr/share/doc ]; then
           	Fsplit "$pkgname-docs" usr/share/doc
         fi
 

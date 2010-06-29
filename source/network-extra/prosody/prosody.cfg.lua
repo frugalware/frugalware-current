@@ -1,8 +1,8 @@
 -- Prosody Example Configuration File
---
+-- 
 -- Information on configuring Prosody can be found on our
 -- website at http://prosody.im/doc/configure
---
+-- 
 -- Tip: You can check that the syntax of this file is correct
 -- when you have finished by running: luac -p prosody.cfg.lua
 -- If there are any errors, it will let you know what and where
@@ -22,8 +22,13 @@
 -- Example: admins = { "user1@example.com", "user2@example.net" }
 admins = { }
 
+-- Enable use of libevent for better performance under high load
+-- For more information see: http://prosody.im/doc/libevent
+use_libevent = true;
+
 -- This is the list of modules Prosody will load on startup.
 -- It looks for mod_modulename.lua in the plugins folder, so make sure that exists too.
+-- Documentation on modules can be found at: http://prosody.im/doc/modules
 modules_enabled = {
 
 	-- Generally required
@@ -36,6 +41,8 @@ modules_enabled = {
 	-- Not essential, but recommended
 		"private"; -- Private XML storage (for room bookmarks, etc.)
 		"vcard"; -- Allow users to set vCards
+		--"privacy"; -- Support privacy lists
+		--"compression"; -- Stream compression
 
 	-- Nice to have
 		"legacyauth"; -- Legacy authentication. Only used by some old clients and bots.
@@ -47,10 +54,14 @@ modules_enabled = {
 		"register"; -- Allow users to register on this server using a client and change passwords
 
 	-- Other specific functionality
-		"posix"; -- POSIX functionality, sends server to background, enables syslog, etc. (Do not comment this line)
+		"posix"; -- (! DO NOT COMMENT THIS LINE !) POSIX functionality, sends server to background, enables syslog, etc.
 		--"console"; -- Opens admin telnet interface on localhost port 5582
 		--"bosh"; -- Enable BOSH clients, aka "Jabber over HTTP"
 		--"httpserver"; -- Serve static files from a directory over HTTP
+		--"groups"; -- Shared roster support
+		--"announce"; -- Send announcement to all online users
+		--"welcome"; -- Welcome users who register accounts
+		--"watchregistrations"; -- Alert admins of registrations
 };
 
 -- These modules are auto-loaded, should you
@@ -95,9 +106,9 @@ VirtualHost "example.com"
 	-- Note that old-style SSL on port 5223 only supports one certificate, and will always
 	-- use the global one.
 	ssl = { 
-		key = "certs/example.com.key";
-		certificate = "certs/example.com.crt";
-		}
+		key = "/etc/certs/example.com.key";
+		certificate = "/etc/certs/example.com.crt";
+	}
 
 ------ Components ------
 -- You can specify components to add hosts that provide special services,
@@ -106,6 +117,9 @@ VirtualHost "example.com"
 
 ---Set up a MUC (multi-user chat) room server on conference.example.com:
 --Component "conference.example.com" "muc"
+
+-- Set up a SOCKS5 bytestream proxy for server-proxied file transfers:
+--Component "proxy.example.com" "proxy65"
 
 ---Set up an external component (default component port is 5347)
 --Component "gateway.example.com"

@@ -40,11 +40,11 @@ Finclude cmake
 ###
 
 if [ -z "$_F_kde_ver" ]; then
-	_F_kde_ver=4.4.3
+	_F_kde_ver=4.4.4
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
-	_F_kde_qtver=4.6.2-3
+	_F_kde_qtver=4.6.3
 fi
 
 if [ -z "$_F_kde_name" ]; then
@@ -204,12 +204,15 @@ KDE_project_install()
 		fi
 	fi
 	## install the package
+	Fmessage "Installing main files for $1."
 	make -C "$1" DESTDIR="$Fdestdir" install || Fdie
 	## install the documentation
-	if __kde_in_array "$pkgname-docs" "${subpkgs[@]}" \
-		&& [ -d $Fdestdir/usr/share/doc -a ! -d $startdir/pkg.$pkgname-docs/usr/share/doc ]; then
+	if __kde_in_array "$pkgname-docs" "${subpkgs[@]}"; then
 		# documentation is in $pkgname-docs so ...
-		Fsplit "$pkgname-docs" usr/share/doc
+		if [ -d "$Fdestdir/usr/share/doc" ]; then
+#			Fsplit "$pkgname-docs" usr/share/doc
+			Frm usr/share/doc
+		fi
 	else
 		# documentation is per package so ...
 		local path
@@ -315,7 +318,7 @@ __KDE_split()
 	if __KDE_split_pkg "$1" "${1//-//}"; then # Transform "-" into "/"
 		return 0
 	fi
-	clean="${1/#lib//}"
+	clean="${1/#lib/}"
 	if [ "$1" != "$clean" ] && \
 	   __KDE_split "$clean"; then # Remove front "lib"
 		return 0
@@ -385,12 +388,11 @@ KDE_install()
 {
 	make DESTDIR="$Fdestdir" install || Fdie
 
-	if __kde_in_array "$pkgname-docs" "${subpkgs[@]}" \
-		&& [ -d $Fdestdir/usr/share/doc -a ! -d $startdir/pkg.$pkgname-docs/usr/share/doc ]; then
+	KDE_cleanup
+
+	if __kde_in_array "$pkgname-docs" "${subpkgs[@]}" && [ -d $Fdestdir/usr/share/doc ]; then
           	Fsplit "$pkgname-docs" usr/share/doc
         fi
-
-	KDE_cleanup
 
 	if __kde_in_array "$pkgname-compiletime" "${subpkgs[@]}"; then
 		if [ -d $Fdestdir/usr/include ]; then

@@ -122,6 +122,7 @@ Fdie() {
 Fexec() {
 	Fmessage "$*"
 	"$@"
+	return $?
 }
 
 ###
@@ -1288,7 +1289,7 @@ Fsplit()
 	local i dir path subpkg=$1
 	shift 1
 	if [ ! -d $startdir/pkg.$subpkg ]; then
-		# FIXME Compatibility: check for $subpkg in subpkgs
+		# FIXME Compatibility: check for $subpkg in subpkgs
 		warning "Trying to move $@ to undeclared subpackage $subpkg"
 		mkdir -p $startdir/pkg.$subpkg/
 		Fdie

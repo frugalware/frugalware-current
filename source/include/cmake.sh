@@ -13,7 +13,7 @@
 # == OPTIONS
 # * _F_cmake_type (default: None): Possible values  Debug, Debugfull, Release, Relwithdebinfo
 # * _F_cmake_verbose (default: True): Possible values True or False
-# * _F_cmake_color (default: Off): Possible values ON or OFF
+# * _F_cmake_color (default: OFF): Possible values ON or OFF
 # * _F_cmake_confopts (default: nothing): Use like with Fconfopts
 ###
 
@@ -22,7 +22,7 @@ if [ -z "$_F_cmake_type" ]; then
 fi
 
 if [ -z "$_F_cmake_verbose" ]; then
-	_F_cmake_verbose="FALSE"
+	_F_cmake_verbose="True"
 fi
 
 if [ -z "$_F_cmake_color" ]; then
@@ -34,7 +34,7 @@ if [ -z "$_F_cmake_in_source_build" ]; then
 fi
 
 if [ -z "$_F_cmake_rpath" ]; then
-        _F_cmake_rpah="OFF"
+        _F_cmake_rpath="OFF"
 fi
 
 ###

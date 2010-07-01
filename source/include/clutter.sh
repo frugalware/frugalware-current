@@ -17,7 +17,7 @@
 # pkgrel=1
 # pkgdesc="A GObject based library for creating fast, visually rich graphical user interfaces."
 # depends=('libxdamage' 'libxcomposite' 'libgl' 'freetype2' 'libxau>=1.0.4' 'libxdmcp' \
-#	'gtk+2>=2.16.2-2' 'libxml2' 'gir-repository')
+#	'gtk+2>=2.16.2-2' 'libxml2')
 # sha1sums=('91476f5c3089bab35dfb1c3a0bc18c44f161b6f0')
 # Finclude clutter
 # --------------------------------------------------

@@ -1326,10 +1326,10 @@ Fextract() {
 	file="${1}"
 	tmp="$(echo "${file}" | tr 'A-Z' 'a-z')"
 	case "${tmp}" in
-		*.tar.gz|*.tar.z|*.tgz)
-		cmd="tar $_F_extract_taropts --use-compress-program=gzip -xf $file" ;;
 		*.tar.bz2|*.tbz2)
 		cmd="tar $_F_extract_taropts --use-compress-program=bzip2 -xf $file" ;;
+		*.tar.gz|*.tar.z|*.tgz)
+		cmd="tar $_F_extract_taropts --use-compress-program=gzip -xf $file" ;;
 		*.tar.lzma)
 		cmd="tar $_F_extract_taropts --use-compress-program=lzma -xf $file" ;;
 		*.tar.xz)

@@ -1,69 +1,75 @@
-# Compiling Time: 8.68 SBU
+# Compiling Time: 46.40 SBU
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=openjdk
-pkgver=1.6.0
-pkgrel=6
-build_id="09"
-rel_id="hotspot-7-ea-src-b$build_id-01_mar_2007"
-pkgdesc="Sun's java development kit (GPL version)"
-url="http://openjdk.dev.java.net/"
-# TODO: rebuild using openjdk itself
-makedepends=('j2sdk' 'unixodbc' 'libice' 'libxp' 'libxi' 'libsm' 'libxtst' 'libxt' 'alsa-lib')
-rodepends=('openjre')
-conflicts=('j2sdk')
+pkgver=6
+build=18
+icedteaver=1.8.1
+javaver="$pkgver-openjdk"
+pkgrel=1
+pkgdesc="Open-source Java Development Kit implementation."
+url="http://openjdk.java.net/"
+depends=('libx11')
+rodepends=("openjre=$pkgver")
+makedepends=('apache-ant' 'zip' 'cpio' 'java-gcj-compat>=1.0.80-8' 'ecj' \
+	'gcc-gcj' 'xalan-j' 'rhino' 'gtk+2' 'xulrunner>=1.9.2-2' 'cups' \
+	'libgif' 'libxp' 'procps' 'sed>=4.2.1-2' 'cpio>=2.11-2')
 groups=('devel-extra')
 archs=('i686')
-# this is a bit hackish but at least we are notified when a new version is out
-up2date="elinks -dump http://download.java.net/openjdk/jdk7/|grep zip$|sed 's|.*/\(.*\)\.zip|\1|;s/$rel_id/$pkgver/;q'"
-source=(http://www.java.net/download/openjdk/jdk7/promoted/b$build_id/$rel_id.zip \
+up2date="lynx -dump http://download.java.net/openjdk/jdk6/|grep Build|sed 's/.*Build /$pkgver/;s/b$build//'"
+source=(http://icedtea.classpath.org/download/source/icedtea6-$icedteaver.tar.gz \
+	http://download.java.net/openjdk/jdk6/promoted/b18/openjdk-$pkgver-src-b$build-16_feb_2010.tar.gz \
+	https://jaxp.dev.java.net/files/documents/913/147329/jdk6-jaxp-2009_10_13.zip \
+	http://kenai.com/downloads/jdk6-drops/jdk6-jaf-2009_10_27.zip \
+	http://kenai.com/downloads/jdk6-drops/jdk6-jaxws-2009_10_27.zip \
 	openj{dk,re}.sh)
+sha1sums=('ea9264aad1e7de44d2abe90d6a0f726da0260972' \
+          '7250fc40cd5fadc7ba9c1955cb60f05514406ca7' \
+          'e2c3a19a859d991a9e01124b4760cb432d6a435d' \
+          '92a17d19bec6dbce09cc04ad78abd0682367ba2e' \
+          '52fd35ca5fdeac0a6bd9a153397631597c407c22' \
+          '3fae9758526558631c374e78b8970b7e906494ac' \
+          '8930417f9aece56528c6464850da32d755b401b6')
 
-subpkgs=('openjre')
-subdescs=("Sun's java runtime environment (GPL version)")
-subdepends=('unixodbc libice libxp libxi libsm libxtst libxt alsa-lib libstdc++')
-subconflicts=('j2re')
-subgroups=('xlib-extra')
-subarchs=('i686')
+NOEXTRACT=1
+if [ "$CARCH" == "i686" ]; then
+	_parch="i386"
+elif [ "$CARCH" == "x86_64" ]; then
+	_parch="amd64"
+fi
+
+subpkgs=('openjre' 'openjdk-source')
+subdescs=('Open-source Java Runtime Environment.' 'Java Development Kit source-code.')
+subdepends=('libgcj libjpeg>=8b libgif libuuid gtk+2-libs libxtst' '')
+subrodepends=('' "openjdk=$pkgver")
+subgroups=('xapps-extra' 'devel-extra')
+subarchs=('i686 x86_64' 'i686 x86_64')
 
 build()
 {
-	if [ ! -z "$MAKEFLAGS" ]; then
-		export HOTSPOT_BUILD_JOBS="${MAKEFLAGS/-j}"
-		unset MAKEFLAGS
-	fi
-	Fcd hotspot
-	Fpatchall
-	cd make
-	export ALT_BOOTDIR="/usr/lib/java"
-	export ALT_JDK_IMPORT_PATH="$ALT_BOOTDIR"
-	export FULL_VERSION="$pkgver-$pkgrel"
-
-	make MAKE_VERBOSE="" world || return 1
-
-	cd ..
-	# don't use Fdoc here since we want this to go to the jre subpkg
-	Ffilerel /usr/share/doc/openjre-$pkgver/LICENSE
-	cd build/linux/jdk-linux-i586/
-	rm -rf fastdebug
-	Fdocrel docs/*
-	rm -rf docs
-	Fmkdir /usr/lib/java
-	cp -a * $Fdestdir/usr/lib/java/ || return 1
-	# remove the duplicated 'ja' manpages
-	for i in /usr/lib/java{,/jre}
-	do
-		Frm $i/man/ja
-		Fln ja_JP.eucJP $i/man/ja
-	done
+	Fextract icedtea6-$icedteaver.tar.gz
+	Fcd icedtea6-$icedteaver
+	# see http://hiroshiyamauchi.blogspot.com/2009/12/building-openjdk-faster.html
+	export HOTSPOT_BUILD_JOBS="${MAKEFLAGS/-j}"
+	export PARALLEL_COMPILE_JOBS="${MAKEFLAGS/-j}"
+	unset MAKEFLAGS
+	Fmake --with-gcj-home=/usr/lib/jvm/java-1.5.0-gcj-1.5.0.0 \
+		--with-xalan2-jar=/usr/share/java/xalan.jar \
+		--with-jaxp-drop-zip=$Fsrcdir/jdk6-jaxp-2009_10_13.zip \
+		--with-jaf-drop-zip=$Fsrcdir/jdk6-jaf-2009_10_27.zip \
+		--with-jaxws-drop-zip=$Fsrcdir/jdk6-jaxws-2009_10_27.zip \
+		--with-openjdk-src-zip=$Fsrcdir/openjdk-$pkgver-src-b$build-16_feb_2010.tar.gz
+	Fmkdir /usr/lib/jvm/
+	cd openjdk/build/linux-* || return 1
+	Fcprel j2sdk-image /usr/lib/jvm/java-$javaver
+	Fmkdir /usr/lib/mozilla/plugins
+	Fln ../../jvm/java-$javaver/jre/lib/$_parch/IcedTeaPlugin.so \
+		/usr/lib/mozilla/plugins/IcedTeaPlugin.so
 	Fexe /etc/profile.d/openjdk.sh
 	Fexe /etc/profile.d/openjre.sh
-	Fln /usr/lib/java/jre/plugin/i386/ns7/libjavaplugin_oji.so \
-		/usr/lib/mozilla/plugins/libjavaplugin_oji.so
-	Fsplit openjre usr/lib/java/jre usr/lib/mozilla etc/profile.d/openjre.sh \
-		usr/share/doc/openjre*
+	Fsplit openjre usr/lib/mozilla usr/lib/jvm/java-$javaver/jre \
+		etc/profile.d/openjre.sh
+	Fsplit openjdk-source usr/lib/jvm/java-$javaver/src.zip
 }
 
-sha1sums=('4cc5e7a551ed6e10a53c65dea21856f9e41dac64'\
-          '20daed3070cfed23b9c1d8d47f261c1d6151c4d4'\
-          '26762d4aa846b15229fd175577f26611cc22194d')
+# optimization OK

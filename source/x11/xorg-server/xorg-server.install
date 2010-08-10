@@ -1,9 +1,35 @@
+function UpdateConf
+{
+	Driver=$1
+	#update configuration only one time
+	#we have a backup for this file
+	if [ "`grep DeviceGraphic /etc/X11/xorg.conf.d/20-graphical.conf`" != "" ]; then
+		#for ppc we should use nv works better that nouveau
+		if [ "`uname -a | grep ppc `" != "" ] && [ "$Driver" == "nouveau" ] ; then
+			Driver="nv"
+		fi
+		echo "updating graphical device with $Driver"
+		sed -i "/Driver/s/DeviceGraphic/$Driver/" /etc/X11/xorg.conf.d/20-graphical.conf
+	fi
+}
+
 post_install()
 {
 	# setting the layout from the tty console layout created by the installer
 	layout=`awk -F'=' '/keymap=/ {print $2}' /etc/sysconfig/keymap | sed 's|-.*||g'`
 	echo "Update layout keyboard with $layout"
 	sed -i "/xkb_layout/s/Keyboard_Layout/$layout/" /etc/X11/xorg.conf.d/10-evdev.conf
+	#setting graphical device
+	device=`lspci | grep "VGA compatible controller" | cut -d ' ' -f 5`
+	device=`echo $device | tr '[:upper:]' '[:lower:]'`
+	case "$device" in
+		"via") UpdateConf openchrome ;;
+		"intel") UpdateConf intel ;;
+		"nvidia") UpdateConf nouveau ;;
+		"ati") UpdateConf radeon ;;
+		"sis") UpdateConf sis ;;
+		*) UpdateConf vesa ;;
+	esac
 }
 
 post_upgrade()
@@ -13,12 +39,22 @@ post_upgrade()
 
 pre_upgrade()
 {
-	#delete old fonts cache and create a symlink for compatibility xorg.conf
-	if ! [ -h "/usr/lib/X11/fonts" ];then
-		echo "Create symlink fonts"
-        	#if some fonts are not rebuild or build manually we moved it
-		mv /usr/lib/X11/fonts /usr/lib/X11/fonts.backup
-        	ln -sf /usr/share/fonts/X11 /usr/lib/X11/fonts
+	#fix buggy xorg-server 1.8.2-7
+	#delete useless symlink
+	if [ -h "/usr/lib/X11/fonts" ];then
+		#delete bugguy symlink
+		rm /usr/lib/X11/fonts
+	fi
+	#restor useless backup
+	if [ -d "/usr/lib/X11/fonts.backup" ];then
+		mv /usr/lib/X11/fonts.backup /usr/lib/X11/fonts 
+	fi
+	#end fix buggy xorg-server 1.8.2-7
+
+	#inform user : the old dir font is ignored
+	if [ -d "/usr/lib/X11/fonts" ];then
+		echo "Xorg ignore /usr/lib/X11/fonts"
+		echo "You should install the fonts into /usr/share/fonts/X11/"
 	fi
 }
 

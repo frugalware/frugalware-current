@@ -7,67 +7,46 @@ USE_DEVEL=${USE_DEVEL:-"n"}
 #MOONLIGHT_OVERRIDES="shapecache=yes,converter=ffmpeg" firefox'
 
 pkgname=moonlight
-pkgrel=3
+pkgrel=1
 pkgdesc="Moonlight is an open source implementation of Microsoft Silverlight for Unix systems."
 url="http://www.go-mono.com/moonlight/"
 depends=('gtk+2' 'libxau' 'libxdmcp' 'freetype2' 'alsa-lib' 'libstdc++' 'libxdamage' 'libxext' 'libxml2' \
-	'ffmpeg>=0.6' 'dbus-glib' 'ndesk-dbus' 'imagemagick' 'poppler-glib' 'gtk-sharp')
+	'ffmpeg>=0.6' 'dbus-glib' 'ndesk-dbus' 'imagemagick' 'poppler-glib' 'gtk-sharp' 'curl')
 makedepends=('firefox' 'zip' 'gsf-sharp' 'gtksourceview-sharp' 'monodoc'\
-	'xulrunner')
+	'xulrunner' 'curl')
 options=('scriptlet')
 groups=('xlib-extra')
 archs=('i686' 'x86_64')
 
 subpkgs=("$pkgname-mozilla")
 subdescs=('moonlight extension for Mozilla')
-subdepends=("firefox mono")
+subdepends=("firefox ffmpeg imagemagick mono")
 subgroups=('xlib-extra')
 subarchs=('i686 x86_64')
 
 if ! Fuse $USE_DEVEL; then
-	pkgver=2.0
-	up2date="Flasttar ftp://ftp.novell.com/pub/mono/sources/moon/2.0/"
-	source=(ftp://ftp.novell.com/pub/mono/sources/moon/2.0/$pkgname-$pkgver.tar.bz2 \
-		ftp://ftp.novell.com/pub/mono/sources/moon/2.0/mono-2.6.tar.bz2 \
-		ftp://ftp.novell.com/pub/mono/sources/moon/2.0/mono-basic-2.6.tar.bz2 \
- 		silverlight-ff3-quirks.user.js)
+	pkgver=2.99.0.9
+	up2date="Flasttar http://ftp.frugalware.org/pub/other/people/bouleetbil/snapshot/"
+	source=(http://ftp.frugalware.org/pub/other/people/bouleetbil/snapshot/$pkgname-$pkgver.tar.bz2)
 	Finclude mono
-	sha1sums=('7345749a4415c731abbe55f0b507f772421ea75a' \
-          '76769a65fb1237cb4f2f613fa63eb307e12d385c' \
-          '2f41e32983835858f489ea7737ff4ee03c3cf06c' \
-          'c22294f495294351ae5e2ba3c64797de536d7369')
+	sha1sums=('5684d1f279fe0f2fa465c224af28bfabd66315dc')
 else
 	pkgver=0.8.2_svn121479
 	_F_scm_type="subversion"
 	_F_scm_url="http://anonsvn.mono-project.com/source/trunk/moon"
-	Finclude scm mono
 	_F_cd_path=$pkgname
 	Finclude mono scm
 fi
-
-Fconfopts="${Fconfopts[@]} \
-	--enable-user-plugin --with-ffmpeg=yes --with-moonlight=yes \
-	--enable-desktop-support \
-	--with-ff3=yes --with-ff2=no --with-mozilla=yes \
-	--with-pulseaudio=no \
-	--with-cairo=system \
-	--with-pixman=system \
-	--with-debug=no \
-	--with-mcspath=../mono-2.6/mcs --with-mono-basic-path=../mono-basic-2.6"
+Fconfopts="$Fconfopts --with-mcs-docs=no --with-tls=__thread --disable-mono-debugger \
+            --with-ikvm-native=no  --with-moonlight=yes --with-glib=system"
 
 build() {
 	unset MAKEFLAGS
 	Fmonoexport
-	Fcd
-	#For find ffmpeg
-	Fsed "\$(avutil_libdir)/" "/usr/lib/" plugin/install/Makefile.*
-	Fsed "\$(avcodec_libdir)/" "/usr/lib/" plugin/install/Makefile.*
-	Fsed "./check_xpi.sh" "#./check_xpi.sh" plugin/install/Makefile*
 
-	cd ../mono-2.6 || Fdie
-	Fmake
-	cd ../mono-basic-2.6 || Fdie
-	Fmake
+	Fcd
+	cd ../mono || Fdie
+	sh ./autogen.sh || Fdie
 
 	if Fuse $USE_DEVEL; then
 		Funpack_scm
@@ -76,10 +55,10 @@ build() {
 	else
 		cd ../$pkgname-$pkgver || Fdie
 		Fpatchall
-		#Fautoreconf
+		sh ./autogen.sh $Fconfopts || Fdie
 	fi
-
-	Fmake
+	Fsed './check_xpi.sh $@' "" plugin/install/Makefile*
+	Fmake --with-curl=system
 	Fmakeinstall
 
 	#build xpi
@@ -93,12 +72,15 @@ build() {
 	chmod 644 install.rdf || Fdie
 	Fdirschmod  /usr/lib/firefox/extensions 755
 	Ffileschmod /usr/lib/firefox/extensions 644
-	cp $Fsrcdir/silverlight-ff3-quirks.user.js $Fdestdir/usr/share/doc/$pkgname-$pkgver/mozilla-extension/ || Fdie
 
 	#split package
 	#extension
 	Fsplit $pkgname-mozilla usr/share/doc/$pkgname-$pkgver/mozilla-extension
 	Fsplit $pkgname-mozilla usr/lib/firefox/extensions
+
+	#grr bugguy
+	Fmv /var/tmp/fst/pkg/usr/lib/moonlight/plugin/lunar-launcher /usr/lib/moonlight/plugin/lunar-launcher
+	Frm /var
 
 	Fmonocleanup
 }

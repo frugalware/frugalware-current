@@ -43,6 +43,7 @@
 # you really need (for bootstrapping) some binary jars.
 # * _F_java_jars: a bash array to specify what jars to install using Fjar in
 # Fmakeinstall if build.xml found
+# * _F_java_no_gcj: use Fwrapper in Fgcj(), it is useful on low memory boxes
 ###
 if [ -z "$_F_java_cflags" ]; then
 	_F_java_cflags="-fPIC -findirect-dispatch -fjni"
@@ -84,8 +85,12 @@ Fgcj()
 	if [ ! -d "`dirname $output`" ]; then
 		mkdir -p "`dirname $output`" || Fdie
 	fi
-	Fexec gcj ${CFLAGS/O2/O0} ${_F_java_cflags/-fPIC } $_F_java_ldflags \
-		--main=$main -o $output $@ || Fdie
+	if [ -z "$_F_java_no_gcj" ]; then
+		Fexec gcj ${CFLAGS/O2/O0} ${_F_java_cflags/-fPIC } $_F_java_ldflags \
+			--main=$main -o $output $@ || Fdie
+	else
+		Fwrapper "gij -cp $(echo $@|sed "s|$Fdestdir||") $main \"\$@\"" $(basename $output)
+	fi
 }
 
 ###

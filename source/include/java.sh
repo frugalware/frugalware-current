@@ -43,7 +43,8 @@
 # you really need (for bootstrapping) some binary jars.
 # * _F_java_jars: a bash array to specify what jars to install using Fjar in
 # Fmakeinstall if build.xml found
-# * _F_java_no_gcj: use Fwrapper in Fgcj(), it is useful on low memory boxes
+# * _F_java_no_gcj: use Fwrapper in Fgcj(), it is useful on low memory
+# boxes (default on ppc)
 ###
 if [ -z "$_F_java_cflags" ]; then
 	_F_java_cflags="-fPIC -findirect-dispatch -fjni"
@@ -51,6 +52,10 @@ fi
 
 if [ -z "$_F_java_ldflags" ]; then
 	_F_java_ldflags="-Wl,-Bsymbolic"
+fi
+if [ "$CARCH" == "ppc" ]; then
+	# oom would just kill it
+	_F_java_no_gcj=1
 fi
 
 ###

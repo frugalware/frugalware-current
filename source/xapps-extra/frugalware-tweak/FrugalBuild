@@ -1,0 +1,89 @@
+# Compiling Time: 0.02 SBU
+# Maintainer: bouleetbil <bouleetbil@frogdev.info>
+
+pkgname=frugalware-tweak
+pkgver=0.1.4.1
+pkgrel=1
+url="http://ftp.frugalware.org/pub/other/people/bouleetbil/frugal-tweak/"
+up2date="Flasttar $url/releases/"
+source=($url/releases/$pkgname-$pkgver.tar.gz rc.frugalware-tweak \
+	$url/releases/frugal-py-tweak-$pkgver.tar.gz)
+pkgdesc="Frugalware configuration utility"
+depends=('gtk2-sharp' 'notify-sharp' 'webkit-sharp>=0.3' 'vte-python')
+rodepends=('gtk-usermode')
+options=('scriptlet')
+groups=('xapps-extra')
+archs=('i686' 'x86_64' 'ppc')
+Finclude mono
+sha1sums=('a689af0bef83898e1bddb1bd4486ebfc2dfc7565' \
+          '4f9d611a47fab28224263dd1b891f28f756e8b64' \
+          '067815734a039e9113981f3a16dc5094084be3d5')
+
+replaces=('frugal-mono-tools')
+provides=('frugal-mono-tools')
+conflicts=('frugal-mono-tools')
+
+build() {
+	Fcd
+	Fmonoexport
+	Fmkdir usr/share/pixmaps
+	Fmkdir etc/xdg/autostart/
+	Fmkdir usr/share/applications/
+	Fbuild
+	#For start it with Xsession
+	Fcp $pkgname-$pkgver/frugal-mono-tools/frugal-tweak.desktop \
+		etc/xdg/autostart/frugal-tweak.desktop
+	Fcp $pkgname-$pkgver/frugal-mono-tools/fw.png usr/share/pixmaps/FrugalTools.png
+	#python terminal
+	Fcp frugal-py-tweak/PyUtils/PyVTE.py /usr/bin/PyFrugalVTE
+	#irc python client for join #frugalware
+	Fcp frugal-py-tweak/PyUtils/irc.py /usr/bin/PyFrugalIRC
+	
+	#for can start it wit root user
+	_F_desktop_exec="sucontrolcenter"
+	_F_desktop_name="frugalware configuration"
+	_F_desktop_desc="Tools to configure Frugalware (root mode)"
+	_F_desktop_icon="FrugalTools.png"
+	_F_desktop_categories="Application;GTK;System;"
+	Fdesktop2
+
+	Fmkdir usr/share/apps/sucontrolcenter
+	Fmkdir etc/pam.d
+	Fmkdir etc/security/console.apps
+
+cat > $Fdestdir/usr/share/apps/sucontrolcenter/sucontrolcenter << "EOF"
+#!/bin/sh
+exec frugalware-tweak $@
+EOF
+
+	chmod +x $Fdestdir/usr/share/apps/sucontrolcenter/sucontrolcenter || Fdie
+
+cat > $Fdestdir/etc/pam.d/sucontrolcenter << "EOF"
+#%PAM-1.0
+auth        include     config-control-center
+account     include     config-control-center
+session     include     config-control-center
+EOF
+
+cat > $Fdestdir/etc/pam.d/config-control-center << "EOF"
+#%PAM-1.0
+auth		sufficient	pam_rootok.so
+auth		sufficient	pam_timestamp.so
+auth		include		system-auth
+account		required	pam_permit.so
+session		required	pam_permit.so
+session		optional	pam_xauth.so
+session		optional	pam_timestamp.so
+EOF
+
+cat >  $Fdestdir/etc/security/console.apps/sucontrolcenter << "EOF"
+USER=root
+PROGRAM=/usr/share/apps/sucontrolcenter/sucontrolcenter
+SESSION=true
+EOF
+
+	Fln /usr/bin/consolehelper /usr/bin/sucontrolcenter
+
+	Fmonocleanup
+	Frcd2
+}

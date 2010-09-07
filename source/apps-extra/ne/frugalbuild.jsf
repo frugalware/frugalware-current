@@ -1,0 +1,619 @@
+# JOE syntax highlight file for FrugalBuilds
+
+# Think about:
+# $'....'
+# $(...)
+# ${...}
+
+# cat <<EOF xxxxxx
+# xxxxx should be interpreted as other arguments for 'cat'.
+
+# Colors
+
+=Idle
+=Comment 	green
+=Constant 	cyan
+=Escape 	bold cyan
+=Keyword 	bold
+=Var		magenta
+
+# Syntax
+
+:idle Idle
+	*		idle
+#	")"		subst_char	recolor=-1
+	"`"		subst_char	recolor=-1
+	"#"		comment		recolor=-1
+	"\\"		escape		recolor=-1
+	"$"		subst		recolor=-1
+	"'"		string_sq	recolor=-1
+	"\""		string_dq	recolor=-1
+	"<"		maybe_inc
+	"a-zA-Z{}![_"	ident		buffer
+
+:subst_char Var
+	*		idle	noeat
+
+:maybe_inc Idle
+	*		idle		noeat
+	"<"		maybe_inc1
+
+:maybe_inc1 Idle
+	*		inc		buffer noeat
+	"\""		inc_quote
+	"'"		inc_quote
+	" 	"	maybe_inc1
+	"\n"		toeof
+	"`&()\\|;<>"	idle	noeat
+	"\\"		skipquote
+	"-"		skipminus
+
+:skipminus Idle
+	*		inc1		buffer noeat
+	" 	"	skipminus
+	"\\"		skipquote
+	"\""		inc1_quote
+	"'"		inc1_quote
+	"`&()\\|;<>\n"	idle	noeat
+
+:skipquote Idle
+	*		inc		buffer noeat
+	"`&()\\|;'\"<> 	\n"	idle	noeat
+
+# All of these are for case of leading -
+
+:inc1 Var
+	*		inc1
+	"`&()\\|;'\"<> 	\n"	skipline1	noeat save_s
+
+:inc1_quote Var
+	*		inc1	buffer noeat
+
+:skipline1 Idle
+	*		skipline1
+	"\n"		next_line1
+
+:todelim1 Constant
+	*		todelim1
+	"\n"		next_line1	strings
+	"&"		founddelim1
+done
+
+:next_line1 Constant
+	*		todelim1	buffer
+	"\t"		next_line1
+	"\n"		next_line1
+
+:founddelim1 Var
+	*		idle		noeat
+
+# No leading -
+
+:inc Var
+	*		inc
+	"`&()\\|;'\"<> 	\n"	skipline	noeat save_s
+
+:inc_quote Var
+	*		inc	noeat buffer
+
+# Should be treated as a normal line here...
+
+:skipline Idle
+	*		skipline
+	"\n"		next_line
+
+:todelim Constant
+	*		todelim
+	"\n"		next_line	strings
+	"&"		founddelim
+done
+
+# eat \n so it's not in string.
+:next_line Constant
+	*		todelim		buffer
+	"\n"		next_line
+
+:founddelim Var
+	*		idle		noeat
+
+# << with no word.  Rest of file is a constant.
+
+:toeof Constant
+	*		toeof
+
+:comment Comment
+	*		comment
+	"\n"		idle
+
+:escape Escape
+	*		idle
+
+:subst Var
+	*		idle noeat
+	"("		idle	recolor=-2 # don't try for now
+	"\""		string_dq	recolor=-2
+	"\'"		string_sq	recolor=-2
+	"{"		subst_brack
+	"a-zA-Z_"	subst_name
+	"0-9*@?\-$_!#"	idle
+
+:subst_name Var
+	*		idle		noeat recolor=-1
+	"a-zA-Z0-9_"	subst_name
+
+:subst_brack Var
+	*		subst_brack
+	"}"		idle
+
+# Simplest case: no quoting allowed
+:string_sq Constant
+	*		string_sq
+	"\'"		idle
+
+
+# double-quote: quoting, backqoutes and substitution allowed
+:string_dq Constant
+	*		string_dq
+	"$"		string_dq_subst	recolor=-1
+	"\""		idle
+	"\\"		string_dq_esc	recolor=-1
+	"`"		string_dq_bq	recolor=-1
+
+:string_dq_subst Var
+	*		string_dq	noeat recolor=-2
+	"$0-9!_\-?*@"	string_dq
+	"a-zA-Z_"	string_dq_subst_name
+	"{"		string_dq_subst_brack
+
+:string_dq_subst_name Var
+	*		string_dq	recolor=-1 noeat
+	"a-zA-Z0-9_"	string_dq_subst_name
+
+:string_dq_subst_brack Var
+	*		string_dq_subst_brack
+	"}"		string_dq
+
+:string_dq_esc Escape
+	*		string_dq	recolor=-2
+	"$`\"\\"	string_dq
+	"\n"		string_dq	recolor=-2
+
+:string_dq_bq Constant
+	*		string_dq_bq
+	"$"		string_dq_bq_subst	recolor=-1
+	"\`"		string_dq
+	"\\"		string_dq_bq_esc	recolor=-1
+
+:string_dq_bq_subst Var
+	*		string_dq_bq	noeat recolor=-2
+	"$0-9!_\-?*@"	string_dq_bq
+	"a-zA-Z_"	string_dq_bq_subst_name
+	"{"		string_dq_bq_subst_brack
+
+:string_dq_bq_subst_name Var
+	*		string_dq_bq	recolor=-1 noeat
+	"a-zA-Z0-9_"	string_dq_bq_subst_name
+
+:string_dq_bq_subst_brack Var
+	*		string_dq_bq_subst_brack
+	"}"		string_dq_bq
+
+:string_dq_bq_esc Escape
+	*		string_dq_bq	recolor=-2
+	"$`\"\\"	string_dq_bq
+	"\n"		string_dq_bq	recolor=-2
+
+
+# backquote
+:string_bq Constant
+	*		string_bq
+	"$"		string_bq_subst	recolor=-1
+	"\`"		idle
+	"\\"		string_bq_esc	recolor=-1
+
+# escape in backquote
+:string_bq_esc Escape
+	*		string_bq	recolor=-2
+	"$`\"\\"	string_bq
+	"\n"		string_bq	recolor=-2
+
+# Substitution in a backquote
+:string_bq_subst Var
+	*		string_bq	noeat recolor=-2
+	"$0-9!_\-?*@"	string_bq
+	"a-zA-Z_"	string_bq_subst_name
+	"{"		string_bq_subst_brack
+
+:string_bq_subst_name Var
+	*		string_bq	recolor=-1 noeat
+	"a-zA-Z0-9_"	string_bq_subst_name
+
+:string_bq_subst_brack Var
+	*		string_bq_subst_brack
+	"}"		string_bq
+
+:ident Idle
+	*		idle		noeat strings
+	"!"		kw
+	"{"		kw
+	"}"		kw
+	"["		kw
+	"]"		kw
+# primary keywords
+	"case"		kw
+	"do"		kw
+	"done"		kw
+	"elif"		kw
+	"else"		kw
+	"esac"		kw
+	"fi"		kw
+	"for"		kw
+	"if"		kw
+	"in"		kw
+	"then"		kw
+	"until"		kw
+	"while"		kw
+# I think these are basically keywords too
+	"break"		kw
+	"continue"	kw
+	"return"	kw
+	"eval"		kw
+	"exec"		kw
+	"exit"		kw
+	"test"		kw	# doesn't have to be a shell command
+# variable management
+	"shift"		kw
+	"unset"		kw
+	"export"	kw
+	"readonly"	kw
+# input
+	"read"		kw
+# job control (not likely to be used in scripts)
+	"bg"		kw
+	"fg"		kw
+	"jobs"		kw
+	"suspend"	kw
+# job control (useful in scripts)
+	"kill"		kw
+	"wait"		kw
+# environment control
+	"cd"		kw
+	"chdir"		kw
+	"pwd"		kw
+	"ulimit"	kw
+	"umask"		kw
+# signal handling
+	"trap"		kw
+# misc shell control
+	"hash"		kw
+	"type"		kw
+	"times"		kw
+	"set"		kw
+# shell builtins
+	"echo"		kw
+	"getopts"	kw
+	"login"		kw	# not bash (logout is)
+	"newgrp"	kw	# not in bash
+	"stop"		kw	# not in bash (suspends a process)
+# additional ksh builtins
+	"alias"		kw
+	"select"	kw
+	"function"	kw
+	"command"	kw
+	"fc"		kw
+	"let"		kw
+	"print"		kw
+	"unalias"	kw
+	"whence"	kw
+	"history"	kw
+	"time"		kw
+	"typeset"	kw
+	"local"		kw
+# additional bash builtins
+	"source"	kw
+	"bind"		kw
+	"builtin"	kw
+	"compgen"	kw
+	"complete"	kw
+	"declare"	kw
+	"dirs"		kw
+	"disown"	kw
+	"enable"	kw
+	"help"		kw
+	"logout"	kw
+	"popd"		kw
+	"printf"	kw
+	"pushd"		kw
+	"shopt"		kw
+	"Finclude" kw
+	"build" kw
+	"check_option" kw
+	"CMake_build" kw
+	"CMake_conf" kw
+	"CMake_install" kw
+	"CMake_make" kw
+	"CMake_prepare_build" kw
+	"CMake_setup" kw
+	"Facu" kw
+	"Famsn_clean_files" kw
+	"Fant" kw
+	"Fautoconfize" kw
+	"Fautoreconf" kw
+	"Fbuild" kw
+	"Fbuild_amsn" kw
+	"Fbuild_drupal" kw
+	"Fbuild_fonts" kw
+	"Fbuild_gnome_scriptlet" kw
+	"Fbuild_haskell" kw
+	"Fbuild_haskell_regscripts" kw
+	"Fbuildkernel" kw
+	"Fbuild_kernelmod_scriptlet" kw
+	"Fbuild_mono" kw
+	"Fbuildnetsurf" kw
+	"Fbuild_nvidia" kw
+	"Fbuild_nvidia_scriptlet" kw
+	"Fbuild_octave" kw
+	"Fbuild_opensync" kw
+	"Fbuildpear" kw
+	"Fbuildpecl" kw
+	"Fbuild_perl" kw
+	"Fbuildsawfish" kw
+	"Fbuild_slice_scrollkeeper" kw
+	"Fcd" kw
+	"Fcheckkernel" kw
+	"Fcleandestdir" kw
+	"_F_clutter_getver" kw
+	"Fconf" kw
+	"Fconfoptstryset" kw
+	"Fcp" kw
+	"Fcpr" kw
+	"Fcprel" kw
+	"Fcprrel" kw
+	"Fdesktop" kw
+	"Fdesktop2" kw
+	"Fdeststrip" kw
+	"Fdie" kw
+	"Fdirschmod" kw
+	"Fdirschown" kw
+	"Fdoc" kw
+	"Fdocrel" kw
+	"Fexe" kw
+	"Fexec" kw
+	"Fexerel" kw
+	"Fextract" kw
+	"Ffile" kw
+	"Ffilerel" kw
+	"Ffileschmod" kw
+	"Ffileschown" kw
+	"Fgcj" kw
+	"Fgcjshared" kw
+	"Fgenscriptlet" kw
+	"_F_gnome_getver" kw
+	"Fgnustep_build" kw
+	"Fgnustep_init" kw
+	"Ficon" kw
+	"Ficonrel" kw
+	"Finstall" kw
+	"Finstallgem" kw
+	"Finstallrel" kw
+	"Fjar" kw
+	"Fjavacleanup" kw
+	"Fkernel_genscriptlet_hook" kw
+	"Fkernelmod_genscriptlet_hook" kw
+	"Fkernelver_genscriptlet_hook" kw
+	"Flastarchive" kw
+	"Flasttar" kw
+	"Flasttarbz2" kw
+	"Flasttgz" kw
+	"Fln" kw
+	"Fmake" kw
+	"Fmakeinstall" kw
+	"Fman" kw
+	"Fmanrel" kw
+	"Fmessage" kw
+	"Fmkdir" kw
+	"Fmonocleanup" kw
+	"Fmonocompileaot" kw
+	"Fmonoexport" kw
+	"Fmsgfmt" kw
+	"Fmv" kw
+	"Fnant" kw
+	"Fpatch" kw
+	"Fpatchall" kw
+	"Frcd" kw
+	"Frcd2" kw
+	"Freplace" kw
+	"Frm" kw
+	"Fsanitizeversion" kw
+	"Fseamonkeyinstall" kw
+	"Fsed" kw
+	"Fsort" kw
+	"Fsplit" kw
+	"Fsubdestdir" kw
+	"Fsubdestdirinfo" kw
+	"Fsubmv" kw
+	"Ftreecmp" kw
+	"Funpack_makeself" kw
+	"Funpack_scm" kw
+	"Fup2gnubz2" kw
+	"Fup2gnugz" kw
+	"Fuse" kw
+	"Fwcat" kw
+	"Fwrapper" kw
+	"Fxpiinstall" kw
+	"i18n_language_from_locale" kw
+	"i18n_language_from_subtag" kw
+	"i18n_region_from_subtag" kw
+	"i18n_script_from_subtag" kw
+	"KDE_build" kw
+	"KDE_cleanup" kw
+	"KDE_export_flags" kw
+	"KDE_install" kw
+	"KDE_make" kw
+	"KDE_make_split" kw
+	"KDE_project_install" kw
+	"KDE_project_split" kw
+	"KDE_split" kw
+	"mozilla_i18n_foreach_lang" kw
+	"mozilla_i18n_lang_add" kw
+	"mozilla_i18n_lang_describe" kw
+	"mozilla_i18n_lang_fini" kw
+	"mozilla_i18n_lang_install" kw
+	"pkgname" var
+	"pkgver" var
+	"pkgrel" var
+	"pkgdesc" var
+	"pkgdesc_localized" var
+	"url" var
+	"license" var
+	"install" var
+	"up2date" var
+	"source" var
+	"sha1sums" var
+	"signatures" var
+	"groups" var
+	"archs" var
+	"backup" var
+	"depends" var
+	"makedepends" var
+	"rodepends" var
+	"conflicts" var
+	"provides" var
+	"removes" var
+	"replaces" var
+	"options" var
+	"subpkgs" var
+	"subdescs" var
+	"subdescs_localized" var
+	"sublicense" var
+	"subreplaces" var
+	"subgroups" var
+	"subdepends" var
+	"subrodepends" var
+	"subremoves" var
+	"subconflicts" var
+	"subprovides" var
+	"subbackup" var
+	"subinstall" var
+	"suboptions" var
+	"subarchs" var
+	"_F_amsn_clean_files" var
+	"_F_amsn_name" var
+	"_F_archive_grep" var
+	"_F_archive_grepv" var
+	"_F_archive_name" var
+	"_F_archive_nolinksonly" var
+	"_F_archive_nosort" var
+	"_F_archive_prefix" var
+	"Farchs" var
+	"_F_aspell_lang" var
+	"_F_aspell_noverstrip" var
+	"_F_aspell_ver" var
+	"_F_berlios_dirname" var
+	"_F_berlios_name" var
+	"_F_cd_path" var
+	"_F_clutter_name" var
+	"_F_cmake_color" var
+	"_F_cmake_confopts" var
+	"_F_cmake_in_source_build" var
+	"_F_cmake_rpath" var
+	"_F_cmake_src" var
+	"_F_cmake_type" var
+	"_F_cmake_verbose" var
+	"_F_compiz_name" var
+	"_F_desktop_categories" var
+	"_F_desktop_filename" var
+	"_F_desktop_name" var
+	"_F_drupal_dev" var
+	"_F_drupal_module" var
+	"_F_drupal_ver" var
+	"_F_e17_name" var
+	"_F_emul_arch" var
+	"_F_emul_name" var
+	"_F_extract_taropts" var
+	"_F_firefox_name" var
+	"_F_gem_name" var
+	"_F_genscriptlet_install" var
+	"_F_gnome_iconcache" var
+	"_F_gnome_name" var
+	"_F_gnome_schemas" var
+	"_F_gnustep_category" var
+	"_F_gnustep_name" var
+	"_F_googlecode_dirname" var
+	"_F_googlecode_name" var
+	"_F_haskell_confopts" var
+	"_F_haskell_ext" var
+	"_F_haskell_install" var
+	"_F_haskell_name" var
+	"_F_haskell_prefix" var
+	"_F_haskell_register_dir" var
+	"_F_haskell_sep" var
+	"_F_haskell_setup" var
+	"_F_java_cflags" var
+	"_F_javacleanup_opts" var
+	"_F_java_compiler" var
+	"_F_java_ldflags" var
+	"_F_java_no_gcj" var
+	"_F_kde_defaults" var
+	"_F_kde_dirname" var
+	"_F_kde_final" var
+	"_F_kde_id2" var
+	"_F_kde_name" var
+	"_F_kde_subpkgs_custom_path" var
+	"_F_kde_unstable" var
+	"_F_kernel_dontfakeversion" var
+	"_F_kernelmod_name" var
+	"_F_kernelmod_uname" var
+	"_F_kernel_name" var
+	"_F_kernel_patches" var
+	"_F_kernel_path" var
+	"_F_kernel_stable" var
+	"_F_kernel_uname" var
+	"_F_kernelver_stable" var
+	"Flocalstatedir" var
+	"Fmandir" var
+	"_F_mono_aot" var
+	"_F_mozilla_i18n_dirname" var
+	"_F_mozilla_i18n_mirror" var
+	"_F_mozilla_i18n_name" var
+	"_F_mozilla_i18n_xpidirname" var
+	"_F_netsurf_name" var
+	"_F_nvidia_arch" var
+	"_F_nvidia_install" var
+	"_F_nvidia_legacyver" var
+	"_F_nvidia_linkver" var
+	"_F_nvidia_name" var
+	"_F_nvidia_opencl_linkver" var
+	"_F_nvidia_pkgnum" var
+	"F_nvidia_pkgnum" var
+	"_F_nvidia_up2date" var
+	"_F_pear_name" var
+	"_F_pecl_name" var
+	"_F_perl_author" var
+	"_F_perl_name" var
+	"_F_perl_no_up2date" var
+	"_F_perl_sourcename" var
+	"_F_rcd_name" var
+	"_F_sawfish_file" var
+	"_F_sawfish_name" var
+	"_F_scm_password" var
+	"_F_scm_tag" var
+	"_F_scm_tag2" var
+	"_F_seamonkey_ext" var
+	"_F_seamonkey_name" var
+	"_F_seamonkey_up2date_url" var
+	"_F_sourceforge_dirname" var
+	"_F_sourceforge_name" var
+	"_F_sourceforge_realname" var
+	"_F_vim_lang" var
+	"_F_xfce_name" var
+	"_F_xorg_name" var
+	"_F_xorg_release_dir" var
+done
+	"a-zA-Z0-9_"	ident
+
+:kw Keyword
+	*	idle	noeat
+
+:var Var
+	*       idle    noeat

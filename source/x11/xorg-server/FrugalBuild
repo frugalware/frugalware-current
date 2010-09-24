@@ -4,19 +4,19 @@
 USE_DEVEL=${USE_DEVEL:-"n"}
 USE_DGA=${USE_DGA:-"y"}
 USE_KDRIVE=${USE_KDRIVE:-"y"}
-USE_UDEV=${USE_UDEV:-"n"}
+USE_UDEV=${USE_UDEV:-"y"}
 USE_SERVERDMX=${USE_SERVERDMX:-"y"}
 USE_MULTIBUFFER=${USE_MULTIBUFFER:-"n"}
 
 pkgname=xorg-server
-pkgver=1.8.1
-pkgrel=1
+pkgver=1.8.2
+pkgrel=12
 pkgdesc="Modular X.Org X Server"
 groups=('x11' 'xorg-core')
 archs=('i686' 'x86_64' 'ppc')
 depends=('libxfont>=1.4.0' 'libx11>=1.3' 'xtrans>=1.2.3' 'libxau>=1.0.5' \
 	'libxext>=1.0.99.4-1' 'libxkbfile>=1.0.5' 'libxdmcp>=1.0.2-2' 'libxmu>=1.0.4-2' 'libxrender>=0.9.4-3' \
-	'libxi>=1.2.1' 'freetype2' 'mesa>=7.8' 'font-cursor-misc>=1.0.0-3' 'font-misc-misc>=1.0.0-3' \
+	'libxi>=1.2.1' 'freetype2' 'libgl>=7.8.2' 'font-cursor-misc>=1.0.0-3' 'font-misc-misc>=1.0.0-3' \
 	'xbitmaps' 'xkeyboard-config>=1.6' 'iceauth>=1.0.2-3' 'rgb>=1.0.3' 'xauth>=1.0.3' 'xinit>=1.1.1' 'libxaw>=1.0.5' \
 	'libxpm>=3.5.7-2' 'libxxf86misc>=1.0.1-3' 'libxxf86vm>=1.0.1-3' 'libxkbui>=1.0.2-2' \
 	'xorg-cf-files' 'libxtst>=1.0.3-3' 'font-alias' 'libxcb>=1.4' 'pixman>=0.15.8' 'libpciaccess>=0.10.5' 'libxv>=1.0.4')
@@ -25,20 +25,24 @@ makedepends=('randrproto>=1.3.0' 'renderproto>=0.9.3' 'fixesproto' 'damageproto>
 	'compositeproto>=0.4' 'recordproto' 'resourceproto' 'videoproto>=2.2.2' 'scrnsaverproto' 'evieext' \
 	'trapproto' 'xineramaproto' 'fontsproto' 'kbproto' 'inputproto>=1.5' 'bigreqsproto' 'xcmiscproto' \
 	'glproto' 'xf86driproto>=2.0.4' 'libdrm>=2.4.11' 'printproto>=1.0.4' 'mkfontdir>=1.0.4' 'mkfontscale>=1.0.6-1' \
-	'fontcacheproto' 'xorg-sgml-doctools>=1.4' 'util-macros>=1.8.0' 'calibrateproto' 'libdmx>=1.0.2-3' 'libxres>=1.0.3-3' 'sdl' 'libxinerama>=1.0.3' 'bigreqsproto' 'font-util')
+	'fontcacheproto' 'xorg-sgml-doctools>=1.4' 'util-macros>=1.8.0' 'calibrateproto' 'libdmx>=1.0.2-3' 'libxres>=1.0.3-3' 'sdl' 'libxinerama>=1.0.3' 'bigreqsproto' 'font-util' 'dri2proto' 'libgl-headers-mesa')
 rodepends=('libdri' 'libglx' 'xf86-input-mouse' 'xf86-input-keyboard' 'xf86-video-vesa')
 provides=('xorg-server-smi' 'xorg-server-vesa' 'xorg-server-via' 'lbxproxy' 'proxymngr')
 
 replaces=('xorg-server-smi' 'xorg-server-vesa' 'xorg-server-via' 'lbxproxy' 'proxymngr' \
 	'liblbxutil' 'xgl' 'xorg-server-sdl')
 
-backup=('etc/sysconfig/desktop')
+backup=('etc/sysconfig/desktop' 'etc/X11/xorg.conf.d/10-evdev.conf' \
+	'etc/X11/xorg.conf.d/20-synaptics.conf' 'etc/X11/xorg.conf.d/20-graphical.conf')
 Finclude sourceforge xorg
 source=(${source[@]} \
-	desktop)
+	desktop 10-evdev.conf 20-synaptics.conf 20-graphical.conf)
 
-sha1sums=('cba0d3b3d28696609a1f9b110d4d129cd066e133' \
-          '676c8ad10a362615ae54de825e37c18c1f69ae08')
+sha1sums=('825d11757b729444800e0a3afd4e98d19d286b1a' \
+          '905cc57547421ff3ca77ec1c8e6898a7a414346f' \
+          '9318b631eb06833bea18d5a5efd15df89ad5d12a' \
+          '6c0156d129ddd2fb5277b76af1738298c2d09d4d' \
+          '4c3d5e855c931a41de4fb7738ffa1523c789b5a2')
 
 if Fuse $USE_DEVEL; then
 	pkgver=1.6.3.901.151.g120286a
@@ -74,7 +78,7 @@ if Fuse $USE_UDEV; then
       	depends=(${depends[@]} 'dbus' 'udev')
 	rodepends=(${rodepends[@]} 'xf86-input-evdev')
 	Fconfopts="${Fconfopts[@]} \
-		--enable-config-dbus \
+		--disable-config-dbus \
 		--disable-config-hal \
 		--enable-config-udev"
 else
@@ -127,7 +131,7 @@ if Fuse $USE_SERVERDMX; then
 	else
 		Fconfopts="${Fconfopts[@]} --disable-multibuffer"
 	fi
-		
+
 else
 	Fconfopts="${Fconfopts[@]}
 		--disable-dmx \
@@ -182,6 +186,10 @@ build() {
 		## -fbdev
 		Fsplit $pkgname-fbdev usr/bin/Xfbdev
 	fi
+	Fmkdir etc/X11/xorg.conf.d
+	Fcp 10-evdev.conf etc/X11/xorg.conf.d/
+	Fcp 20-synaptics.conf etc/X11/xorg.conf.d/
+	Fcp 20-graphical.conf etc/X11/xorg.conf.d/
 }
 
 # optimization OK

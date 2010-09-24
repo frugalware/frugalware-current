@@ -56,8 +56,8 @@ options=(${options[@]} 'nostrip')
 ###
 build()
 {
-        mkdir $Fsrcdir/tmp || return 1
-        tar xf $_F_emul_name-$_F_emul_ver-$_F_emul_arch.fpm -C tmp || return 1
+        mkdir -p $Fsrcdir/tmp || return 1
+       	bsdtar xf $_F_emul_name-$_F_emul_ver-$_F_emul_arch.fpm -C tmp || return 1
         Fmkdir /usr/lib/chroot32
         cp -av tmp/* $Fdestdir/usr/lib/chroot32 || return 1
 	Frm /usr/share/{doc,man}

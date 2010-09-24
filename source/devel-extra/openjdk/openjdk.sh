@@ -1,4 +1,4 @@
-export OPENJDKDIR=/usr/lib/java
+export OPENJDKDIR=/usr/lib/jvm/java-6-openjdk
 export MANPATH=$MANPATH:$OPENJDKDIR/man
 export CLASSPATH=$CLASSPATH:$OPENJDKDIR/lib
 

@@ -95,7 +95,7 @@ elif [ "$_F_scm_type" == "mercurial" ]; then
 	up2date="date +%Y%m%d%H%M%S --date '`lynx -dump $_F_scm_url/?style=rss|grep pubDate|sed 's/.*>\(.*\)<.*/\1/;q'`'"
 	makedepends=(${makedepends[@]} 'mercurial')
 elif [ "$_F_scm_type" == "bzr" ]; then
-	up2date="bzr log -r revno:-1 $_F_scm_url|grep ^revno|sed 's/revno: /bzr/'"
+	up2date="echo -n ${pkgver%%.bzr*}.bzr;bzr revno $_F_scm_url"
 	makedepends=(${makedepends[@]} 'bzr')
 fi
 

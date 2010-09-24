@@ -1,0 +1,97 @@
+# Compiling Time: 0.73 SBU
+# Maintainer: Devil505 <devil505linux@gmail.com>
+
+pkgname=worldofpadman
+pkgver=1.2
+pkgrel=1
+pkgdesc="Cartoon-style multiplayer first-person shooter"
+url="http://www.worldofpadman.com/"
+license=('custom')
+depends=('curl' 'libogg' 'libvorbis' 'mesa' 'openal' 'sdl')
+groups=('games-extra')
+archs=('i686')
+up2date=$pkgver
+options=('nobuild')
+source=(ftp://ftp.snt.utwente.nl/pub/games/worldofpadman/linux/worldofpadman.run
+        ftp://ftp.snt.utwente.nl/pub/games/worldofpadman/wop_padpack.zip
+        'http://wop-engine.svn.sourceforge.net/viewvc/wop-engine/tags/patch1_2(released071206)_nonWindows.tar.gz?view=tar'
+        ftp://ftp.snt.utwente.nl/pub/games/worldofpadman/linux/wop_patch_1_2.run)
+sha1sums=('cd6e37bf6148fbd7a2f1553d6c52bd9aa7c6193f' \
+          '75b55fd5c32a018893a9e09d5460630d4c550fd4' \
+          '30d6fc5e45e67bb2665cee58b9c85ba8e5430d0f' \
+          '7dbbbd6576b39f234ff46a927713c7a6c2c9c807')
+
+
+_F_desktop_name="World of Padman"
+_F_desktop_icon="wop.png"
+_F_desktop_categories="Game;ActionGame;"
+
+_gamedir="/usr/share/${pkgname}"
+
+build() {
+  cd $Fsrcdir || Fdie
+
+  # Based on http://sources.gentoo.org/viewcvs.py/gentoo-x86/eclass/eutils.eclass
+  for _f in {worldofpadman,wop_patch_1_2}.run ; do
+    _skip_lines=$(grep -a offset=.*head.*wc $_f | awk '{print $3}' | head -n 1)
+    _skip_chars=$(head -n ${_skip_lines} $_f | wc -c)
+    dd ibs=${_skip_chars} skip=1 obs=1024 conv=sync if=$_f | tar --no-same-owner -xzf - || return 1
+  done
+
+  tar -xf readme.tar || Fdie
+
+  mkdir wop
+  cd wop
+  tar -xf ../wop-data.tar || Fdie
+  tar -xf ../wop-data-${pkgver}.tar || Fdie
+  tar -xf ../extras.tar || Fdie
+  unzip -qo ../wop_padpack.zip || Fdie
+  mv PadPack.txt ..
+
+  ## wop-engine
+  cd $Fsrcdir || Fdie
+  if [ ! -d wop-engine-${pkgver} ]; then
+      tar xfz 'patch1_2(released071206)_nonWindows.tar.gz?view=tar'
+      mv 'patch1_2(released071206)_nonWindows' wop-engine-${pkgver}
+  fi
+
+  # Compile
+  cd wop-engine-${pkgver}
+  make BUILD_CLIENT=1 BUILD_SERVER=1 DEFAULT_BASEDIR="${_gamedir}" || Fdie
+
+  # Executables
+  cd build/release-* || Fdie
+  Fexerel wop-engine.* usr/bin/${pkgname}
+  Fexerel wopded.* usr/bin/${pkgname}-ded
+
+  # Data
+  cd $Fsrcdir || Fdie
+  # Using "read", so can handle filenames containing spaces
+  find wop -type f | while read _f ; do
+    install -D -m644 "$_f" "$Fdestdir/$_gamedir/$_f" || Fdie
+  done
+  # Return from the function, since install's return just exits the loop
+  # See http://fvue.nl/wiki/Bash:_Error_handling
+  [ $? -gt 0 ] && Fdie
+
+  # Desktop
+  Ficon /wop.png
+  Fdesktop2
+
+  # Docs
+  cd $Fsrcdir || Fdie
+  # Using "read", so can handle filenames containing spaces
+  find readme -type f | while read _f ; do
+    install -D -m644 "$_f" "$Fdestdir/usr/share/doc/$pkgname/$_f" || Fdie
+  done
+  # Return from the function, since install's return just exits the loop
+  # See http://fvue.nl/wiki/Bash:_Error_handling
+  [ $? -gt 0 ] && Fdie
+
+  Fdoc PadPack.txt
+  Fdoc readme.html
+  Fdoc wop_patch_*.txt
+
+  # License
+  Fdoc /copyright_en.txt
+}

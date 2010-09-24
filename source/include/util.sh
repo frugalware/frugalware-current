@@ -548,59 +548,7 @@ Freplace() {
 Fdeststrip() {
 	local i
 	for i in "$@"; do
-		Fsed "$Fdestdir" "" "$Fdestdir"/$i # expand $i if possible
-	done
-}
-
-###
-# * Ftreecmp(): Compare 2 tree and do an action on a compare result. Parameters:
-# 1) Fist tree 2) Second tree 3) Action to perform on compared item. The item
-# is an inode item (relative to both tree) prefixed with '-', '=' or '+'
-# depending if it deleted, still present or added in the comparison from the
-# first tree to the second tree.
-###
-Ftreecmp() {
-	local line old=$(mktemp) new=$(mktemp)
-	if [ ! -d "$1" -o ! -d "$2" ]; then
-		Fmessage "$1 or $2 is not a directory"
-		Fdie
-	fi
-	if [ -z "$3" ]; then
-		Fmessage "Comparison function is empty"
-		Fdie
-	fi
-	(cd "$1" && find $_F_treecmp_findopts | sort) > $old
-	(cd "$2" && find $_F_treecmp_findopts | sort) > $new
-	diff --new-line-format='+%L' --old-line-format='-%L' \
-		--unchanged-line-format='=%L' $old $new \
-	| while read line
-	do
-		$3 $line
-	done
-	rm $old $new
-}
-
-###
-# * __Ftreecmp_cleandestdir: Internal
-###
-__Ftreecmp_cleandestdir() {
-	case "$1" in
-	=*)	Frm "${1//=/}" ;;
-	esac
-}
-
-###
-# * Fcleandestdir(): Clean the $Fdestdir from subpackages files, to make
-# them conflict less. Parameters: The subpackages to use.
-###
-Fcleandestdir() {
-	local i subdestdir
-	for i in "$@"
-	do
-		Fmessage "Removing conflicting files with $i subpackage."
-		subdestdir="`Fsubdestdir "$i"`"
-		_F_treecmp_findopts='! -type d' \
-		Ftreecmp "$Fdestdir" "$subdestdir" __Ftreecmp_cleandestdir
+		Fsed "$Fdestdir" "" "$Fdestdir/$i"
 	done
 }
 
@@ -796,7 +744,8 @@ Fnant() {
 Fmakeinstall() {
 	Fmessage "Installing to the package directory..."
 	if [ -f GNUmakefile -o -f makefile -o -f Makefile ]; then
-		if grep -q DESTDIR GNUmakefile makefile Makefile 2>/dev/null; then
+		if make -p -q DESTDIR="$Fdestdir" "$@" install 2>/dev/null | grep -v 'DESTDIR\s*=' | \
+			grep -q "$Fdestdir\\|\$DESTDIR\\|\$(DESTDIR)\\|\${DESTDIR}" 2>/dev/null; then
 			Fexec make DESTDIR="$Fdestdir" "$@" install || Fdie
 		else
 			Fexec make prefix="$Fdestdir"/"$Fprefix" "$@" install || Fdie
@@ -1114,10 +1063,10 @@ Flastarchive() {
 		Fwcat "$1" | eval "$lynx -stdin $filter" | Flastarchive "$2"
 	else
 		if [ -z "$_F_archive_nosort" ]; then
-			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" \
+			sed -n "s:.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*:\1:p" \
 				| Fsort | tail -n1 | Fsanitizeversion
 		else
-			sed -n "s/.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*/\1/p" \
+			sed -n "s:.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*:\1:p" \
 				| tail -n1 | Fsanitizeversion
 		fi
 	fi
@@ -1377,10 +1326,10 @@ Fextract() {
 	file="${1}"
 	tmp="$(echo "${file}" | tr 'A-Z' 'a-z')"
 	case "${tmp}" in
-		*.tar.gz|*.tar.z|*.tgz)
-		cmd="tar $_F_extract_taropts --use-compress-program=gzip -xf $file" ;;
 		*.tar.bz2|*.tbz2)
 		cmd="tar $_F_extract_taropts --use-compress-program=bzip2 -xf $file" ;;
+		*.tar.gz|*.tar.z|*.tgz)
+		cmd="tar $_F_extract_taropts --use-compress-program=gzip -xf $file" ;;
 		*.tar.lzma)
 		cmd="tar $_F_extract_taropts --use-compress-program=lzma -xf $file" ;;
 		*.tar.xz)

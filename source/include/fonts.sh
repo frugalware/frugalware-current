@@ -35,7 +35,7 @@ if [ -z "$_F_fonts_subdir" ]; then
   Fdie
 fi
 
-_F_fonts_dir="/usr/lib/X11/fonts/$_F_fonts_subdir"
+_F_fonts_dir="/usr/share/fonts/X11/$_F_fonts_subdir"
 
 ###
 # == OVERWRITTEN VARIABLES
@@ -61,27 +61,27 @@ options=(${options[@]} 'genscriptlet')
 ###
 Fbuild_fonts() {
 
-  # find and install all font extensions we support
-  for i in `find -iregex '.*\.\(spd\|bdf\|ttf\|otf\|pcf\|pcf.gz\|afm\|pfa\)'`; do
-    Ffile "$i" "$_F_fonts_dir/`basename $i`"
-  done
+	# find and install all font extensions we support
+	for i in `find -iregex '.*\.\(spd\|bdf\|ttf\|otf\|pcf\|pcf.gz\|afm\|pfa\)'`; do
+		Ffile "$i" "$_F_fonts_dir/`basename $i`"
+	done
 
-  # find any BDF fonts and convert them
-  for i in `find "$Fdestdir" -name "*.bdf"`; do
-    Fmessage "Converting BDF font to PCF font: $i"
-    bdftopcf -t "$i" -o "${i/bdf/pcf}" || Fdie
-    rm -f "$i" || Fdie
-  done
+	# find any BDF fonts and convert them
+	for i in `find "$Fdestdir" -name "*.bdf"`; do
+    		Fmessage "Converting BDF font to PCF font: $i"
+    		bdftopcf -t "$i" -o "${i/bdf/pcf}" || Fdie
+		rm -f "$i" || Fdie
+	done
 
-  # find any uncompressed PCF fonts and compress them
-  for i in `find "$Fdestdir" -name "*.pcf"`; do
-    Fmessage "Compressing PCF font: $i"
-    gzip -9 "$i" || Fdie
-  done
+	# find any uncompressed PCF fonts and compress them
+	for i in `find "$Fdestdir" -name "*.pcf"`; do
+		Fmessage "Compressing PCF font: $i"
+		gzip -9 "$i" || Fdie
+	done
 
-  # generate the install script
-  cp "$Fincdir/fonts.install" "$Fsrcdir" || Fdie
-  Fsed '$_F_fonts_dir' "$_F_fonts_dir" "$Fsrcdir/fonts.install"
+	# generate the install script
+	cp "$Fincdir/fonts.install" "$Fsrcdir" || Fdie
+	Fsed '$_F_fonts_dir' "$_F_fonts_dir" "$Fsrcdir/fonts.install"
 
 }
 

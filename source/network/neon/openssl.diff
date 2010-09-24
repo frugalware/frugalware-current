@@ -1,0 +1,62 @@
+Modified: neon/trunk/macros/neon.m4
+==============================================================================
+--- neon/macros/neon.m4	(original)
++++ neon/macros/neon.m4	Sat Sep 12 13:03:49 2009
+@@ -923,7 +923,7 @@
+    if test "$ne_cv_lib_ssl097" = "yes"; then
+       AC_MSG_NOTICE([OpenSSL >= 0.9.7; EGD support not needed in neon])
+       NE_ENABLE_SUPPORT(SSL, [SSL support enabled, using OpenSSL (0.9.7 or later)])
+-      NE_CHECK_FUNCS(CRYPTO_set_idptr_callback)
++      NE_CHECK_FUNCS(CRYPTO_set_idptr_callback SSL_SESSION_cmp)
+    else
+       # Fail if OpenSSL is older than 0.9.6
+       NE_CHECK_OPENSSLVER(ne_cv_lib_ssl096, 0.9.6, 0x00906000L)
+
+Modified: neon/trunk/src/ne_openssl.c
+==============================================================================
+--- neon/src/ne_openssl.c	(original)
++++ neon/src/ne_openssl.c	Sat Sep 12 13:03:49 2009
+@@ -34,6 +34,7 @@
+ #include <openssl/pkcs12.h>
+ #include <openssl/x509v3.h>
+ #include <openssl/rand.h>
++#include <openssl/opensslv.h>
+ 
+ #ifdef NE_HAVE_TS_SSL
+ #include <stdlib.h> /* for abort() */
+@@ -632,6 +633,19 @@
+     ne_free(ctx);
+ }
+ 
++#if !defined(HAVE_SSL_SESSION_CMP) && !defined(SSL_SESSION_cmp) \
++    && defined(OPENSSL_VERSION_NUMBER) \
++    && OPENSSL_VERSION_NUMBER > 0x10000000L
++/* OpenSSL 1.0 removed SSL_SESSION_cmp for no apparent reason - hoping
++ * it is reasonable to assume that comparing the session IDs is
++ * sufficient. */
++static int SSL_SESSION_cmp(SSL_SESSION *a, SSL_SESSION *b)
++{
++    return a->session_id_length == b->session_id_length
++        && memcmp(a->session_id, b->session_id, a->session_id_length) == 0;
++}
++#endif
++
+ /* For internal use only. */
+ int ne__negotiate_ssl(ne_session *sess)
+ {
+
+Modified: neon/trunk/src/ne_socket.c
+==============================================================================
+--- neon/src/ne_socket.c	(original)
++++ neon/src/ne_socket.c	Sat Sep 12 13:03:49 2009
+@@ -1639,6 +1639,10 @@
+     if (ret != 1) {
+         return error_ossl(sock, ret);
+     }
++
++    if (SSL_session_reused(ssl)) {
++        NE_DEBUG(NE_DBG_SSL, "ssl: Server reused session.\n");
++    }
+ #elif defined(HAVE_GNUTLS)
+     gnutls_init(&ssl, GNUTLS_SERVER);
+     gnutls_credentials_set(ssl, GNUTLS_CRD_CERTIFICATE, ctx->cred);

@@ -54,7 +54,7 @@ _F_GNUSTEP_SYSTEM="$_F_GNUSTEP_BASE/System/Library"
 ###
 
 Fprefix="/usr/lib/GNUstep"
-makedepends=('gcc-objc')
+makedepends=('gcc-objc' 'libffi')
 depends=('gnustep-make>=2.2.0' 'libobjc>=4.4.0-6')
 groups=('gnustep-extra')
 url="http://www.gnustep.org/"

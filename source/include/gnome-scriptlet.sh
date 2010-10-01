@@ -118,6 +118,17 @@ Fbuild_gnome_scriptlet()
 			fi
 		done
 	fi
+	if [ -n "$_F_gnone_glib" ]; then
+		for i in "${_F_gnone_glib[@]}"
+		do
+			if [ -z "$str" ]; then
+				str="'$i'\n"
+			else
+				str="$str\t'$i'\n"
+			fi
+		done
+	fi
+	Fsed '$_F_gnone_glib' "$str" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 	Fsed '$_F_gnome_entries' "$str" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 	Fsed '$_F_gnome_desktop' "$_F_gnome_desktop" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 	Fsed '$_F_gnome_scrollkeeper' "$_F_gnome_scrollkeeper" ${Fsrcdir%/src}/$_F_gnome_scriptlet

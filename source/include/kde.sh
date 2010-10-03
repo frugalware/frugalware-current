@@ -4,8 +4,7 @@ Finclude cmake
 
 ###
 # = kde.sh(3)
-# Gabriel Craciunescu <crazy@frugalware.org>
-# Michel Hermier <hermier@frugalware.org>
+# Gabriel Craciunescu <crazy@frugalware.org> and Michel Hermier <hermier@frugalware.org>
 #
 # == NAME
 # kde.sh - for Frugalware

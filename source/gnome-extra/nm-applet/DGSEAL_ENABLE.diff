@@ -1,0 +1,96 @@
+From 0e85376c5e7512225023918461881cb13aea22f3 Mon Sep 17 00:00:00 2001
+From: Mirsal Ennaime <mirsal.ennaime@gmail.com>
+Date: Mon, 02 Aug 2010 22:19:35 +0000
+Subject: applet: fix compilation with -DGSEAL_ENABLE (bgo #615653)
+
+This patch substitutes all direct access to Gtk+ object fields
+with accessor functions in order to fulfill the UseGseal goal
+as described at http://live.gnome.org/GnomeGoals/UseGseal
+
+It also requires to bump the required Gtk+ version to 2.18
+---
+diff --git a/configure.ac b/configure.ac
+index 5871561..e11aa21 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -72,7 +72,7 @@ PKG_CHECK_MODULES(NMA,
+ 		 libnm-glib >= 0.8.1
+ 		 libnm-util >= 0.8.1
+ 		 libnm-glib-vpn >= 0.8.1
+-		 gtk+-2.0 >= 2.14
++		 gtk+-2.0 >= 2.18
+ 		 libglade-2.0
+ 		 gmodule-export-2.0
+ 		 gconf-2.0
+diff --git a/src/applet.c b/src/applet.c
+index 2734045..d7ab47f 100644
+--- a/src/applet.c
++++ b/src/applet.c
+@@ -482,6 +482,7 @@ applet_new_menu_item_helper (NMConnection *connection,
+ static gboolean
+ menu_title_item_expose (GtkWidget *widget, GdkEventExpose *event)
+ {
++	GtkAllocation allocation;
+ 	GtkStyle *style;
+ 	GtkWidget *label;
+ 	PangoFontDescription *desc;
+@@ -509,7 +510,8 @@ menu_title_item_expose (GtkWidget *widget, GdkEventExpose *event)
+ 	/* We also need to reposition the cairo context so that (0, 0) is the
+ 	 * top-left of where we're supposed to start drawing.
+ 	 */
+-	cairo_translate (cr, widget->allocation.x, widget->allocation.y);
++	gtk_widget_get_allocation (widget, &allocation);
++	cairo_translate (cr, allocation.x, allocation.y);
+ 
+ 	text = gtk_label_get_text (GTK_LABEL (label));
+ 
+diff --git a/src/utils/nma-bling-spinner.c b/src/utils/nma-bling-spinner.c
+index 5522046..ceecaf8 100644
+--- a/src/utils/nma-bling-spinner.c
++++ b/src/utils/nma-bling-spinner.c
+@@ -71,26 +71,23 @@ draw (GtkWidget *widget, cairo_t *cr)
+ 	double radius;
+ 	double half;
+ 	int i;
+-	int width, height;
+ 
++	GtkAllocation allocation;
+ 	NmaBlingSpinnerPrivate *priv;
+ 
+ 	priv = NMA_BLING_SPINNER_GET_PRIVATE (widget);
+ 
+ 	cairo_set_operator (cr, CAIRO_OPERATOR_OVER);
+ 
+-	width = widget->allocation.width;
+-	height = widget->allocation.height;
+-
+-	if ( (width < 12) || (height <12) )
++	gtk_widget_get_allocation (widget, &allocation);
++	if ((allocation.width < 12) || (allocation.height < 12))
+ 		gtk_widget_set_size_request(widget, 12, 12);
+ 
+-	//x = widget->allocation.x + widget->allocation.width / 2;
+-	//y = widget->allocation.y + widget->allocation.height / 2;
+-	x = widget->allocation.width / 2;
+-	y = widget->allocation.height / 2;
+-	radius = MIN (widget->allocation.width	/ 2,
+-				  widget->allocation.height / 2);
++	//x = allocation.x + allocation.width / 2;
++	//y = allocation.y + allocation.height / 2;
++	x = allocation.width / 2;
++	y = allocation.height / 2;
++	radius = MIN (allocation.width / 2, allocation.height / 2);
+ 	half = priv->lines / 2;
+ 
+ 	/*FIXME: render in B&W for non transparency */
+@@ -154,7 +151,7 @@ nma_bling_spinner_init (NmaBlingSpinner *spinner)
+ 	priv->current = 0;
+ 	priv->timeout = 0;
+ 
+-	GTK_WIDGET_SET_FLAGS (GTK_WIDGET (spinner), GTK_NO_WINDOW);
++	gtk_widget_set_has_window (GTK_WIDGET (spinner), FALSE);
+ }
+ 
+ static gboolean
+--
+cgit v0.8.3.1

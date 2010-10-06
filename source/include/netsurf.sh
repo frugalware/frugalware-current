@@ -54,7 +54,11 @@ archs=('i686' 'x86_64' 'ppc')
 ###
 
 Fbuildnetsurf() {
-	Fcd
+	if [ "$_F_netsurf_project" -eq 1 ]; then
+		Fsed "-O2" "$CFLAGS" build/makefiles/Makefile.gcc
+	else
+		Fsed "-O2" "$CFLAGS" Makefile.defaults
+	fi
 	make PREFIX=/usr || Fdie
 	make PREFIX=/usr DESTDIR="$Fdestdir" install || Fdie
 }

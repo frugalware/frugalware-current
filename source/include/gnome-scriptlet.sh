@@ -36,6 +36,7 @@
 #
 # == OPTIONS
 # * _F_gnome_schemas() - if declared, gconf will be called to register them
+# * _F_gnome_glib() - set to "y" for register schemas glib into /usr/share/glib-2.0/schemas
 # * _F_gnome_entries() - same as above except for gconf .entries files
 # * _F_gnome_desktop - set to "y" if your package provides a .desktop file
 # * _F_gnome_scrollkeeper - set to "y" if you want to run rarian
@@ -119,6 +120,7 @@ Fbuild_gnome_scriptlet()
 		done
 	fi
 	Fsed '$_F_gnome_entries' "$str" ${Fsrcdir%/src}/$_F_gnome_scriptlet
+	Fsed '$_F_gnome_glib' "$_F_gnome_glib" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 	Fsed '$_F_gnome_desktop' "$_F_gnome_desktop" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 	Fsed '$_F_gnome_scrollkeeper' "$_F_gnome_scrollkeeper" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 	Fsed '$_F_gnome_mime' "$_F_gnome_mime" ${Fsrcdir%/src}/$_F_gnome_scriptlet

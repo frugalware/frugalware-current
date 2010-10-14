@@ -42,6 +42,10 @@ if [ -z "$_F_gnome_devel" ]; then
 	_F_gnome_devel="n"
 fi
 
+if [ -z "$_F_gnome_git" ]; then
+	_F_gnome_git="n"
+fi
+
 # don't document this function, it's used only for source()
 _F_gnome_getver()
 {
@@ -79,7 +83,15 @@ if [ "$_F_gnome_devel" != "n" ]; then
 else
 	up2date="lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep '[0-9]\.[0-9]*[02468]/'|sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
 fi
-source=(http://ftp.gnome.org/pub/gnome/sources/$_F_gnome_name/`_F_gnome_getver`/$_F_gnome_name-$pkgver.tar.bz2)
+
+if [ "$_F_gnome_git" != "n" ]; then
+	makedepends=(${makedepends[@]} 'git')
+	Finclude scm
+	_F_scm_type="git"
+	_F_scm_url="git://git.gnome.org/$_F_gnome_name"
+else
+	source=(http://ftp.gnome.org/pub/gnome/sources/$_F_gnome_name/`_F_gnome_getver`/$_F_gnome_name-$pkgver.tar.bz2)
+fi
 url="http://www.gnome.org/"
 
 ###

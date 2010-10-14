@@ -85,7 +85,7 @@ else
 fi
 
 if [ "$_F_gnome_git" != "n" ]; then
-	makedepends=(${makedepends[@]} 'git')
+	makedepends=(${makedepends[@]} 'git' 'gnome-common')
 	Finclude scm
 	_F_scm_type="git"
 	_F_scm_url="git://git.gnome.org/$_F_gnome_name"

@@ -1,0 +1,267 @@
+#!/bin/bash
+
+# (c) 2010 Miklos Vajna <vmiklos@frugalware.org>
+# (c) 2010 Jiri Denemark <jdenemar@redhat.com>
+# rc.libvirt-guests for Frugalware
+# distributed under GPL License
+
+# chkconfig: 345 99 01
+# description:  This is a script for suspending active libvirt guests \
+#               on shutdown and resuming them on next boot \
+#               See http://libvirt.org
+
+source /lib/initscripts/functions
+TEXTDOMAIN=libvirt-guests
+TEXTDOMAINDIR=/lib/initscripts/messages
+
+actions=(restart start status stop)
+
+sysconfdir=/etc
+localstatedir=/var
+libvirtd=/usr/sbin/libvirtd
+
+URIS=default
+ON_BOOT=start
+ON_SHUTDOWN=suspend
+SHUTDOWN_TIMEOUT=0
+
+test -f "$sysconfdir"/sysconfig/libvirt-guests && . "$sysconfdir"/sysconfig/libvirt-guests
+
+LISTFILE="$localstatedir"/lib/libvirt/libvirt-guests
+VAR_SUBSYS_LIBVIRT_GUESTS="$localstatedir"/lock/subsys/libvirt-guests
+
+pid="test -e $VAR_SUBSYS_LIBVIRT_GUESTS && echo t"
+
+RETVAL=0
+
+retval() {
+    "$@"
+    if [ $? -ne 0 ]; then
+        RETVAL=1
+        return 1
+    else
+        return 0
+    fi
+}
+
+run_virsh() {
+    uri=$1
+    shift
+
+    if [ "x$uri" = xdefault ]; then
+        conn=
+    else
+        conn="-c $uri"
+    fi
+
+    virsh $conn "$@" </dev/null
+}
+
+run_virsh_c() {
+    ( export LC_ALL=C; run_virsh "$@" )
+}
+
+list_guests() {
+    uri=$1
+
+    list=$(run_virsh_c $uri list)
+    if [ $? -ne 0 ]; then
+        RETVAL=1
+        return 1
+    fi
+
+    uuids=
+    for id in $(echo "$list" | awk 'NR > 2 {print $1}'); do
+        uuid=$(run_virsh_c $uri dominfo $id | awk '/^UUID:/{print $2}')
+        if [ -z "$uuid" ]; then
+            RETVAL=1
+            return 1
+        fi
+        uuids="$uuids $uuid"
+    done
+
+    echo $uuids
+}
+
+guest_name() {
+    uri=$1
+    uuid=$2
+
+    name=$(run_virsh_c $uri dominfo $uuid 2>/dev/null | \
+           awk '/^Name:/{print $2}')
+    [ -n "$name" ] || name=$uuid
+
+    echo "$name"
+}
+
+guest_is_on() {
+    uri=$1
+    uuid=$2
+
+    guest_running=false
+    info=$(run_virsh_c $uri dominfo $uuid)
+    if [ $? -ne 0 ]; then
+        RETVAL=1
+        return 1
+    fi
+
+    id=$(echo "$info" | awk '/^Id:/{print $2}')
+
+    [ -n "$id" ] && [ "x$id" != x- ] && guest_running=true
+    return 0
+}
+
+started() {
+    touch "$VAR_SUBSYS_LIBVIRT_GUESTS"
+}
+
+rc_start() {
+
+	if [ ! -f "$LISTFILE" ]; then
+		msg $"Guests are already running"
+		started
+		ok 999
+		return 0
+	fi
+
+    if [ "x$ON_BOOT" != xstart ]; then
+        msg $"libvirt-guests is configured not to start any guests on boot"
+        rm -f "$LISTFILE"
+        started
+	ok 999
+        return 0
+    fi
+
+    while read uri list; do
+        configured=false
+        for confuri in $URIS; do
+            if [ $confuri = $uri ]; then
+                configured=true
+                break
+            fi
+        done
+        if ! $configured; then
+            msg $"Ignoring guests on $uri URI"
+            continue
+        fi
+
+        for guest in $list; do
+            name=$(guest_name $uri $guest)
+            msg $"Resuming guest $name: "
+            if guest_is_on $uri $guest; then
+                if $guest_running; then
+                    echo $"already active"
+		    ok 999
+                else
+                    retval run_virsh $uri start "$name" >/dev/null
+		    ok $?
+                fi
+            fi
+        done
+    done <"$LISTFILE"
+
+    rm -f "$LISTFILE"
+    started
+}
+
+suspend_guest()
+{
+    uri=$1
+    guest=$2
+
+    name=$(guest_name $uri $guest)
+    label=$"Suspending $name: "
+    msg "$label"
+    run_virsh $uri managedsave $guest >/dev/null
+    ok $?
+}
+
+shutdown_guest()
+{
+    uri=$1
+    guest=$2
+
+    name=$(guest_name $uri $guest)
+    label=$"Shutting down $name: "
+    echo -n "$label"
+    retval run_virsh $uri shutdown $guest >/dev/null || return
+    timeout=$SHUTDOWN_TIMEOUT
+    while [ $timeout -gt 0 ]; do
+        sleep 1
+        timeout=$[timeout - 1]
+        guest_is_on $uri $guest || return
+        $guest_running || break
+        printf '\r%s%-12d ' "$label" $timeout
+    done
+
+    if guest_is_on $uri $guest; then
+        if $guest_running; then
+            printf '\r%s%-12s\n' "$label" $"failed to shutdown in time"
+        else
+            printf '\r%s%-12s\n' "$label" $"done"
+        fi
+    fi
+}
+
+rc_stop() {
+    # last stop was not followed by start
+    if [ -f "$LISTFILE" ]; then
+	if [ "x$ON_SHUTDOWN" = xshutdown ]; then
+		msg $"Guests are already shut down"
+        else
+            msg $"Guests are already suspended"
+        fi
+	    ok 999
+	    return 0
+    fi
+
+    suspending=true
+    if [ "x$ON_SHUTDOWN" = xshutdown ]; then
+        suspending=false
+        if [ $SHUTDOWN_TIMEOUT -le 0 ]; then
+            echo $"Shutdown action requested but SHUTDOWN_TIMEOUT was not set"
+            RETVAL=6
+            return
+        fi
+    fi
+
+    : >"$LISTFILE"
+    for uri in $URIS; do
+
+        if [ "x$uri" = xdefault ] && [ ! -x "$libvirtd" ]; then
+            echo $"libvirtd not installed; skipping this URI."
+            continue
+        fi
+
+        list=$(list_guests $uri)
+        if [ $? -eq 0 ]; then
+            empty=true
+            for uuid in $list; do
+                empty=false
+            done
+            if $empty; then
+                hint $"no running guests."
+            else
+                echo $uri $list >>"$LISTFILE"
+            fi
+        fi
+    done
+
+    while read uri list; do
+        if ! $suspending; then
+            msg $"Shutting down guests on $uri URI..."
+        fi
+
+        for guest in $list; do
+            if $suspending; then
+                suspend_guest $uri $guest
+            else
+                shutdown_guest $uri $guest
+            fi
+        done
+    done <"$LISTFILE"
+
+    rm -f "$VAR_SUBSYS_LIBVIRT_GUESTS"
+}
+
+rc_exec $1

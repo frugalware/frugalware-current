@@ -3,7 +3,7 @@
 # Maintainer: voroskoi <voroskoi@frugalware.org>
 
 pkgname=opera
-pkgver=10.10
+pkgver=10.61
 pkgrel=1
 pkgdesc="Opera web browser."
 url="http://www.opera.com/linux/"
@@ -11,28 +11,66 @@ depends=()
 rodepends=('qt')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
-pkgextraver=.gcc4-shared-qt3
+
+pkgextraver=-6430
 if echo "$CARCH" | grep -q 'i.86'; then
 	_arch=i386
-        source=(ftp://ftp.opera.com/pub/${pkgname}/linux/${pkgver//./}/final/en/${_arch}/shared/${pkgname}-${pkgver}${pkgextraver}.${_arch}.tar.bz2)
-	sha1sums=('fb49d4bf2f83c5acd47d347e84491e025308b7ee')
+        source=(ftp://ftp.opera.com/pub/${pkgname}/linux/${pkgver//./}/${pkgname}-${pkgver}${pkgextraver}.${_arch}.linux.tar.bz2)
+	sha1sums=('39267f2b13230f065af3d18f8b09d12f25713f9e')
 elif [ "$CARCH" == "x86_64" ]; then
 	_arch=x86_64
-        source=(ftp://ftp.opera.com/pub/${pkgname}/linux/${pkgver//./}/final/en/${_arch}/${pkgname}-${pkgver}${pkgextraver}.${_arch}.tar.bz2)
-	sha1sums=('03dde588b1afcd38076be83bb7cf1c43bde38ff0')
+        source=(ftp://ftp.opera.com/pub/${pkgname}/linux/${pkgver//./}/${pkgname}-${pkgver}${pkgextraver}.${_arch}.linux.tar.bz2)
+	sha1sums=('e3ffa64050cb6a08515234ad2acf10126b4f0be6')
 fi
 up2date="lynx -dump ftp://ftp.opera.com/pub/$pkgname/linux/ |grep -wo opera.*[0-9][0-9][0-9] |sort -r | sed -ne 's|.*x/\(.*\)|\1|;s/\([0-9]\)/\1./;1 p'"
 options=('nobuild' 'nodocs')
-_F_desktop_name=Opera
-_F_desktop_desc="Opera Internet Web Suite"
-_F_desktop_icon=opera.png
+_F_gnome_desktop="y"
+_F_gnome_iconcache="y"
+Finclude gnome-scriptlet
 
 build()
 {
-	Fcd $pkgname-$pkgver-4742$pkgextraver.$_arch
-	./install.sh --prefix=/usr --DESTDIR=$Fdestdir || Fdie
-	_F_desktop_categories="Network;"
-	Fdesktop2
-	echo "StartUpNotify=false" >> $Fdestdir$Fmenudir/$pkgname.desktop || Fdie
-	Ficonrel usr/share/icons/hicolor/48x48/apps/$pkgname.png
+	Fcd $pkgname-$pkgver$pkgextraver.$_arch.linux
+	# Remove "license directory"
+	rm -rf share/doc/opera || Fdie
+	# Remove package directory
+	rm -rf share/opera/package || Fdie
+	# Replace PREFIX and SUFFIX in various files
+	sed -i \
+		-e "s:@@{PREFIX}:/usr:g" \
+		-e "s:@@{SUFFIX}::g" \
+		-e "s:@@{_SUFFIX}::g" \
+		-e "s:@@{USUFFIX}::g" \
+		share/mime/packages/opera-widget.xml \
+		share/man/man1/* \
+		share/applications/opera-browser.desktop \
+		share/applications/opera-widget-manager.desktop \
+		|| Fdie
+
+	# Recreate wrappers
+	rm opera || Fdie
+	echo '#!/bin/bash' > opera
+	echo 'export OPERA_DIR=/usr/share/opera' >> opera
+	echo 'export OPERA_PERSONALDIR="${HOME}/.opera"' >> opera
+	echo 'exec /usr/lib/opera/opera "$@"' >> opera
+
+	Fexerel $pkgname usr/bin/$pkgname
+
+	rm $pkgname-widget-manager || Fdie
+	echo '#!/bin/bash' > $pkgname-widget-manager
+	echo 'exec /usr/bin/opera --widgetmanager "$@"' >> $pkgname-widget-manager
+
+	Fexerel $pkgname-widget-manager usr/bin/$pkgname-widget-manager
+
+	# Install data
+	Fmkdir /usr/{lib,share}
+	Fcprel lib/opera /usr/lib/
+	Fcprel share/applications usr/share/
+	Fcprel share/icons usr/share/
+	Fcprel share/man usr/share/
+	Fcprel share/mime usr/share/
+	Fcprel share/opera usr/share/
+
+	Fbuild_gnome_scriptlet
 }
+

@@ -5,15 +5,33 @@
 # rc.ups for FrugalWare
 # distributed under GPL License
 
-. /etc/rc.d/rc.functions
-
 # chkconfig: 2345 98 98
 # description: Monitor the UPS with genpowerd
 
+source /lib/initscripts/functions
+
+TEXTDOMAIN=ups
+TEXTDOMAINDIR=/lib/initscripts/messages
+actions=(restart status start stop)
+daemon=$"Monitor the UPS with genpowerd"
+
 [ -e /etc/sysconfig/ups ] && . /etc/sysconfig/ups || exit 1
 
-if [ "$1" = "stop" ]; then
-	stop "$stopups"
+rc_start()
+{
+	start_msg
+	if [ -z "$device" ]; then
+		echo -n ": $editconfig"
+		ok 1
+	else
+		/sbin/genpowerd $device $type
+		ok $?
+	fi
+}
+
+rc_stop()
+{
+	stop_msg
 	# see if this is a powerfail situation:
 	if grep FAIL /etc/upsstatus 1> /dev/null 2> /dev/null ; then
 		# signal UPS to shut off the inverter:
@@ -23,17 +41,12 @@ if [ "$1" = "stop" ]; then
 		fi
 	fi
 	ok $?
-elif [ "$1" = "restart" ]; then
-	"$0" stop
+}
+rc_restart()
+{
+	rc_stop
 	sleep 1
-	"$0" start
-else # start
-	start "$startups"
-	if [ -z "$device" ]; then
-		echo -n ": $editconfig"
-		ok 1
-	else
-		/sbin/genpowerd $device $type
-		ok $?
-	fi
-fi
+	rc_start
+}
+rc_exec $1
+

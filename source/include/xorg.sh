@@ -57,7 +57,7 @@ if [[ $pkgname =~ ^xf86-input- ]]; then
 	pkgdesc="X.Org driver for ${pkgname#xf86-input-} input devices"
 	groups=('x11' 'xorg-core' 'xorg-drivers')
 	archs=('i686' 'x86_64')
-	depends=('xorg-server>=1.8.1')
+	depends=('xorg-server>=1.9.0')
 	makedepends=('inputproto' 'randrproto')
 fi
 url="http://xorg.freedesktop.org"

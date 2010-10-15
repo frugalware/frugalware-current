@@ -52,7 +52,8 @@ _F_cd_path='.'
 # * options
 ###
 makedepends=(${makedepends[@]} 'bdftopcf')
-rodepends=(${rodepends[@]} 'mkfontscale' 'mkfontdir' 'fontconfig')
+depends=(${depends[@]} 'mkfontdir')
+rodepends=(${rodepends[@]} 'mkfontscale' 'fontconfig')
 options=(${options[@]} 'genscriptlet')
 
 ###

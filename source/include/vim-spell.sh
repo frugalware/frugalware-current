@@ -59,6 +59,12 @@ do
 done
 
 ###
+# == APPENDED VARIABLES
+# * noversrc to options()
+###
+options=(${options[@]} 'noversrc')
+
+###
 # == PROVIDED FUNCTIONS
 # * build()
 ###

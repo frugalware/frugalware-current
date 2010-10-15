@@ -3,56 +3,71 @@
 # Contributor: Laszlo Dvornik <dvornik@gnome.hu>
 
 pkgname=cherokee
-pkgver=0.11.3
-pkgrel=2
+pkgver=1.0.8
+pkgrel=1
 pkgdesc="A flexible, very fast, lightweight HTTP server"
 url="http://www.cherokee-project.com/"
 pkgurl="http://www.cherokee-project.com/download/"
 backup=(etc/cherokee/{sites-available/default,advanced.conf,cherokee.conf,icons.conf,mime.compression.types,mime.types})
-depends=('pcre' 'openssl>=1.0.0' 'zlib' 'libgcrypt' 'php-cgi' 'libmysqlclient' 'libldap' 'python')
-makedepends=('mysql' 'openldap')
+depends=('pcre' 'openssl>=1.0.0' 'libgcrypt' 'php-cgi' 'python' 'libmysqlclient')
+makedepends=('mysql')
 groups=('network-extra')
 archs=('i686' 'x86_64')
-up2date="lynx -dump -head 'http://www.cherokee-project.com/cherokee-last-tarball'|grep -om1 'cherokee-\(.*\).tar'|sed 's/.*-\(.*\).t.*/\1/'"
-source=($pkgurl/0.11/$pkgver/cherokee-$pkgver.tar.gz \
+up2date="lynx -dump -head 'http://www.cherokee-project.com/cherokee-latest-tarball'|grep -om1 'cherokee-\(.*\).tar'|sed 's/.*-\(.*\).t.*/\1/'"
+source=($pkgurl/1.0/$pkgver/cherokee-$pkgver.tar.gz \
 	rc.cherokee \
 	rc.cherokee-hu.po \
 	rc.cherokee.pot \
 	generatessl \
 	index.html \
-	http://frugalware.org/images/frugalware.png)
-sha1sums=('edf629c362e4a385948d97351a73788b768a0694' \
-          '7559de6a098bbc3e460ef396a7aaea27c551311b' \
+	http://frugalware.org/images/logo-new.png)
+sha1sums=('28b2e2b192c713aa9c43737ae8376a55effa7336' \
+          '2596646e2d9420a7898d592d55790fd796bb3440' \
           '90db20b5183c6e22e91488fd6d44df47018b1942' \
           'f3afa484129a065ce22f326ec13104af87a9fca5' \
           '03171e23d5f2f2b2a11a4064230b0ee8823ba996' \
           '1b9446b810a71ea50efaa7d24c5919cb954983ef' \
-          '62fdfe9e07b2b55be660bd107bb6e1c742d90a3e')
-## TODO : 1)package docutils so we get the py docs =)
-##          http://docutils.sourceforge.net/
-##      : 2) split the plugins maybe ?
+          '50ca5f3dfd237be680acaf6ef4f23e910ffbbfae')
+
+subpkgs=("$pkgname-ldap" "$pkgname-ffmpeg" "$pkgname-geoip")
+subdescs=('Ldap validator for cherokee' \
+	'Audio/Video streaming handler for cherokee' \
+	'GeoIP rule module for cherokee')
+subdepends=('libldap' 'ffmpeg' 'geoip')
+subrodepends=("$pkgname=$pkgver" "$pkgname=$pkgver" "$pkgname=$pkgver")
+subgroups=('network-extra' 'network-extra' 'network-extra')
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
 
 build()
 {
 	unset MAKEFLAGS
-	# Fix path of php.
-	Fsed '/usr/lib/cgi-bin/' '/usr/lib/' cherokee/handler_phpcgi.c
 	# Put logs under /var/log/cherokee.
-	find -type f | xargs sed -i -e "s|/var/log|/var/log/cherokee|g"
-	Fpatchall
-	Fconf  --enable-os-string="Frugalware Linux" \
+	Fsed "log/" "log/cherokee/" cherokee.conf.sample.pre
+
+	Fbuild  --enable-os-string="Frugalware Linux" \
 		--with-wwwroot=/var/www/cherokee \
-		--disable-pam --enable-tls=openssl \
 		--disable-dependency-tracking \
 		--with-gnu-ld
-	make CFLAGS="${CFLAGS}" || Fdie
-	Fmakeinstall
 	Fmkdir /var/log/cherokee
 	Frcd2 cherokee
 	Fexe /etc/cherokee/ssl/generatessl
 	Frm /var/www/cherokee/index.html
 	Ffile index.html /var/www/cherokee/index.html
-	Ffile frugalware.png /var/www/cherokee/frugalware.png
+	Ffile logo-new.png /var/www/cherokee/frugalware.png
+
+	Fmkdir etc/pam.d/$pkgname
+	## install pam
+	Finstall 644 $_F_cd_path/pam.d_cherokee etc/pam.d/$pkgname/
+
+	## install configuration converters
+	for converter in contrib/*to*.py; do
+		Finstall 755 $_F_cd_path/$converter usr/share/$pkgname/converters/$(basename $converter)
+	done
+
+	## Split modules
+	Fsplit $pkgname-geoip usr/lib/cherokee/libplugin_geoip*
+	Fsplit $pkgname-ldap usr/lib/cherokee/libplugin_ldap*
+	Fsplit $pkgname-ffmpeg usr/lib/cherokee/libplugin_streaming*
 }
 
 # optimization OK

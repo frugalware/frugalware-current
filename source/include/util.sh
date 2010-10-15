@@ -1063,10 +1063,10 @@ Flastarchive() {
 		Fwcat "$1" | eval "$lynx -stdin $filter" | Flastarchive "$2"
 	else
 		if [ -z "$_F_archive_nosort" ]; then
-			sed -n "s:.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*:\1:p" \
+			sed -n "s:.*/$_F_archive_name$Fpkgversep\(.*\)\($1\).*:\1:p" \
 				| Fsort | tail -n1 | Fsanitizeversion
 		else
-			sed -n "s:.*$_F_archive_name$Fpkgversep\(.*\)\($1\).*:\1:p" \
+			sed -n "s:.*/$_F_archive_name$Fpkgversep\(.*\)\($1\).*:\1:p" \
 				| tail -n1 | Fsanitizeversion
 		fi
 	fi

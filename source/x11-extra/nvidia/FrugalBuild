@@ -2,13 +2,37 @@
 # Maintainer: Michel Hermier <hermier@frugalware.org>
 
 pkgname=nvidia
-pkgver=195.36.24
-pkgrel=9
+pkgver=260.19.12
+pkgrel=1
 archs=('i686' 'x86_64' '!ppc')
-Finclude nvidia
-case "$_F_nvidia_arch" in
-x86)    sha1sums=('cfe1ce6b496683464221fccd6c575d2f8eda7433');;
-x86_64) sha1sums=('dc78d0c1bd71fb5f47d25432c6f038cea74807ef');;
+_F_kernelmod_scriptlet=nvidia.install
+Finclude kernel-module
+groups=('x11-extra')
+pkgdesc="3D accelerated display driver for Nvidia cards"
+url="http://www.nvidia.com/object/unix.html"
+if [ -z "$_F_nvidia_up2date" ]; then
+	if [ -z "$_F_nvidia_legacyver" ]; then
+		_F_nvidia_up2date="Latest Version:"
+	else
+		_F_nvidia_up2date="Latest Legacy GPU Version ($_F_nvidia_legacyver series):"
+	fi
+fi
+up2date="lynx -dump http://www.nvidia.com/object/unix.html|grep -m1 '"$_F_nvidia_up2date"'|sed 's/.*]//;s/-/_/'"
+rodepends=("${rodepends[@]}" 'libvdpau' 'nvidia-settings' 'nvidia-xconfig' 'pkgconfig' 'xorg-server>=1.9.0')
+conflicts=("${conflicts[@]}" 'libgl' 'libgl-headers-mesa' 'libglx')
+provides=("${provides[@]}" 'libgl' 'libgl-headers-mesa' 'libglx')
+options=("${options[@]}" 'nostrip')
+
+_F_nvidia_name=""
+case "$CARCH" in
+i686)
+	_F_nvidia_name="NVIDIA-Linux-x86-${pkgver}"
+	source=("ftp://download.nvidia.com/XFree86/Linux-x86/${pkgver}/${_F_nvidia_name}.run")
+	sha1sums=('9738629d6c707c252ff57138a03edfcb94d978fb');;
+x86_64)
+	_F_nvidia_name="NVIDIA-Linux-${CARCH}-${pkgver}-no-compat32"
+	source=("ftp://download.nvidia.com/XFree86/Linux-${CARCH}/${pkgver}/${_F_nvidia_name}.run")
+	sha1sums=('aebaee1702dd33fd1e8f4de3c801e2ee01dcc17e');;
 esac
 
 source=("${source[@]}" \
@@ -16,10 +40,64 @@ source=("${source[@]}" \
 	xorg-nvidia.conf)
 sha1sums=("${sha1sums[@]}" \
 	'a2bf63eb7dffdfc9268534654d3864e865af6834' \
-	'3b6664f5452036ab7d4c3fa9e8dd87673e8b0485')
+	'15455cb16a6638ee348dc01620c7f64234178ac8')
 
 build () {
-	Fbuild_nvidia
+	cd $Fsrcdir
+	sh $_F_nvidia_name.run --extract-only
+
+	# Build the kernel module
+	cd ${_F_nvidia_name}/kernel || Fdie
+	make SYSSRC=$_F_kernelmod_dir/build module || Fdie
+	Ffilerel nvidia.ko $_F_kernelmod_dir/kernel/drivers/video/nvidia.ko
+	Fbuild_kernelmod_scriptlet
+
+	cd $Fsrcdir/${_F_nvidia_name} || Fdie
+
+	# X driver
+	install -D -m755 nvidia_drv.so $Fdestdir/usr/lib/xorg/modules/drivers/nvidia_drv.so || Fdie
+	# GLX extension module for X
+	install -D -m755 libglx.so.$pkgver $Fdestdir/usr/lib/xorg/modules/extensions/libglx.so.$pkgver || Fdie
+	ln -s libglx.so.$pkgver $Fdestdir/usr/lib/xorg/modules/extensions/libglx.so  || Fdie      # X doesn't find glx otherwise
+	# OpenGL library
+	install -D -m755 libGL.so.$pkgver $Fdestdir/usr/lib/libGL.so.$pkgver || Fdie
+	# OpenGL core library
+	install -D -m755 libnvidia-glcore.so.$pkgver $Fdestdir/usr/lib/libnvidia-glcore.so.$pkgver || Fdie
+	# XvMC
+	install -D -m644 libXvMCNVIDIA.a $Fdestdir/usr/lib/libXvMCNVIDIA.a || Fdie
+	install -D -m755 libXvMCNVIDIA.so.$pkgver $Fdestdir/usr/lib/libXvMCNVIDIA.so.$pkgver || Fdie
+	# VDPAU
+	install -D -m755 libvdpau_nvidia.so.$pkgver $Fdestdir/usr/lib/vdpau/libvdpau_nvidia.so.$pkgver || Fdie
+	# CUDA
+	install -D -m755 libcuda.so.$pkgver $Fdestdir/usr/lib/libcuda.so.$pkgver || Fdie
+	# nvidia-tls library
+	install -D -m755 tls/libnvidia-tls.so.$pkgver $Fdestdir/usr/lib/libnvidia-tls.so.$pkgver || Fdie
+	# OpenCL
+	install -D -m755 libnvidia-compiler.so.$pkgver $Fdestdir/usr/lib/libnvidia-compiler.so.$pkgver || Fdie
+	install -D -m755 libOpenCL.so.1.0.0 $Fdestdir/usr/lib/libOpenCL.so.1.0.0 || Fdie
+	install -D -m644 nvidia.icd $Fdestdir/etc/OpenCL/vendors/nvidia.icd || Fdie
+	install -D -m755 libnvidia-cfg.so.$pkgver $Fdestdir/usr/lib/libnvidia-cfg.so.$pkgver || Fdie
+
+	# create soname links
+	for _lib in $(find $Fdestdir -name '*.so*'); do
+		_soname="$(dirname ${_lib})/$(readelf -d "$_lib" | sed -nr 's/.*Library soname: \[(.*)\].*/\1/p')"
+		if [ ! -e "${_soname}" ]; then
+			ln -s "$(basename ${_lib})" "${_soname}" || Fdie
+			ln -s "$(basename ${_soname})" "${_soname/.[0-9]*/}" || Fdie
+		fi
+	done
+
+	# nvidia-bug-report
+	install -D -m755 nvidia-bug-report.sh $Fdestdir/usr/bin/nvidia-bug-report.sh || Fdie
+	# nvidia-smi
+	install -D -m755 nvidia-smi $Fdestdir/usr/bin/nvidia-smi || Fdie
+	install -D -m644 nvidia-smi.1.gz $Fdestdir/usr/share/man/man1/nvidia-smi.1.gz || Fdie
+
+	install -D -m644 LICENSE $Fdestdir/usr/share/licenses/nvidia/LICENSE || Fdie
+	ln -s nvidia $Fdestdir/usr/share/licenses/nvidia-utils || Fdie
+	install -D -m644 README.txt $Fdestdir/usr/share/doc/nvidia/README || Fdie
+	ln -s nvidia $Fdestdir/usr/share/doc/nvidia-utils || Fdie
+
 	Ffile xorg-nvidia.conf /etc/X11/xorg.conf.d/15-nvidia.conf
 	Ffile modprobe-nvidia.conf /etc/modprobe.d/nvidia.conf
 }

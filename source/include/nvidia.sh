@@ -80,8 +80,7 @@ groups=('x11-extra')
 pkgdesc="3D accelerated display driver for Nvidia cards"
 url="http://www.nvidia.com/object/unix.html"
 if [ -n "$_F_nvidia_arch" ]; then
-	source=(http://us.download.nvidia.com/XFree86/Linux-$_F_nvidia_arch/$pkgver/$_F_nvidia_name.run)
-#	source=(ftp://download.nvidia.com/XFree86/Linux-$_F_nvidia_arch/$pkgver/$_F_nvidia_name.run)
+	source=(ftp://download.nvidia.com/XFree86/Linux-$_F_nvidia_arch/$pkgver/$_F_nvidia_name.run)
 fi
 up2date="lynx -dump http://www.nvidia.com/object/unix.html|grep -m1 '"$_F_nvidia_up2date"'|sed 's/.*]//;s/-/_/'"
 
@@ -96,7 +95,7 @@ _F_kernelmod_scriptlet=$_F_nvidia_install
 # * options: add nostrip to options
 # * removes: temporary fix for some nvidia mess, has to be removed after Frugalware 1.3
 ###
-rodepends=("${rodepends[@]}" 'libvdpau' 'nvidia-settings' 'nvidia-xconfig' 'pkgconfig' 'xorg-server>=1.7.1')
+rodepends=("${rodepends[@]}" 'libvdpau' 'nvidia-settings' 'nvidia-xconfig' 'pkgconfig' 'xorg-server>=1.9.0')
 conflicts=("${conflicts[@]}" 'libgl' 'libgl-headers-mesa' 'libglx')
 provides=("${provides[@]}" 'libgl' 'libgl-headers-mesa' 'libglx')
 options=("${options[@]}" 'nostrip')

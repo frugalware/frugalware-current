@@ -3,18 +3,18 @@
 
 pkgname=mono
 pkgver=2.8
-pkgrel=6
+pkgrel=7
 pkgdesc="Mono runtime and class libraries, a C# compiler/interpreter"
 url="http://www.mono-project.com/"
 depends=('zlib')
-makedepends=('libgdiplus>=2.8')
+makedepends=('libgdiplus>=2.8' 'mono')
 rodepends=('libxml2')
 groups=('devel')
 archs=('i686' 'x86_64' 'ppc')
 Finclude mono
 up2date="lynx -dump http://www.go-mono.com/sources-stable/|grep -m1 'mono-'|sed 's/.*-\(.*\).t.*/\1/'"
 source=(http://www.go-mono.com/sources/$pkgname/$pkgname-$pkgver.tar.bz2 rc.mono rc.mono-hu.po)
-Fconfopts="$Fconfopts -with-ikvm-native=yes --with-jit=yes --with-xen_opt=no \
+Fconfopts="$Fconfopts -with-ikvm-native=yes --with-jit=yes --with-xen_opt=n \
 	--with-libgdiplus=installed
 	--enable-static \
 	--disable-quiet-build \
@@ -23,23 +23,28 @@ Fconfopts="$Fconfopts -with-ikvm-native=yes --with-jit=yes --with-xen_opt=no 
 	--with-profile4"
 #--enable-static for mono debug works
 #Don't enable --enable-big-arrays we should have >3Go of ram
+#ppc don't support sgen and doc is broken
+if [ "$CARCH" == "ppc" ]; then
+	Fconfopts="$Fconfopts --with-sgen=no --with-mcs-docs=no"
+else
+	subpkgs=("monodoc")
+	subdescs=("Documentation for mono's .Net class library")
+	subrodepends=('mono>=2.8')
+	subgroups=('devel-extra')
+	subarchs=('i686 x86_64 ppc')
+fi
 
 sha1sums=('a724de68dccb583b54d2e08c5a1e5760c18225ab' \
           '1a6826fb1bb13f906a1465be43bb592a2a9e0e10' \
           '6c19f98462d7bb1ecba79a3ad284ea02a1eac2ec')
 
-subpkgs=("monodoc")
-subdescs=("Documentation for mono's .Net class library")
-subrodepends=('mono>=2.8')
-subgroups=('devel-extra')
-subarchs=('i686 x86_64 ppc')
-
 build() {
 	unset MAKEFLAGS
-	export CFLAGS="$CFLAGS -fno-strict-aliasing"
+	#export CFLAGS="$CFLAGS -fno-strict-aliasing"
 	Fcd
 	# Remove prebuilt binaries
-	#rm -rf mcs/class/lib/monolite/* || Fdie
+	#comment this line and remove mono from makedepnds for ported mono to other arch
+	rm -rf mcs/class/lib/monolite/* || Fdie
 	sed -i "61a #define ARG_MAX     _POSIX_ARG_MAX" mono/io-layer/wapi_glob.h || Fdie
 	Fpatchall
 	Fmonoexport
@@ -47,16 +52,19 @@ build() {
 	Fmake
 	Fmakeinstall
 	Fmonocleanup
-	Fsplit monodoc /usr/lib/monodoc
-	Fsplit monodoc /usr/lib/mono/monodoc
-	Fsplit monodoc /usr/lib/mono/gac/monodoc
-	Fsplit monodoc /usr/bin/mdvalidater
-	Fsplit monodoc /usr/bin/mdoc*
-	Fsplit monodoc /usr/bin/mdassembler
-	Fsplit monodoc /usr/share/man/man5/mdoc.5
-	Fsplit monodoc /usr/share/man/man1/monodocs2html.1
-	Fsplit monodoc /usr/share/man/man1/mdvalidater.1
-	Fsplit monodoc /usr/lib/pkgconfig/monodoc.pc
+	#monodoc
+	if [ "$CARCH" != "ppc" ]; then
+		Fsplit monodoc /usr/lib/monodoc
+		Fsplit monodoc /usr/lib/mono/monodoc
+		Fsplit monodoc /usr/lib/mono/gac/monodoc
+		Fsplit monodoc /usr/bin/mdvalidater
+		Fsplit monodoc /usr/bin/mdoc*
+		Fsplit monodoc /usr/bin/mdassembler
+		Fsplit monodoc /usr/share/man/man5/mdoc.5
+		Fsplit monodoc /usr/share/man/man1/monodocs2html.1
+		Fsplit monodoc /usr/share/man/man1/mdvalidater.1
+		Fsplit monodoc /usr/lib/pkgconfig/monodoc.pc
+	fi
 	# for openoffice
 	sed -i -e "s:#Requires:Requires:" ${Fdestdir}/usr/lib/pkgconfig/mono.pc || Fdie
 }

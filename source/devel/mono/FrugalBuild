@@ -1,9 +1,11 @@
 # Compiling time: 3.45 SBU
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
+USE_DOC=${USE_DOC:-"y"}
+
 pkgname=mono
 pkgver=2.8
-pkgrel=8
+pkgrel=9
 pkgdesc="Mono runtime and class libraries, a C# compiler/interpreter"
 url="http://www.mono-project.com/"
 depends=('zlib')
@@ -17,21 +19,21 @@ source=(http://www.go-mono.com/sources/$pkgname/$pkgname-$pkgver.tar.bz2 rc.mono
 Fconfopts="$Fconfopts -with-ikvm-native=yes --with-jit=yes --with-xen_opt=n \
 	--with-libgdiplus=installed
 	--enable-static \
-	--disable-quiet-build \
-	--without-moonlight \
+	--with-moonlight=yes \
 	--disable-dtrace \
-	--with-profile4"
+	--with-profile2=yes \
+	--with-profile4=yes"
 #--enable-static for mono debug works
 #Don't enable --enable-big-arrays we should have >3Go of ram
-#ppc don't support sgen and doc is broken
+replaces=('monodoc')
+
+#ppc don't support sgen and profile4
 if [ "$CARCH" == "ppc" ]; then
-	Fconfopts="$Fconfopts --with-sgen=no --with-mcs-docs=no"
-else
-	subpkgs=("monodoc")
-	subdescs=("Documentation for mono's .Net class library")
-	subrodepends=('mono>=2.8')
-	subgroups=('devel-extra')
-	subarchs=('i686 x86_64 ppc')
+	Fconfopts="$Fconfopts --with-sgen=no --with-profile4=no"
+fi
+
+if ! Fuse $USE_DOC; then
+	Fconfopts="$Fconfopts --with-mcs-docs=no"
 fi
 
 sha1sums=('a724de68dccb583b54d2e08c5a1e5760c18225ab' \
@@ -41,11 +43,14 @@ sha1sums=('a724de68dccb583b54d2e08c5a1e5760c18225ab' \
 
 build() {
 	unset MAKEFLAGS
-	#export CFLAGS="$CFLAGS -fno-strict-aliasing"
+	#Remove this at your own peril. Mono will barf in unexpected ways.
+	export CFLAGS="$CFLAGS -fno-strict-aliasing"
 	Fcd
 	# Remove prebuilt binaries
-	#comment this line and remove mono from makedepnds for ported mono to other arch
+	#comment this line and remove mono from makedepends for ported mono to an other arch
 	rm -rf mcs/class/lib/monolite/* || Fdie
+
+	#fix undeclared Arg
 	sed -i "61a #define ARG_MAX     _POSIX_ARG_MAX" mono/io-layer/wapi_glob.h || Fdie
 	Fpatchall
 	Fmonoexport
@@ -53,19 +58,6 @@ build() {
 	Fmake
 	Fmakeinstall
 	Fmonocleanup
-	#monodoc
-	if [ "$CARCH" != "ppc" ]; then
-		Fsplit monodoc /usr/lib/monodoc
-		Fsplit monodoc /usr/lib/mono/monodoc
-		Fsplit monodoc /usr/lib/mono/gac/monodoc
-		Fsplit monodoc /usr/bin/mdvalidater
-		Fsplit monodoc /usr/bin/mdoc*
-		Fsplit monodoc /usr/bin/mdassembler
-		Fsplit monodoc /usr/share/man/man5/mdoc.5
-		Fsplit monodoc /usr/share/man/man1/monodocs2html.1
-		Fsplit monodoc /usr/share/man/man1/mdvalidater.1
-		Fsplit monodoc /usr/lib/pkgconfig/monodoc.pc
-	fi
 	# for openoffice
 	sed -i -e "s:#Requires:Requires:" ${Fdestdir}/usr/lib/pkgconfig/mono.pc || Fdie
 }

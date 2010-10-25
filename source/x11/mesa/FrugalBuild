@@ -3,19 +3,21 @@
 # Contributor: crazy <crazy@frugalware.org>
 
 USE_DEVEL=${USE_DEVEL:-"n"}
+USE_EGL=${USE_EGL:-"n"}
 USE_GALLIUM=${USE_GALLIUM:-"y"}
 
 pkgname=mesa
 origname=Mesa
 _F_archive_name="MesaLib"
-pkgver=7.8.2
-pkgrel=3
+pkgver=7.9
+pkgrel=1
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 up2date="Flasttar ftp://ftp.freedesktop.org/pub/$pkgname/current/"
+
 # libgl: provided by libgl, fglrx and nvidia packages
 depends=('libx11>=1.2.1' 'libxext>=1.0.5-3' 'libxi>=1.2.1' 'libxmu>=1.0.4-2' 'dri2proto>=2.0' \
-	'libice>=1.0.5' 'libxfixes>=4.0.3-4' 'expat' 'libgcc')
+	'libice>=1.0.5' 'libxfixes>=4.0.3-4' 'expat' 'libgcc' 'llvm' 'talloc')
 makedepends=('makedepend' 'glproto>=1.4.9' 'xf86vidmodeproto')
 # should be mesa-*=$pkgver but apps should not depends on mesa anymore first, unless specific to mesa
 rodepends=('libgl' 'libglu' 'libglw')
@@ -23,18 +25,14 @@ archs=('i686' 'x86_64' 'ppc')
 groups=('x11' 'xorg-core' 'xorg-libs')
 if Fuse $USE_DEVEL; then
 	unset source sha1sums
-	pkgver=$pkgver.1.g13a13fc
+	pkgver=$pkgver.1.g8449a47
 	pkgrel=0
 	_F_scm_type="git"
 	_F_scm_url="git://anongit.freedesktop.org/mesa/mesa"
 	Finclude scm
 else
-	source=("ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaLib-$pkgver.tar.bz2" \
-		"ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaDemos-$pkgver.tar.bz2"
-		"nouveau_class.h.xz")
-	sha1sums=('21de672a1cbe307135d7f172dc6952041a38e1c7' \
-          	'90879578b11b2d043b378818d2c6750fe47518b7' \
-          	'dfb21b4a899444564ca009056a5c4dda166ca199')
+	source=("ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaLib-$pkgver.tar.bz2")
+	sha1sums=('5afc7f6f4ee02a1ca39f29ef261cc14e8787d892')
 fi
 
 source=("${source[@]}" \
@@ -75,16 +73,6 @@ subrodepends=("${subrodepends[@]}" 'libgl')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 
-subpkgs=("${subpkgs[@]}" 'mesademos')
-subdescs=("${subdescs[@]}" 'OpenGL demonstration and test programs.')
-subprovides=("${subprovides[@]}" '')
-subreplaces=("${subreplaces[@]}" '')
-subconflicts=("${subconflicts[@]}" '')
-subdepends=("${subdepends[@]}" '')
-subrodepends=("${subrodepends[@]}" 'libgl')
-subgroups=("${subgroups[@]}" 'x11')
-subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
-
 # NOTE: If you bump version (major or minor) you need to review the symlinking at the end of this
 #       file !!!! On minor bump last number will be changed.
 #	Be SURE you checked in the FPM ! before uploading or anything else!
@@ -98,11 +86,14 @@ build() {
 
 	Fcd $origname-$pkgver
 
-	#nouveau_class.h have been drop from libdrm and will be include into mesa
-	cp ../nouveau_class.h src/gallium/drivers/nouveau/ || Fdie
+	if Fuse $USE_EGL; then
+		Fconfopts="$Fconfopts --enable-egl"
+	else
+		Fconfopts="$Fconfopts --disable-egl"
+	fi
 
 	if Fuse $USE_GALLIUM; then
-		Fconfopts="$Fconfopts --enable-gallium-nouveau --enable-gallium-radeon"
+		Fconfopts="$Fconfopts --enable-gallium-llvm --enable-gallium-nouveau --enable-gallium-radeon"
 	else
 		Fconfopts="$Fconfopts --disable-gallium"
 	fi
@@ -110,7 +101,7 @@ build() {
 	Fconf	--with-driver=dri \
 		--with-dri-driverdir=/usr/lib/dri \
 		--with-dri-drivers=yes \
-		--disable-egl \
+		--disable-glut \
 		--enable-glx-tls \
 		--enable-xcb
 
@@ -123,11 +114,6 @@ build() {
 	Fmkdir /usr/include/xorg
 	Ffilerel src/mesa/x86/assyntax.h /usr/include/xorg
 
-	cd progs/xdemos || Fdie
-	make glxgears glxinfo glxdemo glxheads || Fdie
-	Fexerel glxgears glxinfo glxdemo glxheads /usr/bin
-	cd ../.. || Fdie
-
 	Fmkdir /usr/share/doc/$pkgname-$pkgver
 	cp -r docs/{README.*,*.html,COPYING} \
 		$Fdestdir/usr/share/doc/$pkgname-$pkgver/ || Fdie
@@ -135,7 +121,7 @@ build() {
 	# Install our .la files with r-xr-xr-x rights
 	Finstall 0555 lib{GL,GLU}.la /usr/lib/
 
-	Fln libGLU.so.1.3.070802 /usr/lib/libGLU.so.1.3
+	Fln libGLU.so.1.3.070900 /usr/lib/libGLU.so.1.3
 	Fln libGLw.so.1.0.0 /usr/lib/libGLw.so.1.0
 
 	# Remove glut.h because it conflicts with freeglut :P
@@ -149,6 +135,10 @@ build() {
 	Frm /usr/include/GL/glxew.h
 	Frm /usr/include/GL/glew.h
 
+	if Fuse $USE_EGL; then
+		# Should go in it's own package
+		Fsplit libgl usr/lib/libEGL.*
+	fi
 	Fsplit libgl usr/lib/libGL.*
 	Fsplit libgl usr/lib/dri/
 	Fsplit libgl usr/lib/pkgconfig/gl.pc
@@ -165,7 +155,6 @@ build() {
 	Fsplit libglw usr/lib/pkgconfig/glw.pc
 	Fsplit libglw usr/include/GL/GLw*
 
-	Fsplit mesademos usr/bin/{glxgears,glxinfo,glxdemo,glxheads}
 	Frm var
 }
 

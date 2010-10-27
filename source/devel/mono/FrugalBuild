@@ -1,11 +1,15 @@
 # Compiling time: 3.45 SBU
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
-USE_DOC=${USE_DOC:-"y"}
+if [ "$CARCH" == "ppc" ]; then
+	USE_DOC=${USE_DOC:-"n"}
+else
+	USE_DOC=${USE_DOC:-"y"}
+fi
 
 pkgname=mono
 pkgver=2.8
-pkgrel=9
+pkgrel=10
 pkgdesc="Mono runtime and class libraries, a C# compiler/interpreter"
 url="http://www.mono-project.com/"
 depends=('zlib')
@@ -16,20 +20,30 @@ archs=('i686' 'x86_64' 'ppc')
 Finclude mono
 up2date="lynx -dump http://www.go-mono.com/sources-stable/|grep -m1 'mono-'|sed 's/.*-\(.*\).t.*/\1/'"
 source=(http://www.go-mono.com/sources/$pkgname/$pkgname-$pkgver.tar.bz2 rc.mono rc.mono-hu.po ppc_thread.diff)
+replaces=('monodoc')
 Fconfopts="$Fconfopts -with-ikvm-native=yes --with-jit=yes --with-xen_opt=n \
 	--with-libgdiplus=installed
-	--enable-static \
-	--with-moonlight=yes \
-	--disable-dtrace \
+	--with-moonlight=no \
 	--with-profile2=yes \
-	--with-profile4=yes"
-#--enable-static for mono debug works
-#Don't enable --enable-big-arrays we should have >3Go of ram
-replaces=('monodoc')
+	--with-profile4=yes \
+	--disable-quiet-build \
+	--enable-static"
 
-#ppc don't support sgen and profile4
+#https://bugzilla.novell.com/show_bug.cgi?id=644680
+# build without profile4 break monodoc
+
+#Currently "--with-moonlight" does not mean "Add Moonlight into the Mix", it
+#means "build Mono as required by Moonlight" which cuts a lot of extra cruft
+#from the build process that is not required by the Moonlight team.
+
+#http://bugs.gentoo.org/show_bug.cgi?id=256264
+#--enable-static for mono debug works well
+
+#Don't enable --enable-big-arrays we should have >3Go of ram !!!
+
+#ppc don't support sgen
 if [ "$CARCH" == "ppc" ]; then
-	Fconfopts="$Fconfopts --with-sgen=no --with-profile4=no"
+	Fconfopts="$Fconfopts --with-sgen=no"
 fi
 
 if ! Fuse $USE_DOC; then
@@ -44,7 +58,7 @@ sha1sums=('a724de68dccb583b54d2e08c5a1e5760c18225ab' \
 build() {
 	unset MAKEFLAGS
 	#Remove this at your own peril. Mono will barf in unexpected ways.
-	export CFLAGS="$CFLAGS -fno-strict-aliasing"
+	export CFLAGS="$CFLAGS -fno-strict-aliasing"
 	Fcd
 	# Remove prebuilt binaries
 	#comment this line and remove mono from makedepends for ported mono to an other arch
@@ -53,8 +67,8 @@ build() {
 	#fix undeclared Arg
 	sed -i "61a #define ARG_MAX     _POSIX_ARG_MAX" mono/io-layer/wapi_glob.h || Fdie
 	Fpatchall
+	sh ./autogen.sh $Fconfopts || Fdie
 	Fmonoexport
-	Fautoreconf
 	Fmake
 	Fmakeinstall
 	Fmonocleanup

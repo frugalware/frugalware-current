@@ -1,0 +1,40 @@
+diff --git a/rfs_inode.c b/rfs_inode.c
+index f6100ea..bd8890f 100644
+--- a/rfs_inode.c
++++ b/rfs_inode.c
+@@ -734,6 +734,7 @@ static int rfs_setattr_default(struct dentry *dentry, struct iattr *iattr)
+ {
+ 	struct inode *inode = dentry->d_inode;
+ 	int rv;
++	unsigned int ia_valid = iattr->ia_valid;
+ 
+ 	rv = inode_change_ok(inode, iattr);
+ 	if (rv)
+@@ -745,7 +746,16 @@ static int rfs_setattr_default(struct dentry *dentry, struct iattr *iattr)
+ 		return rfs_dq_transfer(inode, iattr) ? -EDQUOT : 0;
+ #endif
+ 
+-	return inode_setattr(inode, iattr);
++	if (ia_valid & ATTR_SIZE &&
++			iattr->ia_size != i_size_read(inode)) {
++		int error;
++		error = vmtruncate(inode, iattr->ia_size);
++		if (error)
++			return error;
++	}
++	setattr_copy(inode, iattr);
++	mark_inode_dirty(inode);
++	return 0;
+ }
+ 
+ static int rfs_setattr(struct dentry *dentry, struct iattr *iattr)
+--- redirfs-0.10/rfs.h.orig	2010-10-25 23:47:25.388000451 +0200
++++ redirfs-0.10/rfs.h	2010-10-25 23:47:37.722000451 +0200
+@@ -29,6 +29,7 @@
+ #include <linux/sched.h>
+ #include <linux/quotaops.h>
+ #include <linux/slab.h>
++#include <linux/mm.h>
+ #include "redirfs.h"
+ 
+ #define RFS_ADD_OP(ops_new, op) \

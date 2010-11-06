@@ -1,56 +1,95 @@
 # Compiling time: 3.45 SBU
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
+USE_DEVEL=${USE_DEVEL:-"n"}
+
+if [ "$CARCH" == "ppc" ]; then
+	USE_DOC=${USE_DOC:-"n"}
+else
+	USE_DOC=${USE_DOC:-"y"}
+fi
+
 pkgname=mono
-pkgver=2.6.7
-pkgrel=3
+pkgver=2.8
+pkgrel=12
 pkgdesc="Mono runtime and class libraries, a C# compiler/interpreter"
 url="http://www.mono-project.com/"
-depends=('glib2' 'zlib')
-makedepends=('libgdiplus>=2.6.7')
+depends=('zlib')
+makedepends=('libgdiplus>=2.8' 'mono')
 rodepends=('libxml2')
 groups=('devel')
 archs=('i686' 'x86_64' 'ppc')
 Finclude mono
 up2date="lynx -dump http://www.go-mono.com/sources-stable/|grep -m1 'mono-'|sed 's/.*-\(.*\).t.*/\1/'"
-source=(http://www.go-mono.com/sources/$pkgname/$pkgname-$pkgver.tar.bz2 rc.mono rc.mono-hu.po \
-	mono-pc.patch delete_broken_assert.diff)
-Fconfopts="$Fconfopts --with-tls=__thread --with-libgdiplus=installed --with-moonlight=yes \
-	--with-preview=yes --with-glib=system --with-gc=included --with-profile2=yes --with-profile4=yes"
+source=(http://www.go-mono.com/sources/$pkgname/$pkgname-$pkgver.tar.bz2 ppc_thread.diff moonlight.diff)
+replaces=('monodoc')
+conflicts=('monodoc')
 
-#Don't enable --enable-big-arrays we should have >3Go of ram
-#we can add --with-ikvm-native=yes for replace ikvm package and use native ikvm
+Fconfopts="$Fconfopts --with-ikvm-native=yes --with-jit=yes --with-xen_opt=n \
+	--with-libgdiplus=installed
+	--with-moonlight=yes \
+	--with-profile2=yes \
+	--with-profile4=yes \
+	--disable-quiet-build \
+	--enable-static"
 
-sha1sums=('6528c009d344a21eb0898876369222a7fff76838' \
-          '1a6826fb1bb13f906a1465be43bb592a2a9e0e10' \
-          '6c19f98462d7bb1ecba79a3ad284ea02a1eac2ec' \
-          '2647d087df5baaf141cdf7f5039d6ab366b33c8f' \
-          '7c0c865974da0a1c57a071778fccaeea4a6d87f7')
+#https://bugzilla.novell.com/show_bug.cgi?id=644680
+# build without profile4 break monodoc
 
-subpkgs=("monodoc")
-subdescs=("Documentation for mono's .Net class library")
-subdepends=('mono>=2.4')
-subgroups=('devel-extra')
-subarchs=('i686 x86_64 ppc')
+#http://bugs.gentoo.org/show_bug.cgi?id=256264
+#--enable-static for mono debug works well
+
+#Don't enable --enable-big-arrays we should have >3Go of ram !!!
+
+#ppc don't support sgen
+if [ "$CARCH" == "ppc" ]; then
+	Fconfopts="$Fconfopts --with-sgen=no"
+fi
+
+if ! Fuse $USE_DOC; then
+	Fconfopts="$Fconfopts --with-mcs-docs=no"
+fi
+sha1sums=('a724de68dccb583b54d2e08c5a1e5760c18225ab' \
+          '3dda8a39085fddec0b0e25e31743d49762575605' \
+          'bbb6568efbd9787afa63141505b0810359d1b455')
+
+if Fuse $USE_DEVEL; then
+	unset sha1sums
+	unset source
+	Finclude scm
+	makedepends=("${makedepends[@]}" git)
+	_F_scm_type="git"
+	_F_scm_url="git://github.com/mono/mono.git"
+fi
 
 build() {
+	if Fuse $USE_DEVEL; then
+		Funpack_scm
+		Fcd mono
+	else
+		Fcd
+	fi
 	unset MAKEFLAGS
-	Fcd
+	#Remove this at your own peril. Mono will barf in unexpected ways.
+	export CFLAGS="$CFLAGS -fno-strict-aliasing"
+
+	#for download latest mono mini
+	#make get-monolite-latest || Fdie
+
+	# Remove prebuilt binaries
+	#comment this line and remove mono from makedepends for ported mono to an other arch
+	rm -rf mcs/class/lib/monolite/* || Fdie
+
+	#fix undeclared Arg
+	sed -i "61a #define ARG_MAX     _POSIX_ARG_MAX" mono/io-layer/wapi_glob.h || Fdie
 	Fpatchall
+	sh ./autogen.sh $Fconfopts || Fdie
 	Fmonoexport
 	Fmake
 	Fmakeinstall
 	Fmonocleanup
-	Fsplit monodoc /usr/lib/monodoc
-	Fsplit monodoc /usr/lib/mono/monodoc
-	Fsplit monodoc /usr/lib/mono/gac/monodoc
-	Fsplit monodoc /usr/bin/mdvalidater
-	Fsplit monodoc /usr/bin/mdoc*
-	Fsplit monodoc /usr/bin/mdassembler
-	Fsplit monodoc /usr/share/man/man5/mdoc.5
-	Fsplit monodoc /usr/share/man/man1/monodocs2html.1
-	Fsplit monodoc /usr/share/man/man1/mdvalidater.1
-	Fsplit monodoc /usr/lib/pkgconfig/monodoc.pc
+	# for openoffice
+	sed -i -e "s:#Requires:Requires:" ${Fdestdir}/usr/lib/pkgconfig/mono.pc || Fdie
 }
 
 # optimization OK

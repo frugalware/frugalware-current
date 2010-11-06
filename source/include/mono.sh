@@ -41,6 +41,9 @@ Fmonoexport() {
 	export MONO_SHARED_DIR=$Fdestdir/weird
 	export XDG_CONFIG_HOME=$Fdestdir/weird
 	mkdir -p $MONO_SHARED_DIR
+	export MONO_REGISTRY_PATH="${Fdestdir}/registry"
+	export XDG_CONFIG_HOME="${Fdestdir}/config"
+	export HOME="${Fdestdir}/home"
 }
 
 ###
@@ -65,6 +68,9 @@ Fmonocompileaot() {
 Fmonocleanup() {
 	Fmessage "Cleaning up MONO_SHARED_DIR..."
 	rm -rf $MONO_SHARED_DIR
+	rm -rf $MONO_REGISTRY_PATH
+	rm -rf $XDG_CONFIG_HOME
+	rm -rf $HOME
 }
 
 ###
@@ -72,6 +78,10 @@ Fmonocleanup() {
 ###
 Fbuild_mono() {
 	unset MAKEFLAGS
+	if [ "$CARCH" != "ppc" ]; then
+		#new garbage collector not supported by ppc
+		export MONO_ENV_OPTIONS="--gc=sgen"
+	fi
 	Fmonoexport
 	Fbuild $@
 if [ "$_F_mono_aot" -eq 1 ]; then

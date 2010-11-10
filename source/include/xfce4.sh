@@ -49,7 +49,7 @@ if [ -z $_F_archive_name ] ; then
 fi
 
 if [ -z $_F_xfce_ver ]; then
-	_F_xfce_ver="4.6.2"
+	_F_xfce_ver="4.8pre1"
 fi
 
 if [ -z $pkgver ]; then
@@ -65,15 +65,15 @@ fi
 
 if echo ${groups[*]} | grep -q goodies ; then
 	url="http://goodies.xfce.org/projects/panel-plugins/${_F_xfce_name}"
-	dlurl="http://goodies.xfce.org/releases/$_F_xfce_goodies_dir/"
+	dlurl="http://archive.xfce.org/src/panel-plugins/$_F_xfce_goodies_dir/"
 	up2date="lynx -dump $dlurl | grep "$_F_xfce_name-.*${_F_xfce_goodies_ext}$" | Flasttar"
 	source=($dlurl/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
 else
 	url="http://www.xfce.org/"
 	#preup2date="lynx -dump http://mocha.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"
 	preup2date="lynx -dump 'http://mocha.xfce.org/archive/xfce/?C=N;O=A' | sed -ne 's/.*\/xfce\/\(.*\)\//\1/; $ p'"
-	dlurl="http://mocha.xfce.org/archive/xfce-${_F_xfce_ver}/src"
-	up2date="lynx -dump http://mocha.xfce.org/archive/xfce-\$($preup2date)/src/ | Flasttar"
+	dlurl="http://archive.xfce.org/xfce/${_F_xfce_ver}/src"
+	up2date="lynx -dump http://mocha.xfce.org/archive/xfce/$_F_xfce_ver/src/ | Flasttar"
 	source=($dlurl/$_F_xfce_name-$pkgver.tar.bz2)
 fi
 

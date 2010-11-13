@@ -2,13 +2,17 @@
 # Maintainer: Janos Kovacs <janny@frugalware.org>
 # Contributor: Laszlo Dvornik <dvornik@gnome.hu>
 
-pkgname=openoffice.org
-
 # build released development version
 USE_DEVEL=${USE_DEVEL:-"n"}
 # build directly from git
 USE_GIT=${USE_GIT:-"n"}
 Fuse $USE_GIT && USE_DEVEL="y"
+
+if ! Fuse $USE_DEVEL; then
+pkgname=openoffice.org
+else
+pkgname=libreoffice
+fi
 
 if ! Fuse $USE_DEVEL; then
 	upstream=3.2.1
@@ -29,8 +33,13 @@ else
 	fi
 	pkgrel=1
 fi
+if ! Fuse $USE_DEVEL; then
 pkgdesc="OpenOffice.org, a full office productivity suite."
 url="http://www.openoffice.org/"
+else
+pkgdesc="LibreOffice Productivity Suite, a fork of OpenOffice.org."
+url="http://www.documentfoundation.org/download/"
+fi
 _F_gnome_desktop="y"
 Finclude gnome-scriptlet mono kde
 unset install
@@ -47,6 +56,9 @@ makedepends=('curl>=7.20.0-2' 'intltool' 'tcsh' 'pam-headers' 'gcc-gcj' 'ecj' 'a
 	     'libwpg' 'mdbtools' 'mdds' 'junit' 'lucene=2.9.3')
 groups=('xapps')
 archs=('i686' 'x86_64')
+if Fuse $USE_DEVEL; then
+	replaces=('openoffice.org')
+fi
 if ! Fuse $USE_DEVEL; then
 	up2date="lynx -dump http://download.openoffice.org/source/|grep Source|sed 's/.* \(.*\) .*/\1/;q'"
 	source=(http://ftp.frugalware.org/pub/other/sources/ooo-build/ooo-build$branch-$snapshot.tar.bz2 http://git.frugalware.org/tarballs/openoffice.org/$tree-m$milestone-{artwork,base,bootstrap,calc,components,extras,filters,help,impress,libs-gui,libs-core,libs-extern,postprocess,sdk,testing,ure,writer,libs-extern-sys,extensions,l10n}.tar.bz2 SA40775.diff)
@@ -111,7 +123,7 @@ options=(${options[@]} 'scriptlet')
 
 subpkgs=("$pkgname-kde" "$pkgname-gnome" "$pkgname-sdk" "$pkgname-mono" "$pkgname-mozilla")
 subdescs=("$pkgname kde integration" "$pkgname gnome integration" \
-	"The OpenOffice.org Software Development Kit" "$pkgname mono integration" \
+	"The $pkgname Software Development Kit" "$pkgname mono integration" \
 	"$pkgname mozilla integration")
 subdepends=("kdelibs>=$_F_kde_ver" \
 	"gnome-vfs libbonobo evolution-data-server-ldap" \
@@ -126,6 +138,9 @@ subrodepends=("$pkgname=$pkgver" \
 subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
 subgroups=('kde-extra' 'gnome-extra' 'devel-extra' 'devel-extra' 'xapps')
 subinstall=("" "$_F_gnome_scriptlet" "" "" "")
+if Fuse $USE_DEVEL; then
+	subreplaces=('openoffice.org-kde' 'openoffice.org-gnome' 'openoffice.org-sdk' 'openoffice.org-mono' 'openoffice.org-mozilla')
+fi
 
 if ! Fuse $USE_DEVEL; then
 	ooodicts="af cs da de es et fr gl hu it lt ne nl pl pt ru sk sl sr sv sw th vi zu ca he ro"
@@ -141,8 +156,13 @@ fi
 i=0
 while [ $i -lt ${#ooosubpkgs[@]} ]
 do
-	subpkgs=("${subpkgs[@]}" "openoffice.org-i18n-`echo ${ooosubpkgs[$i]}|tr [A-Z] [a-z]`")
+	subpkgs=("${subpkgs[@]}" "$pkgname-i18n-`echo ${ooosubpkgs[$i]}|tr [A-Z] [a-z]`")
+	if ! Fuse $USE_DEVEL; then
 	subdescs=("${subdescs[@]}" "${ooosubdescs[$i]} Localization for OpenOffice.org.")
+	else
+	subdescs=("${subdescs[@]}" "${ooosubdescs[$i]} Localization for LibreOffice.")
+	subreplaces=("${subreplaces[@]}" "openoffice.org-i18n-`echo ${ooosubpkgs[$i]}|tr [A-Z] [a-z]`")
+	fi
 	i=$(($i+1))
 done
 
@@ -150,7 +170,7 @@ i=0
 while [ $i -lt ${#ooosubpkgs[@]} ]
 do
 	if ! Fuse $USE_DEVEL && echo "$ooodicts"|grep -q ${ooosubpkgs[$i]}; then
-		subinstall=("${subinstall[@]}" "openoffice.org-i18n-${ooosubpkgs[$i]}.install")
+		subinstall=("${subinstall[@]}" "$pkgname.org-i18n-${ooosubpkgs[$i]}.install")
 	else
 		subinstall=("${subinstall[@]}" '')
 	fi
@@ -161,16 +181,16 @@ i=0
 while [ $i -lt ${#ooosubpkgs[@]} ]
 do
         subdepends=("${subdepends[@]}" "")
-        subrodepends=("${subrodepends[@]}" "openoffice.org>=$pkgver")
+        subrodepends=("${subrodepends[@]}" "$pkgname>=$pkgver")
         subgroups=("${subgroups[@]}" "locale-extra")
         subarchs=("${subarchs[@]}" "i686 x86_64")
         i=$(($i+1))
 done
 
 if ! Fuse $USE_DEVEL; then
-	dictpath="/usr/lib/openoffice.org/share/extension/install"
+	dictpath="/usr/lib/$pkgname/share/extension/install"
 else
-	dictpath="/usr/lib/openoffice.org/share/extensions"
+	dictpath="/usr/lib/$pkgname/share/extensions"
 fi
 
 gen_dict_scriptlet()
@@ -238,10 +258,10 @@ build()
 
 	if ! Fuse $USE_DEVEL; then
 		# Generate the dict scriptlets
-		gen_dict_scriptlet en openoffice.org.install
+		gen_dict_scriptlet en $pkgname.install
 		for i in $ooodicts
 		do
-			gen_dict_scriptlet $i openoffice.org-i18n-$i.install
+			gen_dict_scriptlet $i $pkgname-i18n-$i.install
 		done
 	fi
 
@@ -257,7 +277,7 @@ build()
 		--with-gcc-speedup=ccache \
 		--with-openclipart=/usr/share/openclipart \
 		--with-binsuffix=no \
-		--with-installed-ooo-dirname=openoffice.org\
+		--with-installed-ooo-dirname=$pkgname\
 		--with-system-cairo \
 		--with-system-libwpd \
 		--with-system-libwps \
@@ -270,7 +290,7 @@ build()
 
 	if ! Fuse $USE_DEVEL; then
 		Fconf --with-lang=ALL --without-git \
-			--with-build-version="openoffice.org-$pkgver-$pkgrel-$CARCH (ooo-build-${snapshot##*g})" \
+			--with-build-version="$pkgname-$pkgver-$pkgrel-$CARCH (ooo-build-${snapshot##*g})" \
 			--with-jdk-home=/usr/lib/jvm/java-6-openjdk \
 			--with-java-target-version=1.5 \
 			--with-system-lucene \
@@ -301,17 +321,17 @@ build()
 	Fmakeinstall
 
 	# Permission fixes
-	find $Fdestdir/usr/lib/openoffice.org/program -name "*.so" ! -perm 755 -exec chmod 755 {} \;
+	find $Fdestdir/usr/lib/$pkgname/program -name "*.so" ! -perm 755 -exec chmod 755 {} \;
 
 	# Fix invalid hardwired mktemp path in unopkg
-	Fsed /bin/mktemp mktemp $Fdestdir/usr/lib/openoffice.org/program/unopkg
+	Fsed /bin/mktemp mktemp $Fdestdir/usr/lib/$pkgname/program/unopkg
 
 	# Enable and split the mozilla plugin
 	Fmkdir /usr/lib/mozilla/plugins
-	Fln /usr/lib/openoffice.org/program/libnpsoplugin.so /usr/lib/mozilla/plugins/
-	Fsplit openoffice.org-mozilla usr/lib/openoffice.org/basis-link/program/nsplugin \
+	Fln /usr/lib/$pkgname/program/libnpsoplugin.so /usr/lib/mozilla/plugins/
+	Fsplit $pkgname-mozilla usr/lib/$pkgname/basis-link/program/nsplugin \
 		usr/lib/mozilla/plugins/libnpsoplugin.so \
-		usr/lib/openoffice.org/program/libnpsoplugin.so
+		usr/lib/$pkgname/program/libnpsoplugin.so
 
 	# Split out the i18n stuff
 	for i in "${ooosubpkgs[@]}"
@@ -323,7 +343,7 @@ build()
 		for j in $(grep -v '^%dir' build/lang_${upkg}_list.txt)
 		do
 			if [ -e $Fdestdir/$j ]; then
-				Fsplit openoffice.org-i18n-$spkg $j
+				Fsplit $pkgname-i18n-$spkg $j
 			fi
 		done
 		rm build/lang_${upkg}_list.txt
@@ -333,15 +353,15 @@ build()
 			dictext=""
 		fi
 		if [ "$i" = "de" ]; then
-			Fsplit openoffice.org-i18n-$spkg $dictpath/dict-de-AT$dictext
-			Fsplit openoffice.org-i18n-$spkg $dictpath/dict-de-CH$dictext
-			Fsplit openoffice.org-i18n-$spkg $dictpath/dict-de-DE$dictext
+			Fsplit $pkgname-i18n-$spkg $dictpath/dict-de-AT$dictext
+			Fsplit $pkgname-i18n-$spkg $dictpath/dict-de-CH$dictext
+			Fsplit $pkgname-i18n-$spkg $dictpath/dict-de-DE$dictext
 		elif [ "$i" = "nb" ]; then
-			Fsplit openoffice.org-i18n-$spkg $dictpath/dict-no$dictext
+			Fsplit $pkgname-i18n-$spkg $dictpath/dict-no$dictext
 		elif [ "$i" = "ku" ]; then
-			Fsplit openoffice.org-i18n-$spkg $dictpath/dict-ku-TR$dictext
+			Fsplit $pkgname-i18n-$spkg $dictpath/dict-ku-TR$dictext
 		elif echo "$ooodicts"|grep -q $i && [ -e $Fdestdir/$dictpath/dict-$i$dictext ]; then
-			Fsplit openoffice.org-i18n-$spkg $dictpath/dict-$i$dictext
+			Fsplit $pkgname-i18n-$spkg $dictpath/dict-$i$dictext
 		fi
 	done
 

@@ -52,6 +52,8 @@
 # * _F_desktop_mime (no default, optional): Mimetypes
 # * _F_desktop_show_in: Whether the icon should be showed in only a particular
 # DE like "XFCE;" for Xfce, "GNOME;" for Gnome, etc.
+# * _F_conf_notry: Fconf will try to use prefix, mandir and similar
+# parameters by default. You can disable the try of a parameter here.
 ###
 
 # Copyright (C) 2005-2006 Bence Nagy <nagybence@tipogral.hu>
@@ -638,12 +640,14 @@ Fconfoptstryset() {
 		return 1
 	fi
 
-	# check if it was not allready set in $Fconfopts
+	# check if it was not already set in $Fconfopts
 	if echo "$Fconfopts" | grep -q -- "--$1=" - ; then
 		return 2
 	fi
 
-	Fconfopts="$Fconfopts --$1=$2"
+	if ! echo $1 |grep -q $_F_conf_notry; then
+		Fconfopts="$Fconfopts --$1=$2"
+	fi
 	return 0
 }
 

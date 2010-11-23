@@ -1,0 +1,143 @@
+# Compiling Time: 0.08 SBU
+# Maintainer: bouleetbil <bouleetbil@frogdev.info>
+
+USE_CRYPTSETUP=${USE_CRYPTSETUP:-"n"}
+
+pkgname=systemd
+pkgver=13
+pkgrel=1
+pkgdesc="A System and Service Manager"
+url="http://www.freedesktop.org/wiki/Software/systemd"
+source=(http://www.freedesktop.org/software/$pkgname/$pkgname-$pkgver.tar.bz2 Frugalware.diff \
+   functions functions-{de,hu,it}.po inittab rc.4 rc.4-de.po rc.6 rc.{de,en,hu,it}\
+	rc.functions rc.K rc.local rc.M rc.messages rc.reboot rc.reboot-{de,hu}.po \
+	rc.S rc.single rc.single-{de,hu}.po rc.sysvinit)
+up2date="Flasttar http://www.freedesktop.org/software/$pkgname"
+depends=('dbus' 'udev' 'pam' 'coreutils' 'libcap')
+if Fuse $USE_CRYPTSETUP; then
+       	depends=("${depends[@]}"  'cryptsetup-luks')
+fi
+
+makedepends=('vala' 'tcp_wrappers')
+groups=('base')
+archs=('i686' 'x86_64' 'ppc')
+
+#TODO : Remove backup, source rc for SysVinit when all rc scripts used systemd
+backup=(etc/{inittab,rc.d/rc.local})
+
+replaces=('sysvinit')
+provides=('sysvinit')
+conflicts=('sysvinit')
+
+Fconfopts="$Fconfopts  --disable-selinux --with-distro=frugalware --with-pamlibdir=/lib/security \
+	--with-rootdir=/usr --with-dbussystemservicedir=/usr/share/dbus-1/system-services \
+	--with-dbusinterfacedir=/usr/share/dbus-1/interfaces"
+subpkgs=('systemd-gtk')
+subdescs=('Graphical front-end for systemd.')
+subrodepends=("$pkgname=$pkgver")
+subdepends=('dbus-glib gtk+2 polkit libnotify')
+subgroups=('xapps')
+subarchs=('i686 x86_64 ppc')
+
+build()
+{
+	#create dbus dir
+	Fmkdir usr/share/dbus-1/services
+
+	#build systemd
+	Fcd
+	Fpatchall
+	Fautoreconf
+	Fmake
+	Fmakeinstall
+
+	#Create SysV compatibility symlinks.
+	Fmkdir sbin
+	Fln /bin/systemd /sbin/init
+	Fln /bin/systemctl /sbin/reboot
+	Fln /bin/systemctl /sbin/halt
+	Fln /bin/systemctl /sbin/poweroff
+	Fln /bin/systemctl /sbin/shutdown
+	Fln /bin/systemctl /sbin/telinit
+	Fln /bin/systemctl /sbin/runlevel
+
+	#TODO :
+	#this part should be removed when ALL rc scripts will used systemd syntax
+	#old function SysV
+	Ffile /lib/initscripts/functions
+
+	for i in $Fsrcdir/functions-*.po ; do
+		slang=`basename $i .po|sed 's|functions-||'`
+		llang=${slang}_`echo $slang | tr [:lower:] [:upper:]`
+		Fmkdir /lib/initscripts/messages/$llang/LC_MESSAGES
+		msgfmt -o $Fdestdir/lib/initscripts/messages/$llang/LC_MESSAGES/functions.mo $i
+	done
+
+	Ffile /etc/inittab
+
+	Fexe rc.{6,functions,K,local,M,S,sysvinit} /etc/rc.d/
+
+	Frcd2 4
+	Frcd2 reboot
+	Frcd2 single
+
+	Ffile rc.{messages,de,en,hu,it} /etc/rc.d/rc.messages/
+
+	Fln rc.6 /etc/rc.d/rc.0
+	Fln rc.reboot /etc/rc.d/rc.halt
+	#end backport SysV
+
+
+	Frm etc/systemd/system/*.target.wants
+
+	#don't have tmpfs on /var/run and /var/lock
+	Frm lib/systemd/system/local-fs.target.wants/var-run.mount
+	Frm lib/systemd/system/local-fs.target.wants/var-lock.mount
+
+	touch $Fdestdir/etc/systemd/system/runlevel2.target || Fdie
+	touch $Fdestdir/etc/systemd/system/runlevel3.target || Fdie
+	touch $Fdestdir/etc/systemd/system/runlevel4.target || Fdie
+	touch $Fdestdir/etc/systemd/system/runlevel5.target || Fdie
+
+	# Make sure these directories are properly owned
+	Fmkdir lib/systemd/system/basic.target.wants
+	Fmkdir lib/systemd/system/default.target.wants
+	Fmkdir lib/systemd/system/dbus.target.wants
+	Fmkdir lib/systemd/system/syslog.target.wants
+
+	#split gtk fronted
+	# TODO : Added .desktop for start fronted
+	Fsplit systemd-gtk usr/bin/systemadm
+	Fsplit systemd-gtk  usr/bin/systemd-gnome-ask-password-agent
+	Fsplit systemd-gtk usr/share/polkit-1/actions/org.freedesktop.systemd1.policy
+	Fsplit systemd-gtk  usr/share/man/man1/systemadm.*
+}
+
+sha1sums=('060d77bf089a7e3ae0e118af5558858139109a2c' \
+          '471cec5cf2546860acde7c302428b2a3af5650c9' \
+          '05a469d19798c45bb0b8e477992d3c5f56e7ea7e' \
+          '2da5b17f95c2331eda19daa6aede672a4d872b73' \
+          '83e5879898d7750b157552606a62f0f7bf1f0c97' \
+          'f16abb4a07b323a739b5b12d24d793559a22192d' \
+          '7bcd997c7da95785feb21bc169a539429393942f' \
+          '29ad61caa6b0c83b1299a03a742a76a614345231' \
+          '513b3fe42c714738af40596987a4fae71ae820d6' \
+          '173c5d41d3fe58ba9a12711d63dfab31c2db8f09' \
+          '7d507be266edd617545118f4bff80ab064744230' \
+          'be843c12f8e7b3db98efd7bea36ba8974c65e2bc' \
+          '16b704d3ec13c0e980cec2c4f800fa7f736ac279' \
+          '1c4c151b15ac5c038207a5fc472988eeca1b8f27' \
+          'f023cb3f93bf976cf51fa9ab2ab3cffb19ec7264' \
+          '0128bd09abf2c49d42949e92c2822bacfc148d7a' \
+          '5adafd4851d987ac5310b8a2ca214c82dec87224' \
+          '6947c8fe272e268207587b48b8de3c3ebefd0ad5' \
+          'c2075ca5be14e318cac2abd2c424715e399d7bfd' \
+          '4cfdf216c8bd51df2e59bb0a81d3d98e8d1e93c0' \
+          'd17c85fb0e68256a28c4ccefa4d5224b1522b9f6' \
+          '96df0467b3922d51f55a7a2c2b4fd214a53450f5' \
+          '61d3ebdae6366e9c41a0887278cb2bbefd972eca' \
+          '4f0279cec1d270216080a1178ab1539f7e260030' \
+          '64db4a11baebe28eaf5d71119c2cb5f091170957' \
+          'aa911a93c7ab733b1729f6a9c174b687aa2db58d' \
+          'b55eb418f8fef43077cec29c103b70fcb4d21329')
+

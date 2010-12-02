@@ -34,6 +34,8 @@
 # == OPTIONS
 # * _F_firefox_ext: name of the extension
 # * _F_firefox_id: id of the extension
+# * _F_firefox_num: number assigned by mozilla website (if not set, url,
+# up2date, and source must be manually set)
 # * _F_firefox_name: if not set, the name of the source must be in a
 # $_F_firefox_ext-$pkgver.xpi form
 # * _F_firefox_nocurly: set this if the is not in curly brackets
@@ -43,11 +45,19 @@
 # * rodepends()
 # * groups()
 # * archs()
+# * url (only if _F_firefox_num is set)
+# * up2date (only if _F_firefox_num is set)
+# * source (only if _F_firefox_num is set)
 ###
 pkgname=firefox-$_F_firefox_ext
-rodepends=('firefox>=3.0')
+rodepends=('firefox>=3.6')
 groups=('xapps-extra' 'firefox-extensions')
-archs=('i686' 'x86_64')
+archs=('i686' 'x86_64' 'ppc')
+if [ -n "$_F_firefox_num" ]; then
+	url="https://addons.mozilla.org/en-US/firefox/addon/$_F_firefox_num/"
+	up2date="curl -s -k '$url' | sed -n 's|.*Version \(\S*\)<.*|\1|p'"
+	source=(http://releases.mozilla.org/pub/mozilla.org/addons/$_F_firefox_num/$_F_firefox_name)
+fi
 
 ###
 # == PROVIDED FUNCTIONS

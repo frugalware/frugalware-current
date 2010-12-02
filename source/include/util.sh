@@ -675,6 +675,7 @@ Fconf() {
 		Fconfoptstryset "prefix" "$Fprefix"
 		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
 		Fconfoptstryset "localstatedir" "$Flocalstatedir"
+		Fconfoptstryset "docdir" "/usr/share/doc/$pkgname-$pkgver"
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
 		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie

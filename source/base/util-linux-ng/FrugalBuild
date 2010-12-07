@@ -1,15 +1,12 @@
 # Compiling time: 0.19 SBU
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
-USE_DEVEL=${USE_DEVEL:-"n"}
-
 pkgname=util-linux-ng
 pkgver=2.18
-pkgrel=4
+pkgrel=1
 pkgdesc="Miscellaneous system utilities for Linux"
 url="http://www.kernel.org/pub/linux/utils/util-linux-ng"
 backup=('etc/sysconfig/console' 'etc/sysconfig/numlock')
-removes=('etc/mtab')
 depends=('bash' 'ncurses>=5.6-4' 'zlib>=1.2.3-6' 'texinfo>=4.11-3')
 makedepends=('cvs')
 replaces=('util-linux' 'linux32')
@@ -19,21 +16,12 @@ groups=('base' 'chroot-core')
 archs=('i686' 'x86_64' 'ppc')
 up2date="lynx -dump 'http://git.kernel.org/?p=utils/util-linux-ng/util-linux-ng.git' |grep 'release v'|sed 's/.* .*v\(.*\) .*release .*/\1/'|grep -m1 -v 'rc'"
 # see bzr for more description on ${pkgver%%.?}
-if ! Fuse $USE_DEVEL; then
-	source=("$url/v${pkgver%%.?}/util-linux-ng-$pkgver.tar.bz2"
-		util-linux-ng-2.18-agetty-baudrate.patch util-linux-ng-2.18-fsck-wholedisk.patch)
-	signatures=("${source[0]}.sign" '' '')
-else
-	_F_scm_type="git"
-	pkgver="$pkgver.184.ga4f4cc7"
-	pkgrel=1
-	_F_scm_url="git://git.kernel.org/pub/scm/utils/util-linux-ng/util-linux-ng.git"
-	Finclude scm
-fi
-source=("${source[@]}" \
-	frugalwaregetty numlock rc.rmount \
-	rc.rmount-{de,hu}.po README.Frugalware)
-signatures=("${signatures[@]}" '' '' '' '' '' '')
+source=($url/v${pkgver%%.?}/util-linux-ng-$pkgver.tar.bz2 \
+	frugalwaregetty numlock rc.{bootclean,console,mount,rmount,swap,time} \
+	rc.bootclean-{de,hu}.po rc.mount-{de,hu}.po rc.rmount-{de,hu}.po \
+	rc.swap-{de,hu}.po rc.time-{de,hu}.po \
+	README.Frugalware)
+signatures=($source.sign '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '')
 
 subpkgs=("${subpkgs[@]}" "libblkid")
 subdescs=("${subdescs[@]}" 'Block device id library')
@@ -53,15 +41,10 @@ rodepends=("${rodepends[@]}" "${subpkgs[@]}")
 
 build() {
 	export CFLAGS="$CFLAGS -fPIC"
-
-	if Fuse $USE_DEVEL; then
-		Funpack_scm
-	fi
-
-	Fpatchall
+	Fcd
 	Fautoreconf
-	Fmake --enable-arch --enable-raw --enable-elvtune --enable-partx
-	Fmakeinstall
+	Fbuild --enable-arch --enable-raw  --enable-elvtune \
+		--mandir=/usr/share/man --disable-fsck
 	# Remove conflicting files.
 	Frm /bin/kill /usr/bin/wall
 	Frm /usr/share/man/man1/{kill,wall}.1
@@ -72,15 +55,17 @@ build() {
 	# This one will be created by ldconfig
 	Frm /lib/libblkid.so.1
 
-	# Runtime file
-	Fln /proc/mounts /etc/mtab
-
 	# Move stuff to the right location (where util-linux had them, maybe
 	# remove later).
 	Fmv /sbin/raw /usr/bin/raw
 
 	# Init scripts.
-	Frcd2 rmount
+	for i in bootclean mount rmount swap
+	do
+		Frcd2 $i
+	done
+	[ "$CARCH" != "ppc" ] && Frcd2 time
+	Fexe /etc/rc.d/rc.console
 
 	# Our getty.
 	Fexe /sbin/frugalwaregetty

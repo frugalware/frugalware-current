@@ -5,6 +5,7 @@ USE_CRYPTSETUP=${USE_CRYPTSETUP:-"n"}
 USE_SYSV_COMPAT=${USE_SYSV_COMPAT:-"y"}
 USE_TCP=${USE_TCP:-"n"}
 USE_GUI=${USE_GUI:-"n"}
+USE_SYSV_REPLACE=${USE_SYSV_REPLACE:-"y"}
 
 pkgname=systemd
 pkgver=15
@@ -32,9 +33,11 @@ archs=('i686' 'x86_64' 'ppc')
 #TODO : Remove backup, source rc for SysVinit when all rc scripts used systemd
 backup=(etc/{vconsole.conf,systemd/system.conf})
 
-replaces=('sysvinit')
-provides=('sysvinit')
-conflicts=('sysvinit')
+if Fuse $USE_SYSV_REPLACE; then
+	replaces=('sysvinit')
+	provides=('sysvinit')
+	conflicts=('sysvinit')
+fi
 
 if Fuse $USE_GUI; then
 	subpkgs=('systemd-gtk')
@@ -77,15 +80,25 @@ build()
 	#http://0pointer.de/public/systemd-man/tmpfiles.d.html
 	Fcp console.conf etc/tmpfiles.d/console.conf
 
-	#Create Sysvinit symlink
-	Fmkdir sbin
-	Fln /bin/systemd /sbin/init
-	Fln /bin/systemctl /sbin/reboot
-	Fln /bin/systemctl /sbin/halt
-	Fln /bin/systemctl /sbin/poweroff
-	Fln /bin/systemctl /sbin/shutdown
-	Fln /bin/systemctl /sbin/telinit
-	Fln /bin/systemctl /sbin/runlevel
+	if Fuse $USE_SYSV_REPLACE; then
+		#Create Sysvinit symlink
+		Fmkdir sbin
+		Fln /bin/systemd /sbin/init
+		Fln /bin/systemctl /sbin/reboot
+		Fln /bin/systemctl /sbin/halt
+		Fln /bin/systemctl /sbin/poweroff
+		Fln /bin/systemctl /sbin/shutdown
+		Fln /bin/systemctl /sbin/telinit
+		Fln /bin/systemctl /sbin/runlevel
+	else
+		#remove some conflicts
+		Frm /usr/share/man/man8/halt.*
+		Frm /usr/share/man/man8/poweroff.*
+		Frm /usr/share/man/man8/reboot.*
+		Frm /usr/share/man/man8/runlevel.*
+		Frm /usr/share/man/man8/shutdown.*
+		Frm /usr/share/man/man8/telinit.*
+	fi
 
 	Frm etc/systemd/system/*.target.wants
 

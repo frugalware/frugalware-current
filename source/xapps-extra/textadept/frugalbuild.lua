@@ -121,20 +121,6 @@ local constant = token(l.CONSTANT, word_match {
   '_F_xorg_dir', '_F_xorg_ind', '_F_xorg_name', '_F_xorg_release_dir', '_F_xorg_url', '_F_xorg_version'
 })
 
--- identifiers
-local identifier = token('identifier', l.word)
-
--- variables
-local variable =
-  token('variable', '$' * (S('!#?*@$') +
-        l.delimited_range('()', nil, true, false, '\n') +
-        l.delimited_range('[]', nil, true, false, '\n') +
-        l.delimited_range('{}', nil, true, false, '\n') +
-        l.delimited_range('`', nil, true, false, '\n') + l.digit^1 + l.word))
-
--- operators
-local operator = token('operator', S('=!<>+-/*^~.,:;?()[]{}'))
-
 _rules = {
   { 'whitespace', ws },
   { 'comment', comment },

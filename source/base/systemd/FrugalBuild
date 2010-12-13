@@ -9,7 +9,7 @@ USE_SYSV_REPLACE=${USE_SYSV_REPLACE:-"y"}
 
 pkgname=systemd
 pkgver=15
-pkgrel=22
+pkgrel=23
 pkgdesc="A System and Service Manager"
 url="http://www.freedesktop.org/wiki/Software/systemd"
 source=(http://www.freedesktop.org/software/$pkgname/$pkgname-$pkgver.tar.bz2 \
@@ -33,12 +33,6 @@ archs=('i686' 'x86_64' 'ppc')
 #TODO : Remove backup, source rc for SysVinit when all rc scripts used systemd
 backup=(etc/{vconsole.conf,systemd/system.conf})
 
-if Fuse $USE_SYSV_REPLACE; then
-	replaces=('sysvinit')
-	provides=('sysvinit')
-	conflicts=('sysvinit')
-fi
-
 if Fuse $USE_GUI; then
 	subpkgs=('systemd-gtk')
 	subdescs=('Graphical frontend for systemd')
@@ -46,9 +40,27 @@ if Fuse $USE_GUI; then
 	subdepends=('dbus-glib gtk+2 polkit libnotify')
 	subgroups=('xapps-extra')
 	subarchs=('i686 x86_64 ppc')
+	subprovides=('')
+	subreplaces=('')
+	subconflicts=('')
 else
 	replaces=("${replaces[@]}"  'systemd-gtk')
 fi
+
+subpkgs=(${subpkgs} 'systemd-sysvinit')
+subdescs=('systemd System V init tools')
+subrodepends=(${subrodepends[@]} "$pkgname=$pkgver")
+subdepends=(${subdepends[@]} '')
+if Fuse $USE_SYSV_REPLACE; then
+	subreplaces=(${subreplaces[@]} 'sysvinit')
+	subgroups=(${subgroups[@]} 'base')
+else
+	subreplaces=(${subreplaces[@]} '')
+	subgroups=(${subgroups[@]} 'base-extra')
+fi
+subarchs=(${subarchs[@]} 'i686 x86_64 ppc')
+subprovides=(${subprovides[@]} 'sysvinit')
+subconflicts=(${subconflicts[@]} 'sysvinit')
 
 Fconfopts="$Fconfopts --disable-selinux --with-distro=frugalware --with-pamlibdir=/lib/security \
 	--with-rootdir= --with-dbussystemservicedir=/usr/share/dbus-1/system-services \
@@ -77,28 +89,23 @@ build()
 	#auto mount
 	Fsed "#MountAuto=yes" "MountAuto=yes" $Fdestdir/etc/systemd/system.conf
 	Fsed "#SwapAuto=yes" "SwapAuto=yes" $Fdestdir/etc/systemd/system.conf
+	# disable output of sysv scripts on console to avoid duplicated
+	# "starting..." messages
+	Fsed "#SysVConsole=yes" "SysVConsole=no" $Fdestdir/etc/systemd/system.conf
 	#http://0pointer.de/public/systemd-man/tmpfiles.d.html
 	Fcp console.conf etc/tmpfiles.d/console.conf
 
-	if Fuse $USE_SYSV_REPLACE; then
-		#Create Sysvinit symlink
-		Fmkdir sbin
-		Fln /bin/systemd /sbin/init
-		Fln /bin/systemctl /sbin/reboot
-		Fln /bin/systemctl /sbin/halt
-		Fln /bin/systemctl /sbin/poweroff
-		Fln /bin/systemctl /sbin/shutdown
-		Fln /bin/systemctl /sbin/telinit
-		Fln /bin/systemctl /sbin/runlevel
-	else
-		#remove some conflicts
-		Frm /usr/share/man/man8/halt.*
-		Frm /usr/share/man/man8/poweroff.*
-		Frm /usr/share/man/man8/reboot.*
-		Frm /usr/share/man/man8/runlevel.*
-		Frm /usr/share/man/man8/shutdown.*
-		Frm /usr/share/man/man8/telinit.*
-	fi
+	# Split tools provided by sysvinit to avoid conflict
+	Fmkdir sbin
+	Fln /bin/systemd /sbin/init
+	Fln /bin/systemctl /sbin/reboot
+	Fln /bin/systemctl /sbin/halt
+	Fln /bin/systemctl /sbin/poweroff
+	Fln /bin/systemctl /sbin/shutdown
+	Fln /bin/systemctl /sbin/telinit
+	Fln /bin/systemctl /sbin/runlevel
+	Fsplit systemd-sysvinit sbin/{init,reboot,halt,poweroff,shutdown,telinit,runlevel}
+	Fsplit systemd-sysvinit usr/share/man/man8/{halt,poweroff,reboot,runlevel,shutdown,telinit}.*
 
 	Frm etc/systemd/system/*.target.wants
 

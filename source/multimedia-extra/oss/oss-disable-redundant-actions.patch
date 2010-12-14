@@ -1,0 +1,246 @@
+diff -aur a/setup/Linux/oss/scripts/restore_drv.sh b/setup/Linux/oss/scripts/restore_drv.sh
+--- a/setup/Linux/oss/scripts/restore_drv.sh	2010-05-11 06:26:05.000000000 -0500
++++ b/setup/Linux/oss/scripts/restore_drv.sh	2010-12-14 11:26:24.119000141 -0600
+@@ -10,7 +10,7 @@
+ 
+ rm -rf /lib/modules/`uname -r`/kernel/oss
+ 
+-if test -x /sbin/chkconfig 
++if test -x /sbin/chkconfig
+ then /sbin/chkconfig oss off > /dev/null 2>&1
+ else
+   if test -x /sbin/update-rc.d
+@@ -18,8 +18,6 @@
+   fi
+ fi
+ 
+-rm -f /etc/init.d/oss
+-
+ if ! test -d /lib/modules/`uname -r`/kernel/sound
+ then
+    if test -f /lib/modules/`uname -r`/sound-preoss.tar.bz2
+diff -aur a/setup/Linux/sbin/soundon b/setup/Linux/sbin/soundon
+--- a/setup/Linux/sbin/soundon	2010-05-11 06:26:05.000000000 -0500
++++ b/setup/Linux/sbin/soundon	2010-12-14 11:26:24.120000141 -0600
+@@ -50,104 +50,6 @@
+ 	exit 10
+ fi
+ 
+-UBUNTU_OVERRIDE=
+-POS_UBUNTU_OVERRIDE=
+-if  test -f /lib/modules/$KERNEL_VERSION/kernel/oss/osscore.ko
+-then
+-# Verify that vermagic of OSS matches the kernel vermagic
+-
+-	OSS_VERMAGIC=`/usr/sbin/ossvermagic -z -q /lib/modules/$KERNEL_VERSION/kernel/oss/osscore.ko`
+-
+-	if ! test "$OSS_VERMAGIC " = "$KERNEL_VERMAGIC "
+-	then
+-		OSS_ORIG_VERMAGIC="$OSS_VERMAGIC"
+-		OSS_VERMAGIC=`/usr/sbin/ossvermagic -z -u -q /lib/modules/$KERNEL_VERSION/kernel/oss/osscore.ko`
+-		POS_UBUNTU_OVERRIDE=1
+-	fi
+-
+-	if ! test "$OSS_VERMAGIC " = "$KERNEL_VERMAGIC "
+-	then
+-		echo "Old    vermagic: " $OSS_VERMAGIC >> $LOG
+-		rm -rf /lib/modules/$KERNEL_VERSION/kernel/oss
+-		echo Previous OSS modules were for a different kernel version - removed
+-		echo Previous OSS modules were for a different kernel version - removed >> $LOG
+-	elif test "$POS_UBUNTU_OVERRIDE " = "1 "
+-	then
+-		echo "Vermagic backup check activated for Ubuntu. Backup vermagic: $OSS_VERMAGIC. OSS stored vermagic $OSS_ORIG_VERMAGIC" >> $LOG
+-		UBUNTU_OVERRIDE="-u"
+-	fi
+-fi
+-
+-if ! test -f /lib/modules/$KERNEL_VERSION/kernel/oss/osscore.ko
+-then
+-	NOTIFY=1
+-	echo Relinking OSS kernel modules for \"$KERNEL_VERMAGIC\"
+-	echo This may take few moments - please stand by...
+-	echo Relinking OSS kernel modules for $KERNEL_VERMAGIC >> $LOG
+-
+-	rm -f /var/log/relink.log
+-	if ! (cd $OSSLIBDIR/build && sh install.sh > /var/log/relink.log 2>&1)
+-	then
+-		cat /var/log/relink.log >> $LOG 2>&1
+-		cat /var/log/relink.log
+-		echo
+-		echo Relinking the OSS kernel modules failed
+-		rm -f /var/log/relink.log
+-		exit 20
+-	fi
+-	
+-	cat /var/log/relink.log >> $LOG 2>&1
+-	echo Relinking OSS kernel modules finished
+-	rm -f /var/log/relink.log
+-fi
+-
+-if ! test -f /lib/modules/$KERNEL_VERSION/kernel/oss/osscore.ko
+-then
+-	echo
+-	echo No /lib/modules/$KERNEL_VERSION/kernel/oss/osscore.ko module >> $LOG
+-	echo No /lib/modules/$KERNEL_VERSION/kernel/oss/osscore.ko module in the system
+-	exit 30
+-fi
+-
+-OSS_VERMAGIC=`/usr/sbin/ossvermagic -z $UBUNTU_OVERRIDE -q /lib/modules/$KERNEL_VERSION/kernel/oss/osscore.ko`
+-echo "OSS    vermagic: " $OSS_VERMAGIC >> $LOG
+-
+-if ! test "$OSS_VERMAGIC " = "$KERNEL_VERMAGIC "
+-then
+-	echo OSS driver modules do not match the current kernel >> $LOG
+-	echo
+-	echo Error: OSS driver modules do not match the current kernel
+-	echo
+-	echo "Kernel vermagic: " $KERNEL_VERMAGIC
+-	echo "OSS    vermagic: " $OSS_VERMAGIC
+-	echo
+-	echo The most likely reason is that the kernel development package
+-        echo installed in the system is wrong. Please refer to the documentation
+-	echo of your Linux distribution for more info about setting up the
+-	echo kernel/driver development environment properly.
+-	echo
+-	exit 40
+-fi
+-
+-if test -f $OSSLIBDIR/etc/license.asc
+-then
+-   /usr/sbin/ossdetect -l >> $LOG
+-fi
+-
+-if grep -q '^ *14 ' < /proc/devices
+-then
+-	if ! sh $OSSLIBDIR/scripts/remove_drv.sh>> $LOG
+-	then
+-		echo Failed to disable conflicting sound drivers >> $LOG
+-		echo Failed to disable conflicting sound drivers 
+-		echo Reboot and try running soundon again
+-		echo
+-		echo Also check that you have not compiled sound support statically
+-		echo into the kernel.
+-		exit 50
+-	fi
+-fi
+-
+ echo >> $LOG
+ echo '*** Loading OSS kernel modules ***' >> $LOG
+ echo >> $LOG
+@@ -230,116 +132,12 @@
+ echo >> $LOG
+ /usr/sbin/savemixer -L -v >> $LOG 2>&1
+ 
+-# Setup ALSA emulation
+-
+-if test -f $OSSLIBDIR/.cuckoo_installed
+-then
+-# Use kernel based ALSA compatibility
+-
+-  if ! test -f /lib/modules/$KERNEL_VERSION/kernel/sound/core/snd.ko
+-  then
+-	sh $OSSLIBDIR/scripts/setup-alsa.sh >> $LOG 2>&1
+-  	depmod -a
+-  fi
+-
+-  echo "*** Setting up ALSA compatibility ****" >> $LOG
+-  modprobe cuckoo >> $LOG 2>&1
+-  head -10 /proc/asound/version >> $LOG 2>&1
+-  lsmod|grep snd >> $LOG
+-  echo "**************************************" >> $LOG
+-elif test -f $OSSLIBDIR/.libsalsa_installed
+-then
+-# Use library based ALSA compatibility
+-
+-  if test -f $OSSLIBDIR/lib/libsalsa.so.2.0.0
+-  then
+-     if test "`uname -m` " = "x86_64 "
+-     then
+-       ln -sf $OSSLIBDIR/lib/libsalsa.so.2.0.0 /usr/lib64/libasound.so.2
+-       #ln -sf $OSSLIBDIR/lib/libOSSlib.so /usr/lib64
+-     else
+-       if test -s /lib/libasound.so.2
+-       then
+-         ln -sf $OSSLIBDIR/lib/libsalsa.so.2.0.0 /lib/libasound.so.2
+-         #ln -sf $OSSLIBDIR/lib/libOSSlib.so /lib
+-       fi
+-  
+-       if test -s /usr/lib/libasound.so.2
+-       then
+-         ln -sf $OSSLIBDIR/lib/libsalsa.so.2.0.0 /usr/lib/libasound.so.2
+-         #ln -sf $OSSLIBDIR/lib/libOSSlib.so /usr/lib
+-       fi
+-     fi
+-  fi
+-fi
+-
+-# Setup libOSSlib.so
+-if test -f $OSSLIBDIR/lib/libOSSlib.so
+-then
+-   if test "`uname -m` " = "x86_64 "
+-   then
+-     ln -sf $OSSLIBDIR/lib/libOSSlib.so /usr/lib64
+-     ln -sf $OSSLIBDIR/lib/libossmix.so /usr/lib64
+-   else
+-     if test -s /lib/libasound.so.2
+-     then
+-       ln -sf $OSSLIBDIR/lib/libOSSlib.so /lib
+-       ln -sf $OSSLIBDIR/lib/libossmix.so /lib
+-     fi
+-
+-     if test -s /usr/lib/libasound.so.2
+-     then
+-       ln -sf $OSSLIBDIR/lib/libOSSlib.so /usr/lib
+-       ln -sf $OSSLIBDIR/lib/libossmix.so /usr/lib
+-     fi
+-   fi
+-fi
+-
+-# Setup Flash 9 audio support plugin for OSS
+-
+-if test -d /usr/lib64 && test -f $OSSLIBDIR/lib/libflashsupport_64.so
+-then
+-  ln -sf $OSSLIBDIR/lib/libflashsupport_64.so /usr/lib64/libflashsupport.so
+-fi
+-
+-if test -d /usr/lib32 && test -f $OSSLIBDIR/lib/libflashsupport_32.so
+-then
+-  ln -sf $OSSLIBDIR/lib/libflashsupport_32.so /usr/lib32/libflashsupport.so
+-fi
+-
+-if ! test -f /usr/lib/libflashsupport.so && test -f $OSSLIBDIR/lib/libflashsupport_32.so
+-then
+-  ln -sf $OSSLIBDIR/lib/libflashsupport_32.so /usr/lib/libflashsupport.so
+-fi
+-
+ if test -x $OSSLIBDIR/soundon.user
+ then
+   echo Running $OSSLIBDIR/soundon.user >> $LOG
+   $OSSLIBDIR/soundon.user >> $LOG 2>&1
+ fi
+ 
+-if test "`ossinfo -g|grep TRIAL` " != " "
+-then
+-	echo
+-	echo "************************************************************"
+-	echo "* NOTE! You are using trial version of Open Sound System   *"
+-	echo "************************************************************"
+-	echo
+-
+-	sleep 1
+-fi
+-
+-if test "`ossinfo -g|grep EXPIRED` " != " "
+-then
+-	echo
+-	echo "****************************************************************"
+-	echo "* NOTE! Your Open Sound System evaluation license has expired  *"
+-	echo "****************************************************************"
+-	echo
+-
+-	sleep 15
+-fi
+-
+ if test "$NOTIFY " = "1 "
+ then
+   echo

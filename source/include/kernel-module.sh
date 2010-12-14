@@ -82,8 +82,8 @@ _F_genscriptlet_install="$_F_kernelmod_scriptlet"
 # * scriptlet to options()
 # * Fkernelmod_genscriptlet_hook to _F_genscriptlet_hooks()
 ###
-depends=("${depends[@]}" "kernel$_F_kernelmod_name=$_F_kernelmod_pkgver")
-makedepends=("${depends[@]}" "kernel$_F_kernelmod_name-source=$_F_kernelmod_pkgver")
+depends=("${depends[@]}" "kernel$_F_kernelmod_name>=$_F_kernelmod_pkgver")
+makedepends=("${depends[@]}" "kernel$_F_kernelmod_name-source>=$_F_kernelmod_pkgver")
 options=("${options[@]}" 'scriptlet') # Required by kernel
 _F_genscriptlet_hooks=("${_F_genscriptlet_hooks[@]}" Fkernelmod_genscriptlet_hook)
 

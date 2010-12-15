@@ -1,0 +1,491 @@
+diff -ur darcs-2.5/src/Darcs/Arguments.lhs darcs-2.5-ghc7-2/src/Darcs/Arguments.lhs
+--- darcs-2.5/src/Darcs/Arguments.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Arguments.lhs	2010-11-26 19:43:45.000000000 +1000
+@@ -1252,7 +1252,7 @@
+ -- @action@ is the name of the action being taken, like @\"push\"@
+ -- @opts@ is the list of flags which were sent to darcs
+ -- @patches@ is the sequence of patches which would be touched by @action@.
+-printDryRunMessageAndExit :: RepoPatch p => String -> [DarcsFlag] -> FL (PatchInfoAnd p) C(x y) -> IO ()
++printDryRunMessageAndExit :: forall p C(x y) . RepoPatch p => String -> [DarcsFlag] -> FL (PatchInfoAnd p) C(x y) -> IO ()
+ printDryRunMessageAndExit action opts patches =
+      do when (DryRun `elem` opts) $ do
+           putInfo $ text $ "Would " ++ action ++ " the following changes:"
+@@ -1269,6 +1269,7 @@
+                             text "</patches>")
+                       else (vsep $ mapFL (showFriendly opts) patches)
+            putInfo = if XMLOutput `elem` opts then \_ -> return () else putDocLn
++           xml_info, xml_with_summary :: PatchInfoAnd p C(a b) -> Doc
+            xml_info pl
+               | Summary `elem` opts = xml_with_summary pl
+               | otherwise = (toXml . info) pl
+diff -ur darcs-2.5/src/Darcs/Commands/Changes.lhs darcs-2.5-ghc7-2/src/Darcs/Commands/Changes.lhs
+--- darcs-2.5/src/Darcs/Commands/Changes.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Commands/Changes.lhs	2010-11-26 19:43:46.000000000 +1000
+@@ -57,7 +57,7 @@
+ import Darcs.Patch.Bundle( contextPatches )
+ import Darcs.Patch.TouchesFiles ( lookTouch )
+ import Darcs.Patch ( RepoPatch, invert, xmlSummary, description, applyToFilepaths,
+-                     listTouchedFiles, effect, identity )
++                     listTouchedFiles, effect, identity, Prim )
+ import Darcs.Witnesses.Ordered ( RL(..), EqCheck(..), filterFLFL, filterRL,
+                                  reverseFL, (:>>)(..), mapRL )
+ import Darcs.Match ( firstMatch, secondMatch,
+@@ -136,7 +136,8 @@
+             ps <- readRepo repository -- read repo again to prevent holding onto
+                                        -- values forced by filtered_changes
+             putDocLnWith printers $ changelog opts ps $ filtered_changes patches
+-  where maybe_reverse (xs,b,c) = if doReverse opts
++  where maybe_reverse :: ([a], b, c) -> ([a], b, c)
++        maybe_reverse (xs,b,c) = if doReverse opts
+                                  then (reverse xs, b, c)
+                                  else (xs, b, c)
+ 
+@@ -160,7 +161,7 @@
+  "whereas `darcs changes --last 3 foo.c' will, of the last three\n" ++
+  "patches, print only those that affect foo.c.\n"
+ 
+-getChangesInfo :: RepoPatch p => [DarcsFlag] -> [FilePath]
++getChangesInfo :: forall p C(x y) . RepoPatch p => [DarcsFlag] -> [FilePath]
+                -> PatchSet p C(x y)
+                -> ([(Sealed2 (PatchInfoAnd p), [FilePath])], [FilePath], Doc)
+ getChangesInfo opts plain_fs ps =
+@@ -175,6 +176,7 @@
+         sp2s = if secondMatch opts
+                then matchSecondPatchset opts ps
+                else Sealed $ ps
++        pf :: PatchInfoAnd p C(a b) -> Bool
+         pf = if haveNonrangeMatch opts
+              then matchAPatchread opts
+              else \_ -> True
+@@ -240,7 +242,8 @@
+                                           else showFriendly opts p
+               | otherwise = description hp
+                             $$ indent (text "[this patch is unavailable]")
+-              where xx x = case listTouchedFiles x of
++              where xx :: Prim C(x y) -> EqCheck C(x y)
++                    xx x = case listTouchedFiles x of
+                              ys | null $ ys `intersect` fs -> unsafeCoerce IsEq
+                              -- in that case, the change does not affect the patches we are
+                              -- looking at, so we ignore the difference between the two states.
+diff -ur darcs-2.5/src/Darcs/Commands/Convert.lhs darcs-2.5-ghc7-2/src/Darcs/Commands/Convert.lhs
+--- darcs-2.5/src/Darcs/Commands/Convert.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Commands/Convert.lhs	2010-11-26 19:43:46.000000000 +1000
+@@ -165,8 +165,10 @@
+       -- "universal" functions to do the conversion, but that's also
+       -- unsatisfying.
+ 
+-      let repository = unsafeCoerce# repositoryfoo :: Repository (FL RealPatch) C(r u t)
+-          themrepo = unsafeCoerce# themrepobar :: Repository Patch C(r u t)
++      let repository :: Repository (FL RealPatch) C(r u t)
++          repository = unsafeCoerce# repositoryfoo
++          themrepo :: Repository Patch C(r u t)
++          themrepo = unsafeCoerce# themrepobar
+       theirstuff <- readRepo themrepo
+       let patches = mapFL_FL convertNamed $ patchSetToPatches theirstuff
+           inOrderTags = iot theirstuff
+@@ -176,7 +178,8 @@
+                     iot_ (Tagged t _ _ :<: ts) = info t : iot_ ts
+                     iot_ NilRL = []
+           outOfOrderTags = catMaybes $ mapRL oot $ newset2RL theirstuff
+-              where oot t = if isTag (info t) && not (info t `elem` inOrderTags)
++              where oot :: PatchInfoAnd Patch C(a b) -> Maybe (PatchInfo, [PatchInfo])
++                    oot t = if isTag (info t) && not (info t `elem` inOrderTags)
+                             then Just (info t, getdeps $ hopefully t)
+                             else Nothing
+           fixDep p = case lookup p outOfOrderTags of
+@@ -206,6 +209,7 @@
+                                    (map convertInfo $ concatMap fixDep $ getdeps n)
+           convertInfo n | n `elem` inOrderTags = n
+                         | otherwise = maybe n (\t -> piRename n ("old tag: "++t)) $ piTag n
++          applySome :: FL (PatchInfoAnd (FL RealPatch)) C(x y) -> IO ()
+           applySome xs = do Sealed pw <- tentativelyMergePatches repository "convert" (AllowConflicts:opts) NilFL xs
+                             finalizeRepositoryChanges repository -- this is to clean out pristine.hashed
+                             revertRepositoryChanges repository
+@@ -223,7 +227,8 @@
+ 
+       optimizeInventory repository
+       putInfo opts $ text "Finished converting."
+-      where revertable x = x `clarifyErrors` unlines
++      where revertable :: IO a -> IO a
++            revertable x = x `clarifyErrors` unlines
+                   ["An error may have left your new working directory an inconsistent",
+                    "but recoverable state. You should be able to make the new",
+                    "repository consistent again by running darcs revert -a."]
+diff -ur darcs-2.5/src/Darcs/Commands/Diff.lhs darcs-2.5-ghc7-2/src/Darcs/Commands/Diff.lhs
+--- darcs-2.5/src/Darcs/Commands/Diff.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Commands/Diff.lhs	2010-11-26 19:43:46.000000000 +1000
+@@ -53,7 +53,7 @@
+ import Darcs.Patch.Set ( PatchSet, newset2RL )
+ import Darcs.Repository.State ( readUnrecorded, restrictSubpaths )
+ import Darcs.Patch ( RepoPatch )
+-import Darcs.Witnesses.Ordered ( mapRL )
++import Darcs.Witnesses.Ordered ( RL, mapRL )
+ import Darcs.Patch.Info ( PatchInfo, humanFriendly )
+ import Darcs.External ( execPipeIgnoreError )
+ import Darcs.Lock ( withTempDir )
+@@ -233,9 +233,10 @@
+                     return ()
+                  return output
+ 
+-getDiffInfo :: RepoPatch p => [DarcsFlag] -> PatchSet p C(start x) -> [PatchInfo]
++getDiffInfo :: forall p C(start x) . RepoPatch p => [DarcsFlag] -> PatchSet p C(start x) -> [PatchInfo]
+ getDiffInfo opts ps =
+-    let infos = mapRL info . newset2RL
++    let infos :: PatchSet p C(start y) -> [PatchInfo]
++        infos = mapRL info . newset2RL
+         handle (match_cond, do_match)
+           | match_cond opts = unseal infos (do_match opts ps)
+           | otherwise = infos ps
+diff -ur darcs-2.5/src/Darcs/Commands/Get.lhs darcs-2.5-ghc7-2/src/Darcs/Commands/Get.lhs
+--- darcs-2.5/src/Darcs/Commands/Get.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Commands/Get.lhs	2010-11-26 19:43:47.000000000 +1000
+@@ -210,6 +210,7 @@
+                                    putInfo opts $ text "Fetching a hashed repository as an old-fashioned one..."
+                                    copyRepoHashed repository
+                                | otherwise -> copyRepoOldFashioned repository opts repodir
++            copyRepoHashed :: RepoPatch p => Repository p C(r u t) -> IO ()
+             copyRepoHashed repository =
+               do identifyRepositoryFor repository repodir >>= copyRepository
+                  when (SetScriptsExecutable `elem` opts) setScriptsExecutable
+diff -ur darcs-2.5/src/Darcs/Commands/Record.lhs darcs-2.5-ghc7-2/src/Darcs/Commands/Record.lhs
+--- darcs-2.5/src/Darcs/Commands/Record.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Commands/Record.lhs	2010-11-26 19:43:47.000000000 +1000
+@@ -195,7 +195,8 @@
+                           debugMessage ("Patch name as received from getLog: " ++ show (map ord name))
+                           doActualRecord repository opts name date
+                                  my_author my_log logf deps chs
+-    where is_empty_but_not_askdeps l
++    where is_empty_but_not_askdeps :: FL Prim C(r z) -> Bool
++          is_empty_but_not_askdeps l
+               | AskDeps `elem` opts = False
+                                       -- a "partial tag" patch; see below.
+               | otherwise = nullFL l
+@@ -333,6 +334,7 @@
+                            (n:ls) -> return (n, takeWhile
+                                              (not.(eod `isPrefixOf`)) ls,
+                                              Just f)
++          append_info :: FilePathLike p => p -> [Char] -> IO ()
+           append_info f oldname =
+               do fc <- readLocaleFile f
+                  appendToFile f $ \h ->
+diff -ur darcs-2.5/src/Darcs/Commands/Rollback.lhs darcs-2.5-ghc7-2/src/Darcs/Commands/Rollback.lhs
+--- darcs-2.5/src/Darcs/Commands/Rollback.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Commands/Rollback.lhs	2010-11-26 19:43:47.000000000 +1000
+@@ -142,7 +142,8 @@
+               return ()
+             when (isJust logf) $ removeFile (fromJust logf)
+             putStrLn "Finished rolling back."
+-          where revertable x = x `clarifyErrors` unlines
++          where revertable :: IO a -> IO a
++                revertable x = x `clarifyErrors` unlines
+                   ["Error applying patch to the working directory.","",
+                    "This may have left your working directory an inconsistent",
+                    "but recoverable state. If you had no un-recorded changes",
+diff -ur darcs-2.5/src/Darcs/Commands/Send.lhs darcs-2.5-ghc7-2/src/Darcs/Commands/Send.lhs
+--- darcs-2.5/src/Darcs/Commands/Send.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Commands/Send.lhs	2010-11-26 19:43:48.000000000 +1000
+@@ -160,7 +160,8 @@
+              putStrLn $ "Creating patch to "++formatPath repodir++"..."
+         wtds <- decideOnBehavior input_opts repo
+         sendToThem repository input_opts wtds repodir them
+-    where the_context [] = return Nothing
++    where the_context :: RepoPatch p => [DarcsFlag] -> IO (Maybe (PatchSet p C(Origin b)))
++          the_context [] = return Nothing
+           the_context (Context foo:_)
+               = (Just . scanContext )`fmap` mmapFilePS (toFilePath foo)
+           the_context (_:fs) = the_context fs
+diff -ur darcs-2.5/src/Darcs/Commands/ShowTags.lhs darcs-2.5-ghc7-2/src/Darcs/Commands/ShowTags.lhs
+--- darcs-2.5/src/Darcs/Commands/ShowTags.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Commands/ShowTags.lhs	2010-11-26 19:43:48.000000000 +1000
+@@ -20,7 +20,7 @@
+ module Darcs.Commands.ShowTags ( showTags ) where
+ import Darcs.Arguments ( DarcsFlag(..), workingRepoDir )
+ import Darcs.Commands ( DarcsCommand(..), nodefaults )
+-import Darcs.Hopefully ( info )
++import Darcs.Hopefully ( info, PatchInfoAnd )
+ import Darcs.Repository ( amInRepository, readRepo, withRepository, ($-) )
+ import Darcs.Patch.Info ( piTag )
+ import Darcs.Patch.Set ( newset2RL )
+@@ -28,6 +28,8 @@
+ import System.IO ( stderr, hPutStrLn )
+ -- import Printer ( renderPS )
+ 
++#include "gadts.h"
++
+ showTagsDescription :: String
+ showTagsDescription = "Show all tags in the repository."
+ 
+@@ -58,7 +60,8 @@
+ tagsCmd opts _ = withRepository opts $- \repository -> do
+   patches <- readRepo repository
+   sequence_ $ mapRL process $ newset2RL patches
+-  where process hp =
++  where process :: PatchInfoAnd p C(x y) -> IO ()
++        process hp =
+             case piTag $ info hp of
+               Just t -> do
+                  t' <- normalize t t False
+diff -ur darcs-2.5/src/Darcs/Diff.hs darcs-2.5-ghc7-2/src/Darcs/Diff.hs
+--- darcs-2.5/src/Darcs/Diff.hs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Diff.hs	2010-11-26 19:43:48.000000000 +1000
+@@ -96,9 +96,12 @@
+               | BL.null a = freeGap (diff_from_empty p b)
+               | BL.null b = freeGap (diff_to_empty p a)
+               | otherwise = freeGap (line_diff p (linesB a) (linesB b))
++          line_diff :: FilePath -> [BS.ByteString] -> [BS.ByteString] -> FL Prim C(a b)
+           line_diff p a b = canonize (hunk p 1 a b)
++          diff_to_empty :: FilePath -> BL.ByteString -> FL Prim C(a b)
+           diff_to_empty p x | BLC.last x == '\n' = line_diff p (init $ linesB x) []
+                             | otherwise = line_diff p (linesB x) [BS.empty]
++          diff_from_empty :: FilePath -> BL.ByteString -> FL Prim C(a b)
+           diff_from_empty p x = invert (diff_to_empty p x)
+           no_bin = not . isFunky . strict . BL.take 4096
+           linesB = map strict . BLC.split '\n'
+diff -ur darcs-2.5/src/Darcs/Patch/Apply.lhs darcs-2.5-ghc7-2/src/Darcs/Patch/Apply.lhs
+--- darcs-2.5/src/Darcs/Patch/Apply.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Patch/Apply.lhs	2010-11-26 19:43:48.000000000 +1000
+@@ -173,7 +173,8 @@
+                                  -> mSetFileExecutable f True
+                 _ -> return ()
+               applyFL opts ps'
+-    where f_hunk (FP f' (Hunk _ _ _)) | f == f' = True
++    where f_hunk :: Prim C(a b) -> Bool
++          f_hunk (FP f' (Hunk _ _ _)) | f == f' = True
+           f_hunk _ = False
+           hunkmod :: WriteableDirectory m => FL FilePatchType C(x y)
+                   -> B.ByteString -> m B.ByteString
+diff -u darcs-2.5/src/Darcs/Patch/Choices.hs darcs-2.5-ghc7-2/src/Darcs/Patch/Choices.hs
+--- darcs-2.5/src/Darcs/Patch/Choices.hs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Patch/Choices.hs	2010-11-27 16:00:40.000000000 +1000
+@@ -62,7 +62,7 @@
+                       substitute
+                     ) where
+ 
+-import Control.Monad.State( State(..) )
++import Control.Monad.State( state, State(..) )
+ 
+ import Darcs.Patch
+ import Darcs.Patch.Permutations ( commuteWhatWeCanRL, commuteWhatWeCanFL )
+@@ -248,12 +248,13 @@
+         Just (tp' :> bubble') -> psLast firsts (tp' :<: middles) bubble' ls
+         Nothing -> psLast firsts middles (tp :<: bubble) ls
+     psLast _ _ _ NilFL = impossible
++    settleM,settleB :: RL (TaggedPatch p) C(u v) -> FL (PatchChoice p) C(u v)
+     settleM middles = mapFL_FL (\tp -> PC tp False) $ reverseRL middles
+     settleB bubble = mapFL_FL (\tp -> PC tp True) $ reverseRL bubble
+ 
+ patchSlot' :: Patchy p =>
+               TaggedPatch p C(a b) -> State (PatchChoices p C(x y)) Slot
+-patchSlot' = State . patchSlot
++patchSlot' = state . patchSlot
+ 
+ forceMatchingFirst :: forall p C(a b). Patchy p =>
+                       ( FORALL(x y) TaggedPatch p C(x y) -> Bool)
+@@ -291,7 +292,8 @@
+ selectAllMiddles :: forall p C(x y). Patchy p => Bool
+                    -> PatchChoices p C(x y) -> PatchChoices p C(x y)
+ selectAllMiddles True (PCs f l) = PCs f (mapFL_FL g l)
+-    where g (PC tp _) = PC tp True
++    where g :: PatchChoice p C(a b) -> PatchChoice p C(a b)
++          g (PC tp _) = PC tp True
+ selectAllMiddles False (PCs f l) = samf f NilRL NilRL l
+   where
+     samf :: FORALL(m1 m2 m3)
+@@ -330,7 +332,8 @@
+ fmlFirst pred b f1 (a :>: f2) l = fmlFirst pred b (a :<: f1) f2 l
+ fmlFirst pred b f1 NilFL l = PCs { firsts = reverseRL f1
+                                  , lasts = mapFL_FL ch l}
+-  where ch (PC tp c) = (PC tp (if pred tp then b else c) )
++  where ch :: PatchChoice p C(x y) -> PatchChoice p C(x y)
++        ch (PC tp c) = (PC tp (if pred tp then b else c) )
+ 
+ forceLasts :: Patchy p => [Tag]
+                     -> PatchChoices p C(a b) -> PatchChoices p C(a b)
+diff -ur darcs-2.5/src/Darcs/Patch/Depends.hs darcs-2.5-ghc7-2/src/Darcs/Patch/Depends.hs
+--- darcs-2.5/src/Darcs/Patch/Depends.hs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Patch/Depends.hs	2010-11-26 19:43:49.000000000 +1000
+@@ -291,7 +291,8 @@
+ areUnrelatedRepos :: RepoPatch p => PatchSet p C(start x) -> PatchSet p C(start y) -> Bool
+ areUnrelatedRepos us them =
+     with_partial_intersection us them checkit
+-    where checkit (Tagged _ _ _ :<: _) _ _ = False
++    where checkit :: RL (Tagged p) C(start t) -> RL (PatchInfoAnd p) C(a b) -> RL (PatchInfoAnd p) C(x y) -> Bool
++          checkit (Tagged _ _ _ :<: _) _ _ = False
+           checkit _ u t | t `isShorterThanRL` 5 = False
+                         | u `isShorterThanRL` 5 = False
+                         | otherwise = null $ intersect (mapRL info u) (mapRL info t)
+diff -ur darcs-2.5/src/Darcs/Patch/Properties.lhs darcs-2.5-ghc7-2/src/Darcs/Patch/Properties.lhs
+--- darcs-2.5/src/Darcs/Patch/Properties.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Patch/Properties.lhs	2010-11-26 19:43:49.000000000 +1000
+@@ -234,10 +234,11 @@
+                         redText "z3" $$ showPatch z3 $$
+                         redText "z3_" $$ showPatch z3_
+ 
+-partialPermutivity :: Patchy p => (FORALL(x y) (p :> p) C(x y) -> Maybe ((p :> p) C(x y)))
++partialPermutivity :: forall p C(a b) . Patchy p => (FORALL(x y) (p :> p) C(x y) -> Maybe ((p :> p) C(x y)))
+                     -> (p :> p :> p) C(a b) -> Maybe Doc
+ partialPermutivity c (xx:>yy:>zz) = pp (xx:>yy:>zz) `mplus` pp (invert zz:>invert yy:>invert xx)
+-    where pp (x:>y:>z) = do z1 :> y1 <- c (y :> z)
++    where pp :: (p :> p:> p) C(x y) -> Maybe Doc
++          pp (x:>y:>z) = do z1 :> y1 <- c (y :> z)
+                             _ :> x1 <- c (x :> z1)
+                             case c (x :> y) of
+                               Just _ -> Nothing -- this is covered by full permutivity test above
+diff -ur darcs-2.5/src/Darcs/Patch/Set.hs darcs-2.5-ghc7-2/src/Darcs/Patch/Set.hs
+--- darcs-2.5/src/Darcs/Patch/Set.hs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Patch/Set.hs	2010-11-26 19:43:50.000000000 +1000
+@@ -52,7 +52,8 @@
+ 
+ progressPatchSet :: String -> PatchSet p C(start x7) -> PatchSet p C(start x7)
+ progressPatchSet k (PatchSet ps0 ts0) = PatchSet (mapRL_RL prog ps0) $ mapRL_RL pts ts0
+-    where prog = progress k
++    where prog :: a -> a
++          prog = progress k
+           pts :: Tagged p C(x8 y) -> Tagged p C(x8 y)
+           pts (Tagged t h ps) = Tagged (prog t) h (mapRL_RL prog ps)
+ 
+diff -ur darcs-2.5/src/Darcs/Patch/Split.hs darcs-2.5-ghc7-2/src/Darcs/Patch/Split.hs
+--- darcs-2.5/src/Darcs/Patch/Split.hs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Patch/Split.hs	2010-11-26 19:43:50.000000000 +1000
+@@ -133,6 +133,7 @@
+                                  , "   - To split removed text, copy back the part you want to retain"
+                                  , ""
+                                  ]
++          hunk :: [B.ByteString] -> [B.ByteString] -> FL Prim C(a b)
+           hunk b a = canonize (FP fn (Hunk n b a))
+           mkSep s = BC.append sep (BC.pack s)
+           breakSep xs = case break (sep `BC.isPrefixOf`) xs of
+diff -ur darcs-2.5/src/Darcs/Population.hs darcs-2.5-ghc7-2/src/Darcs/Population.hs
+--- darcs-2.5/src/Darcs/Population.hs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Population.hs	2010-11-26 19:43:50.000000000 +1000
+@@ -87,7 +87,8 @@
+ getRepoPopVersion repobasedir pinfo = withRepositoryDirectory [] repobasedir $- \repository ->
+    do pips <- newset2RL `liftM` readRepo repository
+       return $ (unseal applyPatchSetPop) (mkPatchSet $ dropWhileRL ((/=pinfo).info) pips) initPop
+-             where mkPatchSet (Sealed xs) = seal $ PatchSet xs NilRL
++             where mkPatchSet :: Sealed (RL (PatchInfoAnd p) C(a)) -> Sealed (PatchSet p C(a))
++                   mkPatchSet (Sealed xs) = seal $ PatchSet xs NilRL
+                    dropWhileRL :: (FORALL(x y) a C(x y) -> Bool) -> RL a C(r v) -> Sealed (RL a C(r))
+                    dropWhileRL _ NilRL = seal NilRL
+                    dropWhileRL p xs@(x:<:xs')
+diff -ur darcs-2.5/src/Darcs/Repository/DarcsRepo.lhs darcs-2.5-ghc7-2/src/Darcs/Repository/DarcsRepo.lhs
+--- darcs-2.5/src/Darcs/Repository/DarcsRepo.lhs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Repository/DarcsRepo.lhs	2010-11-26 19:43:51.000000000 +1000
+@@ -272,11 +272,12 @@
+                         (\e -> do hPutStrLn stderr ("Invalid repository:  " ++ realdir)
+                                   ioError e)
+ 
+-readRepoPrivate :: RepoPatch p => String -> FilePath -> FilePath -> IO (SealedPatchSet p C(Origin))
++readRepoPrivate :: forall p . RepoPatch p => String -> FilePath -> FilePath -> IO (SealedPatchSet p C(Origin))
+ readRepoPrivate k d iname = do
+     i <- gzFetchFilePS (d </> "_darcs" </> iname) Uncachable
+     finishedOneIO k iname
+-    let parse inf = parse2 inf $ d </> "_darcs/patches" </> makeFilename inf
++    let parse :: PatchInfo -> IO (Sealed (PatchInfoAnd p C(x)))
++        parse inf = parse2 inf $ d </> "_darcs/patches" </> makeFilename inf
+         (mt, is) = case BC.break ((==) '\n') i of
+                    (swt,pistr) | swt == BC.pack "Starting with tag:" ->
+                                      case readPatchIds pistr of
+diff -ur darcs-2.5/src/Darcs/SelectChanges.hs darcs-2.5-ghc7-2/src/Darcs/SelectChanges.hs
+--- darcs-2.5/src/Darcs/SelectChanges.hs	2010-11-26 20:15:55.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/SelectChanges.hs	2010-11-26 19:43:51.000000000 +1000
+@@ -32,7 +32,7 @@
+ import Control.Monad ( when, (>=>) )
+ import Control.Monad.Trans ( liftIO )
+ import Control.Monad.Reader ( ReaderT, Reader, asks, runReader, runReaderT )
+-import Control.Monad.State ( State(..), StateT, modify, gets, execStateT )
++import Control.Monad.State ( State(..), StateT, modify, gets, execStateT, runState )
+ import System.Exit ( exitWith, ExitCode(ExitSuccess) )
+ 
+ import English ( Noun(..), englishNum  )
+@@ -160,10 +160,11 @@
+ 
+ -- | 'iswanted' selects patches according to the @--match@ flag in
+ -- opts'
+-iswanted :: Patchy p => MatchCriterion (PatchInfoAnd p)
++iswanted :: forall p . Patchy p => MatchCriterion (PatchInfoAnd p)
+ iswanted whch opts' =
+     unseal2 (iw whch opts')
+         where
++          iw :: WhichChanges -> [DarcsFlag] -> PatchInfoAnd p C(x y) -> Bool
+           iw First o = matchAPatch o . hopefully
+           iw Last o = matchAPatch o . hopefully
+           iw LastReversed o = matchAPatch o . hopefully . invert
+@@ -328,7 +329,8 @@
+     do
+       o <- asks opts
+       c <- (asks matchCriterion)
+-      let iswanted_ = c whichch o . seal2 . tpPatch
++      let iswanted_ :: TaggedPatch p C(a b) -> Bool
++          iswanted_ = c whichch o . seal2 . tpPatch
+           select = if forward
+                    then forceMatchingFirst iswanted_
+                    else forceMatchingLast iswanted_
+@@ -797,7 +799,7 @@
+                     | otherwise    = Just $ length ps_done + length ps_todo
+ 
+ -- | Skips patches we should not ask the user about
+-skipMundane :: Patchy p => WhichChanges ->
++skipMundane :: forall p C(x y) . Patchy p => WhichChanges ->
+               InteractiveSelectionM p C(x y) ()
+ skipMundane whichch = do
+   (FZipper tps_done tps_todo) <- gets tps
+@@ -820,13 +822,14 @@
+           justDone $ lengthFL boring + numSkipped
+           modify $ \isc -> isc {tps = (FZipper (reverseFL boring +<+ reverseFL skipped +<+ tps_done) interesting)}
+     where
++      show_skipped :: [DarcsFlag] -> String -> Int -> FL (TaggedPatch p) C(a b) -> IO ()
+       show_skipped o jn n ps = do putStrLn $ _nevermind_ jn ++ _these_ n ++ "."
+                                   when (Verbose `elem` o) $
+                                        showskippedpatch ps
+       _nevermind_ jn = "Will not ask whether to " ++ jn ++ " "
+       _these_ n  = show n ++ " already decided " ++ _elem_ n ""
+       _elem_ n = englishNum n (Noun "patch")
+-      showskippedpatch :: Patchy p => FL (TaggedPatch p) C(y t) -> IO ()
++      showskippedpatch :: Patchy p => FL (TaggedPatch p) C(a b) -> IO ()
+       showskippedpatch =
+                     sequence_ . mapFL (printSummary . tpPatch)
+ 
+@@ -855,7 +858,8 @@
+                    -> IO (Bool, Sealed (FL (PatchInfoAnd p) C(x)))   -- ^(True iff any patches were removed, possibly filtered patches)
+ filterOutConflicts o us repository them
+   | SkipConflicts `elem` o
+-     = do let commuter = commuterIdRL selfCommuter
++     = do let commuter :: Patchy q => (q :> RL q) C(x y) -> Maybe ((RL q :> q) C(x y))
++              commuter = commuterIdRL selfCommuter
+           unrec <- fmap n2pia . (anonymous . fromPrims) =<< unrecordedChanges [] repository []
+           them' :> rest <- return $ partitionConflictingFL commuter them (unrec :<: us)
+           return (check rest, Sealed them')
+diff -ur darcs-2.5/src/Darcs/Test/Patch/QuickCheck.hs darcs-2.5-ghc7-2/src/Darcs/Test/Patch/QuickCheck.hs
+--- darcs-2.5/src/Darcs/Test/Patch/QuickCheck.hs	2010-11-26 20:15:55.000000000 +1000
++++ darcs-2.5-ghc7-2/src/Darcs/Test/Patch/QuickCheck.hs	2010-11-26 19:43:51.000000000 +1000
+@@ -385,6 +385,7 @@
+               -> [Sealed (WithStartState RepoModel (Tree Prim))]
+ shrinkWSSTree = unseal doShrinkWSSTree
+  where
++ doShrinkWSSTree :: WithStartState RepoModel (Tree Prim) C(x) -> [Sealed (WithStartState RepoModel (Tree Prim))]
+  doShrinkWSSTree wss@(WithStartState rm t)
+   = shrinkWSSTree' wss -- shrink the tree
+      `mplus`
+diff -ur darcs-2.5/src/DateMatcher.hs darcs-2.5-ghc7-2/src/DateMatcher.hs
+--- darcs-2.5/src/DateMatcher.hs	2010-10-25 01:29:26.000000000 +1000
++++ darcs-2.5-ghc7-2/src/DateMatcher.hs	2010-11-26 19:43:51.000000000 +1000
+@@ -33,7 +33,7 @@
+                  MCalendarTime(..), toMCalendarTime, unsafeToCalendarTime,
+                  unsetTime,
+                )
+-import Text.ParserCombinators.Parsec ( eof, parse, ParseError )
++import Text.ParserCombinators.Parsec ( eof, parse, ParseError, CharParser )
+ 
+ -- | 'withinDay' @x y@ is true if @x <= y < (x + one_day)@
+ -- Note that this converts the two dates to @ClockTime@ to avoid
+@@ -153,7 +153,9 @@
+                 (parseDate tzNow d)
+                 samePartialDate ]
+  where
++   tillEof :: CharParser () d -> CharParser () d
+    tillEof p = do { x <- p; eof; return x }
++   parseDateWith :: CharParser () d -> Either ParseError d
+    parseDateWith p = parse (tillEof p) "" d
+ 
+ -- | 'tryMatchers' @ms@ returns the first successful match in @ms@

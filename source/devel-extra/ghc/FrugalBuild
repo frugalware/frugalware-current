@@ -2,11 +2,11 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=ghc
-pkgver=6.10.2
-pkgrel=1
+pkgver=7.0.1
+pkgrel=2
 pkgdesc="The Glasgow Haskell Compiler"
 url="http://www.haskell.org/ghc/"
-depends=('gmp' 'readline' 'gcc-3.3' 'libedit')
+depends=('gmp' 'readline' 'libedit' 'libffi')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://www.haskell.org/ghc/download.html|grep Current|sed 's/.*(\(.*\))/\1/'"
@@ -15,33 +15,35 @@ if [ "$CARCH" == "i686" ]; then
 else
 	_arch=$CARCH
 fi
-source=(http://www.haskell.org/ghc/dist/$pkgver/ghc-$pkgver-src.tar.bz2 \
-	http://www.haskell.org/ghc/dist/$pkgver/ghc-$pkgver-src-extralibs.tar.bz2 \
-	http://www.haskell.org/ghc/dist/$pkgver/ghc-$pkgver-$_arch-unknown-linux.tar.bz2)
-# optimization OK
-sha1sums=('55a7bae8f9f114b3dddd19cba87479ddfb91c804' \
-          'faef7d9aa3f08e24bf5a6b9aed234d05c649829d')
+source=(http://new-www.haskell.org/ghc/dist/$pkgver/ghc-$pkgver-src.tar.bz2 \
+	http://new-www.haskell.org/ghc/dist/$pkgver/ghc-$pkgver-$_arch-unknown-linux.tar.bz2)
+sha1sums=('fdd71deaa4e9a14ac71dfc9ab355947547529a5c')
 if [ "$CARCH" == "i686" ]; then
-	sha1sums=(${sha1sums[@]} 'f41625866a40cd94d4a6b37f97f8ed57f25d0032')
+	sha1sums=(${sha1sums[@]} 'ebcdb48d660328d37ff0651d30997059647ca0ed')
 elif [ "$CARCH" == "x86_64" ]; then
-	sha1sums=(${sha1sums[@]} 'f363f7e37fb20049bdfadf8b05b793fb706dfd43')
+	sha1sums=(${sha1sums[@]} 'ada7fe8516bd40a9759acd013ac282832749405f')
 fi
 NOEXTRACT=1
 
 build()
 {
-	# gcc 3.3 doesn't support -mtune
-	export CFLAGS="-O2 -pipe"
-
-	tar xf ghc-$pkgver-$_arch-unknown-linux.tar.bz2
-	mv ghc-$pkgver ghc-$pkgver-binary
+	Fextract ghc-$pkgver-$_arch-unknown-linux.tar.bz2
+	mv ghc-$pkgver ghc-$pkgver-binary || return 1
 	cd ghc-$pkgver-binary
-	./configure --prefix=$Fsrcdir/binary
-	make install
+
+	# hack
+	ln -s /usr/lib/libffi.so libffi.so.5
+	export LD_LIBRARY_PATH=$(pwd)
+
+	./configure --prefix=$Fsrcdir/binary || return 1
+	make install || return 1
 	export PATH=$Fsrcdir/binary/bin:$PATH
 
 	cd $Fsrcdir
-	tar xf ghc-$pkgver-src.tar.bz2
-	tar xf ghc-$pkgver-src-extralibs.tar.bz2
-	Fbuild --with-gcc=gcc-3.3
+	Fextract ghc-$pkgver-src.tar.bz2
+	_F_conf_notry="build"
+	Fmake
+	# Fmakeinstall doesn't handle this pkg
+	make DESTDIR=$Fdestdir install || return 1
 }
+# optimization OK

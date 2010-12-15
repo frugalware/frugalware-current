@@ -645,7 +645,7 @@ Fconfoptstryset() {
 		return 2
 	fi
 
-	if ! echo $1 |grep -q $_F_conf_notry; then
+	if [ -z "$_F_conf_notry" ] || ! echo $1 |grep -q $_F_conf_notry; then
 		Fconfopts="$Fconfopts --$1=$2"
 	fi
 	return 0
@@ -675,6 +675,7 @@ Fconf() {
 		Fconfoptstryset "prefix" "$Fprefix"
 		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
 		Fconfoptstryset "localstatedir" "$Flocalstatedir"
+		Fconfoptstryset "docdir" "/usr/share/doc/$pkgname-$pkgver"
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
 		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie

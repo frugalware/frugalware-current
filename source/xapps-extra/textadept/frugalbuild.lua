@@ -6,10 +6,10 @@ local P, R, S = l.lpeg.P, l.lpeg.R, l.lpeg.S
 
 module(...)
 
-local ws = token('whitespace', l.space^1)
+local ws = token(l.WHITESPACE, l.space^1)
 
 -- comments
-local comment = token('comment', '#' * l.nonnewline^0)
+local comment = token(l.COMMENT, '#' * l.nonnewline^0)
 
 -- strings
 local sq_str = l.delimited_range("'", nil, true)
@@ -23,25 +23,38 @@ local heredoc = '<<' * P(function(input, index)
     return e and e + 1 or #input + 1
   end
 end)
-local string = token('string', sq_str + dq_str + ex_str + heredoc)
+local string = token(l.STRING, sq_str + dq_str + ex_str + heredoc)
 
 -- numbers
-local number = token('number', l.float + l.integer)
+local number = token(l.NUMBER, l.float + l.integer)
 
 -- keywords
-local keyword = token('keyword', word_match({
-  'patch', 'cd', 'make', 'patch', 'mkdir', 'cp', 'sed', 'install', 'rm',
+local keyword = token(l.KEYWORD, word_match({
   'if', 'then', 'elif', 'else', 'fi', 'case', 'in', 'esac', 'while', 'for',
-  'do', 'done', 'continue', 'local', 'return', 'git', 'svn', 'co', 'clone',
-  'gconf-merge-schema', 'msg', 'echo', 'ln',
+  'do', 'done', 'continue', 'local', 'return',
   -- operators
   '-a', '-b', '-c', '-d', '-e', '-f', '-g', '-h', '-k', '-p', '-r', '-s', '-t',
   '-u', '-w', '-x', '-O', '-G', '-L', '-S', '-N', '-nt', '-ot', '-ef', '-o',
-  '-z', '-n', '-eq', '-ne', '-lt', '-le', '-gt', '-ge', '-Np', '-i'
+  '-z', '-n', '-eq', '-ne', '-lt', '-le', '-gt', '-ge'
 }, '-'))
 
+-- identifiers
+local identifier = token(l.IDENTIFIER, l.word)
+
+-- variables
+local variable = token(l.VARIABLE, '$' * (S('!#?*@$') +
+                       l.delimited_range('()', nil, true, false, '\n') +
+                       l.delimited_range('[]', nil, true, false, '\n') +
+                       l.delimited_range('{}', nil, true, false, '\n') +
+                       l.delimited_range('`', nil, true, false, '\n') +
+                       l.digit^1 +
+                       l.word))
+
+-- operators
+local operator = token(l.OPERATOR, S('=!<>+-/*^~.,:;?()[]{}'))
+
 -- functions
-local func = token('function', word_match {
+local func = token(l.FUNCTION, word_match {
   'Finclude', 'build', 'check_option', 'CMake_build', 'CMake_conf', 'CMake_install', 'CMake_make',
   'CMake_prepare_build', 'CMake_setup', 'Facu', 'Famsn_clean_files', 'Fant', 'Fautoconfize',
   'Fautoreconf', 'Fbuild', 'Fbuild_amsn', 'Fbuild_drupal', 'Fbuild_fonts', 'Fbuild_gnome_scriptlet',
@@ -65,7 +78,7 @@ local func = token('function', word_match {
   'mozilla_i18n_lang_fini', 'mozilla_i18n_lang_install'
 })
 
-local constant = token('constant', word_match {
+local constant = token(l.CONSTANT, word_match {
   'pkgname', 'pkgver', 'pkgrel', 'pkgdesc', 'pkgdesc_localized', 'url', 'license', 'install', 'up2date', 'source',
   'sha1sums', 'signatures', 'groups', 'archs', 'backup', 'depends', 'makedepends', 'rodepends', 'conflicts',
   'provides', 'removes', 'replaces', 'options', 'subpkgs', 'subdescs', 'subdescs_localized', 'sublicense',
@@ -77,7 +90,7 @@ local constant = token('constant', word_match {
   '_F_cmake_color', '_F_cmake_confopts', '_F_cmake_in_source_build', '_F_cmake_rpath', '_F_cmake_src',
   '_F_cmake_type', '_F_cmake_verbose', '_F_compiz_name', '_F_compiz_version', '_F_conf_configure',
   'Fconfopts', '_F_conf_outsource', '_F_conf_perl_pipefrom', '_F_desktop_categories', '_F_desktop_desc',
-  '_F_desktop_exec', '_F_desktop_filename', '_F_desktop_icon', '_F_desktop_mime', '_F_desktop_mimetypes'
+  '_F_desktop_exec', '_F_desktop_filename', '_F_desktop_icon', '_F_desktop_mime', '_F_desktop_mimetypes',
   '_F_desktop_name', '_F_desktop_show_in', 'Fdestdir', 'Fdestir', '_F_drupal_dev', '_F_drupal_module',
   '_F_drupal_ver', '_F_e17_name', '_F_emul_arch', '_F_emul_name', '_F_emul_ver', '_F_extract_taropts',
   '_F_firefox_ext', '_F_firefox_id', '_F_firefox_name', '_F_firefox_nocurly', '_F_fonts_dir',
@@ -107,20 +120,6 @@ local constant = token('constant', word_match {
   '_F_vim_encodings', '_F_vim_lang', '_F_xfce_goodies_dir', '_F_xfce_goodies_ext', '_F_xfce_name', '_F_xfce_ver',
   '_F_xorg_dir', '_F_xorg_ind', '_F_xorg_name', '_F_xorg_release_dir', '_F_xorg_url', '_F_xorg_version'
 })
-
--- identifiers
-local identifier = token('identifier', l.word)
-
--- variables
-local variable =
-  token('variable', '$' * (S('!#?*@$') +
-        l.delimited_range('()', nil, true, false, '\n') +
-        l.delimited_range('[]', nil, true, false, '\n') +
-        l.delimited_range('{}', nil, true, false, '\n') +
-        l.delimited_range('`', nil, true, false, '\n') + l.digit^1 + l.word))
-
--- operators
-local operator = token('operator', S('=!<>+-/*^~.,:;?()[]{}'))
 
 _rules = {
   { 'whitespace', ws },

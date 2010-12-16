@@ -32,10 +32,13 @@ pkgrel=1
 # to declare the real name
 ###
 
+#only use by up2date
 if [ -z "$_F_lxde_name" ]; then
 	_F_lxde_name=$pkgname
 fi
-#for up2date
+if [ -z "$_F_lxde_dir" ]; then
+	_F_lxde_dir=$_F_lxde_name
+fi
 if [ -z "$_F_lxde_sep" ]; then
 	_F_lxde_sep="-"
 fi
@@ -51,7 +54,7 @@ _F_sourceforge_name=$_F_lxde_name
 _F_sourceforge_dirname="lxde"
 Finclude sourceforge
 url="http://lxde.org/"
-up2date="lynx -dump http://sourceforge.net/projects/lxde/files/$_F_lxde_name/ | grep 'http.*lxde/.*$_F_lxde_name/.*/$' |sed 's|.*/\(.*\)/|\1|;q' | sed 's|${_F_lxde_name}${_F_lxde_sep}||'"
+up2date="lynx -dump http://sourceforge.net/projects/lxde/files/$_F_lxde_dir/ | grep 'http.*lxde/.*$_F_lxde_dir/.*/$' |sed 's|.*/\(.*\)/|\1|;q' | sed 's|${_F_lxde_name}${_F_lxde_sep}||'"
 
 ###
 # == APPENDED VARIABLES

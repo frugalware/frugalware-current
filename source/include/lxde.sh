@@ -49,8 +49,7 @@ fi
 # * source()
 # * url
 ###
-#for source
-_F_sourceforge_name=$_F_lxde_name
+
 _F_sourceforge_dirname="lxde"
 Finclude sourceforge
 url="http://lxde.org/"

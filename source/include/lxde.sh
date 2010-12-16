@@ -14,7 +14,7 @@
 # --------------------------------------------------
 # pkgname=menu-cache
 # pkgver=0.3.2
-pkgrel=1
+# pkgrel=1
 # pkgdesc="library creating and utilizing caches to speed up the manipulation for freedesktop.org defined application menus"
 # depends=('glib2')
 # makedepends=('intltool')
@@ -60,3 +60,5 @@ up2date="lynx -dump http://sourceforge.net/projects/lxde/files/$_F_lxde_dir/ | g
 # * lxde-desktop to groups()
 ###
 groups=(${groups[@]} 'lxde-desktop')
+archs=('i686' 'x86_64' 'ppc')
+pkgrel=1

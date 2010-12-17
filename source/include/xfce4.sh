@@ -56,6 +56,10 @@ if [ -z $pkgver ]; then
 	pkgver=${_F_xfce_ver}
 fi
 
+if [ -z $_F_xfce_category ]; then
+	_F_xfce_category="apps"
+fi
+
 ###
 # == OVERWRITTEN VARIABLES
 # * url
@@ -65,9 +69,10 @@ fi
 
 if echo ${groups[*]} | grep -q goodies ; then
 	url="http://goodies.xfce.org/projects/panel-plugins/${_F_xfce_name}"
-	dlurl="http://goodies.xfce.org/releases/$_F_xfce_goodies_dir/"
-	up2date="lynx -dump $dlurl | grep "$_F_xfce_name-.*${_F_xfce_goodies_ext}$" | Flasttar"
-	source=($dlurl/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
+	dlurl="http://archive.xfce.org/src/$_F_xfce_category/$_F_xfce_goodies_dir/"
+	preup2date="lynx -dump $dlurl | grep DIR | tail -n1 | sed 's/.*\]\(.*\)\/.*/\1/'"
+	up2date="lynx -dump $dlurl/\$($preup2date) | grep "$_F_xfce_name-.*${_F_xfce_goodies_ext}$" | Flasttar"
+	source=($dlurl/${pkgver%%.?}/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
 else
 	url="http://www.xfce.org/"
 	#preup2date="lynx -dump http://mocha.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"

@@ -1,0 +1,66 @@
+Description: OpenOffice.org subpixel font rendering broken with new cairo
+Bug: https://bugs.launchpad.net/bugs/271283
+
+Index: gnome-settings-daemon-2.29.5/plugins/xsettings/gsd-xsettings-manager.c
+===================================================================
+--- gnome-settings-daemon-2.29.5.orig/plugins/xsettings/gsd-xsettings-manager.c	2010-01-21 23:54:11.000000000 +0100
++++ gnome-settings-daemon-2.29.5/plugins/xsettings/gsd-xsettings-manager.c	2010-01-21 23:54:50.000000000 +0100
+@@ -295,6 +295,9 @@
+         int         dpi;
+         const char *rgba;
+         const char *hintstyle;
++
++	/* priv helper for OOO lcdfilter */
++	gboolean use_rgba;
+ } GnomeXftSettings;
+ 
+ static const char *rgba_types[] = { "rgb", "bgr", "vbgr", "vrgb" };
+@@ -321,6 +324,7 @@
+         settings->hintstyle = "hintfull";
+         settings->dpi = dpi * 1024; /* Xft wants 1/1024ths of an inch */
+         settings->rgba = "rgb";
++        settings->use_rgba = FALSE;
+ 
+         if (rgba_order) {
+                 int i;
+@@ -359,7 +363,6 @@
+         }
+ 
+         if (antialiasing) {
+-                gboolean use_rgba = FALSE;
+ 
+                 if (strcmp (antialiasing, "none") == 0) {
+                         settings->antialias = 0;
+@@ -367,13 +370,13 @@
+                         settings->antialias = 1;
+                 } else if (strcmp (antialiasing, "rgba") == 0) {
+                         settings->antialias = 1;
+-                        use_rgba = TRUE;
++                        settings->use_rgba = TRUE;
+                 } else {
+                         g_warning ("Invalid value for " FONT_ANTIALIASING_KEY " : '%s'",
+                                    antialiasing);
+                 }
+ 
+-                if (!use_rgba) {
++                if (!settings->use_rgba) {
+                         settings->rgba = "none";
+                 }
+         }
+@@ -397,6 +400,7 @@
+                 xsettings_manager_set_string (manager->priv->managers [i], "Xft/HintStyle", settings->hintstyle);
+                 xsettings_manager_set_int (manager->priv->managers [i], "Xft/DPI", settings->dpi);
+                 xsettings_manager_set_string (manager->priv->managers [i], "Xft/RGBA", settings->rgba);
++                xsettings_manager_set_string (manager->priv->managers [i], "Xft/lcdfilter", settings->use_rgba ? "lcddefault" : "none");
+         }
+         gnome_settings_profile_end (NULL);
+ }
+@@ -456,6 +460,8 @@
+                                 settings->hintstyle);
+         update_property (add_string, "Xft.rgba",
+                                 settings->rgba);
++        update_property (add_string, "Xft.lcdfilter",
++                                settings->use_rgba ? "lcddefault" : "none");
+ 
+         g_debug("xft_settings_set_xresources: new res '%s'", add_string->str);
+ 

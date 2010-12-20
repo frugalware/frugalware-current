@@ -1,0 +1,101 @@
+# Compiling Time: 0.03 SBU
+# Maintainer: bouleetbil <bouleetbil@frogdev.info>
+
+pkgname=dracut
+pkgver=007
+pkgrel=5
+pkgdesc="Generic initramfs generation tool"
+depends=('udev' 'util-linux-ng' 'bash' 'dash' 'kbd' 'cpio')
+makedepends=("docbook-sgml-dtd" "libxslt" "docbook-xsl" "docbook-xml")
+rodepends=('mkinitrd')
+groups=('base-extra')
+archs=('i686' 'x86_64' 'ppc')
+_F_sourceforge_ext=".tar.bz2"
+Finclude sourceforge
+sha1sums=('38f2e74f127f682eac4dc7da30ee0ea8debfff1f')
+backup=(etc/dracut.conf)
+options=('scriptlet')
+
+subpkgs=("${subpkgs[@]}" 'dracut-network')
+subdescs=("${subdescs[@]}" 'Dracut modules to build a dracut initramfs with network support')
+subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
+if [ "$CARCH" != "ppc" ] ; then
+	subdepends=("${subdepends[@]}" "net-tools iproute2 bridge-utils dhclient nfs-utils iscsi")
+else
+	subdepends=("${subdepends[@]}" "net-tools iproute2 bridge-utils dhclient nfs-utils")
+fi
+subgroups=("${subgroups[@]}" 'base-extra')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+suboptions=("${suboptions[@]}"  '')
+
+if [ "$CARCH" != "ppc" ] ; then
+	subpkgs=("${subpkgs[@]}" 'dracut-plymouth')
+	subdescs=("${subdescs[@]}" 'Dracut modules to build a dracut initramfs with plymouth support')
+	subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
+	subdepends=("${subdepends[@]}" "plymouth")
+	subgroups=("${subgroups[@]}" 'base-extra')
+	subarchs=("${subarchs[@]}" 'i686 x86_64')
+	suboptions=("${suboptions[@]}"  '')
+fi
+
+subpkgs=("${subpkgs[@]}" 'dracut-raid')
+subdescs=("${subdescs[@]}" 'Dracut modules to build a dracut initramfs with raid support')
+subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
+subdepends=("${subdepends[@]}" "multipath-tools lvm2")
+subgroups=("${subgroups[@]}" 'base-extra')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+suboptions=("${suboptions[@]}"  '')
+
+subpkgs=("${subpkgs[@]}" 'mkinitrd')
+subdescs=("${subdescs[@]}" 'Creates an initial ramdisk image for preloading modules.')
+subrodepends=("${subrodepends[@]}" "")
+subdepends=("${subdepends[@]}" "popt")
+subgroups=("${subgroups[@]}" 'apps-extra')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+suboptions=("${suboptions[@]}"  'force')
+
+
+build() {
+	Fcd
+	make || Fdie
+	make install DESTDIR=$Fdestdir sbindir=/sbin \
+		sysconfdir=/etc mandir=/usr/share/man WITH_SWITCH_ROOT=0 || Fdie
+
+	#remove useless files (missing depends or couldn't tested)
+	Frm usr/share/dracut/modules.d/10rpmversion/check
+	Frm usr/share/dracut/modules.d/01fips/check
+	Frm usr/share/dracut/modules.d/01fips
+	Frm usr/share/dracut/modules.d/98selinux
+	Frm usr/share/dracut/modules.d/60xen
+	Frm usr/share/dracut/modules.d/95dasd
+	Frm usr/share/dracut/modules.d/95dasd_mod
+	Frm usr/share/dracut/modules.d/95zfcp
+	Frm usr/share/dracut/modules.d/95znet
+	Frm usr/share/dracut/modules.d/95fcoe
+	# remove gentoo modules
+	Frm usr/share/dracut/modules.d/50gensplash
+
+	Fsplit dracut-raid usr/share/dracut/modules.d/*lvm*
+	Fsplit dracut-raid usr/share/dracut/modules.d/*multipath*
+	Fsplit dracut-raid usr/share/dracut/modules.d/*raid*
+
+	if [ "$CARCH" != "ppc" ] ; then
+		Fsplit dracut-plymouth usr/share/dracut/modules.d/50plymouth
+	else
+		Frm usr/share/dracut/modules.d/50plymouth
+	fi
+
+	Fsplit dracut-network usr/share/dracut/modules.d/40network
+	if [ "$CARCH" != "ppc" ] ; then
+		Fsplit dracut-network usr/share/dracut/modules.d/95iscsi
+	else
+		Frm usr/share/dracut/modules.d/95iscsi
+	fi
+	Fsplit dracut-network usr/share/dracut/modules.d/95nbd
+	Fsplit dracut-network usr/share/dracut/modules.d/95nfs
+	Fsplit dracut-network usr/share/dracut/modules.d/45ifcfg
+
+	Fsplit mkinitrd sbin/lsinitrd
+	Fsplit mkinitrd sbin/mkinitrd
+
+}

@@ -118,11 +118,12 @@ Fdie() {
 }
 
 ###
-# * Fregistersubpkg(): Registers one new subpkg per call. Takes any number
-# of parameters. Each parameter must be in the form of "key=value". The key is
-# what the variable would be called if it were a regular package.
+# * __Faddsubpkg(): Internal usage only. Registers one new subpkg per call.
+# Takes any number of parameters. Each parameter must be in the form of
+# "key=value". The key is what the variable would be called if it were a
+# regular package.
 ###
-Fregistersubpkg() {
+__Faddsubpkg() {
 	local key
 	local value
 	local n
@@ -152,40 +153,47 @@ Fregistersubpkg() {
 }
 
 ###
-# * Faddsubpkg(): Simple to use frontend for Fregistersubpkg, but limited.
-# Takes up to 6 parameters, which are:
-# 1) pkgname   (required)
-# 2) pkgdesc   (required)
-# 3) depends   (required)
-# 4) rodepends (optional)
-# 5) groups    (optional)
-# 6) archs     (optional)
+# * Faddsubpkg(): Adds one subpkg to the list. Appended parameters are the
+# corresponding values. Up to 14 parameters are used to define each entry. You
+# must pass all previous parameters if you are to access the later ones. If you
+# do not need parameter, simply pass an empty string, or leave it out if you do
+# not need the later parameters. The order is as follows:
+#  1) pkgname   (required)
+#  2) pkgdesc   (required)
+#  3) depends   (required)
+#  4) rodepends
+#  5) replaces
+#  6) removes
+#  7) conflicts
+#  8) provides
+#  9) license
+# 10) backup
+# 11) install
+# 12) options
+# 13) groups
+# 14) archs
 ###
 Faddsubpkg() {
+	local g
 	local a
-	local b
-	local c
 	if [ "$#" -lt 3 ]; then
 		Fmessage "Faddsubpkg requires at least 3 parameters."
 		Fdie
 	fi
-	if [ -n "$4" ]; then
-		a="$4"
+	if [ -n "$13" ]; then
+		g="$13"
 	else
-		a=''
+		g="${groups[@]}"
 	fi
-	if [ -n "$5" ]; then
-		b="$5"
+	if [ -n "$14" ]; then
+		a="$14"
 	else
-		b="${groups[@]}"
+		a="${archs[@]}"
 	fi
-	if [ -n "$6" ]; then
-		c="$6"
-	else
-		c="${archs[@]}"
-	fi
-	Fregistersubpkg "pkgname=$1" "pkgdesc=$2" "depends=$3" \
-	                "rodepends=$a" "groups=$b" "archs=$c"
+	__Faddsubpkg "pkgname=$1" "pkgdesc=$2" "depends=$3" "rodepends=$4"   \
+	             "replaces=$5" "removes=$6" "conflicts=$7" "provides=$8" \
+				 "license=$9" "backup=$10" "install=$11" "options=$12"   \
+				 "groups=$g" "archs=$a"
 }
 
 ###

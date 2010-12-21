@@ -118,6 +118,77 @@ Fdie() {
 }
 
 ###
+# * Fregistersubpkg(): Registers one new subpkg per call. Takes any number
+# of parameters. Each parameter must be in the form of "key=value". The key is
+# what the variable would be called if it were a regular package.
+###
+Fregistersubpkg() {
+	local key
+	local value
+	local n
+	n=${#subpkgs[@]}
+	for i in "$@"; do
+		key="$(echo "$i" | cut -d '=' -f 1)"
+		value="$(echo "$i" | cut -d '=' -f 2)"
+		[ -z "$key" ] && continue
+		case "$key" in
+			pkgname)           subpkgs[$n]="$value"            ;;
+			pkgdesc)           subdescs[$n]="$value"           ;;
+			pkgdesc_localized) subdescs_localized[$n]="$value" ;;
+			license)           sublicense[$n]="$value"         ;;
+			replaces)          subreplaces[$n]="$value"        ;;
+			groups)            subgroups[$n]="$value"          ;;
+			depends)           subdepends[$n]="$value"         ;;
+			rodepends)         subrodepends[$n]="$value"       ;;
+			removes)           subremoves[$n]="$value"         ;;
+			conflicts)         subconflicts[$n]="$value"       ;;
+			provides)          subprovides[$n]="$value"        ;;
+			backup)            subbackup[$n]="$value"          ;;
+			install)           subinstall[$n]="$value"         ;;
+			options)           suboptions[$n]="$value"         ;;
+			archs)             subarchs[$n]="$value"           ;;
+		esac
+	done
+}
+
+###
+# * Faddsubpkg(): Simple to use frontend for Fregistersubpkg, but limited.
+# Takes up to 6 parameters, which are:
+# 1) pkgname   (required)
+# 2) pkgdesc   (required)
+# 3) depends   (required)
+# 4) rodepends (optional)
+# 5) groups    (optional)
+# 6) archs     (optional)
+###
+Faddsubpkg() {
+	local a
+	local b
+	local c
+	if [ "$#" -lt 3 ]; then
+		Fmessage "Faddsubpkg requires at least 3 parameters."
+		Fdie
+	fi
+	if [ -n "$4" ]; then
+		a="$4"
+	else
+		a=''
+	fi
+	if [ -n "$5" ]; then
+		b="$5"
+	else
+		b="${groups[@]}"
+	fi
+	if [ -n "$6" ]; then
+		c="$6"
+	else
+		c="${archs[@]}"
+	fi
+	Fregistersubpkg "pkgname=$1" "pkgdesc=$2" "depends=$3" \
+	                "rodepends=$a" "groups=$b" "archs=$c"
+}
+
+###
 # * Fexec(): Display and execute the command line passed as parameter. Note that
 # it cannot be used in a pipe context. Parameters: the command line to execute.
 ###
@@ -497,7 +568,7 @@ Fln() {
 }
 
 ###
-# * __Fsed(): Private implementation of Fsed and Freplace. Parameters: 
+# * __Fsed(): Private implementation of Fsed and Freplace. Parameters:
 # 1) regexp (see man sed!) 2) replacement 3) file to edit in place.
 ###
 __Fsed() {
@@ -528,7 +599,7 @@ Fsed() {
 }
 
 ###
-# * Freplace(): Do some parameter substitution on file(s). The parameters 
+# * Freplace(): Do some parameter substitution on file(s). The parameters
 # should be escaped using the "@parameter@" syntax. Parameters:
 # 1) Variable to substituate 2) file(s) where the substitution happens.
 ###

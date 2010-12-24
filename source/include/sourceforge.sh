@@ -98,7 +98,7 @@ Fpkgversep=$_F_sourceforge_sep
 up2date="lynx -dump '$_F_sourceforge_rss_url' | \
 	egrep '$_F_sourceforge_name$_F_sourceforge_sep.*$_F_sourceforge_ext' | \
 	sed -e 's|.*$_F_sourceforge_name$_F_sourceforge_sep||;s|$_F_sourceforge_ext.*||' | \
-	sort | tac | \
+	Fsort | tac | \
 	head -n 1"
 
 source=(

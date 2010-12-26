@@ -86,7 +86,7 @@ fi
 # * source()
 ###
 _F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
-_F_sourceforge_id="$(Fwcat $_F_sourceforge_url/ | grep --color project-id | sed -e "s|.*project-id/||;s|/.*||")"
+_F_sourceforge_id="\$(Fwcat $_F_sourceforge_url/ | grep --color project-id | sed -e 's|.*project-id/||;s|/.*||')"
 _F_sourceforge_rss_url="http://sourceforge.net/api/file/index/project-id/$_F_sourceforge_id/mtime/desc/limit/20/rss"
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"

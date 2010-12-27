@@ -2,28 +2,24 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=mysql
-pkgver=5.1.45
-pkgrel=2
+pkgver=5.5.8
+pkgrel=1
 extrapkgver=
 pkgdesc="A fast SQL database server"
 url="http://www.mysql.com/"
 backup=(etc/my.cnf etc/sysconfig/mysqld)
-depends=('libstdc++' 'ncurses' 'perl-dbi' 'readline')
+depends=('libstdc++' 'ncurses' 'perl-dbi' 'readline' 'libaio')
 rodepends=('perl-dbd-mysql' "libmysqlclient=$pkgver")
 makedepends=('procps' 'openssl>=1.0.0' 'zlib')
+_F_cmake_type=Release
+Finclude cmake
 groups=('apps-extra')
 archs=('i686' 'x86_64' 'ppc')
-up2date="lynx -dump http://dev.mysql.com/downloads/rss.php|grep -i mysql.*server.*ga|sed 's/.* (\(.*\) GA.*/\1/;q'"
-#mirror="ftp://ftp.crysys.hu/pub/mysql/"
-#source=($mirror/Downloads/MySQL-5.1/$pkgname-$pkgver$extrapkgver.tar.gz \
-#	skip-abi-check.patch rc.mysqld my.cnf mysqld)
-source=(ftp://ftp.frugalware.org/pub/other/sources/${pkgname}/${pkgname}-${pkgver}${extrapkgver}.tar.gz \
-	skip-abi-check.patch rc.mysqld my.cnf mysqld)
-sha1sums=('2a34650dc1a7e056788882522211d07791e0b352' \
-          'bf42fe9376623b182c28221c3fd4c911c9d9c688' \
-          'e811ef8cafaec8e826b354f185929d71781da1d9' \
-          '5e52e3cc67a49f7090f3ae82149118ef6bbab922' \
-          '57c6b276d3b63409535c71b37587c879e8ba891c')
+up2date="lynx -dump http://dev.mysql.com/downloads/rss.php|grep -i mysql.*server.*ga|sed 's/.* (\(.*\) GA.*/\1/'|Fsort|tail -n 1"
+mirror="ftp://ftp.crysys.hu/pub/mysql/"
+source=($mirror/Downloads/MySQL-5.5/$pkgname-$pkgver$extrapkgver.tar.gz \
+	rc.mysqld my.cnf mysqld)
+signatures=($source.asc '' '' '')
 
 subpkgs=('libmysqlclient' 'libmysqld')
 subdescs=('MySQL client library.' 'Embedded MySQL Server Library')
@@ -39,41 +35,34 @@ build()
 	fi
 	Fcd $pkgname-$pkgver$extrapkgver
 	Fpatchall
-	Fconf --libexecdir=/usr/sbin \
-		--without-debug \
-		--without-bench \
-		--with-innodb \
-		--enable-local-infile \
-		--with-ssl \
-		--enable-thread-safe-client \
-		--with-raid \
-		--with-client-ldflags=-lstdc++ \
-		--with-comment="Frugalware Linux - ${pkgname}-${pkgver}" \
-		--with-embedded-server \
-                --with-extra-tools \
-                --with-embedded-privilege-control \
-		--with-readline
-	Fsed '^.*HAVE_GETHOSTBYNAME_R_GLIBC2_STYLE.*$' '#define HAVE_GETHOSTBYNAME_R_GLIBC2_STYLE' include/config.h
-	Fsed 'size_socket' 'socklen_t' sql/mysqld.cc
-	
-	make || return 1
-	
-	Fmakeinstall
-	Fln mysql/libmysqld.a /usr/lib/
-	Fln mysql/libmysqlclient.so /usr/lib/
-	Fln mysql/libmysqlclient.so.16 /usr/lib/
-	Fln mysql/libmysqlclient_r.so.16 /usr/lib/
+	CMake_make -DENABLED_LOCAL_INFILE=ON \
+		-DWITH_EMBEDDED_SERVER=ON \
+		-DWITH_INNOBASE_STORAGE_ENGINE=ON \
+		-DWITH_SSL=system \
+		-DWITH_ZLIB=system \
+		-DINSTALL_DOCREADMEDIR=share/doc/mysql-$pkgver \
+		-DINSTALL_INCLUDEDIR=include/mysql \
+		-DINSTALL_SUPPORTFILESDIR=share/mysql \
+		-DINSTALL_PLUGINDIR=lib/mysql \
+		-DINSTALL_INFODIR=share/info \
+		-DINSTALL_MYSQLSHAREDIR=share/mysql \
+		-DINSTALL_SHAREDIR=share/mysql \
+		-DMYSQL_DATADIR=/var/lib/mysql \
+		-DINSTALL_SCRIPTDIR=bin \
+		-DMYSQL_UNIX_ADDR=/var/run/mysql/mysqld.sock
+	make DESTDIR=$Fdestdir install || return 1 # fast install is not supported, so we need to do it manually
 	Ffile my.cnf /etc/my.cnf
 	Frcd2 mysqld
 	Ffile /etc/sysconfig/mysqld
 	Fmkdir /var/run/mysql
 	chown 27.27 $Fdestdir/var/run/mysql || Fdie
 	Fmv usr/mysql-test usr/share/mysql
+	Fmv usr/sql-bench usr/share/mysql
+	Fmv usr/docs/ChangeLog /usr/share/doc/mysql-$pkgver
+	Frm usr/docs usr/data
 
-	Fsplit libmysqlclient usr/lib/libmysqlclient*
-	Fsplit libmysqlclient usr/lib/mysql/libmysqlclient*
+	Fsplit libmysqlclient usr/lib/libmysqlclient* usr/include/mysql
 	
-	Fsplit libmysqld usr/lib/mysql/libmysqld.a
 	Fsplit libmysqld usr/lib/libmysqld.a
 	Fsplit libmysqld usr/bin/*_embedded
 }

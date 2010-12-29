@@ -1312,6 +1312,58 @@ Fwrapper()
 }
 
 ###
+# * Ftreecmp(): Compare 2 tree and do an action on a compare result. Parameters:
+# 1) Fist tree 2) Second tree 3) Action to perform on compared item. The item
+# is an inode item (relative to both tree) prefixed with '-', '=' or '+'
+# depending if it deleted, still present or added in the comparison from the
+# first tree to the second tree.
+###
+Ftreecmp() {
+	local line old=$(mktemp) new=$(mktemp)
+	if [ ! -d "$1" -o ! -d "$2" ]; then
+		Fmessage "$1 or $2 is not a directory"
+		Fdie
+	fi
+	if [ -z "$3" ]; then
+		Fmessage "Comparison function is empty"
+		Fdie
+	fi
+	(cd "$1" && find $_F_treecmp_findopts | sort) > $old
+	(cd "$2" && find $_F_treecmp_findopts | sort) > $new
+	diff --new-line-format='+%L' --old-line-format='-%L' \
+		--unchanged-line-format='=%L' $old $new \
+	| while read line
+	do
+		"$3" "$line" "$1" "$2"
+	done
+	rm $old $new
+}
+
+###
+# * __Ftreecmp_cleandestdir: Internal
+###
+__Ftreecmp_cleandestdir() {
+	case "$1" in
+	=*)	Frm "${1//=/}" ;;
+	esac
+}
+
+###
+# * Fcleandestdir(): Clean the $Fdestdir from subpackages files, to make
+# them conflict less. Parameters: The subpackages to use.
+###
+Fcleandestdir() {
+	local i subdestdir
+	for i in "$@"
+	do
+		Fmessage "Removing conflicting files with $i subpackage."
+		subdestdir="`Fsubdestdir "$i"`"
+		_F_treecmp_findopts='! -type d' \
+		Ftreecmp "$Fdestdir" "$subdestdir" __Ftreecmp_cleandestdir
+	done
+}
+
+###
 # * Fsplit(): Moves a file pattern to a subpackage. Parameters: 1) name of the
 # subpackage 2) pattern of the files to move. Example: Fsplit libmysql /usr/lib.
 #

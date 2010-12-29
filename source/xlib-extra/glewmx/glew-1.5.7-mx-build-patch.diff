@@ -1,0 +1,188 @@
+diff -urN ../glew-1.5.7.old/config/Makefile.linux ./config/Makefile.linux
+--- ../glew-1.5.7.old/config/Makefile.linux	2010-11-03 20:55:35.000000000 +0000
++++ ./config/Makefile.linux	2010-12-21 23:49:21.540300003 +0000
+@@ -3,6 +3,7 @@
+ LD = cc
+ ifneq (undefined, $(origin GLEW_MX))
+ CFLAGS.EXTRA = -DGLEW_MX
++NAME_SUF=mx
+ endif
+ PICFLAG = -fPIC
+ LDFLAGS.SO = -shared -Wl,-soname=$(LIB.SONAME)
+@@ -17,7 +18,7 @@
+ LDFLAGS.GL = -lXmu -lXi -lGLU -lGL -lXext -lX11
+ LDFLAGS.STATIC = -Wl,-Bstatic
+ LDFLAGS.DYNAMIC = -Wl,-Bdynamic
+-NAME = GLEW
++NAME = GLEW$(NAME_SUF)
+ WARN = -Wall -W
+ POPT = -O2
+ BIN.SUFFIX =
+diff -urN ../glew-1.5.7.old/glewmx.pc.in ./glewmx.pc.in
+--- ../glew-1.5.7.old/glewmx.pc.in	1970-01-01 01:00:00.000000000 +0100
++++ ./glewmx.pc.in	2010-12-21 23:54:16.951300012 +0000
+@@ -0,0 +1,10 @@
++prefix=@prefix@
++exec_prefix=@exec_prefix@
++libdir=@libdir@
++includedir=@includedir@
++
++Name: glewmx
++Description: The OpenGL Extension Wrangler library (mx)
++Version: @version@
++Cflags: -I${includedir}
++Libs: -L${libdir} -lGLEWmx
+diff -urN ../glew-1.5.7.old/Makefile ./Makefile
+--- ../glew-1.5.7.old/Makefile	2010-11-03 20:55:35.000000000 +0000
++++ ./Makefile	2010-12-21 23:53:52.598300002 +0000
+@@ -80,7 +80,8 @@
+ VISUALINFO.BIN.OBJS = $(VISUALINFO.BIN.SRCS:.c=.o)
+ BIN.LIBS = -Llib $(LDFLAGS.DYNAMIC) -l$(NAME) $(LDFLAGS.EXTRA) $(LDFLAGS.GL)
+ 
+-all debug: lib/$(LIB.SHARED) lib/$(LIB.STATIC) bin/$(GLEWINFO.BIN) bin/$(VISUALINFO.BIN) glew.pc
++all debug: lib/$(LIB.SHARED) lib/$(LIB.STATIC) bin/$(GLEWINFO.BIN) bin/$(VISUALINFO.BIN) glew.pc glewmx.pc
++libsonly: lib/$(LIB.SHARED) lib/$(LIB.STATIC) glew.pc glewmx.pc
+ 
+ lib:
+ 	mkdir lib
+@@ -121,8 +122,17 @@
+ 		< $< > $@
+ 
+ install: all
++glewmx.pc: glewmx.pc.in
++	sed \
++		-e "s|@prefix@|$(GLEW_DEST)|g" \
++		-e "s|@libdir@|$(LIBDIR)|g" \
++		-e "s|@exec_prefix@|$(BINDIR)|g" \
++		-e "s|@includedir@|$(INCDIR)|g" \
++		-e "s|@version@|$(GLEW_VERSION)|g" \
++		< $< > $@
++
++install-libs: libsonly
+ # directories
+-	$(INSTALL) -d -m 0755 $(BINDIR)
+ 	$(INSTALL) -d -m 0755 $(INCDIR)
+ 	$(INSTALL) -d -m 0755 $(LIBDIR)
+ 	$(INSTALL) -d -m 0755 $(LIBDIR)/pkgconfig
+@@ -139,7 +149,11 @@
+ 	$(INSTALL) -m 0644 include/GL/wglew.h $(INCDIR)/
+ 	$(INSTALL) -m 0644 include/GL/glew.h $(INCDIR)/
+ 	$(INSTALL) -m 0644 include/GL/glxew.h $(INCDIR)/
++ifneq (undefined, $(origin GLEW_MX))
++	$(INSTALL) -m 0644 glewmx.pc $(LIBDIR)/pkgconfig/
++else
+ 	$(INSTALL) -m 0644 glew.pc $(LIBDIR)/pkgconfig/
++endif
+ ifeq ($(filter-out mingw% cygwin,$(SYSTEM)),)
+ 	$(INSTALL) -m 0644 lib/$(LIB.DEVLNK) $(LIBDIR)/
+ else
+@@ -147,8 +161,13 @@
+ 	$(INSTALL) -m 0644 lib/$(LIB.STATIC) $(LIBDIR)/
+ 	$(LN) $(LIB.SHARED) $(LIBDIR)/$(LIB.DEVLNK)
+ endif
++
++install-bin:
++# directories
++	$(INSTALL) -d -m 0755 $(BINDIR)
+ # utilities
+ 	$(INSTALL) -s -m 0755 bin/$(GLEWINFO.BIN) bin/$(VISUALINFO.BIN) $(BINDIR)/
++install: all install-libs install-bin
+ 
+ uninstall:
+ 	$(RM) $(INCDIR)/wglew.h
+diff -urN ../glew-1.5.7.old/patch ./patch
+--- ../glew-1.5.7.old/patch	1970-01-01 01:00:00.000000000 +0100
++++ ./patch	2010-12-21 23:54:45.340300003 +0000
+@@ -0,0 +1,92 @@
++diff -urN ../glew-1.5.7.old/config/Makefile.linux ./config/Makefile.linux
++--- ../glew-1.5.7.old/config/Makefile.linux	2010-11-03 20:55:35.000000000 +0000
+++++ ./config/Makefile.linux	2010-12-21 23:49:21.540300003 +0000
++@@ -3,6 +3,7 @@
++ LD = cc
++ ifneq (undefined, $(origin GLEW_MX))
++ CFLAGS.EXTRA = -DGLEW_MX
+++NAME_SUF=mx
++ endif
++ PICFLAG = -fPIC
++ LDFLAGS.SO = -shared -Wl,-soname=$(LIB.SONAME)
++@@ -17,7 +18,7 @@
++ LDFLAGS.GL = -lXmu -lXi -lGLU -lGL -lXext -lX11
++ LDFLAGS.STATIC = -Wl,-Bstatic
++ LDFLAGS.DYNAMIC = -Wl,-Bdynamic
++-NAME = GLEW
+++NAME = GLEW$(NAME_SUF)
++ WARN = -Wall -W
++ POPT = -O2
++ BIN.SUFFIX =
++diff -urN ../glew-1.5.7.old/glewmx.pc.in ./glewmx.pc.in
++--- ../glew-1.5.7.old/glewmx.pc.in	1970-01-01 01:00:00.000000000 +0100
+++++ ./glewmx.pc.in	2010-12-21 23:54:16.951300012 +0000
++@@ -0,0 +1,10 @@
+++prefix=@prefix@
+++exec_prefix=@exec_prefix@
+++libdir=@libdir@
+++includedir=@includedir@
+++
+++Name: glewmx
+++Description: The OpenGL Extension Wrangler library (mx)
+++Version: @version@
+++Cflags: -I${includedir}
+++Libs: -L${libdir} -lGLEWmx
++diff -urN ../glew-1.5.7.old/Makefile ./Makefile
++--- ../glew-1.5.7.old/Makefile	2010-11-03 20:55:35.000000000 +0000
+++++ ./Makefile	2010-12-21 23:53:52.598300002 +0000
++@@ -80,7 +80,8 @@
++ VISUALINFO.BIN.OBJS = $(VISUALINFO.BIN.SRCS:.c=.o)
++ BIN.LIBS = -Llib $(LDFLAGS.DYNAMIC) -l$(NAME) $(LDFLAGS.EXTRA) $(LDFLAGS.GL)
++ 
++-all debug: lib/$(LIB.SHARED) lib/$(LIB.STATIC) bin/$(GLEWINFO.BIN) bin/$(VISUALINFO.BIN) glew.pc
+++all debug: lib/$(LIB.SHARED) lib/$(LIB.STATIC) bin/$(GLEWINFO.BIN) bin/$(VISUALINFO.BIN) glew.pc glewmx.pc
+++libsonly: lib/$(LIB.SHARED) lib/$(LIB.STATIC) glew.pc glewmx.pc
++ 
++ lib:
++ 	mkdir lib
++@@ -121,8 +122,17 @@
++ 		< $< > $@
++ 
++ install: all
+++glewmx.pc: glewmx.pc.in
+++	sed \
+++		-e "s|@prefix@|$(GLEW_DEST)|g" \
+++		-e "s|@libdir@|$(LIBDIR)|g" \
+++		-e "s|@exec_prefix@|$(BINDIR)|g" \
+++		-e "s|@includedir@|$(INCDIR)|g" \
+++		-e "s|@version@|$(GLEW_VERSION)|g" \
+++		< $< > $@
+++
+++install-libs: libsonly
++ # directories
++-	$(INSTALL) -d -m 0755 $(BINDIR)
++ 	$(INSTALL) -d -m 0755 $(INCDIR)
++ 	$(INSTALL) -d -m 0755 $(LIBDIR)
++ 	$(INSTALL) -d -m 0755 $(LIBDIR)/pkgconfig
++@@ -139,7 +149,11 @@
++ 	$(INSTALL) -m 0644 include/GL/wglew.h $(INCDIR)/
++ 	$(INSTALL) -m 0644 include/GL/glew.h $(INCDIR)/
++ 	$(INSTALL) -m 0644 include/GL/glxew.h $(INCDIR)/
+++ifneq (undefined, $(origin GLEW_MX))
+++	$(INSTALL) -m 0644 glewmx.pc $(LIBDIR)/pkgconfig/
+++else
++ 	$(INSTALL) -m 0644 glew.pc $(LIBDIR)/pkgconfig/
+++endif
++ ifeq ($(filter-out mingw% cygwin,$(SYSTEM)),)
++ 	$(INSTALL) -m 0644 lib/$(LIB.DEVLNK) $(LIBDIR)/
++ else
++@@ -147,8 +161,13 @@
++ 	$(INSTALL) -m 0644 lib/$(LIB.STATIC) $(LIBDIR)/
++ 	$(LN) $(LIB.SHARED) $(LIBDIR)/$(LIB.DEVLNK)
++ endif
+++
+++install-bin:
+++# directories
+++	$(INSTALL) -d -m 0755 $(BINDIR)
++ # utilities
++ 	$(INSTALL) -s -m 0755 bin/$(GLEWINFO.BIN) bin/$(VISUALINFO.BIN) $(BINDIR)/
+++install: all install-libs install-bin
++ 
++ uninstall:
++ 	$(RM) $(INCDIR)/wglew.h

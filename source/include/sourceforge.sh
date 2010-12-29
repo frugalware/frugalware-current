@@ -86,7 +86,7 @@ fi
 # * source()
 ###
 _F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
-_F_sourceforge_id="$(Fwcat $_F_sourceforge_url/ | grep --color project-id | sed -e "s|.*project-id/||;s|/.*||")"
+_F_sourceforge_id="\$(Fwcat $_F_sourceforge_url/ | grep --color project-id | sed -e 's|.*project-id/||;s|/.*||')"
 _F_sourceforge_rss_url="http://sourceforge.net/api/file/index/project-id/$_F_sourceforge_id/mtime/desc/limit/20/rss"
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
@@ -94,9 +94,9 @@ fi
 _F_archive_name=$_F_sourceforge_name
 _F_archive_prefix=$_F_sourceforge_prefix
 Fpkgversep=$_F_sourceforge_sep
-up2date="lynx -dump '$_F_sourceforge_rss_url' | \
+up2date="lynx -dump $_F_sourceforge_rss_url | \
 	egrep '$_F_sourceforge_name$_F_sourceforge_sep.*$_F_sourceforge_ext' | \
-	sed -e 's|.*$_F_sourceforge_name$_F_sourceforge_sep||;s|$_F_sourceforge_ext.*||' | \
+	sed -e 's|.*$_F_sourceforge_name$_F_sourceforge_sep$_F_sourceforge_prefix||;s|$_F_sourceforge_ext.*||' | \
 	Fsort | tac | \
 	head -n 1"
 

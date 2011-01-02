@@ -3,10 +3,11 @@
 
 pkgname=util-linux-ng
 pkgver=2.18
-pkgrel=1
+pkgrel=6
 pkgdesc="Miscellaneous system utilities for Linux"
 url="http://www.kernel.org/pub/linux/utils/util-linux-ng"
 backup=('etc/sysconfig/console' 'etc/sysconfig/numlock')
+removes=('etc/mtab')
 depends=('bash' 'ncurses>=5.6-4' 'zlib>=1.2.3-6' 'texinfo>=4.11-3')
 makedepends=('cvs')
 replaces=('util-linux' 'linux32')
@@ -20,8 +21,9 @@ source=($url/v${pkgver%%.?}/util-linux-ng-$pkgver.tar.bz2 \
 	frugalwaregetty numlock rc.{bootclean,console,mount,rmount,swap,time} \
 	rc.bootclean-{de,hu}.po rc.mount-{de,hu}.po rc.rmount-{de,hu}.po \
 	rc.swap-{de,hu}.po rc.time-{de,hu}.po \
-	README.Frugalware)
-signatures=($source.sign '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '')
+	README.Frugalware \
+	util-linux-ng-2.18-agetty-baudrate.patch util-linux-ng-2.18-fsck-wholedisk.patch)
+signatures=($source.sign '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '')
 
 subpkgs=("${subpkgs[@]}" "libblkid")
 subdescs=("${subdescs[@]}" 'Block device id library')
@@ -41,10 +43,10 @@ rodepends=("${rodepends[@]}" "${subpkgs[@]}")
 
 build() {
 	export CFLAGS="$CFLAGS -fPIC"
-	Fcd
+	Fpatchall
 	Fautoreconf
-	Fbuild --enable-arch --enable-raw  --enable-elvtune \
-		--mandir=/usr/share/man --disable-fsck
+	Fmake --enable-arch --enable-raw --enable-elvtune --enable-partx
+	Fmakeinstall
 	# Remove conflicting files.
 	Frm /bin/kill /usr/bin/wall
 	Frm /usr/share/man/man1/{kill,wall}.1
@@ -55,6 +57,8 @@ build() {
 	# This one will be created by ldconfig
 	Frm /lib/libblkid.so.1
 
+	Fln /proc/self/mounts /etc/mtab
+
 	# Move stuff to the right location (where util-linux had them, maybe
 	# remove later).
 	Fmv /sbin/raw /usr/bin/raw
@@ -64,8 +68,17 @@ build() {
 	do
 		Frcd2 $i
 	done
-	[ "$CARCH" != "ppc" ] && Frcd2 time
 	Fexe /etc/rc.d/rc.console
+	# don't run old sysv init script with different name when using systemd
+	Fmkdir /lib/systemd/system
+	Fln remount-rootfs.service /lib/systemd/system/mount.service
+	Fln remount-rootfs.service /lib/systemd/system/rmount.service
+	Fln remount-rootfs.service /lib/systemd/system/swap.service
+	Fln systemd-vconsole-setup.service /lib/systemd/system/console.service
+	if [ "$CARCH" != "ppc" ]; then
+		Frcd2 time
+		Fln hwclock-load.service /lib/systemd/system/time.service
+	fi
 
 	# Our getty.
 	Fexe /sbin/frugalwaregetty

@@ -52,6 +52,8 @@
 # * _F_desktop_mime (no default, optional): Mimetypes
 # * _F_desktop_show_in: Whether the icon should be showed in only a particular
 # DE like "XFCE;" for Xfce, "GNOME;" for Gnome, etc.
+# * _F_conf_notry: Fconf will try to use prefix, mandir and similar
+# parameters by default. You can disable the try of a parameter here.
 ###
 
 # Copyright (C) 2005-2006 Bence Nagy <nagybence@tipogral.hu>
@@ -113,6 +115,85 @@ Fmessage() {
 ###
 Fdie() {
 	exit 2
+}
+
+###
+# * __Faddsubpkg(): Internal usage only. Registers one new subpkg per call.
+# Takes any number of parameters. Each parameter must be in the form of
+# "key:value". The key is what the variable would be called if it were a
+# regular package.
+###
+__Faddsubpkg() {
+	local key
+	local value
+	local n
+	n=${#subpkgs[@]}
+	for i in "$@"; do
+		key="$(echo "$i" | cut -d ':' -f 1)"
+		value="$(echo "$i" | cut -d ':' -f 2)"
+		[ -z "$key" ] && continue
+		case "$key" in
+			pkgname)           subpkgs[$n]="$value"            ;;
+			pkgdesc)           subdescs[$n]="$value"           ;;
+			pkgdesc_localized) subdescs_localized[$n]="$value" ;;
+			license)           sublicense[$n]="$value"         ;;
+			replaces)          subreplaces[$n]="$value"        ;;
+			groups)            subgroups[$n]="$value"          ;;
+			depends)           subdepends[$n]="$value"         ;;
+			rodepends)         subrodepends[$n]="$value"       ;;
+			removes)           subremoves[$n]="$value"         ;;
+			conflicts)         subconflicts[$n]="$value"       ;;
+			provides)          subprovides[$n]="$value"        ;;
+			backup)            subbackup[$n]="$value"          ;;
+			install)           subinstall[$n]="$value"         ;;
+			options)           suboptions[$n]="$value"         ;;
+			archs)             subarchs[$n]="$value"           ;;
+		esac
+	done
+}
+
+###
+# * Faddsubpkg(): Adds one subpkg to the list. Appended parameters are the
+# corresponding values. Up to 14 parameters are used to define each entry. You
+# must pass all previous parameters if you are to access the later ones. If you
+# do not need parameter, simply pass an empty string, or leave it out if you do
+# not need the later parameters. The order is as follows:
+#  1) pkgname   (required)
+#  2) pkgdesc   (required)
+#  3) depends   (required)
+#  4) rodepends
+#  5) replaces
+#  6) removes
+#  7) conflicts
+#  8) provides
+#  9) license
+# 10) backup
+# 11) install
+# 12) options
+# 13) groups
+# 14) archs
+###
+Faddsubpkg() {
+	local g
+	local a
+	if [ "$#" -lt 3 ]; then
+		Fmessage "Faddsubpkg requires at least 3 parameters."
+		Fdie
+	fi
+	if [ -n "${13}" ]; then
+		g="${13}"
+	else
+		g="${groups[@]}"
+	fi
+	if [ -n "${14}" ]; then
+		a="${14}"
+	else
+		a="${archs[@]}"
+	fi
+	__Faddsubpkg "pkgname:${1}" "pkgdesc:${2}" "depends:${3}" "rodepends:${4}"   \
+	             "replaces:${5}" "removes:${6}" "conflicts:${7}" "provides:${8}" \
+	             "license:${9}" "backup:${10}" "install:${11}" "options:${12}"   \
+	             "groups:${g}" "archs:${a}"
 }
 
 ###
@@ -495,7 +576,7 @@ Fln() {
 }
 
 ###
-# * __Fsed(): Private implementation of Fsed and Freplace. Parameters: 
+# * __Fsed(): Private implementation of Fsed and Freplace. Parameters:
 # 1) regexp (see man sed!) 2) replacement 3) file to edit in place.
 ###
 __Fsed() {
@@ -526,7 +607,7 @@ Fsed() {
 }
 
 ###
-# * Freplace(): Do some parameter substitution on file(s). The parameters 
+# * Freplace(): Do some parameter substitution on file(s). The parameters
 # should be escaped using the "@parameter@" syntax. Parameters:
 # 1) Variable to substituate 2) file(s) where the substitution happens.
 ###
@@ -638,12 +719,14 @@ Fconfoptstryset() {
 		return 1
 	fi
 
-	# check if it was not allready set in $Fconfopts
+	# check if it was not already set in $Fconfopts
 	if echo "$Fconfopts" | grep -q -- "--$1=" - ; then
 		return 2
 	fi
 
-	Fconfopts="$Fconfopts --$1=$2"
+	if [ -z "$_F_conf_notry" ] || ! echo $1 |grep -q $_F_conf_notry; then
+		Fconfopts="$Fconfopts --$1=$2"
+	fi
 	return 0
 }
 
@@ -671,6 +754,7 @@ Fconf() {
 		Fconfoptstryset "prefix" "$Fprefix"
 		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
 		Fconfoptstryset "localstatedir" "$Flocalstatedir"
+		Fconfoptstryset "docdir" "/usr/share/doc/$pkgname-$pkgver"
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
 		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie
@@ -1225,6 +1309,58 @@ Fwrapper()
 	echo "#!/bin/sh" > $startdir/pkg/usr/bin/$exe
 	echo "$1" >> $startdir/pkg/usr/bin/$exe
 	chmod 755 $startdir/pkg/usr/bin/$exe
+}
+
+###
+# * Ftreecmp(): Compare 2 tree and do an action on a compare result. Parameters:
+# 1) Fist tree 2) Second tree 3) Action to perform on compared item. The item
+# is an inode item (relative to both tree) prefixed with '-', '=' or '+'
+# depending if it deleted, still present or added in the comparison from the
+# first tree to the second tree.
+###
+Ftreecmp() {
+	local line old=$(mktemp) new=$(mktemp)
+	if [ ! -d "$1" -o ! -d "$2" ]; then
+		Fmessage "$1 or $2 is not a directory"
+		Fdie
+	fi
+	if [ -z "$3" ]; then
+		Fmessage "Comparison function is empty"
+		Fdie
+	fi
+	(cd "$1" && find $_F_treecmp_findopts | sort) > $old
+	(cd "$2" && find $_F_treecmp_findopts | sort) > $new
+	diff --new-line-format='+%L' --old-line-format='-%L' \
+		--unchanged-line-format='=%L' $old $new \
+	| while read line
+	do
+		"$3" "$line" "$1" "$2"
+	done
+	rm $old $new
+}
+
+###
+# * __Ftreecmp_cleandestdir: Internal
+###
+__Ftreecmp_cleandestdir() {
+	case "$1" in
+	=*)	Frm "${1//=/}" ;;
+	esac
+}
+
+###
+# * Fcleandestdir(): Clean the $Fdestdir from subpackages files, to make
+# them conflict less. Parameters: The subpackages to use.
+###
+Fcleandestdir() {
+	local i subdestdir
+	for i in "$@"
+	do
+		Fmessage "Removing conflicting files with $i subpackage."
+		subdestdir="`Fsubdestdir "$i"`"
+		_F_treecmp_findopts='! -type d' \
+		Ftreecmp "$Fdestdir" "$subdestdir" __Ftreecmp_cleandestdir
+	done
 }
 
 ###

@@ -1,0 +1,210 @@
+From: Lennart Poettering <lennart@poettering.net>
+Date: Tue, 23 Nov 2010 00:45:08 +0000 (+0100)
+Subject: alsactl: systemd and udev hookup
+X-Git-Url: http://git.alsa-project.org/?p=alsa-utils.git;a=commitdiff_plain;h=de7c3eff0e371ce155403bbcdcf81ee79266fa0f;hp=b42a1c7a1979e1f5c01dc3d6ecf09169d7a912b0
+
+alsactl: systemd and udev hookup
+
+Add minimal systemd and udev support to alsactl so that mixer settings
+are restored at boot, when sound cards are plugged in and saved on
+shutdown.
+
+This is similar to existing udev/init script solutions in various
+distributions.
+
+Note that alsactl is called both synchronously from the udev rules as
+well as asynchronously at boot. This is intended, and to ensure two
+things:
+
+- At boot the asound.state file might not be readable, since it resides
+  on a different file system. That means exclusively restoring sound card
+  settings from udev rules will no suffice, since if the rule is
+  executed at early boot (for example within udev settle) then the file
+  will no be readable and cannot be restored.
+
+- We need to ensure that applications monitoring sound cards coming and
+  going (such as PA) must not get these events before the mixer settings
+  have been restored. That means the mixer settings must be restored
+  synchronously withing the udev rules, before the events are passed on
+  to the apps.
+
+That basically means we need to restore the settings once in udev, to
+deal with sound cards becoming available during runtime. And once in
+early boot to deal with coldplugged soundcards whose data files might
+not have been available at time of plugging. Hence we call alsactl
+twice: one from the udev rule, and once from he systemd unit file.
+
+Signed-off-by: Lennart Poettering <mznyfn@0pointer.de>
+Signed-off-by: Jaroslav Kysela <perex@perex.cz>
+---
+
+diff --git a/Makefile.am b/Makefile.am
+index 9951c46..62e1ba6 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -37,3 +37,6 @@ dist-hook:
+ 	else \
+ 		$(TAR) --create --verbose --file=- $(distdir) | bzip2 -c -9 > $(distdir).tar.bz2 ; \
+ 	fi
++
++DISTCHECK_CONFIGURE_FLAGS = \
++        --with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
+diff --git a/alsactl/.gitignore b/alsactl/.gitignore
+new file mode 100644
+index 0000000..56ab3a2
+--- /dev/null
++++ b/alsactl/.gitignore
+@@ -0,0 +1,3 @@
++alsa-store.service
++alsa-restore.service
++90-alsa-restore.rules
+diff --git a/alsactl/90-alsa-restore.rules.in b/alsactl/90-alsa-restore.rules.in
+new file mode 100644
+index 0000000..0bcee5b
+--- /dev/null
++++ b/alsactl/90-alsa-restore.rules.in
+@@ -0,0 +1,2 @@
++ACTION=="add", SUBSYSTEM=="sound", KERNEL=="controlC*", KERNELS=="card*", \
++        RUN+="@sbindir@/alsactl restore $attr{number}"
+diff --git a/alsactl/Makefile.am b/alsactl/Makefile.am
+index 359f73a..9a2d30e 100644
+--- a/alsactl/Makefile.am
++++ b/alsactl/Makefile.am
+@@ -10,5 +10,51 @@ EXTRA_DIST=alsactl.1 alsactl_init.xml
+ alsactl_SOURCES=alsactl.c state.c utils.c init_parse.c
+ noinst_HEADERS=alsactl.h list.h init_sysdeps.c init_utils_string.c init_utils_run.c init_sysfs.c
+ 
++udevrulesdir=/lib/udev/rules.d
++
++dist_udevrules_DATA = \
++	90-alsa-restore.rules
++
++if HAVE_SYSTEMD
++
++systemdsystemunit_DATA = \
++	alsa-store.service \
++	alsa-restore.service
++
++install-data-hook:
++	$(MKDIR_P) -m 0755 \
++		$(DESTDIR)$(systemdsystemunitdir)/basic.target.wants \
++		$(DESTDIR)$(systemdsystemunitdir)/shutdown.target.wants
++	( cd $(DESTDIR)$(systemdsystemunitdir)/basic.target.wants && \
++	        rm -f alsa-restore.service && \
++		$(LN_S) ../alsa-restore.service alsa-restore.service )
++	( cd $(DESTDIR)$(systemdsystemunitdir)/shutdown.target.wants && \
++	        rm -f alsa-store.service && \
++		$(LN_S) ../alsa-store.service alsa-store.service )
++
++endif
++
++edit = \
++	sed $(SED) -r 's,@sbindir\@,$(sbindir),g' < $< > $@ || rm $@
++
++alsa-store.service: alsa-store.service.in
++	$(edit)
++
++alsa-restore.service: alsa-restore.service.in
++	$(edit)
++
++90-alsa-restore.rules: 90-alsa-restore.rules.in
++	$(edit)
++
++EXTRA_DIST += \
++	alsa-store.service.in \
++	alsa-restore.service.in \
++	90-alsa-restore.rules.in
++
++CLEANFILES = \
++	alsa-store.service \
++	alsa-restore.service \
++	90-alsa-restore.rules
++
+ %.7: %.xml
+ 	xmlto man $?
+diff --git a/alsactl/alsa-restore.service.in b/alsactl/alsa-restore.service.in
+new file mode 100644
+index 0000000..e97d196
+--- /dev/null
++++ b/alsactl/alsa-restore.service.in
+@@ -0,0 +1,11 @@
++[Unit]
++Description=Restore Sound Card State
++DefaultDependencies=no
++After=sysinit.target
++Before=shutdown.target
++Conflicts=shutdown.target
++
++[Service]
++Type=oneshot
++ExecStart=-@sbindir@/alsactl restore
++StandardOutput=syslog
+diff --git a/alsactl/alsa-store.service.in b/alsactl/alsa-store.service.in
+new file mode 100644
+index 0000000..0e2823c
+--- /dev/null
++++ b/alsactl/alsa-store.service.in
+@@ -0,0 +1,9 @@
++[Unit]
++Description=Store Sound Card State
++DefaultDependencies=no
++Before=shutdown.target
++
++[Service]
++Type=oneshot
++ExecStart=@sbindir@/alsactl store
++StandardOutput=syslog
+diff --git a/configure.in b/configure.in
+index 31fd581..54ea74c 100644
+--- a/configure.in
++++ b/configure.in
+@@ -26,6 +26,7 @@ fi
+ AC_PROG_CC
+ dnl AC_PROG_CXX
+ AC_PROG_INSTALL
++AC_PROG_MKDIR_P
+ AC_PROG_LN_S
+ AM_PATH_ALSA(1.0.16)
+ 
+@@ -130,7 +131,7 @@ if test x$alsamixer = xtrue; then
+       CURSES_CFLAGS=`ncursesw5-config --cflags`
+       curseslib="ncursesw"
+     else
+-      AC_CHECK_LIB(ncursesw, initscr, 
++      AC_CHECK_LIB(ncursesw, initscr,
+                  [ CURSESINC='<ncurses.h>'; CURSESLIB='-lncursesw'; curseslib="ncursesw"])
+     fi
+     if test -n "$CURSESINC"; then
+@@ -147,12 +148,12 @@ if test x$alsamixer = xtrue; then
+       CURSES_CFLAGS=`ncurses5-config --cflags`
+       curseslib="ncurses"
+     else
+-      AC_CHECK_LIB(ncurses, initscr, 
++      AC_CHECK_LIB(ncurses, initscr,
+                  [ CURSESINC='<ncurses.h>'; CURSESLIB='-lncurses'; curseslib="ncurses"])
+     fi
+   fi
+   if test "$curseslib" = "curses" -o "$curseslib" = "auto"; then
+-    AC_CHECK_LIB(curses, initscr, 
++    AC_CHECK_LIB(curses, initscr,
+                  [ CURSESINC='<curses.h>'; CURSESLIB='-lcurses'; curseslib="curses"])
+   fi
+   if test -z "$CURSESINC"; then
+@@ -278,6 +279,16 @@ SAVE_UTIL_VERSION
+ 
+ AC_SUBST(LIBRT)
+ 
++dnl Check for systemd
++PKG_PROG_PKG_CONFIG
++AC_ARG_WITH([systemdsystemunitdir],
++        AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd service files]),
++        [], [with_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])
++if test "x$with_systemdsystemunitdir" != xno; then
++        AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
++fi
++AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno ])
++
+ AC_OUTPUT(Makefile alsactl/Makefile alsactl/init/Makefile \
+ 	  alsamixer/Makefile amidi/Makefile amixer/Makefile \
+ 	  m4/Makefile po/Makefile.in \
+

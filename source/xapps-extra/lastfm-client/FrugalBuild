@@ -2,77 +2,50 @@
 # Maintainer: Devil505 <devil505linux@gmail.com>
 
 pkgname=lastfm-client
-pkgver=1.4.2.58240
-pkgrel=2
+pkgver=1.5.4.26862
+pkgrel=1
 pkgdesc="The Official Last.fm client"
 url="http://www.last.fm/tools/downloads/"
-depends=('libpng' 'libjpeg' 'libxinerama' 'libxi' 'fontconfig' 'alsa-lib' 'libxcursor' \
-                  'libsm' 'libxrandr' 'qt4' 'fftw' 'libgpod' 'libsamplerate' 'libmad' 'xprop')
+depends=('libqtgui' 'libqtnetwork' 'libuuid' 'libqtsql' 'libqtxml' 'libsamplerate' 'libmad' 'libgpod')
 makedepends=('qt4-linguist')
 options=('scriptlet')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
-_F_archive_name="last.fm"
+_F_archive_name="lastfm"
 Fpkgversep="_"
-up2date="lynx -dump http://ftp.uni-bayreuth.de/debian/pool/main/l/lastfm/?M=D | sed 's/dfsg.orig.tar.gz/tar.gz/g' | Flasttar"
-source=(http://cdn.last.fm/client/src/last.fm-$pkgver.src.tar.bz2  \
-                            00_build-fixes.diff  \
-                            gcc-4.3.patch \
-                            no-fingerprint.diff \
-                            alsa-qdebug.diff \
-                            check-soundcard-errors.diff \
-                            02_tray-icon-size.diff \
-                            03_no-scrobble-directories.diff \
-                            05_tray-volume.diff \
-                            09_set-locale.diff \
-                            10_save-window-states.diff \
-                            20_dirpaths.diff \
-			    http://www.mehercule.net/lastfm/trayicons22.tar.gz)
-sha1sums=('b71267b978b1d44c1a877e45855d24fcdf3137a9' \
-          'bf9fb59c15b55910d900a264dd26aafa3521c632' \
-          '5a7ace076ca948523baec534a05907ff8c3348d1' \
-          '0f33ef0161ff634ef49737d1bb2d0f396a8d560e' \
-          'cdbc257f5e6096d3d2f2489b5f1829ab09e4a4e5' \
-          'af46191813e5922f6aab3442f14e0a3c5937e48f' \
-          'ce5d626e540e171fe166eaa3617871c4d81a387f' \
-          '29e0cad5c050b6dcaf35693320324bb2fcf81bcf' \
-          '2b89bf92d6ce200446adfbf75a23803f1a82c82a' \
-          '5fdff350ac729b61e46b4eb19527d7becfac2d94' \
-          '4d4b77a43ca2601e03c7d6e198864942c9fe5743' \
-          'efe3e80d3bb4e08ea4962f4b7cc1784e82a93c27' \
-          '49260486e9058847bf638cca0c4f2d42d7d0c36b')
+up2date="Flasttar http://ftp.de.debian.org/debian/pool/main/l/lastfm/ | sed 's/+dfsg.orig//g'"
+source=(http://ftp.de.debian.org/debian/pool/main/l/$_F_archive_name/$_F_archive_name$Fpkgversep$pkgver+dfsg.orig.tar.gz \
+        build-fixes.diff \
+        set-firstrun-status.diff \
+        set-locale.diff \
+        makefile-qt45.patch)
+sha1sums=('2d9a81b2a14f8f54ac25735a4a77dfa474d70910' \
+          '92340096a9ec09e787357d441992e687a7238455' \
+          '27453a485fc62d12cce581ab9a9e7efad110608d' \
+          'c4c39b0570a307ebfa4b919df0e5c0a4046d7438' \
+          '2d069e05372caf9815a31b0a296c393cc5b28912')
 
 _F_desktop_name="Last.fm"
 _F_desktop_desc="Client for the Last.fm Network"
-_F_desktop_icon="/usr/share/lastfm/data/app_55.png"
+_F_desktop_icon="/usr/share/last.fm/data/icons/as.png"
 _F_desktop_exec="lastfm"
 _F_desktop_categories="AudioVideo;Player;"
 
-build()
-{
-   Fcd "last.fm-$pkgver"
-   Fpatchall
+build() {
+   Fcd lastfm-$pkgver+dfsg
+   Fpatch build-fixes.diff
+   Fpatch set-locale.diff
+   Fpatch set-firstrun-status.diff
    Fconf
-   Fmake
-   Fmkdir usr/share/lastfm
-   Fmkdir usr/bin
-   Fmkdir usr/lib/lastfm
-   cp bin/services/* $Fdestdir/usr/lib/lastfm || Fdie
-   rm -r bin/services || Fdie
-   cp -r bin/* $Fdestdir/usr/share/lastfm || Fdie
-   printf "#!/bin/sh\n cd /usr/share/lastfm\n ./last.fm.sh\n" > $Fdestdir/usr/bin/lastfm
-   chmod +x $Fdestdir/usr/bin/lastfm || Fdie
-   chmod +x $Fdestdir/usr/share/lastfm/last.fm.sh || Fdie
-   #i18n
-   cd i18n
-   /usr/bin/lrelease *.ts || Fdie
-   Fmkdir usr/share/lastfm/i18n
-   cp *.qm $Fdestdir/usr/share/lastfm/i18n || Fdie
-   cd ..
-   #for correct icons systray
-   Fmkdir usr/share/lastfm/icons
-   cd ..
-   cp *.png $Fdestdir/usr/share/lastfm/icons/ || Fdie
-   Fdesktop2
+   MAKEFLAGS=-j1 make src/Makefile
+   Fpatch makefile-qt45.patch
+   MAKEFLAGS=-j1 make
+   (   make || (mv build/fplib/libfplib_debug.a build/fplib/libfplib.a && make ) )
+    Fcd
+	Fmkdir usr/share/last.fm
+	cp -rp bin/* $Fdestdir/usr/share/last.fm/ || Fdie
+	Fwrapper "exec /usr/share/last.fm/last.fm.sh" lastfm
+	Fdesktop2
 }
+
 # optimization OK

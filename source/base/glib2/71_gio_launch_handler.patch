@@ -1,0 +1,248 @@
+From 41a32799fa223937e5e980ffb8c268b183c416e2 Mon Sep 17 00:00:00 2001
+From: Mikkel Kamstrup Erlandsen <mikkel.kamstrup@canonical.com>
+Date: Wed, 18 Aug 2010 12:02:10 +0200
+Subject: [PATCH] gio: New extension point "gio-desktop-app-info-launch-handler"
+
+Add an extension point that gets a callback each time a GAppInfo
+is launched. The callback receives the GAppInfo, the list of URIs,
+the launch context, and the pid.
+---
+ gio/gdesktopappinfo.c |  123 ++++++++++++++++++++++++++++++++++++++++++++++++-
+ gio/gdesktopappinfo.h |   31 ++++++++++++
+ gio/gio.symbols       |    1 +
+ gio/giomodule.c       |    3 +
+ 4 files changed, 157 insertions(+), 1 deletions(-)
+
+Index: glib2.0-2.25.16/gio/gdesktopappinfo.c
+===================================================================
+--- glib2.0-2.25.16.orig/gio/gdesktopappinfo.c	2010-08-09 15:34:46.000000000 +0200
++++ glib2.0-2.25.16/gio/gdesktopappinfo.c	2010-09-27 14:03:33.000000000 +0200
+@@ -69,6 +69,12 @@
+ static void     mime_info_cache_reload                (const char       *dir);
+ static gboolean g_desktop_app_info_ensure_saved       (GDesktopAppInfo  *info,
+ 						       GError          **error);
++static void
++g_desktop_app_info_launch_handler_on_launched (GDesktopAppInfoLaunchHandler *launch_handler,
++                                               GDesktopAppInfo              *app_info,
++                                               GList                        *uris,
++                                               GAppLaunchContext            *launch_ctx,
++                                               gint                          pid);
+ 
+ /**
+  * GDesktopAppInfo:
+@@ -913,6 +919,49 @@
+     }
+ }
+ 
++static void
++g_desktop_app_info_on_launched (GDesktopAppInfo   *app_info,
++                                GList             *uris,
++                                GAppLaunchContext *launch_ctx,
++                                gint               pid)
++{
++  static gsize lookup = 0;
++
++  if (g_once_init_enter (&lookup))
++    {
++      gsize setup_value = 1;
++      GDesktopAppInfoLaunchHandler *lookup_instance;
++      GIOExtensionPoint *ep;
++      GIOExtension *extension;
++      GList *l;
++
++      /* Ensure vfs in modules loaded */
++      _g_io_modules_ensure_loaded ();
++
++      ep = g_io_extension_point_lookup (G_DESKTOP_APP_INFO_LAUNCH_HANDLER_EXTENSION_POINT_NAME);
++
++      lookup_instance = NULL;
++      for (l = g_io_extension_point_get_extensions (ep); l != NULL; l = l->next)
++        {
++          extension = l->data;
++          lookup_instance = g_object_new (g_io_extension_get_type (extension), NULL);
++          if (lookup_instance != NULL)
++            break;
++	      }
++
++      if (lookup_instance != NULL)
++        setup_value = (gsize)lookup_instance;
++
++      g_once_init_leave (&lookup, setup_value);
++    }
++
++  if (lookup == 1)
++    return;
++
++  g_desktop_app_info_launch_handler_on_launched (G_DESKTOP_APP_INFO_LAUNCH_HANDLER (lookup),
++                                                 app_info, uris, launch_ctx, pid);
++}
++
+ static gboolean
+ g_desktop_app_info_launch_uris (GAppInfo           *appinfo,
+ 				GList              *uris,
+@@ -965,13 +1014,14 @@
+ 	  g_list_free (launched_files);
+ 	}
+ 
++      gint pid;
+       if (!g_spawn_async (info->path,
+ 			  argv,
+ 			  NULL,
+ 			  G_SPAWN_SEARCH_PATH,
+ 			  child_setup,
+ 			  &data,
+-			  NULL,
++			  &pid,
+ 			  error))
+ 	{
+ 	  if (data.sn_id)
+@@ -982,6 +1032,10 @@
+ 
+ 	  goto out;
+ 	}
++      else
++        {
++          g_desktop_app_info_on_launched (info, old_uris, launch_context, pid);
++        }
+ 
+       g_free (data.sn_id);
+       g_free (data.display);
+@@ -2715,3 +2769,70 @@
+ 
+   return (* iface->get_default_for_uri_scheme) (lookup, uri_scheme);
+ }
++
++/* GDesktopAppInfoLaunchHandler interface: */
++
++static void g_desktop_app_info_launch_handler_base_init (gpointer g_class);
++static void g_desktop_app_info_launch_handler_class_init (gpointer g_class,
++						  gpointer class_data);
++
++GType
++g_desktop_app_info_launch_handler_get_type (void)
++{
++  static volatile gsize g_define_type_id__volatile = 0;
++
++  if (g_once_init_enter (&g_define_type_id__volatile))
++    {
++      const GTypeInfo desktop_app_info_launch_handler_info =
++      {
++        sizeof (GDesktopAppInfoLaunchHandlerIface), /* class_size */
++      	g_desktop_app_info_launch_handler_base_init,   /* base_init */
++      	NULL,		/* base_finalize */
++      	g_desktop_app_info_launch_handler_class_init,
++      	NULL,		/* class_finalize */
++      	NULL,		/* class_data */
++      	0,
++      	0,              /* n_preallocs */
++      	NULL
++      };
++      
++      GType g_define_type_id =
++      	      g_type_register_static (G_TYPE_INTERFACE,
++      	                              I_("GDesktopAppInfoLaunchHandler"),
++			                                &desktop_app_info_launch_handler_info, 0);
++
++      g_type_interface_add_prerequisite (g_define_type_id, G_TYPE_OBJECT);
++
++      g_once_init_leave (&g_define_type_id__volatile, g_define_type_id);
++    }
++
++  return g_define_type_id__volatile;
++}
++
++static void
++g_desktop_app_info_launch_handler_class_init (gpointer g_class,
++				      gpointer class_data)
++{
++}
++
++static void
++g_desktop_app_info_launch_handler_base_init (gpointer g_class)
++{
++}
++
++static void
++g_desktop_app_info_launch_handler_on_launched (GDesktopAppInfoLaunchHandler *launch_handler,
++                                               GDesktopAppInfo              *app_info,
++                                               GList                        *uris,
++                                               GAppLaunchContext            *launch_ctx,
++                                               gint                          pid)
++{
++  GDesktopAppInfoLaunchHandlerIface *iface;
++
++  g_return_if_fail (G_IS_DESKTOP_APP_INFO_LAUNCH_HANDLER (launch_handler));
++
++  iface = G_DESKTOP_APP_INFO_LAUNCH_HANDLER_GET_IFACE (launch_handler);
++
++  (* iface->on_launched) (launch_handler, app_info, uris, launch_ctx, pid);
++}
++
+Index: glib2.0-2.25.16/gio/gdesktopappinfo.h
+===================================================================
+--- glib2.0-2.25.16.orig/gio/gdesktopappinfo.h	2010-04-08 08:10:50.000000000 +0200
++++ glib2.0-2.25.16/gio/gdesktopappinfo.h	2010-09-27 14:03:33.000000000 +0200
+@@ -91,6 +91,37 @@
+ GAppInfo *g_desktop_app_info_lookup_get_default_for_uri_scheme (GDesktopAppInfoLookup *lookup,
+                                                                 const char            *uri_scheme);
+ 
++
++
++#define G_TYPE_DESKTOP_APP_INFO_LAUNCH_HANDLER           (g_desktop_app_info_launch_handler_get_type ())
++#define G_DESKTOP_APP_INFO_LAUNCH_HANDLER(obj)           (G_TYPE_CHECK_INSTANCE_CAST ((obj), G_TYPE_DESKTOP_APP_INFO_LAUNCH_HANDLER, GDesktopAppInfoLaunchHandler))
++#define G_IS_DESKTOP_APP_INFO_LAUNCH_HANDLER(obj)	 (G_TYPE_CHECK_INSTANCE_TYPE ((obj), G_TYPE_DESKTOP_APP_INFO_LAUNCH_HANDLER))
++#define G_DESKTOP_APP_INFO_LAUNCH_HANDLER_GET_IFACE(obj) (G_TYPE_INSTANCE_GET_INTERFACE ((obj), G_TYPE_DESKTOP_APP_INFO_LAUNCH_HANDLER, GDesktopAppInfoLaunchHandlerIface))
++
++/**
++ * G_DESKTOP_APP_INFO_LAUNCH_HANDLER_EXTENSION_POINT_NAME:
++ *
++ * Extension point for default handler to launching. See
++ * <link linkend="extending-gio">Extending GIO</link>.
++ */
++#define G_DESKTOP_APP_INFO_LAUNCH_HANDLER_EXTENSION_POINT_NAME "gio-desktop-app-info-launch-handler"
++
++typedef struct _GDesktopAppInfoLaunchHandler GDesktopAppInfoLaunchHandler;
++typedef struct _GDesktopAppInfoLaunchHandlerIface GDesktopAppInfoLaunchHandlerIface;
++
++struct _GDesktopAppInfoLaunchHandlerIface
++{
++  GTypeInterface g_iface;
++
++  void (* on_launched) (GDesktopAppInfoLaunchHandler *launch_handler,
++                        GDesktopAppInfo              *app_info,
++                        GList                        *uris,
++                        GAppLaunchContext            *launch_ctx,
++                        gint                          pid);
++};
++
++GType     g_desktop_app_info_launch_handler_get_type                   (void) G_GNUC_CONST;
++
+ G_END_DECLS
+ 
+ #endif /* __G_DESKTOP_APP_INFO_H__ */
+Index: glib2.0-2.25.16/gio/gio.symbols
+===================================================================
+--- glib2.0-2.25.16.orig/gio/gio.symbols	2010-09-18 00:32:39.000000000 +0200
++++ glib2.0-2.25.16/gio/gio.symbols	2010-09-27 14:03:33.000000000 +0200
+@@ -91,6 +91,7 @@
+ g_desktop_app_info_get_type G_GNUC_CONST
+ g_desktop_app_info_get_is_hidden
+ g_desktop_app_info_set_desktop_env
++g_desktop_app_info_launch_handler_on_launched
+ g_desktop_app_info_lookup_get_type G_GNUC_CONST
+ g_desktop_app_info_lookup_get_default_for_uri_scheme
+ #endif
+Index: glib2.0-2.25.16/gio/giomodule.c
+===================================================================
+--- glib2.0-2.25.16.orig/gio/giomodule.c	2010-09-13 17:57:51.000000000 +0200
++++ glib2.0-2.25.16/gio/giomodule.c	2010-09-27 14:03:33.000000000 +0200
+@@ -525,6 +525,9 @@
+ #ifdef G_OS_UNIX
+       ep = g_io_extension_point_register (G_DESKTOP_APP_INFO_LOOKUP_EXTENSION_POINT_NAME);
+       g_io_extension_point_set_required_type (ep, G_TYPE_DESKTOP_APP_INFO_LOOKUP);
++      
++      ep = g_io_extension_point_register (G_DESKTOP_APP_INFO_LAUNCH_HANDLER_EXTENSION_POINT_NAME);
++      g_io_extension_point_set_required_type (ep, G_TYPE_DESKTOP_APP_INFO_LAUNCH_HANDLER);
+ #endif
+       
+       ep = g_io_extension_point_register (G_LOCAL_DIRECTORY_MONITOR_EXTENSION_POINT_NAME);

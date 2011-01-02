@@ -2,8 +2,8 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=e2fsprogs
-pkgver=1.41.12
-pkgrel=4
+pkgver=1.41.14
+pkgrel=1
 pkgdesc="Utilities needed to create and maintain ext2 and ext3 filesystems"
 depends=('glibc>=2.8-3' 'util-linux-ng>=2.16')
 rodepends=('coreutils>=6.12-2')
@@ -13,15 +13,17 @@ _F_sourceforge_prefix="libs-"
 Finclude sourceforge
 url="http://e2fsprogs.sourceforge.net/"
 source=($source rc.fsck rc.random)
-sha1sums=('62b002fe507b2ddafc24b89532e472fe4b55a14f' \
-          'a30724dc241e53dbf0c90d2256989e4f87bdb6e4' \
+sha1sums=('24f9364fa3d4c0d7d00cb627b819d0e51055d6c5' \
+          '7ce8c97976390c3af6d8f429745b7e1222a1161f' \
           '7d5e3eecbea952aa1f72808fb810892d82a35461')
 
 build()
 {
+	Fsed 'ext2fs_swab32(s_snapshot_id)' 'ext2fs_swab32(sb->s_snapshot_id)' lib/ext2fs/swapfs.c
 	Fmake --enable-elf-shlibs --enable-dynamic-e2fsck \
 		--with-root-prefix="" --disable-libblkid \
-		--disable-libuuid --disable-libuuidd
+		--disable-libuuid --disable-libuuidd \
+		--disable-fsck
 	# it seems building the test binaries fails
 	if [ "$CARCH" != "ppc" ]; then
 		make check || return 1
@@ -29,6 +31,10 @@ build()
 	make DESTDIR=$Fdestdir install install-libs
 	Frcd fsck
 	Frcd random
+	# don't run old sysv init script with different name when using systemd
+	Fmkdir /lib/systemd/system
+	Fln fsck-root.service /lib/systemd/system/fsck.service
+	Fln systemd-random-seed-load.service /lib/systemd/system/random.service
 
 	# conflicts with util-linux-ng
 	Frm /usr/sbin/uuidd /usr/share/man/man8/uuidd.8

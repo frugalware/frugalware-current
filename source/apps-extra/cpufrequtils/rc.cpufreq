@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# (c) 2010 Elentir <elentir@frugalware.org>
+# rc.cpufrequtils for Frugalware
+# distributed under GPL License
+
+# chkconfig: 2345 85 15
+# description: mettre la desc
+
+source /lib/initscripts/functions
+TEXTDOMAIN=cpufreq
+TEXTDOMAINDIR=/lib/initscripts/messages
+
+actions=(restart start status stop)
+daemon=$"Cpufreq"
+
+
+[ -f /etc/sysconfig/cpufreq ] && . /etc/sysconfig/cpufreq
+
+rc_start()
+{
+    start_msg
+    if [ -n "$governor" ]; then
+    mod="cpufreq_$governor"
+    params="-g $governor"
+    grep -qw "$governor" /sys/devices/system/cpu/cpu*/cpufreq/scaling_available_governors || modprobe -q $mod
+    if [ $? -eq 0 ]; then
+        if [ "$min_freq" != "" ]; then
+          params="$params -d $min_freq"
+        fi
+        if [ "$max_freq" != "" ]; then
+          params="$params -u $max_freq"
+        fi
+    else
+        msg "Cannot load governor module '$governor'"
+        ok 1
+        exit
+    fi
+    fi
+
+   if [ "$params" != "" ]; then
+      CPUS=$(sed -ne 's/^processor.* \([0-9]\+\)$/\1/p' /proc/cpuinfo)
+      for cpu in $CPUS; do
+         cpufreq-set -c $cpu $params
+         if [ "$freq" != "" ]; then
+            cpufreq-set -c $cpu -f $freq
+         fi
+      done
+      ok $?
+   else
+      msg "Invalid configuration in /etc/sysconfig/cpufreq"
+      ok 1
+   fi
+}
+
+rc_stop()
+{
+    stop_msg
+    ok 0
+}
+
+rc_exec $1
+

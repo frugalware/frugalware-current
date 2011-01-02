@@ -1,0 +1,126 @@
+# Compiling Time: 1.25 SBU
+# Maintainer: James Buren <ryuo@frugalware.org>
+
+# Notice: Because of the hacks required to get this to work, this package
+# should be updated with care.
+
+pkgname=oss
+pkgver=v4.2_build2003
+_ver="${pkgver/_/-}"
+pkgrel=4
+pkgdesc="Open Sound System Version 4 for Linux (Alternative to ALSA)."
+url="http://developer.opensound.com"
+_dlurl='http://www.4front-tech.com/developer/sources/stable/gpl'
+_ext='-src-gpl.tar.bz2'
+groups=('multimedia-extra')
+archs=('i686' 'x86_64' 'ppc')
+up2date="Flastarchive $_dlurl $_ext"
+backup=('usr/lib/oss/soundon.user')
+install="$pkgname.install"
+source=($_dlurl/$pkgname-$_ver$_ext
+	$pkgname-kernel-2.6.36.patch
+	$pkgname-disable-redundant-actions.patch
+	rc.$pkgname)
+options=('scriptlet')
+# Only alsa-lib is non-conflicting, for packages that rely on it.
+conflicts=('alsa-utils' 'alsa-tools' 'alsa-oss' 'alsa-firmware')
+Finclude kernel-module
+subpkgs=("$pkgname-gtk-mixer")
+subdescs=('GUI mixer for oss that uses GTK+')
+subrodepends=("$pkgname")
+subdepends=('gtk+2')
+subarchs=('i686 x86_64 ppc')
+subgroups=('xmultimedia-extra')
+_F_desktop_filename="ossxmix"
+_F_desktop_name="OSS Mixer Controls"
+_F_desktop_desc="GTK+ application for modifying OSS mixer controls."
+_F_desktop_icon="ossxmix.xpm"
+_F_desktop_exec="ossxmix"
+_F_desktop_categories="GTK;AudioVideo;"
+sha1sums=('3e94c5c36b6955ad1224a65376b4a373f3a807ab' \
+          '48aaf87228449590f0a82cdf17264e6b0a963546' \
+          '1a30ba006f37066f369fc8b5f18af465cb6f0793' \
+          '7f1c8c3758179bb1890dd17f232ebf824505cfea')
+
+build() {
+	Fcd "$pkgname-$_ver-src-gpl"
+
+	Fpatchall
+
+	Fmkdir "$_F_kernelmod_dir/kernel/oss"
+
+	# Tell the build to turn off compiler warnings, otherwise they will be fatal.
+	export NO_WARNING_CHECKS='1'
+
+	# Remove build directory if it exists
+	[ -d "tmp" ] && rm -rf tmp
+
+	# Build demands an empty directory to start in
+	mkdir tmp && cd tmp
+
+	# Setup build directory
+	../configure --enable-libsalsa=NO || Fdie
+
+	# Compile first stage
+	make build || Fdie
+
+	# Compile main kernel module
+	cd prototype/usr/lib/oss/build || Fdie
+	ln -sf Makefile.osscore Makefile || Fdie
+	sed -i '1 d' Makefile || Fdie
+	for i in ../include/internals/*.h ../include/sys/*.h; do
+		ln -sf $i `basename $i` || Fdie
+	done
+	echo "static const char __oss_compile_vermagic[]" > ubuntu_version_hack.inc
+	echo "__attribute__((used))" >> ubuntu_version_hack.inc
+	echo "__attribute__((section(\".modinfo\")))" >> ubuntu_version_hack.inc
+	echo "= \"$(../../../sbin/ossvermagic -z -s)\";" >> ubuntu_version_hack.inc
+	make -C "$_F_kernelmod_dir/build" M="$(pwd)" modules || Fdie
+	ld -r osscore.ko ../objects.regparm/osscore.o -o "$Fdestdir/$_F_kernelmod_dir/kernel/oss/osscore.ko" || Fdie
+
+	# Compile sound kernel modules
+	echo "static const struct modversion_info ____versions[]" > osscore_symbols.inc
+	echo " __attribute__((used))" >> osscore_symbols.inc
+	echo "__attribute__((section(\"__versions\"))) = {" >> osscore_symbols.inc
+	sed -e "s:^:{:" -e "s:\t:, \":" -e "s:\t\(.\)*:\"},:" < Module.symvers >> osscore_symbols.inc
+	echo "};" >> osscore_symbols.inc
+	for i in ../modules.regparm/*.o; do
+		I=`basename $i .o`
+		sed "s|MODNAME|$I|" < Makefile.tmpl > Makefile
+		sed -i '1 d' Makefile || Fdie
+		make -C "$_F_kernelmod_dir/build" M="$(pwd)" modules || Fdie
+		ld -r $I.ko $i -o "$Fdestdir/$_F_kernelmod_dir/kernel/oss/$I.ko" || Fdie
+	done
+
+	# Compile flashsupport
+	cc -shared -fPIC $CFLAGS $LDFLAGS ../lib/flashsupport.c -o ../lib/libflashsupport.so || Fdie
+
+	# Install everything else now
+	cd ../../../.. || Fdie
+	rm -rf usr/lib/oss/lib/flashsupport.c usr/lib/oss/etc/S89oss || Fdie
+	rm -rf usr/lib/oss/{build,cuckoo,include,etc_templates} usr/lib/oss/modules.* usr/lib/oss/objects.* || Fdie
+	cp -rf * "$Fdestdir" || Fdie
+	for i in $Fdestdir/usr/lib/oss/lib/*; do
+		Fln ${i/$Fdestdir/} /usr/lib/`basename $i`
+	done
+	Fln /usr/lib/oss/scripts/oss_usb-create-devices /usr/lib/hal/scripts/oss_usb-create-devices
+	Fln /usr/lib/oss/scripts/90-oss_usb-create-device.fdi /usr/share/hal/fdi/policy/20thirdparty/90-oss_usb-create-device.fdi
+	Fmv /usr/lib/oss/conf.tmpl /usr/lib/oss/conf
+	echo "autosave_mixer yes" > $Fdestdir/usr/lib/oss/etc/userdefs
+	Fdirschmod  /                         0755
+	Ffileschmod /                         0644
+	Ffileschmod /usr/bin                  0755
+	Ffileschmod /usr/sbin                 0755
+	Ffileschmod /usr/lib/oss/lib          0755
+	Ffileschmod /usr/lib/oss/scripts      0755
+	Ffileschmod /usr/lib/oss/soundon.user 0755
+	Ficonrel ../../cmd/ossxmix/ossxmix.xpm
+	Frcd2
+	Fdesktop2
+	Fsplit $pkgname-gtk-mixer /usr/share/applications/ossxmix.desktop
+	Fsplit $pkgname-gtk-mixer /usr/share/pixmaps/ossxmix.xpm
+	Fsplit $pkgname-gtk-mixer /usr/share/man/man1/ossxmix.1.gz
+	Fsplit $pkgname-gtk-mixer /usr/bin/ossxmix
+}
+
+# optimization OK

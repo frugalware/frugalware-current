@@ -2,6 +2,8 @@
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
 USE_DEVEL=${USE_DEVEL:-"n"}
+USE_MONOFORBUILD=${USE_MONOFORBUILD:-"n"}
+USE_MOONLIGHT=${USE_MOONLIGHT:-"n"}
 
 if [ "$CARCH" == "ppc" ]; then
 	USE_DOC=${USE_DOC:-"n"}
@@ -10,12 +12,15 @@ else
 fi
 
 pkgname=mono
-pkgver=2.8
-pkgrel=13
+pkgver=2.8.1
+pkgrel=2
 pkgdesc="Mono runtime and class libraries, a C# compiler/interpreter"
 url="http://www.mono-project.com/"
 depends=('zlib')
-makedepends=('libgdiplus>=2.8' 'mono')
+makedepends=('libgdiplus>=2.8.1')
+if Fuse $USE_MONOFORBUILD; then
+       	makedepends=("${makedepends[@]}" mono)
+fi
 rodepends=('libxml2')
 groups=('devel')
 archs=('i686' 'x86_64' 'ppc')
@@ -27,12 +32,12 @@ conflicts=('monodoc')
 provides=('monodoc')
 
 Fconfopts="$Fconfopts --with-ikvm-native=yes --with-jit=yes --with-xen_opt=n \
-	--with-libgdiplus=installed
-	--with-moonlight=yes \
+	--with-libgdiplus=installed \
 	--with-profile2=yes \
 	--with-profile4=yes \
 	--disable-quiet-build \
 	--enable-static"
+
 
 #https://bugzilla.novell.com/show_bug.cgi?id=644680
 # build without profile4 break monodoc
@@ -42,15 +47,19 @@ Fconfopts="$Fconfopts --with-ikvm-native=yes --with-jit=yes --with-xen_opt=n \
 
 #Don't enable --enable-big-arrays we should have >3Go of ram !!!
 
+if  Fuse $USE_MOONLIGHT; then
+	Fconfopts="${Fconfopts[@]} --with-moonlight=yes"
+fi
+
 #ppc don't support sgen
 if [ "$CARCH" == "ppc" ]; then
-	Fconfopts="$Fconfopts --with-sgen=no"
+	Fconfopts="${Fconfopts[@]} --with-sgen=no"
 fi
 
 if ! Fuse $USE_DOC; then
-	Fconfopts="$Fconfopts --with-mcs-docs=no"
+	Fconfopts="${Fconfopts[@]} --with-mcs-docs=no"
 fi
-sha1sums=('a724de68dccb583b54d2e08c5a1e5760c18225ab' \
+sha1sums=('c46f9d8282803e8fd137acdb126e34421762b13c' \
           '3dda8a39085fddec0b0e25e31743d49762575605' \
           'bbb6568efbd9787afa63141505b0810359d1b455')
 
@@ -70,16 +79,21 @@ build() {
 	else
 		Fcd
 	fi
+	#Don't throw when unable to write autogen keys for applications web
+	Fsed 'throw new ApplicationException ("Failed to store encryption key in the registry.", ex);' \
+		'Console.Error.WriteLine ("(info) Auto generated encryption keys not saved: {0}", ex);' \
+		mcs/class/System.Web/System.Web.Configuration_2.0/MachineKeyRegistryStorage.cs
 	unset MAKEFLAGS
 	#Remove this at your own peril. Mono will barf in unexpected ways.
 	export CFLAGS="$CFLAGS -fno-strict-aliasing"
 
 	#for download latest mono mini
 	#make get-monolite-latest || Fdie
-
-	# Remove prebuilt binaries
-	#comment this line and remove mono from makedepends for ported mono to an other arch
-	rm -rf mcs/class/lib/monolite/* || Fdie
+	if Fuse $USE_MONOFORBUILD; then
+		# Remove prebuilt binaries
+		#comment this line and remove mono from makedepends for ported mono to an other arch
+		rm -rf mcs/class/lib/monolite/* || Fdie
+	fi
 
 	#fix undeclared Arg
 	sed -i "61a #define ARG_MAX     _POSIX_ARG_MAX" mono/io-layer/wapi_glob.h || Fdie

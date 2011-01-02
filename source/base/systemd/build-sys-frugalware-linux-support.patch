@@ -1,0 +1,124 @@
+From f5c88ec1330b61787441156de7d764a140774bd2 Mon Sep 17 00:00:00 2001
+From: Miklos Vajna <vmiklos@frugalware.org>
+Date: Mon, 29 Nov 2010 13:42:10 +0000
+Subject: build-sys: frugalware linux support
+
+---
+diff --git a/Makefile.am b/Makefile.am
+index 6a688b8..fa704ae 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -76,12 +76,19 @@ AM_CPPFLAGS += \
+ 	-DKBD_SETFONT=\"/usr/bin/setfont\" \
+ 	-DDEFAULT_FONT=\"LatArCyrHeb-16\"
+ else
++if TARGET_FRUGALWARE
++AM_CPPFLAGS += \
++	-DKBD_LOADKEYS=\"/usr/bin/loadkeys\" \
++	-DKBD_SETFONT=\"/usr/bin/setfont\" \
++	-DDEFAULT_FONT=\"LatArCyrHeb-16\"
++else
+ AM_CPPFLAGS += \
+ 	-DKBD_LOADKEYS=\"/bin/loadkeys\" \
+ 	-DKBD_SETFONT=\"/bin/setfont\" \
+ 	-DDEFAULT_FONT=\"latarcyrheb-sun16\"
+ endif
+ endif
++endif
+ 
+ rootbin_PROGRAMS = \
+ 	systemd \
+diff --git a/configure.ac b/configure.ac
+index 4d29d5f..4f77aa8 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -290,6 +290,7 @@ if test "z$with_distro" = "z"; then
+                 AC_CHECK_FILE(/etc/arch-release,with_distro="arch")
+                 AC_CHECK_FILE(/etc/gentoo-release,with_distro="gentoo")
+                 AC_CHECK_FILE(/etc/slackware-version,with_distro="slackware")
++                AC_CHECK_FILE(/etc/frugalware-release,with_distro="frugalware")
+         fi
+         if test "z$with_distro" = "z"; then
+                 with_distro=`uname -s`
+@@ -362,6 +363,12 @@ case $with_distro in
+                 AC_DEFINE(TARGET_SLACKWARE, [], [Target is Slackware])
+                 M4_DISTRO_FLAG=-DTARGET_SLACKWARE=1
+                 ;;
++        frugalware)
++                SYSTEM_SYSVINIT_PATH=/etc/rc.d
++                SYSTEM_SYSVRCND_PATH=/etc/rc.d
++                AC_DEFINE(TARGET_FRUGALWARE, [], [Target is Frugalware])
++                M4_DISTRO_FLAG=-DTARGET_FRUGALWARE=1
++                ;;
+         other)
+                 AS_IF([test "x$with_syslog_service" = "x"],
+                         [AC_MSG_ERROR([With --distro=other, you must pass --with-syslog-service= to configure])])
+@@ -411,6 +418,7 @@ AM_CONDITIONAL(TARGET_DEBIAN_OR_UBUNTU, test x"$with_distro" = xdebian -o x"$wit
+ AM_CONDITIONAL(TARGET_ARCH, test x"$with_distro" = xarch)
+ AM_CONDITIONAL(TARGET_GENTOO, test x"$with_distro" = xgentoo)
+ AM_CONDITIONAL(TARGET_SLACKWARE, test x"$with_distro" = xslackware)
++AM_CONDITIONAL(TARGET_FRUGALWARE, test x"$with_distro" = xfrugalware)
+ 
+ AC_DEFINE_UNQUOTED(SPECIAL_SYSLOG_SERVICE, ["$SPECIAL_SYSLOG_SERVICE"], [Syslog service name])
+ 
+diff --git a/src/hostname-setup.c b/src/hostname-setup.c
+index ce7d2a1..0428a64 100644
+--- a/src/hostname-setup.c
++++ b/src/hostname-setup.c
+@@ -32,7 +32,7 @@
+ 
+ #if defined(TARGET_FEDORA)
+ #define FILENAME "/etc/sysconfig/network"
+-#elif defined(TARGET_SUSE) || defined(TARGET_SLACKWARE)
++#elif defined(TARGET_SUSE) || defined(TARGET_SLACKWARE) || defined(TARGET_FRUGALWARE)
+ #define FILENAME "/etc/HOSTNAME"
+ #elif defined(TARGET_ARCH)
+ #define FILENAME "/etc/rc.conf"
+@@ -137,7 +137,7 @@ finish:
+         fclose(f);
+         return r;
+ 
+-#elif defined(TARGET_SUSE) || defined(TARGET_SLACKWARE)
++#elif defined(TARGET_SUSE) || defined(TARGET_SLACKWARE) || defined(TARGET_FRUGALWARE)
+         return read_and_strip_hostname(FILENAME, hn);
+ #else
+         return -ENOENT;
+diff --git a/src/service.c b/src/service.c
+index 429b53d..6b6ce30 100644
+--- a/src/service.c
++++ b/src/service.c
+@@ -65,7 +65,7 @@ static const struct {
+         { "boot.d", SPECIAL_SYSINIT_TARGET,   RUNLEVEL_SYSINIT },
+ #endif
+ 
+-#if defined(TARGET_DEBIAN) || defined(TARGET_UBUNTU)
++#if defined(TARGET_DEBIAN) || defined(TARGET_UBUNTU) || defined(TARGET_FRUGALWARE)
+         /* Debian style rcS.d */
+         { "rcS.d",  SPECIAL_SYSINIT_TARGET,   RUNLEVEL_SYSINIT },
+ #endif
+diff --git a/src/vconsole-setup.c b/src/vconsole-setup.c
+index 27e4178..d05c277 100644
+--- a/src/vconsole-setup.c
++++ b/src/vconsole-setup.c
+@@ -267,6 +267,19 @@ int main(int argc, char **argv) {
+                                 log_warning("Failed to read /etc/rc.conf: %s", strerror(-r));
+                 }
+ 
++#elif defined(TARGET_FRUGALWARE)
++                if ((r = parse_env_file("/etc/sysconfig/keymap", NEWLINE,
++                                        "keymap", &vc_keymap,
++                                        NULL)) < 0) {
++                        if (r != -ENOENT)
++                                log_warning("Failed to read /etc/sysconfig/keymap: %s", strerror(-r));
++                }
++                if ((r = parse_env_file("/etc/sysconfig/font", NEWLINE,
++                                        "font", &vc_font,
++                                        NULL)) < 0) {
++                        if (r != -ENOENT)
++                                log_warning("Failed to read /etc/sysconfig/font: %s", strerror(-r));
++                }
+ #elif defined(TARGET_GENTOO)
+                 if ((r = parse_env_file("/etc/rc.conf", NEWLINE,
+                                         "unicode", &vc_unicode,
+--
+cgit v0.8.3-6-g21f6

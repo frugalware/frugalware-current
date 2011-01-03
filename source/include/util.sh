@@ -118,6 +118,22 @@ Fdie() {
 }
 
 ###
+# * Fuse(): Checks a use variable. Parameter: a use variable. Example: Fuse
+# $USE_DEVEL.
+###
+Fuse()
+{
+	if [ "$1" = "n" ]; then
+		return 1
+	elif [ "$1" = "y" ]; then
+		return 0
+	else
+		Fmessage "Unknown use variable!"
+		Fdie
+	fi
+}
+
+###
 # * __Faddsubpkg(): Internal usage only. Registers one new subpkg per call.
 # Takes any number of parameters. Each parameter must be in the form of
 # "key:value". The key is what the variable would be called if it were a
@@ -1391,22 +1407,6 @@ Fsplit()
 			mv $path $startdir/pkg.$subpkg/$dir/ || Fdie
 		done
 	done
-}
-
-##
-# * Fuse(): Checks a use variable. Parameter: a use variable. Example: Fuse
-# $USE_DEVEL.
-##
-Fuse()
-{
-	if [ "$1" = "n" ]; then
-		return 1
-	elif [ "$1" = "y" ]; then
-		return 0
-	else
-		Fmessage "Unknown use variable!"
-		Fdie
-	fi
 }
 
 ###

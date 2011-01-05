@@ -63,7 +63,7 @@ if [ -n "$_F_launchpad_sep" ] && [ "$_F_launchpad_sep" = "None" ]; then
 fi
 
 if [ -z "$_F_launchpad_branch" ]; then
-	_F_launchpad_sep="trunk"
+	_F_launchpad_branch="trunk"
 fi
 ###
 # == OVERWRITTEN VARIABLES

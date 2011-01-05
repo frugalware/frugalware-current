@@ -24,6 +24,7 @@
 #
 # == OPTIONS
 # * _F_archive_name (defaults to $pkgname)
+# * _F_archive_ver (defaults to $pkgver$pkgextraver)
 # * _F_archive_prefix (defaults to "")
 # * _F_archive_nolinksonly (defaults to no, so that only links are proceeded by
 # default)
@@ -32,7 +33,7 @@
 # searching for the version
 # * _F_archive_grepv (defaults to empty): grep -v for a regexp before
 # searching for the version
-# * _F_cd_path (defaults to $_F_archive_name$Fpkgversep$pkgver$pkgextraver)
+# * _F_cd_path (defaults to $_F_archive_name$Fpkgversep$_F_archive_ver)
 # * _F_conf_configure (defaults to ./configure)
 # * _F_conf_perl_pipefrom: if set, pipe the output of this command in Fconf()
 # for perl packages
@@ -247,8 +248,11 @@ Fcd() {
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi
+	if [ -z "$_F_archive_ver" ]; then
+		_F_archive_ver="$pkgver$pkgextraver"
+	fi
 	if [ -z "$_F_cd_path" ]; then
-		_F_cd_path="$_F_archive_name$Fpkgversep$pkgver$pkgextraver"
+		_F_cd_path="$_F_archive_name$Fpkgversep$_F_archive_ver"
 	fi
 
 	if [ "$Fsrcdir" = `pwd` ]; then

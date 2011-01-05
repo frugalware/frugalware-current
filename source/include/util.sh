@@ -152,6 +152,20 @@ Fuse()
 }
 
 ###
+# * Flowerstr(): Lower a string. Parameters: The string to lower.
+###
+Flowerstr() {
+	echo -nE "$@"|tr '[:upper:]' '[:lower:]'
+}
+
+###
+# *Fupperstr(): Upper a string. Parameters: The string to upper.
+###
+Fupperstr() {
+	echo -nE "$@"|tr '[:lower:]' '[:upper:]'
+}
+
+###
 # * __Faddsubpkg(): Internal usage only. Registers one new subpkg per call.
 # Takes any number of parameters. Each parameter must be in the form of
 # "key:value". The key is what the variable would be called if it were a
@@ -1437,11 +1451,9 @@ Fsplit()
 ###
 check_option() {
 	local i
-	for i in ${options[@]}; do
-		local uc=`echo $i | tr '[:lower:]' '[:upper:]'`
-		local lc=`echo $i | tr '[:upper:]' '[:lower:]'`
-		if [ "$uc" = "$1" -o "$lc" = "$1" ]; then
-			echo $1
+	for i in "${options[@]}"; do
+		if [ `Flowerstr "$i"` = "$1" -o `Fupperstr "$i"` = "$1" ]; then
+			echo -nE "$1"
 			return
 		fi
 	done
@@ -1457,11 +1469,11 @@ check_option() {
 Fmsgfmt() {
 	local llang mofile pofile slang
 
-	if echo $2|grep -q _ ; then
+	if echo -nE "$2"|grep -q _ ; then
 		llang="$2"
 		slang=`echo $llang|cut -d _ -f 1`
 	else
-		llang=${2}_`echo $2|tr [:lower:] [:upper:]`
+		llang="${2}_`Fupperstr \"$2\"`"
 		slang="$2"
 	fi
 
@@ -1479,10 +1491,9 @@ Fmsgfmt() {
 # Fextract pacman.tar.gz.
 ###
 Fextract() {
-	local cmd file tmp
+	local cmd file
 	file="${1}"
-	tmp="$(echo "${file}" | tr 'A-Z' 'a-z')"
-	case "${tmp}" in
+	case `Flowerstr "$file"` in
 		*.tar.bz2|*.tbz2)
 		cmd="tar $_F_extract_taropts --use-compress-program=bzip2 -xf $file" ;;
 		*.tar.gz|*.tar.z|*.tgz)

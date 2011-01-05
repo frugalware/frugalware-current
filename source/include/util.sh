@@ -118,17 +118,34 @@ Fdie() {
 }
 
 ###
-# * Fuse(): Checks a use variable. Parameter: a use variable. Example: Fuse
-# $USE_DEVEL.
+# * Fcpvar(): Copy a variable to another by name. Parameters: 1) Destination
+# variable name. 2) Source variable name. Example: Fcpvar use USE_$FOO
+#
+# NOTE: This is a shortcut to tmp=a$b; c=${!tmp}, Fcpvar can do this in one go
+# (and even 'c' can be a variable).
+###
+Fcpvar() {
+	eval "$1=(\"\${$2[@]}\")"
+}
+
+###
+# * Fuse(): Checks a use variable. Parameter: a use variable value or the use
+# variable name. Example: Fuse DEVEL and Fuse $USE_DEVEL are equivalent.
 ###
 Fuse()
 {
-	if [ "$1" = "n" ]; then
+	local use
+	Fcpvar use "USE_$1"
+	if [ "$use" = "n" ]; then
+		return 1
+	elif [ "$use" = "y" ]; then
+		return 0
+	elif [ "$1" = "n" ]; then
 		return 1
 	elif [ "$1" = "y" ]; then
 		return 0
 	else
-		Fmessage "Unknown use variable!"
+		Fmessage "Unknown use variable $1!"
 		Fdie
 	fi
 }

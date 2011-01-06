@@ -1452,7 +1452,7 @@ Fsplit()
 check_option() {
 	local i
 	for i in "${options[@]}"; do
-		if [ `Flowerstr "$i"` = "$1" -o `Fupperstr "$i"` = "$1" ]; then
+		if [ "`Flowerstr "$i"`" = "$1" -o "`Fupperstr "$i"`" = "$1" ]; then
 			echo -nE "$1"
 			return
 		fi

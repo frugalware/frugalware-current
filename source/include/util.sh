@@ -118,6 +118,85 @@ Fdie() {
 }
 
 ###
+# * __Faddsubpkg(): Internal usage only. Registers one new subpkg per call.
+# Takes any number of parameters. Each parameter must be in the form of
+# "key:value". The key is what the variable would be called if it were a
+# regular package.
+###
+__Faddsubpkg() {
+	local key
+	local value
+	local n
+	n=${#subpkgs[@]}
+	for i in "$@"; do
+		key="$(echo "$i" | cut -d ':' -f 1)"
+		value="$(echo "$i" | cut -d ':' -f 2)"
+		[ -z "$key" ] && continue
+		case "$key" in
+			pkgname)           subpkgs[$n]="$value"            ;;
+			pkgdesc)           subdescs[$n]="$value"           ;;
+			pkgdesc_localized) subdescs_localized[$n]="$value" ;;
+			license)           sublicense[$n]="$value"         ;;
+			replaces)          subreplaces[$n]="$value"        ;;
+			groups)            subgroups[$n]="$value"          ;;
+			depends)           subdepends[$n]="$value"         ;;
+			rodepends)         subrodepends[$n]="$value"       ;;
+			removes)           subremoves[$n]="$value"         ;;
+			conflicts)         subconflicts[$n]="$value"       ;;
+			provides)          subprovides[$n]="$value"        ;;
+			backup)            subbackup[$n]="$value"          ;;
+			install)           subinstall[$n]="$value"         ;;
+			options)           suboptions[$n]="$value"         ;;
+			archs)             subarchs[$n]="$value"           ;;
+		esac
+	done
+}
+
+###
+# * Faddsubpkg(): Adds one subpkg to the list. Appended parameters are the
+# corresponding values. Up to 14 parameters are used to define each entry. You
+# must pass all previous parameters if you are to access the later ones. If you
+# do not need parameter, simply pass an empty string, or leave it out if you do
+# not need the later parameters. The order is as follows:
+#  1) pkgname   (required)
+#  2) pkgdesc   (required)
+#  3) depends   (required)
+#  4) rodepends
+#  5) replaces
+#  6) removes
+#  7) conflicts
+#  8) provides
+#  9) license
+# 10) backup
+# 11) install
+# 12) options
+# 13) groups
+# 14) archs
+###
+Faddsubpkg() {
+	local g
+	local a
+	if [ "$#" -lt 3 ]; then
+		Fmessage "Faddsubpkg requires at least 3 parameters."
+		Fdie
+	fi
+	if [ -n "${13}" ]; then
+		g="${13}"
+	else
+		g="${groups[@]}"
+	fi
+	if [ -n "${14}" ]; then
+		a="${14}"
+	else
+		a="${archs[@]}"
+	fi
+	__Faddsubpkg "pkgname:${1}" "pkgdesc:${2}" "depends:${3}" "rodepends:${4}"   \
+	             "replaces:${5}" "removes:${6}" "conflicts:${7}" "provides:${8}" \
+	             "license:${9}" "backup:${10}" "install:${11}" "options:${12}"   \
+	             "groups:${g}" "archs:${a}"
+}
+
+###
 # * Fexec(): Display and execute the command line passed as parameter. Note that
 # it cannot be used in a pipe context. Parameters: the command line to execute.
 ###
@@ -497,7 +576,7 @@ Fln() {
 }
 
 ###
-# * __Fsed(): Private implementation of Fsed and Freplace. Parameters: 
+# * __Fsed(): Private implementation of Fsed and Freplace. Parameters:
 # 1) regexp (see man sed!) 2) replacement 3) file to edit in place.
 ###
 __Fsed() {
@@ -528,7 +607,7 @@ Fsed() {
 }
 
 ###
-# * Freplace(): Do some parameter substitution on file(s). The parameters 
+# * Freplace(): Do some parameter substitution on file(s). The parameters
 # should be escaped using the "@parameter@" syntax. Parameters:
 # 1) Variable to substituate 2) file(s) where the substitution happens.
 ###

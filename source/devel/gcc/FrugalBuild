@@ -2,6 +2,8 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 USE_SHARED=${USE_SHARED:-"y"}
+USE_SNAPSHOT=${USE_SNAPSHOT:-"n"}
+
 USE_LANGS=${USE_LANGS:-"y"}
 USE_ADA=${USE_ADA:-"$USE_LANGS"}
 USE_CXX=${USE_CXX:-"$USE_LANGS"}
@@ -15,19 +17,29 @@ Fuse $USE_JAVA && USE_CXX="y"
 Fuse $USE_OBJC && USE_CXX="y"
 
 pkgname=gcc
-pkgver=4.5.1
+pkgver=4.5.2
 pkgrel=2
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libmpc>=0.8.1')
+depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libelf' 'libmpc>=0.8.1')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('i686' 'x86_64' 'ppc')
 options=('scriptlet')
-up2date="lynx -dump http://ftp.gnu.org/pub/gnu/gcc/|grep gcc-.*/$|sed -n 's|.*gcc-\(.*\)/|\1|;$ p'"
-source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2 \
-	README.Frugalware)
-signatures=($source.sig '')
+if Fuse $USE_SNAPSHOT; then
+	pkgver=4.5_20101118
+	gccver=4.5.2
+	pkgrel=1
+	up2date="Flasttar ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-${pkgver/%_*/}/"
+	source=(ftp://gcc.gnu.org/pub/gcc/snapshots/${pkgver/_/-}/gcc-${pkgver/_/-}.tar.bz2)
+	signatures=('')
+	_F_cd_path="$pkgname-${pkgver/_/-}"
+else
+	gccver=$pkgver
+	up2date="lynx -dump http://ftp.gnu.org/pub/gnu/gcc/|grep gcc-.*/$|sed -n 's|.*gcc-\(.*\)/|\1|;$ p'"
+	source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$gccver/gcc-$gccver.tar.bz2)
+	signatures=($source.sig)
+fi
 
 if Fuse $USE_SHARED; then
 	subpkgs=('libgcc' 'libssp' 'libgomp')
@@ -39,8 +51,9 @@ if Fuse $USE_SHARED; then
 	subreplaces=('' '' '')
 fi
 if Fuse $USE_CXX; then
-	source=("${source[@]}" ftp://gcc.gnu.org/pub/gcc/libstdc++/doxygen/libstdc++-man.20100209.tar.bz2)
+	source=("${source[@]}" ftp://gcc.gnu.org/pub/gcc/libstdc++/doxygen/libstdc++-api-$pkgver.man.tar.bz2)
 	signatures=("${signatures[@]}" '')
+
 	subpkgs=("${subpkgs[@]}" 'libstdc++' 'gcc-g++')
 	subdescs=("${subdescs[@]}" 'GNU Standard C++ Library' 'C++ suport for GCC')
 	subdepends=("${subdepends[@]}" 'libgcc' 'libstdc++')
@@ -58,7 +71,7 @@ if Fuse $USE_JAVA; then
 	else
 		subdepends=("${subdepends[@]}" "libgcj zlib libmpc gcc-g++")
 	fi
-	subbackup=("${subbackup[@]}" '' "usr/lib/gcj-$pkgver/classmap.db" '' '')
+	subbackup=("${subbackup[@]}" '' "usr/lib/gcj-$gccver/classmap.db" '' '')
 	subgroups=("${subgroups[@]}" 'lib' 'lib' 'xlib' 'devel-extra')
 	subreplaces=("${subreplaces[@]}" '' '' '' 'gjdoc')
 	makedepends=("${makedepends[@]}" 'libart_lgpl' 'libxtst' 'zip' 'xulrunner' \
@@ -143,12 +156,12 @@ build()
                 Fconfopts="$Fconfopts --enable-target-optspace"
         fi
 
+	_F_conf_configure=../$_F_cd_path/configure
 	CC="$FCC gcc" CFLAGS="$CFLAGS" CXXFLAGS="$CFLAGS" XCFLAGS="$CFLAGS" \
 	TCFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" \
-	../$pkgname-$pkgver/configure \
-		--prefix=$Fprefix \
-		$Fconfopts \
+	Fconf \
 		--enable-languages=$langlist \
+		--enable-lto \
 		--enable-shared \
 		--enable-threads=posix \
 		--with-system-zlib \
@@ -158,20 +171,19 @@ build()
 		--with-bugurl="http://bugs.frugalware.org/" \
 		--with-pkgversion="Frugalware Linux" \
 		--enable-linux-futex \
-		--disable-dependency-tracking \
-		--build=$CARCH-frugalware-linux
+		--disable-dependency-tracking
 
 	if Fuse $USE_SHARED; then
-		make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" bootstrap || return 1
+		Fexec make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" bootstrap || Fdie
 	else
-		make all-gcc || return 1
+		Fexec make all-gcc || Fdie
 	fi
 
 	if Fuse $USE_SHARED; then
 		unset MAKEFLAGS #this is needed by libffi
 		Fmakeinstall
 	else
-		make install-gcc DESTDIR=$Fdestdir || return 1
+		Fexec make install-gcc DESTDIR=$Fdestdir || Fdie
 	fi
 
 	if [ -d $Fdestdir/usr/lib64 ]; then
@@ -193,7 +205,7 @@ build()
                 -o -name libjawt.a \
                 -o -name libjvm.a \
                 -o -name libgcj_bc.a | xargs rm -f \
-                || return 1
+                || Fdie
 
 	# conflicts with binutils
 	Frm /usr/bin/c++filt /usr/lib/libiberty.a
@@ -208,8 +220,8 @@ build()
 	fi
 
 	if Fuse $USE_JAVA; then
-		Fln ../lib/gcc/$CHOST/$pkgver/include/jni.h /usr/include/
-		Fln ../lib/gcc/$CHOST/$pkgver/include/jni_md.h /usr/include/
+		Fln ../lib/gcc/$CHOST/$gccver/include/jni.h /usr/include/
+		Fln ../lib/gcc/$CHOST/$gccver/include/jni_md.h /usr/include/
 	fi
 
 	Fuse $USE_FORTRAN && Fln gfortran /usr/bin/f95
@@ -218,56 +230,54 @@ build()
 		Fln gcc /usr/bin/gnatgcc
 
 		# move libgnat to the right location
-		Fmv usr/lib/gcc/$CHOST/$pkgver/adalib/libgnarl-${pkgver%.*}.so /usr/lib
-		Fmv usr/lib/gcc/$CHOST/$pkgver/adalib/libgnat-${pkgver%.*}.so /usr/lib
-		Frm usr/lib/gcc/$CHOST/$pkgver/adalib/lib{gnarl,gnat}.so
-		Fln libgnarl-${pkgver%.*}.so /usr/lib/libgnarl.so
-		Fln libgnat-${pkgver%.*}.so /usr/lib/libgnat.so
-		Fln ../../../../libgnarl-${pkgver%.*}.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnarl.so
-		Fln ../../../../libgnarl-${pkgver%.*}.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnarl-${pkgver%.*}.so
-		Fln ../../../../libgnat-${pkgver%.*}.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnat.so
-		Fln ../../../../libgnat-${pkgver%.*}.so /usr/lib/gcc/$CHOST/$pkgver/adalib/libgnat-${pkgver%.*}.so
+		Fmv usr/lib/gcc/$CHOST/$gccver/adalib/libgnarl-${gccver%.*}.so /usr/lib
+		Fmv usr/lib/gcc/$CHOST/$gccver/adalib/libgnat-${gccver%.*}.so /usr/lib
+		Frm usr/lib/gcc/$CHOST/$gccver/adalib/lib{gnarl,gnat}.so
+		Fln libgnarl-${gccver%.*}.so /usr/lib/libgnarl.so
+		Fln libgnat-${gccver%.*}.so /usr/lib/libgnat.so
+		Fln ../../../../libgnarl-${gccver%.*}.so /usr/lib/gcc/$CHOST/$gccver/adalib/libgnarl.so
+		Fln ../../../../libgnarl-${gccver%.*}.so /usr/lib/gcc/$CHOST/$gccver/adalib/libgnarl-${gccver%.*}.so
+		Fln ../../../../libgnat-${gccver%.*}.so /usr/lib/gcc/$CHOST/$gccver/adalib/libgnat.so
+		Fln ../../../../libgnat-${gccver%.*}.so /usr/lib/gcc/$CHOST/$gccver/adalib/libgnat-${gccver%.*}.so
 	fi
 
 	if Fuse $USE_JAVA; then
 	# cp ffitarget.h to /usr/include needed to work include <ffi.h> good
-	Fcp /usr/lib/gcc/$CHOST/$pkgver/include/ffitarget.h \
+	Fcp /usr/lib/gcc/$CHOST/$gccver/include/ffitarget.h \
 		/usr/include/ffitarget.h
 	fi
 
 	# documentation
-	Fdoc README.Frugalware
 	if Fuse $USE_CXX; then
 		Fmkdir /usr/share/man/man3
-		# Note: man snapshots are called man.$snapshot and released tarballs are man-$the_version
-		cp $Fsrcdir/libstdc++-man.20100209/man3/* $Fdestdir/usr/share/man/man3/ || Fdie
+		cp $Fsrcdir/libstdc++-api-$pkgver.man/man3/* $Fdestdir/usr/share/man/man3/ || Fdie
 	fi
 
 	# split the pkg
 	if Fuse $USE_JAVA; then
 		## always do this java stuff before gnat because gnat splits with gnat*
 		## and we got now 'gnat'ive2ascii which is java stuff ;)
-		## NOTE: old gcj-${pkgver} is now gcj-${pkgver}-xx
-		gcjpkgver=$(basename $Fdestdir/usr/lib/gcj-${pkgver}*)
+		## NOTE: old gcj-${gccver} is now gcj-${gccver}-xx
+		gcjver=$(basename $Fdestdir/usr/lib/gcj-${gccver}*)
 		# libffi
 		Fsplit libffi usr/lib/libffi*
-		Fsplit libffi usr/lib/gcc/$CHOST/$pkgver/include/ffi*
+		Fsplit libffi usr/lib/gcc/$CHOST/$gccver/include/ffi*
 		Fsplit libffi usr/include/ffi*
 		# libgcj-awt
-		Fsplit libgcj-awt usr/lib/gcc/$CHOST/$pkgver/include/jawt*.h
-		Fsplit libgcj-awt usr/lib/${gcjpkgver}/lib{jawt,gtkpeer}.*
-		Fsplit libgcj-awt usr/include/c++/$pkgver/gnu/awt
-		Fsplit libgcj-awt usr/include/c++/$pkgver/gnu/java/awt
-		Fsplit libgcj-awt usr/include/c++/$pkgver/java/awt
-		Fsplit libgcj-awt usr/include/c++/$pkgver/sun/awt
+		Fsplit libgcj-awt usr/lib/gcc/$CHOST/$gccver/include/jawt*.h
+		Fsplit libgcj-awt usr/lib/${gcjver}/lib{jawt,gtkpeer}.*
+		Fsplit libgcj-awt usr/include/c++/$gccver/gnu/awt
+		Fsplit libgcj-awt usr/include/c++/$gccver/gnu/java/awt
+		Fsplit libgcj-awt usr/include/c++/$gccver/java/awt
+		Fsplit libgcj-awt usr/include/c++/$gccver/sun/awt
 		# libgcj
 		## org, sun are libgcj includes also
 		Fsplit libgcj usr/include/{jni.h,jni_md.h}
-		Fsplit libgcj usr/include/c++/$pkgver/[gj]*
-		Fsplit libgcj usr/include/c++/$pkgver/{sun,org}
-		Fsplit libgcj usr/lib/gcc/$CHOST/$pkgver/include/gcj/
-		Fsplit libgcj usr/lib/gcc/$CHOST/$pkgver/include/{jni.h,jni_md.h,jvmpi.h}
-		Fsplit libgcj usr/lib/pkgconfig/libgcj-${pkgver%.*}.pc
+		Fsplit libgcj usr/include/c++/$gccver/[gj]*
+		Fsplit libgcj usr/include/c++/$gccver/{sun,org}
+		Fsplit libgcj usr/lib/gcc/$CHOST/$gccver/include/gcj/
+		Fsplit libgcj usr/lib/gcc/$CHOST/$gccver/include/{jni.h,jni_md.h,jvmpi.h}
+		Fsplit libgcj usr/lib/pkgconfig/libgcj-${gccver%.*}.pc
 		## maybe we should add some libgcj-tools or libgcj-utils package ? - crazy -
 		Fsplit libgcj usr/bin/{jv-convert,gij,gjar,grmi*,gcj-dbtool,gorbd,gjarsigner,gkeytool}
 		Fsplit libgcj usr/bin/{gtnameserv,gnative2ascii,gserialver,gc-analyze}
@@ -278,8 +288,8 @@ build()
 		Fsplit libgcj usr/share/java
 		Fsplit libgcj usr/lib/security
 		Fsplit libgcj usr/lib/logging.properties
-		Fsplit libgcj usr/lib/${gcjpkgver}
-		Fln ${gcjpkgver}/libjvm.so /usr/lib
+		Fsplit libgcj usr/lib/${gcjver}
+		Fln ${gcjver}/libjvm.so /usr/lib
 		Fsplit libgcj usr/lib/libjvm.so
 		Fsplit libgcj usr/bin/rebuild-gcj-db
 		Fsplit libgcj usr/share/man/man1/rebuild-gcj-db.1
@@ -287,8 +297,8 @@ build()
 		Fsplit gcc-gcj usr/bin/{gcj,$CHOST-gcj,gcjh,gjavah,jcf-dump}
 		Fsplit gcc-gcj usr/share/man/man1/{gcj,gcjh,gjavah,jcf-dump}.1*
 		Fsplit gcc-gcj usr/share/info/{cp-tools.info,gcj*}
-		Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$pkgver/{jc1,jvgenmain}
-		Fuse $USE_ECJ && Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$pkgver/ecj1
+		Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$gccver/{jc1,jvgenmain}
+		Fuse $USE_ECJ && Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$gccver/ecj1
 		Fsplit gcc-gcj usr/bin/aot-compile
 		Fsplit gcc-gcj usr/share/man/man1/aot-compile.1
 		Fsplit gcc-gcj usr/share/python/{aotcompile.py,classfile.py}
@@ -302,41 +312,41 @@ build()
 		# gcc-gnat
 		Fsplit gcc-gnat usr/bin/gnat*
 		Fsplit gcc-gnat usr/share/info/gnat*
-		Fsplit gcc-gnat usr/lib/gcc/$CHOST/$pkgver/adainclude
-		Fsplit gcc-gnat usr/lib/gcc/$CHOST/$pkgver/adalib
-		Fsplit gcc-gnat usr/libexec/gcc/$CHOST/$pkgver/gnat1
+		Fsplit gcc-gnat usr/lib/gcc/$CHOST/$gccver/adainclude
+		Fsplit gcc-gnat usr/lib/gcc/$CHOST/$gccver/adalib
+		Fsplit gcc-gnat usr/libexec/gcc/$CHOST/$gccver/gnat1
 	fi
 	if Fuse $USE_FORTRAN; then
 		# libgfortran
-		Fsplit libgfortran usr/lib/gcc/$CHOST/$pkgver/libgfortranbegin.*
+		Fsplit libgfortran usr/lib/gcc/$CHOST/$gccver/libgfortranbegin.*
 		Fsplit libgfortran usr/lib/libgfortran.*
 		# gcc-gfortran
 		Fsplit gcc-gfortran usr/bin/{gfortran,$CHOST-gfortran,f95}
 		Fsplit gcc-gfortran usr/share/man/man1/gfortran.1*
 		Fsplit gcc-gfortran usr/share/info/gfortran*
-		Fsplit gcc-gfortran usr/libexec/gcc/$CHOST/$pkgver/f951
+		Fsplit gcc-gfortran usr/libexec/gcc/$CHOST/$gccver/f951
 	fi
 	if Fuse $USE_OBJC; then
 		# libobjc
-		Fsplit libobjc usr/lib/gcc/$CHOST/$pkgver/include/objc/
+		Fsplit libobjc usr/lib/gcc/$CHOST/$gccver/include/objc/
 		Fsplit libobjc usr/lib/libobjc*
 		# gcc-objc
-		Fsplit gcc-objc usr/libexec/gcc/$CHOST/$pkgver/cc1obj
+		Fsplit gcc-objc usr/libexec/gcc/$CHOST/$gccver/cc1obj
 		# gcc-objc++
-		Fsplit gcc-objc++ usr/libexec/gcc/$CHOST/$pkgver/cc1objplus
+		Fsplit gcc-objc++ usr/libexec/gcc/$CHOST/$gccver/cc1objplus
 	fi
 	if Fuse $USE_CXX; then
 		# libstdc++
 		Fsplit libstdc++ usr/include/c++/
-		Fmv usr/lib/libstdc++.*-gdb.py usr/share/gcc-$pkgver/python/libstdcxx
-		Fsplit libstdc++ usr/share/gcc-$pkgver/python/libstdcxx
+		Fmv usr/lib/libstdc++.*-gdb.py usr/share/gcc-$gccver/python/libstdcxx
+		Fsplit libstdc++ usr/share/gcc-$gccver/python/libstdcxx
 		Fsplit libstdc++ usr/lib/libstdc++.*
 		Fsplit libstdc++ usr/share/man/man3/
 		Fsplit libstdc++ usr/share/locale/{de,fr}/LC_MESSAGES/libstdc++.mo
 		#gcc-g++
 		Fsplit gcc-g++ usr/bin/{,$CHOST-}{c++,g++}
 		Fsplit gcc-g++ usr/lib/libsupc++.*
-		Fsplit gcc-g++ usr/libexec/gcc/$CHOST/$pkgver/cc1plus
+		Fsplit gcc-g++ usr/libexec/gcc/$CHOST/$gccver/cc1plus
 		Fsplit gcc-g++ usr/share/man/man1/g++.1
 	fi
 	if Fuse $USE_SHARED; then
@@ -344,10 +354,10 @@ build()
 		Fsplit libgcc usr/lib/libgcc_*
 		# libssp
 		Fsplit libssp usr/lib/libssp*
-		Fsplit libssp usr/lib/gcc/$CHOST/$pkgver/include/ssp/
+		Fsplit libssp usr/lib/gcc/$CHOST/$gccver/include/ssp/
 		# libgomp
 		Fsplit libgomp usr/share/info/libgomp.info
-		Fsplit libgomp usr/lib/gcc/$CHOST/$pkgver/include/omp.h
+		Fsplit libgomp usr/lib/gcc/$CHOST/$gccver/include/omp.h
 		Fsplit libgomp usr/lib/libgomp.*
 	fi
 }

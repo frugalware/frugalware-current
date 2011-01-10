@@ -91,6 +91,9 @@ _F_sourceforge_rss_url="http://sourceforge.net/api/file/index/project-id/$_F_sou
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
 fi
+if [ -z "$_F_archive_grepv" ]; then
+	_F_archive_grepv="^$"
+fi
 Fpkgversep=$_F_sourceforge_sep
 up2date="lynx -dump $_F_sourceforge_rss_url | \
 	egrep '/$_F_sourceforge_name$_F_sourceforge_sep.*$_F_sourceforge_ext' | \

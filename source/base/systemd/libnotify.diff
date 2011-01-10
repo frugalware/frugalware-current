@@ -1,0 +1,92 @@
+From d0ef2204b4256189afc2188f0765338d616ca757 Mon Sep 17 00:00:00 2001
+From: Kay Sievers <kay.sievers@vrfy.org>
+Date: Fri, 26 Nov 2010 16:59:53 +0000
+Subject: gnome-ask-password-agent: also support libnotify < 0.7 for now
+
+---
+diff --git a/Makefile.am b/Makefile.am
+index 471954b..baf8271 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -962,7 +962,12 @@ systemd_gnome_ask_password_agent_VALAFLAGS = \
+ 	--pkg=gtk+-2.0 \
+ 	--pkg=linux \
+ 	--pkg=gio-unix-2.0 \
+-	--pkg=libnotify \
++	--pkg=libnotify
++if LIBNOTIFY07
++systemd_gnome_ask_password_agent_VALAFLAGS += \
++	-D LIBNOTIFY07
++endif
++systemd_gnome_ask_password_agent_VALAFLAGS += \
+ 	-g
+ 
+ systemd_gnome_ask_password_agent_LDADD = \
+diff --git a/configure.ac b/configure.ac
+index 5a6f3c7..dfbce11 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -259,12 +259,16 @@ if test "$have_gtk" = "yes"; then
+         AC_SUBST(DBUSGLIB_CFLAGS)
+         AC_SUBST(DBUSGLIB_LIBS)
+ 
+-        PKG_CHECK_MODULES(LIBNOTIFY, [ libnotify >= 0.7.0 ])
++        PKG_CHECK_MODULES(LIBNOTIFY, [ libnotify >= 0.7.0 ],
++          [ libnotify07=yes ],
++          [ PKG_CHECK_MODULES(LIBNOTIFY, [ libnotify ]) ]
++        )
++        AM_CONDITIONAL(LIBNOTIFY07, [ test "$libnotify07" = "yes" ])
+         AC_SUBST(LIBNOTIFY_CFLAGS)
+         AC_SUBST(LIBNOTIFY_LIBS)
+ fi
+ 
+-AM_PROG_VALAC([0.11])
++AM_PROG_VALAC([0.10])
+ AC_SUBST(VAPIDIR)
+ AM_CONDITIONAL(HAVE_VALAC, test x"$VALAC" != x)
+ 
+diff --git a/src/gnome-ask-password-agent.vala b/src/gnome-ask-password-agent.vala
+index 6cab6f9..61bbba0 100644
+--- a/src/gnome-ask-password-agent.vala
++++ b/src/gnome-ask-password-agent.vala
+@@ -38,8 +38,13 @@ public class PasswordDialog : Dialog {
+                 set_default_response(ResponseType.OK);
+                 set_icon_name(icon);
+ 
++#if LIBNOTIFY07
+                 add_button(Stock.CANCEL, ResponseType.CANCEL);
+                 add_button(Stock.OK, ResponseType.OK);
++#else
++                add_button(STOCK_CANCEL, ResponseType.CANCEL);
++                add_button(STOCK_OK, ResponseType.OK);
++#endif
+ 
+                 Container content = (Container) get_content_area();
+ 
+@@ -181,7 +186,12 @@ public class MyStatusIcon : StatusIcon {
+ 
+                 set_visible(true);
+ 
++#if LIBNOTIFY07
+                 Notification n = new Notification(title, message, icon);
++#else
++                Notification n = new Notification(title, message, icon, null);
++                n.attach_to_status_icon(this);
++#endif
+                 n.set_timeout(5000);
+                 n.show();
+ 
+@@ -225,7 +235,11 @@ public class MyStatusIcon : StatusIcon {
+ 
+                 OutputStream stream = new UnixOutputStream(to_process, true);
+ 
++#if LIBNOTIFY07
+                 stream.write(password.data, null);
++#else
++                stream.write(password, password.length, null);
++#endif
+         }
+ }
+ 
+--
+cgit v0.8.3-6-g21f6

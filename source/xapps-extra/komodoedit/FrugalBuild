@@ -1,0 +1,60 @@
+# Compiling Time: 30 SBU
+# Maintainer: James Buren <ryuo@frugalware.org>
+
+pkgname=komodoedit
+pkgver=6.0.3
+pkgrel=1
+pkgdesc="Free multi-platform editor that makes it easy to write quality code."
+url="http://www.openkomodo.com"
+depends=('gmp' 'gtk+2' 'nss' 'python-sqlite3' 'dbus-glib' 'alsa-lib' 'curl' 'libidl' 'paramiko')
+makedepends=('subversion' 'zip')
+groups=('xapps-extra')
+archs=('i686' 'x86_64')
+up2date="curl -s 'http://downloads.activestate.com/Komodo/releases/' | sed -n 's|.*>\([0-9.]\+\)/.*|\1|p' | Fsort | tail -n1"
+options=('nomirror' 'nodocs' 'nostrip' 'scriptlet')
+_firefox_version='3.5.16'
+source=(http://ftp.frugalware.org/pub/other/sources/$pkgname/$pkgname-$pkgver.tar.xz)
+sha1sums=('b17158fdd7fc91a7275c76e855430a9d7701a848')
+
+build() {
+	Fexec cd "$pkgname-$pkgver/mozilla"
+	Fexec python build.py configure                            \
+		-k 6.0                                             \
+		-P 2.7                                             \
+		--moz-src=firefox-$_firefox_version-source.tar.bz2 \
+		--release                                          \
+		--strip                                            \
+		--tools                                            \
+		--blessed
+	Fexec python build.py all
+	Fexec cd ..
+	export PATH="$(pwd)/util/black:$PATH"
+	Fexec bk configure                     \
+		--release                      \
+		--full                         \
+		-V $pkgver                     \
+		--moz-src=blessed              \
+		--without-crashreport-symbols
+	Fexec bk build
+	Fexec bk image
+	Fexec cd install/release/*
+	Fexec mkdir tmp
+	Fexec ./install.sh -I "$(pwd)/tmp" -s
+	Ficonrel tmp/share/icons/*
+	Fdocrel tmp/share/doc/{*,.css}
+	Fexec sed -i 's:=.*\(bin\|icons\)/:=:'              tmp/share/desktop/komodo-edit-*.desktop
+	Fexec sed -i 's:Komodo Edit-6.desktop:Komodo Edit:' tmp/share/desktop/komodo-edit-*.desktop
+	Ffilerel tmp/share/desktop/komodo-edit-*.desktop /usr/share/applications/$pkgname.desktop
+	Fmkdir /usr/lib/$pkgname/{share,lib/python} /usr/bin
+	Fln /usr/share/pixmaps                     /usr/lib/$pkgname/share/icons
+	Fln /usr/share/doc/$pkgname-$pkgver        /usr/lib/$pkgname/share/doc
+	Fcprel tmp/lib/mozilla                     /usr/lib/$pkgname/lib
+	Fcprel tmp/lib/sdk                         /usr/lib/$pkgname/lib
+	Fcprel tmp/lib/support                     /usr/lib/$pkgname/lib
+	Fln /usr/bin                               /usr/lib/$pkgname/lib/python/bin
+	Fln /usr/include                           /usr/lib/$pkgname/lib/python/include
+	Fln /usr/lib                               /usr/lib/$pkgname/lib/python/lib
+	Fln /usr/lib/$pkgname/lib/mozilla/komodo   /usr/bin/komodo
+}
+
+# optimization OK

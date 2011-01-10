@@ -24,7 +24,6 @@
 # options=('scriptlet')
 # groups=('xapps-extra')
 # archs=('i686' 'x86_64')
-# up2date="lynx -dump '$purl'|grep -m1 '$pkgname-'|sed 's/.*-\(.*\).tar.gz .*/\1/'"
 # sha1sums=('9023c205cb1623e749bd5ca7baf721c55f36f279')
 # --------------------------------------------------
 #
@@ -87,11 +86,20 @@ fi
 # * source()
 ###
 _F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
+_F_sourceforge_id="\$(Fwcat $_F_sourceforge_url/ | grep --color project-id | sed -e 's|.*project-id/||;s|/.*||')"
+_F_sourceforge_rss_url="http://sourceforge.net/api/file/index/project-id/$_F_sourceforge_id/mtime/desc/limit/20/rss"
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
 fi
 _F_archive_name=$_F_sourceforge_name
 _F_archive_prefix=$_F_sourceforge_prefix
 Fpkgversep=$_F_sourceforge_sep
-up2date="Flastarchive http://sourceforge.net/projects/$_F_sourceforge_dirname/files$_F_sourceforge_subdir $_F_sourceforge_ext"
-source=(http://${_F_sourceforge_mirror}.sourceforge.net/sourceforge/${_F_sourceforge_dirname}/"${_F_sourceforge_name}"${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext})
+up2date="lynx -dump $_F_sourceforge_rss_url | \
+	egrep '$_F_sourceforge_name$_F_sourceforge_sep.*$_F_sourceforge_ext' | \
+	sed -e 's|.*$_F_sourceforge_name$_F_sourceforge_sep||;s|$_F_sourceforge_ext.*||' | \
+	Fsort | tac | \
+	head -n 1"
+
+source=("http://${_F_sourceforge_mirror}.sourceforge.net/${_F_sourceforge_dirname}/${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext}")
+
+

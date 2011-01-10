@@ -18,7 +18,7 @@ Fuse $USE_OBJC && USE_CXX="y"
 
 pkgname=gcc
 pkgver=4.5.2
-pkgrel=2
+pkgrel=3
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
 depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libelf' 'libmpc>=0.8.1')
@@ -62,19 +62,19 @@ if Fuse $USE_CXX; then
 	subreplaces=("${subreplaces[@]}" '' '')
 fi
 if Fuse $USE_JAVA; then
-	subpkgs=("${subpkgs[@]}" 'libffi' 'libgcj' 'libgcj-awt' 'gcc-gcj')
-	subdescs=("${subdescs[@]}" 'FFU kubrarues from GCC' 'Java runtime library for gcc' 'AWT peer libraries for libgcj' 'Java support for GCC')
-	subdepends=("${subdepends[@]}" 'glibc' 'libgcc zlib alsa-lib' \
+	subpkgs=("${subpkgs[@]}" 'libgcj' 'libgcj-awt' 'gcc-gcj')
+	subdescs=("${subdescs[@]}" 'Java runtime library for gcc' 'AWT peer libraries for libgcj' 'Java support for GCC')
+	subdepends=("${subdepends[@]}" 'libgcc zlib alsa-lib' \
 	    'libgcj libart_lgpl gtk+2>=2.20.1-1 libxml2 freetype2 libice libxtst libxau libxdmcp libxdamage libstdc++')
 	if Fuse $USE_ECJ; then
 		subdepends=("${subdepends[@]}" "libgcj zlib ecj libmpc gcc-g++")
 	else
 		subdepends=("${subdepends[@]}" "libgcj zlib libmpc gcc-g++")
 	fi
-	subbackup=("${subbackup[@]}" '' "usr/lib/gcj-$gccver/classmap.db" '' '')
-	subgroups=("${subgroups[@]}" 'lib' 'lib' 'xlib' 'devel-extra')
-	subreplaces=("${subreplaces[@]}" '' '' '' 'gjdoc')
-	makedepends=("${makedepends[@]}" 'libart_lgpl' 'libxtst' 'zip' 'xulrunner' \
+	subbackup=("${subbackup[@]}" "usr/lib/gcj-$gccver/classmap.db" '' '')
+	subgroups=("${subgroups[@]}" 'lib' 'xlib' 'devel-extra')
+	subreplaces=("${subreplaces[@]}" '' '' 'gjdoc')
+	makedepends=("${makedepends[@]}" 'libxtst' 'zip' 'xulrunner' \
 		'libxml2' 'freetype2' 'libice' 'libxtst' 'libxau' 'libxdmcp' \
 		'libxdamage' 'alsa-lib' 'fastjar>=0.95' 'antlr')
 	Fuse $USE_ECJ && makedepends=("${makedepends[@]}" 'ecj')
@@ -132,7 +132,7 @@ build()
 		--enable-gtk-cairo \
 		--disable-libjava-multilib \
 		--enable-hash-synchronization"
-		Fuse $USE_ECJ && Fconfopts="$Fconfopts  --with-ecj \
+		Fuse $USE_ECJ && Fconfopts="$Fconfopts --with-ecj \
 		--with-ecj-jar=/usr/share/java/eclipse-ecj.jar"
 	fi
 	if Fuse $USE_CXX; then
@@ -180,7 +180,6 @@ build()
 	fi
 
 	if Fuse $USE_SHARED; then
-		unset MAKEFLAGS #this is needed by libffi
 		Fmakeinstall
 	else
 		Fexec make install-gcc DESTDIR=$Fdestdir || Fdie
@@ -215,6 +214,11 @@ build()
 	Fmkdir /lib
 	Fln ../usr/bin/cpp /lib/cpp
 
+	# libffi is internal don't expose it
+	Frm usr/lib/libffi*
+	Frm usr/lib/gcc/$CHOST/$gccver/include/ffi*
+	Frm $Fmandir/man3/libffi\*
+
 	if Fuse $USE_CXX; then
 		Fln g++ /usr/bin/c++
 	fi
@@ -241,12 +245,6 @@ build()
 		Fln ../../../../libgnat-${gccver%.*}.so /usr/lib/gcc/$CHOST/$gccver/adalib/libgnat-${gccver%.*}.so
 	fi
 
-	if Fuse $USE_JAVA; then
-	# cp ffitarget.h to /usr/include needed to work include <ffi.h> good
-	Fcp /usr/lib/gcc/$CHOST/$gccver/include/ffitarget.h \
-		/usr/include/ffitarget.h
-	fi
-
 	# documentation
 	if Fuse $USE_CXX; then
 		Fmkdir /usr/share/man/man3
@@ -259,10 +257,6 @@ build()
 		## and we got now 'gnat'ive2ascii which is java stuff ;)
 		## NOTE: old gcj-${gccver} is now gcj-${gccver}-xx
 		gcjver=$(basename $Fdestdir/usr/lib/gcj-${gccver}*)
-		# libffi
-		Fsplit libffi usr/lib/libffi*
-		Fsplit libffi usr/lib/gcc/$CHOST/$gccver/include/ffi*
-		Fsplit libffi usr/include/ffi*
 		# libgcj-awt
 		Fsplit libgcj-awt usr/lib/gcc/$CHOST/$gccver/include/jawt*.h
 		Fsplit libgcj-awt usr/lib/${gcjver}/lib{jawt,gtkpeer}.*

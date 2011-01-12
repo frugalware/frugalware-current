@@ -55,6 +55,8 @@
 # DE like "XFCE;" for Xfce, "GNOME;" for Gnome, etc.
 # * _F_conf_notry: Fconf will try to use prefix, mandir and similar
 # parameters by default. You can disable the try of a parameter here.
+# * _F_make_opts (defaults to empty): extra make arguments used both with Fmake
+# and Fmakeinstall.
 ###
 
 # Copyright (C) 2005-2006 Bence Nagy <nagybence@tipogral.hu>
@@ -834,7 +836,7 @@ Fmake() {
 	Fconf "$@"
 	Fmessage "Compiling..."
 	if [ -f GNUmakefile -o -f makefile -o -f Makefile ]; then
-		make || Fdie
+		Fexec make $_F_make_opts || Fdie
 	elif [ -f setup.py ]; then
 		python setup.py build "$@" || Fdie
 	elif [ -f setup.rb ]; then
@@ -881,10 +883,11 @@ Fmakeinstall() {
 	if [ -f GNUmakefile -o -f makefile -o -f Makefile ]; then
 		if make -p -q DESTDIR="$Fdestdir" "$@" install 2>/dev/null | grep -v 'DESTDIR\s*=' | \
 			grep -q "$Fdestdir\\|\$DESTDIR\\|\$(DESTDIR)\\|\${DESTDIR}" 2>/dev/null; then
-			Fexec make DESTDIR="$Fdestdir" "$@" install || Fdie
+			_F_make_opts="$_F_make_opts DESTDIR=\"$Fdestdir\""
 		else
-			Fexec make prefix="$Fdestdir"/"$Fprefix" "$@" install || Fdie
+			_F_make_opts="$_F_make_opts prefix=\"$Fdestdir/$Fprefix\""
 		fi
+		Fexec make $_F_make_opts "$@" install || Fdie
 	elif [ -f setup.py ]; then
 		Fexec python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
 	elif [ -f setup.rb ]; then

@@ -39,11 +39,11 @@ Finclude cmake
 ###
 
 if [ -z "$_F_kde_ver" ]; then
-	_F_kde_ver=4.4.5
+	_F_kde_ver=4.5.5
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
-	_F_kde_qtver=4.6.3
+	_F_kde_qtver=4.7.1
 fi
 
 if [ -z "$_F_kde_name" ]; then

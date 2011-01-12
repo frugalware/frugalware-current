@@ -6,115 +6,115 @@ USE_FW2INDICATE=${USE_FW2INDICATE:-"n"}
 USE_FW2DEBUG=${USE_FW2DEBUG:-"n"}
 
 pkgname=frugalware-tweak
-pkgver=0.2.3
+_F_archive_name=frugal-tweak
+pkgver=0.2.4
 pkgrel=1
 url="http://ftp.frugalware.org/pub/other/people/bouleetbil/frugal-tweak/"
 up2date="Flasttar $url/releases/"
-source=($url/releases/$pkgname-$pkgver.tar.gz rc.frugalware-tweak \
-	$url/releases/frugal-py-tweak-$pkgver.tar.gz)
+source=($url/releases/$_F_archive_name-$pkgver.tar.bz2)
 pkgdesc="Frugalware configuration utility"
-depends=('mono>=2.8' 'gtk2-sharp' 'notify-sharp' 'webkit-sharp>=0.3' 'vte-python' 'smartirc')
-rodepends=('gtk-usermode')
+depends=('mono>=2.8' 'gtk2-sharp' 'notify-sharp' 'webkit-sharp>=0.3' 'vte-python' 'smartirc' 'libindicate-mono')
+makedepends=('vala')
+rodepends=('gtk-usermode' 'frugalware-tweak-daemon')
 options=('scriptlet')
 groups=('xapps-extra')
 archs=('i686' 'x86_64' 'ppc')
-Finclude mono
-sha1sums=('b21d046bda9667f39f3157eb5295c80e039dc3c3' \
-          '3afac5d218a80544159daadf4b8d38135b27b3f5' \
-          'ac574c321d1c7da5284a7c100387d5bdaf0bd8a5')
+Finclude mono gnome-scriptlet
+_F_gnome_glib="y"
+_F_gnome_desktop="y"
+sha1sums=('710439a6894b3ac989bc3e3f6bb8e12fd1261d45')
+unset install
 
 replaces=('frugal-mono-tools')
 provides=('frugal-mono-tools')
 conflicts=('frugal-mono-tools')
 
+subpkgs=("${subpkgs[@]}" 'frugalware-tweak-daemon')
+subdescs=("${subdescs[@]}" 'Daemon update pacman-g2 database')
+subrodepends=("${subrodepends[@]}" "")
+subdepends=("${subdepends[@]}" "pacman-g2")
+subgroups=("${subgroups[@]}" 'apps-extra')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+subinstall=("")
+
+subpkgs=("${subpkgs[@]}" 'frugalware-tweak2')
+subdescs=("${subdescs[@]}" 'Frugalware configuration utility written in vala')
+subrodepends=("${subrodepends[@]}" "gtk-usermode frugalware-tweak-daemon")
+if Fuse $USE_FW2INDICATE; then
+	subdepends=("${subdepends[@]}" "pacman-g2 vte webkit unique pygtk libnotify libindicate")
+else
+	subdepends=("${subdepends[@]}" "pacman-g2 vte webkit unique pygtk libnotify")
+fi
+subgroups=("${subgroups[@]}" 'xapps-extra')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+subinstall=("${subinstall[@]}"  "$_F_gnome_scriptlet")
+
 if Fuse $USE_DEVEL; then
 	unset source
 	unset sha1sums
-	Finclude scm gnome-scriptlet
-	_F_gnome_glib="y"
-	_F_gnome_desktop="y"
+	Finclude scm
 	makedepends=("${makedepends[@]}" git vala)
 	_F_scm_type="git"
 	_F_scm_url="git://git.frugalware.org/pub/other/people/bouleetbil/frugal-tweak"
-	depends=("${depends[@]}" 'libindicate-mono')
-	rodepends=("${rodepends[@]}" 'frugalware-tweak-daemon')
-
-	subpkgs=("${subpkgs[@]}" 'frugalware-tweak-daemon')
-	subdescs=("${subdescs[@]}" 'Daemon update pacman-g2 database')
-	subrodepends=("${subrodepends[@]}" "")
-	subdepends=("${subdepends[@]}" "pacman-g2")
-	subgroups=("${subgroups[@]}" 'apps-extra')
-	subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
-	subinstall=("")
-
-	subpkgs=("${subpkgs[@]}" 'frugalware-tweak2')
-	subdescs=("${subdescs[@]}" 'Frugalware configuration utility')
-	subrodepends=("${subrodepends[@]}" "")
-	if Fuse $USE_FW2INDICATE; then
-		subdepends=("${subdepends[@]}" "pacman-g2 vte webkit unique pygtk libindicate libnotify")
-	else
-		subdepends=("${subdepends[@]}" "pacman-g2 vte webkit unique pygtk libnotify")
-	fi
-	subgroups=("${subgroups[@]}" 'xapps-extra')
-	subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
-	subinstall=("${subinstall[@]}"  "$_F_gnome_scriptlet")
 fi
 
 build() {
 	if Fuse $USE_DEVEL; then
 		Funpack_scm
-		Fcd $pkgname
-		#pygtk modules
-		cd frugal-tweak-python/fw-interfaces/ || Fdie
-		Fmake
-		Fmakeinstall
-		cd ../fw-login-manager/ || Fdie
-		Fmake
-		Fmakeinstall
-
-		#valac modules
-		cd ../../frugal-tweak-vala/ || Fdie
-		if ! Fuse $USE_FW2DEBUG; then
-			Fmessage "Disable debug support"
-			Fsed "ENABLEDEBUG = 1" "ENABLEDEBUG = 0" Makefile
-		fi
-		if Fuse $USE_FW2INDICATE; then
-			Fmessage "Enable libindicate support"
-			Fsed "ENABLEINDICATE = 0" "ENABLEINDICATE = 1" Makefile
-		else
-			Fmessage "Disable libindicate support"
-			Fsed "ENABLEINDICATE = 1" "ENABLEINDICATE = 0" Makefile
-		fi
-		Fmake
-		Fmakeinstall
-		#split daemon
-		Fsplit frugalware-tweak-daemon etc/rc.d/rc.frugalware-tweak
-		Fsplit frugalware-tweak-daemon usr/bin/frugalware-tweak-daemon
-		#frugalware tweak2 split
-		Fsplit frugalware-tweak2 usr
-		Fsplit frugalware-tweak2 etc
-
-		#mono tools
-		cd ../ || Fdie
-		sh ./autogen.sh  || Fdie
-	else
-		Fcd
 	fi
+	Fcd $_F_archive_name
+
+	#pygtk modules
+	#TODO fw-interfaces	
+	cd frugal-tweak-python/fw-interfaces/ || Fdie
+	#not yet works	
+	#Fmake
+	#Fmakeinstall
+	cd ../fw-login-manager/ || Fdie
+	Fmake
+	Fmakeinstall
+
+	#valac modules
+	cd ../../frugal-tweak-vala/ || Fdie
+	if ! Fuse $USE_FW2DEBUG; then
+		Fmessage "Disable debug support"
+		Fsed "ENABLEDEBUG = 1" "ENABLEDEBUG = 0" Makefile
+	fi
+	if Fuse $USE_FW2INDICATE; then
+		Fmessage "Enable libindicate support"
+		Fsed "ENABLEINDICATE = 0" "ENABLEINDICATE = 1" Makefile
+	else
+		Fmessage "Disable libindicate support"
+		Fsed "ENABLEINDICATE = 1" "ENABLEINDICATE = 0" Makefile
+	fi
+	Fmake
+	Fmakeinstall
+
+	#split daemon
+	Fsplit frugalware-tweak-daemon etc/rc.d/rc.frugalware-tweak
+	Fsplit frugalware-tweak-daemon usr/bin/frugalware-tweak-daemon
+	#frugalware tweak2 split
+	Fsplit frugalware-tweak2 usr
+	Fsplit frugalware-tweak2 etc
+	
+	#mono tools
+	cd ../ || Fdie
+	sh ./autogen.sh  || Fdie
 	Fmonoexport
 	Fmkdir usr/share/pixmaps
 	Fmkdir etc/xdg/autostart/
 	Fmkdir usr/share/applications/
+	#basic indicate support
+	Fmkdir usr/share/indicators/messages/applications/
+	Fcp $_F_archive_name/frugal-mono-tools/indicator/frugalware-tweak usr/share/indicators/messages/applications/
 	Fbuild
-	cppatch=$pkgname-$pkgver
-	if Fuse $USE_DEVEL; then
-		cppatch=$pkgname
-	fi
+	
 	#For start it with Xsession
-	Fcp $cppatch/frugal-mono-tools/Data/frugal-tweak.desktop \
+	Fcp $_F_archive_name/frugal-mono-tools/Data/frugal-tweak.desktop \
 		etc/xdg/autostart/frugal-tweak.desktop
-	Fcp $cppatch/frugal-mono-tools/Pictures/fw.png usr/share/pixmaps/FrugalTools.png
+	Fcp $_F_archive_name/frugal-mono-tools/Pictures/fw.png usr/share/pixmaps/FrugalTools.png
 	#python terminal
-	Fcp $cppatch/frugal-tweak-python/PyVTE.py /usr/bin/PyFrugalVTE
+	Fcp $_F_archive_name/frugal-tweak-python/PyVTE.py /usr/bin/PyFrugalVTE
 	#irc python client for join #frugalware
 	#Fcp frugal-py-tweak/PyUtils/irc.py /usr/bin/PyFrugalIRC
 
@@ -165,7 +165,4 @@ EOF
 	Fln /usr/bin/consolehelper /usr/bin/sucontrolcenter
 
 	Fmonocleanup
-	if ! Fuse $USE_DEVEL; then
-		Frcd2
-	fi
 }

@@ -124,10 +124,12 @@ Fjar()
 		dir=`dirname $i`
 		file=`basename $i`
 		Ffilerel $dir/$file /usr/share/java/$file
-		if [ ! -e $dir/lib$file.so ]; then
-			Fgcjshared $dir/lib$file.so $i
+		if [ -z "$_F_java_no_gcj" ]; then
+			if [ ! -e $dir/lib$file.so ]; then
+				Fgcjshared $dir/lib$file.so $i
+			fi
+			Fexerel $dir/lib$file.so /usr/lib/lib$file.so
 		fi
-		Fexerel $dir/lib$file.so /usr/lib/lib$file.so
 	done
 }
 

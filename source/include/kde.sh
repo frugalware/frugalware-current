@@ -39,11 +39,11 @@ Finclude cmake
 ###
 
 if [ -z "$_F_kde_ver" ]; then
-	_F_kde_ver=4.4.5
+	_F_kde_ver=4.5.5
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
-	_F_kde_qtver=4.6.3
+	_F_kde_qtver=4.7.1
 fi
 
 if [ -z "$_F_kde_name" ]; then
@@ -158,60 +158,6 @@ _F_cmake_confopts="$_F_cmake_confopts \
 		-DICON_INSTALL_DIR=/usr/share/kde/icons \
 		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
 
-
-###
-# == PROVIDED FUNCTIONS
-# * Ftreecmp(): Compare 2 tree and do an action on a compare result. Parameters:
-# 1) Fist tree 2) Second tree 3) Action to perform on compared item. The item
-# is an inode item (relative to both tree) prefixed with '-', '=' or '+'
-# depending if it deleted, still present or added in the comparison from the
-# first tree to the second tree.
-###
-Ftreecmp() {
-	local line old=$(mktemp) new=$(mktemp)
-	if [ ! -d "$1" -o ! -d "$2" ]; then
-		Fmessage "$1 or $2 is not a directory"
-		Fdie
-	fi
-	if [ -z "$3" ]; then
-		Fmessage "Comparison function is empty"
-		Fdie
-	fi
-	(cd "$1" && find $_F_treecmp_findopts | sort) > $old
-	(cd "$2" && find $_F_treecmp_findopts | sort) > $new
-	diff --new-line-format='+%L' --old-line-format='-%L' \
-		--unchanged-line-format='=%L' $old $new \
-	| while read line
-	do
-		"$3" "$line" "$1" "$2"
-	done
-	rm $old $new
-}
-
-###
-# * __Ftreecmp_cleandestdir: Internal
-###
-__Ftreecmp_cleandestdir() {
-	case "$1" in
-	=*)	Frm "${1//=/}" ;;
-	esac
-}
-
-###
-# * Fcleandestdir(): Clean the $Fdestdir from subpackages files, to make
-# them conflict less. Parameters: The subpackages to use.
-###
-Fcleandestdir() {
-	local i subdestdir
-	for i in "$@"
-	do
-		Fmessage "Removing conflicting files with $i subpackage."
-		subdestdir="`Fsubdestdir "$i"`"
-		_F_treecmp_findopts='! -type d' \
-		Ftreecmp "$Fdestdir" "$subdestdir" __Ftreecmp_cleandestdir
-	done
-}
-
 # stolen from makepkg ;))
 __kde_in_array()
 {
@@ -241,6 +187,7 @@ __KDE_pre_build_check()
 }
 
 ###
+# == PROVIDED FUNCTIONS
 # * KDE_project_install: Install a specific package. Parameters: 1) Name of the
 # project (Must also be the name of a directory).
 ###

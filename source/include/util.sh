@@ -24,6 +24,7 @@
 #
 # == OPTIONS
 # * _F_archive_name (defaults to $pkgname)
+# * _F_archive_ver (defaults to $pkgver$pkgextraver)
 # * _F_archive_prefix (defaults to "")
 # * _F_archive_nolinksonly (defaults to no, so that only links are proceeded by
 # default)
@@ -32,7 +33,7 @@
 # searching for the version
 # * _F_archive_grepv (defaults to empty): grep -v for a regexp before
 # searching for the version
-# * _F_cd_path (defaults to $_F_archive_name$Fpkgversep$pkgver$pkgextraver)
+# * _F_cd_path (defaults to $_F_archive_name$Fpkgversep$_F_archive_ver)
 # * _F_conf_configure (defaults to ./configure)
 # * _F_conf_perl_pipefrom: if set, pipe the output of this command in Fconf()
 # for perl packages
@@ -115,6 +116,53 @@ Fmessage() {
 ###
 Fdie() {
 	exit 2
+}
+
+###
+# * Fcpvar(): Copy a variable to another by name. Parameters: 1) Destination
+# variable name. 2) Source variable name. Example: Fcpvar use USE_$FOO
+#
+# NOTE: This is a shortcut to tmp=a$b; c=${!tmp}, Fcpvar can do this in one go
+# (and even 'c' can be a variable).
+###
+Fcpvar() {
+	eval "$1=(\"\${$2[@]}\")"
+}
+
+###
+# * Fuse(): Checks a use variable. Parameter: a use variable value or the use
+# variable name. Example: Fuse DEVEL and Fuse $USE_DEVEL are equivalent.
+###
+Fuse()
+{
+	local use
+	Fcpvar use "USE_$1"
+	if [ "$use" = "n" ]; then
+		return 1
+	elif [ "$use" = "y" ]; then
+		return 0
+	elif [ "$1" = "n" ]; then
+		return 1
+	elif [ "$1" = "y" ]; then
+		return 0
+	else
+		Fmessage "Unknown use variable $1!"
+		Fdie
+	fi
+}
+
+###
+# * Flowerstr(): Lower a string. Parameters: The string to lower.
+###
+Flowerstr() {
+	echo -nE "$@"|tr '[:upper:]' '[:lower:]'
+}
+
+###
+# *Fupperstr(): Upper a string. Parameters: The string to upper.
+###
+Fupperstr() {
+	echo -nE "$@"|tr '[:lower:]' '[:upper:]'
 }
 
 ###
@@ -214,8 +262,11 @@ Fcd() {
 	if [ -z "$_F_archive_name" ]; then
 		_F_archive_name="$pkgname"
 	fi
+	if [ -z "$_F_archive_ver" ]; then
+		_F_archive_ver="$pkgver$pkgextraver"
+	fi
 	if [ -z "$_F_cd_path" ]; then
-		_F_cd_path="$_F_archive_name$Fpkgversep$pkgver$pkgextraver"
+		_F_cd_path="$_F_archive_name$Fpkgversep$_F_archive_ver"
 	fi
 
 	if [ "$Fsrcdir" = `pwd` ]; then
@@ -1312,6 +1363,58 @@ Fwrapper()
 }
 
 ###
+# * Ftreecmp(): Compare 2 tree and do an action on a compare result. Parameters:
+# 1) Fist tree 2) Second tree 3) Action to perform on compared item. The item
+# is an inode item (relative to both tree) prefixed with '-', '=' or '+'
+# depending if it deleted, still present or added in the comparison from the
+# first tree to the second tree.
+###
+Ftreecmp() {
+	local line old=$(mktemp) new=$(mktemp)
+	if [ ! -d "$1" -o ! -d "$2" ]; then
+		Fmessage "$1 or $2 is not a directory"
+		Fdie
+	fi
+	if [ -z "$3" ]; then
+		Fmessage "Comparison function is empty"
+		Fdie
+	fi
+	(cd "$1" && find $_F_treecmp_findopts | sort) > $old
+	(cd "$2" && find $_F_treecmp_findopts | sort) > $new
+	diff --new-line-format='+%L' --old-line-format='-%L' \
+		--unchanged-line-format='=%L' $old $new \
+	| while read line
+	do
+		"$3" "$line" "$1" "$2"
+	done
+	rm $old $new
+}
+
+###
+# * __Ftreecmp_cleandestdir: Internal
+###
+__Ftreecmp_cleandestdir() {
+	case "$1" in
+	=*)	Frm "${1//=/}" ;;
+	esac
+}
+
+###
+# * Fcleandestdir(): Clean the $Fdestdir from subpackages files, to make
+# them conflict less. Parameters: The subpackages to use.
+###
+Fcleandestdir() {
+	local i subdestdir
+	for i in "$@"
+	do
+		Fmessage "Removing conflicting files with $i subpackage."
+		subdestdir="`Fsubdestdir "$i"`"
+		_F_treecmp_findopts='! -type d' \
+		Ftreecmp "$Fdestdir" "$subdestdir" __Ftreecmp_cleandestdir
+	done
+}
+
+###
 # * Fsplit(): Moves a file pattern to a subpackage. Parameters: 1) name of the
 # subpackage 2) pattern of the files to move. Example: Fsplit libmysql /usr/lib.
 #
@@ -1341,22 +1444,6 @@ Fsplit()
 	done
 }
 
-##
-# * Fuse(): Checks a use variable. Parameter: a use variable. Example: Fuse
-# $USE_DEVEL.
-##
-Fuse()
-{
-	if [ "$1" = "n" ]; then
-		return 1
-	elif [ "$1" = "y" ]; then
-		return 0
-	else
-		Fmessage "Unknown use variable!"
-		Fdie
-	fi
-}
-
 ###
 # * check_option(): Check if a logical flag is defined in options() or not.
 # Parameter: name of the logical flag. Example: if [ "`check_option DEVEL`" ];
@@ -1364,11 +1451,9 @@ Fuse()
 ###
 check_option() {
 	local i
-	for i in ${options[@]}; do
-		local uc=`echo $i | tr '[:lower:]' '[:upper:]'`
-		local lc=`echo $i | tr '[:upper:]' '[:lower:]'`
-		if [ "$uc" = "$1" -o "$lc" = "$1" ]; then
-			echo $1
+	for i in "${options[@]}"; do
+		if [ "`Flowerstr "$i"`" = "$1" -o "`Fupperstr "$i"`" = "$1" ]; then
+			echo -nE "$1"
 			return
 		fi
 	done
@@ -1384,11 +1469,11 @@ check_option() {
 Fmsgfmt() {
 	local llang mofile pofile slang
 
-	if echo $2|grep -q _ ; then
+	if echo -nE "$2"|grep -q _ ; then
 		llang="$2"
 		slang=`echo $llang|cut -d _ -f 1`
 	else
-		llang=${2}_`echo $2|tr [:lower:] [:upper:]`
+		llang="${2}_`Fupperstr \"$2\"`"
 		slang="$2"
 	fi
 
@@ -1406,10 +1491,9 @@ Fmsgfmt() {
 # Fextract pacman.tar.gz.
 ###
 Fextract() {
-	local cmd file tmp
+	local cmd file
 	file="${1}"
-	tmp="$(echo "${file}" | tr 'A-Z' 'a-z')"
-	case "${tmp}" in
+	case `Flowerstr "$file"` in
 		*.tar.bz2|*.tbz2)
 		cmd="tar $_F_extract_taropts --use-compress-program=bzip2 -xf $file" ;;
 		*.tar.gz|*.tar.z|*.tgz)

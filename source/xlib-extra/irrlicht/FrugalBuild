@@ -1,0 +1,73 @@
+# Compiling Time: 0.11 SBU
+# Maintainer: Devil505 <devil505linux@gmail.com>
+
+pkgname=irrlicht
+pkgver=1.7.2
+pkgrel=1
+pkgdesc="An open source high performance realtime 3D graphics engine."
+depends=('libgl' 'libjpeg' 'bzip2')
+groups=('xlib-extra')
+archs=('i686' 'x86_64')
+_F_sourceforge_ext=".zip"
+Finclude sourceforge
+sha1sums=('2f064cb4c712e1d7aca90a116485b5b166ae6218')
+
+build() {
+  Fcd
+
+  sed -i -e '/^#.*NON_SYSTEM_ZLIB/d' \
+         -e '/^#.*NON_SYSTEM_JPEG/d' \
+         -e '/^#.*NON_SYSTEM_BZLIB/d' \
+         include/IrrCompileConfig.h || Fdie
+
+  cd source/Irrlicht || Fdie
+  sed -i -e '/^CXXFLAGS/s:-g.*::' \
+	 -e '/^CXXFLAGS/s:-Wall::' \
+	 -e '/^CFLAGS/s/:= -O3 -fexpensive-optimizations/+=/' \
+	 -e '/^CXXINCS/s:-Izlib -Ijpeglib::' \
+	 -e '/^ZLIBOBJ/d' \
+	 -e '/^JPEGLIBOBJ/d' \
+	 -e '/^BZIP2OBJ/d' \
+	 -e '/.o=.d/d' \
+	 -e '/^sharedlib: LDFLAGS/s:+=:+= -lGL -lXxf86vm -ljpeg -lbz2 -lz:' \
+	 -e "/^INSTALL_DIR/s:=.*:=$Fdestdir/usr/lib:" \
+	 -e 's/0-SVN/1/' \
+	 -e 's/.$(VERSION_MINOR) -o/ -o/' \
+	 Makefile || Fdie
+
+  make sharedlib || Fdie
+
+  make || Fdie
+
+  Fmkdir usr/lib
+  Fmkdir usr/share/$pkgname/examples/bin
+
+  make install || Fdie
+
+  cd $Fsrcdir/$_F_cd_path/ || Fdie
+  Fdocrel readme.txt
+
+  # Install static library and fix headers permissions
+  install -m644 lib/Linux/libIrrlicht.a $Fdestdir/usr/lib || Fdie
+  chmod 644 $Fdestdir/usr/include/$pkgname/* || Fdie
+
+  # Install media files for examples
+  cp -r media $Fdestdir/usr/share/$pkgname || Fdie
+
+  cd $Fdestdir/usr/lib || Fdie
+  ln -s libIrrlicht.so.$pkgver libIrrlicht.so.1 || Fdie
+
+  # Just a helper for examples compilation
+  ln -s libIrrlicht.so.$pkgver $Fsrcdir/$pkgname-$pkgver/lib/Linux/libIrrlicht.so || Fdie
+
+  # Edit, build and install the examples
+  cd $Fsrcdir/$pkgname-$pkgver/examples || Fdie
+  sed -i '/define USE_IRRKLANG/s:.*://&:' ./Demo/CDemo.h || Fdie
+  sed -i '/^CXXFLAGS/d' $(grep -Rl "^CXXFLAGS =" *) || Fdie
+
+  make || Fdie
+
+  install -m755  ../bin/Linux/* /$Fdestdir/usr/share/$pkgname/examples/bin/ || Fdie
+}
+
+# optimization OK

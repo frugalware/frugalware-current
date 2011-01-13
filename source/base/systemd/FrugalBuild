@@ -1,0 +1,165 @@
+# Compiling Time: 0.08 SBU
+# Maintainer: bouleetbil <bouleetbil@frogdev.info>
+
+USE_CRYPTSETUP=${USE_CRYPTSETUP:-"n"}
+USE_SYSV_COMPAT=${USE_SYSV_COMPAT:-"y"}
+USE_TCP=${USE_TCP:-"n"}
+USE_GUI=${USE_GUI:-"y"}
+USE_SYSV_REPLACE=${USE_SYSV_REPLACE:-"n"}
+
+pkgname=systemd
+pkgver=16
+pkgrel=1
+pkgdesc="A System and Service Manager"
+url="http://www.freedesktop.org/wiki/Software/systemd"
+depends=('dbus' 'udev' 'pam' 'coreutils' 'libcap' 'sysvinit-initscripts' 'sysvinit-tools')
+makedepends=('vala' 'docbook-xsl>=1.73.0-2' 'docbook-xml')
+options=('scriptlet')
+up2date="Flasttar http://www.freedesktop.org/software/$pkgname"
+source=(http://www.freedesktop.org/software/$pkgname/$pkgname-$pkgver.tar.bz2 \
+	console.conf prefdm.service)
+sha1sums=('70ddb53e8e3346c52548900470d9e26e58e661e1' \
+          'abaa5c83d5adf2c5be188ce0de488bfa2b5a4505' \
+          'fdb7dc79f5a0d120e722c152f956a841667fe011')
+
+if Fuse $USE_CRYPTSETUP; then
+       	depends=("${depends[@]}"  'cryptsetup-luks')
+fi
+if Fuse $USE_TCP; then
+        depends=("${depends[@]}"  'tcp_wrappers')
+fi
+if ! Fuse $USE_SYSV_REPLACE; then
+        depends=("${depends[@]}"  'sysvinit')
+else
+        depends=("${depends[@]}"  'systemd-sysvinit')
+fi
+
+groups=('base')
+archs=('i686' 'x86_64' 'ppc')
+
+#TODO : Remove backup, source rc for SysVinit when all rc scripts used systemd
+backup=(etc/{vconsole.conf,systemd/system.conf})
+
+if Fuse $USE_GUI; then
+	subpkgs=('systemd-gtk')
+	subdescs=('Graphical frontend for systemd')
+	subrodepends=("$pkgname=$pkgver")
+	subdepends=('dbus-glib gtk+2 polkit libnotify')
+	subgroups=('xapps-extra')
+	subarchs=('i686 x86_64 ppc')
+	subprovides=('')
+	subreplaces=('')
+	subconflicts=('')
+else
+	replaces=("${replaces[@]}"  'systemd-gtk')
+fi
+
+subpkgs=("${subpkgs[@]}" 'systemd-sysvinit')
+subdescs=("${subdescs[@]}" 'systemd System V init tools')
+subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
+subdepends=("${subdepends[@]}" '')
+if Fuse $USE_SYSV_REPLACE; then
+	subreplaces=("${subreplaces[@]}" 'sysvinit')
+	subgroups=("${subgroups[@]}" 'base')
+else
+	subreplaces=("${subreplaces[@]}" '')
+	subgroups=("${subgroups[@]}" 'base-extra')
+fi
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+subprovides=("${subprovides[@]}" 'sysvinit')
+subconflicts=("${subconflicts[@]}" 'sysvinit')
+
+Fconfopts="$Fconfopts --disable-selinux --with-distro=frugalware --with-pamlibdir=/lib/security \
+	--with-rootdir= --with-dbussystemservicedir=/usr/share/dbus-1/system-services \
+	--with-dbusinterfacedir=/usr/share/dbus-1/interfaces"
+if ! Fuse $USE_SYSV_COMPAT; then
+	Fconfopts="$Fconfopts --with-sysvinit-path= --with-sysvrcd-path="
+fi
+
+build()
+{
+	#create dbus dir
+	Fmkdir usr/share/dbus-1/services
+
+	#build systemd
+	Fcd
+	Fsed 'agetty' 'frugalwaregetty' units/getty@.service.m4
+	# we want some output from systemd before the login prompt, even
+	# if we use 'quiet'
+	Fsed '"quiet"' '"nosystemd"' src/main.c
+	# we don't have auditd
+	Fsed 'auditd.service ' '' units/systemd-update-utmp-{runlevel,shutdown}.service.in
+	# our syslog implementations provide an lsb header, so this is
+	# not needed
+	Fsed '\(After=@SPECIAL_SYSLOG_SERVICE@\)' '#\1' units/syslog.target.in
+	Fpatchall
+	Fautoreconf
+	# force rebuild of vala files with our libnotify
+	find . -name '*.vala' -exec touch {} \;
+	Fmake
+	Fmakeinstall
+	#auto mount
+	Fsed "#MountAuto=yes" "MountAuto=yes" $Fdestdir/etc/systemd/system.conf
+	Fsed "#SwapAuto=yes" "SwapAuto=yes" $Fdestdir/etc/systemd/system.conf
+	# disable output of sysv scripts on console to avoid duplicated
+	# "starting..." messages
+	Fsed "#SysVConsole=yes" "SysVConsole=no" $Fdestdir/etc/systemd/system.conf
+	#http://0pointer.de/public/systemd-man/tmpfiles.d.html
+	Fcp console.conf etc/tmpfiles.d/console.conf
+
+	# Split tools provided by sysvinit to avoid conflict
+	Fmkdir sbin
+	Fln /bin/systemd /sbin/init
+	Fln /bin/systemctl /sbin/reboot
+	Fln /bin/systemctl /sbin/halt
+	Fln /bin/systemctl /sbin/poweroff
+	Fln /bin/systemctl /sbin/shutdown
+	Fln /bin/systemctl /sbin/telinit
+	Fln /bin/systemctl /sbin/runlevel
+	Fsplit systemd-sysvinit sbin/{init,reboot,halt,poweroff,shutdown,telinit,runlevel}
+	Fsplit systemd-sysvinit usr/share/man/man8/{halt,poweroff,reboot,runlevel,shutdown,telinit}.*
+
+	Frm etc/systemd/system/*.target.wants
+
+	#don't have tmpfs on /var/run and /var/lock
+	Frm lib/systemd/system/local-fs.target.wants/var-run.mount
+	Frm lib/systemd/system/local-fs.target.wants/var-lock.mount
+
+	# support for this is disabled in the kernel
+	Frm /lib/systemd/system/dev-hugepages.automount
+	Frm /lib/systemd/system/dev-hugepages.mount
+	Frm /lib/systemd/system/sysinit.target.wants/dev-hugepages.automount
+
+	# compatibility: have 11 tty instead of 6
+	s=""
+	for i in $(seq 6 11)
+	do
+		s="$s getty.target.wants/getty@tty$i.service"
+	done
+	Fsed " getty.target.wants/getty@tty6.service" "$s" $Fdestdir/lib/systemd/system/getty@.service
+
+	# /etc/sysconfig/desktop compatibility
+	Ffile /lib/systemd/system/prefdm.service
+	Fln prefdm.service /lib/systemd/system/display-manager.service
+	Fln ../prefdm.service /lib/systemd/system/graphical.target.wants/prefdm.service
+
+	# we have runlevel 4 as the x11 target, not 5
+	Fln multi-user.target /lib/systemd/system/runlevel5.target
+	Fln graphical.target /lib/systemd/system/runlevel4.target
+
+	# Make sure these directories are properly owned
+	Fmkdir lib/systemd/system/basic.target.wants
+	Fmkdir lib/systemd/system/default.target.wants
+	Fmkdir lib/systemd/system/dbus.target.wants
+	Fmkdir lib/systemd/system/syslog.target.wants
+
+	if Fuse $USE_GUI; then
+		#split gtk fronted
+		# TODO : Added .desktop for start fronted
+		Fsplit systemd-gtk usr/bin/systemadm
+		Fsplit systemd-gtk usr/bin/systemd-gnome-ask-password-agent
+		Fsplit systemd-gtk usr/share/polkit-1/actions/org.freedesktop.systemd1.policy
+		Fsplit systemd-gtk usr/share/man/man1/systemadm.*
+	fi
+}
+

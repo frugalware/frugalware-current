@@ -1,54 +1,102 @@
 # Compiling Time: 0.20 SBU
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
+USE_DEVEL=${USE_DEVEL:-"n"}
+
 pkgname=plymouth
-pkgver=0.8.3
-pkgrel=1
+pkgver=0.8.4
+pkgrel=2
 pkgdesc="Graphical Boot Animation and Logger"
 url="http://www.freedesktop.org/wiki/Software/Plymouth"
 up2date="Flasttarbz2 http://freedesktop.org/software/plymouth/releases"
-source=(http://freedesktop.org/software/plymouth/releases/$pkgname-$pkgver.tar.bz2 \
-	fw.png rc.zz-plymouth rc.plymouth)
-depends=('libdrm' 'pango' 'libstdc++' 'libxml2' 'libxau' 'libxdmcp')
-makedepends=('gtk+2>=2.20.0-2' 'gdm')
-#use nash of mkinitrd for switch the theme
-rodepends=('plymouth-theme-spinfinity' 'mkinitrd')
+
+depends=('libdrm' 'pango' 'libstdc++' 'libxml2' 'libxau' 'libxdmcp' 'gtk+2')
+rodepends=('plymouth-theme-spinfinity')
 groups=('xapps-extra')
 archs=('i686 x86_64')
-sha1sums=('2fdd45d1bd0207e934d294925d0dfad515b16a8a' \
-          '5cc04b415cf32353333106fb200244765f86b844' \
-          '3bf2ae558ac4dc4906752b4865c4fb80998a7adc' \
-          'af0eb22938bfce8608ba95afcb93786b94b291f6')
+replaces=("plymouth-utility" "plymouth-gdm")
 
-subpkgs=('plymouth-utility' 'plymouth-gdm' 'plymouth-theme-spinfinity' 'plymouth-theme-solar' 'plymouth-theme-glow')
-subdescs=("utilities that integrate with Plymouth" "Plymouth GDM integration" "plymouth theme spinfinity" "plymouth theme solar" "plymouth theme glow")
-subdepends=("gtk+2" "gdm" "" "" "")
-subrodepends=("plymouth" "plymouth plymouth-utility" "" "" "")
-subgroups=('xapps-extra' 'gnome-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra')
-subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
-
-build() {
-	Fbuild --enable-tracing --disable-tests  \
-	--without-default-plugin \
-	--with-logo=/usr/share/pixmaps/fw.png \
+Fconfopts=" --enable-tracing --disable-tests  \
 	--with-background-start-color-stop=0x0073B3 \
 	--with-background-end-color-stop=0x00457E \
 	--with-background-color=0x3391cd \
 	--enable-gdm-transition \
-	--with-shutdown-tty=12 \
-	--with-system-root-install
+	--with-shutdown-tty=7 \
+	--with-system-root-install \
+	 --with-logo=/usr/share/pixmaps/fw.png"
 
+if Fuse $USE_DEVEL; then
+	pkgver=0.8.3.ge5a78dd
+	_F_scm_type="git"
+	_F_scm_url="git://anongit.freedesktop.org/plymouth"
+       	Finclude scm
+else
+	#source=(http://freedesktop.org/software/plymouth/releases/$pkgname-$pkgver.tar.bz2 fw.png)
+	#use a snaphot
+	source=(http://ftp.frugalware.org/pub/other/people/bouleetbil/sources/$pkgname-$pkgver.tar.bz2 \
+		fw.png \
+		plymouth-halt.service \
+		plymouth-kexec.service \
+		plymouth-poweroff.service \
+		plymouth-quit.service \
+		plymouth-reboot.service \
+		plymouth-start.service \
+		rc.plymouth \
+		rc.zz-plymouth \
+		systemd-plymouth)
+	sha1sums=('d7ec4a69a6ce2b50d9daf7af961b375fe3d96963' \
+          '5cc04b415cf32353333106fb200244765f86b844' \
+          '6963d3a0778ea651e73cbd9856f506692e4309d4' \
+          'bb81749ac32b1c4d55c8a1a3606a033d9125e19c' \
+          '3a915a29e7423fe502b5d377a3f1c8d4cac4f9f4' \
+          '131b972feaecae30fb79e340ed3eb2ea15ba18ad' \
+          'e5be4019e7329bb1fe3db3a026718f901a47ee3b' \
+          '029bf2a517c446cc06bb47c51ec0d9a0c4bd6842' \
+          '0c7c6e37772c1e09d0173d78114f061426091bdc' \
+          '3bf2ae558ac4dc4906752b4865c4fb80998a7adc' \
+          '4d208ac46eea917aaf1f96b33ab7905e6b8dae11')
+
+fi
+
+subpkgs=('plymouth-theme-spinfinity' 'plymouth-theme-solar' 'plymouth-theme-glow')
+subdescs=("plymouth theme spinfinity" "plymouth theme solar" "plymouth theme glow")
+subdepends=("" "" "")
+subrodepends=("" "" "")
+subgroups=('xlib-extra' 'xlib-extra' 'xlib-extra')
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
+
+build() {
+	if Fuse $USE_DEVEL; then
+		Funpack_scm
+		Fcd $pkgname
+	else
+		Fcd
+	fi
+	Fautoreconf
+	Fbuild
 	Fmkdir usr/share/pixmaps/
 	Fcp fw.png usr/share/pixmaps/
 
-	Fsplit plymouth-gdm usr/share/gdm/autostart/LoginWindow/plymouth-log-viewer.desktop
 	Fsplit plymouth-theme-spinfinity usr/share/plymouth/themes/spinfinity
 	Fsplit plymouth-theme-solar usr/share/plymouth/themes/solar
 	Fsplit plymouth-theme-glow usr/share/plymouth/themes/glow
-	Fsplit plymouth-utility usr/bin/plymouth-log-viewer
 
 	Frcd2 plymouth
 	Fexe /etc/rc.d/rc.zz-plymouth
+
+	# systemd
+	Fexe /lib/systemd/systemd-plymouth
+	Fmkdir /lib/systemd/system/{halt,kexec,poweroff,multi-user,reboot,sysinit}.target.wants
+	Ffile /lib/systemd/system/plymouth-halt.service
+	Ffile /lib/systemd/system/plymouth-kexec.service
+	Ffile /lib/systemd/system/plymouth-poweroff.service
+	Ffile /lib/systemd/system/plymouth-quit.service
+	Ffile /lib/systemd/system/plymouth-reboot.service
+	Ffile /lib/systemd/system/plymouth-start.service
+	# don't run old sysv init script with different name when using systemd
+	Fln plymouth-start.service /lib/systemd/system/plymouth.service
+	Fln plymouth-quit.service /lib/systemd/system/zz-plymouth.service
+
 }
 
 # optimization OK

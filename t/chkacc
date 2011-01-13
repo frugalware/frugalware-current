@@ -1,0 +1,36 @@
+#!/bin/bash
+
+if [ "$1" ==  "--help" ]; then
+        echo "unused developer accounts (no commits in the last half year)"
+        exit 1
+fi
+
+[ "$(hostname)" == "genesis" ] || exit 0
+
+[ "$(pwd|sed 's|.*/\(.*\)/t|\1|')" == "frugalware-current" ] || exit 0
+
+now=$(date +%s)
+half_year_ago=$(($now-60*60*24*30*6))
+for i in $(cut -d: -f1,3 /etc/passwd |grep ':[0-9]\{4,\}$')
+do
+	devel=${i%:*}
+	case $devel in
+		*ftp*) continue ;; # ftp
+		janny) continue ;; # gitweb / pootle host admin
+		dex77) devel=dex ;;
+		repo) continue ;; # common user to make the one called 'vmiklos' less special
+		zleho) continue ;; # vmiklos' test user
+	esac
+	last_commit=$(git log -1 --author=$devel --date=raw|grep Date|sed 's/Date: \+\([0-9]\+\) .*/\1/')
+
+	if [ -z "$last_commit" ]; then
+		# no commits yet
+		continue
+	fi
+
+	if [ $last_commit -lt $half_year_ago ]; then
+		echo $devel
+	elif [ "$1" == "--verbose" ]; then
+		echo "Accepting active developer '$devel'"
+	fi
+done

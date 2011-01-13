@@ -1,0 +1,38 @@
+post_install() {
+	#create group
+	getent group lock || groupadd -g 55 lock
+
+	# Try to read default runlevel from the old inittab if it exists
+	runlevel=$(awk -F ':' '$3 == "initdefault" && $1 !~ "^#" { print $2 }' /etc/inittab 2> /dev/null)
+	if [ -z "$runlevel" ] ; then
+		target="/lib/systemd/system/graphical.target"
+	else
+		target="/lib/systemd/system/runlevel$runlevel.target"
+	fi
+
+	#runlevel
+	/bin/ln -sf $target /etc/systemd/system/default.target
+	#enable services
+	/bin/systemctl enable \
+                getty@.service \
+                getty.target \
+                remote-fs.target \
+                hwclock-load.service 
+	#now /etc/mtab is a symlink
+	rm /etc/mtab
+	ln -sf /proc/self/mounts /etc/mtab
+}
+
+post_upgrade() {
+	#reload systemd
+	/bin/systemctl daemon-reexec
+}
+
+post_remove() {
+  getent group lock && groupdel lock
+}
+
+op=$1
+shift
+$op $*
+

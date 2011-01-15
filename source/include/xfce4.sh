@@ -76,7 +76,7 @@ if echo ${groups[*]} | grep -q goodies ; then
 else
 	url="http://www.xfce.org/"
 	#preup2date="lynx -dump http://mocha.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"
-	preup2date="lynx -dump 'http://mocha.xfce.org/archive/xfce/?C=N;O=A' | sed -ne 's/.*\/xfce\/\(.*\)\//\1/; $ p'"
+	preup2date="lynx -dump 'http://mocha.xfce.org/archive/xfce/?C=N;O=A' | grep 'archive\.xfce\.org' | sed -ne 's/.*\/xfce\/\(.*\)\//\1/; $ p'"
 	dlurl="http://mocha.xfce.org/archive/xfce/${_F_xfce_ver}/src"
 	up2date="lynx -dump http://mocha.xfce.org/archive/xfce/\$($preup2date)/src/ | Flasttar"
 	source=($dlurl/$_F_xfce_name-$pkgver.tar.bz2)

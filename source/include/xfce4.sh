@@ -49,7 +49,7 @@ if [ -z $_F_archive_name ] ; then
 fi
 
 if [ -z $_F_xfce_ver ]; then
-	_F_xfce_ver="4.8pre3"
+	_F_xfce_ver="4.8"
 fi
 
 if [ -z $pkgver ]; then

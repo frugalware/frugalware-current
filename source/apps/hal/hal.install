@@ -14,6 +14,11 @@ post_install()
 	# only on install
 	if [ -n "$1" -a -x /usr/sbin/chkconfig ]; then
 		/usr/sbin/chkconfig --add rc.hald
+		# hald supports bus activation, no systemctl enable here
+		systemctl daemon-reload >/dev/null 2>&1
+	else
+		systemctl daemon-reload >/dev/null 2>&1
+		systemctl try-restart haldaemon.service >/dev/null 2>&1
 	fi
 	#for use the good layout
 	#we can't use backup we should patch /etc/hal/policy/10osvendor/10-keymap.fdi with the local
@@ -34,12 +39,19 @@ pre_remove()
 {
 	if [ -x /usr/sbin/chkconfig ]; then
 		/usr/sbin/chkconfig --del rc.hald
+		systemctl stop haldaemon.service >/dev/null 2>&1
+		systemctl disable haldaemon.service >/dev/null 2>&1
 	fi
 	# remove hald user
 	if  grep -q '^hald:' /etc/passwd; then
 	 	/usr/sbin/userdel hald
 	  	rm -rf /var/mail/hald
 	fi
+}
+
+post_remove()
+{
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1

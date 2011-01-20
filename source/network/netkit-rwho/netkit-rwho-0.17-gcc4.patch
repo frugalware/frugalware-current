@@ -1,0 +1,103 @@
+--- netkit-rwho-0.17/rwhod/rwhod.c.gcc4	2005-03-17 17:03:36.000000000 +0100
++++ netkit-rwho-0.17/rwhod/rwhod.c	2005-03-17 17:03:36.000000000 +0100
+@@ -96,7 +96,7 @@
+ static void	broadcaster(void);
+ static int	configure(int s);
+ static int	verify(const char *name);
+-static int	getloadavg(double ptr[3], int n);
++static int	mygetloadavg(double ptr[3], int n);
+ 
+ /*
+  * We communicate with each neighbor in
+@@ -182,7 +182,10 @@
+ 		exit(1);
+ 	}
+ #ifndef DEBUG
+-	daemon(1, 0);
++	if (daemon(1, 0) == -1) {
++		fprintf(stderr, "rwhod: unable to start daemon\n");
++		exit(1);
++	}
+ #endif
+ 	if (chdir(_PATH_RWHODIR) < 0) {
+ 		(void)fprintf(stderr, "rwhod: %s: %s\n",
+@@ -247,8 +250,9 @@
+ 
+ 	for (;;) {
+ 		struct whod wd;
+-		int cc, whod;
+-		size_t len = sizeof(from);
++		ssize_t cc;
++		int whod;
++		socklen_t len = sizeof(from);
+ 
+ 		memset(&wd, 0, sizeof(wd));
+ 		cc = recvfrom(sk, (char *)&wd, sizeof(struct whod), 0,
+@@ -273,8 +277,8 @@
+ 		 */
+ 		wd.wd_hostname[sizeof(wd.wd_hostname)-1] = 0;
+ 		if (!verify(wd.wd_hostname)) {
+-			syslog(LOG_WARNING, "malformed host name from %x",
+-				from.sin_addr);
++			syslog(LOG_WARNING, "malformed host name from %s",
++				inet_ntoa(from.sin_addr));
+ 			continue;
+ 		}
+ 		snprintf(path, sizeof(path), "whod.%s", wd.wd_hostname);
+@@ -307,9 +311,11 @@
+ 		}
+ #endif
+ 		wd.wd_recvtime = time(NULL);
+-		write(whod, (char *)&wd, cc);
++		if (write(whod, (char *)&wd, cc) == -1)
++			perror("Error writing to whod file");
+ 		if (fstat(whod, &st) < 0 || st.st_size > cc)
+-			ftruncate(whod, cc);
++			if (ftruncate(whod, cc) == -1)
++				perror("Error truncating whod file");
+ 		(void) close(whod);
+ 	}
+ }
+@@ -453,7 +459,7 @@
+ 			we->we_idle = htonl(now - stb.st_atime);
+ 		we++;
+ 	}
+-	getloadavg(avenrun, sizeof(avenrun)/sizeof(avenrun[0]));
++	mygetloadavg(avenrun, sizeof(avenrun)/sizeof(avenrun[0]));
+ 	for (i = 0; i < 3; i++)
+ 		wd->wd_loadav[i] = htonl((u_long)(avenrun[i] * 100));
+ 	cc = (char *)we - (char *)wd;
+@@ -502,7 +508,7 @@
+  *
+  * Send comments/bug reports/fixes to: pen@signum.se or pen@lysator.liu.se
+  */
+-int getloadavg(double ptr[3], int n)
++int mygetloadavg(double ptr[3], int n)
+ {
+ 	FILE *fp;
+ 
+@@ -530,7 +536,8 @@
+ 	FILE *fp = fopen("/proc/uptime", "r");
+ 	if (!fp) return /* -1 */;
+ 
+-	fscanf(fp, "%ld", &uptime);
++	if (fscanf(fp, "%ld", &uptime) <= 0)
++		syslog(LOG_WARNING, "couldn't parse /proc/uptime correctly");
+ 
+ 	curtime = time(NULL);
+ 	curtime -= uptime;
+--- netkit-rwho-0.17/rwhod/daemon.c.gcc4	2005-03-17 17:04:03.000000000 +0100
++++ netkit-rwho-0.17/rwhod/daemon.c	2005-03-17 17:06:15.000000000 +0100
+@@ -57,7 +57,11 @@
+ 	}
+ 
+ 	if (setsid() == -1) return -1;
+-	if (!nochdir) chdir("/");
++	if (!nochdir)
++		if (chdir("/") == -1) {
++			perror("Couldn't chdir to /");
++			return -1;
++		}
+ 	if (noclose) return 0;
+ 
+ 	fd = open(_PATH_DEVNULL, O_RDWR, 0);

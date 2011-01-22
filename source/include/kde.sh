@@ -64,14 +64,16 @@ if [ -z "$_F_kde_mirror" ]; then
 	_F_kde_mirror="ftp://ftp.kde.org/pub/kde"
 fi
 
-if [ -z "$_F_kde_unstable" ]; then
-	_F_kde_folder="stable"
-else
-	_F_kde_folder="unstable"
+if [ -z "$_F_kde_folder" ]; then
+	if [ -z "$_F_kde_unstable" ]; then
+		_F_kde_folder="stable"
+	else
+		_F_kde_folder="unstable"
+	fi
 fi
 
 if [ -z "$_F_kde_dirname" ]; then
-	_F_kde_dirname="$_F_kde_folder/$_F_kde_ver/src"
+	_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver/src"
 fi
 
 if [ -n "$_F_kde_final" ]; then

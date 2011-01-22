@@ -98,7 +98,7 @@ if [ -z "$_F_archive_name" ]; then
 fi
 
 if [ -z "$pkgver" ]; then
-	pkgver="$_F_kde_ver"
+	pkgver="$_F_kde_pkgver"
 fi
 
 if [ -z "$url" ]; then

@@ -9,7 +9,7 @@ pkgname=mesa
 origname=Mesa
 _F_archive_name="MesaLib"
 pkgver=7.10
-pkgrel=1
+pkgrel=2
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 up2date="Flasttar ftp://ftp.freedesktop.org/pub/$pkgname/current/"
@@ -44,17 +44,17 @@ sha1sums=("${sha1sums[@]}" \
 
 subpkgs=('libgl' 'libgl-headers-mesa')
 subdescs=('Mesa DRI OpenGL files.' 'Mesa OpenGL headers files.')
-subprovides=('libgl-mesa libgl-mesa-dri libgl-mesa-soft' 'libgl-headers')
-subreplaces=('libgl-mesa-soft' 'libgl-headers') # Remove libgl-headers after 1.1
-subconflicts=('fglrx libgl-mesa-soft nvidia' 'nvidia')
-subdepends=('libdrm>=2.4.20 libxcb>=1.3 libxdamage>=1.1.1-3 libxxf86vm>=1.0.2 glproto' '')
+subprovides=('libgl-mesa' 'libgl-headers')
+subreplaces=('' '')
+subconflicts=('fglrx nvidia' 'nvidia')
+subdepends=('libdrm>=2.4.20 libxcb>=1.3 libxdamage>=1.1.1-3 libxxf86vm>=1.0.2' 'glproto')
 subrodepends=("libdri libgl-headers-mesa>=$pkgver-$pkgrel libglx" '')
 subgroups=('x11' 'x11')
 subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
 
 subpkgs=("${subpkgs[@]}" 'libegl')
-subdescs=("${subdescs[@]}" 'OpenGL ES Utility library.')
-subprovides=("${subprovides[@]}" '')
+subdescs=("${subdescs[@]}" 'Mesa OpenEGL library.')
+subprovides=("${subprovides[@]}" 'libegl-mesa')
 subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
 subdepends=("${subdepends[@]}" '')
@@ -62,8 +62,18 @@ subrodepends=("${subrodepends[@]}" 'libgl')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 
+subpkgs=("${subpkgs[@]}" 'libgles')
+subdescs=("${subdescs[@]}" 'Mesa OpenGL ES1/ES2 libraries.')
+subprovides=("${subprovides[@]}" 'libgles-mesa')
+subreplaces=("${subreplaces[@]}" '')
+subconflicts=("${subconflicts[@]}" '')
+subdepends=("${subdepends[@]}" '')
+subrodepends=("${subrodepends[@]}" '')
+subgroups=("${subgroups[@]}" 'x11')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+
 subpkgs=("${subpkgs[@]}" 'libglu')
-subdescs=("${subdescs[@]}" 'OpenGL Utility library.')
+subdescs=("${subdescs[@]}" 'Mesa OpenGL Utility library.')
 subprovides=("${subprovides[@]}" 'libglu-mesa')
 subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
@@ -72,8 +82,18 @@ subrodepends=("${subrodepends[@]}" 'libgl')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
 
+subpkgs=("${subpkgs[@]}" 'libvg')
+subdescs=("${subdescs[@]}" 'Mesa OpenVG library.')
+subprovides=("${subprovides[@]}" 'libvg-mesa')
+subreplaces=("${subreplaces[@]}" '')
+subconflicts=("${subconflicts[@]}" '')
+subdepends=("${subdepends[@]}" '')
+subrodepends=("${subrodepends[@]}" 'libgl')
+subgroups=("${subgroups[@]}" 'x11')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+
 subpkgs=("${subpkgs[@]}" 'libglw')
-subdescs=("${subdescs[@]}" 'Xt/Motif OpenGL drawing area widget library.')
+subdescs=("${subdescs[@]}" 'Mesa Xt/Motif OpenGL drawing area widget library.')
 subprovides=("${subprovides[@]}" 'libglw-mesa')
 subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
@@ -94,6 +114,7 @@ build() {
 	fi
 
 	Fcd $origname-$pkgver
+	Fpatchall
 
 	if Fuse $USE_GALLIUM; then
 		Fconfopts="$Fconfopts --disable-gallium-llvm --enable-gallium-nouveau --enable-gallium-radeon"
@@ -104,9 +125,14 @@ build() {
 	Fconf	--with-driver=dri \
 		--with-dri-driverdir=/usr/lib/dri \
 		--with-dri-drivers=yes \
+		--with-egl-platforms=x11,drm \
+		--with-state-trackers=dri,egl,glx,vega \
 		--disable-glut \
 		--enable-egl \
+		--enable-gles1 \
+		--enable-gles2 \
 		--enable-glx-tls \
+		--enable-openvg \
 		--enable-xcb
 
 	make || Fdie
@@ -139,11 +165,6 @@ build() {
 	Frm /usr/include/GL/glxew.h
 	Frm /usr/include/GL/glew.h
 
-	Fsplit libegl usr/include/EGL/
-	Fsplit libegl usr/lib/libEGL.*
-	Fsplit libegl usr/lib/egl/
-	Fsplit libegl usr/lib/pkgconfig/egl.pc
-
 	Fsplit libgl usr/lib/libGL.*
 	Fsplit libgl usr/lib/dri/
 	Fsplit libgl usr/lib/pkgconfig/gl.pc
@@ -152,13 +173,30 @@ build() {
 	Fsplit libgl-headers-mesa usr/include/GL/{gl.h,glext.h,glx.h,glxext.h}
 	Fsplit libgl-headers-mesa usr/include/GL/internal
 
+	Fsplit libegl usr/include/EGL/
+	Fsplit libegl usr/lib/libEGL.*
+	Fsplit libegl usr/lib/egl/
+	Fsplit libegl usr/lib/pkgconfig/egl.pc
+
+	Fsplit libgles usr/include/GLES*/
+	Fsplit libgles usr/include/KHR/
+	Fsplit libgles usr/lib/libGLES*
+	Fsplit libgles usr/lib/pkgconfig/gles*.pc
+
+	Fsplit libglu usr/include/GL/glu.h
 	Fsplit libglu usr/lib/libGLU.*
 	Fsplit libglu usr/lib/pkgconfig/glu.pc
-	Fsplit libglu usr/include/GL/glu.h
 
+	Fsplit libvg usr/include/VG/
+	Fsplit libvg usr/lib/libOpenVG.*
+	Fsplit libvg usr/lib/pkgconfig/vg.pc
+
+	Fsplit libglw usr/include/GL/GLw*
 	Fsplit libglw usr/lib/libGLw.*
 	Fsplit libglw usr/lib/pkgconfig/glw.pc
-	Fsplit libglw usr/include/GL/GLw*
+
+#	Fsplit xf86-video-gles usr/include/xorg/
+#	Fsplit xf86-video-gles usr/lib/xorg/modules/drivers/
 
 	Frm var
 }

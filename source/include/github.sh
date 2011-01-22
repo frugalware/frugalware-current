@@ -58,7 +58,7 @@ if [ "$_F_github_devel" = "yes" ]; then
 	_F_scm_url=git://github.com/$_F_github_author/$_F_github_name
 	Finclude scm
 else
-	up2date="Flasttar http://github.com/$_F_github_author/$_F_github_name/downloads"
+	up2date="Fwcat https://github.com/$_F_github_author/$_F_github_name/downloads | grep TAR\\\.GZ | head -n 1 | sed -e 's|\">.*||;s|.*/||'"
 	# On one line for Mr Portability, Hermier Portability.
 	source=(${source[@]} http://github.com/downloads/$_F_github_author/$_F_github_name/$_F_github_name-$_F_github_ver.tar.gz)
 fi

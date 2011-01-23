@@ -1211,6 +1211,28 @@ Flastarchive() {
 }
 
 ###
+# * Flastdir(): A convenience function to Flastarchive for directories.
+# Parameters: 1) url (optional) see Flastarchive
+###
+Flastdir() {
+	if [ -z "$1" ]; then
+		Flastarchive '/'
+	else
+		# The trailing '/' in the url is here to avoid a redirection
+		# bug in Fwcat.
+		Flastarchive "$1/" '/'
+	fi
+}
+
+###
+# * Flastverdir(): A convenience function to Flastdir for version only 
+# directories. Parameters: 1) url (optional) see Flastdir
+###
+Flastverdir() {
+	pkgname='' Fpkgversep='' _F_archive_name='' Flastdir "$1"
+}
+
+###
 # * Flasttar(): A convenience function to Flastarchive for all the known tar
 # ball extension. Parameters: 1) url (optional) see Flastarchive
 ###

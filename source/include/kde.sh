@@ -109,11 +109,7 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		if [ -z "$_F_kde_unstable" ]; then
-			up2date="lynx -dump http://kde.org/download/|grep 'http://kde.org/info/4.*'|sed 's/.*\/\(.*\).php/\1/'"
-		else
-			up2date=$pkgver
-		fi
+		up2date="Flastverdir $_F_kde_mirror/$_F_kde_folder"
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

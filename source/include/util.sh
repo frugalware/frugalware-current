@@ -135,8 +135,7 @@ Fcpvar() {
 # * Fuse(): Checks a use variable. Parameter: a use variable value or the use
 # variable name. Example: Fuse DEVEL and Fuse $USE_DEVEL are equivalent.
 ###
-Fuse()
-{
+Fuse() {
 	local use
 	Fcpvar use "USE_$1"
 	if [ "$use" = "n" ]; then
@@ -1218,7 +1217,7 @@ Flastdir() {
 	if [ -z "$1" ]; then
 		Flastarchive '/'
 	else
-		# The trailing '/' in the url is here to avoid a redirection
+		# The trailing '/' in the url is here to avoid a redirection
 		# bug in Fwcat.
 		Flastarchive "$1/" '/'
 	fi

@@ -64,7 +64,7 @@ done |sort -u > $fb_sources 2>/dev/null
 for i in frugalware-$1
 do
 	cd $i
-	tar xf frugalware-current.fdb -C $fdb_tmp
+	bsdtar xf frugalware-current.fdb -C $fdb_tmp
 	ls $fdb_tmp |sed 's/-[^-]\+-[^-]\+$//'
 	rm -rf $fdb_tmp
 	mkdir -p $fdb_tmp

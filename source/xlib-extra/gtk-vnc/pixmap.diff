@@ -1,0 +1,128 @@
+commit 20a8875df00d7e6d918fa7b94aca2baebe034cb5
+Author: Daniel P. Berrange <berrange@redhat.com>
+Date:   Mon Nov 29 16:12:53 2010 +0000
+
+    Re-introduce a server side Pixmap to cache framebuffer
+    
+    Despite use of clipping during drawing, rendering directly
+    from the client side cairo image, to the window incurred
+    a serious performance penalty for some users' X servers.
+    Re-introduce a server side copy of the VNC desktop using
+    a cairo surface, backed by an X Pixmap. This uses cairo
+    APIs directly, avoiding any need for GdkPixmap.
+
+diff --git a/src/vncdisplay.c b/src/vncdisplay.c
+index 0b7e800..33d2623 100644
+--- a/src/vncdisplay.c
++++ b/src/vncdisplay.c
+@@ -50,6 +50,7 @@ struct _VncDisplayPrivate
+ 
+ 	VncConnection *conn;
+ 	VncCairoFramebuffer *fb;
++	cairo_surface_t *fbCache; /* Cache on server display */
+ 
+ 	VncDisplayDepthColor depth;
+ 
+@@ -282,6 +283,32 @@ static GdkCursor *create_null_cursor(void)
+ 	return cursor;
+ }
+ 
++
++static void setup_surface_cache(VncDisplay *dpy, cairo_t *crWin, int w, int h)
++{
++	VncDisplayPrivate *priv = dpy->priv;
++	cairo_surface_t *win = cairo_get_target(crWin);
++	cairo_t *crCache;
++
++	if (priv->fbCache)
++		return;
++
++	/* Creates a Pixmap on the X11 server matching the Window */
++	priv->fbCache = cairo_surface_create_similar(win,
++						     CAIRO_CONTENT_COLOR,
++						     w, h);
++	crCache = cairo_create(priv->fbCache);
++
++	/* Copy our local framebuffer contents to the Pixmap */
++	cairo_set_source_surface(crCache,
++				 vnc_cairo_framebuffer_get_surface(priv->fb),
++				 0,
++				 0);
++	cairo_paint(crCache);
++
++	cairo_destroy(crCache);
++}
++
+ static gboolean draw_event(GtkWidget *widget, cairo_t *cr)
+ {
+ 	VncDisplay *obj = VNC_DISPLAY(widget);
+@@ -293,6 +320,8 @@ static gboolean draw_event(GtkWidget *widget, cairo_t *cr)
+ 	if (priv->fb) {
+ 		fbw = vnc_framebuffer_get_width(VNC_FRAMEBUFFER(priv->fb));
+ 		fbh = vnc_framebuffer_get_height(VNC_FRAMEBUFFER(priv->fb));
++
++		setup_surface_cache(obj, cr, fbw, fbh);
+ 	}
+ 
+ 	gdk_drawable_get_size(gtk_widget_get_window(widget), &ww, &wh);
+@@ -327,12 +356,12 @@ static gboolean draw_event(GtkWidget *widget, cairo_t *cr)
+ 			sy = (double)wh / (double)fbh;
+ 			cairo_scale(cr, sx, sy);
+ 			cairo_set_source_surface(cr,
+-						 vnc_cairo_framebuffer_get_surface(priv->fb),
++						 priv->fbCache,
+ 						 0,
+ 						 0);
+ 		} else {
+ 			cairo_set_source_surface(cr,
+-						 vnc_cairo_framebuffer_get_surface(priv->fb),
++						 priv->fbCache,
+ 						 mx,
+ 						 my);
+ 		}
+@@ -848,6 +877,22 @@ static void on_framebuffer_update(VncConnection *conn G_GNUC_UNUSED,
+ 
+ 	gdk_drawable_get_size(gtk_widget_get_window(widget), &ww, &wh);
+ 
++	/* If we have a pixmap, update the region which changed.
++	 * If we don't have a pixmap, the entire thing will be
++	 * created & rendered during the drawing handler
++	 */
++	if (priv->fbCache) {
++		cairo_t *cr = cairo_create(priv->fbCache);
++		cairo_surface_t *surface = vnc_cairo_framebuffer_get_surface(priv->fb);
++
++		cairo_rectangle(cr, x, y, w, h);
++		cairo_clip(cr);
++		cairo_set_source_surface(cr, surface, 0, 0);
++		cairo_paint(cr);
++
++		cairo_destroy(cr);
++	}
++
+ 	if (priv->allow_scaling) {
+ 		double sx, sy;
+ 
+@@ -905,6 +950,10 @@ static void do_framebuffer_init(VncDisplay *obj,
+ 		g_object_unref(priv->fb);
+ 		priv->fb = NULL;
+ 	}
++	if (priv->fbCache) {
++		cairo_surface_destroy(priv->fbCache);
++		priv->fbCache = NULL;
++	}
+ 
+ 	if (priv->null_cursor == NULL) {
+ 		priv->null_cursor = create_null_cursor();
+@@ -1496,6 +1545,10 @@ static void vnc_display_finalize (GObject *obj)
+ 		g_object_unref(priv->fb);
+ 		priv->fb = NULL;
+ 	}
++	if (priv->fbCache) {
++		cairo_surface_destroy(priv->fbCache);
++		priv->fbCache = NULL;
++	}
+ 
+ 	if (priv->null_cursor) {
+ 		gdk_cursor_unref (priv->null_cursor);
+

@@ -39,7 +39,7 @@ if [ -z "$_F_gnome_name" ]; then
 fi
 
 if [ -z "$_F_gnome_devel" ]; then
-	_F_gnome_devel="n"
+	_F_gnome_devel="y"
 fi
 
 if [ -z "$_F_gnome_git" ]; then

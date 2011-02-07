@@ -1,0 +1,100 @@
+From a8f21715ef5e4d0fd3b1d6bcd6f8ca4416e1aec0 Mon Sep 17 00:00:00 2001
+From: Bastien Nocera <hadess@hadess.net>
+Date: Fri, 28 Jan 2011 17:28:34 +0000
+Subject: [PATCH] Port to GTK+ 3.x
+
+---
+ configure.in                 |    4 ++--
+ src/eel-gnome-extensions.c   |   26 ++++++++++++++++++++++++--
+ src/nautilus-open-terminal.c |    1 -
+ 3 files changed, 26 insertions(+), 5 deletions(-)
+
+diff --git a/configure.in b/configure.in
+index 080dbf7..9a48310 100644
+--- a/configure.in
++++ b/configure.in
+@@ -28,7 +28,7 @@ fi
+ 
+ # Dependency checks
+ 
+-NAUTILUS_REQUIRED=2.21.2
++NAUTILUS_REQUIRED=2.91.7
+ LIBGNOME_DESKTOP_REQUIRED=2.9.91
+ GLIB_REQUIRED=2.16.0
+ 
+@@ -39,7 +39,7 @@ PKG_CHECK_MODULES(NAUTILUS, [
+ 	gconf-2.0
+ ])
+ PKG_CHECK_MODULES(GCONF, gconf-2.0)
+-PKG_CHECK_MODULES(GNOMEDESKTOP, gnome-desktop-2.0 >= $LIBGNOME_DESKTOP_REQUIRED)
++PKG_CHECK_MODULES(GNOMEDESKTOP, gnome-desktop-3.0 >= $LIBGNOME_DESKTOP_REQUIRED)
+ 
+ 
+ # Make dependency CFLAGS and LIBS available
+diff --git a/src/eel-gnome-extensions.c b/src/eel-gnome-extensions.c
+index 1d966c8..b2ea44c 100644
+--- a/src/eel-gnome-extensions.c
++++ b/src/eel-gnome-extensions.c
+@@ -33,7 +33,7 @@
+ #include <fcntl.h>
+ #include <gdk/gdkx.h>
+ #include <gtk/gtk.h>
+-#include <libgnome/gnome-desktop-utils.h>
++#include <libgnome-desktop/gnome-desktop-utils.h>
+ #include <limits.h>
+ #include <signal.h>
+ #include <stdio.h>
+@@ -174,7 +174,10 @@ void
+ _not_eel_gnome_open_terminal_on_screen (const char *command,
+ 					GdkScreen  *screen)
+ {
++	GAppInfo *info;
++	GdkAppLaunchContext *context;
+ 	char *command_line;
++	GError *error = NULL;
+ 
+ 	if (screen == NULL) {
+ 		screen = gdk_screen_get_default ();
+@@ -185,7 +188,26 @@ _not_eel_gnome_open_terminal_on_screen (const char *command,
+ 		g_message ("Could not start a terminal");
+ 		return;
+ 	}
+-	gdk_spawn_command_line_on_screen (screen, command_line, NULL);
++	info = g_app_info_create_from_commandline (command_line,
++						   NULL,
++						   G_APP_INFO_CREATE_NONE,
++						   &error);
++	if (info == NULL) {
++		g_message ("Could not start a terminal: %s", error->message);
++		g_error_free (error);
++		g_free (command_line);
++		return;
++	}
++	context = gdk_display_get_app_launch_context (gdk_screen_get_display (screen));
++	gdk_app_launch_context_set_screen (context, screen);
++
++	if (g_app_info_launch (info, NULL, G_APP_LAUNCH_CONTEXT (context), &error) == FALSE) {
++		g_message ("Could not start a terminal: %s", error->message);
++		g_error_free (error);
++	}
++
++	g_object_unref (info);
++	g_object_unref (context);
+ 	g_free (command_line);
+ }
+ 
+diff --git a/src/nautilus-open-terminal.c b/src/nautilus-open-terminal.c
+index 2ee04ce..5043aed 100644
+--- a/src/nautilus-open-terminal.c
++++ b/src/nautilus-open-terminal.c
+@@ -36,7 +36,6 @@
+ #include <gtk/gtk.h>
+ #include <gconf/gconf.h>
+ #include <gconf/gconf-client.h>
+-#include <libgnome/gnome-desktop-item.h>
+ 
+ #include <errno.h>
+ #include <fcntl.h>
+-- 
+1.7.3.5
+

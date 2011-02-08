@@ -8,5 +8,5 @@ export XDG_CACHE_HOME=${HOME}/.cache
 export GDK_USE_XFT=1
 
 if [ -f /etc/xdg/menus/xfce-applications.menu ] ; then
-	export XDG-MENU-PREFIX=xfce-
+	export XDG_MENU_PREFIX=xfce-
 fi

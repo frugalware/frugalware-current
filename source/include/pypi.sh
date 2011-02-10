@@ -11,6 +11,7 @@
 # Common schema for pypi packages.
 #
 # == EXAMPLE
+#
 # --------------------------------------------------
 # pkgname=pygtkhelpers
 # pkgver=0.4.2
@@ -21,6 +22,8 @@
 # archs=('i686' 'x86_64' 'ppc')
 # Finclude pypi
 # sha1sums=('24af2eb1d5631a4565a4a867a2f6bb5820926001')
+# --------------------------------------------------
+#
 # == OPTIONS
 # * _F_pypi_ext (defaults to .tar.gz): set to file extension used by the package
 ###

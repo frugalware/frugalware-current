@@ -25,16 +25,18 @@
 # --------------------------------------------------
 #
 # == OPTIONS
+# * _F_pypi_name (defaults to $pkgname): set to name used in pypi
 # * _F_pypi_ext (defaults to .tar.gz): set to file extension used by the package
 ###
+[ -z "$_F_pypi_name" ] && _F_pypi_name="$pkgname"
 [ -z "$_F_pypi_ext" ] && _F_pypi_ext='.tar.gz'
 
 ###
 # == OVERWRITTEN VARIABLES
-# * url
+# * url (if not set)
 # * up2date
 # * source()
 ###
-url="http://pypi.python.org/pypi/$pkgname"
-up2date="Flastarchive http://pypi.python.org/packages/source/${pkgname:0:1}/$pkgname $_F_pypi_ext"
-source=(http://pypi.python.org/packages/source/${pkgname:0:1}/$pkgname/$pkgname-$pkgver$_F_pypi_ext)
+[ -z "$url" ] && url="http://pypi.python.org/pypi/$_F_pypi_name"
+up2date="Flastarchive http://pypi.python.org/packages/source/${_F_pypi_name:0:1}/$_F_pypi_name $_F_pypi_ext"
+source=(http://pypi.python.org/packages/source/${_F_pypi_name:0:1}/$_F_pypi_name/$_F_pypi_name-$pkgver$_F_pypi_ext)

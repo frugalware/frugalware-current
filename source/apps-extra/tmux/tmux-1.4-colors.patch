@@ -1,0 +1,74 @@
+diff --git a/tty.c b/tty.c
+index 4d113cd..dcb86ad 100644
+--- a/tty.c
++++ b/tty.c
+@@ -28,6 +28,9 @@
+ 
+ #include "tmux.h"
+ 
++#define FG "38"
++#define BG "48"
++
+ void	tty_read_callback(struct bufferevent *, void *);
+ void	tty_error_callback(struct bufferevent *, short, void *);
+ 
+@@ -1373,9 +1376,9 @@ tty_colours_fg(struct tty *tty, const struct grid_cell *gc)
+ 	/* Is this a 256-colour colour? */
+ 	if (gc->flags & GRID_FLAG_FG256) {
+ 		/* Try as 256 colours or translating to 88. */
+-		if (tty_try_256(tty, fg, "38") == 0)
++		if (tty_try_256(tty, fg, FG) == 0)
+ 			goto save_fg;
+-		if (tty_try_88(tty, fg, "38") == 0)
++		if (tty_try_88(tty, fg, FG) == 0)
+ 			goto save_fg;
+ 		/* Else already handled by tty_check_fg. */
+ 		return;
+@@ -1408,9 +1411,9 @@ tty_colours_bg(struct tty *tty, const struct grid_cell *gc)
+ 	/* Is this a 256-colour colour? */
+ 	if (gc->flags & GRID_FLAG_BG256) {
+ 		/* Try as 256 colours or translating to 88. */
+-		if (tty_try_256(tty, bg, "48") == 0)
++		if (tty_try_256(tty, bg, BG) == 0)
+ 			goto save_bg;
+-		if (tty_try_88(tty, bg, "48") == 0)
++		if (tty_try_88(tty, bg, BG) == 0)
+ 			goto save_bg;
+ 		/* Else already handled by tty_check_bg. */
+ 		return;
+@@ -1441,28 +1444,28 @@ save_bg:
+ int
+ tty_try_256(struct tty *tty, u_char colour, const char *type)
+ {
+-	char	s[32];
++	enum tty_code_code op;
+ 
+ 	if (!(tty->term->flags & TERM_256COLOURS) &&
+ 	    !(tty->term_flags & TERM_256COLOURS))
+ 		return (-1);
+ 
+-	xsnprintf(s, sizeof s, "\033[%s;5;%hhum", type, colour);
+-	tty_puts(tty, s);
++	op = (strcmp(type,FG)==0) ? TTYC_SETAF : TTYC_SETAB;
++	tty_putcode1(tty,op,colour);
+ 	return (0);
+ }
+ 
+ int
+ tty_try_88(struct tty *tty, u_char colour, const char *type)
+ {
+-	char	s[32];
++	enum tty_code_code op;
+ 
+ 	if (!(tty->term->flags & TERM_88COLOURS) &&
+ 	    !(tty->term_flags & TERM_88COLOURS))
+ 		return (-1);
+ 	colour = colour_256to88(colour);
+-
+-	xsnprintf(s, sizeof s, "\033[%s;5;%hhum", type, colour);
+-	tty_puts(tty, s);
++	
++	op = (strcmp(type,FG)==0) ? TTYC_SETAF : TTYC_SETAB;
++	tty_putcode1(tty,op,colour);
+ 	return (0);
+ }

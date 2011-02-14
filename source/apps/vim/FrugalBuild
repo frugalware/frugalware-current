@@ -5,7 +5,7 @@ USE_GUI=${USE_GUI:-"y"}
 
 pkgname=vim
 pkgver=7.3
-pkgrel=1
+pkgrel=2
 pkgdesc="VIM - Vi IMproved console"
 url="http://www.vim.org"
 depends=('ncurses')
@@ -16,7 +16,7 @@ backup=(usr/share/vim/vimrc)
 up2date="lynx -dump $url/sources.php|grep bz2$|sed 's/.*-\(.*\)\.t.*/\1/;q'"
 source=(ftp://ftp.vim.org/pub/vim/unix/$pkgname-$pkgver.tar.bz2 \
 	gvim.xpm README.Frugalware \
-        vim-vimrc.diff frugalware.diff)
+	vim-vimrc.diff frugalware.diff)
 sha1sums=('46faa96c5fab639899b1c655c23d8755b62f036f' \
           'f7262c7429c42b7c1ef9cf1eaa6aa12292933525' \
           '50e139d94557b2ca361fed2130af103c47a8d654' \
@@ -30,6 +30,12 @@ if Fuse $USE_GUI; then
 	subrodepends=("vim=$pkgver")
 	subgroups=('xapps')
 	subarchs=('i686 x86_64 ppc')
+	_F_desktop_filename='gvim.desktop'
+	_F_desktop_name='gvim'
+	_F_desktop_desc='VIM - Vi IMproved console (GTK version)'
+	_F_desktop_icon='gvim.xpm'
+	_F_desktop_exec='gvim'
+	_F_desktop_categories='Utility;TextEditor;GTK;'
 fi
 
 build()
@@ -37,19 +43,25 @@ build()
 	Fcd vim${pkgver/.}
 	Fpatchall
 	cd src
+
+	# Remove these 2 lines if the linking script is ever fixed.
+	# It loops infinitely for me.
+	Fexec sed -i '2 i $LINK --as-needed' link.sh
+	Fexec sed -i '3 i exit $?'           link.sh
+
 	if Fuse $USE_GUI; then
 		# first build gvim
-		Fmake --prefix=/usr --with-x --enable-gui=gtk2 --enable-multibyte
+		Fmake --prefix=/usr --with-x --enable-gui=gtk2 --enable-multibyte --enable-pythoninterp=yes
 		make DESTDIR=$Fdestdir VIMRTDIR= installvimbin
 		Fmv /usr/bin/vim /usr/bin/gvim
 		Fln /usr/bin/gvim /usr/bin/gview
 		Ficon ../gvim.xpm
-		Fdesktop gvim gvim.xpm "Utility;TextEditor;"
+		Fdesktop2
 		make distclean || return 1
 	fi
 
 	# now vim
-	Fmake --localstatedir=/var/lib/$pkgname --disable-gpm --with-x=no \
+	Fmake --localstatedir=/var/lib/$pkgname --disable-gpm --without-x \
 		--prefix=/usr --enable-gui=no --enable-multibyte
 	make DESTDIR=$Fdestdir VIMRTDIR= install || return 1
 	Fln vim /usr/bin/vi

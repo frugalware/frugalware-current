@@ -4,25 +4,15 @@
 
 # build released development version
 USE_DEVEL=${USE_DEVEL:-"n"}
-# build directly from git
-USE_GIT=${USE_GIT:-"n"}
 
 pkgname=libreoffice
 
-if Fuse $USE_GIT; then
-	upstream=3.3.0
-	tree=ooo330
-	milestone=7
-	pkgver=$upstream${tree}_m$milestone.15035.g955ee5e
+if ! Fuse $USE_DEVEL; then
+	pkgver=3.3.1.2
 	pkgrel=1
 else
-	if ! Fuse $USE_DEVEL; then
-		pkgver=3.3.0.4
-		pkgrel=3
-	else
-		pkgver=3.3.1.2
-		pkgrel=1
-	fi
+	pkgver=3.3.1.2
+	pkgrel=1
 fi
 pkgdesc="LibreOffice Productivity Suite, a fork of OpenOffice.org."
 url="http://www.documentfoundation.org/download/"
@@ -44,49 +34,41 @@ makedepends=('curl>=7.20.0-2' 'intltool' 'tcsh' 'ecj' 'apache-ant' \
 groups=('xapps')
 archs=('i686' 'x86_64')
 replaces=('openoffice.org')
-if Fuse $USE_GIT; then
-	unset source signatures
-	_F_scm_type="git"
-	_F_scm_url="git://anongit.freedesktop.org/git/libreoffice/build"
-	_F_scm_tag=$pkgver
-	Finclude scm
-else
-	mirror="http://download.documentfoundation.org/libreoffice/src/"
-	_F_archive_name="libreoffice-build"
-	up2date="Flasttar $mirror"
-	modules=('artwork' 'base' 'bootstrap' 'calc'
-		'components' 'extensions' 'extras' 'filters' 'help'
-		'impress' 'l10n' 'libs-core' 'libs-extern-sys'
-		'libs-extern' 'libs-gui' 'postprocess' 'sdk' 'testing'
-		'ure' 'writer' 'build')
-	source=()
-	for i in ${modules[@]}
-	do
-		[ $i == build ] && ext=gz || ext=bz2
-		source=(${source[@]} $mirror/libreoffice-$i-$pkgver.tar.$ext)
-		signatures=(${signatures[@]} $mirror/libreoffice-$i-$pkgver.tar.$ext.asc)
-	done
-	source=(${source[@]} http://tools.openoffice.org/unowinreg_prebuild/680/unowinreg.dll)
+mirror="http://download.documentfoundation.org/libreoffice/src/"
+_F_archive_name="libreoffice-build"
+up2date="Flasttar $mirror"
+modules=('artwork' 'base' 'bootstrap' 'calc'
+	'components' 'extensions' 'extras' 'filters' 'help'
+	'impress' 'l10n' 'libs-core' 'libs-extern-sys'
+	'libs-extern' 'libs-gui' 'postprocess' 'sdk' 'testing'
+	'ure' 'writer' 'build')
+source=()
+for i in ${modules[@]}
+do
+	[ $i == build ] && ext=gz || ext=bz2
+	source=(${source[@]} $mirror/libreoffice-$i-$pkgver.tar.$ext)
+	signatures=(${signatures[@]} $mirror/libreoffice-$i-$pkgver.tar.$ext.asc)
+done
+source=(${source[@]} http://tools.openoffice.org/unowinreg_prebuild/680/unowinreg.dll)
+signatures=("${signatures[@]}" '')
+ext_source=(18f577b374d60b3c760a3a3350407632-STLport-4.5.tar.gz \
+	fdb27bfe2dbe2e7b57ae194d9bf36bab-SampleICC-1.3.2.tar.gz \
+	ada24d37d8d638b3d8a9985e80bc2978-source-9.0.0.7-bj.zip \
+	1f24ab1d39f4a51faf22244c94a6203f-xmlsec1-1.2.14.tar.gz \
+	798b2ffdc8bcfe7bca2cf92b62caf685-rhino1_5R5.zip \
+	35c94d2df8893241173de1d16b6034c0-swingExSrc.zip \
+	cf8a6967f7de535ae257fa411c98eb88-mdds_0.3.0.tar.bz2)
+for i in ${ext_source[@]}
+do
+	source=(${source[@]} http://hg.services.openoffice.org/binaries/$i)
 	signatures=("${signatures[@]}" '')
-	ext_source=(18f577b374d60b3c760a3a3350407632-STLport-4.5.tar.gz \
-		fdb27bfe2dbe2e7b57ae194d9bf36bab-SampleICC-1.3.2.tar.gz \
-		ada24d37d8d638b3d8a9985e80bc2978-source-9.0.0.7-bj.zip \
-		1f24ab1d39f4a51faf22244c94a6203f-xmlsec1-1.2.14.tar.gz \
-		798b2ffdc8bcfe7bca2cf92b62caf685-rhino1_5R5.zip \
-		35c94d2df8893241173de1d16b6034c0-swingExSrc.zip \
-		cf8a6967f7de535ae257fa411c98eb88-mdds_0.3.0.tar.bz2)
-	for i in ${ext_source[@]}
-	do
-		source=(${source[@]} http://hg.services.openoffice.org/binaries/$i)
-		signatures=("${signatures[@]}" '')
-	done
-	go_oo_source=(extras-3.1.tar.bz2 biblio.tar.bz2)
-	for i in ${go_oo_source[@]}
-	do
-		source=(${source[@]} http://download.go-oo.org/SRC680/$i)
-		signatures=("${signatures[@]}" '')
-	done
-fi
+done
+go_oo_source=(extras-3.1.tar.bz2 biblio.tar.bz2)
+for i in ${go_oo_source[@]}
+do
+	source=(${source[@]} http://download.go-oo.org/SRC680/$i)
+	signatures=("${signatures[@]}" '')
+done
 NOEXTRACT=1
 options=(${options[@]} 'scriptlet')
 
@@ -168,17 +150,12 @@ done
 build()
 {
 	Fmonoexport
-	if Fuse $USE_GIT; then
-		Funpack_scm
-		NOCONFIGURE=1 ./autogen.sh || return 1
-	else
-		Fextract libreoffice-build-$pkgver.tar.gz
-		Fcd libreoffice-build-$pkgver
-		for i in $Fsrcdir/libreoffice-*
-		do
-			ln -sf $i src/
-		done
-	fi
+	Fextract libreoffice-build-$pkgver.tar.gz
+	Fcd libreoffice-build-$pkgver
+	for i in $Fsrcdir/libreoffice-*
+	do
+		ln -sf $i src/
+	done
 
 	# SMP build
 	if [ ! -z "$MAKEFLAGS" ]; then
@@ -205,25 +182,21 @@ build()
 	# Optimize build.
 	export ARCH_FLAGS="$CFLAGS"
 
-	if Fuse $USE_GIT; then
-		Fconf --with-git=http://frugalware.org/git/pub/other/sources/libreoffice
-	else
-		# mono-2.8 and mdds-0.5 are not yet supported
-		Fconf --with-lang="en-US ${completelangiso[*]}" --disable-mono --without-system-mdds
-		# avoid problems with ixion for now
-		sed -i '/fields-table-formula.diff/d' patches/dev300/apply || return 1
-		mkdir -p src
-		for i in ${go_oo_source[@]}
-		do
-			ln -sf $Fsrcdir/$i src/
-		done
-		mkdir -p ext_source
-		for i in ${ext_source[@]}
-		do
-			ln -sf $Fsrcdir/$i ext_source/
-		done
-		ln -sf $Fsrcdir/unowinreg.dll ext_source/185d60944ea767075d27247c3162b3bc-unowinreg.dll
-	fi
+	# mono-2.8 and mdds-0.5 are not yet supported
+	Fconf --with-lang="en-US ${completelangiso[*]}" --disable-mono --without-system-mdds
+	# avoid problems with ixion for now
+	sed -i '/fields-table-formula.diff/d' patches/dev300/apply || return 1
+	mkdir -p src
+	for i in ${go_oo_source[@]}
+	do
+		ln -sf $Fsrcdir/$i src/
+	done
+	mkdir -p ext_source
+	for i in ${ext_source[@]}
+	do
+		ln -sf $Fsrcdir/$i ext_source/
+	done
+	ln -sf $Fsrcdir/unowinreg.dll ext_source/185d60944ea767075d27247c3162b3bc-unowinreg.dll
 
 	# make patch be less strict
 	Fsed '--fuzz=0 ' '' patches/apply.pl

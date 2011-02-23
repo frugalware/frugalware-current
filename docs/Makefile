@@ -43,8 +43,8 @@ LANGS = $(shell grep '\[po4a_langs\]' po4a.cfg |sed 's/\[po4a_langs\] //')
 
 GETLANG = $(shell lang="$(shell basename `pwd`|sed 's/docs//')"; if [ -n "$$lang" ]; then echo $$lang; else echo en; fi)
 
-MERGE = : > $(2); \
-	for i in header.txt `cat $(1) |grep link:.*html |sed 's/.*:\(.*\).html\[.*/\1.txt/'`; \
+MERGE = cat header.txt > $(2); \
+	for i in `cat $(1) |grep link:.*html |sed 's/.*:\(.*\).html\[.*/\1.txt/'`; \
 	do \
 		[ "$$i" = "$(2)" ] && continue; \
 		echo "include::$$i[]" >> $(2); \
@@ -62,7 +62,6 @@ I18NBUILD = po4a -k 0 po4a.cfg; \
 			sed -i 's| ../source | ../../source |' $$i/Makefile; \
 			sed -i 's| -maxdepth 3 | -maxdepth 4 |' $$i/Makefile; \
 			sed -i 's/^\(=\+\)/\n\1/' $$i/*.txt; \
-			cp merge.conf $$i/; \
 			$(MAKE) -C $$i $(1) || exit 1; \
 		done
 
@@ -99,16 +98,13 @@ images:
 	ln -s /etc/asciidoc/images ./
 
 %.html: %.txt
-	if [[ "(manual.txt|user.txt|devel.txt)" =~ "$^" ]]; then CONF="--conf-file=merge.conf"; fi; \
-	asciidoc $$CONF -a toc -a numbered -a sectids -a lang=$(call GETLANG) $^
+	asciidoc -a toc -a numbered -a sectids -a lang=$(call GETLANG) $^
 
 %.text: %.txt
-	if [[ "(manual.txt|user.txt|devel.txt)" =~ "$^" ]]; then CONF="--conf-file=merge.conf"; fi; \
-	a2x --asciidoc-opts="$$CONF" -a toc -a numbered -a sectids -f text -a lang=$(call GETLANG) $^
+	a2x -a toc -a numbered -a sectids -f text -a lang=$(call GETLANG) $^
 
 %.pdf: %.txt
-	if [[ "(manual.txt|user.txt|devel.txt)" =~ "$^" ]]; then CONF="--conf-file=merge.conf"; fi; \
-	a2x --asciidoc-opts="$$CONF" --dblatex-opts "-P latex.output.revhistory=0" -a toc -a numbered -a sectids -f pdf -a lang=$(call GETLANG) $^
+	a2x --dblatex-opts "-P latex.output.revhistory=0" -a toc -a numbered -a sectids -f pdf -a lang=$(call GETLANG) $^
 
 %.txt: %.txt.in
 	sed 's/@VERSION@/$(VERSION)/' $^ > $@

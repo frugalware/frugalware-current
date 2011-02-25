@@ -3,32 +3,34 @@
 # Contributor: James Buren <ryuo@frugalware.org>
 
 pkgname=bsnes
-pkgver=070
+pkgver=075
 pkgrel=1
 pkgdesc="A newer snes emulator designed with accuracy in mind."
-depends=('openal' 'sdl' 'libgl' 'libxv' 'libao' 'pulseaudio' 'libuuid' 'libxtst' 'dbus' 'libqtcore' 'libqtgui')
+depends=('libao' 'libgl' 'libxv' 'gtk+2' 'openal' 'sdl')
 groups=('games-extra')
 archs=('i686' 'x86_64')
 _F_googlecode_sep="_v"
-_F_googlecode_ext=".tar.bz2"
+_F_googlecode_ext="-source.tar.bz2"
 Finclude googlecode
 _F_cd_path="$pkgname"
 options=('scriptlet')
-sha1sums=('b72388980310dfd26677d04312bf4698166208f2')
+sha1sums=('cb9ac27c5c7d1db2f2a7014eb69c402c4287ca1a')
 
-build()
-{
-	Fcd
-  # Don't run gconftool
-  Fsed "gconftool-2 --type bool" "#gconftool-2 --type bool" Makefile
+# Build the accuracy profile (you can also choose 'performance' or 'compatibility')
+__profile='accuracy'
 
-  for profile in compatibility performance accuracy; do
-    make clean
-    make profile=${profile} || Fdie
-    make install profile=${profile} DESTDIR=$Fdestdir prefix=/usr || Fdie
-  done
+build() {
+  Fcd $pkgname$_F_googlecode_sep$pkgver-source/$pkgname
 
-	cd launcher || Fdie
-	./cc.sh || Fdie
-	Fexerel ../out/$pkgname /usr/bin/$pkgname
+  # Makefile hacks
+  # Disable pulseaudio.
+  sed -e 's|audio.pulseaudio ||' \
+      -e 's|audio.pulseaudiosimple ||' \
+      -i "ui/Makefile" || Fdie
+  # Don't copy the cheat file.
+  sed '97,99d' -i "ui/Makefile" || Fdie
+
+  # Compile bsnes
+  make compiler=gcc platform=x profile=${__profile} || Fdie
+  make install profile=${__profile} DESTDIR=$Fdestdir prefix=/usr  || Fdie
 }

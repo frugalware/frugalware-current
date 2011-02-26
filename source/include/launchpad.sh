@@ -74,5 +74,5 @@ fi
 url="https://launchpad.net/$_F_launchpad_dirname"
 _F_archive_name="$_F_launchpad_name"
 Fpkgversep="$_F_launchpad_sep"
-up2date="Flasttar $url"
+up2date="Flastarchive $url $_F_launchpad_ext"
 source=($url/$_F_launchpad_branch/$pkgver/+download/${_F_launchpad_name}${_F_launchpad_sep}${pkgver//_/-}${_F_launchpad_ext})

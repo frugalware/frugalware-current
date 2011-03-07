@@ -3,15 +3,17 @@
 
 pkgname=u-boot
 pkgver=2010.12
-pkgrel=1
+pkgrel=2
 pkgdesc="A boot loader for embedded systems"
 archs=('arm')
 depends=()
 url="http://www.denx.de/wiki/U-Boot"
 groups=('base-extra')
-source=(ftp://ftp.denx.de/pub/$pkgname/$pkgname-$pkgver.tar.bz2)
+source=(ftp://ftp.denx.de/pub/$pkgname/$pkgname-$pkgver.tar.bz2 \
+	mach-dockstar.patch)
 up2date="Flasttar http://ftp.denx.de/pub/u-boot/"
-sha1sums=('ba848b6762b79c25d61b8b4641944ec0ada56507')
+sha1sums=('ba848b6762b79c25d61b8b4641944ec0ada56507' \
+          '0dc18ce594d17e044e2e66cf416252b3490add28')
 export LDFLAGS=""
 
 subpkgs=('u-boot-tools')
@@ -22,12 +24,16 @@ subarchs=('arm')
 
 build() {
   Fcd
-  PLATFORMS="dockstar"
-  for i in $PLATFORMS; do
-    make $i || Fdie
-    Fmkdir usr/lib/u-boot/$i
-    Finstall 644 $_F_cd_path/u-boot* $Fdestdir/usr/lib/u-boot/$i/
-  done
+  Fpatchall
+
+  make dockstar_config || Fdie
+  make all || Fdie
+  make u-boot.kwb || Fdie
+  Fmkdir usr/lib/u-boot/dockstar
+  Finstall 644 $_F_cd_path/u-boot $Fdestdir/usr/lib/u-boot/dockstar/u-boot.elf
+  Finstall 644 $_F_cd_path/u-boot.{kwb,bin,srec} $Fdestdir/usr/lib/u-boot/dockstar/
+  Finstall 644 $_F_cd_path/System.map $Fdestdir/usr/lib/u-boot/dockstar/
+
   make CONFIG_CMD_LOADS=y tools-all || Fdie
 
   Fmkdir usr/bin
@@ -35,6 +41,7 @@ build() {
   Finstall 755 $pkgname-$pkgver/tools/{bmp_logo,gen_eth_addr,img2srec,env/fw_printenv,easylogo/easylogo} usr/bin/
   Fmkdir etc/
   Finstall 644 $pkgname-$pkgver/tools/env/fw_env.config etc/
+  Fln /usr/bin/fw_printenv /usr/bin/fw_setenv
 
   Fsplit u-boot-tools usr/bin/
   Fsplit u-boot-tools etc/

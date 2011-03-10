@@ -131,6 +131,9 @@ rodepends=('module-init-tools' 'sed')
 if [ -z "$_F_kernel_name" ]; then
 	makedepends=('unifdef')
 fi
+if [ "$CARCH" = "arm" ]; then
+	makedepends=(${makedepends[@]} 'u-boot-tools')
+fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('nodocs' 'genscriptlet')
@@ -270,6 +273,10 @@ Fbuildkernel()
 		make || Fdie
 	fi
 
+	if [ "$CARCH" = "arm" ]; then
+		make uImage || Fdie
+	fi
+
 	Fmkdir /boot
 	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_uname
 	if [ ! -z "$_F_kernel_vmlinuz" ]; then
@@ -281,6 +288,7 @@ Fbuildkernel()
 			Fexerel arch/powerpc/boot/zImage.pmac /boot/zImage.pmac-$_F_kernel_ver$_F_kernel_uname
 		elif [ "$CARCH" = "arm" ]; then
 			Ffilerel arch/arm/boot/zImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
+			Ffilerel arch/arm/boot/uImage /boot/uImage
 		else
 			Ffilerel arch/x86/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		fi

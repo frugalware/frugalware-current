@@ -24,7 +24,7 @@ url="http://gcc.gnu.org"
 depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libelf' 'libmpc>=0.8.2-3')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
-archs=('i686' 'x86_64' 'ppc')
+archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('scriptlet')
 if Fuse $USE_SNAPSHOT; then
 	pkgver=4.5_20101118
@@ -37,8 +37,10 @@ if Fuse $USE_SNAPSHOT; then
 else
 	gccver=$pkgver
 	up2date="lynx -dump http://ftp.gnu.org/pub/gnu/gcc/|grep gcc-.*/$|sed -n 's|.*gcc-\(.*\)/|\1|;$ p'"
-	source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$gccver/gcc-$gccver.tar.bz2)
-	signatures=($source.sig)
+	source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$gccver/gcc-$gccver.tar.bz2 \
+            fix-gcc-arm-regression-44392.patch)
+	signatures=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$gccver/gcc-$gccver.tar.bz2.sig \
+                '')
 fi
 
 if Fuse $USE_SHARED; then
@@ -107,7 +109,7 @@ fi
 i=0
 while [ $i -lt ${#subpkgs[@]} ]
 do
-	subarchs=("${subarchs[@]}" "i686 x86_64 ppc")
+	subarchs=("${subarchs[@]}" "i686 x86_64 ppc arm")
 	i=$(($i+1))
 done
 
@@ -150,6 +152,10 @@ build()
 		export LDFLAGS="$LDFLAGS -Wl,--relax"
 	fi
 
+	if [ "$CARCH" == "arm" ]; then
+		Fconfopts="$Fconfopts --enable-softfloat \
+			--with-float=soft"
+	fi
 
 	#http://gcc.gnu.org/bugzilla/show_bug.cgi?id=45053
 	if [ "$CARCH" != "ppc" ]; then
@@ -296,7 +302,7 @@ build()
 		Fsplit gcc-gcj usr/bin/aot-compile
 		Fsplit gcc-gcj usr/share/man/man1/aot-compile.1
 		Fsplit gcc-gcj usr/share/python/{aotcompile.py,classfile.py}
-		Fsplit gcc-gcj usr/bin/gjdoc
+		[ "$CARCH" != "arm" ] && Fsplit gcc-gcj usr/bin/gjdoc
 		Fsplit gcc-gcj usr/share/man/man1/gjdoc.1
 	fi
 	if Fuse $USE_ADA; then

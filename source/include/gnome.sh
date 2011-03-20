@@ -93,6 +93,7 @@ else
 	source=(http://ftp.gnome.org/pub/gnome/sources/$_F_gnome_name/`_F_gnome_getver`/$_F_gnome_name-$pkgver.tar.bz2)
 fi
 url="http://www.gnome.org/"
+_F_cd_path=$_F_gnome_name-$pkgver
 
 ###
 # == APPENDED VARIABLES

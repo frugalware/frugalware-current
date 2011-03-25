@@ -50,7 +50,7 @@
 # * source (only if _F_firefox_num is set)
 ###
 pkgname=firefox-$_F_firefox_ext
-rodepends=('firefox>=3.6')
+rodepends=('firefox>=4.0')
 groups=('xapps-extra' 'firefox-extensions')
 archs=('i686' 'x86_64' 'ppc')
 if [ -n "$_F_firefox_num" ]; then

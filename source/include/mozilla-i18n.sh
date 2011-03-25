@@ -91,14 +91,14 @@ mozilla_i18n_lang_fini() {
 
 mozilla_i18n_lang_install()
 {
-	unzip -qqo $1.xpi
-	sed -i 's|chrome/||' chrome.manifest
-	Ffilerel chrome.manifest /usr/lib/$_F_mozilla_i18n_name/chrome/$1.manifest
-	Ffilerel chrome/$1.jar /usr/lib/$_F_mozilla_i18n_name/chrome/$1.jar
-
-	Fdirschmod  /usr/lib/$_F_mozilla_i18n_name 755
-	Ffileschmod /usr/lib/$_F_mozilla_i18n_name 644
-	Fsplit $_F_mozilla_i18n_name-${1,,} /usr/lib/$_F_mozilla_i18n_name
+	#unzip -qqo $1.xpi
+	#sed -i 's|chrome/||' chrome.manifest
+	#Ffilerel chrome.manifest /usr/lib/$_F_mozilla_i18n_name/chrome/$1.manifest
+	Fmkdir /usr/lib/firefox/extensions/
+	Ffilerel $1.xpi /usr/lib/$_F_mozilla_i18n_name/extensions/langpack-$1@firefox.mozilla.org.xpi
+	#Fdirschmod  /usr/lib/$_F_mozilla_i18n_name/extensions/ 755
+	Ffileschmod /usr/lib/$_F_mozilla_i18n_name/extensions/langpack-$1@firefox.mozilla.org.xpi 644
+	Fsplit $_F_mozilla_i18n_name-${1,,} /usr/lib/$_F_mozilla_i18n_name/extensions/
 }
 
 ###

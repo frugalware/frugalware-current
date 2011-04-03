@@ -72,7 +72,7 @@ if [ -z "$_F_sourceforge_ext" ]; then
 fi
 
 if [ -z "$_F_sourceforge_sep" ]; then
-	_F_sourceforge_sep="-"
+	_F_sourceforge_sep="$Fpkgversep"
 fi
 
 if [ -n "$_F_sourceforge_sep" ] && [ "$_F_sourceforge_sep" = "None" ]; then
@@ -90,6 +90,9 @@ _F_sourceforge_id="\$(Fwcat $_F_sourceforge_url/ | grep --color project-id | sed
 _F_sourceforge_rss_url="http://sourceforge.net/api/file/index/project-id/$_F_sourceforge_id/mtime/desc/limit/20/rss"
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
+fi
+if [ -z "$_F_archive_name" ]; then
+	_F_archive_name="$_F_sourceforge_name"
 fi
 if [ -z "$_F_archive_grepv" ]; then
 	_F_archive_grepv="^$"

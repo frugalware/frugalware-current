@@ -40,6 +40,7 @@
 # for an "baz_1.2.3.tar.gz" tarball you should use _F_launchpad_sep="_" , for empty
 # values use _F_launchpad_sep="None" that way you can dowload such foo1234.tgz
 # _F_launchpad_branch ( defaults to trunk): indicate the branch, trunk for most cases
+# _F_launchpad_subdir ( defaults to pkgver): indicate the subdirectory, same as pkgver for most cases
 ###
 
 if [ -z "$_F_launchpad_name" ]; then
@@ -65,6 +66,11 @@ fi
 if [ -z "$_F_launchpad_branch" ]; then
 	_F_launchpad_branch="trunk"
 fi
+
+if [ -z "$_F_launchpad_subdir" ]; then
+	_F_launchpad_subdir="$pkgver"
+fi
+
 ###
 # == OVERWRITTEN VARIABLES
 # * url
@@ -75,4 +81,4 @@ url="https://launchpad.net/$_F_launchpad_dirname"
 _F_archive_name="$_F_launchpad_name"
 Fpkgversep="$_F_launchpad_sep"
 up2date="Flastarchive $url $_F_launchpad_ext"
-source=($url/$_F_launchpad_branch/$pkgver/+download/${_F_launchpad_name}${_F_launchpad_sep}${pkgver//_/-}${_F_launchpad_ext})
+source=($url/$_F_launchpad_branch/$_F_launchpad_subdir/+download/${_F_launchpad_name}${_F_launchpad_sep}${pkgver//_/-}${_F_launchpad_ext})

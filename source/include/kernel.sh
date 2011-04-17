@@ -95,7 +95,7 @@ if [ -z "$_F_kernel_path" ]; then
 	fi
 fi
 [ "$CARCH" = "ppc" ] && export LDFLAGS="${LDFLAGS/-Wl,/}"
-
+[ "$CARCH"  = "arm" ] && export LDFLAGS="${LDFLAGS/-Wl,/}"
 ###
 # * pkgname
 # * pkgdesc
@@ -131,19 +131,22 @@ rodepends=('module-init-tools' 'sed')
 if [ -z "$_F_kernel_name" ]; then
 	makedepends=('unifdef')
 fi
+if [ "$CARCH" = "arm" ]; then
+	makedepends=(${makedepends[@]} 'u-boot-tools')
+fi
 groups=('base')
-archs=('i686' 'x86_64' 'ppc')
+archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('nodocs' 'genscriptlet')
 up2date="lynx -dump $url/kdist/finger_banner |grep stable|sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
 if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
 	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 \
-		config.i686 config.x86_64 config.ppc)
-	# this can be removed after Frualware 1.0 is out
-	replaces=('gspcav1' 'atl2')
+		config.i686 config.x86_64 config.ppc config.arm)
+	# this can be removed after Frualware 1.5 is out
+	replaces=('redirfs' 'dazuko')
 else
 	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
 fi
-signatures=("${source[0]}.sign" '' '' '')
+signatures=("${source[0]}.sign" '' '' '' '')
 install="src/kernel.install"
 
 [ "$_F_kernel_stable" -gt 0 ] && \
@@ -151,8 +154,8 @@ install="src/kernel.install"
 	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
 
 if Fuse $USE_DEVEL; then
-	source=(config.i686 config.x86_64 config.ppc)
-	signatures=('' '' '')
+	source=(config.i686 config.x86_64 config.ppc config.arm)
+	signatures=('' '' '' '')
 	_F_scm_tag="v$pkgver"
 	Finclude scm
 fi
@@ -175,7 +178,7 @@ done
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
 subdepends=("make gcc kernel-headers" "")
 subrodepends=("kernel$_F_kernel_name-docs" "kernel$_F_kernel_name")
-subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
+subarchs=('i686 x86_64 ppc arm' 'i686 x86_64 ppc arm')
 subinstall=('src/kernel-source.install' '')
 suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
@@ -184,7 +187,7 @@ if [ -z "$_F_kernel_name" ]; then
 	subrodepends=("${subrodepends[@]}" '')
 	subgroups=('devel' 'apps' 'devel devel-core')
 	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')
-	subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+	subarchs=("${subarchs[@]}" 'i686 x86_64 ppc arm')
 	subinstall=("${subinstall[@]}" '')
 	suboptions=("${suboptions[@]}" '')
 else
@@ -270,6 +273,10 @@ Fbuildkernel()
 		make || Fdie
 	fi
 
+	if [ "$CARCH" = "arm" ]; then
+		make uImage || Fdie
+	fi
+
 	Fmkdir /boot
 	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_uname
 	if [ ! -z "$_F_kernel_vmlinuz" ]; then
@@ -279,6 +286,9 @@ Fbuildkernel()
 			Fexerel $_F_kernel_path /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 			Fexerel arch/powerpc/boot/zImage.chrp /boot/zImage.chrp-$_F_kernel_ver$_F_kernel_uname
 			Fexerel arch/powerpc/boot/zImage.pmac /boot/zImage.pmac-$_F_kernel_ver$_F_kernel_uname
+		elif [ "$CARCH" = "arm" ]; then
+			Ffilerel arch/arm/boot/zImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
+			Ffilerel arch/arm/boot/uImage /boot/uImage
 		else
 			Ffilerel arch/x86/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		fi

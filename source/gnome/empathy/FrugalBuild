@@ -1,0 +1,74 @@
+# Compiling Time: 0.46 SBU
+# Maintainer: bouleetbil <bouleetbil@frogdev.info>
+
+USE_MAP=${USE_MAP:-"n"}
+#broken for now
+USE_SENDTO=${USE_SENDTO:-"n"}
+#Sendto have be merged to nautilus should wait
+
+pkgname=empathy
+pkgver=3.0.0
+pkgrel=2
+pkgdesc="Empathy consists of a rich set of reusable instant messaging widgets"
+depends=('telepathy-glib' 'libxml2' 'enchant' 'ca-certificates' \
+	'atk' 'pango' 'freetype2' 'libxau' 'libxdmcp' 'e2fsprogs' \
+	'popt' 'nspr' 'openssl>=1.0.0' 'libxdamage' 'libxinerama' \
+	'libxi' 'libxrandr' 'libxcursor' 'libjpeg>=8a' \
+	'libsm' 'libffi' 'telepathy-stream-engine' \
+	'aspell' 'iso-codes' 'telepathy-mission-control' 'telepathy-gabble' \
+	'evolution-data-server>=2.90.0' 'libcanberra-gtk' 'telepathy-farsight' \
+	'webkit-gtk3' 'unique' 'libkrb5' 'folks>=0.4.0' 'telepathy-logger' \
+	'ca-certificates' 'gsettings-desktop-schemas' 'libnotify>=0.7' 'telepathy-butterfly' \
+	'telepathy-logger>=0.2.8' 'networkmanager' 'glib-networking')
+makedepends=('gnome-common' 'intltool' 'gtk-doc' 'gnome-doc-utils' 'krb5')
+groups=('gnome')
+archs=('i686' 'x86_64' 'ppc')
+options=('scriptlet')
+_F_gnome_iconcache="y"
+_F_gnome_desktop="y"
+_F_gnome_glib="y"
+_F_gnome_git="n"
+Finclude gnome gnome-scriptlet
+Fconfopts="${Fconfopts[@]} --enable-gtk-doc \
+	--disable-scrollkeeper --enable-spell=yes \
+	--enable-webkit=yes\
+	--with-connectivity=nm"
+if Fuse $USE_MAP; then
+       	depend=("${depends[@]}" "libchamplain" "geoclue")
+	Fconfopts="${Fconfopts[@]} --enable-map=yes"
+fi
+sha1sums=('607905a065a1d331c97076f6d59e38baadcc95d1')
+replaces=('galaxium' 'gossip')
+
+if Fuse $USE_SENDTO; then
+	subpkgs=("${subpkgs[@]}" "$pkgname-nautilus-sendto")
+	subdescs=("${subdescs[@]}" "nautilus-sendto extension $pkgname")
+	subdepends=("${subdepends[@]}" "nautilus-sendto")
+	subrodepends=("${subrodepends[@]}" "$pkgname")
+	subgroups=("${subgroups[@]}" 'gnome-extra')
+	subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+	Fconfopts="${Fconfopts[@]} --enable-nautilus-sendto=yes"
+else
+	replaces=("${replaces[@]}" "$pkgname-nautilus-sendto")
+fi
+
+if [ "$_F_gnome_git" != "n" ]; then
+	unset sha1sums
+fi
+
+build() {
+	if [ "$_F_gnome_git" != "n" ]; then
+		Funpack_scm
+		Fcd $pkgname
+		sh ./autogen.sh
+	fi
+	Fbuild
+	Fbuild_gnome_scriptlet
+	if Fuse $USE_SENDTO; then
+		Fsplit $pkgname-nautilus-sendto usr/lib/nautilus-sendto
+	fi
+	Fsed "X-GNOME-Settings-Panel=empathy-accounts" "" $Fdestdir/usr/share/applications/empathy-accounts.desktop
+	Fsed "X-GNOME-Settings-Panel;X-GNOME-PersonalSettings;" "" $Fdestdir/usr/share/applications/empathy-accounts.desktop
+}
+
+# optimization OK

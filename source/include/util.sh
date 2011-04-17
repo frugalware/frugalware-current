@@ -94,8 +94,12 @@ Fsysconfdir="/etc"
 Flocalstatedir="/var"
 Fmandir="/usr/share/man"
 Fmenudir="/usr/share/applications"
-Farchs=('i686' 'x86_64' 'ppc')
-Fbuildchost="`arch`-frugalware-linux"
+Farchs=('i686' 'x86_64' 'ppc' 'arm')
+if [[ "`arch`" == arm* ]]; then
+	Fbuildchost="arm-frugalware-linux-gnueabi"
+else
+	Fbuildchost="`arch`-frugalware-linux"
+fi
 Fconfopts=""
 ## Move to makepkg.conf for Kalgan+1
 export LDFLAGS="-Wl,--hash-style=both"

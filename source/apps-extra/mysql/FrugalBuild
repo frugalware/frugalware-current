@@ -2,7 +2,7 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=mysql
-pkgver=5.5.9
+pkgver=5.5.11
 pkgrel=1
 extrapkgver=
 pkgdesc="A fast SQL database server"
@@ -14,18 +14,19 @@ makedepends=('procps' 'openssl>=1.0.0' 'zlib')
 _F_cmake_type=Release
 Finclude cmake
 groups=('apps-extra')
-archs=('i686' 'x86_64' 'ppc')
+archs=('i686' 'x86_64' 'ppc' 'arm')
 up2date="lynx -dump http://dev.mysql.com/downloads/rss.php|grep -i mysql.*server.*ga|sed 's/.* (\(.*\) GA.*/\1/'|Fsort|tail -n 1"
 mirror="ftp://ftp.crysys.hu/pub/mysql/"
 source=($mirror/Downloads/MySQL-5.5/$pkgname-$pkgver$extrapkgver.tar.gz \
-	rc.mysqld my.cnf mysqld)
-signatures=($source.asc '' '' '')
+	rc.mysqld my.cnf mysqld \
+	fix-non-portable-code-client-plugin.patch)
+signatures=($source.asc '' '' '' '')
 
 subpkgs=('libmysqlclient' 'libmysqld')
 subdescs=('MySQL client library.' 'Embedded MySQL Server Library')
 subdepends=('openssl>=1.0.0 zlib' 'libstdc++ openssl>=1.0.0 zlib')
 subgroups=('lib' 'lib')
-subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc')
+subarchs=('i686 x86_64 ppc arm' 'i686 x86_64 ppc arm')
 
 build()
 {
@@ -34,7 +35,6 @@ build()
 		CXXFLAGS="-fPIC ${CXXFLAGS}"
 	fi
 	Fcd $pkgname-$pkgver$extrapkgver
-	Fpatchall
 	CMake_make -DENABLED_LOCAL_INFILE=ON \
 		-DWITH_EMBEDDED_SERVER=ON \
 		-DWITH_INNOBASE_STORAGE_ENGINE=ON \
@@ -54,12 +54,15 @@ build()
 	Ffile my.cnf /etc/my.cnf
 	Frcd2 mysqld
 	Ffile /etc/sysconfig/mysqld
-	Fmkdir /var/run/mysql
-	chown 27.27 $Fdestdir/var/run/mysql || Fdie
 	Fmv usr/mysql-test usr/share/mysql
 	Fmv usr/sql-bench usr/share/mysql
 	Fmv usr/docs/ChangeLog /usr/share/doc/mysql-$pkgver
 	Frm usr/docs usr/data
+	Frm /var/run
+	Fmkdir /etc/tmpfiles.d
+	cat > $Fdestdir/etc/tmpfiles.d/mysql.conf << EOF
+d $Flocalstatedir/run/mysql 0755 mysql mysql -
+EOF
 
 	Fsplit libmysqlclient usr/lib/libmysqlclient* usr/include/mysql
 	

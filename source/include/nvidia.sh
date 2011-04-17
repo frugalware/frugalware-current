@@ -93,13 +93,11 @@ _F_kernelmod_scriptlet=$_F_nvidia_install
 # * conflicts: add libgl, libgl-headers and libglx to conflicts
 # * provides: add libgl, libgl-headers and libglx to provides
 # * options: add nostrip to options
-# * removes: temporary fix for some nvidia mess, has to be removed after Frugalware 1.3
 ###
 rodepends=("${rodepends[@]}" 'libvdpau' 'nvidia-settings' 'nvidia-xconfig' 'pkgconfig' 'xorg-server>=1.9.0')
 conflicts=("${conflicts[@]}" 'libgl' 'libgl-headers-mesa' 'libglx')
 provides=("${provides[@]}" 'libgl' 'libgl-headers-mesa' 'libglx')
 options=("${options[@]}" 'nostrip')
-removes=("${removes[@]}" '/usr/lib/libOpenCL.so.1')
 
 if [ "$pkgname" != "nvidia" ]; then
 	conflicts=("${conflicts[@]}" 'nvidia')

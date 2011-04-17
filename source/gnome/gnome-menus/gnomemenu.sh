@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS}:/etc/xdg:/etc/gnome/xdg
+export XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS}:/etc/xdg:/etc/xdg
 export XDG_DATA_HOME=${HOME}/.local/share
 export XDG_CONFIG_HOME=${HOME}/.config
 export XDG_DATA_DIRS=/usr/share

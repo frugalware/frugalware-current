@@ -7,8 +7,8 @@ USE_TCP=${USE_TCP:-"n"}
 USE_GUI=${USE_GUI:-"y"}
 
 pkgname=systemd
-pkgver=18
-pkgrel=3
+pkgver=24
+pkgrel=2
 pkgdesc="A System and Service Manager"
 url="http://www.freedesktop.org/wiki/Software/systemd"
 depends=('dbus' 'udev' 'pam' 'coreutils' 'libcap' 'sysvinit-initscripts' 'sysvinit-tools')
@@ -16,10 +16,9 @@ makedepends=('vala' 'docbook-xsl>=1.73.0-2' 'docbook-xml')
 options=('scriptlet')
 up2date="Flasttar http://www.freedesktop.org/software/$pkgname"
 source=(http://www.freedesktop.org/software/$pkgname/$pkgname-$pkgver.tar.bz2 \
-	console.conf prefdm.service)
-sha1sums=('34472024c8e29c62978880f2ce71c7aed41738b3' \
-          'abaa5c83d5adf2c5be188ce0de488bfa2b5a4505' \
-          'fdb7dc79f5a0d120e722c152f956a841667fe011')
+	console.conf)
+sha1sums=('6eb502ec8c9573fd769dab3ca8a2fc5ed8ce2680' \
+          'abaa5c83d5adf2c5be188ce0de488bfa2b5a4505')
 
 if Fuse $USE_CRYPTSETUP; then
        	depends=("${depends[@]}"  'cryptsetup-luks')
@@ -30,16 +29,16 @@ fi
 rodepends=("${depends[@]}"  'systemd-sysvinit')
 
 groups=('base')
-archs=('i686' 'x86_64' 'ppc')
+archs=('i686' 'x86_64' 'ppc' 'arm')
 
 #TODO : Remove backup, source rc for SysVinit when all rc scripts used systemd
-backup=(etc/{vconsole.conf,systemd/system.conf})
+backup=(etc/{vconsole.conf,systemd/system.conf,machine-id,locale.conf})
 
 if Fuse $USE_GUI; then
 	subpkgs=('systemd-gtk')
 	subdescs=('Graphical frontend for systemd')
 	subrodepends=("$pkgname=$pkgver")
-	subdepends=('dbus-glib gtk+2 polkit libnotify')
+	subdepends=('dbus-glib gtk+2 polkit libnotify>0.7')
 	subgroups=('xapps-extra')
 	subarchs=('i686 x86_64 ppc')
 	subprovides=('')
@@ -55,7 +54,7 @@ subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
 subdepends=("${subdepends[@]}" '')
 subreplaces=("${subreplaces[@]}" 'sysvinit')
 subgroups=("${subgroups[@]}" 'base')
-subarchs=("${subarchs[@]}" 'i686 x86_64 ppc')
+subarchs=("${subarchs[@]}" 'i686 x86_64 ppc arm')
 subprovides=("${subprovides[@]}" 'sysvinit')
 subconflicts=("${subconflicts[@]}" 'sysvinit')
 
@@ -79,9 +78,6 @@ build()
 	Fsed '"quiet"' '"nosystemd"' src/main.c
 	# we don't have auditd
 	Fsed 'auditd.service ' '' units/systemd-update-utmp-{runlevel,shutdown}.service.in
-	# our syslog implementations provide an lsb header, so this is
-	# not needed
-	Fsed '\(After=@SPECIAL_SYSLOG_SERVICE@\)' '#\1' units/syslog.target.in
 	Fpatchall
 	Fautoreconf
 	# force rebuild of vala files with our libnotify
@@ -111,10 +107,6 @@ build()
 
 	Frm etc/systemd/system/*.target.wants
 
-	#don't have tmpfs on /var/run and /var/lock
-	Frm lib/systemd/system/local-fs.target.wants/var-run.mount
-	Frm lib/systemd/system/local-fs.target.wants/var-lock.mount
-
 	# support for this is disabled in the kernel
 	Frm /lib/systemd/system/dev-hugepages.automount
 	Frm /lib/systemd/system/dev-hugepages.mount
@@ -129,13 +121,14 @@ build()
 	Fsed " getty.target.wants/getty@tty6.service" "$s" $Fdestdir/lib/systemd/system/getty@.service
 
 	# /etc/sysconfig/desktop compatibility
-	Ffile /lib/systemd/system/prefdm.service
-	Fln prefdm.service /lib/systemd/system/display-manager.service
-	Fln ../prefdm.service /lib/systemd/system/graphical.target.wants/prefdm.service
+	Fln ../display-manager.service /lib/systemd/system/graphical.target.wants/display-manager.service
 
 	# we have runlevel 4 as the x11 target, not 5
 	Fln multi-user.target /lib/systemd/system/runlevel5.target
 	Fln graphical.target /lib/systemd/system/runlevel4.target
+
+	# plymouth -> splashy
+	Fsed '/bin/plymouth quit' '/usr/sbin/splashy_update exit' $Fdestdir/lib/systemd/system/*.service
 
 	# Make sure these directories are properly owned
 	Fmkdir lib/systemd/system/basic.target.wants
@@ -151,5 +144,7 @@ build()
 		Fsplit systemd-gtk usr/share/polkit-1/actions/org.freedesktop.systemd1.policy
 		Fsplit systemd-gtk usr/share/man/man1/systemadm.*
 	fi
+
+	touch $Fdestdir/etc/{machine-id,locale.conf}
 }
 

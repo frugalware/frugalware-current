@@ -4,23 +4,25 @@
 
 pkgname=glibc
 pkgver=2.13
-pkgrel=1
+pkgrel=2
 pkgdesc="GNU C Library"
 url="http://www.gnu.org/software/libc/libc.html"
 depends=()
-makedepends=('binutils>=2.19.1' 'gcc>=4.3.3' 'grep>=2.5.3-4' 'zlib>=1.2.3-6' 'pacman-g2>=3.7.0-4')
+makedepends=('libxml2>=2.7.8' 'binutils>=2.19.1' 'gcc>=4.3.3' 'grep>=2.5.3-4' 'zlib>=1.2.3-6' 'pacman-g2>=3.7.0-4')
 # for memusagestat
 makedepends=("${makedepends[@]}" 'gd>=2.0.35-2')
 rodepends=('tzdata')
 groups=('base' 'chroot-core')
-archs=('i686' 'x86_64' 'ppc')
+archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('force')
 Fup2gnubz2
-source=(http://ftp.gnu.org/pub/gnu/glibc/glibc-$pkgver.tar.bz2 \
+source=(http://ftp.gnu.org/pub/gnu/glibc/glibc-$pkgver.tar.gz \
+	http://ftp.frugalware.org/pub/other/people/elentir/glibc-ports/glibc-ports-$pkgver.tar.bz2 \
 	fix-missing-etc-hosts.patch \
 	gcc45.patch \
 	revert-8f4a5048eea6536ee85c0f2670adbb97d71e427d.patch)
-sha1sums=('14d83dced873a21a3da6a0bfa0926f40d82ef980' \
+sha1sums=('99510a8b19aa822a05d8323d1bb25241579bc006' \
+          '01550b9e174e615fdd1071fc8b54183dfcd73d97' \
           'be4a7bea8af743331e2c6704faa24b6cb4e155d5' \
           '2283966c4f48bbc9b6ad0ae3bbd64601c057c721' \
           'c8d14d0f2e239ba0def978010163e919a45700f7')
@@ -28,6 +30,9 @@ sha1sums=('14d83dced873a21a3da6a0bfa0926f40d82ef980' \
 build()
 {
 	Fcd $pkgname-$pkgver
+	if [ "$CARCH" == "arm" ]; then
+		ln -sf $Fsrcdir/glibc-ports-$pkgver . || Fdie
+	fi
 	Fsed 'x86_64 \| ' '' sysdeps/unix/sysv/linux/configure{,.in}
 	Fpatchall
 	Ffilerel nscd/nscd.conf /etc/nscd.conf
@@ -36,24 +41,34 @@ build()
 	rm -rf ../glibc-build || Fdie
 	mkdir ../glibc-build || Fdie
 	cd ../glibc-build || Fdie
-	# glibc complains about our default flags are not agressive enough. let
-	# it use its own default ones
-	[ "$CARCH" = "ppc" ] && unset CFLAGS CXXFLAGS
-	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CXX="g++" CC="gcc"  \
-	../$pkgname-$pkgver/configure \
-		--prefix=/usr \
+
+    GLIBOPTS="--prefix=/usr \
 		--libdir=/usr/lib \
 		--with-tls \
 		--with-__thread \
-		--enable-add-ons=nptl \
 		--enable-kernel=2.6.24 \
 		--without-cvs \
 		--without-selinux \
 		--enable-shared \
 		--enable-bind-now \
 		--enable-static \
-		--enable-all-warnings \
-		--build=$CARCH-frugalware-linux || Fdie
+		--enable-all-warnings"
+
+	if [ "$CARCH" == "arm" ]; then
+		GLIBOPTS="$GLIBOPTS --without-fp \
+			--enable-add-ons
+        	--build=arm-frugalware-linux-gnueabi"
+	else
+		GLIBOPTS="$GLIBOPTS \
+        	--enable-add-ons
+        	--build=$CARCH-frugalware-linux"
+	fi
+
+	# glibc complains about our default flags are not agressive enough. let
+	# it use its own default ones
+	[ "$CARCH" = "ppc" ] && unset CFLAGS CXXFLAGS
+	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CXX="g++" CC="gcc"  \
+	../$pkgname-$pkgver/configure $GLIBOPTS || Fdie
 
 	make || Fdie
 

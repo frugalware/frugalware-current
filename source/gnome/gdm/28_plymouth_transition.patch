@@ -1,0 +1,270 @@
+From 2343620d464b93cfa46abddf8af14c7268f17df2 Mon Sep 17 00:00:00 2001
+From: Ray Strode <rstrode@redhat.com>
+Date: Fri, 27 Nov 2009 23:52:54 +0000
+Subject: Enable smooth transition between plymouth and X
+
+This commit checks if plymouth is running, and if so,
+turns on the smooth transition between plymouth and X.
+Index: gdm-3.0.0/daemon/gdm-server.c
+===================================================================
+--- gdm-3.0.0.orig/daemon/gdm-server.c
++++ gdm-3.0.0/daemon/gdm-server.c
+@@ -34,6 +34,9 @@
+ #include <signal.h>
+ #include <sys/resource.h>
+ 
++#include <sys/ioctl.h>
++#include <linux/vt.h>
++
+ #ifdef HAVE_SYS_PRCTL_H
+ #include <sys/prctl.h>
+ #endif
+@@ -680,6 +683,44 @@
+         return ret;
+ }
+ 
++static int
++get_active_vt (void)
++{
++        int console_fd;
++        struct vt_stat console_state = { 0 };
++
++        console_fd = open ("/dev/tty0", O_RDONLY | O_NOCTTY);
++
++        if (console_fd < 0) {
++                goto out;
++        }
++
++        if (ioctl (console_fd, VT_GETSTATE, &console_state) < 0) {
++                goto out;
++        }
++
++out:
++        if (console_fd >= 0) {
++                close (console_fd);
++        }
++
++        return console_state.v_active;
++}
++
++static char *
++get_active_vt_as_string (void)
++{
++        int vt;
++
++        vt = get_active_vt ();
++
++        if (vt <= 0) {
++                return NULL;
++        }
++
++        return g_strdup_printf ("vt%d", vt);
++}
++
+ /**
+  * gdm_server_start:
+  * @disp: Pointer to a GdmDisplay structure
+@@ -702,6 +743,21 @@
+ 
+         return res;
+ }
++
++gboolean
++gdm_server_start_on_active_vt (GdmServer *server)
++{
++        gboolean res;
++        char *vt;
++
++        g_free (server->priv->command);
++        server->priv->command = g_strdup (X_SERVER " -nr -verbose");
++        vt = get_active_vt_as_string ();
++        res = gdm_server_spawn (server, vt);
++        g_free (vt);
++
++        return res;
++}
+ 
+ static void
+ server_died (GdmServer *server)
+Index: gdm-3.0.0/daemon/gdm-server.h
+===================================================================
+--- gdm-3.0.0.orig/daemon/gdm-server.h
++++ gdm-3.0.0/daemon/gdm-server.h
+@@ -56,6 +56,7 @@
+ GdmServer *         gdm_server_new       (const char *display_id,
+                                           const char *auth_file);
+ gboolean            gdm_server_start     (GdmServer   *server);
++gboolean            gdm_server_start_on_active_vt (GdmServer   *server);
+ gboolean            gdm_server_stop      (GdmServer   *server);
+ char *              gdm_server_get_display_device (GdmServer *server);
+ 
+Index: gdm-3.0.0/daemon/gdm-simple-slave.c
+===================================================================
+--- gdm-3.0.0.orig/daemon/gdm-simple-slave.c
++++ gdm-3.0.0/daemon/gdm-simple-slave.c
+@@ -91,6 +91,7 @@
+ #ifdef  HAVE_LOGINDEVPERM
+         gboolean           use_logindevperm;
+ #endif
++        guint              plymouth_is_running : 1;
+ };
+ 
+ enum {
+@@ -1098,6 +1099,91 @@
+         slave->priv->start_session_when_ready = FALSE;
+ }
+ 
++static gboolean
++plymouth_is_running (void)
++{
++        int      status;
++        gboolean res;
++        GError  *error;
++
++        error = NULL;
++        res = g_spawn_command_line_sync ("/bin/plymouth --ping",
++                                         NULL, NULL, &status, &error);
++        if (! res) {
++                g_debug ("Could not ping plymouth: %s", error->message);
++                g_error_free (error);
++                return FALSE;
++        }
++
++        return WIFEXITED (status) && WEXITSTATUS (status) == 0;
++}
++
++static gboolean
++plymouth_has_active_vt (void)
++{
++        int      status;
++        gboolean res;
++        GError  *error;
++
++        error = NULL;
++        res = g_spawn_command_line_sync ("/bin/plymouth --has-active-vt",
++                                         NULL, NULL, &status, &error);
++        if (! res) {
++                g_debug ("Could not ask plymouth: %s", error->message);
++                g_error_free (error);
++                return FALSE;
++        }
++
++        return WIFEXITED (status) && WEXITSTATUS (status) == 0;
++}
++
++static void
++plymouth_prepare_for_transition (GdmSimpleSlave *slave)
++{
++        gboolean res;
++        GError  *error;
++
++        error = NULL;
++        res = g_spawn_command_line_sync ("/bin/plymouth deactivate",
++                                         NULL, NULL, NULL, &error);
++        if (! res) {
++                g_warning ("Could not deactivate plymouth: %s", error->message);
++                g_error_free (error);
++        }
++}
++
++static void
++plymouth_quit_with_transition (GdmSimpleSlave *slave)
++{
++        gboolean res;
++        GError  *error;
++
++        error = NULL;
++        res = g_spawn_command_line_sync ("/bin/plymouth quit --retain-splash",
++                                         NULL, NULL, NULL, &error);
++        if (! res) {
++                g_warning ("Could not quit plymouth: %s", error->message);
++                g_error_free (error);
++        }
++        slave->priv->plymouth_is_running = FALSE;
++}
++
++static void
++plymouth_quit_without_transition (GdmSimpleSlave *slave)
++{
++        gboolean res;
++        GError  *error;
++
++        error = NULL;
++        res = g_spawn_command_line_sync ("/bin/plymouth quit",
++                                         NULL, NULL, NULL, &error);
++        if (! res) {
++                g_warning ("Could not quit plymouth: %s", error->message);
++                g_error_free (error);
++        }
++        slave->priv->plymouth_is_running = FALSE;
++}
++
+ static void
+ setup_server (GdmSimpleSlave *slave)
+ {
+@@ -1115,6 +1201,10 @@
+          */
+         gdm_slave_save_root_windows (GDM_SLAVE (slave));
+ 
++        /* Plymouth is waiting for the go-ahead to exit */
++        if (slave->priv->plymouth_is_running) {
++                plymouth_quit_with_transition (slave);
++        }
+ }
+ 
+ static void
+@@ -1316,6 +1406,10 @@
+         g_debug ("GdmSimpleSlave: server exited with code %d\n", exit_code);
+ 
+         gdm_slave_stopped (GDM_SLAVE (slave));
++
++        if (slave->priv->plymouth_is_running) {
++                plymouth_quit_without_transition (slave);
++        }
+ }
+ 
+ static void
+@@ -1328,6 +1422,10 @@
+                  g_strsignal (signal_number));
+ 
+         gdm_slave_stopped (GDM_SLAVE (slave));
++
++        if (slave->priv->plymouth_is_running) {
++                plymouth_quit_without_transition (slave);
++        }
+ }
+ 
+ static gboolean
+@@ -1372,7 +1470,21 @@
+                                   G_CALLBACK (on_server_ready),
+                                   slave);
+ 
+-                res = gdm_server_start (slave->priv->server);
++                slave->priv->plymouth_is_running = plymouth_is_running ();
++
++                if (slave->priv->plymouth_is_running) {
++                        plymouth_prepare_for_transition (slave);
++
++			if (plymouth_has_active_vt ()) {
++				res = gdm_server_start_on_active_vt (slave->priv->server);
++			} else {
++                                plymouth_quit_without_transition (slave);
++				slave->priv->plymouth_is_running = 0;
++				res = gdm_server_start (slave->priv->server);
++			}
++                } else {
++                        res = gdm_server_start (slave->priv->server);
++                }
+                 if (! res) {
+                         g_warning (_("Could not start the X "
+                                      "server (your graphical environment) "
+@@ -1382,6 +1494,9 @@
+                                      "In the meantime this display will be "
+                                      "disabled.  Please restart GDM when "
+                                      "the problem is corrected."));
++                        if (slave->priv->plymouth_is_running) {
++                                plymouth_quit_without_transition (slave);
++                        }
+                         exit (1);
+                 }
+ 

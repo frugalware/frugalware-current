@@ -1,36 +1,28 @@
 # Compiling Time: 2.33 SBU
-# Maintainer: crazy <crazy@frugalware.org>
+# Maintainer: Elentir <elentir@frugalware.org>
 # Contributor: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=boost
-pkgver=1.39.0
-pkgrel=6
+pkgver=1.46.1
+pkgrel=1
 pkgdesc="Boost header files , examples and tools"
 _F_sourceforge_ext=".tar.bz2"
 Finclude sourceforge python
 url="http://boost.org/"
 depends=()
 up2date="lynx -dump http://www.boost.org/users/download/|grep 'Current Release'|sed 's/.*]\(.*\) -.*/\1/'"
-makedepends=('boost-jam>=3.1.17' 'python>=2.7' 'icu4c>=4.2' 'bzip2' 'zlib' 'openssl>=1.0.0')
+makedepends=('boost-jam>=3.1.19' 'python>=2.7' 'icu4c>=4.2' 'bzip2' 'zlib' 'openssl>=1.0.0')
 groups=('devel-extra')
 archs=('i686' 'x86_64' 'ppc')
-source=(${source/-$pkgver/_${pkgver//./_}} boost-mt.patch \
-	boost-fs_gcc44.patch boost-function_template.patch \
-	openssl-1.0.diff boost-template_arity-gcc45.patch)
+source=(${source/-$pkgver/_${pkgver//./_}})
 _F_cd_path="${pkgname}_`echo $pkgver|tr . _`"
-sha1sums=('6af42f74ab24ccc51589a025593bad298c8adde8' \
-          'b96f45451173a01e276427d21aa2a584b2bb2dd1' \
-          '84bacf10dd215637282982f4480589ef276f6af9' \
-          'f43601261c66704638ff66347fd2741211edd864' \
-          '56221640abcaa0b10000f391695f4cf1a47fea16' \
-          '1a5239bb29888004f348af3ea875c63b52baaf90')
+sha1sums=('3ca6e173ec805e5126868d8a03618e587aa26aef')
 
-subpkgs=("libboost" "libboost-mt" "libboost-static" "libboost-mt-static")
-subdescs=('Boost libraries.' 'Boost libraries with multithreading support.' \
-	'Boost libraries statically linked.' 'Boost libraries with multithreading support statically linked.')
-subdepends=('icu4c>=4.2 libgcc bzip2 zlib' 'icu4c>=4.2 libgcc bzip2 zlib' '' '')
-subgroups=('devel-extra' 'lib' 'devel-extra' 'devel-extra')
-subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 pcc' 'i686 x86_64 pcc')
+subpkgs=("libboost" "libboost-static" "libboost-mpi")
+subdescs=('Boost libraries.' 'Boost libraries statically linked.' 'Boost MPI Interface.')
+subdepends=('icu4c>=4.2 libgcc bzip2 zlib' '' 'libboost openmpi')
+subgroups=('lib' 'devel-extra' 'lib-extra')
+subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 ppc')
 
 build()
 {
@@ -40,29 +32,15 @@ build()
 		export CXXFLAGS="$CXXFLAGS -fPIC -DPIC"
 	fi
 	Fsed "-O3" "$CXXFLAGS -Wno-deprecated" tools/build/v2/tools/gcc.jam
+	echo "using mpi ;" >> tools/build/v2/user-config.jam || Fdie
+
 	BOOSTJAM="/usr/bin/bjam"
-	OPTIONS="variant=release debug-symbols=off optimization=speed threading=single,multi -d2"
 	JOBS="$MAKEFLAGS"
 
 	${BOOSTJAM} \
-		${JOBS} \
-		-sHAVE_ICU=1 -sICU_PATH=/usr \
-	    	-sBOOST_ROOT="$Fsrcdir" \
-	    	-sPYTHON_ROOT=/usr \
-	    	-sPYTHON_VERSION="$_F_python_ver" \
-		-sEXPAT_INCLUDE=/usr/include \
-		-sEXPAT_LIBPATH=/usr/lib \
-	    	${OPTIONS} \
-	    	--prefix="$Fdestdir/usr" \
-		--exec-prefix="$Fdestdir/usr" \
-		--includedir="$Fdestdir/usr/include" \
-		--libdir="$Fdestdir/usr/lib" \
-		--without-mpi \
-		--toolset=gcc \
-	    	--layout=system || Fdie
-	## TODO: mpi support
-
-	${BOOSTJAM} \
+		release debug-symbols=off threading=multi \
+		runtime-link=shared link=shared,static \
+		cflags=-fno-strict-aliasing optimization=speed \
 	    	${JOBS} \
 		-sHAVE_ICU=1 -sICU_PATH=/usr \
 	    	-sBOOST_ROOT="$Fsrcdir" \
@@ -70,12 +48,10 @@ build()
 	    	-sPYTHON_VERSION="$_F_python_ver" \
 		-sEXPAT_INCLUDE=/usr/include \
 		-sEXPAT_LIBPATH=/usr/lib \
-	    	${OPTIONS} \
 		--prefix="$Fdestdir/usr" \
 		--exec-prefix="$Fdestdir/usr" \
 		--includedir="$Fdestdir/usr/include" \
 		--libdir="$Fdestdir/usr/lib" \
-		--without-mpi \
 		--toolset=gcc \
 		--layout=system install || Fdie
 
@@ -84,16 +60,10 @@ build()
 	rm -rf v2/debian || Fdie
 	cp -a b* index.html  v2/ $Fdestdir/usr/share/boost/ || Fdie
 
-	## remove usr/lib/libboost_wave.so that links on -mt libs so it should not be build
-	## like this at all and only the -mt one should be used , like for thread one etc
-#	Frm usr/lib/libboost_wave.so
-	## not needed
-#	Frm usr/lib/libboost_test_exec_monitor*.a
-
-	Fsplit libboost-mt        usr/lib/libboost_*-mt.so*
-	Fsplit libboost-mt-static usr/lib/libboost_*-mt.a
+	Fsplit libboost-mpi usr/lib/libboost_graph_parallel*
+	Fsplit libboost-mpi usr/lib/libboost_mpi*
 	Fsplit libboost        usr/lib/libboost_*.so*
-	Fsplit libboost-static usr/lib/libboost_*.a
+	Fsplit libboost-static usr/lib/libboost_*.a	
 }
 
 # optimization OK

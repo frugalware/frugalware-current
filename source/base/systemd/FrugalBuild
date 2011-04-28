@@ -4,11 +4,15 @@
 USE_CRYPTSETUP=${USE_CRYPTSETUP:-"n"}
 USE_SYSV_COMPAT=${USE_SYSV_COMPAT:-"y"}
 USE_TCP=${USE_TCP:-"n"}
-USE_GUI=${USE_GUI:-"y"}
+if [ "$CARCH" == "arm" ]; then
+	USE_GUI=${USE_GUI:-"n"}
+else
+	USE_GUI=${USE_GUI:-"y"}
+fi
 
 pkgname=systemd
-pkgver=24
-pkgrel=2
+pkgver=25
+pkgrel=4
 pkgdesc="A System and Service Manager"
 url="http://www.freedesktop.org/wiki/Software/systemd"
 depends=('dbus' 'udev' 'pam' 'coreutils' 'libcap' 'sysvinit-initscripts' 'sysvinit-tools')
@@ -16,9 +20,10 @@ makedepends=('vala' 'docbook-xsl>=1.73.0-2' 'docbook-xml')
 options=('scriptlet')
 up2date="Flasttar http://www.freedesktop.org/software/$pkgname"
 source=(http://www.freedesktop.org/software/$pkgname/$pkgname-$pkgver.tar.bz2 \
-	console.conf)
-sha1sums=('6eb502ec8c9573fd769dab3ca8a2fc5ed8ce2680' \
-          'abaa5c83d5adf2c5be188ce0de488bfa2b5a4505')
+	console.conf enable-plymouth.diff)
+sha1sums=('24981d944b52337741ed1144ded54dd06c18ea3b' \
+          'abaa5c83d5adf2c5be188ce0de488bfa2b5a4505' \
+          '18c56ec2f7290f5dd75a20ab9a786aeb2cb09de1')
 
 if Fuse $USE_CRYPTSETUP; then
        	depends=("${depends[@]}"  'cryptsetup-luks')
@@ -32,7 +37,7 @@ groups=('base')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 
 #TODO : Remove backup, source rc for SysVinit when all rc scripts used systemd
-backup=(etc/{vconsole.conf,systemd/system.conf,machine-id,locale.conf})
+backup=(etc/{vconsole.conf,systemd/system.conf,machine-id,machine-info,locale.conf})
 
 if Fuse $USE_GUI; then
 	subpkgs=('systemd-gtk')
@@ -80,8 +85,6 @@ build()
 	Fsed 'auditd.service ' '' units/systemd-update-utmp-{runlevel,shutdown}.service.in
 	Fpatchall
 	Fautoreconf
-	# force rebuild of vala files with our libnotify
-	find . -name '*.vala' -exec touch {} \;
 	Fmake
 	Fmakeinstall
 	#auto mount
@@ -127,9 +130,6 @@ build()
 	Fln multi-user.target /lib/systemd/system/runlevel5.target
 	Fln graphical.target /lib/systemd/system/runlevel4.target
 
-	# plymouth -> splashy
-	Fsed '/bin/plymouth quit' '/usr/sbin/splashy_update exit' $Fdestdir/lib/systemd/system/*.service
-
 	# Make sure these directories are properly owned
 	Fmkdir lib/systemd/system/basic.target.wants
 	Fmkdir lib/systemd/system/default.target.wants
@@ -145,6 +145,6 @@ build()
 		Fsplit systemd-gtk usr/share/man/man1/systemadm.*
 	fi
 
-	touch $Fdestdir/etc/{machine-id,locale.conf}
+	touch $Fdestdir/etc/{machine-id,machine-info,locale.conf}
 }
 

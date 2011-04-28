@@ -1,0 +1,131 @@
+Description: Saves the root window background so that other things like gnome-settings-daemon can access it.  Taken from the plymouth-integration branch of Upstream GIT.
+From 9768d9e2783de7e836421d9645070bb1917800dd Mon Sep 17 00:00:00 2001
+From: Ray Strode <rstrode@redhat.com>
+Date: Fri, 27 Nov 2009 23:27:53 +0000
+Subject: Save root window to pixmap at _XROOTPMAP_ID
+
+This combined with starting the X server with -nr
+will give us a nice fade transition when g-s-d starts
+---
+Index: gdm-2.91.94/daemon/gdm-simple-slave.c
+===================================================================
+--- gdm-2.91.94.orig/daemon/gdm-simple-slave.c
++++ gdm-2.91.94/daemon/gdm-simple-slave.c
+@@ -1106,6 +1106,15 @@
+ 
+         /* Set the busy cursor */
+         gdm_slave_set_busy_cursor (GDM_SLAVE (slave));
++
++        /* The root window has a background that may be useful
++         * to cross fade or transition from when setting the
++         * login screen background.  We read it here, and stuff
++         * it into the standard _XROOTPMAP_ID root window property,
++         * so gnome-settings-daemon can get at it.
++         */
++        gdm_slave_save_root_windows (GDM_SLAVE (slave));
++
+ }
+ 
+ static void
+Index: gdm-2.91.94/daemon/gdm-slave.c
+===================================================================
+--- gdm-2.91.94.orig/daemon/gdm-slave.c
++++ gdm-2.91.94/daemon/gdm-slave.c
+@@ -43,6 +43,7 @@
+ #include <dbus/dbus-glib-lowlevel.h>
+ 
+ #include <X11/Xlib.h> /* for Display */
++#include <X11/Xatom.h> /* for XA_PIXMAP */
+ #include <X11/cursorfont.h> /* for watch cursor */
+ #include <X11/extensions/Xrandr.h>
+ #include <X11/Xatom.h>
+@@ -434,6 +435,77 @@
+         }
+ }
+ 
++static void
++gdm_slave_save_root_window_of_screen (GdmSlave *slave,
++                                      Atom      id_atom,
++                                      int       screen_number)
++{
++        Window root_window;
++        GC gc;
++        XGCValues values;
++        Pixmap pixmap;
++        int width, height, depth;
++
++        root_window = RootWindow (slave->priv->server_display,
++                                  screen_number);
++
++        width = DisplayWidth (slave->priv->server_display, screen_number);
++        height = DisplayHeight (slave->priv->server_display, screen_number);
++        depth = DefaultDepth (slave->priv->server_display, screen_number);
++        pixmap = XCreatePixmap (slave->priv->server_display,
++                                root_window,
++                                width, height, depth);
++
++        values.function = GXcopy;
++        values.plane_mask = AllPlanes;
++        values.fill_style = FillSolid;
++        values.subwindow_mode = IncludeInferiors;
++
++        gc = XCreateGC (slave->priv->server_display,
++                        root_window,
++                        GCFunction | GCPlaneMask | GCFillStyle | GCSubwindowMode,
++                        &values);
++
++        if (XCopyArea (slave->priv->server_display,
++                       root_window, pixmap, gc, 0, 0,
++                       width, height, 0, 0)) {
++
++                long pixmap_as_long;
++
++                pixmap_as_long = (long) pixmap;
++
++                XChangeProperty (slave->priv->server_display,
++                                 root_window, id_atom, XA_PIXMAP,
++                                 32, PropModeReplace, (guchar *) &pixmap_as_long,
++                                 1);
++
++        }
++
++        XFreeGC (slave->priv->server_display, gc);
++}
++
++void
++gdm_slave_save_root_windows (GdmSlave *slave)
++{
++        int i, number_of_screens;
++        Atom atom;
++
++        number_of_screens = ScreenCount (slave->priv->server_display);
++
++        atom = XInternAtom (slave->priv->server_display,
++                            "_XROOTPMAP_ID", False);
++
++        if (atom == 0) {
++                return;
++        }
++
++        for (i = 0; i < number_of_screens; i++) {
++                gdm_slave_save_root_window_of_screen (slave, atom, i);
++        }
++
++        XSync (slave->priv->server_display, False);
++}
++
+ void
+ gdm_slave_set_busy_cursor (GdmSlave *slave)
+ {
+Index: gdm-2.91.94/daemon/gdm-slave.h
+===================================================================
+--- gdm-2.91.94.orig/daemon/gdm-slave.h
++++ gdm-2.91.94/daemon/gdm-slave.h
+@@ -77,6 +77,7 @@
+ void                gdm_slave_set_initial_cursor_position (GdmSlave *slave);
+ 
+ void                gdm_slave_set_busy_cursor        (GdmSlave   *slave);
++void                gdm_slave_save_root_windows      (GdmSlave   *slave);
+ gboolean            gdm_slave_run_script             (GdmSlave   *slave,
+                                                       const char *dir,
+                                                       const char *username);

@@ -1,0 +1,34 @@
+Index: gdm-2.30.4/daemon/gdm-server.c
+===================================================================
+--- gdm-2.30.4.orig/daemon/gdm-server.c	2010-06-30 12:30:03.000000000 +0200
++++ gdm-2.30.4/daemon/gdm-server.c	2010-06-30 12:30:07.000000000 +0200
+@@ -640,6 +640,13 @@
+         g_debug ("GdmServer: Starting X server process: %s", freeme);
+         g_free (freeme);
+ 
++	/* write a stamp file, so that the first startup of the server can be
++	 * special-cased (initial server needs to go on vt12, since 1 to 12
++	 * usually get gettys after gdm startup, which interfere with X) */
++        int f = open ("/var/run/gdm/firstserver.stamp", O_CREAT|O_WRONLY|O_EXCL, 0666);
++        if (f >= 0)
++                close (f);
++
+         error = NULL;
+         ret = g_spawn_async_with_pipes (NULL,
+                                         argv,
+@@ -684,9 +691,14 @@
+ gdm_server_start (GdmServer *server)
+ {
+         gboolean res;
++        int firstserver;
++
++        /* HACK: force initial server to go on vt12, since 1 to 12 usually get
++         * gettys after gdm startup, which interfere with X */
++	firstserver = access ("/var/run/gdm/firstserver.stamp", F_OK) < 0;
+ 
+         /* fork X server process */
+-        res = gdm_server_spawn (server, NULL);
++        res = gdm_server_spawn (server, firstserver ? "vt12" : NULL);
+ 
+         return res;
+ }

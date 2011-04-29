@@ -1,82 +1,80 @@
-# Compiling Time: 0.01 SBU
+# Compiling Time: 0.16 SBU
 # Maintainer: James Buren <ryuo@frugalware.org>
 
 pkgname=mp
-pkgver=5.1.4
+pkgver=5.2.0
 pkgrel=1
 _basedesc="A text editor for programmers."
-pkgdesc="$_basedesc (Common Files)"
+pkgdesc="$_basedesc (Shared Files)"
 url="http://triptico.com/software/mp.html"
-depends=('grutatxt' 'mp_doccer')
+makedepends=('grutatxt' 'mp_doccer')
 rodepends=('aspell' 'ctags')
 groups=('lib-extra')
 options=('scriptlet' 'nodocs')
 archs=('i686' 'x86_64')
-subpkgs=("$pkgname-ncurses" "$pkgname-gtk2")
-subdescs=("$_basedesc (NCurses)" "$_basedesc (GTK+2)")
-subgroups=("apps-extra" "xapps-extra")
-subarchs=("i686 x86_64" "i686 x86_64")
-subdepends=("$pkgname ncurses" "$pkgname gtk+2>=2.20.0-2")
-subrodepends=("$pkgname" "$pkgname")
+subpkgs=("$pkgname-ncurses" "$pkgname-gtk2" "$pkgname-qt4")
+subdescs=("$_basedesc (NCurses)" "$_basedesc (GTK+2 + NCurses)" "$_basedesc (QT4 + NCurses)")
+subgroups=("apps-extra" "xapps-extra" "xapps-extra")
+subarchs=("i686 x86_64" "i686 x86_64" "i686 x86_64")
+subdepends=("ncurses" "gtk+2>=2.20.0-2" "libqtgui")
+subrodepends=("$pkgname=$pkgver" "$pkgname=$pkgver" "$pkgname=$pkgver")
+subconflicts=("$pkgname-gtk2 $pkgname-qt4" "$pkgname-ncurses $pkgname-qt4" "$pkgname-ncurses $pkgname-gtk2")
 up2date="Flasttar $url"
 source=(http://triptico.com/download/$pkgname-$pkgver.tar.gz $pkgname.mpsl)
 backup=("etc/$pkgname.mpsl")
 _F_desktop_name="Minimum Profit"
-_F_desktop_exec="$pkgname-5-gtk2"
+_F_desktop_exec="$pkgname"
 _F_desktop_icon="$pkgname"
-_F_desktop_categories="GTK;Development;Utility;TextEditor;"
-sha1sums=('89c89143ef206fdcae7a23dd01c1155b183b9f08' \
+_F_desktop_categories="Development;Utility;TextEditor;"
+sha1sums=('7f03be23129866afb7e1fa77ac23d11c0db304c5' \
           'fb4396c8be130d731f565858d8aa050535ce991f')
-unset MAKEFLAGS
 
-build() {
-	# set install path
-	Fsed "/usr/local" "/usr" {,mpdm/,mpsl/}config.sh
-	
-	# configure for ncurses binary	
-	./config.sh --without-gtk || Fdie
-	
-	# compile ncurses binary
-	Fmake
+_build_ui()
+{
+	case $1 in
+		ncurses)
+			Fexec ./config.sh --prefix=/usr --without-gtk --without-qt4
+			Fmake
+			Fmakeinstall
+			Fsplit $pkgname-ncurses /usr/bin/$pkgname
+			;;
+		gtk2)
+			Fexec ./config.sh --prefix=/usr --without-qt4
+			Fmake
+			Fmakeinstall
+			Ficonrel $pkgname.{xpm,png}
+			Fdesktop2
+			Fsplit $pkgname-gtk2 /usr/{bin/$pkgname,share/{applications,pixmaps}}
+			;;
+		qt4)
+			Fexec ./config.sh --prefix=/usr --without-gtk
+			Fmake
+			Fmakeinstall
+			Ficonrel $pkgname.{xpm,png}
+			Fdesktop2
+			Fsplit $pkgname-qt4 /usr/{bin/$pkgname,share/{applications,pixmaps}}
+			;;
+	esac
+}
 
-	# install ncurses binary
-	Fexerel $pkgname-5 /usr/bin/$pkgname-5-ncurses
-	
-	# configure for gtk2 binary
-	./config.sh --without-curses || Fdie
-	
-	# compile gtk2 binary
-	Fmake
+build()
+{
+	Fcd $pkgname-$pkgver
 
-	# install gtk2 binary
-	Fexerel $pkgname-5 /usr/bin/$pkgname-5-gtk2
-	
-	# install the rest
-	Fmakeinstall
-	
-	# install icons
-	Ficonrel $pkgname.{xpm,png}
+	# Change the odd name.
+	for i in $(grep -I -r '\bmp-5\b' * | cut -f 1 -d ':' | sort -u); do
+		Fsed "mp-5" "mp" $i
+	done
 
-	# install desktop file
-	Fdesktop2
-	
-	# install system-wide configuration
+	Fmkdir /usr/bin
+
+	_build_ui ncurses
+
+	_build_ui gtk2
+
+	_build_ui qt4
+
 	Ffile /etc/$pkgname.mpsl
-	
-	# remove redundant binary
-	Frm /usr/bin/$pkgname-5
-	
-	# move documentation to frugalware doc style
-	Fmv /usr/share/doc/$pkgname-5 /usr/share/doc/$pkgname-$pkgver
-	
-	# setup compatibility symlink
-	Fln /usr/share/doc/$pkgname-$pkgver /usr/share/doc/$pkgname-5
-	
-	# split ncurses subpkg
-	Fsplit $pkgname-ncurses /usr/bin/$pkgname-5-ncurses
-	
-	# split gtk2 subpkg
-	Fsplit $pkgname-gtk2 /usr/{bin/$pkgname-5-gtk2,share/{pixmaps,applications}}
 }
 
 # optimization OK

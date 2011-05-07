@@ -8,7 +8,7 @@ USE_DEVEL=${USE_DEVEL:-"n"}
 pkgname=libreoffice
 
 if ! Fuse $USE_DEVEL; then
-	pkgver=3.3.99.3
+	pkgver=3.3.99.4
 	pkgrel=1
 else
 	pkgver=3.3.2.2
@@ -62,8 +62,7 @@ do
 	source=(${source[@]} $i)
 	signatures=("${signatures[@]}" '')
 done
-source=(${source[@]} 0001-ooinstall-respect-DESTDIR.patch)
-signatures=("${signatures[@]}" '')
+NOEXTRACT=1
 options=(${options[@]} 'scriptlet')
 
 subpkgs=("$pkgname-kde" "$pkgname-gnome" "$pkgname-sdk" "$pkgname-mozilla")
@@ -82,7 +81,7 @@ subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
 subgroups=('kde' 'gnome' 'devel-extra' 'xapps')
 subinstall=("" "$_F_gnome_scriptlet" "" "")
 
-# sed ':a;N;$!ba;s/\\\n//g' solenv/inc/postset.mk|grep ^completelangiso=|sed 's/completelangiso=//;s/en-US //'
+# sed ':a;N;$!ba;s/\\\n//g' solenv/inc/langlist.mk|grep ^completelangiso=|sed 's/completelangiso=//;s/en-US //'
 completelangiso=(af ar as ast be bo bg br brx bn bs ca ca-XV cs cy da de
 	dgo dz el en-GB en-ZA eo es et eu fa fi fr ga gl gu he hi hr hu id is it
 	ja ka kk km kn ko kok ks ku lo lt lv mai mk mn mni ml mr my ne nb nl nn
@@ -107,11 +106,6 @@ completelangdescs=('Afrikaans' 'Arabic' 'Assamese' 'Asturian' 'Belarusian'
 	'Ukrainian' 'Uzbek' 'Venda' 'Vietnamese' 'Xhosa' 'Chinese (simplified)'
 	'Chinese (traditional)' 'Zulu')
 
-if [ ${#completelangiso[@]} -ne ${#completelangdescs[@]} ]; then
-	error '${#completelangiso[@]} != ${#completelangdescs[@]}'
-	Fdie
-fi
-
 i=0
 while [ $i -lt ${#completelangiso[@]} ]
 do
@@ -125,13 +119,41 @@ do
         i=$(($i+1))
 done
 
+# TODO: report-builder wiki-publisher
+extensions=(presenter-minimizer presenter-console pdfimport)
+for i in ${extensions[@]}
+do
+	subpkgs=("${subpkgs[@]}" "$pkgname-$i")
+	subdescs=("${subdescs[@]}" "Installs ${i/-/ } support in LibreOffice")
+	subinstall=("${subinstall[@]}" '')
+	subdepends=("${subdepends[@]}" '')
+	subrodepends=("${subrodepends[@]}" "$pkgname>=$pkgver")
+	subgroups=("${subgroups[@]}" "xapps-extra")
+	subarchs=("${subarchs[@]}" "i686 x86_64")
+done
+
+install_bundled_extension()
+{
+	Fmkdir /usr/lib/libreoffice/share/extensions/$1
+	unzip $2 -d $Fdestdir/usr/lib/libreoffice/share/extensions/$1 || Fdie
+	Fsplit $pkgname-$3 /usr/lib/libreoffice/share/extensions/$1
+}
+
 build()
 {
-	Fcd libreoffice-bootstrap-$pkgver
-	Fpatchall
+	if [ ! -e src.downloaded ]; then
+		for i in ${modules[@]}; do Fextract libreoffice-$i-$pkgver.tar.bz2; done
+		for i in */*; do mv `pwd`/$i .; done
+		mkdir -p ext_source
+		for i in ${ext_source[@]}
+		do
+			f=$(strip_url $i)
+			ln -sf $Fsrcdir/$f ext_source/$f
+		done
+	fi
 
 	# Check for missing language packs.
-	langfile="solenv/inc/postset.mk"
+	langfile="solenv/inc/langlist.mk"
 	langs=$(sed ':a;N;$!ba;s/\\\n//g' $langfile|grep ^completelangiso=|sed 's/completelangiso=//;s/en-US //')
 	if [ "$langs" != "${completelangiso[*]}" ]; then
 		Fmessage "Update completelangiso, '$langs' != '${completelangiso[*]}'"
@@ -147,7 +169,12 @@ build()
 	# Optimize build.
 	export ARCH_FLAGS="$CFLAGS"
 
+	_F_cd_path="."
 	_F_conf_notry=build
+	for i in ${extensions[@]}
+	do
+		Fconfopts="$Fconfopts --enable-ext-$i"
+	done
 	# FIXME --with-openclipart=/usr/share/openclipart does not fail,
 	# but slows down the build at the moment and in the end it does
 	# not do anything, so disable it for now.
@@ -160,9 +187,7 @@ build()
 		--enable-crashdump=yes \
 		--enable-symbols \
 		--enable-cairo \
-		--enable-xsltproc \
 		--disable-rpath \
-		--disable-qadevooo \
 		--without-fonts \
 		--disable-ldap \
 		--with-system-mozilla=mozilla \
@@ -173,33 +198,16 @@ build()
 		--with-external-tar=`pwd`/ext_source \
 		--without-afms \
 		--with-system-libtextcat \
-		--with-system-libtextcat-data \
 		--with-system-translate-toolkit \
 		--with-system-dicts \
 		--with-external-dict-dir=/usr/share/myspell \
 		--without-myspell-dicts \
 		--disable-graphite
-
-	if [ ! -e src.downloaded ]; then
-
-		for i in ${modules[@]}
-		do
-			[ "$i" == "bootstrap" ] && continue
-			for j in ../libreoffice-$i-$pkgver/*
-			do
-				(cd ../libreoffice-$i-$pkgver/; tar c $(basename $j)) | tar x || return 1
-			done
-		done
-		mkdir -p ext_source
-		for i in ${ext_source[@]}
-		do
-			f=$(strip_url $i)
-			ln -sf $Fsrcdir/$f ext_source/$f
-		done
-	fi
 	touch src.downloaded
 
 	if [ ! -e src.built ]; then
+		# fakeroot hack
+		sed -i '/osl_Security::getHomeDir/d' sal/qa/osl/security/osl_Security.cxx
 		make || return 1
 	fi
 	touch src.built
@@ -229,6 +237,11 @@ build()
 	cp -r sysui/desktop/icons/{hi,lo}color $Fdestdir/usr/share/icons || return 1
 
 	Ffilerel sysui/unxlngi6.pro/misc/libreoffice/openoffice.org.xml /usr/share/mime/packages/libreoffice.xml
+
+	# Enable and split extensions
+	install_bundled_extension presentation-minimizer solver/*/unxlng*/bin/minimizer/presentation-minimizer.oxt presenter-minimizer
+	install_bundled_extension presenter-screen solver/*/unxlng*/bin/presenter/presenter-screen.oxt presenter-console
+	install_bundled_extension pdfimport solver/*/unxlng*/bin/pdfimport/pdfimport.oxt pdfimport
 
 	# Enable and split the mozilla plugin
 	Fmkdir /usr/lib/mozilla/plugins

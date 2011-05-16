@@ -4,7 +4,7 @@
 # http://frugalware.org/~repo/stats/unmaintained.txt
 
 cd `dirname $0`/../t
-activedevs=$(./chkacc |sed "s/.*'\(.*\)'/\1/g" |xargs echo|sed 's/ /|/g')
+activedevs=$(./chkacc --verbose |sed "s/.*'\(.*\)'/\1/g" |xargs echo|sed 's/ /|/g')
 cd ..
 
 for i in `git ls-files source |grep FrugalBuild`

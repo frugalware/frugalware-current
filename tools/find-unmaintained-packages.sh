@@ -9,5 +9,5 @@ cd ..
 
 for i in `git ls-files source |grep FrugalBuild`
 do
-	egrep -q "Maintainer:.*($activedevs)" $i || echo "$i is unmaintained"
+	egrep -i -q "Maintainer:.*($activedevs)" $i || echo "$i is unmaintained"
 done

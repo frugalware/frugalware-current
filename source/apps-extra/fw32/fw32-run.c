@@ -185,11 +185,14 @@ main(int argc,char **argv)
 
 	mount_home(pwd->pw_dir);
 
+	if(chroot(FW32_ROOT))
+		error("Failed to enter chroot.\n");
+
 	if(personality(PER_LINUX32))
 		error("Failed to enable 32 bit emulation.\n");
 
-	if(chroot(FW32_ROOT))
-		error("Failed to enter chroot.\n");
+	if(chdir(pwd->pw_dir))
+		error("Failed to change to home directory.\n");
 
 	if(setuid(getuid()))
 		error("Failed to drop root permissions.\n");

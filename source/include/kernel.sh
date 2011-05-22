@@ -131,21 +131,17 @@ rodepends=('module-init-tools' 'sed')
 if [ -z "$_F_kernel_name" ]; then
 	makedepends=('unifdef')
 fi
-if [ "$CARCH" = "arm" ]; then
+if [ "$CARCH" = "arm" -o "$CARCH" = "ppc" ]; then
 	makedepends=(${makedepends[@]} 'u-boot-tools')
 fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('nodocs' 'genscriptlet')
 up2date="lynx -dump $url/kdist/finger_banner |grep stable|sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
-if [ "`vercmp 2.6.24 $_F_kernel_ver`" -le 0 ]; then
-	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 \
-		config.i686 config.x86_64 config.ppc config.arm)
-	# this can be removed after Frualware 1.5 is out
-	replaces=('redirfs' 'dazuko')
-else
-	source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 config)
-fi
+source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 \
+	config.i686 config.x86_64 config.ppc config.arm)
+# this can be removed after Frualware 1.5 is out
+replaces=('redirfs' 'dazuko')
 signatures=("${source[0]}.sign" '' '' '' '')
 install="src/kernel.install"
 

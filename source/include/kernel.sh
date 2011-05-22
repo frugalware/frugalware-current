@@ -131,7 +131,7 @@ rodepends=('module-init-tools' 'sed')
 if [ -z "$_F_kernel_name" ]; then
 	makedepends=('unifdef')
 fi
-if [ "$CARCH" = "arm" ]; then
+if [ "$CARCH" = "arm" -o "$CARCH" = "ppc" ]; then
 	makedepends=(${makedepends[@]} 'u-boot-tools')
 fi
 groups=('base')

@@ -1,0 +1,52 @@
+# Compiling Time: 0 SBU
+# Maintainer: James Buren <ryuo@frugalware.org>
+
+pkgname=linux-firmware
+pkgver=20110520
+pkgrel=1
+pkgdesc="Extra linux kernel firmware."
+url="http://git.kernel.org/?p=linux/kernel/git/dwmw2/linux-firmware.git;a=summary"
+Finclude kernel-version
+depends=("kernel>=$_F_kernelver_ver" "kernel<2.6.40")
+if [ "$CARCH" != "arm" ]; then
+makedepends=('alsa-firmware')
+fi
+groups=('base')
+archs=('i686' 'x86_64' 'ppc' 'arm')
+_dlurl="http://ftp.frugalware.org/pub/other/sources/$pkgname"
+up2date="Flastarchive $_dlurl .tar.xz"
+options=('nodocs' 'nomirror')
+source=($_dlurl/$pkgname-$pkgver.tar.xz)
+sha1sums=('cd5a9e0e59d2101c39514d10df3894e04f0a8534')
+
+# Replace the old individual packages covered by this one.
+replaces=('radeon-firmware' 'ralink-firmware' 'iwlwifi-1000-ucode' \
+	'iwlwifi-3945-ucode' 'iwlwifi-4965-ucode' 'iwlwifi-5000-ucode' \
+	'iwlwifi-5150-ucode' 'iwlwifi-6000-ucode')
+provides=(${replaces[@]})
+conflicts=(${conflicts[@]})
+
+build()
+{
+	Fcd $pkgname
+	Fmkdir /lib/firmware
+	Fdocrel LICEN{S,C}E* GPL-3 WHENCE
+	# Remove all text files
+	for i in $(find -exec file '{}' \; | grep 'text' | cut -f 1 -d ':'); do
+		Fexec rm -f $i
+	done
+	if [ "$CARCH" != "arm" ]; then
+	# Remove firmware that the kernel supplies.
+	for i in $(pacman-g2 -Ql kernel alsa-firmware | sed -n 's|.*/lib/firmware/\(.*\)|\1|p'); do
+		[ -d "$i" ] && continue
+		Fexec rm -f $i
+	done
+	fi
+	# Copy firmware to destination.
+	for i in *; do
+		Fcprel $i /lib/firmware
+	done
+	# Assert permissions are correct.
+	Fdirschmod /lib/firmware 0755
+	Ffileschmod /lib/firmware 0644
+}

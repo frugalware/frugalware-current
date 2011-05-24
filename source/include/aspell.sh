@@ -13,7 +13,7 @@
 # == EXAMPLE
 # --------------------------------------------------
 # # Compiling Time:  SBU
-# # Maintainer: VMiklos <vmiklos@frugalware.org>
+# # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 #
 # _F_aspell_lang=de
 # pkgver=20030222r1

@@ -36,15 +36,18 @@
 # * up2date
 # * source()
 # * archs()
+# * _F_cd_path
 ###
-url="http://www.netsurf-browser.org"
 if [ "$_F_netsurf_project" -eq 1 ]; then
-	url="$url/projects/$_F_netsurf_name"
+	url="http://www.netsurf-browser.org/projects/$_F_netsurf_name"
 	up2date="Flastarchive $url -src.tar.gz"
 	source=("${url/$_F_netsurf_name/releases/}/$_F_netsurf_name-$pkgver-src.tar.gz")
+	_F_cd_path="$_F_netsurf_name-$pkgver-src"
 else
+	url="http://www.netsurf-browser.org"	
 	up2date="Flastarchive $url/downloads/gtk -src.tar.gz"
 	source=("$url/downloads/releases/$_F_netsurf_name-$pkgver-src.tar.gz")
+	_F_cd_path="$_F_netsurf_name"
 fi
 archs=('i686' 'x86_64' 'ppc')
 
@@ -52,7 +55,6 @@ archs=('i686' 'x86_64' 'ppc')
 # == PROVIDED FUNCTIONS
 # * Fbuildnetsurfproject
 ###
-
 Fbuildnetsurf() {
 	if [ "$_F_netsurf_project" -eq 1 ]; then
 		Fsed "-O2" "$CFLAGS" build/makefiles/Makefile.gcc
@@ -66,7 +68,6 @@ Fbuildnetsurf() {
 ###
 # * build() just calls Fbuildnetsurf
 ###
-
 build() {
 	Fbuildnetsurf
 }

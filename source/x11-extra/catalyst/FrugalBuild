@@ -1,0 +1,97 @@
+# Compiling Time: 0 SBU
+# Maintainer: James Buren <ryuo@frugalware.org>
+
+pkgname=catalyst
+pkgver=11.5
+pkgrel=2
+pkgdesc="The proprietary driver for ATI graphics drivers."
+url="http://www.amd.com"
+depends=('xorg-server')
+groups=('x11-extra')
+archs=('i686' 'x86_64' '!ppc' '!arm')
+options=('nodocs' 'genscriptlet')
+up2date="lynx -dump http://support.amd.com/us/gpudownload/linux/Pages/radeon_linux.aspx | grep 'AMD Catalyst' | cut -d ' ' -f 6"
+source=(http://www2.ati.com/drivers/linux/ati-driver-installer-${pkgver/./-}-x86.x86_64.run $pkgname.install kernel-2.6.39.patch)
+conflicts=('libgl' 'libglx' 'xf86-video-ati' 'xf86-video-mach64' 'xf86-video-r128')
+provides=('libgl' 'libglx')
+install="$pkgname.install"
+Finclude kernel-module
+sha1sums=('e715d28bc0e3284b6e06d698fd7f7c547b625707' \
+          'f456cd0404a84dc68d15a3756a130f8de467264f' \
+          'c0705b059bf76a3aaa813c2f4328e5d93ea2d9a5')
+
+build()
+{
+	# Run the script to extract the contents.
+	Fexec sh ati-driver-installer-${pkgver/./-}-x86.x86_64.run --extract $pkgname
+
+	Fexec patch -d $pkgname -Np1 -i ../kernel-2.6.39.patch
+
+	# Let's compile the fglrx kernel module and install it.
+	Fexec cd $pkgname/common/lib/modules/fglrx/build_mod
+	if [ $CARCH = i686 ]; then
+		Fexec ln -sf $Fsrcdir/$pkgname/arch/x86/lib/modules/fglrx/build_mod/libfglrx_ip.a
+	elif [ $CARCH = x86_64 ]; then
+		Fexec ln -sf $Fsrcdir/$pkgname/arch/x86_64/lib/modules/fglrx/build_mod/libfglrx_ip.a
+	fi
+	uname_r=$_F_kernelmod_uname
+	uname_a=`uname -a | sed "s|2\.6\.[0-9]\+-fw[0-9]\+|$_F_kernelmod_uname|"`
+	Fexec ./make.sh --norootcheck --uname_r $uname_r --uname_a "${uname_a[@]}"
+	Ffilerel /lib/modules/$_F_kernelmod_uname/video/fglrx.ko
+	Fexec cd $Fsrcdir/$pkgname
+
+	# Let's install the xorg driver.
+	Fmkdir /usr/lib/xorg
+	if [ $CARCH = i686 ]; then
+		_lib=lib
+		Fcprel xpic/usr/X11R6/$_lib/modules /usr/lib/xorg
+	elif [ $CARCH = x86_64 ]; then
+		_lib=lib64
+		Fcprel xpic_64a/usr/X11R6/$_lib/modules /usr/lib/xorg
+	fi
+	Fln fglrx/fglrx-libglx.so /usr/lib/xorg/modules/extensions/libglx.so
+
+	# Let's install the userspace libraries and binaries.
+	if [ $CARCH = i686 ]; then
+		Fexec cd arch/x86
+	elif [ $CARCH = x86_64 ]; then
+		Fexec cd arch/x86_64
+	fi
+	Fcprel usr/X11R6/bin /usr
+	Fcprel usr/sbin /usr
+	for i in usr/{X11R6,}/$_lib/*; do
+		Fcprel $i /usr/lib
+	done
+	Fmv /usr/lib/modules/dri /usr/lib/xorg/modules
+	Frm /usr/lib/modules
+	Fln ../xorg/modules/dri/fglrx_dri.so /usr/lib/dri/fglrx_dri.so
+	for i in libGL.so{,.1,.1.2} fglrx-libGL.so.1.2; do
+		Fln fglrx/fglrx-libGL.so.1.2 /usr/lib/$i
+	done
+	Fln fglrx-libGL.so.1.2 /usr/lib/fglrx/libGL.so.1.2
+	for i in $Fdestdir/usr/lib/*.so.1.0; do
+		j=`basename $i`
+		Fln $j /usr/lib/${j/.1.0/.1}
+		Fln $j /usr/lib/${j/.1.0/}
+	done
+	Fexec cd ../..
+
+	# Install the remainder.
+	Fcprel common/etc /
+	Fcprel common/usr/sbin /usr
+	Fcprel common/usr/share /usr
+	Fcprel common/usr/include /usr
+	Fcprel common/usr/src /usr
+	Fcprel common/usr/X11R6/bin /usr
+
+	# Now set permissions.
+	Ffileschown / root root
+	Fdirschown / root root
+	Fdirschmod / 0755
+	Ffileschmod / 0644
+	Ffileschmod /usr/sbin 0755
+	Ffileschmod /usr/bin 0755
+	Ffileschmod /usr/lib 0755
+
+	Fexec sed -i "s/UNAME/$_F_kernelmod_uname/" $Fsrcdir/catalyst.install
+}

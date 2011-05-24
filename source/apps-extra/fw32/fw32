@@ -1,0 +1,106 @@
+#!/bin/bash
+
+FW32_ROOT="/usr/lib/fw32"
+FW32_CONFIG="/etc/fw32/pacman-g2.conf"
+
+error()
+{
+	echo $1
+	exit 1
+}
+
+check_access()
+{
+	[ $UID -ne 0 ] && error "You must be root to perform this action."
+}
+
+mount_base()
+{
+	grep -q -E "$FW32_ROOT/(tmp|proc|sys|dev)" /proc/mounts
+	[ $? -eq 0 ] && return
+	mount --bind /dev $FW32_ROOT/dev
+	[ $? -ne 0 ] && error "Failed to mount fw32 root directories."
+	mount --bind /tmp $FW32_ROOT/tmp
+	[ $? -ne 0 ] && error "Failed to mount fw32 root directories."
+	mount -t proc none $FW32_ROOT/proc
+	[ $? -ne 0 ] && error "Failed to mount fw32 root directories."
+	mount -t sysfs none $FW32_ROOT/sys
+	[ $? -ne 0 ] && error "Failed to mount fw32 root directories."
+}
+
+mount_home()
+{
+	grep -q -E "$FW32_ROOT$HOME" /proc/mounts
+	[ $? -eq 0 ] && return
+	sudo mkdir -p $FW32_ROOT$HOME
+	[ $? -ne 0 ] && error "Failed to create fw32 user home directory."
+	sudo mount --bind $HOME $FW32_ROOT$HOME
+	[ $? -ne 0 ] && error "Failed to mount fw32 user home directory."
+}
+
+check_root()
+{
+	check_access
+	[ ! -d $FW32_ROOT ] && error "fw32 root directory does not exist."
+	mount_base
+}
+
+pacman()
+{
+	linux32 pacman-g2 --root $FW32_ROOT --config $FW32_CONFIG --noconfirm $@
+	return $?
+}
+
+case $0 in
+	*fw32-create)
+		check_access
+		[ -d $FW32_ROOT ] && error "Root directory appears to already exist."
+		mkdir -p $FW32_ROOT/{dev,tmp,proc,sys}
+		[ $? -ne 0 ] && error "Failed to create fw32 root directories."
+		mount_base
+		pacman-g2 -Sy shadow coreutils findutils which wget file tar gzip bzip2 util-linux procps kbd psmisc less
+		[ $? -ne 0 ] && error "Failed to create fw32 root."
+		;;
+	*fw32-update)
+		check_root
+		cp -r -f -p -P /etc $FW32_ROOT
+		pacman-g2 -Syuf
+		[ $? -ne 0 ] && error "Failed to update fw32 root."
+		;;
+	*fw32-install)
+		check_root
+		pacman-g2 -Syf $@
+		[ $? -ne 0 ] && error "Failed to install any packages to fw32 root."
+		;;
+	*fw32-uninstall)
+		check_root
+		pacman-g2 -Rsc $@
+		[ $? -ne 0 ] && error "Failed to uninstall any packages from fw32 root."
+		;;
+	*fw32-clean)
+		check_root
+		pacman-g2 -Sc
+		[ $? -ne 0 ] && error "Failed to clean fw32 root directory."
+		;;
+	*fw32-delete)
+		check_root
+		for i in $(grep -o -E "$FW32_ROOT/[a-zA-Z0-9_/]+" /proc/mounts); do
+			umount $i
+			[ $? -ne 0 ] && error "Failed to delete fw32 root directory."
+		done
+		rm -rf $FW32_ROOT
+		[ $? -ne 0 ] && error "Failed to delete fw32 root directory."
+		;;
+	*fw32-mount)
+		check_root
+		;;
+	*fw32-umount)
+		check_root
+		for i in $(grep -o -E "$FW32_ROOT/[a-zA-Z0-9_/]+" /proc/mounts); do
+			umount $i
+			[ $? -ne 0 ] && error "Failed to umount fw32 root directories."
+		done
+		;;
+esac
+
+exit 0

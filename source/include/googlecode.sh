@@ -34,6 +34,9 @@
 # * _F_googlecode_dirname (defaults to $_F_googlecode_name): if the
 # source tarball uses a name different to the googlecode name, then use
 # this option to declare the project name
+# * _F_googlecode_pkgver (defaults to $pkgver): Some packages are called foo-1.2.3
+# but the source is called different from $pkgver, e.g: foo-123 or vfoo_1_2_3, in such
+# a case _F_googlecode_pkgver may help to avoid custom $source
 # * _F_googlecode_ext (defaults to .tar.gz): extension of the source tarball
 # * _F_googlecode_sep ( defaults to - ): used for source() only right now. As example
 # for an "baz_1.2.3.tar.gz" tarball you should use _F_googlecode_sep="_" , for empty
@@ -46,6 +49,10 @@ fi
 
 if [ -z "$_F_googlecode_dirname" ]; then
 	_F_googlecode_dirname="$_F_googlecode_name"
+fi
+
+if [ -z "$_F_googlecode_pkgver" ]; then
+        _F_googlecode_pkgver=${pkgver//_/-}
 fi
 
 if [ -z "$_F_googlecode_ext" ]; then
@@ -69,4 +76,4 @@ url="http://code.google.com/p/$_F_googlecode_dirname"
 _F_archive_name="$_F_googlecode_name"
 Fpkgversep="$_F_googlecode_sep"
 up2date="Flastarchive http://code.google.com/p/$_F_googlecode_dirname/downloads/list $_F_googlecode_ext"
-source=(http://${_F_googlecode_dirname}.googlecode.com/files/${_F_googlecode_name}${_F_googlecode_sep}${pkgver//_/-}${_F_googlecode_ext})
+source=(http://${_F_googlecode_dirname}.googlecode.com/files/${_F_googlecode_name}${_F_googlecode_sep}${_F_googlecode_pkgver}${_F_googlecode_ext})

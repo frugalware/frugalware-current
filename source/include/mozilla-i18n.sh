@@ -37,13 +37,11 @@ fi
 ###
 # == OVERWRITTEN VARIABLES
 # * pkgname (if not set, defaults to $_F_mozilla_i18n_name-i18n)
+# * archs()
+# * groups()
+# * options()
 # * up2date
 # * url
-# * options()
-# * depends()
-# * makedepends()
-# * groups()
-# * archs()
 ###
 if [ -z "$pkgname" ]; then
 	pkgname="$_F_mozilla_i18n_name-i18n"
@@ -51,20 +49,26 @@ fi
 if [ -z "$pkdesc" ]; then
 	pkgdesc="Language support for ${_F_mozilla_i18n_name^}"
 fi
+archs=('i686' 'x86_64' 'ppc')
+groups=('locale-extra')
+options=("${options[@]}" 'noversrc')
 up2date="eval \"_F_archive_name=$_F_mozilla_i18n_name; Flastarchive $_F_mozilla_i18n_mirror/$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/latest/source '\.source\.tar\.bz2'\""
 url="http://www.mozilla.org/projects/l10n/mlp.html"
-options=('noversrc')
-rodepends=("$_F_mozilla_i18n_name>=$pkgver" "${subpackage[@]}")
-makedepends=('unzip')
-groups=('locale-extra')
-archs=('i686' 'x86_64' 'ppc')
+
+Finclude xpi
+
+###
+# == OVERWRITTEN VARIABLES
+# * depends()
+###
+rodepends=("${subpackage[@]}" "$_F_mozilla_i18n_name>=$pkgver")
 
 ###
 # == PROVIDED FUNCTIONS
 ###
 mozilla_i18n_foreach_lang() {
 	local lang
-	for lang in `ls *.xpi 2>/dev/null | sed s/\.xpi// | sort`; do
+	for lang in "${_F_mozilla_i18n_langs[@]}"; do
 		$1 $lang
 	done
 }
@@ -73,6 +77,7 @@ mozilla_i18n_foreach_lang() {
 # * mozilla_i18n_lang_add()
 ###
 mozilla_i18n_lang_add() {
+	_F_mozilla_i18n_langs=("${_F_mozilla_i18n_langs[@]}" "$1")
 	source=("${source[@]}" "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_xpidirname/$1.xpi")
 	subpkgs=("${subpkgs[@]}" "$_F_mozilla_i18n_name-${1,,}")
 	subdescs=("${subdescs[@]}" "`i18n_language_from_locale "$1"` language support for ${_F_mozilla_i18n_name^}") # Requires a locale to name function.
@@ -91,13 +96,12 @@ mozilla_i18n_lang_fini() {
 
 mozilla_i18n_lang_install()
 {
-	#unzip -qqo $1.xpi
-	#sed -i 's|chrome/||' chrome.manifest
-	#Ffilerel chrome.manifest /usr/lib/$_F_mozilla_i18n_name/chrome/$1.manifest
-	Fmkdir /usr/lib/firefox/extensions/
-	Ffilerel $1.xpi /usr/lib/$_F_mozilla_i18n_name/extensions/langpack-$1@firefox.mozilla.org.xpi
-	#Fdirschmod  /usr/lib/$_F_mozilla_i18n_name/extensions/ 755
-	Ffileschmod /usr/lib/$_F_mozilla_i18n_name/extensions/langpack-$1@firefox.mozilla.org.xpi 644
+	if [ -z "$_F_xpi_product" ]; then
+		_F_xpi_product="$_F_mozilla_i18n_name"
+	fi
+
+	Fxpi_installxpi "$Fsrcdir/$1.xpi"
+	Fxpi_installfixes
 	Fsplit $_F_mozilla_i18n_name-${1,,} /usr/lib/$_F_mozilla_i18n_name/extensions/
 }
 

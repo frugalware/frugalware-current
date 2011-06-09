@@ -9,6 +9,7 @@
 #
 # == SYNOPSIS
 # Common schema for gnome-shell-extensions packages.
+###
 
 ###
 # == PROVIDED FUNCTIONS

@@ -9,40 +9,32 @@ url="http://www.mozilla.org/projects/seamonkey/"
 depends=('libstdc++' 'gtk+2>=2.20.0-2' 'libxau>=1.0.4' 'libxdmcp' 'libxdamage' 'libxml2' 'libidl' 'libxt' 'libice' 'nss>=3.12.9' 'libxft' 'dbus-glib' 'alsa-lib' \
         'libnotify')
 makedepends=('zip' 'yasm' 'wireless_tools')
-options=('scriptlet')
+_F_gnome_desktop="y"
+_F_gnome_iconcache="y"
+Finclude gnome-scriptlet
 groups=('xapps-extra')
 archs=('i686' 'x86_64' 'ppc')
 up2date="lynx -dump $url |grep SeaMonkey -m4 |sed -ne 's/.*Monkey \(.*\)/\1/;$ p'"
 source=(http://releases.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/source/$pkgname-$pkgver.source.tar.bz2 \
-	config $pkgname.desktop)
+	config $pkgname.desktop \
+        seamonkey-appversion.patch \
+        seamonkey-2.0-lang.patch)
 
 build()
 {
 	unset MAKEFLAGS
 	Fcd comm-2.0
 	Fsed "png_voidp_NULL" "NULL" mozilla/modules/libpr0n/encoders/png/nsPNGEncoder.cpp
-	export CFLAGS="$CFLAGS -fno-strict-aliasing"
-	export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing"
+        export CXXFLAGS="-fpermissive"
+        export LDFLAGS="-Wl,-rpath,/usr/lib/seamonkey-2.1"
 	sed "s/-march=i686 -O2 -pipe/$CFLAGS/" $startdir/src/config > .mozconfig
 	Fpatchall
 
-	make -f client.mk build || Fdie
-	make || Fdie
-
-	Fmkdir /usr
-	Fmakeinstall
-
-	# Get rid of versions in path names.
-	Fmv /usr/lib/$pkgname-$pkgver /usr/lib/$pkgname
-	Fln $pkgname /usr/lib/$pkgname-$pkgver
-
-	# Plugins.
-	Fmv /usr/lib/$pkgname/plugins /usr/lib/$pkgname/plugins.orig
-	Fln ../mozilla/plugins/ /usr/lib/$pkgname/plugins
+	make -j1 -f client.mk build MOZ_MAKE_FLAGS="${MAKEFLAGS}" || Fdie
+	make -j1 -f client.mk DESTDIR="$Fdestdir" install || Fdie
 
 	# Install icon for the menu file.
-	Fmkdir /usr/share/pixmaps/
-	Ffile comm-1.9.1/suite/branding/icons/gtk/$pkgname.png /usr/share/pixmaps/$pkgname.png
+	Ficonrel suite/branding/nightly/icons/gtk/seamonkey.png
 
 	# Install menu file.
 	Ffile /usr/share/applications/$pkgname.desktop
@@ -50,9 +42,21 @@ build()
 	#broken link
 	Frm usr/bin/seamonkey
 	Fwrapper '/usr/lib/seamonkey/seamonkey $@' $pkgname
+
+	Fbuild_gnome_scriptlet
+
+        #Remove included dictionaries, add symlink to system myspell path.
+        #Note: this will cause file conflicts when users have installed
+        dictionaries in the old location
+        Frm usr/lib/seamonkey-2.1/dictionaries
+        Fln /usr/share/myspell/dicts usr/lib/seamonkey-$pkgver/dictionaries
+
+        Frm usr/lib/pkgconfig/seamonkey-ns{s,pr}.pc
 }
 sha1sums=('8d48aaf5ff3a5e88bf8c93b8414776a085f370d5' \
-          '1864fa4117650bb9a576664943aaf4ab56b7d248' \
-          'b0e0bdd676758e19cac4a0429257a92183328f0e')
+          '6ee0fac73c28d6e5b3e5b556d75ca4e3f78fa321' \
+          'cdac1339b9ad74fe53a0d18dae5c5d75c2a2e053' \
+          '25df3708d0be95a3e601ddb2270b2c87d8df01ed' \
+          '84cc67671e9fa4dc660590eed21be54a2af06720')
 
 # optimization OK

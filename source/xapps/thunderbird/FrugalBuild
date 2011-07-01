@@ -9,7 +9,7 @@ pkgdesc="Mozilla Thunderbird mail and newsgroup client"
 url="http://www.mozilla.org/products/thunderbird/"
 depends=('alsa-lib' 'curl' 'cairo>=1.8.10-2' 'dbus-glib' 'gtk+2>=2.20.0-2' 'libpng>=1.4.1' 'nss>=3.12.7' \
 	'nspr>=4.8.7' 'pango>=1.28.0-2' 'wireless_tools' 'libstdc++' 'libxt>=1.0.5' 'libidl' 'sqlite3>=3.6.23.1' 'libnotify')
-makedepends=('zip')
+makedepends=('zip' 'yasm')
 groups=('xapps')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('scriptlet')
@@ -17,8 +17,8 @@ up2date="Flastarchive http://releases.mozilla.org/pub/mozilla.org/thunderbird/re
 source=(http://releases.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/source/$pkgname-$pkgver.source.tar.bz2 \
 	$pkgname.desktop \
 	thunderbird-locale.patch \
-	thunderbird-shared-error.patch \
-	libpng14.patch)
+	thunderbird-appversion.patch \
+	mozconfig)
 signatures=("${source[0]}.asc" '' '' '' '')
 
 build()
@@ -26,66 +26,20 @@ build()
 	unset MAKEFLAGS
 	Fcd comm-miramar
 
+        cp "$Fsrcdir/mozconfig" .mozconfig || Fdie
+
 	## and again > -Os broken weird .. use -O2 here *again*
-	export CFLAGS="${CFLAGS[@]/-Os/-O2}"
-	export CXXFLAGS="${CXXFLAGS[@]/-Os/-O2}"
+        export CXXFLAGS="-fpermissive"
+        export LDFLAGS="-Wl,-rpath,/usr/lib/thunderbird-5.0 -Wl,-O1,--sort-common,--hash-style=gnu,--as-needed"
 
 	export MOZILLA_OFFICIAL=1
 	export BUILD_OFFICIAL=1
 
 	Fpatchall
 
-	 ## ac_cv_visibility_pragma=no Fmake \
-		Fmake \
-		--disable-accessibility \
-		--disable-activex \
-		--disable-activex-scripting \
-		--disable-calendar \
-		--disable-debug \
-		--disable-dtd-debug \
-		--disable-installer \
-		--disable-libxul \
-		--disable-javaxpcom \
-		--disable-jsd \
-		--disable-logging \
-		--disable-optimize \
-		--disable-pedantic \
-		--disable-profilesharing \
-		--disable-static \
-		--disable-tests \
-		--disable-toolkit-gtk \
-		--disable-toolkit-qt \
-		--disable-toolkit-xlib \
-		--disable-xinerama \
-		--disable-xprint \
-		--enable-application=mail \
-		--enable-canvas \
-		--enable-crypto \
-		--enable-default-toolkit=cairo-gtk2 \
-		--enable-image-decoders=all \
-		--enable-image-encoders=all \
-		--enable-ipv6 \
-		--enable-necko-protocols=all \
-		--enable-pango \
-		--enable-reorder \
-		--enable-svg \
-		--enable-system-cairo \
-		--enable-system-sqlite \
-		--enable-xft \
-		--enable-xsl \
-		--with-distribution-id=Frugalware \
-		--with-pthreads \
-		--with-system-bz2 \
-		--with-system-jpeg \
-		--with-system-mng \
-		--with-system-nspr \
-		--with-system-nss \
-		--with-system-png \
-		--with-system-zlib
+	make -j1 -f client.mk build MOZ_MAKE_FLAGS="$MAKEFLAGS" || Fdie
 
-
-	# Does not use Fmakeinstall here because DESDIR is not found in root Makefile
-	Fexec make DESTDIR="$Fdestdir" install || Fdie
+        make -j1 -f client.mk DESTDIR="$Fdestdir" install || Fdie
 
 	# Get rid of versions in path names and files.
 	Fmv /usr/lib/$pkgname-$pkgver /usr/lib/$pkgname
@@ -102,6 +56,12 @@ build()
 
 	# Install menu file.
 	Ffile /usr/share/applications/$pkgname.desktop
+
+	Frm usr/lib/thunderbird-5.0/dictionaries
+        Fln /usr/share/myspell/dicts usr/lib/thunderbird-5.0/dictionaries
+
+        # We don't want the development stuff
+        Frm /usr/{include,lib/thunderbird-devel-$pkgver,share/idl}
 }
 
 # optimization OK

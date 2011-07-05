@@ -28,12 +28,14 @@
 # == OPTIONS
 # * _F_github_name: name of the project on Github.
 # * _F_github_ver: name of the tag of the wanted version on Github.
+# * _F_github_ext: file extension used for this Github archive.
 # * _F_github_author: owner of the repository and of the project on which
 #   to get the software.
 #
+# == APPENDED VARIABLES
+# * source()
 # == OVERWRITTEN VARIABLES
 # * up2date
-#
 ###
 
 if [ -z "$_F_github_name" ]; then
@@ -48,6 +50,10 @@ if [ -z "$_F_github_author" ]; then
 	_F_github_author=$_F_github_name
 fi
 
+if [ -z "$_F_github_ext" ] ; then
+	_F_github_ext=.tar.gz
+fi
+
 if [ -z "$url" ]; then
 	url=http://github.com/$_F_github_author/$_F_github_name
 fi
@@ -58,7 +64,7 @@ if [ "$_F_github_devel" = "yes" ]; then
 	_F_scm_url=git://github.com/$_F_github_author/$_F_github_name
 	Finclude scm
 else
-	up2date="Fwcat https://github.com/$_F_github_author/$_F_github_name/downloads | grep TAR\\\.GZ | head -n 1 | sed -e 's|\">.*||;s|.*/||'"
+	up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_name/downloads $_F_github_ext"
 	# On one line for Mr Portability, Hermier Portability.
-	source=(${source[@]} http://github.com/downloads/$_F_github_author/$_F_github_name/$_F_github_name-$_F_github_ver.tar.gz)
+	source=(${source[@]} http://github.com/downloads/$_F_github_author/$_F_github_name/$_F_github_name-$_F_github_ver$_F_github_ext)
 fi

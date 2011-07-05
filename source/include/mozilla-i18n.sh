@@ -59,7 +59,7 @@ Finclude xpi
 
 ###
 # == OVERWRITTEN VARIABLES
-# * depends()
+# * rodepends()
 ###
 rodepends=("${subpackage[@]}" "$_F_mozilla_i18n_name>=$pkgver")
 
@@ -85,6 +85,7 @@ mozilla_i18n_lang_add() {
 	subgroups=("${subgroups[@]}" "${groups[*]}")
 	subarchs=("${subarchs[@]}" "${archs[*]}")
 	sha1sums=("${sha1sums[@]}" "$2")
+	suboptions=("${suboptions[@]}" 'nostrip')
 }
 
 ###

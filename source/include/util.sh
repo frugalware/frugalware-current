@@ -962,7 +962,8 @@ Fbuild() {
 # * Frcd(): Create an rc.d environment. Parameter: name of the rc script,
 # defaults to $pkgname.
 #
-# NOTE: this function is obsolete, use Frcd2 instead.
+# NOTE: this function is obsolete, work with upstream to provide system
+# units out of the box.
 ###
 Frcd() {
 	if [ "$#" -eq 1 ]; then
@@ -981,6 +982,9 @@ Frcd() {
 ###
 # * Frcd2(): Create the new rc.d environment. Paramter: name of the rc script,
 # defaults to $pkgname.
+#
+# NOTE: this function is obsolete, work with upstream to provide system
+# units out of the box.
 ###
 Frcd2() {
 	local po rc slang

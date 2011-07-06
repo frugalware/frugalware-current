@@ -54,7 +54,7 @@ modules_enabled = {
 		"register"; -- Allow users to register on this server using a client and change passwords
 
 	-- Other specific functionality
-		"posix"; -- (! DO NOT COMMENT THIS LINE !) POSIX functionality, sends server to background, enables syslog, etc.
+		--"posix"; -- POSIX functionality, sends server to background, enables syslog, etc.
 		--"console"; -- Opens admin telnet interface on localhost port 5582
 		--"bosh"; -- Enable BOSH clients, aka "Jabber over HTTP"
 		--"httpserver"; -- Serve static files from a directory over HTTP

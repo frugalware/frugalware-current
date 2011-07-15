@@ -60,7 +60,7 @@ if [ -z "$url" ]; then
 	url="http://phonon.kde.org"
 fi
 
-groups=('xmultimedia-extra' 'phonon-backend')
+groups=("${groups[@]}" 'phonon-backend')
 depends=("${depends[@]}" "phonon>=$_F_phonon_ver")
 
 if [ -z "$url" ]; then

@@ -59,21 +59,13 @@ if Fuse $USE_DEVEL; then
 	_F_kernel_dontfakeversion=1
 fi
 
-if [ -z "$pkgver" ]; then
-	pkgver=$_F_kernelver_ver
-fi
-
-if [ -z "$pkgrel" ]; then
-	pkgrel=$_F_kernelver_rel
-	_F_kernel_stable=$_F_kernelver_stable
-fi
-
 if [ -z "$_F_kernel_ver" ]; then
-	_F_kernel_ver=$pkgver
+	_F_kernel_ver=$_F_kernelver_ver
 fi
 
 if [ -z "$_F_kernel_rel" ]; then
-	_F_kernel_rel=$pkgrel
+	_F_kernel_rel=$_F_kernelver_rel
+	_F_kernel_stable=$_F_kernelver_stable
 fi
 
 if [ -z "$_F_kernel_stable" ]; then
@@ -88,14 +80,28 @@ if [ -z "$_F_kernel_uname" ]; then
 fi
 
 if [ -z "$_F_kernel_path" ]; then
-	if [ "$CARCH" != "ppc" ]; then
-		_F_kernel_path=vmlinuz
-	else
-		_F_kernel_path=vmlinux
-	fi
+	case "$CARCH" in
+	"ppc")	_F_kernel_path=vmlinuz;;
+	*)	_F_kernel_path=vmlinux;;
+	esac
 fi
-[ "$CARCH" = "ppc" ] && export LDFLAGS="${LDFLAGS/-Wl,/}"
-[ "$CARCH"  = "arm" ] && export LDFLAGS="${LDFLAGS/-Wl,/}"
+
+if [ -z "$pkgver" ]; then
+	pkgver=$_F_kernel_ver
+fi
+
+if [ -z "$pkgrel" ]; then
+	pkgrel=$_F_kernel_rel
+fi
+
+if [ -z "$_F_archive_name" ]; then
+	_F_archive_name=linux
+fi
+
+case "$CARCH" in
+	"arm"|"ppc") export LDFLAGS="${LDFLAGS/-Wl,/}";;
+esac
+
 ###
 # * pkgname
 # * pkgdesc
@@ -199,12 +205,12 @@ fi
 Fbuildkernel()
 {
 	if Fuse $USE_DEVEL; then
-		[ -d linux-$_F_kernel_ver ] && mv linux-$_F_kernel_ver kernel
+		[ -d $_F_archive_name-$pkgver ] && mv $_F_archive_name-$pkgver kernel
 		Funpack_scm
 		cd ..
-		mv kernel linux-$_F_kernel_ver
+		mv kernel $_F_archive_name-$pkgver
 	fi
-	Fcd linux-$_F_kernel_ver
+	Fcd
 	make clean || Fdie
 	if [ -e "$Fsrcdir/config.$CARCH" ]; then
 		cp $Fsrcdir/config.$CARCH .config || Fdie
@@ -219,7 +225,7 @@ Fbuildkernel()
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	# not using Fpatchall here since not applying the patches from
 	# _F_kernel_patches() having the wrong extension would be stange :)
-	for i in ${_F_kernel_patches[@]}
+	for i in "${_F_kernel_patches[@]}"
 	do
 		Fpatch `strip_url $i`
 	done

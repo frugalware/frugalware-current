@@ -135,36 +135,44 @@ fi
 url="http://www.kernel.org"
 rodepends=('module-init-tools' 'sed')
 if [ -z "$_F_kernel_name" ]; then
-	makedepends=('unifdef')
+	makedepends=("${makedepends[@]}" 'unifdef')
 fi
 if [ "$CARCH" = "arm" -o "$CARCH" = "ppc" ]; then
-	makedepends=(${makedepends[@]} 'u-boot-tools')
+	makedepends=("${makedepends[@]}" 'u-boot-tools')
+fi
+if Fuse DRACUT; then
+	makedepends=("${makedepends[@]}" 'dracut')
 fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('nodocs' 'genscriptlet')
 up2date="lynx -dump $url/kdist/finger_banner |grep stable|sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
-source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 \
-	config.i686 config.x86_64 config.ppc config.arm)
 # this can be removed after Frualware 1.5 is out
 replaces=('redirfs' 'dazuko')
-signatures=("${source[0]}.sign" '' '' '' '')
 install="src/kernel.install"
 
-[ "$_F_kernel_stable" -gt 0 ] && \
-	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$_F_kernel_ver.$_F_kernel_stable.bz2) && \
-	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
+if ! Fuse DEVEL; then
+	source=("ftp://ftp.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.bz2")
+	signatures=("${source[0]}.sign")
 
-if Fuse $USE_DEVEL; then
-	source=(config.i686 config.x86_64 config.ppc config.arm)
-	signatures=('' '' '' '')
-	_F_scm_tag="v$pkgver"
+	if [ "$_F_kernel_stable" -gt 0 ]; then
+		source=("${source[@]}" \
+			"ftp://ftp.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.bz2")
+		signatures=("${signatures[@]}" "${source[$((${#source[@]}-1))]}.sign")
+	fi
+else
+	if [ -z "$_F_scm_tag" ]; then
+		_F_scm_tag="v$pkgver"
+	fi
 	Finclude scm
 fi
 
-for i in ${_F_kernel_patches[@]}
+source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.ppc' 'config.arm')
+signatures=("${signatures[@]}" '' '' '' '')
+
+for i in "${_F_kernel_patches[@]}"
 do
-	source=(${source[@]} $i)
+	source=("${source[@]}" "$i")
 	signatures=("${signatures[@]}" '')
 done
 

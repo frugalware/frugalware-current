@@ -42,6 +42,9 @@ fi
 if [ -z "$_F_lxde_sep" ]; then
 	_F_lxde_sep="-"
 fi
+if [ -z "$_Fuse_Sourceforge" ]; then
+	_Fuse_Sourceforge="n"
+fi
 
 ###
 # == OVERWRITTEN VARIABLES
@@ -51,9 +54,15 @@ fi
 ###
 
 _F_sourceforge_dirname="lxde"
+_F_sourceforge_name=$_F_lxde_name
+_F_sourceforge_sep=$_F_lxde_sep
+
 Finclude sourceforge
 url="http://lxde.org/"
-up2date="lynx -dump http://sourceforge.net/projects/lxde/files/$_F_lxde_dir/ | grep 'http.*lxde/.*$_F_lxde_dir/.*/$' |sed 's|.*/\(.*\)/|\1|;q' | sed 's|${_F_lxde_name}${_F_lxde_sep}||'"
+
+ if [[ "$_Fuse_Sourceforge" == "n" ]] ; then
+	up2date="lynx -dump http://sourceforge.net/projects/lxde/files/$_F_lxde_dir/ | grep 'http.*lxde/.*$_F_lxde_dir/.*/$' |sed 's|.*/\(.*\)/|\1|;q' | sed 's|${_F_lxde_name}${_F_lxde_sep}||'"
+fi
 
 ###
 # == APPENDED VARIABLES

@@ -45,7 +45,9 @@ fi
 if [ -z "$_Fuse_Sourceforge" ]; then
 	_Fuse_Sourceforge="n"
 fi
-
+if [ -z "$_Fuse_gtk3" ]; then
+	Fconfopts="${Fconfopts[@]} --enable-gtk3"
+fi
 ###
 # == OVERWRITTEN VARIABLES
 # * up2date
@@ -54,13 +56,15 @@ fi
 ###
 
 _F_sourceforge_dirname="lxde"
-_F_sourceforge_name=$_F_lxde_name
-_F_sourceforge_sep=$_F_lxde_sep
+if [[ "$_Fuse_Sourceforge" == "y" ]] ; then
+	_F_sourceforge_name=$_F_lxde_name
+	_F_sourceforge_sep=$_F_lxde_sep
+fi
 
 Finclude sourceforge
 url="http://lxde.org/"
 
- if [[ "$_Fuse_Sourceforge" == "n" ]] ; then
+if [[ "$_Fuse_Sourceforge" == "n" ]] ; then
 	up2date="lynx -dump http://sourceforge.net/projects/lxde/files/$_F_lxde_dir/ | grep 'http.*lxde/.*$_F_lxde_dir/.*/$' |sed 's|.*/\(.*\)/|\1|;q' | sed 's|${_F_lxde_name}${_F_lxde_sep}||'"
 fi
 

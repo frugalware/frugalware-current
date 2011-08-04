@@ -298,6 +298,9 @@ __KDE_split_pkg() # internal and should be extended to handle all kind paths
 	elif [ -d "lib/$pkgdir" ]; then
 		Fmessage "Found Kde-Project "$pkgdir"$extinfo in lib/ dir.. Splitting."
 		KDE_project_split "$i" "lib/$pkgdir"
+	elif [ -d "experimental/$pkgdir" ]; then
+		Fmessage "Found Kde-Project "$pkgdir"$extinfo in experimental/ dir.. Splitting."
+		KDE_project_split "$i" "experimental/$pkgdir"
 	else ## TODO: Add apps/*/<something> checks , maybe more paths ?
 		return 1
 	fi

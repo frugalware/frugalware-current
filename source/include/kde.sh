@@ -1,6 +1,6 @@
 #!/bin/sh
 
-Finclude cmake
+Finclude cmake kde-version
 
 ###
 # = kde.sh(3)
@@ -39,11 +39,11 @@ Finclude cmake
 ###
 
 if [ -z "$_F_kde_ver" ]; then
-	_F_kde_ver=4.7.0
+	_F_kde_ver="$_F_kdever_ver"
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
-	_F_kde_qtver=4.7.3
+	_F_kde_qtver="$_F_kdever_qt"
 fi
 
 if [ -z "$_F_kde_name" ]; then
@@ -91,6 +91,7 @@ fi
 # * url (if not set)
 # * up2date (if not set)
 # * source (if empty)
+# * sha1sums (if sources is empty)
 # * _F_cd_path (if not set)
 # * makedepends (if not set)
 ###
@@ -114,6 +115,9 @@ if [ "$_F_kde_defaults" -eq 1 ]; then
 
 	if [ ${#source[@]} -eq 0 ]; then
 		source=("$_F_kde_mirror/$_F_kde_dirname/$_F_kde_name-$_F_kde_pkgver.tar.bz2")
+		if [ -n "${_F_kdever_sha1sums["$_F_kde_name"]}" ]; then
+			sha1sums=("${_F_kdever_sha1sums["$_F_kde_name"]}")
+		fi
 	fi
 fi
 

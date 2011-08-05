@@ -20,7 +20,7 @@ FGnomeShellVersion()
 for i in `find $Fdestdir/usr/share/gnome-shell/extensions/ -name metadata.json`
 do
 	Fsed "shell-version\": \[" \
-		"shell-version\": \[ \"3.0\"," \
+		"shell-version\": \[ \"3.1\"," \
 		$i
 done
 }

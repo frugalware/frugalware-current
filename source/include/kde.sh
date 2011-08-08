@@ -211,7 +211,7 @@ KDE_path_install()
 # * KDE_project_install: Install a specific package. Parameters: 1) Name of the
 # project. 2) path of the project (optional).
 ###
-KDE_project_install()
+__KDE_project_install()
 {
 	local fail=1 path="${2:-$1}"
 	local -a paths
@@ -221,6 +221,7 @@ KDE_project_install()
 		"apps/lib/$path"
 		"experimental/$path"	# for kdebase-runtime
 		"filters/$path"		# for koffice
+		"interfaces/$path"	# for kdelibs
 		"lib/$path"
 		"libs/$path"
 	)
@@ -256,6 +257,33 @@ KDE_project_install()
 		done
 	fi
 	return $fail
+}
+
+KDE_project_install()
+{
+	## we use for weird or not logical names
+	## $pkgname-<the_weird_name>
+	local path="${2:-$1}"
+	local clean="$(eval "echo -n \"\${path/#$pkgname-/}"\")" # Remove front "$pkgname-"
+	if [ "$path" != "$clean" ] && \
+	   KDE_project_install "$1" "$clean"; then
+		return 0
+	fi
+
+	if __KDE_project_install "$1" "${path}"; then
+		return 0
+	fi
+	if __KDE_project_install "$1" "${path//-//}"; then # Transform "-" into "/"
+		return 0
+	fi
+
+	clean="${path/#lib/}" # Remove front "lib"
+	if [ "$path" != "$clean" ] && \
+	   KDE_project_install "$1" "$clean"; then
+		return 0
+	fi
+
+	return 1
 }
 
 ###
@@ -294,33 +322,6 @@ __kde_find_split_files()
 # subdirectory project. Example: "kdelibs-kioslave-ftp" would search for
 # kioslave/ftp project subdir.
 ###
-__KDE_split()
-{
-	## we use for weird or not logical names
-	## $pkgname-<the_weird_name>
-	local path="${2:-$1}"
-	local clean="$(eval "echo -n \"\${path/#$pkgname-/}"\")" # Remove front "$pkgname-"
-	if [ "$path" != "$clean" ] && \
-	   __KDE_split "$1" "$clean"; then
-		return 0
-	fi
-
-	if KDE_project_install "$1" "${path}"; then
-		return 0
-	fi
-	if KDE_project_install "$1" "${path//-//}"; then # Transform "-" into "/"
-		return 0
-	fi
-
-	clean="${path/#lib/}" # Remove front "lib"
-	if [ "$path" != "$clean" ] && \
-	   __KDE_split "$1" "$clean"; then
-		return 0
-	fi
-
-	return 1
-}
-
 KDE_split()
 {
 	local i
@@ -337,7 +338,7 @@ KDE_split()
 		esac
 
 		Fmessage "Splitting $i"
-		if __KDE_split "$i"; then
+		if KDE_project_install "$i"; then
 			KDE_cleanup
 			Fsplit "$i" /\*
 		else

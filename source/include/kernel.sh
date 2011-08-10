@@ -140,9 +140,9 @@ fi
 if [ "$CARCH" = "arm" -o "$CARCH" = "ppc" ]; then
 	makedepends=("${makedepends[@]}" 'u-boot-tools')
 fi
-if Fuse DRACUT; then
-	makedepends=("${makedepends[@]}" 'dracut')
-fi
+#if Fuse DRACUT; then
+#	makedepends=("${makedepends[@]}" 'dracut')
+#fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('nodocs' 'genscriptlet')

@@ -18,7 +18,7 @@
 pkgver=3.0
 _F_kernelver_ver=3.0.0
 _F_kernelver_rel=1
-_F_kernelver_stable=0
+_F_kernelver_stable=1
 
 ###
 # == APPENDED VALUES

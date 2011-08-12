@@ -84,8 +84,8 @@ fi
 
 if [ -z "$_F_kernel_path" ]; then
 	case "$CARCH" in
-	"ppc")	_F_kernel_path=vmlinuz;;
-	*)	_F_kernel_path=vmlinux;;
+	"ppc")	_F_kernel_path=vmlinux;;
+	*)	_F_kernel_path=vmlinuz;;
 	esac
 fi
 

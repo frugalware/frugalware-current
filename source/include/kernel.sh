@@ -1,5 +1,8 @@
 #!/bin/sh
 
+USE_DEVEL=${USE_DEVEL:-"n"}
+USE_DRACUT=${USE_DRACUT:-"n"}
+
 Finclude kernel-version
 
 ###
@@ -140,9 +143,9 @@ fi
 if [ "$CARCH" = "arm" -o "$CARCH" = "ppc" ]; then
 	makedepends=("${makedepends[@]}" 'u-boot-tools')
 fi
-#if Fuse DRACUT; then
-#	makedepends=("${makedepends[@]}" 'dracut')
-#fi
+if Fuse DRACUT; then
+	makedepends=("${makedepends[@]}" 'dracut')
+fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('nodocs' 'genscriptlet')
@@ -312,6 +315,15 @@ Fbuildkernel()
 	Ffilerel /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/Module.symvers
 	Frm /lib/modules/$_F_kernel_ver$_F_kernel_uname/build
 	Frm /lib/modules/$_F_kernel_ver$_F_kernel_uname/source
+
+	if Fuse DRACUT; then
+		Fexec /sbin/dracut \
+			$Fdestdir/boot/initramfs.img-$_F_kernel_ver$_F_kernel_uname \
+			--no-kernel \
+			--include $Fdestdir/lib/modules/ /lib/modules/ \
+			|| Fdie
+	fi
+
 	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname \
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/build
 	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname \

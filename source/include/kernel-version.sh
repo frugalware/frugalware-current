@@ -15,8 +15,7 @@
 # * _F_kernelver_rel: the kernel release
 # * _F_kernelver_stable: the number of the -stable patch to use (if any)
 ###
-pkgver=3.0
-_F_kernelver_ver=3.0.0
+_F_kernelver_ver=3.0
 _F_kernelver_rel=1
 _F_kernelver_stable=1
 

@@ -246,6 +246,10 @@ Fbuildkernel()
 	yes "" | make config
 
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
+		if [ "${_F_kernel_ver#*.*.}" = "$_F_kernel_ver" ]; then
+			# If patten match fails, sublevel version is missing
+			_F_kernel_ver="$_F_kernel_ver.0"
+		fi
 		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
 		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_uname" Makefile
 	else

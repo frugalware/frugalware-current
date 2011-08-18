@@ -2,28 +2,28 @@
 # Maintainer: Elentir <elentir@frugalware.org>
 
 pkgname=texlive
-pkgver=20100722
-pkgrel=4
+pkgver=20110705
+pkgrel=1
 pkgdesc="A complete TeX distribution"
 archs=('i686' 'x86_64' 'ppc')
 depends=('t1lib' 'gd' 'ncurses' 'poppler>=0.16.3' 'icu4c>=4.2')
-rodepends=('ghostscript')
+rodepends=('ghostscript' 'perl')
 makedepends=('clisp' 'ffcall')
 url='http://tug.org/texlive/'
-source=("ftp://tug.org/historic/systems/texlive/2010/$pkgname-$pkgver-source.tar.xz" \
-	"ftp://tug.org/historic/systems/texlive/2010/$pkgname-$pkgver-texmf.tar.xz" \
+source=("ftp://tug.org/historic/systems/texlive/2011/$pkgname-$pkgver-source.tar.xz" \
+	"ftp://tug.org/historic/systems/texlive/2011/$pkgname-$pkgver-texmf.tar.xz" \
 	fix-fontforge-encoding.patch \
 	texmf.cnf
 	09-texlive.conf)
-up2date="Flasttar ftp://tug.org/historic/systems/texlive/2010/ | sed 's/-source//' | sed 's/_texmf//' | sed 's/_extra//'"
+up2date="Flasttar ftp://tug.org/historic/systems/texlive/2011/ | sed 's/-source//' | sed 's/_texmf//' | sed 's/_extra//'"
 groups=('xapps-extra')
 conflicts=('tetex' 'tetex-kpathsea')
 provides=('tetex' 'tetex-kpathsea')
 replaces=('tetex' 'tetex-kpathsea')
-sha1sums=('c5573c0617f1a44235212277959f48fb76590542' \
-          'df6ba050970592f0f5f38cb9dd36d4d0d671fa80' \
+sha1sums=('7a47cfe847801c86c98da8ade181baf97339f6e4' \
+          'a01bb1ef0f68ffd80bab363e83aca032260e1b59' \
           '5301263529702ccfda0adb3706f461888dea22eb' \
-          '98806c7e48db2da9ac9092d1e729b3bf316408df' \
+          'a58c7445f5544da89c13681e21f3b578727eb641' \
           'bf7ba21d45bee78657105a5f2c5e7e24b8614859')
 _F_cd_path="$pkgname-$pkgver-source"
 Fconfopts="$Fconfopts \
@@ -93,7 +93,8 @@ build() {
 
 	## disable ptex from format list by default
 	Fsed "^ptex ptex - ptex.ini" "#ptex ptex - ptex.ini" ../$pkgname-$pkgver-texmf/texmf/web2c/fmtutil.cnf
-	Fsed "^platex ptex language.ptx platex.ini" "#platex ptex language.ptx platex.ini" ../$pkgname-$pkgver-texmf/texmf/web2c/fmtutil.cnf
+	Fsed "^eptex eptex" "#eptex eptex" ../$pkgname-$pkgver-texmf/texmf/web2c/fmtutil.cnf
+	Fsed "^platex eptex" "#platex eptex" ../$pkgname-$pkgver-texmf/texmf/web2c/fmtutil.cnf
 
 	Fbuild --with-banner-add="/Frugalware Linux"
 
@@ -109,22 +110,20 @@ build() {
 
 	## TODO: Split the 800Mo of docs
 	rm -rf $Fsrcdir/$pkgname-$pkgver-texmf/texmf-dist/doc || Fdie
+
+	## remove useless source files
 	rm -rf $Fsrcdir/$pkgname-$pkgver-texmf/texmf-dist/source || Fdie
 	rm -rf $Fsrcdir/$pkgname-$pkgver-texmf/texmf-dist/fonts/source || Fdie
 	# copy the extra packages
 	Fcp $pkgname-$pkgver-texmf/texmf/* usr/share/texmf/
 	Fcp $pkgname-$pkgver-texmf/texmf-dist/* usr/share/texmf-dist/
 
+	## files for tlpkg required by updmap
+	Fmkdir /usr/share/tlpkg/
+	Fcp $pkgname-$pkgver-source/utils/biber/TeXLive /usr/share/tlpkg/
+
 	## install the config file with correct paths for kpathsea
 	Finstall 644 texmf.cnf usr/share/texmf/web2c/
-
-	# more than 800Mo of docs, I don't think we need it =)
-	Frm usr/share/texmf-dist/source
-	Frm usr/share/texmf-dist/fonts/source
-	Frm usr/share/texmf-dist/doc
-
-	# remove duplicate files
-	Frm usr/share/texmf/scripts/tex4ht
 
 	# fix the broken symlinks since texmf{-dist} has move
 	for f in $Fdestdir/usr/bin/* ; do
@@ -139,11 +138,15 @@ build() {
 		fi
 	done
 
+	## Fix conflict with texlive 2010
+	## this link is not created by texlinks anymore
+	Frm usr/bin/mfplain
 
 	# remove asymptote, we already have this =)
 	Frm usr/share/texmf/asymptote
 	Frm usr/share/texmf/doc/asymptote
 	Frm usr/share/texmf/tex/latex/asymptote
+	Frm usr/share/texmf/tex/context/asymptote
 	for f in asy xasy; do
 		Frm usr/share/man/man1/$f.1
 	done
@@ -168,12 +171,16 @@ build() {
 	elvish epigrafica epsdice esvect eulervm euxm feyn fge foekfont fonetika fourier fouriernc \
 	frcursive garamond genealogy gfsartemisia gfsbodoni gfscomplutum gfsdidot gfsneohellenic \
 	gfssolomos gothic greenpoint groff grotesq hands hfbright hfoldsty ifsym inconsolata \
-	initials iwona junicode kixfont knuthotherfonts kpfonts kurier lettrgth lfb libertine \
+	initials junicode kixfont knuthotherfonts kpfonts lettrgth lfb libertine \
 	libris linearA logic lxfonts ly1 marigold mathabx mathdesign mnsymbol nkarta ogham optima \
-	orkhun osmanian pacioli pclnfss phaistos phonetic pigpen psafm punk recycle sauter \
+	orkhun osmanian pacioli pclnfss phaistos phonetic pigpen itc punk recycle sauter \
 	sauterfonts semaphor simpsons skull staves tapir tengwarscript tpslifonts trajan \
 	umtypewriter univers universa venturisadf wsuipa zefonts venturis venturis2 \
-	cm-unicode txfontsb xits stix oldstandard gnu-freefont gentium oldlatin doublestroke ; do
+	cm-unicode txfontsb xits stix oldstandard gnu-freefont gentium oldlatin doublestroke \
+	esstix gust paratype adforn adfsymbols b1encoding berenisadf boondox cantarell \
+	cmtiup comfortaa droid electrum everyhook fdsymbol gillcm jamtimes lato poltawski prodint \
+	ptsans ptserif realscripts tfrupee urwchancal iwona kurier bbold-type1 starfont rsfso \
+	ocr-b-outline ocr-b mdputu ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-fonts-extra $j
@@ -186,7 +193,8 @@ build() {
 	elsevier-bib fbs figbib finbib footbib harvard harvmac ijqc inlinebib iopart-num jneurosci jurabib \
 	listbib margbib multibib munich notes2bib perception pnas2009 rsc sort-by-letters splitbib swebib urlbst \
 	abstyles biblatex biblatex-apa biblatex-chem biblatex-chicago-notes-dfbiblatex-dw biblatex-historian \
-	biblatex-nature biblatex-philosophy biblatex-science ; do
+	biblatex-nature biblatex-philosophy biblatex-science biblatex-ieee biblatex-chicago biblatex-dw \
+	biblatex-mla logreq polski ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-bibtex-extra $j
@@ -227,7 +235,8 @@ build() {
 	powerdot-FUBerlin pracjourn procIAGssymp psu-thesis ptptex revtex sageep siggraph spie stellenbosch \
 	sugconf thesis-titlepage-fhac thuthesis toptesi tugboat tugboat-plain uaclasses ucdavisthesis ucthesis \
 	uiucthesis umich-thesis umthesis ut-thesis uwthesis vancouver vxu york-thesis elbioimp jmlr onrannual \
-	revtex4 ryethesis seuthesis soton ; do
+	revtex4 ryethesis seuthesis soton unamthesis aomart apa6e cmpj dfgproposal elteikthesis fbithesis \
+	msuthesis powerdot suftesi uafthesis uothesis uowthesis ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-templates-extra $j
@@ -236,7 +245,7 @@ build() {
 
 	## games related packages
 	for i in cchess chess chess-problem-diagrams chessboard chessfss crossword crosswrd egameps \
-	go hexgame jeopardy othello psgo sgame skak skaknew sudoku sudokubundle xq xskak ; do
+	go hexgame jeopardy othello psgo sgame skak skaknew sudoku sudokubundle xq xskak piano ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-misc $j
@@ -244,7 +253,8 @@ build() {
 	done
 
 	## music related packages
-	for i in abc figbas gchords guitar harmony musictex musixflx musixlyr musixps musixtex songbook ; do
+	for i in abc figbas gchords guitar harmony musictex musixflx musixlyr musixps musixtex songbook \
+	musixguit ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-misc $j
@@ -258,7 +268,8 @@ build() {
 	borceux colorsep dinat dirtree eijkhout encxvlna shade tabto-generic \
 	insbox metatex mftoeps midnight multi ofs pdf-trans vrb \
 	juramisc jurarsp jura juraabbrev bibleref xlop \
-	historische-zeitschrift texapi xcomment variations yax ; do
+	historische-zeitschrift texapi xcomment variations yax bibleref-french \
+	bibleref-german bibleref-parse edfnotes ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-extra $j
@@ -275,7 +286,8 @@ build() {
 	done
 
 	## cyrillic language support
-	for i in cmcyr cmcyralt cyrillic cyrillic-bin cyrplain disser eskd eskdx gost lcyw lh lhcyr t2 timescyr ; do
+	for i in cmcyr cmcyralt cyrillic cyrillic-bin cyrplain disser eskd eskdx gost lcyw lh lhcyr t2 timescyr \
+	russ ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-lang-cyrillic $j
@@ -285,7 +297,7 @@ build() {
 	## extra languages packages
 	for i in arabi arabtex armenian bangtex bengali burmese cjhebrew croatian ctib devnag ethiop ethiop-t1 \
 	fc hrlatex itrans malayalam mongolian-babel montex sanskrit soyombo velthuis vntex wnri otibet turkmen \
-	persian-bib xepersian ocherokee oinuit ; do
+	persian-bib xepersian ocherokee oinuit spanglish wnri-latex ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-lang-extra $j
@@ -302,7 +314,7 @@ build() {
 
 	## greek language support
 	for i in betababel bgreek cbfonts gfsbaskerville gfsporson greek-inputenc greekdates greektex grverb \
-	ibycus-babel ibygrk kdgreek kerkis levy lgreek mkgrkindex teubner xgreek yannisgr ; do
+	ibycus-babel ibygrk kdgreek kerkis levy lgreek mkgrkindex teubner xgreek yannisgr pxgreeks textgreek ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-lang-greek $j
@@ -398,7 +410,13 @@ build() {
 	skeycommand skeyval spreadtab standalone tabularborder texilikechaps tex-label threeparttable thumby \
 	titleref truncate twoinone undolabl verbdef vruler xwatermark ydoc minitoc spanish-mx \
 	units yfonts tocloft tocbibind supertabular subfloat subfigure subeqnarray subeqn lettrine caption \
-	overpic xytree xyling ; do
+	overpic xytree xyling acroterm adjmulticol bashful beamer2thesis beamerthemejltree beamerthemenirma \
+	canoniclayout carlisle catchfilebetweentags catoption chet chextras collcell colortbl colourchange \
+	cprotect csvsimple cutwin dirtytalk docmute ean13isbn easy-todo enumitem-zref eso-pic finstrut \
+	fjodor hardwrap he-she ifnextok iwhdp koma-moderncvclassic marginfix mbenotes morehype newunicodechar \
+	nonumonpart pagesLTS parselines piff progressbar regstats rvwrite serbian-lig sitem skb spot thumbs \
+	tucv turnthepage sphack subfigmat tabu shadow secdot romanneg fancytabs fileinfo filemod cals \
+	calxxxx-yyyy catoptions hrefhide ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-latex-extra $j
@@ -421,7 +439,9 @@ build() {
 	petri-nets pgf-soroban pgfopts pgfplots picinpar pict2e pictex pictex2 pinlabel pmgraph randbild \
 	schemabloc swimgraf texdraw tikz-inet tikz-timing tkz-doc tkz-linknodes tkz-tab tufte-latex xypic \
 	combinedgraphics duotenzor drs esk here knitting knittingpattern mathspic tikz-3dplot tikz-qtree \
-	tkz-orm xypdf chemfig ; do
+	tkz-orm xypdf chemfig bloques bodegraph bondgraph gincltex gmp gradientframe graphcet lpic \
+	numericplots pgf pgfgantt pgf-umlsd productbox randomwalk tkz-base tkz-berge tkz-euclide \
+	tkz-fct tkz-graph tkz-kiviat graphcet ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-graphics $j
@@ -444,7 +464,7 @@ build() {
 	pst-optexp pst-optic pst-osci pst-pad pst-pdgr pst-poly pst-qtree pst-sigsys pst-slpe pst-solides3d \
 	pst-soroban pst-spectra pst-stru pst-support pst-text pst-tree pst-uml pst-vowel pst-vue3d pst2pdf \
 	pstricks pstricks-add uml vaucanson-g pst-knot pst-am pst-electricfield pst-exa pst-magneticfield \
-	pst-mirror pst-node pst-platon pst-plot pst-thick ; do
+	pst-mirror pst-node pst-platon pst-plot pst-thick pst-tvz ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-pstricks $j
@@ -465,7 +485,7 @@ build() {
 	eltex formula fouridx functan galois gastex gene-logic gu hep hepnames hepparticles hepthesis \
 	hepunits karnaugh mhchem mhs miller objectz pseudocode scientificpaper sciposter sfg siunitx \
 	steinmetz struktex t-angles textopo ulqda unitsdef youngtab engtlc feynmf c-pascal fltpoint \
-	r_und_s ; do
+	r_und_s chemexec chemmacros drawstack mychemestry nuc ot-tableau physymb rec-thy; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-sciences $j
@@ -484,7 +504,7 @@ build() {
 	for i in 12many amstex boldtensors bosisio ccfonts commath concmath concmath-fonts concrete extarrows extpfeil \
 	faktor ionumbers isomath mathcomp mathdots mattens mhequ multiobjective nath proba shuffle statex2 \
 	stex stmaryrd susy syllogism synproof tablor tensor tex-ewd thmbox turnstile venn yhmath \
-	sansmath tdsfrmath ; do
+	sansmath tdsfrmath eqnarray libgreek mathalfa mathastext ; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
 		for j in  $listdir ; do
 			Fsplit $pkgname-sciences $j
@@ -538,6 +558,7 @@ build() {
 		done
 	done
 	Fsplit $pkgname-ptex usr/bin/ptex
+	Fsplit $pkgname-ptex usr/bin/eptex
 	#Fsplit $pkgname-ptex usr/bin/platex
 	Fsplit $pkgname-ptex usr/lib/libptexenc*
 	Fsplit $pkgname-ptex usr/include/ptexenc

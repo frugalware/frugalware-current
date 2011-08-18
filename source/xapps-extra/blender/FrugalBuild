@@ -5,49 +5,67 @@
 # FIXME: ffmpeg, player
 
 pkgname=blender
-pkgver=2.49
+pkgver=2.59
 pkgextraver=
-pkgrel=5
+pkgrel=1
 pkgdesc="A 3D modeling/rendering/animation/gaming application"
 url="http://blender.org"
-Finclude python
+_F_gnome_iconcache="y"
+_F_gnome_desktop="y"
+Finclude gnome-scriptlet python cmake
 depends=('libjpeg>=8a' 'libpng>=1.4.1' 'freetype2' \
 	'freealut>=1.1.0-3' 'openexr>=1.7.0' 'openal>=1.7.411' \
-	"python>=2.7" 'libtiff' 'sdl>=1.2.13-2' 'libxi')
+	"python-3.0" 'libtiff' 'sdl>=1.2.13-2' 'libxi' 'glew' \
+	'libsamplerate' 'ffmpeg')
 groups=('xapps-extra')
 archs=('i686' 'x86_64' 'ppc')
-makedepends=('cmake' 'ftgl')
+makedepends=('cmake' 'ftgl' 'subversion')
 up2date="Flasttar http://www.blender.org/download/source-code/"
-source=(http://download.blender.org/source/$pkgname-$pkgver$pkgextraver.tar.gz \
-	blender.desktop blender.png blender-2.48a-cve-2008-4863.patch)
-sha1sums=('75bc00cb9b0d106e4cd1d6c25534c1d139aa88d7' \
-          '44ee67a0ed814481aacca0dfc8cf45ae7a48eed5' \
-          '5d2583d847735c913c26c96ace8192a646323da8' \
-          '0d54c1c1acff478fd2bb3adcc1f8296a9692da51')
+source=(http://download.blender.org/source/$pkgname-$pkgver$pkgextraver.tar.gz)
+sha1sums=('00ec50e0c29db152cb098b397c1ff3bf3c95cc3b')
 
 build() {
-	Fpatchall
+        Fcd
 	mkdir -p ../build || Fdie
 	cd ../build || Fdie
-	cmake ../$pkgname-$pkgver -DCMAKE_INSTALL_PREFIX=$Fprefix \
-		-DWITH_BULLET=ON -DWITH_ELBEEM=ON -DWITH_FFMPEG=OFF -DWITH_GAMEENGINE=ON \
-		-DWITH_INTERNATIONAL=ON -DWITH_OPENAL=ON -DWITH_OPENEXR=ON \
-		-DWITH_PLAYER=OFF -DWITH_QUICKTIME=OFF -DWITH_VERSE=ON -DYESIAMSTUPID=ON || Fdie
-	make || Fdie
 
-	Fmkdir $Fprefix/lib/blender
-	mv bin/.blender/* $Fdestdir/$Fprefix/lib/blender || Fdie
-	Fexerel bin/blender $Fprefix/bin/blender
-	#Fexerel bin/blenderplayer $Fprefix/bin/blenderplayer
-	Ffile $pkgname-$pkgver/source/blender/blenpluginapi/*.h $Fprefix/lib/blender/plugins/include
-	Ffile /usr/share/pixmaps/blender.png
-	Ffile /usr/share/applications/blender.desktop
-	Ffilerel lib/* $Fprefix/lib
-	cd - >/dev/null
-	Fcprel release/plugins $Fprefix/lib/blender
-	chmod +x $Fdestdir/$Fprefix/lib/blender/plugins/bmake || Fdie
-	make -C $Fdestdir/$Fprefix/lib/blender/plugins || Fdie
-	Fdocrel release/text/*
+  [[ $CARCH == i686 ]] && ENABLESSE2="-DSUPPORT_SSE2_BUILD:BOOL=OFF"
+
+        cmake ../$pkgname-$pkgver -DCMAKE_INSTALL_PREFIX=$Fprefix \
+                -DCMAKE_BUILD_TYPE:STRING=Release \
+                -DWITH_INSTALL_PORTABLE:BOOL=OFF \
+                -DWITH_PYTHON_INSTALL:BOOL=OFF \
+                -DWITH_OPENCOLLADA:BOOL=OFF \
+                -DWITH_GAMEENGINE:BOOL=ON \
+                -DWITH_PLAYER:BOOL=ON \
+                -DWITH_BUILTIN_GLEW:BOOL=OFF \
+                -DWITH_CODEC_FFMPEG:BOOL=ON \
+                -DWITH_CODEC_SNDFILE:BOOL=ON \
+                -DPYTHON_VERSION:STRING=3.2 \
+                -DPYTHON_LIBPATH:STRING=/usr/lib \
+                -DPYTHON_LIBRARY:STRING=python3.2m \
+                -DPYTHON_INCLUDE_DIRS:STRING=/usr/include/python3.2m \
+                $ENABLESSE2
+
+        make $MAKEFLAGS
+
+        cp -rf $Fsrcdir/${pkgname}-$pkgver/release/plugins/* \
+                $Fsrcdir/${pkgname}-$pkgver/source/blender/blenpluginapi/ || Fdie
+        cd $Fsrcdir/${pkgname}-$pkgver/source/blender/blenpluginapi || Fdie
+        chmod 755 bmake || Fdie
+        make || Fdie
+
+        cd $Fsrcdir/build || Fdie
+        make DESTDIR="$Fdestdir" install || Fdie
+        python3 -m compileall "$Fdestdir/usr/share/blender" || Fdie
+
+        # install plugins
+        install -d -m755 $Fdestdir/usr/share/blender/${pkgver%[a-z]}/plugins/{sequence,texture}
+        cp $Fsrcdir/${pkgname}-$pkgver/source/blender/blenpluginapi/sequence/*.so \
+    $Fdestdir/usr/share/blender/${pkgver%[a-z]}/plugins/sequence/ || Fdie
+        cp $Fsrcdir/${pkgname}-$pkgver/source/blender/blenpluginapi/texture/*.so \
+    $Fdestdir/usr/share/blender/${pkgver%[a-z]}/plugins/texture/ || Fdie
+        Fbuild_gnome_scriptlet
 }
 
 # optimization OK

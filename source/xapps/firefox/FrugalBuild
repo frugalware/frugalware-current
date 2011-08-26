@@ -3,49 +3,26 @@
 # Contributor: VMiklos <vmiklos@frugalware.org>
 
 pkgname=firefox
-pkgver=5.0.1
+pkgver=6.0
 pathver=${pkgver} # version used in path names
-pkgrel=1
+pkgrel=3
 pkgdesc="Mozilla Firefox web browser"
 url="http://www.mozilla.org/products/firefox/"
-depends=('gtk+2>=2.20.0-2' 'libidl' 'desktop-file-utils' 'nss>=3.12.9' 'glibc>=2.6' 'dbus-glib' 'curl>=7.19.0' 'nspr>=4.8.7' \
+depends=('gtk+2>=2.20.0-2' 'libidl' 'desktop-file-utils' 'nss>=3.12.11' 'glibc>=2.6' 'dbus-glib' 'curl>=7.19.0' 'nspr>=4.8.9' \
 	'lcms' 'libxau>=1.0.4' 'libxdmcp' 'libxft>=2.1.13-2' 'libxt' 'libstdc++' 'libxdamage' 'libice' 'bzip2' 'alsa-lib' \
 	'libnotify' 'wireless_tools' 'cairo')
 makedepends=('zip' 'yasm')
 groups=('xapps')
 archs=('i686' 'x86_64' 'ppc')
 up2date="lynx -dump ftp://ftp.mozilla.org/pub/mozilla.org/firefox/releases/latest/source | sed 's/.source//g' | Flasttarbz2"
-source=(http://releases.mozilla.org/pub/mozilla.org/firefox/releases/$pkgver/source/firefox-$pkgver.source.tar.bz2 \
-	0583d58b20a3.patch \
+source=(ftp://ftp.mozilla.org/pub/mozilla.org/firefox/releases/$pkgver/source/firefox-$pkgver.source.tar.bz2 \
 	ffremote \
 	$pkgname.desktop \
-	${pkgname}-safe-mode.desktop)
-signatures=("${source[0]}.asc" '' '' '' '')
+	prefs.js)
+signatures=("${source[0]}.asc" '' '' '')
 options=('scriptlet')
 
-[ "$CARCH" == "ppc" ] && Fconfopts="${Fconfopts[@]} --disable-ipc"
-
-build() {
-	unset MAKEFLAGS
-	Fcd mozilla-release
-
-	# Autodetect language.
-	sed -i '/intl.locale.matchOS/s/false/true/' modules/libpref/src/init/all.js || Fdie
-
-	## broken sqlite3 pc file
-	Fsed 'SQLITE_VERSION=3.5.9' 'SQLITE_VERSION=3.5' configure
-
-	# fix nspr as well
-	Fsed '"nspr/' '"nspr4/' ipc/chromium/src/base/basictypes.h
-
-	export MOZILLA_OFFICIAL=1
-	export BUILD_OFFICIAL=1
-
-#	Fsed '\-0' '\-9' config/make-jars.pl
-
-	Fbuild \
-		--with-default-mozilla-five-home=/usr \
-		--enable-optimize="-O2" \
+Fconfopts="${Fconfopts[@]} --with-default-mozilla-five-home=/usr \
 		--with-system-nspr \
 		--with-system-nss \
 		--with-system-jpeg \
@@ -83,7 +60,27 @@ build() {
 		--disable-calendar \
 		--disable-composer \
 		--disable-profilesharing \
-		--disable-crashreporter
+		--disable-crashreporter"
+
+build() {
+	unset MAKEFLAGS
+	Fcd mozilla-release
+
+	# Autodetect language.
+	sed -i '/intl.locale.matchOS/s/false/true/' modules/libpref/src/init/all.js || Fdie
+
+	## broken sqlite3 pc file
+	Fsed 'SQLITE_VERSION=3.5.9' 'SQLITE_VERSION=3.5' configure
+
+	# fix nspr as well
+	Fsed '"nspr/' '"nspr4/' ipc/chromium/src/base/basictypes.h
+
+	export MOZILLA_OFFICIAL=1
+	export BUILD_OFFICIAL=1
+
+#	Fsed '\-0' '\-9' config/make-jars.pl
+
+	Fbuild --enable-optimize="-O2"
 
 	# Get rid of versions in path names.
 	Fmv /usr/include/$pkgname-$pathver /usr/include/$pkgname
@@ -119,10 +116,12 @@ build() {
 
 	# Install menu file.
 	Ffile /usr/share/applications/$pkgname.desktop
-	Ffile /usr/share/applications/${pkgname}-safe-mode.desktop
 
 	# Change the default icons
 	Fln /usr/lib/$pkgname/icons /usr/lib/$pkgname/chrome/icons/default
+	
+	#Preferences file
+	Finstall 644 prefs.js usr/lib/$pkgname/defaults/pref/prefs.js
 }
 
 # optimization OK

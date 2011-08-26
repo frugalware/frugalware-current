@@ -47,6 +47,8 @@
 # * _F_sourceforge_subdir (defaults to ""): in case the source tarball
 # is in some subdirectory under the files of the project. Example:
 # "/fsarchiver-src/"
+# * _F_sourceforge_rss_limit (defaults to 20): the limit for the number of rss feeds
+# that will be fetched
 ###
 
 if [ -z "$_F_sourceforge_name" ]; then
@@ -79,6 +81,10 @@ if [ -n "$_F_sourceforge_sep" ] && [ "$_F_sourceforge_sep" = "None" ]; then
 	_F_sourceforge_sep=""
 fi
 
+if [ -z "$_F_sourceforge_rss_limit" ]; then
+	_F_sourceforge_rss_limit=20
+fi
+
 ###
 # == OVERWRITTEN VARIABLES
 # * url
@@ -87,7 +93,7 @@ fi
 ###
 _F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
 _F_sourceforge_id="\$(Fwcat $_F_sourceforge_url/ | grep --color project-id | sed -e 's|.*project-id/||;s|/.*||')"
-_F_sourceforge_rss_url="http://sourceforge.net/api/file/index/project-id/$_F_sourceforge_id/mtime/desc/limit/20/rss"
+_F_sourceforge_rss_url="http://sourceforge.net/api/file/index/project-id/$_F_sourceforge_id/mtime/desc/limit/$_F_sourceforge_rss_limit/rss"
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
 fi

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-Finclude cmake
+Finclude cmake kde-version
 
 ###
 # = kde.sh(3)
@@ -39,11 +39,11 @@ Finclude cmake
 ###
 
 if [ -z "$_F_kde_ver" ]; then
-	_F_kde_ver=4.6.5
+	_F_kde_ver="$_F_kdever_ver"
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
-	_F_kde_qtver=4.7.3
+	_F_kde_qtver="$_F_kdever_qt"
 fi
 
 if [ -z "$_F_kde_name" ]; then
@@ -91,6 +91,7 @@ fi
 # * url (if not set)
 # * up2date (if not set)
 # * source (if empty)
+# * sha1sums (if sources is empty)
 # * _F_cd_path (if not set)
 # * makedepends (if not set)
 ###
@@ -114,6 +115,9 @@ if [ "$_F_kde_defaults" -eq 1 ]; then
 
 	if [ ${#source[@]} -eq 0 ]; then
 		source=("$_F_kde_mirror/$_F_kde_dirname/$_F_kde_name-$_F_kde_pkgver.tar.bz2")
+		if [ -n "${_F_kdever_sha1sums["$_F_kde_name"]}" ]; then
+			sha1sums=("${_F_kdever_sha1sums["$_F_kde_name"]}")
+		fi
 	fi
 fi
 
@@ -186,20 +190,51 @@ __KDE_pre_build_check()
 
 ###
 # == PROVIDED FUNCTIONS
-# * KDE_project_install: Install a specific package. Parameters: 1) Name of the
-# project (Must also be the name of a directory).
+# * KDE_cleanup: Remove duplicates in Fdestdir from all the subpkgs
 ###
-KDE_project_install()
+KDE_cleanup()
 {
-	if [ -d "filters" ]; then # Koffice
-		if [ -d "filters/$1" ]; then
-			Fmessage "Installing filters from filters/ dir for $1."
-			make -C "filters/$1" DESTDIR="$Fdestdir" install || Fdie
-		fi
-	fi
-	## install the package
-	Fmessage "Installing main files for $1."
+	Fcleandestdir "${subpkgs[@]}"
+}
+
+###
+# * KDE_path_install: Install the content of a path if it exist. Parameters: 1)
+# Path to install.
+###
+KDE_path_install()
+{
+	Fmessage "Installing files from path $1."
 	make -C "$1" DESTDIR="$Fdestdir" install || Fdie
+}
+
+###
+# * KDE_project_install: Install a specific package. Parameters: 1) Name of the
+# project. 2) path of the project (optional).
+###
+__KDE_project_install()
+{
+	local fail=1 path="${2:-$1}"
+	local -a paths
+	paths=(
+		"$path"
+		"apps/$path"
+		"apps/lib/$path"
+		"experimental/$path"	# for kdebase-runtime
+		"filters/$path"		# for koffice
+		"interfaces/$path"	# for kdelibs
+		"lib/$path"
+		"libs/$path"
+	)
+
+	for path in "${paths[@]}"; do
+		Fmessage "Installing project $1 ($path) ???"
+		if [ -d "$path" ]; then
+			Fmessage "Installing project $1 ($path)"
+			KDE_path_install "$path"
+			fail=0
+		fi
+	done
+
 	## install the documentation
 	if __kde_in_array "$pkgname-docs" "${subpkgs[@]}"; then
 		# documentation is in $pkgname-docs so ...
@@ -209,17 +244,47 @@ KDE_project_install()
 		fi
 	else
 		# documentation is per package so ...
-		local path
-		for path in "doc" "apps/doc"; do
-			if [ -d "$path/$1" ]; then #  does the package has docs ?
-				## install docs
-				Fmessage "Installing docs from TOP_SRC/$path dir for $1."
-				make -C "$path/$1" DESTDIR="$Fdestdir" install || Fdie
+		paths=(
+			"doc/$1"
+			"apps/doc/$1"
+		)
+
+		for path in "${paths[@]}"; do
+			if [ -d "$path" ]; then #  does the package has docs ?
+				Fmessage "Installing project $1 documentation"
+				KDE_path_install "$path"
 			fi
 		done
 	fi
+	return $fail
 }
 
+KDE_project_install()
+{
+	## we use for weird or not logical names
+	## $pkgname-<the_weird_name>
+	local path="${2:-$1}"
+	local clean="$(eval "echo -n \"\${path/#$pkgname-/}"\")" # Remove front "$pkgname-"
+	if [ "$path" != "$clean" ] && \
+	   KDE_project_install "$1" "$clean"; then
+		return 0
+	fi
+
+	if __KDE_project_install "$1" "${path}"; then
+		return 0
+	fi
+	if __KDE_project_install "$1" "${path//-//}"; then # Transform "-" into "/"
+		return 0
+	fi
+
+	clean="${path/#lib/}" # Remove front "lib"
+	if [ "$path" != "$clean" ] && \
+	   KDE_project_install "$1" "$clean"; then
+		return 0
+	fi
+
+	return 1
+}
 
 ###
 # * KDE_project_split(): Moves a KDE project to a subpackage. Parameters:
@@ -227,19 +292,11 @@ KDE_project_install()
 # Example: KDE_project_split kopete-irc kopete/protocols/irc
 ###
 
-__kde_remove_files()
+KDE_project_split()
 {
-	local i j
-	[ -z "$1" ] && Fdie
-	for i in `find $Fdestdir -name "$1"`
-	do
-		if [ -f "$i" ]; then
-			j=`echo $i|sed 's|.*/pkg/||g'`
-		 	Frm $j
-		else
-			Fdie
-		fi
-	done
+	KDE_project_install "$1" "$2"
+	KDE_cleanup
+	Fsplit "$1" /\*
 }
 
 __kde_find_split_files()
@@ -258,12 +315,6 @@ __kde_find_split_files()
 	done
 }
 
-KDE_project_split()
-{
-	KDE_project_install "$2"
-	Fsplit "$1" /\*
-}
-
 ###
 # * KDE_split(): Moves the _F_kde_subpkgs name list to subpackages. Parameters:
 # None. To find the projects dir, front "$pkgname-" and '-' are changed in '/'
@@ -271,58 +322,6 @@ KDE_project_split()
 # subdirectory project. Example: "kdelibs-kioslave-ftp" would search for
 # kioslave/ftp project subdir.
 ###
-__KDE_split_pkg() # internal and should be extended to handle all kind paths
-{
-	local extinfo pkgdir="$2"
-	Fmessage "$(pwd): __KDE_split_pkg '$*'"
-	if [ "$1" != "$2"  ]; then
-		extinfo=" ( subpkg_name $1 )"
-	fi
-	## check whatever that project exists
-	if [ -d "$pkgdir" ]; then
-		Fmessage "Found Kde-Project "$pkgdir"$extinfo in TOP_SRC dir.. Splitting.."
-		KDE_project_split "$i" "$pkgdir"
-	elif [ -d "apps/$pkgdir" ]; then ## kdebase
-		Fmessage "Found Kde-Project "$pkgdir"$extinfo in apps/ dir.. Splitting.."
-		KDE_project_split "$i" "apps/$pkgdir"
-	elif [ -d "libs/$pkgdir" ]; then
-		Fmessage "Found Kde-Project "$pkgdir"$extinfo in libs/ dir.. Splitting."
-		KDE_project_split "$i" "libs/$pkgdir"
-	elif [ -d "apps/lib/$pkgdir" ]; then ## kdebase
-		Fmessage "Found Kde-Project "$pkgdir"$extinfo in apps/lib/ dir.. Splitting."
-		KDE_project_split "$i" "apps/lib/$pkgdir"
-	elif [ -d "lib/$pkgdir" ]; then
-		Fmessage "Found Kde-Project "$pkgdir"$extinfo in lib/ dir.. Splitting."
-		KDE_project_split "$i" "lib/$pkgdir"
-	else ## TODO: Add apps/*/<something> checks , maybe more paths ?
-		return 1
-	fi
-	return 0
-}
-
-__KDE_split()
-{
-	## we use for weird or not logical names
-	## $pkgname-<the_weird_name>
-	local clean="$(eval "echo -n \"\${1/#$pkgname-/}"\")" # Remove front "$pkgname-"
-	if [ "$1" != "$clean" ] && \
-	   __KDE_split "$clean"; then # Remove front "$pkgname-"
-		return 0
-	fi
-	if __KDE_split_pkg "$1" "$1"; then
-		return 0
-	fi
-	if __KDE_split_pkg "$1" "${1//-//}"; then # Transform "-" into "/"
-		return 0
-	fi
-	clean="${1/#lib/}"
-	if [ "$1" != "$clean" ] && \
-	   __KDE_split "$clean"; then # Remove front "lib"
-		return 0
-	fi
-	return 1
-}
-
 KDE_split()
 {
 	local i
@@ -331,22 +330,20 @@ KDE_split()
 	do
 		## Shall we add something more generic some _ignore= ?
 		## but for that we need some hacks in makepkg I guess
-		if [ "$i" == "$pkgname-docs" ]; then
-			Fmessage "Ignoring $pkgname-docs KDE_install() will take care.."
+		case "$i" in
+		"$pkgname-docs"| \
+		"$pkgname-compiletime")
+			Fmessage "Ignoring $i KDE_install() will take care.."
 			continue
-		elif [ "$i" == "$pkgname-compiletime" ]; then
-			Fmessage "Ignoring $pkgname-compiletime KDE_install() will take care.."
-			continue
-		fi
+		esac
 
-		if ! __KDE_split "$i"; then
-			if [ -z "$_F_kde_subpkgs_custom_path" ]; then
-				Fmessage "Could not find $i!! Maybe is not in the TOP_SRC or libs dir? Or Typo?"
-				Fdie
-			else
-				Fmessage "Could not find $i but _F_kde_subpkgs_custom_path is set!"
-				Fmessage "Won't die() here, assuming build() will handle this package!..."
-			fi
+		Fmessage "Splitting $i"
+		if KDE_project_install "$i"; then
+			KDE_cleanup
+			Fsplit "$i" /\*
+		else
+			Fmessage "Could not find $1 for automagic _F_kde_subpkgs splitting !!"
+			Fdie
 		fi
 	done
 }
@@ -364,21 +361,14 @@ KDE_make()
 	CMake_make "$@"
 }
 
-
 KDE_make_split()
 {
-## only check on core stuff
-if [ "$_F_kde_defaults" -eq 1 ]; then
-	__KDE_pre_build_check
-fi
+	## only check on core stuff
+	if [ "$_F_kde_defaults" -eq 1 ]; then
+		__KDE_pre_build_check
+	fi
 	KDE_make "$@"
 	KDE_split
-}
-
-KDE_cleanup()
-{
-	Fcleandestdir "${_F_kde_subpkgs[@]}"
-	Fcleandestdir "${subpkgs[@]}"
 }
 
 KDE_install()
@@ -403,10 +393,9 @@ KDE_install()
 	fi
 }
 
-
 KDE_build()
 {
-	KDE_make_split
+	KDE_make_split "$@"
 	KDE_install
 }
 
@@ -417,4 +406,3 @@ build()
 {
 	KDE_build
 }
-

@@ -3,12 +3,13 @@
 
 pkgname=chromium-browser
 pkgver=13.0.782.215
-pkgrel=2
+pkgrel=3
 pkgdesc='An open-source browser project that aims to build a safer, faster, and more stable way for all users to experience the web'
 url='http://www.chromium.org/'
 depends=('nss' 'alsa-lib' 'hicolor-icon-theme' 'libxslt' 'ffmpeg>=0.8' \
-	'libevent>=2.0.10' 'libxscrnsaver' 'libpng>=1.4.1' 'gtk+2' 'libxtst')
-makedepends=('python' 'perl' 'gperf' 'yasm' 'libgl' 'libgnome-keyring' 'cups')
+	'libevent>=2.0.10' 'libxscrnsaver' 'libpng>=1.4.1' 'gtk+2' 'libxtst' \
+	'libgcrypt' 'dejavu-ttf' 'gnutls' 'libtasn1')
+makedepends=('python' 'perl' 'gperf' 'yasm' 'libgl' 'libgnome-keyring' 'cups' 'krb5')
 license=('BSD')
 groups=('gnome-extra')
 archs=('i686' 'x86_64')
@@ -18,12 +19,16 @@ _F_archive_name="chromium"
 up2date="Flasttar http://build.chromium.org/buildbot/official/"
 source=(http://build.chromium.org/official/$_F_archive_name-$pkgver.tar.bz2  \
         gcc-4.6.patch \
+        glibc-2.14.patch \
+        cups_1.5_build_fix.patch \
         make-hash-tools-use-if-instead-of-switch.patch \
         v8-r8472-crbug-77625-huge-number-of-cpu-wakeups.patch \
         chromium-master-prefs-path.patch \
         $pkgname.desktop $pkgname.sh master_preferences)
 sha1sums=('00664c5682e7e8e448f447096797ab78e6152ebb' \
           '7572d11b848f719bb4ceb23ed8a444b95ff14bcd' \
+          '5df133b63f308a80d31ee1f7384a92e000f3d59d' \
+          '5cbbab29fea3e5d1315750bd333268d07e383c6d' \
           'a1c5e60f2c0d47d65459397396a75fad4b98bf55' \
           '3f3a7240473bb7d7e104d1a2b942f54aadd3bc1b' \
           '673f05684986a6ecaa69c00287eafdef6e9e260e' \
@@ -39,29 +44,28 @@ build() {
 	# see http://code.google.com/p/chromium/issues/detail?id=41887
 	export CFLAGS="${CFLAGS} -fno-ipa-cp"
 
-	build/gyp_chromium -f make build/all.gyp --depth=. \
-	-Dgcc_version=45 \
-	-Dno_strict_aliasing=1 \
-	-Dwerror= \
-	-Dlinux_sandbox_path=/usr/lib/chromium/chromium-sandbox \
-	-Dlinux_strip_binary=1 \
-	-Drelease_extra_cflags="${CFLAGS}" \
-	-Dffmpeg_branding=Chrome \
-	-Dproprietary_codecs=1 \
-	-Duse_system_libjpeg=1 \
-	-Duse_system_libxslt=0 \
-	-Duse_system_libxml=0 \
-	-Duse_system_bzip2=1 \
-	-Duse_system_zlib=1 \
-	-Duse_system_libpng=1 \
-	-Duse_system_ffmpeg=0 \
- 	-Duse_system_yasm=1 \
-	-Duse_system_libevent=1 \
-	-Duse_system_ssl=0 \
-	-Duse_gconf=0 \
-	$([ "${CARCH}" == 'i686' ] && echo '-Ddisable_sse2=1')
+  build/gyp_chromium -f make build/all.gyp --depth=. \
+    -Dno_strict_aliasing=1 \
+    -Dwerror= \
+    -Dlinux_sandbox_path=/usr/lib/chromium/chromium-sandbox \
+    -Dlinux_strip_binary=1 \
+    -Drelease_extra_cflags="$CFLAGS" \
+    -Dffmpeg_branding=Chrome \
+    -Dproprietary_codecs=1 \
+    -Duse_system_bzip2=1 \
+    -Duse_system_ffmpeg=0 \
+    -Duse_system_libevent=1 \
+    -Duse_system_libjpeg=1 \
+    -Duse_system_libpng=1 \
+    -Duse_system_libxml=0 \
+    -Duse_system_ssl=0 \
+    -Duse_system_yasm=1 \
+    -Duse_system_zlib=1 \
+    -Duse_gconf=0 \
+    -Ddisable_sse2=1 \
+    $([[ $CARCH == i686 ]] && echo '-Ddisable_sse2=1')
 
-	make chrome chrome_sandbox BUILDTYPE=Release || Fdie
+  make chrome chrome_sandbox BUILDTYPE=Release || Fdie
 
 	Fmkdir usr/lib/chromium
         Fexerel out/Release/chrome usr/lib/chromium/chromium

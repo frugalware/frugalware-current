@@ -24,6 +24,8 @@ Finclude i18n
 # * _F_mozilla_i18n_name (required): The name of the Mozilla project.
 # * _F_mozilla_i18n_xpidirname (optional): The directory to the xpi.
 # * _F_mozilla_i18n_mirror (optional): The name of the mirror to use.
+# * _F_mozilla_i18n_archive_name (optional, defaults to empty string): The name of the archive to prepend to local code.
+# * _F_mozilla_i18n_ext (optional, defaults to ".xpi"): The extention of the i18n archive name.
 ###
 
 if [ -z "$_F_mozilla_i18n_xpidirname" ]; then
@@ -32,6 +34,10 @@ fi
 
 if [ -z "$_F_mozilla_i18n_mirror" ]; then
 	_F_mozilla_i18n_mirror="ftp://ftp.mozilla.org/pub/mozilla.org"
+fi
+
+if [ -z "$_F_mozilla_i18n_ext" ]; then
+	_F_mozilla_i18n_ext=".xpi"
 fi
 
 ###
@@ -78,7 +84,7 @@ mozilla_i18n_foreach_lang() {
 ###
 mozilla_i18n_lang_add() {
 	_F_mozilla_i18n_langs=("${_F_mozilla_i18n_langs[@]}" "$1")
-	source=("${source[@]}" "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_xpidirname/$1.xpi")
+	source=("${source[@]}" "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_xpidirname/$_F_mozilla_i18n_archive_name$1$_F_mozilla_i18n_ext")
 	subpkgs=("${subpkgs[@]}" "$_F_mozilla_i18n_name-${1,,}")
 	subdescs=("${subdescs[@]}" "`i18n_language_from_locale "$1"` language support for ${_F_mozilla_i18n_name^}") # Requires a locale to name function.
 	subrodepends=("${subrodepends[@]}" "$_F_mozilla_i18n_name>=$pkgver")
@@ -101,7 +107,7 @@ mozilla_i18n_lang_install()
 		_F_xpi_product="$_F_mozilla_i18n_name"
 	fi
 
-	Fxpi_installxpi "$Fsrcdir/$1.xpi"
+	Fxpi_installxpi "$Fsrcdir/$_F_mozilla_i18n_archive_name$1$_F_mozilla_i18n_ext"
 	Fxpi_installfixes
 	Fsplit $_F_mozilla_i18n_name-${1,,} /usr/lib/$_F_mozilla_i18n_name/extensions/
 }

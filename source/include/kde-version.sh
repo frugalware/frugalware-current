@@ -17,7 +17,7 @@
 ###
 
 
-_F_kdever_ver=4.7.0
+_F_kdever_ver=4.7.1
 _F_kdever_qt=4.7.3
 
 # Must be done in 2 lines else bash barfs on the floor

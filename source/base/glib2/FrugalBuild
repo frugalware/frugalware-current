@@ -5,11 +5,11 @@ USE_DOC=${USE_DOC:-"y"}
 
 pkgname=glib2
 pkgver=2.29.90
-pkgrel=1
+pkgrel=2
 pkgdesc="Common C routines used by GTK+2 and other libraries"
 url="http://www.gtk.org/"
 depends=('glibc>=2.9-2' 'libffi')
-makedepends=('libgcrypt>=1.4.3-1')
+makedepends=('libgcrypt>=1.4.3-1' 'gobject-introspection')
 groups=('base' 'chroot-core')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('scriptlet')
@@ -35,17 +35,24 @@ fi
 
 build()
 {
+	Fcd
+	Fautoreconf
 	# not so nice, but a --disable-gtk-doc still requires gtk-doc :P
 	Fuse $USE_DOC || Fsed 'docs$' '' Makefile.in
 
 	Fbuild \
 		--enable-static \
+		--enable-debug=yes \
+		--enable-regex \
+		--with-pcre=internal \
 		--with-threads=posix \
-		--enable-debug=yes
+		--disable-systemtap
 	if Fuse $USE_DOC; then
 		Fsplit $pkgname-docs usr/share/gtk-doc
 	fi
 
+	touch $Fdestdir/usr/lib/gio/modules/giomodule.cache || Fdie
+	Fsed "@LIBASYNCNS_LIBADD@" "-lresolv" $Fdestdir/usr/lib/pkgconfig/gio-2.0.pc
 	Fmkdir etc/profile.d
 	Fexe glib2.sh etc/profile.d/
 	Fexe glib2.csh etc/profile.d/

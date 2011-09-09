@@ -286,9 +286,9 @@ Fbuildkernel()
 	fi
 	## now time to eat some cookies and wait kernel got compiled :)
 	if [ "$_F_kernel_verbose" ]; then
-		make V=1 || Fdie
+		make $MAKEFLAGS V=1 || Fdie
 	else
-		make || Fdie
+		make $MAKEFLAGS || Fdie
 	fi
 
 	if [ "$CARCH" = "arm" ]; then

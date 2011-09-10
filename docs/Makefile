@@ -16,7 +16,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-VERSION = $(shell git describe) (Nexon)
+VERSION = $(shell git describe) (Mores)
 PO_DIR ?= ~/git/translations/po
 XML_PATH = /usr/share/sgml/docbook/dtd/xml-dtd-4.2
 

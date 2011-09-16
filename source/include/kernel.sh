@@ -151,12 +151,12 @@ replaces=('redirfs' 'dazuko')
 install="src/kernel.install"
 
 if ! Fuse DEVEL; then
-	source=("ftp://ftp.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.bz2")
+	source=("http://ftp.heanet.ie/pub/kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.bz2")
 	signatures=("${source[0]}.sign")
 
 	if [ "$_F_kernel_stable" -gt 0 ]; then
 		source=("${source[@]}" \
-			"ftp://ftp.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.bz2")
+			"http://ftp.heanet.ie/pub/kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.bz2")
 		signatures=("${signatures[@]}" "${source[$((${#source[@]}-1))]}.sign")
 	fi
 else

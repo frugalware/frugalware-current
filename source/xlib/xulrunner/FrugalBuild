@@ -3,100 +3,39 @@
 # Contributor: AlexExtreme <alex@alex-smith.me.uk>
 
 pkgname=xulrunner
-pkgver=1.9.2
-pkgrel=5
+pkgver=6.0.2
+pkgrel=1
 pkgdesc="XULRunner is a Mozilla runtime package that can be used to bootstrap XUL+XPCOM applications that are as rich as Firefox and Thunderbird."
 url="http://developer.mozilla.org/en/docs/XULRunner"
-depends=('libxml2>=2.7.8' 'alsa-lib' 'bzip2' 'cairo>=1.8.10-2' 'curl' 'dbus-glib' 'gtk+2>=2.20.0-2' 'libidl' 'libnotify>=0.4.5-3' 'libpng>=1.4.1' 'libstdc++' 'nss' 'nspr' 'sqlite3' 'wireless_tools')
-makedepends=('zip' 'pkgconfig')
+depends=('libxml2>=2.7.8' 'alsa-lib' 'bzip2' 'cairo>=1.8.10-2' 'curl' 'dbus-glib' 'gtk+2>=2.20.0-2' 'libidl' 'libnotify>=0.4.5-3' \
+	'libpng>=1.4.1' 'libstdc++' 'nss' 'nspr' 'sqlite3' 'wireless_tools' 'libevent' 'startup-notification' 'libvpx')
+makedepends=('zip' 'pkgconfig' 'yasm' 'hunspell')
 groups=('xlib')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 up2date="Flastarchive ftp://releases.mozilla.org/pub/mozilla.org/$pkgname/releases/"
 up2date=("echo $pkgver")
-source=(ftp://ftp.mozilla.org/pub/$pkgname/releases/$pkgver/source/$pkgname-$pkgver.source.tar.bz2 \
-	mozilla-gcc44.patch \
-	mozilla-locale.patch)
-signatures=("${source[0]}.asc" '' '')
+source=(ftp://ftp.mozilla.org/pub/$pkgname/releases/$pkgver/source/$pkgname-$pkgver.source.tar.bz2 ipc.diff curl.diff build.diff buildsbrk.diff mozconfig)
+signatures=("${source[0]}.asc" '' '' '' '' '')
 
 build() {
 	unset MAKEFLAGS
+	cp mozconfig mozilla-release/.mozconfig || Fdie
 
-	Fcd mozilla-1.9.2
+	Fcd mozilla-release
 
-	Fsed 'png_voidp_NULL' 'NULL' modules/libpr0n/encoders/png/nsPNGEncoder.cpp
-
-	# Fix buggy default DPI setting
-#	sed -i '/layout.css.dpi/s/-1/72/' modules/libpref/src/init/all.js || Fdie
-
-	# Let jars get compressed.
-	Fsed '\-0' '\-9' config/make-jars.pl
-
-	# Let xullrunner have autocomplete xfce componant (for thunderbird)
-#	Fsed '$(MOZ_THUNDERBIRD)' 1 xpfe/components/Makefile.in
-#	Fsed 'EXTRA_DSO_LDOPTS +=' 'EXTRA_DSO_LDOPTS = $(LIBS_DIR)' xpfe/components/autocomplete/src/Makefile.in
+	if [ "$CARCH" == "x86_64" ] ; then
+		CFLAGS="$CFLAGS -fPIC"
+		CXXFLAGS="$CXXFLAGS -fPIC"
+	fi
 
 	export MOZILLA_OFFICIAL=1
 	export BUILD_OFFICIAL=1
+	export LDFLAGS="-Wl,-rpath,/usr/lib/xulrunner-${pkgver} -Wl,-O1,--sort-common,--hash-style=gnu,--as-needed"
 
 	Fpatchall
 
-#		--disable-jsd \
-#		--disable-logging \
-#		--disable-profilesharing \
-#		--with-default-mozilla-five-home=/usr \
-
-	# Build it
-	ac_cv_visibility_pragma=no Fmake \
-		--disable-activex \
-		--disable-activex-scripting \
-		--disable-debug \
-		--disable-crashreporter \
-		--disable-installer \
-		--disable-javaxpcom \
-		--disable-pedantic \
-		--disable-tests \
-		--disable-toolkit-gtk \
-		--disable-toolkit-qt \
-		--disable-toolkit-xlib \
-		--disable-xprint \
-		--enable-application=xulrunner \
-		--enable-canvas \
-		--enable-crypto \
-		--enable-default-toolkit=cairo-gtk2 \
-		--enable-extensions=cookie,default,permissions \
-		--enable-image-decoders=all \
-		--enable-image-encoders=all \
-		--enable-ipv6 \
-		--enable-ldap \
-		--enable-mathml \
-		--enable-necko-protocols=all \
-		--enable-optimize="${CFLAGS}" \
-		--enable-pango \
-		--enable-safe-browsing \
-		--enable-single-profile \
-		--enable-strip \
-		--enable-svg \
-		--enable-toolkit-cairo-gtk2 \
-		--enable-xft \
-		--enable-xinerama \
-		--enable-xpfe-components \
-		--enable-xsl \
-		--enable-xterm-updates \
-		--with-distribution-id=Frugalware \
-		--with-pthreads \
-		--with-system-bz2 \
-		--with-system-cairo \
-		--with-system-jpeg \
-		--with-system-lcms \
-		--with-system-mng \
-		--with-system-nspr \
-		--with-system-nss \
-		--with-system-png \
-		--with-system-sqlite \
-		--with-system-zlib
-
-	# Does not use Fmakeinstall here because DESDIR is not found in root Makefile
-	Fexec make DESTDIR="$Fdestdir" install
+	make -j1 -f client.mk build MOZ_MAKE_FLAGS="$MAKEFLAGS" || Fdie
+	make -j1 -f client.mk DESTDIR="${Fdestdir}" install || Fdie
 
 	# Get rid of versions in path names.
 	Fmv /usr/include/$pkgname-$pkgver /usr/include/$pkgname
@@ -113,19 +52,6 @@ build() {
 	# and in pkgconfig .pc files
 	Fsed "$pkgname-$pkgver" "$pkgname" $Fdestdir/usr/lib/pkgconfig/*.pc
 	Fsed "$pkgname-devel-$pkgver" "$pkgname-devel" $Fdestdir/usr/lib/pkgconfig/*.pc
-
-	# create symlink nss headers to OOo
-#	Fln /usr/include/nss3 /usr/include/$pkgname/nss
-
-	# Install icon for the menu file.
-#	Fmkdir /usr/share/pixmaps/
-#	Fln /usr/lib/$pkgname/icons/mozicon128.png /usr/share/pixmaps/$pkgname.png
-
-	# Install menu file.
-#	Ffile /usr/share/applications/$pkgname.desktop
-
-	# Change the default icons
-#	Fln /usr/lib/$pkgname/icons /usr/lib/$pkgname/chrome/icons/default
 
 	Fmkdir etc/ld.so.conf.d
 	echo "/usr/lib/xulrunner" > ${Fdestdir}/etc/ld.so.conf.d/xulrunner.conf

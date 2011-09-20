@@ -2,8 +2,8 @@
 # Maintainer: Devil505 <devil505linux@gmail.com>
 
 pkgname=chromium-browser
-pkgver=13.0.782.215
-pkgrel=3
+pkgver=14.0.835.163
+pkgrel=1
 pkgdesc='An open-source browser project that aims to build a safer, faster, and more stable way for all users to experience the web'
 url='http://www.chromium.org/'
 depends=('nss' 'alsa-lib' 'hicolor-icon-theme' 'libxslt' 'ffmpeg>=0.8' \
@@ -19,30 +19,20 @@ _F_archive_name="chromium"
 up2date="Flasttar http://build.chromium.org/buildbot/official/"
 source=(http://build.chromium.org/official/$_F_archive_name-$pkgver.tar.bz2  \
         gcc-4.6.patch \
-        glibc-2.14.patch \
-        cups_1.5_build_fix.patch \
-        make-hash-tools-use-if-instead-of-switch.patch \
-        v8-r8472-crbug-77625-huge-number-of-cpu-wakeups.patch \
-        chromium-master-prefs-path.patch \
-        $pkgname.desktop $pkgname.sh master_preferences)
-sha1sums=('00664c5682e7e8e448f447096797ab78e6152ebb' \
-          '7572d11b848f719bb4ceb23ed8a444b95ff14bcd' \
-          '5df133b63f308a80d31ee1f7384a92e000f3d59d' \
-          '5cbbab29fea3e5d1315750bd333268d07e383c6d' \
-          'a1c5e60f2c0d47d65459397396a75fad4b98bf55' \
-          '3f3a7240473bb7d7e104d1a2b942f54aadd3bc1b' \
-          '673f05684986a6ecaa69c00287eafdef6e9e260e' \
+        webrtc-r240-r242-make-pulseaudio-optional.patch \
+        $pkgname.desktop $pkgname.sh)
+sha1sums=('f38e8835f4c12a61734eb99ee0a16d1386e2726d' \
+          '39999918746524fff30e73dc656754733df5c2c2' \
+          '3d3aab601d2a96b52b179dfc31091c8a7fcf2462' \
           '78ed8913b8a598de6a9e45d206973a846dbe8a51' \
-          'e06de4aee77b3deb77e3b08ebb175ec02da42ced' \
-          'efc0502b20a1fda64567090ded1b3f6a02d9d090')
+          'e06de4aee77b3deb77e3b08ebb175ec02da42ced')
 
 build() {
         Fcd
+        # Fix build with CUPS 1.5
+        sed -i '/#include <cups\/cups.h>/ a #include <cups/ppd.h>' \
+        chrome/browser/ui/webui/print_preview_handler.cc || Fdie
 	Fpatchall
-
-	# workaround for gcc 4.5
-	# see http://code.google.com/p/chromium/issues/detail?id=41887
-	export CFLAGS="${CFLAGS} -fno-ipa-cp"
 
   build/gyp_chromium -f make build/all.gyp --depth=. \
     -Dno_strict_aliasing=1 \
@@ -62,7 +52,7 @@ build() {
     -Duse_system_yasm=1 \
     -Duse_system_zlib=1 \
     -Duse_gconf=0 \
-    -Ddisable_sse2=1 \
+    -Ddisable_nacl=1 \
     $([[ $CARCH == i686 ]] && echo '-Ddisable_sse2=1')
 
   make chrome chrome_sandbox BUILDTYPE=Release || Fdie
@@ -71,8 +61,11 @@ build() {
         Fexerel out/Release/chrome usr/lib/chromium/chromium
         Finstallrel 4555 out/Release/chrome_sandbox usr/lib/chromium/chromium-sandbox
 	Ffileschown usr/lib/chromium/chromium-sandbox root root
-        Finstallrel 644 out/Release/chrome.pak usr/lib/chromium/chrome.pak
-        Finstallrel 644 out/Release/resources.pak usr/lib/chromium/resources.pak
+
+        # Add out/Release/{libppGoogleNaClPluginChrome.so,nacl_irt_x86_*.nexe} again
+        # when NaCl build is fixed
+        cp out/Release/{{chrome,resources}.pak,libffmpegsumo.so} \
+        "$Fdestdir/usr/lib/chromium/" || Fdie
 
         Fln /usr/lib/libavcodec.so.52 /usr/lib/chromium/libavcodec.so.52
         Fln /usr/lib/libavformat.so.52 /usr/lib/chromium/libavformat.so.52
@@ -94,8 +87,4 @@ build() {
 
         Fdocrel LICENSE
 	Fbuild_gnome_scriptlet
-	
-	##custom preferences
-	Fmkdir etc/$pkgname
-	Finstall 644 master_preferences etc/$pkgname/master_preferences
 }

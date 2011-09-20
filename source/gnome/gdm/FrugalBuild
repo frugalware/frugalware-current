@@ -2,8 +2,8 @@
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=gdm
-pkgver=3.1.91
-pkgrel=4
+pkgver=3.1.92
+pkgrel=2
 pkgdesc="GNOME Display Manager"
 url="http://www.gnome.org/"
 backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin)
@@ -15,12 +15,11 @@ rodepends=('xsm' 'sessreg' 'xmessage' 'gnome-session')
 makedepends=('intltool' 'gnome-doc-utils' 'gobject-introspection')
 groups=('gnome')
 archs=('i686' 'x86_64' 'ppc')
-options=('force')
 _F_gnome_git="n"
 Finclude gnome
 source=(${source[@]} \
 	a11y.diff)
-sha1sums=('b0038d68255d36506479819ccc011cd033d4f79d' \
+sha1sums=('204f49f507e4ded81e4680eabf40a7ba08f08937' \
           '3b31fb6239a3551e0f367d1ae24af3fdf624d171')
 if [ "$_F_gnome_git" != "n" ]; then
 	unset sha1sums
@@ -48,7 +47,7 @@ build() {
 		--with-console-kit \
 		--with-pam-dir=/lib/security \
 		--with-pam-prefix=/etc \
-		--disable-split-authentication \
+		--enable-split-authentication \
 		--with-incomplete-locales=yes
 	Fmakeinstall
 
@@ -76,13 +75,12 @@ EOF
 
 cat > $Fdestdir/etc/pam.d/gdm-autologin << "EOF"
 #%PAM-1.0
-auth        required    pam_env.so
-auth        requisite   pam_nologin.so
-auth        required    pam_permit.so
-account     required    pam_unix.so
-password    required    pam_unix.so
-session     required    pam_unix.so
-session     required    pam_systemd.so
+auth       required	pam_env.so
+auth       required	pam_nologin.so
+auth       required	pam_permit.so
+account    include	system-auth
+password   include	system-auth
+session    include	system-auth
 EOF
 
 cat > $Fdestdir/etc/pam.d/gdm-welcome << "EOF"
@@ -96,6 +94,25 @@ session    required	pam_loginuid.so
 session    required	pam_systemd.so
 session    optional	pam_keyinit.so force revoke
 session    include	system-auth
+EOF
+
+cat > $Fdestdir/etc/pam.d/gdm-pasword << "EOF"
+#%PAM-1.0
+auth        required      pam_succeed_if.so user != root quiet
+auth        optional      pam_gnome_keyring.so
+auth        include       login
+
+account     required      pam_nologin.so
+account     include       login
+
+password    include       passwd
+
+session     required      pam_loginuid.so
+session     optional      pam_console.so
+session     optional      pam_keyinit.so force revoke
+session     required      pam_namespace.so
+session     optional      pam_gnome_keyring.so auto_start
+session     include       common-session
 EOF
 
 	#bash completion fix

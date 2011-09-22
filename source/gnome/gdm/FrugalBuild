@@ -3,11 +3,11 @@
 
 pkgname=gdm
 pkgver=3.1.92
-pkgrel=7
+pkgrel=8
 pkgdesc="GNOME Display Manager"
 url="http://www.gnome.org/"
 backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin \
-	etc/pam.d/gdm-welcome etc/pam.d/gdm-smartcard etc/pam.d/gdm-fingerprint)
+	etc/pam.d/gdm-welcome)
 depends=('libxml2>=2.7.8' 'zenity>=3.0.0'  'libxi' 'fontconfig' 'libxrandr>=1.2.2' \
 	 'librsvg>=2.26.0-2' 'gnome-keyring>=3.0.3' 'consolekit-x11>=0.4.5' 'libcanberra-gtk' \
 	 'libxinerama' 'libxcursor' 'libxevie' 'xorg-server>=1.10.2' \
@@ -19,9 +19,11 @@ archs=('i686' 'x86_64' 'ppc')
 _F_gnome_git="n"
 Finclude gnome
 source=(${source[@]} \
-	a11y.diff)
+	a11y.diff \
+	switch_user.diff)
 sha1sums=('204f49f507e4ded81e4680eabf40a7ba08f08937' \
-          '3b31fb6239a3551e0f367d1ae24af3fdf624d171')
+          '3b31fb6239a3551e0f367d1ae24af3fdf624d171' \
+          '44920c250e63ee0ec0de188f05157c4bde2d88fd')
 if [ "$_F_gnome_git" != "n" ]; then
 	unset sha1sums
 fi
@@ -52,7 +54,9 @@ build() {
 		--with-incomplete-locales=no \
 		--with-at-spi-registryd-directory=/usr/lib/at-spi2-core \
 		--without-tcp-wrappers \
-		--disable-static
+		--disable-static \
+		--with-xdmcp=yes \
+		--with-xevie=yes
 	Fmakeinstall
 
 	chmod a+r $Fdestdir/var/lib/gdm || Fdie
@@ -60,7 +64,6 @@ build() {
 	Fmkdir var/spool/gdm
 
 	#Fcp polkit-gnome-authentication-agent-1.desktop usr/share/gdm/autostart/LoginWindow/polkit-gnome-authentication-agent-1.desktop
-
 
 	#delete PAM default rules
 	Frm etc/pam.d/*
@@ -76,86 +79,39 @@ session         required        pam_limits.so
 session         required        pam_unix.so
 session         optional        pam_gnome_keyring.so auto_start
 password        required        pam_unix.so
+session     	required	pam_systemd.so
 EOF
 
 cat > $Fdestdir/etc/pam.d/gdm-autologin << "EOF"
 #%PAM-1.0
-auth            requisite       pam_nologin.so
-auth            required        pam_env.so
-auth            requisite       pam_permit.so
-auth            sufficient      pam_succeed_if.so uid >= 1000 quiet
-auth            required        pam_deny.so
-account         required        pam_unix.so
-password        required        pam_deny.so
-session         required        pam_loginuid.so
-session		optional        pam_systemd.so
-session         optional        pam_keyinit.so revoke
-session         required        pam_limits.so
-session         required        pam_unix.so
+auth		requisite	pam_nologin.so
+auth		required	pam_env.so
+auth		required	pam_permit.so
+account		required	pam_unix.so
+password	required	pam_unix.so
+session		required	pam_limits.so
+session		required	pam_unix.so
+session         required        pam_systemd.so
 EOF
 
 cat > $Fdestdir/etc/pam.d/gdm-welcome << "EOF"
 #%PAM-1.0
-auth            required        pam_env.so
-auth            required        pam_permit.so
-account         required        pam_nologin.so
-account         required        pam_unix.so
-password        required        pam_deny.so
-session         required        pam_loginuid.so
-session		optional        pam_systemd.so
-session         optional        pam_keyinit.so force revoke
+auth       required    pam_env.so
+auth       required    pam_permit.so
+account    required    pam_nologin.so
+account    required    pam_unix.so
+password   required    pam_unix.so
+session    required    pam_loginuid.so
+session    optional    pam_keyinit.so force revoke
+session    required    pam_unix.so
+session    required    pam_systemd.so
 EOF
 
-cat > $Fdestdir/etc/pam.d/gdm-pasword << "EOF"
-#%PAM-1.0
-auth            requisite       pam_nologin.so
-auth            required        pam_env.so
-auth            requisite       pam_unix.so nullok
-auth            optional        pam_gnome_keyring.so
-auth            sufficient      pam_succeed_if.so uid >= 1000 quiet
-auth            required        pam_deny.so
-account         required        pam_unix.so
-password        required        pam_unix.so
-session         required        pam_loginuid.so
-session		optional        pam_systemd.so
-session         optional        pam_keyinit.so revoke
-session         required        pam_limits.so
-session         required        pam_unix.so
-session         optional        pam_gnome_keyring.so auto_start
-EOF
-cat > $Fdestdir/etc/pam.d/gdm-smartcard << "EOF"
-#%PAM-1.0
-auth            requisite       pam_nologin.so
-auth            required        pam_env.so
-auth            requisite       pam_pkcs11.so wait_for_card card_only
-auth            sufficient      pam_succeed_if.so uid >= 1000 quiet
-auth            required        pam_deny.so
-account         required        pam_unix.so
-password        required        pam_pkcs11.so
-session         required        pam_loginuid.so
-session		optional        pam_systemd.so
-session         optional        pam_keyinit.so revoke
-session         required        pam_limits.so
-session         required        pam_unix.so
-EOF
-cat > $Fdestdir/etc/pam.d/gdm-smartcard << "EOF"
-#%PAM-1.0
-auth            requisite       pam_nologin.so
-auth            required        pam_env.so
-auth            requisite       pam_fprintd.so
-auth            sufficient      pam_succeed_if.so uid >= 1000 quiet
-auth            required        pam_deny.so
-account         required        pam_unix.so
-password        required        pam_deny.so
-session         required        pam_loginuid.so
-session		optional        pam_systemd.so
-session         optional        pam_keyinit.so revoke
-session         required        pam_limits.so
-session         required        pam_unix.so
-EOF
 	#bash completion fix
 	Fsed "#!/bin/sh" "#!/bin/bash" $Fdestdir/usr/sbin/gdm
 
+	Frm var/gdm
+	chmod 1770 $Fdestdir/var/log/gdm || Fdie
 	# systemd tmpfiles
 	Frm var/run
 	Fmkdir /etc/tmpfiles.d

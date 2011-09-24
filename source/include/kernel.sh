@@ -1,7 +1,6 @@
 #!/bin/sh
 
 USE_DEVEL=${USE_DEVEL:-"n"}
-USE_DRACUT=${USE_DRACUT:-"n"}
 
 Finclude kernel-version
 
@@ -143,9 +142,6 @@ fi
 if [ "$CARCH" = "arm" -o "$CARCH" = "ppc" ]; then
 	makedepends=("${makedepends[@]}" 'u-boot-tools')
 fi
-if Fuse DRACUT; then
-	makedepends=("${makedepends[@]}" 'dracut')
-fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('nodocs' 'genscriptlet')
@@ -155,12 +151,12 @@ replaces=('redirfs' 'dazuko')
 install="src/kernel.install"
 
 if ! Fuse DEVEL; then
-	source=("ftp://ftp.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.bz2")
+	source=("http://ftp.heanet.ie/pub/kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.bz2")
 	signatures=("${source[0]}.sign")
 
 	if [ "$_F_kernel_stable" -gt 0 ]; then
 		source=("${source[@]}" \
-			"ftp://ftp.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.bz2")
+			"http://ftp.heanet.ie/pub/kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.bz2")
 		signatures=("${signatures[@]}" "${source[$((${#source[@]}-1))]}.sign")
 	fi
 else
@@ -320,14 +316,6 @@ Fbuildkernel()
 	Ffilerel /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/Module.symvers
 	Frm /lib/modules/$_F_kernel_ver$_F_kernel_uname/build
 	Frm /lib/modules/$_F_kernel_ver$_F_kernel_uname/source
-
-	if Fuse DRACUT; then
-		Fexec /sbin/dracut \
-			$Fdestdir/boot/initramfs.img-$_F_kernel_ver$_F_kernel_uname \
-			--no-kernel \
-			--include $Fdestdir/lib/modules/ /lib/modules/ \
-			|| Fdie
-	fi
 
 	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname \
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/build

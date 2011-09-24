@@ -1,0 +1,90 @@
+# Compiling Time: 20.50 SBU
+# Maintainer: Devil505 <devil505linux@gmail.com>
+
+pkgname=chromium-browser
+pkgver=14.0.835.186
+pkgrel=1
+pkgdesc='An open-source browser project that aims to build a safer, faster, and more stable way for all users to experience the web'
+url='http://www.chromium.org/'
+depends=('nss' 'alsa-lib' 'hicolor-icon-theme' 'libxslt' 'ffmpeg>=0.8' \
+	'libevent>=2.0.10' 'libxscrnsaver' 'libpng>=1.4.1' 'gtk+2' 'libxtst' \
+	'libgcrypt' 'dejavu-ttf' 'gnutls' 'libtasn1')
+makedepends=('python' 'perl' 'gperf' 'yasm' 'libgl' 'libgnome-keyring' 'cups' 'krb5')
+license=('BSD')
+groups=('xapps-extra')
+archs=('i686' 'x86_64')
+_F_gnome_iconcache="y"
+Finclude gnome-scriptlet
+_F_archive_name="chromium"
+up2date="Flasttar http://build.chromium.org/buildbot/official/"
+source=(http://build.chromium.org/official/$_F_archive_name-$pkgver.tar.bz2  \
+        gcc-4.6.patch \
+        webrtc-r240-r242-make-pulseaudio-optional.patch \
+        $pkgname.desktop $pkgname.sh)
+sha1sums=('898ac584fd5b50705864e84afa80aa407f25609b' \
+          '39999918746524fff30e73dc656754733df5c2c2' \
+          '3d3aab601d2a96b52b179dfc31091c8a7fcf2462' \
+          '78ed8913b8a598de6a9e45d206973a846dbe8a51' \
+          'e06de4aee77b3deb77e3b08ebb175ec02da42ced')
+
+build() {
+        Fcd
+        # Fix build with CUPS 1.5
+        sed -i '/#include <cups\/cups.h>/ a #include <cups/ppd.h>' \
+        chrome/browser/ui/webui/print_preview_handler.cc || Fdie
+	Fpatchall
+
+  build/gyp_chromium -f make build/all.gyp --depth=. \
+    -Dno_strict_aliasing=1 \
+    -Dwerror= \
+    -Dlinux_sandbox_path=/usr/lib/chromium/chromium-sandbox \
+    -Dlinux_strip_binary=1 \
+    -Drelease_extra_cflags="$CFLAGS" \
+    -Dffmpeg_branding=Chrome \
+    -Dproprietary_codecs=1 \
+    -Duse_system_bzip2=1 \
+    -Duse_system_ffmpeg=0 \
+    -Duse_system_libevent=1 \
+    -Duse_system_libjpeg=1 \
+    -Duse_system_libpng=1 \
+    -Duse_system_libxml=0 \
+    -Duse_system_ssl=0 \
+    -Duse_system_yasm=1 \
+    -Duse_system_zlib=1 \
+    -Duse_gconf=0 \
+    -Ddisable_nacl=1 \
+    $([[ $CARCH == i686 ]] && echo '-Ddisable_sse2=1')
+
+  make chrome chrome_sandbox BUILDTYPE=Release || Fdie
+
+	Fmkdir usr/lib/chromium
+        Fexerel out/Release/chrome usr/lib/chromium/chromium
+        Finstallrel 4555 out/Release/chrome_sandbox usr/lib/chromium/chromium-sandbox
+	Ffileschown usr/lib/chromium/chromium-sandbox root root
+
+        # Add out/Release/{libppGoogleNaClPluginChrome.so,nacl_irt_x86_*.nexe} again
+        # when NaCl build is fixed
+        cp out/Release/{{chrome,resources}.pak,libffmpegsumo.so} \
+        "$Fdestdir/usr/lib/chromium/" || Fdie
+
+        Fln /usr/lib/libavcodec.so.52 /usr/lib/chromium/libavcodec.so.52
+        Fln /usr/lib/libavformat.so.52 /usr/lib/chromium/libavformat.so.52
+        Fln /usr/lib/libavutil.so.50 /usr/lib/chromium/libavutil.so.50
+
+        cp -a out/Release/locales out/Release/resources  \
+	$Fdestdir/usr/lib/chromium/ || Fdie
+        find $Fdestdir/usr/lib/chromium/ -name '*.d' -type f -delete
+        Finstallrel 644 out/Release/chrome.1 usr/share/man/man1/chromium.1
+
+        Finstall 644 $pkgname.desktop usr/share/applications/$pkgname.desktop
+        for size in 16 32 48 256; do
+                install -m 0644 -D \
+                        chrome/app/theme/chromium/product_logo_${size}.png \
+                        $Fdestdir/usr/share/icons/hicolor/${size}x${size}/apps/$pkgname.png
+        done
+
+        Fexe $pkgname.sh usr/bin/$pkgname
+
+        Fdocrel LICENSE
+	Fbuild_gnome_scriptlet
+}

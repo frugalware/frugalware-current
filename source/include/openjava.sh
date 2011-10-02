@@ -1,14 +1,14 @@
 #!/bin/sh
 
 ###
-# = java.sh(3)
-# Miklos Vajna <vmiklos@frugalware.org>
+# = openjava.sh(3)
+# Marius Cirsta <mcirsta@frugalware.org>
 #
 # == NAME
-# java.sh - for Frugalware
+# openjava.sh - for Frugalware
 #
 # == SYNOPSIS
-# Common schema for java packages that use openjre and openjdk.
+# Common schema for java packages that uses openjre and openjdk.
 #
 # == EXAMPLE
 # --------------------------------------------------
@@ -75,7 +75,7 @@ Fjar()
 ###
 Fjavacleanup()
 {
-	
+
 	if [ -z "$_F_java_no_cleanup" ]; then
 		local root="."
 		[ -n "$1" ] && root=$1

@@ -43,7 +43,7 @@ if [ -z "$_F_github_name" ]; then
 fi
 
 if [ -z "$_F_github_dirname" ]; then
-	_F_github_dirname=$pkgname
+	_F_github_dirname=$_F_github_name
 fi
 
 

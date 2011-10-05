@@ -1,0 +1,618 @@
+diff -r -u gdm-3.1.90.old//daemon/gdm-display.c gdm-3.1.90/daemon/gdm-display.c
+--- gdm-3.1.90.old//daemon/gdm-display.c	2011-09-02 17:35:54.663697535 +0200
++++ gdm-3.1.90/daemon/gdm-display.c	2011-09-02 17:41:27.506682115 +0200
+@@ -60,6 +60,7 @@
+         time_t                creation_time;
+         GTimer               *slave_timer;
+         char                 *slave_command;
++        char                 *username;
+ 
+         char                 *x11_cookie;
+         gsize                 x11_cookie_size;
+@@ -85,6 +86,7 @@
+         PROP_X11_AUTHORITY_FILE,
+         PROP_IS_LOCAL,
+         PROP_SLAVE_COMMAND,
++        PROP_USERNAME,
+ };
+ 
+ static void     gdm_display_class_init  (GdmDisplayClass *klass);
+@@ -574,9 +576,17 @@
+         gdm_slave_proxy_set_log_path (display->priv->slave_proxy, log_path);
+         g_free (log_path);
+ 
+-        command = g_strdup_printf ("%s --display-id %s",
+-                                   display->priv->slave_command,
+-                                   display->priv->id);
++        if (display->priv->username) {
++                command = g_strdup_printf ("%s --display-id %s --username %s",
++                                           display->priv->slave_command,
++                                           display->priv->id,
++                                           display->priv->username);
++        } else {
++                command = g_strdup_printf ("%s --display-id %s",
++                                           display->priv->slave_command,
++                                           display->priv->id);
++        }
++
+         gdm_slave_proxy_set_command (display->priv->slave_proxy, command);
+         g_free (command);
+ 
+@@ -832,6 +842,14 @@
+ }
+ 
+ static void
++_gdm_display_set_username (GdmDisplay     *display,
++                           const char     *username)
++{
++        g_free (display->priv->username);
++        display->priv->username = g_strdup (username);
++}
++
++static void
+ gdm_display_set_property (GObject        *object,
+                           guint           prop_id,
+                           const GValue   *value,
+@@ -869,6 +887,9 @@
+         case PROP_SLAVE_COMMAND:
+                 _gdm_display_set_slave_command (self, g_value_get_string (value));
+                 break;
++        case PROP_USERNAME:
++                _gdm_display_set_username (self, g_value_get_string (value));
++                break;
+         default:
+                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+                 break;
+@@ -917,6 +938,9 @@
+         case PROP_SLAVE_COMMAND:
+                 g_value_set_string (value, self->priv->slave_command);
+                 break;
++        case PROP_USERNAME:
++                g_value_set_string (value, self->priv->username);
++                break;
+         default:
+                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+                 break;
+@@ -1092,6 +1116,14 @@
+                                                               "slave command",
+                                                               DEFAULT_SLAVE_COMMAND,
+                                                               G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
++
++        g_object_class_install_property (object_class,
++                                         PROP_USERNAME,
++                                         g_param_spec_string ("username",
++                                                              "username",
++                                                              "username",
++                                                              NULL,
++                                                              G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
+         g_object_class_install_property (object_class,
+                                          PROP_STATUS,
+                                          g_param_spec_int ("status",
+diff -r -u gdm-3.1.90.old//daemon/gdm-greeter-server.c gdm-3.1.90/daemon/gdm-greeter-server.c
+--- gdm-3.1.90.old//daemon/gdm-greeter-server.c	2011-09-02 17:35:54.665697535 +0200
++++ gdm-3.1.90/daemon/gdm-greeter-server.c	2011-09-02 17:44:04.614674842 +0200
+@@ -344,6 +344,14 @@
+ }
+ 
+ void
++gdm_greeter_server_select_user(GdmGreeterServer *greeter_server,
++                               const char       *username)
++{
++        g_debug ("SelectUser(%s)", username);
++        send_dbus_string_signal (greeter_server, "SelectUser", username);
++}
++
++void
+ gdm_greeter_server_request_timed_login (GdmGreeterServer *greeter_server,
+                                         const char       *username,
+                                         int               delay)
+@@ -848,6 +856,9 @@
+                                "    <signal name=\"DefaultSessionNameChanged\">\n"
+                                "      <arg name=\"session_name\" type=\"s\"/>\n"
+                                "    </signal>\n"
++                               "    <signal name=\"SelectUser\">\n"
++                               "      <arg name=\"username\" type=\"s\"/>\n"
++                               "    </signal>\n"
+                                "    <signal name=\"TimedLoginRequested\">\n"
+                                "      <arg name=\"username\" type=\"s\"/>\n"
+                                "      <arg name=\"delay\" type=\"i\"/>\n"
+@@ -1200,7 +1211,7 @@
+                                                               "display id",
+                                                               NULL,
+                                                               G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
+-         g_object_class_install_property (object_class,
++        g_object_class_install_property (object_class,
+                                          PROP_USER_NAME,
+                                          g_param_spec_string ("user-name",
+                                                               "user name",
+diff -r -u gdm-3.1.90.old//daemon/gdm-greeter-server.h gdm-3.1.90/daemon/gdm-greeter-server.h
+--- gdm-3.1.90.old//daemon/gdm-greeter-server.h	2011-09-02 17:35:54.665697535 +0200
++++ gdm-3.1.90/daemon/gdm-greeter-server.h	2011-09-02 17:45:01.832672189 +0200
+@@ -107,6 +107,8 @@
+ void                gdm_greeter_server_default_session_name_changed (GdmGreeterServer *greeter_server,
+                                                                      const char       *text);
+ 
++void                gdm_greeter_server_select_user           (GdmGreeterServer *greeter_server,
++                                                              const char       *username);
+ void                gdm_greeter_server_request_timed_login   (GdmGreeterServer *greeter_server,
+                                                               const char       *username,
+                                                               int               delay);
+diff -r -u gdm-3.1.90.old//daemon/gdm-local-display-factory.c gdm-3.1.90/daemon/gdm-local-display-factory.c
+--- gdm-3.1.90.old//daemon/gdm-local-display-factory.c	2011-09-02 17:35:54.664697535 +0200
++++ gdm-3.1.90/daemon/gdm-local-display-factory.c	2011-09-02 17:47:37.620664940 +0200
+@@ -27,6 +27,8 @@
+ #include <glib/gi18n.h>
+ #include <glib-object.h>
+ 
++#include "gdm-common.h"
++
+ #include "gdm-display-factory.h"
+ #include "gdm-local-display-factory.h"
+ #include "gdm-local-display-factory-glue.h"
+@@ -227,6 +227,121 @@
+         return ret;
+ }
+ 
++static gboolean
++switch_to_user_display (GdmLocalDisplayFactory *factory, char *username)
++{
++        struct passwd *password;
++        DBusGProxy *proxy;
++        GPtrArray *sessions = NULL;
++        GError *error = NULL;
++        gboolean result = FALSE;
++
++        gdm_get_pwent_for_name (username, &password);
++        if (!password) {
++                return FALSE;
++        }
++
++        proxy = dbus_g_proxy_new_for_name (factory->priv->connection,
++                                           "org.freedesktop.ConsoleKit",
++                                           "/org/freedesktop/ConsoleKit/Manager",
++                                           "org.freedesktop.ConsoleKit.Manager");
++    
++        dbus_g_proxy_call (proxy, "GetSessionsForUnixUser", &error,
++                           G_TYPE_UINT, password->pw_uid, G_TYPE_INVALID,
++                           dbus_g_type_get_collection("GPtrArray", DBUS_TYPE_G_OBJECT_PATH), &sessions, G_TYPE_INVALID);
++        g_object_unref(proxy);
++        if (error != NULL) {
++                g_warning ("Error getting sessions for user %s: %s", username, error->message);
++                g_error_free (error);
++        }
++    
++        if (sessions && sessions->len > 0) {
++                gchar *session_id = sessions->pdata[0];
++
++                g_debug ("GdmLocalDisplayFactory: Switching to session %s (user %s)", session_id, username);
++
++                proxy = dbus_g_proxy_new_for_name (factory->priv->connection,
++                                                   "org.freedesktop.ConsoleKit",
++                                                   session_id,
++                                                   "org.freedesktop.ConsoleKit.Session");
++                result = dbus_g_proxy_call (proxy, "Activate", &error, G_TYPE_INVALID, G_TYPE_INVALID);
++                g_object_unref (proxy);
++                if (error != NULL)
++                {
++                        g_warning ("Error activating session for user %s: %s", username, error->message);
++                        g_error_free (error);
++                }
++        }
++        
++        if (sessions != NULL) {
++                gint i;
++                for (i = 0; i < sessions->len; i++) {
++                        g_free (sessions->pdata[i]);
++                }
++                g_ptr_array_free (sessions, TRUE);
++        }
++
++        return result;
++}
++
++gboolean
++gdm_local_display_factory_switch_to_user (GdmLocalDisplayFactory *factory,
++                                          char                   *username,
++                                          char                  **id,
++                                          GError                **error)
++{
++        gboolean         ret;
++        GdmDisplay      *display;
++        guint32          num;
++
++        g_return_val_if_fail (GDM_IS_LOCAL_DISPLAY_FACTORY (factory), FALSE);
++
++        /* Switch to existing user display */
++        if (switch_to_user_display (factory, username)) {
++                /* FIXME: How to return the ID of the user display?  It should
++                 *        be easy but I can't find how to get it */
++                /*if (id != NULL) {
++                        *id = g_strdup ("FIXME");
++                }*/
++
++                /* FIXME: We should return TRUE here but this causes GDM to go
++                 *        crazy.  Luckily we can return FALSE as we don't need
++                 *        any values returned from this call */
++                return FALSE;
++        }
++
++        ret = FALSE;
++
++        num = take_next_display_number (factory);
++
++        g_debug ("GdmLocalDisplayFactory: Switching to user %s on display %d", username, num);
++
++        display = gdm_transient_display_new (num);
++
++        /* FIXME: don't hardcode seat1? */
++        g_object_set (display, "seat-id", CK_SEAT1_PATH, NULL);
++        g_object_set (display, "username", username, NULL);
++
++        store_display (factory, num, display);
++
++        if (! gdm_display_manage (display)) {
++                display = NULL;
++                goto out;
++        }
++
++        if (! gdm_display_get_id (display, id, NULL)) {
++                display = NULL;
++                goto out;
++        }
++
++        ret = TRUE;
++ out:
++        /* ref either held by store or not at all */
++        g_object_unref (display);
++
++        return ret;
++}
++
+ gboolean
+ gdm_local_display_factory_create_product_display (GdmLocalDisplayFactory *factory,
+                                                   const char             *parent_display_id,
+diff -r -u gdm-3.1.90.old//daemon/gdm-local-display-factory.h gdm-3.1.90/daemon/gdm-local-display-factory.h
+--- gdm-3.1.90.old//daemon/gdm-local-display-factory.h	2011-09-02 17:35:54.665697535 +0200
++++ gdm-3.1.90/daemon/gdm-local-display-factory.h	2011-09-02 17:48:38.078662173 +0200
+@@ -64,6 +64,10 @@
+ gboolean                   gdm_local_display_factory_create_transient_display (GdmLocalDisplayFactory *factory,
+                                                                                char                  **id,
+                                                                                GError                **error);
++gboolean                   gdm_local_display_factory_switch_to_user (GdmLocalDisplayFactory *factory,
++                                                                     char                   *username,
++                                                                     char                  **id,
++                                                                     GError                **error);
+ 
+ gboolean                   gdm_local_display_factory_create_product_display   (GdmLocalDisplayFactory *factory,
+                                                                                const char             *parent_display_id,
+diff -r -u gdm-3.1.90.old//daemon/gdm-local-display-factory.xml gdm-3.1.90/daemon/gdm-local-display-factory.xml
+--- gdm-3.1.90.old//daemon/gdm-local-display-factory.xml	2011-09-02 17:35:54.664697535 +0200
++++ gdm-3.1.90/daemon/gdm-local-display-factory.xml	2011-09-02 17:49:05.999660840 +0200
+@@ -9,5 +9,9 @@
+     <method name="CreateTransientDisplay">
+       <arg name="id" direction="out" type="o"/>
+     </method>
++    <method name="SwitchToUser">
++      <arg name="username" direction="in" type="s"/>    
++      <arg name="id" direction="out" type="o"/>
++    </method>
+   </interface>
+ </node>
+diff -r -u gdm-3.1.90.old//daemon/gdm-simple-slave.c gdm-3.1.90/daemon/gdm-simple-slave.c
+--- gdm-3.1.90.old//daemon/gdm-simple-slave.c	2011-09-02 17:35:54.664697535 +0200
++++ gdm-3.1.90/daemon/gdm-simple-slave.c	2011-09-02 18:04:47.420617214 +0200
+@@ -93,10 +93,12 @@
+ #ifdef  HAVE_LOGINDEVPERM
+         gboolean           use_logindevperm;
+ #endif
++        gchar             *username;
+ };
+ 
+ enum {
+         PROP_0,
++        PROP_USERNAME,
+ };
+ 
+ static void     gdm_simple_slave_class_init     (GdmSimpleSlaveClass *klass);
+@@ -622,6 +624,16 @@
+ }
+ 
+ static void
++gdm_simple_slave_set_username (GdmSimpleSlave *slave,
++                               const char     *username)
++{
++        g_return_if_fail (GDM_IS_SIMPLE_SLAVE (slave));
++
++        g_free (slave->priv->username);
++        slave->priv->username = g_strdup (username);
++}
++
++static void
+ on_session_conversation_started (GdmSession     *session,
+                                  const char     *service_name,
+                                  GdmSimpleSlave *slave)
+@@ -640,6 +652,19 @@
+                 }
+         }
+ 
++        g_object_get (slave, "username", &username, NULL);
++        if (username) {
++                g_debug ("GdmSimpleSlave: **user '%s'", username);
++                if (slave->priv->greeter_server != NULL) {
++                        g_debug ("GdmSimpleSlave: begin login for user '%s'", username);
++                        gdm_simple_slave_set_username (slave, NULL);
++                        gdm_greeter_server_select_user (slave->priv->greeter_server, username);
++                }
++                g_free (username);
++                return;
++        }
++        g_debug ("GdmSimpleSlave: **nouser");
++
+         enabled = FALSE;
+         gdm_slave_get_timed_login_details (GDM_SLAVE (slave), &enabled, &username, &delay);
+         if (! enabled) {
+@@ -1523,7 +1548,14 @@
+                                const GValue *value,
+                                GParamSpec   *pspec)
+ {
++        GdmSimpleSlave *self;
++
++        self = GDM_SIMPLE_SLAVE (object);
++
+         switch (prop_id) {
++        case PROP_USERNAME:
++                    gdm_simple_slave_set_username (self, g_value_get_string (value));
++                break;
+         default:
+                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+                 break;
+@@ -1536,7 +1568,15 @@
+                                GValue      *value,
+                                GParamSpec *pspec)
+ {
++        GdmSimpleSlave *self;
++
++        self = GDM_SIMPLE_SLAVE (object);
++
+         switch (prop_id) {
++        case PROP_USERNAME:
++                    g_value_set_string (value, self->priv->username);
++                break;
++
+         default:
+                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+                 break;
+@@ -1573,6 +1613,14 @@
+ 
+         g_type_class_add_private (klass, sizeof (GdmSimpleSlavePrivate));
+ 
++        g_object_class_install_property (object_class,
++                                         PROP_USERNAME,
++                                         g_param_spec_string ("username",
++                                                              "id",
++                                                              "id",
++                                                              NULL,
++                                                              G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
++
+         dbus_g_object_type_install_info (GDM_TYPE_SIMPLE_SLAVE, &dbus_glib_gdm_simple_slave_object_info);
+ }
+ 
+@@ -1608,12 +1656,13 @@
+ }
+ 
+ GdmSlave *
+-gdm_simple_slave_new (const char *id)
++gdm_simple_slave_new (const char *id, const char *username)
+ {
+         GObject *object;
+ 
+         object = g_object_new (GDM_TYPE_SIMPLE_SLAVE,
+                                "display-id", id,
++                               "username", username,
+                                NULL);
+ 
+         return GDM_SLAVE (object);
+diff -r -u gdm-3.1.90.old//daemon/gdm-simple-slave.h gdm-3.1.90/daemon/gdm-simple-slave.h
+--- gdm-3.1.90.old//daemon/gdm-simple-slave.h	2011-09-02 17:35:54.664697535 +0200
++++ gdm-3.1.90/daemon/gdm-simple-slave.h	2011-09-02 18:05:15.763615898 +0200
+@@ -48,7 +48,8 @@
+ } GdmSimpleSlaveClass;
+ 
+ GType               gdm_simple_slave_get_type   (void);
+-GdmSlave *          gdm_simple_slave_new        (const char       *id);
++GdmSlave *          gdm_simple_slave_new        (const char       *id,
++                                                 const char       *username);
+ 
+ G_END_DECLS
+ 
+diff -r -u gdm-3.1.90.old//daemon/simple-slave-main.c gdm-3.1.90/daemon/simple-slave-main.c
+--- gdm-3.1.90.old//daemon/simple-slave-main.c	2011-09-02 17:35:54.663697535 +0200
++++ gdm-3.1.90/daemon/simple-slave-main.c	2011-09-02 18:07:12.536610486 +0200
+@@ -177,9 +177,11 @@
+         DBusGConnection  *connection;
+         GdmSlave         *slave;
+         static char      *display_id = NULL;
++        static char      *username = NULL;
+         GdmSignalHandler *signal_handler;
+         static GOptionEntry entries []   = {
+                 { "display-id", 0, 0, G_OPTION_ARG_STRING, &display_id, N_("Display ID"), N_("ID") },
++                { "username", 0, 0, G_OPTION_ARG_STRING, &username, N_("Username"), N_("name") },
+                 { NULL }
+         };
+ 
+@@ -246,7 +248,7 @@
+         gdm_signal_handler_add (signal_handler, SIGUSR1, signal_cb, NULL);
+         gdm_signal_handler_add (signal_handler, SIGUSR2, signal_cb, NULL);
+ 
+-        slave = gdm_simple_slave_new (display_id);
++        slave = gdm_simple_slave_new (display_id, username);
+         if (slave == NULL) {
+                 goto out;
+         }
+diff -r -u gdm-3.1.90.old//data/gdm.conf.in gdm-3.1.90/data/gdm.conf.in
+--- gdm-3.1.90.old//data/gdm.conf.in	2011-09-02 17:35:54.662697535 +0200
++++ gdm-3.1.90/data/gdm.conf.in	2011-09-02 18:07:54.638608550 +0200
+@@ -66,6 +66,9 @@
+     <allow send_destination="org.gnome.DisplayManager"
+            send_interface="org.gnome.DisplayManager.LocalDisplayFactory"
+            send_member="CreateTransientDisplay"/>
++    <allow send_destination="org.gnome.DisplayManager"
++           send_interface="org.gnome.DisplayManager.LocalDisplayFactory"
++           send_member="SwitchToUser"/>
+ 
+     <allow send_destination="org.gnome.DisplayManager"
+            send_interface="org.gnome.DisplayManager.Manager"
+diff -r -u gdm-3.1.90.old//gui/simple-greeter/gdm-greeter-client.c gdm-3.1.90/gui/simple-greeter/gdm-greeter-client.c
+--- gdm-3.1.90.old//gui/simple-greeter/gdm-greeter-client.c	2011-09-02 17:35:54.660697538 +0200
++++ gdm-3.1.90/gui/simple-greeter/gdm-greeter-client.c	2011-09-02 18:11:23.425598857 +0200
+@@ -70,6 +70,7 @@
+         SELECTED_USER_CHANGED,
+         DEFAULT_LANGUAGE_NAME_CHANGED,
+         DEFAULT_SESSION_NAME_CHANGED,
++        SELECT_USER,
+         TIMED_LOGIN_REQUESTED,
+         SESSION_OPENED,
+         LAST_SIGNAL
+@@ -215,6 +216,14 @@
+ }
+ 
+ static void
++on_select_user (GdmGreeterClient *client,
++                DBusMessage      *message)
++{
++        g_debug("GdmGreeterClient: SelectUser");
++        emit_string_signal_for_message (client, "SelectUser", message, SELECT_USER);
++}
++
++static void
+ on_timed_login_requested (GdmGreeterClient *client,
+                           DBusMessage      *message)
+ {
+@@ -761,6 +770,8 @@
+                 on_default_language_name_changed (client, message);
+         } else if (dbus_message_is_signal (message, GREETER_SERVER_DBUS_INTERFACE, "DefaultSessionNameChanged")) {
+                 on_default_session_name_changed (client, message);
++        } else if (dbus_message_is_signal (message, GREETER_SERVER_DBUS_INTERFACE, "SelectUser")) {
++                on_select_user (client, message);
+         } else if (dbus_message_is_signal (message, GREETER_SERVER_DBUS_INTERFACE, "TimedLoginRequested")) {
+                 on_timed_login_requested (client, message);
+         } else if (dbus_message_is_signal (message, GREETER_SERVER_DBUS_INTERFACE, "SessionOpened")) {
+@@ -1060,6 +1071,17 @@
+                               NULL,
+                               NULL,
+                               g_cclosure_marshal_VOID__STRING,
++                              G_TYPE_NONE,
++                              1, G_TYPE_STRING);
++
++        gdm_greeter_client_signals[SELECT_USER] =
++                g_signal_new ("select-user",
++                              G_OBJECT_CLASS_TYPE (object_class),
++                              G_SIGNAL_RUN_FIRST,
++                              G_STRUCT_OFFSET (GdmGreeterClientClass, select_user),
++                              NULL,
++                              NULL,
++                              g_cclosure_marshal_VOID__STRING,
+                               G_TYPE_NONE,
+                               1, G_TYPE_STRING);
+ 
+diff -r -u gdm-3.1.90.old//gui/simple-greeter/gdm-greeter-client.h gdm-3.1.90/gui/simple-greeter/gdm-greeter-client.h
+--- gdm-3.1.90.old//gui/simple-greeter/gdm-greeter-client.h	2011-09-02 17:35:54.660697538 +0200
++++ gdm-3.1.90/gui/simple-greeter/gdm-greeter-client.h	2011-09-02 18:11:52.696597498 +0200
+@@ -74,6 +74,8 @@
+                                                 const char        *session_name);
+         void (* default_language_name_changed) (GdmGreeterClient  *client,
+                                                 const char        *language_name);
++        void (* select_user)             (GdmGreeterClient  *client,
++                                          const char        *username);
+         void (* timed_login_requested)   (GdmGreeterClient  *client,
+                                           const char        *username,
+                                           int                delay);
+diff -r -u gdm-3.1.90.old//gui/simple-greeter/gdm-greeter-login-window.c gdm-3.1.90/gui/simple-greeter/gdm-greeter-login-window.c
+--- gdm-3.1.90.old//gui/simple-greeter/gdm-greeter-login-window.c	2011-09-02 17:35:54.661697536 +0200
++++ gdm-3.1.90/gui/simple-greeter/gdm-greeter-login-window.c	2011-09-02 18:16:16.861585254 +0200
+@@ -148,6 +148,8 @@
+         guint            login_button_handler_id;
+         guint            start_session_handler_id;
+ 
++        char            *username;
++
+         char            *service_name_of_session_ready_to_start;
+ };
+ 
+@@ -1194,6 +1196,22 @@
+ }
+ 
+ void
++gdm_greeter_login_window_select_user (GdmGreeterLoginWindow *login_window,
++                                      const char            *username)
++{
++        g_return_if_fail (GDM_IS_GREETER_LOGIN_WINDOW (login_window));
++
++        g_debug ("GdmGreeterLoginWindow: selecting user '%s'", username);
++
++        g_free (login_window->priv->username);
++        login_window->priv->username = g_strdup (username);
++        if (login_window->priv->user_chooser_loaded) {
++                g_debug ("GdmGreeterLoginWindow: activating user '%s'", login_window->priv->username);
++                gdm_chooser_widget_set_active_item (GDM_CHOOSER_WIDGET (login_window->priv->user_chooser), username);
++        }
++}
++
++void
+ gdm_greeter_login_window_request_timed_login (GdmGreeterLoginWindow *login_window,
+                                               const char            *username,
+                                               int                    delay)
+@@ -1437,6 +1455,10 @@
+ 
+         if (!login_window->priv->user_list_disabled) {
+                 gtk_widget_show (login_window->priv->user_chooser);
++                if (login_window->priv->username) {
++                        g_debug ("GdmGreeterLoginWindow: activating user '%s'", login_window->priv->username);
++                        gdm_chooser_widget_set_active_item (GDM_CHOOSER_WIDGET (login_window->priv->user_chooser), login_window->priv->username);
++                }
+         }
+ 
+         enable_waiting_extensions (login_window);
+diff -r -u gdm-3.1.90.old//gui/simple-greeter/gdm-greeter-login-window.h gdm-3.1.90/gui/simple-greeter/gdm-greeter-login-window.h
+--- gdm-3.1.90.old//gui/simple-greeter/gdm-greeter-login-window.h	2011-09-02 17:35:54.659697539 +0200
++++ gdm-3.1.90/gui/simple-greeter/gdm-greeter-login-window.h	2011-09-02 18:16:55.629583456 +0200
+@@ -95,6 +95,8 @@
+ gboolean            gdm_greeter_login_window_service_unavailable (GdmGreeterLoginWindow *login_window,
+                                                                   const char *service_name);
+ 
++void               gdm_greeter_login_window_select_user         (GdmGreeterLoginWindow *login_window,
++                                                                 const char            *username);
+ void               gdm_greeter_login_window_request_timed_login (GdmGreeterLoginWindow *login_window,
+                                                                  const char            *username,
+                                                                  int                    delay);
+diff -r -u gdm-3.1.90.old//gui/simple-greeter/gdm-greeter-session.c gdm-3.1.90/gui/simple-greeter/gdm-greeter-session.c
+--- gdm-3.1.90.old//gui/simple-greeter/gdm-greeter-session.c	2011-09-02 17:35:54.660697538 +0200
++++ gdm-3.1.90/gui/simple-greeter/gdm-greeter-session.c	2011-09-02 18:18:15.207579768 +0200
+@@ -170,6 +170,15 @@
+ }
+ 
+ static void
++on_server_select_user (GdmGreeterClient  *client,
++                       const char        *username,
++                       GdmGreeterSession *session)
++{
++        g_debug ("GdmGreeterSession: selecting user %s", username);
++        gdm_greeter_login_window_select_user (GDM_GREETER_LOGIN_WINDOW (session->priv->login_window), username);
++}
++
++static void
+ on_timed_login_requested (GdmGreeterClient  *client,
+                           const char        *text,
+                           int                delay,
+@@ -600,6 +609,10 @@
+                           G_CALLBACK (on_default_session_name_changed),
+                           session);
+         g_signal_connect (session->priv->client,
++                          "select-user",
++                          G_CALLBACK (on_server_select_user),
++                          session);
++        g_signal_connect (session->priv->client,
+                           "timed-login-requested",
+                           G_CALLBACK (on_timed_login_requested),
+                           session);
+

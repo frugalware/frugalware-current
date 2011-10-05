@@ -2,81 +2,118 @@
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=gdm
-pkgver=3.0.4
-pkgrel=1
+pkgver=3.2.0
+pkgrel=2
 pkgdesc="GNOME Display Manager"
 url="http://www.gnome.org/"
-backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin)
+backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin \
+	etc/pam.d/gdm-welcome)
 depends=('libxml2>=2.7.8' 'zenity>=3.0.0'  'libxi' 'fontconfig' 'libxrandr>=1.2.2' \
 	 'librsvg>=2.26.0-2' 'gnome-keyring>=3.0.3' 'consolekit-x11>=0.4.5' 'libcanberra-gtk' \
 	 'libxinerama' 'libxcursor' 'libxevie' 'xorg-server>=1.10.2' \
-	'pam' 'accountsservice' 'upower')
+	'pam' 'accountsservice' 'upower' 'nss' 'hwdata' 'dbus-x11')
 rodepends=('xsm' 'sessreg' 'xmessage' 'gnome-session')
-makedepends=('intltool' 'gnome-doc-utils')
+makedepends=('intltool' 'gnome-doc-utils' 'gobject-introspection')
 groups=('gnome')
 archs=('i686' 'x86_64' 'ppc')
-options=('force')
+_F_gnome_git="n"
 Finclude gnome
 source=(${source[@]} \
-	polkit-gnome-authentication-agent-1.desktop \
-	forcevt12.diff 27_save_root_window.patch \
-	28_plymouth_transition.patch)
-sha1sums=('0d601510cbdf0f15808bce240fe2978035caefed' \
-          '93d1f9a7d068dd8e70c930abea9acf5b770a3485' \
-          '3851826e77967313f508949b55392bec258cbf0e' \
-          '21b5e62f5ebc5cf8d3ebd97bf6f4414470298b7f' \
-          'b0b78e870665bc0e8fc3525f9502dac7170dd6fc')
+	a11y.diff \
+	logo.diff)
+sha1sums=('14398d5f927c72430651f9d9cc75e52b71c2b09a' \
+          '3b31fb6239a3551e0f367d1ae24af3fdf624d171' \
+          'd27cbf0da2e4ad04833ebb9f382589298f86b8c9')
+if [ "$_F_gnome_git" != "n" ]; then
+	unset sha1sums
+fi
 
 conflicts=('fast-user-switch-applet')
 provides=('fast-user-switch-applet' 'gdm-themes' 'somatic-gdm-themes' 'arc-colors-gdm-themes')
 replaces=('fast-user-switch-applet' 'gdm-themes' 'somatic-gdm-themes' 'arc-colors-gdm-themes')
 
 build() {
-	Fcd
-	Fpatchall
+	if [ "$_F_gnome_git" != "n" ]; then
+		Funpack_scm
+		Fcd $pkgname
+		sh ./autogen.sh
+	else
+		Fcd
+		Fpatchall
+		Fautoreconf
+		# force regeneration
+		#rm data/dconf-override-db || Fdie
+	fi
 	Fmake --enable-authentication-scheme=pam \
 		--enable-console-helper \
 		--disable-scrollkeeper \
 		--with-console-kit \
 		--with-pam-dir=/lib/security \
 		--with-pam-prefix=/etc \
-		--with-at-spi-registryd-directory=/usr/libexec/at-spi
+		--enable-split-authentication \
+		--with-incomplete-locales=no \
+		--with-at-spi-registryd-directory=/usr/lib/at-spi2-core \
+		--without-tcp-wrappers \
+		--disable-static \
+		--with-xdmcp=yes \
+		--with-xevie=yes
 	Fmakeinstall
 
-	chmod a+r $Fdestdir/var/gdm || Fdie
-	chown root:root $Fdestdir/var/gdm || Fdie
+	chmod a+r $Fdestdir/var/lib/gdm || Fdie
+	chown root:root $Fdestdir/var/lib/gdm || Fdie
+	Fmkdir var/spool/gdm
 
-	Fcp polkit-gnome-authentication-agent-1.desktop usr/share/gdm/autostart/LoginWindow/polkit-gnome-authentication-agent-1.desktop
-
+	#Fcp polkit-gnome-authentication-agent-1.desktop usr/share/gdm/autostart/LoginWindow/polkit-gnome-authentication-agent-1.desktop
 
 	#delete PAM default rules
 	Frm etc/pam.d/*
 
 cat > $Fdestdir/etc/pam.d/gdm << "EOF"
 #%PAM-1.0
-auth include login-manager
-account include login-manager
-password include login-manager
-session include login-manager
-
-#Gnome Keyring's PAM Support
-auth    optional        pam_gnome_keyring.so
-session optional        pam_gnome_keyring.so  auto_start
+auth            requisite       pam_nologin.so
+auth            required        pam_env.so
+auth            required        pam_unix.so
+auth            optional        pam_gnome_keyring.so
+account         required        pam_unix.so
+session         required        pam_limits.so
+session         required        pam_unix.so
+session         optional        pam_gnome_keyring.so auto_start
+password        required        pam_unix.so
+session     	required	pam_systemd.so
+session 	required	pam_loginuid.so
 EOF
 
 cat > $Fdestdir/etc/pam.d/gdm-autologin << "EOF"
 #%PAM-1.0
-auth        required    pam_env.so
-auth        requisite   pam_nologin.so
-auth        required    pam_permit.so
-account     required    pam_unix.so
-password    required    pam_unix.so
-session     required    pam_unix.so
-session     required    pam_systemd.so
+auth		requisite	pam_nologin.so
+auth		required	pam_env.so
+auth		required	pam_permit.so
+account		required	pam_unix.so
+password	required	pam_unix.so
+session		required	pam_limits.so
+session		required	pam_unix.so
+session         required        pam_systemd.so
 EOF
+
+cat > $Fdestdir/etc/pam.d/gdm-welcome << "EOF"
+#%PAM-1.0
+auth       required    pam_env.so
+auth       required    pam_permit.so
+account    required    pam_nologin.so
+account    required    pam_unix.so
+password   required    pam_unix.so
+session    required    pam_loginuid.so
+session    optional    pam_keyinit.so force revoke
+session    required    pam_unix.so
+session    required    pam_systemd.so
+session    required    pam_loginuid.so
+EOF
+
 	#bash completion fix
 	Fsed "#!/bin/sh" "#!/bin/bash" $Fdestdir/usr/sbin/gdm
 
+	Frm var/gdm
+	chmod 1770 $Fdestdir/var/log/gdm || Fdie
 	# systemd tmpfiles
 	Frm var/run
 	Fmkdir /etc/tmpfiles.d

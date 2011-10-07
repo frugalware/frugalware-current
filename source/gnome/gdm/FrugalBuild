@@ -1,32 +1,39 @@
 # Compiling time: 0.58 SBU
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
+USE_GNOMESHELL=${USE_GNOMESHELL:-"y"}
+USE_REBUILDCONF=${USE_REBUILDCONF:-"y"}
+USE_FWLOGO=${USE_FWLOGO:-"y"}
+
 pkgname=gdm
 pkgver=3.2.0
-pkgrel=2
+pkgrel=3
 pkgdesc="GNOME Display Manager"
 url="http://www.gnome.org/"
 backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin \
 	etc/pam.d/gdm-welcome)
 depends=('libxml2>=2.7.8' 'zenity>=3.0.0'  'libxi' 'fontconfig' 'libxrandr>=1.2.2' \
-	 'librsvg>=2.26.0-2' 'gnome-keyring>=3.0.3' 'consolekit-x11>=0.4.5' 'libcanberra-gtk' \
-	 'libxinerama' 'libxcursor' 'libxevie' 'xorg-server>=1.10.2' \
-	'pam' 'accountsservice' 'upower' 'nss' 'hwdata' 'dbus-x11')
-rodepends=('xsm' 'sessreg' 'xmessage' 'gnome-session')
-makedepends=('intltool' 'gnome-doc-utils' 'gobject-introspection')
+	'librsvg>=2.26.0-2' 'gnome-keyring>=3.0.3' 'consolekit-x11>=0.4.5' 'libcanberra-gtk' \
+	'libxinerama' 'libxcursor' 'libxevie' 'xorg-server>=1.10.2' \
+	'pam' 'accountsservice' 'upower' 'nss' 'hwdata' 'dbus-x11' \
+	'xsm' 'sessreg' 'xmessage' 'gnome-session' 'gnome-shell' 'gnome-power-manager')
+makedepends=('intltool' 'gnome-doc-utils' 'gobject-introspection' 'dconf' 'gnome-settings-daemon')
 groups=('gnome')
 archs=('i686' 'x86_64' 'ppc')
 _F_gnome_git="n"
 Finclude gnome
 source=(${source[@]} \
-	a11y.diff \
-	logo.diff)
+	disable_a11y.diff \
+	logo.diff \
+	gnome-shell.diff)
 sha1sums=('14398d5f927c72430651f9d9cc75e52b71c2b09a' \
-          '3b31fb6239a3551e0f367d1ae24af3fdf624d171' \
-          'd27cbf0da2e4ad04833ebb9f382589298f86b8c9')
+          'f34431366352f5df719466c2a5a8ef83fd7fca56' \
+          '4e01d285acfa0bac0c12934a576ebfeea0893861' \
+          'b5dc2014aa498968a3fc9fed53c305de25de45c6')
 if [ "$_F_gnome_git" != "n" ]; then
 	unset sha1sums
 fi
+options=('nofakeroot' 'scriptlet')
 
 conflicts=('fast-user-switch-applet')
 provides=('fast-user-switch-applet' 'gdm-themes' 'somatic-gdm-themes' 'arc-colors-gdm-themes')
@@ -39,11 +46,26 @@ build() {
 		sh ./autogen.sh
 	else
 		Fcd
-		Fpatchall
+		Fpatch disable_a11y.diff
+		Fpatch gnome-shell.diff
+		if Fuse $USE_FWLOGO; then
+			Fpatch logo.diff
+		fi
 		Fautoreconf
-		# force regeneration
-		#rm data/dconf-override-db || Fdie
+		
 	fi
+	if ! Fuse $USE_GNOMESHELL; then
+		Fsed "gdm-shell" "gdm-fallback" data/make-dconf-override-db.sh	
+	fi
+	if Fuse $USE_REBUILDCONF; then
+		# force regeneration
+		rm data/dconf-override-db || Fdie
+		export GSETTINGS_BACKEND="dconf"
+		#delete broken key
+		Fsed 'gsettings set org.gnome.power-manager show-actions false' '#' data/make-dconf-override-db.sh
+		Fsed 'trap' '#trap' data/make-dconf-override-db.sh
+	fi
+
 	Fmake --enable-authentication-scheme=pam \
 		--enable-console-helper \
 		--disable-scrollkeeper \
@@ -62,8 +84,6 @@ build() {
 	chmod a+r $Fdestdir/var/lib/gdm || Fdie
 	chown root:root $Fdestdir/var/lib/gdm || Fdie
 	Fmkdir var/spool/gdm
-
-	#Fcp polkit-gnome-authentication-agent-1.desktop usr/share/gdm/autostart/LoginWindow/polkit-gnome-authentication-agent-1.desktop
 
 	#delete PAM default rules
 	Frm etc/pam.d/*

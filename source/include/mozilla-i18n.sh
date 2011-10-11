@@ -55,7 +55,7 @@ fi
 if [ -z "$pkdesc" ]; then
 	pkgdesc="Language support for ${_F_mozilla_i18n_name^}"
 fi
-archs=('i686' 'x86_64' 'ppc')
+archs=('i686' 'x86_64')
 groups=('locale-extra')
 options=("${options[@]}" 'noversrc')
 up2date="eval \"_F_archive_name=$_F_mozilla_i18n_name; Flastarchive $_F_mozilla_i18n_mirror/$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/latest/source '\.source\.tar\.bz2'\""

@@ -42,7 +42,7 @@ _dir='/usr/lib/fw32-simple'
 _fw32_up2date()
 {
 	local _ver
-	_ver=$(curl -s "$_url/" | sed -n "s|.*$_F_fw32_name-\([^-]\+\)-\([^-]\+\)-.*|\1-\2|p")
+	_ver=$(curl -s "$_url/" | sed -n "s|^.*$_F_fw32_name-\([^-]\+\)-\([^-]\+\)-.*\$|\1-\2|p" | tail -n 1)
 	if [ "$_ver" == "$pkgver-$pkgrel" ]; then
 		echo $pkgver
 	else

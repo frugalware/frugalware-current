@@ -71,5 +71,7 @@ build()
 	# Remove pacman files.
 	Frm "$_dir/.[A-Z]*"
 	# Remove static libraries & libtool stuff.
-	Fexec find $Fdestdir$_dir -name "*.a" -or -name "*.la" -delete
+	for i in `find $Fdestdir$_dir -name "*.a" -or -name "*.la"`; do
+		Frm ${i/$Fdestdir/}
+	done
 }

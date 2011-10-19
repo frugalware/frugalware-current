@@ -70,6 +70,6 @@ build()
 	Frm $_dir/etc
 	# Remove pacman files.
 	Frm "$_dir/.[A-Z]*"
-	# Remove static libraries.
-	Fexec find $Fdestdir$_dir -name "'*.a'" -delete
+	# Remove static libraries & libtool stuff.
+	Fexec find $Fdestdir$_dir -name "*.a" -or -name "*.la" -delete
 }

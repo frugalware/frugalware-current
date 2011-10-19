@@ -57,7 +57,7 @@ archs=('!i686' 'x86_64' '!ppc' '!arm')
 url="http://frugalware.org"
 up2date="eval _fw32_up2date"
 source=($_url/$_F_fw32_name-$pkgver-$pkgrel-i686.fpm)
-options=('nomirror')
+options=('nomirror' 'nostrip')
 
 build()
 {

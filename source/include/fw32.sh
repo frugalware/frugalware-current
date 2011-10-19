@@ -66,6 +66,8 @@ build()
 	# Remove headers, man, info, doc.
 	# Also, remove KDE/GTK icon themes, GTK themes, and fonts.
 	Frm $_dir/usr/{include,share/{doc,man,info,themes,fonts,icons,kde}}
+	# Delete pkgconfig files.
+	Frm /usr/lib/pkgconfig
 	# Delete etc config
 	Frm $_dir/etc
 	# Remove pacman files.

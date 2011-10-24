@@ -131,7 +131,6 @@ fi
 # * options()
 # * up2date
 # * source()
-# * signatures()
 # * install
 ###
 url="http://www.kernel.org"
@@ -151,13 +150,11 @@ replaces=('redirfs' 'dazuko')
 install="src/kernel.install"
 
 if ! Fuse DEVEL; then
-	source=("http://ftp.heanet.ie/pub/kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.bz2")
-	signatures=("${source[0]}.sign")
+	source=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.xz")
 
 	if [ "$_F_kernel_stable" -gt 0 ]; then
 		source=("${source[@]}" \
-			"http://ftp.heanet.ie/pub/kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.bz2")
-		signatures=("${signatures[@]}" "${source[$((${#source[@]}-1))]}.sign")
+			"http://www.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.xz")
 	fi
 else
 	if [ -z "$_F_scm_tag" ]; then
@@ -166,14 +163,12 @@ else
 	Finclude scm
 fi
 
-source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.ppc' 'config.arm')
-signatures=("${signatures[@]}" '' '' '' '')
-
 for i in "${_F_kernel_patches[@]}"
 do
 	source=("${source[@]}" "$i")
-	signatures=("${signatures[@]}" '')
 done
+
+source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.ppc' 'config.arm')
 
 ###
 # * subpkg()

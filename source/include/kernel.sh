@@ -252,14 +252,14 @@ Fbuildkernel()
 
 	## let we do kernel$_F_kernel_name-source before make
 	Fmkdir /usr/src
-	cp -Ra $Fsrcdir/linux-* $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
+	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
 	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
 	Fsplit kernel$_F_kernel_name-source usr/src
 
 	## now the kernel$_F_kernel_name-docs
 	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_uname
-	cp -Ra $Fsrcdir/linux-*/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
+	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
 	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
         ## do we need to ln /usr/share/doc ?!
 	Fsplit kernel$_F_kernel_name-docs usr/src

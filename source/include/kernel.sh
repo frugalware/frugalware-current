@@ -144,7 +144,7 @@ fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('nodocs' 'genscriptlet')
-up2date="lynx -dump $url/kdist/finger_banner |grep stable|sed -n 's/.* \([0-9]*\.[0-9]*\).*/\1/;1 p'"
+up2date="Flasttar $url/pub/linux/kernel/v3.0"
 # this can be removed after Frualware 1.5 is out
 replaces=('redirfs' 'dazuko')
 install="src/kernel.install"

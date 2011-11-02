@@ -92,6 +92,7 @@ Fdestdir="$startdir/pkg"
 Fprefix="/usr"
 Fsysconfdir="/etc"
 Flocalstatedir="/var"
+Finfodir="/usr/share/info"
 Fmandir="/usr/share/man"
 Fmenudir="/usr/share/applications"
 Farchs=('i686' 'x86_64' 'ppc' 'arm')
@@ -811,6 +812,7 @@ Fconf() {
 		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
 		Fconfoptstryset "localstatedir" "$Flocalstatedir"
 		Fconfoptstryset "docdir" "/usr/share/doc/$pkgname-$pkgver"
+		Fconfoptstryset "infodir" "$Finfodir"
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
 		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie

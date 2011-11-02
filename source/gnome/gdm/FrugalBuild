@@ -2,31 +2,31 @@
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=gdm
-pkgver=3.2.0
-pkgrel=2
+pkgver=3.2.1.1
+pkgrel=1
 pkgdesc="GNOME Display Manager"
 url="http://www.gnome.org/"
 backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin \
 	etc/pam.d/gdm-welcome)
 depends=('libxml2>=2.7.8' 'zenity>=3.0.0'  'libxi' 'fontconfig' 'libxrandr>=1.2.2' \
-	 'librsvg>=2.26.0-2' 'gnome-keyring>=3.0.3' 'consolekit-x11>=0.4.5' 'libcanberra-gtk' \
-	 'libxinerama' 'libxcursor' 'libxevie' 'xorg-server>=1.10.2' \
-	'pam' 'accountsservice' 'upower' 'nss' 'hwdata' 'dbus-x11')
-rodepends=('xsm' 'sessreg' 'xmessage' 'gnome-session')
-makedepends=('intltool' 'gnome-doc-utils' 'gobject-introspection')
+	'librsvg>=2.26.0-2' 'gnome-keyring>=3.0.3' 'consolekit-x11>=0.4.5' 'libcanberra-gtk' \
+	'libxinerama' 'libxcursor' 'libxevie' 'xorg-server>=1.10.2' \
+	'pam' 'accountsservice' 'upower' 'nss' 'hwdata' 'dbus-x11' \
+	'xsm' 'sessreg' 'xmessage' 'gnome-session' 'gnome-shell' 'gnome-power-manager')
+makedepends=('intltool' 'gnome-doc-utils' 'gobject-introspection' 'dconf' 'gnome-settings-daemon')
 groups=('gnome')
 archs=('i686' 'x86_64')
 _F_gnome_git="n"
 Finclude gnome
-source=(${source[@]} \
-	a11y.diff \
-	logo.diff)
-sha1sums=('14398d5f927c72430651f9d9cc75e52b71c2b09a' \
-          '3b31fb6239a3551e0f367d1ae24af3fdf624d171' \
-          'd27cbf0da2e4ad04833ebb9f382589298f86b8c9')
+source=($source org.gnome.login-screen.gschema.override)
+sha1sums=('0060d2fda03c6ea9b267c7a18432abca455294b5' \
+          '974832a3878a020c87a833f5ba99a0c7d5d27b57')
 if [ "$_F_gnome_git" != "n" ]; then
 	unset sha1sums
 fi
+#nofakeroot for recreate glib schema (use dbus...)
+#will see for don't use nofakeroot
+options=('nofakeroot' 'scriptlet')
 
 conflicts=('fast-user-switch-applet')
 provides=('fast-user-switch-applet' 'gdm-themes' 'somatic-gdm-themes' 'arc-colors-gdm-themes')
@@ -37,18 +37,12 @@ build() {
 		Funpack_scm
 		Fcd $pkgname
 		sh ./autogen.sh
-	else
-		Fcd
-		Fpatchall
-		Fautoreconf
-		# force regeneration
-		#rm data/dconf-override-db || Fdie
 	fi
+
 	Fmake --enable-authentication-scheme=pam \
 		--enable-console-helper \
 		--disable-scrollkeeper \
 		--with-console-kit \
-		--with-pam-dir=/lib/security \
 		--with-pam-prefix=/etc \
 		--enable-split-authentication \
 		--with-incomplete-locales=no \
@@ -62,8 +56,6 @@ build() {
 	chmod a+r $Fdestdir/var/lib/gdm || Fdie
 	chown root:root $Fdestdir/var/lib/gdm || Fdie
 	Fmkdir var/spool/gdm
-
-	#Fcp polkit-gnome-authentication-agent-1.desktop usr/share/gdm/autostart/LoginWindow/polkit-gnome-authentication-agent-1.desktop
 
 	#delete PAM default rules
 	Frm etc/pam.d/*
@@ -121,6 +113,11 @@ EOF
 d $Flocalstatedir/run/gdm 0711 root gdm -
 d $Flocalstatedir/run/gdm/greeter 0755 gdm gdm -
 EOF
+
+# add logo to shell greeter
+Fcp ../org.gnome.login-screen.gschema.override usr/share/glib-2.0/schemas/
+# gets rebuilt in posttrans
+Frm etc/dconf/db/gdm
 
 }
 

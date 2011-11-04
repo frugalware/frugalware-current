@@ -131,7 +131,6 @@ fi
 # * options()
 # * up2date
 # * source()
-# * signatures()
 # * install
 ###
 url="http://www.kernel.org"
@@ -145,19 +144,17 @@ fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('nodocs' 'genscriptlet')
-up2date="lynx -dump $url/kdist/finger_banner |grep stable|sed -n 's/.* \([0-9]*\.[0-9]*\).*/\1/;1 p'"
+up2date="Flasttar $url/pub/linux/kernel/v3.0"
 # this can be removed after Frualware 1.5 is out
 replaces=('redirfs' 'dazuko')
 install="src/kernel.install"
 
 if ! Fuse DEVEL; then
-	source=("http://ftp.heanet.ie/pub/kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.bz2")
-	signatures=("${source[0]}.sign")
+	source=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.xz")
 
 	if [ "$_F_kernel_stable" -gt 0 ]; then
 		source=("${source[@]}" \
-			"http://ftp.heanet.ie/pub/kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.bz2")
-		signatures=("${signatures[@]}" "${source[$((${#source[@]}-1))]}.sign")
+			"http://www.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.xz")
 	fi
 else
 	if [ -z "$_F_scm_tag" ]; then
@@ -166,14 +163,12 @@ else
 	Finclude scm
 fi
 
-source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.ppc' 'config.arm')
-signatures=("${signatures[@]}" '' '' '' '')
-
 for i in "${_F_kernel_patches[@]}"
 do
 	source=("${source[@]}" "$i")
-	signatures=("${signatures[@]}" '')
 done
+
+source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.ppc' 'config.arm')
 
 ###
 # * subpkg()
@@ -257,14 +252,14 @@ Fbuildkernel()
 
 	## let we do kernel$_F_kernel_name-source before make
 	Fmkdir /usr/src
-	cp -Ra $Fsrcdir/linux-* $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
+	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
 	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
 	Fsplit kernel$_F_kernel_name-source usr/src
 
 	## now the kernel$_F_kernel_name-docs
 	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_uname
-	cp -Ra $Fsrcdir/linux-*/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
+	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
 	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
         ## do we need to ln /usr/share/doc ?!
 	Fsplit kernel$_F_kernel_name-docs usr/src

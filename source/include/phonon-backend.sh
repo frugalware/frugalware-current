@@ -30,7 +30,7 @@
 ###
 
 if [ -z "$_F_phonon_ver" ]; then
-	_F_phonon_ver=4.4.4
+	_F_phonon_ver=4.5.0
 fi
 
 if [ -z "$_F_phonon_backend_name" ]; then

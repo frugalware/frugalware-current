@@ -1,49 +1,37 @@
 # Compiling time: 0.29 SBU
 # Maintainer: Michel Hermier <hermier@frugalware.org>
 
-USE_DEVEL=${USE_DEVEL:-"n"}
-
 pkgname=grub2
 _F_archive_name=grub
 pkgver=1.99
-pkgrel=1
+pkgrel=2
 pkgdesc="The GNU GRand Unified Bootloader"
 url="http://www.gnu.org/software/grub/"
 conflicts=('grub')
-depends=('lzo')
-[ "$CARCH" == "i686" ] && depends=(${depends[@]} 'freetype2' 'mktemp' 'ncurses')
-[ "$CARCH" == "x86_64" ] && makedepends=(${makedepends[@]} 'freetype2' 'ncurses' 'mktemp')
-#rodepends=('grub-theme-frugalware')
+depends=('xz' 'bzip2' 'freetype2' 'mktemp' 'ncurses' 'efibootmgr')
 groups=('base-extra')
 archs=('i686' 'x86_64')
-options=('nobuild')
+up2date="Flasttar ftp://ftp.gnu.org/gnu/grub/"
+source=("ftp://ftp.gnu.org/gnu/grub/$_F_archive_name-$pkgver$pkgextraver.tar.xz" 'grub')
+signatures=("${source[0]}.sig" '')
 
-if ! Fuse DEVEL; then
-	up2date="Flasttar ftp://ftp.gnu.org/gnu/grub/"
-	source=("ftp://ftp.gnu.org/gnu/grub/$_F_archive_name-$pkgver$pkgextraver.tar.xz")
-	signatures=("${source[@]}.sig")
-else
-	pkgver="$pkgver.bzr3092"
-	_F_scm_type="bzr"
-	_F_scm_url="http://bzr.savannah.gnu.org/r/grub/trunk/grub/"
-	Finclude scm
-
-	makedepends=("${makedepends[@]}" 'autogen')
-fi
+_build_grub_platform()
+{
+	Fbuild --with-platform=$1
+	Fexec make distclean	
+}
 
 build()
 {
-	if Fuse DEVEL; then
-		Funpack_scm
-		./autogen.sh || Fdie
+	# Fails to compile if we set our own optimization level.
+	CFLAGS="${CFLAGS/-O?/}"
+	if [ "$CARCH" == "i686" ]; then
+		_build_grub_platform pc
+	elif [ "$CARCH" == "x86_64" ]; then
+		_build_grub_platform efi
+		_build_grub_platform pc
 	fi
-	# see http://savannah.gnu.org/bugs/?func=detailitem&item_id=14874
-	CFLAGS=${CFLAGS/O?/O2}
-	# note that this should NOT build on a real x86_64 box
-	[ "$CARCH" == "x86_64" ] && CFLAGS="$CFLAGS -static"
-
-	# netboot
-	Fbuild --libdir=/lib --datadir=/usr/lib/grub --exec-prefix=/
+	Ffile /etc/default/grub
 }
 
 # optimization OK

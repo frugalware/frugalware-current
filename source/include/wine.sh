@@ -49,7 +49,7 @@ wine-devel)
 	_geckoext=msi
 	archs=('i686' 'x86_64')
 	conflicts=('wine')
-	sha1sums=('4cd568979e8531f2e480c7b380ba977260f330aa')
+	sha1sums=('6881f41443efc13fd8bbb7cea828cc8e6e7da42b')
 	depends=(${depends[@]} 'gst-plugins-base')
 	makedepends=(${makedepends[@]} 'oss-libs')
 	[ "$CARCH" == "i686" ] && sha1sums=(${sha1sums[@]} 'acc6a5bc15ebb3574e00f8ef4f23912239658b41')

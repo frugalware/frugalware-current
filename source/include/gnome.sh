@@ -49,7 +49,15 @@ fi
 
 if [ $_F_gnome_doc = "y" ]; then
 	makedepends=(${makedepends[@]} 'gtk-doc')
-	Faddsubpkg "$pkgname-doc"        "$pkgname documentation."        ""
+	subpkgs=("${subpkgs[@]}" "$pkgname-doc")
+	subdescs=("${subdescs[@]}" "$pkgname documenation")
+	subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
+	subdepends=("${subdepends[@]}" "gtk+3")
+	subgroups=("${subgroups[@]}" 'gnome')
+	subarchs=("${subarchs[@]}" 'i686 x86_64')
+	subreplaces=("${subreplaces[@]}" '')
+	subprovides=("${subprovides[@]}" '')
+
 fi
 
 #Split documentation

@@ -47,7 +47,7 @@ if [ -z "$_F_gnome_git" ]; then
 	_F_gnome_git="n"
 fi
 
-if [ $_F_gnome_doc = "y" ]; then
+if [ "$_F_gnome_doc" = "y" ]; then
 	makedepends=(${makedepends[@]} 'gtk-doc')
 	subpkgs=("${subpkgs[@]}" "$pkgname-doc")
 	subdescs=("${subdescs[@]}" "$pkgname documenation")

@@ -32,6 +32,7 @@
 # * _F_gnome_devel: if set, the <number>.<odd> versions will not be ignored.
 # This is something you want for packages which are not part of GNOME releases
 # (like intltool) and where the <odd> number does not mean instability.
+# _F_gnome_doc for create documentation packages
 ###
 
 if [ -z "$_F_gnome_name" ]; then
@@ -39,12 +40,31 @@ if [ -z "$_F_gnome_name" ]; then
 fi
 
 if [ -z "$_F_gnome_devel" ]; then
-	_F_gnome_devel="n"
+	_F_gnome_devel="y"
 fi
 
 if [ -z "$_F_gnome_git" ]; then
 	_F_gnome_git="n"
 fi
+
+if [ $_F_gnome_doc = "y" ]; then
+	makedepends=(${makedepends[@]} 'gtk-doc')
+	Faddsubpkg "$pkgname-doc"        "$pkgname documentation."        ""
+fi
+
+#Split documentation
+_F_gnome_split_doc()
+{
+	if [ -d "$Fdestdir/usr/share/gnome/help" ]; then
+		Fsplit $pkgname-doc usr/share/gnome/help
+	fi
+	if [ -d "$Fdestdir/usr/share/gtk-doc" ]; then
+		Fsplit $pkgname-doc usr/share/gtk-doc
+	fi
+	if [ -d "$Fdestdir/usr/share/doc" ]; then
+		Fsplit $pkgname-doc usr/share/doc
+	fi
+}
 
 # don't document this function, it's used only for source()
 _F_gnome_getver()

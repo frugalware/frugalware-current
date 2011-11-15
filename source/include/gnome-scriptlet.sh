@@ -65,7 +65,7 @@ fi
 if [ "$_F_gnome_doc" = "y" ]; then
 	makedepends=(${makedepends[@]} 'gtk-doc')
 	subpkgs=("${subpkgs[@]}" "$pkgname-doc")
-	subdescs=("${subdescs[@]}" "$pkgname documenation")
+	subdescs=("${subdescs[@]}" "$pkgname documention")
 	subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
 	subdepends=("${subdepends[@]}" "gtk+3")
 	subgroups=("${subgroups[@]}" 'gnome')

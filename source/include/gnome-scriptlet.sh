@@ -87,6 +87,10 @@ _F_gnome_split_doc()
 	if [ -d "$Fdestdir/usr/share/doc" ]; then
 		Fsplit $pkgname-doc usr/share/doc
 	fi
+	if [ -d "$Fdestdir/usr/share/man" ]; then
+                Fsplit $pkgname-doc usr/share/man
+        fi
+
 }
 ###
 # == OVERWRITTEN VARIABLES
@@ -167,7 +171,8 @@ build()
 		Fmakeinstall
 	fi
 	if [ "$_F_gnome_doc" = "y" ]; then
-		_F_gnome_split_doc	
+		_F_gnome_split_doc
 	fi
 	Fbuild_gnome_scriptlet
 }
+

@@ -68,7 +68,7 @@ if [ "$_F_gnome_doc" = "y" ]; then
 	subdescs=("${subdescs[@]}" "$pkgname documention")
 	subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
 	subdepends=("${subdepends[@]}" "gtk+3")
-	subgroups=("${subgroups[@]}" 'gnome')
+	subgroups=("${subgroups[@]}" 'gnome-docs')
 	subarchs=("${subarchs[@]}" 'i686 x86_64')
 	subreplaces=("${subreplaces[@]}" '')
 	subprovides=("${subprovides[@]}" '')

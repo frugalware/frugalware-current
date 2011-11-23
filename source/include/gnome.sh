@@ -46,6 +46,10 @@ if [ -z "$_F_gnome_git" ]; then
 	_F_gnome_git="n"
 fi
 
+if [ -z "$_F_gnome_ext" ]; then
+	_F_gnome_ext=.tar.bz2
+fi
+
 # don't document this function, it's used only for source()
 _F_gnome_getver()
 {
@@ -90,7 +94,7 @@ if [ "$_F_gnome_git" != "n" ]; then
 	_F_scm_type="git"
 	_F_scm_url="git://git.gnome.org/$_F_gnome_name"
 else
-	source=(http://ftp.gnome.org/pub/gnome/sources/$_F_gnome_name/`_F_gnome_getver`/$_F_gnome_name-$pkgver.tar.bz2)
+	source=(http://ftp.gnome.org/pub/gnome/sources/$_F_gnome_name/`_F_gnome_getver`/$_F_gnome_name-$pkgver$_F_gnome_ext)
 fi
 url="http://www.gnome.org/"
 _F_cd_path=$_F_gnome_name-$pkgver

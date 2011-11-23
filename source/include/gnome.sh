@@ -32,6 +32,7 @@
 # * _F_gnome_devel: if set, the <number>.<odd> versions will not be ignored.
 # This is something you want for packages which are not part of GNOME releases
 # (like intltool) and where the <odd> number does not mean instability.
+# * _F_gnome_ext (defaults to .tar.bz2): extension of the source tarball
 ###
 
 if [ -z "$_F_gnome_name" ]; then

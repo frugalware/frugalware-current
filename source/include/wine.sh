@@ -49,11 +49,12 @@ wine-devel)
 	_geckoext=msi
 	archs=('i686' 'x86_64')
 	conflicts=('wine')
-	sha1sums=('d9ae9efa9543e1467708cf47c991affe87a45cf7')
-	depends=(${depends[@]} 'gst-plugins-base')
-	makedepends=(${makedepends[@]} 'oss-libs')
-	[ "$CARCH" == "i686" ] && sha1sums=(${sha1sums[@]} 'c30aa99621e98336eb4b7e2074118b8af8ea2ad5')
-	[ "$CARCH" == "x86_64" ] && sha1sums=(${sha1sums[@]} 'bf0aaf56a8cf9abd75be02b56b05e5c4e9a4df93')
+	depends=("${depends[@]}" 'gst-plugins-base')
+	makedepends=("${makedepends[@]}" 'oss-libs')
+	case "$CARCH" in
+		"i686") sha1sums=("${sha1sums[@]}" 'c30aa99621e98336eb4b7e2074118b8af8ea2ad5');;
+		"x86_64") sha1sums=("${sha1sums[@]}" 'bf0aaf56a8cf9abd75be02b56b05e5c4e9a4df93');;
+	esac
 	;;
 
 default)

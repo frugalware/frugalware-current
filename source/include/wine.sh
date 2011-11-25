@@ -45,15 +45,16 @@ wine)
 wine-devel)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Development)"
 	up2date="lynx -dump $url | sed -n 's|^.*Development:.*Wine \([0-9a-zA-Z.]\+\).*\$|\1|p'"
-	_geckover=1.3
+	_geckover=1.4
 	_geckoext=msi
 	archs=('i686' 'x86_64')
 	conflicts=('wine')
-	sha1sums=('6881f41443efc13fd8bbb7cea828cc8e6e7da42b')
-	depends=(${depends[@]} 'gst-plugins-base')
-	makedepends=(${makedepends[@]} 'oss-libs')
-	[ "$CARCH" == "i686" ] && sha1sums=(${sha1sums[@]} 'acc6a5bc15ebb3574e00f8ef4f23912239658b41')
-	[ "$CARCH" == "x86_64" ] && sha1sums=(${sha1sums[@]} '5bcf29c48677dffa7a9112d481f7f5474cd255d4')
+	depends=("${depends[@]}" 'gst-plugins-base')
+	makedepends=("${makedepends[@]}" 'oss-libs')
+	case "$CARCH" in
+		"i686") sha1sums=("${sha1sums[@]}" 'c30aa99621e98336eb4b7e2074118b8af8ea2ad5');;
+		"x86_64") sha1sums=("${sha1sums[@]}" 'bf0aaf56a8cf9abd75be02b56b05e5c4e9a4df93');;
+	esac
 	;;
 
 default)

@@ -70,9 +70,8 @@ fi
 if echo ${groups[*]} | grep -q goodies ; then
 	url="http://goodies.xfce.org/projects/panel-plugins/${_F_xfce_name}"
 	dlurl="http://archive.xfce.org/src/$_F_xfce_category/$_F_xfce_goodies_dir/"
-	#preup2date="lynx -dump $dlurl | grep DIR | tail -n1 | sed 's/.*\]\(.*\)\/.*/\1/'"
-	up2date="lynx -source -dump http://archive.xfce.org/src/$_F_xfce_category/$_F_xfce_name/|grep ristretto|tail -n1|sed -e 's/<\/a>.*//;s/.*>//'"
-	#up2date="Flasttar http://git.xfce.org/xfce/$_F_xfce_name/"
+	preup2date="lynx -dump $dlurl | grep DIR | tail -n1 | sed 's/.*\]\(.*\)\/.*/\1/'"
+	up2date="Flasttar http://git.xfce.org/xfce/$_F_xfce_name/"
 	source=($dlurl/${pkgver%%.?}/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
 else
 	url="http://www.xfce.org/"

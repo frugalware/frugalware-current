@@ -21,7 +21,7 @@
 #   USA.
 #
 
-. functions.sh
+. ./functions.sh
 . /etc/makepkg.conf
 . /usr/lib/frugalware/fwmakepkg
 

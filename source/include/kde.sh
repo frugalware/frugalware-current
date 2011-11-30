@@ -128,13 +128,13 @@ fi
 
 if [ -n "$_F_kde_id" ]; then
 	url="http://www.kde-apps.org/content/show.php?content=$_F_kde_id"
-	up2date="lynx -dump "$url"|grep -v http|grep  -m1 ' \{6\}[0-9.0-9.0-9]'|sed 's/ \+\(.*\).*/\1/'"
+	up2date="lynx -dump "$url"|grep -v http|grep  -m1 ' \{6\}[0-9.0-9.0-9]'|sed 's/ \+\([0-9.]*\).*/\1/'"
 	_F_kde_defaults=0
 fi
 
 if [ -n "$_F_kde_id2" ]; then
 	url="http://www.kde-look.org/content/show.php?content=$_F_kde_id2"
-	up2date="lynx -dump "$url"|grep -v http|grep  -m1 ' \{6\}[0-9.0-9.0-9]'|sed 's/ \+\(.*\).*/\1/'"
+	up2date="lynx -dump "$url"|grep -v http|grep  -m1 ' \{6\}[0-9.0-9.0-9]'|sed 's/ \+\([0-9.]*\).*/\1/'"
 	_F_kde_defaults=0
 fi
 

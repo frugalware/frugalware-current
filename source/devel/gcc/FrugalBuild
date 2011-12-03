@@ -9,7 +9,6 @@ USE_ADA=${USE_ADA:-"$USE_LANGS"}
 USE_CXX=${USE_CXX:-"$USE_LANGS"}
 USE_FORTRAN=${USE_FORTRAN:-"$USE_LANGS"}
 USE_JAVA=${USE_JAVA:-"$USE_LANGS"}
-USE_ECJ=${USE_ECJ:-"n"}
 USE_OBJC=${USE_OBJC:-"$USE_LANGS"}
 
 # Activate required langage
@@ -18,7 +17,7 @@ Fuse $USE_OBJC && USE_CXX="y"
 
 pkgname=gcc
 pkgver=4.6.2
-pkgrel=1
+pkgrel=2
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
 depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libelf' 'libmpc>=0.8.2-3')
@@ -65,19 +64,14 @@ if Fuse $USE_JAVA; then
 	subpkgs=("${subpkgs[@]}" 'libgcj' 'libgcj-awt' 'gcc-gcj')
 	subdescs=("${subdescs[@]}" 'Java runtime library for gcc' 'AWT peer libraries for libgcj' 'Java support for GCC')
 	subdepends=("${subdepends[@]}" 'libgcc zlib alsa-lib' \
-	    'libgcj libart_lgpl gtk+2>=2.20.1-1 libxml2 freetype2 libice libxtst libxau libxdmcp libxdamage libstdc++')
-	if Fuse $USE_ECJ; then
-		subdepends=("${subdepends[@]}" "libgcj zlib ecj libmpc gcc-g++")
-	else
-		subdepends=("${subdepends[@]}" "libgcj zlib libmpc gcc-g++")
-	fi
+	    'libgcj libart_lgpl gtk+2>=2.20.1-1 libxml2 freetype2 libice libxtst libxau libxdmcp libxdamage libstdc++' \
+	    'libgcj zlib ecj libmpc gcc-g++')
 	subbackup=("${subbackup[@]}" "usr/lib/gcj-$gccver/classmap.db" '' '')
 	subgroups=("${subgroups[@]}" 'lib' 'xlib' 'devel-extra')
 	subreplaces=("${subreplaces[@]}" '' '' 'gjdoc')
 	makedepends=("${makedepends[@]}" 'libxtst' 'zip' 'xulrunner' \
 		'libxml2' 'freetype2' 'libice' 'libxtst' 'libxau' 'libxdmcp' \
-		'libxdamage' 'alsa-lib' 'fastjar>=0.95' 'antlr')
-	Fuse $USE_ECJ && makedepends=("${makedepends[@]}" 'ecj')
+		'libxdamage' 'alsa-lib' 'fastjar>=0.95' 'antlr' 'ecj')
 fi
 if Fuse $USE_OBJC; then
 	subpkgs=("${subpkgs[@]}" 'libobjc' 'gcc-objc' 'gcc-objc++')
@@ -132,8 +126,6 @@ build()
 		--enable-gtk-cairo \
 		--disable-libjava-multilib \
 		--enable-hash-synchronization"
-		Fuse $USE_ECJ && Fconfopts="$Fconfopts --with-ecj \
-		--with-ecj-jar=/usr/share/java/eclipse-ecj.jar"
 	fi
 	if Fuse $USE_CXX; then
 		langlist="$langlist,c++"
@@ -229,6 +221,11 @@ build()
 	if Fuse $USE_JAVA; then
 		Fln ../lib/gcc/$CHOST/$gccver/include/jni.h /usr/include/
 		Fln ../lib/gcc/$CHOST/$gccver/include/jni_md.h /usr/include/
+		cat > ecj1 <<EOF
+#!/bin/sh
+exec gij -cp /usr/share/java/eclipse-ecj.jar org.eclipse.jdt.internal.compiler.batch.GCCMain "\$@"
+EOF
+		Fexerel /usr/libexec/gcc/$CHOST/$gccver/ecj1
 	fi
 
 	Fuse $USE_FORTRAN && Fln gfortran /usr/bin/f95
@@ -294,8 +291,7 @@ build()
 		Fsplit gcc-gcj usr/bin/{gcj,$CHOST-gcj,gcjh,gjavah,jcf-dump}
 		Fsplit gcc-gcj usr/share/man/man1/{gcj,gcjh,gjavah,jcf-dump}.1*
 		Fsplit gcc-gcj usr/share/info/{cp-tools.info,gcj*}
-		Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$gccver/{jc1,jvgenmain}
-		Fuse $USE_ECJ && Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$gccver/ecj1
+		Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$gccver/{jc1,ecj1,jvgenmain}
 		Fsplit gcc-gcj usr/bin/aot-compile
 		Fsplit gcc-gcj usr/share/man/man1/aot-compile.1
 		Fsplit gcc-gcj usr/share/gcc-$pkgver/python/libjava

@@ -70,13 +70,11 @@ fi
 if echo ${groups[*]} | grep -q goodies ; then
 	url="http://goodies.xfce.org/projects/panel-plugins/${_F_xfce_name}"
 	dlurl="http://archive.xfce.org/src/$_F_xfce_category/$_F_xfce_goodies_dir/"
-	preup2date="lynx -dump $dlurl | grep DIR | tail -n1 | sed 's/.*\]\(.*\)\/.*/\1/'"
-	up2date="Flasttar http://git.xfce.org/xfce/$_F_xfce_name/"
-	source=($dlurl/${pkgver%%.?}/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
+    preup2date="lynx -dump -source http://archive.xfce.org/src/$_F_xfce_category/$_F_xfce_name/|grep $_F_xfce_name|tail -n1|sed -e 's/<\/a>.*//;s/.*>//'"
+    up2date="Flasttar $dlurl/\$($preup2date)/"
+    source=($dlurl/${pkgver%%.?}/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
 else
 	url="http://www.xfce.org/"
-	#preup2date="lynx -dump http://mocha.xfce.org/archive/ | grep xfce- | tail -n1 | sed 's/.*-\(.*\)\/.*/\1/'"
-	preup2date="lynx -dump 'http://mocha.xfce.org/archive/xfce/?C=N;O=A' | grep 'archive\.xfce\.org' | sed -ne 's/.*\/xfce\/\(.*\)\//\1/; $ p'"
 	dlurl="http://mocha.xfce.org/archive/xfce/${_F_xfce_ver}/src"
 	up2date="Flasttar http://git.xfce.org/xfce/$_F_xfce_name/"
 	source=($dlurl/$_F_xfce_name-$pkgver.tar.bz2)

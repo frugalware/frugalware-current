@@ -3,14 +3,14 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=samba
-pkgver=3.5.8
+pkgver=3.6.1
 pkgextraver=
-pkgrel=4
+pkgrel=1
 pkgdesc="SMB file and print server."
 url="http://www.samba.org"
 backup=(etc/logrotate.d/samba)
-depends=('xfsprogs-attr' 'libcups' 'talloc' 'gnutls>=2.12.12')
-makedepends=("${makedepends[@]}" 'krb5' 'openssl>=1.0.0' 'cups')
+depends=('xfsprogs-attr' 'libcups' 'talloc' 'gnutls>=2.12.12' )
+makedepends=("${makedepends[@]}" 'openssl>=1.0.0' 'cups' 'db' 'popt' 'libcups' 'libldap' 'libcap' 'pam' 'gamin' 'avahi' 'xfsprogs-dmapi' 'heimdal' 'libkrb5' 'xfsprogs-acl')
 rodepends=("samba-client=$pkgver")
 groups=('network')
 archs=('i686' 'x86_64' 'ppc')
@@ -18,23 +18,23 @@ up2date="lynx -dump http://samba.org/samba/ftp/stable/ |Flasttar"
 source=(http://ftp.samba.org/samba/ftp/stable/$pkgname-$pkgver$pkgextraver.tar.gz \
 	samba.logrotate \
 	rc.samba)
-sha1sums=('ffb71de38442eee14aafb44f819671354dc5cce9' \
+sha1sums=('fed82fd92958f3209edb3c71321d4b48abee9c4b' \
           '13fd371189bfe637f3f13c62d44d9e761268119e' \
-	  '4557aa4318e13f2c2140f68e81d7c22ae887d901')
+          '4557aa4318e13f2c2140f68e81d7c22ae887d901')
 
-subpkgs=('libsmbclient' 'samba-client' 'samba-swat')
-subdescs=('SMB client library.' 'SMB client tools.' 'Swat config tool for samba.')
-subdepends=('libldap>=2.4.21' 'libkrb5 db readline popt openssl>=1.0.0' '')
-subrodepends=('' "libsmbclient=$pkgver" "$pkgname=$pkgver")
-subgroups=('lib' 'network' 'network')
-subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 ppc')
+subpkgs=('libsmbclient' 'samba-client' 'samba-swat' 'nss-wins' 'nss-winbind')
+subdescs=('SMB client library.' 'SMB client tools.' 'Swat config tool for samba.' \
+	'WINS Lookup Support for NSS.' 'Winbind Lookup Support for NSS')
+subdepends=('libldap>=2.4.21' 'libkrb5 db readline popt openssl>=1.0.0' '' '' '')
+subrodepends=('' "libsmbclient=$pkgver" "$pkgname=$pkgver" '' '')
+subgroups=('lib' 'network' 'network' 'network' 'network')
+subarchs=('i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 ppc' 'i686 x86_64 ppc')
 _F_cd_path="$pkgname-$pkgver$pkgextraver/source3/"
 
 build()
 {
-	unset MAKEFLAGS
+#	unset MAKEFLAGS
 	Fcd
-#	Fpatchall
 	Fmake --localstatedir=/var \
 		--bindir=/usr/bin \
         	--sbindir=/usr/sbin \
@@ -44,20 +44,19 @@ build()
 		--with-privatedir=/etc/samba/private \
 		--with-swatdir=/usr/share/swat \
 	        --enable-cups \
+		--disable-smbtorture4 \
 		--with-fhs \
 		--with-acl-support \
 		--with-automount \
-		--with-smbmount \
 		--with-quotas \
 		--with-syslog \
+		--with-winbind \
 		--with-utmp \
 		--with-libsmbclient \
 		--with-winbind \
-		--with-cifsmount \
-		--with-cifsumount \
 		--enable-external-libtalloc \
 		--without-libtalloc
-	make everything || Fdie
+	Fmake
 
 	Fmkdir /var/spool /var/samba /var/log/samba /var/cache/samba /etc/samba/private
 	chmod 700 $Fdestdir/etc/samba/private || Fdie
@@ -69,15 +68,22 @@ build()
 	chmod 644 $Fdestdir/usr/include/*.h || Fdie
 
 	# these links are necessary for mount
-#	Fln /usr/bin/smbmount /sbin/mount.smbfs
-	Fln /usr/sbin/mount.cifs /sbin/mount.cifs
-	Fln /usr/sbin/umount.cifs /sbin/umount.cifs
+	# deprecated see cifs-utils
+	#Fln /usr/bin/smbmount /sbin/mount.smbfs
+	#Fln /usr/sbin/mount.cifs /sbin/mount.cifs
+	#Fln /usr/sbin/umount.cifs /sbin/umount.cifs
 
 	# smb.conf
 	Ffilerel ../examples/smb.conf.default /etc/samba/smb.conf.default
 	Fsed 'log file = .*$' 'log file = /var/log/samba/log.%m' $Fdestdir/etc/samba/smb.conf.default
 
 	Ffile samba.logrotate /etc/logrotate.d/samba
+
+
+	# nss
+        Ffilerel ../nsswitch/libnss_winbind.so usr/lib
+        Ffilerel ../nsswitch/libnss_wins.so usr/lib
+
 	Frcd
 
 	# resolve conflicts with tdb
@@ -98,15 +104,12 @@ build()
 		Fsplit samba-client usr/bin/$i
 		Fsplit samba-client usr/share/man/man8/$i.8
 	done
-	Fsplit samba-client usr/sbin/mount.cifs
-	Fsplit samba-client sbin/mount.cifs
-	Fsplit samba-client usr/share/man/man8/mount.cifs.8
-	Fsplit samba-client usr/share/man/man8/umount.cifs.8
-	Fsplit samba-client usr/sbin/umount.cifs
-	Fsplit samba-client sbin/umount.cifs
 
 	Fsplit samba-swat usr/sbin/swat
-	Fsplit samba-swat usr/share/swat
+#	Fsplit samba-swat usr/share/swat
+
+	Fsplit nss-wins usr/lib/libnss_wins.so
+	Fsplit nss-winbind usr/lib/libnss_winbind.so
 
 	Frm /sbin
 }

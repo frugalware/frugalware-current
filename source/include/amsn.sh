@@ -48,7 +48,7 @@ fi
 # * up2date
 ###
 
-up2date="Flastarchive 'http://sourceforge.net/project/showfiles.php?group_id=54091&package_id=134844' '\.zip'"
+up2date="Flastarchive 'http://sourceforge.net/projects/amsn/files/amsn-plugins/0.97/' '\.zip'"
 groups=('xapps-extra' 'amsn-plugins')
 
 ###

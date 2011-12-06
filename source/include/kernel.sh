@@ -133,6 +133,16 @@ fi
 # * source()
 # * install
 ###
+_kernel_up2date()
+{
+	local _ver
+	_ver=$(curl -s 'http://www.kernel.org/pub/linux/kernel/v3.0/' | sed -n "s|.*linux-\($_F_kernelver_ver.[0-9]\+\).tar.xz.*|\1|p" | tail -n 1)
+	if [ "$_ver" == "$_F_kernelver_ver.$_F_kernelver_stable" ]; then
+		echo $pkgver
+	else
+		echo $_ver
+	fi
+}
 url="http://www.kernel.org"
 rodepends=('module-init-tools' 'sed')
 if [ -z "$_F_kernel_name" ]; then
@@ -144,7 +154,7 @@ fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('nodocs' 'genscriptlet')
-up2date="Flasttar $url/pub/linux/kernel/v3.0"
+up2date="eval _kernel_up2date"
 # this can be removed after Frualware 1.5 is out
 replaces=('redirfs' 'dazuko')
 install="src/kernel.install"

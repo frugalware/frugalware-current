@@ -54,6 +54,7 @@ do
 		continue
 	fi
 	[ -x $i ] || chmod +x $i
+	echo "-> Running $i" >&2
 	./$i > $logdir/$i
 done
 
@@ -67,6 +68,7 @@ if [ -d $stabledir ]; then
 			continue
 		fi
 		[ -x $i ] || chmod +x $i
+		echo "-> Running $i (stable)" >&2
 		./$i > $logdir/stable/$i
 	done
 	cd - >/dev/null

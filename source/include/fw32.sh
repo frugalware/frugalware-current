@@ -70,7 +70,7 @@ build()
 	Frm /usr/lib/pkgconfig
 	# Delete etc config
 	Frm $_dir/etc
-	# Remove pacman files.
+	# Remove pacman-g2 files.
 	Frm "$_dir/.[A-Z]*"
 	# Remove static libraries & libtool stuff.
 	for i in `find $Fdestdir$_dir -name "*.a" -or -name "*.la"`; do

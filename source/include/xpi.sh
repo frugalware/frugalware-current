@@ -34,7 +34,7 @@ if [ -z "$pkgname" ]; then
 	pkgname="$_F_xpi_product-$_F_xpi_pkgname"
 fi
 groups=("${groups[@]}" "$_F_xpi_product-extensions")
-archs=('i686' 'x86_64')
+archs=('i686' 'x86_64' 'ppc')
 if [ -z "$_F_xpi_ext" ]; then
 	_F_xpi_ext='.xpi'
 fi

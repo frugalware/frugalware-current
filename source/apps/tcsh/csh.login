@@ -8,7 +8,7 @@ if ($?prompt) then
 	set history = 100
         setenv MANPATH /usr/local/man:/usr/man:/usr/X11R6/man
 	setenv MINICOM "-c on"
-	setenv HOSTNAME "`cat /etc/HOSTNAME`"
+	setenv HOSTNAME "`cat /etc/hostname`"
 	setenv LESS "-M"
 	setenv LESSOPEN "|lesspipe.sh %s"
 	set path = ( $path /usr/X11R6/bin /usr/games )

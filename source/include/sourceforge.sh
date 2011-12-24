@@ -111,6 +111,6 @@ up2date="lynx -dump $_F_sourceforge_rss_url | \
 	Fsort | tac | \
 	head -n 1"
 
-source=("http://${_F_sourceforge_mirror}.sourceforge.net/${_F_sourceforge_dirname}/${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext}")
+source=("http://${_F_sourceforge_mirror}.sourceforge.net/${_F_sourceforge_dirname}/${_F_sourceforge_subdir}${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext}")
 
 

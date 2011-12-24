@@ -313,8 +313,8 @@ Fbuildkernel()
 		fi
 	fi
 	Fmkdir /lib/modules
-	unset MAKEFLAGS
-	make INSTALL_MOD_PATH=$Fdestdir modules_install || Fdie
+	#unset MAKEFLAGS
+	make INSTALL_MOD_PATH=$Fdestdir $MAKEFLAGS modules_install || Fdie
 	# dump symol versions so that later builds will have dependencies and
 	# modversions
 	Ffilerel System.map /boot/System.map-$_F_kernel_ver$_F_kernel_uname

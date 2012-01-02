@@ -51,6 +51,7 @@ wine-devel)
 	conflicts=('wine')
 	depends=("${depends[@]}" 'gst-plugins-base')
 	makedepends=("${makedepends[@]}" 'oss-libs')
+	sha1sums=('6ad7d18063fea0fdeb2caf20a21ae53ffba13f24')
 	case "$CARCH" in
 		"i686") sha1sums=("${sha1sums[@]}" 'c30aa99621e98336eb4b7e2074118b8af8ea2ad5');;
 		"x86_64") sha1sums=("${sha1sums[@]}" 'bf0aaf56a8cf9abd75be02b56b05e5c4e9a4df93');;

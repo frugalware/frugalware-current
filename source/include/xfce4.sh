@@ -76,7 +76,7 @@ if echo ${groups[*]} | grep -q goodies ; then
 else
 	url="http://www.xfce.org/"
 	dlurl="http://archive.xfce.org/src/xfce/${_F_xfce_name}/${_F_xfce_ver}"
-	up2date="Flasttar http://git.xfce.org/xfce/$_F_xfce_name/"
+	up2date="Flasttar http://git.xfce.org/xfce/${pkgname}/"
 	source=($dlurl/$_F_xfce_name-$pkgver.tar.bz2)
 fi
 

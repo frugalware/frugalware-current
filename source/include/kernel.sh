@@ -136,7 +136,7 @@ fi
 _kernel_up2date()
 {
 	local _ver
-	_ver=$(curl -s 'http://www.kernel.org/pub/linux/kernel/v3.0/' | sed -n "s|.*linux-\($_F_kernelver_ver.[0-9]\+\).tar.xz.*|\1|p" | tail -n 1)
+	_ver=$(curl -s 'http://www.kernel.org/pub/linux/kernel/v3.0/' | sed -n "s|.*linux-\($_F_kernelver_ver\(.[0-9]\+\)\?\).tar.xz.*|\1|p" | tail -n 1)
 	if [ "$_ver" == "$_F_kernelver_ver.$_F_kernelver_stable" ]; then
 		echo $pkgver
 	else

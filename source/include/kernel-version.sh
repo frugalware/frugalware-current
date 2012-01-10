@@ -16,8 +16,8 @@
 # * _F_kernelver_stable: the number of the -stable patch to use (if any)
 ###
 _F_kernelver_ver=3.1
-_F_kernelver_rel=6
-_F_kernelver_stable=7
+_F_kernelver_rel=7
+_F_kernelver_stable=8
 
 ###
 # == APPENDED VALUES

@@ -312,7 +312,7 @@ Fbuildkernel()
 			Ffilerel arch/x86/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		fi
 	fi
-	Fmkdir /lib/modules
+	Fmkdir /lib/{modules,firmware}
 	#unset MAKEFLAGS
 	make INSTALL_MOD_PATH=$Fdestdir $MAKEFLAGS modules_install || Fdie
 	# dump symol versions so that later builds will have dependencies and

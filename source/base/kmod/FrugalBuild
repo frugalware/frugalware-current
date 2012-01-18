@@ -1,0 +1,52 @@
+# Compiling Time: 0.01 SBU
+# Maintainer: James Buren <ryuo@frugalware.org>
+
+pkgname=kmod
+pkgver=4
+pkgrel=1
+pkgdesc="Utilities for inserting and removing modules from the Linux kernel"
+url="http://git.profusion.mobi/cgit.cgi/kmod.git"
+depends=('zlib' 'xz')
+makedepends=('gtk-doc')
+groups=('base' 'core')
+archs=('i686' 'x86_64' 'ppc' 'arm')
+backup=('etc/rc.d/rc.modules' 'etc/sysconfig/modules')
+_F_archive_grepv="pre\|rc"
+up2date="Flasttar $url"
+source=($url/snapshot/$pkgname-$pkgver.tar.bz2
+	modules)
+sha1sums=('35c46ee40dbacdf0d84431b6cdbb424ba4edd0cd' \
+          '07c76e65af673c8aad478ad78ef2d750b8ea407e')
+replaces=('module-init-tools')
+conflicts=('module-init-tools')
+provides=('module-init-tools')
+options=('scriptlet')
+subpkgs=("$pkgname-docs")
+subdescs=("$pkgname extra documentation")
+subgroups=("apps")
+subarchs=("i686 x86_64 ppc arm")
+subrodepends=("$pkgname")
+
+build()
+{
+	Fcd
+	gtkdocize --docdir libkmod/docs || Fdie
+	Fautoreconf
+	Fmake --with-zlib --with-xz --enable-gtk-doc
+	Fmakeinstall
+	if [ "$CARCH" == "ppc" ]; then
+		# we do not want to load any kernel module by default on ppc
+		sed -i '/\(^[^#]\)/d' $Fsrcdir/modules
+	fi
+	Ffile /etc/sysconfig/modules
+	# systemd
+	Fmkdir /etc/modules-load.d
+	Fln ../sysconfig/modules /etc/modules-load.d/sysconfig.conf
+	# Compatibility symlinks
+	for i in depmod insmod lsmod modinfo modprobe rmmod; do
+		Fln /usr/bin/kmod /sbin/$i
+	done
+	Fsplit $pkgname-docs /usr/share/gtk-doc
+}
+
+# optimization ok

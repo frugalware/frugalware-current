@@ -1,6 +1,6 @@
 #!/bin/sh
 
-include /etc/sysconfig/cpupower
+source /etc/sysconfig/cpupower
 
 _add_option()
 {
@@ -17,19 +17,19 @@ fi
 
 if test -n "$governor"; then
 	modprobe "cpufreq_$governor"
-	_add_option="--governor '$governor'"
+	_add_option "--governor $governor"
 fi
 
 if test -n "$min_freq"; then
-	_add_option="--min '$min_freq'"
+	_add_option "--min $min_freq"
 fi
 
 if test -n "$max_freq"; then
-	_add_option="--max '$max_freq'"
+	_add_option "--max $max_freq"
 fi
 
 if test -n "$freq"; then
-	_add_option="--freq '$freq'"
+	_add_option "--freq $freq"
 fi
 
 if test -n "$_options"; then
@@ -39,15 +39,15 @@ fi
 _options=""
 
 if test -n "$perf_bias"; then
-	_add_option="--perf-bias '$perf_bias'"
+	_add_option "--perf-bias $perf_bias"
 fi
 
 if test -n "$mc_scheduler"; then
-	_add_option="--sched-mc '$mc_scheduler'"
+	_add_option "--sched-mc $mc_scheduler"
 fi
 
 if test -n "$smp_scheduler"; then
-	_add_option="--sched-smt '$smp_scheduler'"
+	_add_option "--sched-smt $smp_scheduler"
 fi
 
 if test -n "$_options"; then

@@ -136,7 +136,7 @@ fi
 _kernel_up2date()
 {
 	local _ver
-	_ver=$(curl -s 'http://www.kernel.org/pub/linux/kernel/v3.0/' | sed -n "s|.*linux-\($_F_kernelver_ver\(.[0-9]\+\)\?\).tar.xz.*|\1|p" | tail -n 1)
+	_ver=$(Fwcat 'http://www.kernel.org/pub/linux/kernel/v3.0/' | sed -n "s|.*linux-\($_F_kernelver_ver\(.[0-9]\+\)\?\).tar.xz.*|\1|p" | tail -n 1)
 	if [ "$_ver" == "$_F_kernelver_ver.$_F_kernelver_stable" ]; then
 		echo $pkgver
 	else
@@ -323,6 +323,12 @@ Fbuildkernel()
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/build
 	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname \
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/source
+
+	if test "$COMPRESS_MODULES" == "y"; then
+	Fmessage "Compressing kernel modules."
+	find "$Fdestdir/lib/modules/$_F_kernel_ver$_F_kernel_uname/kernel" \
+		-name "*.ko" -exec xz '{}' \;
+	fi
 
 	# scriptlets
 	cp $Fincdir/kernel.install $Fsrcdir || Fdie

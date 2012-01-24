@@ -2,37 +2,51 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 # Maintainer: voroskoi <voroskoi@frugalware.org>
 
+USE_GTK=${USE_GTK:-"y"}
+
 pkgname=emacs
 pkgver=23.3
-pkgextraver=
-pkgrel=1
+pkgextraver=b
+pkgrel=2
 pkgdesc="An extensible, customizable, self-documenting real-time display editor"
 url="http://www.gnu.org/software/emacs/"
 Finclude texinfo
-makedepends=('libxaw')
-depends=('xaw3d' 'libtiff' 'libpng>=1.4.2' 'libjpeg>=8b' 'libungif' 'ncurses' 'libxcb' 'gtk+2')
-options=('scriptlet')
-_F_gnome_desktop="y"
-_F_gnome_iconcache="y"
-Finclude gnome-scriptlet
+depends=('ncurses')
 groups=('xapps')
 archs=('i686' 'x86_64')
-up2date="lynx -dump http://ftp.gnu.org/pub/gnu/emacs/ |Flasttar"
-source=(ftp://ftp.gnu.org/gnu/emacs/$pkgname-$pkgver$pkgextraver.tar.gz)
-[[ "$CARCH" == "x86_64" ]] && source=(${source[@]} 'emacs-21.4-amd64.patch')
+up2date="Flasttar http://ftp.gnu.org/pub/gnu/emacs/"
+source=(ftp://ftp.gnu.org/gnu/emacs/$pkgname-$pkgver$pkgextraver.tar.bz2)
 signatures=($source.sig)
-[[ "$CARCH" == "x86_64" ]] && signatures=(${sirnatures[@]} '')
+if [ "$CARCH" == "x86_64" ]; then
+	source=(${source[@]} 'emacs-21.4-amd64.patch')
+	signatures=(${sirnatures[@]} '')
+fi
+_F_cd_path="$pkgname-$pkgver"
+
+if Fuse GTK; then
+	Fconfopts="$Fconfopts --with-x-toolkit=gtk --with-x11"
+
+	depends=("${depends[@]}" 'gtk+2' 'libgif' 'libjpeg>=8b' \
+		'libpng>=1.4.2' 'libtiff' 'libxpm')
+	options=('scriptlet')
+	_F_gnome_desktop="y"
+	_F_gnome_iconcache="y"
+	Finclude gnome-scriptlet
+else
+	Fconfopts="$Fconfopts --without-x"
+fi
 
 build() {
 	Fpatchall
 	# gcc-4.5 bug
 	export CFLAGS="$CFLAGS -fno-optimize-sibling-calls"
-	Fmake --with-x11 --with-x-toolkit --with-pop
+	Fmake --with-pop
 	Fmakeinstall
 	[ -e $Fdestdir/usr/info/dir.old ] && Frm /usr/info/dir.old
-	echo -e '#!/bin/sh\nemacs -nw $@' > emacs-nox
-	Fexerel /usr/bin/emacs-nox
-	Fbuild_gnome_scriptlet
+	Fwrapper 'emacs -nw "$@"' emacs-nox
+	if Fuse GTK; then
+		Fbuild_gnome_scriptlet
+	fi
 }
 
 # optimization OK

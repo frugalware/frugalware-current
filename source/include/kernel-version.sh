@@ -42,5 +42,5 @@ Fkernelver_compress_modules()
 	local _directory
 	_directory="$Fdestdir/lib/modules/$_F_kernelver_ver-fw$_F_kernelver_rel/kernel"
 	[ -d "$_directory" ] || return
-	find $_directory -name "*.ko" -exec xz '{}' \;
+	Fexec find $_directory -name "*.ko" -exec xz '{}' \; || Fdie
 }

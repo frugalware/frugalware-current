@@ -1,0 +1,62 @@
+# Compiling Time: 0.20 SBU
+# Maintainer: Devil505 <devil505linux@gmail.com>
+
+pkgname=supercollider
+pkgver=3.4.4
+pkgrel=1
+pkgdesc="An environment and programming language for real time audio synthesis and algorithmic composition"
+depends=('jack' 'fftw' 'icu4c' 'cwiid' 'curl')
+makedepends=('scons' 'ruby' 'vim' 'emacs')
+groups=('xmultimedia-extra')
+archs=('i686' 'x86_64')
+backup=('etc/sclang.cfg')
+_F_sourceforge_ext="-Source-linux.tar.gz"
+_F_sourceforge_name="SuperCollider"
+Finclude sourceforge
+sha1sums=('a044a02a30fe8a9090f8e0d5fa539037b800f2ec')
+
+_opts="PREFIX=/usr ALSA=yes AUDIOAPI=jack DEBUG=no DEVELOPMENT=yes FFTW=yes LANG=yes LID=yes NO_LIBSNDFILE=no \
+       WII=true RENDEZVOUS=yes SCEL=yes SCVIM=yes SCED=yes TERMINAL_CLIENT=yes CURL=yes READLINE=yes X11=yes"
+
+build() {
+  Fcd $_F_sourceforge_name-Source/common
+
+  # Fix sclangpipe_app path in scvimrc
+  sed -i "s|local/||" ../editors/scvim/scvimrc || Fdie
+
+  # Stripping Debian related code
+  sed -i "34,52d" ../editors/scvim/bin/scvim || Fdie
+
+  # utf-8 encoding fix for ruby 1.9
+  sed -i "s|\(ruby\).*|\1 -Kn|" ../editors/scvim/bin/scvim_make_help || Fdie
+
+  # fix readline header check in scons
+  sed -i "s|(\('readline/readline.h'\)|(['stdio.h', \1]|" SConstruct || Fdie
+
+  # remove insecure rpath
+  sed -i "s|-rpath,|-rpath-link,|g" SConstruct || Fdie
+
+  # build
+  scons $_opts || Fdie
+  scons DESTDIR="$Fdestdir/" $_opts install || Fdie
+
+  # installing vim files
+  scons -C ../editors/scvim PREFIX="$Fdestdir/usr" \
+                            VIMFILE_DIR=/usr/share/vim/addons install-system || Fdie
+
+  Fmkdir usr/share/vim/vimfiles
+  cp -a ../editors/scvim/{extra,ftplugin,indent,syntax} \
+    "$Fdestdir/usr/share/vim/vimfiles" || Fdie
+
+  # gedit extensions
+  scons -C ../editors/sced PREFIX="$Fdestdir/usr" install || Fdie
+
+  # default sclang.cfg
+  Fmkdir /etc
+  sed "s|@PKG_DATA_DIR@|/usr/share/$_F_sourceforge_name|g" \
+    ../linux/examples/sclang.cfg.in > "$Fdestdir/etc/sclang.cfg"
+
+  # sample sclang.sc
+  Finstallrel 644 ../linux/examples/sclang.sc usr/share/$_F_sourceforge_name/examples
+}
+

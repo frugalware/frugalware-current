@@ -92,6 +92,7 @@ Fdestdir="$startdir/pkg"
 Fprefix="/usr"
 Fsysconfdir="/etc"
 Flocalstatedir="/var"
+Finfodir="/usr/share/info"
 Fmandir="/usr/share/man"
 Fmenudir="/usr/share/applications"
 Farchs=('i686' 'x86_64' 'ppc' 'arm')
@@ -811,6 +812,7 @@ Fconf() {
 		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
 		Fconfoptstryset "localstatedir" "$Flocalstatedir"
 		Fconfoptstryset "docdir" "/usr/share/doc/$pkgname-$pkgver"
+		Fconfoptstryset "infodir" "$Finfodir"
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
 		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie
@@ -1454,24 +1456,32 @@ Fcleandestdir() {
 ###
 Fsplit()
 {
-	local i dir path subpkg=$1
-	shift 1
-	if [ ! -d $startdir/pkg.$subpkg ]; then
-		# FIXME Compatibility: check for $subpkg in subpkgs
-		warning "Trying to move $@ to undeclared subpackage $subpkg"
-		mkdir -p $startdir/pkg.$subpkg/
-		Fdie
-	fi
+	Fsubsplit '' "$@"
+}
+
+###
+# * Fsubsplit(): Moves a file pattern from a subpackage to another subpackage.
+# Parameters: 1) name of the source subpackage 2) name of the dest subpackage
+# 3) pattern of the files to move.
+#
+# NOTE: You have to quote wildcards to split the proper files! (/foo/* => /foo/\*)
+###
+Fsubsplit()
+{
+	local srcpkg="$1" srcdir="`Fsubdestdir "$1"`" srcinfo="`Fsubdestdirinfo "$1"`"
+	local destpkg="$2" destdir="`Fsubdestdir "$2"`" destinfo="`Fsubdestdirinfo "$2"`"
+	local i dir path
+	shift 2
 
 	for i in "$@"
 	do
-		Fmessage "Moving $i to subpackage $subpkg"
-		for path in $Fdestdir/$i
+		Fmessage "Moving $i$srcinfo to subpackage $destpkg"
+		for path in "$srcdir"/$i
 		do
-			path=`echo ${path%/}` # Remove / suffix if found
-			dir=`dirname ${path#$Fdestdir}` # Remove $Fdestdir prefix, and last dir element
-			mkdir -p $startdir/pkg.$subpkg/$dir/
-			mv $path $startdir/pkg.$subpkg/$dir/ || Fdie
+			path="`echo ${path%/}`" # Remove / suffix if found
+			dir="`dirname ${path#$srcdir}`" # Remove $Fdestdir prefix, and last dir element
+			mkdir -p "$destdir/$dir/"
+			mv "$path" "$destdir/$dir/" || Fdie
 		done
 	done
 }

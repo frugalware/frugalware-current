@@ -102,7 +102,7 @@ local constant = token(l.CONSTANT, word_match {
   '_F_haskell_prefix', '_F_haskell_register_dir', '_F_haskell_sep', '_F_haskell_setup', 'Fincdir', '_F_java_cflags',
   '_F_javacleanup_opts', '_F_java_compiler', '_F_java_ldflags', '_F_java_no_gcj', '_F_kde_defaults', '_F_kde_dirname',
   '_F_kde_final', '_F_kde_folder', '_F_kde_id', '_F_kde_id2', '_F_kde_mirror', '_F_kde_name', '_F_kde_pkgver',
-  '_F_kde_qtver', '_F_kde_subpkgs_custom_path', '_F_kde_unstable', '_F_kde_ver', '_F_kernel_dontfakeversion',
+  '_F_kde_qtver', '_F_kde_unstable', '_F_kde_ver', '_F_kernel_dontfakeversion',
   '_F_kernelmod_dir', '_F_kernelmod_name', '_F_kernelmod_pkgver', '_F_kernelmod_rel', '_F_kernelmod_scriptlet',
   '_F_kernelmod_uname', '_F_kernelmod_ver', '_F_kernel_name', '_F_kernel_patches', '_F_kernel_path', '_F_kernel_rel',
   '_F_kernel_stable', '_F_kernel_uname', '_F_kernel_ver', '_F_kernel_verbose', '_F_kernelver_rel', '_F_kernelver_stable',

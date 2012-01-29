@@ -1,29 +1,62 @@
 # Compiling time: 0.66 SBU
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
+USE_FRUGALTHEME=${USE_FRUGALTHEME:-"y"}
+USE_REPLACEEXTENSIONS=${USE_REPLACEEXTENSIONS:-"y"}
+
 pkgname=gnome-shell
-pkgver=3.0.2
-pkgrel=2
+pkgver=3.2.2.1
+pkgrel=1
 pkgdesc="Window management and application launching for GNOME"
 url="http://www.gnome.org/"
-depends=('libxml2>=2.7.8' 'mutter>=3.0.2.1' 'gnome-desktop>=3.0.2' 'gjs>=0.7' \
+depends=('libxml2>=2.7.8' 'mutter>=3.2.1' 'gnome-desktop>=3.2.1' 'gjs>=1.30.0' \
 	'gnome-menus' 'librsvg' 'evolution-data-server' 'gconf' \
-	'xulrunner' 'gst-plugins-base' 'pulseaudio>=0.9.23' 'gnome-themes-standard' \
+	'xulrunner' 'gst-plugins-base' 'pulseaudio>=1.1' \
+	'gnome-themes-standard' 'ca-certificates' \
 	'gnome-bluetooth' 'gtk+3>=3.0.8' 'telepathy-glib' 'nm-applet' \
-	'telepathy-logger>=0.2.8')
+	'telepathy-logger>=0.2.8' 'folks>=0.6.4.1' 'json-glib>=0.13.90' 'caribou' \
+	'pyatspi' 'gobject-introspection')
 makedepends=('intltool' 'gnome-doc-utils' 'gnome-common' \
-	'gobject-introspection' 'krb5')
-rodepends=('gnome-shell-extension-frugalware-logo' 'gnome-shell-frugalware-theme')
+	'krb5')
+#rodepends should be removed after 1.6 (just for help migration to 3.2)
+rodepends=('gnome-contacts' 'gnome-documents' 'drwright')
+replaces=('byzanz')
+if Fuse $USE_FRUGALTHEME; then
+	rodepends=("${rodepends[@]}" "gnome-shell-frugalware-theme")
+else
+	replaces=("${replaces[@]}" "gnome-shell-frugalware-theme")
+	provides=("${provides[@]}" "gnome-shell-frugalware-theme")
+	removes=("${removes[@]}" "/usr/share/gnome-shell/theme")
+fi
+#remove gnome-contacts gnome-documents depend after 1.6
+#HERE ADDED gnome-shell-extensions/themes ... incompatible
+replaces=("${replaces[@]}" "gnome-shell-extension-systray" "gnome-shell-extension-frugalware-logo" \
+		"gnome-shell-theme-selector" "gnome-shell-extension-screen-off"\
+		"gnome-shell-extensions-mediaplayer" "gnome-shell-extensions-mediasplayers" \
+		"gnome-shell-extensions-workspace-indicator" "gnome-shell-extension-windowoverlay-icons" \
+		"gnome-shell-extension-cpu-temperature" "gnome-shell-extension-cpufreq" "gnome-shell-extension-arrow-key-window-selector")
+provides=("${provides[@]}" "gnome-shell-extension-systray" "gnome-shell-extension-frugalware-logo" \
+		"gnome-shell-theme-selector" "gnome-shell-extension-autohidetopbar")
+
+if Fuse $USE_REPLACEEXTENSIONS; then
+	replaces=("${replaces[@]}" "gnome-shell-extensions" "gnome-shell-extensions-alternate-tab" \
+	"gnome-shell-extensions-xrandr-indicator" "gnome-shell-extensions-alternative-status-menu")
+fi
+
 groups=('gnome')
-archs=('i686' 'x86_64' 'ppc')
+archs=('i686' 'x86_64')
 _F_gnome_schemas=('/etc/gconf/schemas/gnome-shell.schemas')
 _F_gnome_desktop="y"
 _F_gnome_glib="y"
 _F_gnome_git="n"
+_F_gnome_ext=".tar.xz"
 Finclude gnome gnome-scriptlet
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/xulrunner/
-replaces=('byzanz')
-sha1sums=('1dcdbb2fd77641edfb222fa9aad6efa1eaff9895')
+source=($source fw_theme.diff enable_shutdown.diff revert_utf8hack.diff)
+sha1sums=('46bbfa5f575fcdd8ff7c653123ce249e7ce93537' \
+          'cd1efc33adceca32ec8ac7b606b81bd6bd05b8b4' \
+          '1cf799b5d64f260222c316622715950c69671ffe' \
+          '866a8e9d9d5e1a86fd63c8a362f580362cd1d4dd')
 if [ "$_F_gnome_git" != "n" ]; then
 	unset sha1sums
 fi
@@ -36,16 +69,16 @@ build()	{
 	else
 		Fcd
 	fi
-	# https://bugzilla.gnome.org/show_bug.cgi?id=645063
-        Fsed "settings.menu" "gnomecc.menu" src/shell-app-system.c
 
 	Fpatchall
 	Fmake --disable-static --enable-compile-warnings=maximum --disable-schemas-compile
 	Fmakeinstall
 	Fbuild_gnome_scriptlet
-	#we use our gnome-shell theme
-	Fmv usr/share/gnome-shell/theme usr/share/gnome-shell/theme-gnome
-	Fln /usr/share/gnome-shell/frugalware-theme/theme /usr/share/gnome-shell/theme
+	if Fuse $USE_FRUGALTHEME; then
+		#we use our gnome-shell theme
+		Fmv usr/share/gnome-shell/theme usr/share/gnome-shell/theme-gnome
+		Fln /usr/share/gnome-shell/frugalware-theme/theme /usr/share/gnome-shell/theme
+	fi
 }
 
 # optimization OK

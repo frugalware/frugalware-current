@@ -1,5 +1,7 @@
 #!/bin/sh
 
+USE_DEVEL=${USE_DEVEL:-"n"}
+
 Finclude kernel-version
 
 ###
@@ -59,21 +61,13 @@ if Fuse $USE_DEVEL; then
 	_F_kernel_dontfakeversion=1
 fi
 
-if [ -z "$pkgver" ]; then
-	pkgver=$_F_kernelver_ver
-fi
-
-if [ -z "$pkgrel" ]; then
-	pkgrel=$_F_kernelver_rel
-	_F_kernel_stable=$_F_kernelver_stable
-fi
-
 if [ -z "$_F_kernel_ver" ]; then
-	_F_kernel_ver=$pkgver
+	_F_kernel_ver=$_F_kernelver_ver
 fi
 
 if [ -z "$_F_kernel_rel" ]; then
-	_F_kernel_rel=$pkgrel
+	_F_kernel_rel=$_F_kernelver_rel
+	_F_kernel_stable=$_F_kernelver_stable
 fi
 
 if [ -z "$_F_kernel_stable" ]; then
@@ -88,14 +82,28 @@ if [ -z "$_F_kernel_uname" ]; then
 fi
 
 if [ -z "$_F_kernel_path" ]; then
-	if [ "$CARCH" != "ppc" ]; then
-		_F_kernel_path=vmlinuz
-	else
-		_F_kernel_path=vmlinux
-	fi
+	case "$CARCH" in
+	"ppc")	_F_kernel_path=vmlinux;;
+	*)	_F_kernel_path=vmlinuz;;
+	esac
 fi
-[ "$CARCH" = "ppc" ] && export LDFLAGS="${LDFLAGS/-Wl,/}"
-[ "$CARCH"  = "arm" ] && export LDFLAGS="${LDFLAGS/-Wl,/}"
+
+if [ -z "$pkgver" ]; then
+	pkgver=$_F_kernel_ver
+fi
+
+if [ -z "$pkgrel" ]; then
+	pkgrel=$_F_kernel_rel
+fi
+
+if [ -z "$_F_archive_name" ]; then
+	_F_archive_name=linux
+fi
+
+case "$CARCH" in
+	"arm"|"ppc") export LDFLAGS="${LDFLAGS/-Wl,/}";;
+esac
+
 ###
 # * pkgname
 # * pkgdesc
@@ -123,44 +131,54 @@ fi
 # * options()
 # * up2date
 # * source()
-# * signatures()
 # * install
 ###
+_kernel_up2date()
+{
+	local _ver
+	_ver=$(Fwcat 'http://www.kernel.org/pub/linux/kernel/v3.0/' | sed -n "s|.*linux-\($_F_kernelver_ver\(.[0-9]\+\)\?\).tar.xz.*|\1|p" | tail -n 1)
+	if [ "$_ver" == "$_F_kernelver_ver.$_F_kernelver_stable" ]; then
+		echo $pkgver
+	else
+		echo $_ver
+	fi
+}
 url="http://www.kernel.org"
 rodepends=('module-init-tools' 'sed')
 if [ -z "$_F_kernel_name" ]; then
-	makedepends=('unifdef')
+	makedepends=("${makedepends[@]}" 'unifdef')
 fi
 if [ "$CARCH" = "arm" -o "$CARCH" = "ppc" ]; then
-	makedepends=(${makedepends[@]} 'u-boot-tools')
+	makedepends=("${makedepends[@]}" 'u-boot-tools')
 fi
 groups=('base')
 archs=('i686' 'x86_64' 'ppc' 'arm')
 options=('nodocs' 'genscriptlet')
-up2date="lynx -dump $url/kdist/finger_banner |grep stable|sed -n 's/.* \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/;1 p'"
-source=(ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-$_F_kernel_ver.tar.bz2 \
-	config.i686 config.x86_64 config.ppc config.arm)
+up2date="eval _kernel_up2date"
 # this can be removed after Frualware 1.5 is out
 replaces=('redirfs' 'dazuko')
-signatures=("${source[0]}.sign" '' '' '' '')
 install="src/kernel.install"
 
-[ "$_F_kernel_stable" -gt 0 ] && \
-	source=(${source[@]} ftp://ftp.kernel.org/pub/linux/kernel/v2.6/patch-$_F_kernel_ver.$_F_kernel_stable.bz2) && \
-	signatures=("${signatures[@]}" ${source[$((${#source[@]}-1))]}.sign)
+if ! Fuse DEVEL; then
+	source=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.xz")
 
-if Fuse $USE_DEVEL; then
-	source=(config.i686 config.x86_64 config.ppc config.arm)
-	signatures=('' '' '' '')
-	_F_scm_tag="v$pkgver"
+	if [ "$_F_kernel_stable" -gt 0 ]; then
+		source=("${source[@]}" \
+			"http://www.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.xz")
+	fi
+else
+	if [ -z "$_F_scm_tag" ]; then
+		_F_scm_tag="v$pkgver"
+	fi
 	Finclude scm
 fi
 
-for i in ${_F_kernel_patches[@]}
+for i in "${_F_kernel_patches[@]}"
 do
-	source=(${source[@]} $i)
-	signatures=("${signatures[@]}" '')
+	source=("${source[@]}" "$i")
 done
+
+source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.ppc' 'config.arm')
 
 ###
 # * subpkg()
@@ -199,12 +217,12 @@ fi
 Fbuildkernel()
 {
 	if Fuse $USE_DEVEL; then
-		[ -d linux-$_F_kernel_ver ] && mv linux-$_F_kernel_ver kernel
+		[ -d $_F_archive_name-$pkgver ] && mv $_F_archive_name-$pkgver kernel
 		Funpack_scm
 		cd ..
-		mv kernel linux-$_F_kernel_ver
+		mv kernel $_F_archive_name-$pkgver
 	fi
-	Fcd linux-$_F_kernel_ver
+	Fcd
 	make clean || Fdie
 	if [ -e "$Fsrcdir/config.$CARCH" ]; then
 		cp $Fsrcdir/config.$CARCH .config || Fdie
@@ -219,7 +237,7 @@ Fbuildkernel()
 	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	# not using Fpatchall here since not applying the patches from
 	# _F_kernel_patches() having the wrong extension would be stange :)
-	for i in ${_F_kernel_patches[@]}
+	for i in "${_F_kernel_patches[@]}"
 	do
 		Fpatch `strip_url $i`
 	done
@@ -229,7 +247,12 @@ Fbuildkernel()
 	yes "" | make config
 
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
-		Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
+		if [ "${_F_kernel_ver#*.*.}" = "$_F_kernel_ver" ]; then
+			# If patten match fails, sublevel version is missing
+			Fsed "SUBLEVEL =.*" "SUBLEVEL =" Makefile
+		else
+			Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
+		fi
 		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_uname" Makefile
 	else
 		make include/config/kernel.release
@@ -239,14 +262,14 @@ Fbuildkernel()
 
 	## let we do kernel$_F_kernel_name-source before make
 	Fmkdir /usr/src
-	cp -Ra $Fsrcdir/linux-* $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
+	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
 	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
 	Fsplit kernel$_F_kernel_name-source usr/src
 
 	## now the kernel$_F_kernel_name-docs
 	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_uname
-	cp -Ra $Fsrcdir/linux-*/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
+	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
 	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
         ## do we need to ln /usr/share/doc ?!
 	Fsplit kernel$_F_kernel_name-docs usr/src
@@ -264,9 +287,9 @@ Fbuildkernel()
 	fi
 	## now time to eat some cookies and wait kernel got compiled :)
 	if [ "$_F_kernel_verbose" ]; then
-		make V=1 || Fdie
+		make $MAKEFLAGS V=1 || Fdie
 	else
-		make || Fdie
+		make $MAKEFLAGS || Fdie
 	fi
 
 	if [ "$CARCH" = "arm" ]; then
@@ -289,19 +312,26 @@ Fbuildkernel()
 			Ffilerel arch/x86/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		fi
 	fi
-	Fmkdir /lib/modules
-	unset MAKEFLAGS
-	make INSTALL_MOD_PATH=$Fdestdir modules_install || Fdie
+	Fmkdir /lib/{modules,firmware}
+	#unset MAKEFLAGS
+	make INSTALL_MOD_PATH=$Fdestdir $MAKEFLAGS modules_install || Fdie
 	# dump symol versions so that later builds will have dependencies and
 	# modversions
 	Ffilerel System.map /boot/System.map-$_F_kernel_ver$_F_kernel_uname
 	Ffilerel /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/Module.symvers
 	Frm /lib/modules/$_F_kernel_ver$_F_kernel_uname/build
 	Frm /lib/modules/$_F_kernel_ver$_F_kernel_uname/source
+
 	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname \
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/build
 	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname \
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/source
+
+	if test "$COMPRESS_MODULES" == "y"; then
+	Fmessage "Compressing kernel modules."
+	find "$Fdestdir/lib/modules/$_F_kernel_ver$_F_kernel_uname/kernel" \
+		-name "*.ko" -exec xz '{}' \;
+	fi
 
 	# scriptlets
 	cp $Fincdir/kernel.install $Fsrcdir || Fdie

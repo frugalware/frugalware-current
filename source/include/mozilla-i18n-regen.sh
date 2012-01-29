@@ -21,7 +21,7 @@
 
 mozilla_i18n_lang_describe()
 {
-	echo "mozilla_i18n_lang_add '$1' '$(sha1sum $lang.xpi | awk '{print $1}')'"
+	echo "mozilla_i18n_lang_add '$1' '$(sha1sum $_F_mozilla_i18n_archive_name$lang$_F_mozilla_i18n_ext | awk '{print $1}')'"
 }
 
 # Cleanup
@@ -35,8 +35,10 @@ source ./FrugalBuild
 rm -rf *.xpi
 wget -r -nd "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_xpidirname/"
 
-for xpi in *.xpi; do
-	_F_mozilla_i18n_langs=("${_F_mozilla_i18n_langs[@]}" "${xpi/%\.xpi/}")
+for xpi in $_F_mozilla_i18n_archive_name*$_F_mozilla_i18n_ext; do
+	xpi="${xpi##$_F_mozilla_i18n_archive_name}"
+	xpi="${xpi%%$_F_mozilla_i18n_ext}"
+	_F_mozilla_i18n_langs=("${_F_mozilla_i18n_langs[@]}" "${xpi}")
 done
 
 # Regen

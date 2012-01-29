@@ -1,12 +1,6 @@
 pre_upgrade()
 {
-	# stop daemon if we are not in a chroot
-	if test -f /proc/1/exe -a -d /proc/1/root; then
-		if test "$(stat -Lc '%D-%i' /)" = "$(stat -Lc '%D-%i' /proc/1/root)"; then
-			/bin/systemctl stop udev.socket udev.service >/dev/null 2>&1 || :
-			/sbin/udevadm control --exit >/dev/null 2>&1 || :
-		fi
-	fi
+	/bin/systemctl stop udev.socket udev.service >/dev/null 2>&1 || :
 }
 
 pre_remove()
@@ -16,31 +10,8 @@ pre_remove()
 
 post_upgrade()
 {
-	# if the usbfs line is missing then add it
-	if [ -e /etc/fstab ] && ! grep -q usbfs /etc/fstab; then
-		printf "%-16s %-16s %-11s %-16s %-3s %s\n" "usbfs" "/proc/bus/usb" "usbfs" "devgid=23,devmode=664" "0" "0" \
-			>>/etc/fstab
-	fi
-	# if it's there then just update it
-	[ -e /etc/fstab ] && sed -i 's/\(usbfs *\)defaults/\1devgid=23,devmode=664/' /etc/fstab
-
-	getent group storage >/dev/null || /usr/sbin/groupadd -g 30 storage
-
-	# so that this won't overwrite
-	# /lib/udev/rules.d/50-udev-default.rules
-	[ -e /etc/udev/rules.d/50-udev-default.rules ] && mv /etc/udev/rules.d/50-udev-default.rules{,.pacsave}
-
-	# remove after Frugalware-1.5
-	rm -f /etc/rc.d/rcS.d/S00rc.udev
-
 	/bin/systemctl daemon-reload >/dev/null 2>&1 || :
-	# start daemon if we are not in a chroot
-	if test -f /proc/1/exe -a -d /proc/1/root; then
-		if test "$(stat -Lc '%D-%i' /)" = "$(stat -Lc '%D-%i' /proc/1/root)"; then
-			/bin/systemctl start udev.service >/dev/null 2>&1 || :
-			/sbin/udevd --daemon >/dev/null 2>&1 || :
-		fi
-	fi
+	/bin/systemctl start udev.service >/dev/null 2>&1 || :
 }
 
 post_install()

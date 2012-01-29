@@ -31,6 +31,24 @@
 # == OVERWRITTEN VARIABLES
 # * _F_python_libdir (example: usr/lib/python2.5/site-packages)
 # * _F_python_ver (example: 2.5)
+# * _F_python3_libdir
+# * _F_python3_ver
 ###
 _F_python_libdir=`python -c 'from distutils import sysconfig; print sysconfig.get_python_lib()[1:]'`
 _F_python_ver=`python -c 'from distutils import sysconfig; print sysconfig.get_python_version()'`
+
+###
+# == PROVIDED FUNCTIONS
+# * F_python3_getlibdir
+# * F_python3_getver
+###
+
+F_python3_getlibdir()
+{
+	python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_lib()[1:])'
+}
+
+F_python3_getver()
+{
+	python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_version())'
+}

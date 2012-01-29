@@ -42,6 +42,11 @@ if [ -z "$_F_github_name" ]; then
 	_F_github_name=$pkgname
 fi
 
+if [ -z "$_F_github_dirname" ]; then
+	_F_github_dirname=$_F_github_name
+fi
+
+
 if [ -z "$_F_github_ver" ]; then
 	_F_github_ver=$pkgver
 fi
@@ -64,7 +69,7 @@ if [ "$_F_github_devel" = "yes" ]; then
 	_F_scm_url=git://github.com/$_F_github_author/$_F_github_name
 	Finclude scm
 else
-	up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_name/downloads $_F_github_ext"
+	up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_dirname/downloads $_F_github_ext"
 	# On one line for Mr Portability, Hermier Portability.
-	source=(${source[@]} http://github.com/downloads/$_F_github_author/$_F_github_name/$_F_github_name-$_F_github_ver$_F_github_ext)
+	source=(${source[@]} http://github.com/downloads/$_F_github_author/$_F_github_dirname/$_F_github_name-$_F_github_ver$_F_github_ext)
 fi

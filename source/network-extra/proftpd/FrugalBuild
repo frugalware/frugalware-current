@@ -1,23 +1,39 @@
 # Compiling Time: ~0.52 SBU
-# Contributor: VMiklos <vmiklos@frugalware.org>
+# Contributor: Miklos Vajna <vmiklos@frugalware.org>
 # Maintainer: voroskoi <voroskoi@frugalware.org>
 
+USE_LDAP=${USE_LDAP:-"y"}
+USE_MYSQL=${USE_MYSQL:-"y"}
+USE_POSTGRES=${USE_POSTGRES:-"n"}
+
 pkgname=proftpd
-pkgver=1.3.3
-pkgextraver=e
-pkgrel=7
+pkgver=1.3.4
+pkgextraver=a
+pkgrel=1
 pkgdesc="Highly configurable GPL-licensed FTP server software"
 url="http://www.proftpd.org/"
 groups=('network-extra')
 archs=('i686' 'x86_64')
-depends=('ncurses' 'libmysqlclient>=5.5.10' 'openssl>=1.0.0')
-makedepends=('tcp_wrappers' 'mysql>=5.5.10')
+depends=('ncurses' 'openssl>=1.0.0')
 backup=(etc/{proftpd.conf,ftpusers})
 _F_archive_grepv="rc[0-9]"
 up2date="Flasttar $url"
 source=(ftp://ftp.proftpd.org/distrib/source/$pkgname-$pkgver$pkgextraver.tar.bz2 \
 	rc.proftpd proftpd.conf ftpusers)
 signatures=($source.asc '' '' '')
+
+if Fuse LDAP; then
+	depends=("${depends[@]}" 'libldap')
+fi
+
+if Fuse MYSQL; then
+	depends=("${depends[@]}" 'libmysqlclient>=5.5.10')
+	makedepends=('mysql>=5.5.10')
+fi
+
+if Fuse POSTGRES; then
+	depends=("${depends[@]}" 'libpq')
+fi
 
 build()
 {
@@ -28,12 +44,24 @@ build()
 	Fcd
 	Fpatchall
 	autoconf || Fdie
+
+	modules="mod_quotatab:mod_quotatab_file:mod_quotatab_sql:mod_readme:mod_sql:mod_ratio:mod_tls"
+	if Fuse LDAP; then
+		modules="$modules:mod_ldap"
+	fi
+	if Fuse MYSQL; then
+		modules="$modules:mod_sql_mysql"
+		Fconfopts="$Fconfopts --with-includes=/usr/include/mysql --with-libraries=/usr/lib/mysql"
+	fi
+	if Fuse POSTGRES; then
+		modules="$modules:mod_sql_postgres"
+	fi
+
 	Fmake CFLAGS="$CFLAGS" \
 		--disable-pam \
 		--enable-autoshadow \
 		--localstatedir=/var/run \
-		--with-modules=mod_sql:mod_sql_mysql:mod_quotatab:mod_quotatab_sql:mod_readme:mod_ratio:mod_tls:mod_wrap \
-		--with-includes=/usr/include/mysql --with-libraries=/usr/lib/mysql
+		--with-modules=$modules
 	Fmakeinstall
 	Fmkdir /home/ftp
 	Frm /etc/*

@@ -1,0 +1,71 @@
+From d92cac0e66bd213d507a4a27edf6e2316c60b746 Mon Sep 17 00:00:00 2001
+From: Thomas Meyer <thomas@m3y3r.de>
+Date: Fri, 16 Sep 2011 14:09:21 +0200
+Subject: [PATCH] Circumvent autofs_v5_packet_union size bug
+
+the size of autofs_v5_packet_union is 300 bytes on x86 and 304 bytes on x86_64 kernels.
+when running systemd (x86) on an x86_64 kernel this leads to a hang in automount_fd_event->loop_read
+as a second fd_event is trigged for the remaining 4 bytes. but the loop_read tries to read
+300 bytes again. adapt the packet size dynamically to architecture we are running on.
+
+Signed-off-by: Thomas Meyer <thomas@m3y3r.de>
+---
+ src/automount.c |   23 ++++++++++++++++++++++-
+ 1 files changed, 22 insertions(+), 1 deletions(-)
+
+diff --git a/src/automount.c b/src/automount.c
+index 29b807d..ec2c8f3 100644
+--- a/src/automount.c
++++ b/src/automount.c
+@@ -26,6 +26,7 @@
+ #include <fcntl.h>
+ #include <sys/epoll.h>
+ #include <sys/stat.h>
++#include <sys/utsname.h>
+ #include <linux/auto_fs4.h>
+ #include <linux/auto_dev-ioctl.h>
+ 
+@@ -744,11 +745,31 @@ static bool automount_check_gc(Unit *u) {
+         return UNIT_VTABLE(UNIT(a->mount))->check_gc(UNIT(a->mount));
+ }
+ 
++static size_t get_kpkt_len(void)
++{
++        size_t pkt_len = sizeof(struct autofs_v5_packet);
++        struct utsname un;
++
++        uname(&un);
++
++        if (pkt_len % 8) {
++                if (strcmp(un.machine, "alpha") == 0 ||
++                    strcmp(un.machine, "ia64") == 0 ||
++                    strcmp(un.machine, "x86_64") == 0 ||
++                    strcmp(un.machine, "ppc64") == 0)
++                        pkt_len += 4;
++
++        }
++
++        return pkt_len;
++}
++
+ static void automount_fd_event(Unit *u, int fd, uint32_t events, Watch *w) {
+         Automount *a = AUTOMOUNT(u);
+         union autofs_v5_packet_union packet;
+         ssize_t l;
+         int r;
++        int packetsize = (int)get_kpkt_len();
+ 
+         assert(a);
+         assert(fd == a->pipe_fd);
+@@ -758,7 +779,7 @@ static void automount_fd_event(Unit *u, int fd, uint32_t events, Watch *w) {
+                 goto fail;
+         }
+ 
+-        if ((l = loop_read(a->pipe_fd, &packet, sizeof(packet), true)) != sizeof(packet)) {
++        if ((l = loop_read(a->pipe_fd, &packet, packetsize , true)) != packetsize) {
+                 log_error("Invalid read from pipe: %s", l < 0 ? strerror(-l) : "short read");
+                 goto fail;
+         }
+-- 
+1.7.8
+

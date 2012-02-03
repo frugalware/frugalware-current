@@ -17,7 +17,7 @@
 ###
 _F_kernelver_ver=3.2
 _F_kernelver_rel=1
-_F_kernelver_stable=2
+_F_kernelver_stable=4
 
 ###
 # == APPENDED VALUES

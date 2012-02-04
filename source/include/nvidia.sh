@@ -248,6 +248,8 @@ Fbuild_nvidia() {
 	# Remove nvidia-xconfig
 	Frm /usr/bin/nvidia-xconfig
 	Frm /usr/man/man1/nvidia-xconfig.1.gz
+
+	Fkernelver_compress_modules
 }
 
 build() {

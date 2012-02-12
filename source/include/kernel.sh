@@ -327,11 +327,7 @@ Fbuildkernel()
 	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname \
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/source
 
-	if test "$COMPRESS_MODULES" == "y"; then
-	Fmessage "Compressing kernel modules."
-	find "$Fdestdir/lib/modules/$_F_kernel_ver$_F_kernel_uname/kernel" \
-		-name "*.ko" -exec xz '{}' \;
-	fi
+	Fkernelver_compress_modules
 
 	# scriptlets
 	cp $Fincdir/kernel.install $Fsrcdir || Fdie

@@ -182,7 +182,6 @@ source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.ppc' 'config.arm')
 
 ###
 # * subpkg()
-# * subdepends()
 # * subarchs()
 # * subinstall()
 # * suboptions()
@@ -190,14 +189,12 @@ source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.ppc' 'config.arm')
 # * subdescs()
 ###
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
-subdepends=("make gcc kernel-headers" "")
-subrodepends=("kernel$_F_kernel_name-docs" "kernel$_F_kernel_name")
+subrodepends=("kernel$_F_kernel_name-docs make gcc kernel-headers" "kernel$_F_kernel_name")
 subarchs=('i686 x86_64 ppc arm' 'i686 x86_64 ppc arm')
 subinstall=('src/kernel-source.install' '')
 suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
 	subpkgs=("${subpkgs[@]}" 'kernel-headers')
-	subdepends=("${subdepends[@]}" '')
 	subrodepends=("${subrodepends[@]}" '')
 	subgroups=('devel' 'apps' 'devel devel-core')
 	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')

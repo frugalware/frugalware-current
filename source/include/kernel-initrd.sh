@@ -30,10 +30,7 @@
 # * _F_kernel_initrd_options: options to pass to dracut
 # * _F_kernel_initrd_name: name of initrd to place under /boot
 ###
-_F_cd_path="."
-_F_genscriptlet_install="$Fincdir/kernel-initrd.install"
-_F_genscriptlet_hooks=('_kernel_initrd_genscriptlet_hook')
-Finclude kernel-version genscriptlet
+Finclude kernel-version
 
 if [ -z "$_F_kernel_initrd_name" ]; then
 	error "_F_kernel_initrd_name is not defined."
@@ -80,18 +77,12 @@ archs=('i686' 'x86_64')
 up2date="$pkgver"
 groups=('base')
 source=()
-options=('scriptlet' 'genscriptlet')
+options=('scriptlet')
 
 ###
 # == PROVIDED FUNCTIONS
-# * _kernel_initrd_genscriptlet_hook()
 # * Fbuild_kernel_initrd()
 ###
-_kernel_initrd_genscriptlet_hook()
-{
-	Freplace '_F_kernel_initrd_name' "$1"
-}
-
 Fbuild_kernel_initrd()
 {
 	local _UNAME _INITRD
@@ -109,7 +100,6 @@ Fbuild_kernel_initrd()
 	fi
 	xz < $_INITRD > $Fdestdir/boot/$_INITRD || Fdie
 	Fln $_INITRD /boot/${_INITRD/-$_UNAME/}
-	Fgenscriptlet
 }
 
 ###

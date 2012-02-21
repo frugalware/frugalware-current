@@ -1234,7 +1234,7 @@ Flastdir() {
 }
 
 ###
-# * Flastverdir(): A convenience function to Flastdir for version only 
+# * Flastverdir(): A convenience function to Flastdir for version only
 # directories. Parameters: 1) url (optional) see Flastdir
 ###
 Flastverdir() {
@@ -1282,7 +1282,7 @@ Fup2gnugz()
 ##
 Fup2gnubz2()
 {
-        up2date="Flasttarbz2 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'"
+        up2date="Flasttar 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'"
 }
 
 ###

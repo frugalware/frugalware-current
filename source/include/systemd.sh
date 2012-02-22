@@ -33,10 +33,18 @@ if [ -z "$_F_systemd_scriptlet" ]; then
 fi
 
 ###
+# == OVERWRITTEN VARIABLES
+# * _F_genscriptlet_install
+###
+_F_genscriptlet_install="$_F_systemd_scriptlet"
+
+###
 # == APPENDED VARIABLES
 # * Fsystemd_genscriptlet_hook to _F_genscriptlet_hooks()
 ###
 _F_genscriptlet_hooks=(${_F_genscriptlet_hooks[@]} 'Fsystemd_genscriptlet_hook')
+
+Finclude genscriptlet
 
 ###
 # == PROVIDED FUNCTIONS

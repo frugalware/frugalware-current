@@ -30,7 +30,7 @@
 ###
 
 if [ -z "$_F_phonon_ver" ]; then
-	_F_phonon_ver=4.5.0
+	_F_phonon_ver=4.6.0
 fi
 
 if [ -z "$_F_phonon_backend_name" ]; then
@@ -70,6 +70,7 @@ fi
 _F_kde_defaults=1
 _F_kde_name="$_F_phonon_backend_name"
 _F_kde_pkgver="$_F_phonon_backend_pkgver"
+_F_kde_ext=".tar.xz"
 _F_kde_folder="stable/phonon/$_F_phonon_backend_name"
 Finclude kde
 

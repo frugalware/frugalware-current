@@ -84,6 +84,10 @@ if [ -z "$_F_kde_defaults" ]; then
 	_F_kde_defaults=1
 fi
 
+if [ -z "$_F_kde_ext" ]; then
+	_F_kde_ext=".tar.bz2"
+fi
+
 ###
 # == OVERWRITTEN VARIABLES
 # * _F_archive_name (default to $_F_kde_name if not set)
@@ -114,7 +118,7 @@ if [ "$_F_kde_defaults" -eq 1 ]; then
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then
-		source=("$_F_kde_mirror/$_F_kde_dirname/$_F_kde_name-$_F_kde_pkgver.tar.bz2")
+		source=("$_F_kde_mirror/$_F_kde_dirname/$_F_kde_name-${_F_kde_pkgver}${_F_kde_ext}")
 		if [ -n "${_F_kdever_sha1sums["$_F_kde_name"]}" ]; then
 			sha1sums=("${_F_kdever_sha1sums["$_F_kde_name"]}")
 		fi

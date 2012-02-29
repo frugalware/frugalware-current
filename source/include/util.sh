@@ -1201,6 +1201,9 @@ Fwcat() {
 	lynx -source "$1" 2>/dev/null && return
 }
 
+Flasttar_filter='\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
+Flastzip_filter='\.zip'
+
 ###
 # * Flastarchive: Extracts last archive version from a page. Parameters: 1)
 # url (optional) of the page, else stdin if not present 2) extension_filter
@@ -1270,7 +1273,7 @@ Flastverdir() {
 # ball extension. Parameters: 1) url (optional) see Flastarchive
 ###
 Flasttar() {
-	Flastarchive "$1" '\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
+	Flastarchive "$1" "$Flasttar_filter"
 }
 
 ###

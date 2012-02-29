@@ -807,7 +807,11 @@ Fconf() {
 		fi
 	fi
 
-	if [ -x $_F_conf_configure ]; then
+	if [ ! -e "$_F_conf_configure" ]; then
+		Fautogen
+	fi
+
+	if [ -x "$_F_conf_configure" ]; then
 		Fconfoptstryset "prefix" "$Fprefix"
 		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
 		Fconfoptstryset "localstatedir" "$Flocalstatedir"
@@ -1148,6 +1152,26 @@ Fautoconfize() {
 Fautoreconf() {
 	Fmessage "Running autoreconf -vif ..."
 	autoreconf -vif || Fdie
+}
+
+###
+# * Fautogen(): Try to run autogen scripts else run Fautoconfize if not found.
+###
+Fautogen() {
+	local autogen old_pwd="$(pwd)"
+
+	cd "$(dirname "$_F_conf_configure")" || return
+	if [ -f "./configure.ac" -o -f "./configure.in" ]; then
+		for autogen in './autogen.sh'; do
+			if [ -f "$autogen" ]; then
+				Fexec "$autogen"
+				cd "$old_pwd"
+				return
+			fi
+		done
+		Fautoconfize
+	fi
+	cd "$old_pwd"
 }
 
 ###

@@ -807,7 +807,11 @@ Fconf() {
 		fi
 	fi
 
-	if [ -x $_F_conf_configure ]; then
+	if [ ! -e "$_F_conf_configure" ]; then
+		Fautogen
+	fi
+
+	if [ -x "$_F_conf_configure" ]; then
 		Fconfoptstryset "prefix" "$Fprefix"
 		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
 		Fconfoptstryset "localstatedir" "$Flocalstatedir"
@@ -1151,6 +1155,26 @@ Fautoreconf() {
 }
 
 ###
+# * Fautogen(): Try to run autogen scripts else run Fautoconfize if not found.
+###
+Fautogen() {
+	local autogen old_pwd="$(pwd)"
+
+	cd "$(dirname "$_F_conf_configure")" || return
+	if [ -f "./configure.ac" -o -f "./configure.in" ]; then
+		for autogen in './autogen.sh'; do
+			if [ -f "$autogen" ]; then
+				Fexec "$autogen"
+				cd "$old_pwd"
+				return
+			fi
+		done
+		Fautoconfize
+	fi
+	cd "$old_pwd"
+}
+
+###
 # * Fsanitizeversion: Clear/fix some common version string common problems on
 # an automatized version output (also remove pkgextraver ending). Parameters:
 # 1) version (optional) to clean, else stdin if not present
@@ -1176,6 +1200,9 @@ Fwcat() {
 	# eg. when http://foo.com/bar instead of http://foo.com/bar/
 	lynx -source "$1" 2>/dev/null && return
 }
+
+Flasttar_filter='\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
+Flastzip_filter='\.zip'
 
 ###
 # * Flastarchive: Extracts last archive version from a page. Parameters: 1)
@@ -1246,7 +1273,7 @@ Flastverdir() {
 # ball extension. Parameters: 1) url (optional) see Flastarchive
 ###
 Flasttar() {
-	Flastarchive "$1" '\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
+	Flastarchive "$1" "$Flasttar_filter"
 }
 
 ###

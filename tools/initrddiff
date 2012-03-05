@@ -1,0 +1,34 @@
+#!/bin/sh
+
+if [ -z "$2" ]; then
+	echo "Usage: $0 <old fpm> <new fpm>"
+	exit 1
+fi
+
+if [ ! -f "$1" -o ! -f "$2" ]; then
+	echo "One of the fpms does not exist."
+	exit 1
+fi
+
+_work_dir()
+{
+	cd $1
+	tar -xf $2 boot
+	xz -d < boot/initrd | cpio -t | sort -u | sed -r 's|^(lib/modules/)[0-9.]+-fw[0-9]+/|\1|' > contents
+}
+
+FPM1="$1"
+FPM2="$2"
+
+DIR1="$(mktemp -u)"
+DIR2="$(mktemp -u)"
+
+mkdir -p "$DIR1" "$DIR2"
+
+_work_dir "$DIR1" "$FPM1"
+
+_work_dir "$DIR2" "$FPM2"
+
+diff -ur "$DIR1/contents" "$DIR2/contents"
+
+rm -rf "$DIR1" "$DIR2"

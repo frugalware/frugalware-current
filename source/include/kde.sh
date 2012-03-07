@@ -85,7 +85,7 @@ if [ -z "$_F_kde_defaults" ]; then
 fi
 
 if [ -z "$_F_kde_ext" ]; then
-	_F_kde_ext=".tar.bz2"
+	_F_kde_ext=".tar.xz"
 fi
 
 ###

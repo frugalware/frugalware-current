@@ -1,40 +1,62 @@
---- VirtualBox-4.1.2_OSE/configure	2011-09-10 23:42:17.000000000 +0000
-+++ VirtualBox-4.1.2_OSE.new/configure	2011-09-10 23:25:46.000000000 +0000
-@@ -1852,26 +1852,6 @@
-   echo "compiling the following source file:" >> $LOG
-   cat $ODIR.tmp_src.c >> $LOG
-   echo "using the following command line:" >> $LOG
--  echo "$CC -m32 -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.c" >> $LOG
--  $CC -m32 -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.c >> $LOG 2>&1
--  if [ $? -ne 0 ]; then
--    echo
--    echo "  Cannot compile 32-bit applications (missing headers and/or libraries)!"
--    echo "  Check the file $LOG for detailed error information."
--    fail
--  else
--    echo "executing the binary" >> $LOG
--    $ODIR.tmp_out 2> $ODIR.test_execute.log
--    rc=$?
--    cat $ODIR.test_execute.log >> $LOG
--    if [ $rc -ne 0 ]; then
--      echo
--      echo "  Cannot execute 32-bit applications! Either enable 32-bit support in the"
--      echo "  kernel configuration or use --disable-vmmraw to disable 32-bit guests."
--      fail
--      return 1
--    fi
--  fi
-   log_success ""
- }
+--- VirtualBox-4.1.8_OSE/src/VBox/HostDrivers/Support/Makefile.kmk	2011-12-19 13:01:05.000000000 +0000
++++ VirtualBox-4.1.8_OSE.new/src/VBox/HostDrivers/Support/Makefile.kmk	2012-03-06 23:33:33.000000000 +0000
+@@ -82,7 +82,8 @@
+ SUPR3_DEFS          = \
+ 	IN_SUP_R3 IN_RT_R3 \
+         $(if $(VBOX_WITH_SUPSVC),VBOX_WITH_SUPSVC) \
+-        $(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,)
++        $(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
++        $(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,)
+ SUPR3_INCS         := $(PATH_SUB_CURRENT)
+ SUPR3_INCS.l4       = $(L4_INCDIR)
+ SUPR3_SOURCES       = \
+@@ -105,7 +106,8 @@
+ SUPR3HardenedStatic_DEFS     = IN_SUP_HARDENED_R3
+ SUPR3HardenedStatic_DEFS    += \
+ 	$(if $(VBOX_WITH_SUPSVC),VBOX_WITH_SUPSVC,) \
+-	$(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,)
++        $(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
++        $(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,)
+ SUPR3HardenedStatic_INCS     = .
+ SUPR3HardenedStatic_SOURCES  = \
+ 	SUPR3HardenedMain.cpp \
+--- VirtualBox-4.1.8_OSE/src/VBox/HostDrivers/Support/SUPR3HardenedVerify.cpp	2011-12-19 13:01:05.000000000 +0000
++++ VirtualBox-4.1.8_OSE.new/src/VBox/HostDrivers/Support/SUPR3HardenedVerify.cpp	2012-03-06 23:37:01.000000000 +0000
+@@ -104,9 +104,11 @@
+     {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VBoxDDR0.r0" },
+     {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VBoxDD2R0.r0" },
  
---- VirtualBox-4.1.2_OSE/src/VBox/Makefile.kmk	2011-01-14 20:15:50.000000000 +0000
-+++ VirtualBox-4.1.2_OSE.new/src/VBox/Makefile.kmk	2011-09-10 22:34:53.000000000 +0000
-@@ -17,7 +17,7 @@
++#ifdef VBOX_WITH_RAW_MODE
+     {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VMMGC.gc" },
+     {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VBoxDDGC.gc" },
+     {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VBoxDD2GC.gc" },
++#endif
  
- SUB_DEPTH = ../..
- include $(KBUILD_PATH)/subheader.kmk
--
-+VBOX_WITH_RAW_MODE=
+     {   kSupIFT_Dll,  kSupID_SharedLib,         false, "VBoxRT" SUPLIB_DLL_SUFF },
+     {   kSupIFT_Dll,  kSupID_SharedLib,         false, "VBoxVMM" SUPLIB_DLL_SUFF },--- VirtualBox-4.1.8_OSE/src/VBox/Installer/linux/Makefile.kmk	2011-12-19 13:01:10.000000000 +0000
++++ VirtualBox-4.1.8_OSE.new/src/VBox/Installer/linux/Makefile.kmk	2012-03-06 23:42:05.000000000 +0000
+@@ -146,13 +146,17 @@
+ 	VBoxTunctl
  
- ifdef VBOX_ONLY_ADDITIONS
-  include $(PATH_SUB_CURRENT)/Runtime/Makefile.kmk
+ # Do not remove relocation information of these binaries
+-VBOX_LNX_STRIP_OBJ = \
+-	VBoxDD2GC.gc \
+-	VBoxDD2R0.r0 \
+-	VBoxDDGC.gc \
+-	VBoxDDR0.r0 \
+-	VMMGC.gc \
+-	VMMR0.r0
++ VBOX_LNX_STRIP_OBJ = \
++        VBoxDD2R0.r0 \
++        VBoxDDR0.r0 \
++        VMMR0.r0
++
++ifdef VBOX_WITH_RAW_MODE
++ VBOX_LNX_STRIP_OBJ += \
++         VBoxDD2GC.gc \
++         VBoxDDGC.gc \
++         VMMGC.gc
++endif
+ 
+ # Do not strip anything of these files
+ VBOX_LNX_NO_STRIP = \

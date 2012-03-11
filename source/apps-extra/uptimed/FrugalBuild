@@ -4,7 +4,7 @@
 
 pkgname=uptimed
 pkgver=0.3.16
-pkgrel=1
+pkgrel=2
 pkgdesc="A deamon which logs your uptime and uprecords."
 url="http://podgorny.cz/uptimed"
 depends=('glibc')
@@ -13,26 +13,28 @@ archs=('i686' 'x86_64')
 install="uptimed.install"
 up2date="Flasttar $url/releases"
 source=(http://podgorny.cz/uptimed/releases/$pkgname-$pkgver.tar.bz2 \
-		rc.uptimed)
+		uptimed.service)
 sha1sums=('1579ae801277597b18a814d0dcf5613a1eb9ecfd' \
-          '679143e3177b8fd45e097f6eaab25ac3ad080b7d')
+          'a5d1cf9acc259539ed86f3502d58cb3a8899e00c')
 
 build()
 {	
 	Fcd
+	# Change log path to Frugalware standard
+	  for M in `ls M*`; do
+	    sed -i "s|/var/spool/uptimed|$Fdestdir/var/log/uptimed|" $M
+	  done || Fdie
+	  sed -i 's|spool|log|' libuptimed/urec.h || Fdie
 	Fautoconfize
-	Fconf
+	libtoolize --force || Fdie
+
+	./configure --prefix=/usr --sysconfdir=/etc || Fdie
+	make || Fdie
+
+	make prefix=$Fdestdir/usr sysconfdir=$Fdestdir/etc/uptimed install || Fdie
 	
-	# Tweak certain files to work with Frugalware
-	Fsed "/var/spool/uptimed" "$Fdestdir/var/log/uptimed" Makefile.am
-	Fsed "/var/spool/uptimed/bootid" "/var/log/uptimed/bootid" libuptimed/urec.h
-	Fsed "/var/spool/uptimed/records" "/var/log/uptimed/records" libuptimed/urec.h
-	
-	make || return 1
-	make prefix=$Fdestdir/usr sysconfdir=$Fdestdir/etc/uptimed install
-	
-	# Copy the rc.uptimed script
-	Frcd2
+	Fmkdir lib/systemd/system/
+	Finstall 0644 $pkgname.service /lib/systemd/system/$pkgname.service
 
 	# Move uptimed.conf-dist to uptimed.conf
 	Fmv etc/uptimed/uptimed.conf-dist etc/uptimed/uptimed.conf

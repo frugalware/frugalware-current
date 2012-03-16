@@ -95,7 +95,7 @@ Flocalstatedir="/var"
 Finfodir="/usr/share/info"
 Fmandir="/usr/share/man"
 Fmenudir="/usr/share/applications"
-Farchs=('i686' 'x86_64' 'ppc' 'arm')
+Farchs=('i686' 'x86_64' 'arm')
 if [[ "`arch`" == arm* ]]; then
 	Fbuildchost="arm-frugalware-linux-gnueabi"
 else

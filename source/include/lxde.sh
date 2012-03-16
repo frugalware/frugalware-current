@@ -19,7 +19,7 @@
 # makedepends=('intltool')
 # options=('scriptlet')
 # groups=('xlib-extra')
-# archs=('i686' 'x86_64' 'ppc')
+# archs=('i686' 'x86_64')
 # Finclude lxde
 # sha1sums=('1c92ae19326a18ca9ce588704a5d8e746a8ec244')
 # --------------------------------------------------
@@ -50,5 +50,5 @@ url="http://lxde.org/"
 # * lxde-desktop to groups()
 ###
 groups=(${groups[@]} 'lxde-desktop')
-archs=('i686' 'x86_64' 'ppc')
+archs=('i686' 'x86_64')
 pkgrel=1

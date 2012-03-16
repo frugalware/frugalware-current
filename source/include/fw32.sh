@@ -53,7 +53,7 @@ _fw32_up2date()
 pkgname="fw32-$_F_fw32_name"
 pkgdesc="32 bit chroot package for $_F_fw32_name."
 groups=('fw32-extra')
-archs=('!i686' 'x86_64' '!ppc' '!arm')
+archs=('!i686' 'x86_64' '!arm')
 url="http://frugalware.org"
 up2date="eval _fw32_up2date"
 source=($_url/$_F_fw32_name-$pkgver-$pkgrel-i686.fpm)

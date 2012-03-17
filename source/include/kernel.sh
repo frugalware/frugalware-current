@@ -49,7 +49,7 @@ Finclude kernel-version
 # with a generated one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
 # * _F_kernel_uname: specify the kernel version manually (defaults to
 # $_F_kernel_name-fw$_F_kernel_rel)
-# * _F_kernel_path: vmlinuz on x86, vmlinux on ppc
+# * _F_kernel_path: vmlinuz on x86
 #
 # == OVERWRITTEN VARIABLES
 # * pkgver (if not set)
@@ -83,7 +83,6 @@ fi
 
 if [ -z "$_F_kernel_path" ]; then
 	case "$CARCH" in
-	"ppc")	_F_kernel_path=vmlinux;;
 	*)	_F_kernel_path=vmlinuz;;
 	esac
 fi
@@ -101,7 +100,7 @@ if [ -z "$_F_archive_name" ]; then
 fi
 
 case "$CARCH" in
-	"arm"|"ppc") export LDFLAGS="${LDFLAGS/-Wl,/}";;
+	"arm") export LDFLAGS="${LDFLAGS/-Wl,/}";;
 esac
 
 ###
@@ -148,11 +147,11 @@ rodepends=('module-init-tools' 'sed')
 if [ -z "$_F_kernel_name" ]; then
 	makedepends=("${makedepends[@]}" 'unifdef')
 fi
-if [ "$CARCH" = "arm" -o "$CARCH" = "ppc" ]; then
+if [ "$CARCH" = "arm" ]; then
 	makedepends=("${makedepends[@]}" 'u-boot-tools')
 fi
 groups=('base')
-archs=('i686' 'x86_64' 'ppc' 'arm')
+archs=('i686' 'x86_64' 'arm')
 options=('nodocs' 'genscriptlet')
 up2date="eval _kernel_up2date"
 # this can be removed after Frualware 1.5 is out
@@ -178,7 +177,7 @@ do
 	source=("${source[@]}" "$i")
 done
 
-source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.ppc' 'config.arm')
+source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.arm')
 
 ###
 # * subpkg()
@@ -190,7 +189,7 @@ source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.ppc' 'config.arm')
 ###
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
 subrodepends=("kernel$_F_kernel_name-docs make gcc kernel-headers" "kernel$_F_kernel_name")
-subarchs=('i686 x86_64 ppc arm' 'i686 x86_64 ppc arm')
+subarchs=('i686 x86_64 arm' 'i686 x86_64 arm')
 subinstall=('src/kernel-source.install' '')
 suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
@@ -198,7 +197,7 @@ if [ -z "$_F_kernel_name" ]; then
 	subrodepends=("${subrodepends[@]}" '')
 	subgroups=('devel' 'apps' 'devel devel-core')
 	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')
-	subarchs=("${subarchs[@]}" 'i686 x86_64 ppc arm')
+	subarchs=("${subarchs[@]}" 'i686 x86_64 arm')
 	subinstall=("${subinstall[@]}" '')
 	suboptions=("${suboptions[@]}" '')
 else
@@ -298,11 +297,7 @@ Fbuildkernel()
 	if [ ! -z "$_F_kernel_vmlinuz" ]; then
 		Ffilerel $_F_kernel_vmlinuz /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 	else
-		if [ "$CARCH" = "ppc" ]; then
-			Fexerel $_F_kernel_path /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
-			Fexerel arch/powerpc/boot/zImage.chrp /boot/zImage.chrp-$_F_kernel_ver$_F_kernel_uname
-			Fexerel arch/powerpc/boot/zImage.pmac /boot/zImage.pmac-$_F_kernel_ver$_F_kernel_uname
-		elif [ "$CARCH" = "arm" ]; then
+		if [ "$CARCH" = "arm" ]; then
 			Ffilerel arch/arm/boot/zImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 			Ffilerel arch/arm/boot/uImage /boot/uImage
 		else

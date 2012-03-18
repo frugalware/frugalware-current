@@ -12,6 +12,7 @@ set_vids()
 			[ "$?" -ne "0" ] && exit 1
 		fi
 	done
+	true
 }
 
 case $1 in

@@ -18,7 +18,7 @@
 # Finclude netsurf
 # depends=('glibc')
 # groups=('lib-extra')
-# archs=('i686' 'x86_64' 'ppc')
+# archs=('i686' 'x86_64')
 # sha1sums=('cf2c6dcbcace5c22645c26dc60c1eb4c9c9a15a0')
 #
 # == OPTIONS
@@ -49,7 +49,7 @@ else
 	source=("$url/downloads/releases/$_F_netsurf_name-$pkgver-src.tar.gz")
 	_F_cd_path="$_F_netsurf_name"
 fi
-archs=('i686' 'x86_64' 'ppc')
+archs=('i686' 'x86_64')
 
 ###
 # == PROVIDED FUNCTIONS

@@ -890,8 +890,8 @@ Fnant() {
 Fmakeinstall() {
 	Fmessage "Installing to the package directory..."
 	if [ -f GNUmakefile -o -f makefile -o -f Makefile ]; then
-		if make -p -q DESTDIR="$Fdestdir" "$@" install 2>/dev/null | grep -v 'DESTDIR\s*=' | \
-			grep -q "$Fdestdir\\|\$DESTDIR\\|\$(DESTDIR)\\|\${DESTDIR}" 2>/dev/null; then
+		if make -p -q DESTDIR="@FDESTDIR@" "$@" install 2>/dev/null | grep -v 'DESTDIR\s*=' | \
+			grep -q "@FDESTDIR@\\|\$DESTDIR\\|\$(DESTDIR)\\|\${DESTDIR}" 2>/dev/null; then
 			_F_make_opts="$_F_make_opts DESTDIR=$Fdestdir"
 		else
 			_F_make_opts="$_F_make_opts prefix=$Fdestdir/$Fprefix"

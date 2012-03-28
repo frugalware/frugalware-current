@@ -15,9 +15,9 @@
 # * _F_kernelver_rel: the kernel release
 # * _F_kernelver_stable: the number of the -stable patch to use (if any)
 ###
-_F_kernelver_ver=3.1
-_F_kernelver_rel=5
-_F_kernelver_stable=6
+_F_kernelver_ver=3.3
+_F_kernelver_rel=1
+_F_kernelver_stable=0
 
 ###
 # == APPENDED VALUES
@@ -28,6 +28,7 @@ _F_genscriptlet_hooks=("${_F_genscriptlet_hooks[@]}" 'Fkernelver_genscriptlet_ho
 ###
 # == PROVIDED FUNCTIONS
 # * Fkernelver_genscriptlet_hook: Hook to replace kernel versions variables in .install scripts.
+# * Fkernelver_compress_modules: Search for kernel modules and compress any found.
 ###
 Fkernelver_genscriptlet_hook()
 {
@@ -36,3 +37,9 @@ Fkernelver_genscriptlet_hook()
 	Freplace '_F_kernelver_stable' "$1"
 }
 
+Fkernelver_compress_modules()
+{
+	local _directory
+	_directory="$Fdestdir/lib/modules/$_F_kernelver_ver-fw$_F_kernelver_rel/kernel"
+	Fexec find $_directory -name "*.ko" -exec xz '{}' \; || Fdie
+}

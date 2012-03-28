@@ -20,7 +20,7 @@ Finclude cmake
 # Finclude opensync
 # depends=('libopensync>=0.39' 'zlib' 'libxslt')
 # groups=('lib')
-# archs=('i686' 'x86_64' 'ppc')
+# archs=('i686' 'x86_64')
 # sha1sums=('bbb540f954d0bb51b1126937ec3a2b4b9c5c297b')
 # --------------------------------------------------
 ###

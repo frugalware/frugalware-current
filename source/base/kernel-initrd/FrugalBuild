@@ -3,14 +3,20 @@
 
 Finclude kernel-version
 
+# WARNING: DO NOT BUMP THIS DIRECTLY.
+# Various buildservers have bugged their chroots repeatedly
+# and produce a bad initrd. Proper checks should be done
+# before merging any initrd rebuild.
+
 pkgname=kernel-initrd
 pkgver=$_F_kernelver_ver
-pkgrel=7
+pkgrel=1
 pkgdesc="The initrd for the Frugalware Linux Kernel."
 url="http://www.frugalware.org"
 depends=("kernel=$_F_kernelver_ver-$_F_kernelver_rel")
-makedepends=('dracut-plymouth' 'linux-firmware' 'xz' 'eject' 'sysvinit-tools' \
-	'less' 'xfsprogs' 'jfsutils' 'reiserfsprogs' 'mdadm' 'lvm2')
+makedepends=('dracut-plymouth>=017' 'linux-firmware>=20120218' 'xz' 'eject' 'sysvinit-tools' \
+	'less' 'xfsprogs' 'jfsutils' 'reiserfsprogs' 'mdadm' 'lvm2>=2.02.94' 'udev>=181' \
+	'systemd>=43' 'kmod>=6')
 groups=('base')
 archs=('i686' 'x86_64')
 up2date="$_F_kernelver_ver"
@@ -28,8 +34,16 @@ _add_include /lib/udev/rules.d/64-md-raid.rules
 build()
 {
 	_UNAME="$_F_kernelver_ver-fw$_F_kernelver_rel"
+	_INITRD="initrd-$_UNAME"
 	Fmkdir /boot
-	Fexec /sbin/dracut --xz --force -a dmsquash-live ${includes[@]} \
-		$Fdestdir/boot/initrd-$_UNAME.img.xz $_UNAME || Fdie
-	Fln initrd-$_UNAME.img.xz /boot/initrd.img.xz
+	Fexec /usr/bin/dracut --xz --force -a dmsquash-live ${includes[@]} \
+		$_INITRD $_UNAME || Fdie
+	if ! xz -d < $_INITRD | cpio -t | grep -q '\.ko\.xz$'; then
+		error "No kernel modules in initrd."
+		Fdie
+	fi
+	Ffile /boot/$_INITRD
+	Fln $_INITRD /boot/initrd
+	# compatibility with GRUB1 default config. remove after 1.7
+	Fln $_INITRD /boot/initrd.img.xz
 }

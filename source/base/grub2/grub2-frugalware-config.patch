@@ -1,0 +1,57 @@
+diff -ur a/util/grub.d/10_linux.in b/util/grub.d/10_linux.in
+--- a/util/grub.d/10_linux.in	2012-02-25 14:20:45.304746492 -0600
++++ b/util/grub.d/10_linux.in	2012-02-25 15:06:04.664645384 -0600
+@@ -31,7 +31,7 @@
+ if [ "x${GRUB_DISTRIBUTOR}" = "x" ] ; then
+   OS=GNU/Linux
+ else
+-  OS="${GRUB_DISTRIBUTOR} GNU/Linux"
++  OS="${GRUB_DISTRIBUTOR}"
+   CLASS="--class $(echo ${GRUB_DISTRIBUTOR} | tr 'A-Z' 'a-z' | cut -d' ' -f1) ${CLASS}"
+ fi
+ 
+@@ -59,6 +59,26 @@
+   fi
+ fi
+ 
++_resume=""
++
++while read line; do
++	_device=$(echo $line | cut -f 1 -d ' ')
++	_type=$(echo $line | cut -f 2 -d ' ')
++	[ "$_type" != "partition" ] && continue
++	_uuid=$(blkid | grep -m 1 "^$_device:" | sed -rn 's|.*UUID="([^"]+)".*|\1|p')
++	_resume="resume=UUID=$_uuid"
++	break
++done << EOF
++$(tail -n +2 /proc/swaps)
++EOF
++
++_modeset=""
++
++for i in `find /lib/modules -regex '^.*/\(nvidia\|fglrx\)\.ko.*$'`; do
++  _modeset="nomodeset"
++  break
++done
++
+ linux_entry ()
+ {
+   os="$1"
+@@ -116,7 +136,7 @@
+   message="$(gettext_printf "Loading Linux %s ..." ${version})"
+   cat << EOF
+ 	echo	'$message'
+-	linux	${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args}
++	linux	${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args} ${_resume} ${_modeset}
+ EOF
+   if test -n "${initrd}" ; then
+     message="$(gettext_printf "Loading initial ramdisk ...")"
+@@ -135,7 +155,7 @@
+ 	list=`for i in /boot/vmlinuz-* /vmlinuz-* /boot/kernel-* ; do
+                   if grub_file_is_not_garbage "$i" ; then echo -n "$i " ; fi
+               done` ;;
+-    *) 
++    *)
+ 	list=`for i in /boot/vmlinuz-* /boot/vmlinux-* /vmlinuz-* /vmlinux-* /boot/kernel-* ; do
+                   if grub_file_is_not_garbage "$i" ; then echo -n "$i " ; fi
+ 	     done` ;;

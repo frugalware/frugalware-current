@@ -6,5 +6,4 @@ account         required        pam_unix.so
 password        required        pam_unix.so
 session         required        pam_limits.so
 session         required        pam_unix.so
-session         optional        pam_loginuid.so
 session         optional        pam_ck_connector.so

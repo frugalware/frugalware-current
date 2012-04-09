@@ -37,7 +37,7 @@ _Fvar_set() {
 
 # Handle null length strings
 _Fvar_isset() {
-	$(set -u; eval ": '\$$1'" 2>/dev/null)
+	$(set -u; eval ": \${${1}}" 2>/dev/null)
 	return "$?"
 }
 
@@ -81,8 +81,8 @@ _F_provider_names=('archive' 'compat')
 Fprovider_varname() {
 	local name
 
-	if [ -n "$2" -o "$2" = "compat" ]; then # -o "$2" = "pkg" ?
-		case "$2" in
+	if [ -z "$2" -o "$2" = "compat" ]; then # -o "$2" = "pkg" ?
+		case "$1" in
 		'name')		name='pkgname';;
 		'sep')		name='Fpkgversep';;
 		'ver')		name='pkgver';;
@@ -100,21 +100,20 @@ Fprovider_varname() {
 
 Fprovider_get() {
 	local provider provider_varname value value_default value_noneable
-	shift
 
 	# Initialize conditions
 	for provider in "${_F_provider_names[@]}"; do
-		provider_varname="$(Fprovider_varname "$provider" "$1")"
-		if [ -z "$provider_name" ]; then
+		provider_varname="$(Fprovider_varname "$1" "$provider")"
+		if [ -z "$provider_varname" ]; then
 			continue
 		fi
 		if _Fvar_isset "${provider_varname}"; then
-			_Fvar_setdefaut 'value' "$(_Fvar_get "${provider_name}")"
+			_Fvar_setdefault 'value' "$(_Fvar_get "${provider_varname}")"
 		fi
-		if _Fvar_isset "${provider_name}_default"; then
-			_Fvar_setdefault 'value_default' "$(_Fvar_get "${provider_name}_default")"
+		if _Fvar_isset "${provider_varname}_default"; then
+			_Fvar_setdefault 'value_default' "$(_Fvar_get "${provider_varname}_default")"
 		fi
-		if _Fvar_isset "${provider_name}_noneable"; then
+		if _Fvar_isset "${provider_varname}_noneable"; then
 			value_noneable='1'
 		fi
 	done
@@ -145,11 +144,11 @@ Fprovider_get() {
 }
 
 Fprovider_set() {
-	local provider provider_name
+	local provider provider_varname
 
 	for provider in "${_F_provider_names[@]}"; do
 		provider_varname="$(Fprovider_varname "$1" "$provider")"
-		if [ -z "$provider_name" ]; then
+		if [ -z "$provider_varname" ]; then
 			continue
 		fi
 		# Some variables needs some fixups
@@ -158,24 +157,23 @@ Fprovider_set() {
 		'pkgver')	pkgver="$(Fsanitizeversion "$2")";;
 		*)		_Fvar_set "$provider_varname" "$2";;
 		esac
-	do
+	done
 }
 
 Fprovider_init_var() {
-	local name="$1" value
-	shift
+	local value
 
-	if value="$(Fprovider_get "$name")"; then
-		Fprovider_set "$name" "$value"
+	if value="$(Fprovider_get "$1")"; then
+		Fprovider_set "$1" "$value"
 
 		# extra assigned values
-		case "name" in
+		case "$1" in
 #		'dlextra'|'dlurl')
 #			if [ "${#source[@]}" -eq '0' ]; then
 #				if [ "$1" == "dlextra" ]; then
-#					tmp="$(_Fvar_get "_F_${_F_provider_name}_url")$(_Fvar_get "_F_${_F_provider_name}_dlextra")"
+#					tmp="$(_Fvar_get "_F_${1}_url")$(_Fvar_get "_F_${1}_dlextra")"
 #				else # dlurl
-#					tmp="$(_Fvar_get "_F_${_F_provider_name}_dlurl")"
+#					tmp="$(_Fvar_get "_F_${1}_dlurl")"
 #				fi
 #				tmp="${tmp}${_F_archive_name}${_F_archive_sep}${_F_archive_ver}${_F_archive_ext}"
 #				source=("$tmp")

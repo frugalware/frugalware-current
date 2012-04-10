@@ -1175,9 +1175,22 @@ Fautogen() {
 }
 
 ###
+# * Fsanitizename: Clear/fix some common package name string common problems on
+# an automated package name retrival/usage (remove duplicate name assignation in
+# scripts). Parameters: 1) name (optional) to clean, else stdin if not present.
+###
+Fsanitizename() {
+	if [ $# -gt 0 ]; then
+		echo "$1" | Fsanitizename
+	else
+		sed "s/\(.*\)/\L\1/g;s/ /_/g"
+	fi
+}
+
+###
 # * Fsanitizeversion: Clear/fix some common version string common problems on
-# an automatized version output (also remove pkgextraver ending). Parameters:
-# 1) version (optional) to clean, else stdin if not present
+# an automated version output (also remove pkgextraver ending). Parameters:
+# 1) version (optional) to clean, else stdin if not present.
 ###
 Fsanitizeversion() {
 	if [ $# -gt 0 ]; then

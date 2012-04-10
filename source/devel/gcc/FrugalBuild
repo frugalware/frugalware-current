@@ -1,5 +1,6 @@
 # Compiling Time: 26.48 SBU
-# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
+# Maintainer: James Buren <ryuo@frugalware.org>
+# Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 USE_SHARED=${USE_SHARED:-"y"}
 USE_SNAPSHOT=${USE_SNAPSHOT:-"n"}
@@ -16,11 +17,11 @@ Fuse $USE_JAVA && USE_CXX="y"
 Fuse $USE_OBJC && USE_CXX="y"
 
 pkgname=gcc
-pkgver=4.6.3
+pkgver=4.7.0
 pkgrel=1
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libmpc>=0.8.2-3')
+depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libmpc>=0.9-2' 'ppl>=0.12-2' 'cloog>=0.17.0-1')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('i686' 'x86_64' 'arm')
@@ -55,7 +56,7 @@ if Fuse $USE_CXX; then
 
 	subpkgs=("${subpkgs[@]}" 'libstdc++' 'gcc-g++')
 	subdescs=("${subdescs[@]}" 'GNU Standard C++ Library' 'C++ suport for GCC')
-	subdepends=("${subdepends[@]}" 'libgcc' 'libstdc++')
+	subdepends=("${subdepends[@]}" 'libgcc' 'libstdc++ ppl cloog')
 	subbackup=("${subbackup[@]}" '' '')
 	subgroups=("${subgroups[@]}" 'base chroot-core' 'devel devel-core')
 	subreplaces=("${subreplaces[@]}" '' '')
@@ -65,7 +66,7 @@ if Fuse $USE_JAVA; then
 	subdescs=("${subdescs[@]}" 'Java runtime library for gcc' 'AWT peer libraries for libgcj' 'Java support for GCC')
 	subdepends=("${subdepends[@]}" 'libgcc zlib alsa-lib' \
 	    'libgcj libart_lgpl gtk+2>=2.20.1-1 libxml2 freetype2 libice libxtst libxau libxdmcp libxdamage libstdc++' \
-	    'libgcj zlib ecj libmpc gcc-g++')
+	    'libgcj zlib ecj libmpc gcc-g++ ppl cloog')
 	subbackup=("${subbackup[@]}" "usr/lib/gcj-$gccver/classmap.db" '' '')
 	subgroups=("${subgroups[@]}" 'lib' 'xlib' 'devel-extra')
 	subreplaces=("${subreplaces[@]}" '' '' 'gjdoc')
@@ -76,7 +77,7 @@ fi
 if Fuse $USE_OBJC; then
 	subpkgs=("${subpkgs[@]}" 'libobjc' 'gcc-objc' 'gcc-objc++')
 	subdescs=("${subdescs[@]}" 'Objective-C runtime' 'Objective-C support for GCC' 'Objective-C++ support for GCC')
-	subdepends=("${subdepends[@]}" 'libgcc' 'glibc libobjc libmpc gcc' 'glibc libobjc libmpc gcc-g++')
+	subdepends=("${subdepends[@]}" 'libgcc' 'glibc libobjc libmpc gcc ppl cloog' 'glibc libobjc libmpc gcc-g++ ppl cloog')
 	subbackup=("${subbackup[@]}" '' '' '')
 	subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra' 'devel-extra')
 	subreplaces=("${subreplaces[@]}" 'objc objc-bootstrap' '' '')
@@ -84,7 +85,7 @@ fi
 if Fuse $USE_ADA; then
 	subpkgs=("${subpkgs[@]}" 'libgnat' 'gcc-gnat')
 	subdescs=("${subdescs[@]}" 'Ada 95 runtime shared libraries' 'Ada 95 support for GCC')
-	subdepends=("${subdepends[@]}" 'libgcc' "glibc libmpc")
+	subdepends=("${subdepends[@]}" 'libgcc' "glibc libmpc ppl cloog")
 	subbackup=("${subbackup[@]}" '' '')
 	subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra')
 	subreplaces=("${subreplaces[@]}" '' '')
@@ -93,7 +94,7 @@ fi
 if Fuse $USE_FORTRAN; then
 	subpkgs=("${subpkgs[@]}" 'libgfortran' 'gcc-gfortran')
 	subdescs=("${subdescs[@]}" 'Fortran 95 runtime' 'Fortran 95 support for GCC')
-	subdepends=("${subdepends[@]}" 'glibc' "glibc libmpc libgfortran")
+	subdepends=("${subdepends[@]}" 'glibc' "glibc libmpc libgfortran ppl cloog")
 	subbackup=("${subbackup[@]}" '' '')
 	subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra')
 	subreplaces=("${subreplaces[@]}" '' '')
@@ -166,7 +167,9 @@ build()
 		--enable-bootstrap \
 		--with-bugurl="http://bugs.frugalware.org/" \
 		--with-pkgversion="Frugalware Linux" \
-		--enable-linux-futex
+		--enable-linux-futex \
+		--disable-cloog-version-check \
+		--enable-cloog-backend=isl
 
 	if Fuse $USE_SHARED; then
 		Fexec make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" GCJFLAGS="$CFLAGS" bootstrap || Fdie
@@ -288,8 +291,8 @@ EOF
 		Fsplit libgcj usr/bin/rebuild-gcj-db
 		Fsplit libgcj usr/share/man/man1/rebuild-gcj-db.1
 		# gcc-gcj
-		Fsplit gcc-gcj usr/bin/{gcj,$CHOST-gcj,gcjh,gjavah,jcf-dump}
-		Fsplit gcc-gcj usr/share/man/man1/{gcj,gcjh,gjavah,jcf-dump}.1*
+		Fsplit gcc-gcj usr/bin/{gcj,$CHOST-gcj,gcjh,gjavah,jcf-dump,gappletviewer}
+		Fsplit gcc-gcj usr/share/man/man1/{gcj,gcjh,gjavah,jcf-dump,gappletviewer}.1*
 		Fsplit gcc-gcj usr/share/info/{cp-tools.info,gcj*}
 		Fsplit gcc-gcj usr/libexec/gcc/$CHOST/$gccver/{jc1,ecj1,jvgenmain}
 		Fsplit gcc-gcj usr/bin/aot-compile

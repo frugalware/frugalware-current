@@ -62,7 +62,36 @@ fi
 if [ -n "$_F_gnome_mime" ]; then
 	Fconfopts="$Fconfopts --disable-update-mimedb --enable-mime-update=no"
 fi
+if [ "$_F_gnome_doc" = "y" ]; then
+	makedepends=(${makedepends[@]} 'gtk-doc')
+	subpkgs=("${subpkgs[@]}" "$pkgname-doc")
+	subdescs=("${subdescs[@]}" "$pkgname documention")
+	subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
+	subdepends=("${subdepends[@]}" "gtk+3")
+	subgroups=("${subgroups[@]}" 'gnome-docs')
+	subarchs=("${subarchs[@]}" 'i686 x86_64')
+	subreplaces=("${subreplaces[@]}" '')
+	subprovides=("${subprovides[@]}" '')
 
+fi
+
+#Split documentation
+_F_gnome_split_doc()
+{
+	if [ -d "$Fdestdir/usr/share/gnome/help" ]; then
+		Fsplit $pkgname-doc usr/share/gnome/help
+	fi
+	if [ -d "$Fdestdir/usr/share/gtk-doc" ]; then
+		Fsplit $pkgname-doc usr/share/gtk-doc
+	fi
+	if [ -d "$Fdestdir/usr/share/doc" ]; then
+		Fsplit $pkgname-doc usr/share/doc
+	fi
+	if [ -d "$Fdestdir/usr/share/man" ]; then
+                Fsplit $pkgname-doc usr/share/man
+        fi
+
+}
 ###
 # == OVERWRITTEN VARIABLES
 # * install
@@ -141,5 +170,9 @@ build()
 	else
 		Fmakeinstall
 	fi
+	if [ "$_F_gnome_doc" = "y" ]; then
+		_F_gnome_split_doc
+	fi
 	Fbuild_gnome_scriptlet
 }
+

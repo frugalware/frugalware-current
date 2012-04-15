@@ -7,12 +7,12 @@ USE_MOONLIGHT=${USE_MOONLIGHT:-"n"}
 USE_DOC=${USE_DOC:-"y"}
 
 pkgname=mono
-pkgver=2.10.2
-pkgrel=1
+pkgver=2.10.6
+pkgrel=2
 pkgdesc="Mono runtime and class libraries, a C# compiler/interpreter"
 url="http://www.mono-project.com/"
 depends=('zlib')
-makedepends=('libgdiplus>=2.10')
+makedepends=('libgdiplus>=2.10' 'bison')
 if Fuse $USE_MONOFORBUILD; then
        	makedepends=("${makedepends[@]}" mono)
 fi
@@ -20,18 +20,19 @@ rodepends=('libxml2')
 groups=('devel')
 archs=('i686' 'x86_64')
 Finclude mono
-up2date="lynx -dump http://www.go-mono.com/sources-stable/|grep -m1 'mono-'|sed 's/.*-\(.*\).t.*/\1/'"
-source=(http://www.go-mono.com/sources/$pkgname/$pkgname-$pkgver.tar.bz2)
+up2date="Flasttar http://origin-download.mono-project.com/sources/mono/"
+source=(http://origin-download.mono-project.com/sources/mono/$pkgname-$pkgver.tar.bz2)
 replaces=('monodoc')
 conflicts=('monodoc')
 provides=('monodoc')
 
-Fconfopts="$Fconfopts --with-ikvm-native=yes --with-jit=yes --with-xen_opt=n \
-	--with-libgdiplus=installed \
+Fconfopts="$Fconfopts --with-ikvm-native=yes --with-jit=yes --with-xen_opt=n \
+	--with-monotouch=no\
 	--with-profile2=yes \
 	--with-profile4=yes \
 	--disable-quiet-build \
-	--enable-static"
+	--enable-static \
+	--with-libgdiplus=installed --with-sgen=no"
 
 
 #https://bugzilla.novell.com/show_bug.cgi?id=644680
@@ -54,7 +55,7 @@ fi
 if ! Fuse $USE_DOC; then
 	Fconfopts="${Fconfopts[@]} --with-mcs-docs=no"
 fi
-sha1sums=('7b673255c6b17c5a41c15059e5f068d6a970d2ea')
+sha1sums=('c17d211475a321680b4772dd3b8cadde7eaa60aa')
 
 if Fuse $USE_DEVEL; then
 	unset sha1sums
@@ -78,7 +79,7 @@ build() {
 		mcs/class/System.Web/System.Web.Configuration_2.0/MachineKeyRegistryStorage.cs
 	unset MAKEFLAGS
 	#Remove this at your own peril. Mono will barf in unexpected ways.
-	export CFLAGS="$CFLAGS -fno-strict-aliasing"
+	#export CFLAGS="$CFLAGS -fno-strict-aliasing"
 
 	#for download latest mono mini
 	#make get-monolite-latest || Fdie
@@ -90,6 +91,7 @@ build() {
 
 	#fix undeclared Arg
 	sed -i "61a #define ARG_MAX     _POSIX_ARG_MAX" mono/io-layer/wapi_glob.h || Fdie
+	autoreconf -f -i -s || Fdie
 	Fpatchall
 	sh ./autogen.sh $Fconfopts || Fdie
 	Fmonoexport

@@ -1,0 +1,87 @@
+From d6ec2500d4e0444dc61e1b3063330faf5239e9b3 Mon Sep 17 00:00:00 2001
+From: Stephan Bergmann <sbergman@redhat.com>
+Date: Thu, 29 Mar 2012 13:57:35 +0200
+Subject: [PATCH] Backport some Boost 1.48.0 changes to keep GCC 4.7
+ -std=c++11 happy
+
+Conflicts:
+
+	boost/makefile.mk
+---
+ boost/boost_1_44_0-gcc4.7.patch |   49 +++++++++++++++++++++++++++++++++++++++
+ boost/makefile.mk               |    3 ++
+ 2 files changed, 52 insertions(+), 0 deletions(-)
+ create mode 100644 boost/boost_1_44_0-gcc4.7.patch
+
+diff --git a/boost/boost_1_44_0-gcc4.7.patch b/boost/boost_1_44_0-gcc4.7.patch
+new file mode 100644
+index 0000000..842a92a
+--- /dev/null
++++ b/boost/boost_1_44_0-gcc4.7.patch
+@@ -0,0 +1,49 @@
++--- misc/boost_1_44_0/boost/smart_ptr/shared_ptr.hpp	2009-12-14 18:44:19.000000000 +0100
+++++ misc/build/boost_1_44_0/boost/smart_ptr/shared_ptr.hpp	2012-03-28 08:32:46.772493003 +0200
++@@ -207,7 +207,17 @@
++         boost::detail::sp_enable_shared_from_this( this, p, p );
++     }
++ 
++-//  generated copy constructor, destructor are fine
+++//  generated copy constructor, destructor are fine...
+++
+++#if defined( BOOST_HAS_RVALUE_REFS )
+++
+++// ... except in C++0x, move disables the implicit copy
+++
+++    shared_ptr( shared_ptr const & r ): px( r.px ), pn( r.pn ) // never throws
+++    {
+++    }
+++
+++#endif
++ 
++     template<class Y>
++     explicit shared_ptr(weak_ptr<Y> const & r): pn(r.pn) // may throw
++--- misc/boost_1_44_0/boost/smart_ptr/weak_ptr.hpp	2009-12-14 18:44:19.000000000 +0100
+++++ misc/build/boost_1_44_0/boost/smart_ptr/weak_ptr.hpp	2012-03-28 10:31:57.607462325 +0200
++@@ -40,8 +40,24 @@
++     {
++     }
++ 
++-//  generated copy constructor, assignment, destructor are fine
+++//  generated copy constructor, assignment, destructor are fine...
++ 
+++#if defined( BOOST_HAS_RVALUE_REFS )
+++
+++// ... except in C++0x, move disables the implicit copy
+++
+++    weak_ptr( weak_ptr const & r ): px( r.px ), pn( r.pn ) // never throws
+++    {
+++    }
+++
+++    weak_ptr & operator=( weak_ptr const & r ) // never throws
+++    {
+++        px = r.px;
+++        pn = r.pn;
+++        return *this;
+++    }
+++
+++#endif
++ 
++ //
++ //  The "obvious" converting constructor implementation:
+diff --git a/boost/makefile.mk b/boost/makefile.mk
+index 3ba21d8..c93a4a2 100644
+--- a/boost/makefile.mk
++++ b/boost/makefile.mk
+@@ -62,6 +62,9 @@ PATCH_FILES+=boost.gcc47679.patch
+ 
+ PATCH_FILES+=boost.windows.patch
+ 
++# Backporting fixes for the GCC 4.7 -std=c++11 mode from Boost 1.48.0:
++PATCH_FILES += boost_1_44_0-gcc4.7.patch
++
+ ADDITIONAL_FILES= \
+     libs/thread/src/win32/makefile.mk \
+ 	libs/date_time/src/gregorian/makefile.mk
+-- 
+1.7.7
+

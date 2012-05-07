@@ -817,6 +817,8 @@ Fconfoptstryset() {
 }
 
 Fbuildsystem_configure() {
+	# This build system USUALLY produce a Fbuildsystem_make compatible environment
+
 	local command="$1"
 	shift
 
@@ -856,6 +858,81 @@ Fbuildsystem_configure() {
 	esac
 }
 
+Fbuildsystem_perl () {
+	# This build system produce a Fbuildsystem_make compatible environment
+
+	local command="$1"
+	shift
+
+	case "$command" in
+	'probe')
+		test -f Makefile.PL
+		return $?
+		;;
+	'configure')
+		if [ -z "$_F_conf_perl_pipefrom" ]; then
+			Fexec perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+		else
+			$_F_conf_perl_pipefrom | perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+		fi
+		unset _F_conf_perl_pipefrom
+		Fsed `perl -e 'printf "%vd", $^V'` "current" Makefile
+		return $?
+		;;
+	*)
+		return -1
+		;;
+	esac
+}
+
+Fbuildsystem_ruby_extconf () {
+	# This build system produce a Fbuildsystem_make compatible environment
+	local command="$1"
+	shift
+
+	case "$command" in
+	'probe')
+		test -f extconf.rb
+		return $?
+		;;
+	'configure')
+		Fexec ruby extconf.rb --prefix="$Fprefix" "$@"
+		return $?
+		;;
+	*)
+		return -1
+		;;
+	esac
+}
+
+Fbuildsystem_ruby_setup () {
+	local command="$1"
+	shift
+
+	case "$command" in
+	'probe')
+		test -f setup.rb
+		return $?
+		;;
+	'configure')
+		Fexec ruby setup.rb config "$@"
+		return $?
+		;;
+	'make')
+		# Original code used 'setup' directive but setup.rb manual say 'make' have to be checked
+		Fexec ruby setup.rb make "$@"
+		return $?
+		;;
+	'install')
+		Fexec ruby setup.rb install --prefix=$Fdestdir "$@"
+		return $?
+		;;
+	*)
+		return -1
+		;;
+	esac
+}
+
 ###
 # * Fconf(): A wrapper to ./configure. It will try to run ./configure,
 # Makefile.PL, extconf.rb and configure.rb, respectively. It will automatically
@@ -873,20 +950,14 @@ Fconf() {
 	if Fbuildsystem_configure 'probe'; then
 		Fbuildsystem_configure 'prepare' || Fdie
 		Fbuildsystem_configure 'configure' "$@" || Fdie
-	elif [ -f Makefile.PL ]; then
-		if [ -z "$_F_conf_perl_pipefrom" ]; then
-			Fexec perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
-		else
-			$_F_conf_perl_pipefrom | perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
-		fi
-		unset _F_conf_perl_pipefrom
-		Fsed `perl -e 'printf "%vd", $^V'` "current" Makefile
-	elif [ -f extconf.rb ]; then
-		Fexec ruby extconf.rb --prefix="$Fprefix" "$@" || Fdie
+	elif Fbuildsystem_perl 'probe'; then
+		Fbuildsystem_perl 'configure' "$@" || Fdie
+	elif Fbuildsystem_ruby_extconf 'probe' ; then
+		Fbuildsystem_ruby_extconf 'configure' "$@" || Fdie
 	elif [ -f configure.rb ]; then
 		Fexec ./configure.rb --prefix="$Fprefix" "$@" || Fdie
-	elif [ -f setup.rb ]; then
-		Fexec ruby setup.rb config "$@" || Fdie
+	elif Fbuildsystem_ruby_setup 'probe'; then
+		 Fbuildsystem_ruby_setup 'configure' "$@" || Fdie
 	fi
 }
 
@@ -900,9 +971,9 @@ Fmake() {
 	if Fbuildsystem_make 'probe'; then
 		Fbuildsystem_make 'make' || Fdie
 	elif [ -f setup.py ]; then
-		python setup.py build "$@" || Fdie
-	elif [ -f setup.rb ]; then
-		ruby setup.rb setup "$@" || Fdie
+		python setup.py build "$@" || Fdie # does configure and build
+	elif Fbuildsystem_ruby_setup 'probe'; then
+		Fbuildsystem_ruby_setup 'make' "$@" || Fdie
 	elif [ -f build.xml ]; then
 		if declare -f Fant >/dev/null; then
 			Fjavacleanup
@@ -946,8 +1017,8 @@ Fmakeinstall() {
 		Fbuildsystem_make 'install' "$@" || Fdie
 	elif [ -f setup.py ]; then
 		Fexec python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
-	elif [ -f setup.rb ]; then
-		Fexec ruby setup.rb install --prefix=$Fdestdir || Fdie
+	elif Fbuildsystem_ruby_setup 'probe'; then
+		Fbuildsystem_ruby_setup 'install' "$@" || Fdie
 	elif [ -f build.xml ]; then
 		if declare -f Fjar >/dev/null; then
 			for i in ${_F_java_jars[@]}

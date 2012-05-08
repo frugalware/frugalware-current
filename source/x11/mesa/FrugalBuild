@@ -2,17 +2,26 @@
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 # Contributor: crazy <crazy@frugalware.org>
 
+#USE_DEVEL=y
+#USE_WAYLAND_EGL=y
+
+USE_DEBUG=${USE_DEBUG:-"n"}
 USE_DEVEL=${USE_DEVEL:-"n"}
+USE_DRI=${USE_DRI:-"y"}
+USE_DRI_OLD=${USE_DRI_OLD:-"n"}
 USE_EGL=${USE_EGL:-"y"}
 USE_GALLIUM=${USE_GALLIUM:-"y"}
 USE_GLU=${USE_GLU:-"y"}
+USE_GLX=${USE_GLX:-"y"}
+USE_OSMESA=${USE_OSMESA:-"y"}
+USE_VDPAU=${USE_VDPAU:-"y"}
 USE_WAYLAND_EGL=${USE_WAYLAND_EGL:-"n"}
 
 pkgname=mesa
 origname=Mesa
 _F_archive_name="MesaLib"
 pkgver=8.0.2
-pkgrel=2
+pkgrel=3
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 up2date="Flasttar ftp://ftp.freedesktop.org/pub/$pkgname/current/"
@@ -27,7 +36,7 @@ groups=('x11' 'xorg-core' 'xorg-libs')
 
 if Fuse DEVEL; then
 	unset source sha1sums
-	pkgver=$pkgver.1.gf23c3eb
+	pkgver=9999.g83a0242
 	pkgrel=0
 	_F_scm_type="git"
         _F_scm_url="git://anongit.freedesktop.org/mesa/mesa"
@@ -62,7 +71,7 @@ subdescs=("${subdescs[@]}" 'Mesa OpenGL DRI drivers.')
 subprovides=("${subprovides[@]}" '')
 subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
-subdepends=("${subdepends[@]}" "libdri llvm libvdpau libxvmc")
+subdepends=("${subdepends[@]}" "libdri llvm")
 subrodepends=("${subrodepends[@]}" '')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" "${archs[*]}")
@@ -153,6 +162,18 @@ if Fuse GLU; then
 	subarchs=("${subarchs[@]}" "${archs[*]}")
 fi
 
+if Fuse VDPAU; then
+	subpkgs=("${subpkgs[@]}" 'mesa-vdpau-drivers')
+	subdescs=("${subdescs[@]}" 'Mesa VDPAU drivers.')
+	subprovides=("${subprovides[@]}" 'libglu-mesa')
+	subreplaces=("${subreplaces[@]}" '')
+	subconflicts=("${subconflicts[@]}" '')
+	subdepends=("${subdepends[@]}" 'libvdpau')
+	subrodepends=("${subrodepends[@]}" '')
+	subgroups=("${subgroups[@]}" 'x11')
+	subarchs=("${subarchs[@]}" "${archs[*]}")
+fi
+
 # NOTE: If you bump version (major or minor) you need to review the symlinking at the end of this
 #       file !!!! On minor bump last number will be changed.
 #	Be SURE you checked in the FPM ! before uploading or anything else!
@@ -172,7 +193,43 @@ build() {
 	if [ "$CARCH" == "arm" ]; then
 		#disable intel support
 		Fsed "[ ]?i965[, ]?" "" configure*
-		Fsed "[ ]?i915[, ]?" ""	configure*	
+		Fsed "[ ]?i915[, ]?" "" configure*
+	fi
+
+	if Fuse DEBUG; then
+		Fconfopts="$Fconfopts --enable-debug"
+	else
+		Fconfopts="$Fconfopts --disable-debug"
+	fi
+
+	if Fuse DRI; then
+		Fconfopts="$Fconfopts --enable-dri"
+	else
+		Fconfopts="$Fconfopts --disable-dri"
+	fi
+
+	if Fuse GLX; then
+		Fconfopts="$Fconfopts --enable-glx"
+	else
+		Fconfopts="$Fconfopts --disable-glx"
+	fi
+
+	if Fuse OSMESA; then
+		Fconfopts="$Fconfopts --enable-osmesa"
+	else
+		Fconfopts="$Fconfopts --disable-osmesa"
+	fi
+
+	if Fuse VDPAU; then
+		Fconfopts="$Fconfopts --enable-vdpau"
+	else
+		Fconfopts="$Fconfopts --disable-vdpau"
+	fi
+
+	if Fuse DRI_OLD; then
+		Fconfopts="$Fconfopts --with-dri-drivers=yes"
+	else
+		Fconfopts="$Fconfopts --with-dri-drivers=no"
 	fi
 
 	if Fuse EGL; then
@@ -189,14 +246,14 @@ build() {
 	fi
 
 	if Fuse GALLIUM; then
-		GALLIUM_DRIVERS="swrast"
 		GALLIUM_DRIVERS="$GALLIUM_DRIVERS,nouveau"
 		GALLIUM_DRIVERS="$GALLIUM_DRIVERS,r300,r600"
 		GALLIUM_DRIVERS="$GALLIUM_DRIVERS,svga"
+		GALLIUM_DRIVERS="$GALLIUM_DRIVERS,swrast"
 		Fconfopts="$Fconfopts --with-gallium-drivers=$GALLIUM_DRIVERS"
+		Fconfopts="$Fconfopts --enable-gallium-g3dvl"
 		Fconfopts="$Fconfopts --enable-gallium-gbm"
 		Fconfopts="$Fconfopts --enable-gallium-llvm"
-		Fconfopts="$Fconfopts --enable-gallium-g3dvl"
 		if Fuse EGL; then
 			Fconfopts="$Fconfopts --enable-gallium-egl"
 		fi
@@ -210,15 +267,13 @@ build() {
 		Fconfopts="$Fconfopts --disable-glu"
 	fi
 
-	Fconf	--with-driver=dri \
-		--with-dri-driverdir=/usr/lib/dri \
-		--with-dri-drivers=yes \
+	Fconf	--with-dri-driverdir=/usr/lib/dri \
 		--enable-gbm \
 		--enable-gles1 \
 		--enable-gles2 \
 		--enable-glx-tls \
-		--enable-shared-dricore \
 		--enable-shared-glapi
+#		--enable-shared-dricore
 
 	make || Fdie
 
@@ -259,9 +314,6 @@ build() {
 
 	Fsplit mesa-dri-drivers usr/lib/dri/
 	Fsplit mesa-dri-drivers usr/lib/pkgconfig/dri.pc
-	if Fuse GALLIUM; then
-		Fsplit mesa-dri-drivers usr/lib/vdpau/
-	fi
 
 	Fsplit libgles usr/include/GLES*/
 	Fsplit libgles usr/lib/libGLES*
@@ -295,6 +347,10 @@ build() {
 		Fsplit libglu usr/include/GL/glu.h
 		Fsplit libglu usr/lib/libGLU.*
 		Fsplit libglu usr/lib/pkgconfig/glu.pc
+	fi
+
+	if Fuse VDPAU; then
+		Fsplit mesa-vdpau-drivers usr/lib/vdpau/
 	fi
 
 	Frm var

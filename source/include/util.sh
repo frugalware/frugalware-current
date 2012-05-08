@@ -761,6 +761,35 @@ Fpatchall() {
 	done
 }
 
+Fbuildsystem_make() {
+	local command="$1"
+	shift
+
+	case "$command" in
+	'probe')
+		test -f GNUmakefile -o -f makefile -o -f Makefile
+		return $?
+		;;
+	'make')
+		Fexec make $_F_make_opts "$@"
+		return $?
+		;;
+	'install')
+		if make -p -q DESTDIR="@FDESTDIR@" "$@" install 2>/dev/null | grep -v 'DESTDIR\s*=' | \
+			grep -q "@FDESTDIR@\\|\$DESTDIR\\|\$(DESTDIR)\\|\${DESTDIR}" 2>/dev/null; then
+			_F_make_opts="$_F_make_opts DESTDIR=$Fdestdir"
+		else
+			_F_make_opts="$_F_make_opts prefix=$Fdestdir/$Fprefix"
+		fi
+		Fexec make $_F_make_opts "$@" install
+		return $?
+		;;
+	*)
+		return -1
+		;;
+	esac
+}
+
 ###
 # * Fconfoptstryset(): A utility function that try to append an option to
 # $Fconfopts if $_F_conf_configure supports it and is not already used in
@@ -787,6 +816,123 @@ Fconfoptstryset() {
 	return 0
 }
 
+Fbuildsystem_configure() {
+	# This build system USUALLY produce a Fbuildsystem_make compatible environment
+
+	local command="$1"
+	shift
+
+	if [ -z "$_F_conf_configure" ]; then
+		_F_conf_configure="./configure"
+		if [ ! -x "$_F_conf_configure" -a -n "$_F_conf_outsource" ]; then
+			_F_conf_configure="$Fsrcdir/$_F_cd_path/configure"
+		fi
+	fi
+
+	case "$command" in
+	'probe')
+		test -x "$_F_conf_configure" -o -f "$_F_conf_configure.ac" -o -f "$_F_conf_configure.in"
+		return $?
+		;;
+	'prepare')
+		if [ ! -e "$_F_conf_configure" ]; then
+			Fautogen
+			return $?
+		fi
+		return 0
+		;;
+	'configure')
+		Fconfoptstryset "prefix" "$Fprefix"
+		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
+		Fconfoptstryset "localstatedir" "$Flocalstatedir"
+		Fconfoptstryset "docdir" "/usr/share/doc/$pkgname-$pkgver"
+		Fconfoptstryset "infodir" "$Finfodir"
+		Fconfoptstryset "mandir" "$Fmandir"
+		Fconfoptstryset "build" "$Fbuildchost"
+		Fexec $_F_conf_configure $Fconfopts "$@"
+		return $?
+		;;
+	*)
+		return -1
+		;;
+	esac
+}
+
+Fbuildsystem_perl () {
+	# This build system produce a Fbuildsystem_make compatible environment
+
+	local command="$1"
+	shift
+
+	case "$command" in
+	'probe')
+		test -f Makefile.PL
+		return $?
+		;;
+	'configure')
+		if [ -z "$_F_conf_perl_pipefrom" ]; then
+			Fexec perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+		else
+			$_F_conf_perl_pipefrom | perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+		fi
+		unset _F_conf_perl_pipefrom
+		Fsed `perl -e 'printf "%vd", $^V'` "current" Makefile
+		return $?
+		;;
+	*)
+		return -1
+		;;
+	esac
+}
+
+Fbuildsystem_ruby_extconf () {
+	# This build system produce a Fbuildsystem_make compatible environment
+	local command="$1"
+	shift
+
+	case "$command" in
+	'probe')
+		test -f extconf.rb
+		return $?
+		;;
+	'configure')
+		Fexec ruby extconf.rb --prefix="$Fprefix" "$@"
+		return $?
+		;;
+	*)
+		return -1
+		;;
+	esac
+}
+
+Fbuildsystem_ruby_setup () {
+	local command="$1"
+	shift
+
+	case "$command" in
+	'probe')
+		test -f setup.rb
+		return $?
+		;;
+	'configure')
+		Fexec ruby setup.rb config "$@"
+		return $?
+		;;
+	'make')
+		# Original code used 'setup' directive but setup.rb manual say 'make' have to be checked
+		Fexec ruby setup.rb make "$@"
+		return $?
+		;;
+	'install')
+		Fexec ruby setup.rb install --prefix=$Fdestdir "$@"
+		return $?
+		;;
+	*)
+		return -1
+		;;
+	esac
+}
+
 ###
 # * Fconf(): A wrapper to ./configure. It will try to run ./configure,
 # Makefile.PL, extconf.rb and configure.rb, respectively. It will automatically
@@ -800,40 +946,18 @@ Fconfoptstryset() {
 Fconf() {
 	Fcd
 	Fmessage "Configuring..."
-	if [ -z "$_F_conf_configure" ]; then
-		_F_conf_configure="./configure"
-		if [ ! -x "$_F_conf_configure" -a -n "$_F_conf_outsource" ]; then
-			_F_conf_configure="$Fsrcdir/$_F_cd_path/configure"
-		fi
-	fi
 
-	if [ ! -e "$_F_conf_configure" ]; then
-		Fautogen
-	fi
-
-	if [ -x "$_F_conf_configure" ]; then
-		Fconfoptstryset "prefix" "$Fprefix"
-		Fconfoptstryset "sysconfdir" "$Fsysconfdir"
-		Fconfoptstryset "localstatedir" "$Flocalstatedir"
-		Fconfoptstryset "docdir" "/usr/share/doc/$pkgname-$pkgver"
-		Fconfoptstryset "infodir" "$Finfodir"
-		Fconfoptstryset "mandir" "$Fmandir"
-		Fconfoptstryset "build" "$Fbuildchost"
-		Fexec $_F_conf_configure $Fconfopts "$@" || Fdie
-	elif [ -f Makefile.PL ]; then
-		if [ -z "$_F_conf_perl_pipefrom" ]; then
-			Fexec perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
-		else
-			$_F_conf_perl_pipefrom | perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
-		fi
-		unset _F_conf_perl_pipefrom
-		Fsed `perl -e 'printf "%vd", $^V'` "current" Makefile
-	elif [ -f extconf.rb ]; then
-		Fexec ruby extconf.rb --prefix="$Fprefix" "$@" || Fdie
+	if Fbuildsystem_configure 'probe'; then
+		Fbuildsystem_configure 'prepare' || Fdie
+		Fbuildsystem_configure 'configure' "$@" || Fdie
+	elif Fbuildsystem_perl 'probe'; then
+		Fbuildsystem_perl 'configure' "$@" || Fdie
+	elif Fbuildsystem_ruby_extconf 'probe' ; then
+		Fbuildsystem_ruby_extconf 'configure' "$@" || Fdie
 	elif [ -f configure.rb ]; then
 		Fexec ./configure.rb --prefix="$Fprefix" "$@" || Fdie
-	elif [ -f setup.rb ]; then
-		Fexec ruby setup.rb config "$@" || Fdie
+	elif Fbuildsystem_ruby_setup 'probe'; then
+		 Fbuildsystem_ruby_setup 'configure' "$@" || Fdie
 	fi
 }
 
@@ -844,12 +968,12 @@ Fconf() {
 Fmake() {
 	Fconf "$@"
 	Fmessage "Compiling..."
-	if [ -f GNUmakefile -o -f makefile -o -f Makefile ]; then
-		Fexec make $_F_make_opts || Fdie
+	if Fbuildsystem_make 'probe'; then
+		Fbuildsystem_make 'make' || Fdie
 	elif [ -f setup.py ]; then
-		python setup.py build "$@" || Fdie
-	elif [ -f setup.rb ]; then
-		ruby setup.rb setup "$@" || Fdie
+		python setup.py build "$@" || Fdie # does configure and build
+	elif Fbuildsystem_ruby_setup 'probe'; then
+		Fbuildsystem_ruby_setup 'make' "$@" || Fdie
 	elif [ -f build.xml ]; then
 		if declare -f Fant >/dev/null; then
 			Fjavacleanup
@@ -889,18 +1013,12 @@ Fnant() {
 ###
 Fmakeinstall() {
 	Fmessage "Installing to the package directory..."
-	if [ -f GNUmakefile -o -f makefile -o -f Makefile ]; then
-		if make -p -q DESTDIR="@FDESTDIR@" "$@" install 2>/dev/null | grep -v 'DESTDIR\s*=' | \
-			grep -q "@FDESTDIR@\\|\$DESTDIR\\|\$(DESTDIR)\\|\${DESTDIR}" 2>/dev/null; then
-			_F_make_opts="$_F_make_opts DESTDIR=$Fdestdir"
-		else
-			_F_make_opts="$_F_make_opts prefix=$Fdestdir/$Fprefix"
-		fi
-		Fexec make $_F_make_opts "$@" install || Fdie
+	if Fbuildsystem_make 'probe'; then
+		Fbuildsystem_make 'install' "$@" || Fdie
 	elif [ -f setup.py ]; then
 		Fexec python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
-	elif [ -f setup.rb ]; then
-		Fexec ruby setup.rb install --prefix=$Fdestdir || Fdie
+	elif Fbuildsystem_ruby_setup 'probe'; then
+		Fbuildsystem_ruby_setup 'install' "$@" || Fdie
 	elif [ -f build.xml ]; then
 		if declare -f Fjar >/dev/null; then
 			for i in ${_F_java_jars[@]}

@@ -1,0 +1,65 @@
+# Compiling Time: 0.19 SBU
+# Maintainer: Devil505 <devil505linux@gmail.com>
+
+pkgname=lightdm
+pkgver=1.2.2
+pkgrel=9
+pkgdesc="A lightweight display manager."
+rodepends=('lightdm-gtk-greeter')
+depends=('webkit-gtk3' 'dbus-glib' 'libxklavier' 'accountsservice')
+makedepends=('intltool' 'gnome-doc-utils' 'gobject-introspection' 'qt4')
+groups=('xfce4')
+archs=('i686' 'x86_64')
+_F_launchpad_branch="1.2"
+Finclude launchpad
+backup=(etc/apparmor.d/lightdm-guest-session \
+	etc/dbus-1/system.d/org.freedesktop.DisplayManager.conf \
+	etc/lightdm/keys.conf \
+	etc/lightdm/lightdm.conf \
+	etc/lightdm/users.conf \
+	etc/pam.d/lightdm)
+source=($source \
+	lightdm-autologin.pam \
+	xsession \
+	lightdm.pam \
+	lightdm.tmpfiles)
+sha1sums=('3c52fa36d5c33a86252fb2191a4ca49d7588cd7c' \
+          '8f355fc8170cdf4f3a94a699b849ea7a978a91e0' \
+          '7261a104c145025c63f8febfcecc189badfd3e86' \
+          '441fbf6d2e8c76d66d83eaf9bc5b484ed2846a30' \
+          'e10a39f505c58b2cb9b53f764e8383740f592bcb')
+replaces=('slim')
+
+subpkgs=("${subpkgs[@]}" "liblightdm-qt")
+subdescs=("${subdescs[@]}" "Qt4 Library for Lightdm")
+subdepends=("${subdepends[@]}" "libqtdbus libqtgui")
+subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
+subgroups=("${subgroups[@]}" 'xlib-extra')
+subarchs=("${subarchs[@]}" 'i686 x86_64')
+
+build() {
+	Fcd
+	Fbuild --disable-static --libexecdir=/usr/lib/lightdm \
+		--localstatedir=/var --with-greeter-user=lightdm \
+		--with-greeter-session=lightdm-gtk-greeter --disable-tests
+
+	Fmkdir /usr/lib/tmpfiles.d/
+	Finstall 644 lightdm.tmpfiles usr/lib/tmpfiles.d/lightdm.conf
+	Fmkdir /etc/pam.d/
+	Finstall 644 lightdm.pam etc/pam.d/lightdm
+	Finstall 644 lightdm-autologin.pam etc/pam.d/lightdm-autologin
+	Fmkdir /var/run/lightdm
+
+	# some tweaks
+	Frm /etc/init
+	Fexe xsession etc/lightdm
+	Fsed "minimum-uid=500" "minimum-uid=1000" $Fdestdir/etc/lightdm/users.conf
+	Fsed "/usr/sbin/nologin" "/sbin/nologin" $Fdestdir/etc/lightdm/users.conf
+	Fsed "#session-wrapper=lightdm-session" "session-wrapper=/etc/lightdm/xsession" $Fdestdir/etc/lightdm/lightdm.conf
+	Fsed "#autologin-session=UNIMPLEMENTED" "#autologin-session=UNIMPLEMENTED\n#pam-service=lightdm-autologin" $Fdestdir/etc/lightdm/lightdm.conf
+	Fsplit liblightdm-qt /usr/include/lightdm-qt*
+	Fsplit liblightdm-qt /usr/lib/liblightdm-qt*
+	Fsplit liblightdm-qt /usr/lib/pkgconfig/liblightdm-qt*
+}
+
+# optimization OK

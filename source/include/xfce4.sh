@@ -49,7 +49,7 @@ if [ -z $_F_archive_name ] ; then
 fi
 
 if [ -z $_F_xfce_ver ]; then
-	_F_xfce_ver="4.8"
+	_F_xfce_ver="4.10"
 fi
 
 if [ -z $pkgver ]; then
@@ -75,8 +75,8 @@ if echo ${groups[*]} | grep -q goodies ; then
     source=($dlurl/${pkgver%%.?}/${_F_xfce_name}-${pkgver}${_F_xfce_goodies_ext})
 else
 	url="http://www.xfce.org/"
-	dlurl="http://mocha.xfce.org/archive/xfce/${_F_xfce_ver}/src"
-	up2date="Flasttar http://git.xfce.org/xfce/$_F_xfce_name/"
+	dlurl="http://archive.xfce.org/src/xfce/${_F_xfce_name}/${_F_xfce_ver}"
+	up2date="Flasttar http://git.xfce.org/xfce/${pkgname}/"
 	source=($dlurl/$_F_xfce_name-$pkgver.tar.bz2)
 fi
 

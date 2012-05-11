@@ -195,7 +195,7 @@ suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
 	subpkgs=("${subpkgs[@]}" 'kernel-headers')
 	subrodepends=("${subrodepends[@]}" '')
-	subgroups=('devel' 'apps' 'devel devel-core')
+	subgroups=('devel-extra' 'apps' 'devel devel-core')
 	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')
 	subarchs=("${subarchs[@]}" 'i686 x86_64 arm')
 	subinstall=("${subinstall[@]}" '')

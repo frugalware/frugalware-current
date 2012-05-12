@@ -70,10 +70,11 @@ fonts_genscriptlet_hook()
 }
 
 Fbuild_fonts() {
+	Fcd
 
 	# find and install all font extensions we support
 	for i in `find -iregex '.*\.\(spd\|bdf\|ttf\|otf\|pcf\|pcf.gz\|afm\|pfa\)'`; do
-		Ffile "$i" "$_F_fonts_dir/`basename $i`"
+		Ffilerel "$i" "$_F_fonts_dir/`basename $i`"
 	done
 
 	# find any BDF fonts and convert them

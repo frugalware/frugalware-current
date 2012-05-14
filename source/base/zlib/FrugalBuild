@@ -13,15 +13,32 @@ groups=('base' 'chroot-core')
 archs=('i686' 'x86_64' 'arm')
 up2date="lynx -dump http://www.zlib.net/ | grep -m 1 'zlib source code' | cut -d ' ' -f 16 | tr -d ,"
 source=(http://www.zlib.net/$pkgname-$pkgver.tar.bz2)
+sha1sums=('858818fe6d358ec682d54ac5e106a2dd62628e7f')
+USE_ASM=${USE_ASM:-"n"}
 
 build()
 {
-	Fmkdir /usr/{lib,include,man/man3}
-	Fbuild --shared
-	Fmake
+	Fcd
+	if Fuse ASM; then
+		case $CARCH in
+			i686)
+				cp contrib/asm686/match.S match.S || Fdie
+				CFLAGS="$CFLAGS -DASMV"
+				MAKEFLAGS="$MAKEFLAGS OBJA=match.o PIC_OBJA=match.lo"
+				;;
+			x86_64)
+				cp contrib/gcc_gvmat64/gvmat64.S match.S || Fdie
+				CFLAGS="$CFLAGS -DASMV"
+				MAKEFLAGS="$MAKEFLAGS OBJA=match.o PIC_OBJA=match.lo"
+				;;
+			*)
+				warning 'zlib ASM is not supported on this CARCH.'
+				;;
+		esac
+	fi
+	Fconf --shared
+	make $MAKEFLAGS || Fdie
 	Fmakeinstall
-	Ffilerel /usr/man/man3/$pkgname.3
 }
 
-sha1sums=('858818fe6d358ec682d54ac5e106a2dd62628e7f')
 # optimization OK

@@ -818,7 +818,6 @@ Fconfoptstryset() {
 
 Fbuildsystem_configure() {
 	# This build system USUALLY produce a Fbuildsystem_make compatible environment
-
 	local command="$1"
 	shift
 
@@ -860,7 +859,6 @@ Fbuildsystem_configure() {
 
 Fbuildsystem_perl () {
 	# This build system produce a Fbuildsystem_make compatible environment
-
 	local command="$1"
 	shift
 
@@ -877,6 +875,26 @@ Fbuildsystem_perl () {
 		fi
 		unset _F_conf_perl_pipefrom
 		Fsed `perl -e 'printf "%vd", $^V'` "current" Makefile
+		return $?
+		;;
+	*)
+		return -1
+		;;
+	esac
+}
+
+Fbuildsystem_ruby_configure () {
+	# This build system produce a Fbuildsystem_make compatible environment
+	local command="$1"
+	shift
+
+	case "$command" in
+	'probe')
+		test -f configure.rb
+		return $?
+		;;
+	'configure')
+		Fexec ruby configure.rb --prefix="$Fprefix" "$@"
 		return $?
 		;;
 	*)
@@ -933,6 +951,65 @@ Fbuildsystem_ruby_setup () {
 	esac
 }
 
+Fbuildsystem_python_setup() {
+	local command="$1"
+	shift
+
+	case "$command" in
+	'probe')
+		test -f setup.py
+		return $?
+		;;
+	'make')
+		# does configure and build
+		Fexec python setup.py build "$@"
+		return $?
+		;;
+	'install')
+		Fexec python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@"
+		return $?
+		;;
+	*)
+		return -1
+		;;
+	esac
+}
+
+Fbuildsystem_java_ant () {
+	local command="$1"
+	shift
+
+	case "$command" in
+	'probe')
+		test -f build.xml
+		return $?
+		;;
+	'make')
+		if declare -f Fant >/dev/null; then
+			Fjavacleanup
+			Fant "$@" || Fdie
+		else
+			Fmessage "build.xml found, but missing Finclude java!"
+			Fdie
+		fi
+		;;
+	'install')
+		if declare -f Fjar >/dev/null; then
+			for i in ${_F_java_jars[@]}
+			do
+				Fjar $i || Fdie
+			done
+		else
+			Fmessage "build.xml found, but missing Finclude java!"
+			Fdie
+		fi
+		;;
+	*)
+		return -1
+		;;
+	esac
+}
+
 ###
 # * Fconf(): A wrapper to ./configure. It will try to run ./configure,
 # Makefile.PL, extconf.rb and configure.rb, respectively. It will automatically
@@ -954,8 +1031,8 @@ Fconf() {
 		Fbuildsystem_perl 'configure' "$@" || Fdie
 	elif Fbuildsystem_ruby_extconf 'probe' ; then
 		Fbuildsystem_ruby_extconf 'configure' "$@" || Fdie
-	elif [ -f configure.rb ]; then
-		Fexec ./configure.rb --prefix="$Fprefix" "$@" || Fdie
+	elif Fbuildsystem_ruby_configure 'probe' ; then
+		Fbuildsystem_ruby_configure 'configure' "$@" || Fdie
 	elif Fbuildsystem_ruby_setup 'probe'; then
 		 Fbuildsystem_ruby_setup 'configure' "$@" || Fdie
 	fi
@@ -970,18 +1047,12 @@ Fmake() {
 	Fmessage "Compiling..."
 	if Fbuildsystem_make 'probe'; then
 		Fbuildsystem_make 'make' || Fdie
-	elif [ -f setup.py ]; then
-		python setup.py build "$@" || Fdie # does configure and build
+	elif Fbuildsystem_python_setup 'probe'; then
+		Fbuildsystem_python_setup 'make' "$@" || Fdie
 	elif Fbuildsystem_ruby_setup 'probe'; then
 		Fbuildsystem_ruby_setup 'make' "$@" || Fdie
-	elif [ -f build.xml ]; then
-		if declare -f Fant >/dev/null; then
-			Fjavacleanup
-			Fant "$@" || Fdie
-		else
-			Fmessage "build.xml found, but missing Finclude java!"
-			Fdie
-		fi
+	elif Fbuildsystem_java_ant 'probe'; then
+		Fbuildsystem_ruby_setup 'make' "$@" || Fdie
 	else
 		Fmessage "No Makefile or setup.py found!"
 		Fdie
@@ -1015,20 +1086,12 @@ Fmakeinstall() {
 	Fmessage "Installing to the package directory..."
 	if Fbuildsystem_make 'probe'; then
 		Fbuildsystem_make 'install' "$@" || Fdie
-	elif [ -f setup.py ]; then
-		Fexec python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@" || Fdie
+	elif Fbuildsystem_python_setup 'probe'; then
+		Fbuildsystem_python_setup 'install' "$@" || Fdie
 	elif Fbuildsystem_ruby_setup 'probe'; then
 		Fbuildsystem_ruby_setup 'install' "$@" || Fdie
-	elif [ -f build.xml ]; then
-		if declare -f Fjar >/dev/null; then
-			for i in ${_F_java_jars[@]}
-			do
-				Fjar $i || Fdie
-			done
-		else
-			Fmessage "build.xml found, but missing Finclude java!"
-			Fdie
-		fi
+	elif Fbuildsystem_java_ant 'probe'; then
+		Fbuildsystem_ruby_setup 'install' "$@" || Fdie
 	else
 		Fmessage "No Makefile or setup.py found!"
 		Fdie

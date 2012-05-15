@@ -1,42 +1,42 @@
 # Compiling Time: 20.50 SBU
-# Maintainer: Devil505 <devil505linux@gmail.com>
+# Maintainer: DeX77 <dex@dragonslave.de>
 
 pkgname=chromium-browser
-pkgver=17.0.963.79
+pkgver=18.0.1025.168
 pkgrel=1
 pkgdesc='An open-source browser project that aims to build a safer, faster, and more stable way for all users to experience the web'
 url='http://www.chromium.org/'
 depends=('nss' 'alsa-lib' 'hicolor-icon-theme' 'libxslt' 'ffmpeg>=0.8' \
 	'libevent>=2.0.10' 'libxscrnsaver' 'libpng>=1.4.1' 'gtk+2' 'libxtst' \
 	'libgcrypt' 'dejavu-ttf' 'gnutls>=2.12.12' 'libtasn1')
-makedepends=('python' 'perl' 'gperf' 'yasm' 'libgl' 'libgnome-keyring' 'cups' 'krb5')
+makedepends=('python' 'perl' 'gperf' 'yasm' 'libgl' 'libgnome-keyring' 'cups' 'krb5' 'elfutils')
 license=('BSD')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
 _F_gnome_iconcache="y"
 Finclude gnome-scriptlet
 _F_archive_name="chromium"
-up2date="Flasttar http://gsdview.appspot.com/chromium-browser-official/"
+up2date="lynx -dump 'http://googlechromereleases.blogspot.de/search/label/Stable%20updates' | \
+  egrep -o -m 1 'The Chrome Stable channel has been updated to ([0123456789.]*)' | \
+  egrep -o '([0123456789.]*)'"
 source=(http://commondatastorage.googleapis.com/chromium-browser-official/$_F_archive_name-$pkgver.tar.bz2 \
-        gcc-4.6.patch \
-        nacl.gypi \
+        gcc-4.7.patch \
+	chromium-glib-r0.patch \
         $pkgname.desktop \
         $pkgname.sh)
-sha1sums=('571cdefb61ef9741f326323a3e71ce9345b809cf' \
-          '39999918746524fff30e73dc656754733df5c2c2' \
-          'df4cee39e1d49e10f9c075f5e6e9db28e8260926' \
+sha1sums=('35db27fe50c52ef7cf7d3196a66aa34419929893' \
+          'ce0adf503a7bd232dc37ea891a064adad5c84a13' \
+          'e0ed3d3f3f59018a84a943d9f5e2f4fa193fefb6' \
           '78ed8913b8a598de6a9e45d206973a846dbe8a51' \
           'e06de4aee77b3deb77e3b08ebb175ec02da42ced')
 
 build() {
         Fcd
 
-	# NaCL build remains faily
-	cp "$Fsrcdir/nacl.gypi" chrome/ || Fdie
+	sed -i '1 i\
+	#include "build/build_config.h"' \
+	chrome/browser/diagnostics/diagnostics_main.cc
 
-        # Fix build with CUPS 1.5
-        sed -i '/#include <cups\/cups.h>/ a #include <cups/ppd.h>' \
-        chrome/browser/ui/webui/print_preview_handler.cc || Fdie
 	Fpatchall
 
   build/gyp_chromium -f make build/all.gyp --depth=. \
@@ -56,8 +56,8 @@ build() {
     -Duse_system_ssl=0 \
     -Duse_system_yasm=1 \
     -Duse_system_zlib=1 \
-    -Duse_gconf=0 \
     -Ddisable_nacl=1 \
+    -Duse_gconf=0
     $([[ $CARCH == i686 ]] && echo '-Ddisable_sse2=1')
 
   make chrome chrome_sandbox BUILDTYPE=Release || Fdie
@@ -67,8 +67,7 @@ build() {
         Finstallrel 4555 out/Release/chrome_sandbox usr/lib/chromium/chromium-sandbox
 	Ffileschown usr/lib/chromium/chromium-sandbox root root
 
-        # Add out/Release/{libppGoogleNaClPluginChrome.so,nacl_irt_x86_*.nexe} again
-        # when NaCl build is fixed
+
         cp out/Release/{{chrome,resources}.pak,libffmpegsumo.so} \
         "$Fdestdir/usr/lib/chromium/" || Fdie
 

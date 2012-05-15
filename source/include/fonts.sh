@@ -32,39 +32,49 @@
 ###
 if [ -z "$_F_fonts_subdir" ]; then
 	error '$_F_fonts_subdir is not defined.'
-  Fdie
+	Fdie
 fi
 
 _F_fonts_dir="/usr/share/fonts/X11/$_F_fonts_subdir"
 
 ###
 # == OVERWRITTEN VARIABLES
-# * install
+# * _F_genscriptlet_install
 # * _F_cd_path
 ###
-install="src/fonts.install"
+_F_genscriptlet_install="$Fincdir/fonts.install"
 _F_cd_path='.'
 
 ###
 # == APPENDED VARIABLES
 # * makedepends
+# * depends
 # * rodepends
-# * options
+# * _F_genscriptlet_hooks
 ###
 makedepends=(${makedepends[@]} 'bdftopcf')
 depends=(${depends[@]} 'mkfontdir')
 rodepends=(${rodepends[@]} 'mkfontscale' 'fontconfig')
-options=(${options[@]} 'genscriptlet')
+_F_genscriptlet_hooks=(${_F_genscriptlet_hooks[@]} 'fonts_genscriptlet_hook')
+
+Finclude genscriptlet
 
 ###
 # == PROVIDED FUNCTIONS
+# * fonts_genscriptlet_hook
 # * Fbuild_fonts
 ###
+fonts_genscriptlet_hook()
+{
+	Freplace '_F_fonts_dir' "$1"
+}
+
 Fbuild_fonts() {
+	Fcd
 
 	# find and install all font extensions we support
 	for i in `find -iregex '.*\.\(spd\|bdf\|ttf\|otf\|pcf\|pcf.gz\|afm\|pfa\)'`; do
-		Ffile "$i" "$_F_fonts_dir/`basename $i`"
+		Ffilerel "$i" "$_F_fonts_dir/`basename $i`"
 	done
 
 	# find any BDF fonts and convert them
@@ -80,10 +90,7 @@ Fbuild_fonts() {
 		gzip -9 "$i" || Fdie
 	done
 
-	# generate the install script
-	cp "$Fincdir/fonts.install" "$Fsrcdir" || Fdie
-	Fsed '$_F_fonts_dir' "$_F_fonts_dir" "$Fsrcdir/fonts.install"
-
+	Fgenscriptlet
 }
 
 ###

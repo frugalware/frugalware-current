@@ -2,31 +2,21 @@
 # Maintainer: James Buren <ryuo@frugalware.org>
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
-USE_DBUS=${USE_DBUS:-"y"}
-USE_DEBUG=${USE_DEBUG:-"y"}
-
 pkgname=wpa_supplicant
-pkgver=0.7.3
-pkgrel=6
+pkgver=1.0
+pkgrel=1
 pkgdesc="Linux WPA/WPA2/IEEE 802.1X Supplicant"
 url="http://hostap.epitest.fi/wpa_supplicant/"
-depends=('openssl>=1.0.0' 'libnl>=3.2.9')
-if Fuse $USE_DBUS; then
-	depends=("${depends[@]}" 'dbus')
-fi
-
-backup=(etc/wpa_supplicant.conf)
+depends=('openssl>=1.0.0' 'libnl>=3.2.9' 'dbus' 'readline')
+backup=(etc/wpa_supplicant.conf etc/dbus-1/system.d/dbus-wpa_supplicant.conf)
 groups=('base')
 archs=('i686' 'x86_64')
 up2date="lynx -dump $url |grep -1 stable|sed -n 's/.*-\(.*\)\.t.*/\1/;3 p'"
 source=(http://hostap.epitest.fi/releases/wpa_supplicant-$pkgver.tar.gz \
-	config nm.diff dbus.diff hostap_allow-linking-with-libnl-3.2.patch)
-sha1sums=('ca51db8931fabf386352c87422f3e62fb44c3fe3' \
-          'afde5abc911f18cf7871df8cbf21735b35af4a03' \
-          'f253705e39900dc6e65dd48f1a6fb23c465f8f0c' \
-          '45980b4f69a65199c7c462595ed63d951095083c' \
-          '69fbaac28aef4fbdac333c6ba4382567202c77b2')
-options=('scriptlet')
+	config libnl3.patch)
+sha1sums=('22ce2a70863ee47768808453066b635293804e64' \
+          'cf983b8cf3ed3a3d38b95108236cbabaa61957bb' \
+          '66cfae27768733bbbf282937256f654ad4e8efd5')
 
 build()
 {
@@ -35,40 +25,11 @@ build()
 	cd $pkgname || Fdie
 	Fsed /usr/local /usr Makefile
 	cp $Fsrcdir/config .config
-	if Fuse $USE_DEBUG; then
-		echo "CONFIG_DEBUG_FILE=y" >> .config
-	fi
-	if Fuse $USE_DBUS; then
-		echo "CONFIG_CTRL_IFACE_DBUS=y" >> .config
-		echo "CONFIG_CTRL_IFACE_DBUS_NEW=y" >> .config
-		#echo "CONFIG_CTRL_IFACE_DBUS_INTRO=y" >> .config
-	fi
-	#enable some drivers
-	echo "CONFIG_DRIVER_ATMEL=y"       >> .config
-	#echo "CONFIG_DRIVER_BROADCOM=y"   >> .config
-	#echo "CONFIG_DRIVER_HERMES=y"	   >> .config
-	echo "CONFIG_DRIVER_HOSTAP=y"      >> .config
-	echo "CONFIG_DRIVER_IPW=y"         >> .config
-	echo "CONFIG_DRIVER_NDISWRAPPER=y" >> .config
-	echo "CONFIG_DRIVER_NL80211=y"     >> .config
-	#echo "CONFIG_DRIVER_PRISM54=y"    >> .config
-	echo "CONFIG_DRIVER_RALINK=y"      >> .config
-	echo "CONFIG_DRIVER_WEXT=y"        >> .config
-	echo "CONFIG_DRIVER_WIRED=y"       >> .config
-	echo "CONFIG_LIBNL32=y"            >> .config
-
-	Fsed 'dynamic_eap_methods' '' Makefile
 	Fmake
 	Fmakeinstall
-	if Fuse $USE_DBUS; then	
-		Fsed "/sbin" "/usr/sbin" $Fsrcdir/$pkgname-$pkgver/$pkgname/dbus/*.service
-		Fmkdir etc/dbus-1/system.d
-		Fmkdir usr/share/dbus-1/system-services
-		Fcp $pkgname-$pkgver/$pkgname/dbus/dbus-wpa_supplicant.conf \
-			etc/dbus-1/system.d/dbus-wpa_supplicant.conf
-		Fcp $pkgname-$pkgver/$pkgname/dbus/*.service \
-			usr/share/dbus-1/system-services/
-	fi
+	Ffilerel dbus/*.service /usr/share/dbus-1/system-services
+	Ffilerel dbus/dbus-wpa_supplicant.conf /etc/dbus-1/system.d/dbus-wpa_supplicant.conf
+	Ffilerel systemd/*.service /lib/systemd/system
 	Ffilerel /etc/wpa_supplicant.conf
 	cd doc/docbook/
 	# man pages

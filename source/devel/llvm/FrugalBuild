@@ -2,26 +2,25 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=llvm
-pkgver=3.0
-pkgrel=2
+pkgver=3.1
+pkgrel=1
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
-depends=('libstdc++')
+gcc_ver="4.7.0"
+depends=('libstdc++' "gcc=$gcc_ver")
 makedepends=('groff' 'libffi' 'python' 'ocaml')
 groups=('devel')
 archs=('i686' 'x86_64' 'arm')
-up2date="Flasttar $url/releases/download.html"
-source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.tar.gz \
-	http://llvm.org/releases/$pkgver/clang-$pkgver.tar.gz \
-        path-fix.patch ocaml-fix.patch rpath-fix.patch clang-pure64.patch)
+up2date="Flastarchive $url/releases/download.html .src.tar.gz"
+source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.gz \
+	http://llvm.org/releases/$pkgver/clang-$pkgver.src.tar.gz \
+        path-fix.patch rpath-fix.patch)
 _F_cd_path=${pkgname}-${pkgver}.src
-_F_make_opts="REQUIRES_RTTI=1"
-sha1sums=('b683e7294fcf69887c0d709025d4640f5dca755b' \
-          '1fa11f07f957bd9c9de003d1b5a7a9ba1e0055e4' \
+_F_make_opts="${MAKEFLAGS} REQUIRES_RTTI=1"
+sha1sums=('234c96e73ef81aec9a54da92fc2a9024d653b059' \
+          '19f33b187a50d22fda2a6f9ed989699a9a9efd62' \
           '078ace62073031ca58312555f1c1c09be232deef' \
-          'b35b5b984ff5b362de5d68162fc3cc0b12cb3632' \
-          'be384a4393b30004d46740e7c7742d4c8c172f8d' \
-          'fe4845cd0a6078b812a2cc9efe8630b975a0d01d')
+          'be384a4393b30004d46740e7c7742d4c8c172f8d')
 
 subpkgs=("${subpkgs[@]}" "clang")
 subdescs=("${subdescs[@]}" "C language family frontend for LLVM")
@@ -39,38 +38,44 @@ subarchs=("${subarchs[@]}" 'i686 x86_64')
 
 build() {
    Fpatch path-fix.patch
-   Fpatch ocaml-fix.patch
    Fpatch rpath-fix.patch
 
    # clang must be copied here to build with llvm
    mv ../clang-${pkgver}.src/ ./tools/clang
 
-   pwd
-   file ./tools/clang/lib/Driver/Tools.cpp
-   #patches for clang
-   [ "$CARCH" == "x86_64" ] && Fpatch clang-pure64.patch
-
    #Apply strip option to configure
   _optimized_switch="enable"
   [[ $(check_option strip) == n ]] && _optimized_switch="disable"
 
+  sed -i 's:/lib:/lib/llvm:g' \
+    tools/llvm-config/llvm-config.cpp
+
+  Fsed '\${prefix}/etc/llvm' '/etc/llvm' configure
+  export CC='gcc'
+  export CXX='g++'
   Fmake --libdir=/usr/lib/llvm \
-	--enable-shared \
-	--enable-libffi \
-	--enable-targets=all \
-	--$_optimized_switch-optimized
+		       --sysconfdir=/etc \
+		       --enable-shared \
+		       --enable-libffi \
+		       --enable-targets=all \
+		       --$_optimized_switch-optimized
 
   Fmakeinstall
-
-  # Fix libdir in llvm-config, llvm libs won't be found otherwise
-  sed -i 's:\(ABS_RUN_DIR/lib\):\1/llvm:' "$Fdestdir/usr/bin/llvm-config" || Fdie
 
   # Add ld.so.conf.d entry
   Fmkdir "etc/ld.so.conf.d"
   echo /usr/lib/llvm >"$Fdestdir/etc/ld.so.conf.d/llvm.conf" || Fdie
 
+  # clang needs these
+  ln -sf /usr/lib/gcc/${CARCH}-frugalware-linux/${gcc_ver}/crtbegin.o $Fdestdir/usr/lib/crtbegin.o
+  ln -sf /usr/lib/gcc/${CARCH}-frugalware-linux/${gcc_ver}/crtend.o $Fdestdir/usr/lib/crtend.o
+  ln -sf /usr/lib/gcc/${CARCH}-frugalware-linux/${gcc_ver}/libgcc.a $Fdestdir/usr/lib/libgcc.a
+
   Fsplit clang usr/bin/clang*
   Fsplit clang usr/include/clang*
+  Fsplit clang usr/lib/crtbegin.o
+  Fsplit clang usr/lib/crtend.o
+  Fsplit clang usr/lib/libgcc.a
 
   Fsplit clang usr/lib/clang/
   Fsplit clang usr/lib/llvm/libclang*

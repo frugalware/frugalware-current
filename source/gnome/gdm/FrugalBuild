@@ -1,27 +1,25 @@
 # Compiling time: 0.58 SBU
-# Maintainer: bouleetbil <bouleetbil@frogdev.info>
+# Maintainer: Baste <baste@frugalware.org>
+# Contributor: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=gdm
-pkgver=3.2.1
-pkgrel=7
+pkgver=3.4.1
+pkgrel=1
 pkgdesc="GNOME Display Manager"
 url="http://www.gnome.org/"
 backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin \
 	etc/pam.d/gdm-welcome)
-depends=('libxml2>=2.7.8' 'zenity>=3.0.0'  'libxi' 'fontconfig' 'libxrandr>=1.2.2' \
-	'librsvg>=2.26.0-2' 'gnome-keyring>=3.0.3' 'consolekit-x11>=0.4.5' 'libcanberra-gtk' \
-	'libxinerama' 'libxcursor' 'libxevie' 'xorg-server>=1.10.2' \
-	'pam' 'accountsservice' 'upower' 'nss' 'hwdata' 'dbus-x11' \
-	'xsm' 'sessreg' 'xmessage' 'gnome-session' 'gnome-shell' 'gnome-power-manager')
+depends=('dbus-glib' 'accountsservice' 'nss' 'xorg-server' 'libxrandr' 'gtk+3' \
+	 'libcanberra-gtk' 'pam' 'upower' 'libxklavier' 'polkit-gnome' 'gnome-session')
 makedepends=('intltool' 'gnome-doc-utils' 'gobject-introspection' 'dconf' 'gnome-settings-daemon')
 groups=('gnome')
 archs=('i686' 'x86_64')
 _F_gnome_git="n"
+_F_gnome_ext=".tar.xz"
 Finclude gnome
-source=($source org.gnome.login-screen.gschema.override immutable-loginuid.patch)
-sha1sums=('8170e4e41c17dd7f4791682deab04f54fcd203aa' \
-          '974832a3878a020c87a833f5ba99a0c7d5d27b57' \
-          'f6750f838f64c6bd60b2bbd0c64573ee1d985a7e')
+source=($source org.gnome.login-screen.gschema.override)
+sha1sums=('9213fe32643b7dcb79e9026ed0be2372ef275a59' \
+          '974832a3878a020c87a833f5ba99a0c7d5d27b57')
 if [ "$_F_gnome_git" != "n" ]; then
 	unset sha1sums
 fi
@@ -39,20 +37,13 @@ build() {
 		Fcd $pkgname
 		sh ./autogen.sh
 	fi
-
-	Fpatchall
-	Fmake --enable-authentication-scheme=pam \
+	Fmake --with-pam-prefix=/etc \
+		--enable-split-authentication \
 		--enable-console-helper \
 		--disable-scrollkeeper \
 		--with-console-kit \
-		--with-pam-prefix=/etc \
-		--enable-split-authentication \
-		--with-incomplete-locales=no \
-		--with-at-spi-registryd-directory=/usr/lib/at-spi2-core \
-		--without-tcp-wrappers \
-		--disable-static \
-		--with-xdmcp=yes \
-		--with-xevie=yes
+		--with-systemd=no
+
 	Fmakeinstall
 
 	chmod a+r $Fdestdir/var/lib/gdm || Fdie
@@ -74,6 +65,7 @@ session         required        pam_unix.so
 session         optional        pam_gnome_keyring.so auto_start
 password        required        pam_unix.so
 session     	required	pam_systemd.so
+session 	required	pam_loginuid.so
 EOF
 
 cat > $Fdestdir/etc/pam.d/gdm-autologin << "EOF"
@@ -95,6 +87,7 @@ auth       required    pam_permit.so
 account    required    pam_nologin.so
 account    required    pam_unix.so
 password   required    pam_unix.so
+session    required    pam_loginuid.so
 session    optional    pam_keyinit.so force revoke
 session    required    pam_unix.so
 session    required    pam_systemd.so
@@ -117,8 +110,6 @@ EOF
 Fcp ../org.gnome.login-screen.gschema.override usr/share/glib-2.0/schemas/
 # gets rebuilt in posttrans
 Frm etc/dconf/db/gdm
-
 }
 
 # optimization OK
-

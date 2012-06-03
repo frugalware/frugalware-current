@@ -41,8 +41,10 @@ _F_genscriptlet_install="$_F_systemd_scriptlet"
 ###
 # == APPENDED VARIABLES
 # * Fsystemd_genscriptlet_hook to _F_genscriptlet_hooks()
+# * depends()
 ###
 _F_genscriptlet_hooks=(${_F_genscriptlet_hooks[@]} 'Fsystemd_genscriptlet_hook')
+depends=(${depends[@]} 'systemd')
 
 Finclude genscriptlet
 

@@ -27,6 +27,12 @@ if [ -z "$_F_systemd_units" ]; then
 	error "No systemd units defined."
 	Fdie
 fi
+for i in ${_F_systemd_units}; do
+	if ! echo "$i" | grep -qo '='; then
+		error "Each systemd unit must have a '=' appended."
+		Fdie
+	fi
+done
 
 if [ -z "$_F_systemd_scriptlet" ]; then
 	_F_systemd_scriptlet="$Fincdir/systemd.install"

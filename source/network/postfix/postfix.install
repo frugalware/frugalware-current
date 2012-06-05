@@ -1,3 +1,6 @@
+sysvinit_units=(@_F_sysvinit_units@)
+systemd_units=(@_F_systemd_units@)
+
 post_install()
 {
 	[ -z "`grep '^postdrop::' /etc/group`" ] && \
@@ -5,27 +8,37 @@ post_install()
 	[ -z "`grep '^postfix::' /etc/group`" ] && \
 		groupadd -g 73 postfix >& /dev/null
 	[ -z "`grep '^postfix:' /etc/passwd`" ] && \
-		useradd -u 73 -d /var/spool/postfix -g postfix postfix
-	
+		useradd -u 73 -d /var/spool/postfix -g postfix postfix	
 	chown postfix /var/spool/postfix/{active,bounce,corrupt,defer,deferred,flush,hold,incoming,private,public,trace,maildrop,saved}
 	chgrp postdrop /var/spool/postfix/{public,maildrop,trace} /usr/sbin/{postqueue,postdrop}
 	chmod g+s /usr/sbin/{postqueue,postdrop}
-	/usr/sbin/chkconfig --add rc.postfix
-	systemctl enable postfix.service >/dev/null 2>&1
+
+	local unit
+	local op
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
 }
 
 post_upgrade()
 {
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
 	systemctl daemon-reload >/dev/null 2>&1
-	if [ `vercmp $2 2.8.0-5` -lt 0 ] ; then
-		post_install
-	fi
-	# this can be removed after Frugalware-1.6
-	if [ `vercmp $2 2.8.0-3` -lt 0 ] ; then
-		if chkconfig rc.postfix; then
-			post_install
-		fi
-	fi
 }
 
 pre_remove()
@@ -33,9 +46,18 @@ pre_remove()
 	userdel postfix &> /dev/null
 	groupdel postfix &> /dev/null
 	groupdel postdrop &> /dev/null
-	/usr/sbin/chkconfig --del rc.postfix
-	systemctl --no-reload disable postfix.service >/dev/null 2>&1
-	systemctl stop postfix.service >/dev/null 2>&1
+
+	local unit
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
 }
 
 post_remove()
@@ -45,5 +67,4 @@ post_remove()
 
 op=$1
 shift
-
 $op $*

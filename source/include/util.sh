@@ -333,7 +333,7 @@ Frm() {
 	local i
 	for i in "$@"; do
 		Fmessage "Deleting file(s): $i"
-		rm -rf "$Fdestdir"/$i || Fdie
+		rm -rf "$Fdestdir"/"$i" || Fdie
 	done
 }
 

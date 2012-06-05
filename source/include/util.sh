@@ -674,7 +674,7 @@ Freplace() {
 	for i in "${@:2:$#}"; do
 		for path in $i; do # expand $i if possible
 			Fmessage "Subtituing $1 in file: $path"
-			eval "__Fsed '@$1@' \"\${$1}\" \"\$path\""
+			__Fsed "@$1@" "$(eval echo \${$1[@]})" "$path"
 		done
 	done
 }

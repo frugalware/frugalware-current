@@ -1,4 +1,6 @@
-# arg 1:  the new package version
+sysvinit_units=(@_F_sysvinit_units@)
+systemd_units=(@_F_systemd_units@)
+
 post_install()
 {
 	if ! grep -q '^_ntp:' /etc/group ; then
@@ -7,15 +9,56 @@ post_install()
 	if ! grep -q '^_ntp:' /etc/passwd ; then
                 useradd -u 29 -g 29 -s /sbin/nologin -c "OpenNTP daemon" -d /var/empty/ntpd _ntp
 	fi
+
+	local unit
+	local op
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
 }
 
-# arg 1:  the old package version
+post_upgrade()
+{
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	systemctl daemon-reload >/dev/null 2>&1
+}
+
 pre_remove()
 {
 	userdel _ntp >/dev/null 2>&1
 	groupdel _ntp >/dev/null 2>&1
-	# disable the service in case the user would enable it manually
-	chkconfig --del rc.ntpd >/dev/null 2>&1
+
+	local unit
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
+}
+
+post_remove()
+{
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1

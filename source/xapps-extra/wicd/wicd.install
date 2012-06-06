@@ -1,19 +1,48 @@
+systemd_units=(wicd=)
+
+print_msg()
+{
+	echo "To enable wicd at bootup:"
+	echo "systemctl disable netconfig.service"
+	echo "systemctl disable NetworkManager.service"
+	echo "systemctl enable wicd.service"
+}
+
 post_install()
 {
-	systemctl daemon-reload >/dev/null 2>&1
-	systemctl enable wicd.service >/dev/null 2>&1
+	print_msg
+
+	local unit
+	local op
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
 }
 
 post_upgrade()
 {
+	print_msg
+
 	systemctl daemon-reload >/dev/null 2>&1
-	systemctl try-restart wicd.service >/dev/null 2>&1
 }
 
 pre_remove()
 {
-	systemctl stop wicd.service >/dev/null 2>&1
-	systemctl disable wicd.service >/dev/null 2>&1
+	local unit
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
 }
 
 post_remove()
@@ -23,7 +52,4 @@ post_remove()
 
 op=$1
 shift
-
 $op $*
-
-# vim: ft=sh

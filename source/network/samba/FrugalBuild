@@ -3,12 +3,12 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=samba
-pkgver=3.6.4
+pkgver=3.6.5
 pkgextraver=
 pkgrel=1
 pkgdesc="SMB file and print server."
 url="http://www.samba.org"
-backup=(etc/logrotate.d/samba)
+backup=(etc/logrotate.d/$pkgname etc/sysconfig/$pkgname etc/$pkgname/smb.conf)
 depends=('xfsprogs-attr' 'libcups' 'talloc' 'gnutls>=2.12.12' )
 makedepends=("${makedepends[@]}" 'openssl>=1.0.0' 'cups' 'db' 'popt' 'libcups' 'libldap' 'libcap' 'pam' 'gamin' 'avahi' 'xfsprogs-dmapi' 'krb5' 'libkrb5' 'xfsprogs-acl' 'tdb')
 rodepends=("samba-client=$pkgver")
@@ -18,7 +18,7 @@ up2date="lynx -dump http://samba.org/samba/ftp/stable/ |Flasttar"
 source=(http://ftp.samba.org/samba/ftp/stable/$pkgname-$pkgver$pkgextraver.tar.gz \
 	samba.logrotate \
 	rc.samba)
-sha1sums=('6492ed2246d62bdd79389b0e7dc8cffbc4d41fda' \
+sha1sums=('e41611c95b2bb91c7735928742b8aff4fc0da76e' \
           '13fd371189bfe637f3f13c62d44d9e761268119e' \
           '4557aa4318e13f2c2140f68e81d7c22ae887d901')
 
@@ -30,6 +30,10 @@ subrodepends=('' "libsmbclient=$pkgver" "$pkgname=$pkgver" '' '')
 subgroups=('lib' 'network' 'network' 'network' 'network')
 subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
 _F_cd_path="$pkgname-$pkgver$pkgextraver/source3/"
+
+_F_sysvinit_units=($pkgname)
+_F_systemd_units=(nmb= smb= winbind=)
+Finclude systemd
 
 build()
 {
@@ -57,6 +61,9 @@ build()
 		--enable-external-libtalloc \
 		--without-libtalloc
 
+	Ffile $pkgname-$pkgver/packaging/systemd/\*.service /lib/systemd/system/
+	Ffile $pkgname-$pkgver/packaging/systemd/$pkgname.sysconfig /etc/sysconfig/$pkgname
+
 	Fmkdir /var/spool /var/samba /var/log/samba /var/cache/samba /etc/samba/private
 	chmod 700 $Fdestdir/etc/samba/private || Fdie
 
@@ -73,8 +80,8 @@ build()
 	#Fln /usr/sbin/umount.cifs /sbin/umount.cifs
 
 	# smb.conf
-	Ffilerel ../examples/smb.conf.default /etc/samba/smb.conf.default
-	Fsed 'log file = .*$' 'log file = /var/log/samba/log.%m' $Fdestdir/etc/samba/smb.conf.default
+	Ffilerel ../examples/smb.conf.default /etc/samba/smb.conf
+	Fsed 'log file = .*$' 'log file = /var/log/samba/log.%m' $Fdestdir/etc/samba/smb.conf
 
 	Ffile samba.logrotate /etc/logrotate.d/samba
 
@@ -119,6 +126,8 @@ build()
 	Fsplit nss-winbind usr/lib/libnss_winbind.so
 
 	Frm /sbin
+
+	Fgenscriptlet
 }
 
 # optimization OK

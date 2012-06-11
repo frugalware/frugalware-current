@@ -1,3 +1,6 @@
+sysvinit_units=(@_F_sysvinit_units@)
+systemd_units=(@_F_systemd_units@)
+
 post_install()
 {
 	[ -z "`grep '^openldap:' /etc/group`" ] && \
@@ -5,30 +8,68 @@ post_install()
 	[ -z "`grep '^openldap:' /etc/passwd`" ] && \
 		useradd -M -u 49 -d /var/openldap/openldap-data -r -s /bin/false -g openldap openldap
 
-	chown openldap var/openldap/openldap-data
-	chgrp openldap var/openldap/openldap-data
-	chown openldap var/openldap/run
-	chgrp openldap var/openldap/run
-}
+	chown -R openldap:openldap var/openldap
+	chown -R openldap:openldap etc/openldap
 
-pre_upgrade()
-{
-	[ -e /lib/initscripts/functions ] && /sbin/service slapd stop
+	local unit
+	local op
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
 }
 
 post_upgrade()
 {
-	post_install $1
+	[ -z "`grep '^openldap:' /etc/group`" ] && \
+		groupadd -g 49 openldap >& /dev/null
+	[ -z "`grep '^openldap:' /etc/passwd`" ] && \
+		useradd -M -u 49 -d /var/openldap/openldap-data -r -s /bin/false -g openldap openldap
+
+	chown -R openldap:openldap var/openldap
+	chown -R openldap:openldap etc/openldap
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 pre_remove()
 {
-	[ -e /lib/initscripts/functions ] && /sbin/service slapd stop
 	userdel openldap &> /dev/null
 	groupdel openldap &> /dev/null
+
+	local unit
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
+}
+
+post_remove()
+{
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1
 shift
-
 $op $*

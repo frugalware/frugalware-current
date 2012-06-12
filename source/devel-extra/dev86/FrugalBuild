@@ -3,28 +3,56 @@
 # Contributor: AlexExtreme <alex@alex-smith.me.uk>
 
 pkgname=dev86
-_F_archive_name=Dev86src
-pkgver=0.16.17
+pkgver=0.16.18
 pkgrel=1
 pkgdesc="The dev86 package provides an assembler and linker for real mode 80x86 instructions"
-url="http://homepage.ntlworld.com/robert.debath/dev86"
+url="http://www.debath.co.uk/dev86/"
 depends=('glibc')
+rodepends=('bin86')
+_F_archive_name=Dev86src
+_F_cd_path=$pkgname-$pkgver
+_F_make_opts="-j1 PREFIX=/usr DIST=$Fdestdir"
 groups=('devel-extra')
 archs=('i686' 'x86_64')
-_F_cd_path=$pkgname-$pkgver
 up2date="lynx -dump $url | Flasttar"
-source=($url/$_F_archive_name-$pkgver.tar.gz dev86-noelks.patch)
-sha1sums=('0bfe55c7a5e11d72f19f26cb0383178605951c72' \
-	  '0b7f6d5533194cf15020d313a8cfd47bd3089688')
+source=($url/$_F_archive_name-$pkgver.tar.gz \
+        bin86-64bit.patch \
+        dev86-memmove.patch \
+        dev86-make-3.82.patch)
+sha1sums=('da665d855963419cac5578736417cae8d1f8b5b0' \
+          '3aee291ecbaa0ac71c1cfbcc3c1b352757b13608' \
+           '010fbe3b44edd144035cbc667b8bc8835e4af5f0' \
+           '543e1638fba1921bf1a481f8c3b4f2fbe98626b9')
 # Stripping destroys it's special library format
 options=('nostrip')
 
+subpkgs=("bin86")
+subdescs=("A complete 8086 assembler and loader.")
+subdepends=('glibc')
+subreplaces=('bin86')
+subgroups=('devel-extra')
+subarchs=('i686 x86_64')
+
+
 build() {
-	Fcd
+	unset CFLAGS
+	unset LDFLAGS
+	unset CPPFLAGS
+	unset CXXFLAGS
+
 	Fpatchall
-	make << EOF
-5
-quit
-EOF
-	make DIST=$Fdestdir MANDIR=/usr/share/man install install-man
+	if [ "$CARCH" == "x86_64" ]; then
+		Fsed "alt-libs elksemu" "alt-libs" makefile.in
+		Fsed "install-lib install-emu" "install-lib" makefile.in
+	fi
+	Fmake
+	make DIST=$Fdestdir MANDIR=/usr/share/man install install-man || Fdie
+
+	# bin86
+	for i in objdump as ld nm size; do
+		Fsplit bin86 "/usr/bin/"$i"86"
+	done
+	Fsplit bin86 "/usr/share/man/man1/as86.1"
+	Fsplit bin86 "/usr/share/man/man1/ld86.1"
 }
+

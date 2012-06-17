@@ -333,7 +333,7 @@ Frm() {
 	local i
 	for i in "$@"; do
 		Fmessage "Deleting file(s): $i"
-		rm -rf "$Fdestdir"/$i || Fdie
+		rm -rf "$Fdestdir/"$i || Fdie
 	done
 }
 
@@ -346,9 +346,9 @@ Fcp() {
 	if [ -e "$Fdestdir/"$1 ]; then
 		# Compatibility
 		warning "Deprecated usage of $*"
-		cp "$Fdestdir/"$1 "$Fdestdir"/$2 || Fdie
+		cp "$Fdestdir/"$1 "$Fdestdir/"$2 || Fdie
 	else
-		cp -a "$Fsrcdir/"$1 "$Fdestdir"/$2 || Fdie
+		cp -a "$Fsrcdir/"$1 "$Fdestdir/"$2 || Fdie
 	fi
 }
 
@@ -359,7 +359,7 @@ Fcp() {
 Fcpr() {
 	Fmessage "Copying file(s) recursive: $1"
 	warning "Fcpr is deprecated in favor of Fcp"
-	cp -a "$Fsrcdir/"$1 "$Fdestdir"/$2 || Fdie
+	cp -a "$Fsrcdir/"$1 "$Fdestdir/"$2 || Fdie
 }
 
 ###
@@ -369,7 +369,7 @@ Fcpr() {
 ###
 Fcprel() {
 	Fmessage "Copying file(s): $1"
-	cp -a $1 "$Fdestdir"/$2 || Fdie
+	cp -a $1 "$Fdestdir/"$2 || Fdie
 }
 
 ###
@@ -380,7 +380,7 @@ Fcprel() {
 Fcprrel() {
 	Fmessage "Copying file(s) recursive: $1"
 	warning "Fcprrel is deprecated in favor of Fcprel"
-	cp -a $1 "$Fdestdir"/$2 || Fdie
+	cp -a $1 "$Fdestdir/"$2 || Fdie
 }
 
 ###
@@ -400,7 +400,7 @@ Fsubmv()
 	local destdir="`Fsubdestdir "$1"`" i info="`Fsubdestdirinfo "$1"`"
 	Fmessage "Moving file(s)$info:"
 	msg2 "$2 -> $3"
-	for i in "$destdir"/$2 # expand $2 if possible
+	for i in "$destdir/"$2 # expand $2 if possible
 	do
 		if [ ! -e "$i" -a ! -h "$i" ]; then # expand failed ?
 			Fmessage "No such file $2$info!! Typo? ($i)"
@@ -674,7 +674,7 @@ Freplace() {
 	for i in "${@:2:$#}"; do
 		for path in $i; do # expand $i if possible
 			Fmessage "Subtituing $1 in file: $path"
-			eval "__Fsed '@$1@' \"\${$1}\" \"\$path\""
+			__Fsed "@$1@" "$(eval echo \${$1[@]})" "$path"
 		done
 	done
 }

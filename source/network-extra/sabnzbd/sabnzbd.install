@@ -1,8 +1,11 @@
-## arg 1:  the new package version
-post_install() {    
+sysvinit_units=(@_F_sysvinit_units@)
+systemd_units=(@_F_systemd_units@)
+
+post_install()
+{
   # add x-nzb mimetype
   xdg-mime install --mode system /usr/share/sabnzbd/x-nzb.xml
-  xdg-icon-resource install --context mimetypes --size 64  /usr/share/sabnzbd/nzb-2.png application-x-nzb
+  xdg-icon-resource install --context mimetypes --size 64  /usr/share/pixmaps/nzb-2.png application-x-nzb
       
   groupadd sabnzbd &> /dev/null
   useradd -g sabnzbd -d /usr/share/sabnzbd -s /bin/false sabnzbd &> /dev/null
@@ -12,14 +15,61 @@ post_install() {
   echo "  >> "
   echo "  >> If you want to associate .nzb-files with SABnzbd, run 'xdg-mime default sabnzbd.desktop applications/x-nzb'"
 
-}
-## arg 1:  the new package version
-## arg 2:  the old package version
-post_upgrade() {
-  chown -R sabnzbd:sabnzbd /usr/share/sabnzbd 
+	local unit
+	local op
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
 }
 
-## arg 1:  the old package version
-pre_remove() {
+post_upgrade()
+{
+  chown -R sabnzbd:sabnzbd /usr/share/sabnzbd 
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	systemctl daemon-reload >/dev/null 2>&1
+}
+
+pre_remove()
+{
+  xdg-mime uninstall --mode system /usr/share/sabnzbd/x-nzb.xml
+  xdg-icon-resource uninstall --context mimetypes --size 64  /usr/share/pixmaps/nzb-2.png application-x-nzb
+
   userdel sabnzbd &> /dev/null
-} 
+
+	local unit
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
+}
+
+post_remove()
+{
+	systemctl daemon-reload >/dev/null 2>&1
+}
+
+op=$1
+shift
+$op $*

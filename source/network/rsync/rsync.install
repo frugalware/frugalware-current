@@ -1,28 +1,73 @@
-# arg 1:  the new package version
-post_install() {
+sysvinit_units=(@_F_sysvinit_units@)
+systemd_units=(@_F_systemd_units@)
+
+post_install()
+{
 	if ! grep -q '^rsyncd:' /etc/group ; then
 		groupadd -g 28 rsyncd
 	fi
 	if ! grep -q '^rsyncd:' /etc/passwd ; then
                 useradd -u 28 -g 28 rsyncd
 	fi
+
+	local unit
+	local op
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
 }
 
-# arg 1:  the new package version
-# arg 2:  the old package version
-post_upgrade() {
-	post_install $1
+post_upgrade()
+{
+	if ! grep -q '^rsyncd:' /etc/group ; then
+		groupadd -g 28 rsyncd
+	fi
+	if ! grep -q '^rsyncd:' /etc/passwd ; then
+                useradd -u 28 -g 28 rsyncd
+	fi
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
-# arg 1:  the old package version
-pre_remove() {
+pre_remove()
+{
 	userdel rsyncd
 	groupdel rsyncd
+
+	local unit
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
+}
+
+post_remove()
+{
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1
 shift
-
 $op $*
-
-# vim: ft=sh

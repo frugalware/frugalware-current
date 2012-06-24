@@ -59,6 +59,10 @@ if [ -z "$_F_github_ext" ] ; then
 	_F_github_ext=.tar.gz
 fi
 
+if [ -z "$_F_github_sep" ]; then
+	_F_github_sep="$Fpkgversep"
+fi
+
 if [ -z "$url" ]; then
 	url=http://github.com/$_F_github_author/$_F_github_name
 fi
@@ -71,5 +75,5 @@ if [ "$_F_github_devel" = "yes" ]; then
 else
 	up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_dirname/downloads $_F_github_ext"
 	# On one line for Mr Portability, Hermier Portability.
-	source=(${source[@]} http://github.com/downloads/$_F_github_author/$_F_github_dirname/$_F_github_name-$_F_github_ver$_F_github_ext)
+	source=(${source[@]} http://github.com/downloads/$_F_github_author/$_F_github_dirname/$_F_github_name$_F_github_sep$_F_github_ver$_F_github_ext)
 fi

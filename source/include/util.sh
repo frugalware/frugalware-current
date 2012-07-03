@@ -463,7 +463,7 @@ Finstall() {
 ###
 Fdirschmod() {
 	Fmessage "Changing directory permissions inside: $1"
-	find "$Fdestdir"/$1 -type d |xargs chmod $2 || Fdie
+	find "$Fdestdir"/$1 -type d -print0 |xargs -0 chmod $2 || Fdie
 }
 
 ###
@@ -473,7 +473,7 @@ Fdirschmod() {
 ###
 Ffileschmod() {
 	Fmessage "Changing file permissions inside: $1"
-        find "$Fdestdir"/$1 -type f |xargs chmod $2 || Fdie
+        find "$Fdestdir"/$1 -type f -print0 |xargs -0 chmod $2 || Fdie
 }
 
 ###
@@ -482,7 +482,7 @@ Ffileschmod() {
 ###
 Fdirschown() {
 	Fmessage "Changing the owner of directories inside: $1"
-	find "$Fdestdir"/$1 -type d |xargs chown $2:$3 || Fdie
+	find "$Fdestdir"/$1 -type d -print0 |xargs -0 chown $2:$3 || Fdie
 }
 
 ###
@@ -491,7 +491,7 @@ Fdirschown() {
 ###
 Ffileschown() {
 	Fmessage "Changing the owner of files inside: $1"
-	find "$Fdestdir"/$1 -type f |xargs chown $2:$3 || Fdie
+	find "$Fdestdir"/$1 -type f -print0 |xargs -0 chown $2:$3 || Fdie
 }
 
 ###

@@ -17,8 +17,8 @@
 # * _F_kernelver_nextver: the next kernel version
 ###
 _F_kernelver_ver=3.4
-_F_kernelver_rel=1
-_F_kernelver_stable=0
+_F_kernelver_rel=3
+_F_kernelver_stable=4
 _F_kernelver_nextver="3.$(( ${_F_kernelver_ver/3./} + 1 ))"
 
 ###
@@ -42,6 +42,6 @@ Fkernelver_genscriptlet_hook()
 Fkernelver_compress_modules()
 {
 	local _directory
-	_directory="$Fdestdir/lib/modules/$_F_kernelver_ver-fw$_F_kernelver_rel/kernel"
+	_directory="$Fdestdir/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel/kernel"
 	Fexec find $_directory -name "*.ko" -exec xz '{}' \; || Fdie
 }

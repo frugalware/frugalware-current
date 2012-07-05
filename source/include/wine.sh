@@ -38,7 +38,7 @@ wine)
 	up2date="lynx -dump $url | sed -n 's|^.*Stable:.*Wine \([0-9a-zA-Z.]\+\).*\$|\1|p'"
 	_geckover=1.4
 	conflicts=('wine-devel')
-	sha1sums=('ce5d56b9b949c01dde663ab39739ffcfb41a73c4')
+	sha1sums=('cb79601ca92e8ecb8a5b6b64edc45fd366c3e579')
 	case "$CARCH" in
 		"i686") sha1sums=("${sha1sums[@]}" 'c30aa99621e98336eb4b7e2074118b8af8ea2ad5');;
 		"x86_64") sha1sums=("${sha1sums[@]}" 'bf0aaf56a8cf9abd75be02b56b05e5c4e9a4df93');;

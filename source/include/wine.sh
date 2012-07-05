@@ -48,12 +48,12 @@ wine)
 wine-devel)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Development)"
 	up2date="lynx -dump $url | sed -n 's|^.*Development:.*Wine \([0-9a-zA-Z.]\+\).*\$|\1|p'"
-	_geckover=1.5
+	_geckover=1.6
 	conflicts=('wine')
-	sha1sums=('e16e4c0d72b0a2d2395d15e9130de29a024fae17')
+	sha1sums=('941fd13262e498e8825c14e2347762d2bd7211ac')
 	case "$CARCH" in
-		"i686") sha1sums=("${sha1sums[@]}" '07b2bc74d03c885bb39124a7641715314cd3ae71');;
-		"x86_64") sha1sums=("${sha1sums[@]}" '80a3b36c30bb79a11889879392fdc1fcda9ca165');;
+		"i686") sha1sums=("${sha1sums[@]}" '41167632dbc30f32dce7dca43c2a0487aa7cac04');;
+		"x86_64") sha1sums=("${sha1sums[@]}" 'edc626480024f58e294447573c7ab94606e8d610');;
 	esac
 	;;
 

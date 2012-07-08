@@ -11,6 +11,7 @@
 # Common schema for cgit packages on freedesktop.org.
 #
 # == EXAMPLE
+#
 # --------------------------------------------------
 # pkgname=libdrm
 # pkgver=0.1.4
@@ -26,8 +27,6 @@
 # archs=('i686' 'x86_64')
 # sha1sums=('9023c205cb1623e749bd5ca7baf721c55f36f279')
 # --------------------------------------------------
-#
-# == OPTIONS
 ###
 if [ -z "${_F_cgit_freedesktop_dirname}" ]; then
 	_F_cgit_freedesktop_dirname="${pkgname}"

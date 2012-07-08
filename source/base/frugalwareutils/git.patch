@@ -1,0 +1,1352 @@
+diff --git a/Makefile b/Makefile
+index d8a58d9..9812485 100644
+--- a/Makefile
++++ b/Makefile
+@@ -24,15 +24,8 @@ SUBDIRS = doc apidoc libfwutil libfwdialog setup netconfigd \
+ 	  libfwtimeconfig timeconfig \
+ 	  libfwraidconfig raidconfig \
+ 	  libfwmouseconfig mouseconfig \
+-	  libfwxwmconfig xwmconfig
+-
+-ifneq ($(CARCH),ppc)
+-SUBDIRS += libfwgrubconfig grubconfig
+-endif
+-
+-ifeq ($(CARCH),ppc)
+-SUBDIRS += libfwyabootcfg yabootcfg
+-endif
++	  libfwxwmconfig xwmconfig \
++	  libfwgrubconfig grubconfig
+ 
+ compile: config.mak
+ 	+$(DO_RECURSIVE)
+@@ -64,7 +57,7 @@ install:
+ 	$(INSTALL) -d $(DESTDIR)$(libdir)/udev/rules.d
+ 	$(INSTALL) -m644 netconfig/netconfig.service $(DESTDIR)$(libdir)/systemd/system/netconfig.service
+ 	$(INSTALL) -m644 netconfig/netconfig-wait-online.service $(DESTDIR)$(libdir)/systemd/system/netconfig-wait-online.service
+-	$(INSTALL) -m755 netconfig/netconfig.sleep $(DESTDIR)/usr/lib/pm-utils/sleep.d/55netconfig
++	$(INSTALL) -m755 netconfig/netconfig.sleep $(DESTDIR)/usr/lib/pm-utils/sleep.d/56netconfig
+ 	$(INSTALL) -m755 netconfig/netconfig-udev-wrapper $(DESTDIR)$(sbindir)/netconfig-udev-wrapper
+ 	$(INSTALL) -m644 netconfig/netconfig-rfkill.rules $(DESTDIR)$(libdir)/udev/rules.d/97-netconfig-rfkill.rules
+ 	$(INSTALL) -d $(DESTDIR)$(mandir)/man1
+diff --git a/grubconfig/grubconfig.c b/grubconfig/grubconfig.c
+index 1751ad0..1389258 100644
+--- a/grubconfig/grubconfig.c
++++ b/grubconfig/grubconfig.c
+@@ -37,8 +37,7 @@ enum fwgrub_install_mode ask_mode()
+ {
+ 	char *modes[] =
+ 	{
+-		_("First"), _("Install to Master Boot Record of first hard drive"),
+-		_("Root"), _("Install to Master Boot Record of root hard drive"),
++		_("MBR"), _("Install to Master Boot Record of the hard drive your root partition is on."),
+ 		_("Skip"), _("Skip the installation of GRUB.")
+ 	};
+ 	char *ptr;
+@@ -46,13 +45,10 @@ enum fwgrub_install_mode ask_mode()
+ 
+ 	ptr = fwdialog_menu(_("Installing GRUB bootloader"),
+ 		_("GRUB can be installed to a variety of places:\n\n"
+-		"\t1. The Master Boot Record of your first hard drive.\n"
+-		"\t2. The Master Boot Record of your root hard drive (DO NOT CHOOSE IF YOU USE RAID).\n"
++		"\t1. The Master Boot Record the hard drive your root partition is on.\n"
+ 		"Which option would you like?"), 0, 0, 0, 2, modes);
+-	if(!strcmp(ptr, _("First")))
+-		ret=FWGRUB_INSTALL_MBR_FIRST;
+-	else if(!strcmp(ptr, _("Root")))
+-		ret=FWGRUB_INSTALL_MBR_ROOT;
++	if(!strcmp(ptr, _("MBR")))
++		ret=FWGRUB_INSTALL_MBR;
+ 	else if(!strcmp(ptr, _("Skip")))
+ 		ret=-1;
+ 	free(ptr);
+@@ -64,7 +60,6 @@ int run(int argc, char **argv)
+ {
+ 	FILE *input = stdin, *fp;
+ 	dialog_state.output = stderr;
+-	int needrelease;
+ 	struct stat buf;
+ 	enum fwgrub_install_mode mode;
+ 
+@@ -90,11 +85,8 @@ int run(int argc, char **argv)
+ 	if(mode!=-1)
+ 	{
+ 		dialog_msgbox(_("Please wait"), _("Attempting to install the GRUB bootloader..."), 0, 0, 0);
+-		needrelease = fwutil_init();
+-		fwgrub_install(mode);
+-		fwgrub_make_config();
+-		if(needrelease)
+-			fwutil_release();
++		fwgrub_install("/",mode);
++		fwgrub_make_config("/");
+ 	}
+ 
+ 	if(argv!=NULL)
+diff --git a/libfwgrubconfig/libfwgrubconfig.c b/libfwgrubconfig/libfwgrubconfig.c
+index 364a417..9d32fcf 100644
+--- a/libfwgrubconfig/libfwgrubconfig.c
++++ b/libfwgrubconfig/libfwgrubconfig.c
+@@ -28,6 +28,7 @@
+ #include <sys/stat.h>
+ #include <sys/wait.h>
+ #include <errno.h>
++#include <libfwutil.h>
+ #include "libfwgrubconfig.h"
+ 
+ #define FWGRUB_LOGDEV "/dev/tty4"
+@@ -38,19 +39,19 @@
+  */
+ 
+ static
+-char *get_first_device(char *s,size_t n)
++char *get_root_device(const char *root,char *s,size_t n)
+ {
+ 	FILE *file;
+ 	regex_t re;
+-	int i = 1;
+-	char line[LINE_MAX], *p, *dev;
++	char line[LINE_MAX], *dev, *dir, *p;
++	regmatch_t mat;
+ 
+-	file = fopen("/proc/partitions","rb");
++	file = fopen("/proc/mounts","rb");
+ 
+ 	if(!file)
+ 		return 0;
+ 
+-	if(regcomp(&re,"^[hsv]d[a-z]$",REG_EXTENDED | REG_NOSUB))
++	if(regcomp(&re,"^/dev/(sd[a-z]|hd[a-z]|vd[a-z]|md[0-9]+)",REG_EXTENDED))
+ 	{
+ 		fclose(file);
+ 
+@@ -61,31 +62,23 @@ char *get_first_device(char *s,size_t n)
+ 
+ 	while(fgets(line,sizeof line,file))
+ 	{
+-		if(i < 3)
+-		{
+-			++i;
+-
+-			continue;
+-		}
++		dev = strtok_r(line," ",&p);
+ 
+-		if(!strtok_r(line," \n",&p))
++		if(!dev)
+ 			continue;
+ 
+-		if(!strtok_r(0," \n",&p))
+-			continue;
++		dir = strtok_r(0," ",&p);
+ 
+-		if(!strtok_r(0," \n",&p))
++		if(!dir)
+ 			continue;
+ 
+-		dev = strtok_r(0," \n",&p);
+-
+-		if(!dev)
++		if(strcmp(dir,root))
+ 			continue;
+ 
+-		if(regexec(&re,dev,0,0,0))
++		if(regexec(&re,dev,1,&mat,0))
+ 			continue;
+ 
+-		snprintf(s,n,"/dev/%s",dev);
++		snprintf(s,n,"%.*s",mat.rm_eo - mat.rm_so,dev);
+ 
+ 		break;
+ 	}
+@@ -98,106 +91,177 @@ char *get_first_device(char *s,size_t n)
+ }
+ 
+ static
+-char *get_root_device(char *s,size_t n)
++char *get_sysfs_contents(const char *path)
+ {
+ 	FILE *file;
+-	regex_t re;
+-	char line[LINE_MAX], *dev, *dir, *p;
+-	regmatch_t mat;
++	char line[LINE_MAX], *s;
+ 
+-	file = fopen("/proc/mounts","rb");
++	file = fopen(path,"rb");
+ 
+ 	if(!file)
+ 		return 0;
+ 
+-	if(regcomp(&re,"^/dev/[hsv]d[a-z]",REG_EXTENDED))
++	if(!fgets(line,sizeof line,file))
+ 	{
+ 		fclose(file);
+ 
+ 		return 0;
+ 	}
+ 
+-	*s = 0;
++	s = strchr(line,'\n');
+ 
+-	while(fgets(line,sizeof line,file))
++	if(s)
++		*s = 0;
++
++	s = strdup(line);
++
++	fclose(file);
++
++	return s;
++}
++
++static
++void free_device_list(char **devices)
++{
++	char **p = devices;
++
++	while(*p)
++		free(*p++);
++
++	free(devices);
++}
++
++static
++char **get_device_list(const char *root)
++{
++	char **devices = 0;
++
++	if(!strncmp(root,"/dev/md",7))
+ 	{
+-		dev = strtok_r(line," ",&p);
++		int disks_count, i;
++		char path[PATH_MAX], *level = 0, *disks = 0;
++		struct stat st;
+ 
+-		if(!dev)
+-	        continue;
++		snprintf(path,sizeof path,"/sys/block/%s/md/level",root+5);
+ 
+-		dir = strtok_r(0," ",&p);
++		level = get_sysfs_contents(path);
+ 
+-		if(!dir)
+-			continue;
++		snprintf(path,sizeof path,"/sys/block/%s/md/raid_disks",root+5);
+ 
+-		if(strcmp(dir,"/"))
+-			continue;
++		disks = get_sysfs_contents(path);
+ 
+-		if(regexec(&re,dev,1,&mat,0))
+-			continue;
++		if(!level || !disks || strcmp(level,"raid1") || atoi(disks) < 2)
++		{
++			free(level);
+ 
+-		snprintf(s,n,"%.*s",mat.rm_eo - mat.rm_so,dev);
++			free(disks);
+ 
+-		break;
++			return 0;
++		}
++
++		disks_count = atoi(disks);
++
++		devices = malloc(sizeof(char *) * (disks_count + 1));
++
++		for( i = 0 ; i < disks_count ; ++i )
++		{
++			char buf[PATH_MAX], dev[PATH_MAX];
++			ssize_t n;
++
++			snprintf(path,sizeof path,"/sys/block/%s/md/rd%d",root+5,i);
++
++			n = readlink(path,buf,sizeof buf);
++
++			if(n >= 0 && n < (ssize_t) sizeof buf)
++				buf[n] = 0;
++
++			if(
++				n == -1                                       ||
++				n == (ssize_t) sizeof buf                     ||
++				strncmp(buf,"dev-",4)                         ||
++				snprintf(dev,sizeof dev,"/dev/%.3s",buf+4) < 0 ||
++				stat(dev,&st)
++			)
++			{
++				free(level);
++
++				free(disks);
++
++				devices[i] = 0;
++
++				free_device_list(devices);
++
++				return 0;
++			}
++
++			devices[i] = strdup(dev);
++		}
++
++		devices[i] = 0;
++
++		free(level);
++
++		free(disks);
+ 	}
++	else
++	{
++		devices = malloc(sizeof(char *) * 2);
+ 
+-	fclose(file);
++		devices[0] = strdup(root);
+ 
+-	regfree(&re);
++		devices[1] = 0;
++	}
+ 
+-	return *s ? s : 0;
++	return devices;
+ }
+ 
+ /** Installs grub to a given target
+- * @param mode FWGRUB_INSTALL_MBR_FIRST, FWGRUB_INSTALL_MBR_ROOT, FWGRUB_INSTALL_EFI
++ * @param root directory to chroot to before installing grub
++ * @param mode FWGRUB_INSTALL_MBR, FWGRUB_INSTALL_EFI
+  * @return 0 on succcess, 1 on error
+  */
+ 
+-int fwgrub_install(enum fwgrub_install_mode mode)
++int fwgrub_install(const char *root,enum fwgrub_install_mode mode)
+ {
+-	char cmd[_POSIX_ARG_MAX], device[PATH_MAX];
+-	struct stat st;
+-
+-	/* First, define the common parts of the install command. */
+-	strcpy(cmd,"grub-install --recheck --no-floppy --boot-directory=/boot ");
++	char cmd[_POSIX_ARG_MAX], dev[PATH_MAX], **devices, **p;
+ 
+-	/* Now, define additional arguments based on installation mode. */
+-	switch(mode)
++	if(mode == FWGRUB_INSTALL_MBR)
+ 	{
+-		case FWGRUB_INSTALL_MBR_FIRST:
+-			if(!get_first_device(device,sizeof device))
+-				return 1;
+-			strcat(cmd,device);
+-			break;
++		if(!get_root_device(root,dev,sizeof dev))
++			return 1;
+ 
+-		case FWGRUB_INSTALL_MBR_ROOT:
+-			if(!get_root_device(device,sizeof device))
+-				return 1;
+-			strcat(cmd,device);
+-			break;
++		devices = get_device_list(dev);
++
++		if(!devices)
++			return 1;
++
++		for( p = devices ; *p ; ++p )
++		{
++			snprintf(cmd,sizeof cmd,"grub-install --recheck --no-floppy --boot-directory=/boot %s > " FWGRUB_LOGDEV " 2>&1",*p);
++
++			if(fwutil_system_chroot(root,cmd))
++			{
++				free_device_list(devices);
+ 
+-		case FWGRUB_INSTALL_EFI:
+-			strcat(cmd,"--root-directory=/boot/efi --bootloader-id=frugalware");
+-			if(!stat("/boot/efi",&st) && !S_ISDIR(st.st_mode))
+-				return 1;
+-			else if(mkdir("/boot/efi",0755))
+ 				return 1;
+-			break;
+-	}
++			}
++		}
++
++		free_device_list(devices);
+ 
+-	/* Setup logging. */
+-	strcat(cmd," > " FWGRUB_LOGDEV " 2>&1");
++		return 0;
++	}
+ 
+-	return system(cmd) ? 1 : 0;
++	return 1;
+ }
+ 
+ /** Make a grub2 configuration file
++ * @param root directory to chroot to before generating grub config
+  * @return 0 on succcess, 1 on error
+  */
+-int fwgrub_make_config(void)
++int fwgrub_make_config(const char *root)
+ {
+-	return system("grub-mkconfig -o /boot/grub/grub.cfg > " FWGRUB_LOGDEV " 2>&1") ? 1 : 0;
++	return fwutil_system_chroot(root,"grub-mkconfig -o /boot/grub/grub.cfg > " FWGRUB_LOGDEV " 2>&1");
+ }
+ 
+ /** @} */
+diff --git a/libfwgrubconfig/libfwgrubconfig.h b/libfwgrubconfig/libfwgrubconfig.h
+index c3da02d..c5a49fe 100644
+--- a/libfwgrubconfig/libfwgrubconfig.h
++++ b/libfwgrubconfig/libfwgrubconfig.h
+@@ -21,10 +21,8 @@
+ 
+ enum fwgrub_install_mode
+ {
+-	FWGRUB_INSTALL_MBR_FIRST,
+-	FWGRUB_INSTALL_MBR_ROOT,
+-	FWGRUB_INSTALL_EFI
++	FWGRUB_INSTALL_MBR
+ };
+ 
+-int fwgrub_install(enum fwgrub_install_mode mode);
+-int fwgrub_make_config(void);
++int fwgrub_install(const char *root,enum fwgrub_install_mode mode);
++int fwgrub_make_config(const char *root);
+diff --git a/libfwraidconfig/libfwraidconfig.c b/libfwraidconfig/libfwraidconfig.c
+index 74d328d..1b6cb6a 100644
+--- a/libfwraidconfig/libfwraidconfig.c
++++ b/libfwraidconfig/libfwraidconfig.c
+@@ -1,8 +1,8 @@
+ /*
+  *  libfwraidconfig.c for frugalwareutils
+- * 
++ *
+  *  Copyright (c) 2006 by Miklos Vajna <vmiklos@frugalware.org>
+- * 
++ *
+  *  This program is free software; you can redistribute it and/or modify
+  *  it under the terms of the GNU General Public License as published by
+  *  the Free Software Foundation; either version 2 of the License, or
+@@ -15,7 +15,7 @@
+  *
+  *  You should have received a copy of the GNU General Public License
+  *  along with this program; if not, write to the Free Software
+- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
++ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+  *  USA.
+  */
+ 
+@@ -54,14 +54,14 @@ char* fwraid_suggest_devname()
+ 			last = line[2];
+ 	fclose(fp);
+ 	return(g_strdup_printf("/dev/md%c", ++last));
+-	
++
+ }
+ 
+ /** Creates a RAID device node manually.
+  * @param devname the name of the device
+  * @return 1 on failure, 0 on success
+  */
+-int fwraid_mknod_md(char *devname)
++int fwraid_mknod_md(const char *devname)
+ {
+ 	struct stat buf;
+ 	int ret;
+@@ -71,7 +71,7 @@ int fwraid_mknod_md(char *devname)
+ 		// device already created
+ 		return(0);
+ 	ptr = g_strdup_printf("mknod %s b 9 %s", devname, devname + strlen("/dev/md"));
+-	
++
+ 	ret = system(ptr);
+ 	free(ptr);
+ 	return(ret);
+@@ -153,7 +153,7 @@ GList *fwraid_lst_parts()
+  * @param devices list of the real device names
+  * @return 1 on failure, 0 on success
+  */
+-int fwraid_create_md(char *devname, int level, GList *devices)
++int fwraid_create_md(const char *devname, int level, GList *devices)
+ {
+ 	char *ptr = fwutil_glist_display(devices, " ");
+ 	// TODO: this "yes" is an ugly hack to pass various warnings
+@@ -161,8 +161,8 @@ int fwraid_create_md(char *devname, int level, GList *devices)
+ 		"--level=%d --raid-devices=%d %s >%s 2>%s",
+ 		devname, level, g_list_length(devices), ptr, FWRAID_LOGDEV, FWRAID_LOGDEV);
+ 	int ret;
+-	
+-	ret = system(cmd);
++
++	ret = fwutil_system(cmd);
+ 	free(ptr);
+ 	free(cmd);
+ 	return(ret);
+diff --git a/libfwraidconfig/libfwraidconfig.h b/libfwraidconfig/libfwraidconfig.h
+index 0c6b044..7924f36 100644
+--- a/libfwraidconfig/libfwraidconfig.h
++++ b/libfwraidconfig/libfwraidconfig.h
+@@ -1,8 +1,8 @@
+ /*
+  *  libfwraidconfig.h for frugalwareutils
+- * 
++ *
+  *  Copyright (c) 2006 by Miklos Vajna <vmiklos@frugalware.org>
+- * 
++ *
+  *  This program is free software; you can redistribute it and/or modify
+  *  it under the terms of the GNU General Public License as published by
+  *  the Free Software Foundation; either version 2 of the License, or
+@@ -15,13 +15,13 @@
+  *
+  *  You should have received a copy of the GNU General Public License
+  *  along with this program; if not, write to the Free Software
+- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
++ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+  *  USA.
+  */
+ 
+ #define FWRAID_LOGDEV "/dev/tty4"
+ 
+ char* fwraid_suggest_devname();
+-int fwraid_mknod_md(char *devname);
++int fwraid_mknod_md(const char *devname);
+ GList *fwraid_lst_parts();
+-int fwraid_create_md(char *devname, int level, GList *devices);
++int fwraid_create_md(const char *devname, int level, GList *devices);
+diff --git a/libfwtimeconfig/libfwtimeconfig.c b/libfwtimeconfig/libfwtimeconfig.c
+index 55ce249..8ce6b12 100644
+--- a/libfwtimeconfig/libfwtimeconfig.c
++++ b/libfwtimeconfig/libfwtimeconfig.c
+@@ -41,10 +41,11 @@ GList *zones=NULL;
+  */
+ 
+ /** Creates the hardware clock configuration file.
++ * @param root directory to chroot to
+  * @param mode clock mode
+  * @return 1 on failure, 0 on success
+  */
+-int fwtime_hwclockconf(char *mode)
++int fwtime_hwclockconf(const char *root,const char *mode)
+ {
+ 	char cmd[_POSIX_ARG_MAX];
+ 
+@@ -57,7 +58,7 @@ int fwtime_hwclockconf(char *mode)
+ 
+ 	strcat(cmd," > " FWTIME_LOGDEV " 2>&1");
+ 
+-	return system(cmd) ? 1 : 0;
++	return fwutil_system_chroot(root,cmd);
+ }
+ 
+ /** Helper function for finding timezones available. The result will be written
+@@ -65,7 +66,7 @@ int fwtime_hwclockconf(char *mode)
+  * @param dirname path of the dir which contains the timezones
+  * @return 1 on failure, 0 on success
+  */
+-int fwtime_find(char *dirname)
++int fwtime_find(const char *dirname)
+ {
+ 	DIR *dir;
+ 	struct dirent *ent;
+diff --git a/libfwtimeconfig/libfwtimeconfig.h b/libfwtimeconfig/libfwtimeconfig.h
+index 6191a11..578f001 100644
+--- a/libfwtimeconfig/libfwtimeconfig.h
++++ b/libfwtimeconfig/libfwtimeconfig.h
+@@ -19,5 +19,5 @@
+  *  USA.
+  */
+ 
+-int fwtime_hwclockconf(char *mode);
+-int fwtime_find(char *dirname);
++int fwtime_hwclockconf(const char *root,const char *mode);
++int fwtime_find(const char *dirname);
+diff --git a/libfwutil/libfwutil.c b/libfwutil/libfwutil.c
+index de3b383..f628c51 100644
+--- a/libfwutil/libfwutil.c
++++ b/libfwutil/libfwutil.c
+@@ -1,8 +1,8 @@
+ /*
+  *  libfwutil.c for frugalwareutils
+- * 
++ *
+  *  Copyright (c) 2006 by Miklos Vajna <vmiklos@frugalware.org>
+- * 
++ *
+  *  This program is free software; you can redistribute it and/or modify
+  *  it under the terms of the GNU General Public License as published by
+  *  the Free Software Foundation; either version 2 of the License, or
+@@ -15,7 +15,7 @@
+  *
+  *  You should have received a copy of the GNU General Public License
+  *  along with this program; if not, write to the Free Software
+- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
++ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+  *  USA.
+  */
+ 
+@@ -40,17 +40,68 @@ int fwutil_dryrun = 0;
+  * @{
+  */
+ 
+-/** A wrapper to system() and printf(): the action depends on the global
++/** A wrapper to execl() and printf(): the action depends on the global
+  * f_util_dryrun variable (0 by default).
+  * @param cmd the command to print/execute
+  * @return 1 on failure, 0 on success
+  */
+ int fwutil_system(const char *cmd)
+ {
++	pid_t id;
++	int status;
++
+ 	if(fwutil_dryrun)
+-		return(printf("%s\n", cmd));
+-	else
+-		return(system(cmd) ? 1 : 0);
++		return(printf("%s\n", cmd) < 0 ? 1 : 0);
++
++	id = fork();
++
++	if(!id)
++	{
++		execl("/bin/sh","/bin/sh","-c",cmd,(void *) 0);
++
++		_exit(EXIT_FAILURE);
++	}
++	else if(id == -1)
++		return 1;
++
++	if(waitpid(id,&status,0) == -1 || !WIFEXITED(status) || WEXITSTATUS(status))
++		return 1;
++
++	return 0;
++}
++
++/** A wrapper to execl() and printf(): the action depends on the global
++ * f_util_dryrun variable (0 by default).
++ * @param root the directory to chroot to before execute
++ * @param cmd the command to print/execute
++ * @return 1 on failure, 0 on success
++ */
++int fwutil_system_chroot(const char *root,const char *cmd)
++{
++	pid_t id;
++	int status;
++
++	if(fwutil_dryrun)
++		return(printf("%s: %s\n", root, cmd) < 0 ? 1 : 0);
++
++	id = fork();
++
++	if(!id)
++	{
++		if(chroot(root) || chdir("/"))
++			_exit(EXIT_FAILURE);
++
++		execl("/bin/sh","/bin/sh","-c",cmd,(void *) 0);
++
++		_exit(EXIT_FAILURE);
++	}
++	else if(id == -1)
++		return 1;
++
++	if(waitpid(id,&status,0) == -1 || !WIFEXITED(status) || WEXITSTATUS(status))
++		return 1;
++
++	return 0;
+ }
+ 
+ /** Initialize gettext, based on the filename.
+@@ -133,59 +184,6 @@ char *fwutil_glist_display(GList *list, char *sep)
+ 	return(ret);
+ }
+ 
+-/** Initialize the environment if necessary
+- * @return true if fwx_release() call is needed later, false if not
+- */
+-int fwutil_init()
+-{
+-	struct stat buf;
+-	FILE *fi, *fo;
+-	int ret=0;
+-
+-	if(stat("/proc/1", &buf))
+-	{
+-		system("mount /proc");
+-		ret++;
+-	}
+-	if(stat("/dev/zero", &buf))
+-	{
+-		system("/etc/rc.d/rc.udev");
+-		system("mount / -o rw,remount");
+-
+-
+-		system("mount /dev/pts");
+-		ret++;
+-	}
+-	if((fi = fopen("/proc/mounts", "r")))
+-	{
+-		if((fo = fopen("/etc/mtab", "w")))
+-		{
+-			char line[256];
+-
+-			while(!feof(fi))
+-			{
+-				if(!fgets(line, 255, fi))
+-					break;
+-				if(!strstr(line, "root"))
+-					fprintf(fo, "%s", line);
+-			}
+-			fclose(fo);
+-		}
+-		fclose(fi);
+-	}
+-	return(ret);
+-}
+-
+-/** Release the environment
+- */
+-void fwutil_release()
+-{
+-	umount("/dev/pts");
+-	umount("/dev");
+-	umount("/sys");
+-	umount("/proc");
+-}
+-
+ /** does the same as cp
+  * @param src source
+  * @param dest destination
+diff --git a/libfwutil/libfwutil.h b/libfwutil/libfwutil.h
+index 3366f8e..3620839 100644
+--- a/libfwutil/libfwutil.h
++++ b/libfwutil/libfwutil.h
+@@ -1,8 +1,8 @@
+ /*
+  *  libfwutil.h for frugalwareutils
+- * 
++ *
+  *  Copyright (c) 2006 by Miklos Vajna <vmiklos@frugalware.org>
+- * 
++ *
+  *  This program is free software; you can redistribute it and/or modify
+  *  it under the terms of the GNU General Public License as published by
+  *  the Free Software Foundation; either version 2 of the License, or
+@@ -15,7 +15,7 @@
+  *
+  *  You should have received a copy of the GNU General Public License
+  *  along with this program; if not, write to the Free Software
+- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
++ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+  *  USA.
+  */
+ 
+@@ -39,11 +39,10 @@
+ #define fwutil_min(p, q)  ((p) < (q) ? (p) : (q))
+ 
+ int fwutil_system(const char *cmd);
++int fwutil_system_chroot(const char *root,const char *cmd);
+ void fwutil_i18ninit(char *namespace);
+ char *fwutil_trim(char *str);
+ char *fwutil_strtoupper(char *str);
+-int fwutil_init();
+-void fwutil_release();
+ int fwutil_cp(char *src, char *dest);
+ #ifdef __G_LIB_H__
+ char *fwutil_glist_display(GList *list, char *sep);
+diff --git a/libfwyabootcfg/Makefile b/libfwyabootcfg/Makefile
+deleted file mode 100644
+index b95eb7b..0000000
+--- a/libfwyabootcfg/Makefile
++++ /dev/null
+@@ -1,33 +0,0 @@
+-# Makefile for frugalwareutils
+-#
+-# Copyright (C) 2008 Miklos Vajna <vmiklos@frugalware.org>
+-#
+-# This program is free software; you can redistribute it and/or modify
+-# it under the terms of the GNU General Public License as published by
+-# the Free Software Foundation; version 2 of the License.
+-#
+-# This program is distributed in the hope that it will be useful,
+-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+-# General Public License for more details.
+-#
+-# You should have received a copy of the GNU General Public License
+-# along with this program; if not, write to the Free Software
+-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+-#
+-
+--include ../config.mak
+-CFLAGS = $(LIB_CFLAGS)
+-CFLAGS += $(shell pkg-config --cflags glib-2.0)
+-LDFLAGS += $(shell pkg-config --libs glib-2.0)
+-
+-LDFLAGS += -lparted
+-
+-# fwutil
+-CFLAGS += -I../libfwutil
+-LDFLAGS += -L../libfwutil -lfwutil
+-
+-LIBNAME = yabootcfg
+-
+--include ../Makefile.inc
+--include ../Makefile.lib.inc
+diff --git a/libfwyabootcfg/libfwyabootcfg.c b/libfwyabootcfg/libfwyabootcfg.c
+deleted file mode 100644
+index 691b890..0000000
+--- a/libfwyabootcfg/libfwyabootcfg.c
++++ /dev/null
+@@ -1,276 +0,0 @@
+-/*
+- *  libfwyabootcfg.c for frugalwareutils
+- * 
+- *  Copyright (c) 2008 by Miklos Vajna <vmiklos@frugalware.org>
+- * 
+- *  This program is free software; you can redistribute it and/or modify
+- *  it under the terms of the GNU General Public License as published by
+- *  the Free Software Foundation; either version 2 of the License, or
+- *  (at your option) any later version.
+- *
+- *  This program is distributed in the hope that it will be useful,
+- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- *  GNU General Public License for more details.
+- *
+- *  You should have received a copy of the GNU General Public License
+- *  along with this program; if not, write to the Free Software
+- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
+- *  USA.
+- */
+-
+-#include <dirent.h>
+-#include <unistd.h>
+-#include <sys/stat.h>
+-#include <string.h>
+-#include <stdio.h>
+-#include <sys/utsname.h>
+-#include <libfwutil.h>
+-#include <glib.h>
+-#include <parted/parted.h>
+-
+-#include "libfwyabootcfg.h"
+-
+-#define FWYABOOT_LOGDEV "/dev/tty4"
+-
+-static char *gen_title()
+-{
+-	struct utsname name;
+-	FILE *fp;
+-	char line[PATH_MAX];
+-
+-	fp = fopen("/etc/frugalware-release", "r");
+-	if(!fp)
+-		return(NULL);
+-	if(!fgets(line, PATH_MAX, fp))
+-		return(NULL);
+-	line[strlen(line)-1]='\0';
+-	uname(&name);
+-	return(g_strdup_printf("%s - %s", line, name.release));
+-}
+-
+-static PedExceptionOption peh(PedException* ex)
+-{
+-	return(PED_EXCEPTION_IGNORE);
+-}
+-
+-static char *find_boot_part(PedDisk *disk)
+-{
+-	PedPartition *part = NULL;
+-
+-	if (!ped_disk_next_partition(disk, NULL))
+-		return NULL;
+-	for(part = ped_disk_next_partition(disk, NULL); part; part = part->next) {
+-		// - in path? avoid ped_partition_get_flag(), would segfault..
+-		if (!strchr(ped_partition_get_path(part), '-') && ped_partition_get_flag(part, PED_PARTITION_BOOT))
+-			return ped_partition_get_path(part);
+-	}
+-	return NULL;
+-}
+-
+-static char *find_boot()
+-{
+-	PedDevice *dev=NULL;
+-	PedDisk *disk = NULL;
+-	char *ptr;
+-	
+-	ped_exception_set_handler(peh);
+-	ped_device_probe_all();
+-
+-	if (!ped_device_get_next(NULL))
+-		return NULL;
+-	for (dev = ped_device_get_next(NULL); dev; dev = dev->next) {
+-		if (dev->read_only)
+-			continue;
+-		disk = ped_disk_new(dev);
+-		ptr = find_boot_part(disk);
+-		if (ptr)
+-			return ptr;
+-	}
+-	return NULL;
+-}
+-
+-// 0: device, 1: partition
+-static char *of_path(char *dev, int mode)
+-{
+-	FILE *pp;
+-	char *cmdline, *ptr, *ret;
+-	char path[PATH_MAX];
+-
+-	cmdline = g_strdup_printf("/usr/sbin/ofpath %s", dev);
+-	pp = popen(cmdline, "r");
+-	if (!pp)
+-		return NULL;
+-	fgets(path, PATH_MAX, pp);
+-	fclose(pp);
+-	FWUTIL_FREE(cmdline);
+-	ptr = strrchr(path, ':');
+-	ret = path;
+-	if (!mode) {
+-		if (++ptr)
+-			*ptr = '\0';
+-	} else {
+-		ret = ++ptr;
+-		if (ret[strlen(ret)-1] == '\n')
+-			ret[strlen(ret)-1] = '\0';
+-	}
+-	return g_strdup(ret);
+-}
+-
+-/* find_dev_recursive() and find_dev() is based on Linus's original rdev */
+-static int find_dev_recursive(char *dirnamebuf, int number)
+-{
+-	DIR *dp;
+-	struct dirent *dir;
+-	struct stat s;
+-	int dirnamelen = 0;
+-
+-	if ((dp = opendir(dirnamebuf)) == NULL)
+-		return(0);
+-	dirnamelen = strlen(dirnamebuf);
+-	while ((dir = readdir(dp)) != NULL)
+-	{
+-		if (!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, ".."))
+-			continue;
+-		if (dirnamelen + 1 + strlen(dir->d_name) > PATH_MAX)
+-			continue;
+-		dirnamebuf[dirnamelen] = '/';
+-		strcpy(dirnamebuf+dirnamelen+1, dir->d_name);
+-		if (lstat(dirnamebuf, &s) < 0)
+-			continue;
+-		if ((s.st_mode & S_IFMT) == S_IFBLK && s.st_rdev == number)
+-			return(1);
+-		if ((s.st_mode & S_IFMT) == S_IFDIR &&
+-				find_dev_recursive(dirnamebuf, number))
+-			return(1);
+-	}
+-	dirnamebuf[dirnamelen] = 0;
+-	closedir(dp);
+-	return(0);
+-}
+-
+-static char *find_dev(int n)
+-{
+-	char path[PATH_MAX+1];
+-	if (!n)
+-		return(NULL);
+-	strcpy(path, "/dev");
+-	if(find_dev_recursive(path, n))
+-		return(strdup(path));
+-	return(NULL);
+-}
+-
+-static char *find_root()
+-{
+-	struct stat buf;
+-
+-	if(!stat("/",&buf))
+-		return(find_dev(buf.st_dev));
+-	return(NULL);
+-}
+-
+-static void os_prober(FILE *fp)
+-{
+-	struct stat buf;
+-	FILE *pp;
+-	char line[PATH_MAX], *ptr;
+-
+-	if(stat("/usr/bin/os-prober", &buf))
+-		return;
+-
+-	pp = popen("os-prober 2>/dev/null", "r");
+-	if (!pp)
+-		return;
+-
+-	while(fgets(line, PATH_MAX, pp)) {
+-		ptr = strrchr(line, ':');
+-		if (!++ptr)
+-			continue;
+-		if (!strncmp(ptr, "macosx", 6)) {
+-			ptr = strchr(line, ':');
+-			if (ptr)
+-				*ptr = '\0';
+-			fprintf(fp, "macosx=%s\n\n", line);
+-		} else if (!strncmp(ptr, "linux", 5)) {
+-			char *label, *root;
+-			
+-			ptr = strchr(line, ':');
+-			if (ptr)
+-				*ptr = '\0';
+-			root = line;
+-			ptr = strchr(++ptr, ':');
+-			if (!ptr)
+-				continue;
+-			label = g_strdup_printf("linux-%s", ++ptr);
+-			ptr = strchr(label, ':');
+-			if (ptr)
+-				*ptr = '\0';
+-			fprintf(fp, "image=/boot/vmlinux\n"
+-					"\tlabel=%s\n"
+-					"\troot=%s\n"
+-					"\tread-only\n\n", label, root);
+-			FWUTIL_FREE(label);
+-		}
+-	}
+-	pclose(pp);
+-}
+-
+-void fwyaboot_create_menu(FILE *fp, int flags)
+-{
+-	char *root = find_root();
+-	char *ptr = NULL;
+-
+-	fprintf(fp, "#\n"
+-		"# /etc/yaboot.conf - configuration file for Yaboot\n"
+-		"# This file is generated automatically by yabootcfg\n"
+-		"#\n\n");
+-	ptr = gen_title();
+-	fprintf(fp, "init-message=\"%s\"\n", ptr);
+-	FWUTIL_FREE (ptr);
+-	fprintf(fp, "boot=%s\n", find_boot());
+-	ptr = of_path(root, 0);
+-	fprintf(fp, "device=%s\n", ptr);
+-	FWUTIL_FREE (ptr);
+-	ptr = of_path(root, 1);
+-	fprintf(fp, "partition=%s\n", ptr);
+-	FWUTIL_FREE (ptr);
+-	fprintf(fp, "delay=10\n"
+-		"timeout=40\n"
+-		"install=/usr/lib/yaboot/yaboot\n"
+-		"magicboot=/usr/lib/yaboot/ofboot\n\n");
+-
+-	if (flags & FWYABOOT_CDBOOT)
+-		fprintf(fp, "enablecdboot\n");
+-	if (flags & FWYABOOT_OFBOOT)
+-		fprintf(fp, "enableofboot\n");
+-	if (flags & FWYABOOT_NETBOOT)
+-		fprintf(fp, "enablenetboot\n");
+-	fprintf(fp, "\n");
+-
+-	fprintf(fp, "image=/boot/vmlinux\n"
+-		"\tlabel=linux\n"
+-		"\troot=%s\n"
+-		"\tread-only\n\n", root);
+-	os_prober(fp);
+-}
+-
+-int fwyaboot_install()
+-{
+-	int ret;
+-	FILE *pp;
+-
+-	pp = popen("/usr/sbin/mkofboot &> " FWYABOOT_LOGDEV, "w");
+-	fprintf(pp, "y\n");
+-	ret = pclose(pp);
+-	ret += system("/usr/sbin/ybin -v &> " FWYABOOT_LOGDEV);
+-	return ret;
+-}
+-
+-#if 0
+-int main()
+-{
+-	fwyaboot_create_menu(stdout, FWYABOOT_CDBOOT | FWYABOOT_OFBOOT | FWYABOOT_NETBOOT);
+-	//printf("%d\n", fwyaboot_install());
+-	return 0;
+-}
+-#endif
+diff --git a/libfwyabootcfg/libfwyabootcfg.h b/libfwyabootcfg/libfwyabootcfg.h
+deleted file mode 100644
+index c2edb17..0000000
+--- a/libfwyabootcfg/libfwyabootcfg.h
++++ /dev/null
+@@ -1,27 +0,0 @@
+-/*
+- *  libfwyabootcfg.h for frugalwareutils
+- * 
+- *  Copyright (c) 2008 by Miklos Vajna <vmiklos@frugalware.org>
+- * 
+- *  This program is free software; you can redistribute it and/or modify
+- *  it under the terms of the GNU General Public License as published by
+- *  the Free Software Foundation; either version 2 of the License, or
+- *  (at your option) any later version.
+- *
+- *  This program is distributed in the hope that it will be useful,
+- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- *  GNU General Public License for more details.
+- *
+- *  You should have received a copy of the GNU General Public License
+- *  along with this program; if not, write to the Free Software
+- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
+- *  USA.
+- */
+-
+-#define FWYABOOT_CDBOOT  0x01
+-#define FWYABOOT_OFBOOT  0x02
+-#define FWYABOOT_NETBOOT 0x04
+-
+-void fwyaboot_create_menu(FILE *fp, int flags);
+-int fwyaboot_install();
+diff --git a/raidconfig/raidconfig.c b/raidconfig/raidconfig.c
+index bf474ac..08f3096 100644
+--- a/raidconfig/raidconfig.c
++++ b/raidconfig/raidconfig.c
+@@ -142,7 +142,7 @@ int run(int argc, char **argv)
+ 	while(1)
+ 	{
+ 		devname = ask_devname();
+-		if(devname && !strncmp(devname,"/dev/",5))
++		if(devname && !strncmp(devname,"/dev/md",7))
+ 			break;
+ 	}
+ 	level = ask_level();
+diff --git a/timeconfig/timeconfig.c b/timeconfig/timeconfig.c
+index 87be1e8..b52f8d1 100644
+--- a/timeconfig/timeconfig.c
++++ b/timeconfig/timeconfig.c
+@@ -133,7 +133,7 @@ int run(int argc, char **argv)
+ 	fwdialog_backtitle(_("Time configuration"));
+ 
+ 	ptr = ask_mode();
+-	fwtime_hwclockconf(ptr);
++	fwtime_hwclockconf("/",ptr);
+ 	free(ptr);
+ 	zones = zone_scan(ZONEDIR);
+ 	ptr = ask_zone(zones);
+diff --git a/yabootcfg/Makefile b/yabootcfg/Makefile
+deleted file mode 100644
+index a48bb79..0000000
+--- a/yabootcfg/Makefile
++++ /dev/null
+@@ -1,44 +0,0 @@
+-# Makefile for frugalwareutils
+-#
+-# Copyright (C) 2008 Miklos Vajna <vmiklos@frugalware.org>
+-#
+-# This program is free software; you can redistribute it and/or modify
+-# it under the terms of the GNU General Public License as published by
+-# the Free Software Foundation; version 2 of the License.
+-#
+-# This program is distributed in the hope that it will be useful,
+-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+-# General Public License for more details.
+-#
+-# You should have received a copy of the GNU General Public License
+-# along with this program; if not, write to the Free Software
+-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+-#
+-
+--include ../config.mak
+-CFLAGS = $(LIB_CFLAGS) -DVERSION="\"$(VERSION)\""
+-LDFLAGS=-ldialog -lcurses -lm
+-CFLAGS += $(shell pkg-config --cflags glib-2.0)
+-LDFLAGS += $(shell pkg-config --libs glib-2.0)
+-
+-# fwutil
+-CFLAGS += -I../libfwutil
+-LDFLAGS += -L../libfwutil -lfwutil
+-
+-# fwdialog
+-CFLAGS += -I../libfwdialog
+-LDFLAGS += -L../libfwdialog -lfwdialog
+-
+-# fwyabootcfg
+-CFLAGS += -I../libfwyabootcfg
+-LDFLAGS += -L../libfwyabootcfg -lfwyabootcfg
+-
+-# setup
+-CFLAGS += -I../setup
+-
+-SUBDIRS = po
+-CONFNAME = yabootcfg
+-
+--include ../Makefile.inc
+--include ../Makefile.conf.inc
+diff --git a/yabootcfg/po/Makefile b/yabootcfg/po/Makefile
+deleted file mode 100644
+index 84dfadf..0000000
+--- a/yabootcfg/po/Makefile
++++ /dev/null
+@@ -1,25 +0,0 @@
+-# Makefile for frugalwareutils
+-#
+-# Copyright (C) 2008 Miklos Vajna <vmiklos@frugalware.org>
+-#
+-# This program is free software; you can redistribute it and/or modify
+-# it under the terms of the GNU General Public License as published by
+-# the Free Software Foundation; version 2 of the License.
+-#
+-# This program is distributed in the hope that it will be useful,
+-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+-# General Public License for more details.
+-#
+-# You should have received a copy of the GNU General Public License
+-# along with this program; if not, write to the Free Software
+-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+-#
+-
+-DOMAIN=yabootcfg
+-
+-top_srcdir = ..
+-
+--include ../../config.mak
+--include ../../Makefile.inc
+--include ../../Makefile.po.inc
+diff --git a/yabootcfg/po/POTFILES.in b/yabootcfg/po/POTFILES.in
+deleted file mode 100644
+index f9c31ec..0000000
+--- a/yabootcfg/po/POTFILES.in
++++ /dev/null
+@@ -1 +0,0 @@
+-yabootcfg.c
+diff --git a/yabootcfg/yabootcfg.c b/yabootcfg/yabootcfg.c
+deleted file mode 100644
+index 0ee5b2e..0000000
+--- a/yabootcfg/yabootcfg.c
++++ /dev/null
+@@ -1,125 +0,0 @@
+-/*
+- *  yabootcfg.c for frugalwareutils
+- * 
+- *  Copyright (c) 2008 by Miklos Vajna <vmiklos@frugalware.org>
+- * 
+- *  This program is free software; you can redistribute it and/or modify
+- *  it under the terms of the GNU General Public License as published by
+- *  the Free Software Foundation; either version 2 of the License, or
+- *  (at your option) any later version.
+- *
+- *  This program is distributed in the hope that it will be useful,
+- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- *  GNU General Public License for more details.
+- *
+- *  You should have received a copy of the GNU General Public License
+- *  along with this program; if not, write to the Free Software
+- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
+- *  USA.
+- */
+-
+-#include <stdio.h>
+-#include <glib.h>
+-#include <libfwdialog.h>
+-#include <libfwutil.h>
+-#include <libfwyabootcfg.h>
+-#include <setup.h>
+-#include <stdlib.h>
+-#include <dirent.h>
+-#include <sys/types.h>
+-#include <sys/stat.h>
+-#include <unistd.h>
+-#include <libintl.h>
+-
+-int ask_flags()
+-{
+-	char *flags[] = 
+-	{
+-		"O", _("Include OpenFirmware option"), "On",
+-		"N", _("Include Network boot option"), "On",
+-		"C", _("Include CD Boot option"), "On"
+-	};
+-	int i, ret = 0;
+-	GList *items;
+-
+-	items = fwdialog_checklist(_("Installing Yaboot bootloader"),
+-			_("You can now configure some options, regarding the installation of the Yaboot bootloader"),
+-			0, 0, 0, 3, flags, FLAG_CHECK);
+-	for (i = 0; i < g_list_length(items); i++) {
+-		char *item = g_list_nth_data(items, i);
+-		switch (item[0]) {
+-			case 'O':
+-				ret |= FWYABOOT_OFBOOT;
+-				break;
+-			case 'N':
+-				ret |= FWYABOOT_NETBOOT;
+-				break;
+-			case 'C':
+-				ret |= FWYABOOT_CDBOOT;
+-				break;
+-			default:
+-				return 0;
+-		}
+-	}
+-	return ret;
+-}
+-
+-int run(int argc, char **argv)
+-{
+-	FILE *input = stdin, *fp;
+-	dialog_state.output = stderr;
+-	int flags, needrelease;
+-	struct stat buf;
+-
+-	if(argc > 1)
+-	{
+-		if(!strcmp(argv[1], "--help"))
+-		{
+-			system("man yabootcfg");
+-			return(0);
+-		}
+-		else if(!strcmp(argv[1], "--version"))
+-		{
+-			printf("%s %s\n", argv[0], VERSION);
+-			return(0);
+-		}
+-	}
+-
+-	fwutil_i18ninit(__FILE__);
+-	init_dialog(input, dialog_state.output);
+-	fwdialog_backtitle(_("Yaboot bootloader"));
+-
+-	flags = ask_flags();
+-	dialog_msgbox(_("Please wait"), _("Attempting to install the Yaboot bootloader..."), 0, 0, 0);
+-	needrelease = fwutil_init();
+-	// backup the old config if there is any
+-	if(!stat("/etc/yaboot.conf", &buf))
+-		rename("/etc/yaboot.conf", "/etc/yaboot.conf.old");
+-	fp = fopen("/etc/yaboot.conf", "w");
+-	if(fp)
+-	{
+-		fwyaboot_create_menu(fp, flags);
+-		fclose(fp);
+-	}
+-	fwyaboot_install();
+-	if(needrelease)
+-		fwutil_release();
+-
+-	if(argv!=NULL)
+-		end_dialog();
+-	return(0);
+-}
+-
+-plugin_t plugin =
+-{
+-	"yabootcfg",
+-	"Yaboot bootloader",
+-	run,
+-	NULL // dlopen handle
+-};
+-
+-plugin_t *info()
+-{
+-	return &plugin;
+-}

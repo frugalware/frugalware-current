@@ -1,27 +1,65 @@
+sysvinit_units=(@_F_sysvinit_units@)
+systemd_units=(@_F_systemd_units@)
+
+post_install()
+{
+	local unit
+	local op
+
+	getent group pgdb > /dev/null 2>&1 || groupadd -g 31 pgdb
+	getent passwd postgres > /dev/null 2>&1 || useradd -u 31 -g pgdb -d /var/lib/pgsql -s /bin/bash postgres
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
+}
+
+post_upgrade()
+{
+	getent group pgdb > /dev/null 2>&1 || groupadd -g 31 pgdb
+	getent passwd postgres > /dev/null 2>&1 || useradd -u 31 -g pgdb -d /var/lib/pgsql -s /bin/bash postgres
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	systemctl daemon-reload >/dev/null 2>&1
+}
+
 pre_remove()
 {
-	## remove the init script if is ON
-	if [ -e /usr/sbin/chkconfig ]; then
-		if LC_ALL= LANG= /usr/sbin/chkconfig --list rc.postgresql|grep "on" >/dev/null; then
-             		/usr/sbin/chkconfig --del rc.postgresql
-		fi
-        fi
+	local unit
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
 }
 
 post_remove()
 {
-	## remove user
-	if [  `egrep '^postgres:' /etc/passwd` ]; then
-           	/usr/sbin/userdel postgres &>/dev/null
-		rm -rf /var/spool/mail/postgres
-        fi
-	## the group
-	if [ `egrep '^pgdb:' /etc/group` ]; then
-		/usr/sbin/groupdel pgdb &>/dev/null
-	fi
+	getent passwd postgres > /dev/null 2>&1 && userdel postgres
+	getent group pgdb > /dev/null 2>&1 && groupdel pgdb
+
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1
 shift
-
 $op $*

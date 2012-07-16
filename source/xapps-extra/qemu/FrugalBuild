@@ -3,10 +3,12 @@
 
 USE_DEVEL=${USE_DEVEL:-"n"}
 
+# TODO: considering adding support for KSM
+
 pkgname=qemu
 pkgver=1.1.0_1
 Fuse $USE_DEVEL && pkgver=svn6369
-pkgrel=1
+pkgrel=4
 Fuse $USE_DEVEL && pkgrel=1
 pkgdesc="QEMU is a FAST! processor emulator"
 url="http://www.nongnu.org/qemu/"
@@ -17,14 +19,12 @@ groups=('xapps-extra')
 archs=('i686' 'x86_64')
 up2date="Flasttar http://wiki.qemu.org/download"
 source=(http://wiki.qemu.org/download/${pkgname}-${pkgver//_/-}.tar.bz2 \
-	rc.qemu rc.qemu-hu.po \
-	rc.qemu-system qemu-system README.Frugalware)
+	qemu.conf qemu-guest-agent.service 99-qemu-guest-agent.rules README.Frugalware)
 sha1sums=('8600765831c137a833854f1aac0313f25089a200' \
-          '563c18fe297f1e79b0172e3b426310ac5fbf1a83' \
-          'ce31601e5712057938227923d4a9adf16eeb36e7' \
-          'd7098b739aa58a004dc61e8e4124751aefad47b3' \
-          'b1c2b53ef74d1461bbd4f83b8a4f1180187f6a30' \
-          '17454e4d54872d32071d478774f96cbab8bb0902')
+          '3de44fdad30dfe54a552b4b1af9dac8616dd274e' \
+          '435373031bc0a1fed8abadab912460ddf98bc1c2' \
+          'c997e6afd997aeb87791664c2583a009704a6792' \
+          '11fea2f36b44297e241d8cbbdbc4cd14f1150b72')
 
 if Fuse $USE_DEVEL; then
 	source=(${source[1]} ${source[2]} ${source[3]} ${source[4]} ${source[5]})
@@ -34,6 +34,12 @@ if Fuse $USE_DEVEL; then
 	Finclude scm
 fi
 
+subpkgs=("qemu-guest")
+subdescs=("Files for use in QEMU guests.")
+subgroups=('apps-extra')
+subarchs=('i686 x86_64')
+subdepends=('glib2')
+
 build()
 {
 	if Fuse $USE_DEVEL; then
@@ -41,8 +47,16 @@ build()
 	fi
 	Fcd $pkgname-${pkgver%%_*}
 	Fbuild --audio-drv-list=alsa,oss --enable-spice
-	Ffile /etc/sysconfig/qemu-system
 	Fdoc README.Frugalware
+	Ffile /etc/binfmt.d/qemu.conf
+	Ffile /lib/systemd/system/qemu-guest-agent.service
+	Ffile /lib/udev/rules.d/99-qemu-guest-agent.rules
+	if [ "$CARCH" = "i686" -o "$CARCH" = "x86_64" ]; then
+		sed -ri '/qemu-i[34]86/ d' $Fdestdir/etc/binfmt.d/qemu.conf || Fdie
+	fi
+	Fsplit qemu-guest /lib/systemd/system/qemu-guest-agent.service
+	Fsplit qemu-guest /lib/udev/rules.d/99-qemu-guest-agent.rules
+	Fsplit qemu-guest /usr/bin/qemu-ga
 }
 
 # optimization OK

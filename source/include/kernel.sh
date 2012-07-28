@@ -160,10 +160,12 @@ install="src/kernel.install"
 
 if ! Fuse DEVEL; then
 	source=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.xz")
-
+	signatures=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.sign")
 	if [ "$_F_kernel_stable" -gt 0 ]; then
 		source=("${source[@]}" \
 			"http://www.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.xz")
+		signatures=("${signatures[@]}" \
+			"http://www.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.sign")
 	fi
 else
 	if [ -z "$_F_scm_tag" ]; then
@@ -175,9 +177,11 @@ fi
 for i in "${_F_kernel_patches[@]}"
 do
 	source=("${source[@]}" "$i")
+	signatures=("${signatures[@]}" '')
 done
 
 source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.arm')
+signatures=("${signatures[@]}" '' '' '')
 
 ###
 # * subpkg()

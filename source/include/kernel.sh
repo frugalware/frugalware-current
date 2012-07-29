@@ -130,7 +130,6 @@ fi
 # * options()
 # * up2date
 # * source()
-# * install
 ###
 _kernel_up2date()
 {
@@ -156,7 +155,6 @@ options=('nodocs' 'genscriptlet')
 up2date="eval _kernel_up2date"
 # this can be removed after Frualware 1.5 is out
 replaces=('redirfs' 'dazuko')
-install="src/kernel.install"
 
 if ! Fuse DEVEL; then
 	source=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.xz")

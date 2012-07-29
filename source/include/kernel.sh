@@ -122,7 +122,7 @@ fi
 
 ###
 # * url
-# * rodepends
+# * depends
 # * makedepends
 # * groups
 # * replaces
@@ -143,7 +143,7 @@ _kernel_up2date()
 	fi
 }
 url="http://www.kernel.org"
-rodepends=('module-init-tools' 'sed')
+depends=('kmod' 'sed')
 if [ -z "$_F_kernel_name" ]; then
 	makedepends=("${makedepends[@]}" 'unifdef')
 fi
@@ -324,6 +324,8 @@ Fbuildkernel()
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/source
 
 	Fkernelver_compress_modules
+
+	Fexec /sbin/depmod -a -b $Fdestdir $_F_kernel_ver$_F_kernel_uname || Fdie
 
 	# scriptlets
 	cp $Fincdir/kernel.install $Fsrcdir || Fdie

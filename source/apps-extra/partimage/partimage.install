@@ -1,3 +1,6 @@
+sysvinit_units=(@_F_sysvinit_units@)
+systemd_units=(@_F_systemd_units@)
+
 post_install()
 {
 	if ! grep -q '^partimag:' /etc/group ; then
@@ -6,20 +9,65 @@ post_install()
 	if ! grep -q '^partimag:' /etc/passwd ; then
                 useradd -u 45 -g 45 partimag
 	fi
+
+	local unit
+	local op
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
 }
 
 post_upgrade()
 {
-	post_install
+	if ! grep -q '^partimag:' /etc/group ; then
+		groupadd -g 45 partimag
+	fi
+	if ! grep -q '^partimag:' /etc/passwd ; then
+                useradd -u 45 -g 45 partimag
+	fi
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 pre_remove()
 {
+	local unit
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
+}
+
+post_remove()
+{
 	userdel partimag
 	groupdel partimag
+
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1
 shift
-
 $op $*

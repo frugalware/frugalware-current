@@ -331,10 +331,6 @@ Fbuildkernel()
 	Fexec /sbin/depmod -a -b $Fdestdir $_F_kernel_ver$_F_kernel_uname || Fdie
 
 	# scriptlets
-	cp $Fincdir/kernel.install $Fsrcdir || Fdie
-	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel.install
-	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel.install
-	Fsed '$_F_kernel_path' "$_F_kernel_path" $Fsrcdir/kernel.install
 	cp $Fincdir/kernel-source.install $Fsrcdir || Fdie
 	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel-source.install
 	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel-source.install

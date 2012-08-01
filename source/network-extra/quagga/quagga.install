@@ -1,3 +1,6 @@
+sysvinit_units=(@_F_sysvinit_units@)
+systemd_units=(@_F_systemd_units@)
+
 post_install()
 {
 	if ! grep -q '^quagga:' /etc/group; then
@@ -8,34 +11,65 @@ post_install()
 		useradd -u 150 -d /dev/null -g quagga quagga
 	fi
 
-	chown 150:150 /var/run/quagga
-	chown 150:150 -R /etc/quagga
-	chown 150:150 -R /var/log/quagga
-}
+	local unit
+	local op
 
-pre_upgrade()
-{
-	
-	if [ -e /sbin/service ]; then
-		/sbin/service quagga stop
-	fi
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
 }
 
 post_upgrade()
 {
-	post_install
-	if [ -e /sbin/service ]; then
-		/sbin/service quagga start
+	if ! grep -q '^quagga:' /etc/group; then
+		groupadd -g 150 quagga
 	fi
+
+	if ! grep -q '^quagga:' /etc/passwd; then
+		useradd -u 150 -d /dev/null -g quagga quagga
+	fi
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 pre_remove()
 {
+	local unit
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
+}
+
+post_remove()
+{
 	userdel quagga &> /dev/null
 	groupdel quagga &> /dev/null
+
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1
 shift
-
 $op $*

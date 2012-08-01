@@ -3,8 +3,8 @@
 
 pkgname=mysql
 pkgver=5.5.25
-pkgrel=1
-extrapkgver=
+pkgrel=6
+extrapkgver=a
 pkgdesc="A fast SQL database server"
 url="http://www.mysql.com/"
 backup=(etc/my.cnf etc/sysconfig/mysqld)
@@ -16,17 +16,21 @@ Finclude cmake
 groups=('apps-extra')
 archs=('i686' 'x86_64' 'arm')
 up2date="lynx -dump http://dev.mysql.com/downloads/rss.php|grep -i mysql.*server.*ga|sed 's/.* (\(.*\) GA.*/\1/'|Fsort|tail -n 1"
-mirror="ftp://ftp.crysys.hu/pub/mysql/"
+mirror="http://cdn.mysql.com"
 source=($mirror/Downloads/MySQL-5.5/$pkgname-$pkgver$extrapkgver.tar.gz \
-	rc.mysqld my.cnf mysqld \
-	fix-non-portable-code-client-plugin.patch)
-signatures=($source.asc '' '' '' '')
+	rc.mysqld my.cnf mysqld.service mysql_wait mysql_setup mysql_run \
+	fix-non-portable-code-client-plugin.patch mysqld)
+signatures=($source.asc '' '' '' '' '' '' '' '')
 
 subpkgs=('libmysqlclient' 'libmysqld')
 subdescs=('MySQL client library.' 'Embedded MySQL Server Library')
 subdepends=('openssl>=1.0.0 zlib' 'libstdc++ openssl>=1.0.0 zlib libaio')
 subgroups=('lib' 'lib-extra')
 subarchs=('i686 x86_64 arm' 'i686 x86_64 arm')
+
+_F_sysvinit_units=(mysqld)
+_F_systemd_units=(mysqld=)
+Finclude systemd
 
 build()
 {
@@ -53,7 +57,6 @@ build()
 	make DESTDIR=$Fdestdir install || return 1 # fast install is not supported, so we need to do it manually
 	Ffile my.cnf /etc/my.cnf
 	Frcd2 mysqld
-	Ffile /etc/sysconfig/mysqld
 	Fmv usr/mysql-test usr/share/mysql
 	Fmv usr/sql-bench usr/share/mysql
 	Fmv usr/docs/ChangeLog /usr/share/doc/mysql-$pkgver
@@ -64,10 +67,21 @@ build()
 d $Flocalstatedir/run/mysql 0755 mysql mysql -
 EOF
 
+	Fmkdir /var/lib/mysql /var/log/mysql
+	Fdirschown /var/lib/mysql 27 27
+	Fdirschown /var/log/mysql 27 27
+
 	Fsplit libmysqlclient usr/lib/libmysqlclient* usr/include/mysql
-	
+
 	Fsplit libmysqld usr/lib/libmysqld.a
 	Fsplit libmysqld usr/bin/*_embedded
-}
+
+	Ffile /etc/sysconfig/mysqld
+	Fexe /usr/bin/mysql_wait
+	Fexe /usr/bin/mysql_setup
+	Fexe /usr/bin/mysql_run
+	Ffile /lib/systemd/system/mysqld.service
+	Fgenscriptlet
+}	
 
 # optimization ok

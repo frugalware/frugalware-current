@@ -3,14 +3,14 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=firefox
-pkgver=12.0
+pkgver=14.0.1
 pathver=${pkgver} # version used in path names
 pkgrel=1
 pkgdesc="Mozilla Firefox web browser"
 url="http://www.mozilla.org/products/firefox/"
 depends=('gtk+2>=2.20.0-2' 'libidl' 'desktop-file-utils' 'nss>=3.13.1' 'glibc>=2.6' 'dbus-glib' 'curl>=7.19.0' 'nspr>=4.9' \
 	'lcms' 'libxau>=1.0.4' 'libxdmcp' 'libxft>=2.1.13-2' 'libxt' 'libstdc++' 'libxdamage' 'libice' 'bzip2' 'alsa-lib' \
-	'libnotify' 'wireless_tools' 'cairo' 'sqlite3>=3.7.9-2')
+	'libnotify' 'wireless_tools' 'cairo' 'sqlite3>=3.7.9-2' 'startup-notification' 'libvpx')
 makedepends=('zip' 'yasm')
 groups=('xapps')
 archs=('i686' 'x86_64')
@@ -20,67 +20,37 @@ source=(ftp://ftp.mozilla.org/pub/mozilla.org/firefox/releases/$pkgver/source/fi
 	$pkgname.desktop \
 	prefs.js \
 	asciidel.patch \
-	gcc47.patch \
-	gfx.patch)
-signatures=("${source[0]}.asc" '' '' '' '' '' '')
-options=('scriptlet')
+	mozconfig \
+	gfx.patch \
+	sharedlibs.patch )
 
-Fconfopts="${Fconfopts[@]} --with-default-mozilla-five-home=/usr \
-		--with-system-nspr \
-		--with-system-nss \
-		--with-system-jpeg \
-		--with-system-zlib \
-		--with-system-bz2 \
-		--with-pthreads \
-		--with-distribution-id=Frugalware \
-		--enable-crypto \
-		--enable-official-branding \
-		--enable-svg \
-		--enable-mathml \
-		--enable-strip \
-		--enable-xft \
-		--enable-toolkit-cairo-gtk2 \
-		--enable-default-toolkit=cairo-gtk2 \
-		--enable-nspr-autoconf \
-		--enable-single-profile \
-		--enable-application=browser \
-		--enable-image-decoders=all \
-		--enable-image-encoders=all \
-		--enable-system-cairo \
-		--enable-safe-browsing \
-		--enable-system-lcms \
-		--enable-system-sqlite \
-		--enable-necko-protocols=all \
-		--disable-debug \
-		--disable-tests \
-		--disable-mochitest \
-		--disable-logging \
-		--disable-installer \
-		--disable-activex \
-		--disable-activex-scripting \
-		--disable-pedantic \
-		--disable-mailnews \
-		--disable-calendar \
-		--disable-composer \
-		--disable-profilesharing \
-		--disable-crashreporter"
+signatures=("${source[0]}.asc" '' '' '' '' '' '' '')
+options=('scriptlet')
 
 build() {
 	unset MAKEFLAGS
 	Fcd mozilla-release
-	
+
 	# Autodetect language.
 	sed -i '/intl.locale.matchOS/s/false/true/' modules/libpref/src/init/all.js || Fdie
 
 	# fix nspr as well
-	Fsed '"nspr/' '"nspr4/' ipc/chromium/src/base/basictypes.h
+        #Fsed '"nspr/' '"nspr4/' ipc/chromium/src/base/basictypes.h
+
+	cp "$Fsrcdir/mozconfig" .mozconfig || Fdie
+
+	export CXXFLAGS="-fpermissive"
+        export LDFLAGS="-Wl,-rpath,/usr/lib/firefox -Wl,-O1,--sort-common,--hash-style=gnu,--as-needed"
 
 	export MOZILLA_OFFICIAL=1
 	export BUILD_OFFICIAL=1
 
-#	Fsed '\-0' '\-9' config/make-jars.pl
+	Fpatchall
 
-	Fbuild --enable-optimize="-O2"
+	make -j1 -f client.mk build MOZ_MAKE_FLAGS="$MAKEFLAGS" || Fdie
+
+        make -j1 -f client.mk DESTDIR="$Fdestdir" install || Fdie
+
 
 	# Get rid of versions in path names.
 	Fmv /usr/include/$pkgname-$pathver /usr/include/$pkgname
@@ -119,7 +89,7 @@ build() {
 
 	# Change the default icons
 	Fln /usr/lib/$pkgname/icons /usr/lib/$pkgname/chrome/icons/default
-	
+
 	#Preferences file
 	Finstall 644 prefs.js usr/lib/$pkgname/defaults/pref/prefs.js
 }

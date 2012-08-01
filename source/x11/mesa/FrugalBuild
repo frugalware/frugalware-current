@@ -8,7 +8,7 @@
 USE_DEBUG=${USE_DEBUG:-"n"}
 USE_DEVEL=${USE_DEVEL:-"n"}
 USE_DRI=${USE_DRI:-"y"}
-USE_DRI_OLD=${USE_DRI_OLD:-"n"}
+USE_DRI_OLD=${USE_DRI_OLD:-"y"}
 USE_EGL=${USE_EGL:-"y"}
 USE_GALLIUM=${USE_GALLIUM:-"y"}
 USE_GLU=${USE_GLU:-"y"}
@@ -20,15 +20,15 @@ USE_WAYLAND_EGL=${USE_WAYLAND_EGL:-"n"}
 pkgname=mesa
 origname=Mesa
 _F_archive_name="MesaLib"
-pkgver=8.0.2
-pkgrel=3
+pkgver=8.0.3
+pkgrel=1
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 up2date="Flasttar ftp://ftp.freedesktop.org/pub/$pkgname/current/"
 
 # libgl: provided by libgl, fglrx and nvidia packages
 depends=()
-makedepends=('makedepend')
+makedepends=('makedepend' 'libdrm-old' 'libdrm-nouveau')
 # should be mesa-*=$pkgver but apps should not depends on mesa anymore first, unless specific to mesa
 rodepends=('libgl')
 archs=('i686' 'x86_64' 'arm')
@@ -43,14 +43,16 @@ if Fuse DEVEL; then
 	Finclude scm
 else
 	source=("ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaLib-$pkgver.tar.bz2")
-	sha1sums=('bbb55d81294425137ee66c7389fbb474a43c9ab9')
+	sha1sums=('768bdb2fe133bbcccd3323b79484d0d17bc0d05d')
 fi
 
 source=("${source[@]}" \
+	mesa-8.0.3-llvm-3.1-fixes.patch \
 	libGL.la \
 	libGLU.la)
 
 sha1sums=("${sha1sums[@]}" \
+	'4ab1665ceda9efdc54c5270605bb2163c45e60be' \
 	'650973d708466f5c4c21e70c1f1f6c118b27e614' \
 	'12c57ac5e7e8a94d4d41b0f37b0fb3f470791c39')
 
@@ -59,8 +61,8 @@ subdescs=('Mesa DRI OpenGL files.' 'Mesa OpenGL headers files.')
 subprovides=('libgl-mesa' 'libgl-headers')
 subreplaces=('' '')
 subconflicts=('fglrx nvidia' 'nvidia')
-subdepends=('expat libdrm libxdamage libxxf86vm' 'dri2proto glproto')
-subrodepends=("libgl-headers-mesa>=$pkgver-$pkgrel libglapi libglx mesa-dri-drivers>=$pkgver-$pkgrel libgbm>=$pkgver-$pkgrel" '')
+subdepends=('expat libxdamage libxxf86vm' 'dri2proto glproto')
+subrodepends=("libgl-headers-mesa>=$pkgver-$pkgrel libglapi libglx mesa-dri-drivers>=$pkgver-$pkgrel libgbm>=$pkgver-$pkgrel libdrm libdrm-nouveau" '')
 # Remove mesa-dri-drivers when situation is more clearer about gles
 # Remove libgbm rodepend after 1.6 it's only for help migration to mesa 7.11
 subgroups=('x11' 'x11')
@@ -102,7 +104,7 @@ subprovides=("${subprovides[@]}" 'libgles-mesa')
 subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
 subdepends=("${subdepends[@]}" '')
-subrodepends=("${subrodepends[@]}" 'libdrm libglapi khr-headers')
+subrodepends=("${subrodepends[@]}" 'libdrm libdrm-nouveau libglapi khr-headers')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" "${archs[*]}")
 
@@ -122,8 +124,8 @@ if Fuse EGL; then
 	subprovides=("${subprovides[@]}" 'libegl-mesa')
 	subreplaces=("${subreplaces[@]}" '')
 	subconflicts=("${subconflicts[@]}" '')
-	subdepends=("${subdepends[@]}" 'dri2proto glproto libdrm')
-	subrodepends=("${subrodepends[@]}" 'khr-headers libgbm')
+	subdepends=("${subdepends[@]}" 'dri2proto glproto')
+	subrodepends=("${subrodepends[@]}" 'khr-headers libgbm libdrm libdrm-nouveau')
 	subgroups=("${subgroups[@]}" 'x11')
 	subarchs=("${subarchs[@]}" "${archs[*]}")
 
@@ -190,11 +192,6 @@ build() {
 	Fcd $origname-$pkgver
 	Fpatchall
 
-	if [ "$CARCH" = "arm" ]; then
-		#disable intel support
-		Fsed "i915 i965 " "" configure
-	fi
-
 	if Fuse DEBUG; then
 		Fconfopts="$Fconfopts --enable-debug"
 	else
@@ -226,7 +223,12 @@ build() {
 	fi
 
 	if Fuse DRI_OLD; then
-		Fconfopts="$Fconfopts --with-dri-drivers=yes"
+		# Disable intel on ARM until a better solution is found.
+		if [ "$CARCH" == arm ]; then
+			Fconfopts="$Fcontopts --with-dri-drivers=nouveau,r200,radeon,swrast"
+		else
+			Fconfopts="$Fconfopts --with-dri-drivers=yes"
+		fi
 	else
 		Fconfopts="$Fconfopts --with-dri-drivers=no"
 	fi
@@ -245,6 +247,7 @@ build() {
 	fi
 
 	if Fuse GALLIUM; then
+		GALLIUM_DRIVERS="$GALLIUM_DRIVERS,i915"
 		GALLIUM_DRIVERS="$GALLIUM_DRIVERS,nouveau"
 		GALLIUM_DRIVERS="$GALLIUM_DRIVERS,r300,r600"
 		GALLIUM_DRIVERS="$GALLIUM_DRIVERS,svga"
@@ -271,8 +274,8 @@ build() {
 		--enable-gles1 \
 		--enable-gles2 \
 		--enable-glx-tls \
+		--enable-shared-dricore \
 		--enable-shared-glapi
-#		--enable-shared-dricore
 
 	make || Fdie
 

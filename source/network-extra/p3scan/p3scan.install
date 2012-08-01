@@ -1,7 +1,8 @@
+sysvinit_units=(@_F_sysvinit_units@)
+systemd_units=(@_F_systemd_units@)
+
 post_install()
 {
-	[ -h etc/p3scan/p3scan.mail ] && rm -f etc/p3scan/p3scan.mail
-
 	lang=`echo $LANG|cut -d _ -f 1`
 
 	[ "$lang" == "de" ] && lang="ge"
@@ -9,28 +10,60 @@ post_install()
 	[ "$lang" == "pt" -a "`echo $LANG|cut -d . -f 1|cut -d @ -f 1`" == "pt_BR" ] \
 	&& lang="pt-br"
 
-	if [ ! -e etc/p3scan/p3scan.mail -a -e etc/p3scan/p3scan-$lang.mail ] ; then
-		cp etc/p3scan/p3scan-$lang.mail etc/p3scan/p3scan.mail
+	if [ ! -e /etc/p3scan/p3scan.mail -a -e /etc/p3scan/p3scan-$lang.mail ] ; then
+		cp /etc/p3scan/p3scan-$lang.mail /etc/p3scan/p3scan.mail
 	else
-		cp etc/p3scan/p3scan-en.mail etc/p3scan/p3scan.mail
+		cp /etc/p3scan/p3scan-en.mail /etc/p3scan/p3scan.mail
 	fi
 
-	echo "Please have a look on README.frugalware to know how to setup p3scan."
-}
+	local unit
+	local op
 
-pre_remove()
-{
-	[ -f var/run/p3scan/p3scan.pid ] && etc/rc.d/rc.p3scan stop
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
 }
 
 post_upgrade()
 {
-	[ -f var/run/p3scan/p3scan.pid ] && etc/rc.d/rc.p3scan restart
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	systemctl daemon-reload >/dev/null 2>&1
+}
+
+pre_remove()
+{
+	local unit
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
+}
+
+post_remove()
+{
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1
 shift
-
 $op $*
-
-# vim: ft=sh

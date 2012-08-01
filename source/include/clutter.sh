@@ -69,13 +69,13 @@ _F_clutter_getver()
 # * archs
 ###
 
-_F_clutter_pkgurl="http://www.clutter-project.org/sources/"
+_F_clutter_pkgurl="http://source.clutter-project.org/sources/"
 if [ "$_F_clutter_devel" != "n" ]; then
 	up2date="lynx -dump $_F_clutter_pkgurl/$_F_clutter_name/\$(lynx -dump $_F_clutter_pkgurl/$_F_clutter_name/?M=D|grep '/'|sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
 else
 	up2date="lynx -dump $_F_clutter_pkgurl/$_F_clutter_name/\$(lynx -dump $_F_clutter_pkgurl/$_F_clutter_name/?M=D|grep '[0-9]\.[0-9]*[02468]/'|sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
 fi
-source=(http://www.clutter-project.org/sources/$_F_clutter_name/`_F_clutter_getver`/$_F_clutter_name-$pkgver.tar.bz2)
+source=(http://source.clutter-project.org/sources/$_F_clutter_name/`_F_clutter_getver`/$_F_clutter_name-$pkgver.tar.bz2)
 url="http://www.clutter-project.org/"
 groups=('xlib-extra')
 archs=('i686' 'x86_64')

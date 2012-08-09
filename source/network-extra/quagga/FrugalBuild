@@ -2,36 +2,50 @@
 # Maintainer: Krisztian VASAS <iron@frugalware.org>
 
 pkgname=quagga
-pkgver=0.99.20
-pkgrel=2
+pkgver=0.99.21
+pkgrel=1
 pkgdesc="A GPL licensed IPv4/IPv6 routing software"
 url="http://www.quagga.net/"
-depends=('net-snmp>=5.7')
-backup=('etc/sysconfig/quagga' 'etc/zebra.conf' 'etc/ospfd.conf' 'etc/ospf6d.conf' 'etc/bgpd.conf' \
-	'etc/ripd.conf' 'etc/ripngd.conf')
+depends=('net-snmp>=5.7' 'pcre')
+rodepends=('iproute2')
+backup=('etc/sysconfig/quagga' etc/quagga/{zebra.conf,ospf6d.conf,babeld.conf,ripngd.conf,bgpd.conf,ripd.conf,ospfd.conf})
 groups=('network-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump $url | grep Latest | sed -ne 's/.*mostly-stable: \[.*\]\(.*\)$/\1/; p'"
-source=($url/download/$pkgname-$pkgver.tar.gz \
-	rc.quagga quagga.sysconfig README.Frugalware)
-signatures=("${source[0]}.asc" '' '' '')
+source=($url/download/$pkgname-$pkgver.tar.xz \
+	rc.quagga README.Frugalware)
+signatures=("${source[0]/.tar.xz/.tar.asc}" '' '')
+_F_systemd_scriptlet="$pkgname.install"
+_F_sysvinit_units=(quagga)
+_F_systemd_units=(ripd= zebra= babeld= ospfd= isisd= ripngd= ospf6d= bgpd=)
+Finclude systemd
 
 build()
 {
 	Fbuild --localstatedir=/var/run/quagga --enable-snmp --enable-netlink \
 		--sysconfdir=/etc/quagga
-	Ffile $pkgname.sysconfig /etc/sysconfig/$pkgname
+	Ffilerel redhat/*.service /lib/systemd/system/
+	Frm /lib/systemd/system/isisd.service
+	Ffilerel redhat/quagga.sysconfig /etc/sysconfig/quagga
+	Ffilerel redhat/quagga.logrotate /etc/logrotate.d/quagga
+	Ffilerel redhat/quagga.pam /etc/pam.d/quagga
 	Frcd2
-	Fmkdir /var/run/quagga
-	Fmkdir /etc/quagga
 	Fmkdir /var/log/quagga
+	Fdirschown /var/log/quagga 150 150
+	Fdirschown /etc/quagga 150 150
+	Ffileschown /etc/quagga 150 150
 	Fdoc README.Frugalware
 	Frm /var/run
 	Fmkdir /etc/tmpfiles.d
+	for i in $Fdestdir/etc/quagga/*.conf.sample; do
+		j="$(basename "$i")"
+		Fmv "/etc/quagga/$j" "/etc/quagga/${j/.sample/}"
+	done
+	Frm /etc/quagga/\*.conf.sample2
 	cat > $Fdestdir/etc/tmpfiles.d/quagga.conf << EOF
-d $Flocalstatedir/run 0755 root root -
-d $Flocalstatedir/run/quagga 0755 root root -
+d $Flocalstatedir/run/quagga 0755 quagga quagga -
 EOF
+	Fgenscriptlet
 }
 
 # optimization OK

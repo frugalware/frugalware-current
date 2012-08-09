@@ -1,3 +1,6 @@
+sysvinit_units=(@_F_sysvinit_units@)
+systemd_units=(@_F_systemd_units@)
+
 post_install()
 {
 	if ! grep -q '^munin:' /etc/group ; then
@@ -7,13 +10,37 @@ post_install()
 		useradd -u 47 -g 47 -s /bin/false -c "Munin User" -d /var/lib/munin munin
 	fi
 
-	# permissions
-	chown -R munin:munin /var/log/munin
-	chown -R munin:munin /var/lib/munin
-	chown -R munin:munin /var/run/munin
-
 	# init plugins
 	munin-node-configure --shell 2>/dev/null | sh
+
+	local unit
+	local op
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
+}
+
+post_upgrade()
+{
+	munin-node-configure --shell --newer "${0%-*}" | sh
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 pre_remove()
@@ -22,6 +49,18 @@ pre_remove()
 		if [ ! -e $(readlink $plugin) ]; then
 			rm $plugin
 		fi
+	done
+
+	local unit
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
 	done
 }
 
@@ -36,20 +75,10 @@ post_remove()
 	# delete dangling symlinks
 	rm -f /var/lib/munin/plugin-state/*.state
 	rm -f /var/log/munin/munin-node.log*									
-}
 
-post_upgrade()
-{
-	munin-node-configure --shell --newer "${0%-*}" | sh
-
-	# permissions
-	chown -R munin:munin /var/log/munin
-	chown -R munin:munin /var/lib/munin
-	chown -R munin:munin /var/run/munin
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1
 shift
 $op $*
-
-# vim: ft=sh

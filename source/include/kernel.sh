@@ -122,7 +122,7 @@ fi
 
 ###
 # * url
-# * rodepends
+# * depends
 # * makedepends
 # * groups
 # * replaces
@@ -130,7 +130,6 @@ fi
 # * options()
 # * up2date
 # * source()
-# * install
 ###
 _kernel_up2date()
 {
@@ -143,7 +142,7 @@ _kernel_up2date()
 	fi
 }
 url="http://www.kernel.org"
-rodepends=('module-init-tools' 'sed')
+depends=('kmod' 'sed')
 if [ -z "$_F_kernel_name" ]; then
 	makedepends=("${makedepends[@]}" 'unifdef')
 fi
@@ -156,14 +155,15 @@ options=('nodocs' 'genscriptlet')
 up2date="eval _kernel_up2date"
 # this can be removed after Frualware 1.5 is out
 replaces=('redirfs' 'dazuko')
-install="src/kernel.install"
 
 if ! Fuse DEVEL; then
 	source=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.xz")
-
+	signatures=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.sign")
 	if [ "$_F_kernel_stable" -gt 0 ]; then
 		source=("${source[@]}" \
 			"http://www.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.xz")
+		signatures=("${signatures[@]}" \
+			"http://www.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.sign")
 	fi
 else
 	if [ -z "$_F_scm_tag" ]; then
@@ -175,9 +175,11 @@ fi
 for i in "${_F_kernel_patches[@]}"
 do
 	source=("${source[@]}" "$i")
+	signatures=("${signatures[@]}" '')
 done
 
 source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.arm')
+signatures=("${signatures[@]}" '' '' '')
 
 ###
 # * subpkg()
@@ -304,6 +306,9 @@ Fbuildkernel()
 			Ffilerel arch/x86/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
 		fi
 	fi
+	Fln config-$_F_kernel_ver$_F_kernel_uname /boot/config
+	Fln System.map-$_F_kernel_ver$_F_kernel_uname /boot/System.map
+	Fln $_F_kernel_path-$_F_kernel_ver$_F_kernel_uname /boot/$_F_kernel_path
 	Fmkdir /lib/{modules,firmware}
 	#unset MAKEFLAGS
 	make INSTALL_MOD_PATH=$Fdestdir $MAKEFLAGS modules_install || Fdie
@@ -321,11 +326,9 @@ Fbuildkernel()
 
 	Fkernelver_compress_modules
 
+	Fexec /sbin/depmod -a -b $Fdestdir $_F_kernel_ver$_F_kernel_uname || Fdie
+
 	# scriptlets
-	cp $Fincdir/kernel.install $Fsrcdir || Fdie
-	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel.install
-	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel.install
-	Fsed '$_F_kernel_path' "$_F_kernel_path" $Fsrcdir/kernel.install
 	cp $Fincdir/kernel-source.install $Fsrcdir || Fdie
 	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel-source.install
 	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel-source.install

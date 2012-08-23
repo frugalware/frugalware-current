@@ -1,0 +1,29 @@
+[Unit]
+Description=tgtd iSCSI target daemon
+After=network.target
+
+[Service]
+ExecStart=/usr/sbin/tgtd -f
+# Put tgtd into "offline" state until all the targets are configured.
+# We don't want initiators to (re)connect and fail the connection
+# if it's not ready.
+ExecStartPost=/usr/sbin/tgtadm --op update --mode sys --name State -v offline
+# Configure the targets.
+ExecStartPost=/usr/sbin/tgt-admin -e -c /etc/tgt/targets.conf
+# Put tgtd into "ready" state.
+ExecStartPost=/usr/sbin/tgtadm --op update --mode sys --name State -v ready
+
+# Update configuration for targets. Only targets which
+# are not in use will be updated.
+ExecReload=/usr/bin/tgt-admin --update ALL -c /etc/tgt/targets.conf
+
+# NOTE: Shutdown of the iscsi target may cause data corruption
+# for initiators that are connected.
+ExecStop=/usr/sbin/tgtadm --op update --mode sys --name State -v offline
+# Remove all targets. It only removes targets which are not in use.
+ExecStop=/usr/sbin/tgt-admin --update ALL -c /dev/null
+# tgtd will exit if all targets were removed
+ExecStop=/usr/sbin/tgtadm --op delete --mode system
+
+[Install]
+WantedBy=multi-user.target

@@ -4,7 +4,7 @@
 
 pkgname=mailman
 pkgver=2.1.15
-pkgrel=1
+pkgrel=2
 pkgdesc="Mailing list manager with built in web access."
 _F_sourceforge_ext=.tgz
 Finclude sourceforge
@@ -13,18 +13,22 @@ depends=('python>=2.7' 'shadow')
 rodepends=('mta')
 groups=('apps-extra')
 archs=('i686' 'x86_64')
-backup=('home/mailman/Mailman/mm_cfg.py')
+backup=('home/mailman/Mailman/mm_cfg.py' 'home/mailman/data/sitelist.cfg' 'home/mailman/Mailman/Defaults.py')
 up2date="lynx -dump $url |grep release |sed -e 's/.*s\ \(.*\),.*/\1/'"
-source=(${source[@]} README.Frugalware rc.$pkgname rc.$pkgname-hu.po)
+source=(${source[@]} README.Frugalware rc.$pkgname rc.$pkgname-hu.po $pkgname.service)
 options=('nofakeroot')
-signatures=("http://ftp.gnu.org/gnu/mailman/mailman-$pkgver.tgz.sig" '' '' '')
+signatures=("http://ftp.gnu.org/gnu/mailman/mailman-$pkgver.tgz.sig" '' '' '' '')
+_F_systemd_scriptlet="$pkgname.install"
+_F_sysvinit_units=($pkgname)
+_F_systemd_units=($pkgname=)
+Finclude systemd
 
 build() {
 	# mailman user & group
 	if ! [ -e /home/mailman ] ; then
 		Fmessage "creating mailman user and home dir on current system"
 		/usr/sbin/groupadd -g 80 mailman || Fdie
-		/usr/sbin/useradd -u 80 -g mailman -d /home/mailman -s /bin/false mailman || Fdie
+		/usr/sbin/useradd -u 80 -g mailman -d /home/mailman -s /sbin/nologin mailman || Fdie
 		mkdir -p /home/mailman || Fdie
 		chown mailman.mailman /home/mailman || Fdie
 		chmod 2775 /home/mailman || Fdie
@@ -42,11 +46,14 @@ build() {
 	if [ $added ]; then
 		Fmessage "removing mailman user and home dir on current system"
 		/usr/sbin/userdel mailman || Fdie
+		/usr/sbin/groupdel mailman || Fdie
 		rmdir /home/mailman || Fdie
 	fi
 	Fdoc README.Frugalware
 	Frcd2
 	Fsed "`hostname`" "@HOSTNAME@" $Fdestdir/home/mailman/Mailman/Defaults.py
+	Ffile /lib/systemd/system/$pkgname.service
+	Fgenscriptlet
 }
 
 # optimization OK

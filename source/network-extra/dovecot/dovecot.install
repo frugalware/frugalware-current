@@ -1,29 +1,71 @@
+sysvinit_units=(@_F_sysvinit_units@)
+systemd_units=(@_F_systemd_units@)
+
 post_install()
 {
-	mkdir -p /var/run/dovecot/login
-	chmod 750 /var/run/dovecot/login
-	chmod 700 /var/run/dovecot
-}
+	getent group dovecot >/dev/null || /usr/sbin/groupadd -g 70 dovecot
+	getent passwd dovecot >/dev/null || /usr/sbin/useradd -u 70 -g 70 dovecot -s /sbin/nologin
+	getent group dovenull >/dev/null || /usr/sbin/groupadd -g 71 dovenull
+	getent passwd dovenull >/dev/null || /usr/sbin/useradd -u 71 -g 71 dovenull -s /sbin/nologin
 
-pre_upgrade()
-{
-	/sbin/service dovecot stop
+	local unit
+	local op
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
 }
 
 post_upgrade()
 {
-	post_install $1
+	getent group dovecot >/dev/null || /usr/sbin/groupadd -g 70 dovecot
+	getent passwd dovecot >/dev/null || /usr/sbin/useradd -u 70 -g 70 dovecot -s /sbin/nologin
+	getent group dovenull >/dev/null || /usr/sbin/groupadd -g 71 dovenull
+	getent passwd dovenull >/dev/null || /usr/sbin/useradd -u 71 -g 71 dovenull -s /sbin/nologin
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 pre_remove()
 {
-	/sbin/service dovecot stop
-	/usr/sbin/chkconfig --del rc.dovecot
+	local unit
+
+	for i in ${sysvinit_units[@]}; do
+		chkconfig --del rc.$i >/dev/null 2>&1
+	done
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
+}
+
+post_remove()
+{
+	userdel dovecot
+	userdel dovenull
+	groupdel dovecot
+	groupdel dovenull
+
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1
 shift
-
 $op $*
-
-# vim: ft=sh

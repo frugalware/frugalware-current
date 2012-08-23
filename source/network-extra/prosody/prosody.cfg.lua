@@ -54,7 +54,7 @@ modules_enabled = {
 		"register"; -- Allow users to register on this server using a client and change passwords
 
 	-- Other specific functionality
-		--"posix"; -- POSIX functionality, sends server to background, enables syslog, etc.
+		"posix"; -- POSIX functionality, sends server to background, enables syslog, etc.
 		--"console"; -- Opens admin telnet interface on localhost port 5582
 		--"bosh"; -- Enable BOSH clients, aka "Jabber over HTTP"
 		--"httpserver"; -- Serve static files from a directory over HTTP
@@ -74,7 +74,7 @@ modules_disabled = {
 };
 
 -- Do not change these five lines, they are used by the prosody's startup script {
-pidfile = "/var/run/prosody.pid" 
+pidfile = "/var/run/prosody/prosody.pid" 
 setuid = 54
 setgid = 54
 umask = "007"

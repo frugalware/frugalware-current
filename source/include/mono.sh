@@ -32,8 +32,14 @@
 # * Fmonoexport(): creates MONO_SHARED_DIR
 ###
 
+depends=("${depends[@]}" 'mono')
+
 if [ -z "$_F_mono_aot" ]; then
         _F_mono_aot=1
+fi
+
+if [ -n "$_F_use_nant" ]; then
+	makedepends=("${makedepends[@]}" 'nant')
 fi
 
 Fmonoexport() {
@@ -50,10 +56,6 @@ Fmonoexport() {
 # * Fmonoccompileaot(): AOT all of the libraries in the pkg
 ###
 Fmonocompileaot() {
-	if [ "$CARCH" == "ppc" ]; then
-		Fmessage "AOTing not supported on this platform"
-		return
-	fi
 	Fmessage "AOTing all of the libraries..."
 	for i in $Fdestdir/usr/lib/mono/gac/*/*/*.dll
 	do
@@ -78,12 +80,12 @@ Fmonocleanup() {
 ###
 Fbuild_mono() {
 	unset MAKEFLAGS
-	if [ "$CARCH" != "ppc" ]; then
-		#new garbage collector not supported by ppc
-		export MONO_ENV_OPTIONS="--gc=sgen"
-	fi
 	Fmonoexport
+  if [ -z "$_F_use_nant" ]; then
 	Fbuild $@
+  else
+	Fnant $@
+  fi
 if [ "$_F_mono_aot" -eq 1 ]; then
 	Fmonocompileaot
 fi

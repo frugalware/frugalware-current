@@ -34,7 +34,6 @@
 # * source()
 ###
 pkgname=php-pecl-$_F_pecl_name
-pkgrel=1
 url="http://pecl.php.net/package/$_F_pecl_name"
 groups=('devel-extra')
 archs=('i686')

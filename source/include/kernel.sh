@@ -262,8 +262,8 @@ Fbuildkernel()
 	Fmkdir /usr/src
 	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
 	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
-	Fdirschmod 0755 /usr/src/linux-$_F_kernel_ver$_F_kernel_uname
-	Ffileschmod 0644 /usr/src/linux-$_F_kernel_ver$_F_kernel_uname
+	Fdirschmod /usr/src/linux-$_F_kernel_ver$_F_kernel_uname 0755
+	Ffileschmod /usr/src/linux-$_F_kernel_ver$_F_kernel_uname 0644
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
 	Fsplit kernel$_F_kernel_name-source usr/src
 

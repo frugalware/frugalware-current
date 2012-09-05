@@ -1,0 +1,242 @@
+diff -Naur digikam-2.8.0/core/CMakeLists.txt digikam-2.8.0/core/CMakeLists.txt
+--- digikam-2.8.0/core/CMakeLists.txt	2012-08-06 13:15:12.000000000 +0200
++++ digikam-2.8.0/core/CMakeLists.txt	2012-08-29 14:29:08.765701351 +0200
+@@ -329,6 +329,24 @@
+     MACRO_OPTIONAL_FIND_PACKAGE(USB)
+ ENDIF (NOT WIN32 AND HAVE_GPHOTO2)
+ 
++IF(GPHOTO2_FOUND)
++    EXEC_PROGRAM(gphoto2-config ARGS --version RETURN_VALUE _return_VALUE OUTPUT_VARIABLE GPHOTO2_VERSION)
++    STRING(REPLACE "libgphoto2" "" GPHOTO2_VERSION "${GPHOTO2_VERSION}")
++    MACRO_ENSURE_VERSION("2.4.0" "${GPHOTO2_VERSION}" VERSION_GPHOTO2)
++    IF(VERSION_GPHOTO2 AND LIBUSB_FOUND)
++        SET(GPHOTO2_FOUND true)
++    ELSE(VERSION_GPHOTO2 AND LIBUSB_FOUND)
++        SET(GPHOTO2_FOUND false)
++    ENDIF(VERSION_GPHOTO2 AND LIBUSB_FOUND)
++    MACRO_ENSURE_VERSION("2.5.0" "${GPHOTO2_VERSION}" VERSION_GPHOTO25)
++    IF(VERSION_GPHOTO25)
++        SET(HAVE_GPHOTO25 1)
++    ELSE(VERSION_GPHOTO25)
++        SET(HAVE_GPHOTO25 0)
++    ENDIF(VERSION_GPHOTO25)
++ENDIF(GPHOTO2_FOUND)
++
++
+ MACRO_OPTIONAL_FIND_PACKAGE(KdepimLibs)
+ MACRO_BOOL_TO_01(KDEPIMLIBS_FOUND HAVE_KDEPIMLIBS)
+ 
+@@ -378,6 +396,8 @@
+ 
+ CONFIGURE_FILE(digikam/utils/config-digikam.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/digikam/utils/config-digikam.h)
+ 
++
++
+ # ==================================================================================================
+ # Log messages
+ 
+@@ -428,18 +448,10 @@
+ # ================================================================
+ 
+ IF(GPHOTO2_FOUND)
+-    EXEC_PROGRAM(gphoto2-config ARGS --version RETURN_VALUE _return_VALUE OUTPUT_VARIABLE GPHOTO2_VERSION)
+-    STRING(REPLACE "libgphoto2" "" GPHOTO2_VERSION "${GPHOTO2_VERSION}")
+-    MACRO_ENSURE_VERSION("2.4.0" "${GPHOTO2_VERSION}" VERSION_GPHOTO2)
+-    IF(VERSION_GPHOTO2 AND LIBUSB_FOUND)
+-        SET(GPHOTO2_FOUND true)
+-    ELSE(VERSION_GPHOTO2 AND LIBUSB_FOUND)
+-        SET(GPHOTO2_FOUND false)
+-    ENDIF(VERSION_GPHOTO2 AND LIBUSB_FOUND)
+-ENDIF(GPHOTO2_FOUND)
+-
+-IF(GPHOTO2_FOUND)
+     MESSAGE(STATUS " libgphoto2 and libusb libraries found.... YES (optional)")
++    IF(HAVE_GPHOTO25)
++    MESSAGE(STATUS " libgphoto2 2.5 library found............. YES (optional)")
++    endIF(HAVE_GPHOTO25)
+ ELSE(GPHOTO2_FOUND)
+     MESSAGE(STATUS " libgphoto2 and libusb libraries found.... NO  (optional)")
+     MESSAGE(STATUS "")
+diff -Naur digikam-2.8.0/core/digikam/utils/config-digikam.h.cmake digikam-2.8.0/core/digikam/utils/config-digikam.h.cmake
+--- digikam-2.8.0/core/digikam/utils/config-digikam.h.cmake	2012-08-06 13:15:12.000000000 +0200
++++ digikam-2.8.0/core/digikam/utils/config-digikam.h.cmake	2012-08-29 14:29:08.765701351 +0200
+@@ -45,6 +45,9 @@
+ /* Define to 1 if GPhoto2 shared library is installed */
+ #cmakedefine HAVE_GPHOTO2 1
+ 
++/* Define to 1 if libgphoto2 2.5 shared library is installed */
++#cmakedefine HAVE_GPHOTO25 1
++
+ /* Define to 1 if thumbnails database is used */
+ #cmakedefine USE_THUMBS_DB 1
+ 
+diff -Naur digikam-2.8.0/core/utilities/cameragui/devices/gpcamera.cpp digikam-2.8.0/core/utilities/cameragui/devices/gpcamera.cpp
+--- digikam-2.8.0/core/utilities/cameragui/devices/gpcamera.cpp	2012-08-06 13:15:02.000000000 +0200
++++ digikam-2.8.0/core/utilities/cameragui/devices/gpcamera.cpp	2012-08-29 14:29:08.765701351 +0200
+@@ -1329,10 +1329,19 @@
+     d->status = 0;
+     d->status = new GPStatus;
+ 
++#ifdef HAVE_GPHOTO25
+     errorCode = gp_camera_folder_put_file(d->camera,
+                                           QFile::encodeName(folder).constData(),
++                                          QFile::encodeName(itemName),
++                                          GP_FILE_TYPE_NORMAL,
+                                           cfile,
+                                           d->status->context);
++#else
++    errorCode = gp_camera_folder_put_file(d->camera,
++                                          QFile::encodeName(folder).constData(),
++                                          cfile,
++                                          d->status->context);
++#endif
+ 
+     if (errorCode != GP_OK)
+     {
+@@ -1651,7 +1660,13 @@
+         for (int i = 0 ; i < numPorts ; ++i)
+         {
+             gp_port_info_list_get_info(list, i, &info);
++#ifdef HAVE_GPHOTO25
++	    char *xpath;
++            gp_port_info_get_name (info, &xpath);
++            plist.append(xpath);
++#else
+             plist.append(info.path);
++#endif
+         }
+     }
+ 
+@@ -1770,9 +1785,11 @@
+ #ifdef HAVE_GPHOTO2
+     CameraAbilitiesList* abilList = 0;
+     GPPortInfoList*      list     = 0;
+-    GPPortInfo           info;
+     GPContext*           context  = 0;
++    CameraList		 *camList;
+     bool                 success;
++    // get name and port of detected camera
++    const char* model_str = 0, *port_str = 0;
+ 
+     success = false;
+ 
+@@ -1782,76 +1799,57 @@
+     gp_port_info_list_new(&list);
+     gp_port_info_list_load(list);
+ 
+-    int numPorts = gp_port_info_list_count(list);
++    gp_abilities_list_new(&abilList);
++    // get list of all supported cameras
++    gp_abilities_list_load(abilList, context);
++
++    // autodetect all cameras, then match the list to the passed in USB ids
++    gp_list_new (&camList);
++    gp_abilities_list_detect(abilList, list, camList, context);
++    gp_context_unref(context);
++    gp_port_info_list_free(list);
++
++    int count = gp_list_count(camList);
++    int cnt = 0;
+ 
+-    for (int i = 0 ; i < numPorts ; ++i)
++    for (int i = 0 ; i < count ; ++i)
+     {
+-        // create a port object from info
+-        gp_port_info_list_get_info(list, i, &info);
+-        GPPort* gpport = 0;
+-        gp_port_new(&gpport);
+-        gp_port_set_info(gpport, info);
+-
+-        // check if device is connected to port
+-        if (gp_port_usb_find_device(gpport, vendorId, productId) == GP_OK)
+-        {
+-            CameraList*          camList  = 0;
+-            GPPortInfoList*      portinfo = 0;
+-
+-            // create three lists
+-            gp_list_new(&camList);
+-            gp_port_info_list_new(&portinfo);
+-            gp_abilities_list_new(&abilList);
+-
+-            // append one port info to
+-            gp_port_info_list_append(portinfo, info);
+-            // get list of all supported cameras
+-            gp_abilities_list_load(abilList, context);
+-            // search for all supported cameras on one port
+-            gp_abilities_list_detect(abilList, portinfo, camList, context);
+-            int count = gp_list_count(camList);
+-            // get name and port of detected camera
+-            const char* model_str = 0, *port_str = 0;
+-
+-            if (count > 0)
+-            {
+-                if (count > 1)
+-                {
+-                    kWarning() << "More than one camera detected on port " << port
+-                               << ". Due to restrictions in the GPhoto2 API, "
+-                               << "only the first camera is used.";
+-                }
+-
+-                if (gp_list_get_name(camList, 0, &model_str) == GP_OK &&
+-                    gp_list_get_value(camList, 0, &port_str) == GP_OK)
+-                {
+-                    model   = QString::fromLatin1(model_str);
+-                    port    = QString::fromLatin1(port_str);
+-
+-                    success = true;
+-                }
+-                else
+-                {
+-                    kError() << "Failed to get information for the listed camera";
+-                }
+-            }
++	const char *xmodel;
++        gp_list_get_name(camList, i, &xmodel);
++        int model = gp_abilities_list_lookup_model (abilList, xmodel);
++	CameraAbilities ab;
++        gp_abilities_list_get_abilities (abilList, model, &ab);
+ 
+-            gp_abilities_list_free(abilList);
+-            gp_port_info_list_free(portinfo);
+-            gp_list_free(camList);
+-        }
++        if (ab.port != GP_PORT_USB)	continue;
++        if (ab.usb_vendor != vendorId)	continue;
++        if (ab.usb_product != productId)continue;
+ 
+-        gp_port_free(gpport);
++	/* keep it, and continue iterating, in case we find anohter one */
++        gp_list_get_name (camList, i, &model_str);
++        gp_list_get_value(camList, i, &port_str);
+ 
+-        if (success)
+-        {
+-            break;
+-        }
++	cnt++;
+     }
++    gp_abilities_list_free(abilList);
++    if (cnt > 0)
++    {
++       if (cnt > 1)
++       {
++          kWarning() << "More than one camera detected on port " << port
++                     << ". Due to restrictions in the GPhoto2 API, "
++                     << "only the first camera is used.";
++       }
++       model   = QString::fromLatin1(model_str);
++       port    = QString::fromLatin1(port_str);
+ 
+-    gp_port_info_list_free(list);
+-    gp_context_unref(context);
++       success = true;
++    }
++    else
++    {
++       kError() << "Failed to get information for the listed camera";
++    }
+ 
++    gp_list_free(camList);
+     return success;
+ #else
+     Q_UNUSED(vendorId);

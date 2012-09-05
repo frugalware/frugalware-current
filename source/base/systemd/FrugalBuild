@@ -5,57 +5,55 @@ USE_CRYPTSETUP=${USE_CRYPTSETUP:-"n"}
 USE_SYSV_COMPAT=${USE_SYSV_COMPAT:-"y"}
 
 pkgname=systemd
-pkgver=44
-pkgrel=2
+pkgver=188
+pkgrel=5
 pkgdesc="A System and Service Manager"
 url="http://www.freedesktop.org/wiki/Software/systemd"
-depends=('dbus' 'kmod>=7' 'udev>=182' 'pam' 'coreutils' 'libcap' 'sysvinit-initscripts' 'sysvinit-tools' 'xfsprogs-acl')
-makedepends=('vala' 'docbook-xsl>=1.73.0-2' 'docbook-xml' 'intltool' 'gperf')
+depends=('dbus' 'kmod>=7' 'pam' 'coreutils' 'libcap' 'sysvinit-initscripts' 'sysvinit-tools' 'xfsprogs-acl' 'pciutils' 'usbutils' 'shadow')
+makedepends=('docbook-xsl>=1.73.0-2' 'docbook-xml' 'intltool' 'gperf' 'gtk-doc' 'gobject-introspection')
 options=('scriptlet' 'force')
 up2date="Flasttar http://www.freedesktop.org/software/$pkgname"
 source=(http://www.freedesktop.org/software/$pkgname/$pkgname-$pkgver.tar.xz \
-	console.conf \
-	systemd-44-fix-PAGESIZE-arm.patch)
-sha1sums=('851869f1d991343995a9ca1243616c8bf4edfdad' \
+	console.conf 65-permissions.rules blacklist media.mount var-lock.mount var-run.mount \
+	0001-shutdown-recursively-mark-root-as-private-before-piv.patch \
+	0001-systemctl-fix-issue-with-systemctl-daemon-reexec.patch)
+sha1sums=('1874a67d699ccb605ff23e8d8512eefb10a63882' \
           'abaa5c83d5adf2c5be188ce0de488bfa2b5a4505' \
-          '22cbf5552451f4d20a198541238fd2cf910b70c5')
+          '439e2be7278ecedb4a4f090241bb484a7a25a9c3' \
+          '4657cbad76a3d5c8aade4dba166b3f8704c7b07f' \
+          'f896279eca1bcd02db36b215470593734fd894ee' \
+          'b784cca7ac15405edc2e5c4c1851d712bb6bcc38' \
+          '31b8d2530e0c8a70358ad5a6c7d8a0fbf43d1bca' \
+          '7455646d7127de63e4737f165b07d9c42b61df1e' \
+          'f4609b0b03723ab9fee5de8cbb7571a3580a5d42')
 
 if Fuse $USE_CRYPTSETUP; then
        	depends=("${depends[@]}"  'cryptsetup-luks')
 fi
-rodepends=("${depends[@]}"  'systemd-sysvinit')
+rodepends=("${depends[@]}" 'systemd-sysvinit')
 
-groups=('base')
+groups=('base' 'core')
 archs=('i686' 'x86_64' 'arm')
 
 #TODO : Remove backup, source rc for SysVinit when all rc scripts used systemd
-backup=(etc/{vconsole.conf,systemd/system.conf,machine-id,machine-info,locale.conf})
+backup=(etc/{vconsole.conf,systemd/{system.conf,user.conf,logind.conf,journald.conf},machine-id,machine-info,locale.conf,udev/udev.conf,sysconfig/blacklist})
 
-subpkgs=('systemd-gtk')
-subdescs=('Graphical frontend for systemd')
+subpkgs=('systemd-sysvinit')
+subdescs=('systemd System V init tools')
 subrodepends=("$pkgname=$pkgver")
-subdepends=('dbus-glib gtk+2 polkit libnotify>0.7')
-subgroups=('xapps-extra')
+subreplaces=('sysvinit')
+subgroups=('base core')
 subarchs=('i686 x86_64 arm')
-subprovides=('')
-subreplaces=('gservice')
-subconflicts=('')
+subprovides=('sysvinit')
+subconflicts=('sysvinit')
 suboptions=('force')
-
-subpkgs=("${subpkgs[@]}" 'systemd-sysvinit' 'systemd-plymouth')
-subdescs=("${subdescs[@]}" 'systemd System V init tools' 'Plymouth integration for systemd')
-subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver" "$pkgname=$pkgver")
-subdepends=("${subdepends[@]}" '' '')
-subreplaces=("${subreplaces[@]}" 'sysvinit' '')
-subgroups=("${subgroups[@]}" 'base' 'xapps')
-subarchs=("${subarchs[@]}" 'i686 x86_64 arm' 'i686 x86_64 arm')
-subprovides=("${subprovides[@]}" 'sysvinit' '')
-subconflicts=("${subconflicts[@]}" 'sysvinit' '')
-suboptions=("${suboptions[@]}" 'force' 'force')
 
 Fconfopts="$Fconfopts --disable-selinux --with-distro=frugalware --with-pamlibdir=/lib/security \
 	--with-rootprefix= --with-dbussystemservicedir=/usr/share/dbus-1/system-services \
-	--with-dbusinterfacedir=/usr/share/dbus-1/interfaces"
+	--with-dbusinterfacedir=/usr/share/dbus-1/interfaces --enable-gtk-doc --enable-introspection \
+	--disable-audit --disable-ima --with-usb-ids-path=/usr/share/hwdata/usb.ids \
+	--with-pci-ids-path=/usr/share/hwdata/pci.ids \
+	--with-firmware-path=/lib/firmware"
 if ! Fuse $USE_SYSV_COMPAT; then
 	Fconfopts="$Fconfopts --with-sysvinit-path= --with-sysvrcd-path="
 fi
@@ -64,21 +62,12 @@ build()
 {
 	#build systemd
 	Fsed 'agetty' 'frugalwaregetty' units/getty@.service.m4
-	# fix name of local.service
-	Fsed 'rc-local.service' 'local.service' units/plymouth-quit-wait.service \
-		units/plymouth-quit.service
-	# disable status lines when splash is enabled, not when the
-	# kernel is quiet
-	Fsed '"quiet"' '"splash"' src/main.c
 	# we don't have auditd
 	Fsed 'auditd.service ' '' units/systemd-update-utmp-{runlevel,shutdown}.service.in
 	Fpatchall
 	Fautoreconf
 	Fmake --disable-tcpwrap
 	Fmakeinstall
-	#auto mount
-	Fsed "#MountAuto=yes" "MountAuto=yes" $Fdestdir/etc/systemd/system.conf
-	Fsed "#SwapAuto=yes" "SwapAuto=yes" $Fdestdir/etc/systemd/system.conf
 	#http://0pointer.de/public/systemd-man/tmpfiles.d.html
 	Fcp console.conf etc/tmpfiles.d/console.conf
 
@@ -96,15 +85,12 @@ build()
 
 	Frm etc/systemd/system/*.target.wants
 
-	# This is to ease upgrading. Can be removed after 1.7.
-	Fln /lib/systemd/systemd /bin/systemd
-
 	# support for this is disabled in the kernel
 	Frm /lib/systemd/system/dev-hugepages.mount
 	Frm /lib/systemd/system/sysinit.target.wants/dev-hugepages.mount
 
 	# compatibility: have 11 tty instead of 6
-	Fsed "#NAutoVTs=6" "NAutoVTs=11" $Fdestdir/etc/systemd/systemd-logind.conf
+	Fsed "#NAutoVTs=6" "NAutoVTs=11" $Fdestdir/etc/systemd/logind.conf
 
 	# /etc/sysconfig/desktop compatibility
 	Fln ../display-manager.service /lib/systemd/system/graphical.target.wants/display-manager.service
@@ -119,16 +105,21 @@ build()
 	Fmkdir lib/systemd/system/dbus.target.wants
 	Fmkdir lib/systemd/system/syslog.target.wants
 
-	#split gtk fronted
-	# TODO : Added .desktop for start fronted
-	Fsplit systemd-gtk usr/share/polkit-1/actions/org.freedesktop.systemd1.policy
-	Fsplit systemd-gtk usr/share/man/man1/systemadm.*
-
-	Fsplit systemd-plymouth lib/systemd/system/plymouth-*.service
-	Fsplit systemd-plymouth lib/systemd/system/*.wants/plymouth-*.service
-	Fsplit systemd-plymouth lib/systemd/system/systemd-ask-password-plymouth.*
-
 	touch $Fdestdir/etc/{machine-id,machine-info,locale.conf}
+
+	Ffile /etc/sysconfig/blacklist
+
+	Fmkdir /etc/modprobe.d
+
+	Fln /etc/sysconfig/blacklist /etc/modprobe.d/blacklist.conf
+
+	# Compatibility units. Look into an upgrade path to remove them after 1.8.
+	Ffile /lib/systemd/system/media.mount
+	Ffile /lib/systemd/system/var-run.mount
+	Ffile /lib/systemd/system/var-lock.mount
+	Fln ../media.mount /lib/systemd/system/local-fs.target.wants/media.mount
+	Fln ../var-run.mount /lib/systemd/system/local-fs.target.wants/var-run.mount
+	Fln ../var-lock.mount /lib/systemd/system/local-fs.target.wants/var-lock.mount
 
 	Frm /etc/bash_completion.d
 }

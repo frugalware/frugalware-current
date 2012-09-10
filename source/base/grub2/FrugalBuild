@@ -3,8 +3,8 @@
 
 pkgname=grub2
 _F_archive_name=grub
-pkgver=1.99
-pkgrel=15
+pkgver=2.00
+pkgrel=7
 pkgdesc="The GNU GRand Unified Bootloader"
 url="http://www.gnu.org/software/grub/"
 conflicts=('grub')
@@ -12,7 +12,8 @@ replaces=('grub')
 provides=('grub')
 rodepends=('grub-theme-frugalware')
 depends=('xz' 'bzip2' 'mktemp' 'ncurses' 'lvm2>=2.02.96')
-makedepends=('unifont')
+makedepends=('unifont' 'dejavu-ttf')
+options=('nostrip')
 backup=('etc/default/grub' 'etc/grub.d/40_custom')
 if [ "$CARCH" == "x86_64" ]; then
 	depends=(${depends[@]} 'efibootmgr')
@@ -21,8 +22,8 @@ groups=('base')
 archs=('i686' 'x86_64')
 up2date="Flasttar ftp://ftp.gnu.org/gnu/grub/"
 source=(ftp://ftp.gnu.org/gnu/grub/$_F_archive_name-$pkgver$pkgextraver.tar.xz \
-	grub grub2-frugalware-config.patch completion.patch README.Frugalware)
-signatures=("${source[0]}.sig" '' '' '' '')
+	grub grub2-frugalware-config.patch README.Frugalware)
+signatures=("${source[0]}.sig" '' '' '')
 
 subpkgs=('grub2-mkfont')
 subdescs=('grub2 mkfont utility')
@@ -42,12 +43,18 @@ build()
 	# Fails to compile if we set our own optimization level.
 	CFLAGS="${CFLAGS/-O?/}"
 	Fpatchall
+	Fsed "/usr/share/fonts/X11/misc" "/usr/share/fonts/X11/misc /usr/share/fonts/X11/TTF" configure
 	if [ "$CARCH" == "i686" ]; then
 		_build_grub_platform pc
 	elif [ "$CARCH" == "x86_64" ]; then
 		_build_grub_platform efi
 		_build_grub_platform pc
 	fi
+	for i in $Fdestdir/{usr/bin,usr/sbin}/*; do
+		if file $i | grep -q 'ELF'; then
+		  strip $i || Fdie
+		fi
+	done
 	Ffile /etc/default/grub
 	Fsplit grub2-mkfont /usr/bin/grub-mkfont
 	Fln ../default/grub /etc/sysconfig/grub-config

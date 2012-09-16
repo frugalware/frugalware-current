@@ -6,10 +6,11 @@ USE_DEVEL=${USE_DEVEL:-"n"}
 pkgname=bitlbee
 pkgver=3.0.5
 Fuse $USE_DEVEL && pkgver=3.0.2.772
-pkgrel=3
+pkgrel=4
 pkgdesc="An IRC to other chat networks gateway."
 url="http://www.bitlbee.org/main.php/news.html"
-depends=('glib2' 'gnutls>=2.12.12' 'systemd')
+depends=()
+rodepends=("bitlbee-common=$pkgver-$pkgrel")
 makedepends=('docbook-xsl>=1.73.0-2' 'docbook-xml' 'xmlto' 'asciidoc')
 backup=(etc/biltbee/{bitlbee.conf,motd.txt})
 groups=('network-extra')
@@ -18,16 +19,17 @@ up2date="lynx -dump http://www.bitlbee.org/ |grep Stable |sed 's/.*: \(.*\)/\1/'
 source=(http://get.bitlbee.org/src/$pkgname-$pkgver.tar.gz systemd-fix.diff)
 sha1sums=('74afdff87be49ce060771a6ae10d7643cd57b9b6' \
           '5a0ebfb625e71099566de1c717a0f022265ed50c')
-options=('scriptlet')
+# nodocs, because docs go to the common package
+options=('scriptlet' 'nodocs')
 
-subpkgs=('bitlbee-otr' 'bitlbee-skype')
-subdescs=('OTR support for BitlBee.' 'Skype support for BitlBee.')
-subdepends=("libotr" "")
-subrodepends=("$pkgname=$pkgver" "$pkgname=$pkgver skype4py")
-subgroups=('network-extra' 'network-extra')
-subarchs=('i686 x86_64 arm' 'i686 x86_64 arm')
+subpkgs=('bitlbee-otr' 'bitlbee-skype' 'bitlbee-common' 'bitlbee-libpurple')
+subdescs=('OTR support for BitlBee.' 'Skype support for BitlBee.' 'Common files required by bitlbee/bitlbee-libpurple.' 'An IRC to other chat networks gateway (libpurple version).')
+subdepends=("libotr" "" "glib2 gnutls>=2.12.12 systemd" "libpurple")
+subrodepends=("$pkgname=$pkgver" "$pkgname=$pkgver skype4py" "" "bitlbee-common=$pkgver-$pkgrel")
+subgroups=('network-extra' 'network-extra' 'network-extra' 'network-extra')
+subarchs=('i686 x86_64 arm' 'i686 x86_64 arm' 'i686 x86_64 arm' 'i686 x86_64 arm')
 
-_F_systemd_scriptlet="$pkgname.install"
+_F_systemd_scriptlet="$pkgname-common.install"
 _F_systemd_units=(bitlbee=e)
 Finclude systemd
 
@@ -41,7 +43,15 @@ fi
 build() {
 	Fuse $USE_DEVEL && Funpack_scm
 	Fpatchall
-	Fmake --etcdir=/etc/bitlbee --otr=plugin --skype=plugin
+
+	# First build the libpurple version
+	Fmake --etcdir=/etc/bitlbee --purple=1
+	make DESTDIR=$Fdestdir install-bin
+	Fsplit bitlbee-libpurple /usr/sbin
+	Fexec make clean
+
+	# And now the normal one
+	Fmake --etcdir=/etc/bitlbee --otr=plugin --skype=plugin --purple=1
 	Fmkdir /var/lib/bitlbee
 	make DESTDIR=$Fdestdir install-etc install-dev || Fdie
 	Fmakeinstall
@@ -51,6 +61,7 @@ build() {
 	Fsplit bitlbee-otr usr/lib/bitlbee/otr.so
 	Fsplit bitlbee-skype etc/skyped usr/lib/bitlbee/skype.so usr/bin/skyped usr/share/man/man1/skyped*
 	Fgenscriptlet
+	Fsplit bitlbee-common /etc /lib /usr/bin /usr/include /usr/lib /usr/share /var
 }
 
 # optimization OK

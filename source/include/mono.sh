@@ -32,7 +32,9 @@
 # * Fmonoexport(): creates MONO_SHARED_DIR
 ###
 
-depends=("${depends[@]}" 'mono')
+if [ ! -n "$_F_mono_nodepends" ]; then # isset
+	depends=("${depends[@]}" 'mono')
+fi
 
 if [ -z "$_F_mono_aot" ]; then
         _F_mono_aot=1

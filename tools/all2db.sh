@@ -12,7 +12,7 @@ do
 	startdir=`pwd`
 	unset pkgname pkgver pkgrel archs subpkgs groups nobuild options
 	for j in `set|grep ^_F_|sed 's/=.*//'`; do unset $j; done
-	. FrugalBuild || echo "errors parsing the FrugalBuild"
+	. ./FrugalBuild || echo "errors parsing the FrugalBuild"
 	for j in ${archs[@]}
 	do
 		echo ${Farchs[@]} |grep -q $j || continue

@@ -4,6 +4,7 @@ Usage: python fpm2db [options]
 
 Options:
 	-D, --delete            The specified pkg can be deleted with this command.
+	-F, --force             Update database entry regardless of status.
 	-f ..., --fpm=...       The .fpm package. (optional when using -D)
 	-m ..., --mainpkg=...   The name of the parent .fpm package. (required when using -D)
 	-g ..., --maingrp=...   The group of the .fpm package. (optional)
@@ -294,7 +295,7 @@ EOF
 		self.cursor.execute("delete from packages where id = %d" % self.id)
 		self.dellists()
 
-	def update(self):
+	def update(self, force):
 		# do we really need this update?
 		if not self.uploader:
 			return
@@ -305,7 +306,7 @@ EOF
 			and arch = %s and fwver = %s limit 1""",
 			(self.pkgname, self.arch, self.fwver))
 		row = self.cursor.fetchone()
-		if row and row['pkgver'] == self.pkgver:
+		if row and row['pkgver'] == self.pkgver and not force:
 			return
 		elif row:
 			self.id = row['id']
@@ -364,6 +365,7 @@ def usage():
 def main(argv):
 	# defaults
 	update = True
+	force = False
 	fpm = ""
 	mainpkg = None
 	maingrp = None
@@ -374,8 +376,8 @@ def main(argv):
 
 	# option parsing
 	try:
-		opts, args = getopt.getopt(argv, "Df:h:u:p:d:m:g:", ["delete",
-			"fpm=", "host=", "user=", "password=", "dbname=",
+		opts, args = getopt.getopt(argv, "DFf:h:u:p:d:m:g:", ["delete",
+			"force", "fpm=", "host=", "user=", "password=", "dbname=",
 			"mainpkg=", "maingrp="])
 	except getopt.GetoptError:
 		usage()
@@ -383,6 +385,8 @@ def main(argv):
 	for opt, arg in opts:
 		if opt in ("-D", "--delete"):
 			update = False
+		elif opt in ("-F", "--force"):
+			force = True
 		elif opt in ("-f", "--file"):
 			fpm = arg
 		elif opt in ("-m", "--mainpkg"):
@@ -421,7 +425,7 @@ def main(argv):
 			db=dbname)
 	pkg.cursor = conn.cursor(MySQLdb.cursors.DictCursor)
 	if update:
-		pkg.update()
+		pkg.update(force)
 	else:
 		pkg.delete()
 	conn.close()

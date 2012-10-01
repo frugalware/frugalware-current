@@ -18,17 +18,17 @@ do
 		echo ${Farchs[@]} |grep -q $j || continue
 		cd $CWD/frugalware-$j
 		if [ ! "`check_option NOBUILD`" ]; then
-			echo ../tools/fpm2db -f $pkgname-$pkgver-$pkgrel-$j.fpm
-			../tools/fpm2db -f $pkgname-$pkgver-$pkgrel-$j.fpm || exit 1
+			echo ../tools/fpm2db -F -f $pkgname-$pkgver-$pkgrel-$j.fpm
+			../tools/fpm2db -F -f $pkgname-$pkgver-$pkgrel-$j.fpm || exit 1
 		else
-			echo ../tools/fpm2db -f $pkgname-$pkgver-$pkgrel-$j.fpm -g $groups
-			../tools/fpm2db -f $pkgname-$pkgver-$pkgrel-$j.fpm -g $groups || exit 1
+			echo ../tools/fpm2db -F -f $pkgname-$pkgver-$pkgrel-$j.fpm -g $groups
+			../tools/fpm2db -F -f $pkgname-$pkgver-$pkgrel-$j.fpm -g $groups || exit 1
 		fi
 		if [ ! -z "$subpkgs" ]; then
 			for k in "${subpkgs[@]}"
 			do
-				echo ../tools/fpm2db -f $k-$pkgver-$pkgrel-$j.fpm -m $pkgname -g $groups
-				../tools/fpm2db -f $k-$pkgver-$pkgrel-$j.fpm -m $pkgname -g $groups || exit 1
+				echo ../tools/fpm2db -F -f $k-$pkgver-$pkgrel-$j.fpm -m $pkgname -g $groups
+				../tools/fpm2db -F -f $k-$pkgver-$pkgrel-$j.fpm -m $pkgname -g $groups || exit 1
 			done
 		fi
 		cd - >/dev/null

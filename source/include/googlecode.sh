@@ -24,7 +24,7 @@
 # Finclude googlecode
 # options=('scriptlet')
 # sha1sums=('27fa2cdfe02d7d7ab4be3e7fc53df462aee61ea8')
-# Fconfopts="$Fconfopts  --enable-lang-all --enable-gtk2 --enable-cli "
+# Fconfopts+="  --enable-lang-all --enable-gtk2 --enable-cli "
 # --------------------------------------------------
 #
 # == OPTIONS

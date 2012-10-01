@@ -28,14 +28,12 @@
 # --------------------------------------------------
 #
 # == OPTIONS
-# * _F_fonts_subdir (required): specifies the directory to install fonts to
+# * _F_fonts_subdir: specifies the directory to install fonts to
 ###
-if [ -z "$_F_fonts_subdir" ]; then
-	error '$_F_fonts_subdir is not defined.'
-	Fdie
+if [ -n "$_F_fonts_subdir" ]; then
+	_F_fonts_dir="/usr/share/fonts/X11/$_F_fonts_subdir"
+	_F_fonts_dirs=($_F_fonts_dir)
 fi
-
-_F_fonts_dir="/usr/share/fonts/X11/$_F_fonts_subdir"
 
 ###
 # == OVERWRITTEN VARIABLES
@@ -66,7 +64,7 @@ Finclude genscriptlet
 ###
 fonts_genscriptlet_hook()
 {
-	Freplace '_F_fonts_dir' "$1"
+	Freplace '_F_fonts_dirs' "$1"
 }
 
 Fbuild_fonts() {
@@ -74,13 +72,28 @@ Fbuild_fonts() {
 
 	# find and install all font extensions we support
 	for i in `find -iregex '.*\.\(spd\|bdf\|ttf\|otf\|pcf\|pcf.gz\|afm\|pfa\)'`; do
+		if [ -z "$_F_fonts_subdir" ]; then
+			case $i in
+				*.ttf)    _F_fonts_dir='/usr/share/fonts/X11/TTF'    ;;
+				*.otf)    _F_fonts_dir='/usr/share/fonts/X11/OTF'    ;;
+				*.afm)    _F_fonts_dir='/usr/share/fonts/X11/Type1'  ;;
+				*.pfa)    _F_fonts_dir='/usr/share/fonts/X11/Type1'  ;;
+				*.spd)    _F_fonts_dir='/usr/share/fonts/X11/Speedo' ;;
+				*.bdf)    _F_fonts_dir='/usr/share/fonts/X11/misc'   ;;
+				*.pcf)    _F_fonts_dir='/usr/share/fonts/X11/misc'   ;;
+				*.pcf.gz) _F_fonts_dir='/usr/share/fonts/X11/misc'   ;;
+			esac
+			if ! echo "${_F_fonts_dirs[@]}" | grep -q "$_F_fonts_dir"; then
+				_F_fonts_dirs=(${_F_fonts_dirs[@]} $_F_fonts_dir)
+			fi
+		fi
 		Ffilerel "$i" "$_F_fonts_dir/`basename $i`"
 	done
 
 	# find any BDF fonts and convert them
 	for i in `find "$Fdestdir" -name "*.bdf"`; do
-    		Fmessage "Converting BDF font to PCF font: $i"
-    		bdftopcf -t "$i" -o "${i/bdf/pcf}" || Fdie
+		Fmessage "Converting BDF font to PCF font: $i"
+		bdftopcf -t "$i" -o "${i/bdf/pcf}" || Fdie
 		rm -f "$i" || Fdie
 	done
 

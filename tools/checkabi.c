@@ -249,11 +249,11 @@ static void pass3(void)
 		}
 	}
 
-	abis3 = realloc(abis3,abis3_size * sizeof(char *));
-
 	freecp(&abis,&abis_size);
 
 	freecp(&abis2,&abis2_size);
+
+	usort(abis3,abis3_size,&abis3,&abis3_size);
 }
 
 static void output(void)

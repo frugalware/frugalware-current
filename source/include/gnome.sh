@@ -22,7 +22,7 @@
 # archs=('i686' 'x86_64')
 # Finclude gnome
 # sha1sums=('e40c337bc2afd2de4a6527bf333e9c8788c38668')
-# Fconfopts="$Fconfopts --disable-examples --disable-demos"
+# Fconfopts+=" --disable-examples --disable-demos"
 # --------------------------------------------------
 #
 # == OPTIONS

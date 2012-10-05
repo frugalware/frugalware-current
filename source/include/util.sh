@@ -811,7 +811,7 @@ Fconfoptstryset() {
 	fi
 
 	if [ -z "$_F_conf_notry" ] || ! echo $1 |grep -q $_F_conf_notry; then
-		Fconfopts="$Fconfopts --$1=$2"
+		Fconfopts+=" --$1=$2"
 	fi
 	return 0
 }

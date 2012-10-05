@@ -52,16 +52,16 @@ if [ -z "$_F_gnome_scriptlet" ]; then
 fi
 
 if [ -n "$_F_gnome_schemas" ]; then
-	Fconfopts="$Fconfopts --disable-schemas-install"
+	Fconfopts+=" --disable-schemas-install"
 fi
 if [ -n "$_F_gnome_scrollkeeper" ]; then
-	Fconfopts="$Fconfopts --disable-scrollkeeper"
+	Fconfopts+=" --disable-scrollkeeper"
 fi
 if [ -n "$_F_gnome_desktop" ]; then
-	Fconfopts="$Fconfopts --enable-desktop-update=no"
+	Fconfopts+=" --enable-desktop-update=no"
 fi
 if [ -n "$_F_gnome_mime" ]; then
-	Fconfopts="$Fconfopts --disable-update-mimedb --enable-mime-update=no"
+	Fconfopts+=" --disable-update-mimedb --enable-mime-update=no"
 fi
 if [ "$_F_gnome_doc" = "y" ]; then
 	makedepends=(${makedepends[@]} 'gtk-doc')

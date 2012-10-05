@@ -1,0 +1,33 @@
+#!/bin/sh
+
+if [ -z "$1" ]; then
+	echo "Usage: $0 <fpm>"
+	exit 1
+fi
+
+export LC_ALL=C
+DIR="$(mktemp -td)"
+if [ "$1" == "$(basename $1)" ]; then
+	FPM="$(pwd)/$1"
+else
+	FPM="$1"
+fi
+IFS=$'\n'
+
+cd "$DIR"
+
+tar -xf "$FPM"
+
+rm -f .* 2> /dev/null
+
+chmod -R 0777 .
+
+for i in $(find . -type f); do
+	if file "$i" | grep -q 'ELF'; then
+		for j in $(readelf -d "$i" | sed -rn 's|.*Shared library: \[(.*)\].*|\1|p'); do
+			echo "${i/.\//}: $j"
+		done
+	fi
+done
+
+rm -rf "$DIR"

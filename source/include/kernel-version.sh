@@ -17,7 +17,7 @@
 # * _F_kernelver_nextver: the next kernel version
 ###
 _F_kernelver_ver=3.6
-_F_kernelver_rel=1
+_F_kernelver_rel=2
 _F_kernelver_stable=2
 _F_kernelver_nextver="3.$(( ${_F_kernelver_ver/3./} + 1 ))"
 

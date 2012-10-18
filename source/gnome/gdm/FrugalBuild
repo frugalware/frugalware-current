@@ -4,29 +4,28 @@
 
 pkgname=gdm
 pkgver=3.6.1
-pkgrel=1
+pkgrel=2
 pkgdesc="GNOME Display Manager"
 url="http://www.gnome.org/"
 backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin \
-	etc/pam.d/gdm-welcome etc/pam.d/gdm-password)
+	etc/pam.d/gdm-welcome etc/pam.d/gdm-password etc/pam.d/gdm-launch-environment)
 depends=('dbus-glib' 'accountsservice' 'nss' 'xorg-server' 'libxrandr' 'gtk+3' \
 	 'libcanberra-gtk' 'pam' 'upower' 'libxklavier' 'polkit-gnome' 'gnome-session' 'systemd')
 makedepends=('intltool' 'gnome-doc-utils' 'gobject-introspection' 'dconf' 'gnome-settings-daemon' 'itstool')
 groups=('gnome' 'gnome-minimal')
 archs=('i686' 'x86_64')
+#nofakeroot for recreate glib schema (use dbus...)
+#will see for don't use nofakeroot
+options=('nofakeroot' 'scriptlet' 'force')
 _F_gnome_git="n"
 _F_gnome_ext=".tar.xz"
 Finclude gnome
-#source=($source org.gnome.login-screen.gschema.override gdmshell.patch)
 source=($source org.gnome.login-screen.gschema.override)
 sha1sums=('06d4732adce9a96db9213ba5252f57939da84a9b' \
           '974832a3878a020c87a833f5ba99a0c7d5d27b57')
 if [ "$_F_gnome_git" != "n" ]; then
 	unset sha1sums
 fi
-#nofakeroot for recreate glib schema (use dbus...)
-#will see for don't use nofakeroot
-options=('nofakeroot' 'scriptlet' 'force')
 
 conflicts=('fast-user-switch-applet')
 provides=('fast-user-switch-applet' 'gdm-themes' 'somatic-gdm-themes' 'arc-colors-gdm-themes')
@@ -45,22 +44,73 @@ build() {
 		--with-lang-file=/etc/locale.conf \
 		--enable-more-warnings \
 		--enable-debug \
-		--with-default-pam-config=exherbo \
 		--without-console-kit \
 		--with-initial-vt=12
-x#		--disable-scrollkeeper \
-#		--with-console-kit
 
 	Fmakeinstall
-
 	chmod a+r $Fdestdir/var/lib/gdm || Fdie
 	#chown root:root $Fdestdir/var/lib/gdm || Fdie
 	#Fmkdir var/spool/gdm
 	chmod 1770 $Fdestdir/var/log/gdm || Fdie
-# add logo to shell greeter
-Fcp ../org.gnome.login-screen.gschema.override usr/share/glib-2.0/schemas/
-# gets rebuilt in posttrans
-Frm etc/dconf/db/gdm
+	# add logo to shell greeter
+	Fcp ../org.gnome.login-screen.gschema.override usr/share/glib-2.0/schemas/
+	# gets rebuilt in posttrans
+	Frm etc/dconf/db/gdm
+	#delete PAM default rules
+	Frm etc/pam.d/*
+
+cat > $Fdestdir/etc/pam.d/gdm-autologin << "EOF"
+#%PAM-1.0
+auth		requisite	pam_nologin.so
+auth		required	pam_env.so
+auth		required	pam_permit.so
+account		required	pam_unix.so
+password	required	pam_unix.so
+session		required	pam_limits.so
+session		required	pam_unix.so
+session         required        pam_systemd.so
+EOF
+
+cat > $Fdestdir/etc/pam.d/gdm-launch-environment << "EOF"
+#%PAM-1.0
+auth            required        pam_env.so
+auth            required        pam_permit.so
+
+account         required        pam_nologin.so
+account         required        pam_unix.so
+
+password        required        pam_deny.so
+
+session         required        pam_loginuid.so
+-session        optional        pam_systemd.so
+session         optional        pam_keyinit.so force revoke
+EOF
+
+cat > $Fdestdir/etc/pam.d/gdm-password << "EOF"
+#%PAM-1.0
+auth            requisite       pam_nologin.so
+auth            required        pam_env.so
+
+auth            requisite       pam_unix.so nullok
+auth            optional        pam_gnome_keyring.so
+
+auth            sufficient      pam_succeed_if.so uid >= 1000 quiet
+auth            required        pam_deny.so
+
+account         required        pam_access.so
+account         required        pam_time.so
+account         required        pam_unix.so
+
+password        required        pam_unix.so
+
+session         required        pam_loginuid.so
+-session        optional        pam_systemd.so
+session         optional        pam_keyinit.so force revoke
+session         required        pam_limits.so
+session         required        pam_unix.so
+session         optional        pam_gnome_keyring.so auto_start
+EOF
+
 }
 
 # optimization OK

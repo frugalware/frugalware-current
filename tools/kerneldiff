@@ -1,0 +1,44 @@
+#!/bin/sh
+
+if [ -z "$2" ]; then
+	echo "Usage: $0 <old fpm> <new fpm>"
+	exit 1
+fi
+
+_set_fpm()
+{
+    if echo $1 | grep -q '^/'; then
+        echo $1
+    else
+        echo $(pwd)/$1
+    fi
+}
+
+_work_dir()
+{
+	cd $1
+	tar -xf $2 .FILELIST
+  sed -i -r 's|^(lib/modules/)[0-9.]+-fw[0-9]+/?|\1|' .FILELIST
+  mv .FILELIST contents
+}
+
+FPM1=`_set_fpm "$1"`
+FPM2=`_set_fpm "$2"`
+
+if [ ! -f "$FPM1" -o ! -f "$FPM2" ]; then
+	echo "One of the fpms does not exist."
+	exit 1
+fi
+
+DIR1="$(mktemp -u)"
+DIR2="$(mktemp -u)"
+
+mkdir -p "$DIR1" "$DIR2"
+
+_work_dir "$DIR1" "$FPM1"
+
+_work_dir "$DIR2" "$FPM2"
+
+diff -ur "$DIR1/contents" "$DIR2/contents"
+
+rm -rf "$DIR1" "$DIR2"

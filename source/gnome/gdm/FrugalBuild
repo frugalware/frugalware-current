@@ -3,29 +3,29 @@
 # Contributor: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=gdm
-pkgver=3.4.1
-pkgrel=4
+pkgver=3.6.1
+pkgrel=2
 pkgdesc="GNOME Display Manager"
 url="http://www.gnome.org/"
 backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin \
-	etc/pam.d/gdm-welcome etc/pam.d/gdm-password)
+	etc/pam.d/gdm-welcome etc/pam.d/gdm-password etc/pam.d/gdm-launch-environment)
 depends=('dbus-glib' 'accountsservice' 'nss' 'xorg-server' 'libxrandr' 'gtk+3' \
-	 'libcanberra-gtk' 'pam' 'upower' 'libxklavier' 'polkit-gnome' 'gnome-session' 'systemd' 'dbus-x11')
-makedepends=('intltool' 'gnome-doc-utils' 'gobject-introspection' 'dconf' 'gnome-settings-daemon')
+	 'libcanberra-gtk' 'pam' 'upower' 'libxklavier' 'polkit-gnome' 'gnome-session' 'systemd')
+makedepends=('intltool' 'gnome-doc-utils' 'gobject-introspection' 'dconf' 'gnome-settings-daemon' 'itstool')
 groups=('gnome' 'gnome-minimal')
 archs=('i686' 'x86_64')
+#nofakeroot for recreate glib schema (use dbus...)
+#will see for don't use nofakeroot
+options=('nofakeroot' 'scriptlet' 'force')
 _F_gnome_git="n"
 _F_gnome_ext=".tar.xz"
 Finclude gnome
 source=($source org.gnome.login-screen.gschema.override)
-sha1sums=('9213fe32643b7dcb79e9026ed0be2372ef275a59' \
+sha1sums=('06d4732adce9a96db9213ba5252f57939da84a9b' \
           '974832a3878a020c87a833f5ba99a0c7d5d27b57')
 if [ "$_F_gnome_git" != "n" ]; then
 	unset sha1sums
 fi
-#nofakeroot for recreate glib schema (use dbus...)
-#will see for don't use nofakeroot
-options=('nofakeroot' 'scriptlet' 'force')
 
 conflicts=('fast-user-switch-applet')
 provides=('fast-user-switch-applet' 'gdm-themes' 'somatic-gdm-themes' 'arc-colors-gdm-themes')
@@ -37,18 +37,25 @@ build() {
 		Fcd $pkgname
 		sh ./autogen.sh
 	fi
+	Fpatchall
 	Fmake --with-pam-prefix=/etc \
 		--enable-split-authentication \
 		--enable-console-helper \
-		--disable-scrollkeeper \
-		--with-console-kit
+		--with-lang-file=/etc/locale.conf \
+		--enable-more-warnings \
+		--enable-debug \
+		--without-console-kit \
+		--with-initial-vt=12
 
 	Fmakeinstall
-
 	chmod a+r $Fdestdir/var/lib/gdm || Fdie
-	chown root:root $Fdestdir/var/lib/gdm || Fdie
-	Fmkdir var/spool/gdm
-
+	#chown root:root $Fdestdir/var/lib/gdm || Fdie
+	#Fmkdir var/spool/gdm
+	chmod 1770 $Fdestdir/var/log/gdm || Fdie
+	# add logo to shell greeter
+	Fcp ../org.gnome.login-screen.gschema.override usr/share/glib-2.0/schemas/
+	# gets rebuilt in posttrans
+	Frm etc/dconf/db/gdm
 	#delete PAM default rules
 	Frm etc/pam.d/*
 
@@ -64,7 +71,7 @@ session		required	pam_unix.so
 session         required        pam_systemd.so
 EOF
 
-cat > $Fdestdir/etc/pam.d/gdm-welcome << "EOF"
+cat > $Fdestdir/etc/pam.d/gdm-launch-environment << "EOF"
 #%PAM-1.0
 auth            required        pam_env.so
 auth            required        pam_permit.so
@@ -104,23 +111,6 @@ session         required        pam_unix.so
 session         optional        pam_gnome_keyring.so auto_start
 EOF
 
-	#bash completion fix
-	Fsed "#!/bin/sh" "#!/bin/bash" $Fdestdir/usr/sbin/gdm
-
-	Frm var/gdm
-	chmod 1770 $Fdestdir/var/log/gdm || Fdie
-	# systemd tmpfiles
-	Frm var/run
-	Fmkdir /etc/tmpfiles.d
-        cat > $Fdestdir/etc/tmpfiles.d/gdm.conf << EOF
-d $Flocalstatedir/run/gdm 0711 root gdm -
-d $Flocalstatedir/run/gdm/greeter 0755 gdm gdm -
-EOF
-
-# add logo to shell greeter
-Fcp ../org.gnome.login-screen.gschema.override usr/share/glib-2.0/schemas/
-# gets rebuilt in posttrans
-Frm etc/dconf/db/gdm
 }
 
 # optimization OK

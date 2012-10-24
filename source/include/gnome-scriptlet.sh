@@ -43,6 +43,7 @@
 # * _F_gnome_mime - set to "y" if your package provides a mime type
 # * _F_gnome_iconcache - set to "y" if your package provides an icon in
 # /usr/share/icons/hicolor
+# * _F_gnome_gio - set to "y" for update gio modules into /usr/lib/gio/modules
 # * _F_gnome_scriptlet - name of the generated install script (defaults to
 # src/gnome-scriptlet.install)
 ###
@@ -154,6 +155,7 @@ Fbuild_gnome_scriptlet()
 	Fsed '$_F_gnome_scrollkeeper' "$_F_gnome_scrollkeeper" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 	Fsed '$_F_gnome_mime' "$_F_gnome_mime" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 	Fsed '$_F_gnome_iconcache' "$_F_gnome_iconcache" ${Fsrcdir%/src}/$_F_gnome_scriptlet
+	Fsed '$_F_gnome_gio' "$_F_gnome_gio" ${Fsrcdir%/src}/$_F_gnome_scriptlet
 }
 
 ###

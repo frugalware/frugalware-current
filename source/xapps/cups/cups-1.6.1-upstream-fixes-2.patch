@@ -1,0 +1,231 @@
+Submitted By:            Armin K. <krejzi at email dot com>
+Date:                    2012-08-12
+Initial Package Version: 1.6.1
+Upstream Status:         Fixed upstream
+Origin:                  Upstream bug tracker
+Description:             Remove obsolete cupsd.conf options, fix usb backend for some printers
+                         that don't print whole pages and several fixes for dnssd backend.
+
+--- cups.orig/backend/usb-libusb.c	2012-07-16 19:10:55.000000000 +0200
++++ cups/backend/usb-libusb.c	2012-08-12 14:41:51.841031460 +0200
+@@ -70,7 +70,7 @@
+ 			read_endp,	/* Read endpoint */
+ 			protocol,	/* Protocol: 1 = Uni-di, 2 = Bi-di. */
+ 			usblp_attached,	/* "usblp" kernel module attached? */
+-			opened_for_job;	/* Set to 1 by print_device() */
++			reset_after_job; /* Set to 1 by print_device() */
+   unsigned int		quirks;		/* Quirks flags */
+   struct libusb_device_handle *handle;	/* Open handle to device */
+ } usb_printer_t;
+@@ -122,6 +122,8 @@
+ #define USBLP_QUIRK_USB_INIT	0x2	/* needs vendor USB init string */
+ #define USBLP_QUIRK_BAD_CLASS	0x4	/* descriptor uses vendor-specific
+ 					   Class or SubClass */
++#define USBLP_QUIRK_RESET	0x4000	/* After printing do a reset
++					   for clean-up */
+ #define USBLP_QUIRK_NO_REATTACH	0x8000	/* After printing we cannot re-attach
+ 					   the usblp kernel module */
+ 
+@@ -147,9 +149,11 @@
+ 	{ 0x04b8, 0x0202, USBLP_QUIRK_BAD_CLASS }, /* Seiko Epson Receipt
+ 						      Printer M129C */
+ 	{ 0x067b, 0x2305, USBLP_QUIRK_BIDIR |
+-			  USBLP_QUIRK_NO_REATTACH },
++			  USBLP_QUIRK_NO_REATTACH |
++	                  USBLP_QUIRK_RESET },
+ 	/* Prolific Technology, Inc. PL2305 Parallel Port
+ 	   (USB -> Parallel adapter) */
++	{ 0x04e8, 0x0000, USBLP_QUIRK_RESET }, /* All Samsung devices */
+ 	{ 0, 0 }
+ };
+ 
+@@ -256,7 +260,12 @@
+   }
+ 
+   g.print_fd = print_fd;
+-  g.printer->opened_for_job = 1;
++
++ /*
++  * Some devices need a reset after finishing a job, these devices are
++  * marked with the USBLP_QUIRK_RESET quirk.
++  */
++  g.printer->reset_after_job = (g.printer->quirks & USBLP_QUIRK_RESET ? 1 : 0);
+ 
+  /*
+   * If we are printing data from a print driver on stdin, ignore SIGTERM
+@@ -772,7 +781,7 @@
+     * Reset the device to clean up after the job
+     */
+ 
+-    if (printer->opened_for_job == 1)
++    if (printer->reset_after_job == 1)
+     {
+       if ((errcode = libusb_reset_device(printer->handle)) < 0)
+ 	fprintf(stderr,
+@@ -1288,7 +1297,7 @@
+   }
+ 
+   printer->usblp_attached = 0;
+-  printer->opened_for_job = 0;
++  printer->reset_after_job = 0;
+ 
+   if (verbose)
+     fputs("STATE: +connecting-to-device\n", stderr);
+@@ -1586,7 +1595,7 @@
+   for (i = 0; quirk_printers[i].vendorId; i++)
+   {
+     if (vendor == quirk_printers[i].vendorId &&
+-	product == quirk_printers[i].productId)
++	(product == 0x0000 || product == quirk_printers[i].productId))
+       return quirk_printers[i].quirks;
+   }
+   return 0;
+--- cups.orig/conf/cupsd.conf.in	2010-12-09 22:24:51.000000000 +0100
++++ cups/conf/cupsd.conf.in	2012-08-12 14:41:04.743022687 +0200
+@@ -19,8 +19,6 @@
+ 
+ # Show shared printers on the local network.
+ Browsing On
+-BrowseOrder allow,deny
+-BrowseAllow all
+ BrowseLocalProtocols @CUPS_BROWSE_LOCAL_PROTOCOLS@
+ 
+ # Default authentication type, when authentication is required...
+--- cups.orig/scheduler/client.c	2012-05-08 00:41:30.000000000 +0200
++++ cups/scheduler/client.c	2012-08-12 14:41:04.746022727 +0200
+@@ -4021,7 +4021,7 @@
+ 	    !strncmp(host, "[::1]:", 6));
+   }
+ 
+-#ifdef HAVE_DNSSD
++#if defined(HAVE_DNSSD) || defined(HAVE_AVAHI)
+  /*
+   * Check if the hostname is something.local (Bonjour); if so, allow it.
+   */
+@@ -4040,7 +4040,7 @@
+ 	      !_cups_strcasecmp(end, ".local.") ||
+ 	      !_cups_strncasecmp(end, ".local.:", 8)))
+     return (1);
+-#endif /* HAVE_DNSSD */
++#endif /* HAVE_DNSSD || HAVE_AVAHI */
+ 
+  /*
+   * Check if the hostname is an IP address...
+@@ -4101,7 +4101,7 @@
+     }
+   }
+ 
+-#ifdef HAVE_DNSSD
++#if defined(HAVE_DNSSD) || defined(HAVE_AVAHI)
+   for (a = (cupsd_alias_t *)cupsArrayFirst(DNSSDAlias);
+        a;
+        a = (cupsd_alias_t *)cupsArrayNext(DNSSDAlias))
+@@ -4126,7 +4126,7 @@
+         return (1);
+     }
+   }
+-#endif /* HAVE_DNSSD */
++#endif /* HAVE_DNSSD || HAVE_AVAHI */
+ 
+  /*
+   * Check for interface hostname matches...
+--- cups.orig/scheduler/conf.c	2012-05-18 21:51:02.000000000 +0200
++++ cups/scheduler/conf.c	2012-08-12 14:41:04.747022743 +0200
+@@ -89,9 +89,9 @@
+ {
+   { "AccessLog",		&AccessLog,		CUPSD_VARTYPE_STRING },
+   { "AutoPurgeJobs", 		&JobAutoPurge,		CUPSD_VARTYPE_BOOLEAN },
+-#ifdef HAVE_DNSSD
++#if defined(HAVE_DNSSD) || defined(HAVE_AVAHI)
+   { "BrowseDNSSDSubTypes",	&DNSSDSubTypes,		CUPSD_VARTYPE_STRING },
+-#endif /* HAVE_DNSSD */
++#endif /* HAVE_DNSSD || HAVE_AVAHI */
+   { "BrowseWebIF",		&BrowseWebIF,		CUPSD_VARTYPE_BOOLEAN },
+   { "Browsing",			&Browsing,		CUPSD_VARTYPE_BOOLEAN },
+   { "CacheDir",			&CacheDir,		CUPSD_VARTYPE_STRING },
+@@ -735,9 +735,9 @@
+   Browsing                 = CUPS_DEFAULT_BROWSING;
+   DefaultShared            = CUPS_DEFAULT_DEFAULT_SHARED;
+ 
+-#ifdef HAVE_DNSSD
++#if defined(HAVE_DNSSD) || defined(HAVE_AVAHI)
+   cupsdSetString(&DNSSDSubTypes, "_cups,_print");
+-#endif /* HAVE_DNSSD */
++#endif /* HAVE_DNSSD || HAVE_AVAHI */
+ 
+   cupsdSetString(&LPDConfigFile, CUPS_DEFAULT_LPD_CONFIG_FILE);
+   cupsdSetString(&SMBConfigFile, CUPS_DEFAULT_SMB_CONFIG_FILE);
+--- cups.orig/scheduler/ipp.c	2012-05-21 19:40:22.000000000 +0200
++++ cups/scheduler/ipp.c	2012-08-12 14:41:04.750022788 +0200
+@@ -4813,7 +4813,7 @@
+     ippAddDate(con->response, IPP_TAG_PRINTER, "printer-current-time",
+                ippTimeToDate(curtime));
+ 
+-#ifdef HAVE_DNSSD
++#if defined(HAVE_DNSSD) || defined(HAVE_AVAHI)
+   if (!ra || cupsArrayFind(ra, "printer-dns-sd-name"))
+   {
+     if (printer->reg_name)
+@@ -4823,7 +4823,7 @@
+       ippAddInteger(con->response, IPP_TAG_PRINTER, IPP_TAG_NOVALUE,
+                    "printer-dns-sd-name", 0);
+   }
+-#endif /* HAVE_DNSSD */
++#endif /* HAVE_DNSSD || HAVE_AVAHI */
+ 
+   if (!ra || cupsArrayFind(ra, "printer-error-policy"))
+     ippAddString(con->response, IPP_TAG_PRINTER, IPP_TAG_NAME,
+--- cups.orig/scheduler/main.c	2012-04-23 21:19:19.000000000 +0200
++++ cups/scheduler/main.c	2012-08-12 14:41:04.751022799 +0200
+@@ -781,9 +781,9 @@
+       * Got an error from select!
+       */
+ 
+-#ifdef HAVE_DNSSD
++#if defined(HAVE_DNSSD) || defined(HAVE_AVAHI)
+       cupsd_printer_t	*p;		/* Current printer */
+-#endif /* HAVE_DNSSD */
++#endif /* HAVE_DNSSD || HAVE_AVAHI */
+ 
+ 
+       if (errno == EINTR)		/* Just interrupted by a signal */
+@@ -824,13 +824,13 @@
+ 			job->print_pipes[0], job->print_pipes[1],
+ 			job->back_pipes[0], job->back_pipes[1]);
+ 
+-#ifdef HAVE_DNSSD
++#if defined(HAVE_DNSSD) || defined(HAVE_AVAHI)
+       for (p = (cupsd_printer_t *)cupsArrayFirst(Printers);
+ 	   p;
+ 	   p = (cupsd_printer_t *)cupsArrayNext(Printers))
+         cupsdLogMessage(CUPSD_LOG_EMERG, "printer[%s] reg_name=\"%s\"", p->name,
+ 	                p->reg_name ? p->reg_name : "(null)");
+-#endif /* HAVE_DNSSD */
++#endif /* HAVE_DNSSD || HAVE_AVAHI */
+ 
+       break;
+     }
+--- cups.orig/scheduler/printers.c	2012-05-23 03:19:11.000000000 +0200
++++ cups/scheduler/printers.c	2012-08-12 14:41:04.756022808 +0200
+@@ -4829,13 +4829,14 @@
+ 		   "printer-make-and-model", NULL,
+ 		   "Local System V Printer");
+     }
+-    else if (!strncmp(p->device_uri, "ipp://", 6) &&
+-	     (strstr(p->device_uri, "/printers/") != NULL ||
+-	      strstr(p->device_uri, "/classes/") != NULL ||
+-	      ((strstr(p->device_uri, "._ipp.") != NULL ||
+-	        strstr(p->device_uri, "._ipps.") != NULL) &&
+-	       !strcmp(p->device_uri + strlen(p->device_uri) - 5,
+-		       "/cups"))))
++    else if ((!strncmp(p->device_uri, "ipp://", 6) &&
++	      (strstr(p->device_uri, "/printers/") != NULL ||
++	       strstr(p->device_uri, "/classes/") != NULL)) ||
++	     (!strncmp(p->device_uri, "dnssd://", 8) &&
++	      (strstr(p->device_uri, "._ipp.") != NULL ||
++	       strstr(p->device_uri, "._ipps.") != NULL) &&
++	      !strcmp(p->device_uri + strlen(p->device_uri) - 5,
++		      "/cups")))
+     {
+      /*
+       * Tell the client this is really a hard-wired remote printer.

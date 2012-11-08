@@ -11,12 +11,7 @@ _add_option()
 	fi
 }
 
-if test -n "$driver"; then
-	modprobe "$driver"
-fi
-
 if test -n "$governor"; then
-	modprobe "cpufreq_$governor"
 	_add_option "--governor $governor"
 fi
 
@@ -40,14 +35,6 @@ _options=""
 
 if test -n "$perf_bias"; then
 	_add_option "--perf-bias $perf_bias"
-fi
-
-if test -n "$mc_scheduler"; then
-	_add_option "--sched-mc $mc_scheduler"
-fi
-
-if test -n "$smp_scheduler"; then
-	_add_option "--sched-smt $smp_scheduler"
 fi
 
 if test -n "$_options"; then

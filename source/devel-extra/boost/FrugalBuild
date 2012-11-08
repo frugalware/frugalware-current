@@ -4,7 +4,7 @@
 
 pkgname=boost
 pkgver=1.49.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Boost header files , examples and tools"
 _F_sourceforge_ext=".tar.bz2"
 Finclude sourceforge python
@@ -13,16 +13,27 @@ depends=()
 up2date="lynx -dump http://www.boost.org/users/download/|grep 'Current Release'|tail -n 1 | sed 's/.*]\(.*\) -.*/\1/'"
 makedepends=('boost-jam>=3.1.20' 'python>=2.7' 'icu4c>=4.8' 'bzip2' 'zlib' 'openssl>=1.0.0')
 groups=('devel-extra')
-archs=('i686' 'x86_64')
-source=(${source/-$pkgver/_${pkgver//./_}})
+archs=('i686' 'x86_64' 'arm')
+source=(${source/-$pkgver/_${pkgver//./_}} boost-1.48.0-xtime.patch)
 _F_cd_path="${pkgname}_`echo $pkgver|tr . _`"
-sha1sums=('26a52840e9d12f829e3008589abf0a925ce88524')
+sha1sums=('26a52840e9d12f829e3008589abf0a925ce88524' \
+          'da221edd5d7d3f6917edb389cfca9f73791f46c0')
 
-subpkgs=("libboost" "libboost-static" "libboost-mpi")
-subdescs=('Boost libraries.' 'Boost libraries statically linked.' 'Boost MPI Interface.')
-subdepends=('icu4c>=4.8 libgcc bzip2 zlib' '' 'libboost openmpi')
-subgroups=('lib' 'devel-extra' 'lib-extra')
-subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
+subpkgs=("libboost" "libboost-static")
+subdescs=('Boost libraries.' 'Boost libraries statically linked.')
+subdepends=('icu4c>=4.8 libgcc bzip2 zlib' '')
+subridepends=('' '')
+subgroups=('lib' 'devel-extra')
+subarchs=('i686 x86_64 arm' 'i686 x86_64 arm')
+
+if [ "$CARCH" != "arm" ]; then
+	subpkgs=("${subpkgs[@]}" "libboost-mpi")
+	subdescs=("${subdescs[@]}" 'Boost MPI Interface.')
+	subdepends=("${subdepends[@]}" 'openmpi')
+	subridepends=("${subrodepends[@]}" 'libboost')
+	subgroups=("${subgroups[@]}" 'lib-extra')
+	subarchs=("${subarchs[@]}" "i686 x86_64")
+fi
 
 build()
 {
@@ -36,12 +47,14 @@ build()
 
 	BOOSTJAM="/usr/bin/bjam"
 	JOBS="$MAKEFLAGS"
+	MPI=""
+	[ "$CARCH" == "arm" ] && MPI="--without-mpi"
 
 	${BOOSTJAM} \
 		release debug-symbols=off threading=multi \
 		runtime-link=shared link=shared,static \
 		cflags=-fno-strict-aliasing optimization=speed \
-	    	${JOBS} \
+	    	${JOBS} ${MPI} \
 		-sHAVE_ICU=1 -sICU_PATH=/usr \
 	    	-sBOOST_ROOT="$Fsrcdir" \
 	    	-sPYTHON_ROOT=/usr \
@@ -60,8 +73,8 @@ build()
 	rm -rf v2/debian || Fdie
 	cp -a b* index.html  v2/ $Fdestdir/usr/share/boost/ || Fdie
 
-	Fsplit libboost-mpi usr/lib/libboost_graph_parallel*
-	Fsplit libboost-mpi usr/lib/libboost_mpi*
+	[ "$CARCH" != "arm" ] && Fsplit libboost-mpi usr/lib/libboost_graph_parallel*
+	[ "$CARCH" != "arm" ] && Fsplit libboost-mpi usr/lib/libboost_mpi*
 	Fsplit libboost        usr/lib/libboost_*.so*
 	Fsplit libboost-static usr/lib/libboost_*.a	
 }

@@ -66,7 +66,7 @@
 # * _F_scm_url: url of the repo - required
 # * _F_scm_password: password of the repo - required for cvs
 # * _F_scm_module: name of the module to check out - required for cvs
-# * _F_scm_tag: name of the tag/branch to use - implemented for darcs/cvs/svn/git
+# * _F_scm_tag: name of the tag/branch to use - implemented for darcs/cvs/svn/git/mercurial
 ###
 
 # slice the / suffix if there is any
@@ -169,7 +169,11 @@ Funpack_scm()
 			fi
 		fi
 	elif [ "$_F_scm_type" == "mercurial" ]; then
-		hg clone $_F_scm_url || Fdie
+		if [ -z "$_F_scm_tag" ]; then
+			hg clone $_F_scm_url || Fdie
+		else
+			hg clone -r $_F_scm_tag $_F_scm_url || Fdie
+		fi
 		Fcd ${_F_scm_url##*/}
 	elif [ "$_F_scm_type" == "bzr" ]; then
 		if [ ! -d "${_F_scm_url##*/}" ]; then

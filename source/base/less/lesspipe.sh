@@ -47,7 +47,6 @@ lesspipe() {
 	*.cpi|*.cpio) cpio -itv < "$1" ;;
 	*.rar)        unrar l -- "$1" ;;
 	*.ace)        unace l -- "$1" ;;
-	*.arj)        unarj l -- "$1" ;;
 	*.cab)        cabextract -l -- "$1" ;;
 	*.7z)         7z l -- "$1" ;;
 	*.a)          ar tv "$1" ;;

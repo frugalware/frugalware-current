@@ -16,18 +16,23 @@ USE_GLX=${USE_GLX:-"y"}
 USE_OPENCL=${USE_OPENCL:-"n"}
 USE_OSMESA=${USE_OSMESA:-"n"}
 USE_VDPAU=${USE_VDPAU:-"y"}
+USE_VG=${USE_VG:-"y"}
 USE_TEXTURE_FLOAT=${USE_TEXTURE_FLOAT:-"y"}
-USE_WAYLAND_EGL=${USE_WAYLAND_EGL:-"n"}
+USE_WAYLAND_EGL=${USE_WAYLAND_EGL:-"y"}
 USE_XA=${USE_XA:-"n"}
 
 if Fuse WAYLAND_EGL; then
 	USE_EGL=y
 fi
 
+if Fuse EGL; then
+	USE_VG=y
+fi
+
 pkgname=mesa
 origname=Mesa
 _F_archive_name="MesaLib"
-pkgver=9.0
+pkgver=9.0.1
 pkgrel=1
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
@@ -50,7 +55,7 @@ if Fuse DEVEL; then
 	Finclude scm
 else
 	source=("ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaLib-$pkgver.tar.bz2")
-	sha1sums=('dcddfd6b6b4a4ed4f7123ca75fd0108007bbad74')
+	sha1sums=('e98e26d8007008b4d2d410778ed5254b32c71b99')
 fi
 
 # Remove libgl-headers-mesa after 1.8
@@ -131,17 +136,6 @@ if Fuse EGL; then
 	subgroups=("${subgroups[@]}" 'x11')
 	subarchs=("${subarchs[@]}" "${archs[*]}")
 	subbackup=("${subbackup[@]}" '')
-
-	subpkgs=("${subpkgs[@]}" 'libvg')
-	subdescs=("${subdescs[@]}" 'Mesa OpenVG library.')
-	subprovides=("${subprovides[@]}" 'mesa-libvg')
-	subreplaces=("${subreplaces[@]}" '')
-	subconflicts=("${subconflicts[@]}" '')
-	subdepends=("${subdepends[@]}" '')
-	subrodepends=("${subrodepends[@]}" 'libgl khr-headers')
-	subgroups=("${subgroups[@]}" 'x11')
-	subarchs=("${subarchs[@]}" "${archs[*]}")
-	subbackup=("${subbackup[@]}" '')
 fi
 
 if Fuse VDPAU; then
@@ -152,6 +146,19 @@ if Fuse VDPAU; then
 	subconflicts=("${subconflicts[@]}" '')
 	subdepends=("${subdepends[@]}" 'libvdpau')
 	subrodepends=("${subrodepends[@]}" '')
+	subgroups=("${subgroups[@]}" 'x11')
+	subarchs=("${subarchs[@]}" "${archs[*]}")
+	subbackup=("${subbackup[@]}" '')
+fi
+
+if Fuse VG; then
+	subpkgs=("${subpkgs[@]}" 'libvg')
+	subdescs=("${subdescs[@]}" 'Mesa OpenVG library.')
+	subprovides=("${subprovides[@]}" 'mesa-libvg')
+	subreplaces=("${subreplaces[@]}" '')
+	subconflicts=("${subconflicts[@]}" '')
+	subdepends=("${subdepends[@]}" '')
+	subrodepends=("${subrodepends[@]}" 'libgl khr-headers')
 	subgroups=("${subgroups[@]}" 'x11')
 	subarchs=("${subarchs[@]}" "${archs[*]}")
 	subbackup=("${subbackup[@]}" '')
@@ -240,6 +247,12 @@ build() {
 		Fconfopts+=" --disable-vdpau"
 	fi
 
+	if Fuse VG; then
+		Fconfopts+=" --enable-openvg"
+	else
+		Fconfopts+=" --disable-openvg"
+	fi
+
 	if Fuse XA; then
 		Fconfopts+=" --enable-xa"
 	else
@@ -264,10 +277,8 @@ build() {
 		fi
 		Fconfopts+=" --with-egl-platforms=$EGL_PLATFORMS"
 		Fconfopts+=" --enable-egl"
-		Fconfopts+=" --enable-openvg"
 	else
 		Fconfopts+=" --disable-egl"
-	       	Fconfopts+=" --disable-openvg"
 	fi
 
 	if Fuse GALLIUM; then
@@ -339,10 +350,6 @@ build() {
 		Fsplit libegl usr/lib/libEGL.*
 		Fsplit libegl usr/lib/egl/
 		Fsplit libegl usr/lib/pkgconfig/egl.pc
-
-		Fsplit libvg usr/include/VG/
-		Fsplit libvg usr/lib/libOpenVG.*
-		Fsplit libvg usr/lib/pkgconfig/vg.pc
 	fi
 
 	if Fuse GLES1 || Fuse GLES2; then
@@ -367,6 +374,12 @@ build() {
 
 	if Fuse VDPAU; then
 		Fsplit mesa-vdpau-drivers usr/lib/vdpau/
+	fi
+
+	if Fuse VG; then
+		Fsplit libvg usr/include/VG/
+		Fsplit libvg usr/lib/libOpenVG.*
+		Fsplit libvg usr/lib/pkgconfig/vg.pc
 	fi
 
 	if Fuse WAYLAND_EGL; then

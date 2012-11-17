@@ -92,7 +92,7 @@ elif [ "$_F_scm_type" == "git" ]; then
 	makedepends=(${makedepends[@]} 'git')
 elif [ "$_F_scm_type" == "mercurial" ]; then
 	# it seems that _every_ repo url has the same web interface which has a nice rss
-	up2date="date +%Y%m%d%H%M%S --date '`lynx -dump $_F_scm_url/?style=rss|grep pubDate|sed 's/.*>\(.*\)<.*/\1/;q'`'"
+	up2date="date +%Y%m%d%H%M%S --date '\$(lynx -dump $_F_scm_url/?style=rss|grep pubDate|sed 's/.*>\(.*\)<.*/\1/;q')'"
 	makedepends=(${makedepends[@]} 'mercurial')
 elif [ "$_F_scm_type" == "bzr" ]; then
 	# last version is 1.0, last rev is 577, then it should be

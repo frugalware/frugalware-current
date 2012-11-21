@@ -1156,7 +1156,6 @@ Frcd() {
 	if [ "$#" -eq 1 ]; then
 		Fmessage "Creating rc.d environment: $1"
 		Fexe /etc/rc.d/rc.$1
-		Ffile ../messages/* /etc/rc.d/rc.messages/
 	else
 		# rc script
 		if [ -z "$_F_rcd_name" ]; then

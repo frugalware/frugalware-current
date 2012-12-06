@@ -46,7 +46,7 @@ if [ "$_F_netsurf_project" -eq 1 ]; then
 else
 	url="http://www.netsurf-browser.org"	
 	up2date="Flastarchive $url/downloads/gtk -src.tar.gz"
-	source=("$url/downloads/releases/$_F_netsurf_name-$pkgver-src.tar.gz")
+	source=("http://download.netsurf-browser.org/netsurf/releases/source/$_F_netsurf_name-$pkgver-src.tar.gz")
 	_F_cd_path="$_F_netsurf_name"
 fi
 archs=('i686' 'x86_64')

@@ -1,21 +1,35 @@
 # Compiling Time: 0.05 SBU
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
+USE_UDEV="${USE_UDEV:-n}"
+
 pkgname=hwdata
-pkgver=20120815
-pkgrel=2
+pkgver=20121210
+pkgrel=1
 pkgdesc="Hardware identification and configuration data"
-url=http://github.com/gentoo/hwids
+url="http://github.com/gentoo/hwids"
 depends=('kmod')
+makedepends=('pciutils')
 groups=('base' 'core')
 archs=('i686' 'x86_64' 'arm')
-up2date="Flasttar http://ftp.frugalware.org/pub/other/sources/$pkgname"
-source=(http://ftp.frugalware.org/pub/other/sources/$pkgname/$pkgname-$pkgver.tar.xz)
-sha1sums=('8184436b35479542f0cf58411869add36e087ee8')
-_F_cd_path=$pkgname
+_F_scm_type="git"
+_F_scm_url="git://github.com/gentoo/hwids.git"
+_F_scm_tag="hwids-$pkgver"
+Finclude scm
+up2date="$(git ls-remote --tags "$_F_scm_url" | awk 'BEGIN {FS="refs/tags/hwids-"} $2 != "" { print $2 }' | sort | tail -n 1)"
+
+if Fuse UDEV; then
+	Fconfopts="HWDBDIR=/lib/udev/hwdb.d UDEV=yes"
+fi
 
 build() {
-	Fcd $pkgname
-	Ffilerel /usr/share/hwdata/usb.ids
-	Ffilerel /usr/share/hwdata/pci.ids
+	local i
+
+	MISCDIR="$(pkg-config --variable=idsdir libpci)"
+
+	Funpack_scm
+	for i in all install; do
+		make DESTDIR="$Fdestdir" MISCDIR="$MISCDIR" "$i" || Fdie
+	done
+	Frm /usr/share/doc/hwids
 }

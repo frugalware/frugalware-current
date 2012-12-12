@@ -262,12 +262,12 @@ Fbuildkernel()
 	Fmkdir /usr/src
 	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
 	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,.gitignore,.config.old,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
-	Fln ../generated/uapi/linux/version.h /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/include/linux/version.h
-	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname scripts || Fdie
-	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname prepare || Fdie
 	Fdirschmod /usr/src 0755
 	Ffileschmod /usr/src 0644
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
+	Fln ../generated/uapi/linux/version.h /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/include/linux/version.h
+	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname scripts || Fdie
+	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname prepare || Fdie
 	Fsplit kernel$_F_kernel_name-source usr/src
 
 	## now the kernel$_F_kernel_name-docs

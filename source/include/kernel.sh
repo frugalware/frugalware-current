@@ -262,8 +262,6 @@ Fbuildkernel()
 	Fmkdir /usr/src
 	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
 	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,.gitignore,.config.old,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
-	Fdirschmod /usr/src 0755
-	Ffileschmod /usr/src 0644
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
 	Fln ../generated/uapi/linux/version.h /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/include/linux/version.h
 	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname scripts || Fdie
@@ -275,16 +273,12 @@ Fbuildkernel()
 	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
 	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
         ## do we need to ln /usr/share/doc ?!
-	Fdirschmod /usr/src 0755
-	Ffileschmod /usr/src 0644
 	Fsplit kernel$_F_kernel_name-docs usr/src
 
 	if [ -z "$_F_kernel_name" ]; then
 		make INSTALL_HDR_PATH=$Fdestdir/usr headers_install || Fdie
 		[ -e $Fdestdir/usr/include/scsi ] && Frm /usr/include/scsi
 		[ -e $Fdestdir/usr/include/drm ] && Frm /usr/include/drm
-		Fdirschmod /usr 0755
-		Ffileschmod /usr 0644
 		Fsplit kernel-headers /usr
 	fi
 	if [ -z "$_F_kernel_name" -a $_F_kernel_dontfakeversion -eq 0 ]; then

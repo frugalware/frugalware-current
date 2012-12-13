@@ -263,6 +263,7 @@ Fbuildkernel()
 	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
 	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,.gitignore,.config.old,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
+	# the following line can be removed after 1.8
 	Fln ../generated/uapi/linux/version.h /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/include/linux/version.h
 	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname scripts || Fdie
 	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname prepare || Fdie

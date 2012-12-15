@@ -46,11 +46,6 @@
 # _F_scm_type="git"
 # _F_scm_url="http://www.kernel.org/pub/scm/linux/pcmcia/pcmciautils.git"
 # --------------------------------------------------
-# Example for darcs:
-# --------------------------------------------------
-# _F_scm_type="darcs"
-# _F_scm_url="http://darcs.frugalware.org/repos/pacman-tools/"
-# --------------------------------------------------
 # Example for bzr:
 # --------------------------------------------------
 # _F_scm_type="bzr"
@@ -62,11 +57,11 @@
 # _F_scm_url="svn://svn.mplayerhq.hu/mplayer/trunk"
 # --------------------------------------------------
 # == OPTIONS
-# * _F_scm_type: can be darcs, cvs, subversion, git, mercurial or bzr - required
+# * _F_scm_type: can be cvs, subversion, git, mercurial or bzr - required
 # * _F_scm_url: url of the repo - required
 # * _F_scm_password: password of the repo - required for cvs
 # * _F_scm_module: name of the module to check out - required for cvs
-# * _F_scm_tag: name of the tag/branch to use - implemented for darcs/cvs/svn/git/mercurial
+# * _F_scm_tag: name of the tag/branch to use - implemented for cvs/svn/git/mercurial
 ###
 
 # slice the / suffix if there is any
@@ -77,10 +72,7 @@ _F_scm_url=${_F_scm_url%/}
 # * up2date
 # * makedepends()
 ###
-if [ "$_F_scm_type" == "darcs" ]; then
-	up2date="lynx -source -dump $_F_scm_url/_darcs/inventory|grep ']'|sed -n 's/.*\*\(.*\)\]./\1/;$ p'"
-	makedepends=(${makedepends[@]} 'darcs')
-elif [ "$_F_scm_type" == "cvs" ]; then
+if [ "$_F_scm_type" == "cvs" ]; then
 	# if you know a better solution, patches are welcome! :)
 	up2date="date +%Y%m%d"
 	makedepends=(${makedepends[@]} 'cvs')
@@ -109,17 +101,7 @@ Funpack_scm()
 {
 	local extra
 
-	if [ "$_F_scm_type" == "darcs" ]; then
-		if [ -n "$_F_scm_tag" ]; then
-			extra="--tag=$_F_scm_tag"
-		fi
-		if [ -d "${_F_scm_url##*/}" ]; then
-			darcs pull $extra || Fdie
-		else
-			darcs get --lazy $_F_scm_url $extra || Fdie
-		fi
-		Fcd ${_F_scm_url##*/}
-	elif [ "$_F_scm_type" == "cvs" ]; then
+	if [ "$_F_scm_type" == "cvs" ]; then
 		touch ~/.cvspass || Fdie
 		cvs -d ${_F_scm_url/@/:$_F_scm_password@} login || Fdie
 		if [ -n "$_F_scm_tag" ]; then

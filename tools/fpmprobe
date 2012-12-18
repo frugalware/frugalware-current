@@ -1,0 +1,42 @@
+#!/bin/sh
+
+IFS=$'\n'
+
+TMPDIR=$(mktemp -d)
+
+cd "$TMPDIR"
+
+permission_probe()
+{
+	local p
+
+	if echo "$2" | grep -E -q '(executable|directory)'; then
+		p=755
+	else
+		p=644
+	fi
+
+	if ! stat -c '%a' "$1" | grep -q "$p"; then
+		echo "$1: strange permissions"
+	fi
+}
+
+for i in /pub/frugalware/frugalware-current/frugalware-x86_64/*.fpm; do
+	if [ ! -f "$i" ]; then
+	  continue
+	fi
+	tar -x -p -f "$i" 2>&1
+	echo "Start: $i"
+	for j in $(find -P -not -type l); do
+		if [ "$j" == "." ]; then
+			continue
+		fi
+		k=$(file "$j")
+		k=${k#*: }
+		permission_probe "$j" "$k"
+	done
+	echo "End: $i"
+	rm -rf .* * 2>&1
+done
+
+rm -rf "$TMPDIR"

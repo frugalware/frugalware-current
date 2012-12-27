@@ -192,7 +192,7 @@ signatures=("${signatures[@]}" '' '' '')
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
 subrodepends=("kernel$_F_kernel_name-docs make gcc kernel-headers" "kernel$_F_kernel_name")
 subarchs=('i686 x86_64 arm' 'i686 x86_64 arm')
-subinstall=('src/kernel-source.install' '')
+subinstall=('' '')
 suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
 	subpkgs=("${subpkgs[@]}" 'kernel-headers')
@@ -261,10 +261,12 @@ Fbuildkernel()
 	## let we do kernel$_F_kernel_name-source before make
 	Fmkdir /usr/src
 	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
-	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
-	Fdirschmod /usr/src 0755
-	Ffileschmod /usr/src 0644
+	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,.gitignore,.config.old,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
+	# the following line can be removed after 1.8
+	Fln ../generated/uapi/linux/version.h /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/include/linux/version.h
+	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname scripts || Fdie
+	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname prepare || Fdie
 	Fsplit kernel$_F_kernel_name-source usr/src
 
 	## now the kernel$_F_kernel_name-docs
@@ -272,16 +274,12 @@ Fbuildkernel()
 	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} \
 	                 $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
         ## do we need to ln /usr/share/doc ?!
-	Fdirschmod /usr/src 0755
-	Ffileschmod /usr/src 0644
 	Fsplit kernel$_F_kernel_name-docs usr/src
 
 	if [ -z "$_F_kernel_name" ]; then
 		make INSTALL_HDR_PATH=$Fdestdir/usr headers_install || Fdie
 		[ -e $Fdestdir/usr/include/scsi ] && Frm /usr/include/scsi
 		[ -e $Fdestdir/usr/include/drm ] && Frm /usr/include/drm
-		Fdirschmod /usr 0755
-		Ffileschmod /usr 0644
 		Fsplit kernel-headers /usr
 	fi
 	if [ -z "$_F_kernel_name" -a $_F_kernel_dontfakeversion -eq 0 ]; then
@@ -333,13 +331,6 @@ Fbuildkernel()
 	Fkernelver_compress_modules
 
 	Fexec /sbin/depmod -a -b $Fdestdir $_F_kernel_ver$_F_kernel_uname || Fdie
-
-	# scriptlets
-	cp $Fincdir/kernel-source.install $Fsrcdir || Fdie
-	Fsed '$_F_kernel_ver' "$_F_kernel_ver" $Fsrcdir/kernel-source.install
-	Fsed '$_F_kernel_uname' "$_F_kernel_uname" $Fsrcdir/kernel-source.install
-	Fsed '$_F_kernel_name' "$_F_kernel_name" $Fsrcdir/kernel-source.install
-	Fsed '$_F_kernel_rel' "$_F_kernel_rel" $Fsrcdir/kernel-source.install
 }
 
 ###

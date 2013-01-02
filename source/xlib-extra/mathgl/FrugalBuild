@@ -2,55 +2,53 @@
 # Maintainer: Elentir <elentir@frugalware.org>
 
 pkgname=mathgl
-pkgver=1.11.2
+pkgver=2.1.1
 pkgrel=1
 pkgdesc="A library for making high-quality scientific graphics, fast data plotting and handling of large data arrays"
 archs=('i686' 'x86_64')
-depends=('gsl' 'libjpeg>=8a' 'libgif>=4.1.6' 'libpng>=1.4.1' 'libgomp' 'libgl' 'hdf5')
-makedepends=('swig')
+depends=('gsl' 'libjpeg>=8a' 'libgif>=4.1.6' 'libpng>=1.4.1' 'libgomp' 'libgl' 'hdf5' 'fltk' \
+	'libqtgui' 'freeglut' 'libxmu')
+makedepends=('swig' 'qt4')
 groups=('xlib-extra')
 _F_sourceforge_dirname=$pkgname
 _F_sourceforge_ext=".tar.gz"
-Finclude sourceforge python
-Fconfopts+=" --enable-fltk --enable-glut --enable-qt --enable-jpeg --enable-gif --enable-hdf5 --enable-python --enable-octave"
-sha1sums=('16b9ab58e654c5b91374f8a35eafc33630d7f5c0')
+Finclude sourceforge python cmake
+source=(${source[@]} mathgl-2.1.1-fix-hardcoded-paths.patch)
+_F_cmake_confopts="$_F_cmake_confopts -Denable-fltk=ON -Denable-glut=ON -Denable-qt=ON -Denable-jpeg=ON \
+			-Denable-gif=ON -Denable-hdf5=ON -Denable-hdf5_18=ON -Denable-python=ON -Denable-octave=ON \
+			-Denable-octave-install=OFF"
+sha1sums=('be0764a138aae4222e156d4a62cf0d85b386cb6a' \
+          '20ca80c18d0f3f29d624587b8dfa59d98e27249e')
 
-subpkgs=('mathgl-qt' 'mathgl-fltk' 'mathgl-glut' 'mathgl-python' 'mathgl-octave')
-subdescs=('QT interface for Mathgl library' 'FLTK interface for Mathgl library' 'GLUT interface for Mathgl library'  \
-	'Python interface for Mathgl library' 'Octave interface for Mathgl library')
-subdepends=('libqtgui>=4.6.2-3' 'fltk>=1.1.10' 'freeglut' 'numpy' 'octave')
-subrodepends=('mathgl' 'mathgl' 'mathgl' 'mathgl' 'mathgl')
-subgroups=('xlib-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra')
-subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64')
-subinstall=("" "" "" "" "mgloctave.install")
+subpkgs=('mathgl-python' 'mathgl-octave' 'udav')
+subdescs=('Python interface for Mathgl library' 'Octave interface for Mathgl library' \
+	'QT software for data arrays visualization based on MathGL library')
+subdepends=('numpy' 'octave' '')
+subrodepends=('mathgl' 'mathgl' 'mathgl')
+subgroups=('xlib-extra' 'xlib-extra' 'xapps-extra')
+subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
+subinstall=("" "mgloctave.install" "")
 
 
 build() {
-	# find numpy headers location
-	NUMPY_HEADER=`python -c "import numpy;print numpy.get_include();"` || Fdie
-	Fconf
-	# fix a mislocation of arrayobject.h
-	Fsed "PYTHON_HEADERS = -I/usr/include/python$_F_python_ver" "PYTHON_HEADERS = -I/usr/include/python$_F_python_ver -I${NUMPY_HEADER}" lang/Makefile
-	# use v16 symbols for hdf5 library
-	Fsed "DEFS = -DHAVE_CONFIG_H" "DEFS = -DHAVE_CONFIG_H -DH5_USE_16_API" mgl/Makefile
-	Fmakeinstall
-	# Qt interface
-	Fsplit mathgl-qt usr/bin/mgl_qt_example
-	Fsplit mathgl-qt usr/lib/libmgl-qt.*
-	Fsplit mathgl-qt usr/include/mgl/mgl_qt.h
-	# Fltk interface
-	Fsplit mathgl-fltk usr/lib/libmgl-fltk.*
-	Fsplit mathgl-fltk usr/bin/mgl_fltk_example
-	Fsplit mathgl-fltk usr/bin/mglview
-	Fsplit mathgl-fltk usr/include/mgl/mgl_fltk.h
-	# Glut interface
-	Fsplit mathgl-glut usr/bin/mgl_glut_example
-	Fsplit mathgl-glut usr/lib/libmgl-glut.*
-	Fsplit mathgl-glut usr/include/mgl/mgl_glut.h
+	# fltk 1.3 fix
+	Fsed  "Fl/" "FL/" include/mgl2/fltk.h
+
+	# numpy fix
+	export CPPFLAGS+=" -I/usr/lib/python2.7/site-packages/numpy/core/include"
+	export CXXFLAGS+=" -I/usr/lib/python2.7/site-packages/numpy/core/include"
+
+	CMake_build
+
 	# Python interface
 	Fsplit mathgl-python usr/lib/python*
 	#  Octave interface
-	Fsplit mathgl-octave usr/share/mathgl/octave
+	Fsplit mathgl-octave usr/share/mathgl/mathgl.tar.gz
+	#  Udav
+	Fsplit udav usr/bin/udav
+	Fsplit udav usr/share/pixmaps
+	Fsplit udav usr/share/applications
+	Fsplit udav usr/share/udav
 }
 
 # optimization OK

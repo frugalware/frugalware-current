@@ -17,8 +17,8 @@
 ###
 
 
-_F_kdever_ver=4.9.3
-_F_kdever_qt=4.8.3
+_F_kdever_ver=4.9.5
+_F_kdever_qt=4.8.4
 
 # Must be done in 2 lines else bash barfs on the floor
 declare -gA _F_kdever_sha1sums

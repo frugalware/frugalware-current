@@ -31,6 +31,7 @@
 # * _F_github_ext: file extension used for this Github archive.
 # * _F_github_author: owner of the repository and of the project on which
 #   to get the software.
+# * _F_github_tag: default is empty, use if source has in $url/tags.
 #
 # == APPENDED VARIABLES
 # * source()
@@ -67,13 +68,40 @@ if [ -z "$url" ]; then
 	url=http://github.com/$_F_github_author/$_F_github_name
 fi
 
+if [ -z "$_F_github_tag" ]; then
+	_F_github_up2date="downloads"
+	_F_github_source="http://github.com/downloads/$_F_github_author/$_F_github_dirname/$_F_github_name$_F_github_sep$_F_github_ver$_F_github_ext"
+	else
+	_F_github_up2date="tags"
+	_F_archive_name="archive"
+	Fpkgversep="/"
+	_F_github_source="https://nodeload.github.com/$_F_github_author/$_F_github_dirname/zip/$_F_github_ver"
+	_F_cd_path="$_F_github_name-$_F_github_ver"
+fi
+
+
 if [ "$_F_github_devel" = "yes" ]; then
 	# Not checked, but may work.
 	_F_scm_type=git
 	_F_scm_url=git://github.com/$_F_github_author/$_F_github_name
 	Finclude scm
 else
-	up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_dirname/downloads $_F_github_ext"
+	up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext"
 	# On one line for Mr Portability, Hermier Portability.
-	source=(${source[@]} http://github.com/downloads/$_F_github_author/$_F_github_dirname/$_F_github_name$_F_github_sep$_F_github_ver$_F_github_ext)
+	source=(${source[@]} ${_F_github_source})
+fi
+
+if [ -n "$_F_github_tag" ]; then
+	# Funpack_github() unpack zipball if source has in $url/tags.
+	Funpack_github()
+	{
+		unzip -o -q $_F_github_ver
+	}
+
+	# build() just calls Funpack_github and Fbuild
+	build()
+	{
+		Funpack_github
+		Fbuild
+	}
 fi

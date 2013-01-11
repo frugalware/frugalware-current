@@ -1,0 +1,90 @@
+#!/bin/sh
+
+IFS=$'\n'
+
+TMPDIR=$(mktemp -d)
+
+cd "$TMPDIR"
+
+# Probe for unusual permissions for a path.
+permission_probe()
+{
+	local p
+
+	if echo "$2" | grep -E -q '(executable|directory)'; then
+		p=755
+	else
+		p=644
+	fi
+
+	if ! stat -c '%a' "$1" | grep -q "$p"; then
+		echo "$1: strange permissions"
+	fi
+}
+
+# Probe for paths which should never exist in a package.
+paths_probe()
+{
+	local error
+
+	case "$1" in
+		./usr/share/fonts/X11/*/fonts.alias) error=1 ;;
+		./usr/share/fonts/X11/*/fonts.scale) error=1 ;;
+		./usr/share/fonts/X11/*/fonts.dir) error=1 ;;
+		./usr/share/icons/*/icon-theme.cache) error=1 ;;
+		./usr/share/info/dir) error=1 ;;
+		./var/cache/man/*) error=1 ;;
+		*) error=0 ;;
+	esac
+	
+	if [ "$error" -eq 1 ]; then
+		echo "$1: path should not exist in a package"
+	fi
+}
+
+# Probe for uncompressed file paths in packages.
+compressed_probe()
+{
+	local error
+
+	if echo "$2" | grep -q -E '\b(gzip|XZ|directory)\b'; then
+		return
+	fi
+
+	case "$1" in
+		./usr/share/consolefonts/*.fon) error=1 ;;
+		./usr/share/consolefonts/*.psf) error=1 ;;
+		./usr/share/consolefonts/*.psfu) error=1 ;;
+		./usr/share/fonts/X11/*/*.pcf) error=1 ;;
+		./usr/share/fonts/X11/*/*.bdf) error=1 ;;
+		./usr/share/man/*) error=1 ;;
+		./usr/man/*) error=1 ;;
+		./lib/modules/*/kernel/*.ko) error=1 ;;
+		*) error=0 ;;
+	esac
+		
+	if [ "$error" -eq 1 ]; then
+		echo "$1: uncompressed file"
+	fi
+}
+
+for i in /pub/frugalware/frugalware-current/frugalware-x86_64/*.fpm; do
+	if [ ! -f "$i" ]; then
+	  continue
+	fi
+	tar -x -p -f "$i" 2>&1
+	echo "Start: $i"
+	for j in $(find -P -not -type l); do
+		if [ "$j" = "." -o "$j" = ".." ]; then
+			continue
+		fi
+		k=$(file "$j")
+		k=${k#*: }
+		paths_probe "$j" "$k"
+		compressed_probe "$j" $k"
+	done
+	echo "End: $i"
+	rm -rf .* * 2>&1
+done
+
+rm -rf "$TMPDIR"

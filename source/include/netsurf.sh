@@ -41,12 +41,12 @@
 if [ "$_F_netsurf_project" -eq 1 ]; then
 	url="http://www.netsurf-browser.org/projects/$_F_netsurf_name"
 	up2date="Flastarchive $url -src.tar.gz"
-	source=("${url/$_F_netsurf_name/releases/}/$_F_netsurf_name-$pkgver-src.tar.gz")
+	source=("http://download.netsurf-browser.org/libs/releases/$_F_netsurf_name-$pkgver-src.tar.gz")
 	_F_cd_path="$_F_netsurf_name-$pkgver"
 else
 	url="http://www.netsurf-browser.org"	
 	up2date="Flastarchive $url/downloads/gtk -src.tar.gz"
-	source=("$url/downloads/releases/$_F_netsurf_name-$pkgver-src.tar.gz")
+	source=("http://download.netsurf-browser.org/netsurf/releases/source/$_F_netsurf_name-$pkgver-src.tar.gz")
 	_F_cd_path="$_F_netsurf_name"
 fi
 archs=('i686' 'x86_64')

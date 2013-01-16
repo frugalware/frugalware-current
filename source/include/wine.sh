@@ -68,18 +68,6 @@ esac
 
 source=(http://downloads.sourceforge.net/wine/{wine-$pkgver.tar.bz2,wine_gecko-$_geckover-${CARCH/i686/x86}.msi})
 
-###
-# == PROVIDED FUNCTIONS
-# * Fwinercd()
-###
-Fwinercd()
-{
-	[ "$pkgname" != "wine" ] && return
-	Fexec cp $Fincdir/wine.install $Fsrcdir
-	Fexec cp $Fincdir/rc.wine $Fsrcdir
-	Frcd2
-}
-
 build()
 {
 	Fbuild
@@ -87,5 +75,4 @@ build()
 	Fexec cp $Fincdir/wine.conf $Fsrcdir
 	Ffile /etc/binfmt.d/wine.conf
 	[ "$CARCH" == "x86_64" ] && Fln wine64 /usr/bin/wine
-	Fwinercd
 }

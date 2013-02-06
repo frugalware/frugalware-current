@@ -14,29 +14,30 @@ post_install() {
 	/bin/ln -sf $target /etc/systemd/system/default.target
 	#enable services
 	/bin/systemctl enable \
-                getty@.service \
-                getty.target \
-                remote-fs.target > /dev/null 2>&1 || :
+		display-manager.service \
+		getty@.service \
+		getty.target \
+		remote-fs.target > /dev/null 2>&1 || :
 	#now /etc/mtab is a symlink
 	rm /etc/mtab
 	ln -sf /proc/self/mounts /etc/mtab
 	/bin/systemd-machine-id-setup > /dev/null 2>&1 || :
-	grep LANG= /etc/sysconfig/language |sed 's/export //' > /etc/locale.conf
-	#can be remove after 1.5
-	mkdir -p /media
 }
 
 post_upgrade() {
-	# these can be removed after Frugalware-1.5
-	/bin/systemd-machine-id-setup > /dev/null 2>&1 || :
-	if [ ! -s /etc/locale.conf -a -n "$LANG" ]; then
-		grep LANG= /etc/sysconfig/language |sed 's/export //' > /etc/locale.conf
+	# these can be removed after Frugalware-1.8 (Setup need to be adapted)
+	# first, if this is a direct stable -> current upgrade, then this file should be size 0.
+	if [ ! -s /etc/locale.conf -a -f /etc/profile.d/lang.sh ]; then
+		grep LANG= /etc/profile.d/lang.sh | sed 's|export ||' > /etc/locale.conf
 	fi
-	rm -f /etc/systemd/system/sysinit.target.wants/hwclock-load.service
+	# second, enable utf8 locale in /etc/locale.conf.
+	if ! grep -q '^LANG=.*\.utf8$' /etc/locale.conf; then
+		sed -i -r 's|^LANG=([^.]*)(\..*)?$|LANG=\1.utf8|' /etc/locale.conf
+	fi
+	# Setup display manager
+	/bin/systemctl enable display-manager-legacy.service > /dev/null 2>&1
 	#reload systemd
 	/bin/systemctl daemon-reexec > /dev/null 2>&1 || :
-	#can be removed after 1.5
-	mkdir -p /media
 }
 
 post_remove() {

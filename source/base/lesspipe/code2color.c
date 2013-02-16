@@ -66,9 +66,9 @@ static void highlight_output(struct args *args)
   char cmd[_POSIX_ARG_MAX] = {0};
 
   if(args->language == 0)
-    snprintf(cmd,sizeof(cmd),"/usr/bin/source-highlight --input=%s --output=STDOUT --failsafe --out-format=esc --style-file=esc.style --infer-lang",args->input);
+    snprintf(cmd,sizeof(cmd),"/usr/bin/source-highlight --input='%s' --output=STDOUT --failsafe --out-format=esc --style-file=esc.style --infer-lang",args->input);
   else
-    snprintf(cmd,sizeof(cmd),"/usr/bin/source-highlight --input=%s --output=STDOUT --failsafe --out-format=esc --style-file=esc.style --lang-def=%s.lang",args->input,args->language);
+    snprintf(cmd,sizeof(cmd),"/usr/bin/source-highlight --input='%s' --output=STDOUT --failsafe --out-format=esc --style-file=esc.style --lang-def='%s.lang'",args->input,args->language);
 
   system(cmd);
 }

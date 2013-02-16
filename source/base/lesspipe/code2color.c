@@ -45,12 +45,20 @@ static bool mode2_args(int argc,char **argv,struct args *args)
   return true;  
 }
 
-static void normal_output(void)
+static void normal_output(struct args *args)
 {
+  FILE *f = 0;
   char line[LINE_MAX] = {0};
   
-  while(fgets(line,sizeof(line),stdin))
+  f = fopen(args->input,"rb");
+  
+  if(f == 0)
+    return;
+  
+  while(fgets(line,sizeof(line),f))
     fprintf(stdout,"%s",line);
+  
+  fclose(f);
 }
 
 static void highlight_output(struct args *args)
@@ -70,8 +78,11 @@ extern int main(int argc,char **argv)
   struct args args = {0};
   struct stat st = {0};
  
-  if(stat("/usr/bin/source-highlight",&st) == -1 || (!mode1_args(argc,argv,&args) && !mode2_args(argc,argv,&args)))
-    normal_output();
+  if(!mode1_args(argc,argv,&args) && !mode2_args(argc,argv,&args))
+    return EXIT_FAILURE;
+
+  if(stat("/usr/bin/source-highlight",&st) == -1)
+    normal_output(&args);
   else
     highlight_output(&args);
 

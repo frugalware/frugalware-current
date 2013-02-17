@@ -1,0 +1,33 @@
+--- src.orig/multipath/multipath.rules	2013-02-14 13:26:19.586191886 +0100
++++ src/multipath/multipath.rules	2013-02-14 13:27:22.421915507 +0100
+@@ -1,7 +1,24 @@
+-#
+-# udev rules for multipathing.
+-# The persistent symlinks are created with the kpartx rules
+-#
++# multipath wants the devmaps presented as meaninglful device names
++# so name them after their devmap name
++SUBSYSTEM!="block", GOTO="end_mpath"
++ 
++ENV{MPATH_SBIN_PATH}="/sbin"
++TEST!="$env{MPATH_SBIN_PATH}/multipath", ENV{MPATH_SBIN_PATH}="/usr/sbin"
+ 
+-# socket for uevents
+-SUBSYSTEM=="block", RUN+="socket:/org/kernel/dm/multipath_event"
++ACTION=="add", ENV{DEVTYPE}!="partition", \
++	ENV{DM_MULTIPATH_DEVICE_PATH}!="1", \
++	TEST=="/etc/multipath.conf", \
++	PROGRAM=="$env{MPATH_SBIN_PATH}/multipath -c $tempnode", \
++	ENV{DM_MULTIPATH_DEVICE_PATH}="1"
++
++ENV{DM_MULTIPATH_DEVICE_PATH}=="1", ENV{DEVTYPE}!="partition", \
++	RUN+="/sbin/partx -d --nr 1-1024 $env{DEVNAME}"
++
++KERNEL!="dm-*", GOTO="end_mpath"
++ACTION!="change", GOTO="end_mpath"
++ENV{DM_UUID}=="mpath-?*|part[0-9]*-mpath-?*", OPTIONS+="link_priority=10"
++ENV{DM_UUID}!="mpath-?*", GOTO="end_mpath"
++ENV{DM_SUSPENDED}=="1", GOTO="end_mpath"
++ENV{DM_ACTION}=="PATH_FAILED", GOTO="end_mpath"
++RUN+="$env{MPATH_SBIN_PATH}/kpartx -a -p p $tempnode"
++LABEL="end_mpath"

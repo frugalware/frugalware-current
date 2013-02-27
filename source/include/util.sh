@@ -1800,3 +1800,157 @@ Fextract() {
 		fi
 	fi
 }
+
+_P_makepkg_prebuild_hooks+=(F_asneeded_hook)
+F_asneeded_hook () {
+	if [ "`check_option NOASNEEDED`" ]; then
+		msg "Using --no-as-needed in LDFLAGS"
+		LDFLAGS+=" -Wl,--no-as-needed"
+	else
+		if [ "`check_option ASNEEDED`" ]; then
+			msg "Using --as-needed in LDFLAGS"
+			LDFLAGS+=" -Wl,--as-needed"
+		fi
+	fi
+	export LDFLAGS
+}
+
+_P_makepkg_postbuild_hooks+=(F_makepkg_postbuild_compat_hook)
+F_makepkg_postbuild_compat_hook () {
+cd $startdir
+# unwanted files
+msg "Removing unwanted files..."
+extra=
+ls pkg.* &>/dev/null && extra=pkg.*/usr/lib/perl?
+for f in `find pkg/usr/lib/perl? $extra -type f 2> /dev/null` ; do
+	case "$f" in
+		*/.packlist|*/perllocal.pod)
+			rm -f "$f"
+			rmdir -p --ignore-fail-on-non-empty `dirname $f` 2> /dev/null
+		;;
+	esac
+done
+extra=
+ls pkg.* &>/dev/null && extra=pkg.*
+rm -f {pkg,pkg.*}/{usr{,/local,/share},opt/*}/info/dir 2> /dev/null
+for f in `find pkg $extra -type f -name encodings.dir -o -type f -name fonts.dir -o -type f -name fonts.scale` ; do
+	msg2 "`$ECHO $f | sed 's|pkg[^/]\+||'`"
+	rm -f "$f"
+done
+
+# documentation
+msg "Preparing package documentation..."
+if [ ! "`check_option NODOCS`" -a "$NODOCS" = "0" ]; then
+	mkdir -p pkg/usr/share/doc/$pkgname-$pkgver
+	find src -maxdepth 2 -size +0b \( \
+		    -name ANNOUNCE \
+		-or -name AUTHORS \
+	  	-or -name '*BUGS*' \
+		-or -name CHANGES \
+		-or -name CONFIGURATION \
+		-or -name '*COPYING*' \
+		-or -name '*COPYRIGHT*' \
+		-or -name CREDITS \
+		-or -name ChangeLog \
+		-or -name Changelog \
+		-or -name CHANGELOG \
+		-or -name CONTRIBUTORS \
+		-or -name '*FAQ*' \
+		-or -name FEATURES \
+		-or -name FILES \
+		-or -name HACKING \
+		-or -name History \
+		-or -name HISTORY \
+		-or -name 'INSTALL*' \
+		-or -name LICENSE \
+		-or -name LSM \
+		-or -name MANIFEST \
+		-or -name NEWS \
+		-or -name '*README*' \
+		-or -name '*Readme*' \
+		-or -name SITES \
+		-or -name '*RELEASE*' \
+		-or -name RELNOTES \
+		-or -name THANKS \
+		-or -name TIPS \
+		-or -name TODO \
+		-or -name VERSION \
+		-or -name 'CONFIGURATION*' \
+		-or -name GPLLicense \
+		\) -exec install -pm 644 '{}' pkg/usr/share/doc/$pkgname-$pkgver/ \;
+fi
+for d in $startdir/{pkg,pkg.*}
+do
+	[ ! -d $d ] && continue
+	if [ -d $d/usr/doc ]; then
+		if [ ! "`check_option NODOCS`" -a "$NODOCS" = "0" ]; then
+			mkdir -p $d/usr/share/doc/$pkgname-$pkgver
+			cp -a $d/usr/doc/* $d/usr/share/doc/$pkgname-$pkgver
+		fi
+		rm -rf $d/usr/doc
+	fi
+
+	# remove /usr/share/doc/$pkgname-$pkgver directory if empty
+	if [ -d $d/usr/share/doc/$pkgname-$pkgver ]; then
+		rmdir -p --ignore-fail-on-non-empty $d/usr/share/doc/$pkgname-$pkgver 2> /dev/null
+		mkdir -p pkg
+	fi
+
+	# move /usr/info files to /usr/share/info
+	if [ -d $d/usr/info ]; then
+		mkdir -p $d/usr/share/info
+		cp -a $d/usr/info/* $d/usr/share/info/
+		rm -rf $d/usr/info
+	fi
+
+	# move /usr/man files to /usr/share/man
+	if [ -d $d/usr/man ]; then
+		mkdir -p $d/usr/share/man
+		cp -a $d/usr/man/* $d/usr/share/man/
+		rm -rf $d/usr/man
+	fi
+
+	if [ -d "$d/usr/share/icons/hicolor" ]; then
+		if [ -z "$_F_gnome_iconcache" ]; then
+			warning "Package $pkgname contains hicolor icons but _F_gnome_iconcache is not set"
+		fi
+	fi
+done
+
+# compress info and manual pages
+msg "Compressing info and manual pages..."
+find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/{info,man} -type f 2>/dev/null | while read i ; do
+	ext="${i##*.}"
+	fn="${i##*/}"
+	if [ "$ext" != "gz" -a "$ext" != "bz2" ]; then
+		# update symlinks to this manpage
+		find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/man -lname "$fn" 2> /dev/null | while read ln ; do
+			rm -f "$ln"
+			ln -sf "${fn}.gz" "${ln}.gz"
+		done
+		# compress the original
+		gzip -9 "$i"
+	fi
+done
+
+# check symbolic links
+msg "Checking symbolic links..."
+for d in $startdir/{pkg,pkg.*} ; do
+	for l in `find $d -type l 2> /dev/null` ; do
+		if [ ! -e "$l" -a ! -e "$d/`ls -l $l | awk '{print $NF}'`" ]; then
+			if [ "$d" = "$startdir/pkg" ]; then
+				msg2 "Maybe broken link ${l#$d} in pkg $pkgname found."
+			else
+				msg2 "Maybe broken link ${l#$d} in pkg ${d##*/pkg.} found."
+			fi
+		elif ls -l "$l" | awk '{print $NF}' | grep -q "$startdir" ; then
+			if [ "$d" = "$startdir/pkg" ]; then
+				msg2 "Broken link ${l#$d} in pkg $pkgname found."
+			else
+				msg2 "Broken link ${l#$d} in pkg ${d##*/pkg.} found."
+			fi
+		fi
+	done
+done
+return 0
+}

@@ -1,0 +1,107 @@
+diff --git a/ksmserver/screenlocker/ksldapp.h b/ksmserver/screenlocker/ksldapp.h
+index 51c0906fc6e54787af749872615770bd6005b4fb..3047c00558d664ffac864582a4cb2c4f725a3cf4 100644
+--- a/ksmserver/screenlocker/ksldapp.h
++++ b/ksmserver/screenlocker/ksldapp.h
+@@ -85,6 +85,7 @@ Q_SIGNALS:
+ private Q_SLOTS:
+     void cleanUp();
+     void idleTimeout(int identifier);
++    void endGraceTime();
+ 
+ private:
+     void initialize();
+@@ -112,7 +113,11 @@ private:
+      **/
+     int m_lockGrace;
+     /**
+-     * while this timer is active user activity may remove the lock. Only used after idle timeout.
++     * Controls whether user activity may remove the lock. Only enabled after idle timeout.
++     **/
++    bool m_inGraceTime;
++    /**
++     * Grace time ends when timer expires.
+      **/
+     QTimer *m_graceTimer;
+     int m_inhibitCounter;
+diff --git a/ksmserver/screenlocker/ksldapp.cpp b/ksmserver/screenlocker/ksldapp.cpp
+index c07ac0ef1c6643415b8c13ba438628a1e118fb72..d6da8634ee4fe3daa194d2c9cebcfe5147887e4f 100644
+--- a/ksmserver/screenlocker/ksldapp.cpp
++++ b/ksmserver/screenlocker/ksldapp.cpp
+@@ -70,6 +70,7 @@ KSldApp::KSldApp(QObject * parent)
+     , m_lockedTimer(QElapsedTimer())
+     , m_idleId(0)
+     , m_lockGrace(0)
++    , m_inGraceTime(false)
+     , m_graceTimer(new QTimer(this))
+     , m_inhibitCounter(0)
+     , m_plasmaEnabled(false)
+@@ -130,6 +131,7 @@ void KSldApp::initialize()
+     connect(m_lockProcess, SIGNAL(finished(int,QProcess::ExitStatus)), SLOT(lockProcessFinished(int,QProcess::ExitStatus)));
+     m_lockedTimer.invalidate();
+     m_graceTimer->setSingleShot(true);
++    connect(m_graceTimer, SIGNAL(timeout()), SLOT(endGraceTime()));
+     // create our D-Bus interface
+     new Interface(this);
+ 
+@@ -150,11 +152,15 @@ void KSldApp::configure()
+         // timeout stored in seconds
+         m_idleId = KIdleTime::instance()->addIdleTimeout(timeout*1000);
+     }
+-    m_lockGrace = KScreenSaverSettings::lockGrace();
+-    if (m_lockGrace < 0) {
+-        m_lockGrace = 0;
+-    } else if (m_lockGrace > 300000) {
+-        m_lockGrace = 300000; // 5 minutes, keep the value sane
++    if (KScreenSaverSettings::lock()) {
++        m_lockGrace = KScreenSaverSettings::lockGrace();
++        if (m_lockGrace < 0) {
++            m_lockGrace = 0;
++        } else if (m_lockGrace > 300000) {
++            m_lockGrace = 300000; // 5 minutes, keep the value sane
++        }
++    } else {
++        m_lockGrace = -1;
+     }
+     m_autoLogoutTimeout = KScreenSaverSettings::autoLogout() ? KScreenSaverSettings::autoLogoutTimeout() * 1000 : 0;
+     m_plasmaEnabled = KScreenSaverSettings::plasmaEnabled();
+@@ -246,6 +252,7 @@ void KSldApp::doUnlock()
+     m_lockWindow = NULL;
+     m_locked = false;
+     m_lockedTimer.invalidate();
++    endGraceTime();
+     KDisplayManager().setLock(false);
+     emit unlocked();
+     KNotification::event( QLatin1String("unlocked"));
+@@ -320,20 +327,29 @@ void KSldApp::idleTimeout(int identifier)
+         // there is at least one process blocking the auto lock of screen locker
+         return;
+     }
+-    if (m_lockGrace) {
++    if (m_lockGrace) {  // short-circuit if grace time is zero
++        m_inGraceTime = true;
+         m_graceTimer->start(m_lockGrace);
++    } else if (m_lockGrace == -1) {
++        m_inGraceTime = true;  // if no timeout configured, grace time lasts forever
+     }
+     lock();
+ }
+ 
+ bool KSldApp::isGraceTime() const
+ {
+-    return m_graceTimer->isActive();
++    return m_inGraceTime;
++}
++
++void KSldApp::endGraceTime()
++{
++    m_graceTimer->stop();
++    m_inGraceTime = false;
+ }
+ 
+ void KSldApp::unlock()
+ {
+-    if (!m_graceTimer->isActive()) {
++    if (!isGraceTime()) {
+         return;
+     }
+     s_graceTimeKill = true;

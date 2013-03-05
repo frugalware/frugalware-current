@@ -1,77 +1,19 @@
-sysvinit_units=(@_F_sysvinit_units@)
-systemd_units=(@_F_systemd_units@)
-
 post_install()
 {
-	if ! grep -q 'messagebus' /etc/group; then
-		/usr/sbin/groupadd -g 38 messagebus 2>/dev/null
-		/usr/sbin/useradd -s /bin/false -c "D-BUS system user" -d '/' -u 38 -g messagebus messagebus 2>/dev/null
-	fi
-	chown root:messagebus /usr/lib/dbus-1/dbus-daemon-launch-helper
-	chmod 4750 /usr/lib/dbus-1/dbus-daemon-launch-helper
-	/usr/bin/dbus-uuidgen --ensure 
-
-	local unit
-	local op
-
-	for i in ${sysvinit_units[@]}; do
-		chkconfig --del rc.$i >/dev/null 2>&1
-	done
-
-	for i in ${systemd_units[@]}; do
-		unit=$(echo $i | cut -f 1 -d '=')
-		op=$(echo $i | cut -f 2 -d '=')
-		if echo $op | grep -q 'e'; then
-			systemctl enable $unit.service >/dev/null 2>&1
-		fi
-		if echo $op | grep -q 's'; then
-			systemctl start $unit.service >/dev/null 2>&1
-		fi
-	done
+	getent group messagebus 2>&1 > /dev/null || groupadd -g 38 messagebus
+	getent passwd messagebus 2>&1 > /dev/null || useradd -s /bin/false -c "D-BUS system user" -d '/' -u 38 -g messagebus messagebus
+	dbus-uuidgen --ensure 
 }
 
 post_upgrade()
 {
-	if grep -q 'messagebus' /etc/group; then
-		/usr/sbin/usermod -d '/' messagebus 2>/dev/null
-	else
-		/usr/sbin/groupadd -g 38 messagebus 2>/dev/null
-		/usr/sbin/useradd  -s /bin/false -c "D-BUS system user" -d '/' -u 38 -g messagebus messagebus 2>/dev/null
-	fi
-	chown root:messagebus /usr/lib/dbus-1/dbus-daemon-launch-helper
-	chmod 4750 /usr/lib/dbus-1/dbus-daemon-launch-helper
-	/usr/bin/dbus-uuidgen --ensure
-
-	for i in ${sysvinit_units[@]}; do
-		chkconfig --del rc.$i >/dev/null 2>&1
-	done
-
-	systemctl daemon-reload >/dev/null 2>&1
-}
-
-pre_remove()
-{
-	if grep -q 'messagebus' /etc/group; then
-		/usr/sbin/userdel messagebus 2>/dev/null
-		/usr/sbin/groupdel messagebus 2>/dev/null
-	fi
-
-	local unit
-
-	for i in ${sysvinit_units[@]}; do
-		chkconfig --del rc.$i >/dev/null 2>&1
-	done
-
-	for i in ${systemd_units[@]}; do
-		unit=$(echo $i | cut -f 1 -d '=')
-		systemctl --no-reload disable $unit.service >/dev/null 2>&1
-		systemctl stop $unit.service >/dev/null 2>&1
-	done
+	post_install
 }
 
 post_remove()
 {
-	systemctl daemon-reload >/dev/null 2>&1
+	getent passwd messagebus 2>&1 > /dev/null && userdel messagebus
+	getent group messagebus 2>&1 > /dev/null && groupdel messagebus
 }
 
 op=$1

@@ -1,0 +1,61 @@
+From 1566a4e60751b4350712e4c85436de7a078a5ea5 Mon Sep 17 00:00:00 2001
+From: Jasper St. Pierre <jstpierre@mecheye.net>
+Date: Tue, 05 Mar 2013 07:04:02 +0000
+Subject: unlockDialog, loginDialog: Connect to the activate signal on the entry
+
+This is the recommended way to connect to an entry's activation binding --
+event bubbling is not guaranteed by ClutterText.
+
+https://bugzilla.gnome.org/show_bug.cgi?id=695154
+---
+diff --git a/js/gdm/loginDialog.js b/js/gdm/loginDialog.js
+index cd8dff5..b1ee384 100644
+--- js/gdm/loginDialog.js
++++ js/gdm/loginDialog.js
+@@ -594,6 +594,7 @@ const LoginDialog = new Lang.Class({
+         this._promptEntry = new St.Entry({ style_class: 'login-dialog-prompt-entry',
+                                            can_focus: true });
+         this._promptEntryTextChangedId = 0;
++        this._promptEntryActivateId = 0;
+         this._promptBox.add(this._promptEntry,
+                             { expand: true,
+                               x_fill: true,
+@@ -811,6 +812,11 @@ const LoginDialog = new Lang.Class({
+                                                     Lang.bind(this, function() {
+                                                         this._updateSignInButtonSensitivity(this._promptEntry.text.length > 0);
+                                                     }));
++
++        this._promptEntryActivateId =
++            this._promptEntry.clutter_text.connect('activate', function() {
++                hold.release();
++            });
+     },
+ 
+     _updateSensitivity: function(sensitive) {
+@@ -835,6 +841,11 @@ const LoginDialog = new Lang.Class({
+             this._promptEntryTextChangedId = 0;
+         }
+ 
++        if (this._promptEntryActivateId > 0) {
++            this._promptEntry.clutter_text.disconnect(this._promptEntryActivateId);
++            this._promptEntryActivateId = 0;
++        }
++
+         this._setWorking(false);
+         this._promptBox.hide();
+         this._promptLoginHint.hide();
+diff --git a/js/ui/unlockDialog.js b/js/ui/unlockDialog.js
+index 8ddb3e3..1296308 100644
+--- js/ui/unlockDialog.js
++++ js/ui/unlockDialog.js
+@@ -98,6 +98,7 @@ const UnlockDialog = new Lang.Class({
+ 
+         this._promptEntry = new St.Entry({ style_class: 'login-dialog-prompt-entry',
+                                            can_focus: true });
++        this._promptEntry.clutter_text.connect('activate', Lang.bind(this, this._doUnlock));
+         this._promptEntry.clutter_text.set_password_char('\u25cf');
+         ShellEntry.addContextMenu(this._promptEntry, { isPassword: true });
+         this.setInitialKeyFocus(this._promptEntry);
+--
+cgit v0.9.1
+

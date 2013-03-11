@@ -1,0 +1,47 @@
+common_install()
+{
+	/sbin/depmod -a @_F_kernelmod_uname@
+}
+
+post_install()
+{
+	common_install
+	if ! grep -q vhba /etc/sysconfig/modules; then
+                echo vhba >>/etc/sysconfig/modules
+        fi
+
+	if [ -e /lib/modules/$(uname -r)/kernel/drivers/scsi/vhba.ko.xz ]; then
+		modprobe vhba
+	fi
+}
+
+post_upgrade()
+{
+	common_install
+	## if that exisit we bumped / upgraded the package only no new kernel
+	## on a new kernel we do nothing because one has to reboot anyway
+	if [ -e /lib/modules/$(uname -r)/kernel/drivers/scsi/vhba.ko.xz ]; then
+		## see if is loaded , if yes kill it and modprobe again if not do nothing
+		if grep -q vhba /proc/modules; then
+			echo -n "reloading vhba kernel module.."
+				rmmod vhba
+				sleep 1
+                		modprobe vhba
+			echo " done."
+		fi
+	fi
+}
+
+post_remove()
+{
+	if grep -q vhba /proc/modules; then
+		rmmod vhba
+	fi
+	sed '/^vhba/d' -i /etc/sysconfig/modules
+
+	common_install
+}
+
+op=$1
+shift
+$op $*

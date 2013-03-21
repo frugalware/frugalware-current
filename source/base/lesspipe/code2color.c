@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <string.h>
 #include <limits.h>
 
 struct args
@@ -10,6 +11,13 @@ struct args
   const char *input;
   const char *language;
 };
+
+static bool is_color_enabled(void)
+{
+  const char *env = getenv("LESS");
+
+  return (env != 0 && (strstr(env,"-r") != 0 || strstr(env,"-R") != 0));
+}
 
 static bool mode1_args(int argc,char **argv,struct args *args)
 {
@@ -81,7 +89,7 @@ extern int main(int argc,char **argv)
   if(!mode1_args(argc,argv,&args) && !mode2_args(argc,argv,&args))
     return EXIT_FAILURE;
 
-  if(stat("/usr/bin/source-highlight",&st) == -1)
+  if(stat("/usr/bin/source-highlight",&st) == -1 || !is_color_enabled())
     normal_output(&args);
   else
     highlight_output(&args);

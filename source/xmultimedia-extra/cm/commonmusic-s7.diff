@@ -1,0 +1,571 @@
+diff -Naur cm-3.8.0/src/CmSupport.cpp cm-3.8.0.new/src/CmSupport.cpp
+--- cm-3.8.0/src/CmSupport.cpp	2011-12-09 23:42:19.000000000 +0100
++++ cm-3.8.0.new/src/CmSupport.cpp	2013-03-31 20:38:06.562106492 +0200
+@@ -1377,15 +1377,15 @@
+     // keynum
+     if (s7_is_real(key))
+     {
+-      fms->fval(fomus_par_pitch, fomus_act_set, s7_number_to_real(key));
+-      //      std::cout << "pitch=" << s7_number_to_real(key);
++      fms->fval(fomus_par_pitch, fomus_act_set, s7_number_to_real(scm->scheme, key));
++      //      std::cout << "pitch=" << s7_number_to_real(scm->scheme, key);
+     }
+     else
+       scm->signalSchemeError(T("mp:midi: key not a real number"));
+     // amp
+     if (s7_is_real(amp))
+     {
+-      double a=s7_number_to_real(amp);
++      double a=s7_number_to_real(scm->scheme, amp);
+       fms->fval(fomus_par_dynlevel, fomus_act_set, ((a>=1.0) ? (a/127.0) : a));
+       //      std::cout << ", amp=" << a;
+     }
+@@ -1404,8 +1404,8 @@
+     }
+     else if (s7_is_real(time))
+     {
+-      fms->fval(fomus_par_time, fomus_act_set, s7_number_to_real(time));
+-      //      std::cout << ", time=" << s7_number_to_real(time);
++      fms->fval(fomus_par_time, fomus_act_set, s7_number_to_real(scm->scheme, time));
++      //      std::cout << ", time=" << s7_number_to_real(scm->scheme, time);
+     }
+     else if (time==s7_f(scm->scheme))
+     {
+@@ -1417,8 +1417,8 @@
+     // dur
+     if (s7_is_real(dur))
+     {
+-      fms->fval(fomus_par_duration, fomus_act_set, s7_number_to_real(dur));
+-      //      std::cout << ", dur=" << s7_number_to_real(dur);
++      fms->fval(fomus_par_duration, fomus_act_set, s7_number_to_real(scm->scheme, dur));
++      //      std::cout << ", dur=" << s7_number_to_real(scm->scheme, dur);
+     }
+     else
+       scm->signalSchemeError(T("mp:midi: dur not a real number"));
+@@ -1454,35 +1454,35 @@
+     if (time==s7_f(scm->scheme))
+       f0=0.0;
+     else if (s7_is_number(time))
+-      f0=s7_number_to_real(time);
++      f0=s7_number_to_real(scm->scheme, time);
+     else
+       scm->signalSchemeError(T("mp:midi: time not a number"));
+     // dur is #f or number
+     if (dur==s7_f(scm->scheme))
+       f1=0.5;
+     else if (s7_is_number(dur))
+-      f1=s7_number_to_real(dur);
++      f1=s7_number_to_real(scm->scheme, dur);
+     else
+       scm->signalSchemeError(T("mp:midi: dur not a number"));
+     // key is #f or number
+     if (key==s7_f(scm->scheme))
+       f2=60.0;
+     else if (s7_is_number(key))
+-      f2=s7_number_to_real(key);
++      f2=s7_number_to_real(scm->scheme, key);
+     else
+       scm->signalSchemeError(T("mp:midi: key not a number"));
+     // amp is #f or number
+     if (amp==s7_f(scm->scheme))
+       f3=0.5;
+     else if (s7_is_number(amp))
+-      f3=s7_number_to_real(amp);
++      f3=s7_number_to_real(scm->scheme, amp);
+     else
+       scm->signalSchemeError(T("mp:midi: amp not a number"));
+     // chan is #f or number
+     if (chan==s7_f(scm->scheme))
+       f4=0.0;
+     else if (s7_is_number(chan))
+-      f4=s7_number_to_real(chan);
++      f4=s7_number_to_real(scm->scheme, chan);
+     else
+       scm->signalSchemeError(T("mp:midi: chan not a number"));
+     // if score capture is true AND we are under a process callback
+diff -Naur cm-3.8.0/src/Scheme.cpp cm-3.8.0.new/src/Scheme.cpp
+--- cm-3.8.0/src/Scheme.cpp	2011-12-09 23:42:19.000000000 +0100
++++ cm-3.8.0.new/src/Scheme.cpp	2013-03-31 20:49:34.388077566 +0200
+@@ -239,7 +239,7 @@
+   if (retn==st->schemeError)
+     delta=-2;
+   else
+-    delta=s7_number_to_real(retn);
++    delta=s7_number_to_real(sc, retn);
+   s7_gc_unprotect_at(sc, prot);
+   //std::cout << "after callback, delta is " << delta << "\n";
+ 
+diff -Naur cm-3.8.0/src/SndLibBridge.cpp cm-3.8.0.new/src/SndLibBridge.cpp
+--- cm-3.8.0/src/SndLibBridge.cpp	2011-11-22 19:22:36.000000000 +0100
++++ cm-3.8.0.new/src/SndLibBridge.cpp	2013-03-31 20:40:48.638099676 +0200
+@@ -118,27 +118,27 @@
+   double f0, f1, f2, f3, f4, f5, f6;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rescale", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rescale", 2, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rescale", 3, s7_car(args), "a double"));
+-  f3=s7_number_to_real(s7_car(args));
++  f3=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rescale", 4, s7_car(args), "a double"));
+-  f4=s7_number_to_real(s7_car(args));
++  f4=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rescale", 5, s7_car(args), "a double"));
+-  f5=s7_number_to_real(s7_car(args));
++  f5=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rescale", 6, s7_car(args), "a double"));
+-  f6=s7_number_to_real(s7_car(args));
++  f6=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_rescale(f1, f2, f3, f4, f5, f6);
+   return s7_make_real(s7, f0);
+@@ -150,15 +150,15 @@
+   int i0, i1, i2;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_discrete", 1, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_discrete", 2, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_discrete", 3, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_integer(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_discrete", 4, s7_car(args), "a int"));
+@@ -170,7 +170,7 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_discrete", 6, s7_car(args), "a double"));
+-  f3=s7_number_to_real(s7_car(args));
++  f3=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   i0=cm_discrete(f0, f1, f2, i1, i2, f3);
+   return s7_make_integer(s7, i0);
+@@ -182,7 +182,7 @@
+   int i0;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_float_to_fixnum", 1, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   i0=cm_float_to_fixnum(f0);
+   return s7_make_integer(s7, i0);
+@@ -193,11 +193,11 @@
+   double f0, f1, f2;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_quantize", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_quantize", 2, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_quantize(f1, f2);
+   return s7_make_real(s7, f0);
+@@ -208,15 +208,15 @@
+   double f0, f1, f2, f3;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rhythm_to_seconds", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rhythm_to_seconds", 2, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rhythm_to_seconds", 3, s7_car(args), "a double"));
+-  f3=s7_number_to_real(s7_car(args));
++  f3=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_rhythm_to_seconds(f1, f2, f3);
+   return s7_make_real(s7, f0);
+@@ -227,7 +227,7 @@
+   double f0, f1;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_cents_to_scaler", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_cents_to_scaler(f1);
+   return s7_make_real(s7, f0);
+@@ -238,7 +238,7 @@
+   double f0, f1;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_scaler_to_cents", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_scaler_to_cents(f1);
+   return s7_make_real(s7, f0);
+@@ -249,7 +249,7 @@
+   double f0, f1;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_scaler_to_steps", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_scaler_to_steps(f1);
+   return s7_make_real(s7, f0);
+@@ -269,11 +269,11 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_explseg", 3, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_explseg", 4, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_explseg(i0, i1, f1, f2);
+   return s7_make_real(s7, f0);
+@@ -293,11 +293,11 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_geoseg", 3, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_geoseg", 4, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_geoseg(i0, i1, f1, f2);
+   return s7_make_real(s7, f0);
+@@ -308,7 +308,7 @@
+   double f0, f1;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_keynum_to_hertz", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_keynum_to_hertz(f1);
+   return s7_make_real(s7, f0);
+@@ -320,7 +320,7 @@
+   int i0;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_keynum_to_pc", 1, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   i0=cm_keynum_to_pc(f0);
+   return s7_make_integer(s7, i0);
+@@ -331,7 +331,7 @@
+   double f0, f1;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_hertz_to_keynum", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_hertz_to_keynum(f1);
+   return s7_make_real(s7, f0);
+@@ -371,7 +371,7 @@
+   double f0, f1;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_ranfloat", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_ranfloat(f1);
+   return s7_make_real(s7, f0);
+@@ -397,11 +397,11 @@
+   double f0, f1, f2;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_ranfloat2", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_ranfloat2", 2, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_ranfloat2(f1, f2);
+   return s7_make_real(s7, f0);
+@@ -433,11 +433,11 @@
+   double f0, f1, f2;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rangauss", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rangauss", 2, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_rangauss(f1, f2);
+   return s7_make_real(s7, f0);
+@@ -448,7 +448,7 @@
+   double f0, f1;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_ranexp", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_ranexp(f1);
+   return s7_make_real(s7, f0);
+@@ -459,11 +459,11 @@
+   double f0, f1, f2;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_ranbeta", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_ranbeta", 2, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_ranbeta(f1, f2);
+   return s7_make_real(s7, f0);
+@@ -474,7 +474,7 @@
+   double f0, f1;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_rangamma", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_rangamma(f1);
+   return s7_make_real(s7, f0);
+@@ -493,7 +493,7 @@
+   int i0;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_ranpoisson", 1, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   i0=cm_ranpoisson(f0);
+   return s7_make_integer(s7, i0);
+@@ -523,7 +523,7 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_bes_jn", 2, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_bes_jn(i0, f1);
+   return s7_make_real(s7, f0);
+@@ -534,7 +534,7 @@
+   double f0, f1;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_log_ten", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_log_ten(f1);
+   return s7_make_real(s7, f0);
+@@ -545,7 +545,7 @@
+   double f0, f1;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_log_two", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_log_two(f1);
+   return s7_make_real(s7, f0);
+@@ -569,7 +569,7 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_sprout", 2, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_integer(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_sprout", 3, s7_car(args), "a int"));
+@@ -581,7 +581,7 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_sprout", 5, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   cm_sched_sprout(p0, f0, i0, i1, f1);
+   return s7_UNSPECIFIED(s7);
+@@ -680,7 +680,7 @@
+   int i0;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_make_metro", 1, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   i0=cm_sched_make_metro(f0);
+   return s7_make_integer(s7, i0);
+@@ -716,11 +716,11 @@
+   bool b0;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_set_tempo", 1, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_set_tempo", 2, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_boolean(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_set_tempo", 3, s7_car(args), "a bool"));
+@@ -769,7 +769,7 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_sync_metros", 2, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_integer(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_sync_metros", 3, s7_car(args), "a int"));
+@@ -777,7 +777,7 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_sync_metros", 4, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_boolean(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_sync_metros", 5, s7_car(args), "a bool"));
+@@ -798,11 +798,11 @@
+   bool b0;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_metro_phase", 1, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_metro_phase", 2, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_integer(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_metro_phase", 3, s7_car(args), "a int"));
+@@ -818,7 +818,7 @@
+   int i0;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_metro_dur", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_integer(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_sched_metro_dur", 2, s7_car(args), "a int"));
+@@ -1129,15 +1129,15 @@
+   double f0, f1, f2, f3;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_mouse_x", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_mouse_x", 2, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_mouse_x", 3, s7_car(args), "a double"));
+-  f3=s7_number_to_real(s7_car(args));
++  f3=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_mouse_x(f1, f2, f3);
+   return s7_make_real(s7, f0);
+@@ -1148,15 +1148,15 @@
+   double f0, f1, f2, f3;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_mouse_y", 1, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_mouse_y", 2, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_mouse_y", 3, s7_car(args), "a double"));
+-  f3=s7_number_to_real(s7_car(args));
++  f3=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   f0=cm_mouse_y(f1, f2, f3);
+   return s7_make_real(s7, f0);
+@@ -1289,19 +1289,19 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_mp_send_data", 2, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_mp_send_data", 3, s7_car(args), "a double"));
+-  f1=s7_number_to_real(s7_car(args));
++  f1=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_mp_send_data", 4, s7_car(args), "a double"));
+-  f2=s7_number_to_real(s7_car(args));
++  f2=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_mp_send_data", 5, s7_car(args), "a double"));
+-  f3=s7_number_to_real(s7_car(args));
++  f3=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   mp_send_data(i0, f0, f1, f2, f3);
+   return s7_UNSPECIFIED(s7);
+@@ -1442,7 +1442,7 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_cs_send_score", 3, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!s7_is_string(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_cs_send_score", 4, s7_car(args), "a c-string"));
+@@ -1578,7 +1578,7 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_fms_merge", 4, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   fms_merge(s0, l0, l1, f0);
+   return s7_UNSPECIFIED(s7);
+@@ -1642,7 +1642,7 @@
+   args=s7_cdr(args);
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_fms_fval", 3, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   fms_fval(i0, i1, f0);
+   return s7_UNSPECIFIED(s7);
+@@ -1820,7 +1820,7 @@
+   s7_pointer p0;
+   if (!s7_is_real(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_osc_send_bundle", 1, s7_car(args), "a double"));
+-  f0=s7_number_to_real(s7_car(args));
++  f0=s7_number_to_real(s7, s7_car(args));
+   args=s7_cdr(args);
+   if (!(s7_car(args)))
+     return(s7_wrong_type_arg_error(s7, "ffi_osc_send_bundle", 2, s7_car(args), "a s7_pointer"));

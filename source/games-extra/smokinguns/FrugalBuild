@@ -1,48 +1,56 @@
-# Compiling Time: 0.06 SBU
-# Maintainer: Devil505 <devil505linux@gmail.com>
+# Compiling Time: 0.86 SBU
+# Maintainer: kikadf <kikadf.01@gmail.com>
+# Contributor: Devil505 <devil505linux@gmail.com>
 
 pkgname=smokinguns
-pkgver=1.0
-pkgrel=3
+pkgver=1.1
+pkgrel=2
 pkgdesc="An Western game using Quake3 engine."
-depends=('libxxf86dga' 'libxxf86vm' 'openal>=1.7.411' 'libvorbis' 'mesa')
+url="http://www.smokin-guns.org/"
+depends=('sdl' 'libglu' 'speex' 'libjpeg' 'curl')
 makedepends=('nasm')
-_F_sourceforge_ext="-svn_r48.tar.bz2"
-_F_sourceforge_name="sg"
-_F_sourceforge_realname="Smokin' Guns"
-Finclude sourceforge
-url="http://www.smokin-guns.net/"
-up2date="lynx -dump http://sourceforge.net/projects/smokinguns/files/Smokin_%20Guns/ | grep 'http.*smokinguns/.*Smokin_%20Guns/.*/$'|sed 's|.*/\(.*\)/|\1|;q' "
+_F_scm_type="subversion"
+_F_scm_url="svn://svn.code.sf.net/p/smokinguns/code/trunk"
+_F_scm_tag="643"
+Finclude scm
 options=('nobuild')
 groups=('games-extra')
 archs=('i686' 'x86_64')
-source=($source http://ftp.jeuxlinux.fr/files/Smokin_Guns_$pkgver.zip)
-sha1sums=('df157fef2098528ded5e12dcc974d4443ee71096' \
-          'ebbe23cfdea3070d0b47d090b982dc35ebe0cdc1')
+up2date="lynx -dump $url/downloads | sed -n 's|.*Smokin_Guns_\(.*\).zip|\1|p' | head -1"
+source=(http://download.smokin-guns.org/Smokin_Guns_$pkgver.zip \
+        smokinguns-1.1-x86_64.patch)
+sha1sums=('fe03a21480dbc78731c9e72cc3353973b7553f3e' \
+          '66e4dd680d0b00cb41ee521b2b92b254c4490f79')
 
 _F_desktop_name="Smokin' Guns"
-_F_desktop_icon="sg_48.png"
+_F_desktop_icon="$pkgname.png"
 _F_desktop_categories="Game;ActionGame"
 
 build() {
-  Fcd "stable"
-  Fmake
+	# build binaries
+	Funpack_scm
+	[ "$CARCH" == "x86_64" ] && Fpatchall
+	Fsed '/usr/share/games/smokinguns' '/usr/share/smokinguns' Makefile.local
+	Fsed 'USE_OPENAL=1' 'USE_OPENAL=0' Makefile
+	Fsed 'USE_INTERNAL_SPEEX=1' 'USE_INTERNAL_SPEEX=0' Makefile
+	Fsed 'USE_INTERNAL_ZLIB=1' 'USE_INTERNAL_ZLIB=0' Makefile
+	Fsed 'USE_INTERNAL_JPEG=1' 'USE_INTERNAL_JPEG=0' Makefile
+	Fsed 'USE_LOCAL_HEADERS=1' 'USE_LOCAL_HEADERS=0' Makefile
+	Fmake
 
-  cd "$Fsrcdir/Smokin' Guns" || Fdie
-  rm smokinguns.exe || Fdie
-  rm smokinguns.x86 || Fdie
-  rm smokinguns_dedicated.x86 || Fdie
+	# install from subversion tag
+	Fexe $pkgname/build/release-linux-${CARCH//i.86/i386}/${pkgname}.${CARCH//i.86/i386} /usr/share/$pkgname/${pkgname}_game
+	Fwrapper 'exec /usr/share/smokinguns/smokinguns_game "$@"' $pkgname
+	Fexe $pkgname/build/release-linux-${CARCH//i.86/i386}/${pkgname}_dedicated.${CARCH//i.86/i386} /usr/share/$pkgname/${pkgname}_dedicated
+	Fwrapper 'exec /usr/share/smokinguns/smokinguns_dedicated "$@"' ${pkgname}_dedicated
+	Ficon $pkgname/misc/$pkgname.png
 
-  Fdocrel LICENSE.txt
-  Fmkdir usr/share/SmokinGuns/baseq3
-  Finstallrel 644 baseq3/* usr/share/SmokinGuns/baseq3
-  Fmkdir usr/share/SmokinGuns/smokinguns
-  Finstallrel 644 smokinguns/* usr/share/SmokinGuns/smokinguns
-  Fwrapper 'exec /usr/share/SmokinGuns/smokinguns.x86 "$@"' $pkgname
-  Fwrapper 'exec /usr/share/SmokinGuns/smokinguns_server.x86 "$@"' ${pkgname}_server
-  Ficonrel sg_48.png
-  Fdesktop2
-  Finstall 775 stable/code/install/smokinguns usr/share/SmokinGuns/smokinguns.x86
-  Finstall 775 stable/code/install/smokinguns_server usr/share/SmokinGuns/smokinguns_server.x86
+	# install from zipball
+	cd "$Fsrcdir/Smokin' Guns $pkgver" || Fdie
+	Ffilerel baseq3/* usr/share/$pkgname/baseq3
+	Ffilerel smokinguns/* usr/share/$pkgname/smokinguns
+	Fdocrel LICENSE.txt
+
+	Fdesktop2
 }
 

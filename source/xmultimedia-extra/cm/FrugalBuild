@@ -1,20 +1,23 @@
-# Compiling Time: 0.13 SBU
-# Maintainer: Devil505 <devil505linux@gmail.com>
+# Compiling Time: 1.77 SBU
+# Maintainer: kikadf <kikadf.01@gmail.com>
+# Contributor: Devil505 <devil505linux@gmail.com>
 
 pkgname=cm
-pkgver=3.7.2
+pkgver=3.8.0
 pkgrel=1
 pkgdesc="Common Music is a real-time music composition system implemented in C++ and Scheme"
-depends=('sndlib' 'mesa' 'freetype2' 'liblo' 'libxinerama' 'libxcursor')
+depends=('sndlib' 'mesa' 'freetype2' 'liblo' 'libxinerama' 'libxcursor' \
+         'libglu')
 makedepends=('premake3')
 groups=('xmultimedia-extra')
 archs=('i686' 'x86_64')
 _F_sourceforge_ext=".zip"
 _F_sourceforge_dirname="commonmusic"
 Finclude sourceforge
-source=($source $pkgname.png)
-sha1sums=('62bea729f0ce31604b4105572e894d2d274d32b0' \
-          'ad11fb3a7ef22f9cc344e631e8639e6eb51eb487')
+source=($source $pkgname.png commonmusic-s7.diff)
+sha1sums=('c456650e7ab97faf90e1949a4e82381c9e3a157d' \
+          'ad11fb3a7ef22f9cc344e631e8639e6eb51eb487' \
+          '6692f87faf804d31fa6338b19b65e172367d5727')
 
 _F_desktop_name="Grace"
 _F_desktop_desc="Graphical Realtime Algorithmic Composition Environment"
@@ -23,34 +26,33 @@ _F_desktop_exec="cm-grace"
 _F_desktop_categories="AudioVideo;Sound;Audio"
 
 build() {
-  Fcd $pkgname
+	Fcd
+	Fpatchall
+	Fsed 'Font::Font' 'Font' src/AudioFilePlayer.cpp
+	Fsed 'Font::Font' 'Font' src/MidiFilePlayer.cpp
 
-  # prevent segfaults
-  unset CFLAGS CXXFLAGS
+	# configure
+	export LDFLAGS="$LDFLAGS -ldl -lXext"
+	premake --verbose \
+                --os linux \
+                --target gnu \
+                --sndlib /usr \
+                --liblo /usr || Fdie
 
-  # linking errors with -Wl,--as-needed
-  export LDFLAGS="${LDFLAGS//-Wl,--as-needed}"
+	# build
+	Fsed '-mwindows' '' grace.make
+	make CONFIG=Debug || Fdie
 
-  # fix native jack callback
-  sed "s|t\* status|&, ...|" -i src/juce_amalgamated.cpp || Fdie
+	# cm bin
+	Fexerel bin/cm usr/bin/cm
 
-  # configure
-  premake --verbose \
-          --os linux \
-          --target gnu \
-          --sndlib /usr \
-          --liblo /usr || Fdie
+	# grace bin
+	Fexerel bin/Grace usr/bin/cm-grace
 
-  # build
-  make CONFIG=Debug || Fdie
-
-  # cm bin
-  Fexerel bin/cm usr/bin/cm
-
-  # grace bin
-  Fexerel bin/Grace usr/bin/cm-grace
-
-  # pixmaps and desktop file
-  Ficon $pkgname.png
-  Fdesktop2
+	# pixmaps and desktop file
+	Ficon $pkgname.png
+	Fdesktop2
 }
+
+
+# optimization OK

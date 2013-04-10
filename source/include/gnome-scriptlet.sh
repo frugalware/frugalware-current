@@ -65,7 +65,8 @@ if [ -n "$_F_gnome_mime" ]; then
 	Fconfopts+=" --disable-update-mimedb --enable-mime-update=no"
 fi
 if [ "$_F_gnome_doc" = "y" ]; then
-	makedepends=(${makedepends[@]} 'gtk-doc')
+	Fconfopts+=" --enable-gtk-doc"
+	makedepends=(${makedepends[@]} 'gtk-doc' 'yelp-tools')
 	subpkgs=("${subpkgs[@]}" "$pkgname-doc")
 	subdescs=("${subdescs[@]}" "$pkgname documention")
 	subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
@@ -83,6 +84,9 @@ _F_gnome_split_doc()
 	if [ -d "$Fdestdir/usr/share/gnome/help" ]; then
 		Fsplit $pkgname-doc usr/share/gnome/help
 	fi
+        if [ -d "$Fdestdir/usr/share/help" ]; then
+                Fsplit $pkgname-doc usr/share/help
+        fi
 	if [ -d "$Fdestdir/usr/share/gtk-doc" ]; then
 		Fsplit $pkgname-doc usr/share/gtk-doc
 	fi

@@ -1,7 +1,6 @@
 diff --git a/lib/colord/cd-icc.c b/lib/colord/cd-icc.c
-index c3f3d87..2554d78 100644
 --- lib/colord/cd-icc.c
-+++ lib/colord/cd-icc.c
++++ lib/colord/cd-icc_fw.c
 @@ -28,6 +28,7 @@
  
  #include <glib.h>
@@ -10,7 +9,7 @@ index c3f3d87..2554d78 100644
  #include <string.h>
  #include <stdlib.h>
  
-@@ -813,10 +814,14 @@ out:
+@@ -813,10 +814,14 @@
  static wchar_t *
  utf8_to_wchar_t (const char *src)
  {
@@ -25,7 +24,7 @@ index c3f3d87..2554d78 100644
  	len = mbstowcs (NULL, src, 0);
  	if (len < 0) {
  		g_warning ("Invalid UTF-8 in string %s", src);
-@@ -828,28 +833,49 @@ utf8_to_wchar_t (const char *src)
+@@ -828,28 +833,49 @@
  	g_assert (converted != -1);
  	buf[converted] = '\0';
  out:
@@ -35,42 +34,46 @@ index c3f3d87..2554d78 100644
  
  /**
 - * _cmsDictAddEntryAscii:
-+ * cd_util_write_dict_entry:
-  **/
+- **/
 -static cmsBool
 -_cmsDictAddEntryAscii (cmsHANDLE dict,
 -		       const gchar *key,
 -		       const gchar *value)
+-{
+-	cmsBool ret = FALSE;
++ * cd_util_write_dict_entry:
++ **/
 +static gboolean
 +cd_util_write_dict_entry (cmsHANDLE dict,
 +			  const gchar *key,
 +			  const gchar *value,
 +			  GError **error)
- {
--	cmsBool ret = FALSE;
++{
 +	gboolean ret = FALSE;
  	wchar_t *mb_key = NULL;
  	wchar_t *mb_value = NULL;
  
  	mb_key = utf8_to_wchar_t (key);
 -	if (mb_key == NULL)
+-		goto out;
 +	if (mb_key == NULL) {
 +		g_set_error (error,
 +			     CD_ICC_ERROR,
 +			     CD_ICC_ERROR_FAILED_TO_SAVE,
 +			     "Failed to write invalid ASCII key: '%s'",
 +			     key);
- 		goto out;
++		goto out;
 +	}
  	mb_value = utf8_to_wchar_t (value);
 -	if (mb_value == NULL)
+-		goto out;
 +	if (mb_value == NULL) {
 +		g_set_error (error,
 +			     CD_ICC_ERROR,
 +			     CD_ICC_ERROR_FAILED_TO_SAVE,
 +			     "Failed to write invalid ASCII value: '%s'",
 +			     value);
- 		goto out;
++		goto out;
 +	}
  	ret = cmsDictAddEntry (dict, mb_key, mb_value, NULL, NULL);
 +	if (!ret) {
@@ -83,7 +86,7 @@ index c3f3d87..2554d78 100644
  out:
  	g_free (mb_key);
  	g_free (mb_value);
-@@ -889,8 +915,11 @@ cd_util_mlu_object_parse (const gchar *locale, const gchar *utf8_text)
+@@ -889,8 +915,11 @@
  
  	/* untranslated version */
  	if (locale == NULL || locale[0] == '\0') {
@@ -96,7 +99,7 @@ index c3f3d87..2554d78 100644
  		goto out;
  	}
  
-@@ -946,6 +975,7 @@ cd_util_write_tag_localized (CdIcc *icc,
+@@ -946,6 +975,7 @@
  	CdMluObject *obj;
  	cmsMLU *mlu = NULL;
  	const gchar *locale;
@@ -104,7 +107,7 @@ index c3f3d87..2554d78 100644
  	gboolean ret = TRUE;
  	GList *keys;
  	GList *l;
-@@ -957,10 +987,13 @@ cd_util_write_tag_localized (CdIcc *icc,
+@@ -957,10 +987,13 @@
  	array = g_ptr_array_new_with_free_func (cd_util_mlu_object_free);
  	for (l = keys; l != NULL; l = l->next) {
  		locale = l->data;
@@ -121,7 +124,7 @@ index c3f3d87..2554d78 100644
  		g_ptr_array_add (array, obj);
  	}
  
-@@ -1053,7 +1086,7 @@ cd_icc_save_file (CdIcc *icc,
+@@ -1053,7 +1086,7 @@
  	GError *error_local = NULL;
  	GList *l;
  	GList *md_keys = NULL;
@@ -130,7 +133,7 @@ index c3f3d87..2554d78 100644
  	guint i;
  
  	g_return_val_if_fail (CD_IS_ICC (icc), FALSE);
-@@ -1089,7 +1122,10 @@ cd_icc_save_file (CdIcc *icc,
+@@ -1089,7 +1122,10 @@
  			for (l = md_keys; l != NULL; l = l->next) {
  				key = l->data;
  				value = g_hash_table_lookup (priv->metadata, key);
@@ -142,10 +145,13 @@ index c3f3d87..2554d78 100644
  			}
  		}
  		ret = cmsWriteTag (priv->lcms_profile, cmsSigMetaTag, dict);
-@@ -1152,6 +1188,18 @@ cd_icc_save_file (CdIcc *icc,
- 		goto out;
- 	}
- 
+@@ -1149,6 +1185,18 @@
+ 				     CD_ICC_ERROR,
+ 				     CD_ICC_ERROR_FAILED_TO_SAVE,
+ 				     "failed to dump ICC file");
++		goto out;
++	}
++
 +	/* sanity check to 16Mb */
 +	if (length == 0 || length > 16 * 1024 * 1024) {
 +		ret = FALSE;
@@ -155,10 +161,21 @@ index c3f3d87..2554d78 100644
 +			     "failed to save ICC file, requested %" G_GSIZE_FORMAT
 +			     "bytes and limit is 16Mb",
 +			     length);
-+		goto out;
-+	}
+ 		goto out;
+ 	}
+ 
+@@ -1648,7 +1696,7 @@
+  * This function will only return results if the profile was loaded with the
+  * %CD_ICC_LOAD_FLAGS_NAMED_COLORS flag.
+  *
+- * Return value: (transfer container): An array of #CdColorSwatch
++ * Return value: (transfer container) (element-type CdColorSwatch): An array of color swatches
+  *
+  * Since: 0.1.32
+  **/
+@@ -2614,3 +2662,4 @@
+ 	icc = g_object_new (CD_TYPE_ICC, NULL);
+ 	return CD_ICC (icc);
+ }
 +
- 	/* allocate and get profile data */
- 	data = g_new0 (gchar, length);
- 	ret = cmsSaveProfileToMem (priv->lcms_profile,
 

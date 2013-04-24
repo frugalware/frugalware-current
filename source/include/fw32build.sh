@@ -87,6 +87,7 @@ fi
 # * makedepends(): remove makedepends
 # * rodepends(): add only fw32
 # * source(): remove source(s)
+# * _F_cd_path()
 # * _F_desktop_exec()
 # * _F_desktop_icon()
 # * _F_genscriptlet_install()
@@ -99,6 +100,7 @@ if [ "$CARCH" == "x86_64" ] ; then
 	_F_desktop_exec="$_F_fw32build_wrapper_name"
 	_F_desktop_icon="$_F_fw32build_desktop_icon"
 	_F_genscriptlet_install="$_F_fw32build_scriptlet"
+	_F_cd_path="."
 fi
 
 Finclude genscriptlet

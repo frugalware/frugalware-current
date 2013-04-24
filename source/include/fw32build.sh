@@ -87,16 +87,20 @@ fi
 # * makedepends(): remove makedepends
 # * rodepends(): add only fw32
 # * source(): remove source(s)
+# * sha1sums(): remove sha1sums
 # * _F_cd_path()
 # * _F_desktop_exec()
 # * _F_desktop_icon()
 # * _F_genscriptlet_install()
+# * install()
 ###
 if [ "$CARCH" == "x86_64" ] ; then
-	depends=('')
-	makedepends=('')
+	unset depends
+	unset makedepends
+	unset source
+	unset install
+	unset sha1sums
 	rodepends=('fw32')
-	source=()
 	_F_desktop_exec="$_F_fw32build_wrapper_name"
 	_F_desktop_icon="$_F_fw32build_desktop_icon"
 	_F_genscriptlet_install="$_F_fw32build_scriptlet"

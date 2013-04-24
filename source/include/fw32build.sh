@@ -112,7 +112,7 @@ Fbuild_fw32build_scriptlet()
 	Fgenscriptlet
 	Fsed '@_F_fw32_package_name@' "$pkgname" "${Fsrcdir}/$(basename "$_F_fw32build_scriptlet")"
 	if [ ! -z $_F_fw32build_nobuild ]; then
-		Fsed '@_F_fw32build_nobuild@' '_F_fw32build_nobuild' "${Fsrcdir}/$(basename "$_F_fw32build_scriptlet")"
+		Fsed '_F_fw32build_build' '_F_fw32build_nobuild' "${Fsrcdir}/$(basename "$_F_fw32build_scriptlet")"
 	fi
 }
 

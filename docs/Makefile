@@ -103,6 +103,7 @@ images:
 %.text: %.txt
 	a2x -a toc -a numbered -a sectids -f text -a lang=$(call GETLANG) $^
 
+# If this fails, make sure you have texlive-fonts-extra installed.
 %.pdf: %.txt
 	a2x --dblatex-opts "-P latex.output.revhistory=0" -a toc -a numbered -a sectids -f pdf -a lang=$(call GETLANG) $^
 

@@ -62,6 +62,7 @@
 # * _F_fw32build_desktop_icon: icon's path to desktop file
 # * _F_fw32build_scriptlet: the i686 package install script
 # * _F_fw32build_nobuild(default is empty): set if package is nobuild package
+# * _F_fw32build_nodesktop(default is empty): set if package doesn't need desktop file
 ###
 _F_fw32_dir="/usr/lib/fw32"
 
@@ -130,7 +131,9 @@ Fbuild_fw32build_scriptlet()
 Fw32_build()
 {
 	Fwrapper "fw32-run $_F_fw32build_bin_name" $_F_fw32build_wrapper_name
-	Fdesktop2
+	if [ -z $_F_fw32build_nodesktop ]; then
+		Fdesktop2
+	fi
 	Fbuild_fw32build_scriptlet
 }
 

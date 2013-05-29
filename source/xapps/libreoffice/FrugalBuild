@@ -30,7 +30,9 @@ makedepends=('apache-ant' 'boost>=1.50.0' 'hunspell>=1.3.2' \
 	# required by the starmath unit test
 	'dejavu-ttf' \
 	# required for generating e.g. the SQL parser
-	'bison')
+	'bison' \
+	# required by the report builder, part of Base
+	'pentaho-reporting-flow-engine')
 groups=('xapps')
 archs=('i686' 'x86_64')
 mirror="http://download.documentfoundation.org/libreoffice/src/$minor"
@@ -118,15 +120,13 @@ do
         i=$(($i+1))
 done
 
-extensions=(presenter-minimizer nlpsolver scripting-beanshell scripting-javascript report-builder)
+extensions=(presenter-minimizer nlpsolver scripting-beanshell scripting-javascript)
 for i in ${extensions[@]}
 do
 	subpkgs=("${subpkgs[@]}" "$pkgname-$i")
 	subdescs=("${subdescs[@]}" "Installs ${i/-/ } support in LibreOffice")
 	subinstall=("${subinstall[@]}" '')
-	if [ $i == report-builder ]; then
-		subdepends=("${subdepends[@]}" 'pentaho-reporting-flow-engine')
-	elif [ $i == scripting-beanshell ]; then
+	if [ $i == scripting-beanshell ]; then
 		subdepends=("${subdepends[@]}" 'bsh')
 	else
 		subdepends=("${subdepends[@]}" '')
@@ -178,12 +178,12 @@ build()
 	do
 		[ $i == scripting-javascript ] && continue
 		[ $i == scripting-beanshell ] && continue
-		[ $i == report-builder ] && continue
 		Fconfopts+=" --enable-ext-$i"
 	done
 	Fpatchall
 	sed -i '/CppunitTest_pdfimport/d' sdext/Module_sdext.mk # disable failing check
 	sed -i -e /sw_macros_test/d -e /sw_subsequent_.\*port/d sw/Module_sw.mk
+	sed -i '/CPPUNIT_TEST(testPerf)/d' sc/qa/unit/ucalc.cxx
 	touch autogen.lastrun
 	_F_conf_configure="./autogen.sh"
 	Fconfopts+=" --prefix=/usr --sysconfdir=/etc --localstatedir=/var --docdir=/usr/share/doc/libreoffice-$pkgver --infodir=/usr/share/info --mandir=/usr/share/man"
@@ -192,6 +192,7 @@ build()
 		--with-lang="en-US ${completelangiso[*]}" \
 		--with-jdk-home=$JAVA_HOME \
 		--enable-symbols \
+		--with-help \
 		--enable-kde4 \
 		--without-fonts \
 		--with-system-libs \
@@ -272,12 +273,10 @@ build()
 	Fsplitgid $pkgname-presenter-minimizer $Fdestdir/gid_Module_Optional_Extensions_MINIMIZER
 	Fsplitgid $pkgname-nlpsolver $Fdestdir/gid_Module_Optional_Extensions_NLPSolver
 	Fsplitgid $pkgname-scripting-beanshell $Fdestdir/gid_Module_Optional_Extensions_Script_Provider_For_Beanshell
-	Fsplitgid $pkgname-report-builder $Fdestdir/gid_Module_Optional_Extensions_REPORTDESIGN
 	Fsplitgid $pkgname-scripting-javascript $Fdestdir/gid_Module_Optional_Extensions_Script_Provider_For_Javascript
 	# It makes no sense to split these
 	rm $Fdestdir/gid_Module_Optional_Extensions_Script_Provider_For_Python $Fdestdir/gid_Module_Optional_Pyuno $Fdestdir/gid_Module_Optional_Pyuno_LibreLogo # would be 381K
 	rm $Fdestdir/gid_Module_Optional_Grfflt # would be 290K
-	rm $Fdestdir/gid_Module_Optional_Javafilter # would be 139K
 	rm $Fdestdir/gid_Module_Optional_OGLTrans # would be 63K
 	rm $Fdestdir/gid_Module_Optional_Xsltfiltersamples # would be 214K
 	# Check if anything else optional remained.

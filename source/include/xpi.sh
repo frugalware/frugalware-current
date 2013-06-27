@@ -21,6 +21,7 @@
 # up2date, and source must be manually set)
 # * _F_xpi_product (REQUIRED): name of the product this xpi extends (ex: Firefox).
 # * _F_xpi_productver (OPTIONAL): required version of the product this xpi extends.
+# * _F_xpi_installpath (OPTIONAL): where the xpi will be installed.
 #
 # == OVERWRITTEN VARIABLES
 # * pkgname (if not set, defaults to $_F_xpi_product-$_F_xpi_pkgname)
@@ -30,17 +31,14 @@
 ## * up2date (only if _F_xpi_num is set)
 ## * source (only if _F_xpi_num is set)
 ###
-if [ -z "$pkgname" ]; then
-	pkgname="$_F_xpi_product-$_F_xpi_pkgname"
-fi
+: ${_F_xpi_ext='.xpi'} \
+  ${pkgname="$_F_xpi_product-$_F_xpi_pkgname"}
 groups=("${groups[@]}" "$_F_xpi_product-extensions")
 archs=('i686' 'x86_64')
-if [ -z "$_F_xpi_ext" ]; then
-	_F_xpi_ext='.xpi'
-fi
+
 if [ -n "$_F_xpi_num" ]; then
-	url="https://addons.mozilla.org/en-US/$_F_xpi_product/addon/$_F_xpi_pkgname/"
-	up2date="curl -s -k '$url' | sed -n 's|.*Version \(\S*\)<.*|\1|p'"
+	: ${url="https://addons.mozilla.org/en-US/$_F_xpi_product/addon/$_F_xpi_pkgname/"} \
+	  ${up2date="curl -s -k '$url' | sed -n 's|.*Version \(\S*\)<.*|\1|p'"}
 	source=("http://releases.mozilla.org/pub/mozilla.org/addons/$_F_xpi_num/$_F_xpi_pkgname-$pkgver$_F_xpi_ext")
 fi
 
@@ -80,6 +78,7 @@ Fxpi_id()
 {
 	# http://kb.mozillazine.org/Determine_extension_ID
 	local id
+
 	id=`Fxpi_get "$1" "//rdf:Description[@about='urn:mozilla:install-manifest']/em:id"`
 	if [ -z "$id" ]; then
 		# Variant used by language pack at least
@@ -98,10 +97,9 @@ Fxpi_id()
 Fxpi_installxpi()
 {
 	local id=`Fxpi_id "$1"`
-	local path="/usr/lib/$_F_xpi_product/extensions/$id/"
 
-	Fmkdir "$path"
-	unzip -qqo "$1" -d "$Fdestdir/$path" || Fdie
+	Fmkdir "${_F_xpi_installpath}"
+	Fcprel "$1" "${_F_xpi_installpath}/${id}.xpi"
 }
 
 ###
@@ -109,8 +107,8 @@ Fxpi_installxpi()
 ###
 Fxpi_installfixes()
 {
-	Fdirschmod  "/usr/lib/$_F_xpi_product/extensions/" 755
-	Ffileschmod "/usr/lib/$_F_xpi_product/extensions/" 644
+	Fdirschmod  "${_F_xpi_installpath}" 755
+	Ffileschmod "${_F_xpi_installpath}" 644
 }
 
 ###
@@ -118,7 +116,9 @@ Fxpi_installfixes()
 ###
 Fxpi_install()
 {
-	Fxpi_installxpi $_F_xpi_pkgname-$pkgver$_F_xpi_ext
+	: ${_F_xpi_installpath="/usr/lib/$_F_xpi_product/extensions/"}
+
+	Fxpi_installxpi "$_F_xpi_pkgname-$pkgver$_F_xpi_ext"
 	Fpatchall
 	Fxpi_installfixes
 }

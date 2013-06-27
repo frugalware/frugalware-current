@@ -1766,7 +1766,7 @@ Fextract() {
 		cmd="tar $_F_extract_taropts --use-compress-program=xz -xf $file" ;;
 		*.tar)
 		cmd="tar $_F_extract_taropts -xf $file" ;;
-		*.zip|*.xpi)
+		*.zip)
 		unziphack=1
 		cmd="unzip -qqo $file" ;;
 		*.cpio.gz)

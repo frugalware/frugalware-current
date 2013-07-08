@@ -48,12 +48,13 @@ wine)
 wine-devel)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Development)"
 	up2date="lynx -dump $url | sed -n 's|^.*Development:.*Wine \([0-9a-zA-Z.]\+\).*\$|\1|p'"
-	_geckover=1.7
+	_geckover=2.21
 	conflicts=('wine')
-	sha1sums=('a8c67336b4a0ca39a57e98fc67f89871484ab528')
+	provides=('wine')
+	sha1sums=('37a647c9f2448bb756f2e1fb4a431dcc370e14ec')
 	case "$CARCH" in
-		"i686") sha1sums=("${sha1sums[@]}" 'efebc4ed7a86708e2dc8581033a3c5d6effe0b0b');;
-		"x86_64") sha1sums=("${sha1sums[@]}" '2253e7ce3a699ddd110c6c9ce4c7ca7e6f7c02f5');;
+		"i686") sha1sums=("${sha1sums[@]}" 'a514fc4d53783a586c7880a676c415695fe934a3');;
+		"x86_64") sha1sums=("${sha1sums[@]}" 'c6f249ff2c6eb7dfe423ef246aba54e1a3b26934');;
 	esac
 	;;
 
@@ -71,8 +72,8 @@ source=(http://downloads.sourceforge.net/wine/{wine-$pkgver.tar.bz2,wine_gecko-$
 build()
 {
 	Fbuild
+	[ "$CARCH" == "x86_64" ] && Fln wine64 /usr/bin/wine
 	Ffile /usr/share/wine/gecko/`basename ${source[1]}`
 	Fexec cp $Fincdir/wine.conf $Fsrcdir
 	Ffile /etc/binfmt.d/wine.conf
-	[ "$CARCH" == "x86_64" ] && Fln wine64 /usr/bin/wine
 }

@@ -22,23 +22,16 @@ Finclude i18n
 #
 # == OPTIONS
 # * _F_mozilla_i18n_name (required): The name of the Mozilla project.
+# * _F_mozilla_i18n_xulname (optional): The xulrunner name of the Mozilla project.
 # * _F_mozilla_i18n_xpidirname (optional): The directory to the xpi.
 # * _F_mozilla_i18n_mirror (optional): The name of the mirror to use.
 # * _F_mozilla_i18n_archive_name (optional, defaults to empty string): The name of the archive to prepend to local code.
 # * _F_mozilla_i18n_ext (optional, defaults to ".xpi"): The extention of the i18n archive name.
 ###
 
-if [ -z "$_F_mozilla_i18n_xpidirname" ]; then
-	_F_mozilla_i18n_xpidirname="$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/$pkgver/linux-i686/xpi"
-fi
-
-if [ -z "$_F_mozilla_i18n_mirror" ]; then
-	_F_mozilla_i18n_mirror="ftp://ftp.mozilla.org/pub/mozilla.org"
-fi
-
-if [ -z "$_F_mozilla_i18n_ext" ]; then
-	_F_mozilla_i18n_ext=".xpi"
-fi
+: ${_F_mozilla_i18n_xpidirname="$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/$pkgver/linux-i686/xpi"} \
+  ${_F_mozilla_i18n_mirror="ftp://ftp.mozilla.org/pub/mozilla.org"} \
+  ${_F_mozilla_i18n_ext=".xpi"}
 
 ###
 # == OVERWRITTEN VARIABLES
@@ -48,18 +41,17 @@ fi
 # * options()
 # * up2date
 # * url
+# * _F_xpi_installpath
 ###
-if [ -z "$pkgname" ]; then
-	pkgname="$_F_mozilla_i18n_name-i18n"
-fi
-if [ -z "$pkdesc" ]; then
-	pkgdesc="Language support for ${_F_mozilla_i18n_name^}"
-fi
+: ${pkgname="$_F_mozilla_i18n_name-i18n"} \
+  ${pkgdesc="Language support for ${_F_mozilla_i18n_name^}"}
 archs=('i686' 'x86_64')
 groups=('locale-extra')
 options=("${options[@]}" 'noversrc')
 up2date="eval \"_F_archive_name=$_F_mozilla_i18n_name; Flastarchive $_F_mozilla_i18n_mirror/$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/latest/source '\.source\.tar\.bz2'\""
 url="http://www.mozilla.org/projects/l10n/mlp.html"
+
+_F_xpi_installpath="/usr/lib/$_F_mozilla_i18n_name/$_F_mozilla_i18n_xulname/extensions/"
 
 Finclude xpi
 
@@ -103,13 +95,11 @@ mozilla_i18n_lang_fini() {
 
 mozilla_i18n_lang_install()
 {
-	if [ -z "$_F_xpi_product" ]; then
-		_F_xpi_product="$_F_mozilla_i18n_name"
-	fi
+	: ${_F_xpi_product="$_F_mozilla_i18n_name"}
 
 	Fxpi_installxpi "$Fsrcdir/$_F_mozilla_i18n_archive_name$1$_F_mozilla_i18n_ext"
 	Fxpi_installfixes
-	Fsplit $_F_mozilla_i18n_name-${1,,} /usr/lib/$_F_mozilla_i18n_name/extensions/
+	Fsplit "$_F_mozilla_i18n_name-${1,,}" "$_F_xpi_installpath"
 }
 
 ###

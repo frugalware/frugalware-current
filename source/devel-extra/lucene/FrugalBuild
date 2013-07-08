@@ -1,37 +1,51 @@
 # Compiling Time: 0.96 SBU
-# Maintainer: bouleetbil <bouleetbil@frogdev.info>
+# Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=lucene
-pkgver=2.9.4
+pkgver=4.3.1
 pkgrel=1
 pkgdesc="High-performance, full-featured text search engine written entirely in Java"
 url="http://jakarta.apache.org/$pkgname/"
-Finclude java
+Finclude openjava
+depends=(${depends[@]} 'apache-ivy' 'hamcrest' 'icu4j' 'commons-codec')
 makedepends=(${makedepends[@]} 'junit')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
-_F_archive_grepv="3\." # 3.x does not work with openoffice.org yet
-up2date="Flastarchive http://www.apache.org/dist/$pkgname/java/ -src.tar.gz"
-source=(http://www.apache.org/dist/$pkgname/java/$pkgname-$pkgver-src.tar.gz Fix_Build.diff)
-sha1sums=('bac4fdea0fcd18788d798f5cdd24fd975cca6b3f' \
-          '64f2bd8d7596232f8d28d6b547b47db2dcc5c37d')
-options=('force')
+up2date="Flastverdir http://www.apache.org/dist/$pkgname/java/ "
+source=(http://www.apache.org/dist/$pkgname/java/$pkgver/$pkgname-$pkgver-src.tgz)
+sha1sums=('02bff5c557311010e31d286382de8ed24bc21ba7')
+
+replaces=('lucene3')
+conflicts=('lucene3')
+provides=('lucene3')
 
 build() {
-	Fcd
-	Fpatchall
-	Fjavacleanup
-	# we don't need contrib modules (except analyzers)
-	find contrib/* -maxdepth 0 -type d ! -name analyzers -exec rm -rfv {} \;
-	ln -s /usr/share/java/junit.jar lib/junit-3.8.2.jar
-	Fant jar-core build-contrib
-	for i in $(find build -name *.jar)
+        Fcd lucene-$pkgver
+        Fjavacleanup
+
+        # we really need these in these locations and with these names so build.xml will pick them up
+        ln -sf /usr/share/java/junit.jar test-framework/lib/junit-4.10.jar || Fdie
+        ln -sf /usr/share/java/hamcrest-core.jar test-framework/lib/hamcrest-core.jar || Fdie
+        ln -sf /usr/share/java/ant-junit.jar ./test-framework/lib/ant-junit.jar || Fdie
+        ln -sf /usr/share/java/ant.jar ./test-framework/lib/ant-full.jar || Fdie
+
+	#fixing these so it's won't "resolve" anything
+        Fsed 'depends="resolve"' 'depends="ivy-availability-check,ivy-fail"' common-build.xml
+
+	for i in $(find -name build.xml)
 	do
-		nover=$(echo $i|sed "s/-$pkgver-dev//")
-		mv $i $nover
-		Fjar $nover
+	        Fsed 'resolve-icu,' '' $i
 	done
-	# create compat symlink
-	Fmkdir /usr/share/java/lucene-contrib
-	Fln ../lucene-analyzers.jar /usr/share/java/lucene-contrib/lucene-analyzers.jar
+
+	Fant
+	cd analysis || Fdie
+	Fant -v common kuromoji smartcn stempel
+	
+	cd .. || Fdie
+        for i in $(find build -name *.jar)
+        do
+                nover=$(echo $i|sed 's/-[0-9\.]*-SNAPSHOT//')
+                mv $i $nover
+                Fjar $nover
+        done
 }

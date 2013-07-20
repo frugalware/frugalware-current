@@ -4,24 +4,24 @@
 
 options+=('asneeded')
 
-USE_DEBUG=${USE_DEBUG:-"n"}
-USE_DEVEL=${USE_DEVEL:-"n"}
-USE_DETECTDEPENDS=${USE_DETECTDEPENDS:-"n"} # To detected dependecies with makepkg -a
+: ${USE_DEBUG="n"}
+: ${USE_DEVEL="n"}
+: ${USE_DETECTDEPENDS="n"} # To detected dependecies with makepkg -a
 
-USE_DRI=${USE_DRI:-"y"}
-USE_DRI_OLD=${USE_DRI_OLD:-"y"}
-USE_EGL=${USE_EGL:-"y"}
-USE_GALLIUM=${USE_GALLIUM:-"y"}
-USE_GLES1=${USE_GLES1:-"y"}
-USE_GLES2=${USE_GLES2:-"y"}
-USE_GLX=${USE_GLX:-"y"}
-USE_OPENCL=${USE_OPENCL:-"n"}
-USE_OSMESA=${USE_OSMESA:-"n"}
-USE_VDPAU=${USE_VDPAU:-"y"}
-USE_VG=${USE_VG:-"y"}
-USE_TEXTURE_FLOAT=${USE_TEXTURE_FLOAT:-"y"}
-USE_WAYLAND_EGL=${USE_WAYLAND_EGL:-"y"}
-USE_XA=${USE_XA:-"n"}
+: ${USE_DRI="y"}
+: ${USE_DRI_OLD="y"}
+: ${USE_EGL="y"}
+: ${USE_GALLIUM="y"}
+: ${USE_GLES1="y"}
+: ${USE_GLES2="y"}
+: ${USE_GLX="y"}
+: ${USE_OPENCL="n"}
+: ${USE_OSMESA="n"}
+: ${USE_VDPAU="y"}
+: ${USE_VG="y"}
+: ${USE_TEXTURE_FLOAT="y"}
+: ${USE_WAYLAND_EGL="y"}
+: ${USE_XA="n"}
 
 if Fuse WAYLAND_EGL; then
 	USE_EGL=y
@@ -34,8 +34,8 @@ fi
 pkgname=mesa
 origname=Mesa
 _F_archive_name="MesaLib"
-pkgver=9.0.3
-pkgrel=2
+pkgver=9.1.5
+pkgrel=1
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 up2date="lynx --dump 'ftp://ftp.freedesktop.org/pub/mesa/' | grep "pub/mesa/[0-9\.]" | tail -n1 | sed 's|.*/\([0-9\.]\)|\1|'"
@@ -48,6 +48,8 @@ rodepends=('libgl')
 archs=('i686' 'x86_64' 'arm')
 groups=('x11' 'xorg-core' 'xorg-libs')
 
+xserverver=1.14.2
+
 if Fuse DEVEL; then
 	unset source sha1sums
 	pkgver=9999.g23cd6c4
@@ -57,17 +59,16 @@ if Fuse DEVEL; then
 	Finclude scm
 else
 	source=("ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaLib-$pkgver.tar.bz2")
-	sha1sums=('c4d88d83d8dbe243e30dc07195888e19ddb1c402')
+	sha1sums=('296e00f87889e7a309da2ee8b2d622afe9bc3712')
 fi
 
-# Remove libgl-headers-mesa after 1.8
 subpkgs=('libgl' 'mesa-libgl-headers')
 subdescs=('Mesa DRI OpenGL files.' 'Mesa OpenGL headers files.')
-subprovides=('mesa-libgl' 'libgl-headers libgl-headers-mesa')
-subreplaces=('' 'libgl-headers-mesa')
-subconflicts=('catalyst nvidia' 'libgl-headers-mesa nvidia')
+subprovides=('mesa-libgl' 'libgl-headers')
+subreplaces=('' '')
+subconflicts=('catalyst nvidia' 'nvidia')
 subdepends=('expat libxdamage libxxf86vm' 'dri2proto glproto')
-subrodepends=("mesa-libgl-headers>=$pkgver-$pkgrel libglapi libglx mesa-dri-drivers>=$pkgver-$pkgrel" '')
+subrodepends=("mesa-libgl-headers>=$pkgver-$pkgrel libglapi libglx>=$xserverver mesa-dri-drivers>=$pkgver-$pkgrel" '')
 subgroups=('x11' 'x11')
 subarchs=("${archs[*]}" "${archs[*]}")
 subbackup=('' '')
@@ -83,13 +84,24 @@ subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" "${archs[*]}")
 subbackup=("${subbackup[@]}" 'etc/drirc')
 
+subpkgs+=('mesa-pipe-drivers')
+subdescs+=('Mesa libdrm drivers.')
+subprovides+=('')
+subreplaces+=('')
+subconflicts+=('')
+subdepends+=("libdrm llvm")
+subrodepends+=('')
+subgroups+=('x11')
+subarchs+=("${archs[*]}")
+subbackup+=('etc/drirc')
+
 subpkgs=("${subpkgs[@]}" 'libgbm')
 subdescs=("${subdescs[@]}" 'Mesa gbm library.')
 subprovides=("${subprovides[@]}" '')
 subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
 subdepends=("${subdepends[@]}" 'glibc')
-subrodepends=("${subrodepends[@]}" '')
+subrodepends+=('mesa-pipe-drivers')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" "${archs[*]}")
 subbackup=("${subbackup[@]}" '')
@@ -142,6 +154,19 @@ if Fuse EGL; then
 	subgroups=("${subgroups[@]}" 'x11')
 	subarchs=("${subarchs[@]}" "${archs[*]}")
 	subbackup=("${subbackup[@]}" '')
+fi
+
+if Fuse OPENCL; then
+	subpkgs+=('libcl')
+	subdescs+=('Mesa OpenEGL library.')
+	subprovides+=('mesa-libcl')
+	subreplaces+=('')
+	subconflicts+=('')
+	subdepends+=('libclc')
+	subrodepends+=('mesa-pipe-drivers')
+	subgroups+=('x11')
+	subarchs+=("${archs[*]}")
+	subbackup+=('')
 fi
 
 if Fuse VDPAU; then
@@ -345,6 +370,8 @@ build() {
 	Fsplit mesa-dri-drivers usr/lib/dri/
 	Fsplit mesa-dri-drivers usr/lib/libdricore*
 	Fsplit mesa-dri-drivers usr/lib/pkgconfig/dri.pc
+
+	Fsplit mesa-pipe-drivers usr/lib/gallium-pipe/
 
 	Fsplit khr-headers usr/include/KHR/
 

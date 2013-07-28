@@ -1,0 +1,131 @@
+diff -Naur mate-doc-utils-1.5.0.orig/doc/xslt/Makefile.am mate-doc-utils-1.5.0.new/doc/xslt/Makefile.am
+--- mate-doc-utils-1.5.0.orig/doc/xslt/Makefile.am	2012-10-04 15:37:19.000000000 +0200
++++ mate-doc-utils-1.5.0.new/doc/xslt/Makefile.am	2012-12-19 15:25:56.959307455 +0100
+@@ -21,14 +21,14 @@
+ 
+ $(xsldoc_docs): $(xsldoc_xsls) xsldoc.awk xsldoc-fill.xsl
+ 	$(GDU_AWK) -f "$(srcdir)/xsldoc.awk" "$(filter %/$(basename $(notdir $@)).xsl,$(xsldoc_xsls))" \
+-	| xsltproc -o "$@" \
++	| xsltproc --nonet -o "$@" \
+ 	--stringparam basename "$(basename $(notdir $@))" \
+ 	--stringparam xsl_file "$(filter %/$(basename $(notdir $@)).xsl,$(xsldoc_xsls))" \
+ 	"$(srcdir)/xsldoc-fill.xsl" -
+ 
+ $(xsldoc_xmls): xsldoc-docbook.xsl
+ $(xsldoc_xmls): C/%.xml : C/%.xsldoc
+-	xsltproc -o "$@" \
++	xsltproc --nonet -o "$@" \
+ 	--stringparam basename "$(basename $(notdir $@))" \
+ 	--stringparam xsl_file "$(filter %/$(basename $(notdir $@)).xsl,$(xsldoc_xsls))" \
+ 	"$(srcdir)/xsldoc-docbook.xsl" "$<"
+@@ -62,7 +62,7 @@
+ mate-doc-xslt-check-xsldoc: $(xsldoc_docs)
+ 	@echo "Running xsldoc checks";
+ 	@(echo "<xsldoc>"; cat $(xsldoc_docs); echo "</xsldoc>") \
+-	| xsltproc "$(srcdir)/xsldoc-check.xsl" - 1> /dev/null
++	| xsltproc --nonet "$(srcdir)/xsldoc-check.xsl" - 1> /dev/null
+ 
+ .PHONY: clean-xsldoc
+ clean-local: clean_xsldoc
+diff -Naur mate-doc-utils-1.5.0.orig/tools/mate-doc-tool.in mate-doc-utils-1.5.0.new/tools/mate-doc-tool.in
+--- mate-doc-utils-1.5.0.orig/tools/mate-doc-tool.in	2012-10-04 15:37:19.000000000 +0200
++++ mate-doc-utils-1.5.0.new/tools/mate-doc-tool.in	2012-12-19 15:25:56.960307512 +0100
+@@ -417,7 +417,7 @@
+ 	fi
+ 
+ 	cmd="xmllint --nonet --xinclude \"$doc_indir/$doc_infile\" |\
+-          xsltproc $params -o \"$doc_outdir/$doc_outfile\" \"$xsltdir/docbook/html/db2$doc_format.xsl\" -"
++          xsltproc --nonet $params -o \"$doc_outdir/$doc_outfile\" \"$xsltdir/docbook/html/db2$doc_format.xsl\" -"
+ 	echo_verbose "$cmd"
+ 	eval "$cmd"
+ 	exit 0
+@@ -480,9 +480,9 @@
+ 	done
+ 	echo '</cache:cache>'
+     ) > "$doc_cache_in"
+-    xsltproc -o "$doc_cache" "$xsltdir/mallard/cache/mal-cache.xsl" "$doc_cache_in"
++    xsltproc --nonet -o "$doc_cache" "$xsltdir/mallard/cache/mal-cache.xsl" "$doc_cache_in"
+     rm "$doc_cache_in"
+-    echo "$XSL_CACHE_LS" | xsltproc - "$doc_cache" | while read doc_input; do
++    echo "$XSL_CACHE_LS" | xsltproc --nonet - "$doc_cache" | while read doc_input; do
+ 	doc_input=$(urldecode $(echo "$doc_input" | sed -e 's/^file:\/\///'))
+ 	doc_indir=$( (cd $(dirname "$doc_input") && pwd) )
+ 	doc_infile=$(basename "$doc_input")
+@@ -582,7 +582,7 @@
+     fi
+ 
+     echo_verbose "Creating $doc_output using $doc_input_page"
+-    echo "$XSL_MALLARD_CSS" | xsltproc -o "$doc_output" - "$doc_input_page";
++    echo "$XSL_MALLARD_CSS" | xsltproc --nonet -o "$doc_output" - "$doc_input_page";
+ }
+ 
+ convert_2html() {
+diff -Naur mate-doc-utils-1.5.0.orig/tools/mate-doc-utils.make mate-doc-utils-1.5.0.new/tools/mate-doc-utils.make
+--- mate-doc-utils-1.5.0.orig/tools/mate-doc-utils.make	2012-10-04 15:37:19.000000000 +0200
++++ mate-doc-utils-1.5.0.new/tools/mate-doc-utils.make	2012-12-19 15:25:56.960307512 +0100
+@@ -37,7 +37,7 @@
+ 	list='$(DOC_H_DOCS)'; for doc in $$list; do \
+ 	  xmlpath="`echo $$doc | sed -e 's/^\(.*\/\).*/\1/' -e '/\//!s/.*//'`:$(srcdir)/`echo $$doc | sed -e 's/^\(.*\/\).*/\1/' -e '/\//!s/.*//'`"; \
+ 	  if ! test -f "$$doc"; then doc="$(srcdir)/$$doc"; fi; \
+-	  xsltproc --path "$$xmlpath" $(_credits) $$doc; \
++	  xsltproc --nonet --path "$$xmlpath" $(_credits) $$doc; \
+ 	done | sort | uniq \
+ 	  | awk 'BEGIN{s=""}{n=split($$0,w,"<");if(s!=""&&s!=substr(w[1],1,length(w[1])-1)){print s};if(n>1){print $$0;s=""}else{s=$$0}};END{if(s!=""){print s}}' \
+ 	  | sed -e 's/\\/\\\\/' -e 's/"/\\"/' -e 's/\(.*\)/\t"\1",/' >> $@.tmp
+@@ -50,7 +50,7 @@
+ 	  docid=`echo "$$doc" | sed -e 's/.*\/\([^/]*\)\.xml/\1/' \
+ 	    | sed -e 's/[^a-zA-Z_]/_/g' | tr 'a-z' 'A-Z'`; \
+ 	  echo $$xmlpath; \
+-	  ids=`xsltproc --xinclude --path "$$xmlpath" $(_ids) $$doc`; \
++	  ids=`xsltproc --nonet --xinclude --path "$$xmlpath" $(_ids) $$doc`; \
+ 	  for id in $$ids; do \
+ 	    echo '#define HELP_'`echo $$docid`'_'`echo $$id \
+ 	      | sed -e 's/[^a-zA-Z_]/_/g' | tr 'a-z' 'A-Z'`' "'$$id'"' >> $@.tmp; \
+@@ -180,7 +180,7 @@
+ 	  echo "The file '$(_skcontentslist)' does not exist." >&2;		\
+ 	  echo "Please check your ScrollKeeper installation." >&2;		\
+ 	  exit 1; }
+-	xsltproc -o $@ $(call db2omf_args,$@,$<,'docbook') || { rm -f "$@"; exit 1; }
++	xsltproc --nonet -o $@ $(call db2omf_args,$@,$<,'docbook') || { rm -f "$@"; exit 1; }
+ 
+ ## @ _DOC_OMF_HTML
+ ## The OMF files for HTML output
+@@ -195,7 +195,7 @@
+ 	  echo "Please check your ScrollKeeper installation." >&2;		\
+ 	  exit 1; }
+ endif
+-	xsltproc -o $@ $(call db2omf_args,$@,$<,'xhtml') || { rm -f "$@"; exit 1; }
++	xsltproc --nonet -o $@ $(call db2omf_args,$@,$<,'xhtml') || { rm -f "$@"; exit 1; }
+ 
+ ## @ _DOC_OMF_ALL
+ ## All OMF output files to be built
+@@ -250,7 +250,7 @@
+ ## All HTML documentation in the C locale
+ # FIXME: probably have to shell escape to determine the file names
+ _DOC_C_HTML = $(foreach f,						\
+-	$(shell xsltproc --xinclude 					\
++	$(shell xsltproc --nonet --xinclude				\
+ 	  --stringparam db.chunk.basename "$(DOC_MODULE)"		\
+ 	  $(_chunks) "C/$(DOC_MODULE).xml"),				\
+ 	C/$(f).xhtml)
+@@ -379,7 +379,7 @@
+ _DOC_HTML_TOPS = $(foreach lc,C $(_DOC_REAL_LINGUAS),$(lc)/$(DOC_MODULE).xhtml)
+ 
+ $(_DOC_HTML_TOPS): $(_DOC_C_DOCS) $(_DOC_LC_DOCS)
+-	xsltproc -o $@ --xinclude --param db.chunk.chunk_top "false()" --stringparam db.chunk.basename "$(DOC_MODULE)" --stringparam db.chunk.extension ".xhtml" $(_db2html) $(patsubst %.xhtml,%.xml,$@)
++	xsltproc --nonet -o $@ --xinclude --param db.chunk.chunk_top "false()" --stringparam db.chunk.basename "$(DOC_MODULE)" --stringparam db.chunk.extension ".xhtml" $(_db2html) $(patsubst %.xhtml,%.xml,$@)
+ 
+ 
+ ################################################################################
+diff -Naur mate-doc-utils-1.5.0.orig/xslt/docbook/html/Makefile.am mate-doc-utils-1.5.0.new/xslt/docbook/html/Makefile.am
+--- mate-doc-utils-1.5.0.orig/xslt/docbook/html/Makefile.am	2012-10-04 15:37:18.000000000 +0200
++++ mate-doc-utils-1.5.0.new/xslt/docbook/html/Makefile.am	2012-12-19 15:25:56.960307512 +0100
+@@ -30,7 +30,7 @@
+ EXTRA_DIST=$(xsl_DATA)
+ 
+ report.xml: $(wildcard db*.xsl) elements report.sh report.xslt
+-	./report.sh | xsltproc -o report.xml report.xslt -
++	./report.sh | xsltproc --nonet -o report.xml report.xslt -
+ report.html: report.xml report.xslt
+-	xsltproc -o report.html report.xslt report.xml
++	xsltproc --nonet -o report.html report.xslt report.xml

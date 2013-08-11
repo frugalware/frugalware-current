@@ -1,0 +1,279 @@
+From 79a8c5ceae0cefb34d64172d95dded21872adf02 Mon Sep 17 00:00:00 2001
+From: Lance Stout <lancestout@gmail.com>
+Date: Thu, 18 Oct 2012 21:13:08 -0700
+Subject: [PATCH] Add proper XEP-0071 plugin.
+
+---
+ setup.py                               |  1 +
+ sleekxmpp/basexmpp.py                  |  1 -
+ sleekxmpp/plugins/__init__.py          |  1 +
+ sleekxmpp/plugins/xep_0071/__init__.py | 15 +++++++
+ sleekxmpp/plugins/xep_0071/stanza.py   | 73 ++++++++++++++++++++++++++++++++++
+ sleekxmpp/plugins/xep_0071/xhtml_im.py | 30 ++++++++++++++
+ sleekxmpp/stanza/htmlim.py             | 71 ++-------------------------------
+ 7 files changed, 123 insertions(+), 69 deletions(-)
+ create mode 100644 sleekxmpp/plugins/xep_0071/__init__.py
+ create mode 100644 sleekxmpp/plugins/xep_0071/stanza.py
+ create mode 100644 sleekxmpp/plugins/xep_0071/xhtml_im.py
+
+diff --git a/setup.py b/setup.py
+index ff11f8f..d9a492c 100755
+--- a/setup.py
++++ b/setup.py
+@@ -75,6 +75,7 @@
+                  'sleekxmpp/plugins/xep_0060',
+                  'sleekxmpp/plugins/xep_0060/stanza',
+                  'sleekxmpp/plugins/xep_0066',
++                 'sleekxmpp/plugins/xep_0071',
+                  'sleekxmpp/plugins/xep_0077',
+                  'sleekxmpp/plugins/xep_0078',
+                  'sleekxmpp/plugins/xep_0080',
+diff --git a/sleekxmpp/basexmpp.py b/sleekxmpp/basexmpp.py
+index c3ff5ba..a54e4bb 100644
+--- a/sleekxmpp/basexmpp.py
++++ b/sleekxmpp/basexmpp.py
+@@ -201,7 +201,6 @@ def __init__(self, jid='', default_ns='jabber:client'):
+         # Initialize a few default stanza plugins.
+         register_stanza_plugin(Iq, Roster)
+         register_stanza_plugin(Message, Nick)
+-        register_stanza_plugin(Message, HTMLIM)
+ 
+     def start_stream_handler(self, xml):
+         """Save the stream ID once the streams have been established.
+diff --git a/sleekxmpp/plugins/__init__.py b/sleekxmpp/plugins/__init__.py
+index 4ff53ac..b1a73d9 100644
+--- a/sleekxmpp/plugins/__init__.py
++++ b/sleekxmpp/plugins/__init__.py
+@@ -32,6 +32,7 @@
+     'xep_0059',  # Result Set Management
+     'xep_0060',  # Pubsub (Client)
+     'xep_0066',  # Out of Band Data
++    'xep_0071',  # XHTML-IM
+     'xep_0077',  # In-Band Registration
+ #   'xep_0078',  # Non-SASL auth. Don't automatically load
+     'xep_0080',  # User Location
+diff --git a/sleekxmpp/plugins/xep_0071/__init__.py b/sleekxmpp/plugins/xep_0071/__init__.py
+new file mode 100644
+index 0000000..c21e926
+--- /dev/null
++++ b/sleekxmpp/plugins/xep_0071/__init__.py
+@@ -0,0 +1,15 @@
++"""
++    SleekXMPP: The Sleek XMPP Library
++    Copyright (C) 2012 Nathanael C. Fritz, Lance J.T. Stout
++    This file is part of SleekXMPP.
++
++    See the file LICENSE for copying permissio
++"""
++
++from sleekxmpp.plugins.base import register_plugin
++
++from sleekxmpp.plugins.xep_0071.stanza import XHTML_IM
++from sleekxmpp.plugins.xep_0071.xhtml_im import XEP_0071
++
++
++register_plugin(XEP_0071)
+diff --git a/sleekxmpp/plugins/xep_0071/stanza.py b/sleekxmpp/plugins/xep_0071/stanza.py
+new file mode 100644
+index 0000000..7795754
+--- /dev/null
++++ b/sleekxmpp/plugins/xep_0071/stanza.py
+@@ -0,0 +1,73 @@
++"""
++    SleekXMPP: The Sleek XMPP Library
++    Copyright (C) 2012  Nathanael C. Fritz
++    This file is part of SleekXMPP.
++
++    See the file LICENSE for copying permission.
++"""
++
++from sleekxmpp.stanza import Message
++from sleekxmpp.thirdparty import OrderedDict
++from sleekxmpp.xmlstream import ElementBase, ET, register_stanza_plugin, tostring
++
++
++XHTML_NS = 'http://www.w3.org/1999/xhtml'
++
++
++class XHTML_IM(ElementBase):
++
++    namespace = 'http://jabber.org/protocol/xhtml-im'
++    name = 'html'
++    interfaces = set(['body'])
++    lang_interfaces = set(['body'])
++    plugin_attrib = name
++
++    def set_body(self, content, lang=None):
++        if lang is None:
++            lang = self.get_lang()
++        self.del_body(lang)
++        content = str(content)
++        header = '<body xmlns="%s"' % XHTML_NS
++        if lang:
++            header = '%s xml:lang="%s"' % (header, lang)
++        content = '%s>%s</body>' % (header, content)
++        xhtml = ET.fromstring(content)
++        self.xml.append(xhtml)
++
++    def get_body(self, lang=None):
++        """Return the contents of the HTML body."""
++        if lang is None:
++            lang = self.get_lang()
++
++        bodies = self.xml.findall('{%s}body' % XHTML_NS)
++
++        if lang == '*':
++            result = OrderedDict()
++            for body in bodies:
++                body_lang = body.attrib.get('{%s}lang' % self.xml_ns, '')
++                body_result = []
++                body_result.append(body.text if body.text else '')
++                for child in body:
++                    body_result.append(tostring(child, xmlns=XHTML_NS))
++                body_result.append(body.tail if body.tail else '')
++                result[body_lang] = ''.join(body_result)
++            return result
++        else:
++            for body in bodies:
++                if body.attrib.get('{%s}lang' % self.xml_ns, self.get_lang()) == lang:
++                    result = []
++                    result.append(body.text if body.text else '')
++                    for child in body:
++                        result.append(tostring(child, xmlns=XHTML_NS))
++                    result.append(body.tail if body.tail else '')
++                    return ''.join(result)
++        return ''
++
++    def del_body(self, lang):
++        if lang is None:
++            lang = self.get_lang()
++        bodies = self.xml.findall('{%s}body' % XHTML_NS)
++        for body in bodies:
++            if body.attrib.get('{%s}lang' % self.xml_ns, self.get_lang()) == lang:
++                self.xml.remove(body)
++                return
+diff --git a/sleekxmpp/plugins/xep_0071/xhtml_im.py b/sleekxmpp/plugins/xep_0071/xhtml_im.py
+new file mode 100644
+index 0000000..096a00a
+--- /dev/null
++++ b/sleekxmpp/plugins/xep_0071/xhtml_im.py
+@@ -0,0 +1,30 @@
++"""
++    SleekXMPP: The Sleek XMPP Library
++    Copyright (C) 2012 Nathanael C. Fritz, Lance J.T. Stout
++    This file is part of SleekXMPP.
++
++    See the file LICENSE for copying permission.
++"""
++
++
++from sleekxmpp.stanza import Message
++from sleekxmpp.plugins import BasePlugin
++from sleekxmpp.xmlstream import register_stanza_plugin
++from sleekxmpp.plugins.xep_0071 import stanza, XHTML_IM
++
++
++class XEP_0071(BasePlugin):
++
++    name = 'xep_0071'
++    description = 'XEP-0071: XHTML-IM'
++    dependencies = set(['xep_0030'])
++    stanza = stanza
++
++    def plugin_init(self):
++        register_stanza_plugin(Message, XHTML_IM)
++
++    def session_bind(self, jid):
++        self.xmpp['xep_0030'].add_feature(feature=XHTML_IM.namespace)
++
++    def plugin_end(self):
++        self.xmpp['xep_0030'].del_feature(feature=XHTML_IM.namespace)
+diff --git a/sleekxmpp/stanza/htmlim.py b/sleekxmpp/stanza/htmlim.py
+index d21a74e..c43178f 100644
+--- a/sleekxmpp/stanza/htmlim.py
++++ b/sleekxmpp/stanza/htmlim.py
+@@ -7,78 +7,13 @@
+ """
+ 
+ from sleekxmpp.stanza import Message
+-from sleekxmpp.xmlstream import ElementBase, ET, register_stanza_plugin
+-
+-
+-class HTMLIM(ElementBase):
+-
+-    """
+-    XEP-0071: XHTML-IM defines a method for embedding XHTML content
+-    within a <message> stanza so that lightweight markup can be used
+-    to format the message contents and to create links.
+-
+-    Only a subset of XHTML is recommended for use with XHTML-IM.
+-    See the full spec at 'http://xmpp.org/extensions/xep-0071.html'
+-    for more information.
+-
+-    Example stanza:
+-        <message to="user@example.com">
+-          <body>Non-html message content.</body>
+-          <html xmlns="http://jabber.org/protocol/xhtml-im">
+-            <body xmlns="http://www.w3.org/1999/xhtml">
+-              <p><b>HTML!</b></p>
+-            </body>
+-          </html>
+-        </message>
+-
+-    Stanza Interface:
+-        body -- The contents of the HTML body tag.
+-
+-    Methods:
+-        setup    -- Overrides ElementBase.setup.
+-        get_body -- Return the HTML body contents.
+-        set_body -- Set the HTML body contents.
+-        del_body -- Remove the HTML body contents.
+-    """
+-
+-    namespace = 'http://jabber.org/protocol/xhtml-im'
+-    name = 'html'
+-    interfaces = set(('body',))
+-    plugin_attrib = name
+-
+-    def set_body(self, html):
+-        """
+-        Set the contents of the HTML body.
+-
+-        Arguments:
+-            html -- Either a string or XML object. If the top level
+-                    element is not <body> with a namespace of
+-                    'http://www.w3.org/1999/xhtml', it will be wrapped.
+-        """
+-        if isinstance(html, str):
+-            html = ET.XML(html)
+-        if html.tag != '{http://www.w3.org/1999/xhtml}body':
+-            body = ET.Element('{http://www.w3.org/1999/xhtml}body')
+-            body.append(html)
+-            self.xml.append(body)
+-        else:
+-            self.xml.append(html)
+-
+-    def get_body(self):
+-        """Return the contents of the HTML body."""
+-        html = self.xml.find('{http://www.w3.org/1999/xhtml}body')
+-        if html is None:
+-            return ''
+-        return html
+-
+-    def del_body(self):
+-        """Remove the HTML body contents."""
+-        if self.parent is not None:
+-            self.parent().xml.remove(self.xml)
++from sleekxmpp.xmlstream import register_stanza_plugin
++from sleekxmpp.plugins.xep_0071 import XHTML_IM as HTMLIM
+ 
+ 
+ register_stanza_plugin(Message, HTMLIM)
+ 
++
+ # To comply with PEP8, method names now use underscores.
+ # Deprecated method names are re-mapped for backwards compatibility.
+ HTMLIM.setBody = HTMLIM.set_body
+-- 
+1.8.1.6
+

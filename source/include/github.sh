@@ -75,7 +75,7 @@ if [ -z "$_F_github_tag" ]; then
 	_F_github_up2date="tags"
 	_F_archive_name="archive"
 	Fpkgversep="/"
-	_F_github_source="https://nodeload.github.com/$_F_github_author/$_F_github_dirname/zip/$_F_github_ver"
+	_F_github_source="https://codeload.github.com/$_F_github_author/$_F_github_dirname/zip/$_F_github_ver"
 	_F_cd_path="$_F_github_name-$_F_github_ver"
 fi
 

@@ -2,9 +2,11 @@
 # Maintainer: crazy <crazy@frugalware.org>
 # Contributor: Miklos Nemeth <desco@frugalware.org>
 
+options+=('asneeded')
+
 pkgname=wxgtk
 pkgver=2.8.12
-pkgrel=2
+pkgrel=4
 pkgdesc="GTK+ implementation of wxWidgets API for GUI'"
 _F_sourceforge_dirname="wxwindows"
 # this is the wxGTK tarball, but it's released more frequently
@@ -17,9 +19,10 @@ depends=('libxml2>=2.7.8' 'libdrm' 'sdl' 'gtk+2>=2.20.0-2' 'libgl' 'freetype2' '
 makedepends=('libgnomeprintui' 'gst-plugins-base' 'gconf')
 groups=('xlib-extra')
 archs=('i686' 'x86_64')
-options=('scriptlet')
-replaces=('wxgtk-devel')
-conflicts=('wxgtk-devel')
+options+=('scriptlet' 'noccache')
+replaces=('wxgtk-u8')
+conflicts=('wxgtk-u8')
+provides=('wxgtk-u8')
 VER="2.8"
 sha1sums=('a8d31ef924ae49e97690646b13d5a2a7be7dda10')
 
@@ -30,33 +33,12 @@ subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
 subgroups=("${subgroups[@]}" 'locale-extra')
 subarchs=("${subarchs[@]}" 'i686 x86_64')
 
-subpkgs=("${subpkgs[@]}" "$pkgname-u8")
-subdescs=("${subdescs[@]}" "GTK+ implementation of wxWidgets API for GUI (unicode).")
-subdepends=("${subdepends[@]}" "")
-subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
-subgroups=("${subgroups[@]}" 'xlib-extra')
-subarchs=("${subarchs[@]}" 'i686 x86_64')
-
 [ "$CARCH" == "x86_64" ] && export CFLAGS="$CFLAGS -fPIC"
 [ "$CARCH" == "x86_64" ] && export CXXFLAGS="$CXXFLAGS -fPIC"
-
-wx_compile()
-{
-	make || Fdie
-	Fmakeinstall
-	cd contrib/src || Fdie
-	Fconf
-        make || Fdie
-	Fmakeinstall
-	cd ../.. || Fdie
-}
-
 
 build()
 {
 	export GDK_USE_XFT=1
-	cd $Fsrcdir || Fdie
-	cp -r $_F_sourceforge_name-$pkgver $_F_sourceforge_name-$pkgver-u8 || Fdie
 	## TODO: figure|enable more things
 	wxconfig="--with-opengl \
 		--enable-geometry \
@@ -71,36 +53,19 @@ build()
 		--with-gtk=2 \
 		--with-gnomeprint \
 		--disable-optimize \
-        --with-libpng=sys \
-        --with-libxpm=sys \
-        --with-libjpeg=sys \
-        --with-libtiff=sys"
+		--with-libpng=sys \
+		--with-libxpm=sys \
+		--with-libjpeg=sys \
+		--with-libtiff=sys \
+		--with-regex=builtin \
+		--enable-unicode"
 
-	## Unicode one
-	cd $_F_sourceforge_name-$pkgver-u8 || Fdie
 	Fpatchall
-	#autoconf || Fdie
-	Fconf \
-		${wxconfig} \
-		--enable-unicode
-	wx_compile
-	Frm usr/lib/wx/${VER}
-	## This is still not a solution ...
-	Frm usr/include usr/share/aclocal usr/share/bakefile usr/share/locale usr/bin/wx-config usr/bin/wxrc
-	Fln /usr/lib/wx/config/gtk2-unicode-release-${VER} /usr/bin/wx-config-u8
-	Fmv /usr/bin/wxrc-${VER} /usr/bin/wxrc-${VER}-u8
-	Fln /usr/bin/wxrc-${VER}-u8 /usr/bin/wxrc-u8
-	Fsplit $pkgname-u8 /usr
-	## Normal build
-	cd ../$_F_sourceforge_name-$pkgver
-	Fpatchall
-	#autoconf || Fdie
-	Fconf \
-                ${wxconfig} \
-                --disable-unicode
-        wx_compile
-	Frm usr/bin/wx-config
-	Fln /usr/lib/wx/config/gtk2-ansi-release-${VER} /usr/bin/wx-config
+	Fmake ${wxconfig}
+	make -C locale allmo || Fdie
+	make -C contrib/src || Fdie
+	Fmakeinstall
+	Fmakeinstall -C contrib/src
 	## lang stuff ( why is this split anyway ? )
 	Fsplit $pkgname-locale usr/share/locale
 }

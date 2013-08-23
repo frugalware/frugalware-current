@@ -1,0 +1,217 @@
+From 6c0afb87b919f1f0321146323e917480851b2d63 Mon Sep 17 00:00:00 2001
+From: Lance Stout <lancestout@gmail.com>
+Date: Fri, 4 Jan 2013 00:26:18 -0800
+Subject: [PATCH] Add XEP-0048 support
+
+---
+ setup.py                                |  1 +
+ sleekxmpp/plugins/__init__.py           |  1 +
+ sleekxmpp/plugins/xep_0048/__init__.py  | 15 +++++++
+ sleekxmpp/plugins/xep_0048/bookmarks.py | 76 +++++++++++++++++++++++++++++++++
+ sleekxmpp/plugins/xep_0048/stanza.py    | 65 ++++++++++++++++++++++++++++
+ 5 files changed, 158 insertions(+)
+ create mode 100644 sleekxmpp/plugins/xep_0048/__init__.py
+ create mode 100644 sleekxmpp/plugins/xep_0048/bookmarks.py
+ create mode 100644 sleekxmpp/plugins/xep_0048/stanza.py
+
+diff --git a/setup.py b/setup.py
+index 1320361..ff11f8f 100755
+--- a/setup.py
++++ b/setup.py
+@@ -67,6 +67,7 @@
+                  'sleekxmpp/plugins/xep_0030/stanza',
+                  'sleekxmpp/plugins/xep_0033',
+                  'sleekxmpp/plugins/xep_0047',
++                 'sleekxmpp/plugins/xep_0048',
+                  'sleekxmpp/plugins/xep_0049',
+                  'sleekxmpp/plugins/xep_0050',
+                  'sleekxmpp/plugins/xep_0054',
+diff --git a/sleekxmpp/plugins/__init__.py b/sleekxmpp/plugins/__init__.py
+index 59d716e..4f9dda2 100644
+--- a/sleekxmpp/plugins/__init__.py
++++ b/sleekxmpp/plugins/__init__.py
+@@ -25,6 +25,7 @@
+     'xep_0033',  # Extended Stanza Addresses
+     'xep_0045',  # Multi-User Chat (Client)
+     'xep_0047',  # In-Band Bytestreams
++    'xep_0048',  # Bookmarks
+     'xep_0049',  # Private XML Storage
+     'xep_0050',  # Ad-hoc Commands
+     'xep_0054',  # vcard-temp
+diff --git a/sleekxmpp/plugins/xep_0048/__init__.py b/sleekxmpp/plugins/xep_0048/__init__.py
+new file mode 100644
+index 0000000..2c98d06
+--- /dev/null
++++ b/sleekxmpp/plugins/xep_0048/__init__.py
+@@ -0,0 +1,15 @@
++"""
++    SleekXMPP: The Sleek XMPP Library
++    Copyright (C) 2013 Nathanael C. Fritz, Lance J.T. Stout
++    This file is part of SleekXMPP.
++
++    See the file LICENSE for copying permission.
++"""
++
++from sleekxmpp.plugins.base import register_plugin
++
++from sleekxmpp.plugins.xep_0048.stanza import Bookmarks, Conference, URL
++from sleekxmpp.plugins.xep_0048.bookmarks import XEP_0048
++
++
++register_plugin(XEP_0048)
+diff --git a/sleekxmpp/plugins/xep_0048/bookmarks.py b/sleekxmpp/plugins/xep_0048/bookmarks.py
+new file mode 100644
+index 0000000..0bb5ae3
+--- /dev/null
++++ b/sleekxmpp/plugins/xep_0048/bookmarks.py
+@@ -0,0 +1,76 @@
++"""
++    SleekXMPP: The Sleek XMPP Library
++    Copyright (C) 2013 Nathanael C. Fritz, Lance J.T. Stout
++    This file is part of SleekXMPP.
++
++    See the file LICENSE for copying permission.
++"""
++
++import logging
++
++from sleekxmpp import Iq
++from sleekxmpp.plugins import BasePlugin
++from sleekxmpp.exceptions import XMPPError
++from sleekxmpp.xmlstream.handler import Callback
++from sleekxmpp.xmlstream.matcher import StanzaPath
++from sleekxmpp.xmlstream import register_stanza_plugin
++from sleekxmpp.plugins.xep_0048 import stanza, Bookmarks, Conference, URL
++
++
++log = logging.getLogger(__name__)
++
++
++class XEP_0048(BasePlugin):
++
++    name = 'xep_0048'
++    description = 'XEP-0048: Bookmarks'
++    dependencies = set(['xep_0045', 'xep_0049', 'xep_0060', 'xep_0163', 'xep_0223'])
++    stanza = stanza
++    default_config = {
++        'auto_join': False,
++        'storage_method': 'xep_0049'
++    }
++
++    def plugin_init(self):
++        register_stanza_plugin(self.xmpp['xep_0060'].stanza.Item, Bookmarks)
++
++        self.xmpp['xep_0049'].register(Bookmarks)
++        self.xmpp['xep_0163'].register_pep('bookmarks', Bookmarks)
++
++        self.xmpp.add_event_handler('session_start', self._autojoin)
++
++    def plugin_end(self):
++        self.xmpp.del_event_handler('session_start', self._autojoin)
++
++    def _autojoin(self, __):
++        if not self.auto_join:
++            return
++
++        try:
++            result = self.get_bookmarks(method=self.storage_method)
++        except XMPPError:
++            return
++
++        if self.storage_method == 'xep_0223':
++            bookmarks = result['pubsub']['items']['item']['bookmarks']
++        else:
++            bookmarks = result['private']['bookmarks']
++
++        for conf in bookmarks['conferences']:
++            if conf['autojoin']:
++                log.debug('Auto joining %s as %s', conf['jid'], conf['nick'])
++                self.xmpp['xep_0045'].joinMUC(conf['jid'], conf['nick'],
++                        password=conf['password'])
++
++    def set_bookmarks(self, bookmarks, method=None, **iqargs):
++        if not method:
++            method = self.storage_method
++        return self.xmpp[method].store(bookmarks, **iqargs)
++
++    def get_bookmarks(self, method=None, **iqargs):
++        if not method:
++            method = self.storage_method
++
++        loc = 'storage:bookmarks' if method == 'xep_0223' else 'bookmarks'
++
++        return self.xmpp[method].retrieve(loc, **iqargs)
+diff --git a/sleekxmpp/plugins/xep_0048/stanza.py b/sleekxmpp/plugins/xep_0048/stanza.py
+new file mode 100644
+index 0000000..2e30eb6
+--- /dev/null
++++ b/sleekxmpp/plugins/xep_0048/stanza.py
+@@ -0,0 +1,65 @@
++"""
++    SleekXMPP: The Sleek XMPP Library
++    Copyright (C) 2012 Nathanael C. Fritz, Lance J.T. Stout
++    This file is part of SleekXMPP.
++
++    See the file LICENSE for copying permission.
++"""
++
++from sleekxmpp.xmlstream import ET, ElementBase, register_stanza_plugin
++
++
++class Bookmarks(ElementBase):
++    name = 'storage'
++    namespace = 'storage:bookmarks'
++    plugin_attrib = 'bookmarks'
++    interfaces = set()
++
++    def add_conference(self, jid, nick, name=None, autojoin=None, password=None):
++        conf = Conference()
++        conf['jid'] = jid
++        conf['nick'] = nick
++        if name is None:
++            name = jid
++        conf['name'] = name
++        conf['autojoin'] = autojoin
++        conf['password'] = password
++        self.append(conf)
++
++    def add_url(self, url, name=None):
++        saved_url = URL()
++        saved_url['url'] = url
++        if name is None:
++            name = url
++        saved_url['name'] = name
++        self.append(saved_url)
++
++
++class Conference(ElementBase):
++    name = 'conference'
++    namespace = 'storage:bookmarks'
++    plugin_attrib = 'conference'
++    plugin_multi_attrib = 'conferences'
++    interfaces = set(['nick', 'password', 'autojoin', 'jid', 'name'])
++    sub_interfaces = set(['nick', 'password'])
++
++    def get_autojoin(self):
++        value = self._get_attr('autojoin')
++        return value in ('1', 'true')
++
++    def set_autojoin(self, value):
++        del self['autojoin']
++        if value in ('1', 'true', True):
++            self._set_sub_text('autojoin', 'true')
++
++
++class URL(ElementBase):
++    name = 'url'
++    namespace = 'storage:bookmarks'
++    plugin_attrib = 'url'
++    plugin_multi_attrib = 'urls'
++    interfaces = set(['url', 'name'])
++
++
++register_stanza_plugin(Bookmarks, Conference, iterable=True)
++register_stanza_plugin(Bookmarks, URL, iterable=True)
+-- 
+1.8.1.6
+

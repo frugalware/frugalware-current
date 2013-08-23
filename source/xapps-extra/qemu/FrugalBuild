@@ -7,22 +7,26 @@ USE_DEVEL=${USE_DEVEL:-"n"}
 # TODO: considering adding support for KSM
 
 pkgname=qemu
-pkgver=1.4.0
+pkgver=1.5.2
 Fuse $USE_DEVEL && pkgver=svn6369
 pkgrel=2
 Fuse $USE_DEVEL && pkgrel=1
 pkgdesc="QEMU is a FAST! processor emulator"
 url="http://www.nongnu.org/qemu/"
-depends=('libx11' 'sdl' 'zlib' 'alsa-lib' 'spice-server>=0.12.2')
-makedepends=('texi2html')
-replaces=('kqemu')
+rodepends=('libcacard')
+depends=('libx11' 'sdl' 'alsa-lib' 'cyrus-sasl' 'nss' 'libgl' 'pixman' 'libpng' 'libjpeg')
+makedepends=('texi2html' 'xfsprogs' 'mesa-libgl-headers')
+replaces=('kqemu' 'qemu-kvm')
+conflicts=('kqemu' 'qemu-kvm')
+provides=('kqemu' 'qemu-kvm')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
 up2date="Flasttar http://wiki.qemu.org/download"
 source=(http://wiki.qemu.org/download/${pkgname}-${pkgver//_/-}.tar.bz2 \
-	qemu.conf qemu-guest-agent.service 99-qemu-guest-agent.rules README.Frugalware)
-sha1sums=('4288b23acab1e7f4d9da14cb06b13575a0f7d4f4' \
-          '3de44fdad30dfe54a552b4b1af9dac8616dd274e' \
+	qemu.conf 49-kvm.rules qemu-guest-agent.service 99-qemu-guest-agent.rules README.Frugalware)
+sha1sums=('932c04cdb227e1553c79a43bbf7552a433c815a9' \
+          'b44a774fe5ebcf52275ee0fc33a9654c157204ca' \
+          '9d9f293fb01d91c12e2f95ba6401a1f1570d70fb' \
           '435373031bc0a1fed8abadab912460ddf98bc1c2' \
           'c997e6afd997aeb87791664c2583a009704a6792' \
           '11fea2f36b44297e241d8cbbdbc4cd14f1150b72')
@@ -35,11 +39,13 @@ if Fuse $USE_DEVEL; then
 	Finclude scm
 fi
 
-subpkgs=("qemu-guest")
-subdescs=("Files for use in QEMU guests.")
-subgroups=('apps-extra')
-subarchs=('i686 x86_64')
-subdepends=('glib2')
+subpkgs=('qemu-guest' 'libcacard')
+subdescs=('Files for use in QEMU guests.' 'Common Access Card (CAC) Emulation')
+subgroups=('apps-extra' 'lib-extra')
+subarchs=('i686 x86_64' 'i686 x86_64')
+subdepends=('glib2' 'glib2 nss')
+
+TARGETS="i386-softmmu x86_64-softmmu arm-softmmu"
 
 build()
 {
@@ -47,18 +53,23 @@ build()
 		Funpack_scm
 	fi
 	Fcd $pkgname-${pkgver%%_*}
-	Fbuild --audio-drv-list=alsa,oss --enable-spice
+	Fbuild --audio-drv-list=alsa,oss --target-list="$TARGETS" --disable-qom-cast-debug
 	Fdoc README.Frugalware
 	Ffile /etc/binfmt.d/qemu.conf
+	Ffile /lib/udev/rules.d/49-kvm.rules
 	Ffile /lib/systemd/system/qemu-guest-agent.service
 	Ffile /lib/udev/rules.d/99-qemu-guest-agent.rules
-	if [ "$CARCH" = "i686" -o "$CARCH" = "x86_64" ]; then
-		sed -ri '/qemu-i[34]86/ d' $Fdestdir/etc/binfmt.d/qemu.conf || Fdie
-	fi
+	Ffileschmod /usr/lib/libcacard.so.0.0.0 0755
 	Fsplit qemu-guest /lib/systemd/system/qemu-guest-agent.service
 	Fsplit qemu-guest /lib/udev/rules.d/99-qemu-guest-agent.rules
 	Fsplit qemu-guest /usr/bin/qemu-ga
-	Frm /usr/include/cacard # no idea why this is installed, when it's a dependency
+	Fsplit libcacard /usr/include
+	Fsplit libcacard /usr/lib
+	Fsplit libcacard /usr/bin/vscclient
+	case $CARCH in
+		i686)   Fln qemu-system-i386   /usr/bin/qemu ;;
+		x86_64) Fln qemu-system-x86_64 /usr/bin/qemu ;;
+	esac
 }
 
 # optimization OK

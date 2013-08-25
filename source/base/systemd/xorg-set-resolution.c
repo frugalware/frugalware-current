@@ -14,6 +14,8 @@ extern int main(void)
   char *p = 0;
   regex_t re = {0};
   regmatch_t rm = {0};
+
+  remove("/etc/X11/xorg.conf.d/00-resolution.conf");
   
   if((file = fopen("/proc/cmdline","rb")) == 0)
   {
@@ -33,7 +35,6 @@ extern int main(void)
   
   if((video = strstr(line,"video=")) == 0)
   {
-    remove("/etc/X11/xorg.conf.d/00-resolution.conf");
     code = EXIT_SUCCESS;
     goto bail;
   }
@@ -49,7 +50,6 @@ extern int main(void)
   
   if(regexec(&re,video,1,&rm,0) != 0)
   {
-    remove("/etc/X11/xorg.conf.d/00-resolution.conf");
     code = EXIT_SUCCESS;
     goto bail;
   }

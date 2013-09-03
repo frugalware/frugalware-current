@@ -1,5 +1,3 @@
-systemd_units=(gdm=e)
-
 UpdateIconCache()
 {
 	if [ -f /usr/bin/gtk-update-icon-cache ]
@@ -24,9 +22,6 @@ UpdateIconCache()
 
 post_install()
 {
-	local unit
-	local op
-
 	/usr/sbin/useradd -M -u 42 -d /var/lib/gdm -s /sbin/nologin -r gdm > /dev/null 2>&1
 	/usr/sbin/usermod -d /var/lib/gdm -s /sbin/nologin gdm >/dev/null 2>&1
 	# ignore errors, as we can't disambiguate between gdm already existe
@@ -36,31 +31,26 @@ post_install()
 	rarian-sk-update -q > /dev/null 2>&1
 	echo "done."
 	
-	/sbin/ldconfig
 	UpdateIconCache
 	glib-compile-schemas /usr/share/glib-2.0/schemas &>/dev/null
 	dconf update
 
-	ln -sf /lib/systemd/system/gdm.service /etc/systemd/system/display-manager.service
-
-
+	if [ ! -h /etc/systemd/system/display-manager.service ]; then
+		systemctl enable gdm.service
+	fi
 }
 
 post_upgrade()
 {
 	post_install
+
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 
 pre_remove()
 {
-	local unit
-
-	for i in ${systemd_units[@]}; do
-		unit=$(echo $i | cut -f 1 -d '=')
-		systemctl --no-reload disable $unit.service >/dev/null 2>&1
-		systemctl stop $unit.service >/dev/null 2>&1
-	done
+	systemctl --no-reload disable gdm.service >/dev/null 2>&1
 }
 
 post_remove()
@@ -71,7 +61,6 @@ post_remove()
 	dconf update
 	UpdateIconCache
 	systemctl daemon-reload >/dev/null 2>&1
-
 }
 
 op=$1

@@ -1,7 +1,8 @@
 post_install()
 {
-	sed 's|"/usr/bin/lightdm"$|"/usr/sbin/lightdm"|' -i /etc/sysconfig/desktop
-	sed 's|^#desktop="/usr/sbin/lightdm"$|desktop="/usr/sbin/lightdm"|' -i /etc/sysconfig/desktop
+	if [ ! -h /etc/systemd/system/display-manager.service ]; then
+		systemctl enable lightdm.service
+	fi
 	getent group lightdm > /dev/null 2>&1 || groupadd -g 620 lightdm
 	getent passwd lightdm > /dev/null 2>&1 || useradd -c 'LightDM Display Manager' -u 620 -g lightdm -d /var/run/lightdm -s /sbin/nologin lightdm
 	passwd -l lightdm > /dev/null
@@ -11,13 +12,19 @@ post_install()
 post_upgrade()
 {
 	post_install
+	systemctl daemon-reload >/dev/null 2>&1
+}
+
+pre_remove()
+{
+	systemctl --no-reload disable lightdm.service >/dev/null 2>&1
 }
 
 post_remove()
 {
-	sed -i 's|^desktop="/usr/sbin/lightdm"$|#desktop="/usr/sbin/lightdm"|' /etc/sysconfig/desktop
 	getent passwd lightdm > /dev/null 2>&1 && userdel lightdm
 	getent group lightdm > /dev/null 2>&1 && groupdel lightdm
+	systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1

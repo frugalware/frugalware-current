@@ -1,0 +1,279 @@
+diff -ur a/src/gui.c b/src/gui.c
+--- a/src/gui.c	2010-02-02 21:55:57.000000000 -0600
++++ b/src/gui.c	2013-10-24 05:51:23.420411101 -0500
+@@ -27,10 +27,10 @@
+ GtkWidget *mainwindow = NULL;
+ 
+ GdkColor colorWhite = { 0, 0xFFFF, 0xFFFF, 0xFFFF };
+-    
+-GdkColormap *cmap = NULL;
+ 
+-GdkPixmap *theme = NULL;
++GdkPixbuf *theme = NULL;
++
++cairo_surface_t *surface = NULL;
+ 
+ /* Destroy the main window. */
+ gint destroy_gui( GtkWidget *widget, gpointer data ) {
+@@ -76,17 +76,16 @@
+     }
+ }
+ 
+-static void draw_digits( GtkWidget *widget, const gchar *digits, int highLow )
++static void draw_digits( GtkWidget *widget, cairo_t *cr, const gchar *digits, int highLow )
+ {
+     const gchar *digit = digits;
+     int pos = 0, x = 0, y = 0, w = 0;
+ 
+     while ( *digit ) {
+         get_pm_location( *digit, &x, &y, &w );
+-        gdk_draw_drawable( widget->window,
+-                           widget->style->fg_gc[ GTK_WIDGET_STATE
+-                           (widget) ], theme, x, y + highLow,
+-                           pos, 0, w, 30 );
++        cairo_set_source_surface (cr, surface, pos-x, 0-(y + highLow));
++		cairo_rectangle(cr, pos, 0, w, 30);
++		cairo_fill(cr);
+         pos += w;
+         digit++;
+     }
+@@ -102,6 +101,8 @@
+ 
+     gchar result[7];
+ 
++    cairo_t *cr = gdk_cairo_create(widget->window);
++
+ #ifdef DEBUG_XSENSORS
+     printf( "area.width = %d, area.height = %d\n", event->area.width,
+             event->area.height );
+@@ -117,13 +118,11 @@
+ 
+             /* Display the digits */
+             if ( g_snprintf( result, 6, "%5.0f", current->curvalue ) >= 0 )
+-               draw_digits( widget, result, highLow );
++               draw_digits( widget, cr, result, highLow );
+ 
+             /* Display RPM */
+-            gdk_draw_drawable( widget->window, 
+-                               widget->style->fg_gc[ GTK_WIDGET_STATE 
+-                               (widget) ], theme, 0, 120 + highLow, 
+-                               90, 0, 57, 30 );
++            cairo_set_source_surface (cr, surface, 90-0, 0-(120 + highLow));
++     	    cairo_rectangle(cr, 90, 0, 57, 30);
+             break;
+         case TEMP:
+             if ( current->curvalue > current->curmax )
+@@ -134,17 +133,15 @@
+ 
+             /* Display the digits */
+             if ( g_snprintf( result, 7, "%6.1f", current->curvalue ) >= 0 )
+-               draw_digits( widget, result, highLow );
++               draw_digits( widget, cr, result, highLow );
+ 
+             /* Display degree symbol */
+             if ( tf == FALSE )
+                 x = 0;
+             else
+                 x = 57;
+-            gdk_draw_drawable( widget->window, 
+-                             widget->style->fg_gc[ GTK_WIDGET_STATE 
+-                             (widget) ], theme, x, 60 + highLow, 
+-                             96, 0, 57, 30 );
++            cairo_set_source_surface (cr, surface, 96-x, 0-(60 + highLow));
++     	    cairo_rectangle(cr, 96, 0, 57, 30);
+             
+             break;
+         case VOLT:
+@@ -154,20 +151,17 @@
+             
+             /* Display the digits */
+             if ( g_snprintf( result, 7, "%6.2f", current->curvalue ) >= 0 )
+-               draw_digits( widget, result, highLow );
++               draw_digits( widget, cr, result, highLow );
+ 
+             /* Display V */
+-            gdk_draw_drawable( widget->window, 
+-                             widget->style->fg_gc[ GTK_WIDGET_STATE 
+-                             (widget) ], theme, 114, 60 + highLow, 
+-                             96, 0, 57, 30 );
+-
+-
++            cairo_set_source_surface (cr, surface, 96-114, 0-(60 + highLow));
++     	    cairo_rectangle(cr, 96, 0, 57, 30);
+             break;
+         default:
+             break;
+     }
+-            
++    cairo_fill(cr);
++    cairo_destroy(cr);
+     return TRUE;
+ }
+ 
+@@ -257,11 +251,10 @@
+ 
+ /* Start the sensor info update timer. */
+ gint start_timer( GtkWidget *widget, gpointer data ) {
+-    gint timer;
+ 
+     /* Setup timer for updates. */
+-    timer = g_timeout_add( update_time * 1000, 
+-                             (GtkFunction) update_sensor_data, 
++    g_timeout_add( update_time * 1000,
++                             (GSourceFunc) update_sensor_data,
+ 			     (gpointer) data );
+ 
+     return SUCCESS;
+@@ -287,7 +280,7 @@
+ 
+     /* feature data */
+     updates *head = NULL;
+-    updates *current = NULL, *prev = NULL;
++    updates *current = NULL;
+ 
+     const sensors_feature *feature;
+ 
+@@ -347,10 +340,8 @@
+             new_node->pbar = featpbar;
+ 
+             if ( head == NULL ) {
+-                prev = head;
+                 head = current = new_node;
+             } else {
+-                prev = current;
+                 current = current->next = new_node;
+             }
+ 
+@@ -361,19 +352,20 @@
+             feattext = sensors_get_label( name, feature );
+ 	    
+             if ( feattext != NULL ) {
++                /* We need a temporary variable in case realloc fails */
++                char *new_feattext;
+ #ifdef DEBUG_XSENSORS
+                 printf( "Adding feature %d, %s.\n", i, feattext );
+ #endif
+-                if ( ( feattext = realloc( feattext, 
++                if ( ( new_feattext = realloc( feattext,
+                                 ( strlen( feattext ) + 2 ) * 
+                                 sizeof( char ) ) ) == NULL ) {
+                     fprintf( stderr, "realloc failed in add_sensor_tab()!\n" );
++                    free( feattext );
+                     return NULL;
+                 }
+-                if ( strcat( feattext, ":" ) == NULL ) {
+-                    fprintf( stderr, "strcat failed in add_sensor_tab()!\n" );
+-                    return NULL;
+-                }
++                feattext = new_feattext;
++                strcat( feattext, ":" );
+                 
+                 gtk_frame_set_label( GTK_FRAME (featframe), feattext );
+ 
+@@ -411,8 +403,7 @@
+             gtk_widget_show( innerbox );
+             gtk_widget_show( darea );
+             gtk_widget_show( featpbar );
+-            g_free( feattext );
+-            feattext = NULL;
++            free( feattext );
+     }
+ 
+     if ( usedvolt > 0 ) {
+@@ -433,8 +424,6 @@
+         gtk_widget_show( fanlabel );
+     }
+ 
+-    g_free( feattext );
+-
+     return head;
+ }
+ 
+@@ -449,6 +438,7 @@
+ 
+     int chipnum = 0;
+     const sensors_chip_name *name = NULL;
++    int supported_sensor_found = FALSE;
+ 
+     gtk_init( &argc, &argv );
+ 
+@@ -465,8 +455,6 @@
+     g_signal_connect( G_OBJECT (mainwindow), "delete_event",
+                       G_CALLBACK (destroy_gui), NULL );
+ 
+-    /* Graphics needed for drawing info. */
+-    cmap = gtk_widget_get_colormap( mainwindow );
+ 
+     /* Set up the image file used for displaying characters. */
+     if ( imagefile == NULL ) {
+@@ -486,12 +474,10 @@
+                        "Image file not found in either location!  Exiting!\n" );
+                 exit( 1 );
+             } else {
+-                theme = gdk_pixmap_colormap_create_from_xpm( NULL, cmap,
+-                        NULL, NULL, "./images/default.xpm" );
++                theme = gdk_pixbuf_new_from_file("./images/default.xpm", NULL );
+             }
+         } else {
+-            theme = gdk_pixmap_colormap_create_from_xpm( NULL, cmap,
+-                    NULL, NULL, imagefile );
++            theme = gdk_pixbuf_new_from_file(imagefile, NULL );
+         }
+     } else {
+         if ( stat( imagefile, &sbuf ) != 0 ) {
+@@ -500,11 +486,15 @@
+                     "Image file not found in specified location!  Exiting!\n" );
+             exit( 1 );
+         } else {
+-            theme = gdk_pixmap_colormap_create_from_xpm( NULL, cmap,
+-                    NULL, NULL, imagefile );
++            theme = gdk_pixbuf_new_from_file(imagefile, NULL );
+         }
+     }
+-    
++    surface = cairo_image_surface_create_for_data(gdk_pixbuf_get_pixels(theme),
++                                        CAIRO_FORMAT_RGB24,
++										gdk_pixbuf_get_width(theme),
++										gdk_pixbuf_get_height(theme),
++										gdk_pixbuf_get_rowstride(theme));
++
+     /* Create notebook for sensors. */
+     notebook = gtk_notebook_new( );
+     gtk_widget_modify_bg( notebook, GTK_STATE_NORMAL, &colorWhite );
+@@ -518,15 +508,17 @@
+ #ifdef DEBUG_XSENSORS
+             printf( "Adding tab for %s\n", name->prefix );
+ #endif
+-            if ( ( head = add_sensor_tab( notebook, name ) ) == NULL )
+-                return FAILURE;
+-            
+-            update_sensor_data( head );
+-            g_signal_connect( G_OBJECT (mainwindow), "realize",
+-                              G_CALLBACK (start_timer), head );
++            if ( ( head = add_sensor_tab( notebook, name ) ) != NULL ) {
++                supported_sensor_found = update_sensor_data( head );
++                g_signal_connect( G_OBJECT (mainwindow), "realize",
++                                  G_CALLBACK (start_timer), head );
++            }
+         }
+     }
+     
++    if ( supported_sensor_found != TRUE )
++        return FAILURE;
++
+     /* Setup the main components. */
+     gtk_widget_show( mainwindow );
+ 
+Only in b/src: gui.c.orig
+diff -ur a/src/main.c b/src/main.c
+--- a/src/main.c	2010-01-15 13:24:51.000000000 -0600
++++ b/src/main.c	2013-10-24 05:51:23.425411101 -0500
+@@ -123,7 +123,7 @@
+ 
+     /* This will start the GUI. */
+     if ( start_gui( argc, argv ) != SUCCESS ) {
+-        fprintf( stderr, "GUI failed!\n" );
++        fprintf( stderr, "No supported sensors found!\n" );
+     }
+ 
+     /* Clean up the sensors library. */

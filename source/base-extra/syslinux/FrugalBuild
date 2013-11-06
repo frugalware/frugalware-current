@@ -2,8 +2,8 @@
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=syslinux
-pkgver=6.01
-pkgrel=1
+pkgver=6.02
+pkgrel=2
 pkgdesc="Bootloaders for FAT, EXT2/3/4, and ISO file systems."
 url="http://syslinux.zytor.com"
 depends=('coreutils' 'libuuid')
@@ -15,8 +15,9 @@ groups=('base-extra')
 archs=('i686' 'x86_64')
 up2date="Flasttar www.kernel.org/pub/linux/utils/boot/$pkgname/"
 source=(http://www.kernel.org/pub/linux/utils/boot/$pkgname/$pkgname-$pkgver.tar.xz \
-	README.Frugalware)
-signatures=(${source[0]/.tar.xz/.tar.sign} '')
+	README.Frugalware \
+	syslinux-module-config)
+signatures=(${source[0]/.tar.xz/.tar.sign} '' '')
 
 unset LDFLAGS
 
@@ -29,16 +30,43 @@ case $CARCH in
 		makedepends+=('gnu-efi')
 		;;
 	*)
-		Ferror "Unsupport CARCH."
+		Fmessage "Unsupported CARCH."
 		;;
 esac
 
+copy_include()
+{
+	if [ "$3" = "y" ]; then
+		Fmkdir /usr/include/syslinux/$2
+	fi
+	for i in $1; do
+		Fcprel $i /usr/include/syslinux/$2
+	done
+}
 
 build() {
 	Fcd
 	Fsed "^firmware = .*$" "firmware = $MODULES" Makefile
 	Fexec make || Fdie
 	Fexec make INSTALLROOT=$Fdestdir MANDIR=/usr/share/man AUXDIR=/usr/lib/syslinux install || Fdie
+	Frm /usr/lib/syslinux/com32
+	Fmkdir /usr/include/syslinux /usr/lib/syslinux
+	copy_include com32/include            com32 n
+	copy_include core/include             core  n
+	copy_include com32/libutil/include    util  n
+	copy_include com32/gplinclude         gpl   n
+	copy_include bios/version.h           misc  y
+	copy_include com32/cmenu/libmenu/\*.h menu  y
+	Fcprel com32/lib/i386/elf.ld /usr/lib/syslinux/elf.ld
+	if [ "$CARCH" = "x86_64" ]; then
+		Fmkdir /usr/lib/syslinux/efi64
+		Fcprel com32/lib/x86_64/elf.ld /usr/lib/syslinux/efi64/elf.ld
+	fi
+	Ffileschmod /usr/include/syslinux 0644
+	Fdirschmod /usr/include/syslinux 0755
+	Ffileschmod /usr/lib/syslinux 0644
+	Fdirschmod /usr/lib/syslinux 0755
+	Fexe /usr/bin/syslinux-module-config
 }
 
 # optimization OK

@@ -1,0 +1,179 @@
+# Compiling Time: 19.80 SBU
+# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
+
+pkgname=firebird
+pkgver=2.5.2.26540.0
+srcver=2.5.2.26540-0
+majorver=2.5.2
+pkgrel=1
+pkgdesc="SQL relational database management system"
+_F_sourceforge_name="Firebird"
+_F_sourceforge_ext=".tar.bz2"
+_F_sourceforge_rss_limit="200"
+Finclude sourceforge
+url="http://www.firebirdsql.org/"
+rodepends=("libfbembed=$pkgver-$pkgrel")
+groups=('apps-extra')
+archs=('i686' 'x86_64')
+up2date="$up2date |sed 's/-/./g'"
+source=(http://downloads.sourceforge.net/firebird/Firebird-$srcver.tar.bz2 \
+	firebird-logrotate \
+	firebird.conf \
+	firebird-classic@.service \
+	firebird-classic.socket \
+	firebird-superclassic.service \
+	firebird-superserver.service \
+	firebird-2.5.2-svn-CORE-3946.patch \
+	firebird-btyacc-fpie.patch)
+sha1sums=('1b91d3b01d27ea420d21daa025ded3dffa9b297a' \
+          'ca23a67741ebb8cb6c222c4422ab3eb1b4c7f52a' \
+          '5ca4921375cdca2bbe3c553905a3e9c14a151af3' \
+          'cd60465a2d87247f367209bf4da1ce2ed9130156' \
+          '3dc22b6b8979321406d6769356cef4341bb1ca15' \
+          'c0aa0e3a5fc13738493977cac1055da5f314d7a6' \
+          '0f0565ba21bc815cfe03bbfe584683568722c8ff' \
+          '2ab9120dbe705bc3d1adbf75e1b040eb9bd02a18' \
+          '836a7999b7df814ece053ec52a0259ca7665a575')
+
+subpkgs=('libfbembed')
+subdescs=('Multi-process, local client libraries for Firebird SQL RDBMS')
+subdepends=('icu4c')
+subgroups=('lib')
+subarchs=('i686 x86_64')
+
+build()
+{
+	set -e
+	Fcd Firebird-$srcver
+	Fpatchall
+
+	unset MAKEFLAGS
+	# classic
+	if [ ! -e gen/buildroot-classic ]; then
+		NOCONFIGURE=1 ./autogen.sh
+		./configure --prefix=/usr/lib/firebird --with-system-icu --with-system-editline \
+			--with-fbbin=/usr/lib/firebird/bin-classic --with-fbinclude=/usr/include/firebird \
+			--with-fbsbin=/usr/sbin --with-fbconf=/etc/firebird --with-fblib=/usr/lib \
+			--with-fbdoc=/usr/share/doc/firebird-$pkgver --with-fbudf=/usr/lib/firebird/UDF --with-fbsample=/usr/share/doc/firebird-$pkgver/examples \
+			--with-fbsample-db=/var/lib/firebird/data/ \
+			--with-fbhelp=/var/lib/firebird/system/ --with-fbintl=/usr/lib/firebird/intl \
+			--with-fbmisc=/usr/lib/firebird/misc --with-fbsecure-db=/var/lib/firebird/system \
+			--with-fbmsg=/var/lib/firebird/system --with-fblog=/var/log/firebird \
+			--with-fbglock=/run/firebird --with-fbplugins=/usr/lib/firebird/plugins-classic
+
+		make
+
+		cd gen
+		sed "s@exit 1@# exit 1@" -i ./install/makeInstallImage.sh
+		sed "s@chown@echo ""# chown@g" -i ./install/makeInstallImage.sh
+		sed "s@chmod@echo ""# chmod@g" -i ./install/makeInstallImage.sh
+		./install/makeInstallImage.sh
+		mv ./buildroot/ buildroot-classic
+		cd ..
+	fi
+
+	# superserver
+	if [ ! -e src.built ]; then
+		./configure --prefix=/usr/lib/firebird --with-system-icu --with-system-editline --enable-superserver \
+			--with-fbbin=/usr/lib/firebird/bin-superserver --with-fbinclude=/usr/include/firebird \
+			--with-fbsbin=/usr/sbin --with-fbconf=/etc/firebird --with-fblib=/usr/lib \
+			--with-fbdoc=/usr/share/doc/firebird-$pkgver --with-fbudf=/usr/lib/firebird/UDF --with-fbsample=/usr/share/doc/firebird-$pkgver/examples \
+			--with-fbsample-db=/var/lib/firebird/data/ \
+			--with-fbhelp=/var/lib/firebird/system/ --with-fbintl=/usr/lib/firebird/intl \
+			--with-fbmisc=/usr/lib/firebird/misc --with-fbsecure-db=/var/lib/firebird/system \
+			--with-fbmsg=/var/lib/firebird/system --with-fblog=/var/log/firebird \
+			--with-fbglock=/run/firebird --with-fbplugins=/usr/lib/firebird/plugins-superserver
+
+		make clean
+		make
+
+		cd gen
+		sed "s@exit 1@echo ""# exit 1@" -i ./install/makeInstallImage.sh
+		sed "s@chown@echo ""# chown@g" -i ./install/makeInstallImage.sh
+		sed "s@chmod@echo ""# chmod@g" -i ./install/makeInstallImage.sh
+		./install/makeInstallImage.sh
+		cd ..
+	fi
+	touch src.built
+
+	# And now install the beast.
+	Fmkdir /etc/firebird
+	Fmkdir /usr/lib/firebird/bin-superserver
+	Fmkdir /usr/lib/firebird/bin-classic
+	Fmkdir /usr/include/firebird
+	Fmkdir /etc/sysconfig/firebird
+	Fmkdir /usr/lib/firebird/UDF
+	Fmkdir /usr/lib/firebird/intl
+	Fmkdir /var/lib/firebird/data
+	Fmkdir /var/lib/firebird/system
+	Fmkdir /var/log/firebird
+	Fmkdir /usr/lib/firebird/plugins-superserver
+	Fmkdir /usr/lib/firebird/plugins-classic
+	Fmkdir /etc/logrotate.d
+	Ffile /etc/tmpfiles.d/firebird.conf
+	Fmkdir /usr/sbin
+	Fmkdir /usr/bin
+
+	rm -f gen/buildroot/etc/firebird/I*.txt
+	cp -d gen/buildroot/etc/firebird/* $Fdestdir/etc/firebird/
+	cp -d gen/buildroot-classic/usr/lib/firebird/bin-classic/* $Fdestdir/usr/lib/firebird/bin-classic
+	cp -d gen/buildroot-classic/usr/sbin/fb_config $Fdestdir/usr/lib/firebird/bin-classic/fb_config
+	sed "s@-classic@-superserver@" gen/buildroot-classic/usr/sbin/fb_config > $Fdestdir/usr/lib/firebird/bin-superserver/fb_config
+	sed "s@-classic@@" gen/buildroot-classic/usr/sbin/fb_config > $Fdestdir/usr/sbin/fb_config
+	sed -i '/plugins/d' $Fdestdir/usr/sbin/fb_config
+	cp -d gen/buildroot-classic/usr/sbin/fbguard $Fdestdir/usr/sbin/fbguard
+	cp -d gen/buildroot-classic/usr/sbin/fb_inet_server $Fdestdir/usr/sbin/fb_inet_server
+	cp -d gen/buildroot-classic/usr/sbin/fb_lock_print $Fdestdir/usr/sbin/fb_lock_print
+	cp -d gen/buildroot-classic/usr/sbin/fb_smp_server $Fdestdir/usr/sbin/fb_smp_server
+	cp -d gen/buildroot/usr/sbin/fbserver $Fdestdir/usr/sbin/fbserver
+	rm -f gen/buildroot/usr/lib/firebird/bin-superserver/fb_inet_server
+	rm -f gen/buildroot/usr/lib/firebird/bin-superserver/fb_smp_server
+	rm -f gen/buildroot/usr/lib/firebird/bin-superserver/changeMultiConnectMode.sh
+	cp -d gen/buildroot/usr/lib/firebird/bin-superserver/* $Fdestdir/usr/lib/firebird/bin-superserver
+	cp -d gen/buildroot/usr/include/*.h $Fdestdir/usr/include
+	cp -d gen/buildroot/usr/include/firebird/* $Fdestdir/usr/include/firebird
+	cp -d gen/buildroot/etc/firebird/* $Fdestdir/etc/firebird
+	rm -f $Fdestdir/etc/firebird/README
+	rm -f $Fdestdir/etc/firebird/WhatsNew
+
+	cp -d gen/buildroot-classic/usr/lib/lib* $Fdestdir/usr/lib
+	cp -d gen/buildroot/usr/lib/firebird/UDF/* $Fdestdir/usr/lib/firebird/UDF
+	cp -d gen/buildroot/var/lib/firebird/data/* $Fdestdir/var/lib/firebird/data
+	cp -d gen/buildroot/var/lib/firebird/system/* $Fdestdir/var/lib/firebird/system
+	cp -d gen/buildroot/usr/lib/firebird/plugins-superserver/* $Fdestdir/usr/lib/firebird/plugins-superserver
+	cp -d gen/buildroot-classic/usr/lib/firebird/plugins-classic/* $Fdestdir/usr/lib/firebird/plugins-classic
+	cp -d gen/buildroot/usr/lib/firebird/intl/fbintl $Fdestdir/usr/lib/firebird/intl/fbintl
+	cp -d gen/buildroot/usr/lib/firebird/intl/fbintl.conf $Fdestdir/etc/firebird/fbintl.conf
+	ln -s /etc/firebird/fbintl.conf $Fdestdir/usr/lib/firebird/intl/fbintl.conf
+
+	Fln libfbclient.so /usr/lib/libgds.so
+	Fln libfbclient.so.$majorver /usr/lib/libgds.so.0
+
+	echo 1 > $Fdestdir/var/log/firebird/firebird.log
+	sed "s@firebird.log@/var/log/firebird/firebird.log@g" $Fsrcdir/firebird-logrotate > $Fdestdir/etc/logrotate.d/firebird
+
+	Ffile /lib/systemd/system/firebird-classic@.service
+	Ffile /lib/systemd/system/firebird-classic.socket
+
+	Ffile /lib/systemd/system/firebird-superclassic.service
+	Ffile /lib/systemd/system/firebird-superserver.service
+
+	Fln /usr/lib/firebird/bin/fbsvcmgr /usr/bin/fbsvcmgr
+	Fln /usr/lib/firebird/bin/fbtracemgr /usr/bin/fbtracemgr
+	Fln /usr/lib/firebird/bin/gbak /usr/bin/gbak
+	Fln /usr/lib/firebird/bin/gdef /usr/bin/gdef
+	Fln /usr/lib/firebird/bin/gfix /usr/bin/gfix
+	Fln /usr/lib/firebird/bin/gpre /usr/bin/gpre
+	Fln /usr/lib/firebird/bin/gsec /usr/bin/gsec
+	Fln /usr/lib/firebird/bin/gsplit /usr/bin/gsplit
+	Fln /usr/lib/firebird/bin/gstat /usr/bin/gstat-fb
+	Fln /usr/lib/firebird/bin/isql /usr/bin/isql-fb
+	Fln /usr/lib/firebird/bin/nbackup /usr/bin/nbackup
+	Fln /usr/lib/firebird/bin/qli /usr/bin/qli
+	Fln /usr/lib/firebird/bin/fb_config /usr/bin/fb_config
+
+	Fsplit libfbembed usr/lib/libfbembed.so.*
+	set +e
+}
+
+# optimization OK

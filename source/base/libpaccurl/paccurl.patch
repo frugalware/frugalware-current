@@ -1,0 +1,151 @@
+--- curl-7.33.0/CMakeLists.txt	2013-09-09 01:11:15.000000000 +0300
++++ curl-7.33.0.new/CMakeLists.txt	2013-10-22 14:12:35.867591495 +0300
+@@ -17,7 +17,7 @@
+ # To check:
+ # (From Daniel Stenberg) The cmake build selected to run gcc with -fPIC on my box while the plain configure script did not.
+ # (From Daniel Stenberg) The gcc command line use neither -g nor any -O options. As a developer, I also treasure our configure scripts's --enable-debug option that sets a long range of "picky" compiler options.
+-cmake_minimum_required(VERSION 2.6.2 FATAL_ERROR)
++cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
+ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake;${CMAKE_MODULE_PATH}")
+ include(Utilities)
+ 
+@@ -111,13 +111,18 @@
+ mark_as_advanced(CURL_DISABLE_LDAPS)
+ 
+ if(HTTP_ONLY)
+-  set(CURL_DISABLE_FTP ON)
+   set(CURL_DISABLE_LDAP ON)
+   set(CURL_DISABLE_LDAPS ON)
+   set(CURL_DISABLE_TELNET ON)
+   set(CURL_DISABLE_DICT ON)
+   set(CURL_DISABLE_FILE ON)
+   set(CURL_DISABLE_TFTP ON)
++  set(CURL_DISABLE_IMAP ON)
++  set(CURL_DISABLE_POP3 ON)
++  set(CURL_DISABLE_SMTP ON)
++  set(CURL_DISABLE_RTSP ON)
++  set(CURL_DISABLE_GOPHER ON)
++  set(CURL_NO_IDN ON)
+ endif()
+ 
+ option(CURL_DISABLE_COOKIES "to disable cookies support" OFF)
+@@ -209,10 +214,14 @@
+ # ENDIF(NOT CURL_SPECIAL_LIBZ)
+ 
+ # Check for idn
+-check_library_exists_concat("idn" idna_to_ascii_lz HAVE_LIBIDN)
++if(NOT CURL_NO_IDN)
++  check_library_exists_concat("idn" idna_to_ascii_lz HAVE_LIBIDN)
++endif()
+ 
+ # Check for LDAP
+-check_library_exists_concat("ldap" ldap_init HAVE_LIBLDAP)
++if(NOT CURL_DISABLE_LDAP)
++  check_library_exists_concat("ldap" ldap_init HAVE_LIBLDAP)
++endif()
+ # if(NOT HAVE_LIBLDAP)
+ # SET(CURL_DISABLE_LDAP ON)
+ # endif(NOT HAVE_LIBLDAP)
+@@ -830,6 +839,18 @@
+ 
+ endfunction()
+ 
++
++ set(CURLVERSION ${CURL_VERSION})
++ set(prefix ${CMAKE_INSTALL_PREFIX})
++ set(exec_prefix ${CMAKE_INSTALL_PREFIX}/bin)
++ set(libdir ${CMAKE_INSTALL_PREFIX}/lib)
++ set(includedir ${CMAKE_INSTALL_PREFIX}/include)
++ set(SUPPORT_PROTOCOLS "FILE FTP FTPS HTTP HTTPS")
++ set(SUPPORT_FEATURES "SSL IPv6 libz AsynchDNS")
++ set(LIBCURL_LIBS "-lssl -lcrypto -lrt -ldl -lz") 
++ 
++ configure_file(libcurl.pc.in ${CMAKE_CURRENT_BINARY_DIR}/libpaccurl.pc)
++ 
+ add_subdirectory(lib)
+ if(BUILD_CURL_EXE)
+   add_subdirectory(src)
+@@ -846,19 +867,12 @@
+ # Installation.
+ # First, install generated curlbuild.h
+ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/include/curl/curlbuild.h"
+-    DESTINATION include/curl )
++    DESTINATION include/paccurl )
+ # Next, install other headers excluding curlbuild.h
+-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/curl"
+-    DESTINATION include
++install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/curl/"
++    DESTINATION include/paccurl
+     FILES_MATCHING PATTERN "*.h"
+     PATTERN "curlbuild.h" EXCLUDE)
+-
+-
+-# Workaround for MSVS10 to avoid the Dialog Hell
+-# FIXME: This could be removed with future version of CMake.
+-if(MSVC_VERSION EQUAL 1600)
+-  set(CURL_SLN_FILENAME "${CMAKE_CURRENT_BINARY_DIR}/CURL.sln")
+-  if(EXISTS "${CURL_SLN_FILENAME}")
+-    file(APPEND "${CURL_SLN_FILENAME}" "\n# This should be regenerated!\n")
+-  endif()
+-endif()
++# Install generated libcurl.pc
++install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libpaccurl.pc"
++    DESTINATION lib/pkgconfig )
+--- curl-7.33.0/lib/CMakeLists.txt	2013-09-09 01:11:15.000000000 +0300
++++ curl-7.33.0.new/lib/CMakeLists.txt	2013-10-22 14:13:03.361590311 +0300
+@@ -1,4 +1,4 @@
+-set(LIB_NAME libcurl)
++set(LIB_NAME libpaccurl)
+ 
+ configure_file(${CURL_SOURCE_DIR}/include/curl/curlbuild.h.cmake
+   ${CURL_BINARY_DIR}/include/curl/curlbuild.h)
+@@ -90,10 +90,18 @@
+ 
+ add_library(
+   ${LIB_NAME}
+-  ${CURL_USER_DEFINED_DYNAMIC_OR_STATIC}
++  SHARED
++  ${HHEADERS} ${CSOURCES}
++  )
++  
++  add_library(
++  "${LIB_NAME}-static"
++  STATIC
+   ${HHEADERS} ${CSOURCES}
+   )
+ 
++  set_target_properties("${LIB_NAME}-static" PROPERTIES OUTPUT_NAME "paccurl")
++  
+ if(MSVC AND CURL_STATICLIB)
+   set_target_properties(${LIB_NAME} PROPERTIES STATIC_LIBRARY_FLAGS ${CMAKE_EXE_LINKER_FLAGS})
+ endif()
+@@ -120,3 +128,4 @@
+ endif()
+ 
+ install(TARGETS ${LIB_NAME} DESTINATION lib)
++install(TARGETS "${LIB_NAME}-static" DESTINATION lib)
+\ No newline at end of file
+--- curl-7.33.0/lib/curl_config.h.cmake	2013-09-09 01:11:15.000000000 +0300
++++ curl-7.33.0.new/lib/curl_config.h.cmake	2013-10-22 14:13:24.073589419 +0300
+@@ -42,6 +42,21 @@
+ /* to disable TFTP */
+ #cmakedefine CURL_DISABLE_TFTP ${CURL_DISABLE_TFTP}
+ 
++/* to disable IMAP */
++#cmakedefine CURL_DISABLE_IMAP ${CURL_DISABLE_IMAP}
++
++/* to disable POP3 */
++#cmakedefine CURL_DISABLE_POP3 ${CURL_DISABLE_POP3}
++
++/* to disable SMTP */
++#cmakedefine CURL_DISABLE_SMTP ${CURL_DISABLE_SMTP}
++
++/* to disable RTSP */
++#cmakedefine CURL_DISABLE_RTSP ${CURL_DISABLE_RTSP}
++
++/* to disable GOPHER */
++#cmakedefine CURL_DISABLE_GOPHER ${CURL_DISABLE_GOPHER}
++
+ /* to disable verbose strings */
+ #cmakedefine CURL_DISABLE_VERBOSE_STRINGS ${CURL_DISABLE_VERBOSE_STRINGS}
+ 

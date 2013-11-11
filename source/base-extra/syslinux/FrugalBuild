@@ -3,11 +3,11 @@
 
 pkgname=syslinux
 pkgver=6.02
-pkgrel=2
+pkgrel=3
 pkgdesc="Bootloaders for FAT, EXT2/3/4, and ISO file systems."
 url="http://syslinux.zytor.com"
 depends=('coreutils' 'libuuid')
-makedepends=('nasm')
+makedepends=('nasm' 'gnu-efi>=3.0u-3')
 conflicts=('extlinux' 'mbrsyslinux')
 provides=('extlinux' 'mbrsyslinux')
 replaces=('extlinux' 'mbrsyslinux')
@@ -16,18 +16,21 @@ archs=('i686' 'x86_64')
 up2date="Flasttar www.kernel.org/pub/linux/utils/boot/$pkgname/"
 source=(http://www.kernel.org/pub/linux/utils/boot/$pkgname/$pkgname-$pkgver.tar.xz \
 	README.Frugalware \
-	syslinux-module-config)
-signatures=(${source[0]/.tar.xz/.tar.sign} '' '')
+	syslinux-module-config \
+	remove-dos-win.patch \
+	efi.patch \
+	chainload.patch)
+signatures=(${source[0]/.tar.xz/.tar.sign} '' '' '' '' '')
 
+unset MAKEFLAGS
 unset LDFLAGS
 
 case $CARCH in
 	i686)
-		MODULES='bios'
+		MODULES='bios efi32'
 		;;
 	x86_64)
 		MODULES='bios efi64'
-		makedepends+=('gnu-efi')
 		;;
 	*)
 		Fmessage "Unsupported CARCH."
@@ -46,10 +49,22 @@ copy_include()
 
 build() {
 	Fcd
-	Fsed "^firmware = .*$" "firmware = $MODULES" Makefile
-	Fexec make || Fdie
-	Fexec make INSTALLROOT=$Fdestdir MANDIR=/usr/share/man AUXDIR=/usr/lib/syslinux install || Fdie
-	Frm /usr/lib/syslinux/com32
+	Fpatchall
+	for i in $MODULES; do
+		Fexec make $i || Fdie
+		Fexec make $i installer || Fdie
+		if [ "$i" = "bios" ]; then
+			AUXDIR="/usr/lib/syslinux/bios"
+			Fmkdir $AUXDIR
+			Fcprel com32/lib/i386/elf.ld $AUXDIR/elf.ld
+		else
+			AUXDIR="/usr/lib/syslinux"
+			Fmkdir $AUXDIR/$i
+			Fcprel com32/lib/${CARCH/i?86/i386}/elf.ld $AUXDIR/$i/elf.ld
+		fi
+		Fexec make INSTALLROOT="$Fdestdir" MANDIR="/usr/share/man" AUXDIR="$AUXDIR" $i install || Fdie
+	done
+	Frm /usr/lib/syslinux/bios/com32
 	Fmkdir /usr/include/syslinux /usr/lib/syslinux
 	copy_include com32/include            com32 n
 	copy_include core/include             core  n
@@ -57,11 +72,6 @@ build() {
 	copy_include com32/gplinclude         gpl   n
 	copy_include bios/version.h           misc  y
 	copy_include com32/cmenu/libmenu/\*.h menu  y
-	Fcprel com32/lib/i386/elf.ld /usr/lib/syslinux/elf.ld
-	if [ "$CARCH" = "x86_64" ]; then
-		Fmkdir /usr/lib/syslinux/efi64
-		Fcprel com32/lib/x86_64/elf.ld /usr/lib/syslinux/efi64/elf.ld
-	fi
 	Ffileschmod /usr/include/syslinux 0644
 	Fdirschmod /usr/include/syslinux 0755
 	Ffileschmod /usr/lib/syslinux 0644

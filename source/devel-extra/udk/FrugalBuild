@@ -3,24 +3,25 @@
 
 pkgname=udk
 pkgver=20131105
-pkgrel=1
+pkgrel=3
 pkgdesc="UEFI Development Kit from TianoCore Project"
 url="http://tianocore.sourceforge.net"
 depends=('iasl' 'python-sqlite3')
 options=('nomirror')
 groups=('devel-extra')
-archs=('!i686' 'x86_64')
+archs=('i686' 'x86_64')
 up2date="$pkgver"
-source=(http://ftp.frugalware.org/pub/other/sources/$pkgname/$pkgname-$pkgver.tar.xz qemu-uefi config.patch)
+source=(http://ftp.frugalware.org/pub/other/sources/$pkgname/$pkgname-$pkgver.tar.xz qemu-uefi config-i686.patch config-x86_64.patch)
 sha1sums=('2e50d89c8b9319d95e7a157e6e1796f90492a512' \
           'fdb3256b91800012e5f2037d3c425bd8e025ed44' \
-          '81c94be96713e32150ae577712812dbc8f723591')
+          'a63adfa76c5007109880e77697876037541fbd68' \
+          'fe15dc1c42b96ae61c0925fe9440ecbd2b02afc1')
 
-subpkgs=("qemu-uefi")
-subdescs=("Binary images for UEFI emulation in QEMU.")
-subgroups=("lib-extra")
-subrodepends=("qemu")
-subarchs=("${archs[*]}")
+subpkgs=("qemu-uefi" "udk-efi-tools")
+subdescs=("Binary images for UEFI emulation in QEMU." "EFI tools compiled from UDK.")
+subgroups=("lib-extra" "apps-extra")
+subrodepends=("qemu" "")
+subarchs=("${archs[*]}" "${archs[*]}")
 
 # As these are not regular binaries, DISABLE OUR BUILD FLAGS.
 unset CFLAGS
@@ -28,21 +29,42 @@ unset CXXFLAGS
 unset LDFLAGS
 unset MAKEFLAGS
 
+PACKAGES="OvmfPkg ShellPkg"
+
 build()
 {
 	Fcd $pkgname
-	Fpatchall
-	Fmkdir -p /usr/src/udk
+	Fexec patch -Np1 --binary -i ../config-$CARCH.patch || Fdie
+	if [ "$CARCH" = "i686" ]; then
+		PROCESSOR1="IA32"
+		PROCESSOR2="Ia32"
+	elif [ "$CARCH" = "x86_64" ]; then
+		PROCESSOR1="X64"
+		PROCESSOR2="X64"
+	fi
+	Fmkdir /usr/src/udk
 	for i in *; do
 		Fcprel $i /usr/src/udk
 	done
 	Fexec source edksetup.sh || Fdie
 	Fexec make -C BaseTools || Fdie
-	Fexec BaseTools/BinWrappers/PosixLike/build -p MdeModulePkg/MdeModulePkg.dsc || Fdie
-	Fexec BaseTools/BinWrappers/PosixLike/build -p OvmfPkg/OvmfPkgX64.dsc || Fdie
-	Ffilerel Build/OvmfX64/RELEASE_GCC47/FV/OVMF.fd /usr/share/qemu/uefi.bin
+	for i in $PACKAGES; do
+		if [ -f "$i/$i$PROCESSOR2.dsc" ]; then
+			PROJECT="$i/$i$PROCESSOR2.dsc"
+		elif [ -f "$i/$i.dsc" ]; then
+			PROJECT="$i/$i.dsc"
+		else
+			error "Project file for $i not found!"
+			Fdie
+		fi
+		BaseTools/BinWrappers/PosixLike/build -p "$PROJECT"
+	done
+	Ffilerel Build/Ovmf$PROCESSOR2/RELEASE_GCC47/FV/OVMF.fd /usr/share/qemu/uefi.bin
+	Ffilerel Build/Shell/RELEASE_GCC47/$PROCESSOR1/Shell.efi /usr/lib/udk/shell.efi
 	Fexe /usr/bin/qemu-uefi
 	Fsplit qemu-uefi /usr/share/qemu
+	Fsplit qemu-uefi /usr/bin
+	Fsplit udk-efi-tools /usr/lib/udk
 }
 
 # optimization OK

@@ -2,18 +2,19 @@
 # Maintainer: Christian Hamar alias krix <krics@linuxforum.hu>
 
 pkgname=nss
-pkgver=3.13.6
-pkgrel=3
+pkgver=3.15.2
+pkgrel=1
 pkgdesc="NSS library from mozilla.org"
 url="http://www.mozilla.org/projects/security/pki/nss/"
 pkgurl="http://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/"
 groups=('base')
 archs=('i686' 'x86_64' 'arm')
 license="MPL GPL"
-depends=('glibc>=2.12.1' 'nspr>=4.9' 'sqlite3')
+depends=('glibc>=2.12.1' 'nspr>=4.10.1' 'sqlite3')
 up2date="lynx -dump '$pkgurl?C=M;D=A'|grep NSS|sed -n 's/.*NSS_\(.*\)_RTM.*/\1/;s/_/./g;$ p'"
 source=($pkgurl/NSS_${pkgver//./_}_RTM/src/$pkgname-$pkgver.tar.gz \
 	nss-config.in nss.pc.in)
+_F_cd_path="$pkgname-$pkgver/$pkgname"
 
 build() {
 	Fcd
@@ -28,17 +29,17 @@ build() {
 	export NSS_ENABLE_ECC=1
 	export NSDISTMODE=copy
 	export NSS_USE_SYSTEM_SQLITE=1
+        #export NSS_BUILD_WITHOUT_SOFTOKEN=1
+	DISTPATH=$Fsrcdir/$pkgname-$pkgver/dist
+
 	if [ "$CARCH" == "x86_64" ]; then
 		export USE_64=1
-		export CFLAGS="$CFLAGS -fPIC"
 	fi
 
 	Fmkdir /usr/bin
 	Fmkdir /usr/lib/pkgconfig
 
-	make  BUILD_OPT=1 XCFLAGS="$CFLAGS" -C ./mozilla/security/coreconf || Fdie
-	make  BUILD_OPT=1 XCFLAGS="$CFLAGS" -C ./mozilla/security/dbm || Fdie
-	make  BUILD_OPT=1 XCFLAGS="$CFLAGS" -C ./mozilla/security/nss || Fdie
+	make  BUILD_OPT=1 XCFLAGS="$CFLAGS" || Fdie
 
 	## FIXME: need patch - crazy -
 	cat $Fsrcdir/nss.pc.in > $Fdestdir/usr/lib/pkgconfig/nss.pc || Fdie
@@ -50,9 +51,9 @@ build() {
 	    -i -e "s,@NSS_VERSION@,${pkgver},g" \
 	    $Fdestdir/usr/lib/pkgconfig/nss.pc || Fdie
 
-	NSS_VMAJOR=`cat mozilla/security/nss/lib/nss/nss.h | grep "#define.*NSS_VMAJOR" | awk '{print $3}'`
-	NSS_VMINOR=`cat mozilla/security/nss/lib/nss/nss.h | grep "#define.*NSS_VMINOR" | awk '{print $3}'`
-	NSS_VPATCH=`cat mozilla/security/nss/lib/nss/nss.h | grep "#define.*NSS_VPATCH" | awk '{print $3}'`
+	NSS_VMAJOR=`cat lib/nss/nss.h | grep "#define.*NSS_VMAJOR" | awk '{print $3}'`
+	NSS_VMINOR=`cat lib/nss/nss.h | grep "#define.*NSS_VMINOR" | awk '{print $3}'`
+	NSS_VPATCH=`cat lib/nss/nss.h | grep "#define.*NSS_VPATCH" | awk '{print $3}'`
 	export NSS_VMAJOR
 	export NSS_VMINOR
 	export NSS_VPATCH
@@ -72,24 +73,25 @@ build() {
 	# Shared libs install
 	for file in *.so
 	do
-	    install -m 755 mozilla/dist/*.OBJ/lib/$file $Fdestdir/usr/lib || Fdie
+	    install -m 755 $DISTPATH/*.OBJ/lib/$file $Fdestdir/usr/lib || Fdie
 	done
 
 	# Static libs and chk files install , FIXME - figure all static libs -- crazy --
-	for file in *.chk libcrmf.a libnss*.a
+	for file in libcrmf.a libnss*.a
 	do
-	    install -m 644 mozilla/dist/*.OBJ/lib/$file $Fdestdir/usr/lib || Fdie
+	    install -m 644  $DISTPATH/*.OBJ/lib/$file $Fdestdir/usr/lib || Fdie
 	done
 
 	# Header files install
-        for file in mozilla/dist/{public,private}/nss/*.h
+        for file in $DISTPATH/{public,private}/nss/*.h
         do
             install -m 644 $file $Fdestdir/usr/include/nss3 || Fdie
         done
 
 	## all utils got to genric names sowe have some conflicts with
 	## other package , simply move all to be $pkgname-the_util_name -- crazy --
-	cd mozilla/dist/*.OBJ/bin || Fdie
+
+	cd $DISTPATH/*.OBJ/bin || Fdie
 	for util in `ls -1 *`
 	do
 		mv $util $pkgname-$util || Fdie
@@ -98,7 +100,7 @@ build() {
 
 }
 
-sha1sums=('1f86a7c787e8fe3ebd1dd1cce127e57fb347dac3' \
+sha1sums=('2d900c296bf11deabbf833ebd6ecdea549c97a5f' \
           '0227f94c745519b67b1b530e6cc116e8069a6b43' \
           'ae2d58b2aa31ce0426541e8c76aeda7a8d34c8cf')
 # optimization OK

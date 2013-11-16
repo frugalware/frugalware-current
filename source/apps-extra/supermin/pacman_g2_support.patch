@@ -1,0 +1,240 @@
+From 2a7485cb701f98fc72f5a920b21a170e71964f8e Mon Sep 17 00:00:00 2001
+From: Daniel Exner <dex@dragonslave.de>
+Date: Sun, 20 Oct 2013 17:33:41 +0200
+Subject: [PATCH] * supermin support for FrugalWare (pacman-g2)
+
+---
+ configure.ac              |  10 ++-
+ src/.depend               |   2 +
+ src/Makefile.am           |   2 +
+ src/config.ml.in          |   1 +
+ src/supermin_pacman_g2.ml | 153 ++++++++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 166 insertions(+), 2 deletions(-)
+ create mode 100644 src/supermin_pacman_g2.ml
+
+diff --git a/configure.ac b/configure.ac
+index 2921212..0df4e08 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -101,8 +101,14 @@ else
+ fi
+ AC_SUBST([APT_CACHE_DEPENDS_RECURSE_BROKEN])
+ 
+-dnl For ArchLinux handler.
+-AC_CHECK_PROG(PACMAN,[pacman],[pacman],[no])
++dnl For FrugalWare handler.
++AC_CHECK_PROG(PACMAN_G2,[pacman-g2],[pacman-g2],[no])
++
++dnl if test "x$pacman_g2" = "xno"; then
++dnl	dnl For ArchLinux handler.
++dnl	AC_CHECK_PROG(PACMAN,[pacman],[pacman],[no])
++dnl fi
++
+ 
+ dnl Support for compressed input files, gzipped kernel modules.
+ AC_CHECK_HEADER([zlib.h],[
+diff --git a/src/.depend b/src/.depend
+index c1a9147..5a3f414 100644
+--- a/src/.depend
++++ b/src/.depend
+@@ -12,6 +12,8 @@ supermin_package_handlers.cmo: supermin_utils.cmi supermin_cmdline.cmi supermin_
+ supermin_package_handlers.cmx: supermin_utils.cmx supermin_cmdline.cmx supermin_package_handlers.cmi
+ supermin_pacman.cmo: supermin_utils.cmi supermin_package_handlers.cmi supermin_cmdline.cmi config.cmo
+ supermin_pacman.cmx: supermin_utils.cmx supermin_package_handlers.cmx supermin_cmdline.cmx config.cmx
++supermin_pacman_g2.cmo: supermin_utils.cmi supermin_package_handlers.cmi supermin_cmdline.cmi config.cmo
++supermin_pacman_g2.cmx: supermin_utils.cmx supermin_package_handlers.cmx supermin_cmdline.cmx config.cmx
+ supermin_urpmi_rpm.cmo: supermin_utils.cmi supermin_package_handlers.cmi supermin_cmdline.cmi config.cmo
+ supermin_urpmi_rpm.cmx: supermin_utils.cmx supermin_package_handlers.cmx supermin_cmdline.cmx config.cmx
+ supermin_utils.cmi:
+diff --git a/src/Makefile.am b/src/Makefile.am
+index f371cb9..6e4726e 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -28,6 +28,7 @@ EXTRA_DIST = \
+ 	supermin_package_handlers.mli \
+ 	supermin_package_handlers.ml \
+ 	supermin_pacman.ml \
++	supermin_pacman_g2.ml \
+ 	supermin_urpmi_rpm.ml \
+ 	supermin_utils.mli \
+ 	supermin_utils.ml \
+@@ -54,6 +55,7 @@ SOURCES += \
+ 	supermin_urpmi_rpm.ml \
+ 	supermin_debian.ml \
+ 	supermin_pacman.ml \
++	supermin_pacman_g2.ml \
+ 	supermin.ml
+ 
+ CLEANFILES = *~ *.cmi *.cmo *.cmx *.o supermin
+diff --git a/src/config.ml.in b/src/config.ml.in
+index a814f50..fe7cda3 100644
+--- a/src/config.ml.in
++++ b/src/config.ml.in
+@@ -29,4 +29,5 @@ let apt_cache = "@APT_CACHE@"
+ let dpkg = "@DPKG@"
+ let apt_cache_depends_recurse_broken = @APT_CACHE_DEPENDS_RECURSE_BROKEN@
+ let pacman = "@PACMAN@"
++let pacman_g2 = "@PACMAN_G2@"
+ let host_cpu = "@host_cpu@"
+diff --git a/src/supermin_pacman_g2.ml b/src/supermin_pacman_g2.ml
+new file mode 100644
+index 0000000..a7f6b97
+--- /dev/null
++++ b/src/supermin_pacman_g2.ml
+@@ -0,0 +1,153 @@
++(* supermin 4
++ * Copyright (C) 2009-2013 Red Hat Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ *)
++
++(* FrugalWare support. *)
++
++open Unix
++open Printf
++
++open Supermin_package_handlers
++open Supermin_utils
++open Supermin_cmdline
++
++(* Create a temporary directory for use by all the functions in this file. *)
++let tmpdir = tmpdir ()
++
++let pacman_g2_detect () =
++  file_exists "/etc/frugalware-release" &&
++    Config.pacman_g2 <> "no"
++
++let pacman_g2_init () =
++  if use_installed then
++    eprintf "supermin: pacman_g2 driver assumes all packages are already installed when called with option --use-installed.\n%!"
++
++let pacman_g2_resolve_dependencies_and_download names mode =
++  debug "resolving deps";
++  
++  debug "filtering deps";
++  (* Exclude packages matching [--exclude] regexps on the command line. *)
++  let pkgs =
++    List.filter (
++      fun name ->
++        not (List.exists (fun re -> Str.string_match re name 0) excludes)
++    ) names in
++    
++  if mode = PkgNamesOnly then (
++    eprintf "supermin: pacman_g2: --names-only flag is not implemented\n";
++    exit 1
++  );
++
++
++        
++  
++  (* Download the packages. I could use wget `pacman -Sp`, but this
++   * narrows the pacman -Sy window
++   *)
++
++  List.iter (
++    fun pkg ->
++      let cmd =
++        sprintf "umask 0000; cd %s && mkdir -p var/cache/pacman-g2/pkg && fakeroot pacman-g2%s -Sy --noconfirm --root=$(pwd) %s"
++        (Filename.quote tmpdir)
++	(match packager_config with
++         | None -> ""
++         | Some filename -> " --config " ^ filename)
++        pkg in
++        run_command cmd;
++  ) pkgs;
++  
++  let cmd =
++    sprintf "cd %s && fakeroot pacman-g2%s -Q --root=$(pwd)| cut -d ' ' -f 1"
++    (Filename.quote tmpdir)
++    (match packager_config with
++      | None -> ""
++      | Some filename -> " --config " ^ filename) in                                        
++    
++  let pkgs = run_command_get_lines cmd in
++  
++  List.sort compare pkgs
++
++let pacman_g2_list_files pkg =
++  debug "unpacking %s ..." pkg;
++
++  (* We actually need to extract the file in order to get the
++   * information about modes etc.
++   *)
++  let pkgdir = tmpdir // pkg ^ ".d" in
++  mkdir pkgdir 0o755;
++  let cmd =
++    sprintf "ls -1 %s/var/cache/pacman-g2/pkg/%s-*.fpm" 
++      tmpdir pkg in
++  let pkgfile = List.hd (run_command_get_lines cmd) in
++    let cmd = sprintf "umask 0000; fakeroot tar -xf %s -C %s"
++              (Filename.quote pkgfile) (Filename.quote pkgdir) in
++  run_command cmd;
++
++  let cmd = sprintf "cd %s && find ." pkgdir in
++  let lines = run_command_get_lines cmd in
++
++  let excludes = [Str.regexp "./.CHANGELOG";
++                  Str.regexp "./.FILELIST";
++                  Str.regexp "./.PKGINFO";
++
++                  Str.regexp "./.INSTALL"] in
++    
++  let lines =
++    List.filter (
++      fun name ->
++        not (List.exists (fun re -> Str.string_match re name 0) excludes)
++    ) lines in
++
++  let files = List.map (
++    fun path ->
++      assert (path.[0] = '.');
++      (* No leading '.' *)
++      let path =
++	if path = "." then "/"
++	else String.sub path 1 (String.length path - 1) in
++
++      (* Find out what it is and get the canonical filename. *)
++      let statbuf = lstat (pkgdir // path) in
++      let is_dir = statbuf.st_kind = S_DIR in
++
++      (* No per-file metadata like in RPM, but we can synthesize it
++       * from the path.
++       *)
++      let config = statbuf.st_kind = S_REG && string_prefix "/etc/" path in
++
++      let mode = statbuf.st_perm in
++
++      (path, { ft_dir = is_dir; ft_config = config; ft_mode = mode;
++	       ft_ghost = false; ft_size = statbuf.st_size })
++  ) lines in
++
++  files
++
++(* Easy because we already unpacked the archive above. *)
++let pacman_g2_get_file_from_package pkg file =
++  tmpdir // pkg ^ ".d" // file
++
++let () =
++  let ph = {
++    ph_detect = pacman_g2_detect;
++    ph_init = pacman_g2_init;
++    ph_resolve_dependencies_and_download = pacman_g2_resolve_dependencies_and_download;
++    ph_list_files = pacman_g2_list_files;
++    ph_get_file_from_package = pacman_g2_get_file_from_package;
++  } in
++  register_package_handler "pacman-g2" ph
+-- 
+1.8.4
+

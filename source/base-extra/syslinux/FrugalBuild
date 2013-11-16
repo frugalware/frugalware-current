@@ -2,12 +2,12 @@
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=syslinux
-pkgver=6.01
-pkgrel=1
+pkgver=6.02
+pkgrel=3
 pkgdesc="Bootloaders for FAT, EXT2/3/4, and ISO file systems."
 url="http://syslinux.zytor.com"
 depends=('coreutils' 'libuuid')
-makedepends=('nasm')
+makedepends=('nasm' 'gnu-efi>=3.0u-3')
 conflicts=('extlinux' 'mbrsyslinux')
 provides=('extlinux' 'mbrsyslinux')
 replaces=('extlinux' 'mbrsyslinux')
@@ -15,30 +15,68 @@ groups=('base-extra')
 archs=('i686' 'x86_64')
 up2date="Flasttar www.kernel.org/pub/linux/utils/boot/$pkgname/"
 source=(http://www.kernel.org/pub/linux/utils/boot/$pkgname/$pkgname-$pkgver.tar.xz \
-	README.Frugalware)
-signatures=(${source[0]/.tar.xz/.tar.sign} '')
+	README.Frugalware \
+	syslinux-module-config \
+	remove-dos-win.patch \
+	efi.patch \
+	chainload.patch)
+signatures=(${source[0]/.tar.xz/.tar.sign} '' '' '' '' '')
 
+unset MAKEFLAGS
 unset LDFLAGS
 
 case $CARCH in
 	i686)
-		MODULES='bios'
+		MODULES='bios efi32'
 		;;
 	x86_64)
 		MODULES='bios efi64'
-		makedepends+=('gnu-efi')
 		;;
 	*)
-		Ferror "Unsupport CARCH."
+		Fmessage "Unsupported CARCH."
 		;;
 esac
 
+copy_include()
+{
+	if [ "$3" = "y" ]; then
+		Fmkdir /usr/include/syslinux/$2
+	fi
+	for i in $1; do
+		Fcprel $i /usr/include/syslinux/$2
+	done
+}
 
 build() {
 	Fcd
-	Fsed "^firmware = .*$" "firmware = $MODULES" Makefile
-	Fexec make || Fdie
-	Fexec make INSTALLROOT=$Fdestdir MANDIR=/usr/share/man AUXDIR=/usr/lib/syslinux install || Fdie
+	Fpatchall
+	for i in $MODULES; do
+		Fexec make $i || Fdie
+		Fexec make $i installer || Fdie
+		if [ "$i" = "bios" ]; then
+			AUXDIR="/usr/lib/syslinux/bios"
+			Fmkdir $AUXDIR
+			Fcprel com32/lib/i386/elf.ld $AUXDIR/elf.ld
+		else
+			AUXDIR="/usr/lib/syslinux"
+			Fmkdir $AUXDIR/$i
+			Fcprel com32/lib/${CARCH/i?86/i386}/elf.ld $AUXDIR/$i/elf.ld
+		fi
+		Fexec make INSTALLROOT="$Fdestdir" MANDIR="/usr/share/man" AUXDIR="$AUXDIR" $i install || Fdie
+	done
+	Frm /usr/lib/syslinux/bios/com32
+	Fmkdir /usr/include/syslinux /usr/lib/syslinux
+	copy_include com32/include            com32 n
+	copy_include core/include             core  n
+	copy_include com32/libutil/include    util  n
+	copy_include com32/gplinclude         gpl   n
+	copy_include bios/version.h           misc  y
+	copy_include com32/cmenu/libmenu/\*.h menu  y
+	Ffileschmod /usr/include/syslinux 0644
+	Fdirschmod /usr/include/syslinux 0755
+	Ffileschmod /usr/lib/syslinux 0644
+	Fdirschmod /usr/lib/syslinux 0755
+	Fexe /usr/bin/syslinux-module-config
 }
 
 # optimization OK

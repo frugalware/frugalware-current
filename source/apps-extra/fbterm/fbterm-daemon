@@ -3,10 +3,10 @@
 set -e
 
 # Refuse to run if we are not fbterm user.
-#if [ "$(id -u)" -ne 85 -o "$(id -g)" -ne 85 ]; then
-#  echo "$0: refusing to run as incorrect user"
-#  exit 1
-#fi
+if [ "$(id -u)" -ne 85 -o "$(id -g)" -ne 85 ]; then
+  echo "$0: refusing to run as incorrect user"
+  exit 1
+fi
 
 reduce_fraction()
 {
@@ -44,12 +44,26 @@ cd $HOME
 SIZE="$(cat /sys/class/graphics/fb0/virtual_size | tr ',' 'x')"
 ASPECT="$(reduce_fraction $(echo $SIZE | cut -d 'x' -f 1) $(echo $SIZE | cut -d 'x' -f 2))"
 
-# Clear screen first.
-#echo -n -e "\e[2J"
-
+# Clear screen.
+echo -n -e "\e[2J"
+ 
 # Move cursor to top left.
-#echo -n -e "\e[1;1H"
+echo -n -e "\e[1;1H"
 
-# Hide cursor.
-#echo -n -e "\e[?25l"
+# Copy default wallpaper if not present.
+if [ -f "/usr/share/fbterm/wallpaper$ASPECT" -a ! -f "wallpaper$ASPECT" ]; then
+  cp /usr/share/fbterm/wallpaper$ASPECT wallpaper$ASPECT
+fi
 
+# Set wallpaper if possible.
+if [ -x /usr/bin/fbv -a -f "wallpaper$ASPECT" -a ! -f nowallpaper ]; then
+  # Hide cursor.
+  echo -n -e "\e[?25l"
+  fbv -c -u -i -k -e -r wallpaper$ASPECT << EOF
+q
+EOF
+  FBTERM_BACKGROUND_IMAGE=1
+  export FBTERM_BACKGROUND_IMAGE
+fi
+
+exec fbterm -- /bin/login

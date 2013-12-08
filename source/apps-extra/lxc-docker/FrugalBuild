@@ -4,59 +4,66 @@
 options+=('asneeded')
 
 pkgname=lxc-docker
-pkgver=0.6.7
-pkgrel=2
+pkgver=0.7.1
+pkgextraver="88df052"
+pkgrel=1
 pkgdesc="Docker - the Linux container runtime"
 archs=('i686' 'x86_64')
 groups=('apps-extra')
-depends=('bridge-utils' 'iproute2' 'go>=1.1.2-2' 'lxc' 'libguestfs')
+depends=('bridge-utils' 'iproute2' 'go>=1.2' 'lxc' 'libguestfs' 'sqlite3' 'lvm2')
 makedepends=('git' 'mercurial' 'ca-certificates' 'sphinx-httpdomain' 'python-markupsafe')
 _F_github_name="docker"
 _F_github_author="dotcloud"
-_F_github_tag="true"
 _F_github_ver="v${pkgver}"
-_F_systemd_units=(docker=)
+_F_github_tag="true"
+_F_systemd_units=(lxc-docker=)
 Finclude github systemd
 Fpkgversep="/v"
-source=("https://github.com/$_F_github_author/$_F_github_name/archive/$_F_github_ver.tar.gz" \
+source=(https://github.com/$_F_github_author/$_F_github_name/archive/$_F_github_ver.tar.gz \
 	https://raw.github.com/felixr/docker-zsh-completion/master/_docker \
-	docker.service)
-sha1sums=('437c6b172a12c71dfd76ec38a14c6c0fb153c8c4' \
+	${pkgname}.service)
+sha1sums=('e431e98fd2ab1448ab7ce3a092c91c0b04ad97de' \
           'fd0c87b17d6a33cdc026e04f5d00d4f7f199c847' \
           '28c77e8cf1ce9691089d19b010631743d55587bb')
 
 build() {
-        export GOROOT="/usr/lib/go"
-        export GOPATH="$Fsrcdir/gopath"
+	export GOPATH="$Fsrcdir/gopath:$Fsrcdir/gopath/src/github.com/dotcloud/docker/vendor"
 
+	Funpack_scm
 
-        mkdir -p $Fsrcdir/gopath/src/github.com/dotcloud || Fdie
-        mv $_F_github_name-$pkgver $Fsrcdir/gopath/src/github.com/dotcloud/docker || Fdie
+	Fmessage "Cleaning up vendor dir"
 
-	rm -rf $Fsrcdir/gopath/src/github.com/dotcloud/docker/vendor/src/code.google.com || Fdie
+        Fexec mkdir -p $Fsrcdir/gopath/src/github.com/dotcloud
+	Fexec mv $_F_github_name-$pkgver $Fsrcdir/gopath/src/github.com/dotcloud/docker
 
-	go get -v github.com/dotcloud/docker/... || Fdie
+	#Fmessage "Rebuilding Go"
+	#export CGO_ENABLED=0
+	#cd /tmp && echo 'package main' > t.go && go test -a -i -v || Fdie
+
+	Fmessage "Building Docker"
+	Fcd gopath/src/github.com/dotcloud/docker
+	export DOCKER_GITCOMMIT=$pkgextraver
+	Fexec ./hack/make.sh dynbinary
 
 	Finstall 644 _docker usr/share/zsh/site-functions/_docker
 
-	Fcd gopath/src/github.com/dotcloud/docker/docs
+	cd $Fsrcdir/gopath/src/github.com/dotcloud/docker/docs
 	make docs || Fdie
 
-	for i in contrib docker dockerinit host-integration
-	do
-		Fexe gopath/bin/$i sbin/$i
-	done
+	Fexe gopath/src/github.com/dotcloud/docker/bundles/${pkgver}/dynbinary/docker-${pkgver} \
+			usr/sbin/docker
+        Fexe gopath/src/github.com/dotcloud/docker/bundles/${pkgver}/dynbinary/dockerinit-${pkgver} \
+                        usr/libexec/docker/dockerinit
 
 	# install systemd service unit
-	Finstall 644 docker.service lib/systemd/system/docker.service
+	Finstall 644 lxc-docker.service lib/systemd/system/lxc-docker.service
 
 	Finstall 644 gopath/src/github.com/dotcloud/docker/contrib/completion/bash/docker \
-	usr/share/bash-completion/completions/docker
+		usr/share/bash-completion/completions/docker
 
 	Fmkdir usr/share/doc/docker-${pkgver}
 	Fcp  gopath/src/github.com/dotcloud/docker/docs/_build/html/* \
-	usr/share/doc/docker-${pkgver}
+		usr/share/doc/docker-${pkgver}
 
-	Ffile /lib/systemd/system/docker.service
 }
 

@@ -42,7 +42,6 @@
 ###
 if [ "$_F_netsurf_project" -eq 1 ]; then
 	url="http://www.netsurf-browser.org/projects/$_F_netsurf_name"
-	echo $_F_netsurf_ext
 	up2date="Flastarchive http://download.netsurf-browser.org/libs/releases/ $_F_netsurf_ext"
 	source=("http://download.netsurf-browser.org/libs/releases/$_F_netsurf_name-$pkgver$_F_netsurf_ext")
 	_F_cd_path="$_F_netsurf_name-$pkgver"
@@ -63,7 +62,6 @@ Fbuildnetsurf() {
 		make PREFIX=/usr COMPONENT_TYPE="lib-shared" || Fdie
 		make PREFIX=/usr DESTDIR="$Fdestdir" COMPONENT_TYPE="lib-shared" install || Fdie
 	else
-	  echo "BUILDING netsurf"
 		make PREFIX=/usr TARGET=gtk NETSURF_USE_WEBP=YES NETSURF_USE_VIDEO=NO NETSURF_USE_MOZJS=YES NETSURF_USE_HARU_PDF=NO || Fdie
 		make PREFIX=/usr DESTDIR="$Fdestdir" install || Fdie
 	fi

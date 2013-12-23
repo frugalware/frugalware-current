@@ -51,6 +51,7 @@ else
 	source=("http://download.netsurf-browser.org/netsurf/releases/source/$_F_netsurf_name-$pkgver$_F_netsurf_ext")
 fi
 archs=('i686' 'x86_64')
+makedepends=(${makedepends[@]} 'netsurf-buildsystem')
 
 ###
 # == PROVIDED FUNCTIONS

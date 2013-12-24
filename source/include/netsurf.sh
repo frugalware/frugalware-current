@@ -62,9 +62,6 @@ Fbuildnetsurf() {
 	if [ "$_F_netsurf_project" -eq 1 ]; then
 		make PREFIX=/usr COMPONENT_TYPE="lib-shared" || Fdie
 		make PREFIX=/usr DESTDIR="$Fdestdir" COMPONENT_TYPE="lib-shared" install || Fdie
-	else
-		make PREFIX=/usr TARGET=gtk NETSURF_USE_WEBP=YES NETSURF_USE_VIDEO=NO NETSURF_USE_MOZJS=YES NETSURF_USE_HARU_PDF=NO || Fdie
-		make PREFIX=/usr DESTDIR="$Fdestdir" install || Fdie
 	fi
 }
 

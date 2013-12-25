@@ -29,6 +29,8 @@
 ###
 [ -z "$_F_netsurf_name"    ] && _F_netsurf_name=$pkgname
 [ -z "$_F_netsurf_project" ] && _F_netsurf_project=1
+[ -z "$_F_netsurf_ext" ] && _F_netsurf_ext='-src.tar.gz'
+[ -z "$_F_archive_name" ] && _F_archive_name=$_F_netsurf_name
 
 ###
 # == OVERWRITTEN VARIABLES
@@ -40,29 +42,27 @@
 ###
 if [ "$_F_netsurf_project" -eq 1 ]; then
 	url="http://www.netsurf-browser.org/projects/$_F_netsurf_name"
-	up2date="Flastarchive $url -src.tar.gz"
-	source=("http://download.netsurf-browser.org/libs/releases/$_F_netsurf_name-$pkgver-src.tar.gz")
+	up2date="Flastarchive http://download.netsurf-browser.org/libs/releases/ $_F_netsurf_ext"
+	source=("http://download.netsurf-browser.org/libs/releases/$_F_netsurf_name-$pkgver$_F_netsurf_ext")
 	_F_cd_path="$_F_netsurf_name-$pkgver"
 else
 	url="http://www.netsurf-browser.org"	
 	up2date="Flastarchive $url/downloads/gtk -src.tar.gz"
-	source=("http://download.netsurf-browser.org/netsurf/releases/source/$_F_netsurf_name-$pkgver-src.tar.gz")
-	_F_cd_path="$_F_netsurf_name"
+	source=("http://download.netsurf-browser.org/netsurf/releases/source/$_F_netsurf_name-$pkgver$_F_netsurf_ext")
 fi
 archs=('i686' 'x86_64')
+makedepends=(${makedepends[@]} 'netsurf-buildsystem')
 
 ###
 # == PROVIDED FUNCTIONS
 # * Fbuildnetsurfproject
 ###
 Fbuildnetsurf() {
+	Fcd
 	if [ "$_F_netsurf_project" -eq 1 ]; then
-		Fsed "-O2" "$CFLAGS" build/makefiles/Makefile.gcc
-	else
-		Fsed "-O2" "$CFLAGS" Makefile.defaults
+		make PREFIX=/usr COMPONENT_TYPE="lib-shared" || Fdie
+		make PREFIX=/usr DESTDIR="$Fdestdir" COMPONENT_TYPE="lib-shared" install || Fdie
 	fi
-	make PREFIX=/usr || Fdie
-	make PREFIX=/usr DESTDIR="$Fdestdir" install || Fdie
 }
 
 ###

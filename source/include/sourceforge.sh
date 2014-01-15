@@ -56,7 +56,7 @@ if [ -z "$_F_sourceforge_name" ]; then
 fi
 
 if [ -z "$_F_sourceforge_pkgver" ]; then
-	_F_sourceforge_pkgver=${pkgver//_/-}
+	_F_sourceforge_pkgver="${pkgver//_/-}${pkgextraver}"
 fi
 
 if [ -z "$_F_sourceforge_mirror" ]; then
@@ -112,5 +112,4 @@ up2date="lynx -dump $_F_sourceforge_rss_url | \
 	head -n 1"
 
 source=("http://${_F_sourceforge_mirror}.sourceforge.net/${_F_sourceforge_dirname}/${_F_sourceforge_subdir}${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext}")
-
 

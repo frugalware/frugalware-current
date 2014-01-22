@@ -1,0 +1,50 @@
+diff -ur a/src/lib/shell.cpp b/src/lib/shell.cpp
+--- a/src/lib/shell.cpp	2013-11-21 22:33:22.217250976 -0600
++++ b/src/lib/shell.cpp	2013-12-11 08:13:53.583920445 -0600
+@@ -32,6 +32,9 @@
+ #include <sys/wait.h>
+ #include "shell.h"
+ 
++#define FBTERM_UID 85
++#define FBTERM_GID 85
++
+ void waitChildProcessExit(s32 pid)
+ {
+ 	if (pid < 0) return;
+@@ -71,6 +74,7 @@
+ void Shell::createShellProcess(s8 **command)
+ {
+ 	s32 fd;
++	uid_t uid = getuid();
+ 	mPid = forkpty(&fd, NULL, NULL, NULL);
+ 
+ 	switch (mPid) {
+@@ -81,6 +85,18 @@
+ 		initShellProcess();
+ 		setenv("TERM", "linux", 1);
+ 
++		if(
++			getuid() == FBTERM_UID                              &&
++			getgid() == FBTERM_GID                              &&
++			command != 0                                        &&
++			command[0] != 0                                     &&
++			strcmp(command[0],"/usr/libexec/fbterm-login") == 0
++		)
++		{
++			seteuid(0);
++			setuid(0);
++		}
++
+ 		if (command) {
+ 			execvp(command[0], command);
+ 		} else {
+@@ -93,6 +109,9 @@
+ 			execlp("/bin/sh", "/bin/sh", NULL);
+ 		}
+ 
++		setuid(uid);
++		seteuid(uid);
++
+ 		exit(1);
+ 		break;
+ 

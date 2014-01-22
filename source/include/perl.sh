@@ -48,7 +48,7 @@
 [ -z "$_F_perl_sourcename" ] && _F_perl_sourcename="$_F_perl_name"
 [ -z "$_F_perl_url" ] && _F_perl_url="http://search.cpan.org/CPAN/authors/id/"
 [ -z "$_F_perl_no_url" ] && url="http://cpan.org/"
-[ -z "$_F_perl_no_up2date" ] && up2date="lynx -dump -nolist 'http://search.cpan.org/search?query="$_F_perl_name"&mode=module'|grep -m1 "$_F_perl_name-"|sed -e 's/.*"$_F_perl_name"-\(.*\) .*/\1/' -e 's/ .*//'"
+[ -z "$_F_perl_no_up2date" ] && up2date="lynx -dump -nolist 'http://search.cpan.org/search?query="$_F_perl_name"&mode=module'|grep -m1 "$_F_perl_sourcename-"|sed -e 's/.*"$_F_perl_sourcename"-\(.*\) .*/\1/' -e 's/ .*//'"
 [ -z "$_F_perl_no_source" ] && source=($_F_perl_url$_F_perl_author/$_F_perl_sourcename-$pkgver$_F_perl_ext)
 
 ###

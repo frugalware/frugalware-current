@@ -1,0 +1,64 @@
+# Compiling Time: 0.33 SBU
+# Maintainer: DeX77 <dex77@frugalware.org>
+
+options+=('asneeded')
+
+pkgname=lxc-docker
+pkgver=0.7.6
+pkgextraver="bc3b2ec"
+pkgrel=1
+pkgdesc="Docker - the Linux container runtime"
+archs=('i686' 'x86_64')
+groups=('apps-extra')
+depends=('bridge-utils' 'iproute2' 'lxc' 'libguestfs' 'sqlite3' 'lvm2')
+makedepends=('go>=1.2' 'git' 'mercurial' 'ca-certificates' 'sphinx-httpdomain' 'python-markupsafe')
+_F_github_name="docker"
+_F_github_author="dotcloud"
+_F_github_ver="v${pkgver}"
+_F_github_tag="true"
+_F_systemd_units=(lxc-docker=)
+Finclude github systemd
+Fpkgversep="/v"
+source=(https://github.com/$_F_github_author/$_F_github_name/archive/$_F_github_ver.tar.gz \
+	https://raw.github.com/felixr/docker-zsh-completion/master/_docker \
+	${pkgname}.service)
+sha1sums=('1dc9c1ceae00639b9f11f641463e34f46faaa66f' \
+          '1b19f3d231e21f5a76fe60226bd55b54be77ae82' \
+          '28c77e8cf1ce9691089d19b010631743d55587bb')
+
+build() {
+	export GOPATH="$Fsrcdir/gopath:$Fsrcdir/gopath/src/github.com/dotcloud/docker/vendor"
+
+        Fexec mkdir -p $Fsrcdir/gopath/src/github.com/dotcloud
+	Fexec mv $_F_github_name-$pkgver $Fsrcdir/gopath/src/github.com/dotcloud/docker
+
+	#Fmessage "Rebuilding Go"
+	#export CGO_ENABLED=0
+	#cd /tmp && echo 'package main' > t.go && go test -a -i -v || Fdie
+
+	Fcd gopath/src/github.com/dotcloud/docker
+	export DOCKER_GITCOMMIT=$pkgextraver
+	Fexec ./hack/make.sh dynbinary
+
+	Finstall 644 _docker usr/share/zsh/site-functions/_docker
+
+	cd $Fsrcdir/gopath/src/github.com/dotcloud/docker/docs
+	make docs || Fdie
+
+	Fexe gopath/src/github.com/dotcloud/docker/bundles/${pkgver}/dynbinary/docker-${pkgver} \
+			usr/sbin/docker
+        Fexe gopath/src/github.com/dotcloud/docker/bundles/${pkgver}/dynbinary/dockerinit-${pkgver} \
+                        usr/libexec/docker/dockerinit
+
+	# install systemd service unit
+	Finstall 644 lxc-docker.service lib/systemd/system/lxc-docker.service
+
+	Finstall 644 gopath/src/github.com/dotcloud/docker/contrib/completion/bash/docker \
+		usr/share/bash-completion/completions/docker
+
+	Fmkdir usr/share/doc/docker-${pkgver}
+	Fcp  gopath/src/github.com/dotcloud/docker/docs/_build/html/* \
+		usr/share/doc/docker-${pkgver}
+
+}
+

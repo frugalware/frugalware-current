@@ -639,11 +639,11 @@ Fln() {
 __Fsed() {
 	if [ ! -e "$3" ]; then
 		error "File $3 not found."
-		Fdie
+		return 1
 	fi
 	if [ ! -f "$3" ]; then
 		error "File $3 is not a regular file."
-		Fdie
+		return 1
 	fi
 	sed -i -e "s|$1|$2|g" "$3" || Fdie
 }

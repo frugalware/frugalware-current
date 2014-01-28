@@ -6,18 +6,13 @@ options+=('asneeded')
 
 pkgname=hplip
 pkgver=3.14.1
-pkgrel=1
+pkgrel=2
 _F_sourceforge_ext=.tar.gz
 Finclude sourceforge
 pkgdesc="HPLIP is an HP developed solution for printing, scanning, and faxing with HP inkjet and laser based printers in Linux."
-makedepends=('sane-backends')
-depends=('libtool>=2.2.2' 'dbus-python>=0.80' 'openssl>=1.0.0')
-# cupsddk: dynamic PPD support
-# reportlab: fax cover page support
 rodepends=("hplip-driver>=$pkgver" 'pyqt4' 'reportlab')
-replaces=('hpijs' 'hpoj')
-conflicts=("${replaces[@]}")
-provides=("${replaces[@]}")
+depends=('libtool>=2.2.2' 'dbus-python>=0.80' 'openssl>=1.0.0' 'foomatic-db' \
+         'foomatic-db-engine')
 groups=('apps-extra')
 archs=('i686' 'x86_64')
 sha1sums=('900e42479906fc90b73b36cac93e09e1aedf5221')
@@ -25,14 +20,37 @@ options=('nodocs')
 
 subpkgs=("${subpackages[@]}" 'hplip-driver')
 subdescs=("${subdescs[@]}" 'HPLIP printing, scanning, and scanning driver for HP inkjet and laser based printers.')
-subdepends=("${subdepends[@]}" "cups libusb net-snmp>=5.7 sane-backends")
 subrodepends=("${subrodepends[@]}" 'cupsddk ghostscript')
+subdepends=("${subdepends[@]}" "cups libusb net-snmp>=5.7 sane-backends")
 subinstall=("${subinstall[@]}" 'hplip.install')
 subgroups=("${subgroups[@]}" 'apps-extra')
 subarchs=("${subarchs[@]}" 'i686 x86_64')
 
-build() {
-	Fbuild --with-hpppddir=/usr/share/cups/model/HP
+build()
+{
+	Fcd
+	# Use system foomatic-rip for hpijs driver instead of foomatic-rip-hplip
+	# The hpcups driver does not use foomatic-rip
+	local i
+	for i in ppd/hpijs/*.ppd.gz ; do
+		rm -f ${i}.temp
+		gunzip -c ${i} | sed 's/foomatic-rip-hplip/foomatic-rip/g' | \
+			gzip > ${i}.temp || return 1
+		mv ${i}.temp ${i}
+	done
+
+	Fconfopts+=" --with-hpppddir=/usr/share/cups/model/HP \
+                     --enable-qt4 \
+                     --disable-foomatic-rip-hplip-install \
+                     --enable-foomatic-ppd-install \
+                     --enable-hpcups-install \
+                     --enable-new-hpcups \
+                     --enable-cups-ppd-install \
+                     --enable-cups-drv-install \
+                     --enable-hpijs-install \
+                     --enable-foomatic-drv-install"
+
+	Fbuild
 
 	Frm /etc/sane.d
 	Frm /usr/share/hal

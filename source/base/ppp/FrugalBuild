@@ -4,7 +4,7 @@
 
 pkgname=ppp
 pkgver=2.4.5
-pkgrel=2
+pkgrel=3
 pkgdesc="The PPP (Point-to-Point Protocol) daemon"
 url="http://www.samba.org/ppp/"
 groups=('base')
@@ -12,14 +12,17 @@ archs=('i686' 'x86_64' 'arm')
 depends=('glibc>=2.8-3')
 backup=('etc/ppp/chap-secrets' 'etc/ppp/pap-secrets' 'etc/ppp/options' 'etc/ppp/ip-up' 'etc/ppp/ip-down')
 up2date="wget --passive-ftp -O - -q ftp://ftp.samba.org/pub/ppp/|grep ppp-.[0-9\.]*\.tar\.gz|tail -n 1|sed 's/.*ppp-\([0-9\.]*\)\.tar\.gz<.*/\1/'"
-source=(http://www.samba.org/ftp/ppp/ppp-$pkgver.tar.gz ip-up ip-down)
+source=(http://www.samba.org/ftp/ppp/ppp-$pkgver.tar.gz ip-up ip-down fixes.patch)
 sha1sums=('cb977b31584e3488e08a643aaa672fdb229d2e78' \
           '52b2e62a47050498846aa769495628da2a00fb31' \
-          '09472529dfcf1f47d7e7f65067291f651c7ac476')
+          '09472529dfcf1f47d7e7f65067291f651c7ac476' \
+          '7c2ed3bcf34b750f6c29f95ddf43332d09a7a793')
 
 build()
 {
 	Fcd
+
+	Fpatchall
 
 	CFLAGS="$CFLAGS -D_GNU_SOURCE"
 
@@ -28,15 +31,16 @@ build()
 	Fsed "-g -O2" "${CFLAGS}" pppd/plugins/Makefile.linux
 	Fsed "-g" "${CFLAGS}" pppd/plugins/rp-pppoe/Makefile.linux
 	Fsed "-O2" "${CFLAGS}" pppstats/Makefile.linux
-	Fsed "-O2 -g -pipe/${CFLAGS}" chat/Makefile.linux
+	Fsed "-O2 -g -pipe" "${CFLAGS}" chat/Makefile.linux
 	Fsed "-O" "${CFLAGS}" pppdump/Makefile.linux
 	Fsed "^#FILTER=y" "FILTER=y" pppd/Makefile.linux
 	Fsed "^#HAVE_INET6=y" "HAVE_INET6=y" pppd/Makefile.linux
-	Frm include/linux/if_pppol2tp.h
+	Fexec rm -f include/linux/if_pppol2tp.h || Fdie
 	# end of patching
 
-	Fmake
-	make DESTDIR=$Fdestdir/usr install || return 1
+	Fmake --prefix=$Fprefix
+	make DESTDIR=$Fdestdir/usr install || Fdie
+	Frm /usr/lib/pppd/$pkgver/rp-pppoe.so
 	Fmkdir /etc/ppp/peers
 	Fexe ip-{up,down} /etc/ppp/
 	Finstallrel 600 etc.ppp/* /etc/ppp/

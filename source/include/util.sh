@@ -1052,7 +1052,7 @@ Fmake() {
 	elif Fbuildsystem_ruby_setup 'probe'; then
 		Fbuildsystem_ruby_setup 'make' "$@" || Fdie
 	elif Fbuildsystem_java_ant 'probe'; then
-		Fbuildsystem_ruby_setup 'make' "$@" || Fdie
+		Fbuildsystem_java_ant 'make' "$@" || Fdie
 	else
 		Fmessage "No Makefile or setup.py found!"
 		Fdie
@@ -1091,7 +1091,7 @@ Fmakeinstall() {
 	elif Fbuildsystem_ruby_setup 'probe'; then
 		Fbuildsystem_ruby_setup 'install' "$@" || Fdie
 	elif Fbuildsystem_java_ant 'probe'; then
-		Fbuildsystem_ruby_setup 'install' "$@" || Fdie
+		Fbuildsystem_java_ant 'install' "$@" || Fdie
 	else
 		Fmessage "No Makefile or setup.py found!"
 		Fdie

@@ -1,0 +1,768 @@
+Origin: backport (diff between 7.23 and 7.24)
+Forwarded: not-needed
+From: Gunnar Wolf <gwolf@debian.org>
+Last-Update: 2013-11-20
+Applied-Upstream: Yes
+Description: Fixes SA_CORE-2013-003 (several vulnerabilities)
+ This patch is taken from the diff between 7.23 and 7.24, applying it
+ to the current stable version (7.14). For further details, the
+ advisory is in:
+ .
+ http://drupal.org/SA-CORE-2013-003
+
+Index: drupal7/includes/bootstrap.inc
+===================================================================
+--- drupal7.orig/includes/bootstrap.inc	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/includes/bootstrap.inc	2013-11-20 20:42:48.000000000 -0600
+@@ -1913,6 +1913,33 @@
+ }
+ 
+ /**
++ * Returns a URL-safe, base64 encoded string of highly randomized bytes (over the full 8-bit range).
++ *
++ * @param $byte_count
++ *   The number of random bytes to fetch and base64 encode.
++ *
++ * @return string
++ *   The base64 encoded result will have a length of up to 4 * $byte_count.
++ */
++function drupal_random_key($byte_count = 32) {
++  return drupal_base64_encode(drupal_random_bytes($byte_count));
++}
++
++/**
++ * Returns a URL-safe, base64 encoded version of the supplied string.
++ *
++ * @param $string
++ *   The string to convert to base64.
++ *
++ * @return string
++ */
++function drupal_base64_encode($string) {
++  $data = base64_encode($string);
++  // Modify the output so it's safe to use in URLs.
++  return strtr($data, array('+' => '-', '/' => '_', '=' => ''));
++}
++
++/**
+  * Returns a string of highly randomized bytes (over the full 8-bit range).
+  *
+  * This function is better than simply calling mt_rand() or any other built-in
+@@ -1925,38 +1952,34 @@
+  */
+ function drupal_random_bytes($count)  {
+   // $random_state does not use drupal_static as it stores random bytes.
+-  static $random_state, $bytes, $php_compatible;
+-  // Initialize on the first call. The contents of $_SERVER includes a mix of
+-  // user-specific and system information that varies a little with each page.
+-  if (!isset($random_state)) {
+-    $random_state = print_r($_SERVER, TRUE);
+-    if (function_exists('getmypid')) {
+-      // Further initialize with the somewhat random PHP process ID.
+-      $random_state .= getmypid();
+-    }
+-    $bytes = '';
+-  }
+-  if (strlen($bytes) < $count) {
++  static $random_state, $bytes, $has_openssl;
++
++  $missing_bytes = $count - strlen($bytes);
++
++  if ($missing_bytes > 0) {
+     // PHP versions prior 5.3.4 experienced openssl_random_pseudo_bytes()
+     // locking on Windows and rendered it unusable.
+-    if (!isset($php_compatible)) {
+-      $php_compatible = version_compare(PHP_VERSION, '5.3.4', '>=');
++    if (!isset($has_openssl)) {
++      $has_openssl = version_compare(PHP_VERSION, '5.3.4', '>=') && function_exists('openssl_random_pseudo_bytes');
++    }
++
++    // openssl_random_pseudo_bytes() will find entropy in a system-dependent
++    // way.
++    if ($has_openssl) {
++      $bytes .= openssl_random_pseudo_bytes($missing_bytes);
+     }
+-    // /dev/urandom is available on many *nix systems and is considered the
+-    // best commonly available pseudo-random source.
+-    if ($fh = @fopen('/dev/urandom', 'rb')) {
++
++    // Else, read directly from /dev/urandom, which is available on many *nix
++    // systems and is considered cryptographically secure.
++    elseif ($fh = @fopen('/dev/urandom', 'rb')) {
+       // PHP only performs buffered reads, so in reality it will always read
+       // at least 4096 bytes. Thus, it costs nothing extra to read and store
+       // that much so as to speed any additional invocations.
+-      $bytes .= fread($fh, max(4096, $count));
++      $bytes .= fread($fh, max(4096, $missing_bytes));
+       fclose($fh);
+     }
+-    // openssl_random_pseudo_bytes() will find entropy in a system-dependent
+-    // way.
+-    elseif ($php_compatible && function_exists('openssl_random_pseudo_bytes')) {
+-      $bytes .= openssl_random_pseudo_bytes($count - strlen($bytes));
+-    }
+-    // If /dev/urandom is not available or returns no bytes, this loop will
++
++    // If we couldn't get enough entropy, this simple hash-based PRNG will
+     // generate a good set of pseudo-random bytes on any system.
+     // Note that it may be important that our $random_state is passed
+     // through hash() prior to being rolled into $output, that the two hash()
+@@ -1964,9 +1987,23 @@
+     // the microtime() - is prepended rather than appended. This is to avoid
+     // directly leaking $random_state via the $output stream, which could
+     // allow for trivial prediction of further "random" numbers.
+-    while (strlen($bytes) < $count) {
+-      $random_state = hash('sha256', microtime() . mt_rand() . $random_state);
+-      $bytes .= hash('sha256', mt_rand() . $random_state, TRUE);
++    if (strlen($bytes) < $count) {
++      // Initialize on the first call. The contents of $_SERVER includes a mix of
++      // user-specific and system information that varies a little with each page.
++      if (!isset($random_state)) {
++        $random_state = print_r($_SERVER, TRUE);
++        if (function_exists('getmypid')) {
++          // Further initialize with the somewhat random PHP process ID.
++          $random_state .= getmypid();
++        }
++        $bytes = '';
++      }
++
++      do {
++        $random_state = hash('sha256', microtime() . mt_rand() . $random_state);
++        $bytes .= hash('sha256', mt_rand() . $random_state, TRUE);
++      }
++      while (strlen($bytes) < $count);
+     }
+   }
+   $output = substr($bytes, 0, $count);
+@@ -1977,17 +2014,21 @@
+ /**
+  * Calculates a base-64 encoded, URL-safe sha-256 hmac.
+  *
+- * @param $data
++ * @param string $data
+  *   String to be validated with the hmac.
+- * @param $key
++ * @param string $key
+  *   A secret string key.
+  *
+- * @return
++ * @return string
+  *   A base-64 encoded sha-256 hmac, with + replaced with -, / with _ and
+  *   any = padding characters removed.
+  */
+ function drupal_hmac_base64($data, $key) {
+-  $hmac = base64_encode(hash_hmac('sha256', $data, $key, TRUE));
++  // Casting $data and $key to strings here is necessary to avoid empty string
++  // results of the hash function if they are not scalar values. As this
++  // function is used in security-critical contexts like token validation it is
++  // important that it never returns an empty string.
++  $hmac = base64_encode(hash_hmac('sha256', (string) $data, (string) $key, TRUE));
+   // Modify the hmac so it's safe to use in URLs.
+   return strtr($hmac, array('+' => '-', '/' => '_', '=' => ''));
+ }
+Index: drupal7/includes/common.inc
+===================================================================
+--- drupal7.orig/includes/common.inc	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/includes/common.inc	2013-11-20 20:42:48.000000000 -0600
+@@ -4953,7 +4953,7 @@
+  */
+ function drupal_get_private_key() {
+   if (!($key = variable_get('drupal_private_key', 0))) {
+-    $key = drupal_hash_base64(drupal_random_bytes(55));
++    $key = drupal_random_key();
+     variable_set('drupal_private_key', $key);
+   }
+   return $key;
+@@ -4985,7 +4985,7 @@
+  */
+ function drupal_valid_token($token, $value = '', $skip_anonymous = FALSE) {
+   global $user;
+-  return (($skip_anonymous && $user->uid == 0) || ($token == drupal_get_token($value)));
++  return (($skip_anonymous && $user->uid == 0) || ($token === drupal_get_token($value)));
+ }
+ 
+ function _drupal_bootstrap_full() {
+@@ -5018,6 +5018,10 @@
+   module_load_all();
+   // Make sure all stream wrappers are registered.
+   file_get_stream_wrappers();
++  // Ensure mt_rand is reseeded, to prevent random values from one page load
++  // being exploited to predict random values in subsequent page loads.
++  $seed = unpack("L", drupal_random_bytes(4));
++  mt_srand($seed[1]);
+ 
+   $test_info = &$GLOBALS['drupal_test_info'];
+   if (!empty($test_info['in_child_site'])) {
+Index: drupal7/includes/file.inc
+===================================================================
+--- drupal7.orig/includes/file.inc	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/includes/file.inc	2013-11-20 20:42:48.000000000 -0600
+@@ -474,8 +474,11 @@
+  * @param $private
+  *   FALSE indicates that $directory should be an open and public directory.
+  *   The default is TRUE which indicates a private and protected directory.
++ * @param $force_overwrite
++ *   Set to TRUE to attempt to overwrite the existing .htaccess file if one is
++ *   already present. Defaults to FALSE.
+  */
+-function file_create_htaccess($directory, $private = TRUE) {
++function file_create_htaccess($directory, $private = TRUE, $force_overwrite = FALSE) {
+   if (file_uri_scheme($directory)) {
+     $directory = file_stream_wrapper_uri_normalize($directory);
+   }
+@@ -484,19 +487,12 @@
+   }
+   $htaccess_path =  $directory . '/.htaccess';
+ 
+-  if (file_exists($htaccess_path)) {
++  if (file_exists($htaccess_path) && !$force_overwrite) {
+     // Short circuit if the .htaccess file already exists.
+     return;
+   }
+ 
+-  if ($private) {
+-    // Private .htaccess file.
+-    $htaccess_lines = "SetHandler Drupal_Security_Do_Not_Remove_See_SA_2006_006\nDeny from all\nOptions None\nOptions +FollowSymLinks";
+-  }
+-  else {
+-    // Public .htaccess file.
+-    $htaccess_lines = "SetHandler Drupal_Security_Do_Not_Remove_See_SA_2006_006\nOptions None\nOptions +FollowSymLinks";
+-  }
++  $htaccess_lines = file_htaccess_lines($private);
+ 
+   // Write the .htaccess file.
+   if (file_put_contents($htaccess_path, $htaccess_lines)) {
+@@ -509,6 +505,45 @@
+ }
+ 
+ /**
++ * Returns the standard .htaccess lines that Drupal writes to file directories.
++ *
++ * @param $private
++ *   (Optional) Set to FALSE to return the .htaccess lines for an open and
++ *   public directory. The default is TRUE, which returns the .htaccess lines
++ *   for a private and protected directory.
++ *
++ * @return
++ *   A string representing the desired contents of the .htaccess file.
++ *
++ * @see file_create_htaccess()
++ */
++function file_htaccess_lines($private = TRUE) {
++  $lines = <<<EOF
++# Turn off all options we don't need.
++Options None
++Options +FollowSymLinks
++
++# Set the catch-all handler to prevent scripts from being executed.
++SetHandler Drupal_Security_Do_Not_Remove_See_SA_2006_006
++<Files *>
++  # Override the handler again if we're run later in the evaluation list.
++  SetHandler Drupal_Security_Do_Not_Remove_See_SA_2013_003
++</Files>
++
++# If we know how to do it safely, disable the PHP engine entirely.
++<IfModule mod_php5.c>
++  php_flag engine off
++</IfModule>
++EOF;
++
++  if ($private) {
++    $lines = "Deny from all\n\n" . $lines;
++  }
++
++  return $lines;
++}
++
++/**
+  * Loads file objects from the database.
+  *
+  * @param $fids
+Index: drupal7/includes/form.inc
+===================================================================
+--- drupal7.orig/includes/form.inc	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/includes/form.inc	2013-11-20 20:42:48.000000000 -0600
+@@ -462,7 +462,7 @@
+     $form['#build_id'] = $old_form['#build_id'];
+   }
+   else {
+-    $form['#build_id'] = 'form-' . drupal_hash_base64(uniqid(mt_rand(), TRUE) . mt_rand());
++    $form['#build_id'] = 'form-' . drupal_random_key();
+   }
+ 
+   // #action defaults to request_uri(), but in case of Ajax and other partial
+@@ -970,7 +970,7 @@
+   // @see drupal_build_form()
+   // @see drupal_rebuild_form()
+   if (!isset($form['#build_id'])) {
+-    $form['#build_id'] = 'form-' . drupal_hash_base64(uniqid(mt_rand(), TRUE) . mt_rand());
++    $form['#build_id'] = 'form-' . drupal_random_key();
+   }
+   $form['form_build_id'] = array(
+     '#type' => 'hidden',
+@@ -1110,6 +1110,12 @@
+ 
+       // Setting this error will cause the form to fail validation.
+       form_set_error('form_token', t('The form has become outdated. Copy any unsaved work in the form below and then <a href="@link">reload this page</a>.', array('@link' => $url)));
++
++      // Stop here and don't run any further validation handlers, because they
++      // could invoke non-safe operations which opens the door for CSRF
++      // vulnerabilities.
++      $validated_forms[$form_id] = TRUE;
++      return;
+     }
+   }
+ 
+Index: drupal7/includes/install.core.inc
+===================================================================
+--- drupal7.orig/includes/install.core.inc	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/includes/install.core.inc	2013-11-20 20:42:48.000000000 -0600
+@@ -768,6 +768,15 @@
+   // Install system.module.
+   drupal_install_system();
+ 
++  // Call file_ensure_htaccess() to ensure that all of Drupal's standard
++  // directories (e.g., the public and private files directories) have
++  // appropriate .htaccess files. These directories will have already been
++  // created by this point in the installer, since Drupal creates them during
++  // the install_verify_requirements() task. Note that we cannot call
++  // file_ensure_htaccess() any earlier than this, since it relies on
++  // system.module in order to work.
++  file_ensure_htaccess();
++
+   // Enable the user module so that sessions can be recorded during the
+   // upcoming bootstrap step.
+   module_enable(array('user'), FALSE);
+@@ -980,7 +989,7 @@
+     'required' => TRUE,
+   );
+   $settings['drupal_hash_salt'] = array(
+-    'value'    => drupal_hash_base64(drupal_random_bytes(55)),
++    'value'    => drupal_random_key(),
+     'required' => TRUE,
+   );
+   drupal_rewrite_settings($settings);
+Index: drupal7/includes/session.inc
+===================================================================
+--- drupal7.orig/includes/session.inc	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/includes/session.inc	2013-11-20 20:42:48.000000000 -0600
+@@ -263,10 +263,10 @@
+     // Less random sessions (which are much faster to generate) are used for
+     // anonymous users than are generated in drupal_session_regenerate() when
+     // a user becomes authenticated.
+-    session_id(drupal_hash_base64(uniqid(mt_rand(), TRUE)));
++    session_id(drupal_random_key());
+     if ($is_https && variable_get('https', FALSE)) {
+       $insecure_session_name = substr(session_name(), 1);
+-      $session_id = drupal_hash_base64(uniqid(mt_rand(), TRUE));
++      $session_id = drupal_random_key();
+       $_COOKIE[$insecure_session_name] = $session_id;
+     }
+   }
+@@ -355,7 +355,7 @@
+       $old_insecure_session_id = $_COOKIE[$insecure_session_name];
+     }
+     $params = session_get_cookie_params();
+-    $session_id = drupal_hash_base64(uniqid(mt_rand(), TRUE) . drupal_random_bytes(55));
++    $session_id = drupal_random_key();
+     // If a session cookie lifetime is set, the session will expire
+     // $params['lifetime'] seconds from the current request. If it is not set,
+     // it will expire when the browser is closed.
+@@ -367,7 +367,7 @@
+   if (drupal_session_started()) {
+     $old_session_id = session_id();
+   }
+-  session_id(drupal_hash_base64(uniqid(mt_rand(), TRUE) . drupal_random_bytes(55)));
++  session_id(drupal_random_key());
+ 
+   if (isset($old_session_id)) {
+     $params = session_get_cookie_params();
+Index: drupal7/modules/color/color.module
+===================================================================
+--- drupal7.orig/modules/color/color.module	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/modules/color/color.module	2013-11-20 20:42:48.000000000 -0600
+@@ -240,6 +240,7 @@
+       $form['palette'][$name] = array(
+         '#type' => 'textfield',
+         '#title' => check_plain($names[$name]),
++        '#value_callback' => 'color_palette_color_value',
+         '#default_value' => $value,
+         '#size' => 8,
+       );
+@@ -295,6 +296,52 @@
+ }
+ 
+ /**
++ * Determines the value for a palette color field.
++ *
++ * @param $element
++ *   The form element whose value is being populated.
++ * @param $input
++ *   The incoming input to populate the form element. If this is FALSE,
++ *   the element's default value should be returned.
++ * @param $form_state
++ *   A keyed array containing the current state of the form.
++ *
++ * @return
++ *   The data that will appear in the $form_state['values'] collection for this
++ *   element. Return nothing to use the default.
++ */
++function color_palette_color_value($element, $input = FALSE, $form_state = array()) {
++  // If we suspect a possible cross-site request forgery attack, only accept
++  // hexadecimal CSS color strings from user input, to avoid problems when this
++  // value is used in the JavaScript preview.
++  if ($input !== FALSE) {
++    // Start with the provided value for this textfield, and validate that if
++    // necessary, falling back on the default value.
++    $value = form_type_textfield_value($element, $input, $form_state);
++    if (!$value || !isset($form_state['complete form']['#token']) || color_valid_hexadecimal_string($value) || drupal_valid_token($form_state['values']['form_token'], $form_state['complete form']['#token'])) {
++      return $value;
++    }
++    else {
++      return $element['#default_value'];
++    }
++  }
++}
++
++/**
++ * Determines if a hexadecimal CSS color string is valid.
++ *
++ * @param $color
++ *   The string to check.
++ *
++ * @return
++ *   TRUE if the string is a valid hexadecimal CSS color string, or FALSE if it
++ *   isn't.
++ */
++function color_valid_hexadecimal_string($color) {
++  return preg_match('/^#([a-f0-9]{3}){1,2}$/iD', $color);
++}
++
++/**
+  * Form validation handler for color_scheme_form().
+  *
+  * @see color_scheme_form_submit()
+@@ -302,7 +349,7 @@
+ function color_scheme_form_validate($form, &$form_state) {
+   // Only accept hexadecimal CSS color strings to avoid XSS upon use.
+   foreach ($form_state['values']['palette'] as $key => $color) {
+-    if (!preg_match('/^#([a-f0-9]{3}){1,2}$/iD', $color)) {
++    if (!color_valid_hexadecimal_string($color)) {
+       form_set_error('palette][' . $key, t('%name must be a valid hexadecimal CSS color value.', array('%name' => $form['color']['palette'][$key]['#title'])));
+     }
+   }
+Index: drupal7/modules/image/image.field.inc
+===================================================================
+--- drupal7.orig/modules/image/image.field.inc	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/modules/image/image.field.inc	2013-11-20 20:42:48.000000000 -0600
+@@ -351,7 +351,7 @@
+   if ($field['cardinality'] == 1) {
+     // If there's only one field, return it as delta 0.
+     if (empty($elements[0]['#default_value']['fid'])) {
+-      $elements[0]['#description'] = theme('file_upload_help', array('description' => $instance['description'], 'upload_validators' => $elements[0]['#upload_validators']));
++      $elements[0]['#description'] = theme('file_upload_help', array('description' => field_filter_xss($instance['description']), 'upload_validators' => $elements[0]['#upload_validators']));
+     }
+   }
+   else {
+Index: drupal7/modules/openid/openid.inc
+===================================================================
+--- drupal7.orig/modules/openid/openid.inc	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/modules/openid/openid.inc	2013-11-20 20:42:48.000000000 -0600
+@@ -380,6 +380,9 @@
+ 
+ /**
+  * Return a nonce value - formatted per OpenID spec.
++ *
++ * NOTE: This nonce is not cryptographically secure and only suitable for use
++ * by the test framework.
+  */
+ function _openid_nonce() {
+   // YYYY-MM-DDThh:mm:ssZ, plus some optional extra unique characters.
+@@ -549,7 +552,7 @@
+   }
+ 
+   do {
+-    $bytes = "\x00" . _openid_get_bytes($nbytes);
++    $bytes = "\x00" . drupal_random_bytes($nbytes);
+     $n = _openid_dh_binary_to_long($bytes);
+     // Keep looping if this value is in the low duplicated range.
+   } while (_openid_math_cmp($n, $duplicate) < 0);
+@@ -558,23 +561,7 @@
+ }
+ 
+ function _openid_get_bytes($num_bytes) {
+-  $f = &drupal_static(__FUNCTION__);
+-  $bytes = '';
+-  if (!isset($f)) {
+-    $f = @fopen(OPENID_RAND_SOURCE, "r");
+-  }
+-  if (!$f) {
+-    // pseudorandom used
+-    $bytes = '';
+-    for ($i = 0; $i < $num_bytes; $i += 4) {
+-      $bytes .= pack('L', mt_rand());
+-    }
+-    $bytes = substr($bytes, 0, $num_bytes);
+-  }
+-  else {
+-    $bytes = fread($f, $num_bytes);
+-  }
+-  return $bytes;
++  return drupal_random_bytes($num_bytes);
+ }
+ 
+ function _openid_response($str = NULL) {
+Index: drupal7/modules/openid/tests/openid_test.install
+===================================================================
+--- drupal7.orig/modules/openid/tests/openid_test.install	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/modules/openid/tests/openid_test.install	2013-11-20 20:42:48.000000000 -0600
+@@ -13,5 +13,5 @@
+   // Generate a MAC key (Message Authentication Code) used for signing messages.
+   // The variable is base64-encoded, because variables cannot contain non-UTF-8
+   // data.
+-  variable_set('openid_test_mac_key', base64_encode(_openid_get_bytes(20)));
++  variable_set('openid_test_mac_key', drupal_random_key(20));
+ }
+Index: drupal7/modules/overlay/overlay.module
+===================================================================
+--- drupal7.orig/modules/overlay/overlay.module	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/modules/overlay/overlay.module	2013-11-20 20:42:48.000000000 -0600
+@@ -146,6 +146,10 @@
+       // If this page shouldn't be rendered inside the overlay, redirect to the
+       // parent.
+       elseif (!path_is_admin($current_path)) {
++        // Prevent open redirects by ensuring the current path is not an absolute URL.
++        if (url_is_external($current_path)) {
++          $current_path = '<front>';
++        }
+         overlay_close_dialog($current_path, array('query' => drupal_get_query_parameters(NULL, array('q', 'render'))));
+       }
+ 
+Index: drupal7/modules/simpletest/tests/file.test
+===================================================================
+--- drupal7.orig/modules/simpletest/tests/file.test	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/modules/simpletest/tests/file.test	2013-11-20 20:46:39.000000000 -0600
+@@ -952,7 +952,7 @@
+     $this->assertTrue(is_file(file_default_scheme() . '://.htaccess'), t('Successfully re-created the .htaccess file in the files directory.'), 'File');
+     // Verify contents of .htaccess file.
+     $file = file_get_contents(file_default_scheme() . '://.htaccess');
+-    $this->assertEqual($file, "SetHandler Drupal_Security_Do_Not_Remove_See_SA_2006_006\nOptions None\nOptions +FollowSymLinks", t('The .htaccess file contains the proper content.'), 'File');
++    $this->assertEqual($file, file_htaccess_lines(FALSE), 'The .htaccess file contains the proper content.', 'File');
+   }
+ 
+   /**
+Index: drupal7/modules/simpletest/tests/form.test
+===================================================================
+--- drupal7.orig/modules/simpletest/tests/form.test	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/modules/simpletest/tests/form.test	2013-11-20 20:45:37.000000000 -0600
+@@ -82,6 +82,10 @@
+           $form_state['input'][$element] = $empty;
+           $form_state['input']['form_id'] = $form_id;
+           $form_state['method'] = 'post';
++
++          // The form token CSRF protection should not interfere with this test,
++          // so we bypass it by marking this test form as programmed.
++          $form_state['programmed'] = TRUE;
+           drupal_prepare_form($form_id, $form, $form_state);
+           drupal_process_form($form_id, $form, $form_state);
+           $errors = form_get_errors();
+@@ -580,6 +584,18 @@
+     $this->drupalPost(NULL, array(), 'Save');
+     $this->assertNoFieldByName('name', t('Form element was hidden.'));
+     $this->assertText('Name value: element_validate_access', t('Value for inaccessible form element exists.'));
++
++    // Verify that #validate handlers don't run if the CSRF token is invalid.
++    $this->drupalLogin($this->drupalCreateUser());
++    $this->drupalGet('form-test/validate');
++    $edit = array(
++      'name' => 'validate',
++      'form_token' => 'invalid token'
++    );
++    $this->drupalPost(NULL, $edit, 'Save');
++    $this->assertNoFieldByName('name', '#value changed by #validate', 'Form element #value was not altered.');
++    $this->assertNoText('Name value: value changed by form_set_value() in #validate', 'Form element value in $form_state was not altered.');
++    $this->assertText('The form has become outdated. Copy any unsaved work in the form below');
+   }
+ 
+   /**
+@@ -896,6 +912,10 @@
+     $form_state['input'] = $edit;
+     $form_state['input']['form_id'] = $form_id;
+ 
++    // The form token CSRF protection should not interfere with this test,
++    // so we bypass it by marking this test form as programmed.
++    $form_state['programmed'] = TRUE;
++
+     drupal_prepare_form($form_id, $form, $form_state);
+ 
+     drupal_process_form($form_id, $form, $form_state);
+Index: drupal7/modules/system/system.install
+===================================================================
+--- drupal7.orig/modules/system/system.install	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/modules/system/system.install	2013-11-20 20:42:48.000000000 -0600
+@@ -258,6 +258,39 @@
+     $requirements['settings.php']['title'] = $t('Configuration file');
+   }
+ 
++  // Test the contents of the .htaccess files.
++  if ($phase == 'runtime') {
++    // Try to write the .htaccess files first, to prevent false alarms in case
++    // (for example) the /tmp directory was wiped.
++    file_ensure_htaccess();
++    $htaccess_files['public://.htaccess'] = array(
++      'title' => $t('Public files directory'),
++      'directory' => variable_get('file_public_path', conf_path() . '/files'),
++    );
++    if ($private_files_directory = variable_get('file_private_path')) {
++      $htaccess_files['private://.htaccess'] = array(
++        'title' => $t('Private files directory'),
++        'directory' => $private_files_directory,
++      );
++    }
++    $htaccess_files['temporary://.htaccess'] = array(
++      'title' => $t('Temporary files directory'),
++      'directory' => variable_get('file_temporary_path', file_directory_temp()),
++    );
++    foreach ($htaccess_files as $htaccess_file => $info) {
++      // Check for the string which was added to the recommended .htaccess file
++      // in the latest security update.
++      if (!file_exists($htaccess_file) || !($contents = @file_get_contents($htaccess_file)) || strpos($contents, 'Drupal_Security_Do_Not_Remove_See_SA_2013_003') === FALSE) {
++        $requirements[$htaccess_file] = array(
++          'title' => $info['title'],
++          'value' => $t('Not fully protected'),
++          'severity' => REQUIREMENT_ERROR,
++          'description' => $t('See <a href="@url">@url</a> for information about the recommended .htaccess file which should be added to the %directory directory to help protect against arbitrary code execution.', array('@url' => 'http://drupal.org/SA-CORE-2013-003', '%directory' => $info['directory'])),
++        );
++      }
++    }
++  }
++
+   // Report cron status.
+   if ($phase == 'runtime') {
+     // Cron warning threshold defaults to two days.
+@@ -516,7 +549,7 @@
+     ->execute();
+ 
+   // Populate the cron key variable.
+-  $cron_key = drupal_hash_base64(drupal_random_bytes(55));
++  $cron_key = drupal_random_key();
+   variable_set('cron_key', $cron_key);
+ }
+ 
+@@ -1736,7 +1769,7 @@
+  * Generate a cron key and save it in the variables table.
+  */
+ function system_update_7001() {
+-  variable_set('cron_key', drupal_hash_base64(drupal_random_bytes(55)));
++  variable_set('cron_key', drupal_random_key());
+ }
+ 
+ /**
+Index: drupal7/modules/system/system.test
+===================================================================
+--- drupal7.orig/modules/system/system.test	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/modules/system/system.test	2013-11-20 20:42:48.000000000 -0600
+@@ -2681,3 +2681,50 @@
+   }
+ }
+ 
++/**
++ * Test case for drupal_valid_token().
++ */
++class SystemValidTokenTest extends DrupalUnitTestCase {
++
++  /**
++   * Flag to indicate whether PHP error reportings should be asserted.
++   *
++   * @var bool
++   */
++  protected $assertErrors = TRUE;
++
++  public static function getInfo() {
++    return array(
++      'name' => 'Token validation',
++      'description' => 'Test the security token validation.',
++      'group' => 'System',
++    );
++  }
++
++  /**
++   * Tests invalid invocations of drupal_valid_token() that must return FALSE.
++   */
++  public function testTokenValidation() {
++    // The following checks will throw PHP notices, so we disable error
++    // assertions.
++    $this->assertErrors = FALSE;
++    $this->assertFalse(drupal_valid_token(NULL, new stdClass()), 'Token NULL, value object returns FALSE.');
++    $this->assertFalse(drupal_valid_token(0, array()), 'Token 0, value array returns FALSE.');
++    $this->assertFalse(drupal_valid_token('', array()), "Token '', value array returns FALSE.");
++    $this->assertFalse('' === drupal_get_token(array()), 'Token generation does not return an empty string on invalid parameters.');
++    $this->assertErrors = TRUE;
++
++    $this->assertFalse(drupal_valid_token(TRUE, 'foo'), 'Token TRUE, value foo returns FALSE.');
++    $this->assertFalse(drupal_valid_token(0, 'foo'), 'Token 0, value foo returns FALSE.');
++  }
++
++  /**
++   * Overrides DrupalTestCase::errorHandler().
++   */
++  public function errorHandler($severity, $message, $file = NULL, $line = NULL) {
++    if ($this->assertErrors) {
++      return parent::errorHandler($severity, $message, $file, $line);
++    }
++    return TRUE;
++  }
++}
+Index: drupal7/modules/user/user.module
+===================================================================
+--- drupal7.orig/modules/user/user.module	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/modules/user/user.module	2013-11-20 20:42:48.000000000 -0600
+@@ -713,10 +713,14 @@
+ 
+   // Loop the number of times specified by $length.
+   for ($i = 0; $i < $length; $i++) {
++    do {
++      // Find a secure random number within the range needed.
++      $index = ord(drupal_random_bytes(1));
++    } while ($index > $len);
+ 
+     // Each iteration, pick a random character from the
+     // allowable string and append it to the password:
+-    $pass .= $allowable_characters[mt_rand(0, $len)];
++    $pass .= $allowable_characters[$index];
+   }
+ 
+   return $pass;
+Index: drupal7/modules/user/user.pages.inc
+===================================================================
+--- drupal7.orig/modules/user/user.pages.inc	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/modules/user/user.pages.inc	2013-11-20 20:42:48.000000000 -0600
+@@ -135,7 +135,7 @@
+           user_login_finalize();
+           drupal_set_message(t('You have just used your one-time login link. It is no longer necessary to use this link to log in. Please change your password.'));
+           // Let the user's password be changed without the current password check.
+-          $token = drupal_hash_base64(drupal_random_bytes(55));
++          $token = drupal_random_key();
+           $_SESSION['pass_reset_' . $user->uid] = $token;
+           drupal_goto('user/' . $user->uid . '/edit', array('query' => array('pass-reset-token' => $token)));
+         }
+Index: drupal7/update.php
+===================================================================
+--- drupal7.orig/update.php	2013-11-20 20:42:48.000000000 -0600
++++ drupal7/update.php	2013-11-20 20:42:48.000000000 -0600
+@@ -443,13 +443,13 @@
+     // update.php ops.
+ 
+     case 'selection':
+-      if (isset($_GET['token']) && $_GET['token'] == drupal_get_token('update')) {
++      if (isset($_GET['token']) && drupal_valid_token($_GET['token'], 'update')) {
+         $output = update_selection_page();
+         break;
+       }
+ 
+     case 'Apply pending updates':
+-      if (isset($_GET['token']) && $_GET['token'] == drupal_get_token('update')) {
++      if (isset($_GET['token']) && drupal_valid_token($_GET['token'], 'update')) {
+         // Generate absolute URLs for the batch processing (using $base_root),
+         // since the batch API will pass them to url() which does not handle
+         // update.php correctly by default.

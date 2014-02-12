@@ -27,7 +27,7 @@ pkgver=4.8.2
 pkgrel=3
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libmpc>=1.0.2' 'cloog>=0.18.1')
+depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libmpc>=1.0.2' 'cloog>=0.18.1' 'zlib')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('i686' 'x86_64' 'arm')
@@ -95,12 +95,12 @@ if Fuse $USE_ADA; then
 	makedepends=("${makedepends[@]}" 'gcc-gnat')
 fi
 if Fuse $USE_FORTRAN; then
-	subpkgs=("${subpkgs[@]}" 'libgfortran' 'gcc-gfortran')
-	subdescs=("${subdescs[@]}" 'Fortran 95 runtime' 'Fortran 95 support for GCC')
-	subrodepends=("${subrodepends[@]}" 'libgcc' 'libgfortran gcc')
-	subbackup=("${subbackup[@]}" '' '')
-	subgroups=("${subgroups[@]}" 'lib' 'devel-extra')
-	subreplaces=("${subreplaces[@]}" '' '')
+	subpkgs=("${subpkgs[@]}" 'libquadmath' 'libgfortran' 'gcc-gfortran')
+	subdescs=("${subdescs[@]}" 'Quadruple Precision Math library from GCC' 'Fortran 95 runtime' 'Fortran 95 support for GCC')
+	subrodepends=("${subrodepends[@]}" 'glibc' 'libgcc libquadmath' 'libgfortran gcc')
+	subbackup=("${subbackup[@]}" '' '' '')
+	subgroups=("${subgroups[@]}" 'lib' 'lib' 'devel-extra')
+	subreplaces=("${subreplaces[@]}" '' '' '')
 fi
 i=0
 while [ $i -lt ${#subpkgs[@]} ]
@@ -131,7 +131,12 @@ build()
 	fi
 	Fuse $USE_OBJC && langlist="$langlist,objc,obj-c++"
 	Fuse $USE_ADA && langlist="$langlist,ada"
-	Fuse $USE_FORTRAN && langlist="$langlist,fortran"
+	if Fuse $USE_FORTRAN; then
+		langlist="$langlist,fortran"
+		Fconfopts+=" --enable-libquadmath --enable-libquadmath-support"
+	else
+		Fconfopts+=" --disable-libquadmath --disable-libquadmath-support"
+	fi
 	Fuse $USE_GO && langlist="$langlist,go"
 
 	if [ "$CARCH" == "arm" ]; then
@@ -236,6 +241,8 @@ build()
 		Fsplit gcc-gnat usr/libexec/gcc/$gcchost/$gccver/gnat1
 	fi
 	if Fuse $USE_FORTRAN; then
+		# libquadmath
+		Fsplit libquadmath usr/lib/libquadmath.*
 		# libgfortran
 		Fsplit libgfortran usr/lib/gcc/$gcchost/$gccver/libgfortranbegin.*
 		Fsplit libgfortran usr/lib/libgfortran.*
@@ -258,11 +265,11 @@ build()
 		# libstdc++
 		Fsplit libstdc++ usr/include/c++/
 		Fmv usr/lib/libstdc++.*-gdb.py usr/share/gcc-$gccver/python/libstdcxx
-		Fsplit libstdc++ usr/share/gcc-$gccver/python/libstdcxx
 		Fsplit libstdc++ usr/lib/libstdc++.*
-		Fsplit libstdc++ usr/share/man/man3/
 		Fsplit libstdc++ usr/share/locale/{de,fr}/LC_MESSAGES/libstdc++.mo
 		#gcc-g++
+		Fsplit gcc-g++ usr/share/gcc-$gccver/
+		Fsplit gcc-g++ usr/share/man/man3/
 		Fsplit gcc-g++ usr/bin/{,$gcchost-}{c++,g++}
 		Fsplit gcc-g++ usr/lib/libsupc++.*
 		Fsplit gcc-g++ usr/libexec/gcc/$gcchost/$gccver/cc1plus

@@ -1,51 +1,68 @@
 # Compiling Time: 0.46 SBU
-# Maintainer: voroskoi <voroskoi@frugalware.org>
+# Maintainer: kikadf <kikadf.01@gmail.com>
+# Contributor: voroskoi <voroskoi@frugalware.org>
+
+options+=('asneeded')
 
 pkgname=hplip
-pkgver=3.12.11
-pkgrel=1
+pkgver=3.14.1
+pkgrel=2
 _F_sourceforge_ext=.tar.gz
 Finclude sourceforge
 pkgdesc="HPLIP is an HP developed solution for printing, scanning, and faxing with HP inkjet and laser based printers in Linux."
-makedepends=('sane-backends')
-depends=('libtool>=2.2.2' 'dbus-python>=0.80' 'openssl>=1.0.0')
-# cupsddk: dynamic PPD support
-# reportlab: fax cover page support
 rodepends=("hplip-driver>=$pkgver" 'pyqt4' 'reportlab')
-replaces=('hpijs' 'hpoj')
-conflicts=("${replaces[@]}")
-provides=("${replaces[@]}")
+depends=('libtool>=2.2.2' 'dbus-python>=0.80' 'openssl>=1.0.0' 'foomatic-db' \
+         'foomatic-db-engine')
 groups=('apps-extra')
 archs=('i686' 'x86_64')
-sha1sums=('f8637e742ec506b30d4d22ca21ea2727619791be')
+sha1sums=('900e42479906fc90b73b36cac93e09e1aedf5221')
 options=('nodocs')
 
 subpkgs=("${subpackages[@]}" 'hplip-driver')
 subdescs=("${subdescs[@]}" 'HPLIP printing, scanning, and scanning driver for HP inkjet and laser based printers.')
-subdepends=("${subdepends[@]}" "cups libusb net-snmp>=5.7 sane-backends")
 subrodepends=("${subrodepends[@]}" 'cupsddk ghostscript')
+subdepends=("${subdepends[@]}" "cups libusb net-snmp>=5.7 sane-backends")
 subinstall=("${subinstall[@]}" 'hplip.install')
 subgroups=("${subgroups[@]}" 'apps-extra')
 subarchs=("${subarchs[@]}" 'i686 x86_64')
 
-build() {
+build()
+{
 	Fcd
-	Fsed 'SYSFS' 'ATTRS' data/rules/56-hpmud_support.rules
-	Fsed 'SYSFS' 'ATTRS' data/rules/55-hpmud.rules
-	Fbuild --with-hpppddir=/usr/share/cups/model/HP
+	# Use system foomatic-rip for hpijs driver instead of foomatic-rip-hplip
+	# The hpcups driver does not use foomatic-rip
+	local i
+	for i in ppd/hpijs/*.ppd.gz ; do
+		rm -f ${i}.temp
+		gunzip -c ${i} | sed 's/foomatic-rip-hplip/foomatic-rip/g' | \
+			gzip > ${i}.temp || return 1
+		mv ${i}.temp ${i}
+	done
 
-	# sane-backends
-	Frm /etc/sane.d/dll.conf
+	Fconfopts+=" --with-hpppddir=/usr/share/cups/model/HP \
+                     --enable-qt4 \
+                     --disable-foomatic-rip-hplip-install \
+                     --enable-foomatic-ppd-install \
+                     --enable-hpcups-install \
+                     --enable-new-hpcups \
+                     --enable-cups-ppd-install \
+                     --enable-cups-drv-install \
+                     --enable-hpijs-install \
+                     --enable-foomatic-drv-install"
+
+	Fbuild
+
+	Frm /etc/sane.d
+	Frm /usr/share/hal
 
 	Fsplit hplip-driver /etc/hp/
 	Fsplit hplip-driver /etc/udev/
-	Fsplit hplip-driver /usr/bin/hp-mkuri
+	Fsplit hplip-driver /usr/bin/hp-makeuri
 	Fsplit hplip-driver /usr/lib/cups/
 	Fsplit hplip-driver /usr/lib/libhpip.\*
 	Fsplit hplip-driver /usr/lib/libhpmud.\*
 	Fsplit hplip-driver /usr/lib/sane/
 	Fsplit hplip-driver /usr/share/cups/
-	Fsplit hplip-driver /usr/share/hal/
 	Fsplit hplip-driver /var/lib/hp/
 }
 

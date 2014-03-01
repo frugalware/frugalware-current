@@ -49,6 +49,9 @@ static int nftw_callback(const char *path,const struct stat *st,int type,struct 
   if(type != FTW_F)
     goto bail;
 
+  if(strncmp(path,"./",2) == 0)
+    path += 2;
+
   if(!is_elf(path))
     goto bail;
 
@@ -62,7 +65,7 @@ static int nftw_callback(const char *path,const struct stat *st,int type,struct 
     goto bail;
 
   for( ; list != 0 ; list = list->next )
-    printf("%s: %s\n",path + ((strncmp(path,"./",2) == 0) ? 2 : 0),list->name);
+    printf("%s: %s\n",path,list->name);
 
   bail:
 

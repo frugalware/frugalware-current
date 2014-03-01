@@ -4,8 +4,11 @@
 
 #include <bfd.h>
 #include <ftw.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 #define FTW_USED_FD 512
 
@@ -40,8 +43,19 @@ static int nftw_callback(const char *path,const struct stat *st,int type,struct 
   return 0;
 }
 
-extern int main(void)
+extern int main(int argc,char **argv)
 {
+  struct stat st = {0};
+
+  if(argc < 2 || stat(argv[1],&st) == -1 || !S_ISDIR(st.st_mode))
+  {
+    printf("Usage: %s <directory>\n",argv[0]);
+    return EXIT_FAILURE;
+  }
+
+  chdir(argv[1]);
+
   nftw(".",nftw_callback,FTW_USED_FD,FTW_PHYS);
-  return 0;
+
+  return EXIT_SUCCESS;
 }

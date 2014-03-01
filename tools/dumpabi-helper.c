@@ -12,6 +12,32 @@
 
 #define FTW_USED_FD 512
 
+static inline int is_elf(const char *path)
+{
+  static const unsigned char sign[4] = { 0x7F, 'E', 'L', 'F' };
+  int rv = 0;
+  FILE *file = 0;
+  unsigned char bytes[4] = {0};
+
+  if((file = fopen(path,"rb")) == 0)
+    goto bail;
+
+  if(fread(bytes,1,4,file) != 4)
+    goto bail;
+
+  if(memcmp(bytes,sign,4) != 0)
+    goto bail;
+
+  rv = 1;
+
+  bail:
+
+  if(file != 0)
+    fclose(file);
+
+  return rv;
+}
+
 static int nftw_callback(const char *path,const struct stat *st,int type,struct FTW *fb)
 {
   bfd *obj = 0;
@@ -21,6 +47,9 @@ static int nftw_callback(const char *path,const struct stat *st,int type,struct 
   (void) fb;
 
   if(type != FTW_F)
+    goto bail;
+
+  if(!is_elf(path))
     goto bail;
 
   if((obj = bfd_openr(path,0)) == 0)

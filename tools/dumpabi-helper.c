@@ -12,6 +12,8 @@
 
 #define FTW_USED_FD 512
 
+typedef struct bfd_link_needed_list bfd_list;
+
 static inline int is_elf(const char *path)
 {
   static const unsigned char sign[4] = { 0x7F, 'E', 'L', 'F' };
@@ -38,10 +40,22 @@ static inline int is_elf(const char *path)
   return rv;
 }
 
+static inline bfd_list *bfd_list_get_nth_entry(bfd_list *p,size_t n)
+{
+  size_t i = 0;
+
+  for( ; i < n && p != 0 ; ++i, p = p->next )
+    ;
+
+  return p;
+}
+
 static int nftw_callback(const char *path,const struct stat *st,int type,struct FTW *fb)
 {
   bfd *obj = 0;
-  struct bfd_link_needed_list *list = 0;
+  bfd_list *list = 0;
+  bfd_list *p = 0;
+  size_t n = 0;
 
   (void) st;
   (void) fb;
@@ -64,8 +78,15 @@ static int nftw_callback(const char *path,const struct stat *st,int type,struct 
   if(!bfd_elf_get_bfd_needed_list(obj,&list))
     goto bail;
 
-  for( ; list != 0 ; list = list->next )
-    printf("%s: %s\n",path,list->name);
+  for( p = list ; p != 0 ; p = p->next, ++n )
+    ;
+
+  while(n > 0)
+  {
+    p = bfd_list_get_nth_entry(list,--n);
+
+    printf("%s: %s\n",path,p->name);
+  }
 
   bail:
 

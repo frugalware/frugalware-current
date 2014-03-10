@@ -44,7 +44,7 @@ wine-devel)
 	up2date="lynx -dump $url | sed -n 's|^.*Development:.*Wine \([0-9a-zA-Z.]\+\).*\$|\1|p'"
 	conflicts=('wine')
 	provides=('wine')
-	sha1sums=('37a647c9f2448bb756f2e1fb4a431dcc370e14ec')
+	sha1sums=('27bc2abcebe38849a45befd7538aed2b6560cad8')
 	;;
 
 default)

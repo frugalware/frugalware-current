@@ -5,29 +5,28 @@ if [ -z "$1" ]; then
 	exit 1
 fi
 
-export LC_ALL=C
-DIR="$(mktemp -td)"
-if [ "$1" == "$(basename $1)" ]; then
-	FPM="$(pwd)/$1"
-else
-	FPM="$1"
+FPM="$1"
+
+if [ ! -f "$FPM" ]; then
+	echo "$FPM does not exist."
+	exit 1
 fi
-IFS=$'\n'
 
-cd "$DIR"
+HELPER="$(dirname "$0")/dumpabi-helper"
 
-tar -xf "$FPM"
+if [ ! -f "$HELPER" ]; then
+	echo "Helper binary cannot be found."
+	exit 1
+fi
 
-rm -f .* 2> /dev/null
+export LC_ALL=C
 
-chmod -R 0777 .
+DIR="$(mktemp -td)"
 
-for i in $(find . -type f); do
-	if file "$i" | grep -q 'ELF'; then
-		for j in $(readelf -d "$i" | sed -rn 's|.*Shared library: \[(.*)\].*|\1|p'); do
-			echo "${i/.\//}: $j"
-		done
-	fi
-done
+tar -C "$DIR" -x -f "$FPM"
+
+chmod -R 0777 "$DIR"
+
+"$HELPER" "$DIR"
 
 rm -rf "$DIR"

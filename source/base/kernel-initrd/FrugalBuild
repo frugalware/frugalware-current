@@ -10,14 +10,14 @@ Finclude kernel-version
 
 pkgname=kernel-initrd
 pkgver=$_F_kernelver_ver
-pkgrel=6
+pkgrel=10
 pkgdesc="The initrd for the Frugalware Linux Kernel."
 url="http://www.frugalware.org"
 rodepends=('scriptlet-core')
 depends=("kernel=$_F_kernelver_ver-$_F_kernelver_rel")
-makedepends=('dracut>=030' 'linux-firmware>=20130710' 'xz' 'eject' 'sysvinit-tools' \
-	'less' 'xfsprogs>=3.1.8' 'jfsutils' 'reiserfsprogs' 'mdadm' 'lvm2>=2.02.98' 'systemd>=204' \
-	'kmod>=12' 'btrfs-progs>=20121004' 'terminus-font-console' 'cryptsetup-luks')
+makedepends=('dracut>=036-4' 'linux-firmware>=20130710' 'xz' 'eject' 'sysvinit-tools' \
+	'less' 'xfsprogs>=3.1.8' 'jfsutils' 'reiserfsprogs' 'mdadm' 'lvm2>=2.02.98' 'systemd>=208-2' \
+	'kmod>=12' 'btrfs-progs>=3.12-2' 'terminus-font-console' 'cryptsetup-luks')
 groups=('base')
 archs=('i686' 'x86_64')
 up2date="$_F_kernelver_ver"
@@ -38,13 +38,23 @@ build()
 	_INITRD="initrd-$_UNAME"
 	Fmkdir /boot
 	touch /tmp/dracut.log || Fdie
-	Fexec /usr/bin/dracut --xz --force -a dmsquash-live \
+	Fexec /usr/bin/dracut -N --no-compress --force -o multipath -a dmsquash-live \
 		$_INITRD $_UNAME || _print_log "die"
 	_print_log
-	if ! xz -d < $_INITRD | cpio -t | grep -q '\.ko\.xz$'; then
+	Fexec cat $_INITRD | cpio -t > contents || Fdie
+	if ! grep -q '\.ko\.xz$' contents; then
 		error "No kernel modules in initrd."
 		Fdie
 	fi
-	Ffile /boot/$_INITRD
+	if ! grep -q '^dev/' contents; then
+		Fexec mkdir -p dev || Fdie
+		Fexec mknod dev/null c 1 3 || Fdie
+		Fexec mknod dev/kmsg c 1 11 || Fdie
+		Fexec mknod dev/console c 5 1 || Fdie
+		Fexec find dev -not -type d -print0 | cpio -o -A -O $_INITRD -H newc -R 0:0 --null || Fdie
+		Fexec rm -rf dev || Fdie
+	fi
+	Fexec xz --check=crc32 --lzma2=dict=1MiB -T0 < $_INITRD > $Fdestdir/boot/$_INITRD || Fdie
+	Ffileschmod /boot 0644
 	Fln $_INITRD /boot/initrd
 }

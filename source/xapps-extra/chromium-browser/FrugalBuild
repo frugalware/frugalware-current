@@ -4,15 +4,15 @@
 options+=('asneeded')
 
 pkgname=chromium-browser
-pkgver=31.0.1650.67
+pkgver=33.0.1750.152
 pkgrel=1
 pkgdesc='An open-source browser project that aims to build a safer, faster, and more stable way for all users to experience the web'
 url='http://www.chromium.org/'
-depends=('nss>=3.15.2' 'alsa-lib' 'hicolor-icon-theme' 'libxslt' 'ffmpeg>=1.0' \
+depends=('nss>=3.15.4' 'alsa-lib' 'hicolor-icon-theme' 'libxslt' 'ffmpeg>=1.0' \
 	'libevent>=2.0.21' 'libxscrnsaver' 'libpng=1.4.8-1' 'gtk+2-libs' 'libxtst' \
 	'libgcrypt' 'dejavu-ttf' 'gnutls>=2.12.12' 'libtasn1' 'gdk-pixbuf2' \
 	'systemd>=188' 'libcups' 'openssl' 'libxml2' 'speech-dispatcher' \
-	'protobuf' 'gconf' 'opus' 'libmtp' 'nspr>=4.10.1')
+	'gconf' 'opus' 'libmtp' 'nspr>=4.10.1' 'libgnome-keyring')
 makedepends=('python' 'perl' 'gperf' 'yasm' 'libgl' 'libgnome-keyring' 'cups' 'krb5' \
 	'elfutils' 'subversion' 'gtk+2')
 license=('BSD')
@@ -22,16 +22,16 @@ _F_gnome_iconcache="y"
 Finclude gnome-scriptlet
 _F_archive_name="chromium"
 up2date="lynx -dump 'http://googlechromereleases.blogspot.de/search/label/Stable%20updates' | \
-  egrep -o -m 1 'Stable channel has been updated to ([0123456789.]*)' | \
+  egrep -o -m 1 'has been updated to ([0123456789.]*)' | \
   egrep -o '([0123456789.]*)'"
 source=(http://commondatastorage.googleapis.com/chromium-browser-official/$_F_archive_name-$pkgver.tar.xz \
-	fix_embed_version.patch \
+	chromium-gn-r0.patch \
         $pkgname.desktop \
         $pkgname.sh)
-sha1sums=('56fe18a17a9ed8a002d70525a5ace7145fe606d6' \
-          'd5558133fe7ba50591fdb6daef710900adf61011' \
+sha1sums=('ab4e5a50c545324b1414c9f897afb73c40544db7' \
+          'a8c367af2530c74e096bb0258c22907a4d1054f5' \
           '78ed8913b8a598de6a9e45d206973a846dbe8a51' \
-          'e06de4aee77b3deb77e3b08ebb175ec02da42ced')
+          '3c7b4c5830d690c89b50c5bce6956eb78ff6765c')
 
 CXXFLAGS="$CXXFLAGS -fpermissive"
 
@@ -66,13 +66,8 @@ build() {
                      -Dffmpeg_branding=Chrome
                      -Dlinux_fpic=1
 		     -Dlogging_like_official_build=1
-                     -Ddisable_sse2=1"
-
-	if [ $CARCH = x86_64 ]; then
-		myconf+=" -Dtarget_arch=x64"
-	fi
-
-	myconf+=" -Duse_system_flac=1
+                     -Ddisable_sse2=1
+                     -Duse_system_flac=1
                      -Duse_system_speex=1
                      -Duse_system_libexif=1
                      -Duse_system_libevent=1
@@ -86,26 +81,25 @@ build() {
                      -Duse_system_libxslt=1
                      -Duse_system_libyuv=1
                      -Duse_system_nspr=1
-                     -Duse_system_protobuf=1
-                     -Duse_system_yasm=1"
-
-	myconf+=" -Duse_pulseaudio=1
+                     -Duse_system_protobuf=0
+                     -Duse_system_yasm=1
+                     -Duse_pulseaudio=1
                      -Dlinux_link_libpci=1
                      -Dlinux_link_gnome_keyring=1
                      -Dlinux_link_gsettings=1
-                     -Dlinux_link_libgps=1"
-
-	myconf+="-Dlinux_link_kerberos=1"
-
-
-	myconf+="-Djavascript_engine=v8
+                     -Dlinux_link_libgps=1
+                     -Dlinux_link_kerberos=1
+                     -Djavascript_engine=v8
                      -Dlinux_use_gold_binary=0
-                     -Dlinux_use_gold_flags=0"
+                     -Dlinux_use_gold_flags=0
+		     -Dgoogle_api_key=$_google_api_key
+                     -Dgoogle_default_client_id=$_google_default_client_id
+                     -Dgoogle_default_client_secret=$_google_default_client_secret"
 
+	if [ $CARCH = x86_64 ]; then
+		myconf+=" -Dtarget_arch=x64"
+	fi
 
-	myconf+="-Dgoogle_api_key=$_google_api_ke
-          -Dgoogle_default_client_id=$_google_default_client_id
-          -Dgoogle_default_client_secret=$_google_default_client_secret"
 
 	build/linux/unbundle/replace_gyp_files.py $myconf -Drelease_extra_cflags="$CFLAGS" || Fdie
 
@@ -152,4 +146,6 @@ build() {
 
         Fdocrel LICENSE
 	Fbuild_gnome_scriptlet
+
+	Fmessage "Finished building chromium $pkgver using $myconf"
 }

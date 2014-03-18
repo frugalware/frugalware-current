@@ -1,0 +1,69 @@
+# Compiling Time: 0.34 SBU
+# Contributor: Miklos Vajna <vmiklos@frugalware.org>
+# Maintainer: voroskoi <voroskoi@frugalware.org>
+
+pkgname=imap
+pkgver=2006k
+pkgrel=3
+extrapkgver=
+pkgdesc="An IMAP/POP server"
+url="http://www.washington.edu/imap"
+groups=('network')
+archs=('i686' 'x86_64' 'arm')
+depends=('openssl>=1.0.0')
+up2date="lynx -dump 'http://ftp.ntua.gr/pub/net/mail/imap/?M=D'|grep imap-[0-9a-z\.]*tar.gz$|sed -n 's/.*-\(.*\)\.t.*/\1/;s/$extrapkgver//;1 p'"
+source=(ftp://ftp.frugalware.org/pub/other/sources/${pkgname}/${pkgname}-${pkgver}${extrapkgver}.tar.Z $pkgname-2006j1-big.patch)
+
+build() {
+	Fcd imap-${pkgver}
+	Fpatchall
+	Fsed 'CFLAGS=-g' "CFLAGS=$CFLAGS" src/osdep/unix/Makefile
+	make slx SPECIALS="SSLINCLUDE=/usr/include/openssl \
+		SSLCERTS=/etc/ssl/certs SPECIALAUTHENTICATORS=ssl SSLTYPE=unix \
+		SHLIBBASE=c-client SHLIBNAME=libc-client.so.1" || Fdie
+
+	# daemons
+	Fexerel imapd/imapd /usr/sbin/imapd
+	Fexerel ipopd/ipop2d /usr/sbin/ipop2d
+	Fexerel ipopd/ipop3d /usr/sbin/ipop3d
+	
+	# headers
+	Fmkdir /usr/include/imap/
+	for i in `find c-client -name *.h ! -name os_*`; do
+		Ffilerel "${i}" /usr/include/imap/
+	done
+
+	# libs and links
+	Ffilerel c-client/c-client.a /usr/lib/c-client.a
+	Fexerel c-client/libc-client.so.1 /usr/lib/libc-client.so.1
+	Fln c-client.a /usr/lib/libc-client.a
+	Fln libc-client.so.1 /usr/lib/libc-client.so
+
+	# creating ssl certs
+	for i in imapd ipop3d
+	do
+		umask 077
+		tmp1=`mktemp`
+		tmp2=`mktemp`
+		openssl req -newkey rsa:1024 -keyout $tmp1 \
+			-nodes -x509 -days 365 -out  $tmp2 << EOF
+--
+SomeState
+SomeCity
+SomeOrganization
+SomeOrganizationalUnit
+localhost.localdomain
+root@localhost.localdomain
+EOF
+		cat $tmp1 >$i.pem
+		echo "" >>$i.pem
+		cat $tmp2 >>$i.pem
+		rm $tmp1 $tmp2
+		Finstallrel 0600 $i.pem /etc/ssl/certs/$i.pem
+		umask 022
+	done
+}
+sha1sums=('4b64e74d5928857a1c802ba6c9ab575205b342ce' \
+          'c38171e2295e9ddba15f5e91b7327020ae191fcf')
+
+# optimization OK

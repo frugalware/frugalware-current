@@ -1,0 +1,648 @@
+Index: drupal7/includes/ajax.inc
+===================================================================
+--- drupal7.orig/includes/ajax.inc	2014-04-21 19:16:44.861622677 -0500
++++ drupal7/includes/ajax.inc	2014-04-21 19:20:29.893868021 -0500
+@@ -308,10 +308,11 @@
+  * pulls the form info from $_POST.
+  *
+  * @return
+- *   An array containing the $form and $form_state. Use the list() function
+- *   to break these apart:
++ *   An array containing the $form, $form_state, $form_id, $form_build_id and an
++ *   initial list of Ajax $commands. Use the list() function to break these
++ *   apart:
+  *   @code
+- *     list($form, $form_state, $form_id, $form_build_id) = ajax_get_form();
++ *     list($form, $form_state, $form_id, $form_build_id, $commands) = ajax_get_form();
+  *   @endcode
+  */
+ function ajax_get_form() {
+@@ -331,6 +332,17 @@
+     drupal_exit();
+   }
+ 
++  // When a page level cache is enabled, the form-build id might have been
++  // replaced from within form_get_cache. If this is the case, it is also
++  // necessary to update it in the browser by issuing an appropriate Ajax
++  // command.
++  $commands = array();
++  if (isset($form['#build_id_old']) && $form['#build_id_old'] != $form['#build_id']) {
++    // If the form build ID has changed, issue an Ajax command to update it.
++    $commands[] = ajax_command_update_build_id($form);
++    $form_build_id = $form['#build_id'];
++  }
++
+   // Since some of the submit handlers are run, redirects need to be disabled.
+   $form_state['no_redirect'] = TRUE;
+ 
+@@ -345,7 +357,7 @@
+   $form_state['input'] = $_POST;
+   $form_id = $form['#form_id'];
+ 
+-  return array($form, $form_state, $form_id, $form_build_id);
++  return array($form, $form_state, $form_id, $form_build_id, $commands);
+ }
+ 
+ /**
+@@ -366,7 +378,7 @@
+  * @see system_menu()
+  */
+ function ajax_form_callback() {
+-  list($form, $form_state) = ajax_get_form();
++  list($form, $form_state, $form_id, $form_build_id, $commands) = ajax_get_form();
+   drupal_process_form($form['#form_id'], $form, $form_state);
+ 
+   // We need to return the part of the form (or some other content) that needs
+@@ -379,7 +391,19 @@
+     $callback = $form_state['triggering_element']['#ajax']['callback'];
+   }
+   if (!empty($callback) && function_exists($callback)) {
+-    return $callback($form, $form_state);
++    $result = $callback($form, $form_state);
++
++    if (!(is_array($result) && isset($result['#type']) && $result['#type'] == 'ajax')) {
++      // Turn the response into a #type=ajax array if it isn't one already.
++      $result = array(
++        '#type' => 'ajax',
++        '#commands' => ajax_prepare_response($result),
++      );
++    }
++
++    $result['#commands'] = array_merge($commands, $result['#commands']);
++
++    return $result;
+   }
+ }
+ 
+@@ -1209,3 +1233,26 @@
+     'selector' => $selector,
+   );
+ }
++
++/**
++ * Creates a Drupal Ajax 'update_build_id' command.
++ *
++ * This command updates the value of a hidden form_build_id input element on a
++ * form. It requires the form passed in to have keys for both the old build ID
++ * in #build_id_old and the new build ID in #build_id.
++ *
++ * The primary use case for this Ajax command is to serve a new build ID to a
++ * form served from the cache to an anonymous user, preventing one anonymous
++ * user from accessing the form state of another anonymous users on Ajax enabled
++ * forms.
++ *
++ * @param $form
++ *   The form array representing the form whose build ID should be updated.
++ */
++function ajax_command_update_build_id($form) {
++  return array(
++    'command' => 'updateBuildId',
++    'old' => $form['#build_id_old'],
++    'new' => $form['#build_id'],
++  );
++}
+Index: drupal7/includes/form.inc
+===================================================================
+--- drupal7.orig/includes/form.inc	2014-04-21 19:18:12.942951350 -0500
++++ drupal7/includes/form.inc	2014-04-21 19:20:29.901872867 -0500
+@@ -166,6 +166,12 @@
+  *       form_load_include() to add include files from a form constructor.
+  *     - base_form_id: Identification for a base form, as declared in a
+  *       hook_forms() implementation.
++ *     - immutable: If this flag is set to TRUE, a new form build id is
++ *       generated when the form is loaded from the cache. If it is subsequently
++ *       saved to the cache again, it will have another cache id and therefore
++ *       the original form and form-state will remain unaltered. This is
++ *       important when page caching is enabled in order to prevent form state
++ *       from leaking between anonymous users.
+  *   - rebuild_info: Internal. Similar to 'build_info', but pertaining to
+  *     drupal_rebuild_form().
+  *   - rebuild: Normally, after the entire form processing is completed and
+@@ -459,16 +465,24 @@
+   $form = drupal_retrieve_form($form_id, $form_state);
+ 
+   // If only parts of the form will be returned to the browser (e.g., Ajax or
+-  // RIA clients), re-use the old #build_id to not require client-side code to
+-  // manually update the hidden 'build_id' input element.
++  // RIA clients), or if the form already had a new build ID regenerated when it
++  // was retrieved from the form cache, reuse the existing #build_id.
+   // Otherwise, a new #build_id is generated, to not clobber the previous
+   // build's data in the form cache; also allowing the user to go back to an
+   // earlier build, make changes, and re-submit.
+   // @see drupal_prepare_form()
+-  if (isset($old_form['#build_id']) && !empty($form_state['rebuild_info']['copy']['#build_id'])) {
++  $enforce_old_build_id = isset($old_form['#build_id']) && !empty($form_state['rebuild_info']['copy']['#build_id']);
++  $old_form_is_mutable_copy = isset($old_form['#build_id_old']);
++  if ($enforce_old_build_id || $old_form_is_mutable_copy) {
+     $form['#build_id'] = $old_form['#build_id'];
++    if ($old_form_is_mutable_copy) {
++      $form['#build_id_old'] = $old_form['#build_id_old'];
++    }
+   }
+   else {
++    if (isset($old_form['#build_id'])) {
++      $form['#build_id_old'] = $old_form['#build_id'];
++    }
+     $form['#build_id'] = 'form-' . drupal_random_key();
+   }
+ 
+@@ -523,6 +537,15 @@
+           }
+         }
+       }
++      // Generate a new #build_id if the cached form was rendered on a cacheable
++      // page.
++      if (!empty($form_state['build_info']['immutable'])) {
++        $form['#build_id_old'] = $form['#build_id'];
++        $form['#build_id'] = 'form-' . drupal_random_key();
++        $form['form_build_id']['#value'] = $form['#build_id'];
++        $form['form_build_id']['#id'] = $form['#build_id'];
++        unset($form_state['build_info']['immutable']);
++      }
+       return $form;
+     }
+   }
+@@ -535,15 +558,28 @@
+   // 6 hours cache life time for forms should be plenty.
+   $expire = 21600;
+ 
++  // Ensure that the form build_id embedded in the form structure is the same as
++  // the one passed in as a parameter. This is an additional safety measure to
++  // prevent legacy code operating directly with form_get_cache and
++  // form_set_cache from accidentally overwriting immutable form state.
++  if ($form['#build_id'] != $form_build_id) {
++    watchdog('form', 'Form build-id mismatch detected while attempting to store a form in the cache.', array(), WATCHDOG_ERROR);
++    return;
++  }
++
+   // Cache form structure.
+   if (isset($form)) {
+     if ($GLOBALS['user']->uid) {
+       $form['#cache_token'] = drupal_get_token();
+     }
++    unset($form['#build_id_old']);
+     cache_set('form_' . $form_build_id, $form, 'cache_form', REQUEST_TIME + $expire);
+   }
+ 
+   // Cache form state.
++  if (variable_get('cache', 0) && drupal_page_is_cacheable()) {
++    $form_state['build_info']['immutable'] = TRUE;
++  }
+   if ($data = array_diff_key($form_state, array_flip(form_state_keys_no_cache()))) {
+     cache_set('form_state_' . $form_build_id, $data, 'cache_form', REQUEST_TIME + $expire);
+   }
+Index: drupal7/misc/ajax.js
+===================================================================
+--- drupal7.orig/misc/ajax.js	2014-04-21 19:16:44.861622677 -0500
++++ drupal7/misc/ajax.js	2014-04-21 19:20:29.909877715 -0500
+@@ -616,6 +616,13 @@
+       .removeClass('odd even')
+       .filter(':even').addClass('odd').end()
+       .filter(':odd').addClass('even');
++  },
++
++  /**
++   * Command to update a form's build ID.
++   */
++  updateBuildId: function(ajax, response, status) {
++    $('input[name="form_build_id"][value="' + response.old + '"]').val(response.new);
+   }
+ };
+ 
+Index: drupal7/modules/file/file.module
+===================================================================
+--- drupal7.orig/modules/file/file.module	2014-04-21 19:16:44.865625101 -0500
++++ drupal7/modules/file/file.module	2014-04-21 19:20:29.909877715 -0500
+@@ -246,7 +246,7 @@
+     return array('#type' => 'ajax', '#commands' => $commands);
+   }
+ 
+-  list($form, $form_state) = ajax_get_form();
++  list($form, $form_state, $form_id, $form_build_id, $commands) = ajax_get_form();
+ 
+   if (!$form) {
+     // Invalid form_build_id.
+@@ -284,7 +284,6 @@
+   $js = drupal_add_js();
+   $settings = call_user_func_array('array_merge_recursive', $js['settings']['data']);
+ 
+-  $commands = array();
+   $commands[] = ajax_command_replace(NULL, $output, $settings);
+   return array('#type' => 'ajax', '#commands' => $commands);
+ }
+Index: drupal7/modules/simpletest/drupal_web_test_case.php
+===================================================================
+--- drupal7.orig/modules/simpletest/drupal_web_test_case.php	2014-04-21 19:16:44.865625101 -0500
++++ drupal7/modules/simpletest/drupal_web_test_case.php	2014-04-21 19:20:29.917882561 -0500
+@@ -2114,6 +2114,13 @@
+             }
+             break;
+ 
++          case 'updateBuildId':
++            $buildId = $xpath->query('//input[@name="form_build_id" and @value="' . $command['old'] . '"]')->item(0);
++            if ($buildId) {
++              $buildId->setAttribute('value', $command['new']);
++            }
++            break;
++
+           // @todo Add suitable implementations for these commands in order to
+           //   have full test coverage of what ajax.js can do.
+           case 'remove':
+Index: drupal7/modules/simpletest/tests/ajax.test
+===================================================================
+--- drupal7.orig/modules/simpletest/tests/ajax.test	2014-04-21 19:16:44.865625101 -0500
++++ drupal7/modules/simpletest/tests/ajax.test	2014-04-21 19:20:29.917882561 -0500
+@@ -498,6 +498,85 @@
+ }
+ 
+ /**
++ * Test Ajax forms when page caching for anonymous users is turned on.
++ */
++class AJAXFormPageCacheTestCase extends AJAXTestCase {
++  protected $profile = 'testing';
++
++  public static function getInfo() {
++    return array(
++      'name' => 'AJAX forms on cached pages',
++      'description' => 'Tests that AJAX forms work properly for anonymous users on cached pages.',
++      'group' => 'AJAX',
++    );
++  }
++
++  public function setUp() {
++    parent::setUp();
++
++    variable_set('cache', TRUE);
++  }
++
++  /**
++   * Return the build id of the current form.
++   */
++  protected function getFormBuildId() {
++    $build_id_fields = $this->xpath('//input[@name="form_build_id"]');
++    $this->assertEqual(count($build_id_fields), 1, 'One form build id field on the page');
++    return (string) $build_id_fields[0]['value'];
++  }
++
++  /**
++   * Create a simple form, then POST to system/ajax to change to it.
++   */
++  public function testSimpleAJAXFormValue() {
++    $this->drupalGet('ajax_forms_test_get_form');
++    $this->assertEqual($this->drupalGetHeader('X-Drupal-Cache'), 'MISS', 'Page was not cached.');
++    $build_id_initial = $this->getFormBuildId();
++
++    $edit = array('select' => 'green');
++    $commands = $this->drupalPostAJAX(NULL, $edit, 'select');
++    $build_id_first_ajax = $this->getFormBuildId();
++    $this->assertNotEqual($build_id_initial, $build_id_first_ajax, 'Build id is changed in the simpletest-DOM on first AJAX submission');
++    $expected = array(
++      'command' => 'updateBuildId',
++      'old' => $build_id_initial,
++      'new' => $build_id_first_ajax,
++    );
++    $this->assertCommand($commands, $expected, 'Build id change command issued on first AJAX submission');
++
++    $edit = array('select' => 'red');
++    $commands = $this->drupalPostAJAX(NULL, $edit, 'select');
++    $build_id_second_ajax = $this->getFormBuildId();
++    $this->assertEqual($build_id_first_ajax, $build_id_second_ajax, 'Build id remains the same on subsequent AJAX submissions');
++
++    // Repeat the test sequence but this time with a page loaded from the cache.
++    $this->drupalGet('ajax_forms_test_get_form');
++    $this->assertEqual($this->drupalGetHeader('X-Drupal-Cache'), 'HIT', 'Page was cached.');
++    $build_id_from_cache_initial = $this->getFormBuildId();
++    $this->assertEqual($build_id_initial, $build_id_from_cache_initial, 'Build id is the same as on the first request');
++
++    $edit = array('select' => 'green');
++    $commands = $this->drupalPostAJAX(NULL, $edit, 'select');
++    $build_id_from_cache_first_ajax = $this->getFormBuildId();
++    $this->assertNotEqual($build_id_from_cache_initial, $build_id_from_cache_first_ajax, 'Build id is changed in the simpletest-DOM on first AJAX submission');
++    $this->assertNotEqual($build_id_first_ajax, $build_id_from_cache_first_ajax, 'Build id from first user is not reused');
++    $expected = array(
++      'command' => 'updateBuildId',
++      'old' => $build_id_from_cache_initial,
++      'new' => $build_id_from_cache_first_ajax,
++    );
++    $this->assertCommand($commands, $expected, 'Build id change command issued on first AJAX submission');
++
++    $edit = array('select' => 'red');
++    $commands = $this->drupalPostAJAX(NULL, $edit, 'select');
++    $build_id_from_cache_second_ajax = $this->getFormBuildId();
++    $this->assertEqual($build_id_from_cache_first_ajax, $build_id_from_cache_second_ajax, 'Build id remains the same on subsequent AJAX submissions');
++  }
++}
++
++
++/**
+  * Miscellaneous Ajax tests using ajax_test module.
+  */
+ class AJAXElementValidation extends AJAXTestCase {
+Index: drupal7/modules/simpletest/tests/form.test
+===================================================================
+--- drupal7.orig/modules/simpletest/tests/form.test	2014-04-21 19:18:12.958961044 -0500
++++ drupal7/modules/simpletest/tests/form.test	2014-04-21 19:20:29.921884984 -0500
+@@ -1111,6 +1111,182 @@
+       $this->assertText('State persisted.');
+     }
+   }
++
++  /**
++   * Verify that the form build-id remains the same when validation errors
++   * occur on a mutable form.
++   */
++  function testMutableForm() {
++    // Request the form with 'cache' query parameter to enable form caching.
++    $this->drupalGet('form_test/form-storage', array('query' => array('cache' => 1)));
++    $buildIdFields = $this->xpath('//input[@name="form_build_id"]');
++    $this->assertEqual(count($buildIdFields), 1, 'One form build id field on the page');
++    $buildId = (string) $buildIdFields[0]['value'];
++
++    // Trigger validation error by submitting an empty title.
++    $edit = array('title' => '');
++    $this->drupalPost(NULL, $edit, 'Continue submit');
++
++    // Verify that the build-id did not change.
++    $this->assertFieldByName('form_build_id', $buildId, 'Build id remains the same when form validation fails');
++  }
++
++  /**
++   * Verifies that form build-id is regenerated when loading an immutable form
++   * from the cache.
++   */
++  function testImmutableForm() {
++    // Request the form with 'cache' query parameter to enable form caching.
++    $this->drupalGet('form_test/form-storage', array('query' => array('cache' => 1, 'immutable' => 1)));
++    $buildIdFields = $this->xpath('//input[@name="form_build_id"]');
++    $this->assertEqual(count($buildIdFields), 1, 'One form build id field on the page');
++    $buildId = (string) $buildIdFields[0]['value'];
++
++    // Trigger validation error by submitting an empty title.
++    $edit = array('title' => '');
++    $this->drupalPost(NULL, $edit, 'Continue submit');
++
++    // Verify that the build-id did change.
++    $this->assertNoFieldByName('form_build_id', $buildId, 'Build id changes when form validation fails');
++
++    // Retrieve the new build-id.
++    $buildIdFields = $this->xpath('//input[@name="form_build_id"]');
++    $this->assertEqual(count($buildIdFields), 1, 'One form build id field on the page');
++    $buildId = (string) $buildIdFields[0]['value'];
++
++    // Trigger validation error by again submitting an empty title.
++    $edit = array('title' => '');
++    $this->drupalPost(NULL, $edit, 'Continue submit');
++
++    // Verify that the build-id does not change the second time.
++    $this->assertFieldByName('form_build_id', $buildId, 'Build id remains the same when form validation fails subsequently');
++  }
++
++  /**
++   * Verify that existing contrib code cannot overwrite immutable form state.
++   */
++  public function testImmutableFormLegacyProtection() {
++    $this->drupalGet('form_test/form-storage', array('query' => array('cache' => 1, 'immutable' => 1)));
++    $build_id_fields = $this->xpath('//input[@name="form_build_id"]');
++    $this->assertEqual(count($build_id_fields), 1, 'One form build id field on the page');
++    $build_id = (string) $build_id_fields[0]['value'];
++
++    // Try to poison the form cache.
++    $original = $this->drupalGetAJAX('form_test/form-storage-legacy/' . $build_id);
++    $this->assertEqual($original['form']['#build_id_old'], $build_id, 'Original build_id was recorded');
++    $this->assertNotEqual($original['form']['#build_id'], $build_id, 'New build_id was generated');
++
++    // Assert that a watchdog message was logged by form_set_cache.
++    $status = (bool) db_query_range('SELECT 1 FROM {watchdog} WHERE message = :message', 0, 1, array(':message' => 'Form build-id mismatch detected while attempting to store a form in the cache.'));
++    $this->assert($status, 'A watchdog message was logged by form_set_cache');
++
++    // Ensure that the form state was not poisoned by the preceeding call.
++    $original = $this->drupalGetAJAX('form_test/form-storage-legacy/' . $build_id);
++    $this->assertEqual($original['form']['#build_id_old'], $build_id, 'Original build_id was recorded');
++    $this->assertNotEqual($original['form']['#build_id'], $build_id, 'New build_id was generated');
++    $this->assert(empty($original['form']['#poisoned']), 'Original form structure was preserved');
++    $this->assert(empty($original['form_state']['poisoned']), 'Original form state was preserved');
++  }
++}
++
++/**
++ * Test the form storage when page caching for anonymous users is turned on.
++ */
++class FormsFormStoragePageCacheTestCase extends DrupalWebTestCase {
++  protected $profile = 'testing';
++
++  public static function getInfo() {
++    return array(
++      'name'  => 'Forms using form storage on cached pages',
++      'description'  => 'Tests a form using form storage and makes sure validation and caching works when page caching for anonymous users is turned on.',
++      'group' => 'Form API',
++    );
++  }
++
++  public function setUp() {
++    parent::setUp('form_test');
++
++    variable_set('cache', TRUE);
++  }
++
++  /**
++   * Return the build id of the current form.
++   */
++  protected function getFormBuildId() {
++    $build_id_fields = $this->xpath('//input[@name="form_build_id"]');
++    $this->assertEqual(count($build_id_fields), 1, 'One form build id field on the page');
++    return (string) $build_id_fields[0]['value'];
++  }
++
++  /**
++   * Build-id is regenerated when validating cached form.
++   */
++  public function testValidateFormStorageOnCachedPage() {
++    $this->drupalGet('form_test/form-storage-page-cache');
++    $this->assertEqual($this->drupalGetHeader('X-Drupal-Cache'), 'MISS', 'Page was not cached.');
++    $this->assertText('No old build id', 'No old build id on the page');
++    $build_id_initial = $this->getFormBuildId();
++
++    // Trigger validation error by submitting an empty title.
++    $edit = array('title' => '');
++    $this->drupalPost(NULL, $edit, 'Save');
++    $this->assertText($build_id_initial, 'Old build id on the page');
++    $build_id_first_validation = $this->getFormBuildId();
++    $this->assertNotEqual($build_id_initial, $build_id_first_validation, 'Build id changes when form validation fails');
++
++    // Trigger validation error by again submitting an empty title.
++    $edit = array('title' => '');
++    $this->drupalPost(NULL, $edit, 'Save');
++    $this->assertText('No old build id', 'No old build id on the page');
++    $build_id_second_validation = $this->getFormBuildId();
++    $this->assertEqual($build_id_first_validation, $build_id_second_validation, 'Build id remains the same when form validation fails subsequently');
++
++    // Repeat the test sequence but this time with a page loaded from the cache.
++    $this->drupalGet('form_test/form-storage-page-cache');
++    $this->assertEqual($this->drupalGetHeader('X-Drupal-Cache'), 'HIT', 'Page was cached.');
++    $this->assertText('No old build id', 'No old build id on the page');
++    $build_id_from_cache_initial = $this->getFormBuildId();
++    $this->assertEqual($build_id_initial, $build_id_from_cache_initial, 'Build id is the same as on the first request');
++
++    // Trigger validation error by submitting an empty title.
++    $edit = array('title' => '');
++    $this->drupalPost(NULL, $edit, 'Save');
++    $this->assertText($build_id_initial, 'Old build id is initial build id');
++    $build_id_from_cache_first_validation = $this->getFormBuildId();
++    $this->assertNotEqual($build_id_initial, $build_id_from_cache_first_validation, 'Build id changes when form validation fails');
++    $this->assertNotEqual($build_id_first_validation, $build_id_from_cache_first_validation, 'Build id from first user is not reused');
++
++    // Trigger validation error by again submitting an empty title.
++    $edit = array('title' => '');
++    $this->drupalPost(NULL, $edit, 'Save');
++    $this->assertText('No old build id', 'No old build id on the page');
++    $build_id_from_cache_second_validation = $this->getFormBuildId();
++    $this->assertEqual($build_id_from_cache_first_validation, $build_id_from_cache_second_validation, 'Build id remains the same when form validation fails subsequently');
++  }
++
++  /**
++   * Build-id is regenerated when rebuilding cached form.
++   */
++  public function testRebuildFormStorageOnCachedPage() {
++    $this->drupalGet('form_test/form-storage-page-cache');
++    $this->assertEqual($this->drupalGetHeader('X-Drupal-Cache'), 'MISS', 'Page was not cached.');
++    $this->assertText('No old build id', 'No old build id on the page');
++    $build_id_initial = $this->getFormBuildId();
++
++    // Trigger rebuild, should regenerate build id.
++    $edit = array('title' => 'something');
++    $this->drupalPost(NULL, $edit, 'Rebuild');
++    $this->assertText($build_id_initial, 'Initial build id as old build id on the page');
++    $build_id_first_rebuild = $this->getFormBuildId();
++    $this->assertNotEqual($build_id_initial, $build_id_first_rebuild, 'Build id changes on first rebuild.');
++
++    // Trigger subsequent rebuild, should regenerate the build id again.
++    $edit = array('title' => 'something');
++    $this->drupalPost(NULL, $edit, 'Rebuild');
++    $this->assertText($build_id_first_rebuild, 'First build id as old build id on the page');
++    $build_id_second_rebuild = $this->getFormBuildId();
++    $this->assertNotEqual($build_id_first_rebuild, $build_id_second_rebuild, 'Build id changes on second rebuild.');
++  }
+ }
+ 
+ /**
+Index: drupal7/modules/simpletest/tests/form_test.module
+===================================================================
+--- drupal7.orig/modules/simpletest/tests/form_test.module	2014-04-21 19:18:12.578730834 -0500
++++ drupal7/modules/simpletest/tests/form_test.module	2014-04-21 19:20:29.925887407 -0500
+@@ -83,6 +83,21 @@
+     'type' => MENU_CALLBACK,
+   );
+ 
++  $items['form_test/form-storage-legacy'] = array(
++    'title' => 'Emulate legacy AHAH-style ajax callback',
++    'page callback' => 'form_test_storage_legacy_handler',
++    'access arguments' => array('access content'),
++    'type' => MENU_CALLBACK,
++  );
++
++  $items['form_test/form-storage-page-cache'] = array(
++    'title' => 'Form storage with page cache test',
++    'page callback' => 'drupal_get_form',
++    'page arguments' => array('form_test_storage_page_cache_form'),
++    'access arguments' => array('access content'),
++    'type' => MENU_CALLBACK,
++  );
++
+   $items['form_test/wrapper-callback'] = array(
+     'title' => 'Form wrapper callback test',
+     'page callback' => 'form_test_wrapper_callback',
+@@ -691,10 +706,37 @@
+     $form_state['cache'] = TRUE;
+   }
+ 
++  if (isset($_REQUEST['immutable'])) {
++    $form_state['build_info']['immutable'] = TRUE;
++  }
++
+   return $form;
+ }
+ 
+ /**
++ * Emulate legacy AHAH-style ajax callback.
++ *
++ * Drupal 6 AHAH callbacks used to operate directly on forms retrieved using
++ * form_get_cache and stored using form_set_cache after manipulation. This
++ * callback helps testing whether form_set_cache prevents resaving of immutable
++ * forms.
++ */
++function form_test_storage_legacy_handler($form_build_id) {
++  $form_state = array();
++  $form = form_get_cache($form_build_id, $form_state);
++
++  drupal_json_output(array(
++    'form' => $form,
++    'form_state' => $form_state,
++  ));
++
++  $form['#poisoned'] = TRUE;
++  $form_state['poisoned'] = TRUE;
++
++  form_set_cache($form_build_id, $form, $form_state);
++}
++
++/**
+  * Form element validation handler for 'value' element in form_test_storage_form().
+  *
+  * Tests updating of cached form storage during validation.
+@@ -731,6 +773,56 @@
+ }
+ 
+ /**
++ * A simple form for testing form storage when page caching is enabled.
++ */
++function form_test_storage_page_cache_form($form, &$form_state) {
++  $form['title'] = array(
++    '#type' => 'textfield',
++    '#title' => 'Title',
++    '#required' => TRUE,
++  );
++
++  $form['test_build_id_old'] = array(
++    '#type' => 'item',
++    '#title' => 'Old build id',
++    '#markup' => 'No old build id',
++  );
++
++  $form['submit'] = array(
++    '#type' => 'submit',
++    '#value' => 'Save',
++  );
++
++  $form['rebuild'] = array(
++    '#type' => 'submit',
++    '#value' => 'Rebuild',
++    '#submit' => array('form_test_storage_page_cache_rebuild'),
++  );
++
++  $form['#after_build'] = array('form_test_storage_page_cache_old_build_id');
++  $form_state['cache'] = TRUE;
++
++  return $form;
++}
++
++/**
++ * Form element #after_build callback: output the old form build-id.
++ */
++function form_test_storage_page_cache_old_build_id($form) {
++  if (isset($form['#build_id_old'])) {
++    $form['test_build_id_old']['#markup'] = check_plain($form['#build_id_old']);
++  }
++  return $form;
++}
++
++/**
++ * Form submit callback: Rebuild the form and continue.
++ */
++function form_test_storage_page_cache_rebuild($form, &$form_state) {
++  $form_state['rebuild'] = TRUE;
++}
++
++/**
+  * A form for testing form labels and required marks.
+  */
+ function form_label_test_form() {

@@ -3,8 +3,8 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=lvm2
-pkgver=2.02.98
-pkgrel=3
+pkgver=2.02.105
+pkgrel=2
 pkgdesc="Logical Volume Manager 2 utilities"
 url="http://sources.redhat.com/lvm2/"
 rodepends=("$pkgname-libs")
@@ -12,10 +12,11 @@ depends=('systemd>=188' 'readline>=6.2')
 backup=(etc/lvm/lvm.conf)
 groups=('base')
 archs=('i686' 'x86_64' 'arm')
-up2date="lynx -dump ftp://sources.redhat.com/pub/lvm2/|grep tgz$|sed -n 's/.*LVM2\.\(.*\)\.tgz/\1/;$ p'"
+up2date="Fwcat ftp://sources.redhat.com/pub/lvm2/ | sed -r -n 's:.*>LVM2\.([0-9]+\.[0-9]+\.[0-9]+)\.tgz.*:\1:p' | Fsort | tail -n1"
 source=(ftp://sources.redhat.com/pub/lvm2/LVM2.$pkgver.tgz lvm.service README.Frugalware)
 signatures=($source.asc '' '')
-_F_systemd_units=(lvm=e)
+_F_systemd_scriptlet=lvm2.install
+_F_systemd_units=(lvm=)
 Finclude systemd
 
 # Needed to avoid recursive depends between this and systemd.
@@ -28,12 +29,14 @@ subrodepends=('glibc')
 build()
 {
 	Fcd LVM2.$pkgver
+	Fsed "use_lvmetad = 0" "use_lvmetad = 1" conf/example.conf.in
 	Fmake --enable-applib --enable-cmdlib --enable-pkgconfig --with-udevdir=/lib/udev/rules.d \
-		--enable-udev_sync --exec-prefix=""
+		--enable-udev_sync --enable-udev_rules --enable-lvmetad --enable-dmeventd \
+		--with-systemdsystemunitdir=/lib/systemd/system --exec-prefix=""
 	make device-mapper || return 1
 	make DESTDIR=$Fdestdir sbindir="$Fdestdir/sbin" \
 		confdir="$Fdestdir/etc/lvm" libdir="$Fdestdir/lib" \
-		install install_device-mapper
+		install install_device-mapper install_systemd_units || Fdie
 	Ffile /lib/systemd/system/lvm.service
 	Fmkdir /etc/systemd/system/sysinit.target.wants
 	Fdoc README.Frugalware
@@ -41,11 +44,14 @@ build()
 	Fsplit $pkgname-libs lib/libdevmapper.*
 	Fsplit $pkgname-libs lib/liblvm2app.*
 	Fsplit $pkgname-libs lib/liblvm2cmd.*
+	Fsplit $pkgname-libs {,usr/}lib/libdevmapper-event.*
+	Fsplit $pkgname-libs {,usr/}lib/libdevmapper-event-lvm2.*
+	Fsplit $pkgname-libs lib/{,device-mapper/}libdevmapper-event-lvm2{mirror,raid,snapshot,thin}.so
 	Fsplit $pkgname-libs usr/lib/libdevmapper.*
 	Fsplit $pkgname-libs usr/lib/liblvm2app.*
 	Fsplit $pkgname-libs usr/lib/liblvm2cmd.*
-	Fsplit $pkgname-libs usr/lib/pkgconfig/{devmapper,lvm2app}.pc
-	Fsplit $pkgname-libs usr/include/{libdevmapper,lvm2app,lvm2cmd}.h
+	Fsplit $pkgname-libs usr/lib/pkgconfig/{devmapper,lvm2app,devmapper-event}.pc
+	Fsplit $pkgname-libs usr/include/{libdevmapper,lvm2app,lvm2cmd,libdevmapper-event}.h
 }
 
 # optimization ok

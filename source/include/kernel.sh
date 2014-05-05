@@ -328,6 +328,8 @@ Fbuildkernel()
 	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname \
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/source
 
+	Frm /lib/firmware
+
 	Fkernelver_compress_modules
 
 	Fexec /sbin/depmod -a -b $Fdestdir $_F_kernel_ver$_F_kernel_uname || Fdie

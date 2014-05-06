@@ -1,32 +1,51 @@
 # Compiling time: 24.85 SBU
-# Maintainer: voroskoi <voroskoi@frugalware.org>
+# Maintainer: kikadf <kikadf.01@gmail.com>
+# Contributor: voroskoi <voroskoi@frugalware.org>
+
+options+=('asneeded')
 
 pkgname=seamonkey
-pkgver=2.8
+pkgver=2.25
 pkgrel=1
 pkgdesc="Seamonkey all-in-one internet application suite"
 url="http://www.mozilla.org/projects/seamonkey/"
-depends=('libstdc++' 'gtk+2>=2.20.0-2' 'libxau>=1.0.4' 'libxdmcp' 'libxdamage' 'libxml2' 'libidl' 'libxt' \
-	'libice' 'nss>=3.12.9' 'libxft' 'dbus-glib' 'alsa-lib' 'libnotify' 'libvpx')
+depends=('libstdc++' 'gtk+2' 'libxau' 'libxdmcp' 'libxdamage' 'libxml2' \
+         'libidl' 'libxt' 'libice' 'nss>=3.12.9' 'libxft' 'dbus-glib' \
+         'alsa-lib' 'libnotify' 'libvpx' 'libevent' 'libpulse' 'gstreamer' \
+         'gst-plugins-base' 'gst-plugins-ugly-x264' 'gst-plugins-ugly-mad' \
+         'gst-plugins-bad-faad2' 'gst-plugins-good-pulseaudio' 'hunspell' \
+         'startup-notification')
 makedepends=('zip' 'yasm')
 options=('scriptlet')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump $url |grep SeaMonkey -m4 |sed -ne 's/.*Monkey \(.*\)/\1/;$ p'"
-source=(http://releases.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/source/$pkgname-$pkgver.source.tar.bz2 \
-	config $pkgname.desktop)
+source=(ftp://ftp.mozilla.org/pub/mozilla.org/$pkgname/releases/$pkgver/source/$pkgname-$pkgver.source.tar.bz2 \
+	mozconfig $pkgname.desktop sharedlibs.patch)
+sha1sums=('f04793350475ec2eea2dcc58a2f350614d0d5081' \
+          '00c975382a8184809952760797b86f2a658856a0' \
+          'b0e0bdd676758e19cac4a0429257a92183328f0e' \
+          '213ea3d711a6cd80b926db4bd6bafccbe18804c7')
 
 build()
 {
-	unset MAKEFLAGS
-	Fcd comm-release
-	export CFLAGS="$CFLAGS -fno-strict-aliasing -fPIC"
-	export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing -fPIC"
-	sed "s/-march=i686 -O2 -pipe/$CFLAGS/" $startdir/src/config > .mozconfig
-	echo "ac_add_options --with-system-libvpx" >> .mozconfig
-	sed -i 's#VPX_CODEC_USE_INPUT_PARTITION#VPX_CODEC_USE_INPUT_FRAGMENTS#' mozilla/configure
+	export CXXFLAGS="-fpermissive"
+	export LDFLAGS="-Wl,-rpath,/usr/lib/$pkgname-$pkgver -Wl,-O1,--sort-common,--hash-style=gnu,--as-needed"
 
-	Fbuild
+	if [ "$CARCH" == "i686" ]; then
+		LDFLAGS+=" -Wl,--no-keep-memory"
+	fi
+
+	Fcd comm-release
+	Fpatchall
+	cp ../mozconfig .mozconfig || Fdie
+
+	# Autodetect language.
+	sed -i '/intl.locale.matchOS/s/false/true/' mozilla/modules/libpref/src/init/all.js || Fdie
+
+	make -j1 -f client.mk build MOZ_MAKE_FLAGS="$MAKEFLAGS" || Fdie
+
+	make -j1 -f client.mk DESTDIR="$Fdestdir" install || Fdie
 
 	# Get rid of versions in path names.
 	Fmv /usr/lib/$pkgname-$pkgver /usr/lib/$pkgname
@@ -37,8 +56,7 @@ build()
 	Fln ../mozilla/plugins/ /usr/lib/$pkgname/plugins
 
 	# Install icon for the menu file.
-	Fmkdir /usr/share/pixmaps/
-	Ffile comm-release/suite/branding/nightly/icons/gtk/$pkgname.png /usr/share/pixmaps/$pkgname.png
+	Ficon comm-release/suite/branding/nightly/icons/gtk/$pkgname.png
 
 	# Install menu file.
 	Ffile /usr/share/applications/$pkgname.desktop
@@ -47,8 +65,6 @@ build()
 	Frm usr/bin/seamonkey
 	Fwrapper '/usr/lib/seamonkey/seamonkey $@' $pkgname
 }
-sha1sums=('8f5ef8cb2a3ac495add99fb3394d8c007a5d91af' \
-          '3ebee15ce05a37f97b7948f8197aadf19937b603' \
-          'b0e0bdd676758e19cac4a0429257a92183328f0e')
+
 
 # optimization OK

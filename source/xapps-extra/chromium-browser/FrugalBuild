@@ -4,16 +4,16 @@
 options+=('asneeded')
 
 pkgname=chromium-browser
-pkgver=33.0.1750.152
-pkgrel=2
+pkgver=34.0.1847.134
+pkgrel=1
 pkgdesc='An open-source browser project that aims to build a safer, faster, and more stable way for all users to experience the web'
 url='http://www.chromium.org/'
 depends=('nss>=3.15.4' 'alsa-lib' 'hicolor-icon-theme' 'libxslt>=1.1.28' 'ffmpeg>=1.0' \
 	'libevent>=2.0.21' 'libxscrnsaver' 'libpng=1.4.8-1' 'gtk+2-libs' 'libxtst' \
 	'gnutls>=3.2.12.1' 'libgcrypt>=1.6.1' 'dejavu-ttf' 'libtasn1>=3.4-1' 'gdk-pixbuf2' \
-	'systemd>=208-3' 'libcups' 'openssl' 'libxml2' 'speech-dispatcher' \
+	'systemd>=208-3' 'libcups' 'openssl' 'libxml2' 'speech-dispatcher' 'libpulse>=5.0' \
 	'gconf' 'opus' 'libmtp>=1.1.6-2' 'nspr>=4.10.4' 'libgnome-keyring>=3.10.1-2')
-makedepends=('python' 'perl' 'gperf' 'yasm' 'libgl' 'cups' 'krb5' 'elfutils' 'subversion' 'gtk+2')
+makedepends=('python' 'perl' 'gperf' 'yasm' 'libgl' 'cups' 'krb5' 'elfutils' 'subversion' 'gtk+2' 'ninja')
 license=('BSD')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
@@ -24,11 +24,13 @@ up2date="lynx -dump 'http://googlechromereleases.blogspot.de/search/label/Stable
   egrep -o -m 1 'has been updated to ([0123456789.]*)' | \
   egrep -o '([0123456789.]*)'"
 source=(http://commondatastorage.googleapis.com/chromium-browser-official/$_F_archive_name-$pkgver.tar.xz \
-	chromium-gn-r0.patch \
+	chromium-gn-r1.patch \
+	chromium-depot-tools-r0.patch \
         $pkgname.desktop \
         $pkgname.sh)
-sha1sums=('ab4e5a50c545324b1414c9f897afb73c40544db7' \
-          'a8c367af2530c74e096bb0258c22907a4d1054f5' \
+sha1sums=('2d69aac99b48a0eab5d963fa0d95d0068aa134bb' \
+          '5d0d092c11e8852bfe468d0a0d022907b7a0baf4' \
+          '9dfadb8620ca39c7316d1fb624ab6b4d9093d95c' \
           '78ed8913b8a598de6a9e45d206973a846dbe8a51' \
           '3c7b4c5830d690c89b50c5bce6956eb78ff6765c')
 
@@ -102,15 +104,14 @@ build() {
 
 	build/linux/unbundle/replace_gyp_files.py $myconf -Drelease_extra_cflags="$CFLAGS" || Fdie
 
-    #export GYP_GENERATORS='ninja'
-    ./build/gyp_chromium -f make  --depth .  $myconf || Fdie
-    make BUILDTYPE=Release  chrome || Fdie
+	./build/gyp_chromium --no-parallel --depth .  $myconf || Fdie
+	ninja -C out/Release   chrome || Fdie
 
-    # Build the required SUID_SANDBOX helper
-    make BUILDTYPE=Release chrome_sandbox || Fdie
+	# Build the required SUID_SANDBOX helper
+	ninja -C out/Release  chrome_sandbox || Fdie
 
-    # Build the ChromeDriver test suite
-    make BUILDTYPE=Release chromedriver || Fdie
+	# Build the ChromeDriver test suite
+	ninja -C out/Release  chromedriver || Fdie
 
 	# NaCl
 	#Fcp nacl_helper usr/lib/chromium/
@@ -123,28 +124,27 @@ build() {
         Finstallrel 4755 out/Release/chrome_sandbox usr/lib/chromium/chrome-sandbox
 	Ffileschown usr/lib/chromium/chrome-sandbox root root
 
+	cp out/Release/*.pak "$Fdestdir/usr/lib/chromium/" || Fdie
+        cp out/Release/libffmpegsumo.so "$Fdestdir/usr/lib/chromium/" || Fdie
+	cp -a out/Release/locales out/Release/resources  \
+		$Fdestdir/usr/lib/chromium/ || Fdie
 
-        cp out/Release/*.pak "$Fdestdir/usr/lib/chromium/" || Fdie
-	cp out/Release/libffmpegsumo.so "$Fdestdir/usr/lib/chromium/" || Fdie
+	cp out/Release/icudtl.dat "$Fdestdir/usr/lib/chromium" || Fdie
 
-        cp -a out/Release/locales out/Release/resources  \
-	$Fdestdir/usr/lib/chromium/ || Fdie
         find $Fdestdir/usr/lib/chromium/ -name '*.d' -type f -delete
         Finstallrel 644 out/Release/chrome.1 usr/share/man/man1/chromium.1
 
         Finstall 644 $pkgname.desktop usr/share/applications/$pkgname.desktop
         for size in 22 24 48 64 256; do
-                install -m 0644 -D \
-                        chrome/app/theme/chromium/product_logo_${size}.png \
-                        $Fdestdir/usr/share/icons/hicolor/${size}x${size}/apps/$pkgname.png
+		install -m 0644 -D \
+		chrome/app/theme/chromium/product_logo_${size}.png \
+		$Fdestdir/usr/share/icons/hicolor/${size}x${size}/apps/$pkgname.png
         done
 
-	 Fdirschmod usr/lib/chromium/locales 755
+	Fdirschmod usr/lib/chromium/locales 755
 
         Fexe $pkgname.sh usr/bin/$pkgname
 
         Fdocrel LICENSE
 	Fbuild_gnome_scriptlet
-
-	Fmessage "Finished building chromium $pkgver using $myconf"
 }

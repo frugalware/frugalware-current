@@ -2,48 +2,55 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=ghc
-pkgver=7.0.3
+pkgver=7.8.1
 pkgrel=1
 pkgdesc="The Glasgow Haskell Compiler"
 url="http://www.haskell.org/ghc/"
 depends=('gmp>=5.0.1' 'readline' 'libedit' 'libffi')
+makedepends=('docbook-xsl') # 'ghc') # like in Arch Linux
 groups=('devel-extra')
 archs=('i686' 'x86_64')
-up2date="lynx -dump http://www.haskell.org/ghc/download.html|grep Current|sed 's/.*(\(.*\))/\1/'"
+up2date="lynx -dump $url/dist/ | sed -n 's/.*dist\/\([0-9].*\)\/.*/\1/p' | tail -1"
+source=(http://www.haskell.org/ghc/dist/$pkgver/ghc-$pkgver-src.tar.xz build.mk)
+sha1sums=('d08c9e1b2252cbb6c6032d13a1860831ac15cb7f' \
+          'a5e2b8d920a8af597c948f6917c0cfc90f779a22')
+
+# Need ghc>=7.4 for build, we have 7.0.x, so use ghc-binary
 if [ "$CARCH" == "i686" ]; then
 	_arch=i386
-else
+	else
 	_arch=$CARCH
 fi
-source=(http://www.haskell.org/ghc/dist/$pkgver/ghc-$pkgver-src.tar.bz2 \
-	http://www.haskell.org/ghc/dist/$pkgver/ghc-$pkgver-$_arch-unknown-linux.tar.bz2)
-sha1sums=('222eed949413723b1f45218a908d5ee6930fda1b')
+source+=(http://www.haskell.org/ghc/dist/7.6.3/ghc-7.6.3-$_arch-unknown-linux.tar.bz2)
 if [ "$CARCH" == "i686" ]; then
-	sha1sums=(${sha1sums[@]} '092ffb12fb29a5ddb173ace1f14f1144ac2a9c67')
+	sha1sums+=('f042b4171a2d4745137f2e425e6949c185f8ea14')
 elif [ "$CARCH" == "x86_64" ]; then
-	sha1sums=(${sha1sums[@]} '3fe4bad81ad83d24a21ca38f3e5f6716140d8a29')
+	sha1sums+=('46ec3f3352ff57fba0dcbc8d9c20f7bcb6924b77')
 fi
-NOEXTRACT=1
+# **********************************************************
+
+replaces=('haskell-transformers' 'haskell-xhtml' 'haskell-array'
+          'haskell-binary' 'haskell-containers' 'haskell-deepseq'
+          'haskell-haskeline' 'haskell-terminfo')
+conflicts=("${replaces[@]}")
+provides=("${provides[@]}")
 
 build()
 {
-	Fextract ghc-$pkgver-$_arch-unknown-linux.tar.bz2
-	mv ghc-$pkgver ghc-$pkgver-binary || return 1
-	cd ghc-$pkgver-binary
-
-	# hack for gmp 5
+	# First build binary ghc
+	cd $pkgname-7.6.3 || Fdie
 	ln -s /usr/lib/libgmp.so.10 libgmp.so.3
 	export LD_LIBRARY_PATH=$(pwd):$LD_LIBRARY_PATH
-
-	./configure --prefix=$Fsrcdir/binary || return 1
-	make install || return 1
+	./configure --prefix=$Fsrcdir/binary || Fdie
+	make install || Fdie
 	export PATH=$Fsrcdir/binary/bin:$PATH
+	cd ..
+	# **********************
 
-	cd $Fsrcdir
-	Fextract ghc-$pkgver-src.tar.bz2
+	# Build ghc
 	_F_conf_notry="build"
-	Fmake
-	# Fmakeinstall doesn't handle this pkg
-	make DESTDIR=$Fdestdir install || Fdie
+	cp build.mk $pkgname-$pkgver/mk/build.mk || Fdie
+	Fbuild
 }
+
 # optimization OK

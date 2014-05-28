@@ -1,13 +1,15 @@
 # Compiling Time: 0.96 SBU
-# Maintainer: bouleetbil <bouleetbil@frogdev.info>
+# Maintainer: DeX77 <dex77@frugalware.org>
+
+options+=('asneeded')
 
 pkgname=pulseaudio
-pkgver=2.1
+pkgver=5.0
 pkgrel=3
 pkgdesc="PulseAudio is a sound server with an advanced plugin system"
-url="http://pulseaudio.org/"
+url="http://www.freedesktop.org/wiki/Software/PulseAudio/"
 depends=('speex' 'liboil' 'audiofile' 'libsndfile' 'libtool' 'libatomic_ops>=7.4.0' 'libsamplerate' 'flac' 'glib2' \
-	'alsa-lib' 'libtool' 'libasyncns' 'libcap>=2.19-2' 'json-c')
+	'alsa-lib' 'libtool' 'libasyncns' 'libcap>=2.19-2' 'json-c' 'orc' 'sbc')
 makedepends=('avahi' 'bluez>=4.61' 'jack>=0.118.0' 'intltool' 'gconf' \
 		'libsm' 'libx11' 'libice' 'libxtst' 'xproto' 'kbproto' 'xcb-util>=0.3.8' 'gtk+2')
 rodepends=('libpulse')
@@ -16,10 +18,11 @@ replaces=('pulseaudio-hal' 'padevchooser')
 conflicts=('pulseaudio-hal')
 provides=('puseaudio-hal')
 archs=('i686' 'x86_64')
-up2date="Flasttar http://freedesktop.org/software/$pkgname/releases/"
-source=(http://freedesktop.org/software/$pkgname/releases/$pkgname-$pkgver.tar.gz \
-	README.Frugalware default.pa)
-sha1sums=('957399478456c1dd5632bc84e9ee06a07a9c4c9c' \
+up2date="Flasttar $url"
+source=(http://freedesktop.org/software/$pkgname/releases/$pkgname-$pkgver.tar.xz \
+	README.Frugalware \
+	default.pa)
+sha1sums=('e420931a0b9cf37331cd06e30ba415046317ab85' \
           '2a29c451c32e7335831067d3cc0d7bb4f5e7460e' \
           '6e673306a0fdf60f6c59f8c09f3d8049769c0632')
 
@@ -46,8 +49,8 @@ subarchs=("${subarchs[@]}" 'i686 x86_64')
 subbackup=("${subbackup[@]}" "")
 subdepends=("${subdepends[@]}" "")
 
-Fconfopts+=" --disable-hal \
-	--disable-polkit  --localstatedir=/var \
+Fconfopts+="--localstatedir=/var \
+	--disable-bluez4 \
 	--disable-solaris --enable-largefile \
 	--disable-static --enable-x11 --enable-systemd"
 
@@ -56,12 +59,15 @@ backup=(etc/pulse/daemon.conf \
 	etc/pulse/default.pa etc/pulse/system.pa)
 
 build() {
-	Fcd
-	Fpatchall
- 	Fautoreconf
-	libtoolize --copy --force --install || Fdie
-        Fmake || Fdie
-	Fmakeinstall
+        Fcd
+        Fpatchall
+        libtoolize --copy --force --install || Fdie
+        Fmake
+        Fmakeinstall
+
+	#This breaks desktop sessions
+	Frm etc/bash_completion.d/pulseaudio-bash-completion.sh
+
 	Fsed "load-module module-console-kit" "#load-module module-console-kit"  $Fdestdir/etc/pulse/default.pa
 	Ffile var/lib/gdm/.pulse/default.pa
 	chmod a+r $Fdestdir/var/lib/gdm || Fdie
@@ -80,12 +86,11 @@ build() {
 	Fsplit $pkgname-esd usr/lib/pulse-$pkgver/modules/module-esound-protocol-unix.so
 	Fsplit $pkgname-esd usr/lib/pulse-$pkgver/modules/module-esound-sink.so
 
-	Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/libbluetooth-ipc.so
-	Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/libbluetooth-sbc.so
-	Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/module-bluetooth-device.so
-	Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/module-bluetooth-discover.so
-	Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/module-bluetooth-proximity.so
-	Fsplit $pkgname-bluetooth usr/libexec/pulse/proximity-helper
+	Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/module-bluetooth-discover.so*
+	Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/module-bluetooth-policy.so*	
+	Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/module-bluez5-discover.so
+	Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/module-bluez5-device.so
+	Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/libbluez5-util.so
 
 	Fsplit $pkgname-x11 usr/lib/pulse-$pkgver/modules/module-x11-xsmp.so
 	Fsplit $pkgname-x11 usr/lib/pulse-$pkgver/modules/module-x11-publish.so

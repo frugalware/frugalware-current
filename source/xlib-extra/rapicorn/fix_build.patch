@@ -1,0 +1,53 @@
+--- rapicorn-13.07.0/configure.in	2013-07-06 01:01:01.000000000 +0300
++++ rapicorn-13.07.0.new/configure.in	2014-02-17 02:10:17.000000000 +0200
+@@ -17,7 +17,7 @@
+ echo -n $RAPICORN_VERSION${RAPICORN_RELEASE_CANDIDATE:+-}${RAPICORN_RELEASE_CANDIDATE}
+ ])) # defines PACKAGE_NAME, PACKAGE_VERSION, PACKAGE_STRING
+ AC_CONFIG_SRCDIR([ui/widget.hh])
+-AM_CONFIG_HEADER(configure.h)
++AC_CONFIG_HEADERS(configure.h)
+ AC_PREREQ(2.57)
+ # extract above versions
+ [RAPICORN_RELEASE_YEAR=`echo $PACKAGE_VERSION | sed 's/\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)\(.*\)/\1/'`]
+@@ -270,13 +270,17 @@
+     dnl --- require libpng ---
+     if test -z "$LIBPNG"; then
+ 	dnl # png_set_add_alpha() exists only since libpng v1.2
+-	AC_MSG_CHECKING(for libpng12)
++	AC_MSG_CHECKING(for libpng)
+ 	if $PKG_CONFIG --exists libpng12 ; then
+ 	    AC_MSG_RESULT(yes)
+ 	    LIBPNG=`$PKG_CONFIG --libs libpng12`
+ 	elif $PKG_CONFIG --exists libpng13 ; then
+ 	    AC_MSG_RESULT(yes)
+ 	    LIBPNG=`$PKG_CONFIG --libs libpng13`
++	elif $PKG_CONFIG --exists libpng14 ; then
++	    AC_MSG_RESULT(yes)
++	    AC_DEFINE_UNQUOTED(LIBPNG14, 1, "libpng 1.4")
++	    LIBPNG=`$PKG_CONFIG --libs libpng14`
+ 	else
+ 	    AC_MSG_RESULT(no)
+ 	    AC_MSG_ERROR([PNG image library libpng (>= 1.2) is missing, but required])
+--- rapicorn-13.07.0/ui/pixmap.cc	2013-07-06 01:01:01.000000000 +0300
++++ rapicorn-13.07.0.new/ui/pixmap.cc	2014-02-17 02:12:58.000000000 +0200
+@@ -6,6 +6,8 @@
+ #include <math.h>
+ #include <cstring>
+ 
++#include "configure.h"
++
+ #define MAXDIM                          (20480) // MAXDIM*MAXDIM < 536870912
+ #define ALIGN_SIZE(size,pow2align)      ((size + (pow2align - 1)) & -pow2align)
+ 
+@@ -450,7 +452,11 @@
+   if (color_type == PNG_COLOR_TYPE_PALETTE)
+     png_set_palette_to_rgb (png_ptr);                           // request RGB format
+   if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
++#ifdef LIBPNG14
++    png_set_expand_gray_1_2_4_to_8 (png_ptr);                          // request 8bit per sample
++#else
+     png_set_gray_1_2_4_to_8 (png_ptr);                          // request 8bit per sample
++#endif    
+   if (png_get_valid (png_ptr, info_ptr, PNG_INFO_tRNS))
+     png_set_tRNS_to_alpha (png_ptr);                            // request transparency as alpha channel
+   if (bit_depth == 16)

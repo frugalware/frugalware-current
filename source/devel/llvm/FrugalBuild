@@ -2,73 +2,80 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=llvm
-pkgver=3.2
-pkgrel=5
+pkgver=3.4
+pkgrel=4
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
-gcc_ver="4.7.2"
-depends=('libstdc++' "gcc=$gcc_ver")
-makedepends=('groff' 'libffi' 'python' 'ocaml')
+gcc_ver="4.8.2"
+depends=("libstdc++=$gcc_ver" "gcc=$gcc_ver")
+makedepends=('groff' 'libffi' 'python' 'ocaml>=3.12.1-4')
 groups=('devel')
 archs=('i686' 'x86_64' 'arm')
 up2date="Flastarchive $url/releases/download.html .src.tar.gz"
 source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.gz \
 	http://llvm.org/releases/$pkgver/clang-$pkgver.src.tar.gz \
 	path-fix.patch fix-include-path.patch)
-_F_cd_path=${pkgname}-${pkgver}.src
 _F_make_opts="${MAKEFLAGS} REQUIRES_RTTI=1"
-sha1sums=('42d139ab4c9f0c539c60f5ac07486e9d30fc1280' \
-          'b0515298c4088aa294edc08806bd671f8819f870' \
+sha1sums=('10b1fd085b45d8b19adb9a628353ce347bc136b8' \
+          'a6a3c815dd045e9c13c7ae37d2cfefe65607860d' \
           '9b4d212f4cea66982bc21d73aac248543f1ca6c5' \
-          '4b4cabc7c4ebf94a97335c05174cc482d2658588')
+          'b9791ec055d10351176a5453eb799d8cb67ac009')
 
 subpkgs=("${subpkgs[@]}" "clang")
 subdescs=("${subdescs[@]}" "C language family frontend for LLVM")
 subdepends=("${subdepends[@]}" "")
 subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
 subgroups=("${subgroups[@]}" 'devel-extra')
-subarchs=("${subarchs[@]}" 'i686 x86_64')
+subarchs=("${subarchs[@]}" "${archs[*]}")
 
 subpkgs=("${subpkgs[@]}" "$pkgname-ocaml")
 subdescs=("${subdescs[@]}" "OCaml bindings for LLVM")
 subdepends=("${subdepends[@]}" "ocaml")
 subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
 subgroups=("${subgroups[@]}" 'devel-extra')
-subarchs=("${subarchs[@]}" 'i686 x86_64')
+subarchs=("${subarchs[@]}" "${archs[*]}")
 
 build() {
-   # clang must be copied here to build with llvm
-   mv ./clang-${pkgver}.src/ ./${_F_cd_path}/tools/clang || Fdie
+	Fcd
+	# clang must be copied here to build with llvm
+	Fexec mv -f ../clang-${pkgver}/ tools/clang || Fdie
 
-   Fpatchall
-   #Apply strip option to configure
-  _optimized_switch="enable"
-  [[ $(check_option strip) == n ]] && _optimized_switch="disable"
+	Fpatchall
 
-  Fsed '\${prefix}/etc/llvm' '/etc/llvm' configure
-  Fsed '3.2svn' '3.2' configure
-  Fsed '3.2svn' '3.2' autoconf/configure.ac
-  export CC='gcc'
-  export CXX='g++'
-  Fmake --libdir=/usr/lib/llvm \
-		       --sysconfdir=/etc \
-		       --enable-shared \
-		       --enable-libffi \
-		       --enable-targets=all \
-		       --$_optimized_switch-optimized
+	# Apply strip option to configure
+	_optimized_switch="enable"
+	[[ $(check_option strip) == n ]] && _optimized_switch="disable"
 
-  Fmakeinstall
+	# Do not remove. This is needed to set the correct GCC version includes.
+	Freplace 'gcc_ver' tools/clang/lib/Driver/ToolChains.cpp
+	if grep -q '@gcc_ver@' tools/clang/lib/Driver/ToolChains.cpp; then
+		Fmessage "gcc_ver replacement failed! Find the cause and then rebuild."
+		Fdie
+	fi
+	Fsed '\${prefix}/etc/llvm' '/etc/llvm' configure
+	export CC='gcc'
+	export CXX='g++'
+	Fmake --libdir=/usr/lib/llvm \
+		--sysconfdir=/etc \
+		--enable-shared \
+		--enable-libffi \
+		--enable-targets=all \
+		--$_optimized_switch-optimized
 
+	Fmakeinstall
 
-  Fsplit clang usr/bin/clang*
-  Fsplit clang usr/include/clang*
+	Fsplit clang usr/bin/clang*
+	Fsplit clang usr/bin/c-index-test
+	Fsplit clang usr/include/clang*
+	Fsplit clang usr/lib/clang/
+	Fsplit clang usr/lib/libclang*
+	Fsplit clang usr/share/man/man1/clang*
+	Fsplit clang usr/share/doc/llvm/html/clang/
+	Fsplit clang usr/share/doc/llvm/ps/clang.ps
 
-  Fsplit clang usr/lib/clang/
-  Fsplit clang usr/lib/libclang*
-  Fsplit clang usr/share/man/man1/clang*
-
-  Fsplit $pkgname-ocaml usr/lib/ocaml/
-  Fsplit $pkgname-ocaml usr/share/doc/llvm/ocamldoc/
+	Fsplit $pkgname-ocaml usr/lib/ocaml/
+	Fsplit $pkgname-ocaml usr/share/doc/llvm/ocamldoc/
+	Fsplit $pkgname-ocaml usr/share/doc/llvm/ocamldoc.tar.gz
 }
 
 # optimization OK

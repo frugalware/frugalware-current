@@ -1,3 +1,3 @@
 #!/bin/sh
 
-export PYTHONPATH=$PYTHONPATH:/opt/root/lib
+export PYTHONPATH=$PYTHONPATH:/usr/lib/root

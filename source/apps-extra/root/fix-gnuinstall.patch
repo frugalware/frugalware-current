@@ -1,0 +1,79 @@
+From 681f19a75d4d679bb61ea962eb4e7881856bc0f4 Mon Sep 17 00:00:00 2001
+From: Pere Mato <pere.mato@cern.ch>
+Date: Tue, 3 Jun 2014 11:03:35 +0200
+Subject: [PATCH] Fix the .demo command when using --prefix
+
+---
+ core/base/src/TApplication.cxx | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/core/base/src/TApplication.cxx b/core/base/src/TApplication.cxx
+index 8c7eb2d..1c1809a 100644
+--- a/core/base/src/TApplication.cxx
++++ b/core/base/src/TApplication.cxx
+@@ -866,7 +866,11 @@ Long_t TApplication::ProcessLine(const char *line, Bool_t sync, Int_t *err)
+          Error("ProcessLine", "Cannot show demos in batch mode!");
+          return 1;
+       }
++#ifdef ROOTDOCDIR
++      ProcessLine(".x " ROOTDOCDIR "/tutorials/demos.C");
++#else
+       ProcessLine(".x $(ROOTSYS)/tutorials/demos.C");
++#endif
+       return 0;
+    }
+ 
+-- 
+
+From be7bc8a8aacb51254dbfaafe6ad177fea7353b59 Mon Sep 17 00:00:00 2001
+From: Axel Naumann <Axel.Naumann@cern.ch>
+Date: Mon, 2 Jun 2014 15:58:49 +0200
+Subject: [PATCH] Propagate resource-dir for prefix builds.
+
+---
+ core/meta/src/TCling.cxx     | 8 +++++++-
+ core/utils/src/rootcling.cxx | 2 ++
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/core/meta/src/TCling.cxx b/core/meta/src/TCling.cxx
+index edbf66d..7c3f4ec 100644
+--- a/core/meta/src/TCling.cxx
++++ b/core/meta/src/TCling.cxx
+@@ -827,15 +827,21 @@ TCling::TCling(const char *name, const char *title)
+            eArg = clingArgsStorage.end(); iArg != eArg; ++iArg)
+       interpArgs.push_back(iArg->c_str());
+ 
++   std::string llvmResourceDir = ROOT::TMetaUtils::GetLLVMResourceDir(false);
+    // Add statically injected extra arguments, usually coming from rootcling.
+    for (const char** extraArgs = TROOT::GetExtraInterpreterArgs();
+         extraArgs && *extraArgs; ++extraArgs) {
++      if (!strcmp(*extraArgs, "-resource-dir")) {
++         // Take the next arg as the llvm resource directory.
++         llvmResourceDir = *(++extraArgs);
++      } else {
+          interpArgs.push_back(*extraArgs);
++      }
+    }
+ 
+    fInterpreter = new cling::Interpreter(interpArgs.size(),
+                                          &(interpArgs[0]),
+-                                         ROOT::TMetaUtils::GetLLVMResourceDir(false).c_str());
++                                         llvmResourceDir.c_str());
+ 
+    if (!fromRootCling) {
+       fInterpreter->installLazyFunctionCreator(llvmLazyFunctionCreator);
+diff --git a/core/utils/src/rootcling.cxx b/core/utils/src/rootcling.cxx
+index 48e5b5f..bb191e5 100644
+--- a/core/utils/src/rootcling.cxx
++++ b/core/utils/src/rootcling.cxx
+@@ -3883,6 +3883,8 @@ int RootCling(int argc,
+ 
+ #ifndef ROOT_STAGE1_BUILD
+    // Pass the interpreter arguments to TCling's interpreter:
++   clingArgsC.push_back("-resource-dir");
++   clingArgsC.push_back(resourceDir.c_str());
+    clingArgsC.push_back(0); // signal end of array
+    const char**& extraArgs = *TROOT__GetExtraInterpreterArgs();
+    extraArgs = &clingArgsC[1]; // skip binary name
+-- 
+1.9.3

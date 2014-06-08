@@ -258,6 +258,9 @@ Fbuildkernel()
 		_F_kernel_uname=$(cat include/config/kernel.release)
 	fi
 
+	# Force kernel firmware to be installed in kernel specific path.
+	Fsed 'INSTALL_FW_PATH=.*' 'INSTALL_FW_PATH=$(INSTALL_MOD_PATH)/lib/firmware/$(KERNELRELEASE)' Makefile
+
 	## let we do kernel$_F_kernel_name-source before make
 	Fmkdir /usr/src
 	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie

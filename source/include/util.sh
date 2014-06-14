@@ -1444,12 +1444,14 @@ Flastarchive() {
 # Parameters: 1) url (optional) see Flastarchive
 ###
 Flastdir() {
+	local _Flastdir_regex='/\{0,1\}'
+
 	if [ -z "$1" ]; then
-		Flastarchive '/'
+		Flastarchive "$_Flastdir_regex"
 	else
 		# The trailing '/' in the url is here to avoid a redirection
 		# bug in Fwcat.
-		Flastarchive "$1/" '/'
+		Flastarchive "$1/" "$_Flastdir_regex"
 	fi
 }
 

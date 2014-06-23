@@ -1417,7 +1417,7 @@ Flastarchive() {
 		local filter lynx="lynx -dump"
 
 		if [ -z "$_F_archive_nolinksonly" ]; then
-			lynx="$lynx -listonly"
+			lynx+=" -listonly"
 		fi
 
 		if [ -n "$_F_archive_grep" ]; then
@@ -1429,11 +1429,13 @@ Flastarchive() {
 #		eval "$lynx \"$1\" $filter" | Flastarchive "$2" # possible optimisation
 		Fwcat "$1" | eval "$lynx -stdin $filter" | Flastarchive "$2"
 	else
+		local _Flastarchive_regex="s:.*/$_F_archive_name$Fpkgversep\([^/]*\)\($1\)[^/]*$:\1:p"
+
 		if [ -z "$_F_archive_nosort" ]; then
-			sed -n "s:.*/$_F_archive_name$Fpkgversep\(.*\)\($1\).*:\1:p" \
+			sed -n "$_Flastarchive_regex" \
 				| Fsort | tail -n1 | Fsanitizeversion
 		else
-			sed -n "s:.*/$_F_archive_name$Fpkgversep\(.*\)\($1\).*:\1:p" \
+			sed -n "$_Flastarchive_regex" \
 				| tail -n1 | Fsanitizeversion
 		fi
 	fi
@@ -1444,12 +1446,14 @@ Flastarchive() {
 # Parameters: 1) url (optional) see Flastarchive
 ###
 Flastdir() {
+	local _Flastdir_regex='/'
+
 	if [ -z "$1" ]; then
-		Flastarchive '/'
+		Flastarchive "$_Flastdir_regex"
 	else
 		# The trailing '/' in the url is here to avoid a redirection
 		# bug in Fwcat.
-		Flastarchive "$1/" '/'
+		Flastarchive "$1/" "$_Flastdir_regex"
 	fi
 }
 

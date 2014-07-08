@@ -40,6 +40,9 @@ Finclude cmake kde-version
 
 if [ -z "$_F_kde_ver" ]; then
 	_F_kde_ver="$_F_kdever_ver"
+	if [ "$_F_kde_project" = "frameworks" ]; then
+		_F_kde_ver="$_F_kdever_frameworks"
+	fi
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
@@ -48,6 +51,9 @@ fi
 
 if [ -z "$_F_kde_name" ]; then
         _F_kde_name=$pkgname
+	if [ "$_F_kde_project" = "frameworks" -a "${pkgname: -1}" = "5" ]; then
+		_F_kde_name="${pkgname%?}"
+	fi
 fi
 
 if [ -z "$_F_kde_pkgver" ]; then
@@ -66,14 +72,17 @@ fi
 
 if [ -z "$_F_kde_folder" ]; then
 	if [ -z "$_F_kde_unstable" ]; then
-		_F_kde_folder="stable"
+		_F_kde_folder="stable/$_F_kde_project"
 	else
-		_F_kde_folder="unstable"
+		_F_kde_folder="unstable/$_F_kde_project"
 	fi
 fi
 
 if [ -z "$_F_kde_dirname" ]; then
 	_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver/src"
+	if [ "$_F_kde_project" = "frameworks" ]; then
+		_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver"
+	fi
 fi
 
 if [ -n "$_F_kde_final" ]; then

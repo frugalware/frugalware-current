@@ -18,6 +18,7 @@
 
 
 _F_kdever_ver=4.13.2
+_F_kdever_frameworks=5.0.0
 _F_kdever_qt=4.8.5
 
 # Must be done in 2 lines else bash barfs on the floor

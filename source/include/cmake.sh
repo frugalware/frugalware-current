@@ -80,13 +80,17 @@ CMake_conf()
 		_F_cmake_src="."
 	fi
 
+	if [ -z "$_F_cmake_broken_define" ]; then
+		_F_cmake_confopts="-DLIB_INSTALL_DIR=/usr/lib
+			-DSYSCONF_INSTALL_DIR=/etc
+			-DLIB_SUFFIX=''
+			DLOCALSTATE_INSTALL_DIR=/var
+			$_F_cmake_confopts"
+	fi
+
 	cmake \
 		-DCMAKE_INSTALL_PREFIX=/usr \
-		-DSYSCONF_INSTALL_DIR=/etc \
-		-DLIB_SUFFIX="" \
-		-DLIB_INSTALL_DIR=/usr/lib \
 		-DCMAKE_INSTALL_LIBDIR=lib \
-		-DLOCALSTATE_INSTALL_DIR=/var \
 		-DCMAKE_BUILD_TYPE="$_F_cmake_type" \
 		-DCMAKE_VERBOSE_MAKEFILE="$_F_cmake_verbose" \
 		-DCMAKE_COLOR_MAKEFILE="$_F_cmake_color" \

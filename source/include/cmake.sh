@@ -33,6 +33,10 @@ if [ -z "$_F_cmake_in_source_build" ]; then
 	_F_cmake_in_source_build=0
 fi
 
+if [ -z "$_F_cmake_broken_define" ]; then
+	_F_cmake_broken_define=0
+fi
+
 if [ -z "$_F_cmake_rpath" ]; then
         _F_cmake_rpath="OFF"
 fi
@@ -80,7 +84,7 @@ CMake_conf()
 		_F_cmake_src="."
 	fi
 
-	if [ -z "$_F_cmake_broken_define" ]; then
+	if [ "$_F_cmake_broken_define" -eq "0" ]; then
 		_F_cmake_confopts="-DLIB_INSTALL_DIR=/usr/lib
 			-DSYSCONF_INSTALL_DIR=/etc
 			-DLIB_SUFFIX=''

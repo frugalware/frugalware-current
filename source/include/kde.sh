@@ -47,6 +47,9 @@ fi
 
 if [ -z "$_F_kde_qtver" ]; then
 	_F_kde_qtver="$_F_kdever_qt"
+	if [ "$_F_kde_project" = "frameworks" ]; then
+		_F_kde_qtver="$_F_kdever_qt5"
+	fi
 fi
 
 if [ -z "$_F_kde_name" ]; then

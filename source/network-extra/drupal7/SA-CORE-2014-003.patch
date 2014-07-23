@@ -1,0 +1,200 @@
+Index: drupal7/includes/bootstrap.inc
+===================================================================
+--- drupal7.orig/includes/bootstrap.inc
++++ drupal7/includes/bootstrap.inc
+@@ -722,7 +722,14 @@ function drupal_environment_initialize()
+  *  TRUE if only containing valid characters, or FALSE otherwise.
+  */
+ function drupal_valid_http_host($host) {
+-  return preg_match('/^\[?(?:[a-zA-Z0-9-:\]_]+\.?)+$/', $host);
++  // Limit the length of the host name to 1000 bytes to prevent DoS attacks with
++  // long host names.
++  return strlen($host) <= 1000
++    // Limit the number of subdomains and port separators to prevent DoS attacks
++    // in conf_path().
++    && substr_count($host, '.') <= 100
++    && substr_count($host, ':') <= 100
++    && preg_match('/^\[?(?:[a-zA-Z0-9-:\]_]+\.?)+$/', $host);
+ }
+ 
+ /**
+Index: drupal7/includes/file.inc
+===================================================================
+--- drupal7.orig/includes/file.inc
++++ drupal7/includes/file.inc
+@@ -1996,23 +1996,7 @@ function file_download() {
+   $target = implode('/', $args);
+   $uri = $scheme . '://' . $target;
+   if (file_stream_wrapper_valid_scheme($scheme) && file_exists($uri)) {
+-    // Let other modules provide headers and controls access to the file.
+-    // module_invoke_all() uses array_merge_recursive() which merges header
+-    // values into a new array. To avoid that and allow modules to override
+-    // headers instead, use array_merge() to merge the returned arrays.
+-    $headers = array();
+-    foreach (module_implements('file_download') as $module) {
+-      $function = $module . '_file_download';
+-      $result = $function($uri);
+-      if ($result == -1) {
+-        // Throw away the headers received so far.
+-        $headers = array();
+-        break;
+-      }
+-      if (isset($result) && is_array($result)) {
+-        $headers = array_merge($headers, $result);
+-      }
+-    }
++    $headers = file_download_headers($uri);
+     if (count($headers)) {
+       file_transfer($uri, $headers);
+     }
+@@ -2024,6 +2008,69 @@ function file_download() {
+   drupal_exit();
+ }
+ 
++/**
++ * Retrieves headers for a private file download.
++ *
++ * Calls all module implementations of hook_file_download() to retrieve headers
++ * for files by the module that originally provided the file. The presence of
++ * returned headers indicates the current user has access to the file.
++ *
++ * @param $uri
++ *   The URI for the file whose headers should be retrieved.
++ *
++ * @return
++ *   If access is allowed, headers for the file, suitable for passing to
++ *   file_transfer(). If access is not allowed, an empty array will be returned.
++ *
++ * @see file_transfer()
++ * @see file_download_access()
++ * @see hook_file_downlaod()
++ */
++function file_download_headers($uri) {
++  // Let other modules provide headers and control access to the file.
++  // module_invoke_all() uses array_merge_recursive() which merges header
++  // values into a new array. To avoid that and allow modules to override
++  // headers instead, use array_merge() to merge the returned arrays.
++  $headers = array();
++  foreach (module_implements('file_download') as $module) {
++    $function = $module . '_file_download';
++    $result = $function($uri);
++    if ($result == -1) {
++      // Throw away the headers received so far.
++      $headers = array();
++      break;
++    }
++    if (isset($result) && is_array($result)) {
++      $headers = array_merge($headers, $result);
++    }
++  }
++  return $headers;
++}
++
++/**
++ * Checks that the current user has access to a particular file.
++ *
++ * The return value of this function hinges on the return value from
++ * file_download_headers(), which is the function responsible for collecting
++ * access information through hook_file_download().
++ *
++ * If immediately transferring the file to the browser and the headers will
++ * need to be retrieved, the return value of file_download_headers() should be
++ * used to determine access directly, so that access checks will not be run
++ * twice.
++ *
++ * @param $uri
++ *   The URI for the file whose access should be retrieved.
++ *
++ * @return
++ *   Boolean TRUE if access is allowed. FALSE if access is not allowed.
++ *
++ * @see file_download_headers()
++ * @see hook_file_download()
++ */
++function file_download_access($uri) {
++  return count(file_download_headers($uri)) > 0;
++}
+ 
+ /**
+  * Finds all files that match a given mask in a given directory.
+Index: drupal7/includes/form.inc
+===================================================================
+--- drupal7.orig/includes/form.inc
++++ drupal7/includes/form.inc
+@@ -2704,7 +2704,7 @@ function form_select_options($element, $
+   $options = '';
+   foreach ($choices as $key => $choice) {
+     if (is_array($choice)) {
+-      $options .= '<optgroup label="' . $key . '">';
++      $options .= '<optgroup label="' . check_plain($key) . '">';
+       $options .= form_select_options($element, $choice);
+       $options .= '</optgroup>';
+     }
+Index: drupal7/misc/ajax.js
+===================================================================
+--- drupal7.orig/misc/ajax.js
++++ drupal7/misc/ajax.js
+@@ -348,7 +348,7 @@ Drupal.ajax.prototype.beforeSend = funct
+     // this is only needed for IFRAME submissions.
+     var v = $.fieldValue(this.element);
+     if (v !== null) {
+-      options.extraData[this.element.name] = v;
++      options.extraData[this.element.name] = Drupal.checkPlain(v);
+     }
+   }
+ 
+Index: drupal7/modules/file/file.module
+===================================================================
+--- drupal7.orig/modules/file/file.module
++++ drupal7/modules/file/file.module
+@@ -510,8 +510,9 @@ function file_managed_file_value(&$eleme
+           $callback($element, $input, $form_state);
+         }
+       }
+-      // Load file if the FID has changed to confirm it exists.
+-      if (isset($input['fid']) && $file = file_load($input['fid'])) {
++      // Load file and check access if the FID has changed, to confirm it
++      // exists and that the current user has access to it.
++      if (isset($input['fid']) && ($file = file_load($input['fid'])) && file_download_access($file->uri)) {
+         $fid = $file->fid;
+       }
+     }
+Index: drupal7/modules/file/tests/file.test
+===================================================================
+--- drupal7.orig/modules/file/tests/file.test
++++ drupal7/modules/file/tests/file.test
+@@ -1167,5 +1167,18 @@ class FilePrivateTestCase extends FileFi
+     // Ensure the file cannot be downloaded.
+     $this->drupalGet(file_create_url($node_file->uri));
+     $this->assertResponse(403, t('Confirmed that access is denied for the file without view field access permission.'));
++
++    // Attempt to reuse the existing file when creating a new node, and confirm
++    // that access is still denied.
++    $edit = array();
++    $edit['title'] = $this->randomName(8);
++    $edit[$field_name . '[' . LANGUAGE_NONE . '][0][fid]'] = $node_file->fid;
++    $this->drupalPost('node/add/page', $edit, t('Save'));
++    $new_node = $this->drupalGetNodeByTitle($edit['title']);
++    $this->assertTrue(!empty($new_node), 'Node was created.');
++    $this->assertUrl('node/' . $new_node->nid);
++    $this->assertNoRaw($node_file->filename, 'File without view field access permission does not appear after attempting to attach it to a new node.');
++    $this->drupalGet(file_create_url($node_file->uri));
++    $this->assertResponse(403, 'Confirmed that access is denied for the file without view field access permission after attempting to attach it to a new node.');
+   }
+ }
+Index: drupal7/modules/simpletest/tests/bootstrap.test
+===================================================================
+--- drupal7.orig/modules/simpletest/tests/bootstrap.test
++++ drupal7/modules/simpletest/tests/bootstrap.test
+@@ -93,6 +93,11 @@ class BootstrapIPAddressTestCase extends
+     $this->assertFalse(drupal_valid_http_host('security\\.drupal.org:80'), t('HTTP_HOST with \\ is invalid'));
+     $this->assertFalse(drupal_valid_http_host('security<.drupal.org:80'), t('HTTP_HOST with &lt; is invalid'));
+     $this->assertFalse(drupal_valid_http_host('security..drupal.org:80'), t('HTTP_HOST with .. is invalid'));
++    // Verifies that host names are shorter than 1000 characters.
++    $this->assertFalse(drupal_valid_http_host(str_repeat('x', 1001)), 'HTTP_HOST with more than 1000 characters is invalid.');
++    $this->assertFalse(drupal_valid_http_host(str_repeat('.', 101)), 'HTTP_HOST with more than 100 subdomains is invalid.');
++    $this->assertFalse(drupal_valid_http_host(str_repeat(':', 101)), 'HTTP_HOST with more than 100 portseparators is invalid.');
++
+     // IPv6 loopback address
+     $this->assertTrue(drupal_valid_http_host('[::1]:80'), t('HTTP_HOST containing IPv6 loopback is valid'));
+   }

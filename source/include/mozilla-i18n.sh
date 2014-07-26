@@ -41,7 +41,8 @@ Finclude i18n
 # * options()
 # * up2date
 # * url
-# * _F_xpi_installpath
+# * _F_xpi_installpath (if not set, defaults to /usr/lib/$_F_mozilla_i18n_name/$_F_mozilla_i18n_xulname/extensions/)
+# * _F_xpi_product (if not set, defaults to $_F_mozilla_i18n_name)
 ###
 : ${pkgname="$_F_mozilla_i18n_name-i18n"} \
   ${pkgdesc="Language support for ${_F_mozilla_i18n_name^}"}
@@ -51,7 +52,8 @@ options=("${options[@]}" 'noversrc')
 up2date="eval \"_F_archive_name=$_F_mozilla_i18n_name; Flastarchive $_F_mozilla_i18n_mirror/$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/latest/source '\.source\.tar\.bz2'\""
 url="http://www.mozilla.org/projects/l10n/mlp.html"
 
-_F_xpi_installpath="/usr/lib/$_F_mozilla_i18n_name/$_F_mozilla_i18n_xulname/extensions/"
+: ${_F_xpi_installpath="/usr/lib/$_F_mozilla_i18n_name/$_F_mozilla_i18n_xulname/extensions/"} \
+  ${_F_xpi_product="$_F_mozilla_i18n_name"}
 
 Finclude xpi
 
@@ -95,8 +97,6 @@ mozilla_i18n_lang_fini() {
 
 mozilla_i18n_lang_install()
 {
-	: ${_F_xpi_product="$_F_mozilla_i18n_name"}
-
 	Fxpi_installxpi "$Fsrcdir/$_F_mozilla_i18n_archive_name$1$_F_mozilla_i18n_ext"
 	Fxpi_installfixes
 	Fsplit "$_F_mozilla_i18n_name-${1,,}" "$_F_xpi_installpath"

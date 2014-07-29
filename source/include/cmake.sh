@@ -86,7 +86,6 @@ CMake_conf()
 
 	if [ "$_F_cmake_old_defines" != "0" ]; then
 		_F_cmake_confopts="-DLIB_INSTALL_DIR=/usr/lib
-			-DSYSCONF_INSTALL_DIR=/etc
 			-DLIB_SUFFIX=''
 			-DLOCALSTATE_INSTALL_DIR=/var
 			$_F_cmake_confopts"
@@ -95,6 +94,7 @@ CMake_conf()
 	cmake \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DSYSCONF_INSTALL_DIR=/etc \
 		-DCMAKE_BUILD_TYPE="$_F_cmake_type" \
 		-DCMAKE_VERBOSE_MAKEFILE="$_F_cmake_verbose" \
 		-DCMAKE_COLOR_MAKEFILE="$_F_cmake_color" \

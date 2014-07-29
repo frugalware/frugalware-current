@@ -159,8 +159,10 @@ fi
 # makedepends: append automoc4 unless building it.
 # _F_cmake_confopts: append some kde specific options.
 ###
-if [ -z "$_F_cmake_old_defines" ]; then
+if [ -z "$_F_kde_old_defines" ]; then
 	_F_cmake_old_defines=0
+else
+	_F_cmake_old_defines="$_F_kde_old_defines"
 fi
 
 if [ "$_F_kde_name" != 'automoc4' ]; then

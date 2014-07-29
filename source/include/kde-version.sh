@@ -20,7 +20,7 @@
 _F_kdever_ver=4.13.2
 _F_kdever_frameworks=5.0.0
 _F_kdever_qt=4.8.5
-_F_kdever_qt5=5.2.1
+_F_kdever_qt5=5.3.1
 
 # Must be done in 2 lines else bash barfs on the floor
 declare -gA _F_kdever_sha1sums

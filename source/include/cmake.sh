@@ -88,7 +88,7 @@ CMake_conf()
 		_F_cmake_confopts="-DLIB_INSTALL_DIR=/usr/lib
 			-DSYSCONF_INSTALL_DIR=/etc
 			-DLIB_SUFFIX=''
-			DLOCALSTATE_INSTALL_DIR=/var
+			-DLOCALSTATE_INSTALL_DIR=/var
 			$_F_cmake_confopts"
 	fi
 

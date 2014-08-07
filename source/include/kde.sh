@@ -156,7 +156,7 @@ fi
 
 ###
 # == APPENDED VARIABLES
-# makedepends: append automoc4 unless building it.
+# makedepends: if kde4 append automoc4 unless building it, if kf5 append some other deps.
 # _F_cmake_confopts: append some kde specific options.
 ###
 if [ -z "$_F_kde_old_defines" ]; then
@@ -165,8 +165,14 @@ else
 	_F_cmake_old_defines="$_F_kde_old_defines"
 fi
 
-if [ "$_F_kde_name" != 'automoc4' ]; then
-	makedepends=("${makedepends[@]}" 'automoc4')
+if [ "$_F_kde_project" = "frameworks" ]; then
+	if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
+		makedepends=("${makedepends[@]}" 'extra-cmake-modules' 'libqt5imageformats' 'libqt5platformsupport' 'libqt5quick')
+	fi
+else
+	if [ "$_F_kde_name" != 'automoc4' ]; then
+		makedepends=("${makedepends[@]}" 'automoc4')
+	fi
 fi
 
 case "$_F_cmake_type" in

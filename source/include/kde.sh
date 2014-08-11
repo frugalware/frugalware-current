@@ -182,11 +182,19 @@ esac
 
 _F_KDE_LD_FLAGS="-Wl,--no-undefined -Wl,--as-needed"
 
-_F_cmake_confopts="$_F_cmake_confopts \
+if [ -z "$_F_kde_project" ]; then
+	_F_cmake_confopts="$_F_cmake_confopts \
 		-DCONFIG_INSTALL_DIR=/etc/kde/config \
 		-DKCFG_INSTALL_DIR=/etc/kde/config.kcfg \
 		-DICON_INSTALL_DIR=/usr/share/kde/icons \
 		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
+else
+	_F_cmake_confopts="$_F_cmake_confopts \
+		-DCONFIG_INSTALL_DIR=/etc/kde5/config \
+		-DKCFG_INSTALL_DIR=/etc/kde5/config.kcfg \
+		-DICON_INSTALL_DIR=/usr/share/kde5/icons \
+		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
+fi
 
 # stolen from makepkg ;))
 __kde_in_array()

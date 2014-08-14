@@ -42,19 +42,21 @@ if [ -z "$_F_kde_ver" ]; then
 	_F_kde_ver="$_F_kdever_ver"
 	if [ "$_F_kde_project" = "frameworks" ]; then
 		_F_kde_ver="$_F_kdever_frameworks"
+	elif [ "$_F_kde_project" = "plasma" ]; then
+		_F_kde_ver="$_F_kdever_plasma"
 	fi
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
 	_F_kde_qtver="$_F_kdever_qt"
-	if [ "$_F_kde_project" = "frameworks" ]; then
+	if [ -n "$_F_kde_project" ]; then
 		_F_kde_qtver="$_F_kdever_qt5"
 	fi
 fi
 
 if [ -z "$_F_kde_name" ]; then
         _F_kde_name=$pkgname
-	if [ "$_F_kde_project" = "frameworks" -a "${pkgname: -1}" = "5" ]; then
+	if [ -n "$_F_kde_project" -a "${pkgname: -1}" = "5" ]; then
 		_F_kde_name="${pkgname%?}"
 	fi
 fi
@@ -83,7 +85,7 @@ fi
 
 if [ -z "$_F_kde_dirname" ]; then
 	_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver/src"
-	if [ "$_F_kde_project" = "frameworks" ]; then
+	if [ -n "$_F_kde_project" ]; then
 		_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver"
 	fi
 fi
@@ -171,7 +173,7 @@ else
 	_F_cmake_old_defines="$_F_kde_old_defines"
 fi
 
-if [ "$_F_kde_project" = "frameworks" ]; then
+if [ -n "$_F_kde_project" ]; then
 	if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
 		makedepends=("${makedepends[@]}" 'extra-cmake-modules' 'libqt5imageformats' 'libqt5platformsupport' 'libqt5quick')
 	fi

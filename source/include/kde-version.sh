@@ -19,6 +19,7 @@
 
 _F_kdever_ver=4.13.3
 _F_kdever_frameworks=5.1.0
+_F_kdever_plasma=5.0.1
 _F_kdever_qt=4.8.6
 _F_kdever_qt5=5.3.1
 
@@ -304,4 +305,26 @@ _F_kde5_sha1sums=(
 	["solid"]='d6a9f8055296bc15242e777ad3c11ed12325d68f'
 	["sonnet"]='083277c6360d73ffc6a9de9872f527c65b2073dc'
 	["threadweaver"]='3ad7ed04434aeefeaf3ea5d8fee83d33b93b20ea'
+
+	["baloo"]='6cae868ea553935a67883f4c6b39880bfa48b49a'
+	["breeze"]='a37726fc81aedb7c4c8b8173b4f35616273e55fd'
+	["kde-cli-tools"]='1dc6e02498eefd980978653ffb76d2575c8f62d9'
+	["kfilemetadata"]='7edc6a0e69358a7fe0a5e428938dce893876bce3'
+	["khelpcenter"]='e9e8c0aba9a333414dbc7672395a97dd20c1e0cc'
+	["khotkeys"]='55e5e80e767c6d55e5782af9b626b4af8b8f0467'
+	["kinfocenter"]='520b125a7d3548611b1a435f0a2e8f2ece5abb71'
+	["kio-extras"]='bd84f1ccc2d5ed26e991e9ab485384199f0b96e4'
+	["kmenuedit"]='178cbfde4af6ac7b6bd663ca74988776995673a4'
+	["ksysguard"]='b106790fb8283cf9ee70a802ed33c46beb0a2b6e'
+	["kwin"]='18cd0403508f8ec2fffd10e129d077ee5817e6fe'
+	["kwrited"]='ee07372be3573a8d67a1e7762f9352c973d6c3da'
+	["libksysguard"]='d9f723f09bd4d49abfa28a4f109f5abe7de2aef3'
+	["milou"]='b02e2d732949f8bc7308598e2954a43b6b6ab39d'
+	["oxygen"]='36dba7ac2d9bcc680a9e725baf15ae2f91e774cb'
+	["plasma-desktop"]='834d03eb97d55b47dbb94b40e7245094312fbcc2'
+	["plasma-nm"]='48effdde2a72af7081e431c382a13262774df6ba'
+	["plasma-workspace"]='ba87ef993fa7e7bfe194cbf80f4efad748de5d89'
+	["plasma-workspace-wallpapers"]='668511826328ca1d621b09440097b2916be41a08'
+	["powerdevil"]='57d787934c67b43d1444de6727382939e237ed90'
+	["systemsettings"]='fc90e5a8964923b95a7175fcd7c2804836a3af3f'
 )

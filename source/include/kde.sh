@@ -131,8 +131,14 @@ if [ "$_F_kde_defaults" -eq 1 ]; then
 
 	if [ ${#source[@]} -eq 0 ]; then
 		source=("$_F_kde_mirror/$_F_kde_dirname/$_F_kde_name-${_F_kde_pkgver}${_F_kde_ext}")
-		if [ -n "${_F_kdever_sha1sums["$_F_kde_name"]}" ]; then
-			sha1sums=("${_F_kdever_sha1sums["$_F_kde_name"]}")
+		if [ -z "$_F_kde_project" ]; then
+			if [ -n "${_F_kdever_sha1sums["$_F_kde_name"]}" ]; then
+				sha1sums=("${_F_kdever_sha1sums["$_F_kde_name"]}")
+			fi
+		else
+			if [ -n "${_F_kde5_sha1sums["$_F_kde_name"]}" ]; then
+				sha1sums=("${_F_kde5_sha1sums["$_F_kde_name"]}")
+			fi
 		fi
 	fi
 fi

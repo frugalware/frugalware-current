@@ -40,14 +40,23 @@ Finclude cmake kde-version
 
 if [ -z "$_F_kde_ver" ]; then
 	_F_kde_ver="$_F_kdever_ver"
+	if [ "$_F_kde_project" = "frameworks" ]; then
+		_F_kde_ver="$_F_kdever_frameworks"
+	fi
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
 	_F_kde_qtver="$_F_kdever_qt"
+	if [ "$_F_kde_project" = "frameworks" ]; then
+		_F_kde_qtver="$_F_kdever_qt5"
+	fi
 fi
 
 if [ -z "$_F_kde_name" ]; then
         _F_kde_name=$pkgname
+	if [ "$_F_kde_project" = "frameworks" -a "${pkgname: -1}" = "5" ]; then
+		_F_kde_name="${pkgname%?}"
+	fi
 fi
 
 if [ -z "$_F_kde_pkgver" ]; then
@@ -66,14 +75,17 @@ fi
 
 if [ -z "$_F_kde_folder" ]; then
 	if [ -z "$_F_kde_unstable" ]; then
-		_F_kde_folder="stable"
+		_F_kde_folder="stable/$_F_kde_project"
 	else
-		_F_kde_folder="unstable"
+		_F_kde_folder="unstable/$_F_kde_project"
 	fi
 fi
 
 if [ -z "$_F_kde_dirname" ]; then
 	_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver/src"
+	if [ "$_F_kde_project" = "frameworks" ]; then
+		_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver"
+	fi
 fi
 
 if [ -n "$_F_kde_final" ]; then
@@ -144,11 +156,23 @@ fi
 
 ###
 # == APPENDED VARIABLES
-# makedepends: append automoc4 unless building it.
+# makedepends: if kde4 append automoc4 unless building it, if kf5 append some other deps.
 # _F_cmake_confopts: append some kde specific options.
 ###
-if [ "$_F_kde_name" != 'automoc4' ]; then
-	makedepends=("${makedepends[@]}" 'automoc4')
+if [ -z "$_F_kde_old_defines" ]; then
+	_F_cmake_old_defines=0
+else
+	_F_cmake_old_defines="$_F_kde_old_defines"
+fi
+
+if [ "$_F_kde_project" = "frameworks" ]; then
+	if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
+		makedepends=("${makedepends[@]}" 'extra-cmake-modules' 'libqt5imageformats' 'libqt5platformsupport' 'libqt5quick')
+	fi
+else
+	if [ "$_F_kde_name" != 'automoc4' ]; then
+		makedepends=("${makedepends[@]}" 'automoc4')
+	fi
 fi
 
 case "$_F_cmake_type" in
@@ -158,11 +182,19 @@ esac
 
 _F_KDE_LD_FLAGS="-Wl,--no-undefined -Wl,--as-needed"
 
-_F_cmake_confopts="$_F_cmake_confopts \
+if [ -z "$_F_kde_project" ]; then
+	_F_cmake_confopts="$_F_cmake_confopts \
 		-DCONFIG_INSTALL_DIR=/etc/kde/config \
 		-DKCFG_INSTALL_DIR=/etc/kde/config.kcfg \
 		-DICON_INSTALL_DIR=/usr/share/kde/icons \
 		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
+else
+	_F_cmake_confopts="$_F_cmake_confopts \
+		-DCONFIG_INSTALL_DIR=/etc/kde5/config \
+		-DKCFG_INSTALL_DIR=/etc/kde5/config.kcfg \
+		-DICON_INSTALL_DIR=/usr/share/kde5/icons \
+		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
+fi
 
 # stolen from makepkg ;))
 __kde_in_array()

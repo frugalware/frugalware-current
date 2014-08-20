@@ -1,0 +1,57 @@
+From a2f977dd56442e2741425481309f4ee1994b8ac3 Mon Sep 17 00:00:00 2001
+From: Peter Wu <peter@lekensteyn.nl>
+Date: Thu, 3 Jul 2014 11:25:21 +0200
+Subject: [PATCH 1/4] catapult,irda: Fix ASAN crashes due to buffer underrun
+
+The catapult dissector tripped on this random file I had. A quick look
+at other dissectors which use a construct like "-1] *= '*\\[rn]" showed
+packet-irda too, so fix that as well.
+
+Conflicts:
+	wiretap/catapult_dct2000.c
+
+Change-Id: I4b5fadcacd0b09d0fb29bdefc3dd1f28aef9b593
+Reviewed-on: https://code.wireshark.org/review/2802
+Reviewed-by: Evan Huus <eapache@gmail.com>
+Reviewed-by: Michael Mann <mmann78@netscape.net>
+(cherry picked from commit 16f8ba1bed579344df373bf38fff552ab8baf380)
+Reviewed-on: https://code.wireshark.org/review/2810
+Reviewed-on: https://code.wireshark.org/review/3437
+Reviewed-by: Balint Reczey <balint@balintreczey.hu>
+---
+ plugins/irda/packet-irda.c | 4 ++--
+ wiretap/catapult_dct2000.c | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/plugins/irda/packet-irda.c b/plugins/irda/packet-irda.c
+index 395deda..cbc9507 100644
+--- a/plugins/irda/packet-irda.c
++++ b/plugins/irda/packet-irda.c
+@@ -1656,9 +1656,9 @@ static void dissect_log(tvbuff_t* tvb, packet_info* pinfo, proto_tree* root)
+             length = sizeof(buf)-1;
+         tvb_memcpy(tvb, buf, 0, length);
+         buf[length] = 0;
+-        if (buf[length-1] == '\n')
++        if (length > 0 && buf[length-1] == '\n')
+             buf[length-1] = 0;
+-        else if (buf[length-2] == '\n')
++        else if (length > 1 && buf[length-2] == '\n')
+             buf[length-2] = 0;
+ 
+         col_add_str(pinfo->cinfo, COL_INFO, buf);
+diff --git a/wiretap/catapult_dct2000.c b/wiretap/catapult_dct2000.c
+index 02198ee..a524b86 100644
+--- a/wiretap/catapult_dct2000.c
++++ b/wiretap/catapult_dct2000.c
+@@ -809,7 +809,7 @@ read_new_line(FILE_T fh, gint64 *offset, gint *length,
+     *offset = *offset + *length;
+ 
+     /* ...but don't want to include newline in line length */
+-    if (linebuff[*length-1] == '\n') {
++    if (*length > 0 && linebuff[*length-1] == '\n') {
+         linebuff[*length-1] = '\0';
+         *length = *length - 1;
+     }
+-- 
+2.0.1
+

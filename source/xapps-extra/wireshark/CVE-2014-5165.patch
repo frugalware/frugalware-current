@@ -1,0 +1,37 @@
+From e13dd1c8d17aa3460cf751cddaa1c6d982af60a6 Mon Sep 17 00:00:00 2001
+From: Evan Huus <evan.huus@jadedpixel.com>
+Date: Tue, 17 Jun 2014 18:13:51 +0000
+Subject: [PATCH 2/4] fix underflow in BER constrained bitstrings
+
+this can happen and cause invalid memory accesses with incorrectly-large padding
+values
+
+Conflicts:
+	epan/dissectors/packet-ber.c
+
+Bug:10187
+Change-Id: Ib9b2a2fa10766efb4d95d588f57354a56373c626
+Reviewed-on: https://code.wireshark.org/review/2328
+Reviewed-by: Evan Huus <eapache@gmail.com>
+Reviewed-on: https://code.wireshark.org/review/3438
+Reviewed-by: Balint Reczey <balint@balintreczey.hu>
+---
+ epan/dissectors/packet-ber.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/epan/dissectors/packet-ber.c b/epan/dissectors/packet-ber.c
+index fd1cf5b..727647b 100644
+--- a/epan/dissectors/packet-ber.c
++++ b/epan/dissectors/packet-ber.c
+@@ -4459,7 +4459,7 @@ int dissect_ber_constrained_bitstring(gboolean implicit_tag, asn1_ctx_t *actx, p
+         bitstring = tvb_get_ephemeral_string(tvb, offset, len);
+ 
+         while (nb->p_id) {
+-            if(len > 0 && nb->bit < (8*len-pad)) {
++            if ((len > 0) && (pad < 8*len) && (nb->bit < (8*len-pad))) {
+                 val = tvb_get_guint8(tvb, offset + nb->bit/8);
+                 bitstring[(nb->bit/8)] &= ~(0x80 >> (nb->bit%8));
+                 val &= 0x80 >> (nb->bit%8);
+-- 
+2.0.1
+

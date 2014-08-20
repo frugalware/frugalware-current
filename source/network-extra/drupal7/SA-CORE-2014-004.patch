@@ -1,0 +1,86 @@
+Reviewed-by: Gunnar Wolf <gwolf@debian.org>
+Author: David Rothstein <drothstein@gmail.com>
+Origin: http://git.drupal.org/project/drupal.git Commit: 90e884a
+Description: Fixed security issues (denial of service). See http://drupal.org/SA-CORE-2014-004
+Last-Update: 2014-08-06
+Applied-Upstream: Yes
+
+Index: drupal7/includes/xmlrpc.inc
+===================================================================
+--- drupal7.orig/includes/xmlrpc.inc
++++ drupal7/includes/xmlrpc.inc
+@@ -178,7 +178,41 @@ function xmlrpc_message_parse($xmlrpc_me
+   xml_set_element_handler($xmlrpc_message->_parser, 'xmlrpc_message_tag_open', 'xmlrpc_message_tag_close');
+   xml_set_character_data_handler($xmlrpc_message->_parser, 'xmlrpc_message_cdata');
+   xmlrpc_message_set($xmlrpc_message);
+-  if (!xml_parse($xmlrpc_message->_parser, $xmlrpc_message->message)) {
++
++  // Strip XML declaration.
++  $header = preg_replace('/<\?xml.*?\?'.'>/s', '', substr($xmlrpc_message->message, 0, 100), 1);
++  $xml = trim(substr_replace($xmlrpc_message->message, $header, 0, 100));
++  if ($xml == '') {
++    return FALSE;
++  }
++  // Strip DTD.
++  $header = preg_replace('/^<!DOCTYPE[^>]*+>/i', '', substr($xml, 0, 200), 1);
++  $xml = trim(substr_replace($xml, $header, 0, 200));
++  if ($xml == '') {
++    return FALSE;
++  }
++  // Confirm the XML now starts with a valid root tag. A root tag can end in [> \t\r\n]
++  $root_tag = substr($xml, 0, strcspn(substr($xml, 0, 20), "> \t\r\n"));
++  // Reject a second DTD.
++  if (strtoupper($root_tag) == '<!DOCTYPE') {
++    return FALSE;
++  }
++  if (!in_array($root_tag, array('<methodCall', '<methodResponse', '<fault'))) {
++    return FALSE;
++  }
++  // Skip parsing if there is an unreasonably large number of tags.
++  try {
++    $dom = new DOMDocument();
++    @$dom->loadXML($xml);
++    if ($dom->getElementsByTagName('*')->length > variable_get('xmlrpc_message_maximum_tag_count', 30000)) {
++      return FALSE;
++    }
++  }
++  catch (Exception $e) {
++    return FALSE;
++  }
++
++  if (!xml_parse($xmlrpc_message->_parser, $xml)) {
+     return FALSE;
+   }
+   xml_parser_free($xmlrpc_message->_parser);
+Index: drupal7/modules/openid/openid.inc
+===================================================================
+--- drupal7.orig/modules/openid/openid.inc
++++ drupal7/modules/openid/openid.inc
+@@ -158,6 +158,11 @@ function _openid_xrds_parse($raw_xml) {
+     return array();
+   }
+ 
++  // Also stop parsing if there is an unreasonably large number of tags.
++  if ($dom->getElementsByTagName('*')->length > variable_get('openid_xrds_maximum_tag_count', 30000)) {
++    return array();
++  }
++
+   // Parse the DOM document for the information we need.
+   if ($xml = simplexml_import_dom($dom)) {
+     foreach ($xml->children(OPENID_NS_XRD)->XRD as $xrd) {
+Index: drupal7/modules/simpletest/tests/xmlrpc.test
+===================================================================
+--- drupal7.orig/modules/simpletest/tests/xmlrpc.test
++++ drupal7/modules/simpletest/tests/xmlrpc.test
+@@ -211,6 +211,11 @@ class XMLRPCMessagesTestCase extends Dru
+    * Make sure that XML-RPC can transfer large messages.
+    */
+   function testSizedMessages() {
++    // These tests can produce up to 128 x 160 words in the XML-RPC message
++    // (see xmlrpc_test_message_sized_in_kb()) with 4 tags used to represent
++    // each. Set a large enough tag limit to allow this to be tested.
++    variable_set('xmlrpc_message_maximum_tag_count', 100000);
++
+     $xml_url = url(NULL, array('absolute' => TRUE)) . 'xmlrpc.php';
+     $sizes = array(8, 80, 160);
+     foreach ($sizes as $size) {

@@ -92,8 +92,7 @@ fi
 # * source()
 ###
 _F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
-_F_sourceforge_id="\$(Fwcat http://sourceforge.net/api/project/name/$_F_sourceforge_dirname/json | grep \\\"id\\\" | sed -e 's/.*:\(.*\),/\1/')" # this is deprecated!
-_F_sourceforge_rss_url="http://sourceforge.net/api/file/index/project-id/$_F_sourceforge_id/mtime/desc/limit/$_F_sourceforge_rss_limit/rss"
+_F_sourceforge_rss_url="$_F_sourceforge_url/rss?limit=$_F_sourceforge_rss_limit"
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
 fi
@@ -104,7 +103,7 @@ if [ -z "$_F_archive_grepv" ]; then
 	_F_archive_grepv="^$"
 fi
 Fpkgversep=$_F_sourceforge_sep
-up2date="lynx -dump $_F_sourceforge_rss_url | \
+up2date="lynx -dump "$_F_sourceforge_rss_url" | \
 	egrep '/$_F_sourceforge_name$_F_sourceforge_sep.*$_F_sourceforge_ext' | \
 	grep -v '$_F_archive_grepv' | \
 	sed -e 's|.*$_F_sourceforge_name$_F_sourceforge_sep$_F_sourceforge_prefix||;s|$_F_sourceforge_ext.*||' | \

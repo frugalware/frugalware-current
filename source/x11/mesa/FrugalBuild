@@ -4,6 +4,12 @@
 
 options+=('asneeded')
 
+# TODO: Consider enabling R600 LLVM backend via
+# --enable-r600-llvm-compiler
+
+# TODO: Consider enabling OpenMAX support via
+# --enable-omx
+
 : ${USE_DEBUG="n"}
 : ${USE_DEVEL="n"}
 : ${USE_DETECTDEPENDS="n"} # To detected dependecies with makepkg -a
@@ -21,7 +27,7 @@ options+=('asneeded')
 : ${USE_VG="y"}
 : ${USE_TEXTURE_FLOAT="y"}
 : ${USE_WAYLAND_EGL="y"}
-: ${USE_XA="n"}
+: ${USE_XA="y"}
 
 if Fuse WAYLAND_EGL; then
 	USE_EGL=y
@@ -34,8 +40,8 @@ fi
 pkgname=mesa
 origname=Mesa
 _F_archive_name="MesaLib"
-pkgver=9.1.7
-pkgrel=2
+pkgver=10.2.4
+pkgrel=1
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 up2date="lynx --dump 'ftp://ftp.freedesktop.org/pub/mesa/' | grep "pub/mesa/[0-9\.]" | tail -n1 | sed 's|.*/\([0-9\.]\)|\1|'"
@@ -58,8 +64,8 @@ if Fuse DEVEL; then
 	_F_scm_url="git://anongit.freedesktop.org/mesa/mesa"
 	Finclude scm
 else
-	source=("ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaLib-$pkgver.tar.bz2" llvm-3.4.patch)
-	sha1sums=('46881597e08e24cf38a726c422fad67137cfb32b' '59dcfd25ecfd6fb82bb89664b1f32aedca6ae329')
+	source=("ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaLib-$pkgver.tar.bz2")
+	sha1sums=('b1d2b397581e807bc59be5065a8c73c3fda29dd6')
 fi
 
 subpkgs=('libgl' 'mesa-libgl-headers')
@@ -67,7 +73,7 @@ subdescs=('Mesa DRI OpenGL files.' 'Mesa OpenGL headers files.')
 subprovides=('mesa-libgl' 'libgl-headers')
 subreplaces=('' '')
 subconflicts=('catalyst nvidia' 'nvidia')
-subdepends=('expat libxdamage libxxf86vm' 'dri2proto glproto')
+subdepends=('expat libxdamage libxxf86vm libdrm libxshmfence libxcb' 'dri2proto dri3proto glproto presentproto')
 subrodepends=("mesa-libgl-headers>=$pkgver-$pkgrel libglapi libglx>=$xserverver mesa-dri-drivers>=$pkgver-$pkgrel" '')
 subgroups=('x11' 'x11')
 subarchs=("${archs[*]}" "${archs[*]}")
@@ -78,7 +84,7 @@ subdescs=("${subdescs[@]}" 'Mesa OpenGL DRI drivers.')
 subprovides=("${subprovides[@]}" '')
 subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
-subdepends=("${subdepends[@]}" "libdrm llvm>=3.4")
+subdepends=("${subdepends[@]}" "libdrm llvm>=3.4.2-2 elfutils")
 subrodepends=("${subrodepends[@]}" '')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" "${archs[*]}")
@@ -89,7 +95,7 @@ subdescs+=('Mesa libdrm drivers.')
 subprovides+=('')
 subreplaces+=('')
 subconflicts+=('')
-subdepends+=("libdrm llvm>=3.4")
+subdepends+=("libdrm llvm>=3.4.2-2 elfutils")
 subrodepends+=('')
 subgroups+=('x11')
 subarchs+=("${archs[*]}")
@@ -100,8 +106,8 @@ subdescs=("${subdescs[@]}" 'Mesa gbm library.')
 subprovides=("${subprovides[@]}" '')
 subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
-subdepends=("${subdepends[@]}" 'glibc')
-subrodepends+=('mesa-pipe-drivers')
+subdepends=("${subdepends[@]}" 'glibc libxext libxfixes wayland')
+subrodepends+=('mesa-pipe-drivers libglapi')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" "${archs[*]}")
 subbackup=("${subbackup[@]}" '')
@@ -145,7 +151,7 @@ if Fuse EGL; then
 	subprovides+=('mesa-libegl')
 	subreplaces+=('')
 	subconflicts+=('')
-	subdepends+=('dri2proto glproto libdrm')
+	subdepends+=('dri2proto dri3proto glproto presentproto libdrm elfutils')
 	if Fuse WAYLAND_EGL; then # Upstream issue
 		subrodepends+=('khr-headers libgbm libvg wayland')
 	else
@@ -175,7 +181,7 @@ if Fuse VDPAU; then
 	subprovides=("${subprovides[@]}" '')
 	subreplaces=("${subreplaces[@]}" '')
 	subconflicts=("${subconflicts[@]}" '')
-	subdepends=("${subdepends[@]}" 'libvdpau')
+	subdepends=("${subdepends[@]}" 'libvdpau libdrm llvm>=3.4.2-2 elfutils')
 	subrodepends=("${subrodepends[@]}" '')
 	subgroups=("${subgroups[@]}" 'x11')
 	subarchs=("${subarchs[@]}" "${archs[*]}")
@@ -221,7 +227,7 @@ build() {
 
 	Fcd $origname-$pkgver
 	Fpatchall
-	./autogen.sh
+	Fautoreconf
 
 	if Fuse DEBUG; then
 		Fconfopts+=" --enable-debug"
@@ -231,9 +237,11 @@ build() {
 
 	if Fuse DRI; then
 		Fconfopts+=" --enable-dri"
+		Fconfopts+=" --enable-dri3"
 		Fconfopts+=" --with-dri-driverdir=/usr/lib/dri"
 	else
 		Fconfopts+=" --disable-dri"
+		Fconfopts+=" --disable-dri3"
 	fi
 
 	if Fuse GLES1; then
@@ -256,8 +264,10 @@ build() {
 
 	if Fuse OPENCL; then
 		Fconfopts+=" --enable-opencl"
+		Fconfopts+=" --enable-opencl-icd"
 	else
 		Fconfopts+=" --disable-opencl"
+		Fconfopts+=" --disable-opencl-icd"
 	fi
 
 	if Fuse OSMESA; then
@@ -317,7 +327,7 @@ build() {
 			GALLIUM_DRIVERS+=",i915"
 		fi
 		GALLIUM_DRIVERS+=",nouveau"
-		GALLIUM_DRIVERS+=",r300,r600"
+		GALLIUM_DRIVERS+=",r300,r600,radeonsi"
 		GALLIUM_DRIVERS+=",svga"
 		GALLIUM_DRIVERS+=",swrast"
 		Fconfopts+=" --with-gallium-drivers=$GALLIUM_DRIVERS"
@@ -327,12 +337,16 @@ build() {
 		if Fuse EGL; then
 			Fconfopts+=" --enable-gallium-egl"
 		fi
+		if Fuse OSMESA; then
+			Fconfopts+=" --enable-gallium-osmesa"
+		fi
 	else
 		Fconfopts+=" --disable-gallium"
 	fi
 
 	Fconf	\
 		--enable-gbm \
+		--enable-llvm-shared-libs \
 		--enable-shared-glapi
 
 	make || Fdie
@@ -347,11 +361,6 @@ build() {
 	Fmkdir /usr/share/doc/$pkgname-$pkgver
 	cp -r docs/{README.*,*.html,COPYING} \
 		$Fdestdir/usr/share/doc/$pkgname-$pkgver/ || Fdie
-
-	# Remove to avoid a conflict with Glew
-	Frm /usr/include/GL/wglew.h
-	Frm /usr/include/GL/glxew.h
-	Frm /usr/include/GL/glew.h
 
 	Fsplit libglapi usr/lib/libglapi.*
 
@@ -368,7 +377,6 @@ build() {
 
 	Fsplit mesa-dri-drivers etc/drirc
 	Fsplit mesa-dri-drivers usr/lib/dri/
-	Fsplit mesa-dri-drivers usr/lib/libdricore*
 	Fsplit mesa-dri-drivers usr/lib/pkgconfig/dri.pc
 
 	Fsplit mesa-pipe-drivers usr/lib/gallium-pipe/

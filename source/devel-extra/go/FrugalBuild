@@ -5,34 +5,51 @@ options+=('asneeded')
 
 pkgname=go
 pkgver=1.3.1
-pkgrel=1
+pkgrel=2
 pkgdesc='Compiler and tools for the Go programming language from Google'
 archs=('x86_64' 'i686' 'arm')
 groups=('devel-extra')
 url='http://golang.org/'
 depends=('perl' 'gawk')
-_F_scm_type="mercurial"
-_F_scm_url="https://code.google.com/p/go"
-_F_scm_tag="$pkgname$pkgver"
-Finclude scm
+makedepends=('mercurial')
 Fpkgversep=""
 _F_archive_prefix=".src"
 _F_cd_path="go/src"
 up2date="Flasttar $url/dl/"
-source=(go.sh)
-sha1sums=('3f6bff8914afcb7bc138faaa72d1cfd1140caaa7')
+source=(https://storage.googleapis.com/golang/go${pkgver}.src.tar.gz \
+	go.sh)
+sha1sums=('bc296c9c305bacfbd7bff9e1b54f6f66ae421e6e' \
+          '3f6bff8914afcb7bc138faaa72d1cfd1140caaa7')
 
 build() {
-  Funpack_scm
 
-  export GOROOT="$Fsrcdir/go/src" || Fdie
-  export GOROOT_FINAL=/usr/lib/go || Fdie
+  export GOROOT="$Fsrcdir/$pkgname"
+  export GOPATH="$Fsrcdir/gopath"
+  export GOROOT_FINAL="/usr/lib/go"
 
-  cd $GOROOT || Fdie
+  if [ "$CARCH" == 'x86_64' ]; then
+    export GOARCH=amd64
+  elif [ "$CARCH" == 'i686' ]; then
+    export GOARCH=386
+  fi
+
+  Fcd
 
   bash make.bash || Fdie
 
-  export PATH="$Fsrcdir/$pkgname/bin:$PATH"
+  export PATH="$GOBIN:$PATH"
+
+
+  #Build godoc
+  Fexec $GOROOT/bin/go get -d code.google.com/p/go.tools/cmd/godoc
+  Fexec $GOROOT/bin/go build -o $Fsrcdir/godoc code.google.com/p/go.tools/cmd/godoc
+  Finstall 755 /usr/bin/godoc
+
+  for tool in vet cover; do
+    Fexec $GOROOT/bin/go get -d code.google.com/p/go.tools/cmd/${tool}
+    Fexec $GOROOT/bin/go build -o $GOROOT/pkg/tool/linux_${GOARCH}/${tool} code.google.com/p/go.tools/cmd/${tool}
+  done
+
 
   Finstall 644 go/misc/bash/go usr/share/bash-completion/completions/go
   Finstall 644 go/misc/emacs/go-mode-load.el usr/share/emacs/site-lisp/go-mode-load.el
@@ -52,7 +69,7 @@ build() {
   Fln usr/share/go/doc usr/lib/go/doc
 
   Fcp go/bin usr/
-  Fcpr go/pkg  usr/lib/go/
+  Fcp go/pkg  usr/lib/go/
 
   Fmkdir usr/lib/go/src/pkg
   Fcp go/src/pkg/* usr/lib/go/src/pkg

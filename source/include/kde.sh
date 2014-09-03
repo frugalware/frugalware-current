@@ -378,7 +378,7 @@ KDE_split()
 			KDE_cleanup
 			Fsplit "$i" /\*
 		else
-			Fmessage "Could not find $1 for automagic _F_kde_subpkgs splitting !!"
+			Fmessage "Could not find $i for automagic _F_kde_subpkgs splitting !!"
 			Fdie
 		fi
 	done

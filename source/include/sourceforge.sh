@@ -92,7 +92,7 @@ fi
 # * source()
 ###
 _F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
-_F_sourceforge_rss_url="$_F_sourceforge_url/rss?limit=$_F_sourceforge_rss_limit"
+_F_sourceforge_rss_url="$_F_sourceforge_url/rss'?'limit=$_F_sourceforge_rss_limit'&'path=/$_F_sourceforge_name"
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
 fi

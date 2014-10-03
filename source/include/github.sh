@@ -74,9 +74,8 @@ if [ -z "$_F_github_tag" ]; then
 else
 	_F_github_up2date="tags"
 	_F_archive_name="archive"
-	Fpkgversep=""
-	_F_archive_name="v"
-	_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/$_F_archive_name$_F_github_ver.tar.gz"
+	Fpkgversep="/"
+	_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/$_F_github_ver.tar.gz"
 	_F_cd_path="$_F_github_name-$_F_github_ver"
 fi
 

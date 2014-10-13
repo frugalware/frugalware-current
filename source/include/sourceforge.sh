@@ -92,7 +92,12 @@ fi
 # * source()
 ###
 _F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
-_F_sourceforge_rss_url="$_F_sourceforge_url/rss?limit=$_F_sourceforge_rss_limit"
+
+if [ $_F_sourceforge_name != $pkgname ]; then
+	_F_sourceforge_rss_url="$_F_sourceforge_url/rss'?'limit=$_F_sourceforge_rss_limit'&'path=/$_F_sourceforge_name"
+else
+	_F_sourceforge_rss_url="$_F_sourceforge_url/rss'?'limit=$_F_sourceforge_rss_limit"
+fi
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
 fi
@@ -104,11 +109,10 @@ if [ -z "$_F_archive_grepv" ]; then
 fi
 Fpkgversep=$_F_sourceforge_sep
 up2date="lynx -dump "$_F_sourceforge_rss_url" | \
-	egrep '/$_F_sourceforge_name$_F_sourceforge_sep.*$_F_sourceforge_ext' | \
+	egrep '/$_F_archive_name$_F_sourceforge_sep.*$_F_sourceforge_ext' | \
 	grep -v '$_F_archive_grepv' | \
-	sed -e 's|.*$_F_sourceforge_name$_F_sourceforge_sep$_F_sourceforge_prefix||;s|$_F_sourceforge_ext.*||' | \
+	sed -e 's|.*$_F_archive_name$_F_sourceforge_sep$_F_sourceforge_prefix||;s|$_F_sourceforge_ext.*||' | \
 	Fsort | tac | \
 	head -n 1"
 
-source=("http://${_F_sourceforge_mirror}.sourceforge.net/${_F_sourceforge_dirname}/${_F_sourceforge_subdir}${_F_sourceforge_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext}")
-
+source=("http://${_F_sourceforge_mirror}.sourceforge.net/${_F_sourceforge_dirname}/${_F_sourceforge_subdir}${_F_archive_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext}")

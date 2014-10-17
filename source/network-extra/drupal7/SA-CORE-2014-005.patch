@@ -1,0 +1,61 @@
+Reviewed-by: Gunnar Wolf <gwolf@debian.org>
+Author: Stefan Horst; Drupal Security Team
+Origin: https://www.drupal.org/SA-CORE-2014-005
+	http://git.drupal.org/project/drupal.git Commit: 131a6f5
+Last-Update: 2014-10-15
+Applied-Upstream: Yes
+Description: Fixed highly critical SQL injection.
+ See https://www.drupal.org/SA-CORE-2014-005, CVE-2014-3704
+
+Index: drupal7/includes/database/database.inc
+===================================================================
+--- drupal7.orig/includes/database/database.inc
++++ drupal7/includes/database/database.inc
+@@ -717,7 +717,7 @@ abstract class DatabaseConnection extend
+     // to expand it out into a comma-delimited set of placeholders.
+     foreach (array_filter($args, 'is_array') as $key => $data) {
+       $new_keys = array();
+-      foreach ($data as $i => $value) {
++      foreach (array_values($data) as $i => $value) {
+         // This assumes that there are no other placeholders that use the same
+         // name.  For example, if the array placeholder is defined as :example
+         // and there is already an :example_2 placeholder, this will generate
+Index: drupal7/modules/simpletest/tests/database_test.test
+===================================================================
+--- drupal7.orig/modules/simpletest/tests/database_test.test
++++ drupal7/modules/simpletest/tests/database_test.test
+@@ -3251,6 +3251,34 @@ class DatabaseQueryTestCase extends Data
+ 
+     $this->assertEqual(count($names), 3, t('Correct number of names returned'));
+   }
++
++  /**
++   * Test SQL injection via database query array arguments.
++   */
++  public function testArrayArgumentsSQLInjection() {
++    // Attempt SQL injection and verify that it does not work.
++    $condition = array(
++      "1 ;INSERT INTO {test} SET name = 'test12345678'; -- " => '',
++      '1' => '',
++    );
++    try {
++      db_query("SELECT * FROM {test} WHERE name = :name", array(':name' => $condition))->fetchObject();
++      $this->fail('SQL injection attempt via array arguments should result in a PDOException.');
++    }
++    catch (PDOException $e) {
++      $this->pass('SQL injection attempt via array arguments should result in a PDOException.');
++    }
++
++    // Test that the insert query that was used in the SQL injection attempt did
++    // not result in a row being inserted in the database.
++    $result = db_select('test')
++      ->condition('name', 'test12345678')
++      ->countQuery()
++      ->execute()
++      ->fetchField();
++    $this->assertFalse($result, 'SQL injection attempt did not result in a row being inserted in the database table.');
++  }
++
+ }
+ 
+ /**

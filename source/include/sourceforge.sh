@@ -93,11 +93,12 @@ fi
 ###
 _F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
 
-if [ $_F_sourceforge_name != $pkgname ]; then
-	_F_sourceforge_rss_url="$_F_sourceforge_url/rss'?'limit=$_F_sourceforge_rss_limit'&'path=/$_F_sourceforge_name"
-else
+if [ -z "$_F_sourceforge_subdir" ]; then
 	_F_sourceforge_rss_url="$_F_sourceforge_url/rss'?'limit=$_F_sourceforge_rss_limit"
+else
+	_F_sourceforge_rss_url="$_F_sourceforge_url/rss'?'limit=$_F_sourceforge_rss_limit'&'path=/$_F_sourceforge_subdir"
 fi
+
 if [ -z "$url" ]; then
 	url="$_F_sourceforge_url"
 fi

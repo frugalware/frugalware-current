@@ -11,7 +11,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "--help":
 	print "base packages which depend on xorg (lib->xlib is needed or so)"
 	sys.exit(0)
 
-basecats = ['base', 'apps', 'lib', 'multimedia', 'network', 'devel']
+basecats = ['base', 'apps', 'lib', 'multimedia', 'network', 'devel', 'tcl_lang']
 
 root = tempfile.mkdtemp()
 pacman.initialize(root)

@@ -42,8 +42,9 @@ up2date="lynx -dump http://octave.sourceforge.net/\$(echo ${pkgname} |sed 's/oct
 ###
 
 Fbuild_octave() {
-	unset TERM
 	Fcd
+	Fmkdir usr/libexec/octave/packages
+	Fmkdir usr/share/octave/packages
 	Fpatchall
 	Fmake
 	Fmakeinstall DISTPKG="frugalware"

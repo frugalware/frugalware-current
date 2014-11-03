@@ -1,0 +1,69 @@
+From b92a3688d91d76b7c0ffcb3775b232ed96062fc9 Mon Sep 17 00:00:00 2001
+From: David Faure <faure@kde.org>
+Date: Tue, 21 Oct 2014 09:22:41 +0200
+Subject: [PATCH] Delete the part from the mainwindow, not from the mainwidget.
+
+This is a fix for "kontact crashes on quit" introduced by c5b703e7c
+because I confused mainwindow and mainwidget. It restores a behavior
+closer to before 8fc0d948f6e1, where the part was deleted by the mainwindow.
+
+CCBUG: 336417
+---
+ akregator/src/mainwidget.cpp | 2 --
+ akregator/src/mainwindow.cpp | 7 +++++++
+ akregator/src/mainwindow.h   | 1 +
+ 3 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/akregator/src/mainwidget.cpp b/akregator/src/mainwidget.cpp
+index 14cd2a9..99a1287 100644
+--- a/akregator/src/mainwidget.cpp
++++ b/akregator/src/mainwidget.cpp
+@@ -317,8 +317,6 @@ void Akregator::MainWidget::slotOnShutdown()
+ {
+     m_shuttingDown = true;
+ 
+-    delete m_part;
+-
+     // close all pageviewers in a controlled way
+     // fixes bug 91660, at least when no part loading data
+     while ( m_tabWidget->count() > 1 ) { // remove frames until only the main frame remains
+diff --git a/akregator/src/mainwindow.cpp b/akregator/src/mainwindow.cpp
+index 03399c7..cf36b23 100644
+--- a/akregator/src/mainwindow.cpp
++++ b/akregator/src/mainwindow.cpp
+@@ -88,6 +88,8 @@ MainWindow::MainWindow( QWidget* parent, Qt::WindowFlags f )
+ 
+     connect( KPIM::BroadcastStatus::instance(), SIGNAL(statusMsg(QString)),
+              this, SLOT(slotSetStatusBarText(QString)) );
++
++    connect(qApp, SIGNAL(aboutToQuit()), this, SLOT(slotOnShutdown()));
+ }
+ 
+ bool MainWindow::loadPart()
+@@ -186,6 +188,11 @@ void MainWindow::slotQuit()
+     kapp->quit();
+ }
+ 
++void MainWindow::slotOnShutdown()
++{
++    delete m_part;
++}
++
+ bool MainWindow::queryClose()
+ {
+     if ( kapp->sessionSaving() ) {
+diff --git a/akregator/src/mainwindow.h b/akregator/src/mainwindow.h
+index a77eaee..64ce5bc 100644
+--- a/akregator/src/mainwindow.h
++++ b/akregator/src/mainwindow.h
+@@ -115,6 +115,7 @@ private slots:
+     void optionsConfigureKeys();
+     void optionsConfigureToolbars();
+     void applyNewToolbarConfig();
++    void slotOnShutdown();
+ 
+ private:
+     BrowserInterface *m_browserIface;
+-- 
+1.8.4.1
+

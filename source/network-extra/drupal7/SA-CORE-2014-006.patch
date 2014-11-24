@@ -1,0 +1,67 @@
+Index: drupal7/includes/password.inc
+===================================================================
+--- drupal7.orig/includes/password.inc	2014-11-19 15:22:16.266318073 -0600
++++ drupal7/includes/password.inc	2014-11-19 15:23:45.231345015 -0600
+@@ -140,7 +140,7 @@
+  * @param $algo
+  *   The string name of a hashing algorithm usable by hash(), like 'sha256'.
+  * @param $password
+- *   The plain-text password to hash.
++ *   Plain-text password up to 512 bytes (128 to 512 UTF-8 characters) to hash.
+  * @param $setting
+  *   An existing hash or the output of _password_generate_salt().  Must be
+  *   at least 12 characters (the settings and salt).
+@@ -150,6 +150,10 @@
+  *   The return string will be truncated at DRUPAL_HASH_LENGTH characters max.
+  */
+ function _password_crypt($algo, $password, $setting) {
++  // Prevent DoS attacks by refusing to hash large passwords.
++  if (strlen($password) > 512) {
++    return FALSE;
++  }
+   // The first 12 characters of an existing hash are its setting string.
+   $setting = substr($setting, 0, 12);
+ 
+Index: drupal7/includes/session.inc
+===================================================================
+--- drupal7.orig/includes/session.inc	2014-11-19 15:22:35.502540128 -0600
++++ drupal7/includes/session.inc	2014-11-19 15:23:45.231345015 -0600
+@@ -79,7 +79,7 @@
+   // Handle the case of first time visitors and clients that don't store
+   // cookies (eg. web crawlers).
+   $insecure_session_name = substr(session_name(), 1);
+-  if (!isset($_COOKIE[session_name()]) && !isset($_COOKIE[$insecure_session_name])) {
++  if (empty($sid) || (!isset($_COOKIE[session_name()]) && !isset($_COOKIE[$insecure_session_name]))) {
+     $user = drupal_anonymous_user();
+     return '';
+   }
+Index: drupal7/modules/simpletest/tests/password.test
+===================================================================
+--- drupal7.orig/modules/simpletest/tests/password.test	2014-11-19 15:22:16.270318121 -0600
++++ drupal7/modules/simpletest/tests/password.test	2014-11-19 15:23:45.231345015 -0600
+@@ -57,4 +57,25 @@
+     $this->assertFalse(user_needs_new_hash($account), t('Re-hashed password does not need a new hash.'));
+     $this->assertTrue(user_check_password($password, $account), t('Password check succeeds with re-hashed password.'));
+   }
++
++  /**
++   * Verifies that passwords longer than 512 bytes are not hashed.
++   */
++  public function testLongPassword() {
++    $password = str_repeat('x', 512);
++    $result = user_hash_password($password);
++    $this->assertFalse(empty($result), '512 byte long password is allowed.');
++    $password = str_repeat('x', 513);
++    $result = user_hash_password($password);
++    $this->assertFalse($result, '513 byte long password is not allowed.');
++    // Check a string of 3-byte UTF-8 characters.
++    $password = str_repeat('€', 170);
++    $result = user_hash_password($password);
++    $this->assertFalse(empty($result), '510 byte long password is allowed.');
++    $password .= 'xx';
++    $this->assertFalse(empty($result), '512 byte long password is allowed.');
++    $password = str_repeat('€', 171);
++    $result = user_hash_password($password);
++    $this->assertFalse($result, '513 byte long password is not allowed.');
++  }
+ }

@@ -1,0 +1,51 @@
+From f18ced8f1da11e1760b85726b0890457223c768d Mon Sep 17 00:00:00 2001
+From: Bill Meier <wmeier@newsguy.com>
+Date: Sun, 19 Oct 2014 10:04:39 -0400
+Subject: [PATCH 5/5] packet-amqp.c: Temporary/preliminary fix for Bug #10582
+ (crash)
+
+This is a temporary/preliminary fix to prevent the buildbot fuzz-test
+ failures seen when testing the capture file attached to Bug #10582.
+
+As noted in the bug, a complete fix will require some reworking of
+  the amqp dissector.
+
+Change-Id: I2571f1eeb46a7eede04b8d809e87b95f1ff529df
+Reviewed-on: https://code.wireshark.org/review/4835
+Reviewed-by: Bill Meier <wmeier@newsguy.com>
+(cherry picked from commit 8def8ef9c40189472a46d9b1ad95289780e09af5)
+Reviewed-on: https://code.wireshark.org/review/4837
+Reviewed-by: Evan Huus <eapache@gmail.com>
+Reviewed-on: https://code.wireshark.org/review/5356
+---
+ epan/dissectors/packet-amqp.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/epan/dissectors/packet-amqp.c b/epan/dissectors/packet-amqp.c
+index 3d42d0a..9c610a9 100644
+--- a/epan/dissectors/packet-amqp.c
++++ b/epan/dissectors/packet-amqp.c
+@@ -53,10 +53,20 @@ static int amqp_port = 5672;
+ 
+ /*  Generic defines  */
+ 
++#if 0
+ #define AMQP_INCREMENT(offset, addend, bound) {\
+     offset += (addend);\
+     THROW_ON((offset > bound), ReportedBoundsError);  \
+ }
++#else /* --> (temporary until in-progress code review completed; See Bug #10582) */
++#define AMQP_INCREMENT(offset, addend, bound) {\
++        THROW_ON( \
++            (((unsigned)(offset) + (unsigned)(addend)) < (unsigned)(offset)) || \
++            (((unsigned)(offset) + (unsigned)(addend)) > (unsigned)(bound )) \
++            , ReportedBoundsError);  \
++    offset += (addend); \
++}
++#endif
+ 
+ /*
+  * This dissector handles AMQP 0-9 and 0-10. The conversation structure
+-- 
+2.1.3
+

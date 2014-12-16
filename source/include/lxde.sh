@@ -74,7 +74,7 @@ if [ -z "$_F_lxde_github" ] ; then
     fi
 
     # rss limit
-    if [ ! -z "$_F_lxde_rss_limit" ] ; then
+    if [ -z "$_F_lxde_rss_limit" ] ; then
 	    _F_lxde_rss_limit=100
     fi
 

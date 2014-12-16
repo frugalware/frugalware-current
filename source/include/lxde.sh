@@ -30,6 +30,7 @@
 # * _F_lxde_subdirs (default to none): subdirs project on sourceforge
 # * _F_lxde_github (default to n): use github instead of sourceforge
 # * _F_lxde_group (default to lxde-desktop): change default group
+# * _F_lxde_rss_limit (default to 100): rss limit on sourceforge
 ###
 
 if [ ! -z "$_F_lxde_gtk3" ] ; then
@@ -72,9 +73,14 @@ if [ -z "$_F_lxde_github" ] ; then
         _F_sourceforge_subdir="$_F_lxde_subdirs"
     fi
 
+    # rss limit
+    if [ ! -z "$_F_lxde_rss_limit" ] ; then
+	    _F_lxde_rss_limit=100
+    fi
+
     _F_sourceforge_ext="$_F_lxde_ext"
     _F_sourceforge_dirname="$_F_lxde_dirname"
-    _F_sourceforge_rss_limit=100
+    _F_sourceforge_rss_limit="$_F_lxde_rss_limit"
     Finclude sourceforge
 
 # Github

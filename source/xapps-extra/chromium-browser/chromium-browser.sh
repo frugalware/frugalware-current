@@ -2,7 +2,7 @@
 export CHROME_WRAPPER=/usr/lib/chromium/chromium
 export CHROME_DESKTOP=chromium-browser.desktop
 
-CHROME_GLOBAL_FLAGS="--cipher-suite-blacklist=0x0004,0x0005,0xc011,0xc007 --ssl-version-min=tls1"
+CHROME_GLOBAL_FLAGS="--ssl-version-min=tls1"
 
 if [ -e "/usr/lib/chromium/PepperFlash/libpepflashplayer.so" ]
 then

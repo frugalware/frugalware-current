@@ -8,7 +8,7 @@ pkgname=libreoffice
 pkgver=4.3.3.2
 minor=${pkgver:0:5} # x.y.z
 major=${pkgver:0:3} # x.y
-pkgrel=1
+pkgrel=2
 pkgdesc="LibreOffice Productivity Suite, a fork of OpenOffice.org."
 url="http://www.documentfoundation.org/download/"
 Finclude gnome-scriptlet kde
@@ -231,6 +231,18 @@ build()
 	fi
 	touch src.built
 
+	# generate the icons and mime type stuff
+	export DESTDIR=../output
+	export KDEMAINDIR=/usr
+	export GNOMEDIR=/usr
+	export GNOME_MIME_THEME=hicolor
+	. ./bin/get_config_variables PRODUCTVERSIONSHORT PRODUCTVERSION WORKDIR
+	pushd $WORKDIR/CustomTarget/sysui/share/libreoffice
+	./create_tree.sh
+	popd
+	mkdir $WORKDIR/os-integration
+	cp -pr $WORKDIR/CustomTarget/sysui/share/output/usr/share/* $WORKDIR/os-integration
+
 	make DESTDIR=$Fdestdir install || return 1
 
 	# Install wrappers, desktop files, icons and mime types and manpages
@@ -244,17 +256,39 @@ build()
 	Fln /usr/lib/libreoffice/program/soffice /usr/bin/soffice
 	Fwrapper '/usr/lib/libreoffice/program/unopkg "$@"' unopkg
 
-	cd $Fdestdir/usr/lib/libreoffice/share/xdg
-	Fmkdir /usr/share/{applications,icons}
-	for i in base calc draw impress math writer
-	do
-		Fsed "libreoffice$major-" '' $Fdestdir/usr/lib/libreoffice/share/xdg/$i.desktop # Fix Icon=
-		Fsed "libreoffice$major" 'libreoffice' $Fdestdir/usr/lib/libreoffice/share/xdg/$i.desktop # Fix Exec=
-		Fln /usr/lib/libreoffice/share/xdg/$i.desktop /usr/share/applications/$i.desktop
+	# Desktop files
+	pushd $Fdestdir/usr/lib/libreoffice/share/xdg/
+	chmod u+w *.desktop
+	ICONVERSION=`echo $PRODUCTVERSION | sed -e 's/\.//'`
+	for file in *.desktop; do
+	    # remove the version from Name=
+	    # don't version the icons
+	    sed -i -e "s/ *$PRODUCTVERSION//g" \
+		-e "s/$ICONVERSION//g" \
+		-e "s/$PRODUCTVERSIONSHORT//g" \
+		$file
 	done
-	cd -
+	# do not show math and startcenter
+	sed -i -e /NoDisplay/s/false/true/ math.desktop startcenter.desktop
+	# relocate the .desktop files
+	Fmkdir /usr/share/applications
+	for app in base calc draw impress math startcenter writer xsltfilter; do
+	    sed -i -e 's/\${UNIXBASISROOTNAME}/libreoffice/' $app.desktop
+	    Ffilerel $app.desktop /usr/share/applications/libreoffice-$app.desktop
+	done
+	popd
 
-	cp -r sysui/desktop/icons/{hi,lo}color $Fdestdir/usr/share/icons || return 1
+	# Icons
+	pushd $WORKDIR/os-integration
+	#get rid of the gnome icons and other unneeded files
+	rm -rf icons/gnome applications application-registry
+	# relocate the rest of them
+	# 512x512 icons are not used by anything
+	for icon in `find icons -path '*/512x512' -prune -o -type f -print`; do
+		Fmkdir /usr/share/`dirname $icon`
+		Ffilerel $icon /usr/share/`echo $icon | sed -e s@libreoffice$ICONVERSION-@libreoffice-@ | sed -e s@libreoffice$PRODUCTVERSION-@libreoffice-@`
+	done
+	popd
 
 	Ffilerel workdir/CustomTarget/sysui/share/libreoffice/openoffice.org.xml /usr/share/mime/packages/libreoffice.xml
 

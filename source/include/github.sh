@@ -76,7 +76,6 @@ else
 	_F_archive_name="archive"
 	Fpkgversep="/"
 	if [ -z "$_F_github_tag_v" ]; then
-			  echo "no tag_v"
 		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/$_F_github_ver.tar.gz"
 	else
 		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/v$_F_github_ver.tar.gz"

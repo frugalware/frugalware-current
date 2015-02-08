@@ -75,7 +75,7 @@ else
 	_F_github_up2date="tags"
 	_F_archive_name="archive"
 	Fpkgversep="/"
-	_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/$_F_github_ver.tar.gz"
+	_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/v$_F_github_ver.tar.gz"
 	_F_cd_path="$_F_github_name-$_F_github_ver"
 fi
 
@@ -86,7 +86,7 @@ if [ "$_F_github_devel" = "yes" ]; then
 	_F_scm_url=git://github.com/$_F_github_author/$_F_github_name
 	Finclude scm
 else
-	up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext"
+	up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext | sed 's/v//'"
 	# On one line for Mr Portability, Hermier Portability.
 	source=(${source[@]} ${_F_github_source})
 fi

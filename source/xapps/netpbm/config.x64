@@ -1,16 +1,12 @@
-####This file was automatically created by 'configure.'
-####Many variables are set twice -- a generic setting, then 
-####a system-specific override at the bottom of the file.
-####
 # This is a make file inclusion, to be included in all the Netpbm make
 # files.
 
 # This file is meant to contain variable settings that customize the
 # build for a particular target system configuration.
 
-# The distribution contains the file Makefile.config.in.  You edit
-# Makefile.config.in in ways relevant to your particular environment 
-# to create Makefile.config.  The "configure" program will do this
+# The distribution contains the file config.mk.in.  You edit
+# config.mk.in in ways relevant to your particular environment 
+# to create config.mk.  The "configure" program will do this
 # for you in simple cases.
 
 # Some of the variables that the including make file must set for this
@@ -69,16 +65,40 @@ LINKER_CAN_DO_EXPLICIT_LIBRARY=N
 # This is the name of the header file that declares the types
 # uint32_t, etc.  This name is used as #include $(INTTYPES_H)  .
 # Set to null if the types come automatically without including anything.
+
+# We have a report (2005.09.17) that on IRIX 5.3 with the native IDO
+# cc, inttypes.h and sys/types.h conflict (and Netpbm programs include
+# sys/types for other things), so for that environment, <inttypes.h>
+# won't work, but "inttypes_netpbm.h" might.
+
 INTTYPES_H = <inttypes.h>
 # Linux libc5:
 #INTTYPES_H = <types.h>
 # Solaris:
-#INTTYPES_H = <sys/inttypes.h>
+# Solaris has <sys/inttypes.h>, but it doesn't define int_fast2_t, etc.
+#INTTYPES_H = "inttypes_netpbm.h"
 # Others:
 #INTTYPES_H = <sys/stdint.h>
 #INTTYPES_H = <sys/types.h>
 # The automatically generated Netpbm version:
 #INTTYPES_H = "inttypes_netpbm.h"
+
+# HAVE_INT64 tells whether, assuming you include the header indicated by
+# INTTYPES_H, you have the int64_t type and related stuff.  (If you don't
+# the build will omit certain code that does 64 bit computations).
+HAVE_INT64 = Y
+#HAVE_INT64 = N
+
+# WANT_SSE tells whether the build should use SSE instructions, via the the
+# standard SSE intrinsics (operators such as '_mm_movemask_epi8').  SSE
+# instructions are faster than traditional instructions, but aren't available
+# on all CPUs.  Also, the standard intrinsics are not available in all
+# compilers.  Even if you say N here, Netpbm may still be built with some
+# SSE exploitation (e.g. SSE floating point) because the compiler will 
+# do it automatically.  You can add a -nomsse or -nomsse2 option to
+# CFLAGS or CFLAGS_PERSONAL to stop that.
+#WANT_SSE = N
+WANT_SSE = Y
 
 # CC and LD are for building the Netpbm programs, which are not necessarily
 # intended to run on the same system on which Make is running.  But when we 
@@ -87,6 +107,8 @@ INTTYPES_H = <inttypes.h>
 # to use to compile and link build tools.
 CC_FOR_BUILD = $(CC)
 LD_FOR_BUILD = $(LD)
+CFLAGS_FOR_BUILD = $(CFLAGS_CONFIG)
+LDFLAGS_FOR_BUILD = $(LDFLAGS)
 
 # MAKE is set automatically by Make to what was used to invoke Make.
 
@@ -122,11 +144,18 @@ AR = ar
 RANLIB = ranlib
 # IRIX, SCO don't have Ranlib:
 #RANLIB = true
+
+# LEX is the beginning of a shell command that runs a Lex-like
+# pattern matcher generator.  Null string means there isn't any such
+# command.  That means the build will skip parts that need one.
+
 LEX = flex
 # Solaris:
 # LEX = flex -e
-# Or just skip parts that need Lex:
+# Windows Mingw:
 # LEX =
+# 
+# LEX = lex
 
 # C compiler options 
 
@@ -134,8 +163,7 @@ LEX = flex
 # -ansi and -Werror should work too, but are not included
 # by default because there's no point in daring the build to fail.
 # -pedantic isn't a problem because it causes at worst a warning.
-#CFLAGS = -O3 -fast-math -pedantic \
-#          -Wall -Wno-uninitialized -Wmissing-declarations
+CFLAGS = $CFLAGS -flax-vector-conversions -fPIC
 # The merged programs have a main_XXX subroutine instead of main(),
 # which would cause a warning with -Wmissing-declarations or 
 # -Wmissing-prototypes.
@@ -179,6 +207,15 @@ EXE =
 # LDFLAGS is often set as an environment variable;  A setting here overrides
 # it.  So either make sure you want to override it, or do a "LDFLAGS +=" here.
 
+# LDFLAGS is usually not the right place for a -L option, because we put
+# LDFLAGS _before_ our own -L options, so it would cancel out our
+# specific selection of libraries.  For example, if you say
+# LDFLAGS=/usr/local/lib and an old copy of the libnetpbm is in
+# /usr/local/lib, then you'd be linking against that old copy instead of
+# the copy you just built, which is located by a -L option later on the
+# link command.  LIBS is the right variable for adding -L options.  LIBS
+# goes after any of our make files' own -L options.
+
 # Eunice users may want to use -noshare so that the executables can
 # run standalone:
 #LDFLAGS += -noshare
@@ -196,13 +233,6 @@ EXE =
 #LDFLAGS += -Wl,+b,/usr/pubsw/lib
 #IRIX:
 #LDFLAGS += -n32
-#FreeBSD, OpenBSD:
-# (04.03.15 This may be a mistake.  LDFLAGS may already be set to this as
-#  an environment variable.  We used to override the environment variable
-#  here with LDFLAGS =, which would mean we had to override with the same 
-#  value it already had.  I suspect it will work fine with no LDFLAGS
-#  setting at all; need to confirm this on real FreeBSD and OpenBSD systems)
-#LDFLAGS += -L/usr/local/lib
 
 # Linker options for created Netpbm shared libraries.
 
@@ -228,6 +258,17 @@ LDSHLIB = -shared -Wl,-soname,$(SONAME)
 #LDSHLIB = -shared
 #AIX Visual Age C:
 #LDSHLIB = -qmkshrobj
+#Mac OSX:
+# According to experiments done by Peter A Crowley in May 2007, if
+# libnetpbm goes in a standard place such as /usr/local/lib,
+# programs need not be built with libnetpbm's location included.
+# But if it goes elsewhere, the link-editor must include the
+# location in the executable.  It finds the runtime location by
+# looking inside the library.  The information in the library
+# comes from the install_name option with which the library was
+# built.  It's an alternative to the -rpath option on other systems.
+#LDSHLIB=-dynamiclib
+#LDSHLIB=-dynamiclib -install_name $(NETPBMLIB_RUNTIME_PATH)/libnetpbm.$(MAJ).dylib
 
 # LDRELOC is the command to combine two .o files (relocateable object files)
 # into a single .o file that can later be linked into something else.  NONE
@@ -256,8 +297,12 @@ LDRELOC = NONE
 # copy of Pbmtext used 16K less real memory when built with -fpic than
 # when built without.  2001.06.02.
 
+# We have seen -fPIC required on IA64 and AMD64 machines (GNU
+# compiler/linker).  Build-time linking fails without it.  I don't
+# know why -- history seems to be repeating itself.  2005.02.23.
+
 CFLAGS_SHLIB = 
-# Solaris or SunOS with gcc, and NetBSD:
+# Gcc:
 #CFLAGS_SHLIB = -fpic
 #CFLAGS_SHLIB = -fPIC
 # Sun compiler:
@@ -278,7 +323,7 @@ CFLAGS_SHLIB =
 
 SHLIB_CLIB = -lc
 # SCO:
-SHLIB_CLIB =
+#SHLIB_CLIB =
 
 # On some systems you have to build into an executable the list of
 # directories where its dynamically linked libraries can be found at
@@ -300,7 +345,7 @@ RPATHOPTNAME = -rpath
 # The following variables tell where your various libraries on which
 # Netpbm depends live.  The LIBxxx variable is a full file
 # specification of the link library (not necessarily the library used
-# at run time).  e.g. "/usr/local/lib/graphics/libpng.so".  It usually
+# at run time).  e.g. "/usr/local/lib/graphics/libjpeg.so".  It usually
 # doesn't matter if the library prefix and suffix are right -- you can
 # use "lib" and ".so" or ".a" regardless of what your system actually
 # uses because these just turn into "-L" and "-l" linker options
@@ -308,7 +353,7 @@ RPATHOPTNAME = -rpath
 # If you don't have the library in question, use a value of NONE for
 # LIBxxx and the build will simply skip the programs that require that
 # library.  If the library is in your linker's (or the Netpbm build's)
-# default search path, leave off the directory part, e.g. "libpng.so".
+# default search path, leave off the directory part, e.g. "libjpeg.so".
 
 # The xxxHDR_DIR variable is the directory in which the interface
 # headers for the library live (e.g. /usr/include).  If they are in your
@@ -339,12 +384,11 @@ TIFFHDR_DIR =
 #TIFFHDR_DIR = /usr/local1/DEC/include
 
 # Some TIFF libraries do Jpeg and/or Z (flate) compression and thus any
-# program linked with the TIFF library needs a Jpeg and/or Z library.
-# Some TIFF libraries have such library statically linked in, but others
-# need it to be dynamically linked at program load time.
-# Make this 'N' if youf TIFF library doesn't need such dynamic linking.
-# As of 2005.01, the most usual build of the TIFF library appears to require
-# both.
+# program linked with the TIFF library needs a Jpeg and/or Z library.  Some
+# TIFF libraries have such library statically linked in, but others need it to
+# be linked with the program at link-edit time or dynamically at program load
+# time.  Make this 'N' if your TIFF library doesn't need such linking.  As of
+# 2005.01, the most usual build of the TIFF library appears to require both.
 TIFFLIB_NEEDS_JPEG = Y
 TIFFLIB_NEEDS_Z = Y
 
@@ -380,8 +424,23 @@ JPEGHDR_DIR =
 
 # The PNG library, by convention starting around April 2002, gets installed
 # with names that include a version number, such as libpng10.a and header
-# files in /usr/include/libpng10.
-# option.
+# files in /usr/include/libpng10.  But there is conventionally an unnumbered
+# alias (e.g. libpng.a, /usr/include/libpng) for the preferred version.
+#
+# Recent versions of the library (since some time in the 2002-2006 period)
+# have an associated 'libpng-config' that tells how to link it.  The make
+# files will use that program if it exists (must be in the PATH).  In that
+# case, PNGLIB and PNGHDR_DIR are irrelevant, but PNGVER is still meaningful,
+# because the make file runs 'libpng$(PNGVER)-config'.
+#
+# Even more recent versions have the more modern Pkgconfig database entry
+# to tell how to link it.  The make files will try to use that first.
+#
+# The normal way to choose the libpng the Netpbm build uses from among multiple
+# versions on your system is not to mess with the variables below, but rather
+# to mess with PKG_CONFIG_PATH or PATH environment variable so that the version
+# you want to use appears first in the search path.
+
 PNGLIB = NONE
 PNGHDR_DIR =
 PNGVER = 
@@ -398,6 +457,8 @@ PNGVER =
 # anything that needs the PNG library (see above).  If you selected
 # NONE for the PNG library, it doesn't matter what you specify here --
 # it won't get used.
+#
+# If you have 'libpng-config' (see above), these are irrelevant.
 
 ZLIB = NONE
 ZHDR_DIR = 
@@ -405,19 +466,31 @@ ZHDR_DIR =
 
 # The JBIG lossless image compression library (aka JBIG-KIT):
 
-JBIGLIB = $(BUILDDIR)/converter/other/jbig/libjbig.a
-JBIGHDR_DIR = $(SRCDIR)/converter/other/jbig
+JBIGLIB = -ljbig
+#JBIGHDR_DIR = $(SRCDIR)/converter/other/jbig
 
 # The Jasper JPEG-2000 image compression library (aka JasPer):
 JASPERLIB = $(INTERNAL_JASPERLIB)
 JASPERHDR_DIR = $(INTERNAL_JASPERHDR_DIR)
+# JASPERDEPLIBS is the libraries (-l options or file names) on which
+# The Jasper library depends -- i.e. what you have to link into any
+# executable that links in the Jasper library.
+JASPERDEPLIBS =
+#JASPERDEPLIBS = -ljpeg
 
 # And the Utah Raster Toolkit (aka URT aka RLE) library:
 
 URTLIB = $(BUILDDIR)/urt/librle.a
 URTHDR_DIR = $(SRCDIR)/urt
 
+# The X11 library has facilities for talking to an X Window System
+# server.  It is required by Pamx.
+
 X11LIB = -lX11
+X11HDR_DIR =
+
+#X11LIB = /usr/lib/libX11.so
+#X11HDR_DIR =
 
 # The Linux SVGA library (Svgalib) is a facility for displaying graphics
 # on the Linux console.  It is required by Ppmsvgalib.
@@ -425,10 +498,15 @@ X11LIB = -lX11
 LINUXSVGALIB = NONE
 LINUXSVGAHDR_DIR = 
 
-#LINUXSVGALIB_DIR = 
+#LINUXSVGALIB = /usr/lib/libvga.so
 #LINUXSVGAHDR_DIR = /usr/include/vgalib
 
-# If you don't want any network functions, set OMIT_NETWORK to "y".
+# WINICON_OBJECT is the object file to bind into all Netpbm executables
+# to provide the icon for Windows to use for it.  Null for none.
+WINICON_OBJECT =
+#WINICON_OBJECT = $(BUILDDIR)/icon/netpbm.o
+
+# If you don't want any network functions, set OMIT_NETWORK to "Y".
 # The only thing that requires network functions is the option in
 # ppmtompeg to run it on multiple computers simultaneously.  On some
 # systems network functions don't work or we haven't figured out how to 
@@ -441,7 +519,7 @@ OMIT_NETWORK =
 
 # These are -l options to link in the network libraries.  Often, these are
 # built into the standard C library, so this can be null.  This is irrelevant
-# if OMIT_NETWORK is "y".
+# if OMIT_NETWORK is "Y".
 
 NETWORKLD = 
 # Solaris, SunOS:
@@ -449,9 +527,10 @@ NETWORKLD =
 # SCO:
 #NETWORKLD = -lsocket, -lresolv
 
-VMS = 
-#VMS:
-#VMS = yes
+# DONT_HAVE_PROCESS_MGMT is Y if this system doesn't have the usual
+# Unix process management stuff - fork, wait, etc.  N for a regular Unix
+# system.
+DONT_HAVE_PROCESS_MGMT = N
 
 # The following variables are used only by 'make install' (and the
 # variants of it).  Paths here don't, for example, get built into any
@@ -460,6 +539,14 @@ VMS =
 # This is where everything goes when you do 'make package', unless you
 # override it by setting 'pkgdir' on the Make command line.
 PKGDIR_DEFAULT = /tmp/netpbm
+
+# This is where test results are written when you do 'make check', unless
+# you override it by setting 'resultdir' on the Make command line.
+RESULTDIR_DEFAULT = /tmp/netpbm-test
+
+# Subdirectory of the package directory ($(pkgdir)) in which man pages
+# go.
+PKGMANDIR = man
 
 # File permissions for installed files.
 # Note that on some systems (e.g. Solaris), 'install' can't use the 
@@ -518,12 +605,12 @@ NETPBMLIBSUFFIX = so
 # Windows shared library:
 #NETPBMLIBSUFFIX = dll
 
-#STATICLIB_TOO is "y" to signify that you want a static library built
+#STATICLIB_TOO is "Y" to signify that you want a static library built
 #and installed in addition to whatever library type you specified by
 #NETPBMLIBTYPE.  If NETPBMLIBTYPE specified a static library,
 #STATICLIB_TOO simply has no effect.
-STATICLIB_TOO = y
-#STATICLIB_TOO = n
+STATICLIB_TOO = Y
+#STATICLIB_TOO = N
 
 #STATICLIBSUFFIX is the suffix that static libraries have.  It's
 #meaningless if you aren't building static libraries.
@@ -531,7 +618,7 @@ STATICLIBSUFFIX = a
 
 #SHLIBPREFIXLIST is a blank-delimited list of prefixes that a filename
 #of a shared library may have on this system.  Traditionally, it's
-#just "lib", as in libc or libpbm.  On Windows, though, varying
+#just "lib", as in libc or libnetpbm.  On Windows, though, varying
 #prefixes are used when multiple alternative forms of a library are
 #available.  The first prefix in this list is what we use to name the
 #Netpbm shared libraries.
@@ -563,27 +650,11 @@ DLLVER =
 #library, and file type.  E.g. The documentation for jpegtopnm might be in
 #http://netpbm.sourceforge.net/doc/jpegtopnm.html .  This value gets
 #installed in the man pages (which say no more than to read the webpage)
-#and in the Webman netpbm.url file.
+#and in the Manweb netpbm.url file.
 NETPBM_DOCURL = http://netpbm.sourceforge.net/doc/
 #For a system with no web access, but a local copy of the doc:
 #NETPBM_DOCURL = file:/usr/doc/netpbm/
 
-
-
-
-####Lines above were copied from Makefile.config.in by 'configure'.
-####Lines below were added by 'configure' based on the GNU platform.
-DEFAULT_TARGET = nonmerge
-NETPBMLIBTYPE=unixshared
-NETPBMLIBSUFFIX=so
-STATICLIB_TOO=y
-CFLAGS = -O3 -ffast-math  -pedantic -Wall -Wno-uninitialized -Wmissing-declarations -Wimplicit -Wwrite-strings -Wmissing-prototypes
-CFLAGS_MERGE = -Wno-missing-declarations -Wno-missing-prototypes
-LDRELOC = ld --reloc
-LINKER_CAN_DO_EXPLICIT_LIBRARY=Y
-LINKERISCOMPILER = Y
-TIFFLIB = libtiff.so
-JPEGLIB = libjpeg.so
-PNGLIB = libpng.so
-ZLIB = libz.so
-NETPBM_DOCURL = http://netpbm.sourceforge.net/doc/
+# RGB_DB_PATH is where Netpbm looks for the color database when the RGBDEF
+# environment variable is not set.  See pm_config_in.h for details.
+RGB_DB_PATH = /usr/share/netpbm/rgb.txt:/usr/lib/X11/rgb.txt:/usr/share/X11/rgb.txt:/usr/X11R6/lib/X11/rgb.txt

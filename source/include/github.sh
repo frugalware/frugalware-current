@@ -68,14 +68,18 @@ if [ -z "$url" ]; then
 	url=http://github.com/$_F_github_author/$_F_github_name
 fi
 
-if [ -z "$_F_github_tag" ]; then
+if [ -z "$_F_github_tag" ] && [ -z "$_F_github_tag_v" ]; then
 	_F_github_up2date="downloads"
 	_F_github_source="http://github.com/downloads/$_F_github_author/$_F_github_dirname/$_F_github_name$_F_github_sep$_F_github_ver$_F_github_ext"
-	else
+else
 	_F_github_up2date="tags"
 	_F_archive_name="archive"
 	Fpkgversep="/"
-	_F_github_source="https://codeload.github.com/$_F_github_author/$_F_github_dirname/zip/$_F_github_ver"
+	if [ -z "$_F_github_tag_v" ]; then
+		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/$_F_github_ver.tar.gz"
+	else
+		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/v$_F_github_ver.tar.gz"
+	fi
 	_F_cd_path="$_F_github_name-$_F_github_ver"
 fi
 
@@ -86,22 +90,11 @@ if [ "$_F_github_devel" = "yes" ]; then
 	_F_scm_url=git://github.com/$_F_github_author/$_F_github_name
 	Finclude scm
 else
-	up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext"
+	if [ -z "$_F_github_tag_v" ]; then
+		up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext"
+	else
+		up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext | sed 's/v//'"
+	fi
 	# On one line for Mr Portability, Hermier Portability.
 	source=(${source[@]} ${_F_github_source})
-fi
-
-if [ -n "$_F_github_tag" ]; then
-	# Funpack_github() unpack zipball if source has in $url/tags.
-	Funpack_github()
-	{
-		unzip -o -q $_F_github_ver
-	}
-
-	# build() just calls Funpack_github and Fbuild
-	build()
-	{
-		Funpack_github
-		Fbuild
-	}
 fi

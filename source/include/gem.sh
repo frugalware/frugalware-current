@@ -38,7 +38,7 @@ fi
 # * ruby to depends()
 # * rubygems to makedepends()
 ###
-depends=(${depends[@]} 'ruby>=1.9.1-1')
+depends=(${depends[@]} 'ruby>=2.1.2')
 
 ###
 # == OVERWRITTEN VARIABLES
@@ -56,8 +56,8 @@ Finstallgem() {
 	gem install "$_F_gem_name" --local --version "$pkgver" --install-dir . --ignore-dependencies
 	cd gems/"$_F_gem_name"-"$pkgver"
 	Fpatchall
-	libdir=`ruby -r rbconfig -e 'print Config::CONFIG["rubylibdir"]'`
-	archdir=`ruby -r rbconfig -e 'print Config::CONFIG["archdir"]'`
+	libdir=$(ruby -r rbconfig -e 'print RbConfig::CONFIG["rubylibdir"]')
+	archdir=$(ruby -r rbconfig -e 'print RbConfig::CONFIG["archdir"]')
 	if [ -d bin ]; then
 		Fmkdir /usr/bin
 		cp -R bin/* "$Fdestdir"/usr/bin || Fdie
@@ -71,21 +71,21 @@ Finstallgem() {
 		Fmkdir "$archdir"
 		cp -R ext/* "$Fdestdir"/"$archdir" || Fdie
 	fi
-	if [ -d doc -a -n "`ls doc 2>/dev/null`" ]; then
+	if [ -d doc -a -n "$(ls doc 2>/dev/null)" ]; then
 		Fmkdir /usr/share/doc/"$pkgname"-"$pkgver"
-		if [ -d doc/"$_F_gem_name"-"$pkgver" -a -n "`ls doc/$pkgname-$pkgver 2>/dev/null`" ]; then
+		if [ -d doc/"$_F_gem_name"-"$pkgver" -a -n "$(ls doc/$pkgname-$pkgver 2>/dev/null)" ]; then
 			cp -R doc/"$_F_gem_name"-"$pkgver"/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
 			rm -rf doc/"$_F_gem_name"-"$pkgver"/ || Fdie
 		fi
-		if [ -n "`ls doc`" ]; then
+		if [ -n "$(ls doc)" ]; then
 			cp -R doc/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
 		fi
 	fi
-	mv `find . -mindepth 1 -maxdepth 1 -type f` $Fsrcdir
+	mv $(find . -mindepth 1 -maxdepth 1 -type f) $Fsrcdir
 }
 
 ###
-# * build() just calls Fxpiinstall()
+# * build() just calls Finstallgem()
 ###
 build() {
 	Finstallgem

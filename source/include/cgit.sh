@@ -124,8 +124,12 @@ if Fuse DEVEL; then
 	_F_scm_url="$_F_cgit_scmurl"
 	Finclude scm
 else
-	up2date="Fcgit_lastarchive \"$_F_cgit_pkgurl\""
-	source=("$_F_cgit_pkgurl/snapshot/${_F_cgit_name}${_F_cgit_sep}${_F_cgit_pkgver}${_F_cgit_ext}")
+	if [ -z "$up2date" ]; then
+		up2date="Fcgit_lastarchive \"$_F_cgit_pkgurl\""
+	fi
+	if [ "${#source[@]}" -eq 0 ]; then
+		source=("$_F_cgit_pkgurl/snapshot/${_F_cgit_name}${_F_cgit_sep}${_F_cgit_pkgver}${_F_cgit_ext}")
+	fi
 fi
 
 Fcgit_lastarchive_filter="${Flasttar_filter}\\|${Flastzip_filter}"

@@ -1,0 +1,293 @@
+---
+ src/Makefile.am       |    2 +-
+ src/Makefile.in       |    2 +-
+ src/callbacks.c       |   31 ++++++++++++++++++++-----------
+ src/camorama-window.c |    6 +-----
+ src/filter.c          |    4 ++--
+ src/main.c            |    9 ++++++---
+ src/v4l.c             |   19 +++++++++++--------
+ 7 files changed, 42 insertions(+), 31 deletions(-)
+
+--- camorama.orig/src/callbacks.c
++++ camorama/src/callbacks.c
+@@ -9,6 +9,7 @@
+ #include <libgnomeui/gnome-propertybox.h>
+ #include <libgnomeui/gnome-window-icon.h>
+ #include <pthread.h>
++#include <libv4l1.h>
+ 
+ extern GtkWidget *main_window, *prefswindow;
+ //extern state func_state;
+@@ -387,13 +388,10 @@ void on_change_size_activate (GtkWidget
+         }
+     }
+ 
+-    cam->pixmap = gdk_pixmap_new (NULL, cam->x, cam->y, cam->desk_depth);
+-    gtk_widget_set_size_request (glade_xml_get_widget (cam->xml, "da"),
+-                                 cam->x, cam->y);
+ 
+     /*
+      * if(cam->read == FALSE) {
+-     *  cam->pic = mmap(0, cam->vid_buf.size, PROT_READ | PROT_WRITE, MAP_SHARED, cam->dev, 0);
++     *  cam->pic = v4l1_mmap(0, cam->vid_buf.size, PROT_READ | PROT_WRITE, MAP_SHARED, cam->dev, 0);
+      *  
+      *  if((unsigned char *) -1 == (unsigned char *) cam->pic) {
+      *   if(cam->debug == TRUE) {
+@@ -404,7 +402,7 @@ void on_change_size_activate (GtkWidget
+      *  }
+      *  }else{
+      *   cam->pic_buf = malloc(cam->x * cam->y * cam->depth);
+-     *   read(cam->dev,cam->pic,(cam->x * cam->y * 3));
++     *   v4l1_read(cam->dev,cam->pic,(cam->x * cam->y * 3));
+      *  } 
+      */
+ 
+@@ -430,7 +428,7 @@ void on_change_size_activate (GtkWidget
+      * if(cam->read == FALSE) {
+      * * for(frame = 0; frame < cam->vid_buf.frames; frame++) {
+      * * cam->vid_map.frame = frame;
+-     * * if(ioctl(cam->dev, VIDIOCMCAPTURE, &cam->vid_map) < 0) {
++     * * if(v4l1_ioctl(cam->dev, VIDIOCMCAPTURE, &cam->vid_map) < 0) {
+      * * if(cam->debug == TRUE) {
+      * * fprintf(stderr, "Unable to capture image (VIDIOCMCAPTURE) during resize.\n");
+      * * }
+@@ -441,6 +439,11 @@ void on_change_size_activate (GtkWidget
+      * * } 
+      */
+     get_win_info (cam);
++
++    cam->pixmap = gdk_pixmap_new (NULL, cam->x, cam->y, cam->desk_depth);
++    gtk_widget_set_size_request (glade_xml_get_widget (cam->xml, "da"),
++                                 cam->x, cam->y);
++
+     frame = 0;
+     gtk_window_resize (GTK_WINDOW
+                        (glade_xml_get_widget (cam->xml, "main_window")), 320,
+@@ -520,8 +523,14 @@ void on_about_activate (GtkMenuItem * me
+     gtk_widget_show (about);
+ }
+ 
++void
++camorama_filter_color_filter(void* filter, guchar *image, int x, int y, int depth);
++
+ static void
+ apply_filters(cam* cam) {
++	/* v4l has reverse rgb order from what camora expect so call the color
++	   filter to fix things up before running the user selected filters */
++	camorama_filter_color_filter(NULL, cam->pic_buf, cam->x, cam->y, cam->depth);
+ 	camorama_filter_chain_apply(cam->filter_chain, cam->pic_buf, cam->x, cam->y, cam->depth);
+ #warning "FIXME: enable the threshold channel filter"
+ //	if((effect_mask & CAMORAMA_FILTER_THRESHOLD_CHANNEL)  != 0) 
+@@ -539,7 +548,7 @@ read_timeout_func(cam* cam) {
+     int i, count = 0;
+     GdkGC *gc;
+ 
+-    read (cam->dev, cam->pic, (cam->x * cam->y * 3));
++    v4l1_read (cam->dev, cam->pic, (cam->x * cam->y * 3));
+     frames2++;
+     /*
+      * update_rec.x = 0;
+@@ -580,7 +589,7 @@ gint timeout_func (cam * cam)
+ 
+     i = -1;
+     while (i < 0) {
+-        i = ioctl (cam->dev, VIDIOCSYNC, &frame);
++        i = v4l1_ioctl (cam->dev, VIDIOCSYNC, &frame);
+ 
+         if (i < 0 && errno == EINTR) {
+             if (cam->debug == TRUE) {
+@@ -622,7 +631,7 @@ gint timeout_func (cam * cam)
+                                 0, cam->x, cam->y);
+ 
+     cam->vid_map.frame = frame;
+-    if (ioctl (cam->dev, VIDIOCMCAPTURE, &cam->vid_map) < 0) {
++    if (v4l1_ioctl (cam->dev, VIDIOCMCAPTURE, &cam->vid_map) < 0) {
+         if (cam->debug == TRUE) {
+             fprintf (stderr, "Unable to capture image (VIDIOCMCAPTURE)\n");
+         }
+@@ -669,7 +678,7 @@ void on_status_show (GtkWidget * sb, cam
+ void init_cam (GtkWidget * capture, cam * cam)
+ {
+     cam->pic =
+-        mmap (0, cam->vid_buf.size, PROT_READ | PROT_WRITE,
++        v4l1_mmap (0, cam->vid_buf.size, PROT_READ | PROT_WRITE,
+               MAP_SHARED, cam->dev, 0);
+ 
+     if ((unsigned char *) -1 == (unsigned char *) cam->pic) {
+@@ -684,7 +693,7 @@ void init_cam (GtkWidget * capture, cam
+     cam->vid_map.format = cam->vid_pic.palette;
+     for (frame = 0; frame < cam->vid_buf.frames; frame++) {
+         cam->vid_map.frame = frame;
+-        if (ioctl (cam->dev, VIDIOCMCAPTURE, &cam->vid_map) < 0) {
++        if (v4l1_ioctl (cam->dev, VIDIOCMCAPTURE, &cam->vid_map) < 0) {
+             if (cam->debug == TRUE) {
+                 fprintf (stderr,
+                          "Unable to capture image (VIDIOCMCAPTURE).\n");
+--- camorama.orig/src/camorama-window.c
++++ camorama/src/camorama-window.c
+@@ -210,11 +210,7 @@ load_interface(cam* cam) {
+ 
+     logo = gtk_icon_theme_load_icon(gtk_icon_theme_get_for_screen(gtk_widget_get_screen(glade_xml_get_widget(cam->xml, "main_window"))), CAMORAMA_STOCK_WEBCAM, 24, 0, NULL);
+     gtk_window_set_default_icon(logo);
+-    logo = (GdkPixbuf *) create_pixbuf (PACKAGE_DATA_DIR "/pixmaps/camorama.png");
+-    if (logo == NULL) {
+-        printf ("\n\nLOGO NO GO\n\n");
+-    }
+-
++    logo = gtk_icon_theme_load_icon(gtk_icon_theme_get_for_screen(gtk_widget_get_screen(glade_xml_get_widget(cam->xml, "main_window"))), "camorama", 48, 0, NULL);
+     if (cam->show_adjustments == FALSE) {
+         gtk_widget_hide (glade_xml_get_widget
+                          (cam->xml, "adjustments_table"));
+--- camorama.orig/src/filter.c
++++ camorama/src/filter.c
+@@ -151,12 +151,12 @@ G_DEFINE_TYPE(CamoramaFilterColor, camor
+ static void
+ camorama_filter_color_init(CamoramaFilterColor* self) {}
+ 
+-static void
++void
+ camorama_filter_color_filter(CamoramaFilterColor* filter, guchar *image, int x, int y, int depth) {
+ 	int i;
+ 	char tmp;
+ 	i = x * y;
+-	while (--i) {
++	while (i--) {
+ 		tmp = image[0];
+ 		image[0] = image[2];
+ 		image[2] = tmp;
+--- camorama.orig/src/main.c
++++ camorama/src/main.c
+@@ -9,6 +9,7 @@
+ #include <gdk-pixbuf-xlib/gdk-pixbuf-xlib.h>
+ #include <gdk-pixbuf-xlib/gdk-pixbuf-xlibrgb.h>
+ #include <locale.h>
++#include <libv4l1.h>
+ 
+ #include "camorama-display.h"
+ #include "camorama-stock-items.h"
+@@ -206,7 +207,7 @@ main(int argc, char *argv[]) {
+     gdk_pixbuf_xlib_init (display, 0);
+     cam->desk_depth = xlib_rgb_get_depth ();
+ 
+-    cam->dev = open (cam->video_dev, O_RDWR);
++    cam->dev = v4l1_open (cam->video_dev, O_RDWR);
+ 
+     camera_cap (cam);
+     get_win_info (cam);
+@@ -224,8 +225,7 @@ main(int argc, char *argv[]) {
+ 
+     /* get picture attributes */
+     get_pic_info (cam);
+-//	set_pic_info(cam);
+-    /* set_pic_info(cam); */
++    set_pic_info (cam);
+     cam->contrast = cam->vid_pic.contrast;
+     cam->brightness = cam->vid_pic.brightness;
+     cam->colour = cam->vid_pic.colour;
+@@ -285,5 +285,8 @@ main(int argc, char *argv[]) {
+ 
+     gtk_timeout_add (2000, (GSourceFunc) fps, cam->status);
+     gtk_main ();
++    v4l1_munmap(cam->pic, cam->vid_buf.size);
++    v4l1_close(cam->dev);
++
+     return 0;
+ }
+--- camorama.orig/src/Makefile.am
++++ camorama/src/Makefile.am
+@@ -36,7 +36,7 @@ camorama_SOURCES = \
+ 	filter.h	\
+ 	$(BUILT_SOURCES)\
+ 	$(NULL)
+-camorama_LDADD = $(PACKAGE_LIBS)
++camorama_LDADD = $(PACKAGE_LIBS) -lv4l1
+ 
+ DISTCLEANFILES=$(BUILT_SOURCES)
+ 
+--- camorama.orig/src/Makefile.in
++++ camorama/src/Makefile.in
+@@ -248,7 +248,7 @@ camorama_SOURCES = \
+ 	$(BUILT_SOURCES)\
+ 	$(NULL)
+ 
+-camorama_LDADD = $(PACKAGE_LIBS)
++camorama_LDADD = $(PACKAGE_LIBS) -lv4l1
+ DISTCLEANFILES = $(BUILT_SOURCES)
+ all: $(BUILT_SOURCES)
+ 	$(MAKE) $(AM_MAKEFLAGS) all-am
+--- camorama.orig/src/v4l.c
++++ camorama/src/v4l.c
+@@ -2,6 +2,7 @@
+ #include<time.h>
+ #include<errno.h>
+ #include<gnome.h>
++#include <libv4l1.h>
+ #include "support.h"
+ 
+ extern int frame_number;
+@@ -87,7 +88,7 @@ void print_palette(int p)
+ void camera_cap(cam * cam)
+ {
+    char *msg;
+-   if(ioctl(cam->dev, VIDIOCGCAP, &cam->vid_cap) == -1) {
++   if(v4l1_ioctl(cam->dev, VIDIOCGCAP, &cam->vid_cap) == -1) {
+       if(cam->debug == TRUE) {
+          fprintf(stderr, "VIDIOCGCAP  --  could not get camera capabilities, exiting.....\n");
+       }
+@@ -158,10 +159,10 @@ set_pic_info(cam* cam) {
+ 	if(cam->debug) {
+ 		g_message("SET PIC");
+ 	}
+-	//cam->vid_pic.palette = VIDEO_PALETTE_RGB24;
+-	//cam->vid_pic.depth = 24;
++	cam->vid_pic.palette = VIDEO_PALETTE_RGB24;
++	cam->vid_pic.depth = 24;
+ 	//cam->vid_pic.palette = VIDEO_PALETTE_YUV420P;
+-	if(ioctl(cam->dev, VIDIOCSPICT, &cam->vid_pic) == -1) {
++	if(v4l1_ioctl(cam->dev, VIDIOCSPICT, &cam->vid_pic) == -1) {
+ 		if(cam->debug) {
+ 			g_message("VIDIOCSPICT  --  could not set picture info, exiting....");
+ 		}
+@@ -176,7 +177,7 @@ void get_pic_info(cam * cam){
+ //set_pic_info(cam);
+    char *msg;
+ 	
+-   if(ioctl(cam->dev, VIDIOCGPICT, &cam->vid_pic) == -1) {
++   if(v4l1_ioctl(cam->dev, VIDIOCGPICT, &cam->vid_pic) == -1) {
+       msg = g_strdup_printf(_("Could not connect to video device (%s).\nPlease check connection."), cam->video_dev);
+       error_dialog(msg);
+       if(cam->debug == TRUE) {
+@@ -201,7 +202,7 @@ void get_pic_info(cam * cam){
+ void get_win_info(cam * cam)
+ {
+    gchar *msg;
+-   if(ioctl(cam->dev, VIDIOCGWIN, &cam->vid_win) == -1) {
++   if(v4l1_ioctl(cam->dev, VIDIOCGWIN, &cam->vid_win) == -1) {
+       msg = g_strdup_printf(_("Could not connect to video device (%s).\nPlease check connection."), cam->video_dev);
+       error_dialog(msg);
+       if(cam->debug == TRUE) {
+@@ -222,7 +223,7 @@ void get_win_info(cam * cam)
+ void set_win_info(cam * cam)
+ {
+    gchar *msg;
+-   if(ioctl(cam->dev, VIDIOCSWIN, &cam->vid_win) == -1) {
++   if(v4l1_ioctl(cam->dev, VIDIOCSWIN, &cam->vid_win) == -1) {
+       msg = g_strdup_printf(_("Could not connect to video device (%s).\nPlease check connection."), cam->video_dev);
+       error_dialog(msg);
+       if(cam->debug == TRUE) {
+@@ -232,12 +233,14 @@ void set_win_info(cam * cam)
+       exit(0);
+    }
+ 
++   cam->x = cam->vid_win.width;
++   cam->y = cam->vid_win.height;
+ }
+ 
+ void set_buffer(cam * cam)
+ {
+    char *msg;
+-   if(ioctl(cam->dev, VIDIOCGMBUF, &cam->vid_buf) == -1) {
++   if(v4l1_ioctl(cam->dev, VIDIOCGMBUF, &cam->vid_buf) == -1) {
+       msg = g_strdup_printf(_("Could not connect to video device (%s).\nPlease check connection."), cam->video_dev);
+       error_dialog(msg);
+       if(cam->debug == TRUE) {

@@ -33,6 +33,10 @@ if [ -z "$_F_cmake_in_source_build" ]; then
 	_F_cmake_in_source_build=0
 fi
 
+if [ -z "$_F_cmake_old_defines" ]; then
+	_F_cmake_old_defines=1
+fi
+
 if [ -z "$_F_cmake_rpath" ]; then
         _F_cmake_rpath="OFF"
 fi
@@ -80,13 +84,17 @@ CMake_conf()
 		_F_cmake_src="."
 	fi
 
+	if [ "$_F_cmake_old_defines" != "0" ]; then
+		_F_cmake_confopts="-DLIB_INSTALL_DIR=/usr/lib
+			-DLIB_SUFFIX=''
+			-DLOCALSTATE_INSTALL_DIR=/var
+			$_F_cmake_confopts"
+	fi
+
 	cmake \
 		-DCMAKE_INSTALL_PREFIX=/usr \
-		-DSYSCONF_INSTALL_DIR=/etc \
-		-DLIB_SUFFIX="" \
-		-DLIB_INSTALL_DIR=/usr/lib \
 		-DCMAKE_INSTALL_LIBDIR=lib \
-		-DLOCALSTATE_INSTALL_DIR=/var \
+		-DSYSCONF_INSTALL_DIR=/etc \
 		-DCMAKE_BUILD_TYPE="$_F_cmake_type" \
 		-DCMAKE_VERBOSE_MAKEFILE="$_F_cmake_verbose" \
 		-DCMAKE_COLOR_MAKEFILE="$_F_cmake_color" \

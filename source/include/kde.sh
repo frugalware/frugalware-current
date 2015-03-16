@@ -41,7 +41,7 @@ Finclude cmake kde-version
 if [ -z "$_F_kde_ver" ]; then
 	_F_kde_ver="$_F_kdever_ver"
 	if [ "$_F_kde_project" = "frameworks" ]; then
-		_F_kde_ver="$_F_kdever_frameworks"
+		_F_kde_ver="${_F_kdever_frameworks}.${_F_kdever_frameworks_revision}"
 	fi
 fi
 
@@ -84,7 +84,7 @@ fi
 if [ -z "$_F_kde_dirname" ]; then
 	_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver/src"
 	if [ "$_F_kde_project" = "frameworks" ]; then
-		_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver"
+		_F_kde_dirname="$_F_kde_folder/$_F_kdever_frameworks"
 	fi
 fi
 
@@ -126,7 +126,7 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		up2date="Flastverdir $_F_kde_mirror/$_F_kde_folder"
+		up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)"
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

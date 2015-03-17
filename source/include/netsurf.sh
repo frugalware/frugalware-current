@@ -42,7 +42,7 @@
 ###
 if [ "$_F_netsurf_project" -eq 1 ]; then
 	url="http://www.netsurf-browser.org/projects/$_F_netsurf_name"
-	up2date="Flasttar http://download.netsurf-browser.org/libs/releases/"
+	up2date="Flastarchive http://download.netsurf-browser.org/libs/releases/ $_F_netsurf_ext"
 	source=("http://download.netsurf-browser.org/libs/releases/$_F_netsurf_name-$pkgver$_F_netsurf_ext")
 	_F_cd_path="$_F_netsurf_name-$pkgver"
 else

@@ -63,6 +63,7 @@ fi
 Fbuildnetsurf() {
 	Fpatchall
 	Fcd
+	Fsed '_BSD_SOURCE' '_DEFAULT_SOURCE' Makefile
 	if [ "$_F_netsurf_project" -eq 1 ]; then
 		make PREFIX=/usr COMPONENT_TYPE="lib-shared" || Fdie
 		make PREFIX=/usr DESTDIR="$Fdestdir" COMPONENT_TYPE="lib-shared" install || Fdie

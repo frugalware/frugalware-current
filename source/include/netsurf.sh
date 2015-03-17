@@ -42,7 +42,7 @@
 ###
 if [ "$_F_netsurf_project" -eq 1 ]; then
 	url="http://www.netsurf-browser.org/projects/$_F_netsurf_name"
-	up2date="Flastarchive http://download.netsurf-browser.org/libs/releases/ $_F_netsurf_ext"
+	up2date="Flasttar http://download.netsurf-browser.org/libs/releases/"
 	source=("http://download.netsurf-browser.org/libs/releases/$_F_netsurf_name-$pkgver$_F_netsurf_ext")
 	_F_cd_path="$_F_netsurf_name-$pkgver"
 else
@@ -51,7 +51,10 @@ else
 	source=("http://download.netsurf-browser.org/netsurf/releases/source/$_F_netsurf_name-$pkgver$_F_netsurf_ext")
 fi
 archs=('i686' 'x86_64')
-makedepends=(${makedepends[@]} 'netsurf-buildsystem')
+
+if [ $pkgname != "netsurf-buildsystem" ] ; then
+  makedepends=(${makedepends[@]} 'netsurf-buildsystem')
+fi
 
 ###
 # == PROVIDED FUNCTIONS

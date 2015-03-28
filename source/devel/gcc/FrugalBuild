@@ -23,11 +23,11 @@ fi
 Fuse $USE_OBJC && USE_CXX="y"
 
 pkgname=gcc
-pkgver=4.8.3
-pkgrel=2
+pkgver=4.9.2
+pkgrel=1
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libmpc>=1.0.2' 'cloog>=0.18.1' 'zlib')
+depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libmpc>=1.0.2' 'zlib')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('i686' 'x86_64' 'arm')
@@ -44,24 +44,24 @@ else
 	gccver=$pkgver
 	up2date="lynx -dump http://ftp.gnu.org/pub/gnu/gcc/|grep gcc-.*/$|sed -n 's|.*gcc-\(.*\)/|\1|;$ p'"
 	source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2)
-	signatures=(${source[0]}.sig)
-	source=(${source[@]} gcc-4.7.1-libada-pic.patch)
-	signatures=(${signatures[@]} '')
+	sha1sums=('79dbcb09f44232822460d80b033c962c0237c6d8')
+	source=("${source[@]}" gcc-4.9-fix-includes.patch)
+	sha1sums=("${sha1sums[@]}" '43c52c7a557b62d167407e946bbc50c4f1388b97')
 fi
 
 if Fuse $USE_SHARED; then
-	subpkgs=('libgcc' 'libssp' 'libgomp')
+	subpkgs=('libgcc' 'libssp' 'libgomp' 'libatomic')
 	subdescs=('GCC shared support library' \
-	'SSP libraries from GCC' 'GNU OpenMP runtime library')
-	subrodepends=('glibc' 'glibc' 'glibc')
-	subbackup=('' '' '')
-	subgroups=('base chroot-core' 'lib' 'lib')
-	subreplaces=('' '' '')
+	'SSP libraries from GCC' 'GNU OpenMP runtime library' 'Atomic libraries from GCC')
+	subrodepends=('glibc' 'glibc' 'glibc' 'glibc')
+	subbackup=('' '' '' '')
+	subgroups=('base chroot-core' 'lib' 'lib' 'lib')
+	subreplaces=('' '' '' '')
 fi
 if Fuse $USE_CXX; then
-	cppdocver=20130801
+	cppdocver=20140403
 	source=("${source[@]}" ftp://gcc.gnu.org/pub/gcc/libstdc++/doxygen/libstdc++-api.$cppdocver.man.tar.bz2)
-	signatures=("${signatures[@]}" '')
+	sha1sums=("${sha1sums[@]}" 'ece96007d8752c86ce027b7a19f13b58c6709e7a')
 	subpkgs=("${subpkgs[@]}" 'libstdc++' 'gcc-g++')
 	subdescs=("${subdescs[@]}" 'GNU Standard C++ Library' 'C++ suport for GCC')
 	subrodepends=("${subrodepends[@]}" 'libgcc' 'libstdc++ gcc')
@@ -109,12 +109,26 @@ do
 	i=$(($i+1))
 done
 
+islver=0.12.2
+cloogver=0.18.3
+source=("${source[@]}" http://isl.gforge.inria.fr/isl-$islver.tar.bz2 http://www.bastoul.net/cloog/pages/download/cloog-$cloogver.tar.gz)
+sha1sums=("${sha1sums[@]}" 'ca98a91e35fb3ded10d080342065919764d6f928' '829c14bb701bfdac589de2b6855564bbb0041efb')
+
 build()
 {
 	Fcd
 	Fsed 'lib64' 'lib' gcc/config/i386/t-linux64
 	# no fixincludes, thanks
 	Fsed '\./fixinc\.sh' '-c true' gcc/Makefile.in
+	for i in isl-$islver cloog-$cloogver
+	do
+		if [ ! -d "../$i" ]
+		then
+			Fmessage "../$i not found!"
+			Fdie
+		fi
+		ln -sf "../$i" "${i/-*/}" || Fdie
+	done
 	Fpatchall
 	## well reconf / autoreconf is br0ken in gcc .. so do it that way heh
 
@@ -157,10 +171,10 @@ build()
 		--with-system-zlib \
 		--libdir=/usr/lib \
 		--disable-multilib \
+		--disable-werror \
 		--with-bugurl="http://bugs.frugalware.org/" \
 		--with-pkgversion="Frugalware Linux" \
 		--enable-linux-futex \
-		--disable-cloog-version-check \
 		--enable-cloog-backend=isl
 
 	if Fuse $USE_SHARED; then
@@ -286,6 +300,8 @@ build()
 		Fsplit libgomp usr/share/info/libgomp.info
 		Fsplit libgomp usr/lib/gcc/$gcchost/$gccver/include/omp.h
 		Fsplit libgomp usr/lib/libgomp.*
+		# libatomic
+		Fsplit libatomic usr/lib/libatomic.*
 	fi
 	if Fuse $USE_GO; then
 		# libgo

@@ -70,7 +70,8 @@ fi
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
 	#_F_kde_mirror="http://kde-mirror.freenux.org"
-	_F_kde_mirror="ftp://ftp.kde.org/pub/kde"
+	_F_kde_mirror="https://kde.cu.be"
+	#_F_kde_mirror="ftp://ftp.kde.org/pub/kde"
 fi
 
 if [ -z "$_F_kde_folder" ]; then
@@ -442,3 +443,4 @@ build()
 {
 	KDE_build
 }
+

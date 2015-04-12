@@ -1427,7 +1427,7 @@ Flastarchive() {
 			filter="$filter | grep -v -- \"$_F_archive_grepv\""
 		fi
 #		eval "$lynx \"$1\" $filter" | Flastarchive "$2" # possible optimisation
-		Fwcat "$1" | eval "$lynx -stdin $filter" | Flastarchive "$2"
+		eval "$lynx $1 $filter" | Flastarchive "$2"
 	else
 		local _Flastarchive_regex="s:.*/$_F_archive_name$Fpkgversep\([^/]*\)\($1\)[^/]*$:\1:p"
 

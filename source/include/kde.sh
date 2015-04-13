@@ -127,7 +127,11 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)"
+		if [ -z "$_F_kde_project" ]; then
+			up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)/src"
+		else
+			up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)"
+		fi
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

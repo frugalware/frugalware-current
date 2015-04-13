@@ -1451,9 +1451,7 @@ Flastdir() {
 	if [ -z "$1" ]; then
 		Flastarchive "$_Flastdir_regex"
 	else
-		# The trailing '/' in the url is here to avoid a redirection
-		# bug in Fwcat.
-		Flastarchive "$1/" "$_Flastdir_regex"
+		Flastarchive "$1" "$_Flastdir_regex"
 	fi
 }
 

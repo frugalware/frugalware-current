@@ -134,7 +134,7 @@ fi
 _kernel_up2date()
 {
 	local _ver
-	_ver=$(Fwcat 'http://www.kernel.org/pub/linux/kernel/v3.0/' | sed -n "s|.*linux-\($_F_kernelver_ver\(.[0-9]\+\)\?\).tar.xz.*|\1|p" | Fsort | tail -n 1)
+	_ver=$(Fwcat 'http://www.kernel.org/pub/linux/kernel/v4.x/' | sed -n "s|.*linux-\($_F_kernelver_ver\(.[0-9]\+\)\?\).tar.xz.*|\1|p" | Fsort | tail -n 1)
 	if [ "$_ver" == "$_F_kernelver_ver.$_F_kernelver_stable" ]; then
 		echo $pkgver
 	else
@@ -157,13 +157,13 @@ up2date="eval _kernel_up2date"
 replaces=('redirfs' 'dazuko')
 
 if ! Fuse DEVEL; then
-	source=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.xz")
-	signatures=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.sign")
+	source=("http://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.xz")
+	signatures=("http://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.sign")
 	if [ "$_F_kernel_stable" -gt 0 ]; then
 		source=("${source[@]}" \
-			"http://www.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.xz")
+			"http://www.kernel.org/pub/linux/kernel/v4.x/patch-$pkgver.$_F_kernel_stable.xz")
 		signatures=("${signatures[@]}" \
-			"http://www.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.sign")
+			"http://www.kernel.org/pub/linux/kernel/v4.x/patch-$pkgver.$_F_kernel_stable.sign")
 	fi
 else
 	if [ -z "$_F_scm_tag" ]; then

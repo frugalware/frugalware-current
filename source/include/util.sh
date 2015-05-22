@@ -1427,7 +1427,7 @@ Flastarchive() {
 			filter="$filter | grep -v -- \"$_F_archive_grepv\""
 		fi
 #		eval "$lynx \"$1\" $filter" | Flastarchive "$2" # possible optimisation
-		Fwcat "$1" | eval "$lynx -stdin $filter" | Flastarchive "$2"
+		eval "$lynx $1 $filter" | Flastarchive "$2"
 	else
 		local _Flastarchive_regex="s:.*/$_F_archive_name$Fpkgversep\([^/]*\)\($1\)[^/]*$:\1:p"
 
@@ -1451,9 +1451,7 @@ Flastdir() {
 	if [ -z "$1" ]; then
 		Flastarchive "$_Flastdir_regex"
 	else
-		# The trailing '/' in the url is here to avoid a redirection
-		# bug in Fwcat.
-		Flastarchive "$1/" "$_Flastdir_regex"
+		Flastarchive "$1" "$_Flastdir_regex"
 	fi
 }
 

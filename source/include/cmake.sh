@@ -41,6 +41,10 @@ if [ -z "$_F_cmake_rpath" ]; then
         _F_cmake_rpath="OFF"
 fi
 
+if [ -z "$_F_cmake_build_dir" ]; then
+        _F_cmake_build_dir="frugalware_cmake_build"
+fi
+
 ###
 # == APPENDED VARIABLES
 # * makedepends(): add cmake and pkgconfig
@@ -117,13 +121,13 @@ CMake_prepare_build()
 	Fcd
 	Fpatchall
 	if [ "$_F_cmake_in_source_build" -eq "0" ]; then
-		if [ -d  "build" ]; then
-			rm -rf build || Fdie
-			mkdir build || Fdie
-			cd build || Fdie
+		if [ -d  "$_F_cmake_build_dir" ]; then
+			rm -rf $_F_cmake_build_dir || Fdie
+			mkdir $_F_cmake_build_dir || Fdie
+			cd $_F_cmake_build_dir || Fdie
 		else
-			mkdir build || Fdie
-			cd build || Fdie
+			mkdir $_F_cmake_build_dir || Fdie
+			cd $_F_cmake_build_dir || Fdie
 		fi
 	else
 		export CMAKE_IN_SOURCE_BUILD=1

@@ -76,9 +76,9 @@ else
 	_F_archive_name="archive"
 	Fpkgversep="/"
 	if [ -z "$_F_github_tag_v" ]; then
-		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/$_F_github_ver.tar.gz"
+		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/$_F_github_ver$_F_github_ext"
 	else
-		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/v$_F_github_ver.tar.gz"
+		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/v$_F_github_ver$_F_github_ext"
 	fi
 	_F_cd_path="$_F_github_name-$_F_github_ver"
 fi

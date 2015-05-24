@@ -18,7 +18,7 @@
 ###
 
 if [ -z "$_F_cmake_type" ]; then
-	_F_cmake_type="None"
+	_F_cmake_type="Release"
 fi
 
 if [ -z "$_F_cmake_verbose" ]; then

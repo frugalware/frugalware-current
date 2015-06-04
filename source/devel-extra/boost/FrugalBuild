@@ -1,31 +1,32 @@
 # Compiling Time: 2.33 SBU
-# Maintainer: Elentir <elentir@frugalware.org>
+# Maintainer: Marius Cirsta <mcirsta@frugalware.org>
+# Contributor: Elentir <elentir@frugalware.org>
 # Contributor: Christian Hamar alias krix <krics@linuxforum.hu>
 
-# Warning: DO NOT BUMP TO 1.52.0 OR ABOVE FOR NOW.
+options+=('asneeded')
 
 pkgname=boost
-pkgver=1.50.0
-pkgrel=5
-pkgdesc="Boost header files , examples and tools"
+pkgver=1.58.0
+pkgrel=4
+pkgdesc="Boost header files, examples and tools"
 _F_sourceforge_ext=".tar.bz2"
 Finclude sourceforge python
 url="http://boost.org/"
 depends=()
 up2date="lynx -dump http://www.boost.org/users/download/|grep 'Current Release'|tail -n 1 | sed 's/.*]\(.*\) -.*/\1/'"
-up2date=$pkgver
-makedepends=('boost-jam>=3.1.20' 'python>=2.7' 'icu4c>=4.8' 'bzip2' 'zlib' 'openssl>=1.0.0')
+makedepends=('python>=2.7' 'icu4c>=55.1' 'bzip2' 'zlib' 'openssl>=1.0.0')
 groups=('devel-extra')
 archs=('i686' 'x86_64' 'arm')
 source=(${source/-$pkgver/_${pkgver//./_}}
-        boost-fix-64-bit-build-due-to-ambiguous-format-call.patch)
+        boost-fix-64-bit-build-due-to-ambiguous-format-call.patch missing_includes.patch)
 _F_cd_path="${pkgname}_`echo $pkgver|tr . _`"
-sha1sums=('ee06f89ed472cf369573f8acf9819fbc7173344e' \
-          '9cb9625c5c1c87505d5a75d16aaf2cc188e9a40c')
+sha1sums=('2fc96c1651ac6fe9859b678b165bd78dc211e881' \
+          '9cb9625c5c1c87505d5a75d16aaf2cc188e9a40c' \
+          '638f39e4516d1395f87dc5826229809848d8a360')
 
 subpkgs=("libboost" "libboost-static")
 subdescs=('Boost libraries.' 'Boost libraries statically linked.')
-subdepends=('icu4c>=4.8 libgcc bzip2 zlib' '')
+subdepends=('icu4c>=55.1 libgcc bzip2 zlib' '')
 subrodepends=('' '')
 subgroups=('lib' 'devel-extra')
 subarchs=('i686 x86_64 arm' 'i686 x86_64 arm')
@@ -41,23 +42,24 @@ fi
 
 build()
 {
-	if [ "$CARCH" == "x86_64" ]; then ## maybe PPC ?
-		export CXXFLAGS="$CXXFLAGS -fPIC -DPIC"
-	fi
+	#if [ "$CARCH" == "x86_64" ]; then ## maybe PPC ?
+	#	export CXXFLAGS="$CXXFLAGS -fPIC -DPIC"
+	#fi
 	Fpatchall
-	Fsed "-O3" "$CXXFLAGS -Wno-deprecated" tools/build/v2/tools/gcc.jam
-	echo "using mpi ;" >> tools/build/v2/user-config.jam || Fdie
-
-	BOOSTJAM="/usr/bin/bjam"
-	JOBS="$MAKEFLAGS"
-	MPI=""
+	local JOBS="$(sed -e 's/.*\(-j *[0-9]\+\).*/\1/' <<< ${MAKEFLAGS})"
+	Fcd
+	./bootstrap.sh --with-toolset=gcc --with-icu
 	[ "$CARCH" == "arm" ] && MPI="--without-mpi"
-
-	${BOOSTJAM} \
-		release debug-symbols=off threading=multi \
-		runtime-link=shared link=shared,static \
-		cflags=-fno-strict-aliasing optimization=speed \
-	    	${JOBS} ${MPI} \
+	# Support for OpenMPI
+	echo "using mpi ;" >> project-config.jam
+	./b2 	variant=release \
+		debug-symbols=off \
+		threading=multi \
+		runtime-link=shared \
+		link=shared,static \
+		toolset=gcc \
+		optimization=speed \
+		${JOBS} ${MPI} \
 		-sHAVE_ICU=1 -sICU_PATH=/usr \
 	    	-sBOOST_ROOT="$Fsrcdir" \
 	    	-sPYTHON_ROOT=/usr \
@@ -68,16 +70,14 @@ build()
 		--exec-prefix="$Fdestdir/usr" \
 		--includedir="$Fdestdir/usr/include" \
 		--libdir="$Fdestdir/usr/lib" \
-		--toolset=gcc \
 		--layout=system install || Fdie
 
-	cd $Fsrcdir/$_F_cd_path/tools/build/ || Fdie
-	Fmkdir usr/share/boost
-	rm -rf v2/debian || Fdie
-	cp -a b* index.html  v2/ $Fdestdir/usr/share/boost/ || Fdie
-
+	#for k3d
+	cp libs/math/include_private/boost//math/tools/* $Fdestdir/usr/include/boost/math/tools/ || Fdie
+		
 	[ "$CARCH" != "arm" ] && Fsplit libboost-mpi usr/lib/libboost_graph_parallel*
 	[ "$CARCH" != "arm" ] && Fsplit libboost-mpi usr/lib/libboost_mpi*
+	[ "$CARCH" != "arm" ] && Fsplit libboost-mpi usr/lib/mpi.so
 	Fsplit libboost        usr/lib/libboost_*.so*
 	Fsplit libboost-static usr/lib/libboost_*.a
 }

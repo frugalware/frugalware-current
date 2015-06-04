@@ -88,7 +88,7 @@ local constant = token(l.CONSTANT, word_match {
   'Farchs', '_F_aspell_lang', '_F_aspell_noverstrip', '_F_aspell_ver', '_F_berlios_dirname', '_F_berlios_ext',
   '_F_berlios_name', 'Fbuildchost', '_F_cd_path', '_F_clutter_devel', '_F_clutter_name', '_F_clutter_pkgurl',
   '_F_cmake_color', '_F_cmake_confopts', '_F_cmake_in_source_build', '_F_cmake_rpath', '_F_cmake_src',
-  '_F_cmake_type', '_F_cmake_verbose', '_F_compiz_name', '_F_compiz_version', '_F_conf_configure',
+  '_F_cmake_type', '_F_cmake_verbose', '_F_conf_configure',
   'Fconfopts', '_F_conf_outsource', '_F_conf_perl_pipefrom', '_F_desktop_categories', '_F_desktop_desc',
   '_F_desktop_exec', '_F_desktop_filename', '_F_desktop_icon', '_F_desktop_mime', '_F_desktop_mimetypes',
   '_F_desktop_name', '_F_desktop_show_in', 'Fdestdir', 'Fdestir', '_F_drupal_dev', '_F_drupal_module',

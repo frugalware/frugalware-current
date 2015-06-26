@@ -3,14 +3,12 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=glibc
-pkgver=2.19
-pkgrel=5
+pkgver=2.21
+pkgrel=2
 pkgdesc="GNU C Library"
 url="http://www.gnu.org/software/libc/libc.html"
 depends=()
 makedepends=('libxml2>=2.7.8' 'binutils>=2.19.1' 'gcc>=4.3.3' 'grep>=2.5.3-4' 'zlib>=1.2.3-6' 'pacman-g2>=3.7.0-4')
-# for memusagestat
-makedepends=("${makedepends[@]}" 'gd>=2.0.35-2')
 rodepends=('tzdata' 'frugalware')
 groups=('base' 'chroot-core')
 archs=('i686' 'x86_64' 'arm')
@@ -19,13 +17,16 @@ _dlurl="http://ftp.gnu.org/pub/gnu/glibc"
 source=($_dlurl/glibc-$pkgver.tar.xz)
 signatures=($_dlurl/glibc-$pkgver.tar.xz.sig)
 
-# FSA fix ***
-source=(${source[@]} CVE-2014-0475.patch CVE-2014-5119.patch CVE-2014-4043.patch
-                     CVE-2014-6040.patch CVE-2014-7817.patch CVE-2012-3406.patch
-                     CVE-2014-9402.patch CVE-2015-1472-1473.patch)
-signatures=(${signatures[@]} '' '' '' '' '' '' '' '')
+# FSA and bugfix ***
+source=(${source[@]} glibc-2.21-roundup.patch)
+signatures=(${signatures[@]} '')
 # ***********
 
+subpkgs=("$pkgname-memusagestat")
+subdescs=("glibc memusagestat utility")
+subdepends=('gd')
+subgroups=('apps-extra')
+subarchs=('i686 x86_64 arm')
 
 build()
 {
@@ -49,7 +50,9 @@ build()
 		--enable-bind-now \
 		--enable-static \
 		--enable-all-warnings \
-		--enable-obsolete-rpc"
+		--enable-obsolete-rpc \
+		--disable-werror \
+		--enable-static-nss"
 
 	if [ "$CARCH" == "arm" ]; then
 		GLIBOPTS="$GLIBOPTS --without-fp \
@@ -63,7 +66,6 @@ build()
 
 	# glibc complains about our default flags are not agressive enough. let
 	# it use its own default ones
-	[ "$CARCH" = "ppc" ] && unset CFLAGS CXXFLAGS
 	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CXX="g++" CC="gcc"  \
 	../$pkgname-$pkgver/configure $GLIBOPTS || Fdie
 
@@ -74,6 +76,7 @@ build()
 	if [ "$CARCH" == "x86_64" ]; then
 		Fmv /lib64 /lib
 	fi
+	Fsplit $pkgname-memusagestat usr/bin/memusagestat
 	Frm /etc/ld.so.cache
 	## conflicting files with tzdata
 	Frm etc/localtime

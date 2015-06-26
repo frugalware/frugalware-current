@@ -1,4 +1,4 @@
-# Compiling Time: 1.14 SBU
+# Compiling Time: 10.63 SBU
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 # Contributor: crazy <crazy@frugalware.org>
 
@@ -9,6 +9,9 @@ options+=('asneeded')
 
 # TODO: Consider enabling OpenMAX support via
 # --enable-omx
+
+# TODO: Consider enabling DirectX 9 API
+# --enable-nine
 
 : ${USE_DEBUG="n"}
 : ${USE_DEVEL="n"}
@@ -21,10 +24,10 @@ options+=('asneeded')
 : ${USE_GLES1="y"}
 : ${USE_GLES2="y"}
 : ${USE_GLX="y"}
-: ${USE_OPENCL="n"}
+: ${USE_OPENCL="y"}
 : ${USE_OSMESA="n"}
 : ${USE_VDPAU="y"}
-: ${USE_VG="y"}
+: ${USE_VAAPI="y"}
 : ${USE_TEXTURE_FLOAT="y"}
 : ${USE_WAYLAND_EGL="y"}
 : ${USE_XA="y"}
@@ -33,14 +36,9 @@ if Fuse WAYLAND_EGL; then
 	USE_EGL=y
 fi
 
-if Fuse EGL; then
-	USE_VG=y
-fi
-
 pkgname=mesa
-origname=Mesa
 _F_archive_name="MesaLib"
-pkgver=10.2.4
+pkgver=10.6.0
 pkgrel=1
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
@@ -48,7 +46,7 @@ up2date="lynx --dump 'ftp://ftp.freedesktop.org/pub/mesa/' | grep "pub/mesa/[0-9
 
 # libgl: provided by libgl, fglrx and nvidia packages
 depends=()
-makedepends=('makedepend')
+makedepends=('makedepend' 'mako')
 # should be mesa-*=$pkgver but apps should not depends on mesa anymore first, unless specific to mesa
 rodepends=('libgl')
 archs=('i686' 'x86_64' 'arm')
@@ -64,8 +62,8 @@ if Fuse DEVEL; then
 	_F_scm_url="git://anongit.freedesktop.org/mesa/mesa"
 	Finclude scm
 else
-	source=("ftp://ftp.freedesktop.org/pub/mesa/$pkgver/MesaLib-$pkgver.tar.bz2")
-	sha1sums=('b1d2b397581e807bc59be5065a8c73c3fda29dd6')
+	source=("ftp://ftp.freedesktop.org/pub/mesa/$pkgver/$pkgname-$pkgver.tar.xz")
+	signatures=("${source[0]}".sig)
 fi
 
 subpkgs=('libgl' 'mesa-libgl-headers')
@@ -73,8 +71,8 @@ subdescs=('Mesa DRI OpenGL files.' 'Mesa OpenGL headers files.')
 subprovides=('mesa-libgl' 'libgl-headers')
 subreplaces=('' '')
 subconflicts=('catalyst nvidia' 'nvidia')
-subdepends=('expat libxdamage libxxf86vm libdrm libxshmfence libxcb' 'dri2proto dri3proto glproto presentproto')
-subrodepends=("mesa-libgl-headers>=$pkgver-$pkgrel libglapi libglx>=$xserverver mesa-dri-drivers>=$pkgver-$pkgrel" '')
+subdepends=('expat libxdamage libxxf86vm libdrm libxshmfence' 'dri2proto dri3proto glproto presentproto')
+subrodepends=("mesa-libgl-headers>=$pkgver-$pkgrel libglapi libglx>=$xserverver mesa-dri-drivers>=$pkgver-$pkgrel" 'khr-headers')
 subgroups=('x11' 'x11')
 subarchs=("${archs[*]}" "${archs[*]}")
 subbackup=('' '')
@@ -84,18 +82,18 @@ subdescs=("${subdescs[@]}" 'Mesa OpenGL DRI drivers.')
 subprovides=("${subprovides[@]}" '')
 subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
-subdepends=("${subdepends[@]}" "libdrm llvm>=3.4.2-2 elfutils")
+subdepends=("${subdepends[@]}" "libdrm llvm elfutils")
 subrodepends=("${subrodepends[@]}" '')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" "${archs[*]}")
 subbackup=("${subbackup[@]}" 'etc/drirc')
 
 subpkgs+=('mesa-pipe-drivers')
-subdescs+=('Mesa libdrm drivers.')
+subdescs+=('Mesa gallium pipe drivers.')
 subprovides+=('')
 subreplaces+=('')
 subconflicts+=('')
-subdepends+=("libdrm llvm>=3.4.2-2 elfutils")
+subdepends+=("libdrm llvm elfutils")
 subrodepends+=('')
 subgroups+=('x11')
 subarchs+=("${archs[*]}")
@@ -106,7 +104,7 @@ subdescs=("${subdescs[@]}" 'Mesa gbm library.')
 subprovides=("${subprovides[@]}" '')
 subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
-subdepends=("${subdepends[@]}" 'glibc libxext libxfixes wayland')
+subdepends=("${subdepends[@]}" 'libdrm wayland')
 subrodepends+=('mesa-pipe-drivers libglapi')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" "${archs[*]}")
@@ -152,11 +150,7 @@ if Fuse EGL; then
 	subreplaces+=('')
 	subconflicts+=('')
 	subdepends+=('dri2proto dri3proto glproto presentproto libdrm elfutils')
-	if Fuse WAYLAND_EGL; then # Upstream issue
-		subrodepends+=('khr-headers libgbm libvg wayland')
-	else
-		subrodepends+=('khr-headers libgbm libvg')
-	fi
+	subrodepends+=('khr-headers libgbm')
 	subgroups+=('x11')
 	subarchs+=("${archs[*]}")
 	subbackup+=('')
@@ -164,12 +158,26 @@ fi
 
 if Fuse OPENCL; then
 	subpkgs+=('libcl')
-	subdescs+=('Mesa OpenEGL library.')
+	subdescs+=('Mesa OpenCL library.')
 	subprovides+=('mesa-libcl')
 	subreplaces+=('')
 	subconflicts+=('')
-	subdepends+=('libclc')
-	subrodepends+=('mesa-pipe-drivers')
+	subdepends+=('libclc llvm libxext libxfixes libdrm elfutils')
+	subrodepends+=('')
+	subgroups+=('x11')
+	subarchs+=("${archs[*]}")
+	subbackup+=('')
+	makedepends+=('clang')
+fi
+
+if Fuse XA; then
+	subpkgs+=('libxatracker')
+	subdescs+=('Mesa xatracker library')
+	subprovides+=('')
+	subreplaces+=('')
+	subconflicts+=('')
+	subdepends+=('llvm libdrm')
+	subrodepends+=('')
 	subgroups+=('x11')
 	subarchs+=("${archs[*]}")
 	subbackup+=('')
@@ -181,24 +189,26 @@ if Fuse VDPAU; then
 	subprovides=("${subprovides[@]}" '')
 	subreplaces=("${subreplaces[@]}" '')
 	subconflicts=("${subconflicts[@]}" '')
-	subdepends=("${subdepends[@]}" 'libvdpau libdrm llvm>=3.4.2-2 elfutils')
+	subdepends=("${subdepends[@]}" 'libvdpau libx11 libdrm llvm elfutils')
 	subrodepends=("${subrodepends[@]}" '')
 	subgroups=("${subgroups[@]}" 'x11')
 	subarchs=("${subarchs[@]}" "${archs[*]}")
 	subbackup=("${subbackup[@]}" '')
+	rodepends+=('mesa-vdpau-drivers')
 fi
 
-if Fuse VG; then
-	subpkgs=("${subpkgs[@]}" 'libvg')
-	subdescs=("${subdescs[@]}" 'Mesa OpenVG library.')
-	subprovides=("${subprovides[@]}" 'mesa-libvg')
+if Fuse VAAPI; then
+	subpkgs=("${subpkgs[@]}" 'libva-mesa-driver')
+	subdescs=("${subdescs[@]}" 'VAAPI mesa driver')
+	subprovides=("${subprovides[@]}" '')
 	subreplaces=("${subreplaces[@]}" '')
 	subconflicts=("${subconflicts[@]}" '')
-	subdepends=("${subdepends[@]}" '')
-	subrodepends=("${subrodepends[@]}" 'libgl khr-headers')
+	subdepends=("${subdepends[@]}" 'libva llvm libx11 libdrm elfutils')
+	subrodepends=("${subrodepends[@]}" '')
 	subgroups=("${subgroups[@]}" 'x11')
 	subarchs=("${subarchs[@]}" "${archs[*]}")
 	subbackup=("${subbackup[@]}" '')
+	rodepends+=('libva-mesa-driver')
 fi
 
 if Fuse WAYLAND_EGL; then
@@ -225,7 +235,7 @@ build() {
 		Funpack_scm
 	fi
 
-	Fcd $origname-$pkgver
+	Fcd $pkgname-$pkgver
 	Fpatchall
 	Fautoreconf
 
@@ -282,16 +292,16 @@ build() {
 		Fconfopts+=" --disable-texture-float"
 	fi
 
+	if Fuse VAAPI; then
+		Fconfopts+=" --enable-va"
+	else
+		Fconfopts+=" --disable-va"
+	fi
+
 	if Fuse VDPAU; then
 		Fconfopts+=" --enable-vdpau"
 	else
 		Fconfopts+=" --disable-vdpau"
-	fi
-
-	if Fuse VG; then
-		Fconfopts+=" --enable-openvg"
-	else
-		Fconfopts+=" --disable-openvg"
 	fi
 
 	if Fuse XA; then
@@ -331,12 +341,7 @@ build() {
 		GALLIUM_DRIVERS+=",svga"
 		GALLIUM_DRIVERS+=",swrast"
 		Fconfopts+=" --with-gallium-drivers=$GALLIUM_DRIVERS"
-		Fconfopts+=" --enable-gallium-g3dvl"
-		Fconfopts+=" --enable-gallium-gbm"
 		Fconfopts+=" --enable-gallium-llvm"
-		if Fuse EGL; then
-			Fconfopts+=" --enable-gallium-egl"
-		fi
 		if Fuse OSMESA; then
 			Fconfopts+=" --enable-gallium-osmesa"
 		fi
@@ -365,7 +370,6 @@ build() {
 	Fsplit libglapi usr/lib/libglapi.*
 
 	Fsplit libgbm usr/include/gbm.h
-	Fsplit libgbm usr/lib/gbm/
 	Fsplit libgbm usr/lib/libgbm.*
 	Fsplit libgbm usr/lib/pkgconfig/gbm.pc
 
@@ -374,6 +378,11 @@ build() {
 
 	Fsplit mesa-libgl-headers usr/include/GL/{gl.h,glext.h,glx.h,glxext.h}
 	Fsplit mesa-libgl-headers usr/include/GL/internal
+
+	# Must be before mesa-dri-drivers
+	if Fuse VAAPI; then
+		Fsplit libva-mesa-driver usr/lib/dri/gallium_drv_video.*
+	fi
 
 	Fsplit mesa-dri-drivers etc/drirc
 	Fsplit mesa-dri-drivers usr/lib/dri/
@@ -389,7 +398,6 @@ build() {
 	if Fuse EGL; then
 		Fsplit libegl usr/include/EGL/
 		Fsplit libegl usr/lib/libEGL.*
-		Fsplit libegl usr/lib/egl/
 		Fsplit libegl usr/lib/pkgconfig/egl.pc
 	fi
 
@@ -400,9 +408,14 @@ build() {
 	fi
 
 	if Fuse OPENCL; then
-		Fsplit libcl usr/include/CL*/
-		Fsplit libcl usr/lib/libCL*
-		Fsplit libcl usr/lib/pkgconfig/cl.pc
+		Fsplit libcl usr/lib/libMesaOpenCL*
+		Fsplit libcl etc/OpenCL
+	fi
+
+	if Fuse XA; then
+		Fsplit libxatracker usr/lib/libxatracker.*
+		Fsplit libxatracker usr/include/xa_*.h
+		Fsplit libxatracker usr/lib/pkgconfig/xatracker.pc
 	fi
 
 	if Fuse OSMESA; then
@@ -415,12 +428,6 @@ build() {
 
 	if Fuse VDPAU; then
 		Fsplit mesa-vdpau-drivers usr/lib/vdpau/
-	fi
-
-	if Fuse VG; then
-		Fsplit libvg usr/include/VG/
-		Fsplit libvg usr/lib/libOpenVG.*
-		Fsplit libvg usr/lib/pkgconfig/vg.pc
 	fi
 
 	if Fuse WAYLAND_EGL; then

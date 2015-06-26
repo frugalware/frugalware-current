@@ -2,26 +2,25 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=llvm
-pkgver=3.4.2
-pkgrel=5
+pkgver=3.6.1
+pkgrel=1
+gcc_ver=4.9.2
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
-gcc_ver="4.8.3"
-depends=("libstdc++=$gcc_ver" "gcc=$gcc_ver")
-makedepends=('groff' 'libffi' 'python' 'ocaml>=3.12.1-4')
+depends=("libstdc++=${gcc_ver}" "gcc=${gcc_ver}")
+makedepends=('groff' 'libffi' 'python-sphinx' 'python-markupsafe' \
+	'ocaml-ctypes' 'ocaml-findlib')
 groups=('devel')
 archs=('i686' 'x86_64' 'arm')
-up2date="Flastarchive $url/releases/download.html .src.tar.gz"
-source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.gz \
-	http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.gz \
-	path-fix.patch fix-include-path.patch llvm-3.4-provide-cmake-modules.patch)
+up2date="Flastarchive $url/releases/download.html .src.tar.xz"
+source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.xz \
+	http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.xz \
+	fix-lib-path.patch \
+	fix-ocamldocs.patch \
+	llvm-3.6.0-ocaml-ctypes-0.4.0.patch)
 _F_archive_ver="${pkgver}.src"
 _F_make_opts="${MAKEFLAGS} REQUIRES_RTTI=1"
-sha1sums=('c5287384d0b95ecb0fd7f024be2cdfb60cd94bc9' \
-          'add5420b10c3c3a38c4dc2322f8b64ba0a5def97' \
-          '9b4d212f4cea66982bc21d73aac248543f1ca6c5' \
-          '4572bd857d0e39f1b5669cc197afd88ed1a7ed84' \
-          'e1adb95ab4f0d1ed942da8d15ac4605d483ac922')
+signatures=("${source[0]}.sig" "${source[1]}.sig" "" "" "")
 
 subpkgs=("${subpkgs[@]}" "clang")
 subdescs=("${subdescs[@]}" "C language family frontend for LLVM")
@@ -37,6 +36,25 @@ subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
 subgroups=("${subgroups[@]}" 'devel-extra')
 subarchs=("${subarchs[@]}" "${archs[*]}")
 
+
+if [ $CARCH = arm ]; then
+	Fconfopts+="--with-cxx-include-arch=${CARCH}-frugalware-linux-gnueabi \
+		--build=${CARCH}-frugalware-linux-gnueabi "
+	c_include_dirs="/usr/local/include:/usr/include/c++/${gcc_ver}:/usr/include/c++/${gcc_ver}/backward:/usr/include/c++/${gcc_ver}/${CARCH}-frugalware-linux-gnueabi:/usr/include"
+else
+	Fconfopts+="--with-cxx-include-arch=${CARCH}-frugalware-linux \
+		--build=${CARCH}-frugalware-linux "
+	c_include_dirs="/usr/local/include:/usr/include/c++/${gcc_ver}:/usr/include/c++/${gcc_ver}/backward:/usr/include/c++/${gcc_ver}/${CARCH}-frugalware-linux:/usr/include"
+fi
+
+Fconfopts+="--libdir=/usr/lib/llvm \
+        --docdir=/usr/share/doc/$pkgname-$pkgver
+        --sysconfdir=/etc \
+        --enable-shared \
+        --enable-libffi \
+        --enable-targets=all \
+        --with-c-include-dirs=${c_include_dirs}"
+
 build() {
 	Fcd
 	# clang must be copied here to build with llvm
@@ -48,23 +66,32 @@ build() {
 	_optimized_switch="enable"
 	[[ $(check_option strip) == n ]] && _optimized_switch="disable"
 
-	# Do not remove. This is needed to set the correct GCC version includes.
-	Freplace 'gcc_ver' tools/clang/lib/Driver/ToolChains.cpp
-	if grep -q '@gcc_ver@' tools/clang/lib/Driver/ToolChains.cpp; then
-		Fmessage "gcc_ver replacement failed! Find the cause and then rebuild."
-		Fdie
-	fi
 	Fsed '\${prefix}/etc/llvm' '/etc/llvm' configure
+	Fsed '/docs/llvm' "/share/doc/$pkgname-$pkgver" Makefile.config.in
 	export CC='gcc'
 	export CXX='g++'
-	Fmake --libdir=/usr/lib/llvm \
-		--sysconfdir=/etc \
-		--enable-shared \
-		--enable-libffi \
-		--enable-targets=all \
-		--$_optimized_switch-optimized
+	Fmake --$_optimized_switch-optimized
 
+
+	Fexec make -C docs -f Makefile.sphinx man
+	Fexec make -C docs -f Makefile.sphinx html
+	Fexec make -C tools/clang/docs -f Makefile.sphinx html
+
+	_F_make_opts="-j1"
 	Fmakeinstall
+
+	# Install man pages
+	Fcp ${_F_cd_path}/docs/_build/man/*.1 usr/share/man/man1/
+
+	# Install html docs
+	Fmkdir usr/share/doc/$pkgname-$pkgver/html/
+	Fcp ${_F_cd_path}/docs/_build/html/* usr/share/doc/$pkgname-$pkgver/html/
+	Frm usr/share/doc/$pkgname-$pkgver/html/_sources
+
+	# Install html docs of clang
+	Fmkdir usr/share/doc/$pkgname-$pkgver/html/clang
+	Fcp ${_F_cd_path}/tools/clang/docs/_build/html/* usr/share/doc/$pkgname-$pkgver/html/clang
+	Frm usr/share/doc/$pkgname-$pkgver/html/clang/_sources
 
 	Fsplit clang usr/bin/clang*
 	Fsplit clang usr/bin/c-index-test
@@ -72,12 +99,14 @@ build() {
 	Fsplit clang usr/lib/clang/
 	Fsplit clang usr/lib/libclang*
 	Fsplit clang usr/share/man/man1/clang*
-	Fsplit clang usr/share/doc/llvm/html/clang/
-	Fsplit clang usr/share/doc/llvm/ps/clang.ps
+	Fsplit clang usr/share/doc/$pkgname-$pkgver/html/clang/
+	Fsplit clang usr/share/doc/$pkgname-$pkgver/ps/clang.ps
 
 	Fsplit $pkgname-ocaml usr/lib/ocaml/
-	Fsplit $pkgname-ocaml usr/share/doc/llvm/ocamldoc/
-	Fsplit $pkgname-ocaml usr/share/doc/llvm/ocamldoc.tar.gz
+	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/ocamldoc/
+	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/ocamldoc.tar.gz
+	Fsplit $pkgname-ocaml usr/share/llvm/cmake/{Find,Add}OCaml.cmake
+	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/html/tutorial/OCamlLangImpl*.html
 }
 
 # optimization OK

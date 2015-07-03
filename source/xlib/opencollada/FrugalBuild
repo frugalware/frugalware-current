@@ -1,0 +1,77 @@
+# Compiling Time: 3.93 SBU
+# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
+
+pkgname=opencollada
+commit=69b844dc9eea0a014326149c259e7810ecec4c8c
+shortcommit=${commit:0:7}
+pkgver=22.git$shortcommit
+sover=0.2
+pkgrel=1
+pkgdesc="Collada 3D import and export libraries"
+url="https://collada.org/mediawiki/index.php/OpenCOLLADA"
+depends=('libxml2' 'pcre' 'xz')
+makedepends=('hd2u' 'fftw' 'cmake' 'zlib')
+groups=('xlib')
+archs=('i686' 'x86_64')
+# No idea how to check this automatically, I'll update this when depending packages require doing so.
+up2date="$pkgver"
+source=(https://github.com/KhronosGroup/OpenCOLLADA/archive/$commit/OpenCOLLADA-$shortcommit.tar.gz \
+	OpenCOLLADA-cmake.patch \
+	OpenCOLLADA-includes.patch)
+sha1sums=('acaf65bf51d007040efec35acf3ad6da930caea8' \
+          '5ad3cadad0554b9e18670d93a9a69d49d9ad33c8' \
+          '431ce22280ade9fbfa8cef42baebee67885b3310')
+
+build()
+{
+	set -ex
+
+	Fcd OpenCOLLADA-$commit
+	Fpatchall
+
+	# Remove unused bundled libraries
+	rm -rf Externals/{Cg,expat,lib3ds,LibXML,MayaDataModel,pcre,zlib,zziplib}
+
+	# Add some docs, need to fix eol encoding with dos2unix in some files.
+	find ./ -name .project -delete
+	cp -pf COLLADAStreamWriter/README README.COLLADAStreamWriter
+	cp -pf COLLADAStreamWriter/LICENSE ./
+
+	iconv -f ISO_8859-1 -t utf-8 COLLADAStreamWriter/AUTHORS > \
+		COLLADAStreamWriter/AUTHORS.tmp
+	touch -r COLLADAStreamWriter/AUTHORS COLLADAStreamWriter/AUTHORS.tmp
+	mv COLLADAStreamWriter/AUTHORS.tmp COLLADAStreamWriter/AUTHORS
+
+	dos2unix -f README.COLLADAStreamWriter
+	dos2unix -f LICENSE
+	dos2unix -f README
+	find htdocs/ -name *.php -exec dos2unix -f {} \;
+	find htdocs/ -name *.css -exec dos2unix -f {} \;
+
+	# Build.
+	rm -rf Build && mkdir -p Build && pushd Build
+	cmake -DUSE_STATIC=OFF \
+		-DUSE_SHARED=ON \
+		-Dsoversion=$sover \
+		-DLIB_INSTALL_DIR="/usr/lib" \
+		-DINCLUDE_INSTALL_DIR="/usr/include" \
+		-DCMAKE_SKIP_RPATH=ON \
+		-DCMAKE_BUILD_TYPE="RelWithDebInfo" \
+		../
+
+	make
+
+	make DESTDIR=$Fdestdir install
+
+	# Manually install binary
+	Fmkdir /usr/bin
+	install -p -m 0755 bin/* $Fdestdir/usr/bin/
+
+	popd
+
+	# Install MathMLSolver headers
+	Fmkdir /usr/include/MathMLSolver
+	cp -a Externals/MathMLSolver/include/* $Fdestdir/usr/include/MathMLSolver/
+	
+	set +ex
+}

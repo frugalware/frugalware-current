@@ -72,7 +72,7 @@ if [ -z "$_F_github_tag" ] && [ -z "$_F_github_tag_v" ]; then
 	_F_github_up2date="downloads"
 	_F_github_source="http://github.com/downloads/$_F_github_author/$_F_github_dirname/$_F_github_name$_F_github_sep$_F_github_ver$_F_github_ext"
 else
-	_F_github_up2date="tags"
+	_F_github_up2date="releases/latest"
 	_F_archive_name="archive"
 	Fpkgversep="/"
 	if [ -z "$_F_github_tag_v" ]; then

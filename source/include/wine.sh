@@ -36,7 +36,6 @@ wine)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Stable)"
 	up2date="lynx -dump $url | sed -n 's|^.*Stable:.*Wine \([0-9a-zA-Z.]\+\).*\$|\1|p'"
 	conflicts=('wine-devel')
-	sha1sums=('574b9ccedbf213622b7ee55f715764673fc27692')
 	;;
 
 wine-devel)
@@ -44,7 +43,6 @@ wine-devel)
 	up2date="lynx -dump $url | sed -n 's|^.*Development:.*Wine \([0-9a-zA-Z.]\+\).*\$|\1|p'"
 	conflicts=('wine')
 	provides=('wine')
-	sha1sums=('08cbca1ac32e7250e9e9512ac9cbacecb54a2ff4')
 	;;
 
 default)
@@ -56,7 +54,8 @@ esac
 
 [ "$CARCH" == "x86_64" ] && Fconfopts="--enable-win64"
 
-source=(http://downloads.sourceforge.net/wine/wine-$pkgver.tar.bz2)
+source=(http://ftp.winehq.org/pub/wine/source/1.7/wine-$pkgver.tar.bz2)
+signatures=("${source[@]}.sign")
 
 build()
 {

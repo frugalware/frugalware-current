@@ -417,6 +417,10 @@ Fsubmv()
 ###
 Finstallrel() {
 	if [ "$#" -eq 3 ]; then
+		if [ -d $2 ]; then
+			Fmessage "$2 is a folder, use this only for files"
+			Fdie
+		fi
 		Fmessage "Installing file(s): $2"
 		if [ "`ls -l $2 | wc -l`" -gt 1 ]; then
 			Fmkdir "$3"

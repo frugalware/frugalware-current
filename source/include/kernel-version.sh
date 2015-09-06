@@ -16,10 +16,8 @@
 # * _F_kernelver_stable: the number of the -stable patch to use (if any)
 # * _F_kernelver_nextver: the next kernel version
 ###
-_F_kernelver_ver=4.0
+_F_kernelver_ver=4.2
 _F_kernelver_rel=1
-_F_kernelver_stable=4
-_F_kernelver_nextver="4.$(( ${_F_kernelver_ver/4./} + 1 ))"
 
 ###
 # == APPENDED VALUES
@@ -36,7 +34,6 @@ Fkernelver_genscriptlet_hook()
 {
 	Freplace '_F_kernelver_ver' "$1"
 	Freplace '_F_kernelver_rel' "$1"
-	Freplace '_F_kernelver_stable' "$1"
 }
 
 Fkernelver_compress_modules()
@@ -45,3 +42,5 @@ Fkernelver_compress_modules()
 	_directory="$Fdestdir/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel/kernel"
 	Fexec find $_directory -name "*.ko" -exec xz '{}' \; || Fdie
 }
+
+makedepends=("${makedepends[@]}" 'ca-certificates')

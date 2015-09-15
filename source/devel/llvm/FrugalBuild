@@ -2,25 +2,22 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=llvm
-pkgver=3.6.2
+pkgver=3.7.0
 pkgrel=1
 gcc_ver=4.9.2
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
-depends=("libstdc++=${gcc_ver}" "gcc=${gcc_ver}")
+depends=("libstdc++=${gcc_ver}")
 makedepends=('groff' 'libffi' 'python-sphinx' 'python-markupsafe' \
 	'ocaml-ctypes' 'ocaml-findlib')
 groups=('devel')
 archs=('i686' 'x86_64' 'arm')
 up2date="Flastarchive $url/releases/download.html .src.tar.xz"
 source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.xz \
-	http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.xz \
-	fix-lib-path.patch \
-	fix-ocamldocs.patch \
-	llvm-3.6.0-ocaml-ctypes-0.4.0.patch)
+	http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.xz )
 _F_archive_ver="${pkgver}.src"
 _F_make_opts="${MAKEFLAGS} REQUIRES_RTTI=1"
-signatures=("${source[0]}.sig" "${source[1]}.sig" "" "" "")
+signatures=("${source[0]}.sig" "${source[1]}.sig")
 
 subpkgs=("${subpkgs[@]}" "clang")
 subdescs=("${subdescs[@]}" "C language family frontend for LLVM")
@@ -55,10 +52,13 @@ Fconfopts+="--libdir=/usr/lib/llvm \
         --enable-targets=all \
         --with-c-include-dirs=${c_include_dirs}"
 
+_F_conf_configure="../configure"
+
 build() {
 	Fcd
 	# clang must be copied here to build with llvm
-	Fexec mv -f ../cfe-${_F_archive_ver}/ tools/clang || Fdie
+	Fexec rm -rf tools/clang
+	Fexec mv -f ../cfe-${_F_archive_ver}/ tools/clang
 
 	Fpatchall
 
@@ -70,18 +70,27 @@ build() {
 	Fsed '/docs/llvm' "/share/doc/$pkgname-$pkgver" Makefile.config.in
 	export CC='gcc'
 	export CXX='g++'
+
+	# seperate build dir
+        mkdir build
+        cd build
+
 	Fmake --$_optimized_switch-optimized
 
 
-	Fexec make -C docs -f Makefile.sphinx man
-	Fexec make -C docs -f Makefile.sphinx html
-	Fexec make -C tools/clang/docs -f Makefile.sphinx html
+	Fexec make -C ../docs -f Makefile.sphinx man
+	Fexec make -C ../docs -f Makefile.sphinx html
+	Fexec make -C ../tools/clang/docs -f Makefile.sphinx html
+	Fexec make -C ../tools/clang/docs -f Makefile.sphinx man
 
 	_F_make_opts="-j1"
 	Fmakeinstall
 
 	# Install man pages
+	Fmkdir usr/share/man/man1
 	Fcp ${_F_cd_path}/docs/_build/man/*.1 usr/share/man/man1/
+	Fcp ${_F_cd_path}/tools/clang/docs/_build/man/*.1 usr/share/man/man1/
+
 
 	# Install html docs
 	Fmkdir usr/share/doc/$pkgname-$pkgver/html/
@@ -100,7 +109,6 @@ build() {
 	Fsplit clang usr/lib/libclang*
 	Fsplit clang usr/share/man/man1/clang*
 	Fsplit clang usr/share/doc/$pkgname-$pkgver/html/clang/
-	Fsplit clang usr/share/doc/$pkgname-$pkgver/ps/clang.ps
 
 	Fsplit $pkgname-ocaml usr/lib/ocaml/
 	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/ocamldoc/

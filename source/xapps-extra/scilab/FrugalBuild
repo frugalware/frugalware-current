@@ -5,18 +5,24 @@ options+=('asneeded')
 
 pkgname=scilab
 pkgver=5.5.2
-pkgrel=1
+pkgrel=2
 pkgdesc="Scilab is a scientific software package for numerical computations."
 url="http://www.scilab.org"
-depends=('pcre>=8.30' 'libgfortran>=4.6.1' 'libgomp>=4.6.1' 'libxml2>=2.7.8' 'fftw>=3.2.2' 'hdf5>=1.8.7' 'arpack-ng' 'tk' 'lapack>=3.3.1-2' 'curl')
-makedepends=('gcc-gfortran>=4.5.2-2' 'blas>=3.3.1' 'umfpack>=5.5.1' 'ocaml>=3.12.1')
+depends=('pcre>=8.30' 'libgfortran>=4.6.1' 'libgomp>=4.6.1' 'libxml2>=2.7.8' \
+	'fftw>=3.2.2' 'hdf5>=1.8.7' 'arpack-ng' 'lapack>=3.5.0' 'curl>=7.44' \
+	'blas>=3.5.0' 'tk>=8.6.1' 'libgl')
+makedepends=('gcc-gfortran>=4.5.2-2' 'umfpack>=5.5.1' 'ocaml>=3.12.1')
 Finclude openjava
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
 options=('scriptlet')
 up2date="Flastarchive $url/development/sources/stable -src.*.tar.gz"
-source=($url/download/$pkgver/$pkgname-$pkgver-src.tar.gz)
-sha1sums=('93057510f2b9089f39c557f45821146c1f6923b7')
+source=($url/download/$pkgver/$pkgname-$pkgver-src.tar.gz \
+	depend-scicos.patch \
+	librarypath.patch )
+sha1sums=('93057510f2b9089f39c557f45821146c1f6923b7' \
+          '220917aca15d5e13530a219070aa54802bd425df' \
+          '0a3cf4eddc998a81ab7c3ca10d7ed4b8a7503888' )
 
 if [ "$CARCH" = "i686" ]; then
 	source=(${source[@]} $url/download/$pkgver/prerequirements-$pkgname-$pkgver-src.tar.gz)
@@ -26,14 +32,33 @@ elif [ "$CARCH" = "x86_64" ]; then
 	sha1sums=("${sha1sums[@]}" 'fe274a251405913a5fd2d32a05720d36190d3181')
 fi
 
+Fconfopts+="	--enable-build-localization \
+		--with-fftw \
+		--with-modelica \
+		--with-gfortran \
+                --with-umfpack \
+		--without-matio	\
+		--disable-static-system-lib \
+		--with-tcl-library=/usr/lib"
+
+
 build() {
 	Fcd
-	sed -i '15090s|thirdparty|thirdparty/checkstyle|' configure || Fdie
-	Fconf --enable-build-localization \
-		--with-fftw --with-modelica --with-gfortran \
-		--with-umfpack --without-matio --disable-static-system-lib
-	cp etc/classpath.xml.vc etc/classpath.xml || Fdie
-	make || Fdie
+	Fpatchall
+
+	Fexec rm -rf usr/{bin,lib}
+	Fexec rm -rf lib/thirdparty/{libblas.so.3gf,libcrypto.so.0.9.8,liblapack.so.3gf,libssl.so.0.9.8,libtcl8.5.so,libtk8.5.so,libcurl.so.4.1.1,libarpack.so.2.0.0,libumfpack.so.5.6.2}
+
+	Fautogen
+
+	Fexec sed -i '15090s|thirdparty|thirdparty/checkstyle|' configure
+
+	export CPPFLAGS=" -I/usr/include/libxml2 "
+	export LDFLAGS=" -L/usr/lib -lxml2"
+
+	Fconf
+	Fexcec cp etc/classpath.xml.vc etc/classpath.xml
+	Fmake
 	Fmakeinstall
 	Fmkdir usr/share/scilab/thirdparty
 	Fcprel "thirdparty/*.jar" usr/share/scilab/thirdparty/

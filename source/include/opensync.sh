@@ -34,7 +34,8 @@ Finclude cmake
 ###
 
 url="http://www.opensync.org"
-up2date="Flasttar http://opensync.org/download/releases/0.39/"
+#up2date="Flasttar http://opensync.org/download/releases/0.39/"
+up2date="0.39"
 source=($url/download/releases/$pkgver/$pkgname-$pkgver.tar.bz2)
 
 ###

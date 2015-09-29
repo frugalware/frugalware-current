@@ -30,7 +30,7 @@ Finclude i18n
 ###
 
 : ${_F_mozilla_i18n_xpidirname="$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/$pkgver/linux-i686/xpi"} \
-  ${_F_mozilla_i18n_mirror="ftp://ftp.mozilla.org/pub/mozilla.org"} \
+  ${_F_mozilla_i18n_mirror="http://download-origin.cdn.mozilla.net/pub/mozilla.org/"} \
   ${_F_mozilla_i18n_ext=".xpi"}
 
 ###
@@ -49,7 +49,7 @@ Finclude i18n
 archs=('i686' 'x86_64')
 groups=('locale-extra')
 options=("${options[@]}" 'noversrc')
-up2date="eval \"_F_archive_name=$_F_mozilla_i18n_name; Flastarchive $_F_mozilla_i18n_mirror/$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/latest/source '\.source\.tar\.bz2'\""
+up2date=$pkgver
 url="http://www.mozilla.org/projects/l10n/mlp.html"
 
 : ${_F_xpi_installpath="/usr/lib/$_F_mozilla_i18n_name/$_F_mozilla_i18n_xulname/extensions/"} \

@@ -1,0 +1,100 @@
+From efc412b645cbb209e42983a9dcb9d3c9427c5495 Mon Sep 17 00:00:00 2001
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Date: Tue, 28 Jul 2015 16:45:17 -0700
+Subject: [PATCH] Linux 4.2 compat: vfs_rename()
+
+The spa_config_write() function relies on the classic method of
+making sure updates to the /etc/zfs/zpool.cache file are atomic.
+It writes out a temporary version of the file and then uses
+vn_rename() to switch it in to place.  This way there can never
+exist a partial version of the file, it's all or nothing.
+
+Conceptually this is a good strategy and it makes good sense
+for platforms where it's easy to do a rename within the kernel.
+Unfortunately, Linux is not one of those platforms.  Even doing
+basic I/O to a file system from within the kernel is strongly
+discouraged.  In order to support this at all the vn_rename()
+implementation ends up being complex and fragile.  So fragile
+that recent Linux 4.2 changes have broken it.
+
+While it is possible to update vn_rename() to work with the
+latest kernels a better long term strategy is to stop using
+vn_rename() entirely.  Then all this complex, fragile code can
+be removed.  Achieving this is straight forward because
+config_write() is the only consumer of vn_rename().
+
+This patch reworks spa_config_write() to update the cache file
+in place.  The file will be truncated, written out, and then
+synced to disk.  If an error is encountered the file will be
+unlinked leaving the system in a consistent state.
+
+This does expose a tiny tiny tiny window where a system could
+crash at exactly the wrong moment could leave a partially written
+cache file.  However, this is highly unlikely because the cache
+file is 1) infrequently updated, 2) only a few kilobytes in size,
+and 3) written with a single vn_rdwr() call.
+
+If this were to somehow happen it poses no risk to pool.  Simply
+removing the cache file will allow the pool to be imported cleanly.
+Going forward this will be even less of an issue as we intend to
+disable the use of a cache file by default.
+
+Bottom line not using vn_rename() allows us to make ZoL more
+robust against upstream kernel changes.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+Closes #3653
+---
+ module/zfs/spa_config.c | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/module/zfs/spa_config.c b/module/zfs/spa_config.c
+index e846ec9..929f181 100644
+--- a/module/zfs/spa_config.c
++++ b/module/zfs/spa_config.c
+@@ -152,6 +152,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
+ 	char *buf;
+ 	vnode_t *vp;
+ 	int oflags = FWRITE | FTRUNC | FCREAT | FOFFMAX;
++	int error;
+ 	char *temp;
+ 
+ 	/*
+@@ -173,6 +174,26 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
+ 	VERIFY(nvlist_pack(nvl, &buf, &buflen, NV_ENCODE_XDR,
+ 	    KM_SLEEP) == 0);
+ 
++#ifdef __linux__
++	/*
++	 * Write the configuration to disk.  Due to the complexity involved
++	 * in performing a rename from within the kernel the file is truncated
++	 * and overwritten in place.  In the event of an error the file is
++	 * unlinked to make sure we always have a consistent view of the data.
++	 */
++	error = vn_open(dp->scd_path, UIO_SYSSPACE, oflags, 0644, &vp, 0, 0);
++	if (error == 0) {
++		error = vn_rdwr(UIO_WRITE, vp, buf, buflen, 0,
++		    UIO_SYSSPACE, 0, RLIM64_INFINITY, kcred, NULL);
++		if (error == 0)
++			error = VOP_FSYNC(vp, FSYNC, kcred, NULL);
++
++		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
++
++		if (error)
++			(void) vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
++	}
++#else
+ 	/*
+ 	 * Write the configuration to disk.  We need to do the traditional
+ 	 * 'write to temporary file, sync, move over original' to make sure we
+@@ -190,6 +211,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
+ 	}
+ 
+ 	(void) vn_remove(temp, UIO_SYSSPACE, RMFILE);
++#endif
+ 
+ 	vmem_free(buf, buflen);
+ 	kmem_free(temp, MAXPATHLEN);
+-- 
+2.5.0
+

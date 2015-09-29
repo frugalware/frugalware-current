@@ -43,8 +43,6 @@ Finclude kernel-version
 # * _F_kernel_ver (defaults to $pkgver): the version of the kernel
 # * _F_kernel_rel (defaults to $pkgrel): the release of the kernel (used in the
 # kernel version string)
-# * _F_kernel_stable: if set, the version of the stable patch to use (example:
-# "16", it will be set to _F_kernelver_stable if pkgrel is not specified)
 # * _F_kernel_dontfakeversion if set, don't replace the kernel version string
 # with a generated one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
 # * _F_kernel_uname: specify the kernel version manually (defaults to
@@ -57,7 +55,6 @@ Finclude kernel-version
 ###
 
 if Fuse $USE_DEVEL; then
-	_F_kernelver_stable=0
 	_F_kernel_dontfakeversion=1
 fi
 
@@ -67,11 +64,6 @@ fi
 
 if [ -z "$_F_kernel_rel" ]; then
 	_F_kernel_rel=$_F_kernelver_rel
-	_F_kernel_stable=$_F_kernelver_stable
-fi
-
-if [ -z "$_F_kernel_stable" ]; then
-	_F_kernel_stable=0
 fi
 
 if [ -z "$_F_kernel_dontfakeversion" ]; then
@@ -131,17 +123,7 @@ fi
 # * up2date
 # * source()
 ###
-_kernel_up2date()
-{
-	local _ver
-	_ver=$(Fwcat 'http://www.kernel.org/pub/linux/kernel/v4.x/' | sed -n "s|.*linux-\($_F_kernelver_ver\(.[0-9]\+\)\?\).tar.xz.*|\1|p" | Fsort | tail -n 1)
-	if [ "$_ver" == "$_F_kernelver_ver.$_F_kernelver_stable" ]; then
-		echo $pkgver
-	else
-		echo $_ver
-	fi
-}
-url="http://www.kernel.org"
+url="https://www.kernel.org"
 depends=('kmod' 'sed')
 if [ -z "$_F_kernel_name" ]; then
 	makedepends=("${makedepends[@]}" 'unifdef')
@@ -152,19 +134,12 @@ fi
 groups=('base')
 archs=('i686' 'x86_64' 'arm')
 options=('nodocs' 'genscriptlet')
-up2date="eval _kernel_up2date"
-# this can be removed after Frualware 1.5 is out
-replaces=('redirfs' 'dazuko')
+_F_archive_grepv="rc"
+up2date="Flasttar $url"
 
 if ! Fuse DEVEL; then
-	source=("http://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.xz")
-	signatures=("http://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.sign")
-	if [ "$_F_kernel_stable" -gt 0 ]; then
-		source=("${source[@]}" \
-			"http://www.kernel.org/pub/linux/kernel/v4.x/patch-$pkgver.$_F_kernel_stable.xz")
-		signatures=("${signatures[@]}" \
-			"http://www.kernel.org/pub/linux/kernel/v4.x/patch-$pkgver.$_F_kernel_stable.sign")
-	fi
+	source=("https://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.xz")
+	signatures=("https://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.sign")
 else
 	if [ -z "$_F_scm_tag" ]; then
 		_F_scm_tag="v$pkgver"
@@ -228,11 +203,6 @@ Fbuildkernel()
 		cp $Fsrcdir/config .config || Fdie
 	fi
 
-	if [ -n "$_F_kernel_stable" ]; then
-		sed -i "/Linux kernel version:/s/: .*/: $_F_kernel_ver.$_F_kernel_stable/" .config
-	fi
-
-	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	# not using Fpatchall here since not applying the patches from
 	# _F_kernel_patches() having the wrong extension would be stange :)
 	for i in "${_F_kernel_patches[@]}"

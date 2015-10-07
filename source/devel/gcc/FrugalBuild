@@ -1,5 +1,6 @@
 # Compiling Time: 26.48 SBU
-# Maintainer: James Buren <ryuo@frugalware.org>
+# Maintainer: crazy <crazy@frugalware.org>
+# Contributor: James Buren <ryuo@frugalware.org>
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 USE_SHARED=${USE_SHARED:-"y"}
@@ -23,11 +24,12 @@ fi
 Fuse $USE_OBJC && USE_CXX="y"
 
 pkgname=gcc
-pkgver=4.9.2
-pkgrel=2
+pkgver=5.2.0
+pkgrel=4
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils>=2.18.50.0.8-3' 'glibc>=2.8-2' 'libmpc>=1.0.2' 'zlib')
+depends=('binutils>=2.25.1-3' 'glibc>=2.22-3' 'libmpc>=1.0.3-2' 'zlib>=1.2.8-2')
+makedepends=('kernel-headers>=4.2.1')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('i686' 'x86_64' 'arm')
@@ -44,9 +46,7 @@ else
 	gccver=$pkgver
 	up2date="lynx -dump http://ftp.gnu.org/pub/gnu/gcc/|grep gcc-.*/$|sed -n 's|.*gcc-\(.*\)/|\1|;$ p'"
 	source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2)
-	sha1sums=('79dbcb09f44232822460d80b033c962c0237c6d8')
-	source=("${source[@]}" gcc-4.9-fix-includes.patch)
-	sha1sums=("${sha1sums[@]}" '43c52c7a557b62d167407e946bbc50c4f1388b97')
+	sha1sums=('fe3f5390949d47054b613edc36c557eb1d51c18e')
 fi
 
 if Fuse $USE_SHARED; then
@@ -57,8 +57,10 @@ if Fuse $USE_SHARED; then
 	subbackup=('' '' '' '')
 	subgroups=('base chroot-core' 'lib' 'lib' 'lib')
 	subreplaces=('' '' '' '')
+	subconflicts=('' '' '' '')
 fi
 if Fuse $USE_CXX; then
+	## https://gcc.gnu.org/gcc-5/changes.html#libstdcxx
 	cppdocver=20140403
 	source=("${source[@]}" ftp://gcc.gnu.org/pub/gcc/libstdc++/doxygen/libstdc++-api.$cppdocver.man.tar.bz2)
 	sha1sums=("${sha1sums[@]}" 'ece96007d8752c86ce027b7a19f13b58c6709e7a')
@@ -68,6 +70,7 @@ if Fuse $USE_CXX; then
 	subbackup=("${subbackup[@]}" '' '')
 	subgroups=("${subgroups[@]}" 'base chroot-core' 'devel devel-core')
 	subreplaces=("${subreplaces[@]}" '' '')
+	subconflicts=("${subconflicts[@]}" '' '')
 fi
 if Fuse $USE_OBJC; then
 	subpkgs=("${subpkgs[@]}" 'libobjc' 'gcc-objc' 'gcc-objc++')
@@ -76,6 +79,7 @@ if Fuse $USE_OBJC; then
 	subbackup=("${subbackup[@]}" '' '' '')
 	subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra' 'devel-extra')
 	subreplaces=("${subreplaces[@]}" 'objc objc-bootstrap' '' '')
+	subconflicts=("${subconflicts[@]}" '' '' '')
 fi
 if Fuse $USE_GO; then
 	subpkgs=("${subpkgs[@]}" 'libgo' 'gcc-go')
@@ -84,14 +88,20 @@ if Fuse $USE_GO; then
 	subbackup=("${subbackup[@]}" '' '')
 	subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra')
 	subreplaces=("${subreplaces[@]}" '' '')
+	subconflicts=("${subconflicts[@]}" '' 'go')
 fi
 if Fuse $USE_ADA; then
+	## see https://gcc.gnu.org/gcc-5/changes.html
+	islver=0.14.1
+	source=("${source[@]}" http://isl.gforge.inria.fr/isl-$islver.tar.xz)
+	sha1sums=("${sha1sums[@]}" 'f3b8280849b09eb3a30138909085292eb481b1b1')
 	subpkgs=("${subpkgs[@]}" 'libgnat' 'gcc-gnat')
 	subdescs=("${subdescs[@]}" 'Ada 95 runtime shared libraries' 'Ada 95 support for GCC')
 	subrodepends=("${subrodepends[@]}" 'libgcc' 'libgnat gcc')
 	subbackup=("${subbackup[@]}" '' '')
 	subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra')
 	subreplaces=("${subreplaces[@]}" '' '')
+	subconflicts=("${subconflicts[@]}" '' '')
 	makedepends=("${makedepends[@]}" 'gcc-gnat')
 fi
 if Fuse $USE_FORTRAN; then
@@ -101,6 +111,7 @@ if Fuse $USE_FORTRAN; then
 	subbackup=("${subbackup[@]}" '' '' '')
 	subgroups=("${subgroups[@]}" 'lib' 'lib' 'devel-extra')
 	subreplaces=("${subreplaces[@]}" '' '' '')
+	subconflicts=("${subconflicts[@]}" '' '' '')
 fi
 i=0
 while [ $i -lt ${#subpkgs[@]} ]
@@ -109,26 +120,23 @@ do
 	i=$(($i+1))
 done
 
-islver=0.12.2
-cloogver=0.18.3
-source=("${source[@]}" http://isl.gforge.inria.fr/isl-$islver.tar.bz2 http://www.bastoul.net/cloog/pages/download/cloog-$cloogver.tar.gz)
-sha1sums=("${sha1sums[@]}" 'ca98a91e35fb3ded10d080342065919764d6f928' '829c14bb701bfdac589de2b6855564bbb0041efb')
 
 build()
 {
 	Fcd
 	Fsed 'lib64' 'lib' gcc/config/i386/t-linux64
+
 	# no fixincludes, thanks
 	Fsed '\./fixinc\.sh' '-c true' gcc/Makefile.in
-	for i in isl-$islver cloog-$cloogver
-	do
-		if [ ! -d "../$i" ]
-		then
-			Fmessage "../$i not found!"
+
+	if Fuse $USE_ADA; then
+		if [ ! -d "../isl-$islver" ]; then
+			Fmessage "../isl-$islver not found!"
 			Fdie
-		fi
-		ln -sf "../$i" "${i/-*/}" || Fdie
-	done
+			fi
+		ln -sf "../isl-$islver" "isl" || Fdie
+	fi
+
 	Fpatchall
 	## well reconf / autoreconf is br0ken in gcc .. so do it that way heh
 
@@ -141,24 +149,32 @@ build()
 		## libstdcxx-pch is really a waste of space , nothing need nor uses that
 		Fconfopts+=" --enable-__cxa_atexit \
 			--enable-libstdcxx-allocator=new \
-			--disable-libstdcxx-pch"
+			--disable-libstdcxx-pch \
+			--with-default-libstdcxx-abi=gcc4-compatible"
 	fi
+
 	Fuse $USE_OBJC && langlist="$langlist,objc,obj-c++"
-	Fuse $USE_ADA && langlist="$langlist,ada"
+
+	if Fuse $USE_ADA; then
+		langlist="$langlist,ada"
+		Fconfopts+=" --with-isl"
+	fi
+
 	if Fuse $USE_FORTRAN; then
 		langlist="$langlist,fortran"
 		Fconfopts+=" --enable-libquadmath --enable-libquadmath-support"
 	else
 		Fconfopts+=" --disable-libquadmath --disable-libquadmath-support"
 	fi
+
 	Fuse $USE_GO && langlist="$langlist,go"
 
 	if [ "$CARCH" == "arm" ]; then
 		Fconfopts+=" --enable-softfloat \
-			--with-float=soft --disable-bootstrap"
+			--with-float=soft \
+			--disable-bootstrap \
+			--enable-target-optspace"
 	fi
-
-	Fconfopts+=" --enable-target-optspace"
 
 	_F_conf_configure=../$_F_cd_path/configure
 	CC="$FCC gcc" CFLAGS="$CFLAGS" CXXFLAGS="$CFLAGS" XCFLAGS="$CFLAGS" \
@@ -175,7 +191,7 @@ build()
 		--with-bugurl="http://bugs.frugalware.org/" \
 		--with-pkgversion="Frugalware Linux" \
 		--enable-linux-futex \
-		--enable-cloog-backend=isl
+		--enable-checking=release
 
 	if Fuse $USE_SHARED; then
 		Fexec make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" || Fdie
@@ -225,15 +241,16 @@ build()
 		Fln gcc /usr/bin/gnatgcc
 
 		# move libgnat to the right location
-		Fmv usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl-${gccver%.*}.so /usr/lib
-		Fmv usr/lib/gcc/$gcchost/$gccver/adalib/libgnat-${gccver%.*}.so /usr/lib
+		newgccver=${gccver%.*.*}
+		Fmv usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl-${newgccver}.so /usr/lib
+		Fmv usr/lib/gcc/$gcchost/$gccver/adalib/libgnat-${newgccver}.so /usr/lib
 		Frm usr/lib/gcc/$gcchost/$gccver/adalib/lib{gnarl,gnat}.so
-		Fln libgnarl-${gccver%.*}.so /usr/lib/libgnarl.so
-		Fln libgnat-${gccver%.*}.so /usr/lib/libgnat.so
-		Fln ../../../../libgnarl-${gccver%.*}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl.so
-		Fln ../../../../libgnarl-${gccver%.*}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl-${gccver%.*}.so
-		Fln ../../../../libgnat-${gccver%.*}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnat.so
-		Fln ../../../../libgnat-${gccver%.*}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnat-${gccver%.*}.so
+		Fln libgnarl-${newgccver}.so /usr/lib/libgnarl.so
+		Fln libgnat-${newgccver}.so /usr/lib/libgnat.so
+		Fln ../../../../libgnarl-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl.so
+		Fln ../../../../libgnarl-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl-${newgccver}.so
+		Fln ../../../../libgnat-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnat.so
+		Fln ../../../../libgnat-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnat-${newgccver}.so
 	fi
 
 	# documentation
@@ -307,10 +324,14 @@ build()
 		# libgo
 		Fsplit libgo usr/lib/go/
 		Fsplit libgo usr/lib/libgo*
+		Fsplit libgo usr/lib/libnetgo.*
 		# gcc-go
+		Fsplit gcc-go usr/bin/go
+		Fsplit gcc-go usr/bin/gofmt
 		Fsplit gcc-go usr/bin/{,$gcchost-}gccgo
 		Fsplit gcc-go usr/libexec/gcc/$gcchost/$gccver/go1
-		Fsplit gcc-go usr/share/man/man1/gccgo.1
+		Fsplit gcc-go usr/libexec/gcc/$gcchost/$gccver/cgo
+		Fsplit gcc-go usr/share/man/man1/*go*.1
 		Fsplit gcc-go usr/share/info/gccgo.info
 	fi
 	# llvm needs these.

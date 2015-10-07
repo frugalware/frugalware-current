@@ -19,11 +19,21 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  */
 
+
+#include <config.h>
+
+#include <sys/types.h>
+#include <getopt.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <string.h>
+
+#include "config.h"
+#include "dircolors.h"
+
 
 #define ETC_DIR "/etc"
 #define USER_FILE ".dir_colors"	/* Versus user's home directory */

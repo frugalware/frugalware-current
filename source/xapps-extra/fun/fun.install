@@ -1,0 +1,237 @@
+systemd_units=(fun=e)
+
+schemas=($_F_gnome_schemas)
+entries=($_F_gnome_entries)
+
+UpdateDesktopDatabase()
+{
+	if [ -f /usr/bin/update-desktop-database ]
+	then
+		echo -n "updating desktop database..."
+		if update-desktop-database > /dev/null 2>&1 ; then
+			echo " done."
+		else
+			echo " failed."
+		fi
+	fi
+	if [ -f /usr/bin/update-desktop-database-3.0 ]
+	then
+		echo -n "updating desktop database gtk+3..."
+		if update-desktop-database > /dev/null 2>&1 ; then
+			echo " done."
+		else
+			echo " failed."
+		fi
+	fi
+}
+UpdateIconCache()
+{
+	if [ -f /usr/bin/gtk-update-icon-cache ]
+	then
+		echo -n "updating hicolor icon cache..."
+		if gtk-update-icon-cache -f -t /usr/share/icons/hicolor > /dev/null 2>&1 ; then
+			echo " done."
+		else
+			echo " failed."
+		fi
+	fi
+	if [ -f /usr/bin/gtk-update-icon-cache-3.0 ]
+	then
+		echo -n "updating hicolor icon cache gtk+3..."
+		if gtk-update-icon-cache-3.0 -f -t /usr/share/icons/hicolor > /dev/null 2>&1 ; then
+			echo " done."
+		else
+			echo " failed."
+		fi
+	fi
+}
+post_install()
+{
+	if [ ${#schemas[*]} -gt 0 ]; then
+		echo -n "installing gconf schemas... "
+		for schema in "${schemas[@]}" ; do
+			GCONF_CONFIG_SOURCE=`/usr/bin/gconftool-2 --get-default-source` \
+				/usr/bin/gconftool-2 --makefile-install-rule "$schema" > /dev/null 2>&1
+		done
+		if [ -e /bin/pidof ]; then
+			kill -HUP `pidof /usr/libexec/gconfd-2` > /dev/null 2>&1
+		fi
+		echo "done."
+	fi
+	if [ ${#entries[*]} -gt 0 ]; then
+		echo -n "loading gconf entries... "
+		for entry in "${entries[@]}" ; do
+			gconftool-2 --direct --config-source=`/usr/bin/gconftool-2 --get-default-source` --load $entry > /dev/null 2>&1
+		done
+		if [ -e /bin/pidof ]; then
+			kill -HUP `pidof /usr/libexec/gconfd-2` > /dev/null 2>&1
+		fi
+		echo "done."
+	fi
+	if [ -n "$_F_gnome_glib" ]; then
+		echo -n "loading schema glib entries... "
+		glib-compile-schemas /usr/share/glib-2.0/schemas
+		echo "done."
+	fi
+	if [ -n "$_F_gnome_desktop" ]; then
+		UpdateDesktopDatabase
+	fi
+	if [ -n "$_F_gnome_scrollkeeper" ]; then
+		echo -n "updating rarian database..."
+		if rarian-sk-update -q > /dev/null 2>&1 ; then
+			echo " done."
+		else
+			echo " failed."
+		fi
+	fi
+	if [ -n "$_F_gnome_mime" ]; then
+		echo -n "updating mime database..."
+		if update-mime-database /usr/share/mime > /dev/null 2>&1 ; then
+			echo " done."
+		else
+			echo " failed."
+		fi
+	fi
+	if [ -n "$_F_gnome_iconcache" ]; then
+		UpdateIconCache
+	fi
+
+	local unit
+	local op
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
+}
+
+post_upgrade()
+{
+	if [ ${#schemas[*]} -gt 0 ]; then
+		echo -n "installing gconf schemas... "
+		for schema in "${schemas[@]}" ; do
+			GCONF_CONFIG_SOURCE=`/usr/bin/gconftool-2 --get-default-source` \
+				/usr/bin/gconftool-2 --makefile-install-rule "$schema" > /dev/null 2>&1
+		done
+		if [ -e /bin/pidof ]; then
+			kill -HUP `pidof /usr/libexec/gconfd-2` > /dev/null 2>&1
+		fi
+		echo "done."
+	fi
+	if [ ${#entries[*]} -gt 0 ]; then
+		echo -n "loading gconf entries... "
+		for entry in "${entries[@]}" ; do
+			gconftool-2 --direct --config-source=`/usr/bin/gconftool-2 --get-default-source` --load $entry > /dev/null 2>&1
+		done
+		if [ -e /bin/pidof ]; then
+			kill -HUP `pidof /usr/libexec/gconfd-2` > /dev/null 2>&1
+		fi
+		echo "done."
+	fi
+	if [ -n "$_F_gnome_glib" ]; then
+		echo -n "loading schema glib entries... "
+		glib-compile-schemas /usr/share/glib-2.0/schemas
+		echo "done."
+	fi
+	if [ -n "$_F_gnome_desktop" ]; then
+		UpdateDesktopDatabase
+	fi
+	if [ -n "$_F_gnome_scrollkeeper" ]; then
+		echo -n "updating rarian database..."
+		if rarian-sk-update -q > /dev/null 2>&1 ; then
+			echo " done."
+		else
+			echo " failed."
+		fi
+	fi
+	if [ -n "$_F_gnome_mime" ]; then
+		echo -n "updating mime database..."
+		if update-mime-database /usr/share/mime > /dev/null 2>&1 ; then
+			echo " done."
+		else
+			echo " failed."
+		fi
+	fi
+	if [ -n "$_F_gnome_iconcache" ]; then
+		UpdateIconCache
+	fi
+
+
+	systemctl daemon-reload >/dev/null 2>&1
+}
+
+pre_remove() {
+	if [ -n "$_F_gnome_glib" ]; then
+		echo -n "loading schema glib entries... "
+		glib-compile-schemas /usr/share/glib-2.0/schemas
+		echo "done."
+	fi
+	if [ ${#schemas[*]} -gt 0 ]; then
+		echo -n "updating gconf schemas... "
+		for schema in "${schemas[@]}" ; do
+			GCONF_CONFIG_SOURCE=`/usr/bin/gconftool-2 --get-default-source` \
+				/usr/bin/gconftool-2 --makefile-install-rule "$schema" > /dev/null 2>&1
+		done
+		if [ -e /bin/pidof ]; then
+			kill -HUP `pidof /usr/libexec/gconfd-2` > /dev/null 2>&1
+		fi
+		echo "done."
+	fi
+	if [ ${#entries[*]} -gt 0 ]; then
+		echo -n "unloading gconf entries... "
+		for entry in "${entries[@]}" ; do
+			gconftool-2 --direct --config-source=`/usr/bin/gconftool-2 --get-default-source` --unload $entry > /dev/null 2>&1
+		done
+		if [ -e /bin/pidof ]; then
+			kill -HUP `pidof /usr/libexec/gconfd-2` > /dev/null 2>&1
+		fi
+		echo "done."
+	fi
+
+	local unit
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
+}
+
+post_remove()
+{
+	if [ -n "$_F_gnome_desktop" ]; then
+		UpdateDesktopDatabase
+	fi
+	if [ -n "$_F_gnome_scrollkeeper" ]; then
+		echo -n "updating rarian database..."
+		if rarian-sk-update -q > /dev/null 2>&1 ; then
+			echo " done."
+		else
+			echo " failed."
+		fi
+	fi
+	if [ -n "$_F_gnome_mime" ]; then
+		echo -n "updating mime database..."
+		if update-mime-database /usr/share/mime > /dev/null 2>&1 ; then
+			echo " done."
+		else
+			echo " failed."
+		fi
+	fi
+	if [ -n "$_F_gnome_iconcache" ]; then
+		UpdateIconCache
+	fi
+
+	systemctl daemon-reload >/dev/null 2>&1
+}
+
+op=$1
+shift
+
+$op $*

@@ -3,7 +3,7 @@
 
 pkgname=llvm
 pkgver=3.7.0
-pkgrel=2
+pkgrel=3
 gcc_ver=5.2.0
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
@@ -14,9 +14,9 @@ groups=('devel')
 archs=('i686' 'x86_64' 'arm')
 up2date="Flastarchive $url/releases/download.html .src.tar.xz"
 source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.xz \
-	http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.xz )
+	http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.xz)
+
 _F_archive_ver="${pkgver}.src"
-_F_make_opts="${MAKEFLAGS} REQUIRES_RTTI=1"
 signatures=("${source[0]}.sig" "${source[1]}.sig")
 
 subpkgs=("${subpkgs[@]}" "clang")
@@ -34,25 +34,23 @@ subgroups=("${subgroups[@]}" 'devel-extra')
 subarchs=("${subarchs[@]}" "${archs[*]}")
 
 
- if [[ "$CARCH" == "x86_64" ]]; then
-	Fconfopts+="--with-cxx-include-arch=${CARCH}-frugalware-linux-gnueabi \
-		--build=${CARCH}-frugalware-linux-gnueabi "
-	c_include_dirs="/usr/local/include:/usr/include/c++/${gcc_ver}:/usr/include/c++/${gcc_ver}/backward:/usr/include/c++/${gcc_ver}/${CARCH}-frugalware-linux-gnueabi:/usr/include"
-else
-	Fconfopts+="--with-cxx-include-arch=${CARCH}-frugalware-linux \
-		--build=${CARCH}-frugalware-linux "
-	c_include_dirs="/usr/local/include:/usr/include/c++/${gcc_ver}:/usr/include/c++/${gcc_ver}/backward:/usr/include/c++/${gcc_ver}/${CARCH}-frugalware-linux:/usr/include"
-fi
+F_cmake_type="Release"
+_F_cmake_confopts+="	-DCMAKE_INSTALL_PREFIX=/usr \
+			-DLLVM_BUILD_LLVM_DYLIB=ON \
+			-DLLVM_DYLIB_EXPORT_ALL=ON \
+			-DLLVM_LINK_LLVM_DYLIB=ON \
+			-DLLVM_ENABLE_RTTI=ON \
+			-DLLVM_ENABLE_FFI=ON \
+			-DLLVM_BUILD_DOCS=ON \
+			-DLLVM_ENABLE_SPHINX=ON \
+			-DLLVM_ENABLE_DOXYGEN=OFF \
+			-DFFI_INCLUDE_DIR=$(pkg-config --cflags-only-I libffi | cut -c3-) \
+			-DLLVM_HOST_TRIPLE=${CARCH}-frugalware-linux \
+			-DLLVM_DEFAULT_TARGET_TRIPLE=${CARCH}-frugalware-linux \
+			-DC_INCLUDE_DIRS=/usr/local/include:/usr/include/c++/${gcc_ver}:/usr/include/c++/${gcc_ver}/backward:/usr/include/c++/${gcc_ver}/${CARCH}-frugalware-linux:/usr/include \
+			-DLLVM_BINUTILS_INCDIR=/usr/include"
 
-Fconfopts+="--libdir=/usr/lib/llvm \
-        --docdir=/usr/share/doc/$pkgname-$pkgver
-        --sysconfdir=/etc \
-        --enable-shared \
-        --enable-libffi \
-        --enable-targets=all \
-        --with-c-include-dirs=${c_include_dirs}"
-
-_F_conf_configure="../configure"
+Finclude cmake
 
 build() {
 
@@ -64,33 +62,21 @@ build() {
 
 	Fpatchall
 
-	# Apply strip option to configure
-	_optimized_switch="enable"
-	[[ $(check_option strip) == n ]] & _optimized_switch="disable"
+	# Fix for genesis32
+        if [ "$CARCH" == "i686" ]; then
+                LDFLAGS+=" -Wl,--no-keep-memory -Wl,--reduce-memory-overheads"
+        fi
 
-	Fsed '\${prefix}/etc/llvm' '/etc/llvm' configure
-	Fsed '/docs/llvm' "/share/doc/$pkgname-$pkgver" Makefile.config.in
-	export CC='gcc'
-	export CXX='g++'
-
-	# seperate build dir
-        mkdir build
-        cd build
-
-	if [[ "$CARCH" == "i686" ]]; then
-		 _F_make_opts="-j1"
-	fi
-
-	Fmake --$_optimized_switch-optimized
-
+	CMake_make
 
 	Fexec make -C ../docs -f Makefile.sphinx man
 	Fexec make -C ../docs -f Makefile.sphinx html
 	Fexec make -C ../tools/clang/docs -f Makefile.sphinx html
 	Fexec make -C ../tools/clang/docs -f Makefile.sphinx man
 
-	_F_make_opts="-j1"
-	Fmakeinstall
+	Fexec make ocaml_doc
+
+	CMake_install
 
 	# Install man pages
 	Fmkdir usr/share/man/man1
@@ -108,8 +94,11 @@ build() {
 	Fcp ${_F_cd_path}/tools/clang/docs/_build/html/* usr/share/doc/$pkgname-$pkgver/html/clang
 	Frm usr/share/doc/$pkgname-$pkgver/html/clang/_sources
 
+        # Install html docs of llvm-ocaml
+        Fmkdir usr/share/doc/$pkgname-$pkgver/ocamldoc
+        Fcp ${_F_cd_path}/${_F_cmake_build_dir}/docs/ocamldoc/html/* usr/share/doc/$pkgname-$pkgver/ocamldoc
+
 	Fsplit clang usr/bin/clang*
-	Fsplit clang usr/bin/c-index-test
 	Fsplit clang usr/include/clang*
 	Fsplit clang usr/lib/clang/
 	Fsplit clang usr/lib/libclang*
@@ -118,7 +107,6 @@ build() {
 
 	Fsplit $pkgname-ocaml usr/lib/ocaml/
 	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/ocamldoc/
-	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/ocamldoc.tar.gz
 	Fsplit $pkgname-ocaml usr/share/llvm/cmake/{Find,Add}OCaml.cmake
 	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/html/tutorial/OCamlLangImpl*.html
 }

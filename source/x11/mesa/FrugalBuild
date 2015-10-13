@@ -2,13 +2,15 @@
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 # Contributor: crazy <crazy@frugalware.org>
 
-options+=('asneeded')
 
 # TODO: Consider enabling R600 LLVM backend via
 # --enable-r600-llvm-compiler
 
 # TODO: Consider enabling OpenMAX support via
 # --enable-omx
+
+## FIXME: Arghhhhh.. *proto and header files should not be *depends*
+##	  this files are *makedepends* only
 
 : ${USE_DEBUG="n"}
 : ${USE_DEVEL="n"}
@@ -36,15 +38,15 @@ fi
 
 pkgname=mesa
 _F_archive_name="MesaLib"
-pkgver=11.0.2
-pkgrel=2
+pkgver=11.0.3
+pkgrel=1
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 up2date="lynx --dump 'ftp://ftp.freedesktop.org/pub/mesa/' | grep "pub/mesa/[0-9\.]" | tail -n1 | sed 's|.*/\([0-9\.]\)|\1|'"
 
 # libgl: provided by libgl, fglrx and nvidia packages
 depends=()
-makedepends=('makedepend' 'mako')
+makedepends=('makedepend' 'mako' 'libomxil-bellagio')
 # should be mesa-*=$pkgver but apps should not depends on mesa anymore first, unless specific to mesa
 rodepends=('libgl')
 archs=('i686' 'x86_64' 'arm')
@@ -80,7 +82,7 @@ subdescs=("${subdescs[@]}" 'Mesa OpenGL DRI drivers.')
 subprovides=("${subprovides[@]}" '')
 subreplaces=("${subreplaces[@]}" '')
 subconflicts=("${subconflicts[@]}" '')
-subdepends=("${subdepends[@]}" "libdrm llvm>=3.7.0 elfutils nettle>=3.1.1")
+subdepends=("${subdepends[@]}" "libdrm llvm>=3.7.0-4 elfutils nettle>=3.1.1")
 subrodepends=("${subrodepends[@]}" '')
 subgroups=("${subgroups[@]}" 'x11')
 subarchs=("${subarchs[@]}" "${archs[*]}")
@@ -91,7 +93,7 @@ subdescs+=('Mesa gallium pipe drivers.')
 subprovides+=('')
 subreplaces+=('')
 subconflicts+=('')
-subdepends+=("libdrm llvm>=3.7.0 elfutils nettle>=3.1.1")
+subdepends+=("libdrm llvm>=3.7.0-4 elfutils nettle>=3.1.1")
 subrodepends+=('')
 subgroups+=('x11')
 subarchs+=("${archs[*]}")
@@ -160,12 +162,12 @@ if Fuse OPENCL; then
 	subprovides+=('mesa-libcl')
 	subreplaces+=('')
 	subconflicts+=('')
-	subdepends+=('libclc llvm>=3.7.0 libxext libxfixes libdrm elfutils nettle>=3.1.1')
+	subdepends+=('libclc llvm>=3.7.0-4 libxext libxfixes libdrm elfutils nettle>=3.1.1')
 	subrodepends+=('')
 	subgroups+=('x11')
 	subarchs+=("${archs[*]}")
 	subbackup+=('')
-	makedepends+=('clang')
+	makedepends+=('clang>=3.7.0-4')
 fi
 
 if Fuse XA; then
@@ -174,7 +176,7 @@ if Fuse XA; then
 	subprovides+=('')
 	subreplaces+=('')
 	subconflicts+=('')
-	subdepends+=('llvm>=3.7.0 libdrm nettle>=3.1.1')
+	subdepends+=('llvm>=3.7.0-4 libdrm nettle>=3.1.1')
 	subrodepends+=('')
 	subgroups+=('x11')
 	subarchs+=("${archs[*]}")
@@ -187,7 +189,7 @@ if Fuse VDPAU; then
 	subprovides=("${subprovides[@]}" '')
 	subreplaces=("${subreplaces[@]}" '')
 	subconflicts=("${subconflicts[@]}" '')
-	subdepends=("${subdepends[@]}" 'libvdpau libx11 libdrm llvm>=3.7.0 elfutils nettle>=3.1.1')
+	subdepends=("${subdepends[@]}" 'libvdpau libx11 libdrm llvm>=3.7.0-4 elfutils nettle>=3.1.1')
 	subrodepends=("${subrodepends[@]}" '')
 	subgroups=("${subgroups[@]}" 'x11')
 	subarchs=("${subarchs[@]}" "${archs[*]}")
@@ -201,7 +203,7 @@ if Fuse VAAPI; then
 	subprovides=("${subprovides[@]}" '')
 	subreplaces=("${subreplaces[@]}" '')
 	subconflicts=("${subconflicts[@]}" '')
-	subdepends=("${subdepends[@]}" 'libva llvm>=3.7.0 libx11 libdrm elfutils nettle>=3.1.1')
+	subdepends=("${subdepends[@]}" 'libva llvm>=3.7.0-4 libx11 libdrm elfutils nettle>=3.1.1')
 	subrodepends=("${subrodepends[@]}" '')
 	subgroups=("${subgroups[@]}" 'x11')
 	subarchs=("${subarchs[@]}" "${archs[*]}")
@@ -248,7 +250,12 @@ build() {
 
 	Fcd $pkgname-$pkgver
 	Fpatchall
-	Fautoreconf
+	## try to not reconf , only when patching *.ac,*.in,*.am files
+	#Fautoreconf
+
+	## Hack for llvm built with cmake..  autoreconf breaks stuff :/
+	Fsed  "LLVM_SO_NAME=.*" "LLVM_SO_NAME=LLVM" configure
+
 
 	if Fuse DEBUG; then
 		Fconfopts+=" --enable-debug"

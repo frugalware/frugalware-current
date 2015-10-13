@@ -6,12 +6,6 @@
 # TODO: Consider enabling R600 LLVM backend via
 # --enable-r600-llvm-compiler
 
-# TODO: Consider enabling OpenMAX support via
-# --enable-omx
-
-## FIXME: Arghhhhh.. *proto and header files should not be *depends*
-##	  this files are *makedepends* only
-
 : ${USE_DEBUG="n"}
 : ${USE_DEVEL="n"}
 : ${USE_DETECTDEPENDS="n"} # To detected dependecies with makepkg -a
@@ -31,6 +25,7 @@
 : ${USE_WAYLAND_EGL="y"}
 : ${USE_XA="y"}
 : ${USE_NINE="y"}
+: ${USE_OMX="y"}
 
 if Fuse WAYLAND_EGL; then
 	USE_EGL=y
@@ -39,14 +34,14 @@ fi
 pkgname=mesa
 _F_archive_name="MesaLib"
 pkgver=11.0.3
-pkgrel=1
+pkgrel=2
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 up2date="lynx --dump 'ftp://ftp.freedesktop.org/pub/mesa/' | grep "pub/mesa/[0-9\.]" | tail -n1 | sed 's|.*/\([0-9\.]\)|\1|'"
 
 # libgl: provided by libgl, fglrx and nvidia packages
 depends=()
-makedepends=('makedepend' 'mako' 'libomxil-bellagio')
+makedepends=('makedepend' 'mako' 'dri2proto' 'dri3proto' 'glproto' 'presentproto')
 # should be mesa-*=$pkgver but apps should not depends on mesa anymore first, unless specific to mesa
 rodepends=('libgl')
 archs=('i686' 'x86_64' 'arm')
@@ -71,7 +66,7 @@ subdescs=('Mesa DRI OpenGL files.' 'Mesa OpenGL headers files.')
 subprovides=('mesa-libgl' 'libgl-headers')
 subreplaces=('' '')
 subconflicts=('catalyst nvidia' 'nvidia')
-subdepends=('expat libxdamage libxxf86vm libdrm libxshmfence' 'dri2proto dri3proto glproto presentproto')
+subdepends=('expat libxdamage libxxf86vm libdrm libxshmfence' '')
 subrodepends=("mesa-libgl-headers>=$pkgver-$pkgrel libglapi libglx>=$xserverver mesa-dri-drivers>=$pkgver-$pkgrel" 'khr-headers')
 subgroups=('x11' 'x11')
 subarchs=("${archs[*]}" "${archs[*]}")
@@ -149,7 +144,7 @@ if Fuse EGL; then
 	subprovides+=('mesa-libegl')
 	subreplaces+=('')
 	subconflicts+=('')
-	subdepends+=('dri2proto dri3proto glproto presentproto libdrm elfutils')
+	subdepends+=('libdrm elfutils')
 	subrodepends+=('khr-headers libgbm')
 	subgroups+=('x11')
 	subarchs+=("${archs[*]}")
@@ -235,6 +230,19 @@ if Fuse NINE; then
 	subgroups=("${subgroups[@]}" 'x11')
 	subarchs=("${subarchs[@]}" "${archs[*]}")
 	subbackup=("${subbackup[@]}" '')
+fi
+
+if Fuse OMX; then
+        subpkgs=("${subpkgs[@]}" 'mesa-opemax')
+        subdescs=("${subdescs[@]}" 'Mesa Support for OpenMAX')
+        subprovides=("${subprovides[@]}" '')
+        subreplaces=("${subreplaces[@]}" '')
+        subconflicts=("${subconflicts[@]}" '')
+        subdepends=("${subdepends[@]}" 'libomxil-bellagio')
+        subrodepends=("${subrodepends[@]}" '')
+        subgroups=("${subgroups[@]}" 'x11')
+        subarchs=("${subarchs[@]}" "${archs[*]}")
+        subbackup=("${subbackup[@]}" '')
 fi
 
 if Fuse DETECTDEPENDS; then
@@ -371,6 +379,10 @@ build() {
 		Fconfopts+=" --enable-nine"
 	fi
 
+	if Fuse OMX; then
+                Fconfopts+=" --enable-omx"
+	fi
+
 	Fconf	\
 		--enable-gbm \
 		--enable-llvm-shared-libs \
@@ -463,7 +475,9 @@ build() {
 		Fsplit mesa-nine usr/lib/pkgconfig/d3d.pc
 	fi
 
-	Frm var
+        if Fuse OMX; then
+                Fsplit mesa-opemax usr/lib/bellagio/
+        fi
 }
 
 # optimization OK

@@ -1,40 +1,42 @@
-# Compiling time: 2.50 SBU
-# Maintainer: Devil505 <devil505linux@gmail.com>
+# Compiling time: 0.91 SBU
+# Maintainer: PacMiam <PacMiam@gmx.fr>
+# Contributor: Devil505 <devil505linux@gmail.com>
 # Contributor: voroskoi <voroskoi@gmail.com>
+
+options+=('scriptlet')
 
 pkgname=pidgin
 pkgver=2.10.11
-pkgrel=5
+pkgrel=6
 pkgdesc="A multi-protocol instant messaging (IM) client"
-depends=('gtk+2>=2.20.0-2' 'startup-notification>=0.9-3' \
-	'libxscrnsaver>=1.1.3' 'dbus-x11>=1.2.14')
-makedepends=('doxygen' 'tk>=8.6.1' 'perl-xml-parser' 'intltool' 'sqlite3' \
-	'dbus-glib>=0.74' 'libxml2' 'libxslt' 'nss>=3.12.9')
-if [ "$CARCH" != "arm" ]; then
-	depends=(${depends[@]} 'libao>=1.1.0' 'audiofile' 'gtkspell>=2.0.11-3')
-	makedepends=(${makedepends[@]} 'evolution-data-server>=3.10.4-2' 'avahi-compat>=0.6.21' \
-		'avahi-glib>=0.6.21'  'nice')
-fi
-rodepends=('libpurple')
-conflicts=('gaim')
-provides=('gaim')
-replaces=('gaim' 'pidgin-plugin-guifications')
+url="http://www.pidgin.im/"
+
 groups=('xapps-extra')
 archs=('i686' 'x86_64' 'arm')
-options=('scriptlet')
+
+depends=('gtk+2' 'startup-notification' 'libxscrnsaver' 'dbus-x11')
+makedepends=('intltool' 'dbus-glib' 'libxml2' 'libxslt' 'nss' 'tcl')
+rodepends=('libpurple')
+
+if [ "$CARCH" != "arm" ]; then
+    depends=(${depends[@]} 'libao' 'audiofile' 'gtkspell')
+    makedepends=(${makedepends[@]} 'nice')
+fi
+
+replaces=('pidgin-plugin-guifications')
+
 _F_sourceforge_ext=".tar.bz2"
 _F_gnome_desktop="y"
 _F_gnome_iconcache="y"
 Finclude sourceforge gnome-scriptlet
-url="http://www.pidgin.im/"
-#up2date="Flasttar http://pidgin.im/download/source/"
+
 sha1sums=('5e0062b81bdb01300804e12bc0b6a04a91984631')
 
 subpkgs=("${subpkgs[@]}" "libpurple")
 subdescs=("${subdescs[@]}" "Library intended to be used by programmers seeking to write an IM client that connects to many IM networks.")
-subdepends=("${subdepends[@]}" "dbus-glib>=0.74 libxml2 libxslt>=1.1.28 nss>=3.12 meanwhile")
+subdepends=("${subdepends[@]}" "dbus-glib libxml2 libxslt nss meanwhile")
 if [ "$CARCH" != "arm" ]; then
-	subdepends[0]="${subdepends[0]} avahi-compat>=0.6.21 avahi-glib>=0.6.21 nice"
+    subdepends[0]="${subdepends[0]} nice"
 fi
 subrodepends=("${subrodepends[@]}" "")
 subgroups=("${subgroups[@]}" 'xlib-extra')
@@ -49,44 +51,57 @@ subarchs=("${subarchs[@]}" 'i686 x86_64 arm')
 
 
 build() {
-	if [ "$CARCH" != "arm" ]; then
-		Fconfopts+=" --disable-gstreamer --disable-vv"
-		CFLAGS="$CFLAGS -I/usr/include/gtkspell-2.0"
-	else
-		Fconfopts+=" --disable-gtkspell --disable-gstreamer --disable-vv --disable-avahi"
-	fi
-	Fpatchall
-	Fmake \
-		--enable-nss=yes \
-		--enable-gnutls=no \
-		--with-system-ssl-certs=/etc/ssl/certs \
-		--disable-fatal-asserts \
-		--disable-dependency-tracking \
-		--enable-static \
-		--with-howl-includes=/usr/include/avahi-compat-howl/ \
-		--enable-dbus \
-		--enable-meanwhile \
-		--disable-nm \
-		--disable-schemas-install
-	make docs || Fdie
-	Fmakeinstall
-	Fbuild_gnome_scriptlet
+    if [ "$CARCH" != "arm" ]; then
+        CFLAGS="$CFLAGS -I/usr/include/gtkspell-2.0"
+    else
+        Fconfopts+=" --disable-gtkspell"
+    fi
 
-	Fsplit libpurple usr/share/aclocal/purple.m4
-	Fsplit libpurple usr/lib/purple-2/tcl.so
-	Fsplit libpurple usr/lib/purple-2/*
-	Fsplit libpurple usr/include/libpurple/*
-	Fsplit libpurple usr/lib/pkgconfig/purple.pc
-	Fsplit libpurple usr/lib/libpurple*
+    Fpatchall
+    Fmake \
+        --enable-nss \
+        --enable-dbus \
+        --enable-static \
+        --enable-meanwhile \
+        --disable-nm \
+        --disable-vv \
+        --disable-sm \
+        --disable-tk \
+        --disable-perl \
+        --disable-avahi \
+        --disable-gnutls \
+        --disable-doxygen \
+        --disable-devhelp \
+        --disable-gestures \
+        --disable-gstreamer \
+        --disable-fatal-asserts \
+        --disable-schemas-install \
+        --disable-dependency-tracking \
+        --with-system-ssl-certs=/etc/ssl/certs
+    make docs || Fdie
+    Fmakeinstall
 
-	Fsplit finch usr/bin/finch
-	Fsplit finch usr/include/finch/*
-	Fsplit finch usr/include/gnt/*
-	Fsplit finch usr/lib/finch/
-	Fsplit finch usr/lib/gnt/*
- 	Fsplit finch usr/lib/libgnt.so*
-	Fsplit finch usr/lib/pkgconfig/finch.pc
-	Fsplit finch usr/lib/pkgconfig/gnt.pc
+    Fbuild_gnome_scriptlet
+
+    # Remove broken symlinks
+    Frm usr/lib/purple-2/liboscar.so
+    Frm usr/lib/purple-2/libjabber.so
+    Frm usr/lib/purple-2/libymsg.so
+
+    Fsplit libpurple usr/share/aclocal/purple.m4 \
+        usr/lib/purple-2/* \
+        usr/lib/libpurple* \
+        usr/include/libpurple/* \
+        usr/lib/pkgconfig/purple.pc
+
+    Fsplit finch usr/bin/finch \
+        usr/include/finch/* \
+        usr/include/gnt/* \
+        usr/lib/finch/ \
+        usr/lib/gnt/* \
+        usr/lib/libgnt.so* \
+        usr/lib/pkgconfig/finch.pc \
+        usr/lib/pkgconfig/gnt.pc
 }
 
 # optimization OK

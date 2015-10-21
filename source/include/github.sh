@@ -65,12 +65,12 @@ if [ -z "$_F_github_sep" ]; then
 fi
 
 if [ -z "$url" ]; then
-	url=http://github.com/$_F_github_author/$_F_github_name
+	url=https://github.com/$_F_github_author/$_F_github_name
 fi
 
 if [ -z "$_F_github_tag" ] && [ -z "$_F_github_tag_v" ]; then
 	_F_github_up2date="downloads"
-	_F_github_source="http://github.com/downloads/$_F_github_author/$_F_github_dirname/$_F_github_name$_F_github_sep$_F_github_ver$_F_github_ext"
+	_F_github_source="https://github.com/downloads/$_F_github_author/$_F_github_dirname/$_F_github_name$_F_github_sep$_F_github_ver$_F_github_ext"
 else
 	_F_github_up2date="releases/latest"
 	_F_archive_name="archive"
@@ -91,9 +91,9 @@ if [ "$_F_github_devel" = "yes" ]; then
 	Finclude scm
 else
 	if [ -z "$_F_github_tag_v" ]; then
-		up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext"
+		up2date="Flastarchive https://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext"
 	else
-		up2date="Flastarchive http://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext | sed 's/v//'"
+		up2date="Flastarchive https://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext | sed 's/v//'"
 	fi
 	# On one line for Mr Portability, Hermier Portability.
 	source=(${source[@]} ${_F_github_source})

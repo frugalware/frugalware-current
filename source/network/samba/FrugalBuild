@@ -2,122 +2,101 @@
 # Maintainer: voroskoi <voroskoi@frugalware.org>
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
-options+=('asneeded')
-
 pkgname=samba
-pkgver=3.6.25
+pkgver=4.3.1
 pkgextraver=
-pkgrel=2
+pkgrel=1
 pkgdesc="SMB file and print server."
 url="http://www.samba.org"
 backup=(etc/logrotate.d/$pkgname etc/sysconfig/$pkgname etc/$pkgname/smb.conf)
-depends=('xfsprogs-attr' 'libcups' 'gnutls>=3.4.2' )
-makedepends=('openssl>=1.0.0' 'cups' 'db' 'popt' 'libcups' 'libldap' 'libcap' 'pam' 'gamin' 'xfsprogs-dmapi' 'krb5' 'libkrb5' 'xfsprogs-acl' 'tdb')
+depends=('talloc' 'tdb' 'libldap' 'avahi' 'libcups' 'gamin')
+makedepends=('docbook-xsl' 'docbook-xml' 'cups')
 if [ "$CARCH" != "arm" ]; then
 	makedepends=("${makedepends[@]}" "avahi")
 fi
 rodepends=("samba-client=$pkgver")
 groups=('network')
 archs=('i686' 'x86_64' 'arm')
-up2date="lynx -dump http://samba.org/samba/ftp/stable/ |Flasttar"
-source=(http://ftp.samba.org/samba/ftp/stable/$pkgname-$pkgver$pkgextraver.tar.gz \
+up2date="Flasttar https://download.samba.org/pub/samba/stable"
+source=(https://download.samba.org/pub/samba/stable/$pkgname-$pkgver$pkgextraver.tar.gz \
 	samba.logrotate)
-sha1sums=('86fbfcfe80454cc7dbe510e7d58c02922cac3efa' \
+sha1sums=('6c29b17692e28995d3c2c89ce850894744640859' \
           '13fd371189bfe637f3f13c62d44d9e761268119e')
+options=('scriptlet')
 
-subpkgs=('libsmbclient' 'samba-client' 'samba-swat' 'nss-wins' 'nss-winbind')
-subdescs=('SMB client library.' 'SMB client tools.' 'Swat config tool for samba.' \
-	'WINS Lookup Support for NSS.' 'Winbind Lookup Support for NSS')
-subdepends=('libldap>=2.4.21 libkrb5 tdb' 'talloc libkrb5 db readline popt openssl>=1.0.0' '' '' '')
-subrodepends=('' "libsmbclient=$pkgver" "$pkgname=$pkgver" '' '')
+subpkgs=('libsmbclient' 'libwbclient' 'samba-client' 'nss-wins' 'nss-winbind')
+subdescs=('SMB client library.' 'WinBind Client library.' 'SMB client tools.' 'WINS Lookup Support for NSS.' 'Winbind Lookup Support for NSS')
+subdepends=('talloc' '' 'libarchive tdb libldap' '' '')
+subrodepends=('' '' "libsmbclient=$pkgver libwbclient=$pkgver" "$pkgname=$pkgver" '')
 subgroups=('lib' 'network' 'network' 'network' 'network')
 subarchs=('i686 x86_64 arm' 'i686 x86_64 arm' 'i686 x86_64 arm' 'i686 x86_64 arm' 'i686 x86_64 arm')
-_F_cd_path="$pkgname-$pkgver$pkgextraver/source3/"
 
 _F_systemd_units=(nmb= smb= winbind=)
 Finclude systemd
 
+_samba4_idmap_modules=idmap_ad,idmap_rid,idmap_adex,idmap_hash,idmap_tdb2
+_samba4_pdb_modules=pdb_tdbsam,pdb_ldap,pdb_ads,pdb_smbpasswd,pdb_wbc_sam,pdb_samba4
+_samba4_auth_modules=auth_unix,auth_wbc,auth_server,auth_netlogond,auth_script,auth_samba4
+
+Fconfopts="	--enable-fhs \
+		--prefix=/usr \
+		--libdir=/usr/lib \
+		--enable-fhs \
+		--with-sockets-dir=/var/run/samba \
+		--with-piddir=/var/run \
+		--localstatedir=/var \
+                --bindir=/usr/bin \
+                --sbindir=/usr/sbin \
+                --with-lockdir=/var/cache/samba \
+                --sysconfdir=/etc \
+                --with-configdir=/etc/samba \
+                --with-privatedir=/etc/samba/private \
+                --enable-cups \
+                --with-acl-support \
+                --with-automount \
+                --with-quotas \
+                --with-syslog \
+                --with-winbind \
+                --with-utmp \
+		--with-ldap \
+                --with-winbind \
+		--enable-gnutls \
+		--with-pam \
+		--with-pammodulesdir=/lib/security \
+		--with-shared-modules=${_samba4_idmap_modules},${_samba4_pdb_modules},${_samba4_auth_modules}
+		--disable-rpath-install \
+		--with-systemd"
+
 build()
 {
-#	unset MAKEFLAGS
 	Fcd
-	Fmake --localstatedir=/var \
-		--bindir=/usr/bin \
-        	--sbindir=/usr/sbin \
-		--with-lockdir=/var/cache/samba \
-		--sysconfdir=/etc \
-		--with-configdir=/etc/samba \
-		--with-privatedir=/etc/samba/private \
-		--with-swatdir=/usr/share/swat \
-	        --enable-cups \
-		--disable-smbtorture4 \
-		--with-fhs \
-		--with-acl-support \
-		--with-automount \
-		--with-quotas \
-		--with-syslog \
-		--with-winbind \
-		--with-utmp \
-		--with-libsmbclient \
-		--with-winbind \
-		--enable-external-libtalloc \
-		--without-libtalloc
+	Fmake
 
-	Ffile $pkgname-$pkgver/packaging/systemd/\*.service /lib/systemd/system/
-	Fsed '$SMBDOPTIONS' '-D $SMBDOPTIONS'  $Fdestdir/lib/systemd/system/smb.service
-	Ffile $pkgname-$pkgver/packaging/systemd/$pkgname.sysconfig /etc/sysconfig/$pkgname
+	Fmakeinstall DESTDIR=$Fdestdir
 
-	Fmkdir /var/spool /var/samba /var/log/samba /var/cache/samba /etc/samba/private
-	chmod 700 $Fdestdir/etc/samba/private || Fdie
+	# Install manpages
+	Fmanrel docs/manpages/*
 
-	Fmakeinstall
-
-#	Fln samba/libsmbclient.so /usr/lib/libsmbclient.so
-#	Fln samba/libsmbclient.so /usr/lib/libsmbclient.so.0
-	chmod 644 $Fdestdir/usr/include/*.h || Fdie
-
-	# these links are necessary for mount
-	# deprecated see cifs-utils
-	#Fln /usr/bin/smbmount /sbin/mount.smbfs
-	#Fln /usr/sbin/mount.cifs /sbin/mount.cifs
-	#Fln /usr/sbin/umount.cifs /sbin/umount.cifs
+	# Install systemd services
+	Fmkdir /lib/systemd/system/
+	for i in nmb samba smb winbind; do
+		Ffile $pkgname-$pkgver/packaging/systemd/$i.service /lib/systemd/system/
+	done
 
 	# smb.conf
-	Ffilerel ../examples/smb.conf.default /etc/samba/smb.conf
-	Fsed 'log file = .*$' 'log file = /var/log/samba/log.%m' $Fdestdir/etc/samba/smb.conf
+	Fsed 'log file = .*$' 'log file = /var/log/samba/log.%m' examples/smb.conf.default
+	Ffilerel examples/smb.conf.default /etc/samba/smb.conf
 
 	Ffile samba.logrotate /etc/logrotate.d/samba
 
-
-	# nss
-        Ffilerel ../nsswitch/libnss_winbind.so usr/lib
-        Ffilerel ../nsswitch/libnss_wins.so usr/lib
-
-	# resolve conflicts with tdb
-	Frm /usr/bin/tdbdump
-	Frm /usr/bin/tdbbackup
-	Frm /usr/bin/tdbtool
-	Frm /usr/include/tdb.h
-	Frm /usr/lib/libtdb.so
-	Frm /usr/lib/libtdb.so.1
-	Frm /usr/share/man/man8/tdbbackup.8.gz
-	Frm /usr/share/man/man8/tdbdump.8.gz
-	Frm /usr/share/man/man8/tdbtool.8.gz
-
-	Frm /var/run
-
-	Fmkdir /usr/lib/pkgconfig || Fdie
-	Ffilerel ../source3/pkgconfig/smbclient.pc usr/lib/pkgconfig || Fdie
-
 	# Split
-	Fsplit libsmbclient usr/lib/libsmbclient.so*
-	Fsplit libsmbclient usr/lib/libwbclient.so*
-#	Fsplit libsmbclient usr/lib/samba/libsmbclient.so
-	Fsplit libsmbclient usr/include/libsmbclient.h
-	Fsplit libsmbclient usr/lib/pkgconfig
-	Fsplit libsmbclient usr/lib/libtevent.so*
-	Fsplit libsmbclient usr/include/tevent*
-	Fsplit libsmbclient usr/include/wbclient*
+        Fsplit libsmbclient usr/include/samba-4.0/libsmbclient.h
+        Fsplit libsmbclient usr/lib/libsmbclient*
+        Fsplit libsmbclient usr/lib/pkgconfig/smbclient*
+
+	Fsplit libwbclient usr/include/samba-4.0/wbclient.h
+        Fsplit libwbclient usr/lib/libwbclient*
+        Fsplit libwbclient usr/lib/pkgconfig/wbclient.pc
 
 	for i in smbclient nmblookup; do
 		Fsplit samba-client usr/bin/$i
@@ -128,13 +107,8 @@ build()
 		Fsplit samba-client usr/share/man/man8/$i.8
 	done
 
-	Fsplit samba-swat usr/sbin/swat
-#	Fsplit samba-swat usr/share/swat
-
 	Fsplit nss-wins usr/lib/libnss_wins.so
 	Fsplit nss-winbind usr/lib/libnss_winbind.so
-
-	Frm /sbin
 
 	Fgenscriptlet
 }

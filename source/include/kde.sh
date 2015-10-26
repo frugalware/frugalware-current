@@ -159,6 +159,9 @@ if [ -n "$_F_kde_id2" ]; then
 	_F_kde_defaults=0
 fi
 
+## X11/mesa changes
+makedepends=("${makedepends[@]}" 'x11-protos')
+
 ###
 # == APPENDED VARIABLES
 # makedepends: if kde4 append automoc4 unless building it, if kf5 append some other deps.

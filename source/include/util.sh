@@ -55,7 +55,7 @@
 # DE like "XFCE;" for Xfce, "GNOME;" for Gnome, etc.
 # * _F_conf_notry: Fconf will try to use prefix, mandir and similar
 # parameters by default. You can disable the try of a parameter here.
-# * _F_make_opts (defaults to empty): extra make arguments used both with Fmake
+# * _F_make_opts (defaults V=1 , verbose ): extra make arguments used both with Fmake
 # and Fmakeinstall.
 ###
 
@@ -102,7 +102,7 @@ else
 	Fbuildchost="`arch`-frugalware-linux"
 fi
 Fconfopts=""
-
+_F_make_opts="V=1"
 unset LANG LC_ALL
 
 ###

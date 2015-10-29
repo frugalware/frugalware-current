@@ -1808,20 +1808,6 @@ Fextract() {
 	fi
 }
 
-_P_makepkg_prebuild_hooks+=(F_asneeded_hook)
-F_asneeded_hook () {
-	if [ "`check_option NOASNEEDED`" ]; then
-		msg "Using --no-as-needed in LDFLAGS"
-		LDFLAGS+=" -Wl,--no-as-needed"
-	else
-		if [ "`check_option ASNEEDED`" ]; then
-			msg "Using --as-needed in LDFLAGS"
-			LDFLAGS+=" -Wl,--as-needed"
-		fi
-	fi
-	export LDFLAGS
-}
-
 _P_makepkg_postbuild_hooks+=(F_makepkg_postbuild_compat_hook)
 F_makepkg_postbuild_compat_hook () {
 cd $startdir

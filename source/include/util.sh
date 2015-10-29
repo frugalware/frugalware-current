@@ -102,8 +102,7 @@ else
 	Fbuildchost="`arch`-frugalware-linux"
 fi
 Fconfopts=""
-## Move to makepkg.conf for Kalgan+1
-export LDFLAGS="-Wl,--hash-style=both"
+
 unset LANG LC_ALL
 
 ###

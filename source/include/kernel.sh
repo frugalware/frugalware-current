@@ -37,7 +37,6 @@ Finclude kernel-version
 #
 # * _F_kernel_vmlinuz (defaults to arch/$arch/boot/bzImage): path to the kernel
 # binary
-# * _F_kernel_verbose: if set, then the V=1 parameter will be passed to make
 # * _F_kernel_name (defaults to ""): include a string in the kernel version
 # string (example: "-mygrsec")
 # * _F_kernel_ver (defaults to $pkgver): the version of the kernel
@@ -209,6 +208,13 @@ Fbuildkernel()
 	do
 		Fpatch `strip_url $i`
 	done
+
+	if [ -z "$_F_kernel_name" -a $_F_kernel_dontfakeversion -eq 0 ]; then
+		# stock kernel, nobody interested in the buildsystem's detail
+		export KBUILD_BUILD_USER="fst"
+		export KBUILD_BUILD_HOST="`uname -m`.frugalware.org"
+	fi
+
 	# remove unneded localversions
 	rm -f localversion-*
 	rm -f ../*.{gz,bz2,sign}
@@ -255,17 +261,10 @@ Fbuildkernel()
 		[ -e $Fdestdir/usr/include/drm ] && Frm /usr/include/drm
 		Fsplit kernel-headers /usr
 	fi
-	if [ -z "$_F_kernel_name" -a $_F_kernel_dontfakeversion -eq 0 ]; then
-		# stock kernel, nobody interested in the buildsystem's details
-		Fsed '`whoami`' 'fst' scripts/mkcompile_h
-		Fsed '`hostname \| $UTS_TRUNCATE`' "`uname -m`.frugalware.org" scripts/mkcompile_h
-	fi
-	## now time to eat some cookies and wait kernel got compiled :)
-	if [ "$_F_kernel_verbose" ]; then
-		make $MAKEFLAGS V=1 || Fdie
-	else
-		make $MAKEFLAGS || Fdie
-	fi
+
+	## now time to eat some cookies and wait the kernel got compiled :)
+	## use verbose by default, we want to know what is going on...
+	make $MAKEFLAGS V=1 || Fdie
 
 	if [ "$CARCH" = "arm" ]; then
 		make uImage || Fdie

@@ -55,7 +55,7 @@
 # DE like "XFCE;" for Xfce, "GNOME;" for Gnome, etc.
 # * _F_conf_notry: Fconf will try to use prefix, mandir and similar
 # parameters by default. You can disable the try of a parameter here.
-# * _F_make_opts (defaults to empty): extra make arguments used both with Fmake
+# * _F_make_opts (defaults V=1 , verbose ): extra make arguments used both with Fmake
 # and Fmakeinstall.
 ###
 
@@ -102,8 +102,7 @@ else
 	Fbuildchost="`arch`-frugalware-linux"
 fi
 Fconfopts=""
-## Move to makepkg.conf for Kalgan+1
-export LDFLAGS="-Wl,--hash-style=both"
+_F_make_opts="V=1"
 unset LANG LC_ALL
 
 ###
@@ -1807,20 +1806,6 @@ Fextract() {
 			fi
 		fi
 	fi
-}
-
-_P_makepkg_prebuild_hooks+=(F_asneeded_hook)
-F_asneeded_hook () {
-	if [ "`check_option NOASNEEDED`" ]; then
-		msg "Using --no-as-needed in LDFLAGS"
-		LDFLAGS+=" -Wl,--no-as-needed"
-	else
-		if [ "`check_option ASNEEDED`" ]; then
-			msg "Using --as-needed in LDFLAGS"
-			LDFLAGS+=" -Wl,--as-needed"
-		fi
-	fi
-	export LDFLAGS
 }
 
 _P_makepkg_postbuild_hooks+=(F_makepkg_postbuild_compat_hook)

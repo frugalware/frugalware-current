@@ -9,15 +9,15 @@ USE_CRYPTSETUP=${USE_CRYPTSETUP:-"y"}
 USE_SYSV_COMPAT=${USE_SYSV_COMPAT:-"y"}
 
 pkgname=systemd
-pkgver=224
-pkgrel=10
+pkgver=227
+pkgrel=3
 pkgdesc="A System and Service Manager"
 url="http://www.freedesktop.org/wiki/Software/systemd"
 rodepends=('scriptlet-core')
-depends=('dbus>=1.8.20-2' 'kmod>=21' 'pam>=1.1.8' 'libcap>=2.24-2' 'sysvinit-initscripts' \
-	'pciutils>=3.4.0' 'usbutils' 'libgcrypt>=1.6.4' 'libblkid>=2.27-3' 'lz4' 'libidn>=1.32-3')
-makedepends=('docbook-xsl>=1.73.0-2' 'docbook-xml' 'intltool' 'gperf' 'gtk-doc' \
-	'lxml' 'python-sphinx' 'gnu-efi' 'iptables' 'curl')
+depends=('iptables' 'libsystemd')
+makedepends=('docbook-xsl' 'docbook-xml' 'intltool' 'gperf' 'gnu-efi' 'lxml')
+rodepends=('dbus' 'libsystemd')
+
 if [ "$CARCH" != "arm" ]; then
 	makedepends=("${makedepends[@]}" 'gobject-introspection')
 fi
@@ -39,8 +39,11 @@ source=(${source[@]}
 	vconsole.conf \
 	xorg-set-resolution.c \
 	xorg-set-resolution.service \
-	Adjust-systemd-user-pam-config-file-for-Debian.patch)
-sha1sums=('ecf6e8f64704a34627f2502d9f951c7a5e92141a' \
+	Adjust-systemd-user-pam-config-file-for-Debian.patch \
+	core-ignore-.slice-and-init.scope-when-isolating.patch  \
+	sd-daemon-simply-code-simplification.patch \
+	sd-daemon-wipe-out-memory-before-using-CMSG_NXTHDR.patch)
+sha1sums=('ee92ac467bd2fada5495d46e21228851227f4164' \
           'a7e3c8457d514588c426c490c6b518c9ea88f626' \
           'a2f1c341894c4841a64a56138362817ae2c57905' \
           '2aa6ed34d80abee40b179e93c5eccba623fbdc7c' \
@@ -54,7 +57,10 @@ sha1sums=('ecf6e8f64704a34627f2502d9f951c7a5e92141a' \
           '66c90190613ef915e5b2b1da37abd19791f7b16d' \
           'a29bf4a084ae46e9d995b6616ad5980ff0030c82' \
           '58dfc8f9e97b34413e6163c8a4713df67bdead5b' \
-          'd0979857d94fcc4445448d04ce3ac2ce80758898')
+          '81e03dfb1ab9bc01a0dfb787222ef5cbd973dd50' \
+          '05da79bdd8d138673fba49751999fc4310cd499c' \
+          '6df365d4b94771dd1f3e72716d5aa454bb8b558c' \
+          '65493ebe40e62fb99144df38a62e609e06cbb8b1')
 
 if Fuse $USE_CRYPTSETUP; then
 	depends=("${depends[@]}"  'cryptsetup-luks>=1.6.3-3')
@@ -79,7 +85,7 @@ subgroups+=('base core')
 subarchs+=('i686 x86_64 arm')
 subprovides+=('sysvinit')
 subconflicts+=('sysvinit')
-subdepends+=('')
+subdepends+=('pam kmod libcap lz4 libgcrypt')
 
 subpkgs+=('systemd-remote')
 subdescs+=('systemd remote journald')
@@ -89,7 +95,7 @@ subgroups+=('base-extra')
 subarchs+=('i686 x86_64 arm')
 subprovides+=('')
 subconflicts+=('')
-subdepends+=('libmicrohttpd curl')
+subdepends+=('libmicrohttpd lz4')
 
 subpkgs+=('systemd-pull')
 subdescs+=('systemd container retrieval')
@@ -99,7 +105,17 @@ subgroups+=('network-extra')
 subarchs+=('i686 x86_64 arm')
 subprovides+=('')
 subconflicts+=('')
-subdepends+=('curl')
+subdepends+=('curl libgcrypt libcap')
+
+subpkgs+=('libsystemd')
+subdescs+=('systemd libs')
+subrodepends+=("")
+subreplaces+=('')
+subgroups+=('lib')
+subarchs+=('i686 x86_64 arm')
+subprovides+=('')
+subconflicts+=('')
+subdepends+=('xz lz4 libgcrypt xfsprogs-acl libidn elfutils libcap bzip2 zlib')
 
 Fconfopts+="	--disable-selinux \
 		--with-pamlibdir=/lib/security \
@@ -196,6 +212,11 @@ build()
 	Fsplit systemd-remote lib/systemd/systemd-journal-upload
 
 	Fsplit systemd-pull lib/systemd/systemd-pull
+
+	Fsplit libsystemd usr/lib/libsystemd*
+	Fsplit libsystemd usr/lib/libnss*
+	Fsplit libsystemd usr/lib/libudev*
+	Fsplit libsystemd usr/lib/pkgconfig/lib*.pc
 }
 
 # optimization OK

@@ -16,7 +16,6 @@
 # * build_qt5(): function to build qt5 source packages
 ###
 pkgver=5.5.1
-pkgrel=1
 qtpkgname=${pkgname/5-/}
 qtpkgfilename=${qtpkgname}-opensource-src-${pkgver}
 pkgdesc="The Qt5 toolkit, ${qtpkgname}"

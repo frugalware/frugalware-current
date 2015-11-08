@@ -1,0 +1,413 @@
+diff -Naur systemd-227/src/journal/journald.c systemd-227-fix/src/journal/journald.c
+--- systemd-227/src/journal/journald.c	2015-10-07 17:06:22.000000000 +0200
++++ systemd-227-fix/src/journal/journald.c	2015-11-08 00:14:24.989844797 +0100
+@@ -61,10 +61,6 @@
+         log_debug("systemd-journald running as pid "PID_FMT, getpid());
+         server_driver_message(&server, SD_MESSAGE_JOURNAL_START, "Journal started");
+ 
+-        sd_notify(false,
+-                  "READY=1\n"
+-                  "STATUS=Processing requests...");
+-
+         for (;;) {
+                 usec_t t = USEC_INFINITY, n;
+ 
+@@ -117,10 +113,6 @@
+         server_driver_message(&server, SD_MESSAGE_JOURNAL_STOP, "Journal stopped");
+ 
+ finish:
+-        sd_notify(false,
+-                  "STOPPING=1\n"
+-                  "STATUS=Shutting down...");
+-
+         server_done(&server);
+ 
+         return r < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
+diff -Naur systemd-227/src/journal/journald-server.c systemd-227-fix/src/journal/journald-server.c
+--- systemd-227/src/journal/journald-server.c	2015-10-07 17:06:22.000000000 +0200
++++ systemd-227-fix/src/journal/journald-server.c	2015-11-08 00:14:24.990844824 +0100
+@@ -67,6 +67,8 @@
+ 
+ #define RECHECK_SPACE_USEC (30*USEC_PER_SEC)
+ 
++#define NOTIFY_SNDBUF_SIZE (8*1024*1024)
++
+ static int determine_space_for(
+                 Server *s,
+                 JournalMetrics *metrics,
+@@ -1443,6 +1445,126 @@
+         return 0;
+ }
+ 
++static int dispatch_notify_event(sd_event_source *es, int fd, uint32_t revents, void *userdata) {
++        Server *s = userdata;
++        int r;
++
++        assert(s);
++        assert(s->notify_event_source == es);
++        assert(s->notify_fd == fd);
++
++        if (revents != EPOLLOUT) {
++                log_error("Invalid events on notify file descriptor.");
++                return -EINVAL;
++        }
++
++        /* The $NOTIFY_SOCKET is writable again, now send exactly one
++         * message on it. Either it's the initial READY=1 event or an
++         * stdout stream event. If there's nothing to write anymore,
++         * turn our event source off. The next time there's something
++         * to send it will be turned on again. */
++
++        if (!s->sent_notify_ready) {
++                static const char p[] =
++                        "READY=1\n"
++                        "STATUS=Processing requests...";
++                ssize_t l;
++
++                l = send(s->notify_fd, p, strlen(p), MSG_DONTWAIT);
++                if (l < 0) {
++                        if (errno == EAGAIN)
++                                return 0;
++
++                        return log_error_errno(errno, "Failed to send READY=1 notification message: %m");
++                }
++
++                s->sent_notify_ready = true;
++                log_debug("Sent READY=1 notification.");
++
++        } else if (s->stdout_streams_notify_queue)
++                /* Dispatch one stream notification event */
++                stdout_stream_send_notify(s->stdout_streams_notify_queue);
++
++        /* Leave us enabled if there's still more to to do. */
++        if (s->stdout_streams_notify_queue)
++                return 0;
++
++        /* There was nothing to do anymore, let's turn ourselves off. */
++        r = sd_event_source_set_enabled(es, SD_EVENT_OFF);
++        if (r < 0)
++                return log_error_errno(r, "Failed to turn off notify event source: %m");
++
++        return 0;
++}
++
++static int server_connect_notify(Server *s) {
++        union sockaddr_union sa = {
++                .un.sun_family = AF_UNIX,
++        };
++        const char *e;
++        int r;
++
++        assert(s);
++        assert(s->notify_fd < 0);
++        assert(!s->notify_event_source);
++
++        /*
++          So here's the problem: we'd like to send notification
++          messages to PID 1, but we cannot do that via sd_notify(),
++          since that's synchronous, and we might end up blocking on
++          it. Specifically: given that PID 1 might block on
++          dbus-daemon during IPC, and dbus-daemon is logging to us,
++          and might hence block on us, we might end up in a deadlock
++          if we block on sending PID 1 notification messages -- by
++          generating a full blocking circle. To avoid this, let's
++          create a non-blocking socket, and connect it to the
++          notification socket, and then wait for POLLOUT before we
++          send anything. This should efficiently avoid any deadlocks,
++          as we'll never block on PID 1, hence PID 1 can safely block
++          on dbus-daemon which can safely block on us again.
++
++          Don't think that this issue is real? It is, see:
++          https://github.com/systemd/systemd/issues/1505
++        */
++
++        e = getenv("NOTIFY_SOCKET");
++        if (!e)
++                return 0;
++
++        if ((e[0] != '@' && e[0] != '/') || e[1] == 0) {
++                log_error("NOTIFY_SOCKET set to an invalid value: %s", e);
++                return -EINVAL;
++        }
++
++        if (strlen(e) > sizeof(sa.un.sun_path)) {
++                log_error("NOTIFY_SOCKET path too long: %s", e);
++                return -EINVAL;
++        }
++
++        s->notify_fd = socket(AF_UNIX, SOCK_DGRAM|SOCK_CLOEXEC|SOCK_NONBLOCK, 0);
++        if (s->notify_fd < 0)
++                return log_error_errno(errno, "Failed to create notify socket: %m");
++
++        (void) fd_inc_sndbuf(s->notify_fd, NOTIFY_SNDBUF_SIZE);
++
++        strncpy(sa.un.sun_path, e, sizeof(sa.un.sun_path));
++        if (sa.un.sun_path[0] == '@')
++                sa.un.sun_path[0] = 0;
++
++        r = connect(s->notify_fd, &sa.sa, offsetof(struct sockaddr_un, sun_path) + strlen(e));
++        if (r < 0)
++                return log_error_errno(errno, "Failed to connect to notify socket: %m");
++
++        r = sd_event_add_io(s->event, &s->notify_event_source, s->notify_fd, EPOLLOUT, dispatch_notify_event, s);
++        if (r < 0)
++                return log_error_errno(r, "Failed to watch notification socket: %m");
++
++        /* This should fire pretty soon, which we'll use to send the
++         * READY=1 event. */
++
++        return 0;
++}
++
+ int server_init(Server *s) {
+         _cleanup_fdset_free_ FDSet *fds = NULL;
+         int n, r, fd;
+@@ -1450,7 +1572,7 @@
+         assert(s);
+ 
+         zero(*s);
+-        s->syslog_fd = s->native_fd = s->stdout_fd = s->dev_kmsg_fd = s->audit_fd = s->hostname_fd = -1;
++        s->syslog_fd = s->native_fd = s->stdout_fd = s->dev_kmsg_fd = s->audit_fd = s->hostname_fd = s->notify_fd = -1;
+         s->compress = true;
+         s->seal = true;
+ 
+@@ -1496,8 +1618,6 @@
+         if (r < 0)
+                 return log_error_errno(r, "Failed to create event loop: %m");
+ 
+-        sd_event_set_watchdog(s->event, true);
+-
+         n = sd_listen_fds(true);
+         if (n < 0)
+                 return log_error_errno(n, "Failed to read listening file descriptors from environment: %m");
+@@ -1608,6 +1728,8 @@
+         server_cache_boot_id(s);
+         server_cache_machine_id(s);
+ 
++        (void) server_connect_notify(s);
++
+         return system_journal_open(s, false);
+ }
+ 
+@@ -1656,6 +1778,7 @@
+         sd_event_source_unref(s->sigterm_event_source);
+         sd_event_source_unref(s->sigint_event_source);
+         sd_event_source_unref(s->hostname_event_source);
++        sd_event_source_unref(s->notify_event_source);
+         sd_event_unref(s->event);
+ 
+         safe_close(s->syslog_fd);
+@@ -1664,6 +1787,7 @@
+         safe_close(s->dev_kmsg_fd);
+         safe_close(s->audit_fd);
+         safe_close(s->hostname_fd);
++        safe_close(s->notify_fd);
+ 
+         if (s->rate_limit)
+                 journal_rate_limit_free(s->rate_limit);
+diff -Naur systemd-227/src/journal/journald-server.h systemd-227-fix/src/journal/journald-server.h
+--- systemd-227/src/journal/journald-server.h	2015-10-07 17:06:22.000000000 +0200
++++ systemd-227-fix/src/journal/journald-server.h	2015-11-08 00:14:24.990844824 +0100
+@@ -25,10 +25,14 @@
+ #include <sys/types.h>
+ 
+ #include "sd-event.h"
++
++typedef struct Server Server;
++
+ #include "journal-file.h"
+ #include "hashmap.h"
+ #include "audit.h"
+ #include "journald-rate-limit.h"
++#include "journald-stream.h"
+ #include "list.h"
+ 
+ typedef enum Storage {
+@@ -48,15 +52,14 @@
+         _SPLIT_INVALID = -1
+ } SplitMode;
+ 
+-typedef struct StdoutStream StdoutStream;
+-
+-typedef struct Server {
++struct Server {
+         int syslog_fd;
+         int native_fd;
+         int stdout_fd;
+         int dev_kmsg_fd;
+         int audit_fd;
+         int hostname_fd;
++        int notify_fd;
+ 
+         sd_event *event;
+ 
+@@ -71,6 +74,7 @@
+         sd_event_source *sigterm_event_source;
+         sd_event_source *sigint_event_source;
+         sd_event_source *hostname_event_source;
++        sd_event_source *notify_event_source;
+ 
+         JournalFile *runtime_journal;
+         JournalFile *system_journal;
+@@ -111,6 +115,7 @@
+         usec_t oldest_file_usec;
+ 
+         LIST_HEAD(StdoutStream, stdout_streams);
++        LIST_HEAD(StdoutStream, stdout_streams_notify_queue);
+         unsigned n_stdout_streams;
+ 
+         char *tty_path;
+@@ -132,6 +137,7 @@
+ 
+         struct udev *udev;
+ 
++        bool sent_notify_ready;
+         bool sync_scheduled;
+ 
+         char machine_id_field[sizeof("_MACHINE_ID=") + 32];
+@@ -140,7 +146,7 @@
+ 
+         /* Cached cgroup root, so that we don't have to query that all the time */
+         char *cgroup_root;
+-} Server;
++};
+ 
+ #define SERVER_MACHINE_ID(s) ((s)->machine_id_field + strlen("_MACHINE_ID="))
+ 
+diff -Naur systemd-227/src/journal/journald-stream.c systemd-227-fix/src/journal/journald-stream.c
+--- systemd-227/src/journal/journald-stream.c	2015-10-07 17:06:22.000000000 +0200
++++ systemd-227-fix/src/journal/journald-stream.c	2015-11-08 00:14:24.990844824 +0100
+@@ -69,6 +69,7 @@
+         bool forward_to_console:1;
+ 
+         bool fdstore:1;
++        bool in_notify_queue:1;
+ 
+         char buffer[LINE_MAX+1];
+         size_t length;
+@@ -78,6 +79,7 @@
+         char *state_file;
+ 
+         LIST_FIELDS(StdoutStream, stdout_stream);
++        LIST_FIELDS(StdoutStream, stdout_stream_notify_queue);
+ };
+ 
+ void stdout_stream_free(StdoutStream *s) {
+@@ -88,6 +90,9 @@
+                 assert(s->server->n_stdout_streams > 0);
+                 s->server->n_stdout_streams --;
+                 LIST_REMOVE(stdout_stream, s->server->stdout_streams, s);
++
++                if (s->in_notify_queue)
++                        LIST_REMOVE(stdout_stream_notify_queue, s->server->stdout_streams_notify_queue, s);
+         }
+ 
+         if (s->event_source) {
+@@ -111,7 +116,7 @@
+                 return;
+ 
+         if (s->state_file)
+-                unlink(s->state_file);
++                (void) unlink(s->state_file);
+ 
+         stdout_stream_free(s);
+ }
+@@ -190,11 +195,15 @@
+                 goto fail;
+         }
+ 
+-        /* Store the connection fd in PID 1, so that we get it passed
+-         * in again on next start */
+-        if (!s->fdstore) {
+-                sd_pid_notify_with_fds(0, false, "FDSTORE=1", &s->fd, 1);
+-                s->fdstore = true;
++        if (!s->fdstore && !s->in_notify_queue) {
++                LIST_PREPEND(stdout_stream_notify_queue, s->server->stdout_streams_notify_queue, s);
++                s->in_notify_queue = true;
++
++                if (s->server->notify_event_source) {
++                        r = sd_event_source_set_enabled(s->server->notify_event_source, SD_EVENT_ON);
++                        if (r < 0)
++                                log_warning_errno(r, "Failed to enable notify event source: %m");
++                }
+         }
+ 
+         return 0;
+@@ -722,3 +731,50 @@
+ 
+         return 0;
+ }
++
++void stdout_stream_send_notify(StdoutStream *s) {
++        struct iovec iovec = {
++                .iov_base = (char*) "FDSTORE=1",
++                .iov_len = strlen("FDSTORE=1"),
++        };
++        struct msghdr msghdr = {
++                .msg_iov = &iovec,
++                .msg_iovlen = 1,
++        };
++        struct cmsghdr *cmsg;
++        ssize_t l;
++
++        assert(s);
++        assert(!s->fdstore);
++        assert(s->in_notify_queue);
++        assert(s->server);
++        assert(s->server->notify_fd >= 0);
++
++        /* Store the connection fd in PID 1, so that we get it passed
++         * in again on next start */
++
++        msghdr.msg_controllen = CMSG_SPACE(sizeof(int));
++        msghdr.msg_control = alloca0(msghdr.msg_controllen);
++
++        cmsg = CMSG_FIRSTHDR(&msghdr);
++        cmsg->cmsg_level = SOL_SOCKET;
++        cmsg->cmsg_type = SCM_RIGHTS;
++        cmsg->cmsg_len = CMSG_LEN(sizeof(int));
++
++        memcpy(CMSG_DATA(cmsg), &s->fd, sizeof(int));
++
++        l = sendmsg(s->server->notify_fd, &msghdr, MSG_DONTWAIT|MSG_NOSIGNAL);
++        if (l < 0) {
++                if (errno == EAGAIN)
++                        return;
++
++                log_error_errno(errno, "Failed to send stream file descriptor to service manager: %m");
++        } else {
++                log_debug("Successfully sent stream file descriptor to service manager.");
++                s->fdstore = 1;
++        }
++
++        LIST_REMOVE(stdout_stream_notify_queue, s->server->stdout_streams_notify_queue, s);
++        s->in_notify_queue = false;
++
++}
+diff -Naur systemd-227/src/journal/journald-stream.h systemd-227-fix/src/journal/journald-stream.h
+--- systemd-227/src/journal/journald-stream.h	2015-10-07 17:06:22.000000000 +0200
++++ systemd-227-fix/src/journal/journald-stream.h	2015-11-08 00:15:15.495176739 +0100
+@@ -21,9 +21,12 @@
+   along with systemd; If not, see <http://www.gnu.org/licenses/>.
+ ***/
+ 
++typedef struct StdoutStream StdoutStream;
++
+ #include "fdset.h"
+ #include "journald-server.h"
+ 
+ int server_open_stdout_socket(Server *s, FDSet *fds);
+ 
+ void stdout_stream_free(StdoutStream *s);
++void stdout_stream_send_notify(StdoutStream *s);
+diff -Naur systemd-227/units/systemd-journald.service.in systemd-227-fix/units/systemd-journald.service.in
+--- systemd-227/units/systemd-journald.service.in	2015-10-07 17:06:22.000000000 +0200
++++ systemd-227-fix/units/systemd-journald.service.in	2015-11-08 00:14:24.990844824 +0100
+@@ -22,7 +22,6 @@
+ NotifyAccess=all
+ StandardOutput=null
+ CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_SYS_PTRACE CAP_SYSLOG CAP_AUDIT_CONTROL CAP_AUDIT_READ CAP_CHOWN CAP_DAC_READ_SEARCH CAP_FOWNER CAP_SETUID CAP_SETGID CAP_MAC_OVERRIDE
+-WatchdogSec=3min
+ FileDescriptorStoreMax=1024
+ 
+ # Increase the default a bit in order to allow many simultaneous

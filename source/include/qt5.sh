@@ -13,7 +13,7 @@
 
 ###
 # == PROVIDED FUNCTIONS
-# * Fant(): a wrapper for ant to use _F_java_compiler as compiler
+# * build_qt5(): function to build qt5 source packages
 ###
 pkgver=5.5.1
 pkgrel=1
@@ -31,7 +31,7 @@ _F_archive_name=qt-everywhere-opensource-src
 up2date="Flasttar $url/download-open-source/"
 _F_cd_path=${qtpkgfilename}
 
-build()
+build_qt5()
 {
 	Fcd
 	qmake-qt5 || Fdie
@@ -41,4 +41,9 @@ build()
 		q5=`basename ${i}`
 		Fln /usr/lib/qt5/bin/${q5} /usr/bin/${q5}-qt5
         done
+}
+
+build()
+{
+	build_qt5
 }

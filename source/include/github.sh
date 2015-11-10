@@ -32,6 +32,7 @@
 # * _F_github_author: owner of the repository and of the project on which
 #   to get the software.
 # * _F_github_tag: default is empty, use if source has in $url/tags.
+# * _F_github_sep: defaults to Fpkgversep
 #
 # == APPENDED VARIABLES
 # * source()

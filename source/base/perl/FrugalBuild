@@ -2,61 +2,54 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 # Maintainer: Zsolt Szalai <xbit@frugalware.org>
 
+### WARNING: do *NOT* version bump, even minor eg: 5.22.0  > 5.22.1
+###	     without changing $pkgname.install file!!!!
+
 pkgname=perl
-pkgver=5.14.1
-pkgrel=7
+pkgver=5.22.0
+pkgrel=1
 pkgdesc="Practical Extraction and Report Language."
 url="http://www.perl.org/"
 rodepends=('scriptlet-core')
-depends=('gdbm>=1.10' 'db>=4.7.25-2')
-provides=('perl-compress-raw-bzip2'\
-    'perl-cpan-meta-yaml'\
-    'perl-cpan-meta'\
-    'perl-cpan-meta-spec'\
-    'perl-http-tiny'\
-    'perl-json-pp'\
-    'perl-module-metadata'\
-    'perl-module-build-moduleinfo'\
-    'perl-ostype'\
-    'perl-module-build'\
-    'perl-unicode-collate'\
-    'perl-version-requirements'
-)
-conflicts=(${provides[@]})
+depends=('gdbm>=1.11' 'db>=4.7.25-4')
 groups=('base' 'devel-core')
 archs=('i686' 'x86_64' 'arm')
 up2date="Flasttar http://www.cpan.org/src/"
 source=(http://www.cpan.org/src/5.0/$pkgname-$pkgver.tar.gz \
-	libnet.cfg)
-sha1sums=('bd24b7572330c4f87a47ea841f88deb925245a8b' \
+	libnet.cfg) ## not sure why we need that ?
+sha1sums=('e4c9e40d18efa7368e77343e0fd3339ca87e34f8' \
           '92179e28215bf7b802ded72e0ca6e473a21f5003')
 
-# FSA fix ***
-source=(${source[@]} CVE-2012-5526.patch CVE-2012-6329.patch CVE-2013-1667.patch)
-sha1sums=(${sha1sums[@]} '1a259bbc517e3d499aeb229cf6eb9372844cdd0d' \
-                         'dc256eb6ecd9cfac34547697628db01a42f119bf' \
-                         'd705cf17aab02a3af372e28a4c78c1382e917187')
-# ***********
-
 build() {
-	unset MAKEFLAGS
+
 	Fcd
-	Fpatchall
 	[ "$CARCH" == "x86_64" ] && export CFLAGS="$CFLAGS -fPIC"
-	./Configure -de -Dprefix=/usr -Dinstallprefix=${Fdestdir}/usr \
-		-Dman1dir=/usr/share/man/man1 -Dman3dir=/usr/share/man/man3 \
-		-Doptimize="$CFLAGS" -Dusethreads -Duseshrplib
+	./Configure -des -Dprefix=/usr \
+			-Dinstallprefix=/usr \
+			-Dman1dir=/usr/share/man/man1 \
+			-Dman3dir=/usr/share/man/man3 \
+			-Doptimize="${CFLAGS}" \
+			-Dldflags="${LDFLAGS}" \
+			-Dlddlflags="-shared ${LDFLAGS}" \
+			-Dusethreads \
+			-Duseshrplib  || Fdie
 
-	make || Fdie
+	Fmake
+	Fmakeinstall
 
-	make install
-	(cd ${Fdestdir}/usr/bin; mv perl$pkgver perl; ln -sf c2ph pstruct)
-	(cd ${Fdestdir}/usr/bin; ln -sf s2p psed)
-	(cd ${Fdestdir}/usr/lib/perl5; mv $pkgver current)
-	(cd ${Fdestdir}/usr/lib/perl5/site_perl; mv $pkgver current)
-	find ${Fdestdir} -type f | xargs grep -l "${Fdestdir}" | \
-		xargs -n1 perl -i -p -e "s|${Fdestdir}||g;"
-	cp ${Fsrcdir}/libnet.cfg ${Fdestdir}/usr/lib/perl5/current/Net/
+	## don't remove that
+	Frm usr/bin/perl ## mv: 'perl5.22.0' and 'perl' are the same file
+	Fmv usr/bin/${pkgname}${pkgver} usr/bin/perl
+
+	## why we need this ?
+	Fln  c2ph  /usr/bin/pstruct
+	## NOTE:  symlink s2p -> psed gone while:
+	##	  The x2p/ directory has been removed from the Perl core.
+	##        This removes find2perl, s2p and a2p. They have all been released
+	##        to CPAN as separate distributions pp::find2perl", "App::s2p", "App::a2p")
+
+
+	Fcp libnet.cfg  /usr/lib/${pkgname}${pkgver%.*.*}/current/Net/libnet.cfg
 
 	# conflicts with libstdc++
 	for i in diagnostics locale threads

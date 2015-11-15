@@ -83,6 +83,7 @@ fi
 ###
 # == APPENDED VARIABLES
 # * scriptlet to options()
+# * x11-protos to makedepends()
 ###
 options=(${options[@]} 'scriptlet')
-
+makedepends=(${makedepends[@]} 'x11-protos')

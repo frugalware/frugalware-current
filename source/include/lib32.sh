@@ -64,7 +64,13 @@ source=(http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-i
 ###
 Fbuildlib32()
 {
+	local old new IFS
+
+	# Extract fpm.
 	tar -xf "$_F_archive_name-${pkgver//_/-}-i686.fpm" || Fdie
+
+	# Copy and map all directories to their new name.
+	IFS=$' '
 	for i in "${_F_lib32_dirs[@]}"
 	do
 		old="${i%:*}"
@@ -74,6 +80,24 @@ Fbuildlib32()
 			Fmkdir `dirname "$new/"`
 			Fcprel "$old/" "$new/"
 		fi
+	done
+
+	# Try to fix broken symlinks between lib and usr/lib.
+	# This at least solves issues with glibc.
+	IFS=$'\n'
+	for i in `find -L "$Fdestdir" -type l`
+	do
+		target=`readlink "$i"`
+		for j in "${_F_lib32_dirs[@]}"
+		do
+			old="${j%:*}"
+			new="${j#*:}"
+			if [[ "$target" =~ "/$old/" ]]
+			then
+				Fln "${target/$old/$new}" "${i/$Fdestdir/}"
+				break
+			fi
+		done
 	done
 }
 

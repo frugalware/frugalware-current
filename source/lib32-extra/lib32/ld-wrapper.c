@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
 
 	prepare_environment();
 
-	launch_binary(&argv[1]);
+	launch_binary(&argv[0]);
 
 	return 1;
 }

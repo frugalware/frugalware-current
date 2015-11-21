@@ -22,10 +22,8 @@ groups=('xapps-extra')
 depends=(
 	'libgl' 'gnutls' 'libtiff' 'libjpeg' 'libpng' 'libxinerama'
 	'libxrandr' 'libxcursor' 'libxcomposite' 'libmpg123' 'libglu'
-	'lcms' 'fontconfig' 'openal' 'libldap' 'v4l-utils'
-	'sane-backends' 'libcups' 'libxi' 'samba'
+	'lcms' 'fontconfig' 'openal' 'libxi'
 	)
-makedepends=('cups')
 _F_cd_path="wine-$pkgver"
 options=('genscriptlet')
 archs=('i686' 'x86_64')
@@ -54,7 +52,7 @@ esac
 
 [ "$CARCH" == "x86_64" ] && Fconfopts="--enable-win64"
 
-source=(http://ftp.winehq.org/pub/wine/source/1.7/wine-$pkgver.tar.bz2)
+source=(http://ftp.winehq.org/pub/wine/source/${pkgver%.*}/wine-$pkgver.tar.bz2)
 signatures=("${source[@]}.sign")
 
 build()

@@ -35,6 +35,7 @@ build_qt5()
 	Fmake
 	make  INSTALL_ROOT=$Fdestdir install || Fdie
 	if [ -d "${Fdestdir}/usr/lib/qt5/bin" ]; then
+		local i
 		for i in ${Fdestdir}/usr/lib/qt5/bin/*; do
 			q5=`basename ${i}`
 			Fln /usr/lib/qt5/bin/${q5} /usr/bin/${q5}-qt5

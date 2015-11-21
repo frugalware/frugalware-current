@@ -177,9 +177,8 @@ Fupperstr() {
 # regular package.
 ###
 __Faddsubpkg() {
-	local key
-	local value
-	local n
+	local key value n i
+
 	n=${#subpkgs[@]}
 	for i in "$@"; do
 		key="$(echo "$i" | cut -d ':' -f 1)"
@@ -227,8 +226,9 @@ __Faddsubpkg() {
 # 14) archs
 ###
 Faddsubpkg() {
-	local g
-	local a
+
+	local g a
+
 	if [ "$#" -lt 3 ]; then
 		Fmessage "Faddsubpkg requires at least 3 parameters."
 		Fdie
@@ -998,6 +998,7 @@ Fbuildsystem_java_ant () {
 		;;
 	'install')
 		if declare -f Fjar >/dev/null; then
+			local i
 			for i in ${_F_java_jars[@]}
 			do
 				Fjar $i || Fdie

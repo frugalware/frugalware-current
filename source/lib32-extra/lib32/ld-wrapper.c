@@ -8,8 +8,9 @@ typedef struct {
 
 static void prepare_environment(void) {
 	static const table_pair_t table[] = {
-		{ "LIBGL_DRIVERS_PATH", "/usr/lib32/dri" },
-		{                 NULL,             NULL }
+		{ "LIBGL_DRIVERS_PATH",  "/usr/lib32/dri" },
+		{        "WINEDLLPATH", "/usr/lib32/wine" },
+		{                 NULL,             NULL  }
 	};
 	size_t i;
 

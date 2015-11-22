@@ -22,7 +22,7 @@ groups=('xapps-extra')
 depends=(
 	'libgl' 'gnutls' 'libtiff' 'libjpeg' 'libpng' 'libxinerama'
 	'libxrandr' 'libxcursor' 'libxcomposite' 'libmpg123' 'libglu'
-	'lcms' 'fontconfig' 'openal' 'libxi'
+	'lcms2' 'fontconfig' 'openal' 'libxi'
 	)
 _F_cd_path="wine-$pkgver"
 options=('genscriptlet')
@@ -50,15 +50,20 @@ default)
 
 esac
 
-[ "$CARCH" == "x86_64" ] && Fconfopts="--enable-win64"
+if [[ "$CARCH" == "x86_64" ]]
+then
+	Fconfopts="--enable-win64"
+	rodepends=('lib32-wine')
+fi
 
 source=(http://ftp.winehq.org/pub/wine/source/${pkgver%.*}/wine-$pkgver.tar.bz2)
 signatures=("${source[@]}.sign")
 
 build()
 {
+	# Disable optimizations to workaround GCC issues
+	CFLAGS="${CFLAGS//-O2/-O0}"
 	Fbuild
-	[ "$CARCH" == "x86_64" ] && Fln wine64 /usr/bin/wine
 	Fexec cp $Fincdir/wine.conf $Fsrcdir
 	Ffile /etc/binfmt.d/wine.conf
 }

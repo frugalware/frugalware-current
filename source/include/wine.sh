@@ -53,7 +53,10 @@ esac
 if [[ "$CARCH" == "x86_64" ]]
 then
 	Fconfopts="--enable-win64"
-	rodepends=('lib32-wine')
+	if [[ "$pkgname" == "wine" ]]
+	then
+		rodepends=('lib32-wine')
+	fi
 fi
 
 source=(http://ftp.winehq.org/pub/wine/source/${pkgver%.*}/wine-$pkgver.tar.bz2)

@@ -851,6 +851,12 @@ Fbuildsystem_configure() {
 		Fconfoptstryset "infodir" "$Finfodir"
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
+		## try to disable silent rules
+		## we already set V=1 by default but this isn't going to work
+		## when apps using enabled silence rules on ./configure..
+		## we really want to know what is going on.
+		## don't ask me how to do that for perl/ruby or other stuff -- crazy --
+		Fconfopts+=" --disable-silent-rules"
 		Fexec $_F_conf_configure $Fconfopts "$@"
 		return $?
 		;;

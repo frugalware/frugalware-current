@@ -856,7 +856,7 @@ Fbuildsystem_configure() {
 		## when apps using enabled silence rules on ./configure..
 		## we really want to know what is going on.
 		## don't ask me how to do that for perl/ruby or other stuff -- crazy --
-		Fconfopts+=" --disable-silent-rules"
+		Fconfoptstryset "enable-silent-rules" "no"
 		Fexec $_F_conf_configure $Fconfopts "$@"
 		return $?
 		;;

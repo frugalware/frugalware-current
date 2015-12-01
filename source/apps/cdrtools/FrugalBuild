@@ -1,28 +1,55 @@
 # Compiling Time: 0.37 SBU
-# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
+# Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=cdrtools
-pkgver=3.00
-pkgrel=3
+pkgver=3.01
+pkgrel=1
 pkgdesc="Tools for recording CDs"
-depends=('glibc')
+depends=('glibc' 'xfsprogs-acl' 'libcap')
 groups=('apps')
-replaces=('dvdrtools')
+replaces=('dvdrtools' 'cdrkit')
+provides=("${replaces[@]}")
+conflicts=("${replaces[@]}")
 archs=('i686' 'x86_64' 'arm')
+options=('nodocs') # twice
+backup=('etc/default/cdrecord' 'etc/default/rscsi')
 _F_archive_grepv="alpha"
 _F_sourceforge_rss_limit="3000"
 Finclude sourceforge
-sha1sums=('2cd7d1725e0da2267b7a033cc744295d6e2bc6b9')
+source=($source cdrtools-3.01-fix-20151126-mkisofs-isoinfo.patch)
+sha1sums=('b2d68b97fdd70e8684e36686a3fd0b1378abd240' \
+          'a743a6258adefde43d259231476d4ac7a68f8c7a')
 
 build()
 {
-	Fcd $pkgname-${pkgver%a*}
-	
-	make INS_BASE=/usr DEFINSUSR=root DEFINSGRP=root \
-	    COPTX="${CFLAGS}" CPPOPTX="${CFLAGS}" || return 1
 
-	make INS_BASE=$Fdestdir/usr DEFINSUSR=root DEFINSGRP=root \
-	    COPTX="${CFLAGS}" CPPOPTX="${CFLAGS}" install || return 1
+	Fcd $pkgname-${pkgver%a*}
+	export GMAKE_NOWARN=true
+
+	Fpatchall
+	## Fix me.. Before I try to fix this weird build system I switch to cmake and send upstream =)
+	make -j1 INS_BASE=/usr INS_RBASE=/ DEFINSGRP=root COPTX="${CFLAGS}" CPPOPTX="${CFLAGS}" || Fdie
+
+	make -j1  INS_BASE=/usr INS_RBASE=/ DEFINSGRP=root DESTDIR=${Fdestdir} \
+	    COPTX="${CFLAGS}" CPPOPTX="${CFLAGS}" install || Fdie
+
+	## cdrkit stuff
+	Fln cdrecord  /usr/bin/wodim
+	Fln cdda2wav  /usr/bin/icedax
+	Fln readcd    /usr/bin/readom
+	Fln mkisofs   /usr/bin/genisoimage
+
+	### man3 conflicts
+	Frm usr/share/man/man3
+
+	## we don't need these , do we ?
+	Frm usr/lib/{profiled,*.a}
+	Frm usr/include
+
+	## try to auto-load sg
+	## we could use /usr/lib/modules-load.d also
+	Fmkdir etc/modules-load.d
+	$(type -P echo) "sg"  > ${Fdestdir}/etc/modules-load.d/$pkgname.conf || Fdie
 }
 
 # optimization OK

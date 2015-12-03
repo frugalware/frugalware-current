@@ -14,7 +14,6 @@ export CHROOT=1
 . /etc/makepkg.conf || echo "could not parse makepkg.conf"
 . /usr/lib/frugalware/fwmakepkg || echo "could not parse fwmakepkg"
 
-
 if [ "$1" == "--download" ]; then
 	download="y"
 	shift
@@ -25,10 +24,18 @@ if [ "$#" -ne 1 ]; then
     exit
 fi
 
+reset_env () {
+	local p
+        unset archs install nobuild options pkgname pkgver pkgextraver source sha1sums
+        for p in `set|egrep '^(_F_|USE_)'|sed 's/\(=.*\| ()\)//'`; do unset $p; done
+
+        export Fpkgversep='-' startdir=`pwd`
+}
+
 directory=$(dirname $1)
 cd "$directory" || exit
-startdir="$(pwd)"
-export startdir
+
+reset_env
 
 . ./FrugalBuild || echo "could not parse $1"
 maintainer=$(grep Maintainer FrugalBuild |sed 's/.*: //')
@@ -43,24 +50,28 @@ if [[ -n "$nobuild" ]] || ( [[ -n "$(check_option NOBUILD)" ]]  ||  [[ -n "$(che
   exit
 fi
 
+
 for j in "${archs[@]}"
 do
-  [[ "${j:0:1}" = '!' ]] && continue
-  export CARCH=$j
-  startdir="$(pwd)"
-  export startdir
-  . ./FrugalBuild || echo "could not parse $1, arch $j"
-  for k in "${source[@]}"
-  do
-    [[ "${k:0:25}" = "http://ftp.frugalware.org" ]] && continue
-    file="`strip_url $k`"
-    if [ ! -e "$file" ] && [ "$prevfile" != "$file" ]; then
-      prevfile="$file"
-      echo "$directory: $file is missing ($maintainer)"
-      if [ ! -z "$download" ]; then
-        echo "downloading $file..."
-        $FTPAGENT $k
-      fi
-    fi
-  done
+
+	[[ "${j:0:1}" = '!' ]] && continue
+	export CARCH="${j}"
+	reset_env
+	. ./FrugalBuild || echo "could not parse $1, arch $j"
+	for k in "${source[@]}"
+	do
+
+		[[ "${k:0:25}" = "http://ftp.frugalware.org" ]] && continue
+		file="`strip_url ${k}`"
+
+		if [ ! -e "$file" ] && [ "$prevfile" != "$file" ]; then
+		prevfile="$file"
+		echo "$directory: $file is missing ($maintainer)"
+
+			if [ ! -z "$download" ]; then
+				echo "downloading $file..."
+				$FTPAGENT $k
+			fi
+		fi
+	done
 done

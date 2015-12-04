@@ -799,12 +799,13 @@ Fbuildsystem_make() {
 # $confopts. Parameters: 1) Name of the option 2) Value of the option.
 ###
 Fconfoptstryset() {
+
 	if [ -z "$2" ]; then
 		return 0
 	fi
 
 	# check if $_F_conf_configure supports it
-	if ! grep -q -- "--$1=" $_F_conf_configure; then
+	if ! grep -q -- "--$1" $_F_conf_configure; then
 		return 1
 	fi
 
@@ -817,6 +818,7 @@ Fconfoptstryset() {
 		Fconfopts+=" --$1=$2"
 	fi
 	return 0
+
 }
 
 Fbuildsystem_configure() {

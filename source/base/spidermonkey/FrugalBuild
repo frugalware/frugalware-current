@@ -1,52 +1,44 @@
 # Compiling time: 0.14 SBU
-# Maintainer: Janos Kovacs <janny@frugalware.org>
+# Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=spidermonkey
-pkgver=1.8.5
-pkgrel=5
+pkgver=17.0.0
+pkgrel=1
 pkgdesc="Mozilla's C implementation of JavaScript."
 url="http://www.mozilla.org/js/spidermonkey/"
 license="GPL"
-depends=('glibc>=2.22-3' 'nspr>=4.10.5')
-makedepends=('zip')
+depends=('glibc>=2.22-3' 'nspr>=4.11-3' 'zlib>=1.2.8-3' 'libstdc++>=5.3.0-2' \
+	'readline>=6.3-7' 'ncurses>=6.0-4' 'libffi>=3.2.1')
+makedepends=('zip' 'perl>=5.22.1')
 archs=('i686' 'x86_64' 'arm')
 groups=('base')
-up2date="lynx -dump http://ftp.mozilla.org/pub/mozilla.org/js/ | grep js-[0-9\.]*\.tar.gz | sed -n 's/.*-\(.*\)\.t.*/\1/;1 p'"
-source=(http://ftp.mozilla.org/pub/mozilla.org/js/js185-1.0.0.tar.gz destdir.patch)
-sha1sums=('52a01449c48d7a117b35f213d3e4263578d846d6' \
-          'd4045fa44d54e7198ae2ed2d6d3368f9ff0adaee')
+options+=('force')
+up2date="$pkgver" ## no way to get something valid
+source=(http://ftp.mozilla.org/pub/mozilla.org/js/mozjs$pkgver.tar.gz \
+	mozjs-fixes-1.patch)
+sha1sums=('7805174898c34e5d3c3b256117af9944ba825c89' \
+          'fecd9d1bcc153c2ce58eb7e451acba41df3d2c2a')
 
 if [ "$CARCH" = "arm" ]; then
-	Fconfopts="--with-cpu-arch=armv5te"
+	Fconfopts="--with-cpu-arch=armv5te" ## ?!?
 fi
 
 build() {
-	unset MAKEFLAGS
-	Fcd js-$pkgver/js/src
-	Fbuild --with-system-nspr --enable-threadsafe
-# Create pkgconfig file
-cat > libjs.pc << 'EOF'
-prefix=/usr
-exec_prefix=/usr
-libdir=/usr/lib
-includedir=/usr/include
 
-Name: libjs
-Description: JS library
-Requires: nspr >= 4.8
-Version: 1.8.5
-Libs: -L${libdir} -ljs
-Cflags: -DXP_UNIX=1 -DJS_THREADSAFE=1 -I${includedir}/js
-EOF
-	install -m 0644 libjs.pc $Fdestdir/usr/lib/pkgconfig/ || Fdie
-	install -m 0755 shell/js ${Fdestdir}/usr/bin || Fdie
+	Fcd mozjs$pkgver
+	Fpatchall
 
-	# For compatibility
-	pushd $Fdestdir/usr/lib
-	ln -s libmozjs185.so.1.0 libmozjs.so.1 || Fdie
-	ln -s libmozjs185.so.1.0 libjs.so.1 || Fdie
-	ln -s libmozjs185.so libmozjs.so || Fdie
-	ln -s libmozjs185.so libjs.so || Fdie
+	cd js/src || Fdie
+	Fconf \
+		--with-system-nspr \
+		--enable-threadsafe \
+		--enable-jemalloc \
+		--enable-system-ffi \
+		--enable-readline
+	make || Fdie
+	make DESTDIR=$Fdestdir install || Fdie
+
 }
+
 
 # optimization OK

@@ -1021,6 +1021,15 @@ Fbuildsystem_java_ant () {
 		;;
 	esac
 }
+__as_needed_libtool_hack() {
+	if [ ! "`check_option NOASNEEDED`" ]; then
+		if [ -e $(pwd)/libtool ]; then
+			Fmessage "Patching libtool for as-needed...."
+			## eg: -shared -> -Wl,--as-needed -shared
+			sed -i -e 's/ -shared / -Wl,--as-needed\0/g' libtool || Fdie
+		fi
+	fi
+}
 
 ###
 # * Fconf(): A wrapper to ./configure. It will try to run ./configure,
@@ -1048,6 +1057,9 @@ Fconf() {
 	elif Fbuildsystem_ruby_setup 'probe'; then
 		 Fbuildsystem_ruby_setup 'configure' "$@" || Fdie
 	fi
+
+	__as_needed_libtool_hack
+
 }
 
 ###

@@ -1101,6 +1101,7 @@ Fnant() {
 __kill_libtool_dependency_libs() {
 
 	if [ ! "`check_option LIBTOOL`" ]; then
+		Fmessage "Setting Libtool's dependency_libs=.* to ZERO"
 		find $Fdestdir -type f -name "*.la" | xargs sed -i "s/^dependency_libs=.*/dependency_libs=''/" || Fdie
 	fi
 }

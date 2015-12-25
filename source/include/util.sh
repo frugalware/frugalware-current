@@ -1098,6 +1098,13 @@ Fnant() {
 	fi
 }
 
+__kill_libtool_dependency_libs() {
+
+	if [ ! "`check_option LIBTOOL`" ]; then
+		find $Fdestdir -type f -name "*.la" | xargs sed -i "s/^dependency_libs=.*/dependency_libs=''/" || Fdie
+	fi
+}
+
 ###
 # * Fmakeinstall(): A wrapper to make install. Calls make DESTDIR=$Fdestir or
 # prefix=$Fdestdir/usr install (which is necessary). Also handles python's
@@ -1154,6 +1161,8 @@ Fmakeinstall() {
 			Frcd2 $_F_rcd_name
 		fi
 	fi
+
+	__kill_libtool_dependency_libs
 }
 
 ###

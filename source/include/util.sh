@@ -1023,11 +1023,9 @@ Fbuildsystem_java_ant () {
 }
 __as_needed_libtool_hack() {
 	if [ ! "`check_option NOASNEEDED`" ]; then
-		if [ -e $(pwd)/libtool ]; then
-			Fmessage "Patching libtool for as-needed...."
-			## eg: -shared -> -Wl,--as-needed -shared
-			sed -i -e 's/ -shared / -Wl,--as-needed\0/g' libtool || Fdie
-		fi
+		Fmessage "Patching libtool for as-needed...."
+		## eg: -shared -> -Wl,--as-needed -shared
+		find . -type f -name libtool | xargs sed -i -e 's/ -shared / -Wl,--as-needed\0/g' 2>/dev/null || Fdie
 	fi
 }
 

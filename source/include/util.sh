@@ -934,7 +934,7 @@ Fbuildsystem_ruby_extconf () {
 	esac
 }
 
-Fbuildsystem_ruby_setup () {
+Fbuildsystem_ruby_setup() {
 	local command="$1"
 	shift
 
@@ -986,7 +986,7 @@ Fbuildsystem_python_setup() {
 	esac
 }
 
-Fbuildsystem_java_ant () {
+Fbuildsystem_java_ant() {
 	local command="$1"
 	shift
 

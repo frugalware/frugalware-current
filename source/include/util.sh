@@ -1022,10 +1022,19 @@ Fbuildsystem_java_ant () {
 	esac
 }
 __as_needed_libtool_hack() {
+
 	if [ ! "`check_option NOASNEEDED`" ]; then
-		Fmessage "Patching libtool for as-needed...."
-		## eg: -shared -> -Wl,--as-needed -shared
-		find . -type f -name libtool | xargs sed -i -e 's/ -shared / -Wl,--as-needed\0/g' 2>/dev/null || Fdie
+		local lt=$(find . -type f -name libtool)
+		if [[ ${lt[@]} ]]; then
+			Fmessage "Patching libtool for as-needed:"
+			local i
+			for i in ${lt[@]}
+			do
+				Fmessage "--> $i..."
+				sed -i -e 's/ -shared / -Wl,--as-needed\0/g' ${i}
+				## eg: -shared -> -Wl,--as-needed -shared
+			done
+		fi
 	fi
 }
 
@@ -1099,8 +1108,17 @@ Fnant() {
 __kill_libtool_dependency_libs() {
 
 	if [ ! "`check_option LIBTOOL`" ]; then
-		Fmessage "Setting Libtool's dependency_libs=.* to ZERO"
-		find $Fdestdir -type f -name "*.la" | xargs sed -i "s/^dependency_libs=.*/dependency_libs=''/" || Fdie
+
+		local la=$(find $Fdestdir -type f -name "*.la")
+		if [[ ${la[@]} ]]; then
+			Fmessage "Setting Libtool's dependency_libs=.* to ZERO in:"
+			local i
+			for i in ${la[@]}
+			do
+				Fmesage "--> $i"
+				sed -i "s/^dependency_libs=.*/dependency_libs=''/" ${i}
+			done
+		fi
 	fi
 }
 

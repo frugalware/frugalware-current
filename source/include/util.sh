@@ -1115,7 +1115,7 @@ __kill_libtool_dependency_libs() {
 			local i
 			for i in ${la[@]}
 			do
-				Fmesage "--> $i"
+				Fmessage "--> $i"
 				sed -i "s/^dependency_libs=.*/dependency_libs=''/" ${i}
 			done
 		fi

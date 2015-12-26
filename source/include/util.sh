@@ -821,6 +821,15 @@ Fconfoptstryset() {
 
 }
 
+
+__configure_disable_static() {
+
+	if [ ! "`check_option STATIC`" ]; then
+		Fconfoptstryset "enable-static" "no"
+		Fconfoptstryset "disable-static" "yes"
+	fi
+}
+
 Fbuildsystem_configure() {
 	# This build system USUALLY produce a Fbuildsystem_make compatible environment
 	local command="$1"
@@ -859,6 +868,8 @@ Fbuildsystem_configure() {
 		## we really want to know what is going on.
 		## don't ask me how to do that for perl/ruby or other stuff -- crazy --
 		Fconfoptstryset "enable-silent-rules" "no"
+		## disable static by default when !static option
+		__configure_disable_static
 		Fexec $_F_conf_configure $Fconfopts "$@"
 		return $?
 		;;
@@ -1105,6 +1116,28 @@ Fnant() {
 	fi
 }
 
+
+__remove_static_libs() {
+
+	if [ ! "`check_option STATIC`" ]; then
+		local stl=$(find $Fdestdir -type f -name "*.a")
+		if [[ ${stl[@]} ]]; then
+			Fmessage "Removing the following static libs:
+			local i
+			for i in ${stl[@]}
+			do
+				Fmessage "--> $i"
+				rm -f ${i} || Fdie
+			done
+		fi
+	fi
+}
+
+Fremove_static_libs() {
+
+	__remove_static_libs
+}
+
 __kill_libtool_dependency_libs() {
 
 	if [ ! "`check_option LIBTOOL`" ]; then
@@ -1120,6 +1153,11 @@ __kill_libtool_dependency_libs() {
 			done
 		fi
 	fi
+}
+
+Ffix_la_files() {
+
+	__kill_libtool_dependency_libs
 }
 
 ###
@@ -1179,7 +1217,8 @@ Fmakeinstall() {
 		fi
 	fi
 
-	__kill_libtool_dependency_libs
+	Ffix_la_files
+	Fremove_static_libs
 }
 
 ###

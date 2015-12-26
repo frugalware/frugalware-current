@@ -1122,7 +1122,7 @@ __remove_static_libs() {
 	if [ ! "`check_option STATIC`" ]; then
 		local stl=$(find $Fdestdir -type f -name "*.a")
 		if [[ ${stl[@]} ]]; then
-			Fmessage "Removing the following static libs:
+			Fmessage "Removing the following static libs:"
 			local i
 			for i in ${stl[@]}
 			do

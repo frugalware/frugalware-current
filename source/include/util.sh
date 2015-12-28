@@ -879,7 +879,7 @@ Fbuildsystem_configure() {
 	esac
 }
 
-Fbuildsystem_perl () {
+Fbuildsystem_perl() {
 	# This build system produce a Fbuildsystem_make compatible environment
 	local command="$1"
 	shift
@@ -905,7 +905,7 @@ Fbuildsystem_perl () {
 	esac
 }
 
-Fbuildsystem_ruby_configure () {
+Fbuildsystem_ruby_configure() {
 	# This build system produce a Fbuildsystem_make compatible environment
 	local command="$1"
 	shift
@@ -925,7 +925,7 @@ Fbuildsystem_ruby_configure () {
 	esac
 }
 
-Fbuildsystem_ruby_extconf () {
+Fbuildsystem_ruby_extconf() {
 	# This build system produce a Fbuildsystem_make compatible environment
 	local command="$1"
 	shift

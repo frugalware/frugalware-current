@@ -2,35 +2,49 @@
 # Maintainer: crazy <crazy@frugalware.org>
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
-options+=('asneeded')
+USE_TCL=${USE_TCL:-"n"}
 
 pkgname=postgresql
-pkgver=9.1.15
+pkgver=9.4.5
 pkgrel=1
 pkgdesc="An advanced Object-Relational database management system (DBMS)"
 url="http://www.postgresql.org/"
-makedepends=('openssl>=1.0.0')
-depends=('zlib' 'readline' 'libxml2>=2.7.8')
+depends=('openssl>=1.0.2-3' 'readline>=6.3-7' 'libxml2>=2.9.3-3' 'ncurses>=6.0-4')
+makedepends=('libxslt>=1.1.28-3')
 rodepends=("libpq=$pkgver")
 groups=('apps-extra')
 archs=('i686' 'x86_64' 'arm')
 up2date="lynx -dump ftp://ftp.postgresql.org/pub/source/|egrep -v 'alpha|beta|rc[0-9]' |tail -n 1 |sed 's|.*/v||'"
 source=(ftp://ftp.postgresql.org/pub/source/v$pkgver/postgresql-$pkgver.tar.bz2 postgresql.service pg_setup)
-sha1sums=('8b36733465dc945c3f1b836454e49067fb887ef5' \
+sha1sums=('266b8e92cdced161b6a98d4eda0810e4b61fcf49' \
           '41423e125d1f8f5f6c57bcddd5eb5ad326b22561' \
           '30c843fe478fadcd3d8a1d80f7b12a7bccb41efb')
 
-subpkgs=('libpq' "$pkgname-extras" "$pkgname-plperl" "$pkgname-plpython" "$pkgname-pltcl")
+subpkgs=('libpq' "$pkgname-extras" "$pkgname-plperl" "$pkgname-plpython")
 subdescs=('PostgreSQL Library.' 'PostgreSQL extra tools' \
-	"PostgreSQL perl bindings" "PostgreSQL python bindings" "PostgreSQL tcl bindings")
-subdepends=('openssl>=1.0.0' 'libxslt readline' 'perl' 'python>=2.7' 'tcl')
-subrodepends=('' "libpq=$pkgver" "$pkgname=$pkgver" \
-	"$pkgname=$pkgver" "$pkgname=$pkgver")
-subgroups=('lib' 'apps-extra' 'devel-extra' 'devel-extra' 'devel-extra')
-subarchs=('i686 x86_64 arm' 'i686 x86_64 arm' 'i686 x86_64 arm' 'i686 x86_64 arm' 'i686 x86_64 arm')
-subreplaces=('' '' "$pkgname-perl" "$pkgname-python" "$pkgname-tcl")
-subprovides=('' '' "$pkgname-perl" "$pkgname-python" "$pkgname-tcl")
-subconflicts=('' '' "$pkgname-perl" "$pkgname-python" "$pkgname-tcl")
+	"PostgreSQL perl bindings" "PostgreSQL python bindings")
+subdepends=('openssl>=1.0.2-3' 'openssl>=1.0.2-3 libxml2>=2.9.3-3'  'perl>=2.21.1' 'python>=2.7.11-3')
+subrodepends=('' "libpq=$pkgver" "$pkgname=$pkgver" "$pkgname=$pkgver")
+subgroups=('lib' 'apps-extra' 'devel-extra' 'devel-extra')
+subarchs=('i686 x86_64 arm' 'i686 x86_64 arm' 'i686 x86_64 arm' 'i686 x86_64 arm')
+subreplaces=('' '' "$pkgname-perl" "$pkgname-python")
+subprovides=('' '' "$pkgname-perl" "$pkgname-python")
+subconflicts=('' '' "$pkgname-perl" "$pkgname-python")
+
+if Fuse $USE_TCL; then
+	subpkgs=("${subpkgs[@]}" "$pkgname-pltcl")
+	subdescs=("${subdescs[@]}" "PostgreSQL tcl bindings")
+	subdepends=("${subdepends[@]}" "tcl")
+	subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
+	subgroups=("${subgroups[@]}" "devel-extra")
+	subarchs=("${subarchs[@]}" "i686 x86_64 arm")
+	subreplaces=("${subreplaces[@]}" "$pkgname-tcl")
+	subprovides=("${subprovides[@]}" "$pkgname-tcl")
+	subconflicts=("${subconflicts[@]}" "$pkgname-tcl")
+	Fconfopts+=" --with-tcl"
+else
+	Fconfopts+=" --without-tcl"
+fi
 
 _F_systemd_scriptlet="postgresql.install"
 _F_systemd_units=(postgresql=)
@@ -41,15 +55,12 @@ build()
 	Fmake \
 		--datadir=/usr/share/pgsql \
 		--localstatedir=/var/lib/pgsql \
-		--with-docdir=/usr/share/doc/$pkgname-$pkgver \
 		--with-openssl \
-		--with-tcl \
 		--with-perl \
 		--with-python \
 		--with-libxml \
 		--enable-thread-safety \
 		--without-ldap \
-		--without-krb5 \
 		--without-pam
 	## I cannot add ldap and krb* support while I make pqsql depends itself
 	## *-sasl need be split first
@@ -80,8 +91,12 @@ build()
 	Fsplit $pkgname-plperl usr/lib/$pkgname/plperl.so
 	## Python bindings
 	Fsplit $pkgname-plpython usr/lib/$pkgname/plpython2.so
-	## Tcl bindings
-	Fsplit $pkgname-pltcl usr/lib/$pkgname/pltcl.so
+
+	if Fuse $USE_TCL; then
+		## Tcl bindings
+		Fsplit $pkgname-pltcl usr/lib/$pkgname/pltcl.so
+	fi
+	Fremove_static_libs
 }
 
 # optimization OK

@@ -826,7 +826,6 @@ __configure_disable_static() {
 
 	if [ ! "`check_option STATIC`" ]; then
 		Fconfoptstryset "enable-static" "no"
-		Fconfoptstryset "disable-static" "yes"
 	fi
 }
 

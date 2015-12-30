@@ -1,36 +1,48 @@
 # Compiling Time: 0.01 SBU
-# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
+# Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=tcl
-pkgver=8.6.1
+pkgver=8.6.4
 shortpkgver=8.6
-pkgrel=4
+pkgrel=1
 pkgdesc="The Tcl scripting language"
 _F_sourceforge_ext="-src.tar.gz"
 Finclude sourceforge
-depends=('bash')
+depends=('zlib>=1.2.8-4')
+makedepends=('sqlite3>=3.9.2-4')
 groups=('devel')
+options+=('static')
 archs=('i686' 'x86_64' 'arm')
 up2date="lynx -dump http://www.tcl.tk/|grep 'Tcl/Tk [0-9]'|sed 's/.*Tk \([^ ]*\) .*/\1/;q'"
-source=(${source/-$pkgver/$pkgver} nohide.diff)
-sha1sums=('5c83d44152cc0496cc0847a2495f659502a30e40' \
-          '82e9b2e0c502da4c5bdf1c06770567ab5a002786')
+source=(${source/-$pkgver/$pkgver} nohide.diff tcl-8.6.4-conf.patch)
+sha1sums=('33c5a083a23cf54f15e25a9e787dc39ef3fa0a2b' \
+          '82e9b2e0c502da4c5bdf1c06770567ab5a002786' \
+          '9a7ccb3f3cb8580bc1760f66af3e1cd1fce1ae15')
 
 build()
 {
+
+
 	Fcd tcl$pkgver
 	Fpatchall
-	cd unix
+
+	 [ "$CARCH" == "x86_64" ] && Fconfopts+=" --enable-64bit"
+
+	cd unix || Fdie
+
 	Fmake --enable-threads
-	make INSTALL_ROOT=$Fdestdir install || return 1
+	make INSTALL_ROOT=$Fdestdir install install-private-headers || Fdie
+
 	Fln tclsh$shortpkgver /usr/bin/tclsh
 
-	# headers
+	# arghh..
 	Fmkdir /usr/include/tcl/{generic,unix,compat}
-	cp ../unix/*.h $Fdestdir/usr/include/tcl/unix
-	cp ../generic/*.h $Fdestdir/usr/include/tcl/generic
-	cp ../compat/*.h $Fdestdir/usr/include/tcl/compat
+	cp ../unix/*.h $Fdestdir/usr/include/tcl/unix || Fdie
+	cp ../generic/*.h $Fdestdir/usr/include/tcl/generic || Fdie
+	cp ../compat/*.h $Fdestdir/usr/include/tcl/compat || Fdie
 
+
+	### WTF.. need patch
 	sed -i \
 	    -e "s,^TCL_BUILD_LIB_SPEC='-L.*/unix,TCL_BUILD_LIB_SPEC='-L/usr/lib," \
 	    -e "s,^TCL_SRC_DIR='.*',TCL_SRC_DIR='/usr/include/tcl'," \

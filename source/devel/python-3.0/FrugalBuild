@@ -1,20 +1,26 @@
 # Compiling Time: 0.96 SBU
-# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
+# Maintainer: crazy <crazy@frugalware.org>
 
-USE_GUI=${USE_GUI:-"y"}
+
+## TODO: --with-system-libmpdec need mpdecimal
+##	rename package to python3
+##	fix py-setuptools so we can use -without-ensurepip
+##	re-add tk/tcl but gtk2
+
+USE_GUI=${USE_GUI:-"n"}
 
 pkgname=python-3.0
-pkgver=3.4.1
-shortpkgver=3.4 # 2.3 if $pkgver=2.3.4
-pkgrel=4
+pkgver=3.5.1
+shortpkgver=3.5 # 2.3 if $pkgver=2.3.4
+pkgrel=1
 pkgdesc="A high-level scripting language"
 url="http://www.python.org"
-depends=('libxml2>=2.7.8' 'glibc>=2.8-3' 'bzip2>=1.0.5-2' 'gdbm>=1.10' 'openssl>=1.0.0' 'glib2>=2.16.4-2' 'ncurses>=6.0-3')
-makedepends=('sqlite3')
-Fuse $USE_GUI && makedepends=(${makedepends[@]} 'tk>=8.5' 'gtk+2')
+depends=('libffi>=3.2.1' 'bzip2>=1.0.6-4' 'openssl>=1.0.2-3' 'zlib>=1.2.8-4' 'glibc>=2.22-7' \
+	'expat>=2.1.0-5' 'xz>=5.2.2-4' 'gdbm>=1.11-3' 'ncurses>=6.0-4' 'readline>=6.3-7')
+makedepends=('sqlite3>=3.9.2-4')
 groups=('devel')
 archs=('i686' 'x86_64')
-options=('scriptlet')
+options+=('scriptlet')
 provides=('python3-distribute')
 replaces=('python3-distribute')
 conflicts=('python3-distribute')
@@ -22,52 +28,70 @@ _F_archive_name="Python"
 _F_archive_ext=".tgz"
 up2date="Flasttar $url/download/"
 source=(http://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz)
-sha1sums=('143e098efe7ee7bec8a4904ec4b322f28a067a03')
+sha1sums=('0186da436db76776196612b98bb9c2f76acfe90e')
 
-subpkgs=("$pkgname-tools" "$pkgname-sqlite3")
-subdescs=("Optional development tools to extending Python" "Python support for sqlite3")
-subgroups=('devel-extra' 'devel-extra')
-subrodepends=('python-3.0' "python-3.0=$pkgver-$pkgrel")
-subarchs=('i686 x86_64' 'i686 x86_64')
+if Fuse $USE_GUI; then
+        makedepends=(${makedepends[@]} 'tk>=8.5')
+fi
 
+subpkgs+=("$pkgname-tools")
+subdescs+=("Optional development tools to extending Python")
+subgroups+=('devel-extra')
+subrodepends+=("$pkgname=$pkgver")
+subarchs+=('i686 x86_64')
 
-# FSA fix ***
-source=(${source[@]} CVE-2014-4650-python3.patch)
-sha1sums=(${sha1sums[@]} 'cb9569218b5318cf1508d1e4453b0cbec84a1d92')
-# ***********
+subpkgs+=("$pkgname-sqlite3")
+subdescs+=("Python support for sqlite3")
+subgroups+=('devel-extra')
+subrodepends+=("$pkgname=$pkgver sqlite3>=3.9.2-4")
+subarchs+=('i686 x86_64')
 
-
-[ "$CARCH" == "x86_64" ] && export CFLAGS="$CFLAGS -fPIC"
 
 build()
 {
 	unset MAKEFLAGS
-	Fcd Python-$pkgver
+
+	[ "$CARCH" == "x86_64" ] && CFLAGS+=" -fPIC"
+
+	Fcd Python-${pkgver}
+
 	Fpatchall
-	Fconf --prefix=/usr --with-threads --enable-shared --enable-ipv6 --enable-loadable-sqlite-extensions || return 1
+
+	Fconf \
+		--prefix=/usr \
+		--with-threads \
+		--enable-shared \
+		--enable-ipv6 \
+		--enable-loadable-sqlite-extensions \
+		--with-system-expat \
+		--with-system-ffi \
+		--with-signal-module
+
 	Fsed 'mozilla-firefox' 'firefox' Lib/webbrowser.py
-	make || return 1
-	Fmkdir /usr/lib/pkgconfig
-	Fmakeinstall || return 1
+	Fsed '/usr/local' '/usr' Lib/cgi.py
+	Fsed '-O3' '' configure
+
+	make EXTRA_CFLAGS="$CFLAGS" || Fdie
+	Fmakeinstall
+
 	Frm /usr/bin/python
 	Fmv /usr/bin/2to3{,$shortpkgver}
+
 	# subpkg python-tools
+	local f
 	for f in Tools/* ; do
-		if [ -d $f ] ; then
-			Fcp Python-$pkgver/$f /usr/lib/python$shortpkgver/site-packages/ || Fdie
-			Fsplit $pkgname-tools usr/lib/python$shortpkgver/site-packages/`echo $f|sed 's|Tools/||'`
+		if [ -d ${f} ] ; then
+			Fcp Python-${pkgver}/${f} /usr/lib/python${shortpkgver}/site-packages/ || Fdie
+			Fsplit $pkgname-tools usr/lib/python${shortpkgver}/site-packages/`echo ${f}|sed 's|Tools/||'`
 		fi
 	done
-	Fln /usr/lib/python$shortpkgver/site-packages/i18n/msgfmt.py /usr/bin/msgfmt.py
-	Fln /usr/lib/python$shortpkgver/site-packages/i18n/pygettext.py /usr/bin/pygettext.py
-	Fln /usr/lib/python$shortpkgver/site-packages/modulator/modulator.py /usr/bin/modulator.py
-	Fln /usr/lib/python$shortpkgver/site-packages/pynche/pynche /usr/bin/pynche
-	Fmv /usr/bin/msgfmt{,$shortpkgver}.py
-	Fmv /usr/bin/pygettext{,$shortpkgver}.py
-	Fmv /usr/bin/modulator{,$shortpkgver}.py
-	Fmv /usr/bin/pynche{,$shortpkgver}
-	Fsplit $pkgname-tools usr/bin/{{msgfmt,pygettext,modulator}$shortpkgver.py,pynche$shortpkgver}
-	Fsplit $pkgname-sqlite3 usr/lib/python$shortpkgver/{sqlite3,lib-dynload/*sqlite3*,test/*sqlite*}
+	Fln /usr/lib/python${shortpkgver}/site-packages/i18n/msgfmt.py /usr/bin/msgfmt${shortpkgver}.py
+	Fln /usr/lib/python${shortpkgver}/site-packages/i18n/pygettext.py /usr/bin/pygettext${shortpkgver}.py
+	Fln /usr/lib/python${shortpkgver}/site-packages/modulator/modulator.py /usr/bin/modulator${shortpkgver}.py
+	Fln /usr/lib/python${shortpkgver}/site-packages/pynche/pynche /usr/bin/pynche${shortpkgver}
+
+	Fsplit $pkgname-tools usr/bin/{{msgfmt,pygettext,modulator}${shortpkgver}.py,pynche${shortpkgver}}
+	Fsplit $pkgname-sqlite3 usr/lib/python${shortpkgver}/{sqlite3,lib-dynload/*sqlite3*,test/*sqlite*}
 }
 
 # optimization OK

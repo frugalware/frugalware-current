@@ -78,7 +78,7 @@ _F_xorg_url="$url/releases/$_F_xorg_release_dir/$_F_xorg_dir/"
 license="GPL2"
 _F_archive_name="$_F_xorg_name"
 up2date="Flasttar $_F_xorg_url"
-makedepends=("${makedepends[@]}" 'x11-protos' 'pkgconfig>=0.29-2')
+makedepends=("${makedepends[@]}" 'x11-protos>=0.1-3' 'pkgconfig>=0.29-2')
 source=($_F_xorg_url/$_F_xorg_name-$pkgver.tar.bz2)
 if [ -z "$_F_cd_path" ]; then
 	_F_cd_path="$_F_xorg_name-$pkgver"

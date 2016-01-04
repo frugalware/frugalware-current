@@ -150,6 +150,8 @@ CMake_make()
 CMake_install()
 {
 	make DESTDIR=$Fdestdir install/fast || Fdie
+	Fremove_static_libs
+	Ffix_la_files
 }
 ###
 # * CMake_build(): build() wrapper

@@ -74,6 +74,7 @@ if [ "$_F_gnome_doc" = "y" ]; then
 	subarchs=("${subarchs[@]}" 'i686 x86_64')
 	subreplaces=("${subreplaces[@]}" '')
 	subprovides=("${subprovides[@]}" '')
+	subconflicts=("${subconflicts[@]}" '')
 
 fi
 

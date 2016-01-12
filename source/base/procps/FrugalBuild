@@ -4,7 +4,7 @@
 
 pkgname=procps
 pkgver=3.2.8
-pkgrel=10
+pkgrel=11
 pkgdesc="utilities for displaying process information"
 url="http://procps.sf.net"
 depends=('ncurses>=6.0-4')
@@ -16,6 +16,7 @@ source=(http://procps.sourceforge.net/procps-$pkgver.tar.gz \
 	procps-3.2.5-top-sort.patch procps-3.2.8-make.patch procps-3.2.8-constructor-order.patch \
 	procps-3.2.7-ps-cgroup.patch procps-3.2.8-ps-cgroup-suppress-root-group.patch \
 	procps-3.2.8-kernel3-uts.patch)
+options+=('static')
 sha1sums=('a0c86790569dec26b5d9037e8868ca907acc9829' \
           'ad7782f3f4d118fa67c667d611a1eb2f4c736808' \
           '4a67774ef9b37a8d2e2571ac4fc90aa3aa212852' \
@@ -31,10 +32,19 @@ build()
 	Fsed '\$(lib64)' 'lib' Makefile
 	Fsed '^\([^#]\)' '#\1' sysctl.conf
 	Fbuild
+	Fmkdir etc/sysctl.d
 	Ffilerel proc/*.h /usr/include/proc/
 	make -f proc/module.mk libproc.a || return 1
 	Ffilerel proc/libproc.a /usr/lib/libproc.a
+	### systemd 207++ just uses files from /etc/sysctl.d
 	Ffilerel /etc/sysctl.conf
+	## use a symlink since some apps may stillw ant to read /etc/sysctl.conf
+	Fln /etc/sysctl.conf /etc/sysctl.d/99-sysctl.conf
+## just KERN_CRIT messages go to tty/console
+cat > $Fdestdir/etc/sysctl.d/20-printk-be-quiet.conf << EOF
+kernel.printk = 2 2 2 2
+EOF
+
 }
 
 # optimization ok

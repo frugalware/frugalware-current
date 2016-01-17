@@ -3,24 +3,27 @@
 
 pkgname=subversion
 pkgver=1.9.3
-pkgrel=1
+pkgrel=2
 pkgdesc="A version control system that is a compelling replacement for CVS."
 url="http://subversion.apache.org/"
-depends=('neon>=0.28.5-4' 'serf>=1.3.5' 'db>=4.7.25' 'sqlite3' 'openssl>=1.0.0')
-makedepends=('krb5' 'swig>=2.0.8')
+depends=('serf>=1.3.8-2' 'file>=5.25-3')
+makedepends=('krb5' 'swig>=2.0.8' 'apache>=2.2.31')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
 _F_archive_grepv="alpha\|beta\|rc"
 up2date="Flasttarbz2 http://apache.openmirror.de/$pkgname/"
 source=(http://www.apache.org/dist/$pkgname/$pkgname-$pkgver.tar.bz2 \
-	svnserve.service svnserve.sysconfig mod_dav_svn.conf)
+	svnserve.service
+	svnserve.sysconfig
+	mod_dav_svn.conf)
 signatures=(${source[0]}.asc '' '' '')
+options+=('static')
 
 subpkgs=('mod_svn' "$pkgname-svnserve" "$pkgname-bindings")
 subdescs=('SVN module for apache 2.X webservers to use SVN server via apache' \
 		 'Standalone SVN server daemon' \
 		 'Python,Perl and Java bindings for subversion')
-subdepends=("apache>=2.2.4-4" '' 'perl>=5.22.0 python openjre')
+subdepends=('apr-util>=1.5.4-3' 'apr-util>=1.5.4-3' 'perl>=5.22.0 python openjre')
 subrodepends=("$pkgname=$pkgver" "$pkgname=$pkgver" "$pkgname=$pkgver")
 subgroups=('devel-extra' 'devel-extra' 'devel-extra')
 subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
@@ -29,24 +32,30 @@ subinstall=('' 'svnserve.install' '')
 
 Finclude python openjava
 
+Fmakeopts=" LT_LDFLAGS=-L$Fdestdir/usr/lib "
+
+Fconfopts+="    --disable-debug \
+		--disable-static \
+                --disable-mod-activation \
+                --with-apxs=/usr/sbin/apxs \
+                --enable-javahl \
+                --with-apache-libexecdir=/usr/lib/apache \
+		--enable-bdb6 \
+                --with-swig=/usr"
+
 build() {
-	Fcd
-	Fmake \
-		--disable-experimental-libtool \
-		--disable-debug \
-		--disable-mod-activation \
-		--with-apxs=/usr/sbin/apxs \
-		--enable-javahl \
-		--with-apache-libexecdir=/usr/lib/apache \
-		--with-swig=/usr
-	unset MAKEFLAGS
+
+	Fmake
+        unset MAKEFLAGS
 	Fmakeinstall
+	Fmv usr/share/pkgconfig usr/lib/
+
 	Fmv usr/share/man usr/man
-	make swig-py || Fdie
-	make swig-pl || Fdie
+	Fexec make swig-py || Fdie
+	Fexec make swig-pl || Fdie
 
 	# PYTHON bindings install
-	make install-swig-py DESTDIR=$Fdestdir \
+	Fexec make install-swig-py DESTDIR=$Fdestdir \
 		DISTUTIL_PARAM==--prefix=$Fdestdir \
 		LD_LIBRARY_PATH="-L$Fdestdir/usr/lib" || Fdie
 	Fmkdir $_F_python_libdir
@@ -55,7 +64,7 @@ build() {
 	Frm usr/lib/svn-python
 
 	# PERL bindings install
-	make DESTDIR=$Fdestdir install-swig-pl || Fdie
+	Fexec make DESTDIR=$Fdestdir install-swig-pl || Fdie
 	Frm /usr/lib/perl5/`perl -e 'printf "%vd", $^V'`
 	Fmv /usr/lib/perl5/site_perl/`perl -e 'printf "%vd", $^V'` /usr/lib/perl5/site_perl/current
 
@@ -66,15 +75,17 @@ build() {
 
 	# Install some example scripts and some tools
 	Fmkdir /usr/share/subversion
-	cp -r tools/hook-scripts $Fdestdir/usr/share/subversion || Fdie
-	cp -r tools/dev $Fdestdir/usr/share/subversion || Fdie
-	cp -r tools/backup/* $Fdestdir/usr/share/subversion/dev || Fdie
-	Frm /usr/share/subversion/*.in
-	Frm /usr/share/subversion/hook-scripts/*.in
+	Fcprel tools/hook-scripts usr/share/subversion
+	Fcprel tools/dev usr/share/subversion
+	Fcprel tools/backup/\* usr/share/subversion/dev
+	Frm usr/share/subversion/hook-scripts/commit-access-control.pl.in
+
 	# For bash-completion
 	Ffilerel tools/client-side/bash_completion etc/bash_completion.d/subversion
-	Fmkdir /usr/share/doc/$pkgname-$pkgver
-	cp -r doc $Fdestdir/usr/share/doc/$pkgname-$pkgver || Fdie
+
+	Fmkdir usr/share/doc/$pkgname-$pkgver
+	Fcprel doc usr/share/doc/$pkgname-$pkgver
+
 	## Fix permissions
 	Fdirschmod usr/share/doc/$pkgname-$pkgver/doc 0755
 	Fdirschmod usr/share/subversion/hook-scripts 0755
@@ -82,6 +93,7 @@ build() {
 	Ffileschmod  usr/share/doc/$pkgname-$pkgver/doc 0644
 	Ffileschmod  usr/share/subversion/hook-scripts 0644
 	Ffileschmod  usr/share/subversion/dev 0644
+
 	# Split SVN svnserve daemon and releated files
 	Fsplit $pkgname-svnserve lib/systemd/system
 	Fsplit $pkgname-svnserve etc/sysconfig

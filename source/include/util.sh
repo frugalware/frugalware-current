@@ -890,10 +890,14 @@ Fbuildsystem_perl() {
 		;;
 	'configure')
 		if [ -z "$_F_conf_perl_pipefrom" ]; then
-			Fexec perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+			Fexec perl Makefile.PL "$@" || Fdie
 		else
-			$_F_conf_perl_pipefrom | perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+			$_F_conf_perl_pipefrom | perl Makefile.PL "$@" || Fdie
 		fi
+		return $?
+		;;
+	'make')
+                Fexec make DESTDIR=$Fdestdir MANPATH=/usr/share/man "$@" || Fdie
 		unset _F_conf_perl_pipefrom
 		Fsed `perl -e 'printf "%vd", $^V'` "current" Makefile
 		return $?

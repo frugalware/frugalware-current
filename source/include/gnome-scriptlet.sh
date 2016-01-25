@@ -64,17 +64,17 @@ fi
 if [ -n "$_F_gnome_mime" ]; then
 	Fconfopts+=" --disable-update-mimedb --enable-mime-update=no"
 fi
+
 if [ "$_F_gnome_doc" = "y" ]; then
-	Fconfopts+=" --enable-gtk-doc"
-	makedepends=(${makedepends[@]} 'gtk-doc' 'yelp-tools')
 	subpkgs=("${subpkgs[@]}" "$pkgname-doc")
 	subdescs=("${subdescs[@]}" "$pkgname documention")
-	subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
-	subdepends=("${subdepends[@]}" "gtk+3")
-	subgroups=('gnome-extra' "${subgroups[@]}" 'gnome-extra gnome-docs')
+	subrodepends=("${subrodepends[@]}" "$pkgname>=$pkgver")
+	subdepends=("${subdepends[@]}" '')
+	subgroups=("${subgroups[@]}" 'gnome-extra gnome-docs')
 	subarchs=("${subarchs[@]}" 'i686 x86_64')
 	subreplaces=("${subreplaces[@]}" '')
 	subprovides=("${subprovides[@]}" '')
+	subconflicts=("${subconflicts[@]}" '')
 
 fi
 

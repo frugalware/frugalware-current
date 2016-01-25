@@ -7,7 +7,7 @@
 USE_DEVEL=${USE_DEVEL:-"n"}
 
 if ! Fuse $USE_DEVEL; then
-	_F_kernel_patches=('fix-i915.patch')
+	_F_kernel_patches=('fix-i915.patch' 'CVE-2016-0728.patch')
 else
 	# example for a tagged rc release: 2.6.32.rc5
 	# example for a random snapshot (based on git describe output): 2.6.32.rc5.81.g964fe08
@@ -18,5 +18,104 @@ else
 fi
 
 Finclude kernel
+
+
+subpkgs+=('cpupower')
+subdescs+=('Kernel cpu powersaving tool')
+subrodepends+=("kernel=$_F_kernelver_ver")
+subdepends+=('pciutils')
+subgroups+=('apps-extra')
+subarchs+=('i686 x86_64')
+subbackups+=('etc/sysconfig/cpupower')
+subconflicts+=('cpufrequtils')
+subprovides+=('cpufrequtils')
+subreplaces+=('cpufrequtils')
+suboptions+=('')
+subinstall+=('')
+source=("${source[@]}" cpupower cpupower.sh cpupower.service )
+signatures+=('' '' '')
+
+subpkgs+=('x86_energy_perf_policy')
+subdescs+=('Kernel tool for setting MSR energy policies')
+subrodepends+=("kernel=$_F_kernelver_ver")
+subdepends+=('pciutils')
+subgroups+=('apps-extra')
+subarchs+=('i686 x86_64')
+subconflicts+=('')
+subprovides+=('')
+subreplaces+=('')
+suboptions+=('')
+subinstall+=('')
+
+subpkgs+=('perf')
+subdescs+=('Kernel performance profiling tool')
+subrodepends+=("kernel=$_F_kernelver_ver")
+subdepends+=('elfutils slang binutils>=2.25 xz')
+subgroups+=('devel-extra')
+subarchs+=('i686 x86_64')
+subconflicts+=('')
+subprovides+=('')
+subreplaces+=('')
+suboptions+=('')
+subinstall+=('')
+
+build()
+{
+        Fbuildkernel
+
+	# build cpupower
+	cd tools/power/cpupower
+
+	Fexec make clean || Fdie
+        Fsed '$(OPTIMIZATION) -fomit-frame-pointer' "$CFLAGS" Makefile
+        make DEBUG=false CPUFREQ_BENCH=false || Fdie
+        make DESTDIR="$Fdestdir" CPUFREQ_BENCH=false install || Fdie
+        Fmv /usr/man /usr/share
+        Ffile /etc/sysconfig/cpupower
+        Fexe /usr/sbin/cpupower.sh
+        Ffile /lib/systemd/system/cpupower.service
+
+	Fsplit cpupower etc/
+        Fsplit cpupower lib/systemd
+        Fsplit cpupower usr/bin/
+        Fsplit cpupower usr/include/cpufreq.h
+        Fsplit cpupower usr/lib/
+        Fsplit cpupower usr/sbin/
+        Fsplit cpupower usr/share/
+
+	# build x86_energy_perf_policy
+        cd ../x86/x86_energy_perf_policy
+        make clean || Fdie
+        Fsed '$(OPTIMIZATION) -fomit-frame-pointer' "$CFLAGS" Makefile
+        make  || Fdie
+        Fmkdir usr/bin usr/share/man/man8
+        make DESTDIR="$Fdestdir" install || Fdie
+
+	Fsplit x86_energy_perf_policy usr/bin/
+	Fsplit x86_energy_perf_policy usr/share/
+
+	# build perf
+	cd ../../../perf
+
+        Fsed "-O6" "$CFLAGS" config/Makefile
+        Fsed "lib64" "lib" config/Makefile
+        Fexec make                             \
+                WERROR=0                       \
+                DESTDIR="$Fdestdir/usr"        \
+                NO_GTK2=1                      \
+                NO_LIBAUDIT=1                  \
+                NO_LIBNUMA=1                   \
+                NO_LIBUNWIND=1                 \
+                PERF_VERSION="$pkgver-$pkgrel" \
+                install || Fdie
+        Fmv /usr/etc/bash_completion.d /etc/
+	Frm /usr/etc
+	Fsplit perf etc/
+	Fsplit perf usr/bin/
+	Fsplit perf usr/lib/
+	Fsplit perf usr/libexec/
+
+
+}
 
 # optimization OK

@@ -7,7 +7,6 @@ post_common() {
 		xorg-set-resolution.service \
 		getty@tty1.service \
 		remote-fs.target
-	systemctl --quiet disable getty@.service
 	getent group systemd-journal 2>&1 > /dev/null || /usr/sbin/groupadd -g 57 systemd-journal
 	getent group systemd-journal-gateway 2>&1 > /dev/null || /usr/sbin/groupadd -g 58 systemd-journal-gateway
 	getent passwd systemd-journal-gateway 2>&1 > /dev/null || /usr/sbin/useradd -u 58 -g systemd-journal-gateway -d /var/log/journal -s /usr/sbin/nologin -c "Journal Gateway" systemd-journal-gateway
@@ -15,7 +14,9 @@ post_common() {
 	getent group input 2>&1 > /dev/null || /usr/sbin/groupadd -g 120 input
 
 	# remove obsolete fstab entries
-	sed -i '\/proc\/bus\/usb/d' /etc/fstab 
+	if [ -e /etc/fstab ]; then
+		sed -i '\/proc\/bus\/usb/d' /etc/fstab
+	fi 
 
 	if [ -p /run/systemd/initctl/fifo ] && [ ! -L /dev/initctl ]; then
 		ln -sf /run/systemd/initctl/fifo /dev/initctl
@@ -38,8 +39,10 @@ post_upgrade() {
 	post_common
 
 	# reload systemd (not for big update.. better do a reboot)
-	# systemctl daemon-reexec 
-	echo "Please reboot the system"
+	# well better but some won't so reload the units and reexec the deamons -- crazy ---
+	systemctl daemon-reload
+	systemctl daemon-reexec
+	echo "You may want to reboot the system"
 
 	true
 }

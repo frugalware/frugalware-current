@@ -2,23 +2,16 @@
 # Maintainer: Michel Hermier <hermier@frugalware.org>
 
 pkgname=nvidia
-pkgver=352.41
-pkgrel=8
+pkgver=361.18
+pkgrel=2
 archs=('i686' 'x86_64')
 _F_kernelmod_scriptlet=nvidia.install
 Finclude kernel-module
 groups=('x11-extra')
 pkgdesc="3D accelerated display driver for Nvidia cards"
 url="http://www.nvidia.com/object/unix.html"
-if [ -z "$_F_nvidia_up2date" ]; then
-	if [ -z "$_F_nvidia_legacyver" ]; then
-		_F_nvidia_up2date="Latest Version:"
-	else
-		_F_nvidia_up2date="Latest Legacy GPU Version ($_F_nvidia_legacyver series):"
-	fi
-fi
-up2date="lynx -dump http://www.nvidia.com/object/unix.html|grep -m1 '"$_F_nvidia_up2date"'|sed 's/.*]//;s/-/_/'"
-rodepends=("${rodepends[@]}" 'libvdpau' 'nvidia-settings' 'nvidia-xconfig' 'pkgconfig' 'xorg-server>=1.9.0')
+up2date="Flastverdir http://download.nvidia.com/XFree86/Linux-x86/"
+rodepends=("${rodepends[@]}" 'libvdpau>=1.1.1-2' 'nvidia-settings>=361.16' 'nvidia-xconfig>=361.16' 'pkgconfig' 'xorg-server>=1.18.0')
 conflicts=("${conflicts[@]}" 'libgl' 'libgl-headers-mesa' 'libglx' 'libgles')
 provides=("${provides[@]}" 'libgl' 'libgl-headers-mesa' 'libglx' 'libgles')
 options=("${options[@]}" 'nostrip')
@@ -28,22 +21,20 @@ case "$CARCH" in
 i686)
 	_F_nvidia_name="NVIDIA-Linux-x86-${pkgver}"
 	source=("http://us.download.nvidia.com/XFree86/Linux-x86/${pkgver}/${_F_nvidia_name}.run")
-	sha1sums=('7f7eb2d31b3fceff71dace45255331b10dc4e06b');;
+	sha1sums=('695a0a04135a7d9f56e31ee2b85c39184c531e8a');;
 x86_64)
 	_F_nvidia_name="NVIDIA-Linux-${CARCH}-${pkgver}-no-compat32"
 	source=("http://us.download.nvidia.com/XFree86/Linux-${CARCH}/${pkgver}/${_F_nvidia_name}.run")
-	sha1sums=('82ec3ae4144fd6b485e0065ddcad3eeae5e4119a');;
+	sha1sums=('2376905c5df86fe1c99dbb31f3ae9651624cdf95');;
 esac
 
 source=("${source[@]}" \
 	modprobe-nvidia.conf \
-	xorg-nvidia.conf \
-	seq_file.patch )
+	xorg-nvidia.conf)
 
 sha1sums=("${sha1sums[@]}" \
-          'a2bf63eb7dffdfc9268534654d3864e865af6834' \
-	   '15455cb16a6638ee348dc01620c7f64234178ac8' \
-          'e3fc7c1261515aabe695d6e38a00aa0b82246a3a')
+          	'a2bf63eb7dffdfc9268534654d3864e865af6834' \
+		'15455cb16a6638ee348dc01620c7f64234178ac8')
 
 build () {
 	cd $Fsrcdir
@@ -56,8 +47,8 @@ build () {
 	Fpatchall
 
 	# Build the kernel module
-	cd $Fsrcdir/${_F_nvidia_name}/kernel || Fdie
-	make SYSSRC=$_F_kernelmod_dir/build module || Fdie
+	Fexec cd $Fsrcdir/${_F_nvidia_name}/kernel || Fdie
+	Fexec make SYSSRC=$_F_kernelmod_dir/build module || Fdie
 	Ffilerel nvidia.ko $_F_kernelmod_dir/kernel/drivers/video/nvidia.ko
 	Fbuild_kernelmod_scriptlet
 
@@ -71,54 +62,37 @@ build () {
 
 	# GLX extension module for X
 	Fmkdir /usr/lib/xorg/modules/extensions/
-	Fexerel /usr/lib/xorg/modules/extensions/libglx.so.$pkgver
-	Fln libglx.so.$pkgver /usr/lib/xorg/modules/extensions/libglx.so # X doesn't find glx otherwise
+	Fexerel /usr/lib/xorg/modules/extensions/libglx.so.*
 
 	# OpenGL library
 	Fmkdir /usr/include/GL/
 	Ffilerel gl*.h /usr/include/GL/
 	Fmkdir /usr/lib/
 	Ffilerel /usr/lib/libGL.la
-	Fexerel /usr/lib/libGL.so.$pkgver
-	Fln libGL.so.$pkgver /usr/lib/libGL.so
-	Fln libGL.so.$pkgver /usr/lib/libGL.so.1
+	Fexerel /usr/lib/libGL.so.1
+	Fln libGL.so.1 /usr/lib/libGL.so
 
 	# OpenGL core library
-	Fexerel /usr/lib/libnvidia-glcore.so.$pkgver
-	Fln libnvidia-glcore.so.$pkgver /usr/lib/libnvidia-glcore.so
-	Fln libnvidia-glcore.so.$pkgver /usr/lib/libnvidia-glcore.so.1
+	Fexerel /usr/lib/libnvidia-glcore.so.*
 
 	#EGL
-	Fexerel /usr/lib/libEGL.so.$pkgver
-	Fexerel /usr/lib/libnvidia-eglcore.so.$pkgver
+	Fexerel /usr/lib/libEGL.so.*
+	Fexerel /usr/lib/libnvidia-eglcore.so.*
 
 	#OpenGL ES
-	Fexerel /usr/lib/libGLESv1_CM.so.$pkgver
-	Fexerel /usr/lib/libGLESv2.so.$pkgver
+	Fexerel /usr/lib/libGLESv1_CM.so.*
+	Fexerel /usr/lib/libGLESv2.so.*
 
 	#GLSI
-	Fexerel /usr/lib/libnvidia-glsi.so.$pkgver
-
-	# VDPAU
-	Fmkdir /usr/lib/vdpau/
-	Fexerel /usr/lib/vdpau/libvdpau_nvidia.so.$pkgver
-	Fexerel /usr/lib/vdpau/libvdpau.so.$pkgver
-	Fexerel /usr/lib/vdpau/libvdpau_trace.so.$pkgver
-	Fln libvdpau_nvidia.so.$pkgver /usr/lib/vdpau/libvdpau_nvidia.so
-	Fln libvdpau_nvidia.so.$pkgver /usr/lib/vdpau/libvdpau_nvidia.so.1
+	Fexerel /usr/lib/libnvidia-glsi.so.*
 
 	# CUDA
-	Fexerel /usr/lib/libcuda.so.$pkgver
-	Fexerel /usr/lib/libnvcuvid.so.$pkgver
-	Fexerel /usr/lib/libnvidia-ml.so.$pkgver
-
-	Fln libcuda.so.$pkgver /usr/lib/libcuda.so
-	Fln libcuda.so.$pkgver /usr/lib/libcuda.so.1
+	Fexerel /usr/lib/libcuda.so.*
+	Fexerel /usr/lib/libnvcuvid.so.*
+	Fexerel /usr/lib/libnvidia-ml.so.*
 
 	# nvidia-tls library
-	Fexerel tls/libnvidia-tls.so.$pkgver /usr/lib/libnvidia-tls.so.$pkgver
-	Fln libnvidia-tls.so.$pkgver /usr/lib/libnvidia-tls.so
-	Fln libnvidia-tls.so.$pkgver /usr/lib/libnvidia-tls.so.1
+	Fexerel tls/libnvidia-tls.so.* /usr/lib/libnvidia-tls.so.$pkgver
 
 	# OpenCL
 	Fmkdir /etc/OpenCL/vendors/
@@ -126,29 +100,25 @@ build () {
 	Fexerel /usr/lib/libOpenCL.so.1.0.0
 	Fln libOpenCL.so.1.0.0 /usr/lib/libOpenCL.so
 	Fln libOpenCL.so.1.0.0 /usr/lib/libOpenCL.so.1
-	Fexerel /usr/lib/libnvidia-cfg.so.$pkgver
-	Fln libnvidia-cfg.so.$pkgver /usr/lib/libnvidia-cfg.so
-	Fln libnvidia-cfg.so.$pkgver /usr/lib/libnvidia-cfg.so.1
-	Fexerel /usr/lib/libnvidia-compiler.so.$pkgver
-	Fln libnvidia-compiler.so.$pkgver /usr/lib/libnvidia-compiler.so
-	Fln libnvidia-compiler.so.$pkgver /usr/lib/libnvidia-compiler.so.1
-	Fexerel /usr/lib/libnvidia-opencl.so.$pkgver
+	Fexerel /usr/lib/libnvidia-cfg.so.*
+	Fexerel /usr/lib/libnvidia-compiler.so.*
+	Fexerel /usr/lib/libnvidia-opencl.so.*
 
 	# Encode (no idea..)
-	Fexerel /usr/lib/libnvidia-encode.so.$pkgver
+	Fexerel /usr/lib/libnvidia-encode.so.*
 
 	# Fbc (Frame buffer console?)
-	Fexerel /usr/lib/libnvidia-fbc.so.$pkgver
+	Fexerel /usr/lib/libnvidia-fbc.so.*
 
 	# GTK
-	Fexerel /usr/lib/libnvidia-gtk2.so.$pkgver
-	Fexerel /usr/lib/libnvidia-gtk3.so.$pkgver
+	Fexerel /usr/lib/libnvidia-gtk2.so.*
+	Fexerel /usr/lib/libnvidia-gtk3.so.*
 
 	# IFR
-	Fexerel /usr/lib/libnvidia-ifr.so.$pkgver
+	Fexerel /usr/lib/libnvidia-ifr.so.*
 
 	# WFP
-	Fexerel /usr/lib/libnvidia-wfb.so.$pkgver
+	Fexerel /usr/lib/libnvidia-wfb.so.*
 
 	# nvidia-bug-report
 	Fmkdir /usr/bin/

@@ -2,33 +2,46 @@
 # Maintainer: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=dhcp
-pkgver=4.2.4
-pkgextraver=-P2
-pkgrel=3
+pkgver=4.3.3
+pkgextraver=-P1
+pkgrel=1
 pkgdesc="The ISC DHCP server"
 url="http://www.isc.org/software/dhcp/"
-depends=('glibc')
+depends=('glibc>=2.22-7' 'iproute2')
 makedepends=('groff')
 groups=('network-extra')
 archs=('i686' 'x86_64')
-backup=('etc/dhcpd.conf')
-#Check only the production release. The -Px suffix means Patch and x the number of the patch
-#See http://www.isc.org/software/version-numbering
-up2date="lynx -dump http://www.isc.org/downloads/current|grep -m1 'DHCP'|sed 's/.* \([0-9\.] *\)/\1/'|Fsanitizeversion"
+backup=('etc/dhcpd.conf' 'etc/dhcpd-dhcpv6.conf')
+up2date="lynx -dump http://www.isc.org/downloads | grep -a -m1 'dhcp-\(.*\).tar.gz.' | sed 's/.*dhcp-\(.*\).tar.gz.asc/\1/'|Fsanitizeversion"
 source=(ftp://ftp.isc.org/isc/$pkgname/${pkgver}${pkgextraver}/$pkgname-${pkgver}${pkgextraver}.tar.gz \
-	README.Frugalware dhclient.conf dhcpd.service)
-sha1sums=('78a819d7af6688942429de2178124ea371f038f2' \
+	README.Frugalware \
+	dhclient.conf \
+	dhcpd.service \
+	dhclient@.service \
+	dhclient6@.service \
+	dhcpd6.service)
+sha1sums=('4e76757a0aebcb9200c1d2ca0f28ff41a5c56586' \
           '0510d9057df9dcf1c476961930f0ac65f7de87f9' \
           'b905bf424af0d521fbfc66ad2a216358226845ba' \
-          'd966b6646b09c2ef6101c69daa1864a42ca61112')
+          '5aad78d4a62feb3c6273575451533bb122d7af3a' \
+          '651e935121f8d1763b4d9bbdd9a229ef14aab43f' \
+          '47c99b3c565fdf5c70e654422c72aaf563834367' \
+          '239f0682a5217b9590a1a090106dcfb3655aad3d')
+
 subpkgs=('dhclient')
 subdescs=('The ISC DHCP client')
 subgroups=('network-extra')
-subdepends=('glibc')
-subbackup=('etc/dhclient.conf')
+subdepends=('glibc>=2.22-7 iproute2')
+subbackup=('etc/dhclient.conf etc/dhclient-dhcpv6.conf')
 subarchs=('i686 x86_64')
 
-_F_systemd_units=(dhcpd=)
+options+=('static')
+
+## TODO: dhcrelay support/service
+## add 'better' conf file(s)
+## add some sort /etc/dhcp.d/<config_file>
+
+_F_systemd_units=(dhcpd= dhcpd6= dhclient@= dhclient6@=)
 Finclude systemd
 
 DIRS='client common dhcpctl dst minires server omapip relay'
@@ -37,29 +50,58 @@ build()
 {
 	Fcd
 	Fpatchall
-	Fmake --prefix=/usr --sysconfdir=/etc \
- 	     --with-srv-lease-file=/var/state/dhcp/dhcpd.leases
+
+	_F_make_opts="-j1"
+	Fmake \
+		--prefix=/usr \
+		--sysconfdir=/etc  \
+		--enable-dhcpv6 \
+		--with-srv-lease-file=/var/state/dhcp/dhcpd.leases \
+		--with-srv-pid-file=/run/dhcpd.pid \
+		--with-srv6-lease-file=/var/state/dhcp/dhcpd6.leases \
+		--with-srv-pid-file=/run/dhcpd6.pid \
+		--with-cli-lease-file=/var/state/dhclient/dhclient.leases \
+		--with-cli-pid-file=/run/dhclient.pid \
+		--with-cli6-lease-file=/var/state/dhclient/dhclient6.leases \
+		--with-cli6-pid-file=/run/dhclient6.pid
+
 	Fmakeinstall
+	Fmkdir lib/systemd/system
 	Ffile /lib/systemd/system/dhcpd.service
+	Ffile /lib/systemd/system/dhcpd6.service
+	## use @services here since we can have multiple interfaces
+	Ffile /lib/systemd/system/"dhclient@.service"
+	Ffile /lib/systemd/system/"dhclient6@.service"
 	Fgenscriptlet
 
-	Ffile $pkgname-${pkgver}${pkgextraver}/server/dhcpd.conf /etc/dhcpd.conf
-	Ffile dhclient.conf /etc/dhclient.conf
-	#Ffile $pkgname-$pkgver/client/dhclient.conf /etc/dhclient.conf
-	#Fsed "/etc/dhclient-script" "/sbin/dhclient-script" $Fdestdir/etc/dhclient.conf
-	#Fsed "\(.*\)" "# \1" $Fdestdir/etc/dhclient.conf
-	Fmkdir /var/state/dhcp/
-	touch $Fdestdir/var/state/dhcp/dhcpd.leases
+	## some cof mess
+	Fsed "/usr/local/var/db" "/var/state/dhcp" doc/examples/dhcpd-dhcpv6.conf
+	Fsed "/usr/local/etc" "/sbin" doc/examples/dhclient-dhcpv6.conf
+	Ffile $pkgname-${pkgver}${pkgextraver}/server/dhcpd.conf.example /etc/dhcpd.conf
+	Ffile $pkgname-${pkgver}${pkgextraver}/doc/examples/dhcpd-dhcpv6.conf /etc/dhcpd-dhcpv6.conf
+	Ffile $pkgname-${pkgver}${pkgextraver}/doc/examples/dhclient-dhcpv6.conf /etc/dhclient-dhcpv6.conf
+	Ffile /etc/dhclient.conf
+
+	## we never instlled it .. not sure how that ever worked ?
+	Finstall 755 $pkgname-${pkgver}${pkgextraver}/client/scripts/linux /sbin/dhclient-script
+
+	Fmkdir var/state/{dhcp,dhclient}
+	touch $Fdestdir/var/state/dhcp/dhcpd{,6}.leases
+	touch $Fdestdir/var/state/dhclient/dhclient{,6}.leases
 	Fdoc README.Frugalware
-	Fmkdir /var/lib/dhclient
-	Fmv /usr/share/man /usr/man
+	## FIXME: what for ?
+	Fmkdir var/lib/dhclient
 
 	# Split out dhclient
-	Fsplit dhclient usr/man/man5/dhclient*
-	Fsplit dhclient usr/man/man8/dhclient*
+	Fsplit dhclient usr/share/man/man{5,8}/dhclient*
 	Fsplit dhclient var/lib/dhclient
 	Fsplit dhclient usr/sbin/dhclient*
-	Fsplit dhclient etc/dhclient.conf
+	Fsplit dhclient etc/dhclient{,-dhcpv6}.conf
+	Fsplit dhclient var/state/dhclient
+	## FIXME: the script sucks
+	Fsplit dhclient sbin/dhclient-script
+	Fsplit dhclient lib/systemd/system/dhclient{,6}@.service
+
 }
 
 # optimization OK

@@ -165,21 +165,27 @@ signatures=("${signatures[@]}" '' '' '')
 ###
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
 subrodepends=("kernel$_F_kernel_name-docs make gcc kernel-headers" "kernel$_F_kernel_name")
+subdescs=('Linux kernel source' 'Linux kernel documentation')
+subgroups=('devel-extra' 'apps')
+subdepends=('' '')
+subreplaces=('' '')
+subprovides=('' '')
+subconflicts=('' '')
 subarchs=('i686 x86_64 arm' 'i686 x86_64 arm')
 subinstall=('' '')
 suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
 	subpkgs=("${subpkgs[@]}" 'kernel-headers')
 	subrodepends=("${subrodepends[@]}" '')
-	subgroups=('devel-extra' 'apps' 'devel devel-core')
-	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')
+	subgroups=("${subgroups[@]}" 'devel devel-core')
+	subdescs=("${subdescs[@]}" 'Linux kernel include files')
 	subarchs=("${subarchs[@]}" 'i686 x86_64 arm')
 	subinstall=("${subinstall[@]}" '')
 	suboptions=("${suboptions[@]}" '')
-else
-	subgroups=('devel-extra' 'apps-extra')
-	subdescs=("Linux kernel source (${_F_kernel_name/-} version)" \
-		"Linux kernel documentation (${_F_kernel_name/-} version)")
+	subreplaces=("${subreplaces[@]}" '')
+	subdepends=("${subdepends[@]}" '')
+	subprovides=("${subprovides[@]}" '')
+	subconflicts=("${subconflicts[@]}" '')
 fi
 
 ###
@@ -242,8 +248,6 @@ Fbuildkernel()
 	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
 	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,.gitignore,.config.old,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
-	# the following line can be removed after 1.8
-	Fln ../generated/uapi/linux/version.h /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/include/linux/version.h
 	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname scripts || Fdie
 	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname prepare || Fdie
 	Fsplit kernel$_F_kernel_name-source usr/src

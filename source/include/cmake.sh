@@ -110,6 +110,8 @@ CMake_conf()
 		-DCMAKE_CXX_FLAGS_DEBUG="$CXXFLAGS" \
 		-DCMAKE_C_FLAGS_DEBUG="$CFLAGS" \
 		-DCMAKE_SKIP_RPATH="$_F_cmake_rpath" \
+		-DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG" \
+		-DCMAKE_C_FLAGS_RELEASE="-DNDEBUG" \
 		$_F_cmake_confopts "$@" $_F_cmake_src || Fdie
 }
 
@@ -148,6 +150,8 @@ CMake_make()
 CMake_install()
 {
 	make DESTDIR=$Fdestdir install/fast || Fdie
+	Fremove_static_libs
+	Ffix_la_files
 }
 ###
 # * CMake_build(): build() wrapper

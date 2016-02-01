@@ -9,12 +9,13 @@
 #
 # == SYNOPSIS
 # Common schema for qt5 packages
-#
+###
 
 ###
 # == PROVIDED FUNCTIONS
 # * build_qt5(): function to build qt5 source packages
 ###
+
 pkgver=5.5.1
 qtpkgname=${pkgname/5-/}
 qtpkgfilename=${qtpkgname}-opensource-src-${pkgver}

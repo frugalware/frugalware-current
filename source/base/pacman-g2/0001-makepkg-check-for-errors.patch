@@ -1,0 +1,107 @@
+From 2d09bac3f7c2314d85528dd4f95c2d95e4ceac46 Mon Sep 17 00:00:00 2001
+From: crazy <crazy@frugalware.org>
+Date: Sat, 2 Jan 2016 17:47:52 +0100
+Subject: [PATCH] makepkg * added checks for broken PATH / wrong installed
+ files: * -> /usr/usr * -> /usr/etc * -> /usr/<some_file> * -> /<some_file> *
+ -> /usr/share/pkgconfig * -> /usr/share/perl5 * -> /lib64 * -> /usr/lib64 *
+ -> /usr/lib/systemd/system * -> broke --prefix=/usr , eg: dirs and files are
+ installed in / * when found makepkg will bail out with an error
+
+---
+ scripts/makepkg | 80 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 80 insertions(+)
+
+diff --git a/scripts/makepkg b/scripts/makepkg
+index 90e797b..ded62a7 100755
+--- a/scripts/makepkg
++++ b/scripts/makepkg
+@@ -1673,6 +1673,86 @@ fi
+ 
+ cd $startdir
+ 
++## well die here
++
++for dir in {pkg,pkg.*}
++do
++	[ ! -d ${dir} ] && continue
++	## wrong pkgconfig path
++	if [ -d ${dir}/usr/share/pkgconfig ]; then
++		error "Your package has broken pkgconfig PATH"
++		error "Files are installed in /usr/share/pkgconfig"
++		error "but should be /usr/lib/pkgconfig!"
++		error "Bailing out, please fix your package!"
++		exit 1
++	fi
++	## invalid /usr/etc
++	if [ -d ${dir}/usr/etc ]; then
++		error "Your package has broken /etc PATH"
++		error "Files are installed in /usr/etc"
++		error "but should be /etc!"
++		error "Bailing out, please fix your package!"
++		exit 1
++        fi
++	## invalid /usr/usr
++	if [ -d ${dir}/usr/usr ]; then
++		error "Your package has broken /usr PATH"
++		error "Files are installed in /usr/usr"
++		error "but should be /usr!"
++		error "Bailing out, please fix your package!"
++		exit 1
++	fi
++	## invalid perl path
++	if [ -d ${dir}/usr/share/perl5 ]; then
++		error "Your package has broken perl PATH"
++		error "Files are installed in /usr/share/perl5"
++		error "but should be /usr/lib/perl5!"
++		error "Bailing out, please fix your package!"
++		exit 1
++	fi
++	## try to find broken packages installing stuff in / , eg: /include
++	if [ -d ${dir}/include ] || [ -d ${dir}/share ]; then
++		error "Broken package detected files are installed in /"
++		error "--prefix=/usr may be broken"
++		error "Bailing out, please fix your package!"
++		exit 1
++	fi
++	## wrong unit path for systemd
++	if [ -d ${dir}/usr/lib/systemd/system ]; then
++		error "Your package has broken PATH for systemd unit files"
++		error "Files are installed in /usr/lib/systemd/system"
++		error "but should be /lib/systemd/system!"
++		error "Bailing out, please fix your package!"
++		exit 1
++	fi
++	## /lib64 and /usr/lib/64 .. this is a symlink in our layout
++	## so don't install there
++	if [ -d ${dir}/lib64 ] || [ -d ${dir}/usr/lib64 ]; then
++		error "Your package has broken /lib or /usr/lib PATH"
++		error "Files are installed in 'lib64'"
++		error "but should be /lib or /usr/lib!"
++		error "Bailing out, please fix your package!"
++		exit 1
++	fi
++	## don't insstall files in /usr/<file>
++	files=$(find ${dir}/usr -maxdepth 1 -type f)
++	if [[ ${files[@]} ]]; then
++		error "Your package seems to install files in /usr/<file>"
++		printf " --> %s\n" ${files[@]}
++		error "Bailing out, please fix your package!"
++		exit 1
++	fi
++	## don't install files in /
++	files=$(find ${dir} -maxdepth 1 -type f)
++	if [[ ${files[@]} ]]; then
++		error "Your package seems to install files in /<file>"
++		printf " --> %s\n" ${files[@]}
++		error "Bailing out, please fix your package!"
++		exit 1
++	fi
++	files=
++done
++
+ # unwanted files
+ msg "Removing unwanted files..."
+ extra=
+-- 
+2.6.4
+

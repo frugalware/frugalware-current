@@ -19,7 +19,9 @@
 
 url="http://www.winehq.org"
 groups=('xapps-extra')
-depends=('lcms2' 'openal' 'libglu' 'libldap' 'libpcap' 'libpulse' 'libmpg123' 'libgphoto2' 'gettext')
+depends=('lcms2' 'openal' 'libglu' 'libldap' 'libpcap' 'libpulse' 'libmpg123' 'libgphoto2' 'gettext' \
+	'libxcursor' 'libxi' 'libxrandr' 'libxinerama' 'libxcomposite' 'sane-backends' 'v4l-utils' 'libxrender' 'libxslt'
+	)
 makedepends=('x11-protos' 'cups')
 _F_cd_path="wine-$pkgver"
 options=('genscriptlet')
@@ -37,7 +39,8 @@ wine)
 
 wine-devel)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Development)"
-	up2date="lynx -dump $url | sed -n 's|^.*Development:.*Wine \([0-9a-zA-Z.]\+\).*\$|\1|p'"
+	_F_archive_name="wine"
+	up2date="Flasttar https://dl.winehq.org/wine/source/1.9/"
 	conflicts=('wine')
 	provides=('wine')
 	;;
@@ -55,7 +58,7 @@ then
 	rodepends=('lib32-wine')
 fi
 
-source=(http://ftp.winehq.org/pub/wine/source/${pkgver%.*}/wine-$pkgver.tar.bz2)
+source=(https://dl.winehq.org/wine/source/${pkgver%.*}/wine-$pkgver.tar.bz2)
 signatures=("${source[@]}.sign")
 
 build()

@@ -1,24 +1,32 @@
 # Compiling Time: 8 SBU
-# Maintainer: James Buren <ryuo@frugalware.org>
+# Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=wine-devel
-pkgver=1.7.55
-pkgrel=2
+pkgver=1.9.3
+pkgrel=1
 Finclude wine
 source=("${source[@]}" \
 	https://raw.githubusercontent.com/NP-Hardass/wine-d3d9-patches/master/common.sh
 	https://raw.githubusercontent.com/NP-Hardass/wine-d3d9-patches/master/generate-d3d9-patch.sh)
 signatures=("${signatures[@]}" '' '')
 
-depends+=('mesa-nine' 'libegl')
-makedepends+=("git" 'x11-protos')
+depends+=('mesa-nine' 'libegl' 'gst1-plugins-base')
+makedepends+=("git")
 
 Fconfopts+=" --with-d3dadapter"
+
+if [[ "$CARCH" == "x86_64" ]]
+then
+        rodepends=('lib32-wine-devel')
+fi
 
 build()
 {
 	mv $Fsrcdir/*.sh ${_F_cd_path}/
 	Fcd
+
+        # Disable optimizations to workaround GCC issues
+        CFLAGS="${CFLAGS//-O2/-O0}"
 
 	# Stupid git
 	Fexec git config --global user.email "nope@example.zz"
@@ -28,12 +36,9 @@ build()
 	mv wine-d3d9-latest.patch ../
 	Fpatch	wine-d3d9-latest.patch
 
-        # Disable optimizations to workaround GCC issues
-        CFLAGS="${CFLAGS//-O2/-O0}"
-
-	Fautoreconf
+        Fsed 'lib64' 'lib' configure.ac
+        Fautoreconf
         Fbuild
-        [ "$CARCH" == "x86_64" ] && Fln wine64 /usr/bin/wine
         Fexec cp $Fincdir/wine.conf $Fsrcdir
         Ffile /etc/binfmt.d/wine.conf
 }

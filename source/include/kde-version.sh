@@ -18,11 +18,11 @@
 
 
 _F_kdever_ver=4.14.3
-_F_kdever_frameworks=5.8
+_F_kdever_frameworks=5.17
 _F_kdever_frameworks_revision=0
-_F_kdever_plasma=5.0.1
+_F_kdever_plasma=5.5.4
 _F_kdever_qt=4.8.7-2
-_F_kdever_qt5=5.3.1
+_F_kdever_qt5=5.5.1
 
 # Must be done in 2 lines else bash barfs on the floor
 declare -gA _F_kdever_sha1sums _F_kde5_sha1sums

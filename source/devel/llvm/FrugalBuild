@@ -2,26 +2,27 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=llvm
-pkgver=3.4.2
-pkgrel=5
+pkgver=3.7.1
+pkgrel=2
+gcc_ver=5.3.0
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
-gcc_ver="4.8.3"
-depends=("libstdc++=$gcc_ver" "gcc=$gcc_ver")
-makedepends=('groff' 'libffi' 'python' 'ocaml>=3.12.1-4')
+depends=("libstdc++=${gcc_ver}")
+makedepends=('groff' 'libffi>=3.2.1' 'python-sphinx' 'python-markupsafe' \
+	'ocaml-ctypes>=0.4.1-3' 'ocaml-findlib>=1.6.1-4' "libgo>=${gcc_ver}" 'ncurses>=6.0-4')
+## tc bump -- we need for rebuilds foo>=x-y sytle to be sure is rebuilt with
+## the right versions of the packages
+makedepends=("${makedepends[@]}" 'libstdc++>=5.3.0-2' 'binutils>=2.25.1-6' 'glibc>=2.22-7')
+rodepends=("$pkgname-libs")
 groups=('devel')
 archs=('i686' 'x86_64' 'arm')
-up2date="Flastarchive $url/releases/download.html .src.tar.gz"
-source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.gz \
-	http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.gz \
-	path-fix.patch fix-include-path.patch llvm-3.4-provide-cmake-modules.patch)
+up2date="Flastarchive $url/releases/download.html .src.tar.xz"
+source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.xz \
+	http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.xz \
+	llvm-3.7.0-upstream-46392-24157-fix.patch)
+
 _F_archive_ver="${pkgver}.src"
-_F_make_opts="${MAKEFLAGS} REQUIRES_RTTI=1"
-sha1sums=('c5287384d0b95ecb0fd7f024be2cdfb60cd94bc9' \
-          'add5420b10c3c3a38c4dc2322f8b64ba0a5def97' \
-          '9b4d212f4cea66982bc21d73aac248543f1ca6c5' \
-          '4572bd857d0e39f1b5669cc197afd88ed1a7ed84' \
-          'e1adb95ab4f0d1ed942da8d15ac4605d483ac922')
+signatures=("${source[0]}.sig" "${source[1]}.sig" '')
 
 subpkgs=("${subpkgs[@]}" "clang")
 subdescs=("${subdescs[@]}" "C language family frontend for LLVM")
@@ -37,47 +38,97 @@ subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
 subgroups=("${subgroups[@]}" 'devel-extra')
 subarchs=("${subarchs[@]}" "${archs[*]}")
 
+subpkgs=("${subpkgs[@]}" "$pkgname-libs")
+subdescs=("${subdescs[@]}" "LLVM shared libs")
+subdepends=("${subdepends[@]}" "ncurses>=6.0-4")
+subrodepends=("${subrodepends[@]}" "")
+subgroups=("${subgroups[@]}" 'lib')
+subarchs=("${subarchs[@]}" "${archs[*]}")
+
+
+
+F_cmake_type="Release"
+_F_cmake_confopts+="	-DCMAKE_INSTALL_PREFIX=/usr \
+			-DLLVM_BUILD_LLVM_DYLIB=ON \
+			-DLLVM_DYLIB_EXPORT_ALL=ON \
+			-DLLVM_LINK_LLVM_DYLIB=ON \
+			-DLLVM_ENABLE_RTTI=ON \
+			-DLLVM_ENABLE_FFI=ON \
+			-DLLVM_BUILD_DOCS=ON \
+			-DLLVM_ENABLE_SPHINX=ON \
+			-DLLVM_ENABLE_DOXYGEN=OFF \
+			-DFFI_INCLUDE_DIR=$(pkg-config --cflags-only-I libffi | cut -c3-) \
+			-DLLVM_HOST_TRIPLE=${CARCH}-frugalware-linux \
+			-DLLVM_DEFAULT_TARGET_TRIPLE=${CARCH}-frugalware-linux \
+			-DC_INCLUDE_DIRS=/usr/local/include:/usr/include/c++/${gcc_ver}:/usr/include/c++/${gcc_ver}/backward:/usr/include/c++/${gcc_ver}/${CARCH}-frugalware-linux:/usr/include \
+			-DLLVM_BINUTILS_INCDIR=/usr/include \
+			.."
+
+Finclude cmake
+
+options+=('static')
+
 build() {
+
+
 	Fcd
 	# clang must be copied here to build with llvm
-	Fexec mv -f ../cfe-${_F_archive_ver}/ tools/clang || Fdie
+	Fexec rm -rf tools/clang
+	Fexec mv -f ../cfe-${_F_archive_ver}/ tools/clang
 
-	Fpatchall
 
-	# Apply strip option to configure
-	_optimized_switch="enable"
-	[[ $(check_option strip) == n ]] && _optimized_switch="disable"
+	# Fix for genesis32
+        if [ "$CARCH" == "i686" ]; then
+                LDFLAGS+=" -Wl,--no-keep-memory -Wl,--reduce-memory-overheads"
+        fi
 
-	# Do not remove. This is needed to set the correct GCC version includes.
-	Freplace 'gcc_ver' tools/clang/lib/Driver/ToolChains.cpp
-	if grep -q '@gcc_ver@' tools/clang/lib/Driver/ToolChains.cpp; then
-		Fmessage "gcc_ver replacement failed! Find the cause and then rebuild."
-		Fdie
-	fi
-	Fsed '\${prefix}/etc/llvm' '/etc/llvm' configure
-	export CC='gcc'
-	export CXX='g++'
-	Fmake --libdir=/usr/lib/llvm \
-		--sysconfdir=/etc \
-		--enable-shared \
-		--enable-libffi \
-		--enable-targets=all \
-		--$_optimized_switch-optimized
+	CMake_make
 
-	Fmakeinstall
+	Fexec make -C ../docs -f Makefile.sphinx man || Fdie
+	Fexec make -C ../docs -f Makefile.sphinx html || Fdie
+	Fexec make -C ../tools/clang/docs -f Makefile.sphinx html || Fdie
+	Fexec make -C ../tools/clang/docs -f Makefile.sphinx man || Fdie
+
+	Fexec make ocaml_doc
+
+	CMake_install
+
+	# Install man pages
+	Fmkdir usr/share/man/man1
+	Fcp ${_F_cd_path}/docs/_build/man/*.1 usr/share/man/man1/
+	Fcp ${_F_cd_path}/tools/clang/docs/_build/man/*.1 usr/share/man/man1/
+
+
+	# Install html docs
+	Fmkdir usr/share/doc/$pkgname-$pkgver/html/
+	Fcp ${_F_cd_path}/docs/_build/html/* usr/share/doc/$pkgname-$pkgver/html/
+	Frm usr/share/doc/$pkgname-$pkgver/html/_sources
+
+	# Install html docs of clang
+	Fmkdir usr/share/doc/$pkgname-$pkgver/html/clang
+	Fcp ${_F_cd_path}/tools/clang/docs/_build/html/* usr/share/doc/$pkgname-$pkgver/html/clang
+	Frm usr/share/doc/$pkgname-$pkgver/html/clang/_sources
+
+        # Install html docs of llvm-ocaml
+        Fmkdir usr/share/doc/$pkgname-$pkgver/ocamldoc
+        Fcp ${_F_cd_path}/${_F_cmake_build_dir}/docs/ocamldoc/html/* usr/share/doc/$pkgname-$pkgver/ocamldoc
+	Fmv usr/docs/ocaml/html usr/share/doc/$pkgname-$pkgver/ocamldoc/
+	Frm usr/docs
+
 
 	Fsplit clang usr/bin/clang*
-	Fsplit clang usr/bin/c-index-test
 	Fsplit clang usr/include/clang*
 	Fsplit clang usr/lib/clang/
 	Fsplit clang usr/lib/libclang*
 	Fsplit clang usr/share/man/man1/clang*
-	Fsplit clang usr/share/doc/llvm/html/clang/
-	Fsplit clang usr/share/doc/llvm/ps/clang.ps
+	Fsplit clang usr/share/doc/$pkgname-$pkgver/html/clang/
 
 	Fsplit $pkgname-ocaml usr/lib/ocaml/
-	Fsplit $pkgname-ocaml usr/share/doc/llvm/ocamldoc/
-	Fsplit $pkgname-ocaml usr/share/doc/llvm/ocamldoc.tar.gz
+	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/ocamldoc/
+	Fsplit $pkgname-ocaml usr/share/llvm/cmake/{Find,Add}OCaml.cmake
+	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/html/tutorial/OCamlLangImpl*.html
+
+	Fsplit $pkgname-libs usr/lib/*.so*
 }
 
 # optimization OK

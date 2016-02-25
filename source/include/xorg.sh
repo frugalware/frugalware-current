@@ -57,7 +57,7 @@ if [[ $pkgname =~ ^xf86-input- ]]; then
 	pkgdesc="X.Org driver for ${pkgname#xf86-input-} input devices"
 	groups=('x11' 'xorg-core' 'xorg-drivers')
 	archs=('i686' 'x86_64')
-	depends=('xorg-server>=1.15.2')
+	depends=("${depends[@]}" 'xorg-server>=1.18.0')
 fi
 url="http://xorg.freedesktop.org"
 
@@ -78,6 +78,7 @@ _F_xorg_url="$url/releases/$_F_xorg_release_dir/$_F_xorg_dir/"
 license="GPL2"
 _F_archive_name="$_F_xorg_name"
 up2date="Flasttar $_F_xorg_url"
+makedepends=("${makedepends[@]}" 'x11-protos>=0.1-3' 'pkgconfig>=0.29-2')
 source=($_F_xorg_url/$_F_xorg_name-$pkgver.tar.bz2)
 if [ -z "$_F_cd_path" ]; then
 	_F_cd_path="$_F_xorg_name-$pkgver"

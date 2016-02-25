@@ -37,14 +37,11 @@ Finclude kernel-version
 #
 # * _F_kernel_vmlinuz (defaults to arch/$arch/boot/bzImage): path to the kernel
 # binary
-# * _F_kernel_verbose: if set, then the V=1 parameter will be passed to make
 # * _F_kernel_name (defaults to ""): include a string in the kernel version
 # string (example: "-mygrsec")
 # * _F_kernel_ver (defaults to $pkgver): the version of the kernel
 # * _F_kernel_rel (defaults to $pkgrel): the release of the kernel (used in the
 # kernel version string)
-# * _F_kernel_stable: if set, the version of the stable patch to use (example:
-# "16", it will be set to _F_kernelver_stable if pkgrel is not specified)
 # * _F_kernel_dontfakeversion if set, don't replace the kernel version string
 # with a generated one (from _F_kernel_ver, _F_kernel_name and _F_kernel_rel)
 # * _F_kernel_uname: specify the kernel version manually (defaults to
@@ -57,7 +54,6 @@ Finclude kernel-version
 ###
 
 if Fuse $USE_DEVEL; then
-	_F_kernelver_stable=0
 	_F_kernel_dontfakeversion=1
 fi
 
@@ -67,11 +63,6 @@ fi
 
 if [ -z "$_F_kernel_rel" ]; then
 	_F_kernel_rel=$_F_kernelver_rel
-	_F_kernel_stable=$_F_kernelver_stable
-fi
-
-if [ -z "$_F_kernel_stable" ]; then
-	_F_kernel_stable=0
 fi
 
 if [ -z "$_F_kernel_dontfakeversion" ]; then
@@ -131,17 +122,7 @@ fi
 # * up2date
 # * source()
 ###
-_kernel_up2date()
-{
-	local _ver
-	_ver=$(Fwcat 'http://www.kernel.org/pub/linux/kernel/v3.0/' | sed -n "s|.*linux-\($_F_kernelver_ver\(.[0-9]\+\)\?\).tar.xz.*|\1|p" | Fsort | tail -n 1)
-	if [ "$_ver" == "$_F_kernelver_ver.$_F_kernelver_stable" ]; then
-		echo $pkgver
-	else
-		echo $_ver
-	fi
-}
-url="http://www.kernel.org"
+url="https://www.kernel.org"
 depends=('kmod' 'sed')
 if [ -z "$_F_kernel_name" ]; then
 	makedepends=("${makedepends[@]}" 'unifdef')
@@ -152,19 +133,12 @@ fi
 groups=('base')
 archs=('i686' 'x86_64' 'arm')
 options=('nodocs' 'genscriptlet')
-up2date="eval _kernel_up2date"
-# this can be removed after Frualware 1.5 is out
-replaces=('redirfs' 'dazuko')
+_F_archive_grepv="rc"
+up2date="Flasttar $url"
 
 if ! Fuse DEVEL; then
-	source=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.xz")
-	signatures=("http://www.kernel.org/pub/linux/kernel/v3.0/$_F_archive_name-$pkgver.tar.sign")
-	if [ "$_F_kernel_stable" -gt 0 ]; then
-		source=("${source[@]}" \
-			"http://www.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.xz")
-		signatures=("${signatures[@]}" \
-			"http://www.kernel.org/pub/linux/kernel/v3.0/patch-$pkgver.$_F_kernel_stable.sign")
-	fi
+	source=("https://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.xz")
+	signatures=("https://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.sign")
 else
 	if [ -z "$_F_scm_tag" ]; then
 		_F_scm_tag="v$pkgver"
@@ -191,21 +165,27 @@ signatures=("${signatures[@]}" '' '' '')
 ###
 subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
 subrodepends=("kernel$_F_kernel_name-docs make gcc kernel-headers" "kernel$_F_kernel_name")
+subdescs=('Linux kernel source' 'Linux kernel documentation')
+subgroups=('devel-extra' 'apps')
+subdepends=('' '')
+subreplaces=('' '')
+subprovides=('' '')
+subconflicts=('' '')
 subarchs=('i686 x86_64 arm' 'i686 x86_64 arm')
 subinstall=('' '')
 suboptions=('nodocs' '')
 if [ -z "$_F_kernel_name" ]; then
 	subpkgs=("${subpkgs[@]}" 'kernel-headers')
 	subrodepends=("${subrodepends[@]}" '')
-	subgroups=('devel-extra' 'apps' 'devel devel-core')
-	subdescs=('Linux kernel source' 'Linux kernel documentation' 'Linux kernel include files')
+	subgroups=("${subgroups[@]}" 'devel devel-core')
+	subdescs=("${subdescs[@]}" 'Linux kernel include files')
 	subarchs=("${subarchs[@]}" 'i686 x86_64 arm')
 	subinstall=("${subinstall[@]}" '')
 	suboptions=("${suboptions[@]}" '')
-else
-	subgroups=('devel-extra' 'apps-extra')
-	subdescs=("Linux kernel source (${_F_kernel_name/-} version)" \
-		"Linux kernel documentation (${_F_kernel_name/-} version)")
+	subreplaces=("${subreplaces[@]}" '')
+	subdepends=("${subdepends[@]}" '')
+	subprovides=("${subprovides[@]}" '')
+	subconflicts=("${subconflicts[@]}" '')
 fi
 
 ###
@@ -228,17 +208,19 @@ Fbuildkernel()
 		cp $Fsrcdir/config .config || Fdie
 	fi
 
-	if [ -n "$_F_kernel_stable" ]; then
-		sed -i "/Linux kernel version:/s/: .*/: $_F_kernel_ver.$_F_kernel_stable/" .config
-	fi
-
-	[ $_F_kernel_stable -gt 0 ] && Fpatch patch-$_F_kernel_ver.$_F_kernel_stable
 	# not using Fpatchall here since not applying the patches from
 	# _F_kernel_patches() having the wrong extension would be stange :)
 	for i in "${_F_kernel_patches[@]}"
 	do
 		Fpatch `strip_url $i`
 	done
+
+	if [ -z "$_F_kernel_name" -a $_F_kernel_dontfakeversion -eq 0 ]; then
+		# stock kernel, nobody interested in the buildsystem's detail
+		export KBUILD_BUILD_USER="fst"
+		export KBUILD_BUILD_HOST="`uname -m`.frugalware.org"
+	fi
+
 	# remove unneded localversions
 	rm -f localversion-*
 	rm -f ../*.{gz,bz2,sign}
@@ -266,8 +248,6 @@ Fbuildkernel()
 	cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
 	rm -rf $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,.gitignore,.config.old,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
-	# the following line can be removed after 1.8
-	Fln ../generated/uapi/linux/version.h /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/include/linux/version.h
 	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname scripts || Fdie
 	make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname prepare || Fdie
 	Fsplit kernel$_F_kernel_name-source usr/src
@@ -285,17 +265,10 @@ Fbuildkernel()
 		[ -e $Fdestdir/usr/include/drm ] && Frm /usr/include/drm
 		Fsplit kernel-headers /usr
 	fi
-	if [ -z "$_F_kernel_name" -a $_F_kernel_dontfakeversion -eq 0 ]; then
-		# stock kernel, nobody interested in the buildsystem's details
-		Fsed '`whoami`' 'fst' scripts/mkcompile_h
-		Fsed '`hostname \| $UTS_TRUNCATE`' "`uname -m`.frugalware.org" scripts/mkcompile_h
-	fi
-	## now time to eat some cookies and wait kernel got compiled :)
-	if [ "$_F_kernel_verbose" ]; then
-		make $MAKEFLAGS V=1 || Fdie
-	else
-		make $MAKEFLAGS || Fdie
-	fi
+
+	## now time to eat some cookies and wait the kernel got compiled :)
+	## use verbose by default, we want to know what is going on...
+	make $MAKEFLAGS V=1 || Fdie
 
 	if [ "$CARCH" = "arm" ]; then
 		make uImage || Fdie
@@ -330,8 +303,6 @@ Fbuildkernel()
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/build
 	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname \
 		/lib/modules/$_F_kernel_ver$_F_kernel_uname/source
-
-	Fkernelver_compress_modules
 
 	Fexec /sbin/depmod -a -b $Fdestdir $_F_kernel_ver$_F_kernel_uname || Fdie
 }

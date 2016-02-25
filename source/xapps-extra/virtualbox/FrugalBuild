@@ -4,14 +4,14 @@
 
 pkgname=virtualbox
 realname=VirtualBox
-pkgver=4.3.14
+pkgver=5.0.14
 pkgrel=1
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' \
-         'alsa-lib' 'qt4-linguist' 'curl' 'libqtopengl' 'python>=2.7' 'libxmu' 'libuuid' 'libcap' \
-         'libvpx' 'lvm2' 'libgl' 'libxext' 'libx11')
-makedepends=('kernel-source' 'kernel-headers' 'openjdk' 'cdrtools')
+         'alsa-lib' 'qt4-linguist' 'curl' 'libqtopengl' 'libxmu' 'libuuid' 'libcap' \
+         'libvpx>=1.5.0' 'lvm2' 'libgl' 'libxext' 'libx11' 'libpulse' 'libglu')
+makedepends=('kernel-source' 'kernel-headers' 'cdrtools' 'x11-protos')
 rodepends=("virtualbox-modules=$pkgver")
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
@@ -20,10 +20,10 @@ source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver
 	10-vboxdrv.rules LocalConfig.kmk $pkgname.install)
 options=('scriptlet' 'genscriptlet')
 _F_cd_path="${realname}-${pkgver}"
-sha1sums=('443291d7d8cf80590eb4dcee06c72c8846d43f76' \
+sha1sums=('d19b06df4af90e0b641ce2ce0c4c91b39ad3fc74' \
           'aa931ae19edd8585150738f0efd8fedf5175a6d3' \
-          'b911e2cf9f88242afdf7fcfe30d2724bb7143ddf' \
-          '8d0571e1c618e6e2b408957a57a4bf8ad2267dea')
+          '5b7ecf8ee9e3b367c485e513ae36d30cbd23eff5' \
+          'f32f69a501794adc5da977060db0e607aee839f0')
 
 build() {
 
@@ -41,13 +41,13 @@ build() {
 
         # Configure and load our options
 	if [ "$CARCH" == "x86_64" ]; then
-	  ./configure --disable-docs --nofatal --disable-pulse --disable-vmmraw  || Fdie
+	  ./configure --disable-docs --nofatal --enable-pulse --disable-vmmraw  || Fdie
 	else
-	  ./configure --disable-docs --nofatal --disable-pulse || Fdie
+	  ./configure --disable-docs --nofatal --enable-pulse || Fdie
 	fi
-	
+
 	source ./env.sh || Fdie
-	
+
 	kmk all || Fdie
 	#kmk BUILD_TYPE=debug || Fdie
 
@@ -59,23 +59,22 @@ build() {
 	  VboxSrcDir=${_F_cd_path}/out/linux.x86/release/bin
 	fi
 	cd ${Fsrcdir}/${VboxSrcDir} || Fdie
-	
+
 	#Binaries and Wrapper with Launchers
 	Fexerel VBox.sh "usr/bin/VBox"
 
 	for i in VBoxHeadless vboxheadless VBoxManage vboxmanage VBoxSDL vboxsdl VirtualBox virtualbox VBoxBalloonCtrl vboxballoonctrl; do
           Fln VBox "usr/bin/$i"
 	done
-	
+
 	Fexerel VBoxTunctl "usr/bin/VBoxTunctl"
 
         Fexerel components/* "usr/lib/virtualbox/components"
 
-        Fexerel "*.so" "usr/lib/virtualbox"
+        Fexerel *.so "usr/lib/virtualbox"
 
-        Finstallrel 644 "*.r0" "usr/lib/virtualbox/"
-        Finstallrel 644 "VBoxEFI*.fd" "usr/lib/virtualbox/"
-        [ "$CARCH" != "x86_64" ] &&Finstallrel 644 "*.gc"  "usr/lib/virtualbox"
+        Finstallrel 644 *.r0 "usr/lib/virtualbox/"
+        Finstallrel 644 VBoxEFI*.fd "usr/lib/virtualbox/"
 
 	Finstallrel 4755 VBoxSDL VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetAdpCtl "usr/lib/virtualbox"
 
@@ -92,10 +91,13 @@ build() {
 	pushd icons
 	for i in ./*; do
 	  echo $i
-	  Finstallrel 644 "$i/*" "usr/share/icons/hicolor/$i/mimetypes"
+	  Finstallrel 644 $i/* "usr/share/icons/hicolor/$i/mimetypes"
 	done
 	popd
 
+	## this fixes -> warning: errors occurred while upgrading virtualbox
+	## the folder is empty and the owner is hicolor-icon-theme
+	Frm usr/share/icons/hicolor/scalable/mimetypes
 	Finstallrel 0644 virtualbox.desktop "usr/share/applications/virtualbox.desktop"
 	Finstallrel 0644 virtualbox.xml "usr/share/mime/packages/virtualbox.xml"
 
@@ -106,4 +108,9 @@ build() {
 	#udev and licence
 	Finstall 0644 "VirtualBox-${pkgver}/COPYING" "usr/share/licenses/virtualbox/LICENSE"
 	Finstall 0644 "10-vboxdrv.rules" "lib/udev/rules.d/10-vboxdrv.rules"
+
+	Fmkdir etc/ld.so.conf.d
+	echo /usr/lib/virtualbox  >> "$Fdestdir/etc/ld.so.conf.d/virtualbox.conf" || Fdie
 }
+
+# optimization OK

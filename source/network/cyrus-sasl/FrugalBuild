@@ -1,49 +1,75 @@
 # Compiling Time: 0.16 SBU
-# Maintainer: Karoly CZOVEK <slinky@rei.keni.hu>
+# Maintainer: DeX77 <dex77@frugalware.org>
+# Contributorr: Karoly CZOVEK <slinky@rei.keni.hu>
 
 pkgname=cyrus-sasl
-pkgver=2.1.25
-pkgrel=7
+pkgver=2.1.26
+pkgrel=2
 pkgdesc="SASL Authentication mechanism"
-url="http://ftp.andrew.cmu.edu/pub/cyrus-mail/"
-depends=('openssl>=1.0.0' 'gdbm>=1.10' 'pam' 'systemd')
+url="https://cyrusimap.org/"
+depends=('openssl>=1.0.2-3' 'gdbm>=1.11-3' 'e2fsprogs>=1.42.13-4' 'libkrb5>=1.14')
+makedepends=('postgresql>=9.4.5' 'krb5>=1.14' 'mysql>=5.5.47')
 groups=('network')
 archs=('i686' 'x86_64' 'arm')
-source=(ftp://ftp.andrew.cmu.edu/pub/cyrus-mail/cyrus-sasl-$pkgver.tar.gz \
-	psql.patch saslauthd.service saslauthd \
-	README.Frugalware)
-up2date="lynx -dump 'http://ftp.andrew.cmu.edu/pub/cyrus-mail/?M=D'|grep cyrus-sasl.*tar.gz$|sed -n 's/.*-\(.*\)\.t.*/\1/;1 p'"
-sha1sums=('b6c34426012d9b5d448d5646cbecd818a5eeacbf' \
-          'b4eeaf03a4b672f3153e0b5ef2eec59802d0214d' \
+source=(ftp://ftp.cyrusimap.org/$pkgname/$pkgname-$pkgver.tar.gz \
+	saslauthd.service saslauthd README.Frugalware \
+	cyrus-sasl-2.1.26-big-fix.patch \
+	cyrus-sasl-2.1.26-fix-2.patch \
+	cyrus-sasl-2.1.26-CVE-2013-4122.patch)
+up2date="Flasttar ftp://ftp.cyrusimap.org/$pkgname/"
+sha1sums=('d6669fb91434192529bd13ee95737a8a5040241c' \
           '8867cae952e6b31d9bb2f4c2976a6f6bae4301e3' \
           '5fa8a4fd427eafd732eb9f539e7a7eeab44f234f' \
-          'c0399d630d345237c7811b9fe6f5666c0ef818cf')
+          'c0399d630d345237c7811b9fe6f5666c0ef818cf' \
+          '8955e2d5617655be209b3681ff98baef22a93cc9' \
+          'ba3cc7b67a5911e271b907a5eba00bbb7d4741e9' \
+          '4a4ae789b93a822a78ec282264ac99e997256e2b')
+
+
+
 
 subpkgs=("$pkgname-sql" "$pkgname-gssapiv2" "saslauthd")
 subdescs=("$pkgname mysql, postgresql and sqlite plugin." "$pkgname gssapiv2 plugin." \
 	 "sasl authentication server")
-subdepends=('libmysqlclient libpq>=8.2 libstdc++' 'libkrb5' 'libkrb5')
+subdepends=('libmysqlclient>=5.5.47 libpq>=9.4.5 e2fsprogs>=1.42.13-4' 'libkrb5>=1.14' 'libkrb5>=1.14 pam>=1.1.8-3')
 subrodepends=("$pkgname=$pkgver" "$pkgname=$pkgver" "$pkgname=$pkgver")
-makedepends=('krb5' 'mysql>=5.1.45-2')
 subgroups=('network' 'network' 'network')
 subarchs=('i686 x86_64 arm' 'i686 x86_64 arm' 'i686 x86_64 arm')
 subbackup=('' '' 'etc/sysconfig/saslauthd')
 subinstall=('' '' 'saslauthd.install')
 
+
+
+Fconfopts+="	--enable-login \
+		--enable-sql \
+                --enable-plain \
+                --disable-anon \
+                --with-saslauthd=/var/run/courier \
+                --with-pam \
+                --with-dblib=gdbm \
+                --with-gdbm=/usr \
+		--with-pgsql=/usr/include"
+
+_F_conf_notry="disable-static"
+
 build()
 {
-	unset MAKEFLAGS
-	Fbuild --enable-login \
-		--enable-sql \
-		--enable-plain \
-		--disable-anon \
-		--with-saslauthd=/var/run/courier \
-		--with-pam \
-		--with-dblib=gdbm \
-		--with-gdbm=/usr
+	## strange strange!
+	CFLAGS+=" -fno-strict-aliasing"
+	export MAKEFLAGS="-j1"
+
+	Fcd
+	Fpatchall
+	Fautoreconf
+	Fconf
+	make || Fdie
+	Fmakeinstall
+
 	Frm /usr/share/man/cat8
+
 	## SQL's
 	Fsplit $pkgname-sql usr/lib/sasl2/libsql.*
+
 	## heimdal
 	Fsplit $pkgname-gssapiv2 usr/lib/sasl2/libgssapiv2.*
 	Fsplit saslauthd usr/sbin/*saslauthd

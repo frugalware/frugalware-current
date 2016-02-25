@@ -33,7 +33,7 @@ source ./FrugalBuild
 
 # Download the xpi
 rm -rf *.xpi
-wget -r -nd "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_xpidirname/"
+wget -r --no-parent -nd "$_F_mozilla_i18n_mirror/$_F_mozilla_i18n_xpidirname/"
 
 for xpi in $_F_mozilla_i18n_archive_name*$_F_mozilla_i18n_ext; do
 	xpi="${xpi##$_F_mozilla_i18n_archive_name}"

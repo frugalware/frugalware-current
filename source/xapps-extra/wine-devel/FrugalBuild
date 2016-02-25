@@ -1,9 +1,46 @@
 # Compiling Time: 8 SBU
-# Maintainer: James Buren <ryuo@frugalware.org>
+# Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=wine-devel
-pkgver=1.7.16
+pkgver=1.9.4
 pkgrel=1
 Finclude wine
+source=("${source[@]}" \
+	https://raw.githubusercontent.com/NP-Hardass/wine-d3d9-patches/master/common.sh
+	https://raw.githubusercontent.com/NP-Hardass/wine-d3d9-patches/master/generate-d3d9-patch.sh)
+signatures=("${signatures[@]}" '' '')
+
+depends+=('mesa-nine' 'libegl' 'gst1-plugins-base')
+makedepends+=("git")
+
+Fconfopts+=" --with-d3dadapter"
+
+if [[ "$CARCH" == "x86_64" ]]
+then
+        rodepends=('lib32-wine-devel')
+fi
+
+build()
+{
+	mv $Fsrcdir/*.sh ${_F_cd_path}/
+	Fcd
+
+        # Disable optimizations to workaround GCC issues
+        CFLAGS="${CFLAGS//-O2/-O0}"
+
+	# Stupid git
+	Fexec git config --global user.email "nope@example.zz"
+	Fexec git config --global user.name "TheNameless"
+
+	Fexec bash ./generate-d3d9-patch.sh $pkgver
+	mv wine-d3d9-latest.patch ../
+	Fpatch	wine-d3d9-latest.patch
+
+        Fsed 'lib64' 'lib' configure.ac
+        Fautoreconf
+        Fbuild
+        Fexec cp $Fincdir/wine.conf $Fsrcdir
+        Ffile /etc/binfmt.d/wine.conf
+}
 
 # optimization OK

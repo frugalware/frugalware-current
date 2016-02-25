@@ -18,7 +18,7 @@
 ###
 
 if [ -z "$_F_cmake_type" ]; then
-	_F_cmake_type="None"
+	_F_cmake_type="Release"
 fi
 
 if [ -z "$_F_cmake_verbose" ]; then
@@ -39,6 +39,10 @@ fi
 
 if [ -z "$_F_cmake_rpath" ]; then
         _F_cmake_rpath="OFF"
+fi
+
+if [ -z "$_F_cmake_build_dir" ]; then
+        _F_cmake_build_dir="frugalware_cmake_build"
 fi
 
 ###
@@ -106,6 +110,8 @@ CMake_conf()
 		-DCMAKE_CXX_FLAGS_DEBUG="$CXXFLAGS" \
 		-DCMAKE_C_FLAGS_DEBUG="$CFLAGS" \
 		-DCMAKE_SKIP_RPATH="$_F_cmake_rpath" \
+		-DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG" \
+		-DCMAKE_C_FLAGS_RELEASE="-DNDEBUG" \
 		$_F_cmake_confopts "$@" $_F_cmake_src || Fdie
 }
 
@@ -117,13 +123,13 @@ CMake_prepare_build()
 	Fcd
 	Fpatchall
 	if [ "$_F_cmake_in_source_build" -eq "0" ]; then
-		if [ -d  "build" ]; then
-			rm -rf build || Fdie
-			mkdir build || Fdie
-			cd build || Fdie
+		if [ -d  "$_F_cmake_build_dir" ]; then
+			rm -rf $_F_cmake_build_dir || Fdie
+			mkdir $_F_cmake_build_dir || Fdie
+			cd $_F_cmake_build_dir || Fdie
 		else
-			mkdir build || Fdie
-			cd build || Fdie
+			mkdir $_F_cmake_build_dir || Fdie
+			cd $_F_cmake_build_dir || Fdie
 		fi
 	else
 		export CMAKE_IN_SOURCE_BUILD=1
@@ -144,6 +150,8 @@ CMake_make()
 CMake_install()
 {
 	make DESTDIR=$Fdestdir install/fast || Fdie
+	Fremove_static_libs
+	Ffix_la_files
 }
 ###
 # * CMake_build(): build() wrapper

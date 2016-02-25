@@ -72,7 +72,8 @@ fi
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
 	#_F_kde_mirror="http://kde-mirror.freenux.org"
-	_F_kde_mirror="ftp://ftp.kde.org/pub/kde"
+	#_F_kde_mirror="https://kde.cu.be"
+	_F_kde_mirror="http://vesta.informatik.rwth-aachen.de/ftp/pub/mirror/kde/"
 fi
 
 if [ -z "$_F_kde_folder" ]; then
@@ -131,7 +132,11 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)"
+		if [ -z "$_F_kde_project" ]; then
+			up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)/src"
+		else
+			up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)"
+		fi
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then
@@ -164,6 +169,9 @@ if [ -n "$_F_kde_id2" ]; then
 	up2date="lynx -dump "$url"|grep -v http|grep  -m1 ' \{6\}[0-9.0-9.0-9]'|sed 's/ \+\([0-9.]*\).*/\1/'"
 	_F_kde_defaults=0
 fi
+
+## X11/mesa changes
+makedepends=("${makedepends[@]}" 'x11-protos')
 
 ###
 # == APPENDED VARIABLES
@@ -453,3 +461,4 @@ build()
 {
 	KDE_build
 }
+

@@ -4,18 +4,16 @@
 
 USE_DEVEL=${USE_DEVEL:-"n"}
 
-# TODO: considering adding support for KSM
-
 pkgname=qemu
-pkgver=1.6.1
+pkgver=2.5.0
 Fuse $USE_DEVEL && pkgver=svn6369
-pkgrel=9
+pkgrel=5
 Fuse $USE_DEVEL && pkgrel=1
 pkgdesc="QEMU is a FAST! processor emulator"
 url="http://www.nongnu.org/qemu/"
-rodepends=('libcacard')
-depends=('libx11' 'sdl' 'alsa-lib' 'cyrus-sasl' 'nss' 'libgl' 'pixman' 'libpng' 'libjpeg' 'spice-server' 'spice-protocol' 'usbredir>=0.7')
-makedepends=('texi2html' 'xfsprogs' 'mesa-libgl-headers')
+depends=('libx11' 'sdl' 'alsa-lib' 'cyrus-sasl' 'nss' 'libgl' 'pixman' 'libpng>=1.6.20' 'libjpeg>=9b' 'spice-server' 'spice-protocol' 'usbredir>=0.7' \
+	 'pulseaudio' 'ncurses>=6.0-3' 'libglu' 'libepoxy' 'libaio')
+makedepends=('texi2html' 'xfsprogs' 'mesa-libgl-headers' 'x11-protos')
 replaces=('kqemu' 'qemu-kvm')
 conflicts=('kqemu' 'qemu-kvm')
 provides=('kqemu' 'qemu-kvm')
@@ -23,13 +21,22 @@ groups=('xapps-extra')
 archs=('i686' 'x86_64')
 up2date="Flasttar http://wiki.qemu.org/download"
 source=(http://wiki.qemu.org/download/${pkgname}-${pkgver//_/-}.tar.bz2 \
-	qemu.conf 49-kvm.rules qemu-guest-agent.service 99-qemu-guest-agent.rules README.Frugalware)
-sha1sums=('ad3ef3709a8ce3a39bd343aa313cefd033afb561' \
+	qemu.conf 49-kvm.rules qemu-guest-agent.service \
+	99-qemu-guest-agent.rules README.Frugalware \
+	qemu-2.5.0-CVE-2015-8558.patch  qemu-2.5.0-CVE-2015-8567.patch \
+	qemu-2.5.0-CVE-2015-8701.patch  qemu-2.5.0-CVE-2015-8743.patch \
+	qemu-2.5.0-CVE-2016-1568.patch)
+sha1sums=('ed6c02a267f9edf98058743f0f76a25743a0dfe7' \
           'b44a774fe5ebcf52275ee0fc33a9654c157204ca' \
           '9d9f293fb01d91c12e2f95ba6401a1f1570d70fb' \
           '435373031bc0a1fed8abadab912460ddf98bc1c2' \
           'c997e6afd997aeb87791664c2583a009704a6792' \
-          '11fea2f36b44297e241d8cbbdbc4cd14f1150b72')
+          '11fea2f36b44297e241d8cbbdbc4cd14f1150b72' \
+          '52f9f89ddbedfc8ee23466f5f886b891aaa572a7' \
+          '424e3c16bc2b15388c12a83cec65845933d807f9' \
+          '9c88a156fbb1b1ec6d99477e905b96c4fd23d27c' \
+          '5c20f58262124cc3cdaf3d0e1375013662bf21f1' \
+          '4c5f70a0d0e77c68f872d14b0a98fcb6498286ba')
 
 if Fuse $USE_DEVEL; then
 	source=(${source[1]} ${source[2]} ${source[3]} ${source[4]} ${source[5]})
@@ -39,31 +46,13 @@ if Fuse $USE_DEVEL; then
 	Finclude scm
 fi
 
-subpkgs=('qemu-guest' 'libcacard')
-subdescs=('Files for use in QEMU guests.' 'Common Access Card (CAC) Emulation')
-subgroups=('apps-extra' 'lib-extra')
-subarchs=('i686 x86_64' 'i686 x86_64')
-subdepends=('glib2' 'glib2 nss')
+subpkgs=('qemu-guest')
+subdescs=('Files for use in QEMU guests.')
+subgroups=('apps-extra')
+subarchs=('i686 x86_64')
+subdepends=('glib2')
 
 TARGETS="i386-softmmu x86_64-softmmu arm-softmmu"
-
-# FSA fix ***
-source=(${source[@]} CVE-2013-4375.patch CVE-2014-0150.patch CVE-2013-4544.patch
-                     CVE-2014-2894.patch CVE-2014-3640.patch CVE-2014-3615.patch
-                     CVE-2014-3689.patch CVE-2014-7815.patch CVE-2014-8106-1.patch
-                     CVE-2014-8106-2.patch CVE-2014-7840.patch)
-sha1sums=(${sha1sums[@]} '761b353dbbd110fd8e75e0e5f471effdc8e37beb' \
-                         '21f8788763786778efff306e07d0f0dc64aabb36' \
-                         'f878bda3babc020d8c36b63b8c938acffc0bf29e' \
-                         'ed600afeed4df631f5adc2bc6cc353ee691ec432' \
-                         '47a312a667488b3be2c94ea2c7bb5bdcb923f247' \
-                         '3fe6dce9a5daac9088fdfdea86cfae3ab5c05f81' \
-                         '1beb3322a61033344c0f6a80019160c26052872a' \
-                         'dc3bf6ed322dfd24e4e7fc5031b2d19f27112ce4' \
-                         'ef90523bbee7e5dc60ff03ab0cedcb5b972089ff' \
-                         '9b974cfac92f7977c1b0263a8dfc7c41a57c308f' \
-                         '59ba5cd08956e31cf08001495da829861c2d37a2')
-# ***********
 
 
 build()
@@ -72,19 +61,15 @@ build()
 		Funpack_scm
 	fi
 	Fcd $pkgname-${pkgver%%_*}
-	Fbuild --audio-drv-list=alsa,oss --target-list="$TARGETS" --disable-qom-cast-debug --enable-spice --enable-usb-redir
+	Fbuild --audio-drv-list='pa alsa sdl' --target-list="$TARGETS" --disable-qom-cast-debug --enable-spice --enable-usb-redir
 	Fdoc README.Frugalware
 	Ffile /etc/binfmt.d/qemu.conf
 	Ffile /lib/udev/rules.d/49-kvm.rules
 	Ffile /lib/systemd/system/qemu-guest-agent.service
 	Ffile /lib/udev/rules.d/99-qemu-guest-agent.rules
-	Ffileschmod /usr/lib/libcacard.so.0.0.0 0755
 	Fsplit qemu-guest /lib/systemd/system/qemu-guest-agent.service
 	Fsplit qemu-guest /lib/udev/rules.d/99-qemu-guest-agent.rules
 	Fsplit qemu-guest /usr/bin/qemu-ga
-	Fsplit libcacard /usr/include
-	Fsplit libcacard /usr/lib
-	Fsplit libcacard /usr/bin/vscclient
 	case $CARCH in
 		i686)   Fln qemu-system-i386   /usr/bin/qemu ;;
 		x86_64) Fln qemu-system-x86_64 /usr/bin/qemu ;;

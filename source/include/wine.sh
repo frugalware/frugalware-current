@@ -19,32 +19,30 @@
 
 url="http://www.winehq.org"
 groups=('xapps-extra')
-depends=(
-	'libgl' 'gnutls' 'libtiff' 'libjpeg' 'libpng' 'libxinerama'
-	'libxrandr' 'libxcursor' 'libxcomposite' 'libmpg123' 'libglu'
-	'lcms' 'fontconfig' 'openal' 'libldap' 'v4l-utils'
-	'sane-backends' 'libcups' 'libxi' 'samba'
+depends=('lcms2' 'openal' 'libglu' 'libldap' 'libpcap' 'libpulse' 'libmpg123' 'libgphoto2' 'gettext' \
+	'libxcursor' 'libxi' 'libxrandr' 'libxinerama' 'libxcomposite' 'sane-backends' 'v4l-utils' 'libxrender' 'libxslt'
 	)
-makedepends=('cups')
+makedepends=('x11-protos' 'cups')
 _F_cd_path="wine-$pkgver"
 options=('genscriptlet')
 archs=('i686' 'x86_64')
+
+Fconfopts+="	--libdir=/usr/lib"
 
 case "$pkgname" in
 
 wine)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Stable)"
-	up2date="lynx -dump $url | sed -n 's|^.*Stable:.*Wine \([0-9a-zA-Z.]\+\).*\$|\1|p'"
+	up2date="Flasttar https://dl.winehq.org/wine/source/1.8/"
 	conflicts=('wine-devel')
-	sha1sums=('574b9ccedbf213622b7ee55f715764673fc27692')
 	;;
 
 wine-devel)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Development)"
-	up2date="lynx -dump $url | sed -n 's|^.*Development:.*Wine \([0-9a-zA-Z.]\+\).*\$|\1|p'"
+	_F_archive_name="wine"
+	up2date="Flasttar https://dl.winehq.org/wine/source/1.9/"
 	conflicts=('wine')
 	provides=('wine')
-	sha1sums=('4ceedcd98b889adee556a8a56d416cb6dff0ffb8')
 	;;
 
 default)
@@ -54,14 +52,21 @@ default)
 
 esac
 
-[ "$CARCH" == "x86_64" ] && Fconfopts="--enable-win64"
+if [[ "$CARCH" == "x86_64" ]]
+then
+	Fconfopts="--enable-win64"
+	rodepends=('lib32-wine')
+fi
 
-source=(http://downloads.sourceforge.net/wine/wine-$pkgver.tar.bz2)
+source=(https://dl.winehq.org/wine/source/${pkgver%.*}/wine-$pkgver.tar.bz2)
+signatures=("${source[@]}.sign")
 
 build()
 {
+	Fcd
+	Fsed 'lib64' 'lib' configure.ac
+	Fautoreconf
 	Fbuild
-	[ "$CARCH" == "x86_64" ] && Fln wine64 /usr/bin/wine
 	Fexec cp $Fincdir/wine.conf $Fsrcdir
 	Ffile /etc/binfmt.d/wine.conf
 }

@@ -86,9 +86,13 @@ do
 done
 cd ..
 
-(gen_output $logdir "-current Testsuite" ""; gen_output $logdir/stable "-stable Testsuite" "$stabledir"; gen_output $logdir/s "-current Statistics" "s") \
+output=$(mktemp)
+(gen_output $logdir "-current Testsuite" ""; gen_output $logdir/stable "-stable Testsuite" "$stabledir"; gen_output $logdir/s "-current Statistics" "s") > $output
+cat $output > ~/public_html/stats/testsuite.txt
+cat $output \
 	| LC_ALL=en_US mail -r "Frugalware Testsuite <noreply@frugalware.org>" \
 	-s "Testsuite results for `date +%Y-%m-%d`" frugalware-devel@frugalware.org
+rm -f $output
 if [ -e $HOME/dead.letter ]; then
 	# wtf
 	set &> ~/log

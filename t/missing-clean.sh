@@ -26,7 +26,7 @@
 . /usr/lib/frugalware/fwmakepkg
 
 if [ "$1" == "--help" ]; then
-	echo "missing package removes (use 'arch=$2 repoman clean group/pkgname' to fix)"
+	echo "missing package removes (use 'repoman clean --exclusivearch=$2 group/pkgname' to fix)"
 	exit 1
 fi
 

@@ -55,7 +55,7 @@
 # DE like "XFCE;" for Xfce, "GNOME;" for Gnome, etc.
 # * _F_conf_notry: Fconf will try to use prefix, mandir and similar
 # parameters by default. You can disable the try of a parameter here.
-# * _F_make_opts (defaults to empty): extra make arguments used both with Fmake
+# * _F_make_opts (defaults V=1 , verbose ): extra make arguments used both with Fmake
 # and Fmakeinstall.
 ###
 
@@ -102,8 +102,7 @@ else
 	Fbuildchost="`arch`-frugalware-linux"
 fi
 Fconfopts=""
-## Move to makepkg.conf for Kalgan+1
-export LDFLAGS="-Wl,--hash-style=both"
+_F_make_opts="V=1"
 unset LANG LC_ALL
 
 ###
@@ -178,9 +177,8 @@ Fupperstr() {
 # regular package.
 ###
 __Faddsubpkg() {
-	local key
-	local value
-	local n
+	local key value n i
+
 	n=${#subpkgs[@]}
 	for i in "$@"; do
 		key="$(echo "$i" | cut -d ':' -f 1)"
@@ -228,8 +226,9 @@ __Faddsubpkg() {
 # 14) archs
 ###
 Faddsubpkg() {
-	local g
-	local a
+
+	local g a
+
 	if [ "$#" -lt 3 ]; then
 		Fmessage "Faddsubpkg requires at least 3 parameters."
 		Fdie
@@ -417,6 +416,10 @@ Fsubmv()
 ###
 Finstallrel() {
 	if [ "$#" -eq 3 ]; then
+		if [ -d $2 ]; then
+			Fmessage "$2 is a folder, use this only for files"
+			Fdie
+		fi
 		Fmessage "Installing file(s): $2"
 		if [ "`ls -l $2 | wc -l`" -gt 1 ]; then
 			Fmkdir "$3"
@@ -796,12 +799,13 @@ Fbuildsystem_make() {
 # $confopts. Parameters: 1) Name of the option 2) Value of the option.
 ###
 Fconfoptstryset() {
+
 	if [ -z "$2" ]; then
 		return 0
 	fi
 
 	# check if $_F_conf_configure supports it
-	if ! grep -q -- "--$1=" $_F_conf_configure; then
+	if ! grep -q -- "--$1" $_F_conf_configure; then
 		return 1
 	fi
 
@@ -814,6 +818,15 @@ Fconfoptstryset() {
 		Fconfopts+=" --$1=$2"
 	fi
 	return 0
+
+}
+
+
+__configure_disable_static() {
+
+	if [ ! "`check_option STATIC`" ]; then
+		Fconfoptstryset "enable-static" "no"
+	fi
 }
 
 Fbuildsystem_configure() {
@@ -848,6 +861,14 @@ Fbuildsystem_configure() {
 		Fconfoptstryset "infodir" "$Finfodir"
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
+		## try to disable silent rules
+		## we already set V=1 by default but this isn't going to work
+		## when apps using enabled silence rules on ./configure..
+		## we really want to know what is going on.
+		## don't ask me how to do that for perl/ruby or other stuff -- crazy --
+		Fconfoptstryset "enable-silent-rules" "no"
+		## disable static by default when !static option
+		__configure_disable_static
 		Fexec $_F_conf_configure $Fconfopts "$@"
 		return $?
 		;;
@@ -857,7 +878,7 @@ Fbuildsystem_configure() {
 	esac
 }
 
-Fbuildsystem_perl () {
+Fbuildsystem_perl() {
 	# This build system produce a Fbuildsystem_make compatible environment
 	local command="$1"
 	shift
@@ -869,10 +890,14 @@ Fbuildsystem_perl () {
 		;;
 	'configure')
 		if [ -z "$_F_conf_perl_pipefrom" ]; then
-			Fexec perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+			Fexec perl Makefile.PL "$@" || Fdie
 		else
-			$_F_conf_perl_pipefrom | perl Makefile.PL DESTDIR=$Fdestdir "$@" || Fdie
+			$_F_conf_perl_pipefrom | perl Makefile.PL "$@" || Fdie
 		fi
+		return $?
+		;;
+	'make')
+                Fexec make DESTDIR=$Fdestdir MANPATH=/usr/share/man "$@" || Fdie
 		unset _F_conf_perl_pipefrom
 		Fsed `perl -e 'printf "%vd", $^V'` "current" Makefile
 		return $?
@@ -883,7 +908,7 @@ Fbuildsystem_perl () {
 	esac
 }
 
-Fbuildsystem_ruby_configure () {
+Fbuildsystem_ruby_configure() {
 	# This build system produce a Fbuildsystem_make compatible environment
 	local command="$1"
 	shift
@@ -903,7 +928,7 @@ Fbuildsystem_ruby_configure () {
 	esac
 }
 
-Fbuildsystem_ruby_extconf () {
+Fbuildsystem_ruby_extconf() {
 	# This build system produce a Fbuildsystem_make compatible environment
 	local command="$1"
 	shift
@@ -923,7 +948,7 @@ Fbuildsystem_ruby_extconf () {
 	esac
 }
 
-Fbuildsystem_ruby_setup () {
+Fbuildsystem_ruby_setup() {
 	local command="$1"
 	shift
 
@@ -975,7 +1000,7 @@ Fbuildsystem_python_setup() {
 	esac
 }
 
-Fbuildsystem_java_ant () {
+Fbuildsystem_java_ant() {
 	local command="$1"
 	shift
 
@@ -995,6 +1020,7 @@ Fbuildsystem_java_ant () {
 		;;
 	'install')
 		if declare -f Fjar >/dev/null; then
+			local i
 			for i in ${_F_java_jars[@]}
 			do
 				Fjar $i || Fdie
@@ -1008,6 +1034,22 @@ Fbuildsystem_java_ant () {
 		return -1
 		;;
 	esac
+}
+__as_needed_libtool_hack() {
+
+	if [ ! "`check_option NOASNEEDED`" ]; then
+		local lt=$(find . -type f -name libtool)
+		if [[ ${lt[@]} ]]; then
+			Fmessage "Patching libtool for as-needed:"
+			local i
+			for i in ${lt[@]}
+			do
+				Fmessage "--> $i..."
+				sed -i -e 's/ -shared / -Wl,--as-needed\0/g' ${i}
+				## eg: -shared -> -Wl,--as-needed -shared
+			done
+		fi
+	fi
 }
 
 ###
@@ -1036,6 +1078,9 @@ Fconf() {
 	elif Fbuildsystem_ruby_setup 'probe'; then
 		 Fbuildsystem_ruby_setup 'configure' "$@" || Fdie
 	fi
+
+	__as_needed_libtool_hack
+
 }
 
 ###
@@ -1072,6 +1117,50 @@ Fnant() {
 		shift
 		nant -buildfile:${buildfile} $@ -D:debug=false -D:install.prefix=/usr || Fdie
 	fi
+}
+
+
+__remove_static_libs() {
+
+	if [ ! "`check_option STATIC`" ]; then
+		local stl=$(find $Fdestdir -type f -name "*.a")
+		if [[ ${stl[@]} ]]; then
+			Fmessage "Removing the following static libs:"
+			local i
+			for i in ${stl[@]}
+			do
+				Fmessage "--> $i"
+				rm -f ${i} || Fdie
+			done
+		fi
+	fi
+}
+
+Fremove_static_libs() {
+
+	__remove_static_libs
+}
+
+__kill_libtool_dependency_libs() {
+
+	if [ ! "`check_option LIBTOOL`" ]; then
+
+		local la=$(find $Fdestdir -type f -name "*.la")
+		if [[ ${la[@]} ]]; then
+			Fmessage "Setting Libtool's dependency_libs=.* to ZERO in:"
+			local i
+			for i in ${la[@]}
+			do
+				Fmessage "--> $i"
+				sed -i "s/^dependency_libs=.*/dependency_libs=''/" ${i}
+			done
+		fi
+	fi
+}
+
+Ffix_la_files() {
+
+	__kill_libtool_dependency_libs
 }
 
 ###
@@ -1130,6 +1219,9 @@ Fmakeinstall() {
 			Frcd2 $_F_rcd_name
 		fi
 	fi
+
+	Ffix_la_files
+	Fremove_static_libs
 }
 
 ###
@@ -1427,7 +1519,7 @@ Flastarchive() {
 			filter="$filter | grep -v -- \"$_F_archive_grepv\""
 		fi
 #		eval "$lynx \"$1\" $filter" | Flastarchive "$2" # possible optimisation
-		Fwcat "$1" | eval "$lynx -stdin $filter" | Flastarchive "$2"
+		eval "$lynx $1 $filter" | Flastarchive "$2"
 	else
 		local _Flastarchive_regex="s:.*/$_F_archive_name$Fpkgversep\([^/]*\)\($1\)[^/]*$:\1:p"
 
@@ -1451,9 +1543,7 @@ Flastdir() {
 	if [ -z "$1" ]; then
 		Flastarchive "$_Flastdir_regex"
 	else
-		# The trailing '/' in the url is here to avoid a redirection
-		# bug in Fwcat.
-		Flastarchive "$1/" "$_Flastdir_regex"
+		Flastarchive "$1" "$_Flastdir_regex"
 	fi
 }
 
@@ -1807,156 +1897,4 @@ Fextract() {
 	fi
 }
 
-_P_makepkg_prebuild_hooks+=(F_asneeded_hook)
-F_asneeded_hook () {
-	if [ "`check_option NOASNEEDED`" ]; then
-		msg "Using --no-as-needed in LDFLAGS"
-		LDFLAGS+=" -Wl,--no-as-needed"
-	else
-		if [ "`check_option ASNEEDED`" ]; then
-			msg "Using --as-needed in LDFLAGS"
-			LDFLAGS+=" -Wl,--as-needed"
-		fi
-	fi
-	export LDFLAGS
-}
 
-_P_makepkg_postbuild_hooks+=(F_makepkg_postbuild_compat_hook)
-F_makepkg_postbuild_compat_hook () {
-cd $startdir
-# unwanted files
-msg "Removing unwanted files..."
-extra=
-ls pkg.* &>/dev/null && extra=pkg.*/usr/lib/perl?
-for f in `find pkg/usr/lib/perl? $extra -type f 2> /dev/null` ; do
-	case "$f" in
-		*/.packlist|*/perllocal.pod)
-			rm -f "$f"
-			rmdir -p --ignore-fail-on-non-empty `dirname $f` 2> /dev/null
-		;;
-	esac
-done
-extra=
-ls pkg.* &>/dev/null && extra=pkg.*
-rm -f {pkg,pkg.*}/{usr{,/local,/share},opt/*}/info/dir 2> /dev/null
-for f in `find pkg $extra -type f -name encodings.dir -o -type f -name fonts.dir -o -type f -name fonts.scale` ; do
-	msg2 "`$ECHO $f | sed 's|pkg[^/]\+||'`"
-	rm -f "$f"
-done
-
-# documentation
-msg "Preparing package documentation..."
-if [ ! "`check_option NODOCS`" -a "$NODOCS" = "0" ]; then
-	mkdir -p pkg/usr/share/doc/$pkgname-$pkgver
-	find src -maxdepth 2 -size +0b \( \
-		    -name ANNOUNCE \
-		-or -name AUTHORS \
-	  	-or -name '*BUGS*' \
-		-or -name CHANGES \
-		-or -name CONFIGURATION \
-		-or -name '*COPYING*' \
-		-or -name '*COPYRIGHT*' \
-		-or -name CREDITS \
-		-or -name ChangeLog \
-		-or -name Changelog \
-		-or -name CHANGELOG \
-		-or -name CONTRIBUTORS \
-		-or -name '*FAQ*' \
-		-or -name FEATURES \
-		-or -name FILES \
-		-or -name HACKING \
-		-or -name History \
-		-or -name HISTORY \
-		-or -name 'INSTALL*' \
-		-or -name LICENSE \
-		-or -name LSM \
-		-or -name MANIFEST \
-		-or -name NEWS \
-		-or -name '*README*' \
-		-or -name '*Readme*' \
-		-or -name SITES \
-		-or -name '*RELEASE*' \
-		-or -name RELNOTES \
-		-or -name THANKS \
-		-or -name TIPS \
-		-or -name TODO \
-		-or -name VERSION \
-		-or -name 'CONFIGURATION*' \
-		-or -name GPLLicense \
-		\) -exec install -pm 644 '{}' pkg/usr/share/doc/$pkgname-$pkgver/ \;
-fi
-for d in $startdir/{pkg,pkg.*}
-do
-	[ ! -d $d ] && continue
-	if [ -d $d/usr/doc ]; then
-		if [ ! "`check_option NODOCS`" -a "$NODOCS" = "0" ]; then
-			mkdir -p $d/usr/share/doc/$pkgname-$pkgver
-			cp -a $d/usr/doc/* $d/usr/share/doc/$pkgname-$pkgver
-		fi
-		rm -rf $d/usr/doc
-	fi
-
-	# remove /usr/share/doc/$pkgname-$pkgver directory if empty
-	if [ -d $d/usr/share/doc/$pkgname-$pkgver ]; then
-		rmdir -p --ignore-fail-on-non-empty $d/usr/share/doc/$pkgname-$pkgver 2> /dev/null
-		mkdir -p pkg
-	fi
-
-	# move /usr/info files to /usr/share/info
-	if [ -d $d/usr/info ]; then
-		mkdir -p $d/usr/share/info
-		cp -a $d/usr/info/* $d/usr/share/info/
-		rm -rf $d/usr/info
-	fi
-
-	# move /usr/man files to /usr/share/man
-	if [ -d $d/usr/man ]; then
-		mkdir -p $d/usr/share/man
-		cp -a $d/usr/man/* $d/usr/share/man/
-		rm -rf $d/usr/man
-	fi
-
-	if [ -d "$d/usr/share/icons/hicolor" ]; then
-		if [ -z "$_F_gnome_iconcache" ]; then
-			warning "Package $pkgname contains hicolor icons but _F_gnome_iconcache is not set"
-		fi
-	fi
-done
-
-# compress info and manual pages
-msg "Compressing info and manual pages..."
-find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/{info,man} -type f 2>/dev/null | while read i ; do
-	ext="${i##*.}"
-	fn="${i##*/}"
-	if [ "$ext" != "gz" -a "$ext" != "bz2" ]; then
-		# update symlinks to this manpage
-		find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/man -lname "$fn" 2> /dev/null | while read ln ; do
-			rm -f "$ln"
-			ln -sf "${fn}.gz" "${ln}.gz"
-		done
-		# compress the original
-		gzip -9 "$i"
-	fi
-done
-
-# check symbolic links
-msg "Checking symbolic links..."
-for d in $startdir/{pkg,pkg.*} ; do
-	for l in `find $d -type l 2> /dev/null` ; do
-		if [ ! -e "$l" -a ! -e "$d/`ls -l $l | awk '{print $NF}'`" ]; then
-			if [ "$d" = "$startdir/pkg" ]; then
-				msg2 "Maybe broken link ${l#$d} in pkg $pkgname found."
-			else
-				msg2 "Maybe broken link ${l#$d} in pkg ${d##*/pkg.} found."
-			fi
-		elif ls -l "$l" | awk '{print $NF}' | grep -q "$startdir" ; then
-			if [ "$d" = "$startdir/pkg" ]; then
-				msg2 "Broken link ${l#$d} in pkg $pkgname found."
-			else
-				msg2 "Broken link ${l#$d} in pkg ${d##*/pkg.} found."
-			fi
-		fi
-	done
-done
-return 0
-}

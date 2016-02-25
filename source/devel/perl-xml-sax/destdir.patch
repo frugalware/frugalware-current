@@ -1,0 +1,57 @@
+'make install DESTDIR=$pkgdir' is used when packaging modules. The
+DESTDIR option installs the distribution into the given directory
+preserving the directory structure. The packager then compresses
+the directory with the added package information.
+
+When using DESTDIR, the Makefile is unable to load XML::SAX in order
+to update the ParserDetails.ini file because the DESTDIR is not in @INC
+and the perl interpreter cannot find XML/SAX.pm.
+
+This patch allows the Makefile to guess where the XML/SAX.pm file
+will end up and adds this directory to @INC using the -I perl switch.
+
+I have also switched to the single-quote heredoc because escaping all
+of the $'s and @'s was annoying.
+
+Replacing the install :: rule's text was unnecessary. Because it is
+a double-color rule it can appear more than once.
+
+I added some simple Makefile logic that will store the expected
+destination of XML/SAX.pm in a make variable ("XMLSAXINC") depending
+on which INSTALLDIRS are given. When packaging I set INSTALLDIRS to
+vendor but the default is site. I am not aware of alternatives.
+---
+ Makefile.PL |   16 +++++++++++++---
+ 1 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile.PL b/Makefile.PL
+index 98928b3..dda94ac 100644
+--- a/Makefile.PL
++++ b/Makefile.PL
+@@ -38,11 +38,21 @@ sub MY::install {
+     }
+     
+     if ($write_ini_ok) {
+-        $script =~ s/install :: (.*)$/install :: $1 install_sax_pureperl/m;
+-        $script .= <<"INSTALL";
++        $script .= <<'INSTALL';
++
++install :: install_sax_pureperl
++
++ifeq ($(INSTALLDIRS),site)
++XMLSAXINC = $(DESTINSTALLSITELIB)
++else ifeq ($(INSTALLDIRS),vendor)
++XMLSAXINC = $(DESTINSTALLVENDORLIB)
++else
++$(error Failed to detect destination. Unknown INSTALLDIRS: $(INSTALLDIRS))
++endif
+ 
+ install_sax_pureperl :
+-\t\@\$(PERL) -MXML::SAX -e "XML::SAX->add_parser(q(XML::SAX::PurePerl))->save_parsers()"
++	@$(PERL) -I$(XMLSAXINC) -MXML::SAX \
++	  -e "XML::SAX->add_parser(q(XML::SAX::PurePerl))->save_parsers()"
+ 
+ INSTALL
+ 
+-- 
+1.7.3

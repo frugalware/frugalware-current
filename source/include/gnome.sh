@@ -100,7 +100,7 @@ else
 fi
 url="http://www.gnome.org/"
 _F_cd_path=$_F_gnome_name-$pkgver
-
+makedepends=("${makedepends[@]}" 'x11-protos')
 ###
 # == APPENDED VARIABLES
 # * scriptlet to options()

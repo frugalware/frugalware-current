@@ -18,7 +18,7 @@
 
 
 _F_kdever_ver=4.14.3
-_F_kdever_frameworks=5.17
+_F_kdever_frameworks=5.19
 _F_kdever_frameworks_revision=0
 _F_kdever_plasma=5.5.4
 _F_kdever_qt=4.8.7-2

@@ -117,12 +117,7 @@ fi
 ###
 Fbuildkernel()
 {
-	if Fuse $USE_DEVEL; then
-		[ -d $_F_archive_name-$pkgver ] && mv $_F_archive_name-$pkgver kernel
-		Funpack_scm
-		cd ..
-		mv kernel $_F_archive_name-$pkgver
-	fi
+
 	Fcd
 	make clean || Fdie
 	if [ -e "$Fsrcdir/config.$CARCH" ]; then

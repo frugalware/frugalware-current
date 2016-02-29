@@ -156,39 +156,6 @@ source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.arm')
 signatures=("${signatures[@]}" '' '' '')
 
 ###
-# * subpkg()
-# * subarchs()
-# * subinstall()
-# * suboptions()
-# * subgroups()
-# * subdescs()
-###
-subpkgs=("kernel$_F_kernel_name-source" "kernel$_F_kernel_name-docs")
-subrodepends=("kernel$_F_kernel_name-docs make gcc kernel-headers" "kernel$_F_kernel_name")
-subdescs=('Linux kernel source' 'Linux kernel documentation')
-subgroups=('devel-extra' 'apps')
-subdepends=('' '')
-subreplaces=('' '')
-subprovides=('' '')
-subconflicts=('' '')
-subarchs=('i686 x86_64 arm' 'i686 x86_64 arm')
-subinstall=('' '')
-suboptions=('nodocs' '')
-if [ -z "$_F_kernel_name" ]; then
-	subpkgs=("${subpkgs[@]}" 'kernel-headers')
-	subrodepends=("${subrodepends[@]}" '')
-	subgroups=("${subgroups[@]}" 'devel devel-core')
-	subdescs=("${subdescs[@]}" 'Linux kernel include files')
-	subarchs=("${subarchs[@]}" 'i686 x86_64 arm')
-	subinstall=("${subinstall[@]}" '')
-	suboptions=("${suboptions[@]}" '')
-	subreplaces=("${subreplaces[@]}" '')
-	subdepends=("${subdepends[@]}" '')
-	subprovides=("${subprovides[@]}" '')
-	subconflicts=("${subconflicts[@]}" '')
-fi
-
-###
 # == PROVIDED FUNCTIONS
 # * Fbuildkernel()
 ###

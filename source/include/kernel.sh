@@ -112,50 +112,6 @@ else
 fi
 
 ###
-# * url
-# * depends
-# * makedepends
-# * groups
-# * replaces
-# * archs
-# * options()
-# * up2date
-# * source()
-###
-url="https://www.kernel.org"
-depends=('kmod' 'sed')
-if [ -z "$_F_kernel_name" ]; then
-	makedepends=("${makedepends[@]}" 'unifdef')
-fi
-if [ "$CARCH" = "arm" ]; then
-	makedepends=("${makedepends[@]}" 'u-boot-tools')
-fi
-groups=('base')
-archs=('i686' 'x86_64' 'arm')
-options=('nodocs' 'genscriptlet')
-_F_archive_grepv="rc"
-up2date="Flasttar $url"
-
-if ! Fuse DEVEL; then
-	source=("https://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.xz")
-	signatures=("https://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.sign")
-else
-	if [ -z "$_F_scm_tag" ]; then
-		_F_scm_tag="v$pkgver"
-	fi
-	Finclude scm
-fi
-
-for i in "${_F_kernel_patches[@]}"
-do
-	source=("${source[@]}" "$i")
-	signatures=("${signatures[@]}" '')
-done
-
-source=("${source[@]}" 'config.i686' 'config.x86_64' 'config.arm')
-signatures=("${signatures[@]}" '' '' '')
-
-###
 # == PROVIDED FUNCTIONS
 # * Fbuildkernel()
 ###

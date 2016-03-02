@@ -4,24 +4,32 @@
 
 ### NOTE: check btrfs-progs to match the kernel
 
-USE_DEVEL=${USE_DEVEL:-"n"}
+Finclude kernel
 
-if ! Fuse $USE_DEVEL; then
-	_F_kernel_patches=('fix-i915.patch' \
+url="https://www.kernel.org"
+depends=('kmod' 'sed')
+[[ -z "$_F_kernel_name" ]] && makedepends+=('unifdef')
+[[ "$CARCH" = "arm" ]] && makedepends+=('u-boot-tools')
+groups=('base')
+archs=('i686' 'x86_64' 'arm')
+options=('nodocs' 'genscriptlet')
+_F_archive_grepv="rc"
+up2date="Flasttar $url"
+
+_F_kernel_patches=('fix-i915.patch' \
 	'fix_for_missing_nvme_ioctl.h.patch' \
 	'http://algo.ing.unimo.it/people/paolo/disk_sched/patches/4.4.0-v7r11/0001-block-cgroups-kconfig-build-bits-for-BFQ-v7r11-4.4.0.patch' \
 	'http://algo.ing.unimo.it/people/paolo/disk_sched/patches/4.4.0-v7r11/0002-block-introduce-the-BFQ-v7r11-I-O-sched-for-4.4.0.patch' \
 	'http://algo.ing.unimo.it/people/paolo/disk_sched/patches/4.4.0-v7r11/0003-block-bfq-add-Early-Queue-Merge-EQM-to-BFQ-v7r11-for.patch' )
-else
-	# example for a tagged rc release: 2.6.32.rc5
-	# example for a random snapshot (based on git describe output): 2.6.32.rc5.81.g964fe08
-	pkgver=2.6.32.rc5
-	pkgrel=1
-	_F_scm_type="git"
-	_F_scm_url="git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6"
-fi
 
-Finclude kernel
+for ppatch in "${_F_kernel_patches[@]}"
+do
+	source+=("$ppatch")
+	signatures+=('')
+done
+
+source+=("https://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.xz" 'config.i686' 'config.x86_64' 'config.arm')
+signatures+=("https://www.kernel.org/pub/linux/kernel/v4.x/$_F_archive_name-$pkgver.tar.sign" '' '' '')
 
 
 subpkgs+=('cpupower')
@@ -30,13 +38,13 @@ subrodepends+=("kernel=$_F_kernelver_ver")
 subdepends+=('pciutils')
 subgroups+=('apps-extra')
 subarchs+=('i686 x86_64')
-subbackups+=('etc/sysconfig/cpupower')
+subbackup+=('etc/sysconfig/cpupower')
 subconflicts+=('cpufrequtils')
 subprovides+=('cpufrequtils')
 subreplaces+=('cpufrequtils')
 suboptions+=('')
 subinstall+=('')
-source=("${source[@]}" cpupower cpupower.sh cpupower.service )
+source+=("cpupower" "cpupower.sh" "cpupower.service")
 signatures+=('' '' '')
 
 subpkgs+=('x86_energy_perf_policy')
@@ -45,6 +53,7 @@ subrodepends+=("kernel=$_F_kernelver_ver")
 subdepends+=('pciutils')
 subgroups+=('apps-extra')
 subarchs+=('i686 x86_64')
+subbackup+=('')
 subconflicts+=('')
 subprovides+=('')
 subreplaces+=('')
@@ -57,15 +66,164 @@ subrodepends+=("kernel=$_F_kernelver_ver")
 subdepends+=('elfutils slang binutils>=2.25 xz')
 subgroups+=('devel-extra')
 subarchs+=('i686 x86_64')
+subbackup+=('')
 subconflicts+=('')
 subprovides+=('')
 subreplaces+=('')
 suboptions+=('')
 subinstall+=('')
 
+
+subpkgs+=("kernel$_F_kernel_name-docs")
+subdescs+=("Linux kernel documentation")
+subrodepends+=("kernel=$_F_kernelver_ver")
+subdepends+=('')
+subgroups+=('devel-extra')
+subarchs+=('i686 x86_64 arm')
+subbackup+=('')
+subconflicts+=('')
+subprovides+=('')
+subreplaces+=('')
+suboptions+=('')
+subinstall+=('')
+
+subpkgs+=("kernel$_F_kernel_name-source")
+subrodepends+=("make gcc>=5.3.0-2 kernel-headers")
+subdescs+=('Linux kernel source')
+subgroups+=('devel-extra')
+subdepends+=('')
+subreplaces+=('')
+subprovides+=('')
+subconflicts+=('')
+subarchs+=('i686 x86_64 arm')
+subbackup+=('')
+subinstall+=('')
+suboptions+=('nodocs')
+
+if [ -z "${_F_kernel_name}" ]; then
+	subpkgs+=('kernel-headers')
+	subrodepends+=('')
+	subgroups+=('devel devel-core')
+	subdescs+=('Linux kernel include files')
+	subarchs+=('i686 x86_64 arm')
+	subbackup+=('')
+	subinstall+=('')
+	suboptions+=('')
+	subreplaces+=('')
+	subdepends+=('')
+	subprovides+=('')
+	subconflicts+=('')
+fi
+
 build()
 {
-        Fbuildkernel
+
+	Fcd
+	make clean || Fdie
+
+	if [ -e "${Fsrcdir}/config.${CARCH}" ]; then
+		cp ${Fsrcdir}/config.${CARCH} .config || Fdie
+	else
+		Fmessage "Cannot find a valid config.."
+		exit 1
+	fi
+
+	# not using Fpatchall here since not applying the patches from
+	# _F_kernel_patches() having the wrong extension would be stange :)
+	local i
+
+	for i in "${_F_kernel_patches[@]}"
+	do
+		Fpatch `strip_url ${i}`
+	done
+
+	if [ -z "${_F_kernel_name}" -a ${_F_kernel_dontfakeversion} -eq 0 ]; then
+		# stock kernel, nobody interested in the buildsystem's detail
+		export KBUILD_BUILD_USER="fst"
+		export KBUILD_BUILD_HOST="`uname -m`.frugalware.org"
+	fi
+
+	# remove unneded localversions
+	rm -fv localversion-*
+	rm -fv ../*.{gz,bz2,sign}
+
+	yes "" | make config
+
+	if [ ${_F_kernel_dontfakeversion} -eq 0 ]; then
+		if [ "${_F_kernel_ver#*.*.}" = "${_F_kernel_ver}" ]; then
+			# If patten match fails, sublevel version is missing
+			Fsed "SUBLEVEL =.*" "SUBLEVEL =" Makefile
+		else
+			 Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
+		fi
+		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_uname" Makefile
+	else
+		make include/config/kernel.release
+		unset _F_kernel_ver
+		_F_kernel_uname=$(cat include/config/kernel.release)
+	fi
+
+	# Force kernel firmware to be installed in kernel specific path.
+	Fsed 'INSTALL_FW_PATH=.*' 'INSTALL_FW_PATH=$(INSTALL_MOD_PATH)/lib/firmware/$(KERNELRELEASE)' Makefile
+
+	## let we do kernel$_F_kernel_name-source before make
+	Fmkdir /usr/src
+
+	## OK ok .. why to log names ..
+	local _kernel="$_F_kernel_ver$_F_kernel_uname"
+	cp -Ra ${Fsrcdir}/linux-${_F_kernelver_ver} ${Fdestdir}/usr/src/linux-${_kernel} || Fdie
+	rm -rfv ${Fdestdir}/usr/src/linux-${_kernel}/{.git,.gitignore,.config.old,Documentation,COPYING,CREDITS,MAINTAINERS,README,REPORTING-BUGS} || Fdie
+	Fln linux-${_kernel} /usr/src/linux
+	make -C ${Fdestdir}/usr/src/linux-${_kernel} scripts || Fdie
+	make -C ${Fdestdir}/usr/src/linux-${_kernel} prepare || Fdie
+	Fsplit kernel${_F_kernel_name-source} usr/src
+
+	if [ -z "${_F_kernel_name}" ]; then
+		make INSTALL_HDR_PATH=${Fdestdir}/usr headers_install || Fdie
+		[ -e ${Fdestdir}/usr/include/scsi ] && Frm /usr/include/scsi
+		[ -e ${Fdestdir}/usr/include/drm ] && Frm /usr/include/drm
+		Fsplit kernel-headers /usr
+	fi
+
+	## now time to eat some cookies and wait the kernel got compiled :)
+	## use verbose by default, we want to know what is going on...
+	make $MAKEFLAGS V=1 || Fdie
+
+	if [ "$CARCH" = "arm" ]; then
+		make uImage || Fdie
+	fi
+
+	Fmkdir /boot
+	Fmkdir /lib/{modules,firmware}
+	Ffilerel .config /boot/config-${_kernel}
+	if [ ! -z "${_F_kernel_vmlinuz}" ]; then
+		Ffilerel ${_F_kernel_vmlinuz} /boot/${_F_kernel_path}-${_kernel}
+	else
+		if [ "${CARCH}" = "arm" ]; then
+			Ffilerel arch/arm/boot/zImage /boot/${_F_kernel_path}-${_kernel}
+			Ffilerel arch/arm/boot/uImage /boot/uImage
+		else
+			Ffilerel arch/x86/boot/bzImage /boot/${_F_kernel_path}-${_kernel}
+		fi
+	fi
+
+	Fln config-${_kernel} /boot/config
+	Fln System.map-${_kernel} /boot/System.map
+	Fln ${_F_kernel_path}-${_kernel} /boot/${_F_kernel_path}
+
+	make INSTALL_MOD_PATH=${Fdestdir} $MAKEFLAGS modules_install || Fdie
+	# dump symol versions so that later builds will have dependencies and
+	# modversions
+	Ffilerel System.map /boot/System.map-${_kernel}
+	Ffilerel /usr/src/linux-${_kernel}/Module.symvers
+	Frm /lib/modules/${_kernel}/build
+	Frm /lib/modules/${_kernel}/source
+
+	Fln /usr/src/linux-${_kernel} /lib/modules/${_kernel}/build
+	Fln /usr/src/linux-${_kernel} /lib/modules/${_kernel}/source
+
+	Fexec /sbin/depmod -a -b ${Fdestdir} ${_kernel} || Fdie
+
 
 	# build cpupower
 	cd tools/power/cpupower

@@ -23,7 +23,7 @@ _F_kernelver_rel=1
 # == APPENDED VALUES
 # _F_genscriptlet_hooks: appends Fkernelver_genscriptlet_hook.
 ###
-_F_genscriptlet_hooks+=('Fkernelver_genscriptlet_hook')
+_F_genscriptlet_hooks=("${_F_genscriptlet_hooks[@]}" 'Fkernelver_genscriptlet_hook')
 
 ###
 # == PROVIDED FUNCTIONS
@@ -39,8 +39,8 @@ Fkernelver_genscriptlet_hook()
 Fkernelver_compress_modules()
 {
 	local _directory
-	_directory="$Fdestdir/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw${_F_kernelver_rel}/kernel"
+	_directory="$Fdestdir/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel/kernel"
 	Fexec find $_directory -name "*.ko" -exec xz '{}' \; || Fdie
 }
 
-makedepends+=('ca-certificates')
+makedepends=("${makedepends[@]}" 'ca-certificates')

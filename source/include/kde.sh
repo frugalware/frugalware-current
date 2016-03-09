@@ -212,6 +212,7 @@ else
 		-DCONFIG_INSTALL_DIR=/etc/kde5/config \
 		-DKCFG_INSTALL_DIR=/etc/kde5/config.kcfg \
 		-DICON_INSTALL_DIR=/usr/share/kde5/icons \
+		-DKDE_INSTALL_USE_QT_SYS_PATHS=ON \
 		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
 fi
 

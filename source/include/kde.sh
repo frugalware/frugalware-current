@@ -209,10 +209,12 @@ if [ -z "$_F_kde_project" ]; then
 		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
 else
 	_F_cmake_confopts="$_F_cmake_confopts \
-		-DCONFIG_INSTALL_DIR=/etc/kde5/config \
-		-DKCFG_INSTALL_DIR=/etc/kde5/config.kcfg \
-		-DKDE_INSTALL_USE_QT_SYS_PATHS=ON \
-		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
+	-DCMAKE_BUILD_TYPE=Release \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DLIB_INSTALL_DIR=lib \
+	-DLIBEXEC_INSTALL_DIR=lib \
+	-DKDE_INSTALL_USE_QT_SYS_PATHS=ON \
+	-DBUILD_TESTING=OFF"
 fi
 
 # stolen from makepkg ;))

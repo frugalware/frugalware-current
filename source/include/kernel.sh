@@ -90,9 +90,6 @@ if [ -z "$_F_archive_name" ]; then
 	_F_archive_name=linux
 fi
 
-case "$CARCH" in
-	"arm") export LDFLAGS="${LDFLAGS/-Wl,/}";;
-esac
 
 ###
 # * pkgname

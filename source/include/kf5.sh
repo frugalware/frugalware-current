@@ -192,7 +192,7 @@ _F_KDE_LD_FLAGS="-Wl,--no-undefined -Wl,--as-needed"
 	-DLIB_INSTALL_DIR=lib \
 	-DLIBEXEC_INSTALL_DIR=lib \
 	-DKDE_INSTALL_USE_QT_SYS_PATHS=ON \
-	-DQML_INSTALL_DIR=lib/qt/qml \
+	-DQML_INSTALL_DIR=share/qt5/qml \
 	-DBUILD_TESTING=OFF"
 
 # stolen from makepkg ;))

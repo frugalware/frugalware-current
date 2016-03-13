@@ -1,6 +1,6 @@
 #!/bin/sh
 
-Finclude cmake kde-version
+Finclude cmake kf5-version
 
 ###
 # = kde.sh(3)

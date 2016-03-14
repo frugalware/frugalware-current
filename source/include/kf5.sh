@@ -86,7 +86,7 @@ fi
 
 if [ -z "$_F_kde_dirname" ]; then
 	_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver/src"
-	if [ -n "$_F_kde_project" ]; then
+	if [ "$_F_kde_project" = "plasma" ]; then
 		_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver"
 	fi
 	if [ "$_F_kde_project" = "frameworks" ]; then
@@ -132,10 +132,10 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		if [ -z "$_F_kde_project" ]; then
-			up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)/src"
-		else
+		if [[ "$_F_kde_project" = "plasma"  || "$_F_kde_project" = "frameworks" ]]; then
 			up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)"
+		else
+			up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)/src"
 		fi
 	fi
 

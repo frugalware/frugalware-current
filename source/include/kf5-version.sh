@@ -1,11 +1,11 @@
 #!/bin/bash
 
 ###
-# = kde-version.sh(3)
+# = kf5-version.sh(3)
 # Michel Hermier <hermier@frugalware.org>
 #
 # == NAME
-# kkde-version.sh - for Frugalware
+# kf5-version.sh - for Frugalware
 #
 # == SYNOPSIS
 # Common schema for packages built against a given KDE version.
@@ -21,4 +21,4 @@ _F_kdever_frameworks=5.20
 _F_kdever_frameworks_revision=0
 _F_kdever_plasma=5.5.5
 _F_kdever_qt5=5.5.1
-
+_F_kdever_apps=15.12.3

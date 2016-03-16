@@ -44,6 +44,8 @@ if [ -z "$_F_kde_ver" ]; then
 		_F_kde_ver="${_F_kdever_frameworks}.${_F_kdever_frameworks_revision}"
 	elif [ "$_F_kde_project" = "plasma" ]; then
 		_F_kde_ver="$_F_kdever_plasma"
+	elif [ "$_F_kde_project" = "applications" ]; then
+		_F_kde_ver="$_F_kdever_apps"
 	fi
 fi
 
@@ -94,10 +96,6 @@ if [ -z "$_F_kde_dirname" ]; then
 	fi
 fi
 
-if [ -n "$_F_kde_final" ]; then
-	_F_cmake_confopts="$_F_cmake_confopts -DKDE4_ENABLE_FINAL=$_F_kde_final"
-fi
-
 if [ -z "$_F_kde_defaults" ]; then
 	_F_kde_defaults=1
 fi
@@ -130,6 +128,17 @@ if [ -z "$url" ]; then
 	url="http://www.kde.org"
 fi
 
+
+if [ -z "$groups" ]; then
+	if [ "$_F_kde_project" = "plasma" ]; then
+		groups+=('plasma')
+	elif [ "$_F_kde_project" = "frameworks" ]; then
+		groups+=('kf5')
+	elif [ "$_F_kde_project" = "applications" ]; then
+		groups+=('kde5')
+	fi
+fi
+
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
 		if [[ "$_F_kde_project" = "plasma"  || "$_F_kde_project" = "frameworks" ]]; then
@@ -149,20 +158,9 @@ if [ -z "$_F_cd_path" ]; then
 	_F_cd_path=$_F_kde_name-$_F_kde_pkgver
 fi
 
-if [ -n "$_F_kde_id" ]; then
-	url="http://www.kde-apps.org/content/show.php?content=$_F_kde_id"
-	up2date="lynx -dump "$url"|grep -v http|grep  -m1 ' \{6\}[0-9.0-9.0-9]'|sed 's/ \+\([0-9.]*\).*/\1/'"
-	_F_kde_defaults=0
-fi
-
-if [ -n "$_F_kde_id2" ]; then
-	url="http://www.kde-look.org/content/show.php?content=$_F_kde_id2"
-	up2date="lynx -dump "$url"|grep -v http|grep  -m1 ' \{6\}[0-9.0-9.0-9]'|sed 's/ \+\([0-9.]*\).*/\1/'"
-	_F_kde_defaults=0
-fi
 
 ## X11/mesa changes
-makedepends=("${makedepends[@]}" 'x11-protos')
+makedepends+=('x11-protos')
 
 ###
 # == APPENDED VARIABLES
@@ -176,7 +174,7 @@ else
 fi
 
 if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
-	makedepends=("${makedepends[@]}" 'extra-cmake-modules' 'libqt5imageformats' 'libqt5platformsupport' 'libqt5quick')
+	makedepends+=('extra-cmake-modules' 'libqt5imageformats' 'libqt5platformsupport' 'libqt5quick')
 fi
 
 case "$_F_cmake_type" in

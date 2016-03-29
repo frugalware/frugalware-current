@@ -49,6 +49,8 @@ if [ -z "$_F_kde_ver" ]; then
 	fi
 fi
 
+
+
 if [ -z "$_F_kde_qtver" ]; then
 	_F_kde_qtver="$_F_kdever_qt"
 	if [ -n "$_F_kde_project" ]; then
@@ -182,7 +184,7 @@ None)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -DNDEBUG -DQT_NO_DEBUG";;
 Debug*)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -ggdb3";;
 esac
 
-_F_KDE_LD_FLAGS="-Wl,--no-undefined -Wl,--as-needed"
+_F_KDE_LD_FLAGS="-Wl,--no-undefined"
 
 	_F_cmake_confopts="$_F_cmake_confopts \
 	-DCMAKE_BUILD_TYPE=Release \

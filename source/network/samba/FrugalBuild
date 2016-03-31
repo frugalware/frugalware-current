@@ -3,9 +3,9 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=samba
-pkgver=4.3.5
+pkgver=4.4.0
 pkgextraver=
-pkgrel=1
+pkgrel=2
 pkgdesc="SMB file and print server."
 url="http://www.samba.org"
 backup=(etc/logrotate.d/$pkgname etc/sysconfig/$pkgname etc/$pkgname/smb.conf)
@@ -27,7 +27,7 @@ source=(https://download.samba.org/pub/samba/stable/$pkgname-$pkgver$pkgextraver
 	smb.socket \
 	winbindd.service \
 	libsmbclient.conf )
-sha1sums=('eba4ad8c854e17d42cd440defc98da9f1eb2beb8' \
+sha1sums=('dd93dbe15266e401d1fb86ba6208cdda169725d6' \
           '7e8e77285181a2c29da029195c606c9baf3f2fc6' \
           '13fd371189bfe637f3f13c62d44d9e761268119e' \
           '3738a9b43c381f6e782f10e2e9dcb2f2c8d7d004' \
@@ -102,8 +102,10 @@ build()
 	Fmv usr/share/perl5/Parse usr/lib/perl5/current/Parse
 	Frm usr/share/perl5
 
-	for i in nmb.service samba.service smb.service smb@.service winbindd.service smb.socket; do
-		Ffile lib/systemd/system/$i
+	local i j z
+
+	for z in nmb.service samba.service smb.service smb@.service winbindd.service smb.socket; do
+		Ffile lib/systemd/system/$z
 	done
 
 	# Install tempfiles config
@@ -121,6 +123,13 @@ build()
 	# ldconfig
 	Ffile libsmbclient.conf /etc/ld.so.conf.d/libsmbclient.conf
 
+	## Split -- first libwb because the pc file .. all other need to go
+	## in libsbm
+	Fsplit libwbclient \
+                usr/include/samba-4.0/wbclient.h \
+                usr/lib/libwbclient* \
+                usr/lib/pkgconfig/wbclient.pc
+
 	# Split
         Fsplit libsmbclient \
 		usr/include/samba-4.0/libsmbclient.h \
@@ -129,33 +138,33 @@ build()
 		usr/lib/libsamba-util* \
 		usr/lib/libsmbconf* \
 		usr/lib/libtevent-util* \
+		usr/lib/libtevent-unix-util* \
 		usr/lib/samba \
-		usr/lib/pkgconfig/smbclient* \
+		usr/lib/pkgconfig \
 		usr/lib/libdcerpc* \
-		usr/lib/libgensec* \
 		usr/lib/libsamba* \
 		usr/lib/libsamdb* \
 		usr/lib/libnetapi* \
-		usr/lib/libregistry* \
 		etc/ld.so.conf.d/libsmbclient.conf \
-		usr/lib/libsmbldap*
-
-	Fsplit libwbclient \
-		usr/include/samba-4.0/wbclient.h \
-		usr/lib/libwbclient* \
-		usr/lib/pkgconfig/wbclient.pc
+		usr/lib/libsmbldap* \
+		usr/share/man/man7/libsmbclient.7*
 
 	for i in smbclient nmblookup; do
 		Fsplit samba-client usr/bin/$i
 		Fsplit samba-client usr/share/man/man1/$i.1
 	done
-	for i in net smbspool; do
-		Fsplit samba-client usr/bin/$i
-		Fsplit samba-client usr/share/man/man8/$i.8
+
+	for j in net smbspool; do
+		Fsplit samba-client usr/bin/$j
+		Fsplit samba-client usr/share/man/man8/$j.8
 	done
+	Fsplit samba-client usr/libexec/samba
 
 	Fsplit nss-wins usr/lib/libnss_wins.so*
-	Fsplit nss-winbind usr/lib/libnss_winbind.so*
+	Fsplit nss-winbind \
+		usr/lib/libnss_winbind.so* \
+		usr/lib/winbind_krb5_locator.* \
+		lib/security/pam_winbind.so
 
 	Fmkdir var/run/samba/nmbd
 	Fmkdir var/run/samba/ncalrpc

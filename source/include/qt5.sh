@@ -28,7 +28,7 @@ source=(http://download.qt.io/archive/qt/${pkgver%.*}/${pkgver}/submodules/${qtp
 _F_archive_name=qt-everywhere-opensource-src
 up2date="Flasttar $url/download-open-source/"
 _F_cd_path=${qtpkgfilename}
-makedepends+=('x11-protos')
+makedepends+=('x11-protos' 'gperf')
 
 build_qt5()
 {

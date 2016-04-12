@@ -1,4 +1,4 @@
-export OPENJDKDIR=/usr/lib/jvm/java-7-openjdk
+export OPENJDKDIR=/usr/lib/jvm/java-8-openjdk
 export MANPATH=$MANPATH:$OPENJDKDIR/man
 export CLASSPATH=$CLASSPATH:$OPENJDKDIR/lib
 export JAVA_HOME=$OPENJDKDIR

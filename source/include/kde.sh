@@ -42,19 +42,21 @@ if [ -z "$_F_kde_ver" ]; then
 	_F_kde_ver="$_F_kdever_ver"
 	if [ "$_F_kde_project" = "frameworks" ]; then
 		_F_kde_ver="${_F_kdever_frameworks}.${_F_kdever_frameworks_revision}"
+	elif [ "$_F_kde_project" = "plasma" ]; then
+		_F_kde_ver="$_F_kdever_plasma"
 	fi
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
 	_F_kde_qtver="$_F_kdever_qt"
-	if [ "$_F_kde_project" = "frameworks" ]; then
+	if [ -n "$_F_kde_project" ]; then
 		_F_kde_qtver="$_F_kdever_qt5"
 	fi
 fi
 
 if [ -z "$_F_kde_name" ]; then
         _F_kde_name=$pkgname
-	if [ "$_F_kde_project" = "frameworks" -a "${pkgname: -1}" = "5" ]; then
+	if [ -n "$_F_kde_project" -a "${pkgname: -1}" = "5" ]; then
 		_F_kde_name="${pkgname%?}"
 	fi
 fi
@@ -84,6 +86,9 @@ fi
 
 if [ -z "$_F_kde_dirname" ]; then
 	_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver/src"
+	if [ -n "$_F_kde_project" ]; then
+		_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver"
+	fi
 	if [ "$_F_kde_project" = "frameworks" ]; then
 		_F_kde_dirname="$_F_kde_folder/$_F_kdever_frameworks"
 	fi
@@ -136,8 +141,14 @@ if [ "$_F_kde_defaults" -eq 1 ]; then
 
 	if [ ${#source[@]} -eq 0 ]; then
 		source=("$_F_kde_mirror/$_F_kde_dirname/$_F_kde_name-${_F_kde_pkgver}${_F_kde_ext}")
-		if [ -n "${_F_kdever_sha1sums["$_F_kde_name"]}" ]; then
-			sha1sums=("${_F_kdever_sha1sums["$_F_kde_name"]}")
+		if [ -z "$_F_kde_project" ]; then
+			if [ -n "${_F_kdever_sha1sums["$_F_kde_name"]}" ]; then
+				sha1sums=("${_F_kdever_sha1sums["$_F_kde_name"]}")
+			fi
+		else
+			if [ -n "${_F_kde5_sha1sums["$_F_kde_name"]}" ]; then
+				sha1sums=("${_F_kde5_sha1sums["$_F_kde_name"]}")
+			fi
 		fi
 	fi
 fi
@@ -173,7 +184,7 @@ else
 	_F_cmake_old_defines="$_F_kde_old_defines"
 fi
 
-if [ "$_F_kde_project" = "frameworks" ]; then
+if [ -n "$_F_kde_project" ]; then
 	if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
 		makedepends=("${makedepends[@]}" 'extra-cmake-modules' 'libqt5imageformats' 'libqt5platformsupport' 'libqt5quick')
 	fi
@@ -198,10 +209,13 @@ if [ -z "$_F_kde_project" ]; then
 		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
 else
 	_F_cmake_confopts="$_F_cmake_confopts \
-		-DCONFIG_INSTALL_DIR=/etc/kde5/config \
-		-DKCFG_INSTALL_DIR=/etc/kde5/config.kcfg \
-		-DICON_INSTALL_DIR=/usr/share/kde5/icons \
-		-DKDE_DISTRIBUTION_TEXT='Frugalware Linux'"
+	-DCMAKE_BUILD_TYPE=Release \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DLIB_INSTALL_DIR=lib \
+	-DLIBEXEC_INSTALL_DIR=lib \
+	-DKDE_INSTALL_USE_QT_SYS_PATHS=ON \
+	-DQML_INSTALL_DIR=lib/qt/qml \
+	-DBUILD_TESTING=OFF"
 fi
 
 # stolen from makepkg ;))

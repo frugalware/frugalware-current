@@ -30,7 +30,7 @@
 ###
 
 if [ -z "$_F_phonon_ver" ]; then
-	_F_phonon_ver=4.8.0
+	_F_phonon_ver=4.8.3-4
 fi
 
 if [ -z "$_F_phonon_backend_name" ]; then
@@ -61,7 +61,7 @@ if [ -z "$url" ]; then
 fi
 
 groups=("${groups[@]}" 'phonon-backend')
-depends=("${depends[@]}" "phonon>=$_F_phonon_ver")
+depends=("${depends[@]}" "phonon-qt5>=$_F_phonon_ver")
 
 if [ -z "$url" ]; then
 	url="http://phonon.kde.org"

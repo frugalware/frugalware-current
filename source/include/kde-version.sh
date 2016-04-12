@@ -18,13 +18,14 @@
 
 
 _F_kdever_ver=4.14.3
-_F_kdever_frameworks=5.8
+_F_kdever_frameworks=5.19
 _F_kdever_frameworks_revision=0
+_F_kdever_plasma=5.5.5
 _F_kdever_qt=4.8.7-2
-_F_kdever_qt5=5.3.1
+_F_kdever_qt5=5.5.1
 
 # Must be done in 2 lines else bash barfs on the floor
-declare -gA _F_kdever_sha1sums
+declare -gA _F_kdever_sha1sums _F_kde5_sha1sums
 _F_kdever_sha1sums=(
 	["amor"]='6666619a763e00ef993063c2ee5b249a968bc837'
 	["analitza"]='49277482fe8831772ce61657ef0933358ed5639e'
@@ -248,4 +249,81 @@ _F_kdever_sha1sums=(
 	["kde-l10n-wa"]='9f018354482501bab237221ff76b4f5ea0ce56b8'
 	["kde-l10n-zh_CN"]='268964bd6748e056d15e0eaec6284af5180409e4'
 	["kde-l10n-zh_TW"]='c8a08417b6d517951bd663c766b10753aa680659'
+)
+
+_F_kde5_sha1sums=(
+	["attica"]='1f5678bf53af9f473d588743ce26e694a48df97c'
+	["frameworkintegration"]='b5363ea7ac580821db9d48f3e93bfcb25381c125'
+	["kactivities"]='8cd998c280693a6b603dba6528e5e89e554ec24f'
+	["kapidox"]='a382f7c46f9fc0059dfd449ee546b50a06788814'
+	["karchive"]='597d2f61ee1c8c569092481bc99b534b8f79ba86'
+	["kauth"]='85c9ed7eea519e189f33865c7bfe5efdfdfebe2c'
+	["kbookmarks"]='14c541913e1647ad3934aa10006924d6f1ef873d'
+	["kcmutils"]='e88f9285340a68bf00f5a51bd581cd5fc620ab57'
+	["kcodecs"]='2a2cd072f74728556e9397a838b1408bd674998e'
+	["kcompletion"]='4689deb9de234a435343a0b582d7043856866c4c'
+	["kconfig"]='a3a486696ccd650546560e86d51ee4e0540d1ee7'
+	["kconfigwidgets"]='0252cc20ee193c0f0ab9c612c9d0fcfa59d64284'
+	["kcoreaddons"]='394b98949c385dce88945a8deeb4bedae088ccce'
+	["kcrash"]='c4f3ef430e3c08421182579839d64dbea56024ae'
+	["kdbusaddons"]='28397369ce32386f47aa526e9b6fa073d6f8f2be'
+	["kdeclarative"]='b987522b81740012bd949f115acac3ee995b83cf'
+	["kded"]='f1740090c171555ec931021e44f43b2b8709421d'
+	["kdesignerplugin"]='2268db948b95276c46ba6155a02897890efc1ebd'
+	["kdesu"]='c67625de369ec4303d63653feb75afdf89786a12'
+	["kdewebkit"]='29611a2546044e16cb58828f8325736c9411ce35'
+	["kdnssd"]='e0164869632781d94658e00c10baf65c2e3796db'
+	["kdoctools"]='49fbc6ff3361ee99e3fccba68f9740c2c4fe7b50'
+	["kemoticons"]='50c1b1b2127db108a83f046ef63204c67a1e1936'
+	["kglobalaccel"]='9c326a07eb83a66d814288ef233f3b559991385e'
+	["kguiaddons"]='0aef6dbcf53935526b3894cc50cb9cb0c90a6fdc'
+	["ki18n"]='faea9a964a58e6c77272d1633f0900023a497dcc'
+	["kiconthemes"]='c8ab15063d780d17cceb019cfa362df2ed78cd6d'
+	["kidletime"]='610813cbcc10be581a9855181e22f094a4834da9'
+	["kimageformats"]='2e7a531fc08fc63ee652f5f52addf384105587a9'
+	["kinit"]='37f42b4f0090d8eead9411c1e3eb180acb404e78'
+	["kio"]='b94ad502e91b9123268566c8d7fc859acc2b3ca0'
+	["kitemmodels"]='4b41fcdb97a67f624c1aaab1fa3b4414f875544b'
+	["kitemviews"]='c6b4cb838187626da02c390657ebed94a3f5cfb7'
+	["kjobwidgets"]='18e592364d8135f98d1f227e9db67862d75ea3da'
+	["knewstuff"]='0505132d48ff0e276de8e9e3f1b9ed599e5f9b2e'
+	["knotifications"]='500d85e9261edbb08cd3bcbe0d3ec91b54670945'
+	["knotifyconfig"]='3d56dea9efeef4c6d12ae49ab18dc76216c30416'
+	["kparts"]='ada0955fc87a88f9ce65e3713d7823e993fb2014'
+	["kplotting"]='a6284482ca84d61e692027ed0599c319402a5ef4'
+	["kpty"]='f2d1760700f015388533f53d69e9eaf838d0bd46'
+	["kservice"]='2f13c65228b6922dd32cbee5475c86a1e72dba38'
+	["ktexteditor"]='6c8d3ca2b08b641c3e0cc4405eb9126e33978aaf'
+	["ktextwidgets"]='84a916f3c5418c2aacf739406bf13604e14b4cba'
+	["kunitconversion"]='3be4c3ba92e44e7eb6ba6ddd914200cdeda3cef4'
+	["kwallet"]='a99cef6d9f9107903627d868890b1f92664e8e0d'
+	["kwidgetsaddons"]='695a0aab34fc2f6c9923615daf67281ab7509565'
+	["kwindowsystem"]='5ac612ce14d38056deffc64725942d5e33bf932b'
+	["kxmlgui"]='579adc60982b24723cf79e4e935afea0766c5dae'
+	["plasma-framework"]='7891f04b31060439adfce6c0969f223c52adeb84'
+	["solid"]='d6a9f8055296bc15242e777ad3c11ed12325d68f'
+	["sonnet"]='083277c6360d73ffc6a9de9872f527c65b2073dc'
+	["threadweaver"]='3ad7ed04434aeefeaf3ea5d8fee83d33b93b20ea'
+
+	["baloo"]='6cae868ea553935a67883f4c6b39880bfa48b49a'
+	["breeze"]='a37726fc81aedb7c4c8b8173b4f35616273e55fd'
+	["kde-cli-tools"]='1dc6e02498eefd980978653ffb76d2575c8f62d9'
+	["kfilemetadata"]='7edc6a0e69358a7fe0a5e428938dce893876bce3'
+	["khelpcenter"]='e9e8c0aba9a333414dbc7672395a97dd20c1e0cc'
+	["khotkeys"]='55e5e80e767c6d55e5782af9b626b4af8b8f0467'
+	["kinfocenter"]='520b125a7d3548611b1a435f0a2e8f2ece5abb71'
+	["kio-extras"]='bd84f1ccc2d5ed26e991e9ab485384199f0b96e4'
+	["kmenuedit"]='178cbfde4af6ac7b6bd663ca74988776995673a4'
+	["ksysguard"]='b106790fb8283cf9ee70a802ed33c46beb0a2b6e'
+	["kwin"]='18cd0403508f8ec2fffd10e129d077ee5817e6fe'
+	["kwrited"]='ee07372be3573a8d67a1e7762f9352c973d6c3da'
+	["libksysguard"]='d9f723f09bd4d49abfa28a4f109f5abe7de2aef3'
+	["milou"]='b02e2d732949f8bc7308598e2954a43b6b6ab39d'
+	["oxygen"]='36dba7ac2d9bcc680a9e725baf15ae2f91e774cb'
+	["plasma-desktop"]='834d03eb97d55b47dbb94b40e7245094312fbcc2'
+	["plasma-nm"]='48effdde2a72af7081e431c382a13262774df6ba'
+	["plasma-workspace"]='ba87ef993fa7e7bfe194cbf80f4efad748de5d89'
+	["plasma-workspace-wallpapers"]='668511826328ca1d621b09440097b2916be41a08'
+	["powerdevil"]='57d787934c67b43d1444de6727382939e237ed90'
+	["systemsettings"]='fc90e5a8964923b95a7175fcd7c2804836a3af3f'
 )

@@ -60,8 +60,8 @@ if [ -z "$url" ]; then
 	url="http://phonon.kde.org"
 fi
 
-groups=("${groups[@]}" 'phonon-backend')
-depends=("${depends[@]}" "phonon-qt5>=$_F_phonon_ver")
+groups+=('phonon-backend')
+depends+=("phonon-qt5>=$_F_phonon_ver")
 
 if [ -z "$url" ]; then
 	url="http://phonon.kde.org"

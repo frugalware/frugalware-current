@@ -388,6 +388,7 @@ KDE_export_flags()
 
 	if [[ "$_F_cmake_type" == Debug ]] || [[ "$_F_cmake_type" == DEBUG ]]; then
 		unset CFLAGS CXXFLAGS
+		options+=('nostrip')
 		export CXXFLAGS="$_F_KDE_CXX_FLAGS"
 		export CFLAGS="$_F_KDE_CXX_FLAGS"
 		export LDFLAGS="$LDFLAGS $_F_KDE_LD_FLAGS"

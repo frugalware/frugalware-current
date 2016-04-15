@@ -38,6 +38,14 @@ Finclude cmake kf5-version
 # Use project default since it is an optimisation not allways tested/available by upstream.
 ###
 
+
+## OK f*** this
+if [[ "$CARCH" == "i686" ]]; then
+	unset MAKEFLAGS
+	export MAKEFLAGS="-j1"
+	_F_make_opts="-j1"
+fi
+
 if [ -z "$_F_kde_ver" ]; then
 	_F_kde_ver="$_F_kdever_ver"
 	if [ "$_F_kde_project" = "frameworks" ]; then
@@ -448,6 +456,7 @@ KDE_build()
 ###
 build()
 {
+
 	KDE_build
 }
 

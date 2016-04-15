@@ -179,15 +179,15 @@ if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
 	makedepends+=('extra-cmake-modules' 'qt5-imageformats' 'qt5-base' 'qt5-declarative')
 fi
 
+
 case "$_F_cmake_type" in
-None)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -DNDEBUG -DQT_NO_DEBUG";;
-Debug*)	_F_KDE_CXX_FLAGS="$_F_KDE_CXX_FLAGS -ggdb3";;
+None)	_F_KDE_CXX_FLAGS+=" -DNDEBUG -DQT_NO_DEBUG";;
+Debug*)	_F_KDE_CXX_FLAGS+=" -O0 -ggdb3 -DDEBUG";;
 esac
 
 _F_KDE_LD_FLAGS="-Wl,--no-undefined"
 
 	_F_cmake_confopts="$_F_cmake_confopts \
-	-DCMAKE_BUILD_TYPE=Release \
 	-DCMAKE_INSTALL_PREFIX=/usr \
 	-DLIB_INSTALL_DIR=lib \
 	-DLIBEXEC_INSTALL_DIR=lib \
@@ -385,9 +385,17 @@ KDE_split()
 
 KDE_export_flags()
 {
-	export CFLAGS="$CFLAGS $_F_KDE_CXX_FLAGS"
-	export CXXFLAGS="$CXXFLAGS  $_F_KDE_CXX_FLAGS"
-	export LDFLAGS="$LDFLAGS $_F_KDE_LD_FLAGS"
+
+	if [[ "$_F_cmake_type" == Debug ]] || [[ "$_F_cmake_type" == DEBUG ]]; then
+		unset CFLAGS CXXFLAGS
+		export CXXFLAGS="$_F_KDE_CXX_FLAGS"
+		export CFLAGS="$_F_KDE_CXX_FLAGS"
+		export LDFLAGS="$LDFLAGS $_F_KDE_LD_FLAGS"
+	else
+		export CFLAGS="$CFLAGS $_F_KDE_CXX_FLAGS"
+		export CXXFLAGS="$CXXFLAGS  $_F_KDE_CXX_FLAGS"
+		export LDFLAGS="$LDFLAGS $_F_KDE_LD_FLAGS"
+	fi
 }
 
 KDE_make()

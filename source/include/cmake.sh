@@ -38,7 +38,11 @@ if [ -z "$_F_cmake_old_defines" ]; then
 fi
 
 if [ -z "$_F_cmake_rpath" ]; then
-        _F_cmake_rpath="OFF"
+        _F_cmake_rpath="ON"
+fi
+
+if [ -z "$_F_cmake_install_rpath" ]; then
+	_F_cmake_install_rpath="ON"
 fi
 
 if [ -z "$_F_cmake_build_dir" ]; then
@@ -110,6 +114,7 @@ CMake_conf()
 		-DCMAKE_CXX_FLAGS_DEBUG="$CXXFLAGS" \
 		-DCMAKE_C_FLAGS_DEBUG="$CFLAGS" \
 		-DCMAKE_SKIP_RPATH="$_F_cmake_rpath" \
+		-DCMAKE_SKIP_INSTALL_RPATH="$_F_cmake_install_rpath" \
 		-DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG" \
 		-DCMAKE_C_FLAGS_RELEASE="-DNDEBUG" \
 		$_F_cmake_confopts "$@" $_F_cmake_src || Fdie

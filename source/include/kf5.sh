@@ -60,10 +60,7 @@ fi
 
 
 if [ -z "$_F_kde_qtver" ]; then
-	_F_kde_qtver="$_F_kdever_qt"
-	if [ -n "$_F_kde_project" ]; then
-		_F_kde_qtver="$_F_kdever_qt5"
-	fi
+	_F_kde_qtver="$_F_kdever_qt5"
 fi
 
 if [ -z "$_F_kde_name" ]; then

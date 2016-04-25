@@ -95,12 +95,8 @@ Flocalstatedir="/var"
 Finfodir="/usr/share/info"
 Fmandir="/usr/share/man"
 Fmenudir="/usr/share/applications"
-Farchs=('i686' 'x86_64' 'arm')
-if [[ "`arch`" == arm* ]]; then
-	Fbuildchost="arm-frugalware-linux-gnueabi"
-else
-	Fbuildchost="`arch`-frugalware-linux"
-fi
+Farchs=('i686' 'x86_64')
+Fbuildchost="`arch`-frugalware-linux"
 Fconfopts=""
 _F_make_opts="V=1"
 unset LANG LC_ALL

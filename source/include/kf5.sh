@@ -148,8 +148,8 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		if [[ "$_F_kde_project" = "plasma"  || "$_F_kde_project" = "frameworks" ]]; then
-			up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)"
+		if [[ "$_F_kde_project" = "plasma"  || "$_F_kde_project" = "applications" ]]; then
+			up2date="Flastverdir $_F_kde_mirror/$_F_kde_folder"
 		else
 			up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)/src"
 		fi

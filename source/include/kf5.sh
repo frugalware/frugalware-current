@@ -152,7 +152,9 @@ if [ "$_F_kde_defaults" -eq 1 ]; then
 		if [[ "$_F_kde_project" =~ "plasma" ]] || [[ "$_F_kde_project" =~ "applications" ]]; then
 			up2date="Flastverdir $_F_kde_up2date_mirror/$_F_kde_folder"
 		else
-			up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)/src"
+			## testsuite will hate me
+			up2date1=$(Flastverdir $_F_kde_up2date_mirror/$_F_kde_folder)
+			up2date="Flasttar $_F_kde_up2date_mirror/$_F_kde_folder/$up2date1"
 		fi
 	fi
 

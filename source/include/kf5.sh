@@ -82,6 +82,7 @@ if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
 	#_F_kde_mirror="http://kde-mirror.freenux.org"
 	#_F_kde_mirror="https://kde.cu.be"
+	_F_kde_up2date_mirror="http://download.kde.org/"
 	_F_kde_mirror="http://vesta.informatik.rwth-aachen.de/ftp/pub/mirror/kde/"
 fi
 
@@ -148,8 +149,8 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		if [[ "$_F_kde_project" = "plasma"  || "$_F_kde_project" = "applications" ]]; then
-			up2date="Flastverdir $_F_kde_mirror/$_F_kde_folder"
+		if [[ "$_F_kde_project" =~ "plasma" ]] || [[ "$_F_kde_project" =~ "applications" ]]; then
+			up2date="Flastverdir $_F_kde_up2date_mirror/$_F_kde_folder"
 		else
 			up2date="Flasttar $_F_kde_mirror/$_F_kde_folder/\$(Flastverdir $_F_kde_mirror/$_F_kde_folder)/src"
 		fi

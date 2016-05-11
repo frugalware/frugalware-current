@@ -80,9 +80,7 @@ fi
 
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
-	#_F_kde_mirror="http://kde-mirror.freenux.org"
-	#_F_kde_mirror="https://kde.cu.be"
-	_F_kde_up2date_mirror="http://download.kde.org/"
+	_F_kde_up2date_mirror="ftp://ftp5.gwdg.de/pub/linux/kde/"
 	_F_kde_mirror="http://vesta.informatik.rwth-aachen.de/ftp/pub/mirror/kde/"
 fi
 
@@ -149,13 +147,7 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		if [[ "$_F_kde_project" =~ "plasma" ]] || [[ "$_F_kde_project" =~ "applications" ]]; then
-			up2date="Flastverdir $_F_kde_up2date_mirror/$_F_kde_folder"
-		else
-			## testsuite will hate me
-			up2date1=$(Flastverdir $_F_kde_up2date_mirror/$_F_kde_folder)
-			up2date="Flasttar $_F_kde_up2date_mirror/$_F_kde_folder/$up2date1"
-		fi
+		up2date="ncftpls -x 'R' $_F_kde_up2date_mirror/$_F_kde_folder | Flasttar"
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then
@@ -171,6 +163,9 @@ fi
 
 ## X11/mesa changes
 makedepends+=('x11-protos')
+
+## Use ncftp for up2date
+makedepends+=('ncftp')
 
 ###
 # == APPENDED VARIABLES
@@ -459,4 +454,5 @@ build()
 
 	KDE_build
 }
+
 

@@ -179,7 +179,7 @@ else
 fi
 
 if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
-	makedepends+=('extra-cmake-modules' 'qt5-imageformats' 'qt5-base' 'qt5-declarative')
+	makedepends+=('extra-cmake-modules' 'qt5-tools')
 fi
 
 

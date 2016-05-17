@@ -95,10 +95,13 @@ fi
 if [ -z "$_F_kde_dirname" ]; then
 	_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver/src"
 	if [ "$_F_kde_project" = "plasma" ]; then
-		_F_kde_dirname="$_F_kde_folder/$_F_kde_pkgver"
+		_F_kde_dirname="$_F_kde_folder/$_F_kdever_plasma"
 	fi
 	if [ "$_F_kde_project" = "frameworks" ]; then
 		_F_kde_dirname="$_F_kde_folder/$_F_kdever_frameworks"
+	fi
+	if [ "$_F_kde_project" = "applications" ]; then
+		 _F_kde_dirname="$_F_kde_folder/$_F_kdever_apps"
 	fi
 fi
 

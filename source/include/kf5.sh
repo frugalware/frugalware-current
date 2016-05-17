@@ -101,7 +101,7 @@ if [ -z "$_F_kde_dirname" ]; then
 		_F_kde_dirname="$_F_kde_folder/$_F_kdever_frameworks"
 	fi
 	if [ "$_F_kde_project" = "applications" ]; then
-		 _F_kde_dirname="$_F_kde_folder/$_F_kdever_apps"
+		 _F_kde_dirname="$_F_kde_folder/$_F_kdever_apps/src"
 	fi
 fi
 

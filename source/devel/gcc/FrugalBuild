@@ -9,12 +9,10 @@ USE_SNAPSHOT=${USE_SNAPSHOT:-"n"}
 USE_LANGS=${USE_LANGS:-"y"}
 USE_CXX=${USE_CXX:-"$USE_LANGS"}
 if [ "$CARCH" != "arm" ]; then
-	USE_ADA=${USE_ADA:-"$USE_LANGS"}
 	USE_FORTRAN=${USE_FORTRAN:-"$USE_LANGS"}
 	USE_OBJC=${USE_OBJC:-"$USE_LANGS"}
 	USE_GO=${USE_GO:-"$USE_LANGS"}
 else
-	USE_ADA=${USE_ADA:-"n"}
 	USE_FORTRAN=${USE_FORTRAN:-"n"}
 	USE_OBJC=${USE_OBJC:-"n"}
 	USE_GO=${USE_GO:-"n"}
@@ -25,15 +23,15 @@ Fuse $USE_OBJC && USE_CXX="y"
 
 pkgname=gcc
 pkgver=5.3.0
-pkgrel=2
+pkgrel=3
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils>=2.25.1-5' 'glibc>=2.22-6' 'libmpc>=1.0.3-2' 'zlib>=1.2.8-2')
+depends=('binutils>=2.25.1-5' 'glibc>=2.22-11' 'libmpc>=1.0.3-2' 'zlib>=1.2.8-2')
 makedepends=('kernel-headers>=4.3')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('i686' 'x86_64' 'arm')
-options=('scriptlet' 'noccache')
+options+=('scriptlet' 'noccache' 'static')
 if Fuse $USE_SNAPSHOT; then
 	pkgver=4.5_20101118
 	gccver=4.5.2
@@ -45,8 +43,8 @@ if Fuse $USE_SNAPSHOT; then
 else
 	gccver=$pkgver
 	up2date="lynx -dump http://ftp.gnu.org/pub/gnu/gcc/|grep gcc-.*/$|sed -n 's|.*gcc-\(.*\)/|\1|;$ p'"
-	source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2)
-	sha1sums=('0612270b103941da08376df4d0ef4e5662a2e9eb')
+	source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2 texi2pod.pl.patch)
+	sha1sums=('0612270b103941da08376df4d0ef4e5662a2e9eb' '7e0d1989e716cee2397edb804be80b44d58608fd')
 fi
 
 if Fuse $USE_SHARED; then
@@ -90,20 +88,7 @@ if Fuse $USE_GO; then
 	subreplaces=("${subreplaces[@]}" '' '')
 	subconflicts=("${subconflicts[@]}" '' 'go')
 fi
-if Fuse $USE_ADA; then
-	## see https://gcc.gnu.org/gcc-5/changes.html
-	islver=0.14.1
-	source=("${source[@]}" http://isl.gforge.inria.fr/isl-$islver.tar.xz)
-	sha1sums=("${sha1sums[@]}" 'f3b8280849b09eb3a30138909085292eb481b1b1')
-	subpkgs=("${subpkgs[@]}" 'libgnat' 'gcc-gnat')
-	subdescs=("${subdescs[@]}" 'Ada 95 runtime shared libraries' 'Ada 95 support for GCC')
-	subrodepends=("${subrodepends[@]}" 'libgcc' 'libgnat gcc')
-	subbackup=("${subbackup[@]}" '' '')
-	subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra')
-	subreplaces=("${subreplaces[@]}" '' '')
-	subconflicts=("${subconflicts[@]}" '' '')
-	makedepends=("${makedepends[@]}" 'gcc-gnat')
-fi
+
 if Fuse $USE_FORTRAN; then
 	subpkgs=("${subpkgs[@]}" 'libquadmath' 'libgfortran' 'gcc-gfortran')
 	subdescs=("${subdescs[@]}" 'Quadruple Precision Math library from GCC' 'Fortran 95 runtime' 'Fortran 95 support for GCC')
@@ -129,14 +114,6 @@ build()
 	# no fixincludes, thanks
 	Fsed '\./fixinc\.sh' '-c true' gcc/Makefile.in
 
-	if Fuse $USE_ADA; then
-		if [ ! -d "../isl-$islver" ]; then
-			Fmessage "../isl-$islver not found!"
-			Fdie
-			fi
-		ln -sf "../isl-$islver" "isl" || Fdie
-	fi
-
 	Fpatchall
 	## well reconf / autoreconf is br0ken in gcc .. so do it that way heh
 
@@ -156,11 +133,6 @@ build()
 	fi
 
 	Fuse $USE_OBJC && langlist="$langlist,objc,obj-c++"
-
-	if Fuse $USE_ADA; then
-		langlist="$langlist,ada"
-		Fconfopts+=" --with-isl"
-	fi
 
 	if Fuse $USE_FORTRAN; then
 		langlist="$langlist,fortran"
@@ -202,15 +174,7 @@ build()
 	fi
 
 	if Fuse $USE_SHARED; then
-		if [ "$CARCH" == "i686" ]; then
-			## Make-lang.in:789: recipe for target 'install-gnatlib' failed
-			## Make-lang.in:758: recipe for target 'ada.install-common' failed
-			unset MAKEFLAGS
-			export MAKEFLAGS="-j1" ## just in case..
-			Fexec make -j1  DESTDIR=$Fdestdir install || Fdie
-		else
-			Fmakeinstall
-		fi
+		Fmakeinstall
 	else
 		Fexec make install-gcc DESTDIR=$Fdestdir || Fdie
 	fi
@@ -247,41 +211,6 @@ build()
 
 	Fuse $USE_FORTRAN && Fln gfortran /usr/bin/f95
 
-	if Fuse $USE_ADA; then
-		Fln gcc /usr/bin/gnatgcc
-
-		# move libgnat to the right location
-		newgccver=${gccver%.*.*}
-		Fmv usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl-${newgccver}.so /usr/lib
-		Fmv usr/lib/gcc/$gcchost/$gccver/adalib/libgnat-${newgccver}.so /usr/lib
-		Frm usr/lib/gcc/$gcchost/$gccver/adalib/lib{gnarl,gnat}.so
-		Fln libgnarl-${newgccver}.so /usr/lib/libgnarl.so
-		Fln libgnat-${newgccver}.so /usr/lib/libgnat.so
-		Fln ../../../../libgnarl-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl.so
-		Fln ../../../../libgnarl-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl-${newgccver}.so
-		Fln ../../../../libgnat-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnat.so
-		Fln ../../../../libgnat-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnat-${newgccver}.so
-	fi
-
-	## old for gcc5.3++ , disabled for now
-	# documentation
-	#if Fuse $USE_CXX; then
-	#	Fmkdir /usr/share/man/man3
-	#	#cp $Fsrcdir/libstdc++-api.${cppdocver}.man/man3/* $Fdestdir/usr/share/man/man3/ || Fdie
-	#fi
-
-	# split the pkg
-	if Fuse $USE_ADA; then
-		# libgnat
-		Fsplit libgnat usr/lib/libgnat*.so
-		Fsplit libgnat usr/lib/libgnarl*.so
-		# gcc-gnat
-		Fsplit gcc-gnat usr/bin/gnat*
-		Fsplit gcc-gnat usr/share/info/gnat*
-		Fsplit gcc-gnat usr/lib/gcc/$gcchost/$gccver/adainclude
-		Fsplit gcc-gnat usr/lib/gcc/$gcchost/$gccver/adalib
-		Fsplit gcc-gnat usr/libexec/gcc/$gcchost/$gccver/gnat1
-	fi
 	if Fuse $USE_FORTRAN; then
 		# libquadmath
 		Fsplit libquadmath usr/lib/libquadmath.*

@@ -40,9 +40,6 @@ if [ -z "$_F_mono_aot" ]; then
         _F_mono_aot=1
 fi
 
-if [ -n "$_F_use_nant" ]; then
-	makedepends=("${makedepends[@]}" 'nant')
-fi
 
 Fmonoexport() {
 	Fmessage "Exporting weird MONO_SHARED_DIR..."

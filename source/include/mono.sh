@@ -80,11 +80,7 @@ Fmonocleanup() {
 Fbuild_mono() {
 	unset MAKEFLAGS
 	Fmonoexport
-  if [ -z "$_F_use_nant" ]; then
 	Fbuild $@
-  else
-	Fnant $@
-  fi
 if [ "$_F_mono_aot" -eq 1 ]; then
 	Fmonocompileaot
 fi

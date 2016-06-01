@@ -1167,6 +1167,26 @@ Ffix_la_files() {
 # found, then installs the init script, too. Parameter(s) are passed to
 # make/python.
 ###
+Ffix_perl() {
+ 	if [ -d $Fdestdir/usr/lib/perl5/*.*.* ]; then
+        Fmv '/usr/lib/perl5/*.*.*' /usr/lib/perl5/current
+    fi
+    if [ -d $Fdestdir/usr/lib/perl5 ]; then
+        find $Fdestdir/usr/lib/perl5 -name perllocal.pod -exec rm {} \;
+        find $Fdestdir/usr/lib/perl5 -name .packlist -exec rm {} \;
+    fi
+    if [ -e $Fdestdir/usr/lib/perl5/site_perl/*.*.* ]; then
+        Fmv '/usr/lib/perl5/site_perl/*.*.*' /usr/lib/perl5/site_perl/current
+    fi
+    if [ -d $Fdestdir/usr/lib/perl5/site_perl ]; then
+        find $Fdestdir/usr/lib/perl5/site_perl -name perllocal.pod -exec rm {} \;
+        find $Fdestdir/usr/lib/perl5/site_perl -name .packlist -exec rm {} \;
+        rmdir -p --ignore-fail-on-non-empty \
+            $Fdestdir/usr/lib/perl5/site_perl/current/*/auto/{*,*/*} \
+            &>/dev/null
+    fi
+}
+
 Fmakeinstall() {
 	Fmessage "Installing to the package directory..."
 	if Fbuildsystem_make 'probe'; then
@@ -1187,23 +1207,8 @@ Fmakeinstall() {
 	if [ -e $Fdestdir/usr/share/info/dir ]; then
 		Frm /usr/share/info/dir
 	fi
-	if [ -d $Fdestdir/usr/lib/perl5/*.*.* ]; then
-		Fmv '/usr/lib/perl5/*.*.*' /usr/lib/perl5/current
-	fi
-	if [ -d $Fdestdir/usr/lib/perl5 ]; then
-		find $Fdestdir/usr/lib/perl5 -name perllocal.pod -exec rm {} \;
-		find $Fdestdir/usr/lib/perl5 -name .packlist -exec rm {} \;
-	fi
-	if [ -e $Fdestdir/usr/lib/perl5/site_perl/*.*.* ]; then
-		Fmv '/usr/lib/perl5/site_perl/*.*.*' /usr/lib/perl5/site_perl/current
-	fi
-	if [ -d $Fdestdir/usr/lib/perl5/site_perl ]; then
-		find $Fdestdir/usr/lib/perl5/site_perl -name perllocal.pod -exec rm {} \;
-		find $Fdestdir/usr/lib/perl5/site_perl -name .packlist -exec rm {} \;
-		rmdir -p --ignore-fail-on-non-empty \
-			$Fdestdir/usr/lib/perl5/site_perl/current/*/auto/{*,*/*} \
-			&>/dev/null
-	fi
+
+	Ffix_perl
 
 	# rc script
 	if [ -z "$_F_rcd_name" ]; then

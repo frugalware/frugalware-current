@@ -39,11 +39,5 @@
 ###
 [ -z "$url" ] && url="http://pypi.python.org/pypi/$_F_pypi_name"
 up2date="Flastarchive https://pypi.python.org/pypi/${_F_pypi_name}/json $_F_pypi_ext"
-#source=(http://pypi.python.org/packages/source/${_F_pypi_name:0:1}/$_F_pypi_name/$_F_pypi_name-$pkgver$_F_pypi_ext)
-#source="$(lynx -dump https://pypi.python.org/pypi/${_F_pypi_name}#downloads | grep -m1 'gz#md5' | sed 's/#.*//g' | sed 's/  [0-9].*. //g')"
 
-if [ -z "$source" ]; then
-	Fmessage "Source schemas changed on pypi, please update the source=() manually"
-	Fmessage "Bailing out.."
-	Fdie
-fi
+

@@ -9,20 +9,33 @@ url="http://www.mongodb.org"
 up2date="lynx -dump $url/downloads | grep src- -m1 | sed 's/.*-src-r\(.*\)\.tar.*/\1/'"
 groups=('apps-extra')
 archs=('i686' 'x86_64')
-depends=('libstdc++')
-makedepends+=('scons')
-source=(http://downloads.mongodb.org/src/mongodb-src-r$pkgver.tar.gz)
-sha1sums=('9619cedfdc3219232639e519a9128cdf4fa7c40c')
+depends=('libstdc++' 'openssl' 'pcre' 'zlib' 'yaml-cpp' 'snappy' 'libboost' 'libpcap')
+makedepends+=('scons' 'boost')
+source=(http://downloads.mongodb.org/src/mongodb-src-r$pkgver.tar.gz boost.patch)
+sha1sums=('9619cedfdc3219232639e519a9128cdf4fa7c40c' \
+          '229f469533249e30e525482a17b69ed355bd2667')
 options+=('static')
+
+## TODO: - some default conf ?
+##       - systemd service ?
+##       - fix C/CXX system flags
 
 build()
 {
-		### also is possible to build with system libs but please don't
-		## since they want the 'exact version' eg: --with-system-foo=1.2.3
-		## and every changes to any system lib will trigger an rebuild for this one
+		### F*** this scons
 		Fcd $pkgname-src-r$pkgver
-		scons --disable-warnings-as-errors all || Fdie
-		scons --prefix $Fdestdir/usr install || Fdie
+		Fpatchall
+		export SCONSFLAGS="$MAKEFLAGS"
+		OPT="--disable-warnings-as-errors --ssl --use-system-zlib --use-system-pcre \
+				--use-system-yaml --use-system-snappy --use-system-boost"
+
+		if [ "$CARCH" == "i686" ]; then
+			## 32bit won't compile with this on
+			OPT+=" --wiredtiger=off"
+		fi
+
+		scons all $OPT || Fdie
+		scons --prefix $Fdestdir/usr $OPT --nostrip install || Fdie
 }
 
 # optimization OK

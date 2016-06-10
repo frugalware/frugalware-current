@@ -16,12 +16,16 @@
 # * build_qt5(): function to build qt5 source packages
 ###
 
-pkgver=5.6.0
+if [ -z "$pkgver" ]; then
+	pkgver=5.6.0
+fi
 qtpkgname=${pkgname/5-/}
 qtpkgfilename=${qtpkgname}-opensource-src-${pkgver}
 pkgdesc="The Qt5 toolkit, ${qtpkgname}"
 url="http://www.qt.io"
-groups=('xlib')
+if [ -z "$groups" ]; then
+	groups=('xlib')
+fi
 archs=('i686' 'x86_64')
 options+=('nodocs')
 source=(http://download.qt.io/archive/qt/${pkgver%.*}/${pkgver}/submodules/${qtpkgfilename}.tar.xz)

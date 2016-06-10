@@ -16,9 +16,7 @@
 # * build_qt5(): function to build qt5 source packages
 ###
 
-if [ -z "$pkgver" ]; then
-	pkgver=5.6.0
-fi
+
 qtpkgname=${pkgname/5-/}
 qtpkgfilename=${qtpkgname}-opensource-src-${pkgver}
 pkgdesc="The Qt5 toolkit, ${qtpkgname}"

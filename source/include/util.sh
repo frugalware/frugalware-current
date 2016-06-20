@@ -976,6 +976,12 @@ Fbuildsystem_python_setup() {
 	local command="$1"
 	shift
 
+	if [ -z "$_F_python_version" ]; then
+		_python="python"
+	else
+		_python="$_F_python_version"
+	fi
+
 	case "$command" in
 	'probe')
 		test -f setup.py
@@ -983,11 +989,11 @@ Fbuildsystem_python_setup() {
 		;;
 	'make')
 		# does configure and build
-		Fexec python setup.py build "$@"
+		Fexec "$_python" setup.py build "$@"
 		return $?
 		;;
 	'install')
-		Fexec python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@"
+		Fexec "$_python" setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@"
 		return $?
 		;;
 	*)

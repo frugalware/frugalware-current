@@ -973,6 +973,7 @@ Fbuildsystem_ruby_setup() {
 }
 
 Fbuildsystem_python_setup() {
+	echo "$@"
 	local command="$1"
 	shift
 
@@ -993,7 +994,7 @@ Fbuildsystem_python_setup() {
 		return $?
 		;;
 	'install')
-		Fexec "$_python" setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@"
+		Fexec "$_python" setup.py install --prefix "$Fprefix" --root "$Fdestdir" --install-data usr/share/ "$@"
 		return $?
 		;;
 	*)

@@ -35,6 +35,7 @@ makedepends+=('x11-protos' 'gperf')
 build_qt5()
 {
 	Fcd
+	Fpatchall
 	qmake-qt5 || Fdie
 	Fmake
 	make  INSTALL_ROOT=$Fdestdir install || Fdie

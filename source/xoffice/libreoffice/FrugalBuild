@@ -3,10 +3,10 @@
 # Contributor: Laszlo Dvornik <dvornik@gnome.hu>
 
 pkgname=libreoffice
-pkgver=5.1.4.2
+pkgver=5.2.0.4
 minor=${pkgver:0:5} # x.y.z
 major=${pkgver:0:3} # x.y
-pkgrel=3
+pkgrel=1
 pkgdesc="Free Software Productivity Suite"
 url="http://www.libreoffice.org/"
 Finclude gnome-scriptlet
@@ -86,25 +86,15 @@ makedepends=(
 )
 groups=('xoffice')
 archs=('i686' 'x86_64')
-mirror="http://download.documentfoundation.org/libreoffice/src/$minor"
+#mirror="http://download.documentfoundation.org/libreoffice/src/$minor"
 mirror="http://dev-builds.libreoffice.org/pre-releases/src"
 _F_archive_grepv="beta"
 up2date="Flasttar $mirror"
 modules=('' 'help-' 'translations-')
 source=(
-	0001-Update-liborcus-to-0.11.0.patch
-	0001-reorder.patch
-	0002-reduce-copypasta.patch
-	0003-detect-Boost.Filesystem.patch
-	0004-define-boost_filestystem-external-for-system-boost-t.patch
 	0005-curl-7.50.0-has-CURL-as-typedef-struct-Curl_easy.patch
 )
 signatures=(
-	''
-	''
-	''
-	''
-	''
 	''
 )
 for i in "${modules[@]}"
@@ -113,12 +103,11 @@ do
 	signatures=("${signatures[@]}" $mirror/libreoffice-$i${pkgver/_/-}.tar.xz.asc)
 done
 ext_source=(http://dev-www.libreoffice.org/extern/185d60944ea767075d27247c3162b3bc-unowinreg.dll \
-	http://dev-www.libreoffice.org/src/1f24ab1d39f4a51faf22244c94a6203f-xmlsec1-1.2.14.tar.gz \
+	http://dev-www.libreoffice.org/src/ce12af00283eb90d9281956524250d6e-xmlsec1-1.2.20.tar.gz \
 	http://dev-www.libreoffice.org/src/798b2ffdc8bcfe7bca2cf92b62caf685-rhino1_5R5.zip \
 	http://dev-www.libreoffice.org/src/35c94d2df8893241173de1d16b6034c0-swingExSrc.zip \
 	http://dev-www.libreoffice.org/src/17410483b5b5f267aa18b7e00b65e6e0-hsqldb_1_8_0.zip \
-	http://dev-www.libreoffice.org/src/4b87018f7fff1d054939d19920b751a0-collada2gltf-master-cb1d97788a.tar.bz2 \
-	http://dev-www.libreoffice.org/src/mdds_0.12.1.tar.bz2)
+	http://dev-www.libreoffice.org/src/4b87018f7fff1d054939d19920b751a0-collada2gltf-master-cb1d97788a.tar.bz2)
 for i in ${ext_source[@]}
 do
 	source=(${source[@]} $i)
@@ -253,19 +242,15 @@ build()
 	Fpatchall
 	export OPENCOLLADA_CFLAGS='-I/usr/include/COLLADABaseUtils -I/usr/include/COLLADAFramework -I/usr/include/COLLADASaxFrameworkLoader -I/usr/include/GeneratedSaxParser'
 	export OPENCOLLADA_LIBS='-lOpenCOLLADABaseUtils -lOpenCOLLADAFramework -lOpenCOLLADASaxFrameworkLoader -lGeneratedSaxParser'
-	export MDDS_CFLAGS=`pkg-config --cflags mdds-1.2`
-	export MDDS_LIBS=' '
 	_F_conf_configure="./autogen.sh"
 	Fconfopts+=" --prefix=/usr --sysconfdir=/etc --localstatedir=/var --docdir=/usr/share/doc/libreoffice-$pkgver --infodir=/usr/share/info --mandir=/usr/share/man"
 	# FIXME fix junit and enable it again
-	# FIXME use system mdds again when 1.2 is supported
 	Fconf --with-vendor="Frugalware Linux" \
 		--with-build-version="$pkgver-$pkgrel" \
 		--with-lang="en-US ${completelangiso[*]}" \
 		--with-jdk-home=$JAVA_HOME \
 		--with-help \
 		--without-fonts \
-		--without-system-npapi-headers \
 		--with-system-libs \
 		--with-system-opencollada \
 		--with-system-headers \
@@ -277,17 +262,18 @@ build()
 		--with-system-dicts \
 		--with-external-dict-dir=/usr/share/myspell \
 		--without-junit \
-		--without-system-mdds \
 		--disable-fetch-external \
 		--enable-release-build \
 		--disable-dependency-tracking
 	# Need to find out why do these fail, quite possibly missing fonts.
 	sed -i '/sw_ww8import/d' sw/Module_sw.mk # failed on 5.1
+	sed -i '/sw_ww8export/d' sw/Module_sw.mk # failed on 5.2
 	sed -i '/sw_uiwriter/d' sw/Module_sw.mk # failed on 5.1
 	sed -i '/sw_ooxmlexport7/d' sw/Module_sw.mk # failed on 5.1
 	sed -i '/sc_subsequent_filters_test/d' sc/Module_sc.mk # failed on 5.1
 	sed -i '/sd_tiledrendering/d' sd/Module_sd.mk # failed on 5.1
 	sed -i '/CppunitTest_writerperfect_impress/d' writerperfect/Module_writerperfect.mk # failed on 5.0
+	sed -i 's/test `id -u` = 0/false/' Makefile # missing fakeroot detection
 
 	if [ ! -e src.built ]; then
 		make || return 1

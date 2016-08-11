@@ -983,6 +983,11 @@ Fbuildsystem_python_setup() {
 		_python="$_F_python_version"
 	fi
 
+    if [ -z "$_F_python_install_data_dir" ]; then
+		_F_python_install_data_dir="usr/share/"
+	fi
+
+	
 	case "$command" in
 	'probe')
 		test -f setup.py
@@ -994,7 +999,7 @@ Fbuildsystem_python_setup() {
 		return $?
 		;;
 	'install')
-		Fexec "$_python" setup.py install --prefix "$Fprefix" --root "$Fdestdir" --install-data usr/share/ "$@"
+		Fexec "$_python" setup.py install --prefix "$Fprefix" --root "$Fdestdir" --install-data $_F_python_install_data_dir "$@"
 		return $?
 		;;
 	*)

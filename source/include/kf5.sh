@@ -186,6 +186,16 @@ if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
 	makedepends+=('extra-cmake-modules' 'qt5-tools')
 fi
 
+## From gcc6 docs
+## Value range propagation now assumes that the this pointer of C++ member functions is non-null. This eliminates common
+## null pointer checks but also breaks some non-conforming code-bases (such as Qt-5, Chromium, KDevelop). As a temporary
+## work-around -fno-delete-null-pointer-checks can be used. Wrong code can be identified by using -fsanitize=undefined.
+
+_F_KDE_GCC_VER=$(gcc --version | head -n1 | cut -d" " -f4)
+
+case "$_F_KDE_GCC_VER" in
+6.*) _F_KDE_CXX_FLAGS+=" -fno-delete-null-pointer-checks";;
+esac
 
 case "$_F_cmake_type" in
 None)	_F_KDE_CXX_FLAGS+=" -DNDEBUG -DQT_NO_DEBUG";;

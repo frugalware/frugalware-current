@@ -1,0 +1,87 @@
+From 9bf10ee83c11cf6e7a21434e12434e6a35707f8d Mon Sep 17 00:00:00 2001
+From: crazy <crazy@frugalware.org>
+Date: Mon, 5 Sep 2016 19:59:16 +0200
+Subject: [PATCH 4/4] makepkg * move version checking before doing anything
+ else .. * strange logic to install depends and stuff and * then error out
+ because up2date does not match !?! :)
+
+---
+ scripts/makepkg | 55 ++++++++++++++++++++++++++++---------------------------
+ 1 file changed, 28 insertions(+), 27 deletions(-)
+
+diff --git a/scripts/makepkg b/scripts/makepkg
+index f3c1ba3..1dd241b 100755
+--- a/scripts/makepkg
++++ b/scripts/makepkg
+@@ -1266,6 +1266,34 @@ fi
+ 
+ msg "Making package: $pkgname $pkgver-$pkgrel (`date`)"
+ 
++# version checking
++if [ "$NOUP2DATE" = "0" ]; then
++        msg "Checking for newer version..."
++        if $ECHO "$up2date"|grep -q " "; then
++                cmd=`$ECHO "$up2date"|sed 's/^\([^ ]*\) .*/\1/'`
++                if type -p $cmd &>/dev/null; then
++                        up2date=`eval "$up2date"`
++                else
++                        warning "The $cmd program is missing.  Cannot check for newer version!"
++                        up2date=""
++                        sleep 1
++                fi
++        fi
++        if [ -z "$up2date" ]; then
++                        $ECHO "   FAILED" >&2
++                        error "There was no output!"
++                        exit 1
++        else
++                if [ "$pkgver" != "$up2date" ]; then
++                        $ECHO "   FAILED" >&2
++                       	error "Upstream version differs! ($pkgver != $up2date)"
++                        exit 1
++                else
++                $ECHO "   Passed" >&2
++                fi
++        fi
++fi
++
+ unset deplist makedeplist
+ if [ `type -p $PACMAN` -a "$NODEPS" = "0" ]; then
+ 	msg "Checking Buildtime Dependencies..."
+@@ -1300,33 +1328,6 @@ fi
+ 
+ cd $startdir
+ 
+-# version checking
+-if [ "$NOUP2DATE" = "0" ]; then
+-	msg "Checking for newer version..."
+-	if $ECHO "$up2date"|grep -q " "; then
+-		cmd=`$ECHO "$up2date"|sed 's/^\([^ ]*\) .*/\1/'`
+-		if type -p $cmd &>/dev/null; then
+-			up2date=`eval "$up2date"`
+-		else
+-			warning "The $cmd program is missing.  Cannot check for newer version!"
+-			up2date=""
+-			sleep 1
+-		fi
+-	fi
+-	if [ -z "$up2date" ]; then
+-			$ECHO "   FAILED" >&2
+-			error "There was no output!"
+-			exit 1
+-	else
+-		if [ "$pkgver" != "$up2date" ]; then
+-			$ECHO "   FAILED" >&2
+-                       error "Upstream version differs! ($pkgver != $up2date)"
+-			exit 1
+-		else
+-		$ECHO "   Passed" >&2
+-		fi
+-	fi
+-fi
+ 
+ # estimate build time
+ if grep -i -q "^# Compiling Time: [~0-9\.]\+ SBU$" $BUILDSCRIPT && \
+-- 
+2.9.3
+

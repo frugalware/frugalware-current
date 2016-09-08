@@ -87,7 +87,7 @@ done
 cd ..
 
 output=$(mktemp)
-(gen_output $logdir "-current Testsuite" ""; gen_output $logdir/stable "-stable Testsuite" "$stabledir"; gen_output $logdir/s "-current Statistics" "s") > $output
+(gen_output $logdir "-current Testsuite" ""; gen_output $logdir/s "-current Statistics" "s") > $output
 cat $output > ~/public_html/stats/testsuite.txt
 cat $output \
 	| LC_ALL=en_US mail -r "Frugalware Testsuite <noreply@frugalware.org>" \

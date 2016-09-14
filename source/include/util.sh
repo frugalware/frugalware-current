@@ -99,12 +99,6 @@ Farchs=('i686' 'x86_64')
 Fbuildchost="`arch`-frugalware-linux"
 Fconfopts=""
 _F_make_opts="V=1"
-## Ohh well..
-if ! echo $LDFLAGS | grep -q "\-Wl,-O1" ; then
-	echo "WARNING: Broken LDFLAGS found, please fix your makepkg.conf!"
-	echo "WARNING: Workaround, adding -Wl,-O1 to LDFLAGS"
-	LDFLAGS+=" -Wl,-O1"
-fi
 
 unset LANG LC_ALL
 

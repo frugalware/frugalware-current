@@ -101,8 +101,8 @@ Fconfopts=""
 _F_make_opts="V=1"
 ## Ohh well..
 if ! echo $LDFLAGS | grep -q "\-Wl,-O1" ; then
-	Fmessage "Broken LDFLAGS found, please fix your makepkg.conf!"
-	Femssage "Adding -Wl,-O1 to LDFLAGS"
+	echo "WARNING: Broken LDFLAGS found, please fix your makepkg.conf!"
+	echo "WARNING: Workaround, adding -Wl,-O1 to LDFLAGS"
 	LDFLAGS+=" -Wl,-O1"
 fi
 

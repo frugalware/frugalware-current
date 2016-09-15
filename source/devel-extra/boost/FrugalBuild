@@ -5,38 +5,43 @@
 
 
 pkgname=boost
-pkgver=1.60.0
-pkgrel=4
+pkgver=1.61.0
+pkgrel=1
 pkgdesc="Boost header files, examples and tools"
 _F_sourceforge_ext=".tar.bz2"
 Finclude sourceforge python
 url="http://boost.org/"
 depends=()
 up2date="lynx -dump http://www.boost.org/users/download/|grep 'Current Release'|tail -n 1 | sed 's/.*]\(.*\) -.*/\1/'"
-makedepends=('python3' 'python>=2.7.11-3' 'icu4c>=55.1-3' 'bzip2>=1.0.6-4' 'zlib>=1.2.8-4' 'openssl>=1.0.2-3')
+makedepends=('python3>=3.5.2-2' 'python>=2.7.12-2' 'icu4c>=55.1-4' 'bzip2>=1.0.6-6' 'zlib>=1.2.8-8' 'openssl>=1.0.2-8')
 source=(${source/-$pkgver/_${pkgver//./_}})
 groups=('devel-extra')
-archs=('i686' 'x86_64' 'arm')
+archs=('i686' 'x86_64')
 _F_cd_path="${pkgname}_`echo $pkgver|tr . _`"
-sha1sums=('7f56ab507d3258610391b47fef6b11635861175a')
-
-subpkgs=("libboost" "libboost-static")
-subdescs=('Boost libraries.' 'Boost libraries statically linked.')
-subdepends=('icu4c>=55.1-3 libstdc++>=5.3.0-2 bzip2>=1.0.6-4 zlib>=1.2.8-4' '')
-subrodepends=('' '')
-subgroups=('lib' 'devel-extra')
-subarchs=('i686 x86_64 arm' 'i686 x86_64 arm')
+sha1sums=('f84b1a1ce764108ec3c2b7bd7704cf8dfd3c9d01')
 
 options+=('static') ## pong-static ?:)
 
-if [ "$CARCH" != "arm" ]; then
-	subpkgs=("${subpkgs[@]}" "libboost-mpi")
-	subdescs=("${subdescs[@]}" 'Boost MPI Interface.')
-	subdepends=("${subdepends[@]}" 'openmpi>=2.0.0 libstdc++>=5.3.0-2')
-	subrodepends=("${subrodepends[@]}" 'libboost')
-	subgroups=("${subgroups[@]}" 'lib-extra')
-	subarchs=("${subarchs[@]}" "i686 x86_64")
-fi
+subpkgs=("libboost")
+subdescs=('Boost libraries.')
+subdepends=('icu4c>=55.1-4 libstdc++>=6.2.1-5 bzip2>=1.0.6-6 zlib>=1.2.8-8')
+subrodepends=('')
+subgroups=('lib')
+subarchs=('i686 x86_64')
+
+subpkgs+=("libboost-static")
+subdescs+=('Boost libraries statically linked.')
+subdepends+=('')
+subrodepends+=('')
+subgroups+=('devel-extra')
+subarchs+=('i686 x86_64')
+
+subpkgs+=("libboost-mpi")
+subdescs+=('Boost MPI Interface.')
+subdepends+=('openmpi>=2.0.1-2 libstdc++>=6.2.1-5')
+subrodepends+=("libboost>=$pkgver")
+subgroups+=('lib-extra')
+subarchs+=("i686 x86_64")
 
 build()
 {
@@ -49,16 +54,15 @@ build()
 
 	Fcd
 	./bootstrap.sh --with-toolset=gcc --with-icu
-	if [ "$CARCH" == "arm" ]; then
-		 MPI="--without-mpi"
-	else
-		MPI=""
-		# Support for OpenMPI
-		echo "using mpi ;" >> project-config.jam
-	fi
+	# Support for OpenMPI
+	echo "using mpi ;" >> project-config.jam
+
 
    	# Add an extra python version. This does not replace anything and python 2.x
    	# need to be the default.
+
+	## that never worked ...
+	_F_python3_ver="`F_python3_getver`"
    	echo "using python : ${_F_python3_ver} : /usr/bin/python3 : /usr/include/python${_F_python3_ver}m : /usr/lib ;" \
 		>> project-config.jam
 
@@ -69,7 +73,6 @@ build()
 		link=shared,static \
 		toolset=gcc \
 		optimization=speed \
-		${JOBS} ${MPI} \
 		-sHAVE_ICU=1 -sICU_PATH=/usr \
 		-sBOOST_ROOT="$Fsrcdir" \
 		-sPYTHON_ROOT=/usr \
@@ -83,7 +86,7 @@ build()
 		--layout=system \
 		cflags="${CXXFLAGS}" \
 		linkflags="${LDFLAGS}" \
-		${JOBS} ${MPI} install || Fdie
+		${JOBS}  install || Fdie
 
 	#for k3d
 	cp libs/math/include_private/boost/math/tools/* $Fdestdir/usr/include/boost/math/tools/ || Fdie
@@ -91,11 +94,9 @@ build()
 	## this before mpi , we don't want static libs in mpi package
 	Fsplit libboost-static usr/lib/libboost_*.a
 
-	if [ "$CARCH" != "arm" ]; then
-		Fsplit libboost-mpi usr/lib/libboost_graph_parallel*
-		Fsplit libboost-mpi usr/lib/libboost_mpi*
-		Fsplit libboost-mpi usr/lib/mpi.so
-	fi
+	Fsplit libboost-mpi usr/lib/libboost_graph_parallel*
+	Fsplit libboost-mpi usr/lib/libboost_mpi*
+	Fsplit libboost-mpi usr/lib/mpi.so
 
 	Fsplit libboost        usr/lib/libboost_*.so*
 

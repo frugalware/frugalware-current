@@ -2,14 +2,14 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=chromium-browser
-pkgver=52.0.2743.116
+pkgver=53.0.2785.116
 pkgrel=1
 pkgdesc='An open-source browser project that aims to build a safer, faster, and more stable way for all users to experience the web'
 url='http://www.chromium.org/'
 depends=('libevent>=2.0.22-3' 'nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.3-2' 'libcups' \
-	'speech-dispatcher>=0.7.1-4' 'gtk+2-libs>=2.24.29-2' 'gdk-pixbuf2>=2.32.3-2' 'libxtst>=1.2.2-2' 'libjpeg>=9a' \
-	'libatomic' 'pciutils>=3.5')
-makedepends=('ninja' 'clang>=3.7.0-3' 'gtk+2' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' 'x11-protos' 'krb5' 'cups')
+	'speech-dispatcher>=0.7.1-4' 'gdk-pixbuf2>=2.32.3-2' 'libxtst>=1.2.2-2' 'libjpeg>=9a' \
+	'libatomic' 'pciutils>=3.5' 'opus' 'ffmpeg' 'libxslt' 'libwebp' 'libgles' 'libegl' 'gtk+3')
+makedepends=('ninja' 'gtk+2' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' 'x11-protos' 'krb5' 'cups' 'mesa' 'lib32-libstdc++' 'lib32-zlib')
 license=('BSD')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
@@ -22,11 +22,25 @@ up2date="lynx -dump -useragent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_0) A
 	egrep -o '([0123456789.]*)'"
 source=(https://commondatastorage.googleapis.com/chromium-browser-official/chromium-${pkgver}.tar.xz \
         $pkgname.desktop \
-        $pkgname.sh jpeg9.patch)
-sha1sums=('0a3c488132b4f729f0cb83efdb26e72a33b200b8' \
-          '78ed8913b8a598de6a9e45d206973a846dbe8a51' \
+        $pkgname.sh \
+	jpeg9.patch \
+ 	chromium-last-commit-position-r0.patch \
+ 	chromium-system-ffmpeg-r2.patch \
+ 	chromium-52.0.2743.82-widevinefix.patch \
+ 	chromium-46.0.2490.86-use_system_opus.patch \
+ 	chromium-52.0.2723.2-use_system_harfbuzz.patch \
+	chromium-52.0.2743.82-cups22.patch )
+
+sha1sums=('9f20ac0a5d1720bc932ed85779112d164390327f' \
+          '264b8e7c4e3273263d504e041e5e4d152677922c' \
           '4c41d59b4d85a9f0443d6ca1dec456e50059dab5' \
-          '95b850e2d22f3d42a25e33edfea549cf1bc5ab33')
+          '95b850e2d22f3d42a25e33edfea549cf1bc5ab33' \
+          '0db176bb4b6175b408f75b0644d38b5229bd113c' \
+          '450cd81653499eb50f0f7df1b0d4d1c1620365a5' \
+          '452ca515e91ff27957ee1b5dfd975f2daabc5b64' \
+          'd6d09996ff5ff4d796cf26f239eb2b688e017d25' \
+          '4ac2af324c6927507d214ba3b6512ad1a879a2ff' \
+          '281ef7c51b733765b741d69b78e7d74ec6cb328a')
 
 CXXFLAGS="$CXXFLAGS -fpermissive"
 
@@ -39,74 +53,127 @@ _google_default_client_id="63071405569.apps.googleusercontent.com"
 _google_default_client_secret="2bNvMsN-57D44Q5ireW62LcZ"
 
 build() {
+	LDFLAGS+=" -Wl,-rpath,/usr/lib/chromium,-rpath,/usr/lib/chromium/lib"
+
         Fcd
+
+	if [ $CARCH = x86_64 ]; then
+		Fexec python2 build/download_nacl_toolchains.py \
+			--packages nacl_x86_newlib,pnacl_newlib,pnacl_translator \
+			sync --extract || Fdie
+	fi
+
 	Fpatchall
 
 	Fexec touch chrome/test/data/webui/i18n_process_css_test.html
 
-	myconf+="-Dgoogle_api_key=$_google_api_key
-	-Dgoogle_default_client_id=$_google_default_client_id
-	-Dgoogle_default_client_secret=$_google_default_client_secret
-	-Dwerror=
-	-Dclang=1
-	-Dclang_use_chrome_plugins=0
-	-Dpython_ver=2.7
-	-Dlinux_link_gsettings=1
-	-Dlinux_link_libpci=1
-	-Dlinux_link_libspeechd=1
-	-Dlinux_link_pulseaudio=1
-	-Dlinux_strip_binary=1
-	-Dlinux_use_bundled_binutils=0
-	-Dlinux_use_bundled_gold=0
-	-Dlinux_use_gold_flags=0
-	-Dlogging_like_official_build=1
-	-Dtracing_like_official_build=1
-	-Dfieldtrial_testing_like_official_build=1
-	-Dffmpeg_branding=Chrome
-	-Dproprietary_codecs=1
-	-Duse_gnome_keyring=0
-	-Duse_system_bzip2=1
-	-Duse_system_flac=1
-	-Duse_system_ffmpeg=0
-	-Duse_system_harfbuzz=1
-	-Duse_system_icu=0
-	-Duse_system_libevent=1
-	-Duse_system_libjpeg=1
-	-Duse_system_libpng=0
-	-Duse_system_libxml=0
-	-Duse_system_snappy=1
-	-Duse_system_ssl=0
-	-Duse_system_xdg_utils=1
-	-Duse_system_yasm=1
-	-Duse_system_zlib=0
-	-Dusb_ids_path=/usr/share/hwdata/usb.ids
-	-Duse_mojo=0
-	-Duse_gconf=0
-        -Duse_sysroot=0
-	-Denable_hangout_services_extension=1
-	-Ddisable_fatal_linker_warnings=1
-	-Dlibspeechd_h_prefix=speech-dispatcher/
-	-Ddisable_nacl=1
-	-Ddisable_glibc=1
-	-Ddisable_pnacl=1
-	-Ddisable_glibc=1"
+	# Google API stuff
+	myconf+="	-Dgoogle_api_key=$_google_api_key
+			-Dgoogle_default_client_id=$_google_default_client_id
+			-Dgoogle_default_client_secret=$_google_default_client_secret"
 
+	# System libs
+	myconf+="       -Duse_system_bzip2=1
+			-Duse_system_flac=1
+			-Duse_system_ffmpeg=1
+			-Duse_system_harfbuzz=1
+			-Duse_system_libevent=1
+			-Duse_system_libjpeg=1
+			-Duse_system_libpng=1
+			-Duse_system_libxml=1
+			-Duse_system_snappy=1
+			-Duse_system_ssl=1
+			-Duse_system_xdg_utils=1
+			-Duse_system_yasm=1
+			-Duse_system_zlib=1
+			-Duse_system_libexif=1
+			-Duse_system_protobuf=0
+			-Duse_system_yasm=1
+			-Duse_system_sqlite=0
+			-Duse_system_fontconfig=1
+			-Duse_system_expat=1
+			-Duse_system_jsoncpp=1
+			-Duse_system_libevent=1
+			-Duse_system_libusb=1
+			-Duse_system_libvpx=1
+			-Duse_system_libwebp=1
+			-Duse_system_libxnvctrl=0
+			-Duse_system_libxslt=1
+			-Duse_system_re2=0
+			-Duse_system_snappy=1
+			-Duse_system_v8=0
+			-Duse_system_minizip=1
+			-Duse_system_opus=1"
 
-	if [ $CARCH = x86_64 ]; then
-		myconf+=" -Dtarget_arch=x64"
-	fi
+	# Linkage
+	myconf+="	-Dlinux_link_gsettings=1
+			-Dlinux_link_libpci=1
+			-Dlinux_link_libspeechd=1
+			-Dlinux_link_pulseaudio=1"
+	# FFmpeg
+	myconf+="	-Dffmpeg_branding=Chromium
+			-Denable_widevine=1
+			-Denable_pepper_cdms=1
+			-Denable_webrtc=1
+			-Dbuild_ffmpegsumo=1
+			-Dffmpeg_component=shared_library
+			-Dproprietary_codecs=1"
+
+	# Like official
+	myconf+="	-Dlogging_like_official_build=1
+			-Dtracing_like_official_build=1
+			-Dfieldtrial_testing_like_official_build=1"
+
+	# Misc
+	myconf+="	-Dwerror=
+			-Dpython_ver=2.7
+			-Dremove_webcore_debug_symbols=1
+			-Dlinux_strip_binary=1
+			-Dlinux_use_bundled_binutils=0
+			-Dlinux_use_bundled_gold=0
+			-Duse_gnome_keyring=0
+			-Denable_pepper_cdms=1
+			-Denable_webrtc=1
+			-Duse_aura=1
+			-Dcomponent=shared_library
+			-Dno_strict_aliasing=1
+			-Dv8_no_strict_aliasing=1
+			-Duse_gtk3=1
+			-Denable_hidpi=1
+			-Denable_hotwording=0
+			-Dlinux_fpic=1
+			-Denable_touch_ui=1
+			-Duse_pulseaudio=1
+			-Dusb_ids_path=/usr/share/hwdata/usb.ids
+			-Duse_mojo=0
+			-Duse_gconf=0
+			-Duse_sysroot=0
+			-Denable_hangout_services_extension=1
+			-Ddisable_fatal_linker_warnings=1
+			-Dlibspeechd_h_prefix=speech-dispatcher/
+			-Dclang=0
+			-Dgenerate_character_data=0
+			-Ddisable_glibc=1"
+
+	# Disable NaCl for i686
 	if [ $CARCH = i686 ]; then
-		myconf+=" -Ddisable_sse2=1"
+	myconf+="	-Ddisable_nacl=1
+			-Ddisable_pnacl=1"
 	fi
 
-        export CC=clang
-        export CXX=clang++
+	Fexec build/linux/unbundle/replace_gyp_files.py $myconf -Drelease_extra_cflags="$CFLAGS" || Fdie
 
+	Fexec ./build/gyp_chromium --no-parallel --depth .  $myconf || Fdie
+	Fexec ninja -v -C out/Release chrome chrome_sandbox || Fdie
 
-	Fexec build/linux/unbundle/replace_gyp_files.py $myconf -Drelease_extra_cflags="$CFLAGS"
+	strip -s out/Release/chrome
+	strip -s out/Release/chrome_sandbox
+	strip -s out/Release/lib/*.so
 
-	Fexec ./build/gyp_chromium --no-parallel --depth .  $myconf
-	Fexec ninja -v -C out/Release chrome chrome_sandbox chromedriver
+	if [ ! $CARCH = i686 ]; then
+		strip -s out/Release/nacl_helper{,_bootstrap}
+		strip -s out/Release/nacl_irt_*.nexe
+	fi
 
 	Fmkdir usr/lib/chromium
         Fexerel out/Release/chrome usr/lib/chromium/chromium
@@ -116,6 +183,16 @@ build() {
 	Fcprel out/Release/\*.pak usr/lib/chromium/
 	Fcprel out/Release/locales usr/lib/chromium/
 	Fcprel out/Release/resources usr/lib/chromium/
+	Fcprel out/Release/libwidevinecdmadapter.so usr/lib/chromium/
+	Fcprel out/Release/lib usr/lib/chromium/
+
+	Frm usr/lib/chromium/lib/*.TOC #WTF!?
+
+	if [ ! $CARCH = i686 ]; then
+	    	Fcprel out/Release/nacl_helper usr/lib/chromium/
+		Fcprel out/Release/nacl_helper_bootstrap usr/lib/chromium/
+		Fcprel out/Release/nacl_irt_*.nexe usr/lib/chromium/
+	fi
 
 	Fcprel out/Release/icudtl.dat usr/lib/chromium/
 
@@ -127,7 +204,7 @@ build() {
 	for size in 22 24 48 64 128 256; do
 		Finstallrel 644 "chrome/app/theme/chromium/product_logo_$size.png" \
 		"usr/share/icons/hicolor/${size}x${size}/apps/$pkgname.png"
-	done
+               	done
 
 	for size in 16 32; do
 		Finstallrel 644 "chrome/app/theme/default_100_percent/chromium/product_logo_$size.png" \

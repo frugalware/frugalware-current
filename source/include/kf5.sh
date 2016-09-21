@@ -202,6 +202,9 @@ None)	_F_KDE_CXX_FLAGS+=" -DNDEBUG -DQT_NO_DEBUG";;
 Debug*)	_F_KDE_CXX_FLAGS+=" -O0 -ggdb3 -DDEBUG";;
 esac
 
+## to much auto::<...> deprecated messages
+_F_KDE_CXX_FLAGS+=" -Wno-deprecated"
+
 _F_KDE_LD_FLAGS="-Wl,--no-undefined"
 
 	_F_cmake_confopts="$_F_cmake_confopts \

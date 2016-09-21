@@ -203,7 +203,7 @@ Debug*)	_F_KDE_CXX_FLAGS+=" -O0 -ggdb3 -DDEBUG";;
 esac
 
 ## to much auto::<...> deprecated messages
-_F_KDE_CXX_FLAGS+=" -Wno-deprecated"
+_F_KDE_CXX_FLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
 
 _F_KDE_LD_FLAGS="-Wl,--no-undefined"
 

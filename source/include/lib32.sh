@@ -25,6 +25,7 @@
 # * _F_lib32_dirs (defaults to lib:lib32 usr/lib:usr/lib32): a list of colon
 # delimited pairs. the first is the original directory name and the second is the
 # new directory name.
+# * _F_lib32_wip_repo ( no default must be specified) : the nick/repo_name on server
 ###
 if [ -z "$_F_lib32_name" ]
 then
@@ -54,9 +55,17 @@ pkgrel=1
 groups=('lib32-extra')
 url="http://frugalware.org"
 _F_archive_name="$_F_lib32_name"
-up2date="Flastarchive http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-i686/ -i686.fpm"
 archs=('!i686' 'x86_64')
-source=(http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-i686/$_F_archive_name-${pkgver//_/-}-i686.fpm)
+
+## _F_lib32_wip_repo="crazy/gcc6" as example
+if [ -z "$_F_lib32_wip_repo" ]; then
+	up2date="Flastarchive http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-i686/ -i686.fpm"
+	source=(http://ftp.frugalware.org/pub/frugalware/frugalware-current/frugalware-i686/$_F_archive_name-${pkgver//_/-}-i686.fpm)
+else
+	## WE have WIPS under pub/other/people/nick/WIP so ..
+	up2date="Flastarchive http://ftp.frugalware.org/pub/other/people/$_F_lib32_wip_repo/frugalware-i686/ -i686.fpm"
+	source=(http://ftp.frugalware.org/pub/other/people/$_F_lib32_wip_repo/frugalware-i686/$_F_archive_name-${pkgver//_/-}-i686.fpm)
+fi
 
 ###
 # == PROVIDED FUNCTIONS

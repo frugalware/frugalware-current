@@ -64,9 +64,9 @@
 [ -z "$_F_cd_path" ] && _F_cd_path="$_F_perl_sourcename-$pkgver"
 pkgname="perl-`echo $_F_perl_name|tr [A-Z] [a-z]`"
 [ -z "$pkgrel" ] && pkgrel=1
-depends+=('perl>=5.24.0')
-groups=('devel-extra')
-archs=('i686')
+depends+=('perl>=5.24.0-6')
+[ -z "$groups" ] && groups=('devel-extra')
+[ -z "$archs" ] && archs=('i686' 'x86_64')
 
 ###
 # == PROVIDED FUNCTIONS

@@ -202,10 +202,14 @@ None)	_F_KDE_CXX_FLAGS+=" -DNDEBUG -DQT_NO_DEBUG";;
 Debug*)	_F_KDE_CXX_FLAGS+=" -O0 -ggdb3 -DDEBUG";;
 esac
 
+## to much auto::<...> deprecated messages
+_F_KDE_CXX_FLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
+
 _F_KDE_LD_FLAGS="-Wl,--no-undefined"
 
 	_F_cmake_confopts="$_F_cmake_confopts \
 	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DKDE_INSTALL_CONFDIR=/etc \
 	-DLIB_INSTALL_DIR=lib \
 	-DLIBEXEC_INSTALL_DIR=lib \
 	-DKDE_INSTALL_USE_QT_SYS_PATHS=ON \

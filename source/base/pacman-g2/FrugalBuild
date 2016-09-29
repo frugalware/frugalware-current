@@ -5,60 +5,52 @@
 USE_DEBUG=${USE_DEBUG:-"n"}
 USE_DEVEL=${USE_DEVEL:-"n"}
 USE_MINIMAL=${USE_MINIMAL:-"n"}
-USE_STABLE=${USE_STABLE:-"n"}
 
 pkgname=pacman-g2
 pkgver=3.9.2
 Fuse $USE_DEVEL && pkgver=3.8.1.18.gc254053
-pkgrel=3
+pkgrel=7
 pkgdesc="A .tar.xz based package manager library (libpacman) and client (pacman-g2) with dependency support."
 url="http://ftp.frugalware.org/pub/other/pacman-g2/"
-backup=(etc/{makepkg,pacman-g2}.conf etc/pacman-g2/repos/{frugalware,frugalware-current})
-depends=('libarchive>=3.1.2-4' 'glibc>=2.22-7' 'grep>=2.5.3-4' 'util-linux' 'nettle' 'xz>=5.2.2-4')
+backup=(etc/{makepkg,pacman-g2}.conf etc/pacman-g2/repos/frugalware-current)
+depends=('libarchive>=3.2.1' 'glibc>=2.24-4' 'grep>=2.5.3-4' 'util-linux>=2.28.2-2' 'nettle' 'xz>=5.2.2-4' 'lz4>=r131-8')
 rodepends=('shadow') ## wrong but since pacman installs itself first ...
 ## not sure why it needs nettle ?:( nettle is in chroot-core so something else need it
 if ! Fuse $USE_MINIMAL; then
 	## temporarily disable some makedepends
-	if [ "$CARCH" == "arm" ]; then
-		makedepends=('po4a' 'swig' \
-                'asciidoc' 'docbook-xsl' \
-                'docbook-xml' 'sgml-common' 'cvs' 'vala')
-	else
-		makedepends=('doxygen>=1.7.3-1' 'po4a' 'swig' \
-		'openjdk' 'mono' 'asciidoc' 'docbook-xsl' \
-		'docbook-xml' 'sgml-common' 'cvs' 'vala')
-	fi
+	makedepends=('doxygen>=1.7.3-1' 'po4a' 'swig' \
+	'openjdk' 'mono' 'asciidoc' 'docbook-xsl' \
+	'docbook-xml' 'sgml-common' 'lzo>=2.09-6' 'lz4>=r131-8' 'vala' 'gcc>=6.2.1')
 	options+=('scriptlet')
 fi
 Fuse $USE_DEVEL && makedepends=(${makedepends[@]} 'intltool')
 _F_mono_nodepends=y
 Finclude mono
 groups=('base' 'chroot-core')
-archs=('i686' 'x86_64' 'arm')
+archs=('i686' 'x86_64')
 _F_archive_nosort=y
 up2date="Flasttar $url/releases/"
 if ! Fuse $USE_DEVEL; then
-	source=($url/releases/$pkgname-$pkgver.tar.gz makepkg-tell-what-dirs-files-are-broken.patch \
-		0001-makepkg-workaround-some-grep-issues.patch)
-	signatures=("$source.asc" '' '')
-	if Fuse $USE_STABLE; then
-		source=("${source[@]}" stable.patch)
-		signatures=("${signatures[@]}" '')
-	fi
+	source=($url/releases/$pkgname-$pkgver.tar.gz \
+	0001-makepkg-workaround-some-grep-issues.patch \
+	makepkg-tell-what-dirs-files-are-broken.patch \
+	0001-makepkg.conf.patch \
+	0002-makepkg.conf-LDFLAGS.patch \
+	0003-disable-stable.patch \
+	0004-makepkg.patch \
+	0001-workaround-LDFLAGS-mess-here.patch)
+	signatures=("$source.asc" '' '' '' '' '' '' '')
 else
 	_F_scm_type="git"
 	_F_scm_url="git://git.frugalware.org/pub/other/pacman-g2/pacman-g2"
 	Finclude scm
 fi
 
-if [ "$CARCH" == "arm" ]; then
-	Fconfopts+=" --disable-java"
-fi
 if ! Fuse $USE_DEBUG; then
 	Fconfopts+=" --disable-debug"
 else
 	Fconfopts+=" --enable-debug"
-	options=("${options[@]}" 'nostrip')
+	options+=('nostrip')
 fi
 
 conflicts=('pacman-returns')
@@ -76,9 +68,11 @@ build()
 	fi
 
 	CFLAGS=${CFLAGS/O2/O0}
-	if Fuse $USE_MINIMAL || [ "$CARCH" == "arm" ]; then
+	if Fuse $USE_MINIMAL; then
 		Fbuild
 	else
+		Fcd
+		Fautoreconf
 		Fbuild_mono
 	fi
 	make check

@@ -1,16 +1,19 @@
 # Compiling Time: 26.46 SBU
 # Maintainer: DeX77 <dex77@frugalware.org>
 
+
 pkgname=chromium-browser
 pkgver=53.0.2785.116
-pkgrel=2
+pkgrel=3
 pkgdesc='An open-source browser project that aims to build a safer, faster, and more stable way for all users to experience the web'
 url='http://www.chromium.org/'
-depends=('libevent>=2.0.22-3' 'nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.3-2' 'libcups' \
-	'speech-dispatcher>=0.7.1-4' 'gdk-pixbuf2>=2.32.3-2' 'libxtst>=1.2.2-2' 'libjpeg>=9a' \
-	'libatomic' 'pciutils>=3.5' 'opus' 'ffmpeg' 'libxslt' 'libwebp' 'libgles' 'libegl' 'gtk+3')
-makedepends=('ninja' 'gtk+2' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' 'x11-protos' 'krb5' 'cups' 'mesa')
-[ "$CARCH" == "x86_64" ] && makedepends+=('lib32-libstdc++' 'lib32-zlib')
+depends=('libevent>=2.0.22-3' 'nss>=3.26' 'libxscrnsaver>=1.2.2-2' 'libpulse>=9.0-2' 'snappy>=1.1.3-3' 'libcups>=2.2.0-2' \
+	'speech-dispatcher>=0.8.5' 'gdk-pixbuf2>=2.32.3-2' 'libxtst>=1.2.2-2' 'libjpeg>=9a-2' 'libatomic>=6.2.1-5' 'pciutils>=3.5' \
+	'opus>=1.1.3-2' 'ffmpeg>=3.1.3' 'libxslt' 'libwebp>=0.5.1-2' 'libgles>=12.0.3-3' 'libegl>=12.0.3-3' 'gtk+3>=3.22.0')
+makedepends=('ninja' 'gtk+2' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' 'x11-protos' 'krb5>=1.14.4' 'cups>=2.2.0-2' 'mesa>=12.0.3-3')
+
+[ "$CARCH" == "x86_64" ] && makedepends+=('lib32-libstdc++>=6.2.1_5' 'lib32-zlib>=1.2.8_8')
+
 license=('BSD')
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
@@ -32,7 +35,9 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
  	chromium-46.0.2490.86-use_system_opus.patch \
  	chromium-52.0.2723.2-use_system_harfbuzz.patch \
 	chromium-47.0.2526.80-nacl-ignore-broken-fd-counter.patch \
-	chromium-52.0.2743.82-cups22.patch )
+	chromium-52.0.2743.82-cups22.patch \
+	chromium-52.0.2743.116-unset-madv_free.patch \
+	gcc6-no-delete-null-pointer-checks.patch)
 
 sha1sums=('9f20ac0a5d1720bc932ed85779112d164390327f' \
           '264b8e7c4e3273263d504e041e5e4d152677922c' \
@@ -44,9 +49,13 @@ sha1sums=('9f20ac0a5d1720bc932ed85779112d164390327f' \
           'd6d09996ff5ff4d796cf26f239eb2b688e017d25' \
           '4ac2af324c6927507d214ba3b6512ad1a879a2ff' \
           'af663b4b7a7a9e6f0075c4f60f0b4310a77d2d89' \
-          '281ef7c51b733765b741d69b78e7d74ec6cb328a')
+          '281ef7c51b733765b741d69b78e7d74ec6cb328a' \
+          '17ba326edbd5df0aba71958d9eea56ba9653c995' \
+          '0fa01f6ac92d4616cdc74073952ada2259be1d70')
 
-CXXFLAGS="$CXXFLAGS -fpermissive"
+## -fno-delete-null-pointer-checks for gcc6 DO NOT REMOVE also not remove the gcc6-* patch
+## add some -Wno-* gcc6 produces a lot noise and we don't care about deprectaed stuff
+CXXFLAGS+=" -fpermissive -fno-delete-null-pointer-checks -Wno-deprecated -Wno-deprecated-declarations"
 
 # Google API keys (see http://www.chromium.org/developers/how-tos/api-keys)
 # Note: These are for Frugalware use ONLY. For your own distribution, please
@@ -57,14 +66,24 @@ _google_default_client_id="63071405569.apps.googleusercontent.com"
 _google_default_client_secret="2bNvMsN-57D44Q5ireW62LcZ"
 
 build() {
+
+	## out-of-mem workaround for genesis32 maybe
+	if [ "$CARCH" == "i686" ]; then
+                LDFLAGS+=" -Wl,--no-keep-memory -Wl,--reduce-memory-overheads"
+        fi
+
 	LDFLAGS+=" -Wl,-rpath,/usr/lib/chromium,-rpath,/usr/lib/chromium/lib"
 
         Fcd
-
-	if [ $CARCH = x86_64 ]; then
-		Fexec python2 build/download_nacl_toolchains.py \
+	if [ $CARCH == x86_64 ]; then
+		Fexec python build/download_nacl_toolchains.py \
 			--packages nacl_x86_newlib,pnacl_newlib,pnacl_translator \
-			sync --extract || Fdie
+			--exclude nacl_arm_newlib --arch=x86-64 sync || Fdie
+
+		## 2 steps , don't ask me
+		Fexec python build/download_nacl_toolchains.py \
+                        --packages nacl_x86_newlib,pnacl_newlib,pnacl_translator \
+                        --exclude nacl_arm_newlib --arch=x86-64 extract || Fdie
 	fi
 
 	Fpatchall
@@ -136,12 +155,12 @@ build() {
 			-Dlinux_use_bundled_binutils=0
 			-Dlinux_use_bundled_gold=0
 			-Duse_gnome_keyring=0
-			-Denable_pepper_cdms=1
 			-Denable_webrtc=1
 			-Duse_aura=1
 			-Dcomponent=shared_library
 			-Dno_strict_aliasing=1
 			-Dv8_no_strict_aliasing=1
+			-Dv8_no_delete_null_pointer_checks=1
 			-Duse_gtk3=1
 			-Denable_hidpi=1
 			-Denable_hotwording=0
@@ -159,10 +178,10 @@ build() {
 			-Dgenerate_character_data=0
 			-Ddisable_glibc=1"
 
-	# Disable NaCl for i686
-	if [ $CARCH = i686 ]; then
-	myconf+="	-Ddisable_nacl=1
-			-Ddisable_pnacl=1"
+	# Always disable NaCl for i686
+	if [ $CARCH == i686 ]; then
+		myconf+="	-Ddisable_nacl=1
+				-Ddisable_pnacl=1"
 	fi
 
 	Fexec build/linux/unbundle/replace_gyp_files.py $myconf -Drelease_extra_cflags="$CFLAGS" || Fdie
@@ -187,7 +206,7 @@ build() {
 
 	Frm usr/lib/chromium/lib/*.TOC #WTF!?
 
-	if [ ! $CARCH = i686 ]; then
+	if [  $CARCH != i686 ]; then
 	    	Fcprel out/Release/nacl_helper usr/lib/chromium/
 		Fcprel out/Release/nacl_helper_bootstrap usr/lib/chromium/
 		Fcprel out/Release/nacl_irt_*.nexe usr/lib/chromium/

@@ -4,47 +4,47 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 USE_SHARED=${USE_SHARED:-"y"}
-USE_SNAPSHOT=${USE_SNAPSHOT:-"n"}
+USE_BRANCH=${USE_BRANCH:-"y"}
 
 USE_LANGS=${USE_LANGS:-"y"}
 USE_CXX=${USE_CXX:-"$USE_LANGS"}
-if [ "$CARCH" != "arm" ]; then
-	USE_FORTRAN=${USE_FORTRAN:-"$USE_LANGS"}
-	USE_OBJC=${USE_OBJC:-"$USE_LANGS"}
-	USE_GO=${USE_GO:-"$USE_LANGS"}
-else
-	USE_FORTRAN=${USE_FORTRAN:-"n"}
-	USE_OBJC=${USE_OBJC:-"n"}
-	USE_GO=${USE_GO:-"n"}
-fi
+USE_FORTRAN=${USE_FORTRAN:-"$USE_LANGS"}
+USE_OBJC=${USE_OBJC:-"$USE_LANGS"}
+USE_GO=${USE_GO:-"$USE_LANGS"}
 
 # Activate required langage
 Fuse $USE_OBJC && USE_CXX="y"
 
 pkgname=gcc
-pkgver=5.4.0
-pkgrel=3
+if Fuse $USE_BRANCH; then
+	## released version is 6.2.0 .. branch is minor+1
+	pkgver=6.2.1
+	gccver=$pkgver
+else
+	pkgver=6.2.0
+	gccver=$pkgver
+fi
+pkgrel=5
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils>=2.26.1' 'glibc>=2.22-15' 'libmpc>=1.0.3-2' 'zlib>=1.2.8-2')
-makedepends=('kernel-headers>=4.3')
+depends=('binutils>=2.27-3' 'glibc>=2.24-3' 'libmpc>=1.0.3-6' 'zlib>=1.2.8-7')
+makedepends=('kernel-headers>=4.7')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
-archs=('i686' 'x86_64' 'arm')
+archs=('i686' 'x86_64')
 options+=('scriptlet' 'noccache' 'static')
-if Fuse $USE_SNAPSHOT; then
-	pkgver=4.5_20101118
-	gccver=4.5.2
-	pkgrel=1
-	up2date="Flasttar ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-${pkgver/%_*/}/"
-	source=(ftp://gcc.gnu.org/pub/gcc/snapshots/${pkgver/_/-}/gcc-${pkgver/_/-}.tar.bz2)
-	signatures=('')
-	_F_cd_path="$pkgname-${pkgver/_/-}"
+if Fuse $USE_BRANCH; then
+	_pkgver=20160908
+	## well something
+	up2date="Flasttar ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-${pkgver/%.*/}/ | sed 's/6_/${pkgver}_/g' | sed 's/_${_pkgver}//g'"
+	source=(ftp://gcc.gnu.org/pub/gcc/snapshots/${pkgver/%.*}-${_pkgver}/gcc-${pkgver/%.*}-${_pkgver}.tar.bz2)
+	sha1sums=('7cc96ea766f967979b529ae0d0cb60db92d8bf99')
+	_F_cd_path="gcc-${pkgver/%.*}-${_pkgver}"
 else
-	gccver=$pkgver
+
 	up2date="lynx -dump http://ftp.gnu.org/pub/gnu/gcc/|grep gcc-.*/$|sed -n 's|.*gcc-\(.*\)/|\1|;$ p'"
 	source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2)
-	sha1sums=('07524df2b4ab9070bad9c49ab668da72237b8115')
+	sha1sums=('ce93852ee66b20f56ba005030fbd2b4ac2c6492b')
 fi
 
 if Fuse $USE_SHARED; then
@@ -97,7 +97,7 @@ fi
 i=0
 while [ $i -lt ${#subpkgs[@]} ]
 do
-	subarchs=("${subarchs[@]}" "i686 x86_64 arm")
+	subarchs=("${subarchs[@]}" "i686 x86_64")
 	i=$(($i+1))
 done
 
@@ -111,7 +111,6 @@ build()
 	Fsed '\./fixinc\.sh' '-c true' gcc/Makefile.in
 
 	Fpatchall
-	## well reconf / autoreconf is br0ken in gcc .. so do it that way heh
 
 	mkdir -p ../$pkgname-build || Fdie
 	cd ../$pkgname-build || Fdie
@@ -119,7 +118,7 @@ build()
 	langlist="c"
 	if Fuse $USE_CXX; then
 		langlist="$langlist,c++"
-		## libstdcxx-pch is really a waste of space , nothing need nor uses that
+
 		Fconfopts+=" --enable-__cxa_atexit \
 			--enable-libstdcxx-allocator=new \
 			--enable-libstdcxx-dual-abi \
@@ -156,6 +155,7 @@ build()
 		--enable-threads=posix \
 		--with-system-zlib \
 		--libdir=/usr/lib \
+		--libexecdir=/usr/lib \
 		--disable-multilib \
 		--disable-werror \
 		--with-bugurl="http://bugs.frugalware.org/" \
@@ -180,6 +180,7 @@ build()
                rm -rf $Fdestdir/usr/lib64 || Fdie
        fi
 
+
 	# fix some junk in la files
 	for lafile in `find $Fdestdir -name "*.la"`
         do
@@ -189,47 +190,41 @@ build()
 	# symlinks for backward compatibility
 	Fln gcc /usr/bin/cc
 	Fmkdir /lib
-	Fln ../usr/bin/cpp /lib/cpp
+	Fln /usr/bin/cpp /lib/cpp
 
 	gcchost="$CHOST"
-	if [[ "$CARCH" == "arm" && ! "$CHOST" =~ -gnueabi$ ]]; then
-		gcchost="$CHOST-gnueabi"
-	fi
 
 	# libffi is internal don't expose it
 	Frm usr/lib/libffi*
 	Frm usr/lib/gcc/$gcchost/$gccver/include/ffi*
 	Frm $Fmandir/man3/ffi\*
 
-	if Fuse $USE_CXX; then
-		Fln g++ /usr/bin/c++
-	fi
-
-	Fuse $USE_FORTRAN && Fln gfortran /usr/bin/f95
 
 	if Fuse $USE_FORTRAN; then
+		Fln gfortran /usr/bin/f95
 		# libquadmath
 		Fsplit libquadmath usr/lib/libquadmath.*
 		Fsplit libquadmath usr/share/info/libquadmath.info
 		# libgfortran
-		Fsplit libgfortran usr/lib/gcc/$gcchost/$gccver/libgfortranbegin.*
+		#Fsplit libgfortran usr/lib/gcc/$gcchost/$gccver/libgfortranbegin.*
 		Fsplit libgfortran usr/lib/libgfortran.*
 		# gcc-gfortran
 		Fsplit gcc-gfortran usr/bin/{gfortran,$gcchost-gfortran,f95}
 		Fsplit gcc-gfortran usr/share/man/man1/gfortran.1*
 		Fsplit gcc-gfortran usr/share/info/gfortran*
-		Fsplit gcc-gfortran usr/libexec/gcc/$gcchost/$gccver/f951
+		Fsplit gcc-gfortran usr/lib/gcc/$gcchost/$gccver/f951
 	fi
 	if Fuse $USE_OBJC; then
 		# libobjc
 		Fsplit libobjc usr/lib/gcc/$gcchost/$gccver/include/objc/
 		Fsplit libobjc usr/lib/libobjc*
 		# gcc-objc
-		Fsplit gcc-objc usr/libexec/gcc/$gcchost/$gccver/cc1obj
+		Fsplit gcc-objc usr/lib/gcc/$gcchost/$gccver/cc1obj
 		# gcc-objc++
-		Fsplit gcc-objc++ usr/libexec/gcc/$gcchost/$gccver/cc1objplus
+		Fsplit gcc-objc++ usr/lib/gcc/$gcchost/$gccver/cc1objplus
 	fi
 	if Fuse $USE_CXX; then
+		Fln g++ /usr/bin/c++
 		# libstdc++
 		Fsplit libstdc++ usr/include/c++/
 		Fmv usr/lib/libstdc++.*-gdb.py usr/share/gcc-$gccver/python/libstdcxx
@@ -239,10 +234,9 @@ build()
 		Fsplit libstdc++ usr/share/locale/{de,fr}/LC_MESSAGES/libstdc++.mo
 		#gcc-g++
 		Fsplit gcc-g++ usr/share/gcc-$gccver/
-		#Fsplit gcc-g++ usr/share/man/man3/
 		Fsplit gcc-g++ usr/bin/{,$gcchost-}{c++,g++}
 		Fsplit gcc-g++ usr/lib/libsupc++.*
-		Fsplit gcc-g++ usr/libexec/gcc/$gcchost/$gccver/cc1plus
+		Fsplit gcc-g++ usr/lib/gcc/$gcchost/$gccver/cc1plus
 		Fsplit gcc-g++ usr/share/man/man1/g++.1
 	fi
 	if Fuse $USE_SHARED; then
@@ -267,8 +261,8 @@ build()
 		Fsplit gcc-go usr/bin/go
 		Fsplit gcc-go usr/bin/gofmt
 		Fsplit gcc-go usr/bin/{,$gcchost-}gccgo
-		Fsplit gcc-go usr/libexec/gcc/$gcchost/$gccver/go1
-		Fsplit gcc-go usr/libexec/gcc/$gcchost/$gccver/cgo
+		Fsplit gcc-go usr/lib/gcc/$gcchost/$gccver/go1
+		Fsplit gcc-go usr/lib/gcc/$gcchost/$gccver/cgo
 		Fsplit gcc-go usr/share/man/man1/*go*.1
 		Fsplit gcc-go usr/share/info/gccgo.info
 	fi

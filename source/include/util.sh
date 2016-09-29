@@ -99,6 +99,7 @@ Farchs=('i686' 'x86_64')
 Fbuildchost="`arch`-frugalware-linux"
 Fconfopts=""
 _F_make_opts="V=1"
+
 unset LANG LC_ALL
 
 ###

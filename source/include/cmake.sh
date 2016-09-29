@@ -54,7 +54,7 @@ fi
 # * makedepends(): add cmake and pkgconfig
 # * options(): add nostrip if _F_cmake_type is Debug*
 ###
-makedepends=(${makedepends[@]} 'cmake' 'pkgconfig')
+makedepends+=('cmake>=3.6.2-2' 'pkgconfig')
 
 ###
 # == PROVIDED FUNCTIONS

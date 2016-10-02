@@ -3,78 +3,58 @@
 # Contributor: kikadf <kikadf.01@gmail.com>
 # Contributor: PacMiam <PacMiam@gmx.fr>
 
+## check libmediainfo before bumping this -- crazy --
+
 pkgname=mediainfo
-pkgver=0.7.88
+pkgver=0.7.89
 pkgrel=1
 pkgdesc="MediaInfo supplies technical and tag information about a video or audio file."
-depends=("libmediainfo=$pkgver")
+depends=("libmediainfo>=$pkgver")
+makedepends+=('x11-protos')
 _F_sourceforge_sep="_"
 _F_sourceforge_ext=".tar.bz2"
 _F_cd_path="MediaInfo/Project/GNU/CLI"
 Finclude sourceforge
+source+=(mediainfo-qt5.patch)
 up2date="Flasttar http://mediainfo.sourceforge.net/fr/Download/Source"
 groups=('apps-extra')
 archs=('i686' 'x86_64')
-sha1sums=('72aa6b37225008179c21502597ac07fc4f22e3f0')
+sha1sums=('274306f43f1938d78a781861f1d1148f99ba20fb' \
+          'b5f16f3683f09b2bec4e1d6b1fcf2b5032de7d7a')
 
-
-subpkgs=("${subpkgs[@]}" "$pkgname-gtk")
-subdescs=("${subdescs[@]}" "Gtk based gui for mediainfo.")
-subdepends=("${subdepends[@]}" 'libmediainfo wxwidgets')
-subgroups=("${subgroups[@]}" 'xapps-extra')
-subarchs=("${subarchs[@]}" 'i686 x86_64')
-
-subpkgs=("${subpkgs[@]}" "$pkgname-qt")
-subdescs=("${subdescs[@]}" "Qt based gui for mediainfo.")
-subdepends=("${subdepends[@]}" 'libmediainfo libqtgui libqtxml')
-subgroups=("${subgroups[@]}" 'xapps-extra')
-subarchs=("${subarchs[@]}" 'i686 x86_64')
-
+subpkgs=("$pkgname-qt")
+subdescs=("Qt5 based gui for mediainfo.")
+subdepends=('qt5-base>=5.7.0-3')
+subgroups=('xapps-extra')
+subarchs=('i686 x86_64')
+subreplaces=("$pkgname-gtk") ## wx .. broken -.-
 
 build ()
 {
 	# mediainfo
-	Fcd
+	Fcd MediaInfo
+
+	## Qt5 basic support .. upstream seems not to care
+	Fpatch mediainfo-qt5.patch
+
+	## such an Br0ken build system .. weird app .. I prefer any debian app over this one :-DD
+	Fsed 'Exec=mediainfo-gui %f' 'Exec=mediainfo-qt5-gui' Project/GNU/GUI/mediainfo-gui.desktop
+	Finstall 0644 MediaInfo/Project/GNU/GUI/mediainfo-gui.desktop usr/share/applications/mediainfo-gui.desktop
+	Finstall 0644 MediaInfo/Source/Resource/Image/MediaInfo.svg usr/share/icons/hicolor/scalable/apps/mediainfo.svg
+
+	cd Project/GNU/CLI || Fdie
 	Fautoreconf
-	Fbuild
-
-	# mediainfo-gtk
-	_F_desktop_name="MediaInfo-Gtk"
-	_F_desktop_exec="mediainfo-gtk"
-	_F_desktop_icon="MediaInfo.png"
-	_F_desktop_categories="AudioVideo;AudioVideoEditing;"
-	cd $Fsrcdir/MediaInfo/Project/GNU/GUI || Fdie
-	Fautoreconf
-	Fbuild
-	Fln /usr/bin/mediainfo-gui /usr/bin/mediainfo-gtk
-	Ficon MediaInfo/Source/Resource/Image/MediaInfo.png
-	Fdesktop2
-	Fsplit mediainfo-gtk "/usr/bin/mediainfo-gui" \
-                             "/usr/bin/mediainfo-gtk" \
-                             "/usr/share"
-
-
-	# mediainfo-qt
-	_F_desktop_name="MediaInfo-Qt"
-	_F_desktop_exec="mediainfo-qt"
-	_F_desktop_icon="MediaInfoQt.png"
-	cd $Fsrcdir/MediaInfo || Fdie
-	Fsed "..\/..\/..\/..\/MediaInfoLib\/Project\/GNU\/Library\/.libs\/libmediainfo.a" \
-             "\/usr\/lib\/libmediainfo.a" Project/QMake/GUI/MediaInfoQt.pro
-	Fsed "..\/..\/..\/..\/ZenLib\/Project\/GNU\/Library\/.libs\/libzen.a" \
-             "\/usr\/lib\/libzen.a -lmms -lcurl" Project/QMake/GUI/MediaInfoQt.pro
-	Fsed "mediainfo-gui" "mediainfo-qt" Project/QMake/GUI/MediaInfoQt.pro
-
-	# fix qt build
-	Fsed 'col(c),' 'col(c)' Source/GUI/Qt/columneditsheet.cpp
-
-	cd Project/QMake/GUI || Fdie
-	Fexec qmake
 	Fmake
-	Fexe MediaInfo/Project/QMake/GUI/mediainfo-qt usr/bin/mediainfo-qt
-	Ffile MediaInfo/Source/Resource/Image/MediaInfo.png /usr/share/pixmaps/MediaInfoQt.png
-	Fdesktop2
-	Fsplit mediainfo-qt "/usr/bin/mediainfo-qt" \
+	Fmakeinstall
+
+	cd ../..//QMake/GUI || Fdie
+	Fexec qmake-qt5 QMAKE_CXXFLAGS="-std=c++11"
+	## FIXME .. gcc6 doesn't like -isystem /foo
+	Fsed '-isystem' '-I' Makefile
+	Fmake
+	Fexe MediaInfo/Project/QMake/GUI/mediainfo-qt5-gui usr/bin/mediainfo-qt5-gui
+
+	Fsplit mediainfo-qt "/usr/bin/mediainfo-qt5-gui" \
                             "/usr/share"
 }
 

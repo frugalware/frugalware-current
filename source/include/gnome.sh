@@ -82,7 +82,7 @@ _F_gnome_getver()
 # * url
 ###
 _F_gnome_pygtkdefsdir="usr/share/pygtk/2.0/defs"
-_F_gnome_pkgurl="https://download.gnome.org/sources"
+_F_gnome_pkgurl="http://ftp.gnome.org/pub/GNOME/sources"
 if [ "$_F_gnome_devel" != "n" ]; then
 	up2date="lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep '/'|sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
 else
@@ -96,7 +96,7 @@ if [ "$_F_gnome_git" != "n" ]; then
 	_F_scm_type="git"
 	_F_scm_url="git://git.gnome.org/$_F_gnome_name"
 else
-	source=($_F_gnome_pkgurl/$_F_gnome_name/`_F_gnome_getver`/$_F_gnome_name-$pkgver$_F_gnome_ext)
+	source=(https://download.gnome.org/sources/$_F_gnome_name/`_F_gnome_getver`/$_F_gnome_name-$pkgver$_F_gnome_ext)
 fi
 url="http://www.gnome.org/"
 _F_cd_path=$_F_gnome_name-$pkgver

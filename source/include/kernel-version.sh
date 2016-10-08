@@ -39,7 +39,7 @@ Fkernelver_genscriptlet_hook()
 Fkernelver_compress_modules()
 {
 	local _directory
-	_directory="$Fdestdir/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel/kernel"
+	_directory="$Fdestdir/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel"
 	Fexec find $_directory -name "*.ko" -exec xz '{}' \; || Fdie
 }
 

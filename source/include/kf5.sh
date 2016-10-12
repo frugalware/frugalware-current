@@ -209,7 +209,6 @@ _F_KDE_LD_FLAGS="-Wl,--no-undefined"
 
 	_F_cmake_confopts="$_F_cmake_confopts \
 	-DCMAKE_INSTALL_PREFIX=/usr \
-	-DKDE_INSTALL_CONFDIR=/etc \
 	-DKDE_INSTALL_AUTOSTARTDIR=/etc/xdg/autostart \
 	-DLIB_INSTALL_DIR=lib \
 	-DLIBEXEC_INSTALL_DIR=lib \

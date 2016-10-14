@@ -8,11 +8,11 @@
 
 pkgname=glibc
 pkgver=2.24
-pkgrel=5
+pkgrel=6
 pkgdesc="GNU C Library"
 url="http://www.gnu.org/software/libc/libc.html"
 depends=()
-makedepends=('libxml2>=2.9.2-2' 'binutils>=2.27-4' 'gcc>=6.2.1-5' 'grep>=2.5.3-4' \
+makedepends=('libxml2>=2.9.2-2' 'binutils>=2.27-5' 'gcc>=6.2.1-5' 'grep>=2.5.3-4' \
 	'zlib>=1.2.8-7' 'pacman-g2>=3.7.0-4')
 rodepends=('tzdata>=2015g' 'frugalware')
 groups=('base' 'chroot-core')
@@ -20,7 +20,7 @@ archs=('i686' 'x86_64')
 Fup2gnubz2
 _dlurl="http://ftp.gnu.org/pub/gnu/glibc"
 source=($_dlurl/glibc-$pkgver.tar.xz)
-signatures=($_dlurl/glibc-$pkgver.tar.xz.sig)
+sha1sums=('e5d9725d94d59475d9a6869a4447a70c1bf3ef78')
 options+=('scriptlet' 'noccache')
 
 
@@ -30,8 +30,22 @@ subdepends=('gd>=2.1.1')
 subgroups=('apps-extra')
 subarchs=('i686 x86_64')
 
-build()
-{
+if [ "$CARCH" == "x86_64" ]; then
+
+	conflicts=('lib32')
+	replaces=('lib32')
+fi
+
+_buildd() {
+
+	make  || Fdie
+	make  install_root=$Fdestdir install || Fdie
+	make  install_root=$Fdestdir localedata/install-locales || Fdie
+}
+
+build() {
+
+
 	Fcd $pkgname-$pkgver
 	Fpatchall
 	Ffilerel nscd/nscd.conf /etc/nscd.conf
@@ -39,11 +53,28 @@ build()
 	## if we get any errors. -- crazy --
 	rm -rf ../glibc-build || Fdie
 	mkdir ../glibc-build || Fdie
-	cd ../glibc-build || Fdie
+
+
+	if [ "$CARCH" == "x86_64" ]; then
+
+		rm -rf ../glibc-build32 || Fdie
+		mkdir ../glibc-build32 || Fdie
+
+		## need for 32bit libs
+		GLIBOPTS32="--libdir=/usr/lib32 --libexecdir=/usr/lib32 --build=i686-frugalware-linux"
+		CFLAGS32="-march=i686 -mtune=generic -O2 -pipe"
+		CXXFLAGS32="-march=i686 -mtune=generic -O2 -pipe"
+		GLIBOPTS+=" --enable-multi-arch"
+
+		## untill there is some tc-32.sh we need such things
+		HOSTCF="$CFLAGS"
+		HOSTCXX="$CXXFLAGS"
+	fi
+
+	## used on i686 too , native build options
+	_GLIBOPTS="--libdir=/usr/lib --libexecdir=/usr/lib --build=$CARCH-frugalware-linux"
 
 	GLIBOPTS="--prefix=/usr \
-		--libdir=/usr/lib \
-		--libexecdir=/usr/lib \
 		--with-headers=/usr/include \
 		--with-tls \
 		--with-__thread \
@@ -52,28 +83,68 @@ build()
 		--enable-shared \
 		--enable-bind-now \
 		--enable-static \
-		--enable-all-warnings \
-		--enable-obsolete-rpc \
+		--with-headers=/usr/include \
+		--disable-profile \
 		--disable-werror \
 		--enable-static-nss \
 		--enable-add-ons \
 		--enable-stackguard-randomization \
 		--enable-lock-elision=yes"
 
-	GLIBOPTS="$GLIBOPTS --build=$CARCH-frugalware-linux"
 
-	# glibc complains about our default flags are not agressive enough. let
-	# it use its own default ones
-	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CXX="g++" CC="gcc"  \
-	../$pkgname-$pkgver/configure $GLIBOPTS || Fdie
-
-	make || Fdie
-
-	make install_root=$Fdestdir install || Fdie
-	make install_root=$Fdestdir localedata/install-locales || Fdie
 	if [ "$CARCH" == "x86_64" ]; then
-		Fmv /lib64 /lib
+
+		## first 32bit so 64 bit apps ovverrides 32bit stuff and
+		## we don't need to delete all over the place
+		cd ../glibc-build32 || Fdie
+
+		export CFLAGS="$CFLAGS32"
+		export CXXFLAGS="$CXXFLAGS32"
+		export CXX="g++ -m32"
+		export CC="gcc -m32"
+		export BUILD_ARCH=x86_64
+
+		## put all in /usr/lib32 and symlink to /lib32
+		echo "slibdir=/usr/lib32" >> configparms
+		echo "rtlddir=/usr/lib32" >> configparms
+
+		../$pkgname-$pkgver/configure $GLIBOPTS $GLIBOPTS32 || Fdie
+
+		_buildd
+
+		Fln /usr/lib32/ld-2.24.so /lib/ld-linux.so.2
+		Fln /usr/lib32 /lib32
+		Fmkdir etc/ld.so.conf.d
+		echo /usr/lib32  >> "$Fdestdir/etc/ld.so.conf.d/glibc32.conf" || Fdie
+		echo /lib32  >> "$Fdestdir/etc/ld.so.conf.d/glibc32.conf" || Fdie
+
+		## 64bit
+		cd ../glibc-build || Fdie
+
+		export CFLAGS="$HOSTC"
+		export CXXFLAGS="$HOSTCXX"
+		export CXX="g++"
+		export CC="gcc"
+		## put all in /lib we symlink to /lib64 , no need to move stuff around
+		echo "slibdir=/lib" >> configparms
+		echo "rtlddir=/lib" >> configparms
+		../$pkgname-$pkgver/configure $GLIBOPTS $_GLIBOPTS || Fdie
+
+		_buildd
+	else
+		## i686 native
+
+		cd ../glibc-build || Fdie
+		export CFLAGS="$CFLAGS"
+		export CXXFLAGS="$CXXFLAGS"
+		export CXX="g++"
+		export CC="gcc"
+
+		../$pkgname-$pkgver/configure $GLIBOPTS $_GLIBOPTS || Fdie
+
+		_buildd
 	fi
+
 	Fsplit $pkgname-memusagestat usr/bin/memusagestat
 	Frm /etc/ld.so.cache
 

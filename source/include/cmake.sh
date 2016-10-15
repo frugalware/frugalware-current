@@ -49,6 +49,17 @@ if [ -z "$_F_cmake_build_dir" ]; then
         _F_cmake_build_dir="frugalware_cmake_build"
 fi
 
+if [ -z "$_F_cmake_use_ninja" ]; then
+    cmake_generator=""
+    cmake_builder="make"
+    echo "using make"
+else
+    echo "using ninja"
+    cmake_generator=" -G Ninja "
+    cmake_builder="ninja"
+    makedepends+=('ninja')
+fi
+
 ###
 # == APPENDED VARIABLES
 # * makedepends(): add cmake and pkgconfig
@@ -100,6 +111,7 @@ CMake_conf()
 	fi
 
 	cmake \
+        ${cmake_generator} \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DSYSCONF_INSTALL_DIR=/etc \
@@ -142,19 +154,23 @@ CMake_prepare_build()
 }
 
 ###
-# * CMake_make(): Calls 'CMake_prepare_build()' , 'CMake_conf()' and runs 'make'
+# * CMake_make(): Calls 'CMake_prepare_build()' , 'CMake_conf()' and runs cmake_builder
 ###
 CMake_make()
 {
 	CMake_prepare_build
 	CMake_conf "$@"
 	## do _not_ use any F* stuff here , cmake does not like it
-	make || Fdie
+	${cmake_builder} || Fdie
 }
 
 CMake_install()
 {
-	make DESTDIR=$Fdestdir install/fast || Fdie
+    if [ -z "$_F_cmake_use_ninja" ]; then
+        make DESTDIR=$Fdestdir install/fast || Fdie
+    else
+        DESTDIR=$Fdestdir ninja install || Fdie
+    fi
 	Fremove_static_libs
 	Ffix_la_files
 }

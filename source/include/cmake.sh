@@ -52,9 +52,9 @@ fi
 if [ -z "$_F_cmake_use_ninja" ]; then
     cmake_generator=""
     cmake_builder="make"
-    echo "using make"
+    #echo "using make"
 else
-    echo "using ninja"
+    #echo "using ninja"
     cmake_generator=" -G Ninja "
     cmake_builder="ninja"
     makedepends+=('ninja')

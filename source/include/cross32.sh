@@ -20,10 +20,12 @@
 ## since we need to build first the 32bit version
 ## we need to save these
 __cross32_save_orig_vars() {
+
 	CFLAGS_ORIG="$CFLAGS"
 	CXXFLAGS_ORIG="$CXXFLAGS"
 	LDFLAGS_ORIG="$LDFLAGS"
 	CHOST_ORIG="$CHOST"
+	PKGCONFIG_ORIG="$PKG_CONFIG_PATH"
 }
 
 
@@ -39,6 +41,7 @@ __cross32_export_orig_vars() {
 	export CC="gcc"
 	export CXX="g++"
 
+	export PKG_CONFIG_PATH="$PKGCONFIG_ORIG"
 	## reset CPP
 	unset CPPFLAGS
 	## reset options to default
@@ -49,7 +52,7 @@ __cross32_export_orig_vars() {
 ## unset all defaults
 __cross32_unset_vars() {
 	## common
-	unset CFLAGS CXXFLAGS CHOST
+	unset CFLAGS CXXFLAGS CHOST PKG_CONFIG_PATH
 
 	## cmake.sh
 	unset CMAKE_LIB CMAKE_BIN CMAKE_SBIN
@@ -70,6 +73,7 @@ __cross32_set_vars() {
 	export CXX="g++ -m32"
 	LDFLAGS+=" -L/usr/lib32"
 	export CPPFLAGS=" -I/usr/${CHOST}/inlcude"
+	export PKG_CONFIG_PATH="/usr/lib32/pkgconfig"
 
 	## cmake.sh
 	export CMAKE_LIB="lib32"
@@ -110,6 +114,7 @@ __cross32_bug_me_set() {
 	msg2 "CC to $CC"
 	msg2 "CXX to $CXX"
 	msg2 "CPPFLAGS to $CPPFLAGS"
+	msg2 "PKG_CONFIG_PATH to $PKG_CONFIG_PATH"
 }
 
 __cross32_bug_me_reset() {

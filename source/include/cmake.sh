@@ -33,9 +33,6 @@ if [ -z "$_F_cmake_in_source_build" ]; then
 	_F_cmake_in_source_build=0
 fi
 
-if [ -z "$_F_cmake_old_defines" ]; then
-	_F_cmake_old_defines=1
-fi
 
 if [ -z "$_F_cmake_rpath" ]; then
         _F_cmake_rpath="ON"
@@ -52,9 +49,7 @@ fi
 if [ -z "$_F_cmake_use_ninja" ]; then
     cmake_generator=""
     cmake_builder="make"
-    #echo "using make"
 else
-    #echo "using ninja"
     cmake_generator=" -G Ninja "
     cmake_builder="ninja"
     makedepends+=('ninja')
@@ -101,13 +96,6 @@ CMake_conf()
 		_F_cmake_src=".."
 	else
 		_F_cmake_src="."
-	fi
-
-	if [ "$_F_cmake_old_defines" != "0" ]; then
-		_F_cmake_confopts="-DLIB_INSTALL_DIR=/usr/lib
-			-DLIB_SUFFIX=''
-			-DLOCALSTATE_INSTALL_DIR=/var
-			$_F_cmake_confopts"
 	fi
 
 	cmake \

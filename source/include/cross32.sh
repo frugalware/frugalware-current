@@ -1,6 +1,20 @@
 #!/bin/sh
 
 
+###
+# = cross32.sh(3)
+# Gabriel Craciunescu <crazy@frugalware.org>
+#
+# == NAME
+# cross32.sh - for Frugalware
+#
+# == SYNOPSIS
+# Common schema for 32bit cross compiled packages.
+#
+# == OPTIONS
+# * no options yet
+###
+
 ## proto ...
 
 ## since we need to build first the 32bit version

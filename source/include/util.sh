@@ -990,7 +990,7 @@ Fbuildsystem_python_setup() {
 		_F_python_install_data_dir="usr/share/"
 	fi
 
-	
+
 	case "$command" in
 	'probe')
 		test -f setup.py
@@ -1251,47 +1251,6 @@ Fbuild() {
 	if echo ${source[@]}|grep -q README.Frugalware; then
 		Fdoc README.Frugalware
 	fi
-}
-
-###
-# * Frcd(): Create an rc.d environment. Parameter: name of the rc script,
-# defaults to $pkgname.
-#
-# NOTE: this function is obsolete, work with upstream to provide system
-# units out of the box.
-###
-Frcd() {
-	if [ "$#" -eq 1 ]; then
-		Fmessage "Creating rc.d environment: $1"
-		Fexe /etc/rc.d/rc.$1
-	else
-		# rc script
-		if [ -z "$_F_rcd_name" ]; then
-			_F_rcd_name=$pkgname
-		fi
-		Frcd "$_F_rcd_name"
-	fi
-}
-
-###
-# * Frcd2(): Create the new rc.d environment. Paramter: name of the rc script,
-# defaults to $pkgname.
-#
-# NOTE: this function is obsolete, work with upstream to provide system
-# units out of the box.
-###
-Frcd2() {
-	local po rc slang
-
-	rc="$pkgname" ; [ -n "$1" ] && rc="$1"
-
-	Fmessage "Creating new rc.d environment: $rc"
-	Fexe /etc/rc.d/rc.$rc
-	for po in $Fsrcdir/rc.$rc-*.po ; do
-		[ ! -f "$po" ] && continue
-		slang="`basename "$po" .po | sed "s|rc.$rc-||"`"
-		Fmsgfmt /lib/initscripts/messages $slang $rc `basename $po .po`
-	done
 }
 
 ###

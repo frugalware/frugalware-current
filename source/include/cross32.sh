@@ -173,7 +173,7 @@ if [ -n "$_F_cross32_simple" ]; then
 		error "Fix your package!.."
 		exit 1
 	else
-		subpkgs=("${pkgname}32")
+		subpkgs=("lib32-${pkgname}")
 		subdescs=("$pkgdesc ( 32bit )")
 		subdepends=("${_F_cross32_subdepends[*]}")
 		subgroups=('lib32-extra')

@@ -115,8 +115,10 @@ Fcross_reset_and_fix() {
 
 Fbuild_coss() {
 
+	Fcd
 	Fcross_prepare
 	Fbuild
+	make distclean
 	Fcross_reset_and_fix
 
 }

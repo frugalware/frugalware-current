@@ -19,7 +19,7 @@
 
 ## since we need to build first the 32bit version
 ## we need to save these
-__cross_save_orig_vars() {
+__cross32_save_orig_vars() {
 	CFLAGS_ORIG="$CFLAGS"
 	CXXFLAGS_ORIG="$CXXFLAGS"
 	LDFLAGS_ORIG="$LDFLAGS"
@@ -28,7 +28,7 @@ __cross_save_orig_vars() {
 
 
 ## reset to default $CARCH
-__cross_export_orig_vars() {
+__cross32_export_orig_vars() {
 
 	export CFLAGS="$CFLAGS_ORIG"
 	export CXXFLAGS="$CXXFLAGS_ORIG"
@@ -47,7 +47,7 @@ __cross_export_orig_vars() {
 
 
 ## unset all defaults
-__cross_unset_vars() {
+__cross32_unset_vars() {
 	## common
 	unset CFLAGS CXXFLAGS CHOST
 
@@ -60,7 +60,7 @@ __cross_unset_vars() {
 
 
 ## set up tc32
-__cross_set_vars() {
+__cross32_set_vars() {
 
 	## common
 	export CFLAGS="-march=i686 -mtune=generic -O2 -pipe"
@@ -92,36 +92,116 @@ __cross_set_vars() {
 
 ## these don't need be packaged
 ## maybe etc but this need  discuss
-__cross_delete_files() {
+__cross32_delete_files() {
 
+	Fmessage "Removing no needed files for 32bit packages"
         Frm usr/share/{man,info,doc}
         Frm etc
 }
 
 
-Fcross_prepare() {
+__cross32_bug_me_set() {
 
-        __cross_save_orig_vars
-        __cross_unset_vars
-        __cross_set_vars
+	Fmessage "Setting up ENV for 32bit tool chain:"
+	msg2 "CFLAGS to $CFLAGS"
+	msg2 "CXXFLAGS to $CXXFLAGS"
+	msg2 "LDFLAGS to $LDFLAGS"
+	msg2 "CHOST to $CHOST"
+	msg2 "CC to $CC"
+	msg2 "CXX to $CXX"
+	msg2 "CPPFLAGS to $CPPFLAGS"
+}
+
+__cross32_bug_me_reset() {
+
+	Fmessage "Setting up ENV for 64bit tool chain:"
+        msg2 "CFLAGS to $CFLAGS"
+        msg2 "CXXFLAGS to $CXXFLAGS"
+        msg2 "LDFLAGS to $LDFLAGS"
+        msg2 "CHOST to $CHOST"
+        msg2 "CC to $CC"
+        msg2 "CXX to $CXX"
+}
+
+Fcross32_prepare() {
+
+        __cross32_save_orig_vars
+        __cross32_unset_vars
+        __cross32_set_vars
+	__cross32_bug_me_set
 }
 
 
-Fcross_reset_and_fix() {
+Fcross32_reset_and_fix() {
 
-	__cross_export_orig_vars
-	__cross_delete_files
+	__cross32_export_orig_vars
+	__cross32_bug_me_reset
+	__cross32_delete_files
 
 }
 
-Fbuild_cross() {
+__cross32_delete_empty() {
 
-	Fcd
-	Fcross_prepare
+	Fmessage "Removing empty dir"
+        find $Fdestdir -type d -empty -exec rmdir -v  {} +
+}
+
+Fcross32_delete_empty() {
+	__cross32_delete_empty
+}
+
+__cross32_common_build() {
+	Fcross32_prepare
 	Fbuild
 	make distclean
-	Fcross_reset_and_fix
+	Fcross32_reset_and_fix
+}
 
+Fcross32_common_build() {
+	__cross32_common_build
+}
+
+
+## don't remove
+unset build
+
+## simple build foo with foo32 subpackage
+## don't use this with things have more subs..
+if [ -n "$_F_cross32_simple" ]; then
+	if [ -z "$_F_cross32_subdepends" ]; then
+		error "You need _F_cross32_subdepends=('depends_here') to be set"
+		error "Fix your package!.."
+		exit 1
+	else
+		subpkgs=("${pkgname}32")
+		subdescs=("$pkgdesc ( 32bit )")
+		subdepends=("${_F_cross32_subdepends[*]}")
+		subgroups=('lib32-extra')
+		subarchs=('x86_64')
+	fi
+fi
+
+Fbuild_cross32() {
+
+	Fcd
+	if [ -z "$_F_cross32_simple" ]; then
+
+		Fcross32_common_build ## 32bit
+		Fcross32_delete_empty
+		Fbuild ## second build 64bit
+	else
+		## with subpackge
+		Fmessage "Auto building ${pkgname}32 subpackage"
+		Fcross32_common_build
+		Fcross32_delete_empty
+		Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one
+		Fbuild ## 64bit
+	fi
+
+}
+
+build() {
+	Fbuild_cross32
 }
 
 ## EOF

@@ -98,6 +98,7 @@ __cross_delete_files() {
         Frm etc
 }
 
+
 Fcross_prepare() {
 
         __cross_save_orig_vars
@@ -113,7 +114,7 @@ Fcross_reset_and_fix() {
 
 }
 
-Fbuild_coss() {
+Fbuild_cross() {
 
 	Fcd
 	Fcross_prepare

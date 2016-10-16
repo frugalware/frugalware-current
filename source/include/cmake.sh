@@ -103,13 +103,6 @@ CMake_conf()
 		_F_cmake_src="."
 	fi
 
-	if [ "$_F_cmake_old_defines" != "0" ]; then
-		_F_cmake_confopts="-DLIB_INSTALL_DIR=/usr/lib
-			-DLIB_SUFFIX=''
-			-DLOCALSTATE_INSTALL_DIR=/var
-			$_F_cmake_confopts"
-	fi
-
 	cmake \
         ${cmake_generator} \
 		-DCMAKE_INSTALL_PREFIX=/usr \

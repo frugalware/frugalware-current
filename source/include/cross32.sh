@@ -98,9 +98,21 @@ __cross32_set_vars() {
 ## maybe etc but this need  discuss
 __cross32_delete_files() {
 
+
 	Fmessage "Removing no needed files for 32bit packages"
         Frm usr/share/{man,info,doc}
         Frm etc
+
+	if [ -n "$_F_cross32_simple" ]; then
+                if [ -n "$_F_cross32_delete" ]; then
+			local i
+			for i in "${_F_cross32_delete[@]}"
+			do
+				Frm "$i"
+			done
+		fi
+	fi
+
 }
 
 

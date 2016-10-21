@@ -83,13 +83,26 @@ __cross32_set_vars() {
 	## util.sh
 	export Fbuildchost="${CHOST}"
 
+	if [ -z "$_F_conf_configure" ]; then
+		_F_conf_configure="./configure"
+	fi
+
+	_F_conf_configure="./configure"
+	F32bindir="/usr/${CHOST}/bin"
+	F32sbindir="/usr/${CHOST}/sbin"
+	F32includedir="/usr/${CHOST}/inlcude"
+	F32libdir="/usr/lib32"
+	F32libexecdir="/usr/${CHOST}/${pkgname}"
+
+	Fconfoptstryset "bindir" "$F32bindir"
+	Fconfoptstryset "sbindir" "$F32sbindir"
+	Fconfoptstryset "libdir" "$F32libdir"
+	Fconfoptstryset "includedir" "$F32includedir"
+	Fconfoptstryset "libexecdir" "$F32libexecdir"
+
+
 	## ./configure ..
-	Fconfopts+=" \
-		--bindir=/usr/${CHOST}/bin \
-		--sbindir=/usr/${CHOST}/sbin \
-		--includedir=/usr/${CHOST}/inlcude \
-		--libexecdir=/usr/${CHOST}/${pkgname} \
-		--libdir=/usr/lib32 pkgconfigdir=/usr/lib32/pkgconfig"
+	Fconfopts+=" pkgconfigdir=/usr/lib32/pkgconfig"
 
 }
 
@@ -214,7 +227,7 @@ Fbuild_cross32() {
 		Fbuild ## second build 64bit
 	else
 		## with subpackge
-		Fmessage "Auto building ${pkgname}32 subpackage"
+		Fmessage "Auto building lib32-${pkgname} subpackage"
 		Fcross32_common_build
 		Fcross32_delete_empty
 		Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one

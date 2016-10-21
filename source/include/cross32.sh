@@ -182,6 +182,14 @@ Fcross32_common_build() {
 ## don't remove
 unset build
 
+if [ -n "$_F_cross32_simple_auto" ]; then
+
+	_F_cross32_simple="yes"
+	for _dep in "${!depends[@]}"; do
+		_F_cross32_subdepends+=("lib32-${depends[$_dep]}")
+	done
+fi
+
 ## simple build foo with foo32 subpackage
 ## don't use this with things have more subs..
 if [ -n "$_F_cross32_simple" ]; then

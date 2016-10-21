@@ -159,7 +159,7 @@ Fcross32_reset_and_fix() {
 
 __cross32_delete_empty() {
 
-	Fmessage "Removing empty dir"
+	Fmessage "Removing empty dir(s)"
         find $Fdestdir -type d -empty -exec rmdir -v  {} +
 }
 

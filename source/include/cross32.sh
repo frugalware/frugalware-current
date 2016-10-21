@@ -26,6 +26,7 @@ __cross32_save_orig_vars() {
 	LDFLAGS_ORIG="$LDFLAGS"
 	CHOST_ORIG="$CHOST"
 	PKGCONFIG_ORIG="$PKG_CONFIG_PATH"
+	FCD_PATH_ORIG="$_F_cd_path"
 }
 
 
@@ -45,6 +46,7 @@ __cross32_export_orig_vars() {
 	## reset CPP
 	unset CPPFLAGS
 	## reset options to default
+	export _F_cd_path="$FCD_PATH_ORIG"
 	Fconfopts=""
 }
 
@@ -58,7 +60,7 @@ __cross32_unset_vars() {
 	unset CMAKE_LIB CMAKE_BIN CMAKE_SBIN
 
 	## util.sh
-	unset Fbuildchost
+	unset Fbuildchost _F_cd_path
 }
 
 
@@ -82,6 +84,7 @@ __cross32_set_vars() {
 
 	## util.sh
 	export Fbuildchost="${CHOST}"
+	export _F_cd_path="lib32-$FCD_PATH_ORIG"
 
 	if [ -z "$_F_conf_configure" ]; then
 		_F_conf_configure="./configure"
@@ -139,6 +142,7 @@ __cross32_bug_me_set() {
 	msg2 "CXX to $CXX"
 	msg2 "CPPFLAGS to $CPPFLAGS"
 	msg2 "PKG_CONFIG_PATH to $PKG_CONFIG_PATH"
+	msg2 "_F_cd_path to $_F_cd_path"
 }
 
 __cross32_bug_me_reset() {
@@ -150,6 +154,7 @@ __cross32_bug_me_reset() {
         msg2 "CHOST to $CHOST"
         msg2 "CC to $CC"
         msg2 "CXX to $CXX"
+	msg2 "_F_cd_path to $_F_cd_path"
 }
 
 Fcross32_prepare() {
@@ -181,8 +186,8 @@ Fcross32_delete_empty() {
 
 __cross32_common_build() {
 	Fcross32_prepare
+	cp -Ra "$Fsrcdir/$FCD_PATH_ORIG" "$Fsrcdir/lib32-$FCD_PATH_ORIG"
 	Fbuild
-	make distclean ## FIXME.. maybe copy source ?
 	Fcross32_reset_and_fix
 }
 

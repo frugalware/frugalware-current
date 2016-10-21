@@ -5,38 +5,40 @@
 
 pkgname=zlib
 pkgver=1.2.8
-pkgrel=8
+pkgrel=9
 pkgdesc="A compression/decompression library"
 url="http://www.zlib.net/"
 depends=('glibc>=2.24-4')
 groups=('base' 'chroot-core')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 up2date="lynx -dump http://www.zlib.net/ | grep -m 1 'zlib source code' | cut -d ' ' -f 16 | tr -d ,"
 source=(http://www.zlib.net/$pkgname-$pkgver.tar.xz)
 sha1sums=('b598beb7acc96347cbd1020b71aef7871d374677')
 USE_ASM=${USE_ASM:-"n"}
 options+=('static')
+Finclude cross32
+
+subpkgs=("lib32-${pkgname}")
+subdescs=("$pkgdesc ( 32bit )")
+subdepends=("${depens[@]}")
+subgroups=('lib32-extra')
+subarchs=('x86_64')
 
 build()
 {
 	Fcd
 	if Fuse ASM; then
-		case $CARCH in
-			i686)
-				cp contrib/asm686/match.S match.S || Fdie
-				CFLAGS="$CFLAGS -DASMV"
-				MAKEFLAGS="$MAKEFLAGS OBJA=match.o PIC_OBJA=match.lo"
-				;;
-			x86_64)
-				cp contrib/gcc_gvmat64/gvmat64.S match.S || Fdie
-				CFLAGS="$CFLAGS -DASMV"
-				MAKEFLAGS="$MAKEFLAGS OBJA=match.o PIC_OBJA=match.lo"
-				;;
-			*)
-				warning 'zlib ASM is not supported on this CARCH.'
-				;;
-		esac
+		CFLAGS="$CFLAGS -DASMV"
+                MAKEFLAGS="$MAKEFLAGS OBJA=match.o PIC_OBJA=match.lo"
 	fi
+
+	## 32-bit
+	Fcross32_prepare
+	Fexec cp contrib/asm686/match.S match.S || Fdie
+
+	Fconfopts="	--prefix=/usr \
+			--libdir=/usr/lib32"
+
 	Fconf --shared
 	make $MAKEFLAGS || Fdie
 	Fmakeinstall
@@ -44,6 +46,29 @@ build()
 	cd contrib/minizip || Fdie
 	Fautoreconf
 	Fbuild
+
+	Fcross32_delete_empty
+	Frm usr/{include,share}
+
+        Fsplit "lib32-zlib" /\*
+
+	make distclean
+	cd ../../
+	make distclean
+
+	## 64-bit
+        Fconfopts="     --prefix=/usr \
+                        --libdir=/usr/lib"
+
+	Fexec cp contrib/gcc_gvmat64/gvmat64.S match.S || Fdie
+        Fconf --shared
+        make $MAKEFLAGS || Fdie
+        Fmakeinstall
+
+        cd contrib/minizip || Fdie
+        Fautoreconf
+        Fbuild
+
 }
 
 # optimization OK

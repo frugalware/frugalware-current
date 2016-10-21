@@ -87,7 +87,6 @@ __cross32_set_vars() {
 		_F_conf_configure="./configure"
 	fi
 
-	_F_conf_configure="./configure"
 	F32bindir="/usr/${CHOST}/bin"
 	F32sbindir="/usr/${CHOST}/sbin"
 	F32includedir="/usr/${CHOST}/inlcude"

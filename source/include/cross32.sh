@@ -170,7 +170,7 @@ Fcross32_delete_empty() {
 __cross32_common_build() {
 	Fcross32_prepare
 	Fbuild
-	make distclean
+	make distclean ## FIXME.. maybe copy source ?
 	Fcross32_reset_and_fix
 }
 
@@ -185,9 +185,7 @@ unset build
 if [ -n "$_F_cross32_simple_auto" ]; then
 
 	_F_cross32_simple="yes"
-	for _dep in "${!depends[@]}"; do
-		_F_cross32_subdepends+=("lib32-${depends[$_dep]}")
-	done
+	_F_cross32_subdepends=(${depends[@]/#/lib32-})
 fi
 
 ## simple build foo with foo32 subpackage

@@ -1,6 +1,5 @@
 #!/bin/sh
 
-
 ###
 # = cross32.sh(3)
 # Gabriel Craciunescu <crazy@frugalware.org>
@@ -86,6 +85,11 @@ __cross32_set_vars() {
 	if [ -z "$_F_conf_configure" ]; then
 		_F_conf_configure="./configure"
 	fi
+
+
+	if [ -n "$F32confopts" ]; then
+                Fconfopts+=" ${F32confopt[*]}"
+        fi
 
 	F32bindir="/usr/${CHOST}/bin"
 	F32sbindir="/usr/${CHOST}/sbin"

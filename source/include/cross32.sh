@@ -180,6 +180,7 @@ Fcross32_delete_empty() {
 }
 
 __cross32_common_build() {
+
 	Fcross32_prepare
 	Fbuild
 	make distclean ## FIXME.. maybe copy source ?
@@ -190,6 +191,12 @@ Fcross32_common_build() {
 	__cross32_common_build
 }
 
+Fbuild_no_patch() {
+
+	Fconf
+	Fmake
+	Fmakeinstall
+}
 
 ## don't remove
 unset build
@@ -223,14 +230,14 @@ Fbuild_cross32() {
 
 		Fcross32_common_build ## 32bit
 		Fcross32_delete_empty
-		Fbuild ## second build 64bit
+		Fbuild_no_patch ## second build 64bit
 	else
 		## with subpackge
 		Fmessage "Auto building lib32-${pkgname} subpackage"
 		Fcross32_common_build
 		Fcross32_delete_empty
 		Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one
-		Fbuild ## 64bit
+		Fbuild_no_patch ## 64bit
 	fi
 
 }

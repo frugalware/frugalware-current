@@ -4,35 +4,43 @@
 
 pkgname=ncurses
 pkgver=6.0
-pkgrel=12
+pkgrel=13
 pkgdesc="A System V curses emulation library"
 url="http://www.gnu.org/software/ncurses/ncurses.html"
-depends=('glibc>=2.24-4')
-makedepends=('gcc>=6.2.1-5')
+depends=('glibc>=2.24-7' 'gmp>=6.1.1-5')
+makedepends=('gcc>=6.2.1-8')
 groups=('base' 'chroot-core')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 Fup2gnugz
+Finclude cross32
 source=(ftp://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-$pkgver.tar.gz)
-#signatures=(${source[0]}.sig)
 sha1sums=('acd606135a5124905da770803c05f1f20dd3b21c')
 
-build()
+
+subpkgs=("lib32-${pkgname}")
+subdescs=("$pkgdesc ( 32bit )")
+subdepends=('glibc>=2.24-7 lib32-gmp>=6.1.1-5')
+subgroups=('lib32-extra')
+subarchs=('x86_64')
+
+
+ncurses_conf=" --with-shared --with-normal --without-debug \
+                     --with-install-prefix=$Fdestdir \
+                     --enable-pc-files"
+
+ncurses_conf32=" --with-pkg-config-libdir=/usr/lib32/pkgconfig --libdir=/usr/lib32"
+ncurses_conf64=" --with-pkg-config-libdir=/usr/lib/pkgconfig --libdir=/lib"
+
+_build64()
 {
 	cp -R $pkgname-$pkgver ${pkgname}w-$pkgver || Fdie
-	ncurses_conf="--with-shared \
-		     --with-normal \
-		     --without-debug \
-		     --with-install-prefix=$Fdestdir \
-		     --libdir=/lib \
-		     --enable-pc-files \
-		     --with-pkg-config-libdir=/usr/lib/pkgconfig"
 	## just in case you wonder why this first is because the 'normal'
 	## ncurses will overwrite the 'conflicting' files on make install.
 	## the /share/ stuff and so is not needed -- crazy --
 
 	## widec version
 	cd ${pkgname}w-$pkgver
-	Fmake ${ncurses_conf} \
+	Fmake ${ncurses_conf} ${ncurses_conf64} \
 		--enable-widec \
 		--includedir=/usr/include/ncursesw \
 		--program-suffix="w"
@@ -40,24 +48,63 @@ build()
 
 	## normal version
 	cd ../$pkgname-$pkgver
-	Fmake ${ncurses_conf}
+	Fmake ${ncurses_conf} ${ncurses_conf64}
 	make install || Fdie
-
-	## strange .6 is same as .5 anyway we rebuild with .6 but to allow bumpimg
-	## in chroot we symlink for now
-	#warning "Strange hack to allow re-building.. WEIRD!"
-	#local i
-	#for i in libncurses libpanel libmenu libform
-	#do
-	#	Fln  ${i}.so.6.0 /lib/${i}.so.5.0
-	#	Fln  ${i}.so.6  /lib/${i}.so.5
-	#	Fln  ${i}w.so.6.0 /lib/${i}w.so.5.0
-	#	Fln  ${i}w.so.6 /lib/${i}w.so.5
-	#done
 
 	Fln libncursesw.so.${pkgver} /lib/libtinfo.so."$pkgver"
 	Fln libtinfo.so.${pkgver} /lib/libtinfo.so
 
 }
+
+
+_build32()
+{
+
+
+        cp -R $pkgname-$pkgver ${pkgname}w-$pkgver || Fdie
+	_F_conf_configure="$Fsrcdir/${pkgname}w-$pkgver/configure"
+	Fcross32_prepare
+        ## widec version
+        cd ${pkgname}w-$pkgver
+        Fmake ${ncurses_conf} ${ncurses_conf32} \
+                --enable-widec \
+                --includedir=/usr/${CHOST}/include/ncursesw \
+                --program-suffix="w"
+        make install || Fdie
+
+        ## normal version
+	 export _F_conf_configure="$Fsrcdir/${pkgname}-$pkgver/configure"
+        cd ../$pkgname-$pkgver
+        Fmake ${ncurses_conf} ${ncurses_conf32}
+        make install || Fdie
+
+        Fln libncursesw.so.${pkgver} /usr/lib32/libtinfo.so."$pkgver"
+        Fln libtinfo.so.${pkgver} /usr/lib32/libtinfo.so
+
+
+	Frm usr/share/{terminfo,tabset} ## guess this can be shared with 64bit version ?
+
+}
+
+
+build() {
+
+	## Oh meh!!
+	Fexec cd $Fsrcdir || Fdie
+	## weird wrid
+	Fexec cp -Ra  $pkgname-$pkgver ${pkgname}-${pkgver}-2 || Fdie
+
+	_build32
+	Fcross32_reset_and_fix
+	Fcross32_delete_empty
+	Fexec cd $Fsrcdir || Fdie
+	Fexec rm -rf ./$pkgname-$pkgver ./${pkgname}w-$pkgver || Fdie
+	Fexec cp -Ra  ${pkgname}-${pkgver}-2 $pkgname-$pkgver || Fdie
+
+	Fsplit "${subpkgs[0]}" /\*
+
+	_build64
+}
+
 
 # optimization ok

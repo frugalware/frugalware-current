@@ -32,12 +32,13 @@
 # This only works for packages without subpackages or build().
 # * _F_cross32_simple  - like _F_cross32_simple_auto but need
 # _F_cross32_subdepends in addition to work. This is for packages where we cannot guess the depends.
+# * _F_cross32_subdepends - set depends() for _F_cross32_simple. Example:
+# _F_cross32_subdepends=('foo bar baz')
 # * _F_cross32_delete - a list of files or folders to be deleted form 32bit subpackage. Example:
 # _F_cross32_delete=('usr/share/myfile' 'usr/lib32/libfoo.so.1')
 # * F32confopts - use like Fconfopts.
 ###
 
-## proto ...
 
 ## since we need to build first the 32bit version
 ## we need to save these

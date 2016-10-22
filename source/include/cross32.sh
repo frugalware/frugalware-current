@@ -10,8 +10,31 @@
 # == SYNOPSIS
 # Common schema for 32bit cross compiled packages.
 #
+# == EXAMPLE
+#
+# --------------------------------------------------
+# pkgname=libxau
+# _F_xorg_name=libXau
+# pkgver=1.0.8
+# pkgrel=4
+# pkgdesc="X.Org Xau library"
+# url="http://xorg.freedesktop.org"
+# groups=('x11' 'xorg-core' 'xorg-libs')
+# archs=('x86_64')
+# depends=('glibc>=2.24-4')
+# _F_cross32_simple_auto="yes"
+# Finclude xorg cross32
+# sha1sums=('d9512d6869e022d4e9c9d33f6d6199eda4ad096b')
+# ----------------------------------------------------
+#
 # == OPTIONS
-# * no options yet
+# * _F_cross32_simple_auto - if set an 32bit subpackage is created.
+# This only works for packages without subpackages or build().
+# * _F_cross32_simple  - like _F_cross32_simple_auto but need
+# _F_cross32_subdepends in addition to work. This is for packages where we cannot guess the depends.
+# * _F_cross32_delete - a list of files or folders to be deleted form 32bit subpackage. Example:
+# _F_cross32_delete=('usr/share/myfile' 'usr/lib32/libfoo.so.1')
+# * F32confopts - use like Fconfopts.
 ###
 
 ## proto ...

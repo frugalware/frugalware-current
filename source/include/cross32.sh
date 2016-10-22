@@ -191,6 +191,7 @@ Fcross32_prepare() {
 
 Fcross32_reset_and_fix() {
 
+	__cross32_unset_vars
 	__cross32_export_orig_vars
 	__cross32_bug_me_reset
 	__cross32_delete_files

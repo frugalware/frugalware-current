@@ -210,8 +210,14 @@ Fcross32_delete_empty() {
 __cross32_common_build() {
 
 	Fcross32_prepare
+	## untill we fix schemas HACK!
+	Fexec cd $Fsrcdir || Fdie
+	Fexec cp -Ra "$_F_cd_path" "${_F_cd_path}-2" || Fdie
 	Fbuild
-	make distclean ## FIXME.. maybe copy source ?
+	## HACK part2
+	Fexec cd $Fsrcdir || Fdie
+	Fexec rm -rf "./$_F_cd_path" || Fdie
+	Fexec mv "${_F_cd_path}-2" "${_F_cd_path}" || Fdie
 	Fcross32_reset_and_fix
 }
 
@@ -258,14 +264,14 @@ Fbuild_cross32() {
 
 		Fcross32_common_build ## 32bit
 		Fcross32_delete_empty
-		Fbuild_no_patch ## second build 64bit
+		Fbuild ## second build 64bit
 	else
 		## with subpackge
 		Fmessage "Auto building lib32-${pkgname} subpackage"
 		Fcross32_common_build
 		Fcross32_delete_empty
 		Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one
-		Fbuild_no_patch ## 64bit
+		Fbuild ## 64bit
 	fi
 
 }

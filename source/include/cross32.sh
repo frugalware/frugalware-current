@@ -134,7 +134,7 @@ __cross32_delete_files() {
 
 
 	Fmessage "Removing no needed files for 32bit packages"
-        Frm usr/share/{man,aclocal,info,doc}
+        Frm usr/share/{man,aclocal,info,doc,locale}
         Frm etc
 
 
@@ -204,7 +204,13 @@ Fcross32_delete_empty() {
 
 Fcross32_copy_source() {
 
-	local src="$_F_cd_path"
+	# sf.net broken , util.sh broken , github.sh broken etc
+	if [ -n "$_F_cd_path" ]; then
+		local src="$_F_cd_path"
+	else
+	     ## assume $pkgname-$pkgver
+		local src="$pkgname-$pkgver"
+	fi
 	Fexec cd $Fsrcdir || Fdie
 	## copy to something unique
 	Fexec cp -Ra "$src" "${src}-cross32-source-copy" || Fdie
@@ -226,8 +232,8 @@ __cross32_common_build() {
 
 	## this is ..
 	F_CONFOPTS="$Fconfopts"
-	Fcross32_copy_source
 	Fcross32_prepare
+	Fcross32_copy_source
 	Fbuild $F32confopts
 	## HACK2
 	Fcross32_copy_back_source

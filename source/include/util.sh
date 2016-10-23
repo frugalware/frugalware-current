@@ -1238,6 +1238,13 @@ Fbuild() {
 	if [ -z "$_Fbuild_no_patch" ]; then
 		Fpatchall
 	fi
+
+	if [ -n "$_Fbuild_autoreconf" ]; then
+		Fmessage "Running autoreconf..."
+		Fcd
+		Fautoreconf
+        fi
+
 	Fmake "$@"
 	Fmakeinstall
 	if echo ${source[@]}|grep -q README.Frugalware; then

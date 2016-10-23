@@ -67,8 +67,7 @@ __cross32_export_orig_vars() {
 	export PKG_CONFIG_PATH="$PKGCONFIG_ORIG"
 	## reset CPP
 	unset CPPFLAGS
-	## reset options to default
-	Fconfopts=""
+
 }
 
 
@@ -124,7 +123,7 @@ __cross32_set_vars() {
 
 
 	## ./configure ..
-	Fconfopts+=" pkgconfigdir=/usr/lib32/pkgconfig"
+	F32confopts+=" pkgconfigdir=/usr/lib32/pkgconfig"
 
 }
 

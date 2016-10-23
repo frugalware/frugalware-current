@@ -95,7 +95,7 @@ Flocalstatedir="/var"
 Finfodir="/usr/share/info"
 Fmandir="/usr/share/man"
 Fmenudir="/usr/share/applications"
-Farchs=('i686' 'x86_64')
+Farchs=('x86_64')
 Fbuildchost="`arch`-frugalware-linux"
 Fconfopts=""
 _F_make_opts="V=1"

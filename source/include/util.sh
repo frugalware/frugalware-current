@@ -1234,7 +1234,10 @@ Fmakeinstall() {
 # are passed to Fmake.
 ###
 Fbuild() {
-	Fpatchall
+
+	if [ -z "$_Fbuild_no_patch" ]; then
+		Fpatchall
+	fi
 	Fmake "$@"
 	Fmakeinstall
 	if echo ${source[@]}|grep -q README.Frugalware; then

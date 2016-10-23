@@ -201,20 +201,36 @@ Fcross32_delete_empty() {
 	__cross32_delete_empty
 }
 
+
+Fcross32_copy_source() {
+
+	local src="$_F_cd_path"
+	Fexec cd $Fsrcdir || Fdie
+	## copy to something unique
+	Fexec cp -Ra "$src" "${src}-cross32-source-copy" || Fdie
+	Fcd
+}
+
+Fcross32_copy_back_source() {
+
+	Fexec cd $Fsrcdir || Fdie
+	## _F_cd_path bug....
+	local move=$(basename *-cross32-source-copy)
+        Fexec rm -rf "./${move/-cross32-source-copy}" || Fdie
+        Fexec mv "${move}" "${move/-cross32-source-copy}" || Fdie
+	Fcd
+}
+
 __cross32_common_build() {
 
 
 	## this is ..
 	F_CONFOPTS="$Fconfopts"
+	Fcross32_copy_source
 	Fcross32_prepare
-	## untill we fix schemas HACK!
-	Fexec cd $Fsrcdir || Fdie
-	Fexec cp -Ra "$_F_cd_path" "${_F_cd_path}-2" || Fdie
 	Fbuild $F32confopts
-	## HACK part2
-	Fexec cd $Fsrcdir || Fdie
-	Fexec rm -rf "./$_F_cd_path" || Fdie
-	Fexec mv "${_F_cd_path}-2" "${_F_cd_path}" || Fdie
+	## HACK2
+	Fcross32_copy_back_source
 	Fcross32_reset_and_fix
 	Fconfopts=""
 	Fconfopts+=" $F_CONFOPTS"
@@ -226,8 +242,7 @@ Fcross32_common_build() {
 
 Fbuild_no_patch() {
 
-	Fconf
-	Fmake
+	Fmake "$@"
 	Fmakeinstall
 }
 

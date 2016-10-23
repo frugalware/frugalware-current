@@ -110,11 +110,6 @@ __cross32_set_vars() {
 		_F_conf_configure="./configure"
 	fi
 
-
-	if [ -n "$F32confopts" ]; then
-                Fconfopts+=" ${F32confopt[*]}"
-        fi
-
 	F32bindir="/usr/${CHOST}/bin"
 	F32sbindir="/usr/${CHOST}/sbin"
 	F32includedir="/usr/${CHOST}/inlcude"
@@ -214,7 +209,7 @@ __cross32_common_build() {
 	## untill we fix schemas HACK!
 	Fexec cd $Fsrcdir || Fdie
 	Fexec cp -Ra "$_F_cd_path" "${_F_cd_path}-2" || Fdie
-	Fbuild
+	Fbuild $F32confopts
 	## HACK part2
 	Fexec cd $Fsrcdir || Fdie
 	Fexec rm -rf "./$_F_cd_path" || Fdie

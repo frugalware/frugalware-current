@@ -204,6 +204,9 @@ Fcross32_delete_empty() {
 
 __cross32_common_build() {
 
+
+	## this is ..
+	F_CONFOPTS="$Fconfopts"
 	Fcross32_prepare
 	## untill we fix schemas HACK!
 	Fexec cd $Fsrcdir || Fdie
@@ -214,6 +217,8 @@ __cross32_common_build() {
 	Fexec rm -rf "./$_F_cd_path" || Fdie
 	Fexec mv "${_F_cd_path}-2" "${_F_cd_path}" || Fdie
 	Fcross32_reset_and_fix
+	Fconfopts=""
+	Fconfopts+=" $F_CONFOPTS"
 }
 
 Fcross32_common_build() {

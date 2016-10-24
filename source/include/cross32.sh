@@ -97,7 +97,7 @@ __cross32_set_vars() {
 	export CC="gcc -m32"
 	export CXX="g++ -m32"
 	LDFLAGS+=" -L/usr/lib32"
-	export CPPFLAGS=" -I/usr/${CHOST}/inlcude"
+	export CPPFLAGS=" -I/usr/${CHOST}/inlcude -I/usr/${CHOST}/include"
 	export PKG_CONFIG_PATH="/usr/lib32/pkgconfig"
 
 	## we share some tools like tools for building docs
@@ -120,7 +120,7 @@ __cross32_set_vars() {
 
 	F32bindir="/usr/${CHOST}/bin"
 	F32sbindir="/usr/${CHOST}/sbin"
-	F32includedir="/usr/${CHOST}/inlcude"
+	F32includedir="/usr/${CHOST}/include"
 	F32libdir="/usr/lib32"
 	F32libexecdir="/usr/${CHOST}/${pkgname}"
 

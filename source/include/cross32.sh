@@ -169,6 +169,7 @@ __cross32_bug_me_set() {
 	msg2 "CXX to $CXX"
 	msg2 "CPPFLAGS to $CPPFLAGS"
 	msg2 "PKG_CONFIG_PATH to $PKG_CONFIG_PATH"
+	msg2 "PATH to $PATH"
 }
 
 __cross32_bug_me_reset() {
@@ -180,6 +181,7 @@ __cross32_bug_me_reset() {
         msg2 "CHOST to $CHOST"
         msg2 "CC to $CC"
         msg2 "CXX to $CXX"
+	msg2 "PATH to $PATH"
 }
 
 Fcross32_prepare() {

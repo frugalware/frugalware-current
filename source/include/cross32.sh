@@ -49,6 +49,7 @@ __cross32_save_orig_vars() {
 	LDFLAGS_ORIG="$LDFLAGS"
 	CHOST_ORIG="$CHOST"
 	PKGCONFIG_ORIG="$PKG_CONFIG_PATH"
+	PATH_ORIG="$PATH"
 }
 
 
@@ -67,6 +68,8 @@ __cross32_export_orig_vars() {
 	export PKG_CONFIG_PATH="$PKGCONFIG_ORIG"
 	## reset CPP
 	unset CPPFLAGS
+	## reset PATH
+	export PATH="$PATH_ORIG"
 
 }
 
@@ -74,7 +77,7 @@ __cross32_export_orig_vars() {
 ## unset all defaults
 __cross32_unset_vars() {
 	## common
-	unset CFLAGS CXXFLAGS CHOST PKG_CONFIG_PATH
+	unset CFLAGS CXXFLAGS CHOST PKG_CONFIG_PATH PATH
 
 	## cmake.sh
 	unset CMAKE_LIB CMAKE_BIN CMAKE_SBIN
@@ -96,6 +99,12 @@ __cross32_set_vars() {
 	LDFLAGS+=" -L/usr/lib32"
 	export CPPFLAGS=" -I/usr/${CHOST}/inlcude"
 	export PKG_CONFIG_PATH="/usr/lib32/pkgconfig"
+
+	## we share some tools like tools for building docs
+	## shell scripts and such .. for that matter we need
+	## orig system PATH + 32bit PATH but put 32bit first
+
+	export PATH=/usr/${CHOST}/bin:$PATH_ORIG
 
 	## cmake.sh
 	export CMAKE_LIB="lib32"

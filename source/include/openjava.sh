@@ -40,11 +40,9 @@
 
 ###
 # == APPENDED VARIABLES
-# * depends()
 # * makedepends()
 ###
-depends=("${depends[@]}" 'openjre')
-makedepends=("${makedepends[@]}" 'openjdk' 'apache-ant')
+makedepends=("${makedepends[@]}" 'openjdk' 'apache-ant' 'openjre')
 
 ###
 # == PROVIDED FUNCTIONS

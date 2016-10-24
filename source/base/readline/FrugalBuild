@@ -6,14 +6,15 @@
 
 pkgname=readline
 pkgver=6.3
-pkgrel=9
+pkgrel=10
 pkgdesc="GNU readline library"
 url="http://www.gnu.org/"
-depends=('ncurses>=6.0-12')
+depends=('ncurses>=6.0-13')
 groups=('base' 'chroot-core')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 backup=("etc/inputrc")
 Fup2gnugz
+Finclude cross32
 source=(ftp://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-$pkgver.tar.gz \
 	ftp://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-$pkgver-patches/readline63-001 \
 	ftp://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-$pkgver-patches/readline63-002 \
@@ -39,23 +40,37 @@ sha1sums=('017b92dc7fd4e636a2b5c9265a77ccc05798c9e1' \
 
 Fconfopts+=" --with-curses"
 
+subpkgs=("lib32-${pkgname}")
+subdescs=("$pkgdesc ( 32bit )")
+subdepends=("lib32-ncurses>=6.0-13")
+subgroups=('lib32-extra')
+subarchs=('x86_64')
+
+_F_make_opts=" TERMCAP_LIB=-lncurses SHLIB_LIBS=-lncurses -j1"
+
+_patch() {
+
+	unset MAKEFLAGS ## DO NOT REMOVE
+        for i in {001..008}
+        do
+                Fpatch readline63-$i
+        done
+}
+
 build()
 {
 	Fcd
-	unset MAKEFLAGS ## DO NOT REMOVE
-	for i in {001..008}
-	do
-		Fpatch readline63-$i
-	done
+	_patch
+	Fcross32_common_build
+	Fcross32_delete_empty
+	Fsplit "${subpkgs[0]}" /\*
 
-	Fconf
-
-	make TERMCAP_LIB=-lncurses SHLIB_LIBS=-lncurses -j1 || Fdie
-
-	Fmakeinstall
+	Fcd
+	# copyed source already patched
+	Fbuild
 	Ffile /etc/inputrc
 	Fexe /etc/profile.d/readline.sh
-	Ffileschmod "usr/lib/lib*.so.$pkgver" 0755
+
 }
 
 # optimization OK

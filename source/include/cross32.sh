@@ -97,7 +97,7 @@ __cross32_set_vars() {
 	export CC="gcc -m32"
 	export CXX="g++ -m32"
 	LDFLAGS+=" -L/usr/lib32"
-	export CPPFLAGS=" -I/usr/${CHOST}/inlcude -I/usr/${CHOST}/include"
+	export CPPFLAGS=" -I/usr/${CHOST}/include"
 	export PKG_CONFIG_PATH="/usr/lib32/pkgconfig"
 
 	## we share some tools like tools for building docs

@@ -243,8 +243,12 @@ __cross32_common_build() {
 
 	## this is ..
 	F_CONFOPTS="$Fconfopts"
-	FMAKEOPTS="$_F_make_opts"
-	_F_make_opts=""
+	if [ -n "$_F32_make_opts" ]; then
+		FMAKEOPTS="$_F_make_opts"
+		_F_make_opts=""
+	else
+		_F32_make_opts="$_F_make_opts"
+	fi
 	Fcross32_prepare
 	Fcross32_copy_source
 	Fbuild $F32confopts $_F32_make_opts
@@ -252,7 +256,9 @@ __cross32_common_build() {
 	Fcross32_copy_back_source
 	Fcross32_reset_and_fix
 	Fconfopts=""
-	_F_make_opts="$FMAKEOPTS"
+	if [ -n "$_F32_make_opts" ]; then
+		_F_make_opts="$FMAKEOPTS"
+	fi
 	Fconfopts+=" $F_CONFOPTS"
 }
 

@@ -9,7 +9,7 @@ USE_TC_X=${USE_TC_X:-"y"}
 
 pkgname=dbus
 pkgver=1.10.12
-pkgrel=1
+pkgrel=2
 pkgdesc="A message bus system"
 url="http://freedesktop.org/wiki/Software/dbus"
 rodepends=('scriptlet-core')
@@ -17,7 +17,7 @@ depends=('libxml2>=2.9.4-3' 'expat>=2.1.0-5' 'libsystemd>=231-5')
 makedepends=('xmlto>=0.0.28' 'docbook-xsl' 'docbook-xml' 'systemd>=231-5')
 options=('scriptlet')
 groups=('base' 'core')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 _F_archive_grepv="1.11" # 1.11 is devel .13 is devel etc
 up2date="Flasttar http://dbus.freedesktop.org/releases/dbus/"
 backup=(etc/dbus-1/session.conf etc/tmpfiles.d/dbus.conf)
@@ -41,24 +41,50 @@ if Fuse $USE_TC_X; then
 else
 	subdepends=()
 fi
-subrodepends=("dbus=$pkgver")
+subrodepends=("dbus>=$pkgver")
 subgroups=('xapps')
-subarchs=('i686 x86_64')
+subarchs=('x86_64')
+
+
+subpkgs+=('lib32-libdbus')
+subdescs+=("$pkgdesc ( 32bit )")
+subconflicts+=('')
+subreplaces+=('lib32-dbus')
+subprovides+=('lib32-dbus')
+subdepends+=("glibc>=2.24-8")
+subrodepends+=("")
+subgroups+=('lib32-extra')
+subarchs+=('x86_64')
 
 if Fuse $USE_TC_X; then
-	Fconfopts+=" --with-x --enable-x11-autolaunch"
+	_64bit_options+=" --with-x --enable-x11-autolaunch"
 else
-	Fconfopts+=" --without-x --disable-x11-autolaunch"
+	_64bit_options+=" --without-x --disable-x11-autolaunch"
 fi
 
 
+
+Finclude cross32
+
+makedepends+=('lib32-libxml2' 'lib32-expat')
+
+_64bit_options="  --enable-systemd \
+		--enable-user-session \
+		--with-systemdsystemunitdir=/lib/systemd/system \
+		--enable-xml-docs \
+		--libdir=/usr/lib \
+		--bindir=/usr/bin \
+		--libexecdir=/usr/lib/$pkgname-1"
+
+## right now I can't add systemd support .. circualr depends..
+F32confopts+=" --disable-systemd \
+		--disable-user-session \
+		--disable-xml-docs \
+		--without-x \
+		-disable-x11-autolaunch"
+
 Fconfopts+="	--prefix=/usr \
-		--sysconfdir=/etc \
-                --localstatedir=/var \
                 --exec-prefix=/ \
-                --libdir=/usr/lib \
-                --bindir=/usr/bin \
-                --libexecdir=/usr/lib/$pkgname-1 \
                 --with-system-pid-file=/var/run/dbus/dbus.pid \
                 --with-system-socket=/var/run/dbus/system_bus_socket \
                 --with-session-socket-dir=/tmp \
@@ -67,25 +93,34 @@ Fconfopts+="	--prefix=/usr \
                 --enable-inotify \
                 --enable-userdb-cache \
                 --with-gnu-ld \
-                --enable-xml-docs \
                 --disable-asserts \
                 --disable-checks \
                 --disable-tests \
                 --disable-selinux \
-                --with-systemdsystemunitdir=/lib/systemd/system \
-                --enable-systemd \
-		--enable-user-session \
-		--disable-Werror \
-		--enable-static=no \
-		--disable-static"
+		--disable-Werror"
 
 build()
 {
+
 	Fcd
-	Fpatchall
-	Fautoreconf
-	Fmake
-	Fmakeinstall
+
+	## --- 32bit ----------
+	Fcross32_common_build
+	Fcross32_delete_empty
+
+	## keep just the lib
+	Frm var
+	Frm usr/share/dbus-1
+	Frm usr/i686-frugalware-linux/{bin,dbus}
+
+	## same bug here ..
+	Fln /usr/lib32/dbus-1.0/include/dbus/dbus-arch-deps.h /usr/i686-frugalware-linux/include/dbus-1.0/dbus/dbus-arch-deps.h
+
+	Fcross32_delete_empty
+
+	Fsplit lib32-libdbus /\*
+
+	Fbuild $_64bit_options
 
 	## and we use /etc/xdg/autostart for GNOME/XFCE
 	Fexe /etc/xdg/autostart/dbus-1-launch.desktop

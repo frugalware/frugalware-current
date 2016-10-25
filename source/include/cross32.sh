@@ -243,13 +243,16 @@ __cross32_common_build() {
 
 	## this is ..
 	F_CONFOPTS="$Fconfopts"
+	FMAKEOPTS="$_F_make_opts"
+	_F_make_opts=""
 	Fcross32_prepare
 	Fcross32_copy_source
-	Fbuild $F32confopts
+	Fbuild $F32confopts $_F32_make_opts
 	## HACK2
 	Fcross32_copy_back_source
 	Fcross32_reset_and_fix
 	Fconfopts=""
+	_F_make_opts="$FMAKEOPTS"
 	Fconfopts+=" $F_CONFOPTS"
 }
 

@@ -104,7 +104,7 @@ __cross32_set_vars() {
 	## shell scripts and such .. for that matter we need
 	## orig system PATH + 32bit PATH but put 32bit first
 
-	export PATH=/usr/${CHOST}/bin:$PATH_ORIG
+	export PATH=/usr/${CHOST}/bin:usr/${CHOST}/sbin:$PATH_ORIG
 
 	## cmake.sh
 	export CMAKE_LIB="lib32"

@@ -132,7 +132,7 @@ __cross32_set_vars() {
 
 
 	## ./configure ..
-	F32confopts+=" pkgconfigdir=/usr/lib32/pkgconfig"
+	##F32confopts+=" pkgconfigdir=/usr/lib32/pkgconfig"
 
 }
 

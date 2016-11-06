@@ -23,7 +23,7 @@ depends=('lcms2' 'openal' 'libglu' 'libldap' 'libpcap' 'libpulse' 'libmpg123' 'l
 	'libxcursor' 'libxi' 'libxrandr' 'libxinerama' 'libxcomposite' 'sane-backends' 'v4l-utils' 'libxrender' 'libxslt')
 #32 bit
 depends+=('lib32-lcms2' 'lib32-libxcursor' 'lib32-libxi' 'lib32-libxrandr' 'lib32-libxinerama' 'lib32-libxcomposite' \
-	'lib32-libxrender' 'lib32-libxslt' 'lib32-freetype2')
+	'lib32-libxrender' 'lib32-freetype2')
 makedepends=('x11-protos' 'cups')
 _F_cd_path="wine-$pkgver"
 options=('genscriptlet' 'nostrip')
@@ -86,4 +86,7 @@ build()
 
 	Fexec cp $Fincdir/wine.conf $Fsrcdir
 	Ffile /etc/binfmt.d/wine.conf
+	Fln usr/i686-frugalware-linux/bin/wine-preloader usr/bin/wine-preloader
+	Fln usr/i686-frugalware-linux/bin/wine usr/bin/wine
+
 }

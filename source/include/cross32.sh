@@ -294,6 +294,7 @@ if [ -n "$_F_cross32_simple" ]; then
 		subdepends=("${_F_cross32_subdepends[*]}")
 		subgroups=('lib32-extra')
 		subarchs=('x86_64')
+		suboptions=('force')
 	fi
 fi
 

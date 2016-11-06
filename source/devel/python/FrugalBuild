@@ -6,7 +6,7 @@ USE_TK_GUI=${USE_TK_GUI:-"y"}
 pkgname=python
 pkgver=2.7.12
 shortpkgver=2.7 # 2.3 if $pkgver=2.3.4
-pkgrel=7
+pkgrel=8
 pkgdesc="A high-level scripting language"
 url="https://www.python.org"
 depends=('glibc>=2.24-4' 'db>=6.2.23' 'bzip2>=1.0.6-6' 'gdbm>=1.12-2' \
@@ -23,16 +23,6 @@ sha1sums=('05360b8ade117b35e266b2004a7f1f11250c6dcd')
 
 replaces=('python-ctypes')
 provides=('python-ctypes')
-Fconfopts="	--prefix=/usr \
-                --with-threads \
-                --enable-shared \
-                --enable-ipv6 \
-                --with-system-expat \
-                --with-system-ffi \
-                --with-signal-module"
-
-Finclude cross32
-
 
 if Fuse $USE_TK_GUI; then
 	makedepends+=('x11-protos')
@@ -58,17 +48,13 @@ subdepends+=('sqlite3>=3.14.2-2')
 subrodepends+=("python=$pkgver-$pkgrel")
 subarchs+=('x86_64')
 
-subpkgs+=("lib32-$pkgname")
-subdescs+=("$pkgdesc (32bit)")
-subgroups+=('lib32-extra')
-subdepends+=('sqlite3>=3.14.2-2')
-subrodepends+=("glibc lib32-db lib32-bzip2 lib32-gdbm lib32-openssl lib32-glib2 lib32-ncurses lib32-libffi lib32-expat")
-subarchs+=('x86_64')
-
 export CFLAGS+=" -fPIC"
 
 build()
 {
+	Fcd Python-$pkgver
+	Fpatchall
+
 	#sem_open is broken into chroot so force it
 	Fsed "ac_cv_posix_semaphores_enabled=no" "ac_cv_posix_semaphores_enabled=yes" configure
 
@@ -76,42 +62,21 @@ build()
 	# required regularly
 	Fsed 'max_db_ver = (5, 3)' 'max_db_ver = (6, 2)' setup.py
 
+	Fconf \
+		--prefix=/usr \
+		--with-threads \
+		--enable-shared \
+		--enable-ipv6 \
+		--with-system-expat \
+		--with-system-ffi \
+		--with-signal-module
+
 	Fsed 'mozilla-firefox' 'firefox' Lib/webbrowser.py
 	Fsed '/usr/local' '/usr' Lib/cgi.py
 	Fsed '-O3' '' configure
 
-	Fsed '$(prefix)/lib' '$(prefix)/lib32' Makefile.pre.in
-	Fsed '$(exec_prefix)/include' '$(exec_prefix)/i686-frugalware-linux/include' Makefile.pre.in
-	Fsed 'base}/lib' 'base}/lib32' Lib/sysconfig.py
-	Fsed '/include' '/i686-frugalware-linux/include' Lib/sysconfig.py
-	Fsed 'lib/' 'lib32/' Modules/getpath.c
-	Fsed 'base/lib' 'base/lib32'  Lib/distutils/command/install.py
-	Fsed '/include' '/i686-frugalware-linux/include' Lib/distutils/command/install.py
-	Fsed 'lib/python' 'lib32/python' configure
-	Fsed '"lib"' '"lib32"' Lib/distutils/sysconfig.py
-
-	# Remove system modules
-	Fexec rm -r Modules/expat || Fdie
-	Fexec rm -r Modules/zlib || Fdie
-	Fexec rm -r Modules/_ctypes/{darwin,libffi}* || Fdie
-
-
-        Fcross32_common_build
-        Fcross32_delete_empty
-	Fsplit lib32-$pkgname /\*
-
-	Fsed '$(prefix)/lib32' '$(prefix)/lib' Makefile.pre.in
-	Fsed '$(exec_prefix)/i686-frugalware-linux/include' '$(exec_prefix)/include' Makefile.pre.in	
-	Fsed 'base}/lib32' 'base}/lib' Lib/sysconfig.py
-        Fsed '/i686-frugalware-linux/include' '/include' Lib/sysconfig.py
-        Fsed 'lib32/' 'lib/' Modules/getpath.c
-        Fsed 'base/lib32' 'base/lib'  Lib/distutils/command/install.py
-        Fsed '/i686-frugalware-linux/include' '/include' Lib/distutils/command/install.py
-        Fsed 'lib32/python' 'lib/python' configure
-        Fsed '"lib32"' '"lib"' Lib/distutils/sysconfig.py
-
-	Fbuild
-
+	make || Fdie
+	Fmakeinstall
 	# subpkg python-tools
 	for f in Tools/* ; do
 		if [ -d $f ] ; then

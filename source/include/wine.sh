@@ -50,7 +50,7 @@ wine-devel)
 	up2date="Flasttar https://dl.winehq.org/wine/source/1.9/"
 	conflicts=('wine' 'lib32-wine-devel')
 	provides=('wine' 'lib32-wine-devel')
-	replaces=('lib32-wine')
+	replaces=('lib32-wine-devel')
 	;;
 
 default)

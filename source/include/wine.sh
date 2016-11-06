@@ -40,16 +40,16 @@ wine)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Stable)"
 	up2date="Flasttar https://dl.winehq.org/wine/source/1.8/"
 	conflicts=('wine-devel' 'lib32-wine-devel')
-	provides=('lib32-wine-devel')
-	replaces=('lib32-wine-devel')
+	provides=('lib32-wine')
+	replaces=('lib32-wine')
 	;;
 
 wine-devel)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Development)"
 	_F_archive_name="wine"
 	up2date="Flasttar https://dl.winehq.org/wine/source/1.9/"
-	conflicts=('wine' 'lib32-wine')
-	provides=('wine' 'lib32-wine')
+	conflicts=('wine' 'lib32-wine-devel')
+	provides=('wine' 'lib32-wine-devel')
 	replaces=('lib32-wine')
 	;;
 

@@ -65,7 +65,7 @@ signatures=("${source[@]}.sign")
 
 build()
 {
-	
+
 	Fcd
 	Fsed 'lib64' 'lib' configure.ac
 	Fautoreconf
@@ -77,16 +77,21 @@ build()
 	Fexec mkdir 32Bit_build || Fdie
         Fexec cd 32Bit_build || Fdie
         Fcross32_prepare
-        
+
         Fmake --libdir=/usr/lib32 --with-wine64="$Fsrcdir/${_F_cd_path}/64Bit_build" 
         Fmakeinstall  libdir="$Fpkgdir/usr/lib32" dlldir="$Fpkgdir/usr/lib32/wine"
-        
+
         Fexec cd ../64Bit_build || Fdie
         Fmakeinstall  libdir="$Fpkgdir/usr/lib" dlldir="$Fpkgdir/usr/lib/wine"
 
 	Fexec cp $Fincdir/wine.conf $Fsrcdir
 	Ffile /etc/binfmt.d/wine.conf
-	Fln usr/i686-frugalware-linux/bin/wine-preloader usr/bin/wine-preloader
-	Fln usr/i686-frugalware-linux/bin/wine usr/bin/wine
+	Fln /usr/i686-frugalware-linux/bin/wine-preloader /usr/bin/wine-preloader
+	Fln /usr/i686-frugalware-linux/bin/wine /usr/bin/wine
+
+	## we cannot use reset_and_fix here since we don't split anything
+	__cross32_unset_vars
+	__cross32_export_orig_vars
+
 
 }

@@ -6,7 +6,7 @@
 
 pkgname=readline
 pkgver=6.3
-pkgrel=12
+pkgrel=13
 pkgdesc="GNU readline library"
 url="http://www.gnu.org/"
 depends=('ncurses>=6.0-13')
@@ -38,7 +38,6 @@ sha1sums=('017b92dc7fd4e636a2b5c9265a77ccc05798c9e1' \
           '39e29b3077ddd60dba35376c532ca83e978606a7' \
           'dec827003e9f1e029d57f3d32fa67a41ef3d0cd6')
 
-Fconfopts+=" --with-curses"
 
 subpkgs=("lib32-${pkgname}")
 subdescs=("$pkgdesc ( 32bit )")
@@ -46,8 +45,6 @@ subdepends=("lib32-ncurses>=6.0-13")
 subgroups=('lib32-extra')
 subarchs=('x86_64')
 suboptions=('force')
-
-_F_make_opts=" TERMCAP_LIB=-lncurses SHLIB_LIBS=-lncurses "
 
 _patch() {
 
@@ -60,15 +57,31 @@ _patch() {
 
 build()
 {
+
+	## NOTE: please test that build before pushing
+	## do _not_ use Fmake since build system seems broken
+	## do _not_ use auto cross32 build
+
 	Fcd
 	_patch
-	Fcross32_common_build
+	_Fconfopts="$Fconfopts"
+	Fcross32_prepare
+	Fcross32_copy_source
+	Fconf --with-curses
+	Fexec make TERMCAP_LIB=-lncurses SHLIB_LIBS=-lncurses -j1 || Fdie
+	Fmakeinstall
+
+	Fcross32_copy_back_source
+	Fcross32_reset_and_fix
 	Fcross32_delete_empty
 	Fsplit "${subpkgs[0]}" /\*
+	Fconfopts="$_F_confopts"
 
 	Fcd
 	# copyed source already patched
-	Fbuild
+	Fconf --with-curses
+	Fexec make TERMCAP_LIB=-lncurses SHLIB_LIBS=-lncurses -j1 || Fdie
+	Fmakeinstall
 	Ffile /etc/inputrc
 	Fexe /etc/profile.d/readline.sh
 

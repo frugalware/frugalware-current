@@ -184,14 +184,36 @@ __cross32_bug_me_reset() {
 	msg2 "PATH to $PATH"
 }
 
+__cross32_conf_make_opts_pre_save() {
+
+	## this is ..
+	F_CONFOPTS="$Fconfopts"
+	if [ -n "$_F32_make_opts" ]; then
+                FMAKEOPTS="$_F_make_opts"
+                _F_make_opts=""
+        else
+                _F32_make_opts="$_F_make_opts"
+        fi
+}
+
+__cross32_conf_make_opts_reset() {
+
+
+	Fconfopts=""
+	if [ -n "$_F32_make_opts" ]; then
+                _F_make_opts="$FMAKEOPTS"
+        fi
+        Fconfopts+=" $F_CONFOPTS"
+}
+
 Fcross32_prepare() {
 
+	__cross32_conf_make_opts_pre_save
         __cross32_save_orig_vars
         __cross32_unset_vars
         __cross32_set_vars
-	__cross32_bug_me_set
+        __cross32_bug_me_set
 }
-
 
 Fcross32_reset_and_fix() {
 
@@ -199,6 +221,7 @@ Fcross32_reset_and_fix() {
 	__cross32_export_orig_vars
 	__cross32_bug_me_reset
 	__cross32_delete_files
+	__cross32_conf_make_opts_reset
 
 }
 
@@ -240,26 +263,13 @@ Fcross32_copy_back_source() {
 
 __cross32_common_build() {
 
-
-	## this is ..
-	F_CONFOPTS="$Fconfopts"
-	if [ -n "$_F32_make_opts" ]; then
-		FMAKEOPTS="$_F_make_opts"
-		_F_make_opts=""
-	else
-		_F32_make_opts="$_F_make_opts"
-	fi
 	Fcross32_prepare
 	Fcross32_copy_source
 	Fbuild $F32confopts $_F32_make_opts
 	## HACK2
 	Fcross32_copy_back_source
 	Fcross32_reset_and_fix
-	Fconfopts=""
-	if [ -n "$_F32_make_opts" ]; then
-		_F_make_opts="$FMAKEOPTS"
-	fi
-	Fconfopts+=" $F_CONFOPTS"
+
 }
 
 Fcross32_common_build() {

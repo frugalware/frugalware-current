@@ -589,12 +589,7 @@ else
 fi
 
 if Fuse DRI_OLD; then
-	# Disable intel on ARM until a better solution is found.
-	if [ "$CARCH" == arm ]; then
-		Fconfopts+=" --with-dri-drivers=nouveau,r200,radeon,swrast"
-	else
-		Fconfopts+=" --with-dri-drivers=yes"
-	fi
+	Fconfopts+=" --with-dri-drivers=yes"
 else
 	Fconfopts+=" --with-dri-drivers=no"
 fi
@@ -611,9 +606,8 @@ else
 fi
 
 if Fuse GALLIUM; then
-	if [ "$CARCH" != arm ]; then
-		GALLIUM_DRIVERS+=",i915"
-	fi
+
+	GALLIUM_DRIVERS+=",i915"
 	GALLIUM_DRIVERS+=",nouveau"
 	GALLIUM_DRIVERS+=",r300,r600,radeonsi"
 	GALLIUM_DRIVERS+=",svga"
@@ -635,6 +629,7 @@ if Fuse OMX; then
               Fconfopts+=" --enable-omx"
 fi
 
+## TODO: amdgpu but this need LLVM >=3.9
 if Fuse VULKAN; then
 	Fconfopts+=" --with-vulkan-drivers=intel"
 fi
@@ -645,94 +640,95 @@ build() {
 		Funpack_scm
 	fi
 
-  ## Hack for llvm built with cmake..  autoreconf breaks stuff :/
-  Fsed  "LLVM_SO_NAME=.*" "LLVM_SO_NAME=LLVM" configure
+	## Hack for llvm built with cmake..  autoreconf breaks stuff :/
+	Fsed  "LLVM_SO_NAME=.*" "LLVM_SO_NAME=LLVM" configure
 
-  # 32-Bit build
-  export LLVM_CONFIG="/usr/bin/llvm-config32"
-  Fcross32_common_build
-	
-  Fsplit lib32-libglapi usr/lib32/libglapi.\*
+	# 32-Bit build
+	export LLVM_CONFIG="/usr/bin/llvm-config32"
+	Fcross32_common_build
 
-  Fsplit lib32-libgbm usr/i686-frugalware-linux/include/gbm.h
-  Fsplit lib32-libgbm usr/lib32/libgbm.\*
-  Fsplit lib32-libgbm usr/lib32/pkgconfig/gbm.pc
+	Fsplit lib32-libglapi usr/lib32/libglapi.\*
 
-  Fsplit lib32-libgl usr/lib32/libGL.\*
-  Fsplit lib32-libgl usr/lib32/pkgconfig/gl.pc
+	Fsplit lib32-libgbm usr/i686-frugalware-linux/include/gbm.h
+	Fsplit lib32-libgbm usr/lib32/libgbm.\*
+	Fsplit lib32-libgbm usr/lib32/pkgconfig/gbm.pc
 
-  Fsplit lib32-mesa-libgl-headers usr/i686-frugalware-linux/include/GL/{gl.h,glext.h,glx.h,glxext.h,glx_mangle.h,mesa_glinterop.h,wglext.h,glcorearb.h,gl_mangle.h}
-  Fsplit lib32-mesa-libgl-headers usr/i686-frugalware-linux/include/GL/internal
+	Fsplit lib32-libgl usr/lib32/libGL.\*
+	Fsplit lib32-libgl usr/lib32/pkgconfig/gl.pc
 
-  # Must be before mesa-dri-drivers
-  if Fuse VAAPI; then
-          Fsplit lib32-libva-mesa-driver usr/lib32/dri/nouveau_drv_video.so
-          Fsplit lib32-libva-mesa-driver usr/lib32/dri/r600_drv_video.so
-          Fsplit lib32-libva-mesa-driver usr/lib32/dri/radeonsi_drv_video.so
-  fi
+	Fsplit lib32-mesa-libgl-headers usr/i686-frugalware-linux/include/GL/{gl.h,glext.h,glx.h,glxext.h,glx_mangle.h,mesa_glinterop.h,wglext.h,glcorearb.h,gl_mangle.h}
+	Fsplit lib32-mesa-libgl-headers usr/i686-frugalware-linux/include/GL/internal
 
-  Fsplit lib32-mesa-dri-drivers usr/lib32/dri/
-  Fsplit lib32-mesa-dri-drivers usr/lib32/pkgconfig/dri.pc
+	# Must be before mesa-dri-drivers
+	if Fuse VAAPI; then
+		Fsplit lib32-libva-mesa-driver usr/lib32/dri/nouveau_drv_video.so
+		Fsplit lib32-libva-mesa-driver usr/lib32/dri/r600_drv_video.so
+		Fsplit lib32-libva-mesa-driver usr/lib32/dri/radeonsi_drv_video.so
+	fi
 
-  Fsplit lib32-khr-headers usr/i686-frugalware-linux/include/KHR/
 
-  if Fuse EGL; then
-          Fsplit lib32-libegl usr/i686-frugalware-linux/include/EGL/
-          Fsplit lib32-libegl usr/lib32/libEGL.*
-          Fsplit lib32-libegl usr/lib32/pkgconfig/egl.pc
-  fi
+	Fsplit lib32-mesa-dri-drivers usr/lib32/dri/
+	Fsplit lib32-mesa-dri-drivers usr/lib32/pkgconfig/dri.pc
 
-  if Fuse GLES1 || Fuse GLES2; then
-          Fsplit lib32-libgles usr/i686-frugalware-linux/include/GLES*/
-          Fsplit lib32-libgles usr/lib32/libGLES*
-          Fsplit lib32-libgles usr/lib32/pkgconfig/gles*.pc
-  fi
+	Fsplit lib32-khr-headers usr/i686-frugalware-linux/include/KHR/
 
-   if Fuse OPENCL; then
-           Fsplit lib32-libcl usr/lib32/libMesaOpenCL*
-	   Fsplit lib32-mesa-pipe-drivers usr/lib32/gallium-pipe/
-   fi
+	if Fuse EGL; then
+		Fsplit lib32-libegl usr/i686-frugalware-linux/include/EGL/
+		Fsplit lib32-libegl usr/lib32/libEGL.*
+		Fsplit lib32-libegl usr/lib32/pkgconfig/egl.pc
+	fi
 
-  if Fuse VULKAN; then
-          Fsplit lib32-mesa-vulkan usr/i686-frugalware-linux/include/vulkan
-          Fsplit lib32-mesa-vulkan usr/lib32/libvulkan*
-  fi
+	if Fuse GLES1 || Fuse GLES2; then
+		Fsplit lib32-libgles usr/i686-frugalware-linux/include/GLES*/
+		Fsplit lib32-libgles usr/lib32/libGLES*
+		Fsplit lib32-libgles usr/lib32/pkgconfig/gles*.pc
+	fi
 
-  if Fuse OSMESA; then
-	Fsplit lib32-libosmesa usr/i686-frugalware-linux/include/GL/osmesa.h
-	Fsplit lib32-libosmesa usr/lib32/libOSMesa.*
-	Fsplit lib32-libosmesa usr/lib32/pkgconfig/osmesa.pc
-  else
-	Frm usr/i686-frugalware-linux/include/GL/osmesa.h
-  fi
+	if Fuse OPENCL; then
+		Fsplit lib32-libcl usr/lib32/libMesaOpenCL*
+		Fsplit lib32-mesa-pipe-drivers usr/lib32/gallium-pipe/
+	fi
 
-  if Fuse VDPAU; then
-          Fsplit lib32-mesa-vdpau-drivers usr/lib32/vdpau/
-  fi
+	if Fuse VULKAN; then
+		Fsplit lib32-mesa-vulkan usr/i686-frugalware-linux/include/vulkan
+		Fsplit lib32-mesa-vulkan usr/lib32/libvulkan*
+	fi
 
-  if Fuse OMX; then
-          Fsplit lib32-mesa-opemax usr/lib32/bellagio/
-  fi
+	if Fuse OSMESA; then
+		Fsplit lib32-libosmesa usr/i686-frugalware-linux/include/GL/osmesa.h
+		Fsplit lib32-libosmesa usr/lib32/libOSMesa.*
+		Fsplit lib32-libosmesa usr/lib32/pkgconfig/osmesa.pc
+	else
+		Frm usr/i686-frugalware-linux/include/GL/osmesa.h
+	fi
 
-  if Fuse NINE; then
-          Fsplit lib32-mesa-nine usr/i686-frugalware-linux/include/d3dadapter/
-          Fsplit lib32-mesa-nine usr/lib32/d3d/
-          Fsplit lib32-mesa-nine usr/lib32/pkgconfig/d3d.pc
-  fi
+	if Fuse VDPAU; then
+		Fsplit lib32-mesa-vdpau-drivers usr/lib32/vdpau/
+	fi
 
-  if Fuse XA; then
-          Fsplit lib32-libxatracker usr/lib32/libxatracker.*
-          Fsplit lib32-libxatracker usr/i686-frugalware-linux/include/xa_*.h
-          Fsplit lib32-libxatracker usr/lib32/pkgconfig/xatracker.pc
-  fi
+	if Fuse OMX; then
+		Fsplit lib32-mesa-opemax usr/lib32/bellagio/
+	fi
 
-  if Fuse WAYLAND_EGL; then
-          Fsplit lib32-libwayland-egl usr/lib32/libwayland-egl.*
-          Fsplit lib32-libwayland-egl usr/lib32/pkgconfig/wayland-egl.pc
-  fi
-  Fcross32_delete_empty
+	if Fuse NINE; then
+		Fsplit lib32-mesa-nine usr/i686-frugalware-linux/include/d3dadapter/
+		Fsplit lib32-mesa-nine usr/lib32/d3d/
+		Fsplit lib32-mesa-nine usr/lib32/pkgconfig/d3d.pc
+	fi
 
-  # 64-Bit build
+	if Fuse XA; then
+		Fsplit lib32-libxatracker usr/lib32/libxatracker.*
+		Fsplit lib32-libxatracker usr/i686-frugalware-linux/include/xa_*.h
+		Fsplit lib32-libxatracker usr/lib32/pkgconfig/xatracker.pc
+	fi
+
+	if Fuse WAYLAND_EGL; then
+		Fsplit lib32-libwayland-egl usr/lib32/libwayland-egl.*
+		Fsplit lib32-libwayland-egl usr/lib32/pkgconfig/wayland-egl.pc
+	fi
+	Fcross32_delete_empty
+
+	# 64-Bit build
 	export LLVM_CONFIG="/usr/bin/llvm-config"
 	export PKG_CONFIG_PATH="/usr/lib/pkgconfig"
 
@@ -814,9 +810,9 @@ build() {
 		Fsplit mesa-nine usr/lib/pkgconfig/d3d.pc
 	fi
 
-  if Fuse OMX; then
-          Fsplit mesa-opemax usr/lib/bellagio/
-  fi
+	if Fuse OMX; then
+		Fsplit mesa-opemax usr/lib/bellagio/
+	fi
 
 	if Fuse VULKAN; then
 		Fsplit mesa-vulkan usr/include/vulkan
@@ -824,8 +820,8 @@ build() {
 		Fsplit mesa-vulkan usr/share/vulkan/
 	fi
 
-  # empty dirs
-  Frm usr/{lib,include,i686-frugalware-linux,lib32}/
+	# empty dirs
+	Frm usr/{lib,include,i686-frugalware-linux,lib32}/
 }
 
 # optimization OK

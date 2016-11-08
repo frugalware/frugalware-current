@@ -4,14 +4,14 @@
 
 pkgname=util-linux
 pkgver=2.28.2
-pkgrel=3
+pkgrel=6
 pkgdesc="Miscellaneous system utilities for Linux"
 url="http://www.kernel.org/pub/linux/utils/util-linux/"
 backup=('etc/sysconfig/numlock')
-depends=('ncurses>=6.0-12' 'zlib>=1.2.8-8' 'libcap-ng>=0.7.8-4' 'pam>=1.1.8-4')
+depends=('ncurses>=6.0-13' 'zlib>=1.2.8-10' 'libcap-ng>=0.7.8-5' 'pam>=1.1.8-5')
 makedepends+=('systemd>=230-2')
 groups=('base' 'chroot-core')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 up2date="lynx -dump http://git.kernel.org/cgit/utils/util-linux/util-linux.git/refs/tags  | \
 	grep -v 'rc' | egrep -o 'v[0-9.]+' | sed 's/v//' | Fsort | tail -n1 | Fsanitizeversion"
 # see bzr for more description on ${pkgver%%.?}
@@ -23,7 +23,9 @@ sha1sums=('76053b05a6c8bf3f6fcbef8679cfaa01135bf67f' \
           'cf32c54ca7f4ca3b7a91ebe309f114ed4d296a09' \
           '9c85fa0556553a6982d0db66e24298fe95e1dd20' \
           'a75ec4c911dddbd77418e0ab2c36d6a044e55d28')
-Finclude python
+
+_F_cross32_delete=('usr/share/bash-completion')
+Finclude python cross32
 
 replaces=('eject')
 provides=('eject')
@@ -32,24 +34,54 @@ conflicts=('eject')
 subpkgs=("libblkid")
 subdescs=('Block device id library')
 subdepends=("glibc>=2.24-4")
-subrodepends=("libuuid=$pkgver")
+subrodepends=("libuuid>=$pkgver")
 subgroups=('base chroot-core')
-subarchs=('i686 x86_64')
+subarchs=('x86_64')
+suboptions=('')
 
 subpkgs+=("libuuid")
 subdescs+=('Universally unique id library')
 subdepends+=("glibc>=2.24-4")
 subrodepends+=("")
 subgroups+=('base chroot-core')
-subarchs+=('i686 x86_64')
+subarchs+=('x86_64')
+suboptions+=('')
 
 subpkgs+=("pylibmount")
 subdescs+=('Python bindings for libmount')
 subdepends+=("")
 subrodepends+=("python>=2.7.12-2")
 subgroups+=('apps-extra')
-subarchs+=('i686 x86_64')
+subarchs+=('x86_64')
+suboptions+=('')
 
+### ------- 32bit --------------
+
+subpkgs+=("lib32-$pkgname")
+subdescs+=('Miscellaneous system utilities for Linux ( 32bit )')
+subdepends+=("lib32-ncurses>=6.0-13 lib32-zlib>=1.2.8-10 lib32-libcap-ng>=0.7.8-5 lib32-pam>=1.1.8-5")
+subrodepends+=("lib32-libuuid>=$pkgver")
+subgroups+=('lib32-extra')
+subarchs+=('x86_64')
+suboptions+=('force')
+
+subpkgs+=("lib32-libblkid")
+subdescs+=('Block device id library ( 32bit )')
+subdepends+=("glibc>=2.24-4")
+subrodepends+=("lib32-libuuid>=$pkgver")
+subgroups+=('lib32-extra')
+subarchs+=('x86_64')
+suboptions+=('force')
+
+subpkgs+=("lib32-libuuid")
+subdescs+=('Universally unique id library ( 32bit )')
+subdepends+=("glibc>=2.24-4")
+subrodepends+=("")
+subgroups+=('lib32-extra')
+subarchs+=('x86_64')
+suboptions+=('force')
+
+### ---------------------------
 
 rodepends+=("libblkid libuuid")
 
@@ -65,8 +97,37 @@ Fconfopts="	--enable-raw \
 		--enable-static=no \
 		--disable-static"
 
+F32confopts+=" --without-python --without-systemd --disable-bash-completion \
+	--exec-prefix=/usr/i686-frugalware-linux"
+
 build() {
+
 	export CFLAGS+=" -fPIC"
+
+	### ---  32bit  -----------
+
+	Fcd
+	Fcross32_common_build
+	Fcross32_delete_empty
+
+	Frm usr/lib32/libblkid.so.1
+	Frm usr/i686-frugalware-linux/bin/setfdprm
+
+	Fsplit lib32-libblkid usr/lib32/libblkid.*
+	Fsplit lib32-libblkid usr/lib32/pkgconfig/blkid.pc
+	Fsplit lib32-libblkid usr/i686-frugalware-linux/include/blkid
+
+	Fsplit lib32-libuuid usr/lib32/libuuid.*
+	Fsplit lib32-libuuid usr/lib32/pkgconfig/uuid.pc
+	Fsplit lib32-libuuid usr/i686-frugalware-linux/include/uuid
+
+	Frm lib
+	Fsplit lib32-$pkgname /\*
+
+	### -------------------------
+
+
+
 	Fbuild
 
 	# Remove conflicting files.

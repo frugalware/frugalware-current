@@ -55,6 +55,11 @@ else
     makedepends+=('ninja')
 fi
 
+### hmmm
+CMAKE_LIB="lib"
+CMAKE_BIN="bin"
+CMAKE_SBIN="sbin"
+
 ###
 # == APPENDED VARIABLES
 # * makedepends(): add cmake and pkgconfig
@@ -101,7 +106,9 @@ CMake_conf()
 	cmake \
         ${cmake_generator} \
 		-DCMAKE_INSTALL_PREFIX=/usr \
-		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DCMAKE_INSTALL_LIBDIR=${CMAKE_LIB} \
+		-DCMAKE_INSTALL_BINDIR=${CMAKE_BIN} \
+		-DCMAKE_INSTALL_SBINDIR=${CMAKE_SBIN} \
 		-DSYSCONF_INSTALL_DIR=/etc \
 		-DCMAKE_BUILD_TYPE="$_F_cmake_type" \
 		-DCMAKE_VERBOSE_MAKEFILE="$_F_cmake_verbose" \

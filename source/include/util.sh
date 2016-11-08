@@ -95,7 +95,7 @@ Flocalstatedir="/var"
 Finfodir="/usr/share/info"
 Fmandir="/usr/share/man"
 Fmenudir="/usr/share/applications"
-Farchs=('i686' 'x86_64')
+Farchs=('x86_64')
 Fbuildchost="`arch`-frugalware-linux"
 Fconfopts=""
 _F_make_opts="V=1"
@@ -858,6 +858,8 @@ Fbuildsystem_configure() {
 		Fconfoptstryset "infodir" "$Finfodir"
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
+		Fconfoptstryset "host" "$Fbuildchost"
+		#Fconfoptstryset "target" "$Fbuildchost"
 		## try to disable silent rules
 		## we already set V=1 by default but this isn't going to work
 		## when apps using enabled silence rules on ./configure..
@@ -988,7 +990,7 @@ Fbuildsystem_python_setup() {
 		_F_python_install_data_dir="usr/share/"
 	fi
 
-	
+
 	case "$command" in
 	'probe')
 		test -f setup.py
@@ -1223,17 +1225,6 @@ Fmakeinstall() {
 
 	Ffix_perl
 
-	# rc script
-	if [ -z "$_F_rcd_name" ]; then
-		_F_rcd_name=$pkgname
-	fi
-	if [ -e $Fsrcdir/rc.$_F_rcd_name ] && \
-		grep -q "source /lib/initscripts/functions" $Fsrcdir/rc.$_F_rcd_name; then
-		if echo ${source[@]}|grep -q rc.$_F_rcd_name; then
-			Frcd2 $_F_rcd_name
-		fi
-	fi
-
 	Ffix_la_files
 	Fremove_static_libs
 }
@@ -1243,53 +1234,22 @@ Fmakeinstall() {
 # are passed to Fmake.
 ###
 Fbuild() {
-	Fpatchall
+
+	if [ -z "$_Fbuild_no_patch" ]; then
+		Fpatchall
+	fi
+
+	if [ -n "$_Fbuild_autoreconf" ]; then
+		Fmessage "Running autoreconf..."
+		Fcd
+		Fautoreconf
+        fi
+
 	Fmake "$@"
 	Fmakeinstall
 	if echo ${source[@]}|grep -q README.Frugalware; then
 		Fdoc README.Frugalware
 	fi
-}
-
-###
-# * Frcd(): Create an rc.d environment. Parameter: name of the rc script,
-# defaults to $pkgname.
-#
-# NOTE: this function is obsolete, work with upstream to provide system
-# units out of the box.
-###
-Frcd() {
-	if [ "$#" -eq 1 ]; then
-		Fmessage "Creating rc.d environment: $1"
-		Fexe /etc/rc.d/rc.$1
-	else
-		# rc script
-		if [ -z "$_F_rcd_name" ]; then
-			_F_rcd_name=$pkgname
-		fi
-		Frcd "$_F_rcd_name"
-	fi
-}
-
-###
-# * Frcd2(): Create the new rc.d environment. Paramter: name of the rc script,
-# defaults to $pkgname.
-#
-# NOTE: this function is obsolete, work with upstream to provide system
-# units out of the box.
-###
-Frcd2() {
-	local po rc slang
-
-	rc="$pkgname" ; [ -n "$1" ] && rc="$1"
-
-	Fmessage "Creating new rc.d environment: $rc"
-	Fexe /etc/rc.d/rc.$rc
-	for po in $Fsrcdir/rc.$rc-*.po ; do
-		[ ! -f "$po" ] && continue
-		slang="`basename "$po" .po | sed "s|rc.$rc-||"`"
-		Fmsgfmt /lib/initscripts/messages $slang $rc `basename $po .po`
-	done
 }
 
 ###

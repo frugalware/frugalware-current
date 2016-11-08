@@ -2,45 +2,55 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=wine-devel
-pkgver=1.9.21
-pkgrel=1
-Finclude wine
+pkgver=1.9.22
+pkgrel=6
+Finclude wine ## don't include cross32 is included from wine.sh
 source=("${source[@]}" \
-	https://raw.githubusercontent.com/NP-Hardass/wine-d3d9-patches/master/common.sh
-	https://raw.githubusercontent.com/NP-Hardass/wine-d3d9-patches/master/generate-d3d9-patch.sh)
-signatures=("${signatures[@]}" '' '')
+	"https://github.com/sarnex/wine-d3d9-patches/archive/wine-d3d9-${pkgver}.tar.gz" )
+signatures=("${signatures[@]}" '' )
 
-depends+=('mesa-nine' 'libegl' 'gst1-plugins-base')
-makedepends+=("git")
+depends+=('mesa-nine' 'libegl')
+depends+=('lib32-mesa-nine' 'lib32-libegl')
 
 Fconfopts+=" --with-d3dadapter"
 
-if [[ "$CARCH" == "x86_64" ]]
-then
-        rodepends=('lib32-wine-devel')
-fi
-
 build()
 {
-	mv $Fsrcdir/*.sh ${_F_cd_path}/
 	Fcd
 
         # Disable optimizations to workaround GCC issues
         CFLAGS="${CFLAGS//-O2/-O0}"
-
-	# Stupid git
-	Fexec git config --global user.email "nope@example.zz"
-	Fexec git config --global user.name "TheNameless"
-
-	Fexec bash ./generate-d3d9-patch.sh $pkgver
-	mv wine-d3d9-latest.patch ../
-	Fpatch	wine-d3d9-latest.patch
+	Fexec patch -p1 < ../wine-d3d9-patches-wine-d3d9-$pkgver/d3d9-helper.patch || Fdie
+	Fexec patch -p1 <  ../wine-d3d9-patches-wine-d3d9-$pkgver/wine-d3d9.patch || Fdie
 
         Fsed 'lib64' 'lib' configure.ac
         Fautoreconf
-        Fbuild
+        Fexec mkdir 64Bit_build || Fdie
+        Fexec cd 64Bit_build || Fdie
+        Fmake --enable-win64
+
+        Fexec cd .. || Fdie
+        Fexec mkdir 32Bit_build || Fdie
+        Fexec cd 32Bit_build || Fdie
+        Fcross32_prepare
+
+        Fmake --libdir=/usr/lib32 --with-wine64="$Fsrcdir/${_F_cd_path}/64Bit_build"
+        Fmakeinstall  libdir="$Fpkgdir/usr/lib32" dlldir="$Fpkgdir/usr/lib32/wine"
+
+        Fexec cd ../64Bit_build || Fdie
+        Fmakeinstall  libdir="$Fpkgdir/usr/lib" dlldir="$Fpkgdir/usr/lib/wine"
+
         Fexec cp $Fincdir/wine.conf $Fsrcdir
         Ffile /etc/binfmt.d/wine.conf
+
+        Fln /usr/i686-frugalware-linux/bin/wine-preloader /usr/bin/wine-preloader
+        Fln /usr/i686-frugalware-linux/bin/wine /usr/bin/wine
+
+	## we cannot use reset_and_fix here since we don't split anything
+	__cross32_unset_vars
+	__cross32_export_orig_vars
+
+
 }
 
 # optimization OK

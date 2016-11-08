@@ -18,7 +18,7 @@
 # pkgdesc="X.Org driver for ark cards"
 # url="http://xorg.freedesktop.org"
 # groups=('x11' 'xorg-core' 'xorg-drivers')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # depends=('xorg-server')
 # makedepends=('xproto' 'randrproto' 'renderproto')
 # Finclude xorg
@@ -56,7 +56,7 @@ if [[ $pkgname =~ ^xf86-input- ]]; then
 	[ -z "$pkgrel" ] && pkgrel=1
 	pkgdesc="X.Org driver for ${pkgname#xf86-input-} input devices"
 	groups=('x11' 'xorg-core' 'xorg-drivers')
-	archs=('i686' 'x86_64')
+	archs=('x86_64')
 	depends=("${depends[@]}" 'xorg-server>=1.18.0')
 fi
 url="http://xorg.freedesktop.org"

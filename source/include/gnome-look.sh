@@ -18,7 +18,7 @@
 # pkgdesc="The Somatic icons have been used with permission from David Lanham"
 # depends=('icon-naming-utils' 'libpng')
 # groups=('xlib-extra')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # _F_archive_name="ICON-Somatic"
 # _F_gnome_look_id="64638"
 # Finclude gnome-look

@@ -52,7 +52,7 @@
 pkgname=firefox-$_F_firefox_ext
 rodepends=('firefox>=4.0')
 groups=('xapps-extra' 'firefox-extensions')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 if [ -n "$_F_firefox_num" ]; then
 	url="https://addons.mozilla.org/en-US/firefox/addon/$_F_firefox_num/"
 	up2date="curl -s -k -L '$url' | sed -n 's|.*Version \(\S*\)<.*|\1|p'"

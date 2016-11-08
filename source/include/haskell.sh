@@ -16,7 +16,7 @@
 # pkgver=1.4.2
 # pkgrel=1
 # pkgdesc="A Haskell binding to the X11 graphics library."
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # url="http://hackage.haskell.org/cgi-bin/hackage-scripts/package/X11"
 # makedepends=('ghc')
 # groups=('xlib-extra')

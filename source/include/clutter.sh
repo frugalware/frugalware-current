@@ -78,7 +78,7 @@ fi
 source=(http://source.clutter-project.org/sources/$_F_clutter_name/`_F_clutter_getver`/$_F_clutter_name-$pkgver.tar.bz2)
 url="http://www.clutter-project.org/"
 groups=('xlib-extra')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 
 ###
 # == APPENDED VARIABLES

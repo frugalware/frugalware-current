@@ -19,7 +19,7 @@
 # url="http://www.keplerproject.org/luafilesystem/"
 # depends=('lua')
 # groups=('lib-extra')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # sha1sums=('1ee2ca3b5dbc3cf7c21c7168a0873b2983b7e241')
 # _F_github_author=keplerproject
 # Finclude github

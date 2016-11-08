@@ -19,7 +19,7 @@
 # url="http://www.galago-project.org"
 # depends=('libgalago' 'gtk2-sharp>=2.10.0' 'perl-xml-libxml' 'dbus-mono')
 # groups=('gnome')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # source=($url/files/releases/source/$pkgname/$pkgname-$pkgver.tar.bz2 \
 #         galago-sharp-0.5.0-fix-nunit-name.patch)
 # Finclude mono

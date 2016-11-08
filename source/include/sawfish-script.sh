@@ -42,7 +42,7 @@
 # * pkgname
 ###
 groups=('xlib-extra' 'sawfish-scripts')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 pkgname="sawfish-$_F_sawfish_name"
 
 ###

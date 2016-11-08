@@ -19,7 +19,7 @@
 # pkgdesc="A library to assist the building of PyGTK applications."
 # rodepends=('pygtk')
 # groups=('xlib-extra')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # Finclude pypi
 # sha1sums=('24af2eb1d5631a4565a4a867a2f6bb5820926001')
 # --------------------------------------------------

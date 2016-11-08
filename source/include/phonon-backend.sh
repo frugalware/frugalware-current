@@ -15,7 +15,7 @@
 # pkgname=phonon-backend-xine
 # pkgrel=1
 # pkgdesc="Phonon xine backend."
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 #
 # Finclude phonon-backend
 # depends=("${depends[@]}" 'xine-lib')

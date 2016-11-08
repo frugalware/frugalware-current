@@ -24,7 +24,7 @@
 # depends=('scim>=1.4.4' 'uim')
 # options=('scriptlet')
 # groups=('xapps-extra')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # sha1sums=('9023c205cb1623e749bd5ca7baf721c55f36f279')
 # --------------------------------------------------
 ###

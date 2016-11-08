@@ -19,7 +19,7 @@
 # depends=('cdparanoia' 'ruby-gettext' 'ruby-gtk2' 'cd-discid' 'flac' \
 #	 'ogmtools' 'lame'  'vorbisgain' 'mp3gain' 'normalize' )
 # groups=('xapps-extra')
-# archs=('i686')
+# archs=('x86_64')
 # _F_googlecode_ext=".tar.bz2"
 # Finclude googlecode
 # options=('scriptlet')

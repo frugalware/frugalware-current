@@ -19,7 +19,7 @@ Finclude cmake kde-version
 # pkgrel=1
 # pkgdesc="Games for KDE."
 # groups=('kde')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # depends=('kdebase')
 # Finclude kde
 # sha1sums=('1848b81f890180b130000dd6004009d4acc98f48')

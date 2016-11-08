@@ -19,7 +19,7 @@
 # depends=('perl-pod-escapes')
 # Finclude perl
 # pkgrel=1
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # sha1sums=('45646ac806b91b37caadf0b08ce71d3f6ef2a60c')
 # --------------------------------------------------
 #
@@ -66,7 +66,7 @@ pkgname="perl-`echo $_F_perl_name|tr [A-Z] [a-z]`"
 [ -z "$pkgrel" ] && pkgrel=1
 depends+=('perl>=5.24.0-6')
 [ -z "$groups" ] && groups=('devel-extra')
-[ -z "$archs" ] && archs=('i686' 'x86_64')
+[ -z "$archs" ] && archs=('x86_64')
 
 ###
 # == PROVIDED FUNCTIONS

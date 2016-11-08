@@ -24,7 +24,7 @@ url="http://www.qt.io"
 if [ -z "$groups" ]; then
 	groups=('xlib')
 fi
-archs=('i686' 'x86_64')
+archs=('x86_64')
 options+=('nodocs')
 source=(http://download.qt.io/archive/qt/${pkgver%.*}/${pkgver}/submodules/${qtpkgfilename}.tar.xz)
 _F_archive_name=qt-everywhere-opensource-src

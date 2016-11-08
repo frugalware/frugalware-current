@@ -46,7 +46,7 @@ Finclude i18n
 ###
 : ${pkgname="$_F_mozilla_i18n_name-i18n"} \
   ${pkgdesc="Language support for ${_F_mozilla_i18n_name^}"}
-archs=('i686' 'x86_64')
+archs=('x86_64')
 groups=('locale-extra')
 options=("${options[@]}" 'noversrc')
 up2date=$pkgver

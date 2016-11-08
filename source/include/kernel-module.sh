@@ -21,7 +21,7 @@ Finclude kernel-version
 # Finclude kernel-module
 # depends=(${depends[@]} 'python')
 # groups=('apps-extra')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # install=$pkgname.install
 # _F_sourceforge_ext=".tar.bz2"
 # Finclude sourceforge

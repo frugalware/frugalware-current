@@ -19,7 +19,7 @@ Finclude cmake kf5-version
 # pkgrel=1
 # pkgdesc="Games for KDE."
 # groups=('kde')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # depends=('kdebase')
 # Finclude kde
 # sha1sums=('1848b81f890180b130000dd6004009d4acc98f48')
@@ -38,13 +38,6 @@ Finclude cmake kf5-version
 # Use project default since it is an optimisation not allways tested/available by upstream.
 ###
 
-
-## OK f*** this
-if [[ "$CARCH" == "i686" ]]; then
-	unset MAKEFLAGS
-	export MAKEFLAGS="-j1"
-	_F_make_opts="-j1"
-fi
 
 if [ -z "$_F_kde_ver" ]; then
 	_F_kde_ver="$_F_kdever_ver"

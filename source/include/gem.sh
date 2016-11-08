@@ -19,7 +19,7 @@
 # url="http://rubyforge.org/projects/aws/"
 # depends=('activerecord>=1.15.2' 'actionpack>=1.13.2')
 # groups=('devel-extra')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # Finclude gem
 # sha1sums=('2712601395ec0a059263b730b10db9f93cd5a1f1')
 # --------------------------------------------------

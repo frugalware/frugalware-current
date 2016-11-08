@@ -34,7 +34,7 @@
 : ${_F_xpi_ext='.xpi'} \
   ${pkgname="$_F_xpi_product-$_F_xpi_pkgname"}
 groups=("${groups[@]}" "$_F_xpi_product-extensions")
-archs=('i686' 'x86_64')
+archs=('x86_64')
 
 if [ -n "$_F_xpi_num" ]; then
 	: ${url="https://addons.mozilla.org/en-US/$_F_xpi_product/addon/$_F_xpi_pkgname/"} \

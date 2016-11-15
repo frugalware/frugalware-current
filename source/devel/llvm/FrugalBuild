@@ -2,8 +2,8 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=llvm
-pkgver=3.8.1
-pkgrel=11
+pkgver=3.9.0
+pkgrel=1
 gcc_ver=6.2.1
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
@@ -33,7 +33,6 @@ subdepends=("libxml2")
 subrodepends=("$pkgname>=$pkgver")
 subgroups=('devel-extra')
 subarchs=("x86_64")
-suboptions=('')
 
 subpkgs+=("lib32-clang")
 subdescs+=("C language family frontend for LLVM (32-bit)")
@@ -41,7 +40,6 @@ subdepends+=("lib32-libxml2")
 subrodepends+=("lib32-${pkgname}>=$pkgver")
 subgroups+=('lib32-extra')
 subarchs+=("x86_64")
-suboptions+=('force')
 
 subpkgs+=("$pkgname-ocaml")
 subdescs+=("OCaml bindings for LLVM")
@@ -49,7 +47,6 @@ subdepends+=("ocaml>=4.03.0-2")
 subrodepends+=("$pkgname>=$pkgver")
 subgroups+=('devel-extra')
 subarchs+=("x86_64")
-suboptions+=('')
 
 subpkgs+=("$pkgname-libs")
 subdescs+=("LLVM shared libs")
@@ -57,7 +54,6 @@ subdepends+=("ncurses>=6.0-12 libedit>=20160903_3.1")
 subrodepends+=("")
 subgroups+=('lib')
 subarchs+=("x86_64")
-suboptions+=('')
 
 subpkgs+=("lib32-${pkgname}-libs")
 subdescs+=("LLVM shared libs (32-bit)")
@@ -65,7 +61,6 @@ subdepends+=("lib32-ncurses>=6.0-12 lib32-libedit>=20160903_3.1")
 subrodepends+=("")
 subgroups+=('lib32-extra')
 subarchs+=("x86_64")
-suboptions+=('force')
 
 subpkgs+=("lib32-${pkgname}")
 subdescs+=("Low Level Virtual Machine (Compiler , Tools and Libs) (32-bit)")
@@ -73,7 +68,6 @@ subdepends+=("libstdc++>=${gcc_ver}")
 subrodepends+=("")
 subgroups+=('lib32-extra')
 subarchs+=("x86_64")
-suboptions+=('force')
 
 # Common CMake options
 _F_cmake_type="Release"
@@ -89,7 +83,6 @@ _common_cmake_confopts="	-DCMAKE_INSTALL_PREFIX=/usr \
 				-DLLVM_HOST_TRIPLE=${CARCH}-frugalware-linux \
 				-DLLVM_DEFAULT_TARGET_TRIPLE=${CARCH}-frugalware-linux \
 				-DC_INCLUDE_DIRS=/usr/local/include:/usr/$CHOST/include:/usr/include/c++/${gcc_ver}:/usr/include/c++/${gcc_ver}/backward:/usr/include/c++/${gcc_ver}/${CHOST}-frugalware-linux:/usr/include \
-				-DFFI_INCLUDE_DIR=$(pkg-config --cflags-only-I libffi | cut -c3-) \
 				-DLLVM_BINUTILS_INCDIR=/usr/include"
 Finclude cmake
 
@@ -110,7 +103,10 @@ build() {
 	_F_cmake_confopts+="	${_common_cmake_confopts}
 				-DLLVM_LIBDIR_SUFFIX=32 \
 				-DCMAKE_CXX_FLAGS:STRING=-m32 \
+				-DFFI_INCLUDE_DIR=$(pkg-config --cflags-only-I libffi | cut -c3-) \
 				-DLLVM_TARGET_ARCH:STRING=i686"
+
+	sed -i '/^[[:blank:]]*find_library(FFI_LIBRARY_PATH/i\list(INSERT CMAKE_LIBRARY_PATH 0 /usr/lib32)' cmake/config-ix.cmake
 
         CMake_make
 
@@ -143,7 +139,8 @@ build() {
 	Fsplit lib32-$pkgname /\*
 
 	## 64-bit CMake options
-	_F_cmake_confopts="    ${_common_cmake_confopts}"
+	_F_cmake_confopts="    ${_common_cmake_confopts} \
+				-DFFI_INCLUDE_DIR=$(pkg-config --cflags-only-I libffi | cut -c3-)"
         CMake_make
 
         Fexec make -C ../docs -f Makefile.sphinx man || Fdie
@@ -187,7 +184,7 @@ build() {
 
 	Fsplit $pkgname-ocaml usr/lib/ocaml/
 	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/ocamldoc/
-	Fsplit $pkgname-ocaml usr/share/llvm/cmake/{Find,Add}OCaml.cmake
+	Fsplit $pkgname-ocaml usr/lib/cmake/llvm/{Find,Add}OCaml.cmake
 	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/html/tutorial/OCamlLangImpl*.html
 
 	Fsplit $pkgname-libs usr/lib/*.so*

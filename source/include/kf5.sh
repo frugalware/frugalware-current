@@ -144,7 +144,7 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		up2date="ncftpls -x 'R' $_F_kde_up2date_mirror/$_F_kde_folder | Flasttar"
+		up2date="Flastverdir http://download.kde.org/$_F_kde_folder "
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then
@@ -160,9 +160,6 @@ fi
 
 ## X11/mesa changes
 makedepends+=('x11-protos')
-
-## Use ncftp for up2date
-makedepends+=('ncftp')
 
 ###
 # == APPENDED VARIABLES

@@ -144,7 +144,12 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		up2date="Flastverdir http://download.kde.org/$_F_kde_folder "
+		up2date="Flastverdir http://download.kde.org/$_F_kde_folder"
+		### welll kf5 has folder xx but the version of the tarballs is xx.0
+		## so without hackish stuff we always have wrong up2date..
+		if [ "$_F_kde_project" == "frameworks" ]; then
+			up2date="`$up2date`.0"
+		fi
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

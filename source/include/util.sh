@@ -102,6 +102,15 @@ _F_make_opts="V=1"
 
 unset LANG LC_ALL
 
+## ok gcc6++ makes way to much noise by default
+## we don't care about deprecated stuff and such as long is a warning
+## so add some C/CXX flags to disable these.
+## NOTE: qt5.sh still need his own version of this since qmake gets the flags from qt5 build
+## and we sed the C/XX FLAGS in the arch confs
+
+CXXFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
+CFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
+
 ###
 # == PROVIDED FUNCTIONS
 # * Fmessage(): Prints out a message. Parameter: message to display.

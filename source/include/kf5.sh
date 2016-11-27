@@ -50,7 +50,10 @@ if [ -z "$_F_kde_ver" ]; then
 	fi
 fi
 
-
+## TMP set to unstable
+if [ "$_F_kde_project" = "applications" ]; then
+	_F_kde_unstable="yes"
+fi
 
 if [ -z "$_F_kde_qtver" ]; then
 	_F_kde_qtver="$_F_kdever_qt5"
@@ -144,7 +147,12 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		up2date="Flastverdir http://download.kde.org/$_F_kde_folder "
+		up2date="Flastverdir http://download.kde.org/$_F_kde_folder"
+		### welll kf5 has folder xx but the version of the tarballs is xx.0
+		## so without hackish stuff we always have wrong up2date..
+		if [ "$_F_kde_project" == "frameworks" ]; then
+			up2date="`$up2date`.0"
+		fi
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then
@@ -173,7 +181,7 @@ else
 fi
 
 if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
-	makedepends+=('extra-cmake-modules>=5.27.0-2' 'qt5-tools')
+	makedepends+=('extra-cmake-modules>=5.28.0' 'qt5-tools')
 fi
 
 ## From gcc6 docs

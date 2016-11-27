@@ -41,7 +41,7 @@ makedepends+=('x11-protos' 'gperf')
 _F_QT5_GCC_VER=$(gcc --version | head -n1 | cut -d" " -f4)
 
 case "$_F_QT5_GCC_VER" in
-6.*) CXXFLAGS+=" -fno-delete-null-pointer-checks";;
+6.*) CXXFLAGS+=" -fno-delete-null-pointer-checks -Wno-deprecated -Wno-deprecated-declarations";;
 esac
 
 build_qt5()

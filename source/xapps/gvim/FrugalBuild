@@ -3,52 +3,68 @@
 
 _F_archive_name=vim
 pkgname=gvim
-pkgver=7.4
-pkgrel=5
+pkgver=8.0.0106
+pkgrel=1
 pkgdesc="VIM - GTK+2 GUI"
 url="http://www.vim.org"
-depends=('gpm>=1.20.5-2' 'gtk+2>=2.20.0-2' 'libxpm' 'libsm' 'libice' 'libxt')
-rodepends=('vim')
-makedepends+=('python>=2.7.4-1' 'x11-protos')
+depends=('gpm>=1.20.5-2' 'gtk+3' 'libxpm' 'libsm' 'libice' 'libxt')
+rodepends=("vim>=$pkgver")
+backup=(usr/share/vim/gvimrc)
+makedepends+=('python>=2.7.4-1' 'x11-protos' 'python3' 'perl' 'lua' 'ruby' 'tcl')
 groups=('xapps')
 options=('scriptlet')
 archs=("x86_64")
-backup=(usr/share/vim/vimrc)
-up2date="lynx -dump $url/sources.php|grep bz2$|sed 's/.*-\(.*\)\.t.*/\1/;q'"
-source=(ftp://ftp.vim.org/pub/vim/unix/$_F_archive_name-$pkgver.tar.bz2 gvim.xpm)
-sha1sums=('601abf7cc2b5ab186f40d8790e542f86afca86b7' \
-          'f7262c7429c42b7c1ef9cf1eaa6aa12292933525')
-
-_F_desktop_filename='gvim.desktop'
-_F_desktop_name='gvim'
-_F_desktop_desc='VIM - GTK+2 GUI'
-_F_desktop_icon='gvim.xpm'
-_F_desktop_exec='gvim'
-_F_desktop_categories='Utility;TextEditor;GTK;'
+_F_github_author="vim"
+_F_github_name="vim"
+_F_github_tag_v="yes"
+Finclude github
+sha1sums=('e1c80f47af06dcc4e1464d6867b6f8cc05da4598')
 
 build()
 {
-	Fcd vim${pkgver/.}
+	Fcd
 	Fpatchall
-	cd src
 
-	# Remove these 2 lines if the linking script is ever fixed.
-	# It loops infinitely for me.
-	Fexec sed -i '2 i $LINK -Wl,--as-needed' link.sh
-	Fexec sed -i '3 i exit $?'           link.sh
-
+	## patches etc need be in sync with vim package including configure options
 	Fmake \
 		--prefix=/usr \
 		--with-x \
-		--enable-gui=gtk2 \
+		--enable-gui=gtk3 \
 		--enable-multibyte \
-		--enable-pythoninterp \
-		--with-features=big
-	Fexec make DESTDIR=$Fdestdir VIMRTDIR= installvimbin || Fdie
+		--localstatedir=/var/lib/vim \
+		--with-features=big \
+		--with-compiledby='Frugalware Linux' \
+		--enable-perlinterp=dynamic \
+		--enable-luainterp=dynamic \
+		--enable-tclinterp=dynamic \
+		--enable-pythoninterp=dynamic \
+		--enable-python3interp=dynamic \
+		--enable-rubyinterp=dynamic
 
+	Fexec make DESTDIR=$Fdestdir VIMRTDIR= install || Fdie
+
+	## hack
+	Fmv usr/share/vim/gvimrc_example.vim usr/bin/gvimrc
+
+	## conflicts with VIM
+	Frm usr/share/{vim,icons,man} ## icons sahred since vim has some desktop file too with the same icon
+	Frm usr/share/applications/vim.desktop
+	Frm usr/bin/{gvim,gvimdiff,ex,rview,rvim,view,vimdiff,vimtutor,xxd,rgview,rgvim,eview,evim}
+
+	## default rc file
+	Fmkdir usr/share/vim
+	Fmv usr/bin/gvimrc usr/share/vim/gvimrc
+
+	## so now we move vim -> gvim and create the symlinks again
 	Fmv /usr/bin/vim /usr/bin/gvim
-	Fln /usr/bin/gvim /usr/bin/gview
-	Ficon ../gvim.xpm
-	Fdesktop2
+
+	local i
+
+	for i in rgview rgvim eview evim gview gvimdiff
+	do
+
+		Fln /usr/bin/gvim /usr/bin/${i}
+	done
+
 }
 # optimization ok

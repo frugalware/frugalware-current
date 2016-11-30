@@ -636,7 +636,7 @@ Ficonrel() {
 # ($target's dir will be created if necessary).
 ###
 Fln() {
-	Fmessage "Creating symlink(s): $1"
+	Fmessage "Creating symlink(s): $1 -> $2"
 	Fmkdir "`dirname $2`"
 	ln -sf $1 "$Fdestdir"/$2 || Fdie
 }

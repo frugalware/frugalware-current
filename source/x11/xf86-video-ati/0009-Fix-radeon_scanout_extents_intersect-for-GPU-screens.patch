@@ -1,0 +1,47 @@
+From a995f5830916a0fee5126263d1bfe48632be3a15 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Mon, 21 Nov 2016 18:39:00 +0900
+Subject: [PATCH 09/11] Fix radeon_scanout_extents_intersect for GPU screens
+
+Fixes incorrect screen updates with TearFree enabled on PRIME slave
+outputs which are not located at (0, 0).
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ src/radeon_kms.c | 20 +++++++++++++++-----
+ 1 file changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/src/radeon_kms.c b/src/radeon_kms.c
+index 090ea3fc..8bb261e2 100644
+--- a/src/radeon_kms.c
++++ b/src/radeon_kms.c
+@@ -383,11 +383,21 @@ static Bool RADEONCreateScreenResources_KMS(ScreenPtr pScreen)
+ static Bool
+ radeon_scanout_extents_intersect(xf86CrtcPtr xf86_crtc, BoxPtr extents)
+ {
+-    extents->x1 -= xf86_crtc->filter_width >> 1;
+-    extents->x2 += xf86_crtc->filter_width >> 1;
+-    extents->y1 -= xf86_crtc->filter_height >> 1;
+-    extents->y2 += xf86_crtc->filter_height >> 1;
+-    pixman_f_transform_bounds(&xf86_crtc->f_framebuffer_to_crtc, extents);
++#ifdef RADEON_PIXMAP_SHARING
++    if (xf86_crtc->scrn->is_gpu) {
++	extents->x1 -= xf86_crtc->x;
++	extents->y1 -= xf86_crtc->y;
++	extents->x2 -= xf86_crtc->x;
++	extents->y2 -= xf86_crtc->y;
++    } else
++#endif
++    {
++	extents->x1 -= xf86_crtc->filter_width >> 1;
++	extents->x2 += xf86_crtc->filter_width >> 1;
++	extents->y1 -= xf86_crtc->filter_height >> 1;
++	extents->y2 += xf86_crtc->filter_height >> 1;
++	pixman_f_transform_bounds(&xf86_crtc->f_framebuffer_to_crtc, extents);
++    }
+ 
+     extents->x1 = max(extents->x1, 0);
+     extents->y1 = max(extents->y1, 0);
+-- 
+2.11.0
+

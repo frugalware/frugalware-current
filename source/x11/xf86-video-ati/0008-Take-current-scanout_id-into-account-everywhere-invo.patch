@@ -1,0 +1,143 @@
+From e543ef3a2fb304cbe3a965fb780632af2e4186f4 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Mon, 21 Nov 2016 18:33:25 +0900
+Subject: [PATCH 08/11] Take current scanout_id into account everywhere
+ involved with TearFree
+
+Fixes various potential issues with TearFree enabled, e.g. outputs
+freezing after display configuration changes.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ src/drmmode_display.c | 22 +++++++++++-----------
+ src/radeon.h          |  3 +--
+ src/radeon_kms.c      |  6 +++---
+ 3 files changed, 15 insertions(+), 16 deletions(-)
+
+diff --git a/src/drmmode_display.c b/src/drmmode_display.c
+index 95e3acdc..e02a6f5c 100644
+--- a/src/drmmode_display.c
++++ b/src/drmmode_display.c
+@@ -722,6 +722,7 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
+ 	RADEONInfoPtr info = RADEONPTR(pScrn);
+ 	xf86CrtcConfigPtr   xf86_config = XF86_CRTC_CONFIG_PTR(crtc->scrn);
+ 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
++	unsigned scanout_id = drmmode_crtc->scanout_id ^ info->tear_free;
+ 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
+ 	int saved_x, saved_y;
+ 	Rotation saved_rotation;
+@@ -771,7 +772,7 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
+ 		fb_id = drmmode->fb_id;
+ #ifdef RADEON_PIXMAP_SHARING
+ 		if (crtc->randr_crtc && crtc->randr_crtc->scanout_pixmap) {
+-			fb_id = drmmode_crtc->scanout[0].fb_id;
++			fb_id = drmmode_crtc->scanout[scanout_id].fb_id;
+ 			x = y = 0;
+ 		} else
+ #endif
+@@ -815,12 +816,11 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
+ 				pBox->x2 = max(pBox->x2, pScrn->virtualX);
+ 				pBox->y2 = max(pBox->y2, pScrn->virtualY);
+ 
+-				drmmode_crtc->scanout_id = 0;
+-				fb_id = drmmode_crtc->scanout[0].fb_id;
++				fb_id = drmmode_crtc->scanout[scanout_id].fb_id;
+ 				x = y = 0;
+ 
+-				radeon_scanout_update_handler(crtc, 0, 0, drmmode_crtc);
+-				radeon_bo_wait(drmmode_crtc->scanout[0].bo);
++				radeon_scanout_do_update(crtc, scanout_id);
++				radeon_bo_wait(drmmode_crtc->scanout[scanout_id].bo);
+ 			}
+ 		}
+ 
+@@ -897,7 +897,7 @@ done:
+ 	} else {
+ 		crtc->active = TRUE;
+ 
+-		if (fb_id != drmmode_crtc->scanout[0].fb_id)
++		if (fb_id != drmmode_crtc->scanout[scanout_id].fb_id)
+ 			drmmode_crtc_scanout_free(drmmode_crtc);
+ 	}
+ 
+@@ -1134,13 +1134,13 @@ static Bool
+ drmmode_set_scanout_pixmap(xf86CrtcPtr crtc, PixmapPtr ppix)
+ {
+ 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
++	unsigned scanout_id = drmmode_crtc->scanout_id;
+ 	RADEONInfoPtr info = RADEONPTR(crtc->scrn);
+ 	ScreenPtr screen = crtc->scrn->pScreen;
+ 	PixmapDirtyUpdatePtr dirty;
+ 
+ 	xorg_list_for_each_entry(dirty, &screen->pixmap_dirty_list, ent) {
+-		if (dirty->slave_dst !=
+-		    drmmode_crtc->scanout[drmmode_crtc->scanout_id].pixmap)
++		if (dirty->slave_dst != drmmode_crtc->scanout[scanout_id].pixmap)
+ 			continue;
+ 
+ 		PixmapStopDirtyTracking(dirty->src, dirty->slave_dst);
+@@ -1165,13 +1165,13 @@ drmmode_set_scanout_pixmap(xf86CrtcPtr crtc, PixmapPtr ppix)
+ 	}
+ 
+ #ifdef HAS_DIRTYTRACKING_ROTATION
+-	PixmapStartDirtyTracking(ppix, drmmode_crtc->scanout[0].pixmap,
++	PixmapStartDirtyTracking(ppix, drmmode_crtc->scanout[scanout_id].pixmap,
+ 				 0, 0, 0, 0, RR_Rotate_0);
+ #elif defined(HAS_DIRTYTRACKING2)
+-	PixmapStartDirtyTracking2(ppix, drmmode_crtc->scanout[0].pixmap,
++	PixmapStartDirtyTracking2(ppix, drmmode_crtc->scanout[scanout_id].pixmap,
+ 				  0, 0, 0, 0);
+ #else
+-	PixmapStartDirtyTracking(ppix, drmmode_crtc->scanout[0].pixmap, 0, 0);
++	PixmapStartDirtyTracking(ppix, drmmode_crtc->scanout[scanout_id].pixmap, 0, 0);
+ #endif
+ 	return TRUE;
+ }
+diff --git a/src/radeon.h b/src/radeon.h
+index 8ca8d318..5797beda 100644
+--- a/src/radeon.h
++++ b/src/radeon.h
+@@ -630,8 +630,7 @@ extern Bool RADEONGetPixmapOffsetPitch(PixmapPtr pPix,
+ Bool radeon_dri3_screen_init(ScreenPtr screen);
+ 
+ /* radeon_kms.c */
+-void radeon_scanout_update_handler(xf86CrtcPtr crtc, uint32_t frame,
+-				   uint64_t usec, void *event_data);
++Bool radeon_scanout_do_update(xf86CrtcPtr xf86_crtc, int scanout_id);
+ 
+ /* radeon_present.c */
+ Bool radeon_present_screen_init(ScreenPtr screen);
+diff --git a/src/radeon_kms.c b/src/radeon_kms.c
+index 6281fa50..090ea3fc 100644
+--- a/src/radeon_kms.c
++++ b/src/radeon_kms.c
+@@ -676,7 +676,7 @@ radeon_prime_scanout_do_update(xf86CrtcPtr crtc, unsigned scanout_id)
+     return ret;
+ }
+ 
+-void
++static void
+ radeon_prime_scanout_update_handler(xf86CrtcPtr crtc, uint32_t frame, uint64_t usec,
+ 				    void *event_data)
+ {
+@@ -850,7 +850,7 @@ radeon_dirty_update(ScrnInfoPtr scrn)
+ }
+ #endif
+ 
+-static Bool
++Bool
+ radeon_scanout_do_update(xf86CrtcPtr xf86_crtc, int scanout_id)
+ {
+     drmmode_crtc_private_ptr drmmode_crtc = xf86_crtc->driver_private;
+@@ -963,7 +963,7 @@ radeon_scanout_update_abort(xf86CrtcPtr crtc, void *event_data)
+     drmmode_crtc->scanout_update_pending = FALSE;
+ }
+ 
+-void
++static void
+ radeon_scanout_update_handler(xf86CrtcPtr crtc, uint32_t frame, uint64_t usec,
+ 			      void *event_data)
+ {
+-- 
+2.11.0
+

@@ -1,0 +1,160 @@
+From 5fea5ef2f07eee4a0f94baab427010b936f1d4b4 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Thu, 24 Nov 2016 18:45:22 +0900
+Subject: [PATCH 05/11] Pass fb_id into
+ drmmode_page_flip_target_absolute/relative
+
+drmmode->fb_id isn't what we need in the TearFree case. Fixes TearFree
+freezing with
+
+(WW) RADEON(0): flip queue failed in radeon_scanout_flip: No such file or directory
+
+in the log file.
+
+Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=98834
+Fixes: 1106b2f773ad ("Use DRM_MODE_PAGE_FLIP_TARGET_ABSOLUTE/RELATIVE flags when available")
+---
+ src/drmmode_display.c | 28 +++++++++++++++-------------
+ src/drmmode_display.h |  6 ++++--
+ src/radeon_kms.c      | 10 ++++++----
+ 3 files changed, 25 insertions(+), 19 deletions(-)
+
+diff --git a/src/drmmode_display.c b/src/drmmode_display.c
+index 88396163..f856f67b 100644
+--- a/src/drmmode_display.c
++++ b/src/drmmode_display.c
+@@ -2314,21 +2314,21 @@ static Bool drmmode_probe_page_flip_target(drmmode_ptr drmmode)
+ }
+ 
+ static int
+-drmmode_page_flip(drmmode_crtc_private_ptr drmmode_crtc, uint32_t flags,
+-		  uintptr_t drm_queue_seq)
++drmmode_page_flip(drmmode_crtc_private_ptr drmmode_crtc, int fb_id,
++		  uint32_t flags, uintptr_t drm_queue_seq)
+ {
+ 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
+ 
+ 	flags |= DRM_MODE_PAGE_FLIP_EVENT;
+ 	return drmModePageFlip(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
+-			       drmmode->fb_id, flags, (void*)drm_queue_seq);
++			       fb_id, flags, (void*)drm_queue_seq);
+ }
+ 
+ int
+ drmmode_page_flip_target_absolute(RADEONEntPtr pRADEONEnt,
+ 				  drmmode_crtc_private_ptr drmmode_crtc,
+-				  uint32_t flags, uintptr_t drm_queue_seq,
+-				  uint32_t target_msc)
++				  int fb_id, uint32_t flags,
++				  uintptr_t drm_queue_seq, uint32_t target_msc)
+ {
+ #ifdef DRM_MODE_PAGE_FLIP_TARGET
+ 	if (pRADEONEnt->has_page_flip_target) {
+@@ -2337,19 +2337,19 @@ drmmode_page_flip_target_absolute(RADEONEntPtr pRADEONEnt,
+ 		flags |= DRM_MODE_PAGE_FLIP_EVENT | DRM_MODE_PAGE_FLIP_TARGET_ABSOLUTE;
+ 		return drmModePageFlipTarget(drmmode->fd,
+ 					     drmmode_crtc->mode_crtc->crtc_id,
+-					     drmmode->fb_id, flags,
+-					     (void*)drm_queue_seq, target_msc);
++					     fb_id, flags, (void*)drm_queue_seq,
++					     target_msc);
+ 	}
+ #endif
+ 
+-	return drmmode_page_flip(drmmode_crtc, flags, drm_queue_seq);
++	return drmmode_page_flip(drmmode_crtc, fb_id, flags, drm_queue_seq);
+ }
+ 
+ int
+ drmmode_page_flip_target_relative(RADEONEntPtr pRADEONEnt,
+ 				  drmmode_crtc_private_ptr drmmode_crtc,
+-				  uint32_t flags, uintptr_t drm_queue_seq,
+-				  uint32_t target_msc)
++				  int fb_id, uint32_t flags,
++				  uintptr_t drm_queue_seq, uint32_t target_msc)
+ {
+ #ifdef DRM_MODE_PAGE_FLIP_TARGET
+ 	if (pRADEONEnt->has_page_flip_target) {
+@@ -2358,12 +2358,12 @@ drmmode_page_flip_target_relative(RADEONEntPtr pRADEONEnt,
+ 		flags |= DRM_MODE_PAGE_FLIP_EVENT | DRM_MODE_PAGE_FLIP_TARGET_RELATIVE;
+ 		return drmModePageFlipTarget(drmmode->fd,
+ 					     drmmode_crtc->mode_crtc->crtc_id,
+-					     drmmode->fb_id, flags,
+-					     (void*)drm_queue_seq, target_msc);
++					     fb_id, flags, (void*)drm_queue_seq,
++					     target_msc);
+ 	}
+ #endif
+ 
+-	return drmmode_page_flip(drmmode_crtc, flags, drm_queue_seq);
++	return drmmode_page_flip(drmmode_crtc, fb_id, flags, drm_queue_seq);
+ }
+ 
+ Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int cpp)
+@@ -2868,6 +2868,7 @@ Bool radeon_do_pageflip(ScrnInfoPtr scrn, ClientPtr client,
+ 		if (drmmode_crtc->hw_id == ref_crtc_hw_id) {
+ 			if (drmmode_page_flip_target_absolute(pRADEONEnt,
+ 							      drmmode_crtc,
++							      drmmode->fb_id,
+ 							      flip_flags,
+ 							      drm_queue_seq,
+ 							      target_msc) != 0)
+@@ -2875,6 +2876,7 @@ Bool radeon_do_pageflip(ScrnInfoPtr scrn, ClientPtr client,
+ 		} else {
+ 			if (drmmode_page_flip_target_relative(pRADEONEnt,
+ 							      drmmode_crtc,
++							      drmmode->fb_id,
+ 							      flip_flags,
+ 							      drm_queue_seq, 0) != 0)
+ 				goto flip_error;
+diff --git a/src/drmmode_display.h b/src/drmmode_display.h
+index b8f553a4..6bbf71c1 100644
+--- a/src/drmmode_display.h
++++ b/src/drmmode_display.h
+@@ -135,11 +135,13 @@ enum drmmode_flip_sync {
+ 
+ extern int drmmode_page_flip_target_absolute(RADEONEntPtr pRADEONEnt,
+ 					     drmmode_crtc_private_ptr drmmode_crtc,
+-					     uint32_t flags, uintptr_t drm_queue_seq,
++					     int fb_id, uint32_t flags,
++					     uintptr_t drm_queue_seq,
+ 					     uint32_t target_msc);
+ extern int drmmode_page_flip_target_relative(RADEONEntPtr pRADEONEnt,
+ 					     drmmode_crtc_private_ptr drmmode_crtc,
+-					     uint32_t flags, uintptr_t drm_queue_seq,
++					     int fb_id, uint32_t flags,
++					     uintptr_t drm_queue_seq,
+ 					     uint32_t target_msc);
+ extern Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int cpp);
+ extern void drmmode_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
+diff --git a/src/radeon_kms.c b/src/radeon_kms.c
+index a5943d1c..dcf41578 100644
+--- a/src/radeon_kms.c
++++ b/src/radeon_kms.c
+@@ -794,8 +794,9 @@ radeon_prime_scanout_flip(PixmapDirtyUpdatePtr ent)
+ 	return;
+     }
+ 
+-    if (drmmode_page_flip_target_relative(pRADEONEnt, drmmode_crtc, 0,
+-					  drm_queue_seq, 0) != 0) {
++    if (drmmode_page_flip_target_relative(pRADEONEnt, drmmode_crtc,
++					  drmmode_crtc->scanout[scanout_id].fb_id,
++					  0, drm_queue_seq, 0) != 0) {
+ 	xf86DrvMsg(scrn->scrnIndex, X_WARNING, "flip queue failed in %s: %s\n",
+ 		   __func__, strerror(errno));
+ 	return;
+@@ -1069,8 +1070,9 @@ radeon_scanout_flip(ScreenPtr pScreen, RADEONInfoPtr info,
+ 	return;
+     }
+ 
+-    if (drmmode_page_flip_target_relative(pRADEONEnt, drmmode_crtc, 0,
+-					  drm_queue_seq, 0) != 0) {
++    if (drmmode_page_flip_target_relative(pRADEONEnt, drmmode_crtc,
++					  drmmode_crtc->scanout[scanout_id].fb_id,
++					  0, drm_queue_seq, 0) != 0) {
+ 	xf86DrvMsg(scrn->scrnIndex, X_WARNING, "flip queue failed in %s: %s\n",
+ 		   __func__, strerror(errno));
+ 	return;
+-- 
+2.11.0
+

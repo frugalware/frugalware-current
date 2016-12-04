@@ -77,6 +77,7 @@ fi
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
 	#_F_kde_mirror="http://vesta.informatik.rwth-aachen.de/ftp/pub/mirror/kde/"
+	 _F_kde_up2date_mirror="ftp://ftp5.gwdg.de/pub/linux/kde/"
 	_F_kde_mirror="http://download.kde.org/"
 fi
 
@@ -146,10 +147,14 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		_F_archive_grepv="\-rc"
-		_F_archive_name="archive"
-		Fpkgversep="/"
-		up2date="Flasttar https://github.com/KDE/${_F_kde_name}/releases/latest | sed 's/v//'"
+		if [ "$_F_kde_project" = "frameworks" ]; then
+			_F_archive_grepv="\-rc"
+			_F_archive_name="archive"
+			Fpkgversep="/"
+			up2date="Flasttar https://github.com/KDE/${_F_kde_name}/releases/latest | sed 's/v//'"
+		else
+			up2date="Flastverdir http://download.kde.org/$_F_kde_folder"
+		fi
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

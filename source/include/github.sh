@@ -41,24 +41,24 @@
 ###
 
 if [ -z "$_F_github_name" ]; then
-	_F_github_name=$pkgname
+	_F_github_name="$pkgname"
 fi
 
 if [ -z "$_F_github_dirname" ]; then
-	_F_github_dirname=$_F_github_name
+	_F_github_dirname="$_F_github_name"
 fi
 
 
 if [ -z "$_F_github_ver" ]; then
-	_F_github_ver=$pkgver
+	_F_github_ver="$pkgver"
 fi
 
 if [ -z "$_F_github_author" ]; then
-	_F_github_author=$_F_github_name
+	_F_github_author="$_F_github_name"
 fi
 
 if [ -z "$_F_github_ext" ] ; then
-	_F_github_ext=.tar.gz
+	_F_github_ext=".tar.gz"
 fi
 
 if [ -z "$_F_github_sep" ]; then
@@ -69,22 +69,23 @@ if [ -z "$url" ]; then
 	url=https://github.com/$_F_github_author/$_F_github_name
 fi
 
-if [ -z "$_F_github_tag" ] && [ -z "$_F_github_tag_v" ]; then
-	_F_github_up2date="downloads"
-	_F_github_source="https://github.com/downloads/$_F_github_author/$_F_github_dirname/$_F_github_name$_F_github_sep$_F_github_ver$_F_github_ext"
+## set source to archive .. seems to be fine.
+## releases , tags and tags_v are all under archive
+
+## same for up2date
+
+
+if [ -z "$_F_github_tag_v" ]; then
+	_F_github_full_archive_name="${_F_github_name}${_F_github_sep}${_F_github_ver}${_F_github_ext}"
 else
-	_F_github_up2date="releases/latest"
-	_F_archive_name="archive"
-	Fpkgversep="/"
-	if [ -z "$_F_github_tag_v" ]; then
-		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/$_F_github_ver$_F_github_ext"
-	else
-		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/v$_F_github_ver$_F_github_ext"
-	fi
-	_F_cd_path="$_F_github_name-$_F_github_ver"
+	_F_github_full_archive_name="v${_F_github_name}${_F_github_sep}${_F_github_ver}${_F_github_ext}"
 fi
 
+_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/${_F_github_full_archive_name}"
+_F_github_up2date="releases/latest"
 
+
+## fixme ?
 if [ "$_F_github_devel" = "yes" ]; then
 	# Not checked, but may work.
 	_F_scm_type=git
@@ -92,10 +93,12 @@ if [ "$_F_github_devel" = "yes" ]; then
 	Finclude scm
 else
 	if [ -z "$_F_github_tag_v" ]; then
-		up2date="Flastarchive https://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext"
+		up2date="Flastarchive https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} ${_F_github_ext}"
 	else
-		up2date="Flastarchive https://github.com/$_F_github_author/$_F_github_dirname/$_F_github_up2date $_F_github_ext | sed 's/v//'"
+		up2date="Flastarchive https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} ${_F_github_ext} | sed 's/v//'"
 	fi
-	# On one line for Mr Portability, Hermier Portability.
-	source=(${source[@]} ${_F_github_source})
 fi
+
+# On one line for Mr Portability, Hermier Portability.
+source+=("${_F_github_source}")
+

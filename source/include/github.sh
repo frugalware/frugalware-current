@@ -114,7 +114,7 @@ if [ -n "$_F_github_devel" ]; then
 	## who know some Finclude combos
 	unset source
 else
-	up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep  '\https\(.*\)$_F_github_ext' | grep -m1 'archive' | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//'"
+	up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep  '\https\(.*\)$_F_github_ext' | grep -m1 'archive' | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//' | sed 's/${_F_github_name}${_F_github_sep}//'"
 
 	# On one line for Mr Portability, Hermier Portability.
 	source+=("${_F_github_source}")

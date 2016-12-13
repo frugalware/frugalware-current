@@ -105,15 +105,18 @@ _F_github_up2date="releases/latest"
 
 
 ## fixme ?
-if [ "$_F_github_devel" = "yes" ]; then
+if [ -n "$_F_github_devel" ]; then
 	# Not checked, but may work.
 	_F_scm_type=git
 	_F_scm_url=git://github.com/$_F_github_author/$_F_github_name
 	Finclude scm
+	unset _F_github_source
+	## who know some Finclude combos
+	unset source
 else
 	up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep  '\https\(.*\)$_F_github_ext' | grep -m1 'archive' | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//'"
-fi
 
-# On one line for Mr Portability, Hermier Portability.
-source+=("${_F_github_source}")
+	# On one line for Mr Portability, Hermier Portability.
+	source+=("${_F_github_source}")
+fi
 

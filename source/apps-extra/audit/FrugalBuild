@@ -2,28 +2,83 @@
 # Maintainer: kikadf <kikadf.01@gmail.com>
 
 pkgname=audit
-pkgver=2.5.2
-pkgrel=3
+pkgver=2.6.7
+pkgrel=1
 pkgdesc="Linux Auditing Framework."
 url="http://people.redhat.com/sgrubb/audit"
-rodepends=('libaudit')
-depends=('libldap>=2.4.44-2')
+rodepends=("libaudit>=$pkgver")
+depends=('libldap>=2.4.44-2' 'libcap-ng')
 makedepends=('swig')
 groups=('apps-extra')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 up2date="Flasttar $url"
 source=($url/$pkgname-$pkgver.tar.gz)
-Faddsubpkg "libaudit" "Dynamic library for security auditing." "" "" \
-           "" "" "" "" "" "" "" "" "lib-extra"
-sha1sums=('54d2bf161f011b9feb5f4cc18d3ca429ea70f5da')
+sha1sums=('da5d7644812b705e6eb422cf88cca88167fefebd')
 options+=('static')
+backup=(etc/audit/{audit.rules,auditd.conf} etc/audisp/{audispd.conf,audisp-remote.conf,zos-remote.conf}
+	etc/audisp/plugins.d/{af_unix.conf,audispd-zos-remote.conf,au-remote.conf,syslog.conf})
+
+
+subpkgs=('libaudit')
+subdescs=("Dynamic library for security auditing")
+subdepends=("glibc>=2.24-8")
+subgroups=('lib-extra')
+subarchs=('x86_64')
+suboptions=('static')
+subrodepends=('')
+
+subpkgs+=("$pkgname-python2")
+subdescs+=("Python2 bindings for audit")
+subdepends+=("python")
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
+suboptions+=('static')
+subrodepends+=("libaudit>=$pkgver")
+
+subpkgs+=("$pkgname-python3")
+subdescs+=("Python3 bindings for audit")
+subdepends+=("python3")
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
+suboptions+=('static')
+subrodepends+=("libaudit>=$pkgver")
+
+subpkgs+=("$pkgname-go")
+subdescs+=("Go bindings for audit")
+subdepends+=("go")
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
+suboptions+=('static')
+subrodepends+=("libaudit>=$pkgver")
 
 build()
 {
-	Fbuild
-	Fsplit libaudit "/usr/lib/lib*" \
-                        "/etc/libaudit.conf" \
-                        "/usr/include"
+	Fbuild \
+		--with-python \
+		--with-python3 \
+		--with-golang \
+		--with-libcap-ng=yes \
+		--enable-systemd
+
+	## that's wrong
+	Fmkdir lib/systemd/system
+	Fmv /usr/lib/systemd/system/auditd.service /lib/systemd/system/auditd.service
+	Frm usr/lib/systemd/system
+
+	## -lib
+	Fsplit libaudit  usr/lib/lib*
+	Fsplit libaudit  usr/include
+	Fsplit libaudit  usr/lib/pkgconfig
+	Fsplit libaudit  etc/libaudit.conf
+
+	## py2
+	Fsplit $pkgname-python2  usr/lib/python2.*
+
+	## py3
+	Fsplit $pkgname-python3 usr/lib/python3.*
+
+	## go
+	Fsplit $pkgname-go usr/lib/golang
 }
 
 # optimization OK

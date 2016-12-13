@@ -111,7 +111,7 @@ if [ "$_F_github_devel" = "yes" ]; then
 	_F_scm_url=git://github.com/$_F_github_author/$_F_github_name
 	Finclude scm
 else
-	up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep -m1 '\https\(.*\)$_F_github_ext' | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//'"
+	up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep  '\https\(.*\)$_F_github_ext' | grep -m1 'archive' | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//'"
 fi
 
 # On one line for Mr Portability, Hermier Portability.

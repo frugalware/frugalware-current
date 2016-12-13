@@ -69,16 +69,31 @@ if [ -z "$url" ]; then
 	url=https://github.com/$_F_github_author/$_F_github_name
 fi
 
+if [[ -n "$_F_github_tag_v" ]] && [[ -n "$_F_github_tag" ]]; then
+	error "Using TAG_V && TAG is not allowed!"
+	error "Bailing out, please fix your package.."
+	Fdie
+fi
+
 ## set source to archive .. seems to be fine.
 ## releases , tags and tags_v are all under archive
 
 ## same for up2date
 
-
-if [ -z "$_F_github_tag_v" ]; then
-	_F_github_full_archive_name="${_F_github_name}${_F_github_sep}${_F_github_ver}${_F_github_ext}"
-else
-	_F_github_full_archive_name="v${_F_github_name}${_F_github_sep}${_F_github_ver}${_F_github_ext}"
+## bleh
+## ok allow to set this as custom name too
+if [[ -z "$_F_github_full_archive_name" ]]; then
+	if [[ -n "$_F_github_tag_v" ]]; then
+		## tag_v should be v1.2.3.tar.gz
+		_F_github_full_archive_name="v${_F_github_ver}${_F_github_ext}"
+	elif [[ -n "$_F_github_tag" ]]; then
+		## tag should be 1.2.3.tar.gz
+		_F_github_full_archive_name="${_F_github_ver}${_F_github_ext}"
+	else
+		## normal stuff should be $pkgname-$pkgver.tar.gz ( but what is normal on github!)
+		## everything else _F_github_full_archive_name="someThIng_Like3-1_foo.tar.gz"
+		_F_github_full_archive_name="${_F_github_name}${_F_github_sep}${_F_github_ver}${_F_github_ext}"
+	fi
 fi
 
 _F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/${_F_github_full_archive_name}"
@@ -92,11 +107,7 @@ if [ "$_F_github_devel" = "yes" ]; then
 	_F_scm_url=git://github.com/$_F_github_author/$_F_github_name
 	Finclude scm
 else
-	if [ -z "$_F_github_tag_v" ]; then
-		up2date="Flastarchive https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} ${_F_github_ext}"
-	else
-		up2date="Flastarchive https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} ${_F_github_ext} | sed 's/v//'"
-	fi
+	up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep -m1 '\https\(.*[0-9].[0-9].*\)$_F_github_ext' | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//'"
 fi
 
 # On one line for Mr Portability, Hermier Portability.

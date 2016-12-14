@@ -72,9 +72,9 @@ if [ -z "$url" ]; then
 fi
 
 if [[ -n "$_F_github_tag_v" ]] && [[ -n "$_F_github_tag" ]]; then
-	error "Using TAG_V && TAG is not allowed!"
-	error "Bailing out, please fix your package.."
-	Fdie
+	echo "ERROR: Using TAG_V && TAG is not allowed!"
+	echo "ERROR: Bailing out, please fix your package.."
+	exit 1
 fi
 
 ## set source to archive .. seems to be fine.

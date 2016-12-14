@@ -4,31 +4,51 @@
 pkgname=pam
 _F_archive_name=Linux-PAM
 pkgver=1.1.8
-pkgrel=3
+pkgrel=8
 pkgdesc="Linux-PAM (Pluggable Authentication Modules)"
-archs=('i686' 'x86_64' 'arm')
+archs=('x86_64')
 url="https://fedorahosted.org/linux-pam/"
 dlurl="https://fedorahosted.org/releases/l/i/linux-pam/"
 groups=('base' 'chroot-core')
-depends=('glibc>=2.22-7' 'db>=6.1.26-2' 'cracklib>=2.9.5-3')
-makedepends=('flex>=2.6.0' 'gettext>=0.19.6-6')
+depends=('glibc>=2.24-8' 'db>=6.2.23-3' 'cracklib>=2.9.5-6')
+makedepends=('flex>=2.6.1-3' 'gettext>=0.19.8.1-3')
 up2date="Flasttar $dlurl"
 source=($dlurl/$_F_archive_name-$pkgver.tar.bz2)
 sha1sums=('f8ce53c67363f78d520392fa1c253c4978058be1')
+Finclude cross32
+
+makedepends+=('lib32-flex>=2.6.1-2' 'lib32-gettext>=0.19.8.1-3')
+
+subpkgs=("lib32-${pkgname}")
+subdescs=("$pkgdesc ( 32bit )")
+subdepends=("lib32-glibc>=2.24-8 lib32-db>=6.2.23-3 lib32-cracklib>=2.9.5-7")
+subgroups=('lib32-extra')
+subarchs=('x86_64')
+suboptions=('force')
+
+Fconfopts+=" --disable-dependency-tracking \
+	--disable-prelude"
 
 provides=('pam-headers')
 conflicts=('pam-headers')
 replaces=('pam-headers')
 
 build() {
+
+	Fcd
+	sed -i '/mkdir/d' modules/pam_namespace/Makefile.* || Fdie
+	Fcross32_common_build
+	Fcross32_delete_empty
+	Frm var/run
+	Fsplit "${subpkgs[0]}" /\*
+
+
 	Fcd
 	Fmkdir etc/security/namespace.d
 	sed -i '/mkdir/d' modules/pam_namespace/Makefile.* || Fdie
 
-	Fbuild --disable-dependency-tracking \
-		--disable-prelude \
-		--disable-regenerate-man
-	[ "$CARCH" == "x86_64" ] && Fmv /lib64 /lib
+	Fbuild
+	Fmv /lib64 /lib
 	Ffileschmod /sbin/unix_chkpwd u+s
 	Frm /var/run
 	Fmkdir /etc/tmpfiles.d

@@ -19,7 +19,7 @@
 # url="http://www.gnome.org/"
 # depends=('glibmm>=2.13.1' 'gtk+2' 'cairomm>=1.2.2')
 # groups=('gnome')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # Finclude gnome
 # sha1sums=('e40c337bc2afd2de4a6527bf333e9c8788c38668')
 # Fconfopts+=" --disable-examples --disable-demos"
@@ -96,7 +96,7 @@ if [ "$_F_gnome_git" != "n" ]; then
 	_F_scm_type="git"
 	_F_scm_url="git://git.gnome.org/$_F_gnome_name"
 else
-	source=(http://ftp.gnome.org/pub/gnome/sources/$_F_gnome_name/`_F_gnome_getver`/$_F_gnome_name-$pkgver$_F_gnome_ext)
+	source=(https://download.gnome.org/sources/$_F_gnome_name/`_F_gnome_getver`/$_F_gnome_name-$pkgver$_F_gnome_ext)
 fi
 url="http://www.gnome.org/"
 _F_cd_path=$_F_gnome_name-$pkgver

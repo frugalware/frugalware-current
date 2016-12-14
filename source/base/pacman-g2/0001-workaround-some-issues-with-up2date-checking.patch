@@ -1,0 +1,72 @@
+From 663ade8fa9ececde15856c59511f1fa1ec848345 Mon Sep 17 00:00:00 2001
+From: crazy <crazy@frugalware.org>
+Date: Sat, 1 Oct 2016 21:25:48 +0200
+Subject: [PATCH 4/4] workaround some issues with up2date checking
+
+---
+ scripts/makepkg | 41 +++++++++++++++++++++++++++++++++++------
+ 1 file changed, 35 insertions(+), 6 deletions(-)
+
+diff --git a/scripts/makepkg b/scripts/makepkg
+index 70edbb9..781094a 100755
+--- a/scripts/makepkg
++++ b/scripts/makepkg
+@@ -904,7 +904,6 @@ else
+ 	error "Please make sure that you edit /etc/makepkg.conf and set the PACKAGER= variable"
+ 	exit 1
+ fi
+-
+ if [ ! -f $BUILDSCRIPT ]; then
+ 	error "$BUILDSCRIPT does not exist."
+ 	exit 1
+@@ -1268,12 +1267,42 @@ if [ "$NOUP2DATE" = "0" ]; then
+         msg "Checking for newer version..."
+         if $ECHO "$up2date"|grep -q " "; then
+                 cmd=`$ECHO "$up2date"|sed 's/^\([^ ]*\) .*/\1/'`
+-                if type -p $cmd &>/dev/null; then
++
++		if [[ "$cmd" =~ "echo" ]] || [[ "$cmd" =~ "date" ]]; then
++			if [ -n "$_F_scm_type" ]; then
++				msg "SCM in use fixing the up2date programm"
++				cmd=""
++				case "$_F_scm_type" in
++					cvs)	cmd="cvs";;
++					subversion)	cmd="subversion";;
++					git) 	cmd="git";;
++					mercurial)	cmd="mercurial";;
++					bzr)	cmd="bzr";;
++				esac
++			else
++				warning "u2date program is set to something we cannot handle"
++				msg2 " up2date programm = $cmd ?!"
++				##fail
++				up2date=""
++			fi
++		fi
++
++		[[ "$cmd" =~ "ncftpls" ]] && cmd="ncftp"
++
++                if ! type -p $cmd &>/dev/null; then
++			if [ "$INCHROOT" == "1" ]; then
++				warning "up2date program ->  $cmd is missing. Installing..."
++				handledeps $cmd
++				sleep 1
++				up2date=`eval "$up2date"`
++			else
++				warning "The $cmd program is missing.  Cannot check for newer version!"
++				msg2 "Use 'pacman-g2 -Sy $cmd' and try again.."
++				up2date=""
++				sleep 1
++			fi
++		else
+                         up2date=`eval "$up2date"`
+-                else
+-                        warning "The $cmd program is missing.  Cannot check for newer version!"
+-                        up2date=""
+-                        sleep 1
+                 fi
+         fi
+         if [ -z "$up2date" ]; then
+-- 
+2.10.0
+

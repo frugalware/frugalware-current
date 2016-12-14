@@ -24,7 +24,7 @@
 # depends=('mpd' 'pygtk')
 # options=('scriptlet')
 # groups=('xapps-extra')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # sha1sums=('e771538c1fc4f6299efc4699acffd8af7d529417')
 # --------------------------------------------------
 #

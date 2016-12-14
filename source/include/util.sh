@@ -95,15 +95,21 @@ Flocalstatedir="/var"
 Finfodir="/usr/share/info"
 Fmandir="/usr/share/man"
 Fmenudir="/usr/share/applications"
-Farchs=('i686' 'x86_64' 'arm')
-if [[ "`arch`" == arm* ]]; then
-	Fbuildchost="arm-frugalware-linux-gnueabi"
-else
-	Fbuildchost="`arch`-frugalware-linux"
-fi
+Farchs=('x86_64')
+Fbuildchost="`arch`-frugalware-linux"
 Fconfopts=""
 _F_make_opts="V=1"
+
 unset LANG LC_ALL
+
+## ok gcc6++ makes way to much noise by default
+## we don't care about deprecated stuff and such as long is a warning
+## so add some C/CXX flags to disable these.
+## NOTE: qt5.sh still need his own version of this since qmake gets the flags from qt5 build
+## and we sed the C/XX FLAGS in the arch confs
+
+CXXFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
+CFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
 
 ###
 # == PROVIDED FUNCTIONS
@@ -630,7 +636,7 @@ Ficonrel() {
 # ($target's dir will be created if necessary).
 ###
 Fln() {
-	Fmessage "Creating symlink(s): $1"
+	Fmessage "Creating symlink(s): $1 -> $2"
 	Fmkdir "`dirname $2`"
 	ln -sf $1 "$Fdestdir"/$2 || Fdie
 }
@@ -861,6 +867,8 @@ Fbuildsystem_configure() {
 		Fconfoptstryset "infodir" "$Finfodir"
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
+		Fconfoptstryset "host" "$Fbuildchost"
+		#Fconfoptstryset "target" "$Fbuildchost"
 		## try to disable silent rules
 		## we already set V=1 by default but this isn't going to work
 		## when apps using enabled silence rules on ./configure..
@@ -977,8 +985,20 @@ Fbuildsystem_ruby_setup() {
 }
 
 Fbuildsystem_python_setup() {
+	echo "$@"
 	local command="$1"
 	shift
+
+	if [ -z "$_F_python_version" ]; then
+		_python="python"
+	else
+		_python="$_F_python_version"
+	fi
+
+    if [ -z "$_F_python_install_data_dir" ]; then
+		_F_python_install_data_dir="usr/share/"
+	fi
+
 
 	case "$command" in
 	'probe')
@@ -987,11 +1007,11 @@ Fbuildsystem_python_setup() {
 		;;
 	'make')
 		# does configure and build
-		Fexec python setup.py build "$@"
+		Fexec "$_python" setup.py build "$@"
 		return $?
 		;;
 	'install')
-		Fexec python setup.py install --prefix "$Fprefix" --root "$Fdestdir" "$@"
+		Fexec "$_python" setup.py install --prefix "$Fprefix" --root "$Fdestdir" --install-data $_F_python_install_data_dir "$@"
 		return $?
 		;;
 	*)
@@ -1171,6 +1191,26 @@ Ffix_la_files() {
 # found, then installs the init script, too. Parameter(s) are passed to
 # make/python.
 ###
+Ffix_perl() {
+ 	if [ -d $Fdestdir/usr/lib/perl5/*.*.* ]; then
+        Fmv '/usr/lib/perl5/*.*.*' /usr/lib/perl5/current
+    fi
+    if [ -d $Fdestdir/usr/lib/perl5 ]; then
+        find $Fdestdir/usr/lib/perl5 -name perllocal.pod -exec rm {} \;
+        find $Fdestdir/usr/lib/perl5 -name .packlist -exec rm {} \;
+    fi
+    if [ -e $Fdestdir/usr/lib/perl5/site_perl/*.*.* ]; then
+        Fmv '/usr/lib/perl5/site_perl/*.*.*' /usr/lib/perl5/site_perl/current
+    fi
+    if [ -d $Fdestdir/usr/lib/perl5/site_perl ]; then
+        find $Fdestdir/usr/lib/perl5/site_perl -name perllocal.pod -exec rm {} \;
+        find $Fdestdir/usr/lib/perl5/site_perl -name .packlist -exec rm {} \;
+        rmdir -p --ignore-fail-on-non-empty \
+            $Fdestdir/usr/lib/perl5/site_perl/current/*/auto/{*,*/*} \
+            &>/dev/null
+    fi
+}
+
 Fmakeinstall() {
 	Fmessage "Installing to the package directory..."
 	if Fbuildsystem_make 'probe'; then
@@ -1191,34 +1231,8 @@ Fmakeinstall() {
 	if [ -e $Fdestdir/usr/share/info/dir ]; then
 		Frm /usr/share/info/dir
 	fi
-	if [ -d $Fdestdir/usr/lib/perl5/*.*.* ]; then
-		Fmv '/usr/lib/perl5/*.*.*' /usr/lib/perl5/current
-	fi
-	if [ -d $Fdestdir/usr/lib/perl5 ]; then
-		find $Fdestdir/usr/lib/perl5 -name perllocal.pod -exec rm {} \;
-		find $Fdestdir/usr/lib/perl5 -name .packlist -exec rm {} \;
-	fi
-	if [ -e $Fdestdir/usr/lib/perl5/site_perl/*.*.* ]; then
-		Fmv '/usr/lib/perl5/site_perl/*.*.*' /usr/lib/perl5/site_perl/current
-	fi
-	if [ -d $Fdestdir/usr/lib/perl5/site_perl ]; then
-		find $Fdestdir/usr/lib/perl5/site_perl -name perllocal.pod -exec rm {} \;
-		find $Fdestdir/usr/lib/perl5/site_perl -name .packlist -exec rm {} \;
-		rmdir -p --ignore-fail-on-non-empty \
-			$Fdestdir/usr/lib/perl5/site_perl/current/*/auto/{*,*/*} \
-			&>/dev/null
-	fi
 
-	# rc script
-	if [ -z "$_F_rcd_name" ]; then
-		_F_rcd_name=$pkgname
-	fi
-	if [ -e $Fsrcdir/rc.$_F_rcd_name ] && \
-		grep -q "source /lib/initscripts/functions" $Fsrcdir/rc.$_F_rcd_name; then
-		if echo ${source[@]}|grep -q rc.$_F_rcd_name; then
-			Frcd2 $_F_rcd_name
-		fi
-	fi
+	Ffix_perl
 
 	Ffix_la_files
 	Fremove_static_libs
@@ -1229,53 +1243,22 @@ Fmakeinstall() {
 # are passed to Fmake.
 ###
 Fbuild() {
-	Fpatchall
+
+	if [ -z "$_Fbuild_no_patch" ]; then
+		Fpatchall
+	fi
+
+	if [ -n "$_Fbuild_autoreconf" ]; then
+		Fmessage "Running autoreconf..."
+		Fcd
+		Fautoreconf
+        fi
+
 	Fmake "$@"
 	Fmakeinstall
 	if echo ${source[@]}|grep -q README.Frugalware; then
 		Fdoc README.Frugalware
 	fi
-}
-
-###
-# * Frcd(): Create an rc.d environment. Parameter: name of the rc script,
-# defaults to $pkgname.
-#
-# NOTE: this function is obsolete, work with upstream to provide system
-# units out of the box.
-###
-Frcd() {
-	if [ "$#" -eq 1 ]; then
-		Fmessage "Creating rc.d environment: $1"
-		Fexe /etc/rc.d/rc.$1
-	else
-		# rc script
-		if [ -z "$_F_rcd_name" ]; then
-			_F_rcd_name=$pkgname
-		fi
-		Frcd "$_F_rcd_name"
-	fi
-}
-
-###
-# * Frcd2(): Create the new rc.d environment. Paramter: name of the rc script,
-# defaults to $pkgname.
-#
-# NOTE: this function is obsolete, work with upstream to provide system
-# units out of the box.
-###
-Frcd2() {
-	local po rc slang
-
-	rc="$pkgname" ; [ -n "$1" ] && rc="$1"
-
-	Fmessage "Creating new rc.d environment: $rc"
-	Fexe /etc/rc.d/rc.$rc
-	for po in $Fsrcdir/rc.$rc-*.po ; do
-		[ ! -f "$po" ] && continue
-		slang="`basename "$po" .po | sed "s|rc.$rc-||"`"
-		Fmsgfmt /lib/initscripts/messages $slang $rc `basename $po .po`
-	done
 }
 
 ###

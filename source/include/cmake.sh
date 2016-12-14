@@ -33,24 +33,39 @@ if [ -z "$_F_cmake_in_source_build" ]; then
 	_F_cmake_in_source_build=0
 fi
 
-if [ -z "$_F_cmake_old_defines" ]; then
-	_F_cmake_old_defines=1
-fi
 
 if [ -z "$_F_cmake_rpath" ]; then
-        _F_cmake_rpath="OFF"
+        _F_cmake_rpath="ON"
+fi
+
+if [ -z "$_F_cmake_install_rpath" ]; then
+	_F_cmake_install_rpath="ON"
 fi
 
 if [ -z "$_F_cmake_build_dir" ]; then
         _F_cmake_build_dir="frugalware_cmake_build"
 fi
 
+if [ -z "$_F_cmake_use_ninja" ]; then
+    cmake_generator=""
+    cmake_builder="make"
+else
+    cmake_generator=" -G Ninja "
+    cmake_builder="ninja"
+    makedepends+=('ninja')
+fi
+
+### hmmm
+CMAKE_LIB="lib"
+CMAKE_BIN="bin"
+CMAKE_SBIN="sbin"
+
 ###
 # == APPENDED VARIABLES
 # * makedepends(): add cmake and pkgconfig
 # * options(): add nostrip if _F_cmake_type is Debug*
 ###
-makedepends=(${makedepends[@]} 'cmake' 'pkgconfig')
+makedepends+=('cmake>=3.6.2-2' 'pkgconfig')
 
 ###
 # == PROVIDED FUNCTIONS
@@ -88,16 +103,12 @@ CMake_conf()
 		_F_cmake_src="."
 	fi
 
-	if [ "$_F_cmake_old_defines" != "0" ]; then
-		_F_cmake_confopts="-DLIB_INSTALL_DIR=/usr/lib
-			-DLIB_SUFFIX=''
-			-DLOCALSTATE_INSTALL_DIR=/var
-			$_F_cmake_confopts"
-	fi
-
 	cmake \
+        ${cmake_generator} \
 		-DCMAKE_INSTALL_PREFIX=/usr \
-		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DCMAKE_INSTALL_LIBDIR=${CMAKE_LIB} \
+		-DCMAKE_INSTALL_BINDIR=${CMAKE_BIN} \
+		-DCMAKE_INSTALL_SBINDIR=${CMAKE_SBIN} \
 		-DSYSCONF_INSTALL_DIR=/etc \
 		-DCMAKE_BUILD_TYPE="$_F_cmake_type" \
 		-DCMAKE_VERBOSE_MAKEFILE="$_F_cmake_verbose" \
@@ -110,6 +121,7 @@ CMake_conf()
 		-DCMAKE_CXX_FLAGS_DEBUG="$CXXFLAGS" \
 		-DCMAKE_C_FLAGS_DEBUG="$CFLAGS" \
 		-DCMAKE_SKIP_RPATH="$_F_cmake_rpath" \
+		-DCMAKE_SKIP_INSTALL_RPATH="$_F_cmake_install_rpath" \
 		-DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG" \
 		-DCMAKE_C_FLAGS_RELEASE="-DNDEBUG" \
 		$_F_cmake_confopts "$@" $_F_cmake_src || Fdie
@@ -137,19 +149,23 @@ CMake_prepare_build()
 }
 
 ###
-# * CMake_make(): Calls 'CMake_prepare_build()' , 'CMake_conf()' and runs 'make'
+# * CMake_make(): Calls 'CMake_prepare_build()' , 'CMake_conf()' and runs cmake_builder
 ###
 CMake_make()
 {
 	CMake_prepare_build
 	CMake_conf "$@"
 	## do _not_ use any F* stuff here , cmake does not like it
-	make || Fdie
+	${cmake_builder} || Fdie
 }
 
 CMake_install()
 {
-	make DESTDIR=$Fdestdir install/fast || Fdie
+    if [ -z "$_F_cmake_use_ninja" ]; then
+        make DESTDIR=$Fdestdir install/fast || Fdie
+    else
+        DESTDIR=$Fdestdir ninja install || Fdie
+    fi
 	Fremove_static_libs
 	Ffix_la_files
 }

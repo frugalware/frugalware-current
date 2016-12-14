@@ -21,7 +21,7 @@
 # depends=('glibc')
 # replaces=('debianutils')
 # groups=('base' 'chroot-core')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # options=('nobuild')
 # _F_scm_type="cvs"
 # _F_scm_url=":pserver:anoncvs@anoncvs.mktemp.org:/cvs"

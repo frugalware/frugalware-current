@@ -19,7 +19,7 @@
 # depends=('pygtk' 'dbus-python' 'postler' 'python-distutils-extra' 'vobject' 'pyenchant' 'storm')
 # makedepends=('intltool')
 # groups=('xapps-extra')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # _F_launchpad_dirname="dexter-rolodex"
 # _F_launchpad_sep="_"
 # _F_launchpad_branch="0.x"

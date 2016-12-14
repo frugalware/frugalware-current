@@ -4,31 +4,34 @@
 
 pkgname=virtualbox
 realname=VirtualBox
-pkgver=5.0.16
+pkgver=5.1.8
 pkgrel=1
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' \
-         'alsa-lib' 'qt4-linguist' 'curl' 'libqtopengl' 'libxmu' 'libuuid' 'libcap' \
-         'libvpx>=1.5.0' 'lvm2' 'libgl' 'libxext' 'libx11' 'libpulse' 'libglu')
-makedepends=('kernel-source' 'kernel-headers' 'cdrtools' 'x11-protos')
+         'alsa-lib'  'curl' 'libxmu' 'libuuid' 'libcap' 'qt5-base>=5.7.0' 'qt5-x11extras>=5.7.0' \
+         'libvpx>=1.6.0' 'lvm2' 'libgl' 'libxext' 'libx11' 'libpulse' 'libglu' 'libxrandr' 'libxcomposite' \
+	 'libxinerama')
+makedepends=('cdrtools' 'x11-protos' 'qt5-tools' 'mesa-libgl-headers')
 rodepends=("virtualbox-modules=$pkgver")
 groups=('xapps-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://download.virtualbox.org/virtualbox/LATEST.TXT | head -n 1"
 source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver}.tar.bz2 \
-	10-vboxdrv.rules LocalConfig.kmk $pkgname.install)
+	10-vboxdrv.rules LocalConfig.kmk $pkgname.install fix-build.patch)
 options=('scriptlet' 'genscriptlet')
 _F_cd_path="${realname}-${pkgver}"
-sha1sums=('ca7b3fadda37b1b281f78ef2d573aceacab7d9fd' \
+sha1sums=('fe968ecbe9f8945220dbd388971cd1ce596cfd22' \
           'aa931ae19edd8585150738f0efd8fedf5175a6d3' \
           '5b7ecf8ee9e3b367c485e513ae36d30cbd23eff5' \
-          'f32f69a501794adc5da977060db0e607aee839f0')
+          'f32f69a501794adc5da977060db0e607aee839f0' \
+          '8fd54edd6e5d9f8a54729b7293b909bba7d87f91')
 
 build() {
 
 	Fpatchall
-
+	# qt5.7
+        CXXFLAGS+=" -std=c++11"
 	Fsed '/usr/X11R6/bin/xterm' '/usr/bin/xterm' \
 		src/VBox/Runtime/VBox/RTAssertShouldPanic-vbox.cpp
 	Fsed 'X11R6/' '' configure
@@ -36,14 +39,17 @@ build() {
 	Fsed '-Werror$' '' Config.kmk
 	Fsed '.*&& check_makeself' '' configure # we don't have makeself
 	Fsed 'smc-napa' 'smcnapa' src/VBox/Devices/PC/vbox.dsl
-
+	Fsed 'CXX_FLAGS=""' 'CXX_FLAGS="-std=c++11"' configure
         cp "$Fsrcdir/LocalConfig.kmk" .
 
+	echo "VBOX_GCC_OPT=$CXXFLAGS" >> LocalConfig.kmk
+
+	Fsed 'DocPath=.*' '' src/VBox/Installer/common/virtualbox.desktop.in
         # Configure and load our options
 	if [ "$CARCH" == "x86_64" ]; then
-	  ./configure --disable-docs --nofatal --enable-pulse --disable-vmmraw  || Fdie
+		./configure --disable-docs --disable-kmods --nofatal --enable-pulse --disable-vmmraw  || Fdie
 	else
-	  ./configure --disable-docs --nofatal --enable-pulse || Fdie
+	        ./configure --disable-docs --disable-kmods --nofatal --enable-pulse  || Fdie
 	fi
 
 	source ./env.sh || Fdie
@@ -58,6 +64,17 @@ build() {
 	else
 	  VboxSrcDir=${_F_cd_path}/out/linux.x86/release/bin
 	fi
+
+	local i k
+
+	Fmkdir usr/share/icons/hicolor/{16x16,20x20,32x32,40x40,48x48,64x64,128x128,scalable}/apps
+
+	for k in 16 20 32 40 48 64 128; do
+           Finstall 0644 ${_F_cd_path}/src/VBox/Artwork/OSE/virtualbox-${k}px.png  usr/share/icons/hicolor/${k}x${k}/apps/virtualbox.png
+        done
+
+        Finstall 0644 ${_F_cd_path}/src/VBox/Artwork/OSE/virtualbox.svg usr/share/icons/hicolor/scalable/apps/virtualbox.svg
+
 	cd ${Fsrcdir}/${VboxSrcDir} || Fdie
 
 	#Binaries and Wrapper with Launchers
@@ -85,9 +102,8 @@ build() {
 	#useless scripts
 	Fexerel VBoxCreateUSBNode.sh VBoxSysInfo.sh "usr/share/virtualbox"
 
-	#icons
-	Ficonrel VBox.png
 
+	## icons
 	pushd icons
 	for i in ./*; do
 	  echo $i
@@ -98,6 +114,7 @@ build() {
 	## this fixes -> warning: errors occurred while upgrading virtualbox
 	## the folder is empty and the owner is hicolor-icon-theme
 	Frm usr/share/icons/hicolor/scalable/mimetypes
+
 	Finstallrel 0644 virtualbox.desktop "usr/share/applications/virtualbox.desktop"
 	Finstallrel 0644 virtualbox.xml "usr/share/mime/packages/virtualbox.xml"
 

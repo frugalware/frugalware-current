@@ -3,24 +3,24 @@
 # Contributor: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=gdm
-pkgver=3.18.2
-pkgrel=2
+pkgver=3.22.1
+pkgrel=1
 pkgdesc="GNOME Display Manager"
 url="http://www.gnome.org/"
 backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin \
 	etc/pam.d/gdm-welcome etc/pam.d/gdm-password etc/pam.d/gdm-launch-environment)
-depends=('dbus-glib>=0.104-2' 'accountsservice>=0.6.40-4' 'nss>=3.21-3' 'xorg-server>=1.18.0-1' 'libxrandr>=1.5.0-4' 'gtk+3>=3.18.6-2' \
-	 'libcanberra-gtk>=0.30-12' 'pam>=1.1.8-3' 'upower>=0.99.3-3' 'libxklavier>=5.4-2' 'gnome-session' 'systemd>=227-15' 'gnome-settings-daemon>=3.18.2-2')
-makedepends=('intltool>=0.51.0-2' 'gobject-introspection>=1.46.0-2' 'dconf>=0.24.0-2' 'itstool>=2.0.2-3')
+depends=('dbus-glib>=0.108-3' 'accountsservice>=0.6.43-2' 'nss>=3.26' 'xorg-server>=1.18.4-5' 'libxrandr>=1.5.0-5' 'gtk+3>=3.22.0' \
+	 'libcanberra-gtk>=0.30-14' 'pam>=1.1.8-4' 'upower>=0.99.4-2' 'libxklavier>=5.4-2' 'gnome-session>=3.22.0' 'systemd>=231-7' 'gnome-settings-daemon>=3.22.0')
+makedepends=('intltool>=0.51.0-4' 'gobject-introspection>=1.50.0' 'dconf>=0.26.0-3' 'itstool>=2.0.2-3')
 groups=('gnome' 'gnome-minimal')
-archs=('i686' 'x86_64')
+archs=("x86_64")
 #nofakeroot for recreate glib schema (use dbus...)
 #will see for don't use nofakeroot
 options+=('nofakeroot' 'scriptlet' 'force')
-_F_gnome_devel="n"
+_F_gnome_devel="y"
 _F_gnome_ext=".tar.xz"
 Finclude gnome
-sha1sums=('d043982ff747c46555e175d71a5a5b5e5bb182a7')
+sha1sums=('0004b9388561188dc78ca0d8ad8dd867a9e0a7e2')
 
 build() {
 	Fmake --with-pam-prefix=/etc \
@@ -36,65 +36,50 @@ build() {
 		--with-initial-vt=12
 
 	Fmakeinstall
-	chmod a+r $Fdestdir/var/lib/gdm || Fdie
-	chmod 1770 $Fdestdir/var/log/gdm || Fdie
+	chmod 711 $Fdestdir/var/log/gdm || Fdie
 	# add logo to shell greeter
 	#Fcp ../org.gnome.login-screen.gschema.override usr/share/glib-2.0/schemas/
-	# gets rebuilt in posttrans
-	Frm etc/dconf/db/gdm
 	#delete PAM default rules
 	Frm etc/pam.d/*
 
 cat > $Fdestdir/etc/pam.d/gdm-autologin << "EOF"
-#%PAM-1.0
-auth		requisite	pam_nologin.so
-auth		required	pam_env.so
-auth		required	pam_permit.so
-account		required	pam_unix.so
-password	required	pam_unix.so
-session		required	pam_limits.so
-session		required	pam_unix.so
-session         required        pam_systemd.so
+auth     requisite pam_nologin.so
+auth     required  pam_env.so
+auth     optional  pam_permit.so
+
+account  include   system-local-login
+
+password include   system-local-login
+
+session  optional  pam_keyinit.so force revoke
+session  include   system-local-login
 EOF
 
 cat > $Fdestdir/etc/pam.d/gdm-launch-environment << "EOF"
-#%PAM-1.0
-auth            required        pam_env.so
-auth            required        pam_permit.so
+auth     required  pam_env.so
+auth     optional  pam_permit.so
 
-account         required        pam_nologin.so
-account         required        pam_unix.so
+account  include   system-local-login
 
-password        required        pam_deny.so
+password required  pam_deny.so
 
-session         required        pam_loginuid.so
--session        optional        pam_systemd.so
-session         optional        pam_keyinit.so force revoke
+session  optional  pam_keyinit.so force revoke
+session  required  pam_systemd.so
+session  optional  pam_permit.so
 EOF
 
 cat > $Fdestdir/etc/pam.d/gdm-password << "EOF"
-#%PAM-1.0
-auth            requisite       pam_nologin.so
-auth            required        pam_env.so
+auth     include   system-local-login
+auth     optional  pam_gnome_keyring.so
 
-auth            requisite       pam_unix.so nullok
-auth            optional        pam_gnome_keyring.so
+account  include   system-local-login
 
-auth            sufficient      pam_succeed_if.so uid >= 1000 quiet
-auth            required        pam_deny.so
+password include   system-local-login
+password optional  pam_gnome_keyring.so use_authtok
 
-account         required        pam_access.so
-account         required        pam_time.so
-account         required        pam_unix.so
-
-password        required        pam_unix.so
-
-session         required        pam_loginuid.so
--session        optional        pam_systemd.so
-session         optional        pam_keyinit.so force revoke
-session         required        pam_limits.so
-session         required        pam_unix.so
-session         optional        pam_gnome_keyring.so auto_start
+session  optional  pam_keyinit.so force revoke
+session  include   system-local-login
+session  optional  pam_gnome_keyring.so auto_start
 EOF
 
 }

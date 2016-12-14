@@ -18,7 +18,7 @@
 # pkgdesc="100% Pure Java Regular Expression package"
 # url="http://jakarta.apache.org/regexp"
 # groups=('devel-extra')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # up2date="lynx -dump http://www.apache.org/dist/jakarta/regexp/source/ |Flasttar"
 # source=(http://www.apache.org/dist/jakarta/regexp/source/jakarta-regexp-$pkgver.tar.gz)
 # signatures=($source.asc)
@@ -40,11 +40,9 @@
 
 ###
 # == APPENDED VARIABLES
-# * depends()
 # * makedepends()
 ###
-depends=("${depends[@]}" 'openjre')
-makedepends=("${makedepends[@]}" 'openjdk' 'apache-ant')
+makedepends=("${makedepends[@]}" 'openjdk' 'apache-ant' 'openjre')
 
 ###
 # == PROVIDED FUNCTIONS

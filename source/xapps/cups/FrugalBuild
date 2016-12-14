@@ -3,20 +3,20 @@
 # Contributor: voroskoi <voroskoi@frugalware.org>
 
 pkgname=cups
-pkgver=2.1.3
-pkgrel=1
+pkgver=2.2.1
+pkgrel=2
 pkgdesc="The CUPS Printing System"
-url="http://www.cups.org/"
-depends=('avahi>=0.6.31-7' 'libusb1>=1.0.20-4')
+depends=('avahi>=0.6.31-9' 'libusb1>=1.0.20-5')
 rodepends=('libcups')
-makedepends=('xdg-utils' 'hicolor-icon-theme')
+makedepends=('xdg-utils' 'hicolor-icon-theme' 'clang>=3.8.1-4' 'lib32-libusb1')
 groups=('xapps')
-archs=('i686' 'x86_64' 'arm')
+archs=("x86_64")
 backup=(etc/cups/{printers.conf,classes.conf,client.conf,cupsd.conf,mime.types,mime.convs})
-_F_archive_grepv="b[0-9]\+\|rc[1-9]\+"
-up2date="Flastarchive $url/software.php -source.tar.gz"
-source=(http://www.cups.org/software/$pkgver/cups-$pkgver-source.tar.gz)
-signatures=("${source[@]}".sig)
+_F_github_author="apple"
+_F_github_tag_v=y
+Finclude github
+url="http://www.cups.org/"
+sha1sums=('126d27781a20d463cadfb0d0bdbc66a55961bcdd')
 
 provides=('cupsddk')
 replaces=("${provides[@]}")
@@ -25,32 +25,56 @@ conflicts=("${provides[@]}")
 subpkgs=('libcups')
 subdescs=('Main library of the CUPS printing system.')
 subgroups=('lib')
-subdepends=('gnutls>=3.4.9 avahi>=0.6.31-7')
-subarchs=('i686 x86_64 arm')
+subdepends=('gnutls>=3.4.15-2 avahi>=0.6.31-9')
+subarchs=("x86_64")
+suboptions=('')
 
-# Do NOT remove --libdir option, needed for x86_64 to put libs into /usr/lib
+subpkgs+=("lib32-libcups")
+subdescs+=("Main library of the CUPS printing system. ( 32bit )")
+subdepends+=("lib32-gnutls lib32-avahi")
+subgroups+=('lib32-extra')
+subarchs+=('x86_64')
+suboptions+=('force')
+
+options+=('force' 'noccache')
 Fconfopts+="	--with-cups-user=lp \
                 --with-cups-group=lp \
                 --with-logdir=/var/log/cups \
                 --with-docdir=/usr/share/cups/doc \
                 --disable-pam \
                 --enable-ssl \
-                --enable-threads \
-                --libdir=/usr/lib"
-
-_F_make_opts="${_F_make_opts} "
+                --enable-threads"
+Finclude cross32
 
 build() {
-	Fsed "Icon=cups" "Icon=/usr/share/pixmaps/cups-128.png" desktop/cups.desktop.in
+        Fcross32_prepare
+        Fcross32_copy_source
 
-	Fmake
+	Fcd
+	Fpatchall
+	Fmake --libdir=/usr/lib32
 	make BUILDROOT=$Fdestdir install || Fdie
 
-	Ficonrel desktop/cups-128.png
-
 	# samba support
-	( if [ ! -r $Fdestdir/usr/lib/cups/backend/smb ]; then
-       		Fln /usr/bin/smbspool /usr/lib/cups/backend/smb
+	( if [ ! -r $Fdestdir/usr/lib32/cups/backend/smb ]; then
+		Fln /usr/bin/smbspool /usr/lib32/cups/backend/smb
+	fi )
+
+        Fcross32_copy_back_source
+        Fcross32_reset_and_fix
+        Fsplit "lib32-libcups" /usr/lib32
+
+        Fcd
+        Fsed "Icon=cups" "Icon=/usr/share/pixmaps/cups-128.png" desktop/cups.desktop.in
+        Fpatchall
+        Fmake --libdir=/usr/lib
+        make BUILDROOT=$Fdestdir install || Fdie
+
+        Ficonrel desktop/cups-128.png
+
+        # samba support
+        ( if [ ! -r $Fdestdir/usr/lib/cups/backend/smb ]; then
+                Fln /usr/bin/smbspool /usr/lib/cups/backend/smb
 	fi )
 
 	# fix perms on /var/spool
@@ -71,6 +95,7 @@ EOF
 	if [ -e $Fdestdir/usr/share/applications/cups.desktop ]; then
 		Fsed "Exec=htmlview http://localhost:631/" "Exec=xdg-open http://localhost:631/" $Fdestdir/usr/share/applications/cups.desktop
 	fi
+
 }
 
 # optimization OK

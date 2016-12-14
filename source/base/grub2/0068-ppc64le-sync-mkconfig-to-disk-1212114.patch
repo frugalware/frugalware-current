@@ -1,0 +1,42 @@
+From 1ef61c2257c1fc19d35346f6c47c0c4d8b184783 Mon Sep 17 00:00:00 2001
+From: Don Zickus <dzickus@redhat.com>
+Date: Wed, 22 Jul 2015 13:59:55 -0400
+Subject: [PATCH 68/89] ppc64le sync mkconfig to disk (#1212114)
+
+If creating a new grub2 entry using grub2-mkconfig, the entry is not
+immediately sync'd to disk.  If a crash happens before the writeback,
+the subsequent reboot fails because the grub2.cfg is corrupted.
+
+Address this by forcing all the changes (mainly the fs meta data) to disk
+before finishing the grub2 conf changes.
+
+Tested by 'grub2-mkconfig -o /etc/grub22.cfg; echo c > /proc/sysrq-trigger'.
+
+Before, the machine would panic and on reboot be stuck without a grub.cfg
+to read.  After, works as expected.
+
+Resolves: rhbz#1212114
+---
+ util/grub-mkconfig.in | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/util/grub-mkconfig.in b/util/grub-mkconfig.in
+index fb87247..73a18f7 100644
+--- a/util/grub-mkconfig.in
++++ b/util/grub-mkconfig.in
+@@ -294,3 +294,12 @@ fi
+ 
+ gettext "done" >&2
+ echo >&2
++
++# make sure changes make it to the disk.
++# if /boot is a mountpoint, force the meta data on disk
++# to by-pass writeback delay.
++# PPC64LE-only to deal with Petitboot issues
++ARCH=$(uname -m)
++if [ "${ARCH}" = "ppc64le" ]; then
++    sync && mountpoint -q /boot &&fsfreeze -f /boot && fsfreeze -u /boot
++fi
+-- 
+2.5.5
+

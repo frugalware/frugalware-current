@@ -19,7 +19,7 @@
 # url="http://www.galago-project.org"
 # depends=('libgalago' 'gtk2-sharp>=2.10.0' 'perl-xml-libxml' 'dbus-mono')
 # groups=('gnome')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # source=($url/files/releases/source/$pkgname/$pkgname-$pkgver.tar.bz2 \
 #         galago-sharp-0.5.0-fix-nunit-name.patch)
 # Finclude mono
@@ -40,9 +40,6 @@ if [ -z "$_F_mono_aot" ]; then
         _F_mono_aot=1
 fi
 
-if [ -n "$_F_use_nant" ]; then
-	makedepends=("${makedepends[@]}" 'nant')
-fi
 
 Fmonoexport() {
 	Fmessage "Exporting weird MONO_SHARED_DIR..."
@@ -83,11 +80,7 @@ Fmonocleanup() {
 Fbuild_mono() {
 	unset MAKEFLAGS
 	Fmonoexport
-  if [ -z "$_F_use_nant" ]; then
 	Fbuild $@
-  else
-	Fnant $@
-  fi
 if [ "$_F_mono_aot" -eq 1 ]; then
 	Fmonocompileaot
 fi

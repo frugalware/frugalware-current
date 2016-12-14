@@ -23,7 +23,7 @@
 # _F_fonts_subdir="TTF"
 # Finclude sourceforge fonts
 # groups=('xlib-extra')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # sha1sums=('81e711b5f00816c57e205c9e60f69237c709679d')
 # --------------------------------------------------
 #

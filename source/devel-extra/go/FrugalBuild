@@ -2,14 +2,15 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=go
-pkgver=1.6
+pkgver=1.7.4
 pkgrel=1
+go_bootstrap_ver=1.4.3
 pkgdesc='Compiler and tools for the Go programming language from Google'
-archs=('x86_64' 'i686')
+archs=('x86_64')
 groups=('devel-extra')
 url='http://golang.org/'
 depends=('perl' 'gawk')
-makedepends=('mercurial' 'git' 'go')
+makedepends=('git')
 Fpkgversep=""
 _F_archive_prefix=".src"
 _F_cd_path="go/src"
@@ -18,7 +19,8 @@ up2date="Flastarchive $url/dl/ .src.tar.gz"
 options=('nostrip' 'scriptlet')
 source=(https://storage.googleapis.com/golang/go${pkgver}.src.tar.gz \
 	go.sh)
-sha1sums=('3282b6cb1e491662f7067544605d8cbf6f016553' \
+
+sha1sums=('0fb305c827c8794cfda7e437befa6101a2d06b2e' \
           '3f6bff8914afcb7bc138faaa72d1cfd1140caaa7')
 
 build() {
@@ -26,29 +28,30 @@ build() {
   export GOROOT="$Fsrcdir/$pkgname"
   export GOPATH="$Fsrcdir/gopath"
   export GOROOT_FINAL="/usr/lib/go"
-  export GOROOT_BOOTSTRAP="/usr/lib/go"
+  export GOROOT_BOOTSTRAP="$Fsrcdir/$pkgname${go_bootstrap_ver}"
+  mkdir $GOROOT_BOOTSTRAP
 
-  if [ "$CARCH" == 'x86_64' ]; then
-    export GOARCH=amd64
-  elif [ "$CARCH" == 'i686' ]; then
-    export GOARCH=386
-  fi
+  export GOARCH=amd64
 
   Fcd
 
-  bash make.bash || Fdie
+  Fexec wget https://storage.googleapis.com/golang/go${go_bootstrap_ver}.linux-amd64.tar.gz || Fdie
+  Fexec tar -zxvf go${go_bootstrap_ver}.linux-amd64.tar.gz -C $GOROOT_BOOTSTRAP || Fdie
+  export GOROOT_BOOTSTRAP="$GOROOT_BOOTSTRAP/go"
+
+  Fexec bash make.bash  --no-clean || Fdie
 
   export PATH="$GOBIN:$PATH"
 
+  # System-wide tools
+  for tool in godex godoc goimports gomvpkg gorename gotype; do
+    Fexec $GOROOT/bin/go get -d golang.org/x/tools/cmd/$tool || Fdie
+    Fexec $GOROOT/bin/go build -v -x -o $GOPATH/bin/$tool golang.org/x/tools/cmd/$tool || Fdie
+  done
 
-  #Build godoc
-  Fexec $GOROOT/bin/go get -d golang.org/x/tools/cmd/godoc
-  Fexec $GOROOT/bin/go build -o $Fsrcdir/godoc golang.org/x/tools/cmd/godoc
-  Fexe /usr/bin/godoc
-
-  for tool in vet cover; do
-    Fexec $GOROOT/bin/go get -d golang.org/x/tools/cmd/${tool}
-    Fexec $GOROOT/bin/go build -o $GOROOT/pkg/tool/linux_${GOARCH}/${tool} golang.org/x/tools/cmd/${tool}
+  for tool in benchcmp bundle callgraph digraph eg fiximports html2article present ssadump stress stringer; do
+    Fexec $GOROOT/bin/go get -d golang.org/x/tools/cmd/${tool} || Fdie
+    Fexec $GOROOT/bin/go build -o $GOROOT/pkg/tool/linux_${GOARCH}/${tool} golang.org/x/tools/cmd/${tool} || Fdie
   done
 
   Fmkdir usr/share/go
@@ -62,10 +65,10 @@ build() {
   Fcp go/pkg  usr/lib/go/
 
   Fmkdir usr/lib/go/src
-  Fcp go/src/* usr/lib/go/src
+  Fcp go/src usr/lib/go
 
   Fmkdir usr/lib/go/src/cmd
-  Fcp go/src/cmd/* usr/lib/go/src/cmd
+  Fcp "go/src/cmd/*" usr/lib/go/src/cmd
   Fcp go/lib usr/lib/go
 
   Finstall 644 go/src/Make.* usr/lib/go/src
@@ -81,7 +84,8 @@ build() {
   Fln /usr/bin /usr/lib/go/bin
 
   # Chmod *.a files
-  chmod -R 755 "${Fdestdir}/usr/lib/go/pkg/linux_${GOARCH}/" || Fdie
+  Ffileschmod "usr/lib/go/pkg/linux_${GOARCH}/" 755
+  Ffileschmod "usr/lib/go/pkg/tool/linux_${GOARCH}/" 755
 
   # For godoc
   Finstall 644 go/favicon.ico usr/lib/go/favicon.ico

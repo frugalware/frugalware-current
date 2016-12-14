@@ -20,7 +20,7 @@
 # depends=('libnotify>=0.4.3' 'libwnck' 'libsexy' 'gconf' 'dbus-glib>=0.71')
 # makedepends=('gnome-doc-utils' 'intltool')
 # groups=('gnome')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # source=($url/files/releases/source/$pkgname/$pkgname-$pkgver.tar.bz2)
 # up2date="lynx -dump http://www.galago-project.org/files/releases/source/$pkgname | Flasttar"
 # options=('scriptlet')

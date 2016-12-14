@@ -1,21 +1,12 @@
-sysvinit_units=(@_F_sysvinit_units@)
 systemd_units=(@_F_systemd_units@)
 
 post_install()
 {
-	if ! grep -q '^_ntp:' /etc/group ; then
-		groupadd -g 29 _ntp
-	fi
-	if ! grep -q '^_ntp:' /etc/passwd ; then
-                useradd -u 29 -g 29 -s /sbin/nologin -c "OpenNTP daemon" -d /var/empty/ntpd _ntp
-	fi
+	/usr/bin/getent group _ntp  2>&1 > /dev/null || /usr/sbin/groupadd -g 29 _ntp
+    /usr/bin/getent passwd _ntp 2>&1 > /dev/null || /usr/sbin/useradd -u 29 -g 29 -s /sbin/nologin -c "OpenNTP daemon" -d /var/empty _ntp
 
 	local unit
 	local op
-
-	for i in ${sysvinit_units[@]}; do
-		chkconfig --del rc.$i >/dev/null 2>&1
-	done
 
 	for i in ${systemd_units[@]}; do
 		unit=$(echo $i | cut -f 1 -d '=')
@@ -31,23 +22,18 @@ post_install()
 
 post_upgrade()
 {
-	for i in ${sysvinit_units[@]}; do
-		chkconfig --del rc.$i >/dev/null 2>&1
-	done
-
+	## that changed and INSTALL tells to do that
+	/usr/bin/getent passwd _ntp  2>&1 > /dev/null && /usr/sbin/usermod -d /var/empty _ntp
+	rm -rf /var/empty/ntpd
 	systemctl daemon-reload >/dev/null 2>&1
 }
 
 pre_remove()
 {
-	userdel _ntp >/dev/null 2>&1
-	groupdel _ntp >/dev/null 2>&1
+	/usr/bin/getent passwd _ntp  2>&1 > /dev/null && /usr/sbin/userdel _ntp >/dev/null 2>&1
+	/usr/bin/getent group _ntp 2>&1 > /dev/null && /usr/sbin/groupdel _ntp >/dev/null 2>&1
 
 	local unit
-
-	for i in ${sysvinit_units[@]}; do
-		chkconfig --del rc.$i >/dev/null 2>&1
-	done
 
 	for i in ${systemd_units[@]}; do
 		unit=$(echo $i | cut -f 1 -d '=')

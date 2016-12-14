@@ -15,7 +15,7 @@
 # pkgname=phonon-backend-xine
 # pkgrel=1
 # pkgdesc="Phonon xine backend."
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 #
 # Finclude phonon-backend
 # depends=("${depends[@]}" 'xine-lib')
@@ -30,7 +30,7 @@
 ###
 
 if [ -z "$_F_phonon_ver" ]; then
-	_F_phonon_ver=4.8.0
+	_F_phonon_ver=4.9.0
 fi
 
 if [ -z "$_F_phonon_backend_name" ]; then
@@ -60,8 +60,8 @@ if [ -z "$url" ]; then
 	url="http://phonon.kde.org"
 fi
 
-groups=("${groups[@]}" 'phonon-backend')
-depends=("${depends[@]}" "phonon>=$_F_phonon_ver")
+groups+=('phonon-backend')
+depends+=("phonon-qt5>=$_F_phonon_ver")
 
 if [ -z "$url" ]; then
 	url="http://phonon.kde.org"
@@ -72,5 +72,5 @@ _F_kde_name="$_F_phonon_backend_name"
 _F_kde_pkgver="$_F_phonon_backend_pkgver"
 _F_kde_ext=".tar.xz"
 _F_kde_folder="stable/phonon/$_F_phonon_backend_name"
-Finclude kde
+Finclude kf5
 

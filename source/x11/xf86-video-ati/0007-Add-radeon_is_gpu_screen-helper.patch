@@ -1,0 +1,87 @@
+From f130b10e63f7526360b41aa0918b4940f63f662a Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Fri, 25 Nov 2016 18:12:40 +0900
+Subject: [PATCH 07/11] Add radeon_is_gpu_screen helper
+
+This will hopefully decrease the chance of accidentally breaking the
+build against xserver < 1.13 in the future.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ src/drmmode_display.c |  5 +----
+ src/radeon.h          |  3 +++
+ src/radeon_kms.c      | 14 +++-----------
+ 3 files changed, 7 insertions(+), 15 deletions(-)
+
+diff --git a/src/drmmode_display.c b/src/drmmode_display.c
+index f856f67b..95e3acdc 100644
+--- a/src/drmmode_display.c
++++ b/src/drmmode_display.c
+@@ -779,10 +779,7 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
+ 			fb_id = drmmode_crtc->rotate.fb_id;
+ 			x = y = 0;
+ 
+-		} else if (
+-#ifdef RADEON_PIXMAP_SHARING
+-			!pScreen->isGPU &&
+-#endif
++		} else if (!radeon_is_gpu_screen(pScreen) &&
+ 			   (info->tear_free ||
+ #if XF86_CRTC_VERSION >= 4
+ 			    crtc->driverIsPerformingTransform ||
+diff --git a/src/radeon.h b/src/radeon.h
+index ad7e69cc..8ca8d318 100644
+--- a/src/radeon.h
++++ b/src/radeon.h
+@@ -182,6 +182,9 @@ typedef enum {
+ 
+ #if XF86_CRTC_VERSION >= 5
+ #define RADEON_PIXMAP_SHARING 1
++#define radeon_is_gpu_screen(screen) (screen)->isGPU
++#else
++#define radeon_is_gpu_screen(screen) 0
+ #endif
+ 
+ #define RADEON_VSYNC_TIMEOUT	20000 /* Maximum wait for VSYNC (in usecs) */
+diff --git a/src/radeon_kms.c b/src/radeon_kms.c
+index d0a474e0..6281fa50 100644
+--- a/src/radeon_kms.c
++++ b/src/radeon_kms.c
+@@ -317,10 +317,7 @@ static Bool RADEONCreateScreenResources_KMS(ScreenPtr pScreen)
+     if (dixPrivateKeyRegistered(rrPrivKey)) {
+ 	rrScrPrivPtr rrScrPriv = rrGetScrPriv(pScreen);
+ 
+-	if (
+-#ifdef RADEON_PIXMAP_SHARING
+-	    !pScreen->isGPU &&
+-#endif
++	if (!radeon_is_gpu_screen(pScreen) &&
+ 	    !rrScrPriv->primaryOutput)
+ 	{
+ 	    xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
+@@ -360,10 +357,7 @@ static Bool RADEONCreateScreenResources_KMS(ScreenPtr pScreen)
+ 	radeon_glamor_create_screen_resources(pScreen);
+ 
+     info->callback_event_type = -1;
+-    if (
+-#ifdef RADEON_PIXMAP_SHARING
+-	!pScreen->isGPU &&
+-#endif
++    if (!radeon_is_gpu_screen(pScreen) &&
+ 	(damage_ext = CheckExtension("DAMAGE"))) {
+ 	info->callback_event_type = damage_ext->eventBase + XDamageNotify;
+ 
+@@ -1099,9 +1093,7 @@ static void RADEONBlockHandler_KMS(BLOCKHANDLER_ARGS_DECL)
+     (*pScreen->BlockHandler) (BLOCKHANDLER_ARGS);
+     pScreen->BlockHandler = RADEONBlockHandler_KMS;
+ 
+-#ifdef RADEON_PIXMAP_SHARING
+-    if (!pScreen->isGPU)
+-#endif
++    if (!radeon_is_gpu_screen(pScreen))
+     {
+ 	for (c = 0; c < xf86_config->num_crtc; c++) {
+ 	    if (info->tear_free)
+-- 
+2.11.0
+

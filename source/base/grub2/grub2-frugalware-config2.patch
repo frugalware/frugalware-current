@@ -1,0 +1,104 @@
+diff -Naur grub-2.02~beta3/util/grub.d/10_linux.in grub-2.02~beta3-p/util/grub.d/10_linux.in
+--- grub-2.02~beta3/util/grub.d/10_linux.in	2016-07-28 13:47:14.000819454 +0200
++++ grub-2.02~beta3-p/util/grub.d/10_linux.in	2016-07-28 13:46:14.364818570 +0200
+@@ -56,6 +56,8 @@
+ 
+ case x"$GRUB_FS" in
+     xbtrfs)
++	## does not work with this FS
++	GRUB_SAVEDEFAULT=false
+ 	rootsubvol="`make_system_path_relative_to_its_root /`"
+ 	rootsubvol="${rootsubvol#/}"
+ 	if [ "x${rootsubvol}" != x ]; then
+@@ -124,24 +126,31 @@
+   if [ -z "$boot_device_id" ]; then
+       boot_device_id="$(grub_get_device_id "${GRUB_DEVICE}")"
+   fi
+-  if [ x$type != xsimple ] ; then
+-      case $type in
+-	  console)
+-	      title="$(gettext_printf "%s, with Linux %s (console mode)" "${os}" "${version}")" ;;
+-	  recovery)
+-	      title="$(printf "$(mktitle) (recovery mode)" "${version}")" ;;
++
++  case $type in
++	simple)
++	     title="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")" ;;
++	 console)
++	      title_c="(console mode)"
++	      title_="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")"
++	      title="${title_} ${title_c}" ;;
++	 recovery)
++   	      title_r="(recovery mode)"
++              title_="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")"
++              title="${title_} ${title_r}" ;;
+ 	  *)
+ 	      title="$(printf "$(mktitle)" "${version}")" ;;
+-      esac
++   esac
+       if [ x"$title" = x"$GRUB_ACTUAL_DEFAULT" ] || [ x"Previous Linux versions>$title" = x"$GRUB_ACTUAL_DEFAULT" ]; then
+ 	  replacement_title="$(echo "Advanced options for ${OS}" | sed 's,>,>>,g')>$(echo "$title" | sed 's,>,>>,g')"
+ 	  quoted="$(echo "$GRUB_ACTUAL_DEFAULT" | grub_quote)"
+ 	  title_correction_code="${title_correction_code}if [ \"x\$default\" = '$quoted' ]; then default='$(echo "$replacement_title" | grub_quote)'; fi;"
+       fi
+-      echo "menuentry '$(echo "$title" | grub_quote)' ${CLASS} \$menuentry_id_option 'gnulinux-$version-$type-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
++  if [ x$type != xsimple ] ; then
++ 	echo "menuentry '$(echo "$title" | grub_quote)' ${CLASS} \$menuentry_id_option 'gnulinux-$version-$type-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
+   else
+-      echo "menuentry '$(echo "$os" | grub_quote)' ${CLASS} \$menuentry_id_option 'gnulinux-simple-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
+-  fi      
++      echo "menuentry '$(echo "$title" | grub_quote)' ${CLASS} \$menuentry_id_option 'gnulinux-simple-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
++  fi
+   if [ x$type != xrecovery ] ; then
+       save_default_entry | grub_add_tab
+   fi
+@@ -294,28 +303,40 @@
+     GRUB_DISABLE_SUBMENU="true"
+   fi
+ 
++  ## ok this whole submenu logic is broken we use just menu like
++  ## menu " Frugalware with Linux some_version
++  ## menu " Frugalware with Linux some_other_version and so on
+   if [ "x$is_top_level" = xtrue ] && [ "x${GRUB_DISABLE_SUBMENU}" != xtrue ]; then
+     linux_entry "${OS}" "${version}" simple \
+-    "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"
++    	"${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"
++
++    linux_entry "${OS}" "${version}" console \
++        "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT} systemd.unit=multi-user.target"
++
++   if [ "x${GRUB_DISABLE_RECOVERY}" != "xtrue" ]; then
++        linux_entry "${OS}" "${version}" recovery \
++                "${GRUB_CMDLINE_LINUX} systemd.unit=rescue.target"
++   fi
++
+ 
+-    submenu_indentation="$grub_tab"
+-    
+     if [ -z "$boot_device_id" ]; then
+ 	boot_device_id="$(grub_get_device_id "${GRUB_DEVICE}")"
+     fi
++
++    else ## we don' use this for now
++    submenu_indentation="$grub_tab"
+     # TRANSLATORS: %s is replaced with an OS name
+     echo "submenu '$(gettext_printf "Advanced options for %s" "${OS}" | grub_quote)' \$menuentry_id_option 'gnulinux-advanced-$boot_device_id' {"
+     is_top_level=false
+-  fi
+ 
+-  linux_entry "${OS}" "${version}" console \
++    linux_entry "${OS}" "${version}" console \
+               "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT} systemd.unit=multi-user.target"
+ 
+-  if [ "x${GRUB_DISABLE_RECOVERY}" != "xtrue" ]; then
+-    linux_entry "${OS}" "${version}" recovery \
++   if [ "x${GRUB_DISABLE_RECOVERY}" != "xtrue" ]; then
++     linux_entry "${OS}" "${version}" recovery \
+                 "${GRUB_CMDLINE_LINUX} systemd.unit=rescue.target"
+-  fi
+-
++   fi
++fi
+   list=`echo $list | tr ' ' '\n' | fgrep -vx "$linux" | tr '\n' ' '`
+ done
+ 

@@ -2,46 +2,52 @@
 # Maintainer: Janos Kovacs <janny@frugalware.org>
 
 pkgname=clamav
-pkgver=0.98.6
-pkgrel=2
+pkgver=0.99.2
+pkgrel=1
 pkgdesc="Clam AntiVirus is a GPL anti-virus toolkit for UNIX"
-depends=('gmp>=5.0.1' 'bzip2' 'curl>=7.19.0' 'ncurses>=6.0-3')
+depends=('libxml2' 'libtool' 'pcre2' 'curl' 'libsystemd')
+url="http://www.clamav.net/"
 rodepends=('shadow')
-_F_archive_grepv="rc"
-backup=(etc/{freshclam,clamd}.conf)
+_F_archive_grepv="rc\|beta"
+backup=(etc/clamav/{freshclam,clamd}.conf)
 groups=('apps-extra')
-archs=('i686' 'x86_64')
-Finclude sourceforge
-source=($source clamav-0.95-cliopts.patch llvm-glibc.patch clamav.service freshclam.service)
-sha1sums=('03cb9a20a08aba9176b1f58d5527d06ec8261f9c' \
-          '507c7b8dbda905d8be2c6f94718803451771b153' \
-          '79080dd02903aa0463a1e837e8c0afaa9cf4348b' \
-          'f50298cd957cd322c9a47384bbec0076fe059490' \
-          'acc22c8def14d7dea1c781da347f5765196726b9')
-
-_F_systemd_units=(clamav= freshclam=)
-Finclude systemd
+archs=('x86_64')
+up2date="Flasttar http://www.clamav.net/downloads"
+source=(http://www.clamav.net/downloads/production/$pkgname-$pkgver.tar.gz)
+sha1sums=('c1a47411834d8527f7b40727aebee63f01d488af')
 
 build()
 {
-	Fbuild --disable-clamav --sysconfdir=/etc
-	Fsed '^Example' '# Example' $Fdestdir/etc/{clamd,freshclam}.conf.sample
-	Fsed '^#LogFile' 'LogFile'  $Fdestdir/etc/clamd.conf.sample
-	Fsed '/tmp/clamd.log' '/var/log/clamd.log' $Fdestdir/etc/clamd.conf.sample
-	Fsed '^#DatabaseDirectory' 'DatabaseDirectory' $Fdestdir/etc/{clamd,freshclam}.conf.sample
-	Fsed '/usr/share/clamav' '/var/lib/clamav' $Fdestdir/etc/{clamd,freshclam}.conf.sample
-	Fsed '/var/log/' '/var/log/clamav/'  $Fdestdir/etc/{clamd,freshclam}.conf.sample
-	Fsed '/var/run/' '/var/run/clamav/' $Fdestdir/etc/{clamd,freshclam}.conf.sample
-	Frm /usr/share/clamav
+	Fbuild \
+		--disable-clamav \
+		--sysconfdir=/etc/clamav \
+		--disable-llvm \
+		--with-dbdir=/var/lib/clamav \
+		--enable-ipv6
+
+	########  provide minimal default
+	Fsed '^Example' '# Example' $Fdestdir/etc/clamav/{clamd,freshclam}.conf.sample
+	Fsed '^#LogFile' 'LogFile'  $Fdestdir/etc/clamav/clamd.conf.sample
+	Fsed '/tmp/clamd.log' '/var/log/clamd.log' $Fdestdir/etc/clamav/clamd.conf.sample
+	Fsed '^#DatabaseDirectory' 'DatabaseDirectory' $Fdestdir/etc/clamav/{clamd,freshclam}.conf.sample
+	Fsed '/usr/share/clamav' '/var/lib/clamav' $Fdestdir/etc/clamav/{clamd,freshclam}.conf.sample
+	Fsed '/var/log/' '/var/log/clamav/'  $Fdestdir/etc/clamav/{clamd,freshclam}.conf.sample
+	Fsed '/var/run/' '/run/clamav/' $Fdestdir/etc/clamav/{clamd,freshclam}.conf.sample
+	Fsed '#PidFile' 'PidFile' $Fdestdir/etc/clamav/{clamd,freshclam}.conf.sample
+
+	Fmv /etc/clamav/clamd.conf.sample /etc/clamav/clamd.conf
+	Fmv /etc/clamav/freshclam.conf.sample /etc/clamav/freshclam.conf
+
+	#########################################################################
+
 	Fmkdir /var/{log,lib}/clamav
-	chown 26.26 $Fdestdir/var/{log,lib}/clamav || Fdie
+	Fmkdir run/clamav
+	Fexec chown 26.26 $Fdestdir/var/{log,lib}/clamav || Fdie
+	Fexec chown 26.26 $Fdestdir/run/clamav || Fdie
 	Fmkdir /etc/tmpfiles.d
 	cat > $Fdestdir/etc/tmpfiles.d/clamav.conf << EOF
 d $Flocalstatedir/run/clamav 0755 clamav clamav -
 EOF
-	Ffile /lib/systemd/system/clamav.service
-	Ffile /lib/systemd/system/freshclam.service
-	Fgenscriptlet
 }
 
 # optimization OK

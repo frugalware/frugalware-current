@@ -2,48 +2,135 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=nss
-pkgver=3.23
-pkgrel=1
+pkgver=3.27.1
+pkgrel=2
 pkgdesc="NSS library from mozilla.org"
 url="http://www.mozilla.org/projects/security/pki/nss/"
 pkgurl="https://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/"
 pkg_stable="https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/NSS_Releases#Stable"
 groups=('base')
-archs=('i686' 'x86_64' 'arm')
+archs=('x86_64')
 license="MPL GPL"
-depends=('glibc>=2.22-7' 'nspr>=4.11-3' 'sqlite3>=3.8.11.1-3' 'libstdc++>=5.3.0-2' 'zlib>=1.2.8-3')
+depends=('glibc>=2.24-4' 'nspr>=4.12-3' 'sqlite3>=3.14.2-2' 'libstdc++>=6.2.1-5' 'zlib>=1.2.8-8')
+makedepends=('perl' 'python' 'xmlto' 'docbook-xsl')
+
 up2date="lynx -dump '$pkg_stable' | grep -a 'current Stable release' | sed 's/.*is \(.*\), .*/\1/'"
 source=($pkgurl/NSS_${pkgver//./_}_RTM/src/$pkgname-$pkgver.tar.gz \
 	nss-config.in nss.pc.in)
-sha1sums=('5cb30a18d601d5f2bb635df6213ae3e93f754fe8' \
+sha1sums=('04d517723d2adf27b00ece58304f26cd389e4d13' \
           '0227f94c745519b67b1b530e6cc116e8069a6b43' \
           'ae2d58b2aa31ce0426541e8c76aeda7a8d34c8cf')
-_F_cd_path="$pkgname-$pkgver/$pkgname"
+_F_cross32_simple_auto="true"
+Finclude cross32
 
 build() {
-	Fcd
 	unset MAKEFLAGS
-	export PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
-	export 	PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
-	NSPR_INCLUDE_DIR=`/usr/bin/pkg-config --cflags-only-I nspr | sed 's/-I//'`
-	NSPR_LIB_DIR=/usr/lib
-	export NSPR_INCLUDE_DIR
-	export NSPR_LIB_DIR
+	sed -e 's/\$(MKSHLIB) -o/\$(MKSHLIB) \$(LDFLAGS) -o/' -i nss/coreconf/rules.mk
+
 	export NS_USE_GCC=1
 	export NSS_ENABLE_ECC=1
 	export NSDISTMODE=copy
 	export NSS_USE_SYSTEM_SQLITE=1
-        #export NSS_BUILD_WITHOUT_SOFTOKEN=1
-	DISTPATH=$Fsrcdir/$pkgname-$pkgver/dist
+	export DISTPATH=$Fsrcdir/$pkgname-$pkgver/dist
+	export BUILD_OPT=1
 
-	if [ "$CARCH" == "x86_64" ]; then
-		export USE_64=1
-	fi
+        Fcross32_prepare
+        Fcross32_copy_source
 
-	Fmkdir /usr/bin
-	Fmkdir /usr/lib/pkgconfig
+	export NSPR_INCLUDE_DIR=`/usr/i686-frugalware-linux/bin/nspr-config --includedir`
+	export NSPR_LIB_DIR=/usr/lib32
+	export XCFLAGS="$CFLAGS"
 
-	make  BUILD_OPT=1 XCFLAGS="$CFLAGS" all || Fdie
+	cd $pkgname
+
+        export NSS_VMAJOR=`cat lib/nss/nss.h | grep "#define.*NSS_VMAJOR" | awk '{print $3}'`
+        export NSS_VMINOR=`cat lib/nss/nss.h | grep "#define.*NSS_VMINOR" | awk '{print $3}'`
+        export NSS_VPATCH=`cat lib/nss/nss.h | grep "#define.*NSS_VPATCH" | awk '{print $3}'`
+
+	Fexec make -C coreconf || Fdie
+	Fexec make -C lib/dbm || Fdie
+	Fexec make || Fdie
+
+	Fmkdir /usr/i686-frugalware-linux/bin
+	Fmkdir /usr/i686-frugalware-linux/include/nss3
+	Fmkdir /usr/lib32/pkgconfig
+
+        ## FIXME: need patch - crazy -
+        cat $Fsrcdir/nss.pc.in > $Fdestdir/usr/lib32/pkgconfig/nss.pc || Fdie
+        sed -i -e "s,@libdir@,/usr/lib32,g" \
+            -i -e "s,@prefix@,/usr,g" \
+            -i -e "s,@exec_prefix@,/usr,g" \
+            -i -e "s,@includedir@,/usr/i686-frugalware-linux/include/nss3,g" \
+            -i -e "s,@NSPR_VERSION@,`nspr-config --version`,g" \
+            -i -e "s,@NSS_VERSION@,${pkgver},g" \
+            $Fdestdir/usr/lib32/pkgconfig/nss.pc || Fdie
+
+        cat $Fsrcdir/nss-config.in > $Fdestdir/usr/i686-frugalware-linux/bin/nss-config || Fdie
+        sed -i -e "s,@libdir@,/usr/lib32,g" \
+            -i -e "s,@prefix@,/usr,g" \
+            -i -e "s,@exec_prefix@,/usr,g" \
+            -i -e "s,@includedir@,/usr/i686-frugalware-linux/include/nss3,g" \
+            -i -e "s,@MOD_MAJOR_VERSION@,$NSS_VMAJOR,g" \
+            -i -e "s,@MOD_MINOR_VERSION@,$NSS_VMINOR,g" \
+            -i -e "s,@MOD_PATCH_VERSION@,$NSS_VPATCH,g" \
+            $Fdestdir/usr/i686-frugalware-linux/bin/nss-config || Fdie
+        Ffileschmod usr/i686-frugalware-linux/bin/nss-config 755
+
+	# Shared libs install
+	for file in *.so
+	do
+	    install -m 755 $DISTPATH/*.OBJ/lib/$file $Fdestdir/usr/lib32 || Fdie
+	done
+
+	# Static libs and chk files install , FIXME - figure all static libs -- crazy --
+	for file in libcrmf.a libnss*.a
+	do
+	    install -m 644  $DISTPATH/*.OBJ/lib/$file $Fdestdir/usr/lib32 || Fdie
+	done
+
+	# Header files install
+	for file in $DISTPATH/{public,private}/nss/*.h
+	do
+		install -m 644 $file $Fdestdir/usr/i686-frugalware-linux/include/nss3 || Fdie
+        done
+
+	## all utils got to genric names sowe have some conflicts with
+	## other package , simply move all to be $pkgname-the_util_name -- crazy --
+
+	cd $DISTPATH/*.OBJ/bin || Fdie
+	for util in `ls -1 *`
+	do
+		mv $util $pkgname-$util || Fdie
+	done
+	install -m 755 * $Fdestdir/usr/i686-frugalware-linux/bin || Fdie
+
+        Fcross32_copy_back_source
+        Fcross32_reset_and_fix
+	Fcross32_delete_empty
+
+	Fsplit "${subpkgs[0]}" /\*
+
+        Fmkdir /usr/{lib,bin,include/nss3}
+
+
+	export NSPR_INCLUDE_DIR=`/usr/bin/nspr-config --includedir`
+	export NSPR_LIB_DIR=/usr/lib
+	export USE_64=1
+	export XCFLAGS="$CFLAGS"
+
+	cd $pkgname
+
+	echo -n "$(date +"%e %B %Y")" >date.xml
+	echo -n "$pkgver" >version.xml
+
+        Fexec make -C coreconf || Fdie
+        Fexec make -C lib/dbm || Fdie
+        Fexec make || Fdie
+        Fexec make clean_docs build_docs || Fdie
+
+
+        Fmkdir /usr/bin
+        Fmkdir /usr/lib/pkgconfig
 
 	## FIXME: need patch - crazy -
 	cat $Fsrcdir/nss.pc.in > $Fdestdir/usr/lib/pkgconfig/nss.pc || Fdie
@@ -55,13 +142,6 @@ build() {
 	    -i -e "s,@NSS_VERSION@,${pkgver},g" \
 	    $Fdestdir/usr/lib/pkgconfig/nss.pc || Fdie
 
-	NSS_VMAJOR=`cat lib/nss/nss.h | grep "#define.*NSS_VMAJOR" | awk '{print $3}'`
-	NSS_VMINOR=`cat lib/nss/nss.h | grep "#define.*NSS_VMINOR" | awk '{print $3}'`
-	NSS_VPATCH=`cat lib/nss/nss.h | grep "#define.*NSS_VPATCH" | awk '{print $3}'`
-	export NSS_VMAJOR
-	export NSS_VMINOR
-	export NSS_VPATCH
-
 	cat $Fsrcdir/nss-config.in > $Fdestdir/usr/bin/nss-config || Fdie
 	sed -i -e "s,@libdir@,/usr/lib,g" \
 	    -i -e "s,@prefix@,/usr,g" \
@@ -71,7 +151,7 @@ build() {
 	    -i -e "s,@MOD_MINOR_VERSION@,$NSS_VMINOR,g" \
 	    -i -e "s,@MOD_PATCH_VERSION@,$NSS_VPATCH,g" \
 	    $Fdestdir/usr/bin/nss-config || Fdie
-	chmod 755 $Fdestdir/usr/bin/nss-config || Fdie
+	Ffileschmod usr/bin/nss-config 755
 	Fmkdir /usr/{lib,bin,include/nss3}
 
 	# Shared libs install
@@ -101,6 +181,11 @@ build() {
 		mv $util $pkgname-$util || Fdie
 	done
 	install -m 755 * $Fdestdir/usr/bin || Fdie
+
+	for file in certutil.1  cmsutil.1  crlutil.1  derdump.1  modutil.1  pk12util.1  pp.1  signtool.1  signver.1  ssltap.1  vfychain.1  vfyserv.1
+	do
+		Fman $pkgname-$pkgver/nss/doc/nroff/$file
+	done
 
 }
 

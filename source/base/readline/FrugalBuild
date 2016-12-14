@@ -1,16 +1,20 @@
 # Compiling Time: 0.12 SBU
 # Maintainer: crazy <crazy@frugalware.org>
 
+
+## DO NOT bump to 7.0 yet .. we wait for 7.1 or 7.2
+
 pkgname=readline
 pkgver=6.3
-pkgrel=7
+pkgrel=13
 pkgdesc="GNU readline library"
 url="http://www.gnu.org/"
-depends=('ncurses>=6.0-3')
+depends=('ncurses>=6.0-13')
 groups=('base' 'chroot-core')
-archs=('i686' 'x86_64' 'arm')
+archs=('x86_64')
 backup=("etc/inputrc")
 Fup2gnugz
+Finclude cross32
 source=(ftp://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-$pkgver.tar.gz \
 	ftp://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-$pkgver-patches/readline63-001 \
 	ftp://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-$pkgver-patches/readline63-002 \
@@ -34,25 +38,51 @@ sha1sums=('017b92dc7fd4e636a2b5c9265a77ccc05798c9e1' \
           '39e29b3077ddd60dba35376c532ca83e978606a7' \
           'dec827003e9f1e029d57f3d32fa67a41ef3d0cd6')
 
-Fconfopts+=" --with-curses"
+
+subpkgs=("lib32-${pkgname}")
+subdescs=("$pkgdesc ( 32bit )")
+subdepends=("lib32-ncurses>=6.0-13")
+subgroups=('lib32-extra')
+subarchs=('x86_64')
+suboptions=('force')
+
+_patch() {
+
+	unset MAKEFLAGS ## DO NOT REMOVE
+        for i in {001..008}
+        do
+                Fpatch readline63-$i
+        done
+}
 
 build()
 {
+
+	## NOTE: please test that build before pushing
+	## do _not_ use Fmake since build system seems broken
+	## do _not_ use auto cross32 build
+
 	Fcd
-	unset MAKEFLAGS ## DO NOT REMOVE
-	for i in {001..008}
-	do
-		Fpatch readline63-$i
-	done
+	_patch
+	Fcross32_prepare
+	Fcross32_copy_source
+	Fconf --with-curses
+	Fexec make TERMCAP_LIB=-lncurses SHLIB_LIBS=-lncurses -j1 || Fdie
+	Fmakeinstall
 
-	Fconf
+	Fcross32_copy_back_source
+	Fcross32_reset_and_fix
+	Fcross32_delete_empty
+	Fsplit "${subpkgs[0]}" /\*
 
-	make TERMCAP_LIB=-lncurses SHLIB_LIBS=-lncurses -j1 || Fdie
-
+	Fcd
+	# copyed source already patched
+	Fconf --with-curses
+	Fexec make TERMCAP_LIB=-lncurses SHLIB_LIBS=-lncurses -j1 || Fdie
 	Fmakeinstall
 	Ffile /etc/inputrc
 	Fexe /etc/profile.d/readline.sh
-	Ffileschmod "usr/lib/lib*.so.$pkgver" 0755
+
 }
 
 # optimization OK

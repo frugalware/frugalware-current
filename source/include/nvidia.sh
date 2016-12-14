@@ -15,10 +15,9 @@
 # pkgname=nvidia
 # pkgver=173.14.12
 # pkgrel=3
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # Finclude nvidia
 # case "$_F_nvidia_arch" in
-# x86)    sha1sums=('01d297c477b95593e9fbf5c73e501a4f5617b497');;
 # x86_64) sha1sums=('78d3034314df7f9c95526707d7fcf4543f5993ed');;
 # esac
 # --------------------------------------------------
@@ -34,15 +33,10 @@
 ###
 # General variables
 if [ -z "$_F_nvidia_arch" ]; then
-	if echo "$CARCH" | grep -q 'i.86'; then
-		_F_nvidia_arch=x86
-	elif [ "$CARCH" == "x86_64" ]; then
-		_F_nvidia_arch=x86_64
-	fi
+	_F_nvidia_arch=x86_64
 fi
 if [ -z "$_F_nvidia_pkgnum" ]; then
 	case "$_F_nvidia_arch" in
-	x86)	_F_nvidia_pkgnum=1;;
 	x86_64)	_F_nvidia_pkgnum=2;;
 	esac
 fi

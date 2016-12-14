@@ -11,36 +11,39 @@
 ## someone may want to split these in more packages ?
 ## until then .. disabled by default
 : ${USE_EFONTS="n"}
-## japanese thingy
-: ${USE_PTEX="n"}
 
 pkgname=texlive
-pkgver=20150523
-pkgrel=9
+pkgver=20160523
+pkgextra="b"
+pkgrel=6
 pkgdesc="A complete TeX distribution"
 archs=('i686' 'x86_64')
-depends=('t1lib' 'gd>=2.1.1' 'ncurses>=6.0-3' 'poppler>=0.24.1-2' 'icu4c>=55.1' 'zlib>=1.2.8' 'graphite2' 'zziplib' 'libpaper' 'harfbuzz')
+depends=('t1lib' 'gd>=2.1.1' 'ncurses>=6.0-3' 'poppler>=0.49.0' 'icu4c>=58.1' 'zlib>=1.2.8' 'graphite2' 'zziplib' 'libpaper' 'harfbuzz')
 rodepends=('ghostscript' 'perl' 'texlive-kpathsea' 'texlive-ptexen' 'texlive-lua')
 makedepends=('clisp' 'ffcall' 'x11-protos')
 url='http://tug.org/texlive/'
-source=("ftp://tug.org/historic/systems/texlive/2015/$pkgname-20150521-source.tar.xz" \
-	"ftp://tug.org/historic/systems/texlive/2015/$pkgname-$pkgver-texmf.tar.xz" \
-	"ftp://tug.org/historic/systems/texlive/2015/$pkgname-$pkgver-extra.tar.xz" \
+source=(http://ftp.math.utah.edu/pub/tex/historic/systems/texlive/2016/$pkgname-$pkgver$pkgextra-source.tar.xz \
+	http://ftp.math.utah.edu/pub/tex/historic/systems/texlive/2016/$pkgname-$pkgver$pkgextra-texmf.tar.xz \
+	http://ftp.math.utah.edu/pub/tex/historic/systems/texlive/2016/$pkgname-$pkgver-extra.tar.xz \
+	texmf-do-not-reset-root-home.patch do-not-reset-root-home.patch \
 	texmf.cnf \
 	texmfcnf.lua \
 	09-texlive.conf)
-up2date="Flasttar ftp://tug.org/historic/systems/texlive/2015/ | sed 's/_source//' | sed 's/_texmf//' | sed 's/_extra//'"
+up2date="Flasttar ftp://tug.org/historic/systems/texlive/2016/ | sed 's/_source//' | sed 's/_texmf//' | sed 's/_extra//'"
 groups=('xapps-extra')
-conflicts=('tetex' 'tetex-kpathsea')
-provides=('tetex' 'tetex-kpathsea')
-replaces=('tetex' 'tetex-kpathsea')
-sha1sums=('a32df8d5d6b61f87f7dab907e864fb51b14f4143' \
-          '47780387d4061abaad62f955e0dddd0dbd13a3ef' \
-          'a71947b7d19d9b84a2005e8a41d1e1ff2cc32733' \
+conflicts=('tetex' 'tetex-kpathsea' "$pkgname-ptex")
+provides=("${conflicts[@]}")
+replaces=("${conflicts[@]}")
+
+sha1sums=('bd0d58067b6eb269ef35992434646d5b08d504b4' \
+          '062f593cc31f46bafe3786959efcf75fcffafd82' \
+          'e6759cf3b7520a1815dc4c9c1109235fd25c199d' \
+          '4c633bfd2359d1365273ee187b5d6f92cbdb145b' \
+          '6fcc128ae95c9bc77784ce832945e9b2a086573b' \
           '4fec5aa2a4eb504d96b802bd11376270658f923f' \
           '438b6ea0f2ee6813bed725a24313db1408189f0d' \
           'bf7ba21d45bee78657105a5f2c5e7e24b8614859')
-_F_cd_path="$pkgname-20150521-source"
+_F_cd_path="$pkgname-$pkgver-source"
 Fconfopts+=" \
 	--enable-build-in-source-tree \
 	--disable-native-texlive-build \
@@ -152,15 +155,6 @@ if Fuse $USE_EFONTS; then
         subinstall=("${subinstall[@]}" "$pkgname-pkg.install")
 fi
 
-if Fuse $USE_PTEX; then
-        subpkgs=("${subpkgs[@]}" "$pkgname-ptex")
-        subdescs=("${subdescs[@]}" "A TeX system for publishing in Japanese")
-        subdepends=("${subdepends[@]}" "")
-        subrodepends=("${subrodepends[@]}" "$pkgname=$pkgver")
-        subgroups=("${subgroups[@]}" "xapps-extra")
-        subarchs=("${subarchs[@]}" 'i686 x86_64')
-        subinstall=("${subinstall[@]}" "$pkgname-ptex.install")
-fi
 
 
 build() {
@@ -169,10 +163,12 @@ build() {
 		export CXXFLAGS="${CXXFLAGS} -fPIC"
 	fi
 
-	## disable ptex from format list by default
-	Fsed "^ptex ptex - ptex.ini" "#ptex ptex - ptex.ini" ../$pkgname-$pkgver-texmf/texmf-dist/web2c/fmtutil.cnf
-	Fsed "^eptex eptex" "#eptex eptex" ../$pkgname-$pkgver-texmf/texmf-dist/web2c/fmtutil.cnf
-	Fsed "^platex eptex" "#platex eptex" ../$pkgname-$pkgver-texmf/texmf-dist/web2c/fmtutil.cnf
+	Fcd $pkgname-$pkgver-texmf
+	Fpatch texmf-do-not-reset-root-home.patch
+
+	cd ../$pkgname-$pkgver-source || Fdie
+	Fpatch do-not-reset-root-home.patch
+
 
 	## remove original ls-R from texmf, that fix conflict with previous texlive
 	## mkteslsr 'll restore them
@@ -181,7 +177,9 @@ build() {
 	Fsed "-lXp" "" texk/xdvik/configure
 	Fsed "SELFAUTOPARENT" "TEXMFROOT" texk/tex4htk/t4ht.c
 
-	Fbuild --with-banner-add="/Frugalware Linux"
+	Fconf --with-banner-add="/Frugalware Linux"
+	make || Fdie
+	Fmakeinstall
 
 	## remove useless source files
 	rm -rf $Fsrcdir/$pkgname-$pkgver-texmf/texmf-dist/source || Fdie
@@ -701,7 +699,7 @@ fi
 	## maths related packages
 	for i in 12many amstex boldtensors bosisio ccfonts commath concmath concmath-fonts concrete extarrows extpfeil \
 	faktor ionumbers isomath mathcomp mathdots mattens mhequ multiobjective nath proba shuffle statex2 \
-	stex stmaryrd susy syllogism synproof tablor tensor tex-ewd thmbox turnstile venn yhmath fast-diagram \
+	stmaryrd susy syllogism synproof tablor tensor tex-ewd thmbox turnstile venn yhmath fast-diagram \
 	sansmath tdsfrmath eqnarray libgreek mathalfa mathastext coolthms minifp xint bropd conteq interval \
 	physics skmath venndiagram braids breqn ebproof mafr mfpic4ode backnaur; do
 		listdir=`find usr/share/texmf-dist/ -name $i -type d `
@@ -745,25 +743,6 @@ fi
 		done
 	done
 
-	## Split pTex
-	for i in ptex ptexgeneric uptex uplatex pbibtex ; do
-		listdir=`find usr/share/texmf-dist/ -name $i -type d `
-		for j in  $listdir ; do
-			if Fuse $USE_PTEX; then
-				Fsplit $pkgname-ptex $j
-			else
-				Frm $j
-
-			fi
-		done
-	done
-	if Fuse $USE_PTEX; then
-		Fsplit $pkgname-ptex usr/bin/{ptex,eptex,euptex,uptex,uptftopl,uppltotf,updvitype,upbibtex,pbibtex}
-		Fsplit $pkgname-ptex usr/bin/{makejvf,mendex,pdvitype,ppltotf,ptftopl}
-	else
-		Frm usr/bin/{ptex,eptex,euptex,uptex,uptftopl,uppltotf,updvitype,upbibtex,pbibtex}
-		Frm usr/bin/{makejvf,mendex,pdvitype,ppltotf,ptftopl}
-	fi
 
 	## Split xindy
 	Fmv usr/share/texmf-dist/xindy usr/share/
@@ -775,10 +754,10 @@ fi
 	Fmkdir etc/fonts/conf.avail/
 	Ffile 09-texlive.conf /etc/fonts/conf.avail/09-texlive.conf
 
-	Fsplit texlive-kpathsea	/usr/lib/libkpathsea.so*
-	Fsplit texlive-ptexen	/usr/lib/libptexenc.so*
-	Fsplit texlive-synctex	/usr/lib/libsynctex.so*
-	Fsplit texlive-lua	/usr/lib/libtexlua*
+	Fsplit texlive-kpathsea	/usr/lib/libkpathsea.so\*
+	Fsplit texlive-ptexen	/usr/lib/libptexenc.so\*
+	Fsplit texlive-synctex	/usr/lib/libsynctex.so\*
+	Fsplit texlive-lua	/usr/lib/libtexlua\*
 
 	Fsplit texlive-kpathsea	usr/lib/pkgconfig/kpathsea.pc
 	Fsplit texlive-ptexen	usr/lib/pkgconfig/ptexenc.pc

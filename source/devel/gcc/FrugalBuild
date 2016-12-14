@@ -3,120 +3,96 @@
 # Contributor: James Buren <ryuo@frugalware.org>
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
+
+## TODO: split libcilkrts ? now in gcc package
+## -> https://www.cilkplus.org/
+
 USE_SHARED=${USE_SHARED:-"y"}
-USE_SNAPSHOT=${USE_SNAPSHOT:-"n"}
+USE_BRANCH=${USE_BRANCH:-"y"}
 
 USE_LANGS=${USE_LANGS:-"y"}
 USE_CXX=${USE_CXX:-"$USE_LANGS"}
-if [ "$CARCH" != "arm" ]; then
-	USE_ADA=${USE_ADA:-"$USE_LANGS"}
-	USE_FORTRAN=${USE_FORTRAN:-"$USE_LANGS"}
-	USE_OBJC=${USE_OBJC:-"$USE_LANGS"}
-	USE_GO=${USE_GO:-"$USE_LANGS"}
-else
-	USE_ADA=${USE_ADA:-"n"}
-	USE_FORTRAN=${USE_FORTRAN:-"n"}
-	USE_OBJC=${USE_OBJC:-"n"}
-	USE_GO=${USE_GO:-"n"}
-fi
+USE_FORTRAN=${USE_FORTRAN:-"$USE_LANGS"}
+USE_OBJC=${USE_OBJC:-"$USE_LANGS"}
 
 # Activate required langage
 Fuse $USE_OBJC && USE_CXX="y"
 
 pkgname=gcc
-pkgver=5.3.0
-pkgrel=2
+if Fuse $USE_BRANCH; then
+	## released version is 6.2.0 .. branch is minor+1
+	pkgver=6.2.1
+	gccver=$pkgver
+else
+	pkgver=6.2.0
+	gccver=$pkgver
+fi
+pkgrel=8
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils>=2.25.1-5' 'glibc>=2.22-6' 'libmpc>=1.0.3-2' 'zlib>=1.2.8-2')
-makedepends=('kernel-headers>=4.3')
+depends=('binutils>=2.27-7' 'glibc>=2.24-8' 'libmpc>=1.0.3-6' 'zlib>=1.2.8-10')
+makedepends=('kernel-headers>=4.7' 'lib32-zlib>=1.2.8-10')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
-archs=('i686' 'x86_64' 'arm')
-options=('scriptlet' 'noccache')
-if Fuse $USE_SNAPSHOT; then
-	pkgver=4.5_20101118
-	gccver=4.5.2
-	pkgrel=1
-	up2date="Flasttar ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-${pkgver/%_*/}/"
-	source=(ftp://gcc.gnu.org/pub/gcc/snapshots/${pkgver/_/-}/gcc-${pkgver/_/-}.tar.bz2)
-	signatures=('')
-	_F_cd_path="$pkgname-${pkgver/_/-}"
+archs=('x86_64')
+options+=('scriptlet' 'noccache' 'static' 'nostrip')
+if Fuse $USE_BRANCH; then
+	_pkgver=20161020
+	## well something
+	up2date="Flasttar ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-${pkgver/%.*/}/ | sed 's/6_/${pkgver}_/g' | sed 's/_${_pkgver}//g'"
+	source=(ftp://gcc.gnu.org/pub/gcc/snapshots/${pkgver/%.*}-${_pkgver}/gcc-${pkgver/%.*}-${_pkgver}.tar.bz2)
+	sha1sums=('96e31c8f5b9a982efcfe5f8e348bc5b7e625ba01')
+	_F_cd_path="gcc-${pkgver/%.*}-${_pkgver}"
 else
-	gccver=$pkgver
+
 	up2date="lynx -dump http://ftp.gnu.org/pub/gnu/gcc/|grep gcc-.*/$|sed -n 's|.*gcc-\(.*\)/|\1|;$ p'"
 	source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2)
-	sha1sums=('0612270b103941da08376df4d0ef4e5662a2e9eb')
+	sha1sums=('ce93852ee66b20f56ba005030fbd2b4ac2c6492b')
 fi
+
+## nothing should use that however ..
+replaces=('lib32-gcc')
+provides=('lib32-gcc')
 
 if Fuse $USE_SHARED; then
 	subpkgs=('libgcc' 'libssp' 'libgomp' 'libatomic')
 	subdescs=('GCC shared support library' \
 	'SSP libraries from GCC' 'GNU OpenMP runtime library' 'Atomic libraries from GCC')
 	subrodepends=('glibc' 'glibc' 'glibc' 'glibc')
-	subbackup=('' '' '' '')
 	subgroups=('base chroot-core' 'lib' 'lib' 'lib')
-	subreplaces=('' '' '' '')
-	subconflicts=('' '' '' '')
+	subprovides=('lib32-libgcc' 'lib32-libssp' 'lib32-libgomp' 'lib32-libatomic')
+	subreplaces=('lib32-libgcc' 'lib32-libssp' 'lib32-libgomp' 'lib32-libatomic')
 fi
 if Fuse $USE_CXX; then
-	## https://gcc.gnu.org/gcc-5/changes.html#libstdcxx
-	#cppdocver=20140403
-	#source=("${source[@]}" ftp://gcc.gnu.org/pub/gcc/libstdc++/doxygen/libstdc++-api.$cppdocver.man.tar.bz2)
-	#sha1sums=("${sha1sums[@]}" 'ece96007d8752c86ce027b7a19f13b58c6709e7a')
 	subpkgs=("${subpkgs[@]}" 'libstdc++' 'gcc-g++')
 	subdescs=("${subdescs[@]}" 'GNU Standard C++ Library' 'C++ suport for GCC')
 	subrodepends=("${subrodepends[@]}" 'libgcc' 'libstdc++ gcc')
-	subbackup=("${subbackup[@]}" '' '')
 	subgroups=("${subgroups[@]}" 'base chroot-core' 'devel devel-core')
-	subreplaces=("${subreplaces[@]}" '' '')
-	subconflicts=("${subconflicts[@]}" '' '')
+	subprovides=("${subprovides[@]}" 'lib32-libstdc++' 'lib32-gcc-g++')
+	subreplaces=("${subreplaces[@]}" 'lib32-libstdc++' 'lib32-gcc-g++')
 fi
 if Fuse $USE_OBJC; then
 	subpkgs=("${subpkgs[@]}" 'libobjc' 'gcc-objc' 'gcc-objc++')
 	subdescs=("${subdescs[@]}" 'Objective-C runtime' 'Objective-C support for GCC' 'Objective-C++ support for GCC')
 	subrodepends=("${subrodepends[@]}" 'libgcc' 'libobjc gcc' 'gcc-objc gcc-g++')
-	subbackup=("${subbackup[@]}" '' '' '')
 	subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra' 'devel-extra')
-	subreplaces=("${subreplaces[@]}" 'objc objc-bootstrap' '' '')
-	subconflicts=("${subconflicts[@]}" '' '' '')
+	subprovides=("${subprovides[@]}" 'lib32-libobjc' 'lib32-gcc-objc' 'lib32-gcc-objc++')
+	subreplaces=("${subreplaces[@]}" 'lib32-libobjc objc objc-bootstrap' 'lib32-gcc-objc' 'lib32-gcc-objc++')
 fi
-if Fuse $USE_GO; then
-	subpkgs=("${subpkgs[@]}" 'libgo' 'gcc-go')
-	subdescs=("${subdescs[@]}" 'Go runtime' 'Go support for GCC')
-	subrodepends=("${subrodepends[@]}" 'libgcc' 'libgo gcc')
-	subbackup=("${subbackup[@]}" '' '')
-	subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra')
-	subreplaces=("${subreplaces[@]}" '' '')
-	subconflicts=("${subconflicts[@]}" '' 'go')
-fi
-if Fuse $USE_ADA; then
-	## see https://gcc.gnu.org/gcc-5/changes.html
-	islver=0.14.1
-	source=("${source[@]}" http://isl.gforge.inria.fr/isl-$islver.tar.xz)
-	sha1sums=("${sha1sums[@]}" 'f3b8280849b09eb3a30138909085292eb481b1b1')
-	subpkgs=("${subpkgs[@]}" 'libgnat' 'gcc-gnat')
-	subdescs=("${subdescs[@]}" 'Ada 95 runtime shared libraries' 'Ada 95 support for GCC')
-	subrodepends=("${subrodepends[@]}" 'libgcc' 'libgnat gcc')
-	subbackup=("${subbackup[@]}" '' '')
-	subgroups=("${subgroups[@]}" 'lib-extra' 'devel-extra')
-	subreplaces=("${subreplaces[@]}" '' '')
-	subconflicts=("${subconflicts[@]}" '' '')
-	makedepends=("${makedepends[@]}" 'gcc-gnat')
-fi
+
 if Fuse $USE_FORTRAN; then
 	subpkgs=("${subpkgs[@]}" 'libquadmath' 'libgfortran' 'gcc-gfortran')
 	subdescs=("${subdescs[@]}" 'Quadruple Precision Math library from GCC' 'Fortran 95 runtime' 'Fortran 95 support for GCC')
 	subrodepends=("${subrodepends[@]}" 'glibc' 'libgcc libquadmath' 'libgfortran gcc')
-	subbackup=("${subbackup[@]}" '' '' '')
 	subgroups=("${subgroups[@]}" 'lib' 'lib' 'devel-extra')
-	subreplaces=("${subreplaces[@]}" '' '' '')
-	subconflicts=("${subconflicts[@]}" '' '' '')
+	subprovides=("${subprovides[@]}" 'lib32-libquadmath' 'lib32-libgfortran' 'lib32-gcc-gfortran')
+	subreplaces=("${subreplaces[@]}" 'lib32-libquadmath' 'lib32-libgfortran' 'lib32-gcc-gfortran')
 fi
 i=0
 while [ $i -lt ${#subpkgs[@]} ]
 do
-	subarchs=("${subarchs[@]}" "i686 x86_64 arm")
+	subarchs=("${subarchs[@]}" "x86_64")
+	suboptions=("${suboptions[@]}" "nostrip")
 	i=$(($i+1))
 done
 
@@ -129,16 +105,7 @@ build()
 	# no fixincludes, thanks
 	Fsed '\./fixinc\.sh' '-c true' gcc/Makefile.in
 
-	if Fuse $USE_ADA; then
-		if [ ! -d "../isl-$islver" ]; then
-			Fmessage "../isl-$islver not found!"
-			Fdie
-			fi
-		ln -sf "../isl-$islver" "isl" || Fdie
-	fi
-
 	Fpatchall
-	## well reconf / autoreconf is br0ken in gcc .. so do it that way heh
 
 	mkdir -p ../$pkgname-build || Fdie
 	cd ../$pkgname-build || Fdie
@@ -146,7 +113,7 @@ build()
 	langlist="c"
 	if Fuse $USE_CXX; then
 		langlist="$langlist,c++"
-		## libstdcxx-pch is really a waste of space , nothing need nor uses that
+
 		Fconfopts+=" --enable-__cxa_atexit \
 			--enable-libstdcxx-allocator=new \
 			--enable-libstdcxx-dual-abi \
@@ -157,11 +124,6 @@ build()
 
 	Fuse $USE_OBJC && langlist="$langlist,objc,obj-c++"
 
-	if Fuse $USE_ADA; then
-		langlist="$langlist,ada"
-		Fconfopts+=" --with-isl"
-	fi
-
 	if Fuse $USE_FORTRAN; then
 		langlist="$langlist,fortran"
 		Fconfopts+=" --enable-libquadmath --enable-libquadmath-support"
@@ -169,48 +131,37 @@ build()
 		Fconfopts+=" --disable-libquadmath --disable-libquadmath-support"
 	fi
 
-	Fuse $USE_GO && langlist="$langlist,go"
-
-	if [ "$CARCH" == "arm" ]; then
-		Fconfopts+=" --enable-softfloat \
-			--with-float=soft \
-			--disable-bootstrap \
-			--enable-target-optspace"
-	fi
-
 	_F_conf_configure=../$_F_cd_path/configure
-	CC="$FCC gcc" CFLAGS="$CFLAGS" CXXFLAGS="$CFLAGS" XCFLAGS="$CFLAGS" \
-	TCFLAGS="$CFLAGS"
+	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" XCFLAGS="$CFLAGS" TCFLAGS="$CFLAGS"
 	Fconf \
 		--enable-languages=$langlist \
+		--enable-multilib \
 		--enable-lto \
+		--disable-libgo \
 		--enable-shared \
+		--disable-libunwind-exceptions \
+		--verbose \
 		--enable-threads=posix \
 		--with-system-zlib \
 		--libdir=/usr/lib \
-		--disable-multilib \
+		--libexecdir=/usr/lib \
 		--disable-werror \
 		--with-bugurl="http://bugs.frugalware.org/" \
 		--with-pkgversion="Frugalware Linux" \
 		--enable-plugin \
-		--enable-checking=release
+		--enable-checking=release \
+		--host=$CHOST \
+		--build=$CHOST \
+		--target=$CHOST
 
 	if Fuse $USE_SHARED; then
-		Fexec make STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" || Fdie
+		Fexec make  STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" || Fdie
 	else
 		Fexec make all-gcc || Fdie
 	fi
 
 	if Fuse $USE_SHARED; then
-		if [ "$CARCH" == "i686" ]; then
-			## Make-lang.in:789: recipe for target 'install-gnatlib' failed
-			## Make-lang.in:758: recipe for target 'ada.install-common' failed
-			unset MAKEFLAGS
-			export MAKEFLAGS="-j1" ## just in case..
-			Fexec make -j1  DESTDIR=$Fdestdir install || Fdie
-		else
-			Fmakeinstall
-		fi
+		Fmakeinstall
 	else
 		Fexec make install-gcc DESTDIR=$Fdestdir || Fdie
 	fi
@@ -219,6 +170,7 @@ build()
                mv -f $Fdestdir/usr/lib64/* $Fdestdir/usr/lib/ || Fdie
                rm -rf $Fdestdir/usr/lib64 || Fdie
        fi
+
 
 	# fix some junk in la files
 	for lafile in `find $Fdestdir -name "*.la"`
@@ -229,82 +181,55 @@ build()
 	# symlinks for backward compatibility
 	Fln gcc /usr/bin/cc
 	Fmkdir /lib
-	Fln ../usr/bin/cpp /lib/cpp
+	Fln /usr/bin/cpp /lib/cpp
 
 	gcchost="$CHOST"
-	if [[ "$CARCH" == "arm" && ! "$CHOST" =~ -gnueabi$ ]]; then
-		gcchost="$CHOST-gnueabi"
-	fi
 
 	# libffi is internal don't expose it
 	Frm usr/lib/libffi*
 	Frm usr/lib/gcc/$gcchost/$gccver/include/ffi*
 	Frm $Fmandir/man3/ffi\*
 
-	if Fuse $USE_CXX; then
-		Fln g++ /usr/bin/c++
-	fi
 
-	Fuse $USE_FORTRAN && Fln gfortran /usr/bin/f95
-
-	if Fuse $USE_ADA; then
-		Fln gcc /usr/bin/gnatgcc
-
-		# move libgnat to the right location
-		newgccver=${gccver%.*.*}
-		Fmv usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl-${newgccver}.so /usr/lib
-		Fmv usr/lib/gcc/$gcchost/$gccver/adalib/libgnat-${newgccver}.so /usr/lib
-		Frm usr/lib/gcc/$gcchost/$gccver/adalib/lib{gnarl,gnat}.so
-		Fln libgnarl-${newgccver}.so /usr/lib/libgnarl.so
-		Fln libgnat-${newgccver}.so /usr/lib/libgnat.so
-		Fln ../../../../libgnarl-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl.so
-		Fln ../../../../libgnarl-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnarl-${newgccver}.so
-		Fln ../../../../libgnat-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnat.so
-		Fln ../../../../libgnat-${newgccver}.so /usr/lib/gcc/$gcchost/$gccver/adalib/libgnat-${newgccver}.so
-	fi
-
-	## old for gcc5.3++ , disabled for now
-	# documentation
-	#if Fuse $USE_CXX; then
-	#	Fmkdir /usr/share/man/man3
-	#	#cp $Fsrcdir/libstdc++-api.${cppdocver}.man/man3/* $Fdestdir/usr/share/man/man3/ || Fdie
-	#fi
-
-	# split the pkg
-	if Fuse $USE_ADA; then
-		# libgnat
-		Fsplit libgnat usr/lib/libgnat*.so
-		Fsplit libgnat usr/lib/libgnarl*.so
-		# gcc-gnat
-		Fsplit gcc-gnat usr/bin/gnat*
-		Fsplit gcc-gnat usr/share/info/gnat*
-		Fsplit gcc-gnat usr/lib/gcc/$gcchost/$gccver/adainclude
-		Fsplit gcc-gnat usr/lib/gcc/$gcchost/$gccver/adalib
-		Fsplit gcc-gnat usr/libexec/gcc/$gcchost/$gccver/gnat1
-	fi
 	if Fuse $USE_FORTRAN; then
+		## 32bit
+		Fsplit libquadmath usr/lib32/libquadmath.*
+		Fsplit libgfortran usr/lib32/libgfortran.*
+
+		Fln gfortran /usr/bin/f95
 		# libquadmath
 		Fsplit libquadmath usr/lib/libquadmath.*
 		Fsplit libquadmath usr/share/info/libquadmath.info
 		# libgfortran
-		Fsplit libgfortran usr/lib/gcc/$gcchost/$gccver/libgfortranbegin.*
+		#Fsplit libgfortran usr/lib/gcc/$gcchost/$gccver/libgfortranbegin.*
 		Fsplit libgfortran usr/lib/libgfortran.*
 		# gcc-gfortran
 		Fsplit gcc-gfortran usr/bin/{gfortran,$gcchost-gfortran,f95}
 		Fsplit gcc-gfortran usr/share/man/man1/gfortran.1*
 		Fsplit gcc-gfortran usr/share/info/gfortran*
-		Fsplit gcc-gfortran usr/libexec/gcc/$gcchost/$gccver/f951
+		Fsplit gcc-gfortran usr/lib/gcc/$gcchost/$gccver/f951
 	fi
 	if Fuse $USE_OBJC; then
+
+		## 32bit
+		Fsplit libobjc usr/lib32/libobjc*
 		# libobjc
 		Fsplit libobjc usr/lib/gcc/$gcchost/$gccver/include/objc/
 		Fsplit libobjc usr/lib/libobjc*
 		# gcc-objc
-		Fsplit gcc-objc usr/libexec/gcc/$gcchost/$gccver/cc1obj
+		Fsplit gcc-objc usr/lib/gcc/$gcchost/$gccver/cc1obj
 		# gcc-objc++
-		Fsplit gcc-objc++ usr/libexec/gcc/$gcchost/$gccver/cc1objplus
+		Fsplit gcc-objc++ usr/lib/gcc/$gcchost/$gccver/cc1objplus
 	fi
 	if Fuse $USE_CXX; then
+
+		## 32bit
+		Fmv usr/lib32/libstdc++.*-gdb.py usr/share/gcc-$gccver/python/libstdcxx
+		Fsplit libstdc++ usr/lib32/libstdc++.*
+		Fsplit libstdc++ usr/lib32/libstdc++fs.*
+		Fsplit gcc-g++ usr/lib32/libsupc++.*
+
+		Fln g++ /usr/bin/c++
 		# libstdc++
 		Fsplit libstdc++ usr/include/c++/
 		Fmv usr/lib/libstdc++.*-gdb.py usr/share/gcc-$gccver/python/libstdcxx
@@ -314,13 +239,19 @@ build()
 		Fsplit libstdc++ usr/share/locale/{de,fr}/LC_MESSAGES/libstdc++.mo
 		#gcc-g++
 		Fsplit gcc-g++ usr/share/gcc-$gccver/
-		#Fsplit gcc-g++ usr/share/man/man3/
 		Fsplit gcc-g++ usr/bin/{,$gcchost-}{c++,g++}
 		Fsplit gcc-g++ usr/lib/libsupc++.*
-		Fsplit gcc-g++ usr/libexec/gcc/$gcchost/$gccver/cc1plus
+		Fsplit gcc-g++ usr/lib/gcc/$gcchost/$gccver/cc1plus
 		Fsplit gcc-g++ usr/share/man/man1/g++.1
 	fi
 	if Fuse $USE_SHARED; then
+
+		## 32bit
+		Fsplit libgcc usr/lib32/libgcc_*
+		Fsplit libssp usr/lib32/libssp*
+		Fsplit libgomp usr/lib32/libgomp.*
+		Fsplit libatomic usr/lib32/libatomic.*
+
 		# libgcc
 		Fsplit libgcc usr/lib/libgcc_*
 		# libssp
@@ -333,20 +264,16 @@ build()
 		# libatomic
 		Fsplit libatomic usr/lib/libatomic.*
 	fi
-	if Fuse $USE_GO; then
-		# libgo
-		Fsplit libgo usr/lib/go/
-		Fsplit libgo usr/lib/libgo*
-		Fsplit libgo usr/lib/libnetgo.*
-		# gcc-go
-		Fsplit gcc-go usr/bin/go
-		Fsplit gcc-go usr/bin/gofmt
-		Fsplit gcc-go usr/bin/{,$gcchost-}gccgo
-		Fsplit gcc-go usr/libexec/gcc/$gcchost/$gccver/go1
-		Fsplit gcc-go usr/libexec/gcc/$gcchost/$gccver/cgo
-		Fsplit gcc-go usr/share/man/man1/*go*.1
-		Fsplit gcc-go usr/share/info/gccgo.info
-	fi
+
+
+	## maybe llvm32 will need these too , not-so-sure :)
+	for i in /usr/lib/gcc/$gcchost/$gccver/32/{crtbegin.o,crtend.o,libgcc.a}; do
+		Fln $i /usr/lib32/$(basename $i)
+	done
+
+	cat stage1-gcc/specs > $Fdestdir/usr/lib/gcc/$gcchost/$gccver/32/specs || Fdie
+	cat stage1-gcc/specs > $Fdestdir/usr/lib/gcc/$gcchost/$gccver/specs || Fdie
+
 	# llvm needs these.
 	for i in /usr/lib/gcc/$gcchost/$gccver/{crtbegin.o,crtend.o,libgcc.a}; do
 		Fln $i /usr/lib/$(basename $i)

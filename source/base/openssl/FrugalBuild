@@ -4,46 +4,98 @@
 
 pkgname=openssl
 pkgver=1.0.2
-pkgextraver=g
-pkgrel=6
+pkgextraver=j
+pkgrel=13
 pkgdesc="The Open Source toolkit for Secure Sockets Layer and Transport Layer Security"
 url="http://www.openssl.org/source/"
 groups=('base' 'chroot-core')
-archs=('i686' 'x86_64' 'arm')
-depends=('glibc>=2.22-7')
-makedepends=('util-linux>=2.27.1-3')
+archs=('x86_64')
+depends=('glibc>=2.24-4')
+makedepends=('util-linux>=2.28.2-2')
 _F_archive_grepv="beta"
 ## check for extra pkgver when you bump this
-up2date="lynx -dump -listonly ftp://ftp.openssl.org/source/ | egrep -v '(beta|pre)' | Flasttar"
+_F_archive_grepv="1.1.*"
+up2date="lynx -dump -listonly ftp://ftp.openssl.org/source/ | egrep -v '(beta|pre|1.1)' | Flasttar"
 source=($url$pkgname-$pkgver$pkgextraver.tar.gz \
-	http://caunter.ca/ssl.certs.shar \
-	man_symlinks.diff)
-signatures=("$source.asc" '' '')
+	http://caunter.ca/ssl.certs.shar)
+signatures=("$source.asc" '')
 
+_F_conf_configure="./Configure"
+_F_cross32_simple_auto=yes
+Finclude cross32
+makedepends+=('lib32-util-linux')
+
+options+=('static')
 
 build()
 {
 	unset MAKEFLAGS
-	# optimize the build
-	Fsed "-O3" "$CFLAGS" Configure
-	./config $Fconfopts --prefix=/usr --openssldir=/etc/ssl shared || Fdie
+
+	Fcd
+	## no thx
+	Fsed '-O3' '' Configure
+	# 32-Bit build
+	Fcross32_prepare
+	Fcross32_copy_source
+
+	Fconf   --prefix=/usr \
+		--openssldir=/etc/ssl \
+		--libdir=lib32 \
+		shared \
+		linux-elf \
+		"-Wa,--noexecstack ${CPPFLAGS} ${CFLAGS} ${LDFLAGS}"
+
 
 	Fpatchall
-	make || Fdie
-	make INSTALL_PREFIX=$Fdestdir MANDIR=/usr/share/man install
-	[ "$CARCH" == "x86_64" ] && Fmv /usr/lib{64,}
+	Fexec make || Fdie
+	Fexec make INSTALL_PREFIX=$Fdestdir MANDIR=/usr/share/man MANSUFFIX=openssl install || Fdie
 
-	Frm usr/lib/*.a
+	## fix up
+	Fmkdir usr/$CHOST/{include,bin}
+	Fmv usr/include/* usr/$CHOST/include/
+	Fmv usr/bin/* usr/$CHOST/bin/
+	Frm etc
+	Frm usr/{bin,include,share}
+
+	local i
+	for i in libcrypto libssl openssl
+	do
+		Fsed "includedir=.*" "includedir=/usr/$CHOST/include" $Fdestdir/usr/lib32/pkgconfig/${i}.pc
+	done
+
+	Fln libssl.so.1.0.0 /usr/lib32/libssl.so.1  # look out!!
+	Fln libcrypto.so.1.0.0 /usr/lib32/libcrypto.so.1  # look out!!
+
+	Fsplit "${subpkgs[0]}" /\*
+
+	Fcross32_copy_back_source
+	Fcross32_reset_and_fix
+
+	## 64bit
+	Fcd
+	Fsed '-O3' '' Configure
+	Fconf   --prefix=/usr \
+		--openssldir=/etc/ssl \
+		--libdir=lib \
+		shared \
+		enable-ec_nistp_64_gcc_128 \
+		linux-x86_64 \
+		"-Wa,--noexecstack ${CPPFLAGS} ${CFLAGS} ${LDFLAGS}"
+
+        Fpatchall
+        Fexec make || Fdie
+        Fexec make INSTALL_PREFIX=$Fdestdir MANDIR=/usr/share/man MANSUFFIX=openssl install || Fdie
+
+	## DON'T pacman static need these
+	#Frm usr/lib/*.a
 	cd ${Fdestdir}/etc/ssl/certs || Fdie
 	sh ${Fsrcdir}/ssl.certs.shar || Fdie
+
 
 	Fln libssl.so.1.0.0 /usr/lib/libssl.so.1  # look out!!
 	Fln libcrypto.so.1.0.0 /usr/lib/libcrypto.so.1  # look out!!
 
-	(cd $Fdestdir/usr/share/man/man1 && rename '' openssl_ *)
-	(cd $Fdestdir/usr/share/man/man3 && rename '' openssl_ *)
-	(cd $Fdestdir/usr/share/man/man5 && rename '' openssl_ *)
-	(cd $Fdestdir/usr/share/man/man7 && rename '' openssl_ *)
+
 }
 
 # optimization OK

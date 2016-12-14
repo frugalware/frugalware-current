@@ -46,7 +46,7 @@ url="http://ftp.vim.org/pub/vim/unstable/runtime/spell/"
 depends=()
 rodepends=('vim>=7.0')
 groups=('locale-extra')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 up2date="date --date \$(lynx -dump http://ftp.vim.org/pub/vim/unstable/runtime/spell/|grep '$_F_vim_lang\..*\.spl '|sed 's/.* \([^- ]*-[^- ]*-[^- ]*\) .*/\1/;q') +%Y%m%d"
 source=(http://ftp.vim.org/pub/vim/unstable/runtime/spell/README_$_F_vim_lang.txt)
 for i in ${_F_vim_encodings[@]}

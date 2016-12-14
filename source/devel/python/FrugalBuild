@@ -4,59 +4,64 @@
 USE_TK_GUI=${USE_TK_GUI:-"y"}
 
 pkgname=python
-pkgver=2.7.11
+pkgver=2.7.12
 shortpkgver=2.7 # 2.3 if $pkgver=2.3.4
-pkgrel=5
+pkgrel=8
 pkgdesc="A high-level scripting language"
 url="https://www.python.org"
-depends=('glibc>=2.22-7' 'db>=6.1.26' 'bzip2>=1.0.5-3' 'gdbm>=1.11-2' \
-	'openssl>=1.0.2-3' 'glib2>=2.46.2-2' 'ncurses>=6.0-5' 'libffi>=3.2.1' 'expat>=2.1.0-3')
-makedepends=('sqlite3>=3.9.2-3' 'elinks')
+depends=('glibc>=2.24-4' 'db>=6.2.23' 'bzip2>=1.0.6-6' 'gdbm>=1.12-2' \
+	'openssl>=1.0.2-8' 'glib2>=2.49.7-2' 'ncurses>=6.0-12' 'libffi>=3.2.1-2' 'expat>=2.1.0-6')
+makedepends+=('sqlite3>=3.14.2-2' 'elinks' 'gcc>=6.2.1-5')
 groups=('devel' 'devel-core')
-archs=('i686' 'x86_64' 'arm')
+archs=("x86_64")
 options+=('scriptlet' 'static')
 _F_archive_name="Python"
 _F_archive_ext=".tgz"
 up2date="elinks -dump $url/download/|grep [^.]2.[0-9]|Flasttar"
 source=(http://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz)
-sha1sums=('c3b8bbe3f084c4d4ea13ffb03d75a5e22f9756ff')
+sha1sums=('05360b8ade117b35e266b2004a7f1f11250c6dcd')
 
+replaces=('python-ctypes')
+provides=('python-ctypes')
+
+subpkgs=("$pkgname-tools")
+subdescs=("Optional development tools to extending Python")
+subgroups=('devel-extra')
+subdepends=('')
+subrodepends=("python=$pkgver-$pkgrel")
+subarchs=('x86_64')
 
 if Fuse $USE_TK_GUI; then
 	makedepends+=('x11-protos')
 	subpkgs+=("$pkgname-tk")
 	subdescs+=("Python support for tk/tcl")
 	subgroups+=('xlib-extra')
-	subdepends+=('tk>=8.6.5')
+	subdepends+=('tk>=8.6.6-2')
 	subrodepends+=("python=$pkgver-$pkgrel")
-	subarchs=('i686 x86_64 arm')
+	subarchs=("x86_64")
 fi
-
-subpkgs+=("$pkgname-tools")
-subdescs+=("Optional development tools to extending Python")
-subgroups+=('devel-extra')
-subdepends+=('')
-subrodepends+=("python=$pkgver-$pkgrel")
-subarchs+=('i686 x86_64 arm')
 
 subpkgs+=("$pkgname-sqlite3")
 subdescs+=("Python support for sqlite3")
 subgroups+=('devel-extra')
-subdepends+=('sqlite3>=3.9.2-3')
+subdepends+=('sqlite3>=3.14.2-2')
 subrodepends+=("python=$pkgver-$pkgrel")
-subarchs+=('i686 x86_64 arm')
+subarchs+=('x86_64')
 
-[ "$CARCH" == "x86_64" ] && export CFLAGS="$CFLAGS -fPIC"
+export CFLAGS+=" -fPIC"
 
 build()
 {
 	Fcd Python-$pkgver
 	Fpatchall
+
 	#sem_open is broken into chroot so force it
 	Fsed "ac_cv_posix_semaphores_enabled=no" "ac_cv_posix_semaphores_enabled=yes" configure
+
 	# if this is no longer necessary, don't remove it, just comment, it's
 	# required regularly
 	Fsed 'max_db_ver = (5, 3)' 'max_db_ver = (6, 2)' setup.py
+
 	Fconf \
 		--prefix=/usr \
 		--with-threads \
@@ -65,9 +70,13 @@ build()
 		--with-system-expat \
 		--with-system-ffi \
 		--with-signal-module
+
 	Fsed 'mozilla-firefox' 'firefox' Lib/webbrowser.py
-	make || return 1
-	Fmakeinstall || return 1
+	Fsed '/usr/local' '/usr' Lib/cgi.py
+	Fsed '-O3' '' configure
+
+	make || Fdie
+	Fmakeinstall
 	# subpkg python-tools
 	for f in Tools/* ; do
 		if [ -d $f ] ; then

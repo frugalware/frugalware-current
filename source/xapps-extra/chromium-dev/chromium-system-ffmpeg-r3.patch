@@ -1,0 +1,113 @@
+--- a/media/ffmpeg/ffmpeg_common.h	2015-11-27 12:01:56.155462264 +0000
++++ b/media/ffmpeg/ffmpeg_common.h	2015-11-27 12:03:03.348846300 +0000
+@@ -19,10 +19,6 @@
+ 
+ // Include FFmpeg header files.
+ extern "C" {
+-// Disable deprecated features which result in spammy compile warnings.  This
+-// list of defines must mirror those in the 'defines' section of BUILD.gn file &
+-// ffmpeg.gyp file or the headers below will generate different structures!
+-#define FF_API_CONVERGENCE_DURATION 0
+ // Upstream libavcodec/utils.c still uses the deprecated
+ // av_dup_packet(), causing deprecation warnings.
+ // The normal fix for such things is to disable the feature as below,
+@@ -36,7 +32,6 @@
+ MSVC_PUSH_DISABLE_WARNING(4244);
+ #include <libavcodec/avcodec.h>
+ #include <libavformat/avformat.h>
+-#include <libavformat/internal.h>
+ #include <libavformat/avio.h>
+ #include <libavutil/avutil.h>
+ #include <libavutil/imgutils.h>
+--- a/media/filters/ffmpeg_demuxer.cc.orig	2016-08-01 10:52:01.528177808 +0000
++++ b/media/filters/ffmpeg_demuxer.cc	2016-08-01 10:52:27.160707694 +0000
+@@ -1150,24 +1150,6 @@
+   // If no estimate is found, the stream entry will be kInfiniteDuration.
+   std::vector<base::TimeDelta> start_time_estimates(format_context->nb_streams,
+                                                     kInfiniteDuration);
+-  const AVFormatInternal* internal = format_context->internal;
+-  if (internal && internal->packet_buffer &&
+-      format_context->start_time != static_cast<int64_t>(AV_NOPTS_VALUE)) {
+-    struct AVPacketList* packet_buffer = internal->packet_buffer;
+-    while (packet_buffer != internal->packet_buffer_end) {
+-      DCHECK_LT(static_cast<size_t>(packet_buffer->pkt.stream_index),
+-                start_time_estimates.size());
+-      const AVStream* stream =
+-          format_context->streams[packet_buffer->pkt.stream_index];
+-      if (packet_buffer->pkt.pts != static_cast<int64_t>(AV_NOPTS_VALUE)) {
+-        const base::TimeDelta packet_pts =
+-            ConvertFromTimeBase(stream->time_base, packet_buffer->pkt.pts);
+-        if (packet_pts < start_time_estimates[stream->index])
+-          start_time_estimates[stream->index] = packet_pts;
+-      }
+-      packet_buffer = packet_buffer->next;
+-    }
+-  }
+ 
+   std::unique_ptr<MediaTracks> media_tracks(new MediaTracks());
+   AVStream* audio_stream = NULL;
+--- chromium-54.0.2832.2/media/ffmpeg/ffmpeg_common.cc	2016-08-20 01:03:36.000000000 +0300
++++ chromium-54.0.2832.2.new/media/ffmpeg/ffmpeg_common.cc	2016-08-20 16:38:46.231221509 +0300
+@@ -761,62 +761,4 @@
+   return hash;
+ }
+ 
+-#define TEST_PRIMARY(P)                                                 \
+-  static_assert(                                                        \
+-      static_cast<int>(gfx::ColorSpace::PrimaryID::P) == AVCOL_PRI_##P, \
+-      "gfx::ColorSpace::PrimaryID::" #P " does not match AVCOL_PRI_" #P);
+-
+-#define TEST_TRANSFER(T)                                                 \
+-  static_assert(                                                         \
+-      static_cast<int>(gfx::ColorSpace::TransferID::T) == AVCOL_TRC_##T, \
+-      "gfx::ColorSpace::TransferID::" #T " does not match AVCOL_TRC_" #T);
+-
+-#define TEST_COLORSPACE(C)                                             \
+-  static_assert(                                                       \
+-      static_cast<int>(gfx::ColorSpace::MatrixID::C) == AVCOL_SPC_##C, \
+-      "gfx::ColorSpace::MatrixID::" #C " does not match AVCOL_SPC_" #C);
+-
+-TEST_PRIMARY(RESERVED0);
+-TEST_PRIMARY(BT709);
+-TEST_PRIMARY(UNSPECIFIED);
+-TEST_PRIMARY(RESERVED);
+-TEST_PRIMARY(BT470M);
+-TEST_PRIMARY(BT470BG);
+-TEST_PRIMARY(SMPTE170M);
+-TEST_PRIMARY(SMPTE240M);
+-TEST_PRIMARY(FILM);
+-TEST_PRIMARY(BT2020);
+-TEST_PRIMARY(SMPTEST428_1);
+-
+-TEST_TRANSFER(RESERVED0);
+-TEST_TRANSFER(BT709);
+-TEST_TRANSFER(UNSPECIFIED);
+-TEST_TRANSFER(RESERVED);
+-TEST_TRANSFER(GAMMA22);
+-TEST_TRANSFER(GAMMA28);
+-TEST_TRANSFER(SMPTE170M);
+-TEST_TRANSFER(SMPTE240M);
+-TEST_TRANSFER(LINEAR);
+-TEST_TRANSFER(LOG);
+-TEST_TRANSFER(LOG_SQRT);
+-TEST_TRANSFER(IEC61966_2_4);
+-TEST_TRANSFER(BT1361_ECG);
+-TEST_TRANSFER(IEC61966_2_1);
+-TEST_TRANSFER(BT2020_10);
+-TEST_TRANSFER(BT2020_12);
+-TEST_TRANSFER(SMPTEST2084);
+-TEST_TRANSFER(SMPTEST428_1);
+-
+-TEST_COLORSPACE(RGB);
+-TEST_COLORSPACE(BT709);
+-TEST_COLORSPACE(UNSPECIFIED);
+-TEST_COLORSPACE(RESERVED);
+-TEST_COLORSPACE(FCC);
+-TEST_COLORSPACE(BT470BG);
+-TEST_COLORSPACE(SMPTE170M);
+-TEST_COLORSPACE(SMPTE240M);
+-TEST_COLORSPACE(YCOCG);
+-TEST_COLORSPACE(BT2020_NCL);
+-TEST_COLORSPACE(BT2020_CL);
+-
+ }  // namespace media

@@ -20,7 +20,7 @@
 # depends=() # This time it's _really_ empty ;-)
 # makedepends=('pth') # it must be compiled with pth for gpg-agent
 # groups=('lib')
-# archs=('i686' 'x86_64')
+# archs=('x86_64')
 # up2date="lynx -dump http://www.gnupg.org/\(en\)/download/index.html |grep libassuan.*tar |sed -n -e 's/.*n-\(.*\)\.t.*/\1/;s/-/_/;1 p'"
 # source=(http://gd.tuwien.ac.at/privacy/gnupg/libassuan/libassuan-$pkgver.tar.bz2)
 # Finclude texinfo

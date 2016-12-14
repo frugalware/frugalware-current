@@ -4,40 +4,67 @@
 
 pkgname=bzip2
 pkgver=1.0.6
-pkgrel=4
+pkgrel=12
 pkgdesc="A block-sorting file compressor"
 url="http://www.bzip.org/"
-depends=('glibc>=2.22-7' 'bash>=4.3_042-6')
+depends=('glibc>=2.24-4' 'bash>=4.3_042-6')
 groups=('base' 'chroot-core')
-archs=('i686' 'x86_64' 'arm')
+archs=('x86_64')
 up2date="lynx -dump $url|grep current|sed 's/.*s \(.*\), .*/\1/'"
 source=(http://www.bzip.org/$pkgver/$pkgname-$pkgver.tar.gz \
-	$pkgname-1.0.4-cflags.patch \
+	makefile.patch \
 	$pkgname-1.0.2-progress.patch)
 sha1sums=('3f89f861209ce81a6bab1fd1998c0ef311712002' \
-          'ec378406d1451f8681163fdabe0c63c282f32f45' \
+          '1dea99748e0292a99cf015f897a2a78d440e8e55' \
           '90a0032645886b633c9b730d0a1abb88c88a9873')
 
 options+=('static')
 
+subpkgs=("lib32-${pkgname}")
+subdescs=("$pkgdesc ( 32bit )")
+subdepends=("glibc")
+subgroups=('lib32-extra')
+subarchs=('x86_64')
+suboptions=('force')
+
+Finclude cross32
+
 build()
 {
+	Fcd
 	Fpatchall
+        ## 32-bit
+        Fcross32_prepare
+
 	make -f Makefile-libbz2_so || return 1
 	make bzip2recover libbz2.a || return 1
-	Fexerel bzip2-shared /bin/bzip2
-	Fexerel bzip2recover /bin/bzip2recover
-	Ffilerel bzip2.1 /usr/share/man/man1/bzip2.1
-	Ffilerel bzlib.h /usr/include/bzlib.h
-	Fmkdir /lib /usr/lib
-	Fcprrel 'libbz2.so.*' /lib
-	Ffilerel libbz2.a /usr/lib/libbz2.a
-	Fln ../../lib/libbz2.so.${pkgver%.?} /usr/lib/libbz2.so
-	Fln bzip2 /bin/bunzip2
-	Fln bzip2 /bin/bzcat
-	Fln bzip2.1 /usr/share/man/man1/bunzip2.1
-	Fln bzip2.1 /usr/share/man/man1/bzcat.1
-	Fln bzip2.1 /usr/share/man/man1/bzip2recover.1
+	Fmkdir  /usr/lib32
+	Fcprrel 'libbz2.so.*' /usr/lib32
+	Ffilerel libbz2.a /usr/lib32/libbz2.a
+	Fln  /usr/lib32/libbz2.so.${pkgver%.?} /usr/lib32/libbz2.so
+	Ffilerel bzlib.h /usr/$CHOST/include/bzlib.h
+
+        Fcross32_delete_empty
+        Fsplit "lib32-${pkgname}" /\*
+        Fcross32_reset_and_fix
+
+	make distclean
+        make -f Makefile-libbz2_so || return 1
+        make bzip2recover libbz2.a || return 1
+        Fexerel bzip2-shared /bin/bzip2
+        Fexerel bzip2recover /bin/bzip2recover
+        Ffilerel bzip2.1 /usr/share/man/man1/bzip2.1
+        Ffilerel bzlib.h /usr/include/bzlib.h
+        Fmkdir /lib /usr/lib
+        Fcprrel 'libbz2.so.*' /lib
+        Ffilerel libbz2.a /usr/lib/libbz2.a
+        Fln ../../lib/libbz2.so.${pkgver%.?} /usr/lib/libbz2.so
+        Fln bzip2 /bin/bunzip2
+        Fln bzip2 /bin/bzcat
+        Fln bzip2.1 /usr/share/man/man1/bunzip2.1
+        Fln bzip2.1 /usr/share/man/man1/bzcat.1
+        Fln bzip2.1 /usr/share/man/man1/bzip2recover.1
+
 }
 
 # optimization OK

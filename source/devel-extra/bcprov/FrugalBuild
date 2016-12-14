@@ -1,36 +1,46 @@
 # Compiling Time: 0.72 SBU
-# Contributor: kikadf <kikadf.01@gmail.com>
+# Maintainer: kikadf <kikadf.01@gmail.com>
 # Contributor: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=bcprov
-pkgver=151
+pkgver=154
 pkgrel=1
 pkgdesc="Java cryptography APIs."
 url="http://www.bouncycastle.org/java.html"
-makedepends=(${makedepends[@]} 'junit')
 _F_archive_name="$pkgname-jdk15on"
 Finclude openjava
+makedepends=(${makedepends[@]} 'junit')
 groups=('devel-extra')
 archs=('i686' 'x86_64')
 up2date="lynx -dump http://www.bouncycastle.org/latest_releases.html | Flasttar"
-source=(http://downloads.bouncycastle.org/java/$_F_archive_name-$pkgver.tar.gz build.xml
-        http://www.bouncycastle.org/download/lcrypto-jdk15on-$pkgver.tar.gz)
-sha1sums=('95e59ad2492598d729cfc559b480c3f172de5dc3' \
-          'd188bcc7b3c1212fc1f272dad6afec391fb203d6' \
-          '872c8ac7e070c3059ca5ba626ec9238de2e8a377')
+source=(http://www.bouncycastle.org/download/bcprov-jdk15on-${pkgver}.tar.gz)
+sha1sums=('346c4e0d14285a2f92ab404e1d2b3bc7a2245680')
 
-build() {
+build()
+{
 	Fcd
-	mkdir -p classes || Fdie
+	# Unzip source
 	mkdir -p src || Fdie
-	Fextract src.zip || Fdie
-	mv org src/ || Fdie
-	mv ../lcrypto-jdk15on-$pkgver/src/org/bouncycastle/crypto/test/cavp src/org/bouncycastle/crypto/test/ || Fdie
-	#building
-	cp $Fsrcdir/build.xml build.xml || Fdie
-	antflags="-Dproject.name=${pkgname} jar"
-	Fant ${antflags}
-	#installing
-	Fjar dist/${pkgname}.jar
+	unzip -qq src.zip -d src/ || Fdie
+
+	# Remove provided binaries
+	find . -type f -name "*.class" -exec rm -f {} \;
+	find . -type f -name "*.jar" -exec rm -f {} \;
+
+	pushd src
+	export CLASSPATH=/usr/share/java/junit/junit.jar
+	javac -g -source 1.6 -target 1.6 -encoding UTF-8 $(find . -type f -name "*.java") || Fdie
+	jarfile="../bcprov.jar"
+	# Exclude all */test/* files except org.bouncycastle.util.test, cf. upstream
+	files="$(find . -type f \( -name '*.class' -o -name '*.properties' \) -not -path '*/test/*')"
+	files="$files $(find . -type f -path '*/org/bouncycastle/util/test/*.class')"
+	test ! -d classes && mf="" \
+		|| mf="`find classes/ -type f -name "*.mf" 2>/dev/null`"
+	test -n "$mf" && jar cfm $jarfile $mf $files \
+		|| jar cf $jarfile $files
+	popd
+
+	Fjar ${pkgname}.jar
 }
 
+# optimization OK

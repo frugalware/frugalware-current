@@ -3,72 +3,89 @@
 # Maintainer: Frugalware Dev Team
 
 pkgname=apache
-pkgver=2.2.31
-pkgrel=3
+pkgver=2.4.25
+pkgrel=1
 pkgdesc="A high performance Unix-based HTTP server (with SSL)"
 url="http://httpd.apache.org/"
-backup=(etc/httpd/conf/{httpd.conf,ssl.conf,ssl.crt/server.crt,ssl.csr/server.csr,ssl.key/server.key} \
-	var/www/html/index.html)
-depends=('gdbm>=1.10'  'openssl>=1.0.2-10' 'expat' 'pcre' 'apr-util>=1.5.4-4')
+backup=(etc/httpd/conf/{httpd.conf,mime.types,magic,ssl.crt/server.crt,ssl.csr/server.csr,ssl.key/server.key} \
+	var/www/html/index.html \
+	etc/httpd/conf/extra/{httpd-autoindex.conf,httpd-dav.conf,httpd-default.conf,httpd-info.conf,httpd-languages.conf,httpd-manual.conf,httpd-mpm.conf,httpd-multilang-errordoc.conf,httpd-ssl.conf,httpd-userdir.conf,httpd-vhosts.conf,proxy-html.conf})
+depends=('gdbm>=1.10'  'openssl>=1.0.2-10' 'expat' 'pcre' 'apr-util>=1.5.4-4' 'libxml2' 'lua' 'nghttp2')
 makedepends=('db>=6.2.23') ## ?!?
 groups=('network')
 archs=("x86_64")
 _F_archive_name="httpd"
 up2date="Flasttar http://www.eu.apache.org/dist/${_F_archive_name}/"
 source=(http://www.eu.apache.org/dist/${_F_archive_name}/${_F_archive_name}-$pkgver.tar.bz2 \
-        http://ftp.frugalware.org/pub/other/sources/apache/mkcert.tar.gz \
-	httpd.service httpd.conf ssl.conf \
+	httpd.service httpd.conf mkcert.sh \
 	README.Frugalware index.html http://frugalware.org/images/frugalware.png)
-options=('noversrc') # frugalware.png was changed
-sha1sums=('e3b55387112206307ba76526820a2627472f3787' \
-          'bf72ba3f894187f0375376bbfda45501d6ea7251' \
-          '8ebb3d426e2c9503b13c5f2fd5880ad7d6cd84f1' \
-          'c543d05035c4db1b2e762a9f4510413699a29f03' \
-          'e3f943dd5f96b77e90c003100c87757bb109b6f5' \
-          '6963bf679ed5836e4a3fcf796df761b60778abf4' \
+options+=('noversrc') # frugalware.png was changed
+sha1sums=('bd6d138c31c109297da2346c6e7b93b9283993d2' \
+          '4bac06fb4e81a6248fc8ef0564b49f7ba76356d0' \
+          '8343360e5c94c7907ad08b837e5fcf55a66de2ca' \
+          '39c05bb5ce1beb4dcdffe4ce68a82626548b0cb8' \
+          '2fd10a753930170130b6edf714b04292a7b2e5ec' \
           'f7c90c628f8a4ee77222ad1d1a30106bc253b2ec' \
           '4fea94a9eea4e8a7f3902de965da9b6e707beed7')
 
 _F_systemd_units=(httpd=)
 Finclude systemd
 
-# svn web interface:
-# http://svn.apache.org/viewvc/httpd/httpd/branches/2.2.x/
-# use it when you dig for secfixes
-
-
-
 build()
 {
 	Fcd httpd-$pkgver
-	_F_make_opts="-j1"
-	Fsed '^#define AP_HTTPD_USER.*$' '#define AP_HTTPD_USER "nobody"' \
-		support/suexec.h
-	Fbuild --sysconfdir=/etc/httpd/conf \
+
+	Fbuild \
+		--sysconfdir=/etc/httpd/conf \
 		--enable-layout=RedHat \
 		--datadir=/var/www \
-		--enable-modules=all \
-		--enable-mods-shared=all \
-		--enable-ssl \
+		--enable-mods-shared=reallyall \
+		--enable-so--enable-mpms-shared=reallyall \
+		--enable-modules=reallyall \
 		--enable-so \
+		--enable-ssl \
 		--with-apr=/usr \
 		--with-apr-util=/usr \
+		--with-pcre=/usr \
+		--with-ssl=/usr \
+		--with-z=/usr \
+		--with-nghttp2=/usr \
+		--with-lua=/usr \
 		--enable-dbd \
 		--enable-proxy \
 		--enable-proxy-connect \
 		--enable-proxy-ftp \
 		--enable-proxy-http \
+		--enable-proxy-fcgi \
+		--enable-proxy-scgi \
+		--enable-proxy-fdpass \
+		--enable-proxy-wstunnel \
+		--enable-proxy-ajp \
+		--enable-proxy-balancer \
+		--enable-proxy-express \
+		--enable-proxy-hcheck \
+		--enable-v4-mapped \
+		--enable-http2 \
+		--enable-proxy-http2 \
+		--enable-watchdog \
+		--enable-vhost-alias \
+		--enable-speling \
+		--enable-userdir \
+		--enable-cgid \
+		--enable-cgi \
+		--enable-unixd \
 		--enable-suexec \
-		--with-pcre=/usr \
-		--with-ssl=/usr \
-		--with-z=/usr
-	Fmv /usr/sbin/suexec /usr/bin/suexec
-	Fmkdir /etc/httpd/conf/modules.d/
-	cp -a ../mkcert/* $Fdestdir/etc/httpd/conf/
+		--with-suexec-logfile=/var/log/httpd/suexec.log \
+		--with-suexec-bin=/usr/bin/suexec \
+		--with-suexec-caller=nobody
+
+
+	Fmkdir /etc/httpd/conf/modules.d/ ## compat
 	Frm etc/httpd.conf
 	Frm etc/ssl.conf
+
+	Ffile mkcert.sh /etc/httpd/conf/mkcert.sh
 	Ffile httpd.conf /etc/httpd/conf/httpd.conf
-	Ffile ssl.conf /etc/httpd/conf/ssl.conf
 	Fdoc README.Frugalware
 	Frm /var/www/html/index.html
 	Ffile /var/www/html/index.html

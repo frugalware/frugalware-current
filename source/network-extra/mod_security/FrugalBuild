@@ -1,37 +1,38 @@
 # Compiling Time: 0.01 SBU
-# Maintainer: Karoly CZOVEK <slinky@rei.keni.hu>
+# Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=mod_security
-_F_archive_name=modsecurity-apache
-Fpkgversep='_'
-pkgver=2.5.12
-pkgrel=2
+_F_archive_name=modsecurity
+pkgver=2.9.1
+pkgrel=1
 pkgdesc="A security filter DSO for the popular Apache httpd server"
 url="http://www.modsecurity.org"
-depends=('apache>=2.2.0')
+depends=('apache>=2.4.25' 'geoip' 'owasp-modsecurity-crs' 'curl' 'apr-util' 'libxml2' 'lua' 'yajl')
 groups=('network-extra')
-archs=('i686' 'x86_64')
-up2date="lynx -dump http://www.modsecurity.org/download/direct.html | Flasttar"
-source=($url/download/modsecurity-apache_${pkgver}.tar.gz \
-	$url/download/modsecurity-rules-current.tar.gz)
+backup=(etc/modsecurity/modsecurity.conf etc/httpd/conf/modules.d/mod_security.conf)
+archs=('x86_64')
+up2date="Flasttar http://www.modsecurity.org/download.html"
+source=($url/tarball/$pkgver/$_F_archive_name-$pkgver.tar.gz $pkgname.conf fix-implicit-function-declaration.patch)
+sha1sums=('5e3a88b86eb431a74bffbe0d30969b7162c0feb0' \
+          'c447fb0cf589a9239574cb677b7af53c381fbda6' \
+          'f0a9e3ff8645c6d91ee7741153fd938bc646fa7a')
+_F_cd_path="$_F_archive_name-$pkgver"
+Fconfopts+=" --enable-request-early --enable-shared --disable-static"
 
-sha1sums=('eb2068e5d31525fa53769dabd1a1c65896fd4e76' \
-          'f4808a250d8d339797f6a500b7c51a3d54487baf')
+build() {
 
+	Fcd
+	Fbuild
+	## we put all in etc/modsecurity
+	Fmkdir etc/modsecurity/mlogc
+	## cache dir set in .conf
+	Fmkdir var/cache/modsecurity
+	## default confs still need be edited to do something
+	Ffile $_F_cd_path/$_F_archive_name.conf-recommended /etc/modsecurity/$_F_archive_name.conf
+	Ffile $_F_cd_path/mlogc/mlogc-default.conf /etc/modsecurit/mlogc/mlogc-default.conf ## not sure here
 
-build()
-{
-	pkgroot=`pwd`
-	Fcd modsecurity-apache_$pkgver/apache2
-	Fmake
-	Fmkdir /usr/lib/apache
-	Fmkdir /usr/share/doc/$pkgname-$pkgver/examples
-	Fmkdir /usr/share/doc/$pkgname-$pkgver/config
-	cp -r ../doc/* $Fdestdir/usr/share/doc/$pkgname-$pkgver/examples || Fdie
-	cp .libs/mod_security2.so $Fdestdir/usr/lib/apache || Fdie
-	cp .libs/mod_security2.a $Fdestdir/usr/lib/apache || Fdie
-	cp .libs/mod_security2.lai $Fdestdir/usr/lib/apache || Fdie
-	cp -v  $pkgroot/*.conf $Fdestdir/usr/share/doc/$pkgname-$pkgver/config/ || Fdie
+	## apache conf .. mod is not loaded by default there is a comment to configure that thinggy first
+	Ffile /etc/httpd/conf/modules.d/$pkgname.conf
 }
 
 # optimization OK

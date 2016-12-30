@@ -52,7 +52,7 @@ static void cleanup(void)
 
 static struct entry *pass1(void)
 {
-	static const char query[] = "select pkg_id,abi from abis where pkg_id in (select id from packages where fwver = 'current' and (arch = 'i686' or arch = 'x86_64'))";
+	static const char query[] = "select pkg_id,abi from abis where pkg_id in (select id from packages where fwver = 'current' and arch = 'x86_64')";
 	MYSQL_RES *result = 0;
 	MYSQL_ROW row = 0;
 	const char *s = 0;

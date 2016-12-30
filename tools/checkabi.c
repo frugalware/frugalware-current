@@ -110,7 +110,7 @@ static void usort(char **p,int size,char ***outp,int *outsize)
 
 static bool pass1(void)
 {
-	static const char query[] = "select abi from abis where pkg_id in (select id from packages where fwver = 'current' and (arch = 'i686' or arch = 'x86_64'))";
+	static const char query[] = "select abi from abis where pkg_id in (select id from packages where fwver = 'current' and arch = 'x86_64')";
 	MYSQL_RES *result = 0;
 	MYSQL_ROW row = 0;
 	int i = 0;
@@ -165,7 +165,7 @@ static bool pass1(void)
 
 static bool pass2(void)
 {
-	static const char query[] = "select file from files where pkg_id in (select id from packages where fwver = 'current' and (arch = 'i686' or arch = 'x86_64'))";
+	static const char query[] = "select file from files where pkg_id in (select id from packages where fwver = 'current' and arch = 'x86_64')";
 	MYSQL_RES *result = 0;
 	MYSQL_ROW row = 0;
 	int i = 0;

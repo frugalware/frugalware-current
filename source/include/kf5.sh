@@ -51,9 +51,9 @@ if [ -z "$_F_kde_ver" ]; then
 fi
 
 ## TMP set to unstable
-if [ "$_F_kde_project" = "applications" ]; then
-	_F_kde_unstable="yes"
-fi
+#if [ "$_F_kde_project" = "applications" ]; then
+#	_F_kde_unstable="yes"
+#fi
 
 if [ -z "$_F_kde_qtver" ]; then
 	_F_kde_qtver="$_F_kdever_qt5"
@@ -183,7 +183,7 @@ else
 fi
 
 if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
-	makedepends+=('extra-cmake-modules>=5.28.0' 'qt5-tools')
+	makedepends+=('extra-cmake-modules>=5.29.0' 'qt5-tools')
 fi
 
 ## From gcc6 docs

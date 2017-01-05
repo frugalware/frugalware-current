@@ -35,6 +35,7 @@
 # * _F_github_sep: defaults to Fpkgversep
 # * _F_github_full_archive_name: no default. used for mad tarball names eg:
 #   _F_github_full_archive_name="THis_Is-some-MAD1_1_3-nam_e"
+# * _F_github_grepv: no default , use like _F_archive_grepv
 #
 # == APPENDED VARIABLES
 # * source()
@@ -103,6 +104,14 @@ __F_github_full_archive_name="${_F_github_full_archive_name}${_F_github_ext}"
 _F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/${__F_github_full_archive_name}"
 _F_github_up2date="releases/latest"
 
+## heh ok
+if [ -n "$_F_archive_grepv" ]; then
+	_F_github_grepv="$_F_archive_grepv"
+fi
+
+if [ -n "$_F_github_grepv" ]; then
+	off='| grep -v -- $_F_github_grepv'
+fi
 
 ## fixme ?
 if [ -n "$_F_github_devel" ]; then
@@ -114,8 +123,7 @@ if [ -n "$_F_github_devel" ]; then
 	## who know some Finclude combos
 	unset source
 else
-	up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep  '\https\(.*\)$_F_github_ext' | grep -m1 'archive' | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//' | sed 's/${_F_github_name}${_F_github_sep}//'"
-
+	up2date="lynx -dump  https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep  '\https\(.*\)$_F_github_ext'  $off | grep -m1 'archive' | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//' | sed 's/${_F_github_name}${_F_github_sep}//'"
 	# On one line for Mr Portability, Hermier Portability.
 	source+=("${_F_github_source}")
 fi

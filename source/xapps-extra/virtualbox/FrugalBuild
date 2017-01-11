@@ -2,14 +2,21 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 # Contributor: AlexExtreme <alex@alex-smith.me.uk>
 
+## we need nostrip while gcc6 bugs ( until upstream sort that )
+## nostrip+release 58 MB fpm
+## nostrip+debug = 60 MB fpm
+## so we use full debug for now , maybe better anyway..
+
+USE_VBOX_DEBUG=${USE_VBOX_DEBUG:-"y"}
+
 pkgname=virtualbox
 realname=VirtualBox
 pkgver=5.1.12
-pkgrel=1
+pkgrel=2
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' \
-         'alsa-lib'  'curl' 'libxmu' 'libuuid' 'libcap' 'qt5-base>=5.7.0' 'qt5-x11extras>=5.7.0' \
+         'alsa-lib'  'curl' 'libxmu' 'libuuid' 'libcap' 'qt5-base>=5.7.1' 'qt5-x11extras>=5.7.1' \
          'libvpx>=1.6.0' 'lvm2' 'libgl' 'libxext' 'libx11' 'libpulse' 'libglu' 'libxrandr' 'libxcomposite' \
 	 'libxinerama')
 makedepends=('cdrtools' 'x11-protos' 'qt5-tools' 'mesa-libgl-headers')
@@ -19,22 +26,34 @@ archs=('x86_64')
 up2date="lynx -dump http://download.virtualbox.org/virtualbox/LATEST.TXT | head -n 1"
 source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver}.tar.bz2 \
 	10-vboxdrv.rules
-	LocalConfig.kmk
-	$pkgname.install)
+	LocalConfig.kmk)
+
+## WARNING:
+## It seems something gets misscompiled *again* with gcc6 ..
+## DO NOT REMOVE 'nostrip' and DO NOT REMOVE -O0 from _OPT
+
+## PDMLdr: pdmR3LoadR0U: pszName="VMMR0.r0" rc=VERR_INVALID_PARAMETER szErr="SUP_IOCTL_LDR_OPEN failed"
+## SUP_IOCTL_LDR_OPEN: pReq->u.In.cbImageBits < pReq->u.In.cbImageWithTabs
+
 options=('scriptlet' 'genscriptlet')
+
+if Fuse $USE_VBOX_DEBUG; then
+	options+=('nostrip')
+fi
+
 _F_cd_path="${realname}-${pkgver}"
 sha1sums=('447fc16082fa3bbb4be6c1db70cee176cf31ae66' \
           'aa931ae19edd8585150738f0efd8fedf5175a6d3' \
-          '5b7ecf8ee9e3b367c485e513ae36d30cbd23eff5' \
-          'f32f69a501794adc5da977060db0e607aee839f0')
+          '5e66ffd4607dafd9b55dc2b6e7591ef6892d4d49')
 
 ## FIXME/TODO: GUEST STUUF!!!
 
 build() {
 
+	Fcd
 	Fpatchall
-	# qt5.7
-        CXXFLAGS+=" -std=c++11"
+
+	## FIXME: figure these
 	Fsed '/usr/X11R6/bin/xterm' '/usr/bin/xterm' \
 		src/VBox/Runtime/VBox/RTAssertShouldPanic-vbox.cpp
 	Fsed 'X11R6/' '' configure
@@ -42,30 +61,44 @@ build() {
 	Fsed '-Werror$' '' Config.kmk
 	Fsed '.*&& check_makeself' '' configure # we don't have makeself
 	Fsed 'smc-napa' 'smcnapa' src/VBox/Devices/PC/vbox.dsl
-	Fsed 'CXX_FLAGS=""' 'CXX_FLAGS="-std=c++11"' configure
-        cp "$Fsrcdir/LocalConfig.kmk" .
 
-	echo "VBOX_GCC_OPT=$CXXFLAGS" >> LocalConfig.kmk
+        Fexec cp "$Fsrcdir/LocalConfig.kmk" . || Fdie
 
 	Fsed 'DocPath=.*' '' src/VBox/Installer/common/virtualbox.desktop.in
+
+	echo "VBOX_GCC_OPT=-O0" >> LocalConfig.kmk ## DO NOT REMOVE
+
+	## also we do disable all C/CXX Flags..
+	unset CFLAGS CXXFLAGS
+
+	## we'll add an separate package for this OR we split here
+	## however we don't use these by now so we don't want to build these
+
+	echo "VBOX_WITHOUT_ADDITIONS := 1" >> LocalConfig.kmk
+
+	if Fuse $USE_VBOX_DEBUG; then
+		VBoxBuildType="debug"
+		VBox_Opts="-d"
+	else
+		VBoxBuildType="release"
+
+	fi
+
+	VboxSrcDir=${_F_cd_path}/out/linux.amd64/${VBoxBuildType}/bin
 
 	# Configure and load our options
 	Fexec ./configure \
 		--disable-docs \
 		--disable-kmods \
-		--nofatal \
-		--enable-pulse \
-		--disable-vmmraw  || Fdie
+		--enable-pulse ${VBox_Opts} || Fdie
 
 	Fexec source ./env.sh || Fdie
 
-	Fexec kmk all || Fdie
-	#kmk BUILD_TYPE=debug || Fdie
+	## we want to build verbose - DO NOT DISABLE THIS
+	Fexec kmk KBUILD_VERBOSE=2  all || Fdie
 
-        # Install it
-	VboxSrcDir=${_F_cd_path}/out/linux.amd64/release/bin
 
-	local i k
+	local i k j
 
 	Fmkdir usr/share/icons/hicolor/{16x16,20x20,32x32,40x40,48x48,64x64,128x128,scalable}/apps
 
@@ -77,6 +110,8 @@ build() {
 
 	cd ${Fsrcdir}/${VboxSrcDir} || Fdie
 
+
+	## FIXME: lot stuff missing
 	#Binaries and Wrapper with Launchers
 	Fexerel VBox.sh "usr/bin/VBox"
 
@@ -91,6 +126,10 @@ build() {
         Fexerel *.so "usr/lib/virtualbox"
 
         Finstallrel 644 *.r0 "usr/lib/virtualbox/"
+
+	## vmmraw stuff
+	Finstallrel 644 *.rc "usr/lib/virtualbox/"
+
         Finstallrel 644 VBoxEFI*.fd "usr/lib/virtualbox/"
 
 	Finstallrel 4755 VBoxSDL VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetAdpCtl "usr/lib/virtualbox"
@@ -105,9 +144,9 @@ build() {
 
 	## icons
 	pushd icons
-	for i in ./*; do
-	  echo $i
-	  Finstallrel 644 $i/* "usr/share/icons/hicolor/$i/mimetypes"
+	for j in ./*; do
+	  echo $j
+	  Finstallrel 644 $j/* "usr/share/icons/hicolor/$j/mimetypes"
 	done
 	popd
 

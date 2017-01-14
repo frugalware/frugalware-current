@@ -1,0 +1,228 @@
+From 2a9b56e9340760822b1dfece73bc045c64033ef1 Mon Sep 17 00:00:00 2001
+From: Marco Martin <notmart@gmail.com>
+Date: Wed, 11 Jan 2017 16:03:16 +0100
+Subject: parse the desktop file 2 times
+
+Summary:
+Search for the ServiceTypes key in the desktop file before
+parsing it "for real", because how it's parsed depends from
+the service type definition, so if the servicetype is defined
+at the bottom of the file or after keys dependent from the type,
+those keys would be parsed incorrectly
+
+Test Plan:
+things using plugins like plasmashell still start correctly,
+dropping on the desktop a text file now proposes to create a notes widget.
+The notes widget has ServiceTypes defined *after* X-Plasma-DropMimetypes
+which is a stringlist, that would be misinterpreted as a string
+otherwise
+
+Reviewers: #plasma, dfaure, davidedmundson, apol
+
+Reviewed By: apol
+
+Subscribers: apol, plasma-devel, #frameworks
+
+Tags: #plasma, #frameworks
+
+Differential Revision: https://phabricator.kde.org/D4082
+---
+ autotests/data/twostepsparsetest.desktop |  20 ++++++
+ autotests/kpluginmetadatatest.cpp        |  11 ++++
+ src/lib/plugin/desktopfileparser.cpp     | 109 ++++++++++++++++++++-----------
+ 3 files changed, 102 insertions(+), 38 deletions(-)
+ create mode 100644 autotests/data/twostepsparsetest.desktop
+
+diff --git a/autotests/data/twostepsparsetest.desktop b/autotests/data/twostepsparsetest.desktop
+new file mode 100644
+index 0000000..b31a5d6
+--- /dev/null
++++ b/autotests/data/twostepsparsetest.desktop
+@@ -0,0 +1,20 @@
++[Desktop Entry]
++Name=Parse Test
++Comment=Two Steps Parsing Test
++Type=Service
++Icon=preferences-system-time
++MimeType=image/png;application/pdf;
++
++X-Test-List=first,second
++X-KDE-ServiceTypes=example/servicetype
++X-KDE-Library=fakeplugin
++X-KDE-FormFactors=mediacenter,desktop
++X-KDE-PluginInfo-Author=Sebastian Kügler
++X-KDE-PluginInfo-Email=sebas@kde.org
++X-KDE-PluginInfo-Name=fakeplugin
++X-KDE-PluginInfo-Version=1.0
++X-KDE-PluginInfo-Website=http://kde.org/
++X-KDE-PluginInfo-Category=Examples
++X-KDE-PluginInfo-Depends=
++X-KDE-PluginInfo-License=LGPL
++X-KDE-PluginInfo-EnabledByDefault=true
+diff --git a/autotests/kpluginmetadatatest.cpp b/autotests/kpluginmetadatatest.cpp
+index d1c6ae2..a5f98cd 100644
+--- a/autotests/kpluginmetadatatest.cpp
++++ b/autotests/kpluginmetadatatest.cpp
+@@ -254,6 +254,17 @@ private Q_SLOTS:
+         QCOMPARE(mdhidden.isHidden(), true);
+     }
+ 
++    void twoStepsParseTest()
++    {
++        QStandardPaths::setTestModeEnabled(true);
++        const QString dfile = QFINDTESTDATA("data/twostepsparsetest.desktop");
++        const QString typesPath = QFINDTESTDATA("data/servicetypes/example-servicetype.desktop");
++        KPluginMetaData md = KPluginMetaData::fromDesktopFile(dfile, QStringList() << typesPath);
++        QVERIFY(md.isValid());
++        QStringList list = KPluginMetaData::readStringList(md.rawData(), QStringLiteral("X-Test-List"));
++        QCOMPARE(list, QStringList({QStringLiteral("first"), QStringLiteral("second")}));
++    }
++
+     void testServiceTypes_data()
+     {
+         const QString kdevServiceTypePath = QFINDTESTDATA("data/servicetypes/fake-kdevelopplugin.desktop");
+diff --git a/src/lib/plugin/desktopfileparser.cpp b/src/lib/plugin/desktopfileparser.cpp
+index 1e058bb..df60ad2 100644
+--- a/src/lib/plugin/desktopfileparser.cpp
++++ b/src/lib/plugin/desktopfileparser.cpp
+@@ -234,6 +234,51 @@ QByteArray readTypeEntryForCurrentGroup(QFile &df, QByteArray *nextGroup)
+     return type;
+ }
+ 
++bool tokenizeKeyValue(QFile &df, const QString &src, QByteArray &key, QString &value, int &lineNr)
++{
++    const QByteArray line = df.readLine().trimmed();
++    lineNr++;
++    if (line.isEmpty()) {
++        DESKTOPTOJSON_VERBOSE_DEBUG << "Line " << lineNr << ": empty";
++        return true;
++    }
++    if (line.startsWith('#')) {
++        DESKTOPTOJSON_VERBOSE_DEBUG << "Line " << lineNr << ": comment";
++        return true; // skip comments
++    }
++    if (line.startsWith('[')) {
++        // start of new group -> doesn't interest us anymore
++        DESKTOPTOJSON_VERBOSE_DEBUG << "Line " << lineNr << ": start of new group " << line;
++        return false;
++    }
++    // must have form key=value now
++    const int equalsIndex = line.indexOf('=');
++    if (equalsIndex == -1) {
++        qCWarning(DESKTOPPARSER).nospace() << qPrintable(src) << ':' << lineNr << ": Line is neither comment nor group "
++            "and doesn't contain an '=' character: \"" << line.constData() << '\"';
++        return true;
++    }
++    // trim key and value to remove spaces around the '=' char
++    key = line.mid(0, equalsIndex).trimmed();
++    if (key.isEmpty()) {
++        qCWarning(DESKTOPPARSER).nospace() << qPrintable(src) << ':' << lineNr << ": Key name is missing: \"" << line.constData() << '\"';
++        return true;
++    }
++
++    const QByteArray valueRaw = line.mid(equalsIndex + 1).trimmed();
++    const QByteArray valueEscaped = escapeValue(valueRaw);
++    value = QString::fromUtf8(valueEscaped);
++
++#ifdef BUILDING_DESKTOPTOJSON_TOOL
++    DESKTOPTOJSON_VERBOSE_DEBUG.nospace() << "Line " << lineNr << ": key=" << key << ", value=" << value;
++    if (valueEscaped != valueRaw) {
++        DESKTOPTOJSON_VERBOSE_DEBUG << "Line " << lineNr << " contained escape sequences";
++    }
++#endif
++
++    return true;
++}
++
+ QVector<CustomPropertyDefinition>* parseServiceTypesFile(QString path)
+ {
+     int lineNr = 0;
+@@ -401,13 +446,8 @@ void DesktopFileParser::convertToJson(const QByteArray &key, ServiceTypeDefiniti
+     } else if (key == QByteArrayLiteral("X-KDE-PluginInfo-Depends")) {
+         kplugin[QStringLiteral("Dependencies")] = QJsonArray::fromStringList(deserializeList(value));
+     } else if (key == QByteArrayLiteral("X-KDE-ServiceTypes") || key == QByteArrayLiteral("ServiceTypes")) {
++        //NOTE: "X-KDE-ServiceTypes" and "ServiceTypes" were already managed in the first parse step, so this second one is almost a noop
+         const auto services = deserializeList(value);
+-        for(const auto &service : services) {
+-            // some .desktop files still use the legacy ServiceTypes= key
+-            QString fileName = service.toLower().replace(QLatin1Char('/'), QLatin1Char('-'))+QStringLiteral(".desktop");
+-            serviceTypes.addFile(fileName);
+-        }
+-
+         kplugin[QStringLiteral("ServiceTypes")] = QJsonArray::fromStringList(services);
+     } else if (key == QByteArrayLiteral("MimeType")) {
+         // MimeType is a XDG string list and not a KConfig list so we need to use ';' as the separator
+@@ -474,46 +514,39 @@ bool DesktopFileParser::convert(const QString &src, const QStringList &serviceTy
+     ServiceTypeDefinition serviceTypeDef = ServiceTypeDefinition::fromFiles(serviceTypes);
+     readUntilDesktopEntryGroup(df, src, lineNr);
+     DESKTOPTOJSON_VERBOSE_DEBUG << "Found [Desktop Entry] group in line" << lineNr;
++    auto startPos = df.pos();
+ 
+-    //QJsonObject json;
+-    QJsonObject kplugin; // the "KPlugin" key of the metadata
++    //parse it a first time to know servicetype
+     while (!df.atEnd()) {
+-        const QByteArray line = df.readLine().trimmed();
+-        lineNr++;
+-        if (line.isEmpty()) {
+-            DESKTOPTOJSON_VERBOSE_DEBUG << "Line " << lineNr << ": empty";
+-            continue;
+-        }
+-        if (line.startsWith('#')) {
+-            DESKTOPTOJSON_VERBOSE_DEBUG << "Line " << lineNr << ": comment";
+-            continue; // skip comments
+-        }
+-        if (line.startsWith('[')) {
+-            // start of new group -> doesn't interest us anymore
+-            DESKTOPTOJSON_VERBOSE_DEBUG << "Line " << lineNr << ": start of new group " << line;
++        QByteArray key;
++        QString value;
++        if (!tokenizeKeyValue(df, src, key, value, lineNr)) {
+             break;
+         }
+-        // must have form key=value now
+-        const int equalsIndex = line.indexOf('=');
+-        if (equalsIndex == -1) {
+-            qCWarning(DESKTOPPARSER).nospace() << qPrintable(src) << ':' << lineNr << ": Line is neither comment nor group "
+-                "and doesn't contain an '=' character: \"" << line.constData() << '\"';
+-            continue;
++        if (key == QByteArrayLiteral("X-KDE-ServiceTypes") || key == QByteArrayLiteral("ServiceTypes")) {
++            const auto services = deserializeList(value);
++            for(const auto &service : services) {
++                // some .desktop files still use the legacy ServiceTypes= key
++                QString fileName = service.toLower().replace(QLatin1Char('/'), QLatin1Char('-'))+QStringLiteral(".desktop");
++                serviceTypeDef.addFile(fileName);
++            }
++            break;
+         }
+-        // trim key and value to remove spaces around the '=' char
+-        const QByteArray key = line.mid(0, equalsIndex).trimmed();
+-        if (key.isEmpty()) {
+-            qCWarning(DESKTOPPARSER).nospace() << qPrintable(src) << ':' << lineNr << ": Key name is missing: \"" << line.constData() << '\"';
++    }
++    lineNr=0;
++    df.seek(startPos);
++
++    QJsonObject kplugin; // the "KPlugin" key of the metadata
++    //QJsonObject json;
++    while (!df.atEnd()) {
++        QByteArray key;
++        QString value;
++        if (!tokenizeKeyValue(df, src, key, value, lineNr)) {
++            break;
++        } else if (key.isEmpty()) {
+             continue;
+         }
+-        const QByteArray valueRaw = line.mid(equalsIndex + 1).trimmed();
+-        const QByteArray valueEscaped = escapeValue(valueRaw);
+-        const QString value = QString::fromUtf8(valueEscaped);
+ #ifdef BUILDING_DESKTOPTOJSON_TOOL
+-        DESKTOPTOJSON_VERBOSE_DEBUG.nospace() << "Line " << lineNr << ": key=" << key << ", value=" << value;
+-        if (valueEscaped != valueRaw) {
+-            DESKTOPTOJSON_VERBOSE_DEBUG << "Line " << lineNr << " contained escape sequences";
+-        }
+         if (s_compatibilityMode) {
+             convertToCompatibilityJson(QString::fromUtf8(key), value, json, lineNr);
+         } else {
+-- 
+cgit v0.11.2

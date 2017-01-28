@@ -3,20 +3,57 @@
 
 pkgname=screen
 pkgver=4.5.0
-pkgrel=1
+pkgrel=2
 pkgdesc="A full-screen window manager that multiplexes a physical terminal"
 url="http://www.gnu.org/software/screen/screen.html"
 pkgurl="http://ftp.gnu.org/gnu/$pkgname/"
-depends=('ncurses>=6.0-6')
+depends=('ncurses>=6.0-6' 'pam')
 groups=('apps')
 archs=("x86_64")
 up2date="Flasttar $pkgurl"
 source=("$pkgurl/$pkgname-$pkgver.tar.gz" \
-	screen-4.0.3-nosuid.diff \
-	README.Frugalware)
+	revert-5460f5d2-aka-root-exploit.patch \
+	screen.conf screen-pam README.Frugalware)
+backup=('etc/screen/screenrc' 'etc/pam.d/screen')
 sha1sums=('b329f538e7265405a5c14e13520e95ced9d2cb17' \
-          '41890308184675c90cd528a206ce4117760188ca' \
+          '641bf674b8d279475f474e9fb1fe41c7b635b9e3' \
+          '523a61585ff9571b8fa9cd511a95d1040218da87' \
+          '7bde8592f01e9eab13a5cc85a4902230a6fc47e4' \
           'aee108ed81e41b3fd2e6d6d028a659fa7abd100a')
-Fconfopts+=" --disable-pam --enable-locale --enable-rxvt_osc --enable-colors256"
-unset MAKEFLAGS
+_Fbuild_no_patch="yes"
+
+build() {
+
+	Fcd
+	Fpatchall
+
+	_F_make_opts="-j1"
+
+	Fbuild \
+		--enable-pam \
+		--enable-colors256 \
+		--with-pty-group=5 \
+		--with-socket-dir=/run/screen \
+		--with-sys-screenrc=/etc/screen/screenrc \
+		--enable-rxvt_osc \
+		--enable-use-locale \
+		--enable-telnet
+
+	## no need for that
+	Frm usr/bin/${pkgname}
+	Fmv usr/bin/${pkgname}-${pkgver} usr/bin/${pkgname}
+
+	## PAM file
+	Finstall 0644 "$pkgname-pam" etc/pam.d/screen
+
+	## systemd file
+	Fmkdir run/screen
+	Finstall 0644 "$pkgname.conf" usr/lib/tmpfiles.d/screen.conf
+
+	## default rc file
+	Finstallrel 0644 ./etc/etcscreenrc etc/screen/screenrc
+
+	## example ~/.screenrc file
+	Finstallrel 0644 ./etc/screenrc etc/screen/screenrc.user.example
+}
 # optimization OK

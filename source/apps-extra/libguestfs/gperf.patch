@@ -1,0 +1,81 @@
+--- libguestfs-1.34.3.old/m4/guestfs_progs.m4	2016-10-27 15:07:58.000000000 +0300
++++ libguestfs-1.34.3.new/m4/guestfs_progs.m4	2017-01-28 22:17:30.179951810 +0200
+@@ -50,6 +50,26 @@
+ test "x$GPERF" = "xno" &&
+     AC_MSG_ERROR([gperf must be installed])
+ 
++dnl Determine type of gperf hash function (changed in gperf 3.1).
++AC_MSG_CHECKING([type of gperf hash len parameter])
++cat > conftest.gperf <<EOF
++%language=ANSI-C
++%%
++A, 1
++%%
++EOF
++GPERF_SIZE_T=$(
++    $GPERF conftest.gperf |
++    grep '^hash (.*len)$' |
++    $SED 's/.*, register \([[^,]]*\) len)$/\1/'
++)
++if test "x$GPERF_SIZE_T" = "x"; then
++    AC_MSG_ERROR([could not detect type of gperf hash len parameter])
++fi
++AC_MSG_RESULT([$GPERF_SIZE_T])
++AC_DEFINE_UNQUOTED([GPERF_SIZE_T],[$GPERF_SIZE_T],[Type of gperf hash len parameter.])
++rm conftest.gperf
++
+ dnl Check for genisoimage/mkisofs
+ AC_PATH_PROGS([GENISOIMAGE],[genisoimage mkisofs],[no],
+     [$PATH$PATH_SEPARATOR/usr/sbin$PATH_SEPARATOR/sbin])
+--- libguestfs-1.34.3.old/generator/errnostring.ml	2016-10-27 15:07:58.000000000 +0300
++++ libguestfs-1.34.3.new/generator/errnostring.ml	2017-01-28 22:19:47.452396199 +0200
+@@ -228,9 +228,8 @@
+  */
+ extern int guestfs_int_string_to_errno (const char *errnostr);
+ 
+-/* Private structure and function used by the perfect hash implementation. */
++/* Private structure used by the perfect hash implementation. */
+ struct errnostring_entry { char *name; int errnum; };
+-extern const struct errnostring_entry *guestfs_int_string_to_errno_lookup (register const char *str, register unsigned int len);
+ 
+ #endif /* GUESTFS_ERRNOSTRING_H_ */
+ "
+@@ -276,17 +275,6 @@
+   else
+     return errno_to_string[errnum];
+ }
+-
+-int
+-guestfs_int_string_to_errno (const char *errnostr)
+-{
+-  const struct errnostring_entry *v =
+-    guestfs_int_string_to_errno_lookup (errnostr, strlen (errnostr));
+-  if (v /* not necessary to check v->name != NULL here */)
+-    return v->errnum;
+-  else
+-    return EINVAL;
+-}
+ "
+ 
+ let generate_errnostring_gperf () =
+@@ -336,4 +324,19 @@
+   List.iter (
+     fun e ->
+       pr "%s, %s\n" e e
+-  ) errnos
++  ) errnos;
++
++  pr "\
++%%%%
++
++int
++guestfs_int_string_to_errno (const char *errnostr)
++{
++  const struct errnostring_entry *v =
++    guestfs_int_string_to_errno_lookup (errnostr, strlen (errnostr));
++  if (v /* not necessary to check v->name != NULL here */)
++    return v->errnum;
++  else
++    return EINVAL;
++}
++"

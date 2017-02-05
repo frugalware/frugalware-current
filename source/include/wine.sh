@@ -38,6 +38,7 @@ case "$pkgname" in
 
 wine)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Stable)"
+	_F_archive_grep="\.0"
 	up2date="Flasttar $url/news"
 	conflicts=('wine-devel' 'lib32-wine-devel')
 	provides=('lib32-wine')

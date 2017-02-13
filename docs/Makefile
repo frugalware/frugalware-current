@@ -88,7 +88,7 @@ text: $(TEXTS)
 text-i18n: text po
 	$(call I18NBUILD,text)
 
-all: html pdf text
+all: html text
 
 i18n: html-i18n
 

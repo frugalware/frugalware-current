@@ -3,33 +3,49 @@
 # Contributor: darknekros <darknekros@gmail.com>
 
 pkgname=atom
-pkgver=1.13.1
+pkgver=1.14.3
 pkgrel=1
 pkgdesc="Atom is a hackable text editor for the 21st century from GitHub."
 depends=('libgnome-keyring' 'nodejs>=6.3.1-2' 'gconf' 'python' 'git' 'alsa-lib' 'libcups' \
 	'libnotify' 'libxtst' 'nss' 'gtk+2-libs')
 makedepends=('ca-certificates' 'gtk+2' 'cups' 'x11-protos' 'libxkbfile')
 groups=('xapps-extra')
-archs=('i686' 'x86_64')
-source=("${source[@]}" \
-	use_newer_apm.patch)
-sha1sums=('0cfd9761fbcd6cbacc19274a3837c6be945e765c' \
-          '79f610592d9150eeb24667c58b93008606c071b6')
+archs=('x86_64')
 _F_github_tag_v=$pkgver
 Finclude github
-
+source+=(remove-nodejs-7.x-restriction-since-works-fine-here.patch)
+sha1sums=('4b4ac0ffdcb12fa5cb8659ec67751fc361a604ae' \
+          '459955ef06561741c61d1bb7eacc449f17863245')
 build() {
 	export CC=gcc CXX=g++ || Fdie
 	Fcd
 	Fpatchall
+
+	## fix desktop file here since they change stuff on each release and the install
+	## paths point to chroot !?! WTH this..
+	Fsed "Exec=.*" "Exec=/usr/bin/atom %F" resources/linux/atom.desktop.in
+	## this only work bc we install the icons in hicolor too
+	Fsed "Icon=.*" "Icon=atom" resources/linux/atom.desktop.in
+
 	Fsed  "path.join('/usr', 'local')"  "\"$Fdestdir/usr\"" script/lib/install-application.js
 
 	Fexec cd script || Fdie
 	Fexec npm install || Fdie
 	Fexec ./build --build-dir "$Fsrcdir/atom-build" --install|| Fdie
+
+
+	## hmm ? -- ok but we need this in hicolor too so themes work -- crazy --
+
 	Fcp "atom-$pkgver/resources/app-icons/stable/png/*.png" "usr/share/atom/resources"
-	Fsed "/var/tmp/fst/pkg/usr/share/atom/atom" "/usr/bin/atom" $Fdestdir/usr/share/applications/${pkgname}.desktop
-	Fsed "/var/tmp/fst/pkg/usr/share/atom/resources/app/resources/atom.png" "/usr/share/atom/resources/atom.png" $Fdestdir/usr/share/applications/${pkgname}.desktop
+
+	Fexec cd .. || Fdie
+
+	local i
+	for i in 16 24 32 48 64 128 256 512 1024
+	do
+		 Finstallrel 644 "resources/app-icons/stable/png/${i}.png" "usr/share/icons/hicolor/${i}x${i}/apps/$pkgname.png"
+	done
+
 }
 
 # optimization OK

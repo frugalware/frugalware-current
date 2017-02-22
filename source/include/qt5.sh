@@ -56,6 +56,7 @@ build_qt5()
 		for i in ${Fdestdir}/usr/lib/qt5/bin/*; do
 			q5=`basename ${i}`
 			Fln /usr/lib/qt5/bin/${q5} /usr/bin/${q5}-qt5
+			Fln /usr/lib/qt5/bin/${q5} /usr/bin/${q5}
 		done
         fi
 }

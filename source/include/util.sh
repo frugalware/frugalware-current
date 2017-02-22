@@ -349,8 +349,6 @@ Frm() {
 Fcp() {
 	Fmessage "Copying file(s): $1"
 	if [ -e "$Fdestdir/"$1 ]; then
-		# Compatibility
-		warning "Deprecated usage of $*"
 		cp "$Fdestdir/"$1 "$Fdestdir/"$2 || Fdie
 	else
 		cp -a "$Fsrcdir/"$1 "$Fdestdir/"$2 || Fdie

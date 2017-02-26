@@ -27,8 +27,8 @@ fi
 archs=('x86_64')
 options+=('nodocs')
 source=(http://download.qt.io/archive/qt/${pkgver%.*}/${pkgver}/submodules/${qtpkgfilename}.tar.xz)
-_F_archive_name=qt-everywhere-opensource-src
-up2date="Flasttar $url/download-open-source/"
+_F_archive_grepv="5.8"
+up2date="Flastverdir http://download.qt-project.org/official_releases/qt/\$(Flastverdir http://download.qt-project.org/official_releases/qt/)"
 _F_cd_path=${qtpkgfilename}
 makedepends+=('x11-protos' 'gperf')
 

@@ -2,39 +2,42 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=cgit
-pkgver=0.11.2
-gitver=2.3.2
+pkgver=1.1
+## lets try to match our git version ?
+gitver=2.12.0
 pkgrel=1
 pkgdesc="A fast webinterface for git."
-depends=('curl>=7.20.0' 'openssl>=1.0.0')
-backup=(etc/{cgitrc,httpd/conf/modules.d/cgit.conf})
+depends=('curl>=7.20.0' 'openssl>=1.0.0' 'luajit2')
 groups=('network-extra')
-archs=('i686' 'x86_64' 'arm')
+archs=('x86_64')
 url="http://git.zx2c4.com"
 up2date="Flasttar $url/cgit"
 source=($url/$pkgname/snapshot/$pkgname-$pkgver.tar.xz \
-	http://www.kernel.org/pub/software/scm/git/git-$gitver.tar.xz \
-	cgit.conf)
-sha1sums=('004d9881d3ad1a328ffb34635c96e115c22ae4c6' \
-          'c7b0550c34109752bd25c4cd2007908df689b603' \
-          'ba8bab178c3036d8d0e6743cc91c6ab5cd3efb7b')
+	http://www.kernel.org/pub/software/scm/git/git-$gitver.tar.xz git-update.patch)
+sha1sums=('3ffb325a6c6a3f5c3e4f1d5fd0a10f6c91f61e6b' \
+          '42aafae5c29324b1fee0264a6c804fdffbd1d8d1' \
+          'f46abf51a1f892684fa41a20ff5253c458578dce')
 
 
 build()
 {
 	unset MAKEFLAGS
 	Fcd
+	Fpatchall
+
+	Fsed "/usr/local" "/usr" Makefile
+	Fsed "GIT_VER = .*" "GIT_VER = $gitver" Makefile
+
 	if [ $gitver != $(grep ^GIT_VER Makefile |sed 's/.*= //') ]; then
 		Fmessage "Did you forget to update gitver?"
 		Fdie
 	fi
-	mv ../git-$gitver/* git/
+	Fexec mv ../git-$gitver/* git/ || Fdie
 	Fmake
-	Fmakeinstall CGIT_SCRIPT_PATH=/var/www/cgit
+	Fexec make  CGIT_SCRIPT_PATH=/var/www/cgit DESTDIR=$Fdestdir prefix=/usr install  || Fdie
 	Fdocrel cgitrc.5.txt
-	Ffile /etc/httpd/conf/modules.d/cgit.conf
 	Fmkdir /var/cache/cgit
-	chown 99:99 $Fdestdir/var/cache/cgit
+	Fexec chown 99:99 $Fdestdir/var/cache/cgit
 }
 
 # optimization OK

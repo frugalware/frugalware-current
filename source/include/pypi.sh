@@ -30,7 +30,7 @@
 ###
 [ -z "$_F_pypi_name" ] && _F_pypi_name="$pkgname"
 [ -z "$_F_pypi_ext" ] && _F_pypi_ext='.tar.gz'
-
+[ -z "$_F_archive_name" ] && _F_archive_name="$_F_pypi_name"
 ###
 # == OVERWRITTEN VARIABLES
 # * url (if not set)

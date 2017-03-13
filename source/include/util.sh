@@ -629,6 +629,16 @@ Ficonrel() {
 }
 
 ###
+# * Fdesktoprel(): Install desktop file(s) to $Fdestdir/usr/share/applications
+# from the current working directory.  Parameter: file(s) to be installed.
+###
+
+Fdesktoprel() {
+	Fmkdir "/usr/share/applications"
+	Ffilerel "$@" /usr/share/applications
+}
+
+###
 # * Fln(): Create a symlink in $Fdestdir. First parameter: source (i.e.
 # mysql/libmysqlclient.so), second parameter: target (i.e. /usr/lib/)
 # ($target's dir will be created if necessary).

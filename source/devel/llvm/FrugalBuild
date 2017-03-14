@@ -1,9 +1,11 @@
 # Compiling Time: 4.74 SBU
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
+: ${USE_DEVEL="n"}
+
 pkgname=llvm
-pkgver=3.9.1
-pkgrel=3
+pkgver=4.0.0
+pkgrel=1
 gcc_ver=6.3.1-4
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
@@ -17,12 +19,22 @@ rodepends=("$pkgname-libs")
 groups=('devel')
 archs=("x86_64")
 
-source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.xz \
-	http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.xz)
-up2date="Flastarchive $url/releases/download.html .src.tar.xz"
+if Fuse DEVEL; then
+        unset source sha1sums
+        pkgver=999.g61d9d49
+        pkgrel=0
+        _F_scm_type="git"
+        _F_scm_url="https://github.com/llvm-mirror/llvm.git"
+	_F_cd_path="llvm"
+        Finclude scm
+else
+	source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.xz \
+		http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.xz)
+	up2date="Flastarchive $url/releases/download.html .src.tar.xz"
+	_F_archive_ver="${pkgver}.src"
+	signatures=("${source[0]}.sig" "${source[1]}.sig" )
+fi
 
-_F_archive_ver="${pkgver}.src"
-signatures=("${source[0]}.sig" "${source[1]}.sig" )
 _F_cross32_delete=('usr/docs' 'usr/share' \
 	'usr/lib/ocaml' 'usr/libexec/' )
 Finclude cross32
@@ -89,11 +101,21 @@ Finclude cmake
 options+=('static')
 
 build() {
+        if Fuse DEVEL; then
+                Funpack_scm
+        fi
+
 	Fcd
 	# clang must be copied here to build with llvm
 	Fexec rm -rf tools/clang
 
-	Fexec mv -f ../cfe-${_F_archive_ver}/ tools/clang
+        if Fuse DEVEL; then
+                Fexec cd tools
+                git clone --depth=1 https://github.com/llvm-mirror/clang.git
+                Fexec cd ..
+        else
+		Fexec mv -f ../cfe-${_F_archive_ver}/ tools/clang
+	fi
 
 
         Fcross32_prepare
@@ -170,7 +192,6 @@ build() {
 	# Install html docs of llvm-ocaml
 	Fmkdir usr/share/doc/$pkgname-$pkgver/ocamldoc
 	Fcp ${_F_cd_path}/${_F_cmake_build_dir}/docs/ocamldoc/html/* usr/share/doc/$pkgname-$pkgver/ocamldoc
-	Fmv usr/docs/ocaml/html usr/share/doc/$pkgname-$pkgver/ocamldoc/
 	Frm usr/docs
 
 
@@ -183,9 +204,9 @@ build() {
 	Fsplit clang usr/share/doc/$pkgname-$pkgver/html/clang/
 
 	Fsplit $pkgname-ocaml usr/lib/ocaml/
-	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/ocamldoc/
 	Fsplit $pkgname-ocaml usr/lib/cmake/llvm/{Find,Add}OCaml.cmake
 	Fsplit $pkgname-ocaml usr/share/doc/$pkgname-$pkgver/html/tutorial/OCamlLangImpl*.html
+
 
 	Fsplit $pkgname-libs usr/lib/*.so*
 }

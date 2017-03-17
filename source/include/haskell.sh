@@ -18,7 +18,6 @@
 # pkgdesc="A Haskell binding to the X11 graphics library."
 # archs=('x86_64')
 # url="http://hackage.haskell.org/cgi-bin/hackage-scripts/package/X11"
-# makedepends=('ghc')
 # groups=('xlib-extra')
 # sha1sums=('28f5a257b9f601538822f47c9731b6e20618fbcf')
 # _F_cd_path=X11-$pkgver
@@ -79,9 +78,11 @@ install=$_F_haskell_install
 
 ###
 # == APPENDED VARIABLES
-# * options: add genscriptlet to options
+# * options: add genscriptlet to options=()
+# * makedepends: ghc to makedepends=()
 ###
 options=(${options[@]} 'scriptlet' 'genscriptlet')
+makedepends+=('ghc>=8.0.2')
 
 ###
 # == PROVIDED FUNCTIONS

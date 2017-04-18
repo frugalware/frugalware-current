@@ -82,7 +82,7 @@ if [ -n "$_F_sourceforge_sep" ] && [ "$_F_sourceforge_sep" = "None" ]; then
 fi
 
 if [ -z "$_F_sourceforge_rss_limit" ]; then
-	_F_sourceforge_rss_limit=20
+	_F_sourceforge_rss_limit=100
 fi
 
 ###

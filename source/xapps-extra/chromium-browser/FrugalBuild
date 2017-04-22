@@ -2,8 +2,8 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=chromium-browser
-pkgver=57.0.2987.98
-pkgrel=1
+pkgver=58.0.3029.81
+pkgrel=2
 pkgdesc='Development version of Chromium browser'
 url='http://www.chromium.org/'
 depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.3-2' 'libcups' \
@@ -12,7 +12,7 @@ depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.3
 #using the built in ones for now
 #depends+=('libevent>=2.0.22-3' 'libjpeg>=9a')
 makedepends=('ninja' 'clang>=3.7.0-3' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' 'x11-protos' 'krb5' 'cups' 'gtk+2'\
-             'python-ply' 'python-markupsafe' 'beautifulsoup4' 'html5lib-python' 'webencodings' 'protobuf-python')
+             'python-ply' 'python-markupsafe' 'beautifulsoup4' 'html5lib-python' 'webencodings' 'protobuf-python' 'nodejs')
 license=('BSD')
 groups=('xapps-extra')
 archs=('x86_64')
@@ -25,25 +25,29 @@ up2date="lynx -dump 'http://chromium.woolyss.com/#stable-chromium-version' | \
 source=(https://commondatastorage.googleapis.com/chromium-browser-official/chromium-${pkgver}.tar.xz \
         $pkgname.desktop \
         $pkgname.sh \
+	chromium-gn-bootstrap-r2.patch \
         chromium-system-ffmpeg-r4.patch \
         chromium-last-commit-position-r1.patch \
         gcc6-no-delete-null-pointer-checks.patch \
         chromium-46.0.2490.86-use_system_opus.patch \
         chromium-47.0.2526.80-nacl-ignore-broken-fd-counter.patch \
-        chromium-52.0.2723.2-use_system_harfbuzz.patch \
-        chromium-52.0.2743.82-widevinefix.patch \
-        chromium-54.0.2840.59-nullfix.patch)
-sha1sums=('b80fb4219a06f25817a348fa2d707523f9793949' \
+	chromium-58.0.3029.81-use_system_harfbuzz.patch \
+        chromium-54.0.2840.59-nullfix.patch \
+	chromium-widevine.patch \
+	vaapi_patch_r0.patch )
+sha1sums=('76a3c7ef3a90c0eebe22be3ba5af69366af60f48' \
           '264b8e7c4e3273263d504e041e5e4d152677922c' \
           '4c41d59b4d85a9f0443d6ca1dec456e50059dab5' \
+          'b25a672de974efc34429ce6f7ec14b8ed9d250f8' \
           'e7db42be95f3ca28a270df45d884b12f66686716' \
           'd03e6465cd5a84580f9dad5d45f24ccd42bb71e6' \
           '0fa01f6ac92d4616cdc74073952ada2259be1d70' \
           'd6d09996ff5ff4d796cf26f239eb2b688e017d25' \
           'af663b4b7a7a9e6f0075c4f60f0b4310a77d2d89' \
-          '4ac2af324c6927507d214ba3b6512ad1a879a2ff' \
-          '452ca515e91ff27957ee1b5dfd975f2daabc5b64' \
-          'a3e76fd3e890eabab86d14fc41ca9b17b03317e4')
+          '38b79bdb506d7b186b1c909ffd9f7366e1f56cd7' \
+          'a3e76fd3e890eabab86d14fc41ca9b17b03317e4' \
+          'c5719d06e0b39dfd3ca74f9f42684f4ee7584ade' \
+          '05547588ff218cc720b444af9931392fac5a2f56')
 
 chromium_path="chromium"
 
@@ -75,8 +79,7 @@ build() {
 			third_party/usb_ids \
 			third_party/xdg-utils \
 			third_party/yasm/run_yasm.py "
-
-# Remove most bundled libraries. Some are still needed.
+	# Remove most bundled libraries. Some are still needed.
 	Fexec build/linux/unbundle/remove_bundled_libraries.py \
 		${conditional_bundled_libraries} \
 		'base/third_party/dmg_fp' \
@@ -181,7 +184,6 @@ build() {
 		'third_party/web-animations-js' \
 		'third_party/webdriver' \
 		'third_party/webrtc' \
-		'third_party/widevine' \
 		'third_party/woff2' \
 		'third_party/x86inc' \
 		'third_party/zlib/google' \
@@ -190,6 +192,12 @@ build() {
 		'third_party/libjpeg_turbo' \
 		'v8/third_party/inspector_protocol' \
 		'third_party/inspector_protocol' \
+		'third_party/node' \
+		'third_party/node/node_modules/vulcanize/third_party/UglifyJS2' \
+		'third_party/libvpx' \
+		'third_party/libvpx/source/libvpx/third_party/x86inc' \
+		'third_party/widevine' \
+		'third_party/libva' \
 		--do-remove
 
 
@@ -197,7 +205,6 @@ build() {
 		flac
 		harfbuzz-ng
 		libpng
-		libvpx
 		libwebp
 		libxml
 		libxslt
@@ -216,12 +223,11 @@ build() {
 	#   myconf_gn+=" is_debug=true"
 	myconf_gn+=" enable_iterator_debugging=false"
 	myconf_gn+=" enable_nacl=false"
-	myconf_gn+=" symbol_level=0 remove_webcore_debug_symbols=true"
+	myconf_gn+=" remove_webcore_debug_symbols=true"
 
 	myconf_gn+=" enable_hangout_services_extension=false"
-	myconf_gn+=" enable_widevine=false"
+	myconf_gn+=" enable_widevine=true"
 	myconf_gn+=" use_allocator=\"none\""
-	myconf_gn+=" use_cups=true"
 	myconf_gn+=" use_kerberos=true"
 	myconf_gn+=" use_pulseaudio=true"
 	myconf_gn+=" fieldtrial_testing_like_official_build=true"
@@ -241,7 +247,7 @@ build() {
 	myconf_gn+=" use_system_libjpeg=false "
 
 
-    myconf_gn+=" ffmpeg_branding=\"Chrome\""
+	myconf_gn+=" ffmpeg_branding=\"Chrome\""
 
 	myconf_gn+=" google_api_key=\"${_google_api_key}\""
 	myconf_gn+=" google_default_client_id=\"${_google_default_client_id}\""
@@ -253,8 +259,10 @@ build() {
 	Fexec tools/gn/bootstrap/bootstrap.py -v --gn-gen-args "${myconf_gn}" || Fdie
 
 	Fexec out/Release/gn gen --args="${myconf_gn}" out/Release || Fdie
+	Fexec mkdir -p third_party/node/linux/node-linux-x64/bin || Fdie
+	Fexec ln -s /usr/bin/node third_party/node/linux/node-linux-x64/bin/
 
-	Fexec ninja -C out/Release chrome chrome_sandbox chromedriver || Fdie
+	Fexec ninja -C out/Release chrome chrome_sandbox chromedriver widevinecdmadapter || Fdie
 
 	Fmkdir usr/lib/${chromium_path}
         Fexerel out/Release/chrome usr/lib/${chromium_path}/chromium
@@ -283,6 +291,8 @@ build() {
 
 	Finstallrel 644 out/Release/natives_blob.bin usr/lib/${chromium_path}
 	Finstallrel 644 out/Release/snapshot_blob.bin usr/lib/${chromium_path}
+	Finstallrel 644 out/Release/chromedriver usr/lib/${chromium_path}
+	Finstallrel 644 out/Release/libwidevinecdmadapter.so usr/lib/${chromium_path}
 
 	Fdirschmod usr/lib/${chromium_path}/locales 755
 

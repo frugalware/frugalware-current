@@ -65,7 +65,7 @@ CMAKE_SBIN="sbin"
 # * makedepends(): add cmake and pkgconfig
 # * options(): add nostrip if _F_cmake_type is Debug*
 ###
-makedepends+=('cmake>=3.7.2' 'pkgconfig')
+makedepends+=('cmake>=3.8.0' 'pkgconfig')
 
 ###
 # == PROVIDED FUNCTIONS

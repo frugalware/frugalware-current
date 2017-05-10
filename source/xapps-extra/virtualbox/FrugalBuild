@@ -13,21 +13,26 @@ pkgname=virtualbox
 realname=VirtualBox
 pkgver=5.1.22
 pkgextra=
-pkgrel=1
+pkgrel=2
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' \
          'alsa-lib'  'curl' 'libxmu' 'libuuid' 'libcap' 'qt5-base>=5.7.1-2' 'qt5-x11extras>=5.7.1-2' \
          'libvpx>=1.6.0' 'lvm2' 'libgl' 'libxext' 'libx11' 'libpulse' 'libglu' 'libxrandr' 'libxcomposite' \
-	 'libxinerama')
+	 'libxinerama' 'libvncserver')
 makedepends=('cdrtools' 'x11-protos' 'qt5-tools' 'mesa-libgl-headers')
 rodepends=("virtualbox-modules=$pkgver")
 groups=('xapps-extra')
 archs=('x86_64')
 up2date="lynx -dump http://download.virtualbox.org/virtualbox/LATEST.TXT | head -n 1"
 source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver}${pkgextra}.tar.bz2 \
-	10-vboxdrv.rules
-	LocalConfig.kmk)
+	10-vboxdrv.rules \
+	LocalConfig.kmk \
+	60-vboxguest.rules \
+	vboxservice.service \
+	virtualbox-guest-utils.conf )
+
+Finclude kernel-module
 
 ## WARNING:
 ## It seems something gets misscompiled *again* with gcc6 ..
@@ -41,9 +46,16 @@ options=('scriptlet' 'genscriptlet' 'nostrip') ## we strip manually in build()
 _F_cd_path="${realname}-${pkgver}"
 sha1sums=('57e6f73f62af7d5ddb670972ba0417b6fcb43950' \
           'aa931ae19edd8585150738f0efd8fedf5175a6d3' \
-          '5e66ffd4607dafd9b55dc2b6e7591ef6892d4d49')
+          '5e66ffd4607dafd9b55dc2b6e7591ef6892d4d49' \
+          '08199d8e7906cb793277b798805d38ce386460d8' \
+          '142f64efb9532f5ff4faa4df6b93f591be2ce564' \
+          '80ba54b1e13f0e8f53a84ca3f25df617fb53ae4c')
 
-## FIXME/TODO: GUEST STUUF!!!
+subpkgs=("$pkgname-modules" "$pkgname-guest-additions")
+subdescs=('Kernel modules for VirtualBox' 'VirtualBox guest Additions')
+subarchs=('x86_64' 'x86_64')
+subgroups=('apps-extra' 'xapps-extra')
+subdepends=('' 'libxcomposite libxdamage libxrandr libxmu pam')
 
 build() {
 
@@ -66,11 +78,6 @@ build() {
 	echo "VBOX_GCC_OPT=$CXXFLAGS" >> LocalConfig.kmk ## DO NOT REMOVE
 
 
-	## we'll add an separate package for this OR we split here
-	## however we don't use these by now so we don't want to build these
-
-	echo "VBOX_WITHOUT_ADDITIONS := 1" >> LocalConfig.kmk
-
 	if Fuse $USE_VBOX_DEBUG; then
 		VBoxBuildType="debug"
 		VBox_Opts="-d"
@@ -85,6 +92,8 @@ build() {
 	Fexec ./configure \
 		--disable-docs \
 		--disable-kmods \
+		--enable-vde \
+		--enable-vnc \
 		--enable-pulse ${VBox_Opts} || Fdie
 
 	Fexec source ./env.sh || Fdie
@@ -169,6 +178,76 @@ build() {
 			strip -s $s
 		done
 	fi
+
+	# host kernel modules
+	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/src || Fdie
+        Fmkdir ${_F_kernelmod_dir}/kernel/misc
+
+        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \
+                MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc || Fdie
+        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \
+                MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+
+        #cleanup first
+        rm -rf fw_tmp || Fdie
+        mkdir fw_tmp || Fdie
+
+        cd fw_tmp || Fdie
+
+        Fbuild_kernelmod_scriptlet
+
+        Fkernelver_compress_modules
+
+	Fsplit virtualbox-modules ${_F_kernelmod_dir}/kernel/misc
+
+        # guest additions
+	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions || Fdie
+	Fexerel usr/bin/VBoxClient
+	Fexerel usr/bin/VBoxControl
+	Fexerel usr/bin/VBoxService
+	Fexerel usr/bin/mount.vboxsf
+	Fexe ${_F_cd_path}/src/VBox/Additions/x11/Installer/98vboxadd-xclient usr/bin/VBoxClient-all
+
+	Fsplit virtualbox-guest-additions  usr/bin/{VBoxClient,VBoxControl,VBoxService,mount.vboxsf,VBoxClient-all}
+
+	Fexe ${_F_cd_path}/src/VBox/Additions/x11/Installer/vboxclient.desktop etc/xdg/autostart/vboxclient.desktop
+	Fsplit virtualbox-guest-additions  etc/xdg
+
+	Finstallrel 755 usr/lib/VBoxOGL\*.so
+	Fln /usr/lib/VBoxOGL.so usr/lib/xorg/modules/dri/vboxvideo_dri.so
+	Fsplit virtualbox-guest-additions usr/lib/VBoxOGL*.so
+	Fsplit virtualbox-guest-additions usr/lib/xorg/
+
+	Finstallrel 755 lib/security/pam_vbox.so
+
+	# TODO remove after systemd is gone
+	Finstall 644 lib/udev/rules.d/60-vboxguest.rules
+	Finstall 644 lib/systemd/system/vboxservice.service
+	Finstall 644 usr/lib/sysusers.d/virtualbox-guest-utils.conf
+	Fsplit virtualbox-guest-additions usr/lib/sysusers.d/
+
+	# guest kernel modules
+        Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions/src || Fdie
+        Fmkdir ${_F_kernelmod_dir}/kernel/misc
+
+        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \
+                MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc || Fdie
+        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \
+                MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+
+        #cleanup first
+        rm -rf fw_tmp || Fdie
+        mkdir fw_tmp || Fdie
+
+        cd fw_tmp || Fdie
+
+        Fbuild_kernelmod_scriptlet
+
+        Fkernelver_compress_modules
+	Fsplit virtualbox-guest-additions lib/modules/
+	Fsplit virtualbox-guest-additions lib/security/
+	Fsplit virtualbox-guest-additions lib/systemd/
+	Fsplit virtualbox-guest-additions lib/udev/rules.d/60-vboxguest.rules
 }
 
 # optimization OK

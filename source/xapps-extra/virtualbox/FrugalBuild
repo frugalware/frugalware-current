@@ -13,7 +13,7 @@ pkgname=virtualbox
 realname=VirtualBox
 pkgver=5.1.22
 pkgextra=
-pkgrel=3
+pkgrel=4
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' \
@@ -21,7 +21,7 @@ depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcur
          'libvpx>=1.6.0' 'lvm2' 'libgl' 'libxext' 'libx11' 'libpulse' 'libglu' 'libxrandr' 'libxcomposite' \
 	 'libxinerama' 'libvncserver')
 makedepends=('cdrtools' 'x11-protos' 'qt5-tools' 'mesa-libgl-headers')
-rodepends=("virtualbox-modules=$pkgver")
+rodepends=("virtualbox-modules>=$pkgver")
 groups=('xapps-extra')
 archs=('x86_64')
 up2date="lynx -dump http://download.virtualbox.org/virtualbox/LATEST.TXT | head -n 1"
@@ -32,8 +32,8 @@ source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver
 	vboxservice.service \
 	virtualbox-guest-utils.conf )
 
+_F_kernelmod_scriptlet="$startdir/$pkgname.install"
 Finclude kernel-module
-
 ## WARNING:
 ## It seems something gets misscompiled *again* with gcc6 ..
 ## DO NOT REMOVE 'nostrip' , we strip mauanlly
@@ -41,7 +41,8 @@ Finclude kernel-module
 ## PDMLdr: pdmR3LoadR0U: pszName="VMMR0.r0" rc=VERR_INVALID_PARAMETER szErr="SUP_IOCTL_LDR_OPEN failed"
 ## SUP_IOCTL_LDR_OPEN: pReq->u.In.cbImageBits < pReq->u.In.cbImageWithTabs
 
-options=('scriptlet' 'genscriptlet' 'nostrip') ## we strip manually in build()
+## duh this genscriptlet sh*t is plain broken
+options=('scriptlet' 'nostrip' 'genscriptlet') ## we strip manually in build()
 
 _F_cd_path="${realname}-${pkgver}"
 sha1sums=('57e6f73f62af7d5ddb670972ba0417b6fcb43950' \
@@ -56,6 +57,8 @@ subdescs=('Kernel modules for VirtualBox' 'VirtualBox guest Additions')
 subarchs=('x86_64' 'x86_64')
 subgroups=('apps-extra' 'xapps-extra')
 subdepends=('' 'libxcomposite libxdamage libxrandr libxmu pam')
+suboptions=('scriptlet' 'scriptlet')
+subinstall=("$pkgname-modules.install" "$pkgname-guest-additions.install")
 
 build() {
 
@@ -102,7 +105,7 @@ build() {
 	Fexec kmk KBUILD_VERBOSE=2  all || Fdie
 
 
-	local i k j s
+	local i k j s m
 
 	Fmkdir usr/share/icons/hicolor/{16x16,20x20,32x32,40x40,48x48,64x64,128x128,scalable}/apps
 
@@ -189,14 +192,13 @@ build() {
                 MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=${Fdestdir} install || Fdie
 
         #cleanup first
-        rm -rf fw_tmp || Fdie
-        mkdir fw_tmp || Fdie
+        Fexec rm -rf fw_tmp || Fdie
+        Fexec mkdir fw_tmp || Fdie
 
-        cd fw_tmp || Fdie
+        Fexec cd fw_tmp || Fdie
 
-        Fbuild_kernelmod_scriptlet
-
-        Fkernelver_compress_modules
+	Fsed "@_F_kernelmod_uname@" "$_F_kernelmod_uname" $startdir/virtualbox-modules.install
+	Fkernelver_compress_modules
 
 	Fsplit virtualbox-modules ${_F_kernelmod_dir}/kernel/misc
 
@@ -213,9 +215,9 @@ build() {
 	Fexe ${_F_cd_path}/src/VBox/Additions/x11/Installer/vboxclient.desktop etc/xdg/autostart/vboxclient.desktop
 	Fsplit virtualbox-guest-additions  etc/xdg
 
-	for i in {VBoxOGLerrorspu.so,VBoxOGLarrayspu.so,VBoxOGLpackspu.so,VBoxOGLcrutil.so,VBoxOGLfeedbackspu.so,VBoxOGL.so,VBoxOGLpassthroughspu.so}
+	for m in {VBoxOGLerrorspu.so,VBoxOGLarrayspu.so,VBoxOGLpackspu.so,VBoxOGLcrutil.so,VBoxOGLfeedbackspu.so,VBoxOGL.so,VBoxOGLpassthroughspu.so}
 	do
-		Finstallrel 755 usr/lib/$i
+		Finstallrel 755 usr/lib/$m
 	done
 
 	Fln /usr/lib/VBoxOGL.so usr/lib/xorg/modules/dri/vboxvideo_dri.so
@@ -240,18 +242,25 @@ build() {
                 MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=${Fdestdir} install || Fdie
 
         #cleanup first
-        rm -rf fw_tmp || Fdie
-        mkdir fw_tmp || Fdie
+        Fexec rm -rf fw_tmp || Fdie
+        Fexec mkdir fw_tmp || Fdie
 
-        cd fw_tmp || Fdie
+        Fexec cd fw_tmp || Fdie
 
-        Fbuild_kernelmod_scriptlet
+	Fsed "@_F_kernelmod_uname@" "$_F_kernelmod_uname" $startdir/virtualbox-guest-additions.install
 
-        Fkernelver_compress_modules
+	Fkernelver_compress_modules
+
+
 	Fsplit virtualbox-guest-additions lib/modules/
 	Fsplit virtualbox-guest-additions lib/security/
 	Fsplit virtualbox-guest-additions lib/systemd/
 	Fsplit virtualbox-guest-additions lib/udev/rules.d/60-vboxguest.rules
+
+	## REALLY ? this is the only package does NOT need it..
+	##  but no way to do that different atm
+	Fbuild_kernelmod_scriptlet
+
 }
 
 # optimization OK

@@ -13,7 +13,7 @@ pkgname=virtualbox
 realname=VirtualBox
 pkgver=5.1.22
 pkgextra=
-pkgrel=4
+pkgrel=5
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' \
@@ -30,7 +30,9 @@ source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver
 	LocalConfig.kmk \
 	60-vboxguest.rules \
 	vboxservice.service \
-	virtualbox-guest-utils.conf )
+	virtualbox-guest-utils.conf \
+	modules-depmod.patch \
+	kernel-module-guest-depmod.patch )
 
 _F_kernelmod_scriptlet="$startdir/$pkgname.install"
 Finclude kernel-module
@@ -50,7 +52,9 @@ sha1sums=('57e6f73f62af7d5ddb670972ba0417b6fcb43950' \
           '5e66ffd4607dafd9b55dc2b6e7591ef6892d4d49' \
           '08199d8e7906cb793277b798805d38ce386460d8' \
           '1ede0a59519e3b73a06fcbc98bd10fe505e9557f' \
-          '80ba54b1e13f0e8f53a84ca3f25df617fb53ae4c')
+          '80ba54b1e13f0e8f53a84ca3f25df617fb53ae4c' \
+          'ca94de464d516b434c458c1c255c41c06799b941' \
+          '1634d3d18a4d645734088d06588c37dc50e06c03')
 
 subpkgs=("$pkgname-modules" "$pkgname-guest-additions")
 subdescs=('Kernel modules for VirtualBox' 'VirtualBox guest Additions')
@@ -63,7 +67,6 @@ subinstall=("$pkgname-modules.install" "$pkgname-guest-additions.install")
 build() {
 
 	Fcd
-	Fpatchall
 
 	## FIXME: figure these
 	Fsed '/usr/X11R6/bin/xterm' '/usr/bin/xterm' \
@@ -184,12 +187,11 @@ build() {
 
 	# host kernel modules
 	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/src || Fdie
+	Fpatch modules-depmod.patch
         Fmkdir ${_F_kernelmod_dir}/kernel/misc
 
-        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \
-                MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc || Fdie
-        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \
-                MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc || Fdie
+        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=${Fdestdir} install || Fdie
 
         #cleanup first
         Fexec rm -rf fw_tmp || Fdie
@@ -234,6 +236,7 @@ build() {
 
 	# guest kernel modules
         Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions/src || Fdie
+	Fpatch kernel-module-guest-depmod.patch
         Fmkdir ${_F_kernelmod_dir}/kernel/misc
 
         Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \

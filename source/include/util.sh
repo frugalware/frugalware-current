@@ -238,6 +238,7 @@ __Faddsubpkg() {
 ###
 Faddsubpkg() {
 
+	__is_deprecated
 	local g a
 
 	if [ "$#" -lt 3 ]; then

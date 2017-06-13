@@ -183,7 +183,7 @@ else
 fi
 
 if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
-	makedepends+=('extra-cmake-modules>=5.33.0' 'qt5-tools')
+	makedepends+=('extra-cmake-modules>=5.35.0' 'qt5-tools')
 fi
 
 ## From gcc6 docs

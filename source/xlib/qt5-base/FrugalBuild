@@ -1,13 +1,10 @@
 # Compiling Time: 64.56 SBU
-# Maintainer: Marius Cirsta <mcirsta@frugalware.org>
+# Maintainer: crazy <crazy@frugalware.org>
 
-
-## WE DO NOT bump to 5.8.0 this time since things are going mad in kde land
-## we wait for at least 5.8.1 and even then we need to check what bugs got fixed. -- crazy --
 
 pkgname=qt5-base
-pkgver=5.7.1
-pkgrel=5
+pkgver=5.9.1
+pkgrel=2
 Finclude qt5
 pkgdesc="The Qt5 GUI toolkit."
 depends=('libxkbcommon>=0.6.1-2' 'xcb-util-image>=0.4.0-3' 'xcb-util-wm>=0.4.1-3' \
@@ -17,7 +14,7 @@ depends=('libxkbcommon>=0.6.1-2' 'xcb-util-image>=0.4.0-3' 'xcb-util-wm>=0.4.1-3
 	'libxi>=1.7.6-2' 'pcre>=8.39-3' 'libxrender>=0.9.9-5' 'mtdev>=1.1.5-4' \
 	'libgl>=>=12.0.3-3' 'libproxy>=0.4.13-2' 'libsm>=1.2.2-3' 'icu4c>=58.1')
 makedepends+=('cups>=2.2.0-2' 'x11-protos' 'mysql>=5.5.50-2' 'postgresql>=9.5.4'  \
-	'gst1-plugins-base>=1.9.2-2' 'alsa-lib>=1.1.2-2' 'pulseaudio>=9.0-2' 'gperf')
+	'gst1-plugins-base>=1.9.2-2' 'alsa-lib>=1.1.2-2' 'pulseaudio>=9.0-2' 'gperf' 'gtk+3')
 
 ## old qt5
 replaces=('libqt5concurrent' 'libqt5core' 'libqt5dbus' 'libqt5gui' 'libqt5network' 'libqt5opengl' 'libqt5openglextensions' \
@@ -27,12 +24,9 @@ conflicts=("${replaces[@]}")
 provides=("${replaces[@]}")
 ## old qt5 end
 
-source+=(no-o3-02-use-HOST-flags.patch qtbase-multilib_optflags.patch \
-	https://github.com/qt/qtbase/commit/494376f980e96339b6f1eff7c41336ca4d853065.patch) ## QTBUG-49061
-sha1sums=('a3ddcde8978d3a05bb4342fce364a792472a16e6' \
-          '6e7d286dd921acdc489e57a7d40e76996d5f2906' \
-          '6ec3dddda2105b43648e321887c3879267c1a512' \
-          'bb23f86f07e2b45316baf7207491563ab89b6a0f')
+source+=(QTBUG-60932.patch)
+sha1sums=('4901362bc200347373de5234f98aec4562fadbdf' \
+          '42a9e61be4e322d6c9631b8af5476d2df6fc675d')
 
 Fconfopts+=" -prefix /usr \
 		-bindir /usr/lib/qt5/bin \
@@ -66,14 +60,15 @@ Fconfopts+=" -prefix /usr \
 		-system-sqlite \
 		-libproxy \
 		-libinput \
-		-gstreamer 1.0 \
-		-journald"
+		-gtk \
+		-journald \
+		-no-use-gold-linker"
 
 
 subpkgs=("$pkgname-mysql")
 subdescs=('Mysql support for qt5')
 subdepends=("libmysqlclient>=5.5.50-2")
-subrodepends=("$pkgname>=$pkgver")
+subrodepends=("$pkgname>=$pkgver $pkgname-sql-common")
 subgroups=('xlib-extra')
 subarchs=("x86_64")
 subreplaces=('qt5-plugin-mysql')
@@ -83,38 +78,68 @@ subconflicts=('qt5-plugin-mysql')
 subpkgs+=("$pkgname-postgresql")
 subdescs+=('Postgresql support for qt5')
 subdepends+=("libpq>=9.5.4")
-subrodepends+=("$pkgname>=$pkgver")
+subrodepends+=("$pkgname>=$pkgver $pkgname-sql-common")
 subgroups+=('xlib-extra')
 subarchs+=('x86_64')
 subreplaces+=('qt5-plugin-psql')
 subprovides+=('qt5-plugin-psql')
 subconflicts+=('qt5-plugin-psql')
 
+subpkgs+=("$pkgname-sql-common")
+subdescs+=('Development files for SQL plugins')
+subdepends+=("")
+subrodepends+=("")
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
+subreplaces+=('')
+subprovides+=('')
+subconflicts+=('')
+
+subpkgs+=("$pkgname-platformtheme-gtk3")
+subdescs+=('Qt5 GTK3 Theme support')
+subdepends+=("gtk+3")
+subrodepends+=("$pkgname>=$pkgver")
+subgroups+=('xlib-extra')
+subarchs+=('x86_64')
+subreplaces+=('')
+subprovides+=('')
+subconflicts+=('')
+
 
 build()
 {
+	Fcd
 	Fpatchall
 	## let qt5 own his config dir ;)
 	Fmkdir /etc/qt5
 	Fmessage "Fixing up CXX/LD flags.."
 	Fexec sed -i -e "s|-O2|$CXXFLAGS|g" mkspecs/*/qmake.conf || Fdie
 	Fexec sed -i -e "s|^\(QMAKE_LFLAGS_RELEASE.*\)|\1 $LDFLAGS|" mkspecs/common/g++-unix.conf || Fdie
+	Fexec sed -i -e "s|^\(QMAKE_CFLAGS_RELEASE.*\)|\1 ${CXXFLAGS}|" mkspecs/common/gcc-base.conf || Fdie
+	Fmessage "Killing QMAKE_CFLAGS_OPTIMIZE_FULL = -O3.."
+	Fsed "-O3" "" mkspecs/common/gcc-base.conf
+	## see https://bugreports.qt.io/browse/QTBUG-61743
+	Fsed "config.atspi" "libs.atspi" src/gui/configure.json
 	Fmake
 	make  INSTALL_ROOT=$Fdestdir install || Fdie
+
+	local i q5
 	for i in ${Fdestdir}/usr/lib/qt5/bin/*; do
 		q5=`basename ${i}`
 		Fln /usr/lib/qt5/bin/${q5} /usr/bin/${q5}-qt5
 		Fln /usr/lib/qt5/bin/${q5} /usr/bin/${q5}
         done
 
-	Fsplit $pkgname-mysql usr/include/qt5/QtSql/${pkgver}/QtSql/private/qsql_mysql_p.h
-	Fsplit $pkgname-mysql usr/lib/qt5/plugins/sqldrivers/libqsqlmysql.so
-	Fsplit $pkgname-mysql usr/lib/cmake/Qt5Sql/Qt5Sql_QMYSQLDriverPlugin.cmake
+	Fsplit $pkgname-platformtheme-gtk3 usr/lib/qt5/plugins/platformthemes/libqgtk3.so
+	Fsplit $pkgname-platformtheme-gtk3 usr/lib/cmake/Qt5Gui/Qt5Gui_QGtk3ThemePlugin.cmake
 
-	Fsplit $pkgname-postgresql usr/include/qt5/QtSql/${pkgver}/QtSql/private/qsql_psql_p.h
-	Fsplit $pkgname-postgresql usr/lib/qt5/plugins/sqldrivers/libqsqlpsql.so
-	Fsplit $pkgname-postgresql usr/lib/cmake/Qt5Sql/Qt5Sql_QPSQLDriverPlugin.cmake
+	Fsplit $pkgname-sql-common usr/include/qt5/QtSql/${pkgver}/QtSql
+
+	Fsplit $pkgname-mysql usr/lib/cmake/Qt5Sql/Qt5Sql_QMYSQLDriverPlugin.cmake usr/lib/qt5/plugins/sqldrivers/libqsqlmysql.so
+
+	Fsplit $pkgname-postgresql usr/lib/cmake/Qt5Sql/Qt5Sql_QPSQLDriverPlugin.cmake usr/lib/qt5/plugins/sqldrivers/libqsqlpsql.so
 }
+
 
 # optimization OK
 

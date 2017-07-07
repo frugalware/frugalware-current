@@ -147,14 +147,8 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		if [ "$_F_kde_project" = "frameworks" ]; then
-			_F_archive_grepv="\-rc"
-			_F_archive_name="archive"
-			Fpkgversep="/"
-			up2date="Flasttar https://github.com/KDE/${_F_kde_name}/releases/latest | sed 's/v//'"
-		else
-			up2date="Flastverdir http://download.kde.org/$_F_kde_folder"
-		fi
+		makedepends+=('rsync')
+		up2date="rsync -r -n  rsync://mirror.netcologne.de/kde/$_F_kde_folder | Flasttar"
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

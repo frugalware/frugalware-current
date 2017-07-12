@@ -1,0 +1,327 @@
+diff -Naur VirtualBox-5.1.22/include/VBox/sup.h VirtualBox-5.1.22-kernel-4.12.0/include/VBox/sup.h
+--- VirtualBox-5.1.22/include/VBox/sup.h	2017-04-28 16:59:04.000000000 +0200
++++ VirtualBox-5.1.22-kernel-4.12.0/include/VBox/sup.h	2017-07-03 17:31:33.421580097 +0200
+@@ -100,9 +100,11 @@
+  * @{
+  */
+ /** GDT is read-only. */
+-#define SUPKERNELFEATURES_GDT_READ_ONLY     RT_BIT(0)
++#define SUPKERNELFEATURES_GDT_READ_ONLY       RT_BIT(0)
+ /** SMAP is possibly enabled. */
+-#define SUPKERNELFEATURES_SMAP              RT_BIT(1)
++#define SUPKERNELFEATURES_SMAP                RT_BIT(1)
++/** GDT is read-only but the writable GDT can be fetched by SUPR0GetCurrentGdtRw(). */
++#define SUPKERNELFEATURES_GDT_NEED_WRITABLE   RT_BIT(2)
+ /** @} */
+ 
+ 
+@@ -1893,6 +1895,7 @@
+ SUPR0DECL(int) SUPR0GipMap(PSUPDRVSESSION pSession, PRTR3PTR ppGipR3, PRTHCPHYS pHCPhysGip);
+ SUPR0DECL(int) SUPR0GetSvmUsability(bool fInitSvm);
+ SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous);
++SUPR0DECL(int) SUPR0GetCurrentGdtRw(RTHCUINTPTR *pGdtRw);
+ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps);
+ SUPR0DECL(int) SUPR0GipUnmap(PSUPDRVSESSION pSession);
+ SUPR0DECL(SUPPAGINGMODE) SUPR0GetPagingMode(void);
+diff -Naur VirtualBox-5.1.22/include/VBox/vmm/hm_vmx.h VirtualBox-5.1.22-kernel-4.12.0/include/VBox/vmm/hm_vmx.h
+--- VirtualBox-5.1.22/include/VBox/vmm/hm_vmx.h	2017-04-28 16:59:05.000000000 +0200
++++ VirtualBox-5.1.22-kernel-4.12.0/include/VBox/vmm/hm_vmx.h	2017-07-03 17:31:33.422580124 +0200
+@@ -111,6 +111,7 @@
+ #define VMX_RESTORE_HOST_IDTR                 RT_BIT(6)
+ #define VMX_RESTORE_HOST_GDT_READ_ONLY        RT_BIT(7)
+ #define VMX_RESTORE_HOST_REQUIRED             RT_BIT(8)
++#define VMX_RESTORE_HOST_GDT_NEED_WRITABLE    RT_BIT(9)
+ /** @} */
+ 
+ /**
+@@ -126,19 +127,22 @@
+     RTSEL       uHostSelGS;     /* 0x06 */
+     RTSEL       uHostSelTR;     /* 0x08 */
+     uint8_t     abPadding0[4];
+-    X86XDTR64   HostGdtr;       /**< 0x0e - should be aligned by it's 64-bit member.  */
++    X86XDTR64   HostGdtr;       /**< 0x0e - should be aligned by it's 64-bit member. */
+     uint8_t     abPadding1[6];
+-    X86XDTR64   HostIdtr;       /**< 0x1e - should be aligned by it's 64-bit member. */
+-    uint64_t    uHostFSBase;    /* 0x28 */
+-    uint64_t    uHostGSBase;    /* 0x30 */
++    X86XDTR64   HostGdtrRw;     /**< 0x1e - should be aligned by it's 64-bit member. */
++    uint8_t     abPadding2[6];
++    X86XDTR64   HostIdtr;       /**< 0x2e - should be aligned by it's 64-bit member. */
++    uint64_t    uHostFSBase;    /* 0x38 */
++    uint64_t    uHostGSBase;    /* 0x40 */
+ } VMXRESTOREHOST;
+ /** Pointer to VMXRESTOREHOST. */
+ typedef VMXRESTOREHOST *PVMXRESTOREHOST;
+ AssertCompileSize(X86XDTR64, 10);
+ AssertCompileMemberOffset(VMXRESTOREHOST, HostGdtr.uAddr, 16);
+-AssertCompileMemberOffset(VMXRESTOREHOST, HostIdtr.uAddr, 32);
+-AssertCompileMemberOffset(VMXRESTOREHOST, uHostFSBase,    40);
+-AssertCompileSize(VMXRESTOREHOST, 56);
++AssertCompileMemberOffset(VMXRESTOREHOST, HostGdtrRw.uAddr, 32);
++AssertCompileMemberOffset(VMXRESTOREHOST, HostIdtr.uAddr, 48);
++AssertCompileMemberOffset(VMXRESTOREHOST, uHostFSBase,    56);
++AssertCompileSize(VMXRESTOREHOST, 72);
+ AssertCompileSizeAlignment(VMXRESTOREHOST, 8);
+ 
+ /** @name Host-state MSR lazy-restoration flags.
+diff -Naur VirtualBox-5.1.22/include/VBox/vmm/hm_vmx.mac VirtualBox-5.1.22-kernel-4.12.0/include/VBox/vmm/hm_vmx.mac
+--- VirtualBox-5.1.22/include/VBox/vmm/hm_vmx.mac	2017-04-28 16:59:05.000000000 +0200
++++ VirtualBox-5.1.22-kernel-4.12.0/include/VBox/vmm/hm_vmx.mac	2017-07-03 17:31:33.423580151 +0200
+@@ -160,6 +160,7 @@
+ %define VMX_RESTORE_HOST_IDTR                                   40h   ;RT_BIT(6)
+ %define VMX_RESTORE_HOST_GDT_READ_ONLY                          80h   ;RT_BIT(7)
+ %define VMX_RESTORE_HOST_REQUIRED                              100h   ;RT_BIT(8)
++%define VMX_RESTORE_HOST_GDT_NEED_WRITABLE                     200h   ;RT_BIT(9)
+ 
+ ;; C version hm_vmx.h.
+ struc VMXRESTOREHOST
+@@ -171,12 +172,15 @@
+     .abPadding0         resb    4
+     .HostGdtr           resb    10
+     .abPadding1         resb    6
++    .HostGdtrRw         resb    10
++    .abPadding2         resb    6
+     .HostIdtr           resb    10
+     .uHostFSBase        resq    1
+     .uHostGSBase        resq    1
+ endstruc
+ AssertCompileMemberOffset(VMXRESTOREHOST, HostGdtr,     16-2)
+-AssertCompileMemberOffset(VMXRESTOREHOST, HostIdtr,     32-2)
+-AssertCompileMemberOffset(VMXRESTOREHOST, uHostFSBase,    40)
+-AssertCompileSize(VMXRESTOREHOST, 56)
++AssertCompileMemberOffset(VMXRESTOREHOST, HostGdtrRw,   32-2)
++AssertCompileMemberOffset(VMXRESTOREHOST, HostIdtr,     48-2)
++AssertCompileMemberOffset(VMXRESTOREHOST, uHostFSBase,    56)
++AssertCompileSize(VMXRESTOREHOST, 72)
+ 
+diff -Naur VirtualBox-5.1.22/src/VBox/Additions/linux/drm/vbox_ttm.c VirtualBox-5.1.22-kernel-4.12.0/src/VBox/Additions/linux/drm/vbox_ttm.c
+--- VirtualBox-5.1.22/src/VBox/Additions/linux/drm/vbox_ttm.c	2017-04-28 16:59:23.000000000 +0200
++++ VirtualBox-5.1.22-kernel-4.12.0/src/VBox/Additions/linux/drm/vbox_ttm.c	2017-07-03 17:42:41.347651030 +0200
+@@ -280,6 +280,9 @@
+     .verify_access = vbox_bo_verify_access,
+     .io_mem_reserve = &vbox_ttm_io_mem_reserve,
+     .io_mem_free = &vbox_ttm_io_mem_free,
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++        .io_mem_pfn = ttm_bo_default_io_mem_pfn,
++#endif
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+     .lru_tail = &ttm_bo_default_lru_tail,
+     .swap_lru_tail = &ttm_bo_default_swap_lru_tail,
+diff -Naur VirtualBox-5.1.22/src/VBox/HostDrivers/Support/linux/SUPDrv-linux.c VirtualBox-5.1.22-kernel-4.12.0/src/VBox/HostDrivers/Support/linux/SUPDrv-linux.c
+--- VirtualBox-5.1.22/src/VBox/HostDrivers/Support/linux/SUPDrv-linux.c	2017-04-28 17:04:14.000000000 +0200
++++ VirtualBox-5.1.22-kernel-4.12.0/src/VBox/HostDrivers/Support/linux/SUPDrv-linux.c	2017-07-03 17:33:40.185010988 +0200
+@@ -61,6 +61,8 @@
+ # include <asm/msr.h>
+ #endif
+ 
++#include <asm/desc.h>
++
+ #include <iprt/asm-amd64-x86.h>
+ 
+ 
+@@ -1400,6 +1402,9 @@
+ #ifdef CONFIG_PAX_KERNEXEC
+     fFlags |= SUPKERNELFEATURES_GDT_READ_ONLY;
+ #endif
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++    fFlags |= SUPKERNELFEATURES_GDT_NEED_WRITABLE;
++#endif
+ #if defined(VBOX_STRICT) || defined(VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV)
+     fFlags |= SUPKERNELFEATURES_SMAP;
+ #elif defined(CONFIG_X86_SMAP)
+@@ -1410,6 +1415,17 @@
+ }
+ 
+ 
++int VBOXCALL    supdrvOSGetCurrentGdtRw(RTHCUINTPTR *pGdtRw)
++{
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++    *pGdtRw = (RTHCUINTPTR)get_current_gdt_rw();
++    return VINF_SUCCESS;
++#else
++    return VERR_NOT_IMPLEMENTED;
++#endif
++}
++
++
+ module_init(VBoxDrvLinuxInit);
+ module_exit(VBoxDrvLinuxUnload);
+ 
+diff -Naur VirtualBox-5.1.22/src/VBox/HostDrivers/Support/SUPDrv.cpp VirtualBox-5.1.22-kernel-4.12.0/src/VBox/HostDrivers/Support/SUPDrv.cpp
+--- VirtualBox-5.1.22/src/VBox/HostDrivers/Support/SUPDrv.cpp	2017-04-28 17:04:13.000000000 +0200
++++ VirtualBox-5.1.22-kernel-4.12.0/src/VBox/HostDrivers/Support/SUPDrv.cpp	2017-07-03 17:34:48.390856742 +0200
+@@ -198,6 +198,7 @@
+     { "SUPR0EnableVTx",                         (void *)(uintptr_t)SUPR0EnableVTx },
+     { "SUPR0SuspendVTxOnCpu",                   (void *)(uintptr_t)SUPR0SuspendVTxOnCpu },
+     { "SUPR0ResumeVTxOnCpu",                    (void *)(uintptr_t)SUPR0ResumeVTxOnCpu },
++    { "SUPR0GetCurrentGdtRw",                   (void *)(uintptr_t)SUPR0GetCurrentGdtRw },
+     { "SUPR0GetKernelFeatures",                 (void *)(uintptr_t)SUPR0GetKernelFeatures },
+     { "SUPR0GetPagingMode",                     (void *)(uintptr_t)SUPR0GetPagingMode },
+     { "SUPR0GetSvmUsability",                   (void *)(uintptr_t)SUPR0GetSvmUsability },
+@@ -3875,6 +3876,17 @@
+ #endif
+ }
+ 
++
++SUPR0DECL(int) SUPR0GetCurrentGdtRw(RTHCUINTPTR *pGdtRw)
++{
++#ifdef RT_OS_LINUX
++    return supdrvOSGetCurrentGdtRw(pGdtRw);
++#else
++    NOREF(pGdtRw);
++    return VERR_NOT_IMPLEMENTED;
++#endif
++}
++
+ 
+ /**
+  * Checks if Intel VT-x feature is usable on this CPU.
+diff -Naur VirtualBox-5.1.22/src/VBox/HostDrivers/Support/SUPDrvInternal.h VirtualBox-5.1.22-kernel-4.12.0/src/VBox/HostDrivers/Support/SUPDrvInternal.h
+--- VirtualBox-5.1.22/src/VBox/HostDrivers/Support/SUPDrvInternal.h	2017-04-28 17:04:13.000000000 +0200
++++ VirtualBox-5.1.22-kernel-4.12.0/src/VBox/HostDrivers/Support/SUPDrvInternal.h	2017-07-03 17:33:40.184010961 +0200
+@@ -841,6 +841,7 @@
+ RTCCUINTREG VBOXCALL supdrvOSChangeCR4(RTCCUINTREG fOrMask, RTCCUINTREG fAndMask);
+ bool VBOXCALL   supdrvOSSuspendVTxOnCpu(void);
+ void VBOXCALL   supdrvOSResumeVTxOnCpu(bool fSuspended);
++int  VBOXCALL   supdrvOSGetCurrentGdtRw(RTHCUINTPTR *pGdtRw);
+ 
+ /**
+  * Try open the image using the native loader.
+diff -Naur VirtualBox-5.1.22/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c VirtualBox-5.1.22-kernel-4.12.0/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c
+--- VirtualBox-5.1.22/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c	2017-04-28 17:04:49.000000000 +0200
++++ VirtualBox-5.1.22-kernel-4.12.0/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c	2017-07-03 17:25:27.982701147 +0200
+@@ -902,6 +902,9 @@
+     union
+     {
+         pgd_t       Global;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++        p4d_t       Four;
++#endif
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
+         pud_t       Upper;
+ #endif
+@@ -917,9 +920,24 @@
+     u.Global = *pgd_offset(current->active_mm, ulAddr);
+     if (RT_UNLIKELY(pgd_none(u.Global)))
+         return NULL;
+-
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
++# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++    u.Four  = *p4d_offset(&u.Global, ulAddr);
++    if (RT_UNLIKELY(p4d_none(u.Four)))
++        return NULL;
++    if (p4d_large(u.Four))
++    {
++        pPage = p4d_page(u.Four);
++        AssertReturn(pPage, NULL);
++        pfn   = page_to_pfn(pPage);      /* doing the safe way... */
++        AssertCompile(P4D_SHIFT - PAGE_SHIFT < 31);
++        pfn  += (ulAddr >> PAGE_SHIFT) & ((UINT32_C(1) << (P4D_SHIFT - PAGE_SHIFT)) - 1);
++        return pfn_to_page(pfn);
++    }
++    u.Upper = *pud_offset(&u.Four, ulAddr);
++# else /* < 4.12 */
+     u.Upper = *pud_offset(&u.Global, ulAddr);
++# endif /* < 4.12 */
+     if (RT_UNLIKELY(pud_none(u.Upper)))
+         return NULL;
+ # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+@@ -932,7 +950,6 @@
+         return pfn_to_page(pfn);
+     }
+ # endif
+-
+     u.Middle = *pmd_offset(&u.Upper, ulAddr);
+ #else  /* < 2.6.11 */
+     u.Middle = *pmd_offset(&u.Global, ulAddr);
+diff -Naur VirtualBox-5.1.22/src/VBox/Runtime/r0drv/linux/the-linux-kernel.h VirtualBox-5.1.22-kernel-4.12.0/src/VBox/Runtime/r0drv/linux/the-linux-kernel.h
+--- VirtualBox-5.1.22/src/VBox/Runtime/r0drv/linux/the-linux-kernel.h	2017-04-28 17:04:49.000000000 +0200
++++ VirtualBox-5.1.22-kernel-4.12.0/src/VBox/Runtime/r0drv/linux/the-linux-kernel.h	2017-07-03 17:22:01.221135583 +0200
+@@ -159,6 +159,11 @@
+ # include <asm/tlbflush.h>
+ #endif
+ 
++/* for set_pages_x() */
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++# include <asm/set_memory.h>
++#endif
++
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
+ # include <asm/smap.h>
+ #else
+diff -Naur VirtualBox-5.1.22/src/VBox/VMM/VMMR0/HMR0A.asm VirtualBox-5.1.22-kernel-4.12.0/src/VBox/VMM/VMMR0/HMR0A.asm
+--- VirtualBox-5.1.22/src/VBox/VMM/VMMR0/HMR0A.asm	2017-04-28 17:05:02.000000000 +0200
++++ VirtualBox-5.1.22-kernel-4.12.0/src/VBox/VMM/VMMR0/HMR0A.asm	2017-07-03 17:31:33.429580313 +0200
+@@ -284,20 +284,30 @@
+     mov         dx, [rsi + VMXRESTOREHOST.uHostSelTR]
+     mov         ax, dx
+     and         eax, X86_SEL_MASK_OFF_RPL                       ; Mask away TI and RPL bits leaving only the descriptor offset.
+-    add         rax, qword [rsi + VMXRESTOREHOST.HostGdtr + 2]  ; xAX <- descriptor offset + GDTR.pGdt.
+-    test        edi, VMX_RESTORE_HOST_GDT_READ_ONLY
++    test        edi, VMX_RESTORE_HOST_GDT_READ_ONLY | VMX_RESTORE_HOST_GDT_NEED_WRITABLE
+     jnz         .gdt_readonly
++    add         rax, qword [rsi + VMXRESTOREHOST.HostGdtr + 2]  ; xAX <- descriptor offset + GDTR.pGdt.
+     and         dword [rax + 4], ~RT_BIT(9)                     ; Clear the busy flag in TSS desc (bits 0-7=base, bit 9=busy bit).
+     ltr         dx
+     jmp short   .test_fs
+ .gdt_readonly:
++    test        edi, VMX_RESTORE_HOST_GDT_NEED_WRITABLE
++    jnz         .gdt_readonly_need_writable
+     mov         rcx, cr0
+     mov         r9, rcx
++    add         rax, qword [rsi + VMXRESTOREHOST.HostGdtr + 2]  ; xAX <- descriptor offset + GDTR.pGdt.
+     and         rcx, ~X86_CR0_WP
+     mov         cr0, rcx
+     and         dword [rax + 4], ~RT_BIT(9)                     ; Clear the busy flag in TSS desc (bits 0-7=base, bit 9=busy bit).
+     ltr         dx
+     mov         cr0, r9
++    jmp short   .test_fs
++.gdt_readonly_need_writable:
++    add         rax, qword [rsi + VMXRESTOREHOST.HostGdtrRw + 2]  ; xAX <- descriptor offset + GDTR.pGdtRw.
++    and         dword [rax + 4], ~RT_BIT(9)                     ; Clear the busy flag in TSS desc (bits 0-7=base, bit 9=busy bit).
++    lgdt        [rsi + VMXRESTOREHOST.HostGdtrRw]
++    ltr         dx
++    lgdt        [rsi + VMXRESTOREHOST.HostGdtr]                 ; Load the original GDT
+ 
+ .test_fs:
+     ;
+diff -Naur VirtualBox-5.1.22/src/VBox/VMM/VMMR0/HMVMXR0.cpp VirtualBox-5.1.22-kernel-4.12.0/src/VBox/VMM/VMMR0/HMVMXR0.cpp
+--- VirtualBox-5.1.22/src/VBox/VMM/VMMR0/HMVMXR0.cpp	2017-04-28 17:05:02.000000000 +0200
++++ VirtualBox-5.1.22-kernel-4.12.0/src/VBox/VMM/VMMR0/HMVMXR0.cpp	2017-07-03 17:31:33.432580394 +0200
+@@ -3038,11 +3038,7 @@
+      * maximum limit (0xffff) on every VM-exit.
+      */
+     if (Gdtr.cbGdt != 0xffff)
+-    {
+         pVCpu->hm.s.vmx.fRestoreHostFlags |= VMX_RESTORE_HOST_GDTR;
+-        AssertCompile(sizeof(Gdtr) == sizeof(X86XDTR64));
+-        memcpy(&pVCpu->hm.s.vmx.RestoreHost.HostGdtr, &Gdtr, sizeof(X86XDTR64));
+-    }
+ 
+     /*
+      * IDT limit is effectively capped at 0xfff. (See Intel spec. 6.14.1 "64-Bit Mode IDT"
+@@ -3094,9 +3090,23 @@
+         if (pVM->hm.s.fHostKernelFeatures & SUPKERNELFEATURES_GDT_READ_ONLY)
+             pVCpu->hm.s.vmx.fRestoreHostFlags |= VMX_RESTORE_HOST_GDT_READ_ONLY;
+         pVCpu->hm.s.vmx.RestoreHost.uHostSelTR = uSelTR;
++    }
+ 
+-        /* Store the GDTR here as we need it while restoring TR. */
++    /*
++     * Store the GDTR as we need it when restoring the GDT and while restoring the TR.
++     */
++    if (pVCpu->hm.s.vmx.fRestoreHostFlags & (VMX_RESTORE_HOST_GDTR | VMX_RESTORE_HOST_SEL_TR))
++    {
++        AssertCompile(sizeof(Gdtr) == sizeof(X86XDTR64));
+         memcpy(&pVCpu->hm.s.vmx.RestoreHost.HostGdtr, &Gdtr, sizeof(X86XDTR64));
++        if (pVM->hm.s.fHostKernelFeatures & SUPKERNELFEATURES_GDT_NEED_WRITABLE)
++        {
++            /* The GDT is read-only but the writable GDT is available. */
++            pVCpu->hm.s.vmx.fRestoreHostFlags |= VMX_RESTORE_HOST_GDT_NEED_WRITABLE;
++            pVCpu->hm.s.vmx.RestoreHost.HostGdtrRw.cb = Gdtr.cbGdt;
++            rc = SUPR0GetCurrentGdtRw(&pVCpu->hm.s.vmx.RestoreHost.HostGdtrRw.uAddr);
++            AssertRCReturn(rc, rc);
++        }
+     }
+ #else
+     NOREF(pVM);

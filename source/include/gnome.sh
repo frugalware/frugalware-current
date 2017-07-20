@@ -98,7 +98,7 @@ else
 fi
 
 if [ "$_F_gnome_git" != "n" ]; then
-	makedepends=(${makedepends[@]} 'git' 'gnome-common')
+	makedepends+=('git')
 	Finclude scm
 	_F_scm_type="git"
 	_F_scm_url="git://git.gnome.org/$_F_gnome_name"
@@ -107,9 +107,9 @@ else
 fi
 url="http://www.gnome.org/"
 _F_cd_path=$_F_gnome_name-$pkgver
-makedepends=("${makedepends[@]}" 'x11-protos')
+makedepends+=('x11-protos' 'gnome-common')
 ###
 # == APPENDED VARIABLES
 # * scriptlet to options()
 ###
-options=(${options[@]} 'scriptlet')
+options+=('scriptlet')

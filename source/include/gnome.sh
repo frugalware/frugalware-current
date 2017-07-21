@@ -83,15 +83,22 @@ _F_gnome_getver()
 ###
 _F_gnome_pygtkdefsdir="usr/share/pygtk/2.0/defs"
 _F_gnome_pkgurl="http://ftp.gnome.org/pub/GNOME/sources"
-if [ "$_F_gnome_devel" != "n" ]; then
-	up2date="lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep '/'|sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
+if [ "$_F_gnome_devel" != n ]; then
+	if [ -n "$_F_archive_grepv" ]; then
+		up2date="lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep -v "$_F_archive_grepv" | grep '/'|sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
+	else
+		up2date="lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D| grep '/'|sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
+	fi
 else
-	up2date="lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep '[0-9]\.[0-9]*[02468]/'| grep -v ".9[0-9]." | sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
-	#up2date="Flasttar $_F_gnome_pkgurl/$_F_gnome_name/`_F_gnome_getver`/"
+	if [ -n "$_F_archive_grepv" ]; then
+		up2date="lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep -v "$_F_archive_grepv" |grep '[0-9]\.[0-9]*[02468]/'| grep -v ".9[0-9]." | sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
+	else
+		up2date="lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep '[0-9]\.[0-9]*[02468]/'| grep -v ".9[0-9]." | sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/'"
+	fi
 fi
 
 if [ "$_F_gnome_git" != "n" ]; then
-	makedepends=(${makedepends[@]} 'git' 'gnome-common')
+	makedepends+=('git')
 	Finclude scm
 	_F_scm_type="git"
 	_F_scm_url="git://git.gnome.org/$_F_gnome_name"
@@ -100,9 +107,9 @@ else
 fi
 url="http://www.gnome.org/"
 _F_cd_path=$_F_gnome_name-$pkgver
-makedepends=("${makedepends[@]}" 'x11-protos')
+makedepends+=('x11-protos' 'gnome-common')
 ###
 # == APPENDED VARIABLES
 # * scriptlet to options()
 ###
-options=(${options[@]} 'scriptlet')
+options+=('scriptlet')

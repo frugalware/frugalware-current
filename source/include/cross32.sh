@@ -79,8 +79,8 @@ __cross32_unset_vars() {
 	## common
 	unset CFLAGS CXXFLAGS CHOST PKG_CONFIG_PATH PATH
 
-	## cmake.sh
-	unset CMAKE_LIB CMAKE_BIN CMAKE_SBIN
+	## cmake.sh , meson.sh
+	unset CROSS_LIB CROSS_BIN CROSS_SBIN
 
 	## util.sh
 	unset Fbuildchost
@@ -106,10 +106,9 @@ __cross32_set_vars() {
 
 	export PATH=/usr/${CHOST}/bin:usr/${CHOST}/sbin:$PATH_ORIG
 
-	## cmake.sh
-	export CMAKE_LIB="lib32"
-	export CMAKE_BIN="lib32/${CHOST}/bin"
-	export CMAKE_SBIN="lib32/${CHOST}/sbin"
+	export CROSS_LIB="lib32"
+	export CROSS_BIN="lib32/${CHOST}/bin"
+	export CROSS_SBIN="lib32/${CHOST}/sbin"
 
 	## util.sh
 	export Fbuildchost="${CHOST}"

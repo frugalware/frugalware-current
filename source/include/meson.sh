@@ -82,10 +82,13 @@ CROSS_SBIN="sbin"
 Meson_conf()
 {
 
+	export LANG=en_US.utf8
+	export LC_ALL=en_US.utf8
 	## NOTE: no other backend but ninja for LINUX
 	Meson_setup
 	## we need all these to be sure we build with own flags..
-	CC="$_F_meson_cc" CXX="$_F_meson_cxx" CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" LDFLAGS="$LDFLAGS" \
+	CC="$_F_meson_cc" CXX="$_F_meson_cxx" CFLAGS="$CFLAGS" \
+	CXXFLAGS="$CXXFLAGS" LDFLAGS="$LDFLAGS" \
 		Fexec meson \
 			--prefix /usr \
 			--datadir share \

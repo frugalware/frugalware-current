@@ -50,6 +50,7 @@ __cross32_save_orig_vars() {
 	CHOST_ORIG="$CHOST"
 	PKGCONFIG_ORIG="$PKG_CONFIG_PATH"
 	PATH_ORIG="$PATH"
+	ASFLAGS_ORIG="$ASFLAGS"
 }
 
 
@@ -70,6 +71,9 @@ __cross32_export_orig_vars() {
 	unset CPPFLAGS
 	## reset PATH
 	export PATH="$PATH_ORIG"
+	
+	## reset ASFLAGS
+	export ASFLAGS="$ASFLAGS_ORIG"
 
 }
 
@@ -99,6 +103,7 @@ __cross32_set_vars() {
 	LDFLAGS+=" -L/usr/lib32"
 	export CPPFLAGS=" -I/usr/${CHOST}/include"
 	export PKG_CONFIG_PATH="/usr/lib32/pkgconfig"
+	export ASFLAGS="--32"
 
 	## we share some tools like tools for building docs
 	## shell scripts and such .. for that matter we need

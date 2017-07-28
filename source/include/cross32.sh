@@ -48,7 +48,6 @@ __cross32_save_orig_vars() {
 	CXXFLAGS_ORIG="$CXXFLAGS"
 	LDFLAGS_ORIG="$LDFLAGS"
 	CHOST_ORIG="$CHOST"
-	PKGCONFIG_ORIG="$PKG_CONFIG_PATH"
 	PATH_ORIG="$PATH"
 	ASFLAGS_ORIG="$ASFLAGS"
 }
@@ -66,7 +65,7 @@ __cross32_export_orig_vars() {
 	export CC="gcc"
 	export CXX="g++"
 
-	export PKG_CONFIG_PATH="$PKGCONFIG_ORIG"
+	unset PKG_CONFIG_LIBDIR
 	## reset CPP
 	unset CPPFLAGS
 	## reset PATH
@@ -102,7 +101,7 @@ __cross32_set_vars() {
 	export CXX="g++ -m32"
 	LDFLAGS+=" -L/usr/lib32"
 	export CPPFLAGS=" -I/usr/${CHOST}/include"
-	export PKG_CONFIG_PATH="/usr/lib32/pkgconfig"
+	export PKG_CONFIG_LIBDIR="/usr/lib32/pkgconfig"
 	export ASFLAGS="--32"
 
 	## we share some tools like tools for building docs

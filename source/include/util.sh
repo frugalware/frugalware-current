@@ -767,7 +767,7 @@ Fpatch() {
 # the given arch only.
 ###
 Fpatchall() {
-	local patch="" patcharch=""
+	local patch="" patcharch="" i
 	for i in "${source[@]}"; do
 		if [ -n "`echo "$i" | grep '\.patch[0-9]*$'`" -o -n "`echo "$i" | grep '\.diff$'`" -o -n "`echo "$i" | grep '\.\(patch[0-9]*\|diff\)\.\(gz\|bz2\)$'`" ]; then
 			patch=`strip_url "$i"`

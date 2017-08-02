@@ -93,7 +93,7 @@ Meson_conf()
 			--prefix /usr \
 			--datadir share \
 			--libdir ${CROSS_LIB} \
-			--libexecdir $pkgname \
+			--libexecdir ${CROSS_LIB}/$pkgname \
 			--mandir share/man \
 			--bindir ${CROSS_BIN} \
 			--sbindir ${CROSS_SBIN} \

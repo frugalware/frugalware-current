@@ -97,8 +97,8 @@ Meson_conf()
 			--mandir share/man \
 			--bindir ${CROSS_BIN} \
 			--sbindir ${CROSS_SBIN} \
-			--sysconfdir etc \
-			--localstatedir var \
+			--sysconfdir /etc \
+			--localstatedir /var \
 			--buildtype $_F_meson_build_type \
 			--backend ninja \
 			$_F_meson_confopts "$@" $_F_meson_build_dir || Fdie

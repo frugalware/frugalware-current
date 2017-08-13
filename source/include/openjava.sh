@@ -19,7 +19,7 @@
 # url="http://jakarta.apache.org/regexp"
 # groups=('devel-extra')
 # archs=('x86_64')
-# up2date="lynx -dump http://www.apache.org/dist/jakarta/regexp/source/ |Flasttar"
+# up2date="lynx -read_timeout=280 -dump http://www.apache.org/dist/jakarta/regexp/source/ |Flasttar"
 # source=(http://www.apache.org/dist/jakarta/regexp/source/jakarta-regexp-$pkgver.tar.gz)
 # signatures=($source.asc)
 # Finclude java

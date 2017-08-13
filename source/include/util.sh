@@ -1480,7 +1480,7 @@ Fwcat() {
 
 	# Use lynx in case wget failed since it support "broken" directory url.
 	# eg. when http://foo.com/bar instead of http://foo.com/bar/
-	lynx -source "$1" 2>/dev/null && return
+	lynx -read_timeout=280 -source "$1" 2>/dev/null && return
 }
 
 Flasttar_filter='\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
@@ -1503,7 +1503,7 @@ Flastarchive() {
 	fi
 
 	if [ $# -gt 1 ]; then
-		local filter lynx="lynx -dump"
+		local filter lynx="lynx -read_timeout=280 -dump"
 
 		if [ -z "$_F_archive_nolinksonly" ]; then
 			lynx+=" -listonly"

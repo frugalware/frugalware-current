@@ -3,21 +3,23 @@
 # Contributor: darknekros <darknekros@gmail.com>
 
 pkgname=atom
-pkgver=1.19.0
+pkgver=1.19.1
 pkgrel=1
 pkgdesc="Atom is a hackable text editor for the 21st century from GitHub."
 depends=('libgnome-keyring' 'nodejs>=6.3.1-2' 'gconf' 'python' 'git' 'alsa-lib' 'libcups' \
-	'libnotify' 'libxtst' 'nss' 'gtk+2-libs' 'libsecret')
+	'libnotify' 'libxtst' 'nss' 'gtk+2-libs' 'libsecret' 'ctags' 'apm')
 makedepends=('ca-certificates' 'gtk+2' 'cups' 'x11-protos' 'libxkbfile')
 groups=('xapps-extra')
 archs=('x86_64')
 _F_github_tag_v=$pkgver
 Finclude github
-sha1sums=('0d933b5f7c3a47b96723823e7a7d905aadf76cf5')
+source+=(dugite-use-system-git.patch symbols-view-use-system-ctags.patch)
+sha1sums=('7a507d75224c8c1ac20fb37de4963b7f417d5056' \
+          '6308610ea0214e790a4f3d8360e8f4eaaa5a231c' \
+          '46e2d16197f14de0bcef451b8b4aef40d9642180')
 build() {
 	export CC=gcc CXX=g++ || Fdie
 	Fcd
-	Fpatchall
 
 	## fix desktop file here since they change stuff on each release and the install
 	## paths point to chroot !?! WTH this..
@@ -27,8 +29,23 @@ build() {
 
 	Fsed  "path.join('/usr', 'local')"  "\"$Fdestdir/usr\"" script/lib/install-application.js
 
-	Fexec ./script/build --build-dir "$Fsrcdir/atom-build" --install|| Fdie
+	export ATOM_RESOURCE_PATH="$Fsrcdir/$_F_cd_path"
+	Fexec apm clean || Fdie
+	Fexec apm install || Fdie
 
+	# Use system ctags
+	Fexec cd node_modules/symbols-view || Fdie
+	Fpatch symbols-view-use-system-ctags.patch
+	Fexec rm -r vendor || Fdie
+	Fexec cd ../.. || Fdie
+
+	# Use system git
+	Fexec cd node_modules/dugite || Fdie
+	Fpatch dugite-use-system-git.patch
+	Fexec rm -r git || Fdie
+	Fexec cd ../.. || Fdie
+
+	Fexec ./script/build --build-dir "$Fsrcdir/atom-build" --install|| Fdie
 
 	## hmm ? -- ok but we need this in hicolor too so themes work -- crazy --
 
@@ -39,6 +56,10 @@ build() {
 	do
 		 Finstallrel 644 "resources/app-icons/stable/png/${i}.png" "usr/share/icons/hicolor/${i}x${i}/apps/$pkgname.png"
 	done
+
+	# Fix apm conflicts
+	Frm usr/bin/apm
+	Frm usr/share/atom/resources/app/apm/
 
 }
 

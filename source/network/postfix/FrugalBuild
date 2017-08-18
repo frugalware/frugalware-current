@@ -3,9 +3,8 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=postfix
-pkgver=2.11.8
-pkgrel=2
-vdaver=2.11.7
+pkgver=3.2.2
+pkgrel=1
 pkgdesc="A fast, easy to administer, and secure MTA"
 url="http://www.postfix.org/"
 depends=('db>=6.2.23' 'pcre>=8.30' 'cyrus-sasl>=2.1.26-3' 'libmysqlclient>=5.5.50-2' 'libldap>=2.4.44-2' 'libpq>=9.5.4' 'openssl>=1.0.2-10')
@@ -24,36 +23,45 @@ mirror="http://de.postfix.org/ftpmirror"
 up2date="lynx -dump $mirror/index.html|grep -m1 '.tar.gz'|sed 's/.*-\(.*\).tar.gz/\1/'"
 source=($mirror/official/$pkgname-$pkgver.tar.gz \
 	postfix.service \
-	README.Frugalware \
-	http://vda.sourceforge.net/VDA/postfix-vda-v13-$vdaver.patch \
-	postfix-2.11.7-db6.patch)
+	README.Frugalware )
 
-sha1sums=('5c39572dcf11aa804ac5b2399d8ed5ec463d140a' \
+sha1sums=('1a0d01e79ced46b38e8bd5b7a726a1622cf1bc07' \
           '09cdb731899b0fac0438589b03e1a9b14ddf1878' \
-          'b05736300a01bc6d4d0ca7bb92704de29b68651d' \
-          '26f538a31b20069796a04d3bb90ab70da28965f1' \
-          '6568ead765fb98e7717ac8fdcd67a350a7a2dbd8')
+          'b05736300a01bc6d4d0ca7bb92704de29b68651d')
 
 build()
 {
-	CCARGS="${CCARGS} -DHAS_MYSQL -I /usr/include/mysql -DHAS_PGSQL -I /usr/include/phsql -DUSE_SASL_AUTH -DUSE_CYRUS_SASL -I /usr/include/sasl -DUSE_TLS -DHAS_LDAP"
-	AUXLIBS="${AUXLIBS} -L/usr/lib/mysql -lmysqlclient -L/usr/lib/pgsql -lpq -L/usr/lib -lm -lz -lsasl2 -lldap -llber -lssl -lcrypto"
-	Fpatch postfix-vda-v13-$vdaver.patch
+	CCARGS="${CCARGS} \
+		-DHAS_MYSQL -I /usr/include/mysql \
+		-DHAS_PGSQL -I /usr/include/phsql \
+		-DUSE_SASL_AUTH -DUSE_CYRUS_SASL -I /usr/include/sasl \
+		-DUSE_TLS \
+		-DHAS_LDAP"
+	AUXLIBS="${AUXLIBS} \
+		-L/usr/lib/mysql -lmysqlclient \
+		-L/usr/lib/pgsql -lpq \
+		-L/usr/lib -lm -lz -lsasl2 -lldap -llber -lssl -lcrypto"
 	Fcd
-	Fpatch postfix-2.11.7-db6.patch
-	make CCARGS="${CCARGS}" AUXLIBS="${AUXLIBS}" OPT="${CFLAGS}" makefiles
-	make || return 1
-	sh postfix-install -non-interactive \
+
+	Fexec make DEBUG='' pie=yes shared=yes CCARGS="${CCARGS}" AUXLIBS="${AUXLIBS}" OPT="${CFLAGS}" makefiles || Fdie
+	Fmake
+
+	# This is needed so postconf can fin the just build libpostfix-tls.so
+	LD_LIBRARY_PATH=lib:$LD_LIBRARY_PATH
+	Fexec sh postfix-install -non-interactive \
 		install_root="$Fdestdir" \
 		daemon_directory="/usr/lib/$pkgname" \
 		sample_directory="/etc/$pkgname/sample" \
-		manpage_directory="/usr/share/man"
+		manpage_directory="/usr/share/man" || Fdie
+
 	# aliases
 	Fsed '\(^#alias_maps = netinfo:/aliases$\)' '\1\nalias_maps = hash:/etc/postfix/aliases' $Fdestdir/etc/postfix/main.cf
 	Fsed '\(^#alias_database = hash:/etc/aliases, hash:/opt/majordomo/aliases$\)' '\1\nalias_database = hash:/etc/postfix/aliases' $Fdestdir/etc/postfix/main.cf
 	Ffile /lib/systemd/system/postfix.service
+
 	# For compatibility reasons - some app searches the sendmail
 	# binary in /usr/lib
+
 	Fln /usr/sbin/sendmail /usr/lib/sendmail
 	Fdirschown var/lib/$pkgname 73 73
 	Fgenscriptlet

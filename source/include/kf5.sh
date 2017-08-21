@@ -76,9 +76,8 @@ fi
 
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
-	#_F_kde_mirror="http://vesta.informatik.rwth-aachen.de/ftp/pub/mirror/kde/"
+	_F_kde_mirror="http://mirror.netcologne.de/kde/"
 	 _F_kde_up2date_mirror="ftp://ftp5.gwdg.de/pub/linux/kde/"
-	_F_kde_mirror="http://download.kde.org/"
 fi
 
 if [ -z "$_F_kde_folder" ]; then
@@ -177,7 +176,7 @@ else
 fi
 
 if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
-	makedepends+=('extra-cmake-modules>=5.35.0' 'qt5-tools' 'gperf')
+	makedepends+=('extra-cmake-modules>=5.37.0' 'qt5-tools' 'gperf')
 fi
 
 ## From gcc6 docs

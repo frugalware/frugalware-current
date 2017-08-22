@@ -54,10 +54,10 @@ if [ -z "$_F_haskell_prefix" ]; then
 fi
 # Compile variables
 if [ -z "$_F_haskell_register_dir" ]; then
-	_F_haskell_register_dir=$pkgname
+	_F_haskell_register_dir="$pkgname"
 fi
 if [ -z "$_F_haskell_confopts" ]; then
-	_F_haskell_confopts="--ghc --prefix=/usr --libsubdir=\$compiler/site-local/\$pkgid"
+	_F_haskell_confopts=" --ghc --prefix=/usr --libsubdir=\$compiler/site-local/\$pkgid"
 fi
 if [ -z "$_F_haskell_setup" ]; then
 	_F_haskell_setup="Setup.lhs"
@@ -81,8 +81,8 @@ install=$_F_haskell_install
 # * options: add genscriptlet to options=()
 # * makedepends: ghc to makedepends=()
 ###
-options=(${options[@]} 'scriptlet' 'genscriptlet')
-makedepends+=('ghc>=8.0.2')
+options+=('scriptlet' 'genscriptlet')
+makedepends+=('ghc>=8.2.1-2')
 
 ###
 # == PROVIDED FUNCTIONS

@@ -1,0 +1,96 @@
+From b6a4ed9c9bcc5887746b79a5dfc698aaf7f77946 Mon Sep 17 00:00:00 2001
+From: crazy <crazy@frugalware.org>
+Date: Sun, 27 Aug 2017 22:59:43 +0200
+Subject: [PATCH] re-add LUKS resume fix
+
+---
+ src/modules/bootloader/main.py |  4 +++-
+ src/modules/fstab/main.py      | 17 ++++++++++++++++-
+ src/modules/grubcfg/main.py    |  6 ++++--
+ 3 files changed, 23 insertions(+), 4 deletions(-)
+
+diff --git a/src/modules/bootloader/main.py b/src/modules/bootloader/main.py
+index fd5990490..6de6e84bd 100644
+--- a/src/modules/bootloader/main.py
++++ b/src/modules/bootloader/main.py
+@@ -105,7 +105,7 @@ def create_systemd_boot_conf(uuid, conf_path, kernel_line):
+     cryptdevice_params = []
+ 
+     for partition in partitions:
+-        if partition["fs"] == "linuxswap":
++        if partition["fs"] == "linuxswap" and not "luksMapperName" in partition:
+             swap_uuid = partition["uuid"]
+ 
+         if partition["mountPoint"] == "/" and "luksMapperName" in partition:
+@@ -114,6 +114,8 @@ def create_systemd_boot_conf(uuid, conf_path, kernel_line):
+                                   + ":"
+                                   + partition["luksMapperName"],
+                                   "root=/dev/mapper/"
++                                  + partition["luksMapperName"],
++                                  "resume=/dev/mapper"
+                                   + partition["luksMapperName"]]
+ 
+     if cryptdevice_params:
+diff --git a/src/modules/fstab/main.py b/src/modules/fstab/main.py
+index 9c116b8a0..9e50b2aa7 100644
+--- a/src/modules/fstab/main.py
++++ b/src/modules/fstab/main.py
+@@ -262,8 +262,23 @@ class FstabGenerator(object):
+                 check=check,
+                 )
+ 
++        if filesystem == "swap" and "luksMapperName" in partition:
++            return dict(device="/dev/mapper/" + partition["luksMapperName"],
++                        mount_point=mount_point or "swap",
++                        fs=filesystem,
++                        options=options,
++                        check=check,
++                        )
++        else:
++            return dict(device="UUID=" + partition["uuid"],
++                        mount_point=mount_point or "swap",
++                        fs=filesystem,
++                        options=options,
++                        check=check,
++                        )
++
+         return dict(device="UUID=" + partition["uuid"],
+-                    mount_point=mount_point or "swap",
++                    mount_point=mount_point,
+                     fs=filesystem,
+                     options=options,
+                     check=check,
+diff --git a/src/modules/grubcfg/main.py b/src/modules/grubcfg/main.py
+index 59497cf03..3db9bc33e 100644
+--- a/src/modules/grubcfg/main.py
++++ b/src/modules/grubcfg/main.py
+@@ -52,7 +52,8 @@ def modify_grub_default(partitions, root_mount_point, distributor):
+ 
+     if dracut_bin == 0:
+         for partition in partitions:
+-            if partition["fs"] == "linuxswap":
++            ## ugly
++            if partition["fs"] == "linuxswap" and not "luksMapperName" in partition:
+                 swap_uuid = partition["uuid"]
+ 
+             if (partition["fs"] == "linuxswap"
+@@ -66,7 +67,7 @@ def modify_grub_default(partitions, root_mount_point, distributor):
+                     ]
+     else:
+         for partition in partitions:
+-            if partition["fs"] == "linuxswap":
++            if partition["fs"] == "linuxswap" and not "luksMapperName" in partition:
+                 swap_uuid = partition["uuid"]
+ 
+             if (partition["mountPoint"] == "/"
+@@ -90,6 +91,7 @@ def modify_grub_default(partitions, root_mount_point, distributor):
+         kernel_params.append("resume=UUID={!s}".format(swap_uuid))
+ 
+     if dracut_bin == 0 and swap_outer_uuid:
++        kernel_params.append("resume=/dev/mapper/{!s}".format(partition["luksMapperName"]))
+         kernel_params.append("rd.luks.uuid={!s}".format(swap_outer_uuid))
+ 
+     distributor_line = "GRUB_DISTRIBUTOR='{!s}'".format(distributor_replace)
+-- 
+2.14.1
+

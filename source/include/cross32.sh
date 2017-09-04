@@ -48,8 +48,11 @@ __cross32_save_orig_vars() {
 	CXXFLAGS_ORIG="$CXXFLAGS"
 	LDFLAGS_ORIG="$LDFLAGS"
 	CHOST_ORIG="$CHOST"
-	PKGCONFIG_ORIG="$PKG_CONFIG_PATH"
+	if [ -n "$_F_cross32_combined" ]; then
+		PKGCONFIG_ORIG="$PKG_CONFIG_PATH"
+	fi
 	PATH_ORIG="$PATH"
+	ASFLAGS_ORIG="$ASFLAGS"
 }
 
 
@@ -65,11 +68,18 @@ __cross32_export_orig_vars() {
 	export CC="gcc"
 	export CXX="g++"
 
-	export PKG_CONFIG_PATH="$PKGCONFIG_ORIG"
+	if [ -n "$_F_cross32_combined" ]; then
+		export PKG_CONFIG_PATH="$PKGCONFIG_ORIG"
+	else
+		unset PKG_CONFIG_LIBDIR
+	fi
 	## reset CPP
 	unset CPPFLAGS
 	## reset PATH
 	export PATH="$PATH_ORIG"
+
+	## reset ASFLAGS
+	export ASFLAGS="$ASFLAGS_ORIG"
 
 }
 
@@ -79,8 +89,8 @@ __cross32_unset_vars() {
 	## common
 	unset CFLAGS CXXFLAGS CHOST PKG_CONFIG_PATH PATH
 
-	## cmake.sh
-	unset CMAKE_LIB CMAKE_BIN CMAKE_SBIN
+	## cmake.sh , meson.sh
+	unset CROSS_LIB CROSS_BIN CROSS_SBIN
 
 	## util.sh
 	unset Fbuildchost
@@ -98,7 +108,12 @@ __cross32_set_vars() {
 	export CXX="g++ -m32"
 	LDFLAGS+=" -L/usr/lib32"
 	export CPPFLAGS=" -I/usr/${CHOST}/include"
-	export PKG_CONFIG_PATH="/usr/lib32/pkgconfig"
+	if [ -n "$_F_cross32_combined" ]; then
+		export PKG_CONFIG_PATH="/usr/lib32/pkgconfig"
+	else
+		export PKG_CONFIG_LIBDIR="/usr/lib32/pkgconfig"
+	fi
+	export ASFLAGS="--32"
 
 	## we share some tools like tools for building docs
 	## shell scripts and such .. for that matter we need
@@ -106,10 +121,9 @@ __cross32_set_vars() {
 
 	export PATH=/usr/${CHOST}/bin:usr/${CHOST}/sbin:$PATH_ORIG
 
-	## cmake.sh
-	export CMAKE_LIB="lib32"
-	export CMAKE_BIN="lib32/${CHOST}/bin"
-	export CMAKE_SBIN="lib32/${CHOST}/sbin"
+	export CROSS_LIB="lib32"
+	export CROSS_BIN="lib32/${CHOST}/bin"
+	export CROSS_SBIN="lib32/${CHOST}/sbin"
 
 	## util.sh
 	export Fbuildchost="${CHOST}"

@@ -56,9 +56,9 @@ else
 fi
 
 ### hmmm
-CMAKE_LIB="lib"
-CMAKE_BIN="bin"
-CMAKE_SBIN="sbin"
+CROSS_LIB="lib"
+CROSS_BIN="bin"
+CROSS_SBIN="sbin"
 
 ###
 # == APPENDED VARIABLES
@@ -106,9 +106,9 @@ CMake_conf()
 	cmake \
         ${cmake_generator} \
 		-DCMAKE_INSTALL_PREFIX=/usr \
-		-DCMAKE_INSTALL_LIBDIR=${CMAKE_LIB} \
-		-DCMAKE_INSTALL_BINDIR=${CMAKE_BIN} \
-		-DCMAKE_INSTALL_SBINDIR=${CMAKE_SBIN} \
+		-DCMAKE_INSTALL_LIBDIR=${CROSS_LIB} \
+		-DCMAKE_INSTALL_BINDIR=${CROSS_BIN} \
+		-DCMAKE_INSTALL_SBINDIR=${CROSS_SBIN} \
 		-DSYSCONF_INSTALL_DIR=/etc \
 		-DCMAKE_BUILD_TYPE="$_F_cmake_type" \
 		-DCMAKE_VERBOSE_MAKEFILE="$_F_cmake_verbose" \

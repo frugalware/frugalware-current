@@ -60,6 +60,5 @@ Finclude genscriptlet
 ###
 Fsystemd_genscriptlet_hook()
 {
-	Freplace '_F_sysvinit_units' "$1"
 	Freplace '_F_systemd_units' "$1"
 }

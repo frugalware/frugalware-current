@@ -3,55 +3,72 @@
 # Contributor: Karoly CZOVEK <slinky@rei.keni.hu>
 
 pkgname=munin
-pkgver=1.2.6
-pkgrel=7
+pkgver=2.0.33
+pkgrel=1
 pkgdesc="Munin is a tool for graphing all sorts of information about one or more servers and displaying it in a web interface."
-_F_github_tag=yes
-_F_github_author="munin-monitoring"
-_F_github_grepv="2.99" ## devel
-Finclude github
 url="http://munin-monitoring.org/"
 depends=('rrdtool>=1.2.11-2' 'perl-html-template')
+makedepends=('perl-module-build' 'perl-net-snmp' 'perl-net-server' 'perl-net-ssleay' 'perl-log-log4perl')
 groups=('network-extra')
-archs=('i686' 'x86_64')
-source+=( Makefile.config munin.cron munin.logrotate README.Frugalware)
-sha1sums=('a01bf2fcd14f9f019ec21cc65055c99978d783ab' \
-          '1ef1cef662f90e0177a67655afb020bf856235b8' \
-          '876dfcb7c1690be14611db4e9d55b9b40cedac88' \
-          'a1ce31369c2278c1f53509178856341f9a9f6cc6' \
-          '264321148f314a2d28a71b688f414e933a0dee03')
+archs=('x86_64')
+up2date="Flastverdir http://downloads.munin-monitoring.org/munin/stable/"
+source=(http://downloads.munin-monitoring.org/munin/stable/$pkgver/munin-$pkgver.tar.gz \
+	Makefile.config \
+	munin.cron \
+	munin.logrotate \
+	munin-node.conf \
+	munin-node.logrotate \
+	munin-node.service \
+	README.Frugalware)
+signatures=("${source[0]}.asc" '' '' '' '' '' '' '')
+
 options=('scriptlet')
 backup=('etc/munin/munin.conf')
-removes=('usr/lib/perl5/site_perl/current/Munin.pm')
+
+subpkgs=("munin-node")
+subdescs=("$pkgdesc (Node)")
+subdepends=('perl-net-server')
+subgroups=('network-extra')
+subarchs=('x86_64')
+
 
 build()
 {
 	Fcd
 	Fpatchall
 	cp -f $Fsrcdir/Makefile.config ./
-	make install-main DESTDIR=$Fdestdir
+	export PERL_USE_UNSAFE_INC=1
+	Fexec make -j1 PREFIX=''
+	Fexec make -j1 PREFIX='' common/blib/lib/Munin/Common/Defaults.pm
+	Fexec make install-node DESTDIR=$Fdestdir HASSETR=1 MKTEMP='mktemp -p /tmp/ $$1'
+        Fexec make install-node-plugins DESTDIR=$Fdestdir
+
+
+	Ffile etc/logrotate.d/munin-node.logrotate
+        Fmv etc/logrotate.d/munin-node.logrotate etc/logrotate.d/munin-node
+
+        Ffile etc/munin/plugin-conf.d/munin-node.conf
+        Fmv etc/munin/plugin-conf.d/munin-node.conf etc/munin/plugin-conf.d/munin-node
+
+	Ffile /lib/systemd/system/munin-node.service
+
+	Fsplit munin-node /\*
+	Fmakeinstall
+
 	Ffile var/spool/cron/crontabs/munin.cron
 	Fmv var/spool/cron/crontabs/munin.cron var/spool/cron/crontabs/munin
 	Ffile etc/logrotate.d/munin.logrotate
 	Fmv etc/logrotate.d/munin.logrotate etc/logrotate.d/munin
 
-	Fsed "$Fdestdir\/*" "\/" $Fdestdir/etc/munin/munin.conf
-	Fsed "$Fdestdir"/"" "" $Fdestdir/usr/bin/munin-cron
-	Fsed "$Fdestdir" "" $Fdestdir/usr/lib/perl5/site_perl/current/Munin.pm
-	Fsed "$Fdestdir" "" $Fdestdir/usr/share/munin/munin-graph
-	Fsed "$Fdestdir" "" $Fdestdir/usr/share/munin/munin-html
-	Fsed "$Fdestdir" "" $Fdestdir/usr/share/munin/munin-limits
-	Fsed "$Fdestdir" "" $Fdestdir/usr/share/munin/munin-update
-	Fsed "$Fdestdir" "" $Fdestdir/usr/libexec/cgi-bin/munin-cgi-graph
+	Frm /run
 
-	Frm /var/run
 	Fmkdir /etc/tmpfiles.d
 	cat > $Fdestdir/etc/tmpfiles.d/munin.conf << EOF
 d $Flocalstatedir/run/munin 0755 munin munin -
 EOF
 	Fdirschown /var/log/munin 47 47
 	Fdirschown /var/lib/munin 47 47
-	Fdirschown /var/www/html/munin 47 47
+
 }
 
 # optimization OK

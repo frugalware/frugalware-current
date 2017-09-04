@@ -2,8 +2,8 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=calamares-frugalware
-pkgver=3.1.1
-pkgrel=3
+pkgver=3.1.3
+pkgrel=7
 pkgdesc="Distribution-independent installer framework"
 archs=("x86_64")
 groups=('kde5-extra')
@@ -11,7 +11,15 @@ _F_github_name="calamares"
 _F_github_tag_v=y
 _F_kde_defaults=0
 Finclude kf5 github
-source+=(calamares-locale.service  calamares-locale-setup fw-modules.patch 0001-fix-fw_grubcfg.patch)
+source+=(calamares-locale.service  \
+	calamares-locale-setup \
+	calamares-frugalware.desktop \
+	calamares-frugalware.svg \
+	49-nopasswd_calamares.rules \
+	0002-workaround-vbox-with-efi.patch \
+	0003-packages-rework-workaround-patch.patch \
+	0004-install-virtualbox-guest-additions-when-vbox-is-dete.patch \
+	https://github.com/calamares/calamares/commit/c5abfd63715df205fc8b9fb46d450eab7ca1f863.patch)
 depends=('kpmcore>=3.1.2' 'qt5-webengine>=5.9.1' 'pyqt5-python3>=5.9' 'libboost' \
 	"kcoreaddons>=$_F_kf5_full" "kconfig>=$_F_kf5_full" \
 	"ki18n>=$_F_kf5_full" "kiconthemes>=$_F_kf5_full" \
@@ -19,11 +27,16 @@ depends=('kpmcore>=3.1.2' 'qt5-webengine>=5.9.1' 'pyqt5-python3>=5.9' 'libboost'
 makedepends+=('qt5-tools>=5.9.1' 'boost' 'yaml-cpp')
 rodepends=('rsync' 'squashfs')
 _F_cd_path="calamares-$pkgver"
-sha1sums=('8e6265c09d662b8bbdf8cadcb19c34834f703a37' \
+sha1sums=('7cf6eaff31538e3ea91d49a69ef96dee172e5739' \
           'a496ee65a14fad4c96fe2a51d59f5769a9286411' \
           'abd9098e0b3f988182a4b0f3173bffb9f0f7c215' \
-          '84a757445243cb37b4ea22be0abd585b0deaefab' \
-          '35c7f7b389c1469c388823151d267b055ffefc1f')
+          '10a6590d410507c48ed84876ff2ebd380c793034' \
+          '134ca1a53f3b628ba459ec450e84ea0b4f0c11f2' \
+          '02e4c49a4ff57712ffa94dbb79abc1dd701692c7' \
+          '8ea80c581ca29a49e685c4809bac03e8c607e555' \
+          '8725da72d13d1de50f04ebbea5d46b81237c27db' \
+          '07ff366abea197e181da32eb110e9c957e71c36a' \
+          '5d8644e54271c3f63d5f9ff32ae27b185a364d68')
 
 build() {
 
@@ -31,11 +44,26 @@ build() {
 	## fix sessions localtion
 	Fsed 'usr/share/xsessions' 'etc/X11/sessions' src/modules/displaymanager/main.py
 	KDE_build
-	## fixme for !systemd
+
+	## stuff we need for live
+	Finstall 0644 etc/polkit-1/rules.d/49-nopasswd_calamares.rules
+
 	Finstall 644 lib/systemd/system/calamares-locale.service
 	Finstall 755 usr/lib/fvbe/calamares-locale-setup
-	## remove desktop file we have one in fvbe
+
+	## remove desktop file we add an custom one
 	Frm usr/share/applications/calamares.desktop
+
+	## E is special need to Fsed in fvbe .. grmpf
+	Finstall 0644  usr/share/applications/calamares-frugalware.desktop
+	Finstall 0644 usr/share/icons/hicolor/scalable/apps/calamares-frugalware.svg
+
+	## sudo to exec cala .. pkexec doesn't work on gnome for some reason
+	Fmkdir /etc/sudoers.d
+	Fexec echo "guest ALL=(ALL) NOPASSWD: /usr/bin/calamares" > $pkgname-guest
+	Finstallrel 440 /etc/sudoers.d/$pkgname-guest
+	# FIXME-> touch files we use in fvbe so -R $pkgname will clean these
+
 }
 # optimization OK
 

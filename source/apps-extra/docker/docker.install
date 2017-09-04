@@ -1,16 +1,49 @@
+systemd_units=(docker=)
+
 post_install()
 {
-        /bin/systemd-sysusers
+	local unit
+	local op
+	local i
+
+	/bin/systemd-sysusers
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		op=$(echo $i | cut -f 2 -d '=')
+		if echo $op | grep -q 'e'; then
+			systemctl enable $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 's'; then
+			systemctl start $unit.service >/dev/null 2>&1
+		fi
+	done
+
 }
 
 post_upgrade()
 {
-	post_install()
+	/bin/systemd-sysusers
+	systemctl daemon-reload >/dev/null 2>&1
+}
+
+pre_remove()
+{
+	local unit
+	local i
+
+	for i in ${systemd_units[@]}; do
+		unit=$(echo $i | cut -f 1 -d '=')
+		systemctl --no-reload disable $unit.service >/dev/null 2>&1
+		systemctl stop $unit.service >/dev/null 2>&1
+	done
 }
 
 post_remove()
 {
+	systemctl daemon-reload >/dev/null 2>&1
 	getent group docker 2>&1 > /dev/null && groupdel docker
+
 }
 
 op=$1

@@ -34,7 +34,7 @@ conflicts=(${conflicts[@]} 'octave-forge')
 
 install="${Fincdir}/octave.install"
 _F_cd_path="${_F_sourceforge_name}-${pkgver}"
-up2date="lynx -dump http://octave.sourceforge.net/\$(echo ${pkgname} |sed 's/octave-//')/index.html |grep Version |sed 's/^.*\([0-9].[0-9].[0-9]\)/\1/'"
+up2date="lynx -read_timeout=280 -dump http://octave.sourceforge.net/\$(echo ${pkgname} |sed 's/octave-//')/index.html |grep Version |sed 's/^.*\([0-9].[0-9].[0-9]\)/\1/'"
 
 ###
 # == PROVIDED FUNCTIONS

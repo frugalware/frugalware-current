@@ -2,51 +2,52 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=squid
-pkgver=3.1.19
-pkgrel=3
+pkgver=3.5.27
+pkgrel=1
 pkgdesc="Squid Web Proxy Cache"
 url="http://www.squid-cache.org/"
-depends=('openssl>=1.0.0' 'perl' 'libcap' 'libstdc++' 'systemd')
+depends=('libtool' 'gnutls')
 rodepends=('dcron')
 groups=('network-extra')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 backup=(etc/squid/{mime,msntauth,squid}.conf etc/sysconfig/squid)
-up2date="lynx -source -dump $url/Versions/ | grep -8 'Production' | sed -n 's/.*>\(.*\)<.*/\1/;$ p'"
-source=(http://www.squid-cache.org/Versions/v3/3.1/$pkgname-$pkgver.tar.bz2 \
-	squid cache_swap.sh squid.service squid.sysconfig)
-signatures=("${source[0]}.asc" '' '' '' '')
-
 _F_systemd_scriptlet="$pkgname.install"
 _F_systemd_units=(squid=)
 Finclude systemd
+up2date="Flastarchive $url/Versions/v3/3.5/ .tar.xz"
+source=("$url/Versions/v3/3.5/squid-${pkgver}.tar.xz" \
+	squid cache_swap.sh squid.service squid.sysconfig)
+sha1sums=('1e69c96d13cd49844da3bcf33a0b428fbe7b6f77' \
+          '53042dd86e482d4a6eff9e34ecb01352439c5026' \
+          'a952ab169892735e6db22c00b08902fb9e8dd6ac' \
+          '97d4efee086ddc658466a47d6daa876ccbea1abb' \
+          '0418e28f0e59da16e5e4364ed1e984f83e74ac6d')
 
-# FSA fix ***
-source=(${source[@]} CVE-2012-5643-CVE-2013-0189.patch  CVE-2014-3609.patch
-                     CVE-2014-6270.patch)
-signatures=(${signatures} '' '' '')
-# ***********
-
+Fconfopts="	--datadir=/usr/share/squid \
+		--sysconfdir=/etc/squid \
+                --libexecdir=/usr/lib/squid \
+		--localstatedir=/var \
+                --enable-auth \
+                --enable-removal-policies=lru,heap \
+                --enable-storeio=aufs,ufs,diskd \
+                --enable-delay-pools \
+		--enable-arp-acl \
+		--enable-ssl \
+                --enable-linux-netfilter \
+		--enable-ident-lookups \
+                --enable-useragent-log \
+		--enable-cache-digests \
+                --enable-referer-log \
+		--enable-async-io \
+                --enable-arp-acl \
+		--enable-htcp \
+		--enable-carp \
+                --enable-poll"
 
 build()
 {
-	Fpatchall
 	Fsed '-Werror' '' configure
-	Fmake --datadir=/usr/share/squid --sysconfdir=/etc/squid \
-		--libexecdir=/usr/lib/squid --localstatedir=/var \
-		--enable-auth="basic,digest,ntlm" \
-		--enable-removal-policies="lru,heap" \
-		--enable-digest-auth-helpers="password" \
-		--enable-storeio="aufs,ufs,diskd" \
-		--enable-basic-auth-helpers="getpwnam,YP,NCSA,SMB,MSNT,multi-domain-NTLM" \
-		--enable-external-acl-helpers="ip_user,unix_group,wbinfo_group" \
-		--enable-ntlm-auth-helpers="fakeauth,no_check" \
-		--enable-delay-pools --enable-arp-acl --enable-ssl \
-		--enable-linux-netfilter --enable-ident-lookups \
-		--enable-useragent-log --enable-cache-digests \
-		--enable-referer-log --enable-async-io \
-		--enable-arp-acl --enable-htcp --enable-carp \
-		--enable-poll
-	make DESTDIR=$Fdestdir install || return 1
+	Fbuild
 
 	Fmkdir /var/cache/squid
 	Fmkdir /var/log/squid/run
@@ -57,10 +58,7 @@ build()
 
 	Fsed 'allow manager localhost' 'allow localhost' $Fdestdir/etc/squid/squid.conf
 	Frm /var/run
-	Fmkdir /etc/tmpfiles.d
-	cat > $Fdestdir/etc/tmpfiles.d/squid.conf << EOF
-d $Flocalstatedir/run 0755 root root -
-EOF
+
 	Fgenscriptlet
 }
 

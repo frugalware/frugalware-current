@@ -1,49 +1,40 @@
 # Compiling Time: 3.00 SBU
-# Maintainer: Marius Cirsta <mcirsta@frugalware.org>
+# Maintainer: crazy <crazy@frugalware.org>
+# Contributor: Marius Cirsta <mcirsta@frugalware.org>
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
-USE_DEVEL=${USE_DEVEL:-"n"}
 
+## TODO: sort options
+##       add virtgl stuff
 pkgname=qemu
-pkgver=2.7.0
-Fuse $USE_DEVEL && pkgver=svn6369
+pkgver=2.10.0
 pkgrel=1
-Fuse $USE_DEVEL && pkgrel=1
 pkgdesc="QEMU is a FAST! processor emulator"
 url="http://www.nongnu.org/qemu/"
-depends=('libx11' 'sdl' 'alsa-lib' 'cyrus-sasl' 'nss' 'libgl' 'pixman' 'libpng>=1.6.20' 'libjpeg>=9b' 'spice-server' 'spice-protocol' 'usbredir>=0.7' \
-	 'pulseaudio' 'ncurses>=6.0-3' 'libglu' 'libepoxy' 'libaio')
+depends=('libx11' 'sdl2' 'alsa-lib' 'cyrus-sasl' 'nss' 'libgl' 'pixman' 'libpng>=1.6.20' 'libjpeg>=9b' 'spice-server' 'spice-protocol' 'usbredir>=0.7' \
+	 'pulseaudio' 'ncurses>=6.0-3' 'libglu' 'libepoxy' 'libaio' 'lzo' 'snappy' 'libseccomp' 'numactl' 'bluez' 'jemalloc' 'curl' 'nettle' 'libssh2')
 makedepends=('texi2html' 'xfsprogs' 'mesa-libgl-headers' 'x11-protos')
 replaces=('kqemu' 'qemu-kvm')
 conflicts=('kqemu' 'qemu-kvm')
 provides=('kqemu' 'qemu-kvm')
 groups=('xapps-extra')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 _F_archive_grepv="rc[0-9]"
 up2date="Flasttar http://wiki.qemu.org/download"
 source=(http://wiki.qemu.org/download/${pkgname}-${pkgver//_/-}.tar.bz2 \
 	qemu.conf 49-kvm.rules qemu-guest-agent.service \
 	99-qemu-guest-agent.rules README.Frugalware)
-sha1sums=('96737d31a2fb74553dacbd0ddaa93014858dc986' \
+sha1sums=('d748abac54c0751e420eaf69d27561f94b5b195f' \
           'b44a774fe5ebcf52275ee0fc33a9654c157204ca' \
           '9d9f293fb01d91c12e2f95ba6401a1f1570d70fb' \
           '435373031bc0a1fed8abadab912460ddf98bc1c2' \
           'c997e6afd997aeb87791664c2583a009704a6792' \
           '11fea2f36b44297e241d8cbbdbc4cd14f1150b72')
 
-
-if Fuse $USE_DEVEL; then
-	source=(${source[1]} ${source[2]} ${source[3]} ${source[4]} ${source[5]})
-	shaa1sums=(${sha1sums[1]} ${sha1sums[2]} ${sha1sums[3]} ${sha1sums[4]} ${sha1sums[5]})
-	_F_scm_type="subversion"
-	_F_scm_url="svn://svn.savannah.nongnu.org/qemu/trunk"
-	Finclude scm
-fi
-
 subpkgs=('qemu-guest')
 subdescs=('Files for use in QEMU guests.')
 subgroups=('apps-extra')
-subarchs=('i686 x86_64')
+subarchs=('x86_64')
 subdepends=('glib2')
 
 TARGETS="i386-softmmu x86_64-softmmu arm-softmmu"
@@ -51,23 +42,33 @@ TARGETS="i386-softmmu x86_64-softmmu arm-softmmu"
 
 build()
 {
-	if Fuse $USE_DEVEL; then
-		Funpack_scm
-	fi
+
 	Fcd $pkgname-${pkgver%%_*}
-	Fbuild --audio-drv-list='pa alsa sdl' --target-list="$TARGETS" --disable-qom-cast-debug --enable-spice --enable-usb-redir
+	Fexec ./configure \
+		--prefix=/usr \
+		--audio-drv-list='pa alsa sdl' \
+		--target-list="$TARGETS" \
+		--disable-qom-cast-debug \
+		--enable-spice \
+		--enable-usb-redir \
+		--enable-jemalloc \
+		--enable-modules
+	Fexec make || Fdie
+	Fmakeinstall
+
 	Fdoc README.Frugalware
+
 	Ffile /etc/binfmt.d/qemu.conf
 	Ffile /lib/udev/rules.d/49-kvm.rules
 	Ffile /lib/systemd/system/qemu-guest-agent.service
 	Ffile /lib/udev/rules.d/99-qemu-guest-agent.rules
+
 	Fsplit qemu-guest /lib/systemd/system/qemu-guest-agent.service
 	Fsplit qemu-guest /lib/udev/rules.d/99-qemu-guest-agent.rules
 	Fsplit qemu-guest /usr/bin/qemu-ga
-	case $CARCH in
-		i686)   Fln qemu-system-i386   /usr/bin/qemu ;;
-		x86_64) Fln qemu-system-x86_64 /usr/bin/qemu ;;
-	esac
+
+	Fln qemu-system-x86_64 /usr/bin/qemu
+
 }
 
 # optimization OK

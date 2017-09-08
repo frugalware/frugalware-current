@@ -1,0 +1,44 @@
+# Compiling Time: 0.28 SBU
+# Contributor: bouleetbil <bouleetbil@frogdev.info>
+# Maintainer: DeX77 <dex77@frugalware.org>
+
+pkgname=gpsd
+pkgver=3.17
+pkgrel=1
+pkgdesc="GPS daemon and library to support USB/serial GPS devices"
+archs=('x86_64')
+groups=('xapps')
+url="http://www.catb.org/gpsd"
+source=(http://download-mirror.savannah.gnu.org/releases/gpsd/${pkgname}-${pkgver}.tar.gz $pkgname $pkgname.service)
+up2date="Flasttar http://download-mirror.savannah.gnu.org/releases/gpsd/"
+depends=('libusb1>=1.0.20-4' 'bluez>=5.41-2')
+makedepends=('scons' 'chrpath')
+backup=('etc/sysconfig/gpsd')
+sha1sums=('3168f80b4e8b591e5ffa2292fd3f07b1227d87f1' \
+          '51300b76fcfea5eb63aa6c31d4a408b419c40692' \
+          '43ab62520f5b2aca0d44eba10bf89661b79c104e')
+_F_sysvinit_units=($pkgname)
+_F_systemd_units=($pkgname=)
+Finclude systemd
+
+build() {
+	Fcd
+	export DESTDIR="$Fdestdir"
+	scons || Fdie
+	scons prefix=/usr install || Fdie
+
+	Fsed gpsd.hotplug gpsd  gpsd.hotplug gpsd.usermap
+	install -D gpsd.usermap "$Fdestdir/etc/hotplug/usb/gpsd.usermap" || Fdie
+	Finstallrel 755 gpsd.hotplug etc/hotplug/usb/gpsd
+
+	Ffile /etc/sysconfig/gpsd
+	# systemd tmpfiles
+	Fmkdir /etc/tmpfiles.d
+        cat > $Fdestdir/etc/tmpfiles.d/gpsd.conf << EOF
+d $Flocalstatedir/run/gpsd/ 0755 root root -
+EOF
+	Ffile /lib/systemd/system/$pkgname.service
+	Fgenscriptlet
+}
+
+# optimization OK

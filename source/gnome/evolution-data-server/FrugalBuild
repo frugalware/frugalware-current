@@ -3,28 +3,28 @@
 # Contributor: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=evolution-data-server
-pkgver=3.22.2
+pkgver=3.24.5
 pkgrel=1
 pkgdesc="Evolution Data Server provides a central location for addressbook and calendar in the GNOME Desktop"
-depends=('nss>=3.26' 'libsoup>=2.56.0' 'libgweather>=3.20.3-3' \
+depends=('nss>=3.26' 'libsoup>=2.56.0-3' 'libgweather>=3.24.0' 'icu4c>=58.1' \
 	'libkrb5>=1.14.4-1' 'db>=6.2.23-1' 'gnutls>=3.4.15-2' 'libical>=2.0.0-2' 'libsecret>=0.18.5-2' \
-	'libgdata>=0.17.6' 'gtk+3>=3.22.3' 'libxml2>=2.9.4-3' 'gnome-online-accounts>=3.22.2' 'webkit2-gtk3>=2.14.0')
-makedepends=('intltool>=0.51.0-4' 'krb5>=1.14.4' 'gperf>=3.0.4-3' 'gobject-introspection>=1.50.0' 'openldap>=2.4.44-2' 'vala>=0.34.0')
+	'libgdata>=0.17.7-2' 'gtk+3>=3.22.12' 'libxml2>=2.9.4-3' 'gnome-online-accounts>=3.24.0' 'webkit2-gtk3>=2.16.1')
+makedepends=('intltool>=0.51.0-4' 'krb5>=1.14.4' 'gperf>=3.0.4-3' 'gobject-introspection>=1.52.1' 'openldap>=2.4.44-2' 'vala>=0.36.0')
 groups=('gnome' 'gnome-minimal')
 archs=("x86_64")
 _F_gnome_glib="y"
 _F_gnome_devel="n"
 _F_gnome_ext=".tar.xz"
-Finclude gnome gnome-scriptlet
-sha1sums=('632af36a37436710bb4b2c4e6e49fe1822a53691')
+Finclude gnome gnome-scriptlet cmake
+sha1sums=('0a66c8f595b766a9ce193e32ec045d535ebf56f6')
 
 if [ "$_F_gnome_git" != "n" ]; then
 	unset sha1sums
 fi
 subpkgs=('evolution-data-server-ldap')
 subdescs=('Evolution Data Server LDAP extensions.')
-subdepends=("libldap>=2.4.44-2 openssl>=1.0.2-8")
-subrodepends=("$pkgname=$pkgver")
+subdepends=("libldap>=2.4.44-2 openssl>=1.0.2-8 icu4c>=58.1")
+subrodepends=("$pkgname>=$pkgver")
 subgroups=('gnome')
 subarchs=("x86_64")
 
@@ -36,22 +36,20 @@ subgroups+=('docs-extra gnome-docs')
 subarchs+=("x86_64")
 makedepends+=('gtk-doc>=1.24')
 
-_F_extract_taropts='-i'
-
-Fconfopts+=" --with-openldap=yes --enable-nntp=yes --enable-smime=yes --enable-ipv6=yes \
-	    --with-krb5=/usr --with-libdb=/usr --enable-gtk-doc --enable-vala-bindings \
-		--disable-uoa"
-
 build() {
 
-	## What ?!?
-	if [ "$_F_gnome_git" != "n" ]; then
-		Funpack_scm
-		Fcd $pkgname
-		sh ./autogen.sh
-	fi
-
-	Fbuild
+	Fcd
+	Fexec cmake \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DLIBEXEC_INSTALL_DIR=/usr/lib/evolution-data-server \
+		-DSYSCONF_INSTALL_DIR=/etc \
+		-DENABLE_INTROSPECTION=ON \
+		-DENABLE_VALA_BINDINGS=ON \
+		-DENABLE_UOA=OFF \
+		-DENABLE_GOOGLE_AUTH=ON \
+		-DENABLE_GTK_DOC=ON . || Fdie
+	Fexec make || Fdie
+	Fexec make DESTDIR=$Fdestdir install || Fdie
 	Fsplit evolution-data-server-ldap usr/lib/evolution-data-server/addressbook-backends/libebookbackendldap*
 	Fsplit $pkgname-docs usr/share/gtk-doc
 	Fbuild_gnome_scriptlet

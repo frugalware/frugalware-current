@@ -1,29 +1,28 @@
 # Compiling Time: 1.80 SBU
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
-
 # most people won't need the html version of manpages, but we don't want to
 # break git help -w
 USE_HTMLMAN=${USE_HTMLMAN:-"y"}
 
 pkgname=git
-pkgver=2.10.2
+pkgver=2.14.1
 pkgrel=1
 pkgdesc="A fast, scalable, distributed revision control system."
 _F_archive_grepv="rc"
 url="http://git-scm.com/"
 source=(https://www.kernel.org/pub/software/scm/git/git-$pkgver.tar.xz)
 up2date="Flasttar https://www.kernel.org/pub/software/scm/git/"
-depends=('curl>=7.19.0' 'expat' 'perl-error' 'openssl>=1.0.1')
+depends=('curl>=7.19.0' 'expat' 'pcre2' 'perl-error' 'openssl>=1.0.1' 'perl-authen-sasl')
 backup=(etc/sysconfig/git)
 makedepends=('asciidoc' 'docbook-xsl>=1.73.0-2' 'docbook-xml' 'docbook2x>=0.8.3-3' 'sgml-common' 'xmlto')
 #'dblatex>=0.3-3' 'texlive' 'texlive-lang-extra')
 groups=('devel-extra')
 replaces=('cogito' 'bk-client')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 source=(${source[@]} gitweb.modules.d gitweb.conf README.Frugalware \
 	$pkgname.service $pkgname.sysconfig)
-sha1sums=('2023975ae0061bd569b8529025428e3eca53be2e' \
+sha1sums=('33af2185b1a99ea6581f270d0bb497ca1ca015a8' \
           'c60be6e086241b85b1f0d89db22c24fc21dc6432' \
           '58698ef6cf0dad734e1a1ee5689c0c4d83bf27b5' \
           '92b64c9b49242935ca6ae35b3a9cad728a0c2d55' \
@@ -35,10 +34,10 @@ options+=('scriptlet')
 subpkgs=('gitweb' 'git-gui' 'gitk')
 subdescs=('Web interface for Git.' 'Git GUI tool.' 'Git revision tree visualiser.')
 subdepends=('' 'tk' 'tk')
-subrodepends=("git=$pkgver" "git=$pkgver" "git=$pkgver")
+subrodepends=("git>=$pkgver" "git>=$pkgver" "git>=$pkgver")
 subbackup=('etc/gitweb.conf etc/httpd/conf/modules.d/gitweb.conf' '' '')
 subgroups=('network-extra' 'xapps-extra' 'xapps-extra')
-subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64')
+subarchs=('x86_64' 'x86_64' 'x86_64')
 
 _F_systemd_units=($pkgname=)
 Finclude systemd
@@ -55,14 +54,14 @@ build()
 		Fsed '^DOC_HTML=.*' 'DOC_HTML=' Documentation/Makefile
 	fi
 
-	Fconf
-	sed -i '/DOCBOOK2X_TEXI/s/docbook2x-texi/docbook2texi/' Documentation/Makefile || return 1
+	Fconf --with-libpcre2
+	sed -i '/DOCBOOK2X_TEXI/s/docbook2x-texi/docbook2texi/' Documentation/Makefile || Fdie
 	build_settings="V=1 ETC_GITCONFIG=/etc/gitconfig htmldir=/usr/share/doc/$pkgname-$pkgver \
 		mandir=/usr/share/man pdfdir=/usr/share/doc/$pkgname-$pkgver \
 		ASCIIDOC_NO_ROFF=YesPlease"
-	make -j1 $build_settings all doc info || return 1
+	Fexec make -j1 $build_settings all doc info || return 1
 	Fmakeinstall $build_settings install-doc install-info
-	make -C Documentation WEBDOC_DEST=$Fdestdir/usr/share/doc/$pkgname-$pkgver install-webdoc || return 1
+	Fexec make -C Documentation WEBDOC_DEST=$Fdestdir/usr/share/doc/$pkgname-$pkgver install-webdoc || Fdie
 	# broken symlink
 	Frm /usr/share/doc/git-$pkgver/index.html
 	Fdocrel Documentation/SubmittingPatches
@@ -76,8 +75,8 @@ build()
 
 	# gitweb
 	Fmkdir /var/www/gitweb
-	rm gitweb/gitweb.perl
-	cp -a gitweb/git* gitweb/static/* $Fdestdir/var/www/gitweb || return 1
+	Fexec rm gitweb/gitweb.perl
+	Fexec cp -a gitweb/git* gitweb/static/* $Fdestdir/var/www/gitweb || return 1
 	Ffile gitweb.modules.d /etc/httpd/conf/modules.d/gitweb.conf
 	Ffile /etc/gitweb.conf
 	Fsplit gitweb /etc/{httpd,gitweb.conf} /var

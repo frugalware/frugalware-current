@@ -27,8 +27,8 @@ fi
 archs=('x86_64')
 options+=('nodocs')
 source=(http://download.qt.io/archive/qt/${pkgver%.*}/${pkgver}/submodules/${qtpkgfilename}.tar.xz)
-_F_archive_name=qt-everywhere-opensource-src
-up2date="Flasttar $url/download-open-source/"
+_F_archive_grepv="5.8"
+up2date="Flastverdir http://download.qt-project.org/official_releases/qt/\$(Flastverdir http://download.qt-project.org/official_releases/qt/)"
 _F_cd_path=${qtpkgfilename}
 makedepends+=('x11-protos' 'gperf')
 
@@ -41,7 +41,7 @@ makedepends+=('x11-protos' 'gperf')
 _F_QT5_GCC_VER=$(gcc --version | head -n1 | cut -d" " -f4)
 
 case "$_F_QT5_GCC_VER" in
-6.*) CXXFLAGS+=" -fno-delete-null-pointer-checks";;
+6.*) CXXFLAGS+=" -fno-delete-null-pointer-checks -Wno-deprecated -Wno-deprecated-declarations";;
 esac
 
 build_qt5()
@@ -56,6 +56,7 @@ build_qt5()
 		for i in ${Fdestdir}/usr/lib/qt5/bin/*; do
 			q5=`basename ${i}`
 			Fln /usr/lib/qt5/bin/${q5} /usr/bin/${q5}-qt5
+			Fln /usr/lib/qt5/bin/${q5} /usr/bin/${q5}
 		done
         fi
 }

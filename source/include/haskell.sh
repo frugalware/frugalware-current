@@ -18,7 +18,6 @@
 # pkgdesc="A Haskell binding to the X11 graphics library."
 # archs=('x86_64')
 # url="http://hackage.haskell.org/cgi-bin/hackage-scripts/package/X11"
-# makedepends=('ghc')
 # groups=('xlib-extra')
 # sha1sums=('28f5a257b9f601538822f47c9731b6e20618fbcf')
 # _F_cd_path=X11-$pkgver
@@ -55,10 +54,10 @@ if [ -z "$_F_haskell_prefix" ]; then
 fi
 # Compile variables
 if [ -z "$_F_haskell_register_dir" ]; then
-	_F_haskell_register_dir=$pkgname
+	_F_haskell_register_dir="$pkgname"
 fi
 if [ -z "$_F_haskell_confopts" ]; then
-	_F_haskell_confopts="--ghc --prefix=/usr --libsubdir=\$compiler/site-local/\$pkgid"
+	_F_haskell_confopts=" --ghc --prefix=/usr --libsubdir=\$compiler/site-local/\$pkgid"
 fi
 if [ -z "$_F_haskell_setup" ]; then
 	_F_haskell_setup="Setup.lhs"
@@ -79,9 +78,11 @@ install=$_F_haskell_install
 
 ###
 # == APPENDED VARIABLES
-# * options: add genscriptlet to options
+# * options: add genscriptlet to options=()
+# * makedepends: ghc to makedepends=()
 ###
-options=(${options[@]} 'scriptlet' 'genscriptlet')
+options+=('scriptlet' 'genscriptlet')
+makedepends+=('ghc>=8.2.1-2' 'ghc-docs>=8.2.1-2')
 
 ###
 # == PROVIDED FUNCTIONS
@@ -103,6 +104,7 @@ Fbuild_haskell() {
   Fcd
   Fpatchall
   runhaskell $_F_haskell_setup configure $_F_haskell_confopts || Fdie
+  runhaskell $_F_haskell_setup haddock || Fdie
   runhaskell $_F_haskell_setup build || Fdie
   Fbuild_haskell_regscripts
   runhaskell $_F_haskell_setup copy --destdir=$Fdestdir

@@ -3,54 +3,66 @@
 # Contributor: DeX77 <dex77@frugalware.org>
 
 
-## FIXME: - we need build with --enable/--with-{system}-foo
-##        - remove xghostscript and built ghostscript with
-##          X/mesa/glu .. maybe add GTK3 GUI
-
-## TODO: split the dam lib(s) -- crazy --
 pkgname=ghostscript
-pkgver=9.19
-pkgrel=1
+pkgver=9.21
+pkgrel=3
 pkgdesc="An interpreter for the PostScript language."
-depends=('libcups>=2.2.0-2' 'openssl>=1.0.2-8' 'libkrb5>=1.14.4' 'gnutls>=3.4.15-2')
-rodepends=('foomatic-filters>=4.0.17-5' 'urw-fonts')
-makedepends=('libxt>=1.1.5-3' 'libxext>=1.3.3-3' 'cups>=2.2.0-2' 'krb5>=1.14.4' 'x11-protos')
+depends=('libcups' 'lcms2' 'libpaper' 'fontconfig' 'zlib' 'libpng' 'libjpeg' 'libtiff' 'ijs')
+rodepends=('libgs' 'foomatic-filters>=4.0.17-5' 'urw-fonts')
+makedepends=('x11-protos' 'libxext' 'gnutls' 'libxt')
 groups=('apps')
 archs=("x86_64")
 license="GPLv2"
-url="http://www.ghostscript.com/"
-up2date="lynx -dump -source http://www.ghostscript.com/download/gsdnld.html | grep -m1 'ghostscript-\(.*\).tar.gz' | sed 's/.*script-\(.*\).tar.*/\1/'"
-#source=(http://downloads.ghostscript.com/public/$pkgname-$pkgver.tar.gz)
-source=(https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs${pkgver/./}/ghostscript-${pkgver}.tar.bz2)
-sha1sums=('6ac5c1fb665b3201622e1149f04c641c506bf6c4')
+url="https://www.ghostscript.com/"
+up2date="lynx -dump -source $url/download/gsdnld.html | grep -m1 'ghostscript-\(.*\).tar.gz' | sed 's/.*script-\(.*\).tar.*/\1/'"
+source=(https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs${pkgver/./}/ghostscript-${pkgver}.tar.xz)
+sha1sums=('a93b456a0e18d5c925d26b0b13e961c8e8140f62')
+Fconfopts="	--enable-dynamic \
+		--with-x \
+		--with-ijs \
+		--with-jbig2dec \
+		--with-drivers=ALL\
+		--enable-fontconfig \
+		--enable-freetype \
+		--enable-openjpeg \
+		--with-system-libtiff \
+		--with-libpaper \
+		--disable-compile-inits"
 
-subpkgs=('xghostscript')
-subdescs=('A graphical interpreter for the PostScript language.')
-subdepends=("libxt>=1.1.5-3 libxext>=1.3.3-3 cups>=2.2.0-2 urw-fonts")
-subrodepends=("foomatic-filters>=4.0.17-5")
-subgroups=('xapps')
-subarchs=("x86_64")
-subconflicts=('ghostscript')
-subprovides=('ghostscript')
+subpkgs+=('xghostscript')
+subdescs+=('A graphical interpreter for the PostScript language.')
+subdepends+=("libxt gtk+3")
+subrodepends+=("ghostscript")
+subgroups+=('xapps')
+subarchs+=("x86_64")
+
+subpkgs+=('libgs')
+subdescs+=('PostScript libs from ghostscript')
+subdepends+=("ijs") ## BROKEN , is adding circular depends=() , FIXME!
+subrodepends+=("")
+subgroups+=('libs')
+subarchs+=("x86_64")
+
 
 
 build() {
 
 	CFLAGS="$CFLAGS -fPIC"
 	Fcd
+	Fexec rm -rfv cups/libs freetype ijs jpeg lcms2 libpng tiff zlib || Fdie
 	Fpatchall
 	Fmake
-	make -j1 DESTDIR=${Fdestdir} install-so install || Fdie
+	Fexec make -j1 DESTDIR=${Fdestdir} install-so install || Fdie
+
 	# remove filters that are now maintained in cups-filters as upstream home
         Frm usr/lib/cups/filter/gstopxl
         Frm usr/lib/cups/filter/gstoraster
-	Fsplit xghostscript /\*
-	make clean || Fdie
-	Fmake --without-x
-	make -j1 DESTDIR=${Fdestdir} install-so install || Fdie
-	# remove filters that are now maintained in cups-filters as upstream home
-	Frm usr/lib/cups/filter/gstopxl
-	Frm usr/lib/cups/filter/gstoraster
+
+	Fsplit xghostscript	usr/lib/ghostscript/${pkgver}/X11.so
+	Fsplit xghostscript	usr/bin/gsx
+	Fsplit libgs		usr/lib/
+
+
 }
 
 # optimization OK

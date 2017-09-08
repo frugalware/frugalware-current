@@ -2,36 +2,74 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 # Contributor: AlexExtreme <alex@alex-smith.me.uk>
 
+## we need nostrip while gcc6 bugs ( until upstream sort that )
+## nostrip+release 58 MB fpm
+## nostrip+debug = 60 MB fpm
+## so we use full debug for now , maybe better anyway..
+
+USE_VBOX_DEBUG=${USE_VBOX_DEBUG:-"n"}
+
 pkgname=virtualbox
 realname=VirtualBox
-pkgver=5.1.8
-pkgrel=1
+pkgver=5.1.26
+pkgextra=
+pkgrel=9
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' \
-         'alsa-lib'  'curl' 'libxmu' 'libuuid' 'libcap' 'qt5-base>=5.7.0' 'qt5-x11extras>=5.7.0' \
+         'alsa-lib>=1.1.4.1'  'curl' 'libxmu' 'libuuid' 'libcap' 'qt5-base>=5.9.0-4' 'qt5-x11extras>=5.9.0' \
          'libvpx>=1.6.0' 'lvm2' 'libgl' 'libxext' 'libx11' 'libpulse' 'libglu' 'libxrandr' 'libxcomposite' \
-	 'libxinerama')
-makedepends=('cdrtools' 'x11-protos' 'qt5-tools' 'mesa-libgl-headers')
-rodepends=("virtualbox-modules=$pkgver")
+	 'libxinerama' 'libvncserver' 'iproute2')
+makedepends=('cdrtools' 'x11-protos' 'qt5-tools>=5.9.0' 'mesa-libgl-headers')
+rodepends=("virtualbox-modules>=$pkgver")
 groups=('xapps-extra')
-archs=('i686' 'x86_64')
-up2date="lynx -dump http://download.virtualbox.org/virtualbox/LATEST.TXT | head -n 1"
-source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver}.tar.bz2 \
-	10-vboxdrv.rules LocalConfig.kmk $pkgname.install fix-build.patch)
-options=('scriptlet' 'genscriptlet')
+archs=('x86_64')
+_F_archive_grepv="BETA"
+up2date="Flastverdir http://download.virtualbox.org/virtualbox/"
+source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver}${pkgextra}.tar.bz2 \
+	10-vboxdrv.rules \
+	LocalConfig.kmk \
+	60-vboxguest.rules \
+	vboxservice.service \
+	virtualbox-guest-utils.conf \
+	modules-depmod.patch \
+	kernel-module-guest-depmod.patch)
+
+_F_kernelmod_scriptlet="$startdir/$pkgname.install"
+Finclude kernel-module
+## WARNING:
+## It seems something gets misscompiled *again* with gcc6 ..
+## DO NOT REMOVE 'nostrip' , we strip mauanlly
+
+## PDMLdr: pdmR3LoadR0U: pszName="VMMR0.r0" rc=VERR_INVALID_PARAMETER szErr="SUP_IOCTL_LDR_OPEN failed"
+## SUP_IOCTL_LDR_OPEN: pReq->u.In.cbImageBits < pReq->u.In.cbImageWithTabs
+
+## duh this genscriptlet sh*t is plain broken
+options=('scriptlet' 'nostrip' 'genscriptlet') ## we strip manually in build()
+
 _F_cd_path="${realname}-${pkgver}"
-sha1sums=('fe968ecbe9f8945220dbd388971cd1ce596cfd22' \
+sha1sums=('a99c032f72a3d106029a5c90032da55b25093f72' \
           'aa931ae19edd8585150738f0efd8fedf5175a6d3' \
-          '5b7ecf8ee9e3b367c485e513ae36d30cbd23eff5' \
-          'f32f69a501794adc5da977060db0e607aee839f0' \
-          '8fd54edd6e5d9f8a54729b7293b909bba7d87f91')
+          '5e66ffd4607dafd9b55dc2b6e7591ef6892d4d49' \
+          '08199d8e7906cb793277b798805d38ce386460d8' \
+          '28fb53322691d32a82de87e63672229ea5b7159e' \
+          '80ba54b1e13f0e8f53a84ca3f25df617fb53ae4c' \
+          'ca94de464d516b434c458c1c255c41c06799b941' \
+          '1634d3d18a4d645734088d06588c37dc50e06c03')
+
+subpkgs=("$pkgname-modules" "$pkgname-guest-additions")
+subdescs=('Kernel modules for VirtualBox' 'VirtualBox guest Additions')
+subarchs=('x86_64' 'x86_64')
+subgroups=('apps-extra' 'xapps-extra')
+subdepends=('kernel' 'kernel libxcomposite libxdamage libxrandr libxmu pam')
+suboptions=('scriptlet' 'scriptlet')
+subinstall=("$pkgname-modules.install" "$pkgname-guest-additions.install")
 
 build() {
 
-	Fpatchall
-	# qt5.7
-        CXXFLAGS+=" -std=c++11"
+	Fcd
+
+	## FIXME: figure these
 	Fsed '/usr/X11R6/bin/xterm' '/usr/bin/xterm' \
 		src/VBox/Runtime/VBox/RTAssertShouldPanic-vbox.cpp
 	Fsed 'X11R6/' '' configure
@@ -39,33 +77,39 @@ build() {
 	Fsed '-Werror$' '' Config.kmk
 	Fsed '.*&& check_makeself' '' configure # we don't have makeself
 	Fsed 'smc-napa' 'smcnapa' src/VBox/Devices/PC/vbox.dsl
-	Fsed 'CXX_FLAGS=""' 'CXX_FLAGS="-std=c++11"' configure
-        cp "$Fsrcdir/LocalConfig.kmk" .
 
-	echo "VBOX_GCC_OPT=$CXXFLAGS" >> LocalConfig.kmk
+        Fexec cp "$Fsrcdir/LocalConfig.kmk" . || Fdie
 
 	Fsed 'DocPath=.*' '' src/VBox/Installer/common/virtualbox.desktop.in
-        # Configure and load our options
-	if [ "$CARCH" == "x86_64" ]; then
-		./configure --disable-docs --disable-kmods --nofatal --enable-pulse --disable-vmmraw  || Fdie
+
+	echo "VBOX_GCC_OPT=$CXXFLAGS" >> LocalConfig.kmk ## DO NOT REMOVE
+
+
+	if Fuse $USE_VBOX_DEBUG; then
+		VBoxBuildType="debug"
+		VBox_Opts="-d"
 	else
-	        ./configure --disable-docs --disable-kmods --nofatal --enable-pulse  || Fdie
+		VBoxBuildType="release"
+
 	fi
 
-	source ./env.sh || Fdie
+	VboxSrcDir=${_F_cd_path}/out/linux.amd64/${VBoxBuildType}/bin
 
-	kmk all || Fdie
-	#kmk BUILD_TYPE=debug || Fdie
+	# Configure and load our options
+	Fexec ./configure \
+		--disable-docs \
+		--disable-kmods \
+		--enable-vde \
+		--enable-vnc \
+		--enable-pulse ${VBox_Opts} || Fdie
 
-        # Install it
-	if [ "$CARCH" == "x86_64" ]; then
-	  VboxSrcDir=${_F_cd_path}/out/linux.amd64/release/bin
+	Fexec source ./env.sh || Fdie
 
-	else
-	  VboxSrcDir=${_F_cd_path}/out/linux.x86/release/bin
-	fi
+	## we want to build verbose - DO NOT DISABLE THIS
+	Fexec kmk KBUILD_VERBOSE=2  all || Fdie
 
-	local i k
+
+	local i k j s m
 
 	Fmkdir usr/share/icons/hicolor/{16x16,20x20,32x32,40x40,48x48,64x64,128x128,scalable}/apps
 
@@ -77,6 +121,8 @@ build() {
 
 	cd ${Fsrcdir}/${VboxSrcDir} || Fdie
 
+
+	## FIXME: lot stuff missing
 	#Binaries and Wrapper with Launchers
 	Fexerel VBox.sh "usr/bin/VBox"
 
@@ -91,6 +137,10 @@ build() {
         Fexerel *.so "usr/lib/virtualbox"
 
         Finstallrel 644 *.r0 "usr/lib/virtualbox/"
+
+	## vmmraw stuff
+	Finstallrel 644 *.rc "usr/lib/virtualbox/"
+
         Finstallrel 644 VBoxEFI*.fd "usr/lib/virtualbox/"
 
 	Finstallrel 4755 VBoxSDL VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetAdpCtl "usr/lib/virtualbox"
@@ -105,9 +155,9 @@ build() {
 
 	## icons
 	pushd icons
-	for i in ./*; do
-	  echo $i
-	  Finstallrel 644 $i/* "usr/share/icons/hicolor/$i/mimetypes"
+	for j in ./*; do
+	  #echo $j
+	  Finstallrel 644 $j/* "usr/share/icons/hicolor/$j/mimetypes"
 	done
 	popd
 
@@ -128,6 +178,93 @@ build() {
 
 	Fmkdir etc/ld.so.conf.d
 	echo /usr/lib/virtualbox  >> "$Fdestdir/etc/ld.so.conf.d/virtualbox.conf" || Fdie
+
+	if ! Fuse $USE_VBOX_DEBUG; then
+		Fmessage "Stripping symbols from $pkgname.."
+		for s in `find  $Fdestdir/usr/lib/virtualbox -type f -not -name "*.rc" -not -name "*.r0" -not -name "*.fd" -not -name "*.xpt"`; do
+			strip -s $s
+		done
+	fi
+
+	# host kernel modules
+	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/src || Fdie
+	Fpatch modules-depmod.patch
+        Fmkdir ${_F_kernelmod_dir}/kernel/misc
+
+        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc || Fdie
+        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+
+        #cleanup first
+        Fexec rm -rf fw_tmp || Fdie
+        Fexec mkdir fw_tmp || Fdie
+
+        Fexec cd fw_tmp || Fdie
+
+	Fsed "@_F_kernelmod_uname@" "$_F_kernelmod_uname" $startdir/virtualbox-modules.install
+	Fkernelver_compress_modules
+
+	Fsplit virtualbox-modules ${_F_kernelmod_dir}/kernel/misc
+
+        # guest additions
+	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions || Fdie
+	Fexerel usr/bin/VBoxClient
+	Fexerel usr/bin/VBoxControl
+	Fexerel usr/bin/VBoxService
+	Fexerel usr/bin/mount.vboxsf
+	Fexe ${_F_cd_path}/src/VBox/Additions/x11/Installer/98vboxadd-xclient usr/bin/VBoxClient-all
+
+	Fsplit virtualbox-guest-additions  usr/bin/{VBoxClient,VBoxControl,VBoxService,mount.vboxsf,VBoxClient-all}
+
+	Fexe ${_F_cd_path}/src/VBox/Additions/x11/Installer/vboxclient.desktop etc/xdg/autostart/vboxclient.desktop
+	Fsplit virtualbox-guest-additions  etc/xdg
+
+	for m in {VBoxOGLerrorspu.so,VBoxOGLarrayspu.so,VBoxOGLpackspu.so,VBoxOGLcrutil.so,VBoxOGLfeedbackspu.so,VBoxOGL.so,VBoxOGLpassthroughspu.so}
+	do
+		Finstallrel 755 usr/lib/$m
+	done
+
+	Fln /usr/lib/VBoxOGL.so usr/lib/dri/vboxvideo_dri.so
+	Fsplit virtualbox-guest-additions usr/lib/VBoxOGL*.so
+	Fsplit virtualbox-guest-additions usr/lib/dri/
+
+	Finstallrel 755 lib/security/pam_vbox.so
+
+	# TODO remove after systemd is gone
+	Finstall 644 lib/udev/rules.d/60-vboxguest.rules
+	Finstall 644 lib/systemd/system/vboxservice.service
+	Finstall 644 usr/lib/sysusers.d/virtualbox-guest-utils.conf
+	Fsplit virtualbox-guest-additions usr/lib/sysusers.d/
+
+	# guest kernel modules
+        Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions/src || Fdie
+	Fpatch kernel-module-guest-depmod.patch
+        Fmkdir ${_F_kernelmod_dir}/kernel/misc
+
+        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \
+                MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc || Fdie
+        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \
+                MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+
+        #cleanup first
+        Fexec rm -rf fw_tmp || Fdie
+        Fexec mkdir fw_tmp || Fdie
+
+        Fexec cd fw_tmp || Fdie
+
+	Fsed "@_F_kernelmod_uname@" "$_F_kernelmod_uname" $startdir/virtualbox-guest-additions.install
+
+	Fkernelver_compress_modules
+
+	Fln /lib/systemd/system/vboxservice.service /lib/systemd/system/multi-user.target.wants/vboxservice.service
+	Fsplit virtualbox-guest-additions lib/modules/
+	Fsplit virtualbox-guest-additions lib/security/
+	Fsplit virtualbox-guest-additions lib/systemd/
+	Fsplit virtualbox-guest-additions lib/udev/rules.d/60-vboxguest.rules
+
+	## REALLY ? this is the only package does NOT need it..
+	##  but no way to do that different atm
+	Fbuild_kernelmod_scriptlet
+
 }
 
 # optimization OK

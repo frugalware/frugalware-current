@@ -102,6 +102,15 @@ _F_make_opts="V=1"
 
 unset LANG LC_ALL
 
+## ok gcc6++ makes way to much noise by default
+## we don't care about deprecated stuff and such as long is a warning
+## so add some C/CXX flags to disable these.
+## NOTE: qt5.sh still need his own version of this since qmake gets the flags from qt5 build
+## and we sed the C/XX FLAGS in the arch confs
+
+CXXFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
+CFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
+
 ###
 # == PROVIDED FUNCTIONS
 # * Fmessage(): Prints out a message. Parameter: message to display.
@@ -119,6 +128,11 @@ Fmessage() {
 ###
 Fdie() {
 	exit 2
+}
+
+## internal
+__is_deprecated() {
+	warning "Function ${FUNCNAME[1]}() is deprecated , port your package away from it."
 }
 
 ###
@@ -224,6 +238,7 @@ __Faddsubpkg() {
 ###
 Faddsubpkg() {
 
+	__is_deprecated
 	local g a
 
 	if [ "$#" -lt 3 ]; then
@@ -340,8 +355,6 @@ Frm() {
 Fcp() {
 	Fmessage "Copying file(s): $1"
 	if [ -e "$Fdestdir/"$1 ]; then
-		# Compatibility
-		warning "Deprecated usage of $*"
 		cp "$Fdestdir/"$1 "$Fdestdir/"$2 || Fdie
 	else
 		cp -a "$Fsrcdir/"$1 "$Fdestdir/"$2 || Fdie
@@ -622,12 +635,22 @@ Ficonrel() {
 }
 
 ###
+# * Fdesktoprel(): Install desktop file(s) to $Fdestdir/usr/share/applications
+# from the current working directory.  Parameter: file(s) to be installed.
+###
+
+Fdesktoprel() {
+	Fmkdir "/usr/share/applications"
+	Ffilerel "$@" /usr/share/applications
+}
+
+###
 # * Fln(): Create a symlink in $Fdestdir. First parameter: source (i.e.
 # mysql/libmysqlclient.so), second parameter: target (i.e. /usr/lib/)
 # ($target's dir will be created if necessary).
 ###
 Fln() {
-	Fmessage "Creating symlink(s): $1"
+	Fmessage "Creating symlink(s): $1 -> $2"
 	Fmkdir "`dirname $2`"
 	ln -sf $1 "$Fdestdir"/$2 || Fdie
 }
@@ -744,7 +767,7 @@ Fpatch() {
 # the given arch only.
 ###
 Fpatchall() {
-	local patch="" patcharch=""
+	local patch="" patcharch="" i
 	for i in "${source[@]}"; do
 		if [ -n "`echo "$i" | grep '\.patch[0-9]*$'`" -o -n "`echo "$i" | grep '\.diff$'`" -o -n "`echo "$i" | grep '\.\(patch[0-9]*\|diff\)\.\(gz\|bz2\)$'`" ]; then
 			patch=`strip_url "$i"`
@@ -1457,7 +1480,7 @@ Fwcat() {
 
 	# Use lynx in case wget failed since it support "broken" directory url.
 	# eg. when http://foo.com/bar instead of http://foo.com/bar/
-	lynx -source "$1" 2>/dev/null && return
+	lynx -read_timeout=280 -source "$1" 2>/dev/null && return
 }
 
 Flasttar_filter='\.tar\(\.gz\|\.bz2\)\?\|\.tgz'
@@ -1480,7 +1503,7 @@ Flastarchive() {
 	fi
 
 	if [ $# -gt 1 ]; then
-		local filter lynx="lynx -dump"
+		local filter lynx="lynx -read_timeout=280 -dump"
 
 		if [ -z "$_F_archive_nolinksonly" ]; then
 			lynx+=" -listonly"

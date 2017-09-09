@@ -1,19 +1,5 @@
 #!/bin/bash
 
-in_array()
-{
-	local i needle
-	needle=$1
-	shift 1
-	# array() undefined
-	[ -z "$1" ] && return 1
-	for i in $*
-	do
-		echo $i |grep -q "^$needle" && return 0
-	done
-	return 1
-}
-
 if [ "$1" == "--help" ]; then
 	echo "Missing kde applications packages"
 	exit 1
@@ -27,16 +13,7 @@ fi
 
 cd ..
 
-skip=(
-'kdelibs is kde4'
-'kde-runtime is kde4'
-'juk is kde4'
-'kopete is kde4'
-)
 
-run_kde_apps() {
-
-	local upstream i j
 	source source/include/kf5-version.sh
 
 	upstream=$(for i in applications
@@ -46,10 +23,15 @@ run_kde_apps() {
 
 	for j in $upstream
 	do
-		if ! stat source/*/$j &>/dev/null && ! stat source/*/${j}5 &>/dev/null && ! in_array $j ${skip[@]}; then
-			echo $j
+		if [ -d source/*/$j ] || [ -d source/*/${j}5 ]
+		then
+			continue
 		fi
+			
+		cmakelists_in_branch=$(lynx -dump "https://cgit.kde.org/${j}.git/tree/CMakeLists.txt?h=v${_F_kdever_apps}")
+		if $(echo $cmakelists_in_branch | egrep -q -i -v kf5) || $(echo $cmakelists_in_branch | egrep -q -i "invalid branch")
+		then
+			continue
+		fi
+		echo $j
 	done
-}
-
-run_kde_apps

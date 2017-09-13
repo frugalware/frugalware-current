@@ -1,0 +1,211 @@
+= Frequently Asked Developer Questions
+
+== What is the recommended way to version bump a package if I don't have git push access?
+
+.. Update the FrugalBuild.
+.. Optional: update the patches/docs/etc.
+.. Compile the package.
+.. Upload the new .fpm to incoming.
+.. repoman rec, git format-patch and git send-email the fixes. (Don't forget to set your git identity!)
+
+== makepkg ends up with <packagename>: /usr/info/dir: exists in filesystem
+
+Instead of
+
+`make DESTDIR=$startdir/pkg install`
+
+you should write
+
+`Fmakeinstall`
+
+in your FrugalBuild.
+
+== I can't pacman-g2 -Su <package>, it says local version is newer, but I know it isn't!
+
+This is a bug in the package's version numbering, so please report this in the
+Bug Tracker System. Since pacman-g2 checks the version numbers (installed vs.
+repo version), the new package's version must be bigger than the old one to
+upgrade flawlessly.
+
+== What does 5.55 SBU mean?
+
+It took 5.55 times longer for the maintainer to compile this package than
+binutils. So if you want to know how long it will take to compile a package
+with 5.55 SBU, you should first compile binutils (makepkg helps you, as it
+writes how many seconds elapsed). Then you should multiply it by 5.55 to know
+how many seconds it will take to compile the package.
+
+== Why do maintainers cry about my new package's tarball?
+
+Let's have a look at the filelist of eaccelerator's tarball:
+
+------------------------------------------
+$ tar -tf eaccelerator-0.9.3-1.tar.bz2
+eaccelerator/
+eaccelerator/eaccelerator-0.9.3.zip
+eaccelerator/FrugalBuild
+eaccelerator/README.Frugalware
+eaccelerator/eaccelerator-0.9.3-1-i686.fpm
+------------------------------------------
+
+You have to name the tarball as <pkgname>-<pkgver>-<pkgrel>.tar.bz2 (or gz),
+which should only contain a <pkgname> directory at the root level, and all the
+files needed to create the fpm in it. It is the easiest way for the
+maintainers to work with your tarball when adding your package to the repo.
+
+== What should and shouldn't I include in depends(), rodepends() and makedepends()?
+
+You should include only what chkdep -p recommends, and avoid trivial
+makedepends, including:
+
+* auto*
+* make
+* gcc
+* kernel-headers
+* libtool
+* glibc
+
+Don't forget: every depends is a makedepends as well!
+
+The rodepends() array should only contain packages really needed for running
+the given application.
+
+== What are the various dependancy-control arrays for?
+
+* 'depends' should contain any packages that this one depends on at compile and
+run time as well.
+* 'makedepends' is for packages that this one needs to compile.
+* 'rodepends' is for run time only dependencies;
+eg. a wordlist package (with no executables) needs a program
+which can handle it as a dictionary.
+* 'provides' is an alternate name for the package. Main use is for
+more packages which do the same; eg. hunspell-en and hunspell-de both provide
+hunspell-dict, and hunspell depends on hunspell-dict instead of any specific
+language. (Sometimes those packages are conflicting, like postfix provides
+_and_ conflicts with mta, and exim too - this way there can be only one MTA on
+the system, without the need to know other MTAs' name.)
+
+Be careful with dependency-cycles: while pacman-g2 can handle them, makepkg can
+not.
+
+== How can I have PHP to work with my newly packaged eaccelerator/anything extension?
+
+Since package A should not tamper with package B's config files,you should write
+a README.Frugalware, describing how to enable/use the extension, include it in
+source() and Fdoc README.Frugalware.
+
+== How can I cross-compile (package) an architecture-independent (non-binary) program?
+
+You should modify carch and chost in '/etc/makepkg.conf' and build the package
+again.
+
+== repoman upd can't create /var/fst/ as it already exists
+
+`Su -` to root and
+
+`cd /var/fst && mv * frugalware-current`
+
+== How can I access the central FW repo (mirrors are too slow for me)?
+
+`git clone http://git.frugalware.org/repos/frugalware-current`
+
+If you are a developer and cloning over SSH makes more sense to you:
+
+`git clone git.frugalware.org:/pub/frugalware/frugalware-current`
+
+This creates a new local repo for you, which is a copy of the central repo. To
+update it, run
+
+`git pull --rebase`
+
+in it. That's all to have a read-only copy; if you want to git send-email
+patches, then you should read the link:getting-involved.html[Git docs] to set
+up your name, email, etc.
+
+== What should I write as patch name and long comment at repoman rec?
+
+Patch name should be the same as the fpm (but without .fpm, of course); and long
+comment should only contain what you have done to create that patch (eg. "added
+i686 to archs()").
+
+== Where should I place my comments about a package?
+
+You mean README.Frugalware. It should be in source() and then at the end of the
+build() you should use:
+
+Fdoc README.Frugalware
+
+It is automatically included if you use empty build() or Fbuild.
+
+== I want to work with the latest development version of pacman&co.! How?
+
+------------------------------------------------------------------
+$ git clone http://git.frugalware.org/repos/pacman-tools
+$ cd pacman-tools
+$ make dist
+------------------------------------------------------------------
+
+You will have a brand new .tar.gz. Give it to pacman-tools' FrugalBuild,
+correct the checksum, create a new pacman-tools package (makepkg -fucH helps)
+and install it. That's all (and if you don't understand this, read it again,
+and if it's still not clear, then wait for pacman-tools' normal upgrade
+since you don't need this really)...
+
+== Naming locale packages
+
+What is the order of a new package's locales? How should I name them?
+
+Have a look at hunspell There is a hunspell package, which depends on
+hunspell-dict. There is no package named hunspell-dict, but it is provided by
+the locale packages. The most important ones are -en (==en_US), -hu (==hu_HU),
+-de (==de_DE), -fr (==fr_FR), -it (==it_IT), -es (==es_ES) and -sk (==sk_SK).
+Here are others: -en_US, -de_CH, -es_MX.
+
+The -xx packages will be installed by the non-CD based (ie. netinst, DVD)
+installers.
+
+== Error handling
+
+You are responsible for checking if a command used in build() fails. The best is
+to use the F* macros where possible since they handle the errors for you. If you
+need custom commands, it's recommended to append `|| return 1` to every line, so
+that build() will stop if an error occurs.
+
+== Permissions
+
+If text files (header files, documentation) are executable, feel free to fix
+their permission. A bigger problem is the permission of the shared libraries.
+They must be executable, please fix their permission if necessary. As always,
+it's recommended to create a patch to fix the problem and send it to the
+upstream project.
+
+== Stripping
+
+Stripping binaries is unnecessary and pointless. Unless you use
+`options=(\'nostrip\')` in the FrugalBuild, it's done by makepkg automatically.
+
+== When should I use $Fsrcdir and $Fdestdir
+
+Most F* macros will prepend/append those variables for you, but if you use
+custom commands, then you always have to use them.
+
+== When should I increment a package's release number?
+
+* If your change affects only the FrugalBuild (like an up2date fix) then you
+  should not, just push your change.
+* If your change affects the fdb or the fpm (change in build(), depends() fix,
+  etc) you should do so.
+
+== How do I repair a corrupted package database?
+
+Restore a backup from the `/pub/other/fdb-snapshot` directory, and check its
+version (the `.version` file in the tarball).
+
+Then run:
+
+----
+$ for i in `git log --pretty=oneline 94a41e0..|sed 's/^[^ ]* \([^ ]*\).*/\1/'\
+	|sed 's/-[^-]*-[^-]*-[^-]*$//'`; do ls ../source/*/$i &>/dev/null \
+	|| continue; updatesync upd frugalware-current.fdb \
+	../source/*/$i/FrugalBuild; done
+----

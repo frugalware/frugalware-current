@@ -4,12 +4,12 @@
 # Contributor: Bence Nagy <nagybence@tipogral.hu>
 
 pkgname=claws-mail
-pkgver=3.15.0
-pkgrel=2
+pkgver=3.15.1
+pkgrel=1
 pkgdesc="The extended version of Sylpheed, a GTK+ based, lightweight, and fast e-mail client"
 url="http://www.claws-mail.org/"
 groups=('xapps-extra')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 depends=('enchant>=1.6.0-4' 'gtk+2-libs>=2.24.29-2' 'libldap>=2.4.43' 'gnutls>=3.4.8' 'pilot-link>=0.12.5-6' \
 	'libsm>=1.2.2-2' 'startup-notification>=0.12-3' 'dbus-glib>=0.106' 'libetpan>=1.7.2-2' 'networkmanager>=1.4.0-2')
 makedepends=('x11-protos' 'gtk+2' 'pygtk' 'x11-protos')
@@ -20,7 +20,7 @@ provides=('sylpheed-claws' 'claws-mail-plugin-smime' 'claws-mail-extra-plugins' 
 options+=('scriptlet')
 
 up2date="Flastarchive http://www.claws-mail.org/releases.php .tar.xz"
-source=(http://www.claws-mail.org/releases/$pkgname-$pkgver.tar.xz )
+source=(http://www.claws-mail.org/releases/$pkgname-$pkgver.tar.xz do-not-depend-self-while-compile-error.patch)
 
 replaces=('claws-mail-plugin-gtkhtml2-viewer')
 conflicts=('claws-mail-plugin-gtkhtml2-viewer')
@@ -168,50 +168,58 @@ subgroups=('xlib-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra' \
     'xlib-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra' \
     'xlib-extra' 'xlib-extra' 'xlib-extra' 'xlib-extra' \
     'xlib-extra' 'xlib-extra' 'xlib-extra' )
-subarchs=('i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' \
-    'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' \
-    'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' \
-    'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' \
-    'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' \
-    'i686 x86_64' 'i686 x86_64' 'i686 x86_64' 'i686 x86_64' \
-    'i686 x86_64' 'i686 x86_64' 'i686 x86_64'  )
+subarchs=('x86_64' 'x86_64' 'x86_64' 'x86_64' \
+    'x86_64' 'x86_64' 'x86_64' 'x86_64' \
+    'x86_64' 'x86_64' 'x86_64' 'x86_64' \
+    'x86_64' 'x86_64' 'x86_64' 'x86_64' \
+    'x86_64' 'x86_64' 'x86_64' 'x86_64' \
+    'x86_64' 'x86_64' 'x86_64' 'x86_64' \
+    'x86_64' 'x86_64' 'x86_64'  )
 
-sha1sums=('5aa83c79091e1a612eed5de8ddad7c078af15978')
+sha1sums=('5e46bc03525c7484abc5e719a386a36616b6af97' \
+          '3251a48c10743501b545dd65229328e05d639ab1')
 
 build() {
-    Fpatchall
-    Fmake \
-	--enable-ldap \
-        --enable-enchant \
-        --enable-spamassassin-plugin
 
-    cd tools || Fdie
-    make || Fdie
-    for tool in *.pl *.py *.sh tb2* update-po uudec; do
-            Fexerel /usr/lib/claws-mail/tools/${tool}
-    done
-    Ffilerel /usr/lib/claws-mail/tools/multiwebsearch.conf
+	Fcd
+	Fpatchall
+	#Fautoreconf
+	Fconf \
+		--enable-ldap \
+		--enable-enchant \
+		--enable-spamassassin-plugin \
+		--enable-maintainer-mode=no \
+		--disable-maintainer-mode \
+		--disable-dependency-tracking
 
-    cd .. || Fdie
+	Fexec cd tools || Fdie
+	Fexec make || Fdie
 
-        for subpkg in ${subpkgs[@]}
-    do
-        local plugindirname=${subpkg/claws-mail-plugin-/}
-        plugindirname=${plugindirname/-/_}
-        cd src/plugins/${plugindirname} || Fdie
-        Fmakeinstall
-        Fsplit $subpkg usr/lib/claws-mail/plugins
-        cd $Fsrcdir/${_F_cd_path} || Fdie
-        sed -i "/${plugindirname}/d" src/plugins/Makefile || Fdie
-        rm -rf src/plugins/${plugindirname} || Fdie
+	local tool subpkg
 
-    done
+	for tool in *.pl *.py *.sh tb2* update-po uudec; do
+		Fexerel /usr/lib/claws-mail/tools/${tool}
+	done
 
-    Ffilerel claws-mail-64x64.png /usr/share/pixmaps/claws-mail.png
-    Fmakeinstall
-    Ffilerel claws-mail.png /usr/share/icons/hicolor/48x48/apps/claws-mail.png
-    Ffilerel claws-mail.desktop /usr/share/applications/claws-mail.desktop
+	Ffilerel /usr/lib/claws-mail/tools/multiwebsearch.conf
 
+	Fexec cd .. || Fdie
+
+        for subpkg in ${subpkgs[@]}; do
+		local plugindirname=${subpkg/claws-mail-plugin-/}
+		plugindirname=${plugindirname/-/_}
+		Fexec cd src/plugins/${plugindirname} || Fdie
+		Fmakeinstall
+		Fsplit $subpkg usr/lib/claws-mail/plugins
+		Fexec cd $Fsrcdir/${_F_cd_path} || Fdie
+		Fexec sed -i "/${plugindirname}/d" src/plugins/Makefile || Fdie
+		Fexec rm -rf src/plugins/${plugindirname} || Fdie
+	done
+
+	Ffilerel claws-mail-64x64.png /usr/share/pixmaps/claws-mail.png
+	Fmakeinstall
+	Ffilerel claws-mail.png /usr/share/icons/hicolor/48x48/apps/claws-mail.png
+	Ffilerel claws-mail.desktop /usr/share/applications/claws-mail.desktop
 }
 
 # optimization OK

@@ -1,0 +1,69 @@
+diff -Naur usbguard-0.7.0/src/Library/SysFSDevice.cpp usbguard-0.7.0.new/src/Library/SysFSDevice.cpp
+--- usbguard-0.7.0/src/Library/SysFSDevice.cpp	2017-01-29 18:52:18.000000000 +0100
++++ usbguard-0.7.0.new/src/Library/SysFSDevice.cpp	2017-09-25 10:31:30.000000000 +0200
+@@ -114,6 +114,21 @@
+   {
+     return _sysfs_parent_path;
+   }
++  
++  bool SysFSDevice::hasAttribute(const std::string& name) const
++   {
++     struct ::stat st;
++ 
++     if (::fstatat(_sysfs_dirfd, name.c_str(), &st, AT_SYMLINK_NOFOLLOW) != 0) {
++       if (errno == ENOENT) {
++         return false;
++       }
++       throw ErrnoException("SysFSDevice::hasAttribute", name, errno);
++     }
++ 
++     return S_ISREG(st.st_mode);
++   }
++ 
+ 
+   int SysFSDevice::openAttribute(const String& name) const
+   {
+diff -Naur usbguard-0.7.0/src/Library/SysFSDevice.hpp usbguard-0.7.0.new/src/Library/SysFSDevice.hpp
+--- usbguard-0.7.0/src/Library/SysFSDevice.hpp	2017-01-06 11:00:07.000000000 +0100
++++ usbguard-0.7.0.new/src/Library/SysFSDevice.hpp	2017-09-25 10:31:47.000000000 +0200
+@@ -36,6 +36,7 @@
+       const String& getName() const;
+       const UEvent& getUEvent() const;
+       const String& getParentPath() const;
++      bool hasAttribute(const std::string& name) const;
+       String readAttribute(const String& name, bool strip_last_null = false, bool optional = false) const;
+       void setAttribute(const String& name, const String& value);
+       int openAttribute(const String& name) const;
+diff -Naur usbguard-0.7.0/src/Library/UEventDeviceManager.cpp usbguard-0.7.0.new/src/Library/UEventDeviceManager.cpp
+--- usbguard-0.7.0/src/Library/UEventDeviceManager.cpp	2017-01-29 18:52:18.000000000 +0100
++++ usbguard-0.7.0.new/src/Library/UEventDeviceManager.cpp	2017-09-25 10:27:17.000000000 +0200
+@@ -572,7 +572,12 @@
+     const String devtype = uevent.getAttribute("DEVTYPE");
+     const String action = uevent.getAttribute("ACTION");
+ 
+-    if (subsystem != "usb" || devtype != "usb_device") {
++    /*
++     * We don't care about the event if it's not from the "usb" subsystem.
++     * The device type attribute value is checked later based on the data
++     * read from the sysfs uevent file in the device directory.
++     */
++    if (subsystem != "usb") {
+       USBGUARD_LOG(Debug) << "Ignoring non-USB device:" 
+                           << " subsystem=" << subsystem
+                           << " devtype=" << devtype
+@@ -602,8 +607,13 @@
+           if (sysfs_device.getUEvent().hasAttribute("DEVTYPE")) {
+             const String devtype = sysfs_device.getUEvent().getAttribute("DEVTYPE");
+             if (devtype != "usb_device") {
+-              USBGUARD_LOG(Warning) << sysfs_devpath << ": UEvent DEVTYPE mismatch."
+-                << " Expected \"usb_device\", got \"" << devtype << "\"";
++              USBGUARD_LOG(Debug) << sysfs_devpath << ": UEvent DEVTYPE != usb_device. Ignoring event.";
++              return;
++            }
++          }
++          else {
++            if (!sysfs_device.hasAttribute("descriptors")) {
++              USBGUARD_LOG(Debug) << sysfs_devpath << ": UEvent doesn't refer to a device with a descriptors file. Ignoring event.";
+               return;
+             }
+           }

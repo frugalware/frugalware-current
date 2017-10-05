@@ -29,7 +29,7 @@ _F_cd_path="wine-$pkgver"
 options=('genscriptlet' 'nostrip')
 archs=('x86_64')
 _F_conf_configure="../configure"
-
+_F_archive_grepv="\-rc"
 F32confopts+="	--libdir=/usr/lib32"
 
 Finclude cross32
@@ -38,19 +38,24 @@ case "$pkgname" in
 
 wine)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Stable)"
-	up2date="Flasttar https://dl.winehq.org/wine/source/1.8/"
+	_F_archive_grep="\.0"
+	up2date="Flasttar $url/news"
 	conflicts=('wine-devel' 'lib32-wine-devel')
 	provides=('lib32-wine')
 	replaces=('lib32-wine')
+	source=(https://dl.winehq.org/wine/source/${pkgver%.*}/wine-$pkgver.tar.xz \
+		0001-programs-winhlp32-Use-noyywrap-for-macro.lex.l-and-p.patch )
 	;;
 
 wine-devel)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Development)"
 	_F_archive_name="wine"
-	up2date="Flasttar https://dl.winehq.org/wine/source/1.9/"
+	up2date="Flasttar $url/news"
 	conflicts=('wine' 'lib32-wine-devel')
 	provides=('wine' 'lib32-wine-devel')
 	replaces=('lib32-wine-devel')
+	source=(https://dl.winehq.org/wine/source/${pkgver%.*}.x/wine-$pkgver.tar.xz \
+		0001-programs-winhlp32-Use-noyywrap-for-macro.lex.l-and-p.patch )
 	;;
 
 default)
@@ -60,13 +65,13 @@ default)
 
 esac
 
-source=(https://dl.winehq.org/wine/source/${pkgver%.*}/wine-$pkgver.tar.bz2)
-signatures=("${source[@]}.sign")
+signatures=("${source[0]}.sign" '')
 
 build()
 {
 
 	Fcd
+	Fpatchall
 	Fsed 'lib64' 'lib' configure.ac
 	Fautoreconf
 	Fexec mkdir 64Bit_build || Fdie

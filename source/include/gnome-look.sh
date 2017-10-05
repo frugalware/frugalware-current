@@ -32,7 +32,7 @@
 
 if [ -n "$_F_gnome_look_id" ]; then
 	url="http://www.gnome-look.org/content/show.php?content=$_F_gnome_look_id"
-	up2date="lynx -dump "$url"|grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed 's/      \(.*\).*/\1/'"
+	up2date="lynx -read_timeout=280 -dump "$url"|grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed 's/      \(.*\).*/\1/'"
 fi
 
 ###

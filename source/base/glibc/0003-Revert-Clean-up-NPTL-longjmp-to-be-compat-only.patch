@@ -1,0 +1,74 @@
+From 19cada906b2720e7d9937d3918ea3c117800965e Mon Sep 17 00:00:00 2001
+From: crazy <crazy@frugalware.org>
+Date: Fri, 3 Mar 2017 18:00:15 +0100
+Subject: [PATCH 3/3] Revert "Clean up NPTL longjmp to be compat-only."
+
+This reverts commit ec2a88b3c659ad4f5a662ca289edae4f0dc19d88.
+---
+ nptl/pt-longjmp.c | 45 +++++++--------------------------------------
+ 1 file changed, 7 insertions(+), 38 deletions(-)
+
+diff --git a/nptl/pt-longjmp.c b/nptl/pt-longjmp.c
+index 2ef757e687..c3313d6c99 100644
+--- a/nptl/pt-longjmp.c
++++ b/nptl/pt-longjmp.c
+@@ -1,5 +1,5 @@
+-/* ABI compatibility for 'longjmp' and 'siglongjmp' symbols in libpthread ABI.
+-   Copyright (C) 2002-2017 Free Software Foundation, Inc.
++
++/* Copyright (C) 2002-2017 Free Software Foundation, Inc.
+    This file is part of the GNU C Library.
+    Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
+ 
+@@ -18,43 +18,12 @@
+    <http://www.gnu.org/licenses/>.  */
+ 
+ #include <setjmp.h>
+-#include <shlib-compat.h>
+-
+-/* libpthread once had its own longjmp (and siglongjmp alias), though there
+-   was no apparent reason for it.  There is no use in having a separate
+-   symbol in libpthread, but the historical ABI requires it.  For static
+-   linking, there is no need to provide anything here--the libc version
+-   will be linked in.  For shared library ABI compatibility, there must be
+-   longjmp and siglongjmp symbols in libpthread.so; so we define them using
+-   IFUNC to redirect to the libc function.  */
+-
+-#if SHLIB_COMPAT (libpthread, GLIBC_2_0, GLIBC_2_22)
+-
+-# if HAVE_IFUNC
+-
+-#  undef INIT_ARCH
+-#  define INIT_ARCH()
+-#  define DEFINE_LONGJMP(name) libc_ifunc (name, &__libc_longjmp)
+-
+-extern __typeof(longjmp) longjmp_ifunc;
+-extern __typeof(siglongjmp) siglongjmp_ifunc;
++#include <stdlib.h>
++#include "pthreadP.h"
+ 
+-# else  /* !HAVE_IFUNC */
+-
+-static void __attribute__ ((noreturn, used))
+-longjmp_compat (jmp_buf env, int val)
++void
++longjmp (jmp_buf env, int val)
+ {
+   __libc_longjmp (env, val);
+ }
+-
+-# define DEFINE_LONGJMP(name) strong_alias (longjmp_compat, name)
+-
+-# endif  /* HAVE_IFUNC */
+-
+-DEFINE_LONGJMP (longjmp_ifunc)
+-compat_symbol (libpthread, longjmp_ifunc, longjmp, GLIBC_2_0);
+-
+-strong_alias (longjmp_ifunc, siglongjmp_ifunc)
+-compat_symbol (libpthread, siglongjmp_ifunc, siglongjmp, GLIBC_2_0);
+-
+-#endif
++weak_alias (longjmp, siglongjmp)
+-- 
+2.12.0
+

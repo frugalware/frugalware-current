@@ -22,7 +22,7 @@
 # groups=('gnome')
 # archs=('x86_64')
 # source=($url/files/releases/source/$pkgname/$pkgname-$pkgver.tar.bz2)
-# up2date="lynx -dump http://www.galago-project.org/files/releases/source/$pkgname | Flasttar"
+# up2date="lynx -read_timeout=280 -dump http://www.galago-project.org/files/releases/source/$pkgname | Flasttar"
 # options=('scriptlet')
 # _F_gnome_schemas=('/etc/gconf/schemas/notification-daemon.schemas')
 # _F_gnome_desktop="y"

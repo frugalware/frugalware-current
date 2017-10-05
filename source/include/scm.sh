@@ -62,6 +62,7 @@
 # * _F_scm_password: password of the repo - required for cvs
 # * _F_scm_module: name of the module to check out - required for cvs
 # * _F_scm_tag: name of the tag/branch to use - implemented for cvs/svn/git/mercurial
+# * _F_scm_want_up2date: disabled by default , enable if you want to see up2date's for this package
 ###
 
 # slice the / suffix if there is any
@@ -73,23 +74,43 @@ _F_scm_url=${_F_scm_url%/}
 # * makedepends()
 ###
 if [ "$_F_scm_type" == "cvs" ]; then
-	# if you know a better solution, patches are welcome! :)
-	up2date="date +%Y%m%d"
+	if [ -n "$_F_scm_want_up2date" ]; then
+		# if you know a better solution, patches are welcome! :)
+		up2date="date +%Y%m%d"
+	else
+		up2date="$pkgver"
+	fi
 	makedepends=(${makedepends[@]} 'cvs')
 elif [ "$_F_scm_type" == "subversion" ]; then
-	up2date="echo -n $pkgver|sed 's/[0-9]\+$//'; svn log $_F_scm_url --limit=1 |sed -n '/^r/s/r\([0-9]\+\) .*/\1/p'"
+	if [ -n "$_F_scm_want_up2date" ]; then
+		up2date="echo -n $pkgver|sed 's/[0-9]\+$//'; svn log $_F_scm_url --limit=1 |sed -n '/^r/s/r\([0-9]\+\) .*/\1/p'"
+	else
+		up2date="$pkgver"
+	fi
 	makedepends=(${makedepends[@]} 'subversion')
 elif [ "$_F_scm_type" == "git" ]; then
-	up2date="echo -n ${pkgver%%.g*}.g;git ls-remote $_F_scm_url|sed 's/^\(.\{7\}\).*/\1/;q'"
+	if [ -n "$_F_scm_want_up2date" ]; then
+		up2date="echo -n ${pkgver%%.g*}.g;git ls-remote $_F_scm_url|sed 's/^\(.\{7\}\).*/\1/;q'"
+	else
+		up2date="$pkgver"
+	fi
 	makedepends=(${makedepends[@]} 'git')
 elif [ "$_F_scm_type" == "mercurial" ]; then
-	# it seems that _every_ repo url has the same web interface which has a nice rss
-	up2date="date +%Y%m%d%H%M%S --date '\$(lynx -dump $_F_scm_url/?style=rss|grep pubDate|sed 's/.*>\(.*\)<.*/\1/;q')'"
+	if [ -n "$_F_scm_want_up2date" ]; then
+		# it seems that _every_ repo url has the same web interface which has a nice rss
+		up2date="date +%Y%m%d%H%M%S --date '\$(lynx -dump $_F_scm_url/?style=rss|grep pubDate|sed 's/.*>\(.*\)<.*/\1/;q')'"
+	else
+		up2date="$pkgver"
+	fi
 	makedepends=(${makedepends[@]} 'mercurial')
 elif [ "$_F_scm_type" == "bzr" ]; then
-	# last version is 1.0, last rev is 577, then it should be
-	# 1.0.577 (so pacman-g2 will see the version is > 1.0 and < 1.1)
-	up2date="echo -n ${pkgver%.*}.;bzr revno $_F_scm_url"
+	if [ -n "$_F_scm_want_up2date" ]; then
+		# last version is 1.0, last rev is 577, then it should be
+		# 1.0.577 (so pacman-g2 will see the version is > 1.0 and < 1.1)
+		up2date="echo -n ${pkgver%.*}.;bzr revno $_F_scm_url"
+	else
+		up2date="$pkgver"
+	fi
 	makedepends=(${makedepends[@]} 'bzr')
 fi
 

@@ -41,7 +41,7 @@ pkgname=php-pear-`echo $_F_pear_name|tr [A-Z] [a-z]`
 url="http://pear.php.net/package/$_F_pear_name"
 groups=('devel-extra')
 archs=('x86_64')
-up2date="lynx -dump http://pear.php.net/package/$_F_pear_name|grep stable.*released|sed 's/.*\]\([^ ]*\) (.*/\1/'"
+up2date="lynx -read_timeout=280 -dump http://pear.php.net/package/$_F_pear_name|grep stable.*released|sed 's/.*\]\([^ ]*\) (.*/\1/'"
 source=(http://pear.php.net/get/$_F_pear_name-$pkgver.tgz)
 install=src/pear.install
 

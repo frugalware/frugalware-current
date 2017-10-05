@@ -1,0 +1,51 @@
+commit 98e93e968e4947cd71c2eb69e323682daa453ee7
+Author: Ilan peer <ilan.peer@intel.com>
+Date:   Wed Sep 6 17:32:40 2017 +0300
+
+    mac80211: Complete ampdu work schedule during session tear down
+    
+    Commit 7a7c0a6438b8 ("mac80211: fix TX aggregation start/stop callback race")
+    added a cancellation of the ampdu work after the loop that stopped the
+    Tx and Rx BA sessions. However, in some cases, e.g., during HW reconfig,
+    the low level driver might call mac80211 APIs to complete the stopping
+    of the BA sessions, which would queue the ampdu work to handle the actual
+    completion. This work needs to be performed as otherwise mac80211 data
+    structures would not be properly synced.
+    
+    Fix this by checking if BA session STOP_CB bit is set after the BA session
+    cancellation and properly clean the session.
+    
+    Signed-off-by: Ilan Peer <ilan.peer@intel.com>
+    [Johannes: the work isn't flushed because that could do other things we
+     don't want, and the locking situation isn't clear]
+    Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+
+diff --git a/net/mac80211/ht.c b/net/mac80211/ht.c
+index c92df492e898..4cba7fca10d4 100644
+--- a/net/mac80211/ht.c
++++ b/net/mac80211/ht.c
+@@ -300,6 +300,24 @@ void ieee80211_sta_tear_down_BA_sessions(struct sta_info *sta,
+ 
+ 	/* stopping might queue the work again - so cancel only afterwards */
+ 	cancel_work_sync(&sta->ampdu_mlme.work);
++
++	/*
++	 * In case the tear down is part of a reconfigure due to HW restart
++	 * request, it is possible that the low level driver requested to stop
++	 * the BA session, so handle it to properly clean tid_tx data.
++	 */
++	mutex_lock(&sta->ampdu_mlme.mtx);
++	for (i = 0; i < IEEE80211_NUM_TIDS; i++) {
++		struct tid_ampdu_tx *tid_tx =
++			rcu_dereference_protected_tid_tx(sta, i);
++
++		if (!tid_tx)
++			continue;
++
++		if (test_and_clear_bit(HT_AGG_STATE_STOP_CB, &tid_tx->state))
++			ieee80211_stop_tx_ba_cb(sta, i, tid_tx);
++	}
++	mutex_unlock(&sta->ampdu_mlme.mtx);
+ }
+ 
+ void ieee80211_ba_session_work(struct work_struct *work)

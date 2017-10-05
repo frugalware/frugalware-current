@@ -1,0 +1,4523 @@
+diff --git a/configure.ac b/configure.ac
+index e2223d7..ba330ee 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -81,34 +81,6 @@ dnl AC_CHECK_LIB([c], [main])
+ AC_CHECK_HEADERS(arpa/inet.h)
+ dnl check for inet_pton
+ AC_CHECK_FUNCS(inet_pton)
+-dnl Some systems have it, but not IPv6
+-if test "$ac_cv_func_inet_pton" = "yes" ; then
+-AC_MSG_CHECKING(if inet_pton supports IPv6)
+-AC_RUN_IFELSE([AC_LANG_SOURCE([[
+-#ifdef HAVE_SYS_TYPES_H
+-#include <sys/types.h>
+-#endif
+-#ifdef HAVE_SYS_SOCKET_H
+-#include <sys/socket.h>
+-#endif
+-#ifdef HAVE_NETINET_IN_H
+-#include <netinet/in.h>
+-#endif
+-#ifdef HAVE_ARPA_INET_H
+-#include <arpa/inet.h>
+-#endif
+-int main()
+-  {
+-     struct in6_addr addr6;
+-     if (inet_pton(AF_INET6, "::1", &addr6) < 1)
+-        exit(1);
+-     else
+-        exit(0);
+-  }
+-  ]])],[ AC_MSG_RESULT(yes)
+-       AC_DEFINE_UNQUOTED(HAVE_INET_PTON_IPV6, 1, [Define to 1 if inet_pton supports IPv6.])
+-  ],[AC_MSG_RESULT(no)],[AC_MSG_RESULT(no)])
+-fi
+ 
+ # Checks for header files.
+ dnl AC_HEADER_STDC
+@@ -118,6 +90,9 @@ dnl AC_CHECK_HEADERS([netinet/in.h stdlib.h])
+ dnl AC_C_CONST
+ dnl AC_C_INLINE
+ 
++# Let nfct use dlopen() on helper libraries without resolving all symbols.
++AX_CHECK_LINK_FLAG([-Wl,-z,lazy], [AC_SUBST([LAZY_LDFLAGS], [-Wl,-z,lazy])])
++
+ # Checks for library functions.
+ dnl AC_FUNC_MALLOC
+ dnl AC_FUNC_VPRINTF
+diff --git a/conntrackd.8 b/conntrackd.8
+index 3bb4335..6ccf261 100644
+--- a/conntrackd.8
++++ b/conntrackd.8
+@@ -1,86 +1,111 @@
+-.TH CONNTRACKD 8 "Nov 19, 2015" "" ""
++.TH CONNTRACKD 8 "Aug 30, 2016" "" ""
+ 
+ .\" Man page written by Pablo Neira Ayuso <pablo@netfilter.org> (Dec 2007)
+ 
+ .SH NAME
+ conntrackd \- netfilter connection tracking user-space daemon
++
+ .SH SYNOPSIS
+ .BR "conntrackd [options]"
++
+ .SH DESCRIPTION
+-.B conntrackd
+-is the user-space daemon for the netfilter connection tracking system. This daemon synchronizes connection tracking states between several replica firewalls. Thus,
+-.B conntrackd 
+-can be used to deploy highly available stateful firewalls. The daemon supports Primary-Backup and Multiprimary setups. The daemon can also be used as statistics collector.
++\fBconntrackd\fP is the user-space daemon for the netfilter connection
++tracking system. This daemon synchronizes connection tracking states between
++several replica firewalls. Thus, \fBconntrackd\fP can be used to deploy highly
++available stateful firewalls.
++
++The daemon supports Primary-Backup and Multiprimary setups and can also be used
++as statistics collector.
++
+ .SH OPTIONS
+-The options recognized by
+-.B conntrackd
+-can be divided into several different groups.
+-.SS MODES
+-These options specify the particular operation mode in which conntrackd runs. Only one of them can be specified at any given time.
+-.TP
+-.BI "-d "
+-Run conntrackd in daemon mode.
++The options recognized by \fBconntrackd\fP can be divided into two different
++groups.
++
++.SS GEMERAL OPTIONS
++General options for the \fBconntrackd\fP daemon.
++
++.TP
++.BI "-d"
++Run \fBconntrackd\fP in daemon mode (fork to background).
++
++.TP
++.BI "-C <path>"
++Load config file specified in \fIpath\fP. See \fBconntrackd.conf(5)\fP for
++details.
++
++.TP
++.BI "-v"
++Display version information.
++
++.TP
++.BI "-h"
++Display help information.
++
+ .SS CLIENT COMMANDS
+-.B conntrackd 
+-can be used in client mode to request several information and operations to a running daemon
++\fBconntrackd\fP can be used in client mode to request several information and
++operations to a running instance of the daemon.
++
+ .TP
+-.BI "-i " "[ct|expect]"
++.BI "-i [ct|expect]"
+ Dump the internal cache, i.e. show local states
++
+ .TP
+-.BI "-e " "[ct|expect]"
++.BI "-e [ct|expect]"
+ Dump the external cache, i.e. show foreign states
++
+ .TP
+-.BI "-x "
++.BI "-x"
+ Display output in XML format. This option is only valid in combination
+-with "\-i" and "\-e" parameters.
++with \fB\-i\fP and \fB\-e\fP parameters.
++
+ .TP
+-.BI "-f " "[internal|external]"
++.BI "-f [internal|external]"
+ Flush the internal and/or external cache
++
+ .TP
+ .BI "-F [ct|expect]"
+ Flush the kernel conntrack table (if you use a Linux kernel >= 2.6.29, this
+ option will not flush your internal and external cache).
+ .TP
+-.BI "-c "
++.BI "-c"
+ Commit external cache to conntrack table.
+ .TP
+-.BI "-B "
++.BI "-B"
+ Force a bulk send to other replica firewalls. With this command, you will
+ ask conntrackd to send the state-entries that it owns to others.
+ .TP
+-.BI "-n "
++.BI "-n"
+ Request resync with other node (only FT-FW and NOTRACK modes).
+ .TP
+-.BI "-k "
++.BI "-k"
+ Kill the daemon
+ .TP
+-.BI "-s " "[network|cache|runtime|link|rsqueue|process|queue|ct|expect]"
++.BI "-s [network|cache|runtime|link|rsqueue|process|queue|ct|expect]"
+ Dump statistics. If no parameter is passed, it displays the general statistics.
++.br
+ If "network" is passed as parameter it displays the networking statistics.
++.br
+ If "cache" is passed as parameter, it shows the extended cache statistics.
++.br
+ If "runtime" is passed as parameter, it shows the run-time statistics.
++.br
+ If "process" is passed as parameter, it shows existing child processes (if any).
++.br
+ If "queue" is passed as parameter, it shows queue statistics.
++.br
+ If "ct" is passed, it displays the general statistics.
++.br
+ If "expect" is passed as parameter, it shows expectation statistics.
+ .TP
+-.BI "-R " "[ct|expect]"
++.BI "-R [ct|expect]"
+ Force a resync against the kernel connection tracking table
+ .TP
+-.BI "-t "
++.BI "-t"
+ Reset the in-kernel timers (See PurgeTimeout clause)
+-.TP
+-.BI "-v "
+-Display version information.
+-.TP
+-.BI "-h "
+-Display help information.
+-.TP
+-.BI "-C config file"
+-Configuration file path. See \fBconntrackd.conf(5)\fP for details.
+-.TP
++
+ .SH DIAGNOSTICS
+ The exit code is 0 for correct function. Errors cause an exit code of 1.
++
+ .SH EXAMPLES
+ The following example are illustrative, for a real use in a firewall fail-over,
+ check the primary-backup.sh script that comes with the sources.
+@@ -89,33 +114,65 @@ check the primary-backup.sh script that comes with the sources.
+ Runs conntrackd in daemon and synchronization mode
+ .TP
+ .B conntrackd \-i
+-Dumps the states held in the internal cache, i.e. those handled by this firewall
++Dumps the states held in the internal cache, i.e. those handled by this
++firewall
+ .TP
+ .B conntrackd \-e
+-Dumps the states held in the external cache, i.e. those handled by other replica firewalls
++Dumps the states held in the external cache, i.e. those handled by other
++replica firewalls
+ .TP
+ .B conntrackd \-c
+-Commits the external cache into the kernel connection tracking system. This is used to inject the state so that the connections can be recovered during the failover.
++Commits the external cache into the kernel connection tracking system.
++This is used to inject the state so that the connections can be recovered
++during the failover.
++
+ .SH DEPENDENCIES
+-This daemon requires a Linux kernel version >= 2.6.18. TCP window tracking support requires >= 2.6.22, otherwise you have to disable it. Helpers are fully supported since >= 2.6.25, however, if you use any previous version, depending on the protocol helper and your setup (e.g. if you setup performs NAT sequence adjustments or not), your help connection may be successfully recovered.
+-.TP
+-There are several unsupported stateful iptables matches such as recent, connbytes and the quota matches which gather internal information to operate. Since that information does not belong to the domain of the connection tracking system, connections affected by those matches may not be fully recovered during the takeover.
+-.TP
+-The daemon requires a Linux kernel version >= 2.6.26 to support kernel-space event filtering. Otherwise, all the event filtering is done in userspace with the corresponding extra overhead. If you are not using the Filter clause in the configuration file, ignore this notice.
++This daemon requires a Linux kernel version >= 2.6.18. TCP window tracking
++support requires >= 2.6.22, otherwise you have to disable it.
++Helpers are fully supported since >= 2.6.25, however, if you use any previous
++version, depending on the protocol helper and your setup (e.g. if you setup
++performs NAT sequence adjustments or not), your help connection may be
++successfully recovered.
++
++There are several unsupported stateful iptables matches such as recent,
++connbytes and the quota matches which gather internal
++information to operate. Since that information does not belong to the
++domain of the connection tracking system, connections affected by
++those matches may not be fully recovered during the takeover.
++
++The daemon requires a Linux kernel version >= 2.6.26 to support kernel-space
++event filtering. Otherwise, all the event filtering is done in userspace with
++the corresponding extra overhead. If you are not using the Filter clause in
++the configuration file, ignore this notice.
++
++.SH SYSTEMD INTEGRATION
++Starting with the 1.4.4 release, \fBconntrackd\fP includes integration with
++\fBsystemd(1)\fP to use an unit file of \fIType=notify\fP and watchdog support.
++
++The daemon should be configured at build time to include such support
++and \fBconntrackd.conf(5)\fP should contain \fBSystemd on\fP.
++
+ .SH INCOMPATIBILITIES
+-During the 0.9.9 development, some important changes in the replication message format were introduced. Therefore, conntrackd >= 0.9.9 will not work appropriately with conntrackd <= 0.9.8. This should not be a problem if you use the same
+-conntrackd version in all the firewall replica nodes.
++During the 0.9.9 development, some important changes in the replication message
++format were introduced. Therefore, \fBconntrackd\fP >= 0.9.9 will not work
++appropriately with \fBconntrackd\fP <= 0.9.8.
++
++This should not be a problem if you use the same conntrackd version in all
++the firewall replica nodes.
++
+ .SH SEE ALSO
+-.BR conntrack (8), iptables (8), conntrackd.conf (5)
++.BR conntrackd.conf(5)
++.BR conntrack(8)
++.BR iptables(8)
++.BR nft(8)
+ .br
+-See
+-.BR "http://conntrack-tools.netfilter.org"
++.BR http://conntrack-tools.netfilter.org
++
+ .SH BUGS
+-Please, report them to netfilter-devel@vger.kernel.org or file a bug in
+-Netfilter's bugzilla (https://bugzilla.netfilter.org).
++Please, report them to netfilter-devel@vger.kernel.org (subscription required)
++or file a bug in Netfilter's bugzilla (https://bugzilla.netfilter.org).
++
+ .SH AUTHORS
+ Pablo Neira Ayuso wrote and maintains the conntrackd tool
+-.TP
+-Please send bug reports to <netfilter-devel@lists.netfilter.org>. Subscription is required.
+ .PP
+ Man page written by Pablo Neira Ayuso <pablo@netfilter.org>.
+diff --git a/conntrackd.conf.5 b/conntrackd.conf.5
+index ed387b9..2ce6aa3 100644
+--- a/conntrackd.conf.5
++++ b/conntrackd.conf.5
+@@ -1,5 +1,5 @@
+ .\"
+-.\" (C) Copyright 2015, Arturo Borrero Gonzalez <arturo.borrero.glez@gmail.com>
++.\" (C) Copyright 2015, Arturo Borrero Gonzalez <arturo@debian.org>
+ .\"
+ .\" %%%LICENSE_START(GPLv2+_DOC_FULL)
+ .\" This is free documentation; you can redistribute it and/or
+@@ -22,7 +22,7 @@
+ .\" <http://www.gnu.org/licenses/>.
+ .\" %%%LICENSE_END
+ .\"
+-.TH CONNTRACKD.CONF 5 "Nov 19, 2015"
++.TH CONNTRACKD.CONF 5 "June 09, 2017"
+ 
+ .SH NAME
+ conntrackd.conf \- configuration file for conntrackd daemon
+@@ -78,8 +78,8 @@ This mode is based on a reliable protocol that performs message tracking.
+ Thus, the protocol can recover from message loss, re-ordering and corruption.
+ 
+ In this synchronization mode you may configure \fBResendQueueSize\fP,
+-\fBCommitTimeout\fP, \fBPurgeTimeout\fP, \fBACKWindowSize\fP and
+-\fBDisableExternalCache\fP.
++\fBCommitTimeout\fP, \fBPurgeTimeout\fP, \fBACKWindowSize\fP ,
++\fBDisableExternalCache\fP and \fBStartupResync\fP.
+ 
+ .TP
+ .BI "ResendQueueSize <value>"
+@@ -146,6 +146,18 @@ enabling this option!
+ 
+ By default, this clause is set off.
+ 
++.TP
++.BI "StartupResync <on|off>"
++Order conntrackd to request a complete conntrack table resync against the other
++node at startup. A single request will be made.
++
++This is useful to get in sync with another node which has been running while we
++were down.
++
++Example: StartupResync on
++
++By default, this clause is set off.
++
+ .SS Mode ALARM
+ 
+ This mode is spamming. It is based on a alarm-based protocol that periodically
+@@ -185,7 +197,8 @@ ie. unreliable protocol. This protocol sends and receives the state information
+ without performing any specific checking.
+ 
+ In this synchronization mode you may configure \fBDisableInternalCache\fP,
+-\fBDisableExternalCache\fP, \fBCommitTimeout\fP and \fBPurgeTimeout\fP.
++\fBDisableExternalCache\fP, \fBCommitTimeout\fP, \fBPurgeTimeout\fP and
++\fBStartupResync\fP.
+ 
+ .TP
+ .BI "DisableInternalCache <on|off>"
+@@ -206,6 +219,10 @@ Same as in \fBFTFW\fP mode.
+ .BI "PurgeTimeout <seconds>"
+ Same as in \fBFTFW\fP mode.
+ 
++.TP
++.BI "StartupResync <on|off>"
++Same as in \fBFTFW\fP mode.
++
+ .SS MULTICAST
+ 
+ This section indicates to \fBconntrackd(8)\fP to use multicast as transport
+@@ -463,14 +480,10 @@ By default runtime support is disabled.
+ 
+ .TP
+ .BI "Nice <value>"
+-Set the \fBnice(1)\fP value of the daemon, this value goes from -20 (most
+-favorable scheduling) to 19 (least favorable). Using a very low value reduces
+-the chances to lose state-change events.
+-
+-Example: Nice -20
+-
+-Default is 0 but this example sets it to most favourable scheduling as
+-this is generally a good idea.
++Deprecated. Conntrackd ignores this option and it will be removed in the
++future. Please note that you can run \fBnice(1)\fP and \fBrenice(1)\fP
++externally. Also note that \fBconntrackd(8)\fP now uses by default a RT
++scheduler.
+ 
+ .TP
+ .BI "HashSize <value>"
+@@ -592,7 +605,6 @@ Example:
+ .nf
+ 	UNIX {
+ 		Path /var/run/conntrackd.ctl
+-		Backlog 20
+ 	}
+ .fi
+ 
+@@ -604,9 +616,7 @@ Example: Path /var/run/conntrackd.ctl
+ 
+ .TP
+ .BI "Backlog <value>"
+-Number of items in the backlog.
+-
+-Example: Backlog 20
++Deprecated option.
+ 
+ .SS FILTER
+ Event filtering. This clause allows you to filter certain traffic.
+@@ -717,8 +727,9 @@ Example:
+ Select a different scheduler for the daemon, you can select between \fBRR\fP
+ and \fBFIFO\fP and the process priority.
+ 
+-See \fBsched_setscheduler(2)\fP for more information. Using a RT scheduler
+-reduces the chances to overrun the Netlink buffer.
++Using a RT scheduler reduces the chances to overrun the Netlink buffer and
++\fBconntrackd(8)\fP uses by default \fBRR\fP unless \fBFIFO\fP is selected.
++See \fBsched_setscheduler(2)\fP for more information.
+ 
+ Example:
+ .nf
+@@ -732,12 +743,15 @@ Example:
+ .BI "Type <type>"
+ Supported values are \fBRR\fP or \fBFIFO\fP.
+ 
++Default: RR
++
+ .TP
+ .BI "Priority <value>"
+ Value of the scheduler priority.
+-
+ Minimum is 0, maximum is 99.
+ 
++Default: 99 (as returned by \fBsched_get_priority_max(2)\fP for \fBSCHED_RR\fP)
++
+ .SH STATS
+ This top-level section indicates \fBconntrackd(8)\fP to work as a statistic
+ collector for the nf_conntrack linux kernel subsystem.
+@@ -890,14 +904,12 @@ Stats {
+ }
+ General {
+ 	Systemd on
+-	Nice -1
+ 	HashSize 8192
+ 	HashLimit 65535
+ 	Syslog on
+ 	LockFile /var/lock/conntrack.lock
+ 	UNIX {
+ 		Path /var/run/conntrackd.ctl
+-		Backlog 20
+ 	}
+ 	NetlinkBufferSize 262142
+ 	NetlinkBufferSizeMaxGrowth 655355
+@@ -956,11 +968,6 @@ Sync {
+ }
+ General {
+ 	Systemd on
+-	Nice -20
+-	Scheduler {
+-		Type FIFO
+-		Priority 99
+-	}
+ 	HashSize 32768
+ 	HashLimit 131072
+ 	LogFile on
+@@ -968,7 +975,6 @@ General {
+ 	LockFile /var/lock/conntrack.lock
+ 	UNIX {
+ 		Path /var/run/conntrackd.ctl
+-		Backlog 20
+ 	}
+ 	NetlinkBufferSize 2097152
+ 	NetlinkBufferSizeMaxGrowth 8388608
+@@ -1019,11 +1025,6 @@ Sync {
+ }
+ General {
+ 	Systemd on
+-	Nice -20
+-	Scheduler {
+-		Type FIFO
+-		Priority 99
+-	}
+ 	HashSize 32768
+ 	HashLimit 131072
+ 	LogFile on
+@@ -1031,7 +1032,6 @@ General {
+ 	LockFile /var/lock/conntrack.lock
+ 	UNIX {
+ 		Path /var/run/conntrackd.ctl
+-		Backlog 20
+ 	}
+ 	NetlinkBufferSize 2097152
+ 	NetlinkBufferSizeMaxGrowth 8388608
+@@ -1066,9 +1066,8 @@ General {
+ .SH AUTHOR
+ Pablo Neira Ayuso wrote and maintains the conntrackd tool.
+ 
+-This manual page was written by Arturo Borrero González
+-<arturo.borrero.glez@gmail.com> based on the conntrackd tarball config
+-examples.
++This manual page was written by Arturo Borrero Gonzalez <arturo@debian.org>
++based on the conntrackd tarball config examples.
+ 
+ Please send bug reports to <netfilter-devel@lists.netfilter.org>. Subscription is required.
+ 
+diff --git a/doc/helper/conntrackd.conf b/doc/helper/conntrackd.conf
+index 5c07509..4148544 100644
+--- a/doc/helper/conntrackd.conf
++++ b/doc/helper/conntrackd.conf
+@@ -25,7 +25,9 @@ Helper {
+ 		QueueLen 10240
+ 
+ 		#
+-		# Set the Expectation policy for this helper.
++		# Set the Expectation policy for this helper.  This section
++		# is optional; if left unspecified, the defaults from the
++		# ctd_helper struct will be used.
+ 		#
+ 		Policy ftp {
+ 			#
+@@ -70,11 +72,27 @@ Helper {
+ 			ExpectTimeout 300
+ 		}
+ 	}
++	Type mdns inet udp {
++		QueueNum 6
++		QueueLen 10240
++		Policy mdns {
++			ExpectMax 8
++			ExpectTimeout 30
++		}
++	}
+ 	Type ssdp inet udp {
+ 		QueueNum 5
+ 		QueueLen 10240
+ 		Policy ssdp {
+-			ExpectMax 1
++			ExpectMax 8
++			ExpectTimeout 300
++		}
++	}
++	Type ssdp inet tcp {
++		QueueNum 5
++		QueueLen 10240
++		Policy ssdp {
++			ExpectMax 8
+ 			ExpectTimeout 300
+ 		}
+ 	}
+@@ -84,27 +102,6 @@ Helper {
+ # General settings
+ #
+ General {
+-	#
+-	# Set the nice value of the daemon, this value goes from -20
+-	# (most favorable scheduling) to 19 (least favorable). Using a
+-	# very low value reduces the chances to lose state-change events.
+-	# Default is 0 but this example file sets it to most favourable
+-	# scheduling as this is generally a good idea. See man nice(1) for
+-	# more information.
+-	#
+-	Nice -20
+-
+-	#
+-	# Select a different scheduler for the daemon, you can select between
+-	# RR and FIFO and the process priority (minimum is 0, maximum is 99).
+-	# See man sched_setscheduler(2) for more information. Using a RT
+-	# scheduler reduces the chances to overrun the Netlink buffer.
+-	#
+-	# Scheduler {
+-	#	Type FIFO
+-	#	Priority 99
+-	# }
+-
+ 	#
+ 	# Logfile: on (/var/log/conntrackd.log), off, or a filename
+ 	# Default: off
+@@ -127,6 +124,5 @@ General {
+ 	#
+ 	UNIX {
+ 		Path /var/run/conntrackd.ctl
+-		Backlog 20
+ 	}
+ }
+diff --git a/doc/manual/conntrack-tools.tmpl b/doc/manual/conntrack-tools.tmpl
+index 87a792e..54e5237 100644
+--- a/doc/manual/conntrack-tools.tmpl
++++ b/doc/manual/conntrack-tools.tmpl
+@@ -1185,4 +1185,55 @@ not enough space errors:                   0
+ 
+ </chapter>
+ 
++  <chapter id="system-integration"><title>System integration</title>
++
++  <para>
++	You may want to integrate conntrackd into your system in order to build
++	a robust firewall cluster. You should take a look at how the linux
++	distro of your choice does this, as there are some interesting things
++	to take into account.
++  </para>
++
++  <para>
++	Depending on the architecture of the firewall cluster, you may want to
++	sync each node after a fallback operation, so the new node
++	inmediately knows the connection of the other. This is specially
++	interesting in <emphasis>Active-Active</emphasis> mode.
++  </para>
++
++  <para>
++	This can be done using <emphasis>conntrackd -n</emphasis> just after
++	the new node has joined the conntrackd cluster, for example at boot
++	time. These operations require the main conntrackd daemon to open the
++	UNIX socket to receive the order from the
++	<emphasis>conntrackd -n</emphasis> call.
++  </para>
++
++  <para>
++	Care must be taken that no race conditions happens (i.e, the UNIX
++	socket is actually opened before <emphasis>conntrackd -n</emphasis> is
++	launched). Otherwise, you may end with a new node (after fallback)
++	which doesn't know any connection states from the other node.
++  </para>
++
++  <para>
++	Since <emphasis>conntrack-tools 1.4.4</emphasis>, the conntrackd
++	daemon includes integration with <emphasis>libsystemd</emphasis>. If
++	conntrackd is configured at build time with this support
++	(using <emphasis>--enable-systemd</emphasis>), then you can
++	use <emphasis>Systemd on</emphasis> in the
++	<emphasis>conntrackd.conf</emphasis> main configuration file.
++	To benefit from this integration, you should use a systemd service file
++	of <emphasis>Type=notify</emphasis>, which also includes support for
++	the systemd watchdog.
++  </para>
++
++  <para>
++	Using systemd and conntrackd with libsystemd support and a service file
++	of Type=notify means that conntrackd will notify of its readiness to
++	systemd, so you can launch <emphasis>conntrackd -n</emphasis> safely,
++	avoiding such race conditions.
++  </para>
++
++  </chapter>
+ </book>
+diff --git a/doc/stats/conntrackd.conf b/doc/stats/conntrackd.conf
+index 6a9aec8..ba957a1 100644
+--- a/doc/stats/conntrackd.conf
++++ b/doc/stats/conntrackd.conf
+@@ -10,25 +10,6 @@ General {
+ 	#
+ 	#Systemd on
+ 
+-	#
+-	# Set the nice value of the daemon. This value goes from -20
+-	# (most favorable scheduling) to 19 (least favorable). Using a
+-	# negative value reduces the chances to lose state-change events.
+-	# Default is 0. See man nice(1) for more information.
+-	#
+-	Nice -1
+-
+-	# 
+-	# Select a different scheduler for the daemon, you can select between
+-	# RR and FIFO and the process priority (minimum is 0, maximum is 99).
+-	# See man sched_setscheduler(2) for more information. Using a RT
+-	# scheduler reduces the chances to overrun the Netlink buffer.
+-	#
+-	# Scheduler {
+-	# 	Type FIFO
+-	# 	Priority 99
+-	# }
+-
+ 	#
+ 	# Number of buckets in the caches: hash table
+ 	#
+@@ -62,7 +43,6 @@ General {
+ 	#
+ 	UNIX {
+ 		Path /var/run/conntrackd.ctl
+-		Backlog 20
+ 	}
+ 
+ 	#
+diff --git a/doc/sync/alarm/conntrackd.conf b/doc/sync/alarm/conntrackd.conf
+index 225d1c9..831be15 100644
+--- a/doc/sync/alarm/conntrackd.conf
++++ b/doc/sync/alarm/conntrackd.conf
+@@ -225,27 +225,6 @@ General {
+ 	#
+ 	#Systemd on
+ 
+-	#
+-	# Set the nice value of the daemon, this value goes from -20
+-	# (most favorable scheduling) to 19 (least favorable). Using a
+-	# very low value reduces the chances to lose state-change events.
+-	# Default is 0 but this example file sets it to most favourable
+-	# scheduling as this is generally a good idea. See man nice(1) for
+-	# more information.
+-	#
+-	Nice -20
+-
+-	#
+-	# Select a different scheduler for the daemon, you can select between
+-	# RR and FIFO and the process priority (minimum is 0, maximum is 99).
+-	# See man sched_setscheduler(2) for more information. Using a RT
+-	# scheduler reduces the chances to overrun the Netlink buffer.
+-	#
+-	# Scheduler {
+-	#	Type FIFO
+-	#	Priority 99
+-	# }
+-
+ 	#
+ 	# Number of buckets in the cache hashtable. The bigger it is,
+ 	# the closer it gets to O(1) at the cost of consuming more memory.
+@@ -283,7 +262,6 @@ General {
+ 	#
+ 	UNIX {
+ 		Path /var/run/conntrackd.ctl
+-		Backlog 20
+ 	}
+ 
+ 	#
+diff --git a/doc/sync/ftfw/conntrackd.conf b/doc/sync/ftfw/conntrackd.conf
+index 228674c..9da0fb6 100644
+--- a/doc/sync/ftfw/conntrackd.conf
++++ b/doc/sync/ftfw/conntrackd.conf
+@@ -248,27 +248,6 @@ General {
+ 	#
+ 	#Systemd on
+ 
+-	#
+-	# Set the nice value of the daemon, this value goes from -20
+-	# (most favorable scheduling) to 19 (least favorable). Using a
+-	# very low value reduces the chances to lose state-change events.
+-	# Default is 0 but this example file sets it to most favourable
+-	# scheduling as this is generally a good idea. See man nice(1) for
+-	# more information.
+-	#
+-	Nice -20
+-
+-	#
+-	# Select a different scheduler for the daemon, you can select between
+-	# RR and FIFO and the process priority (minimum is 0, maximum is 99).
+-	# See man sched_setscheduler(2) for more information. Using a RT
+-	# scheduler reduces the chances to overrun the Netlink buffer.
+-	#
+-	# Scheduler {
+-	#	Type FIFO
+-	#	Priority 99
+-	# }
+-
+ 	#
+ 	# Number of buckets in the cache hashtable. The bigger it is,
+ 	# the closer it gets to O(1) at the cost of consuming more memory.
+@@ -306,7 +285,6 @@ General {
+ 	#
+ 	UNIX {
+ 		Path /var/run/conntrackd.ctl
+-		Backlog 20
+ 	}
+ 
+ 	#
+diff --git a/doc/sync/notrack/conntrackd.conf b/doc/sync/notrack/conntrackd.conf
+index 3becd91..600fc89 100644
+--- a/doc/sync/notrack/conntrackd.conf
++++ b/doc/sync/notrack/conntrackd.conf
+@@ -287,27 +287,6 @@ General {
+ 	#
+ 	#Systemd on
+ 
+-	#
+-	# Set the nice value of the daemon, this value goes from -20
+-	# (most favorable scheduling) to 19 (least favorable). Using a
+-	# very low value reduces the chances to lose state-change events.
+-	# Default is 0 but this example file sets it to most favourable
+-	# scheduling as this is generally a good idea. See man nice(1) for
+-	# more information.
+-	#
+-	Nice -20
+-
+-	#
+-	# Select a different scheduler for the daemon, you can select between
+-	# RR and FIFO and the process priority (minimum is 0, maximum is 99).
+-	# See man sched_setscheduler(2) for more information. Using a RT
+-	# scheduler reduces the chances to overrun the Netlink buffer.
+-	#
+-	# Scheduler {
+-	#	Type FIFO
+-	#	Priority 99
+-	# }
+-
+ 	#
+ 	# Number of buckets in the cache hashtable. The bigger it is,
+ 	# the closer it gets to O(1) at the cost of consuming more memory.
+@@ -345,7 +324,6 @@ General {
+ 	#
+ 	UNIX {
+ 		Path /var/run/conntrackd.ctl
+-		Backlog 20
+ 	}
+ 
+ 	#
+diff --git a/include/Makefile.am b/include/Makefile.am
+index e81463a..352054e 100644
+--- a/include/Makefile.am
++++ b/include/Makefile.am
+@@ -6,5 +6,5 @@ noinst_HEADERS = alarm.h jhash.h cache.h linux_list.h linux_rbtree.h \
+ 		 network.h filter.h queue.h vector.h cidr.h \
+ 		 traffic_stats.h netlink.h fds.h event.h bitops.h channel.h \
+ 		 process.h origin.h internal.h external.h date.h nfct.h \
+-		 helper.h myct.h stack.h systemd.h
++		 helper.h myct.h stack.h systemd.h queue_tx.h resync.h
+ 
+diff --git a/include/conntrackd.h b/include/conntrackd.h
+index f8b11a7..ece7025 100644
+--- a/include/conntrackd.h
++++ b/include/conntrackd.h
+@@ -94,7 +94,6 @@ struct ct_conf {
+ 	int channel_type_global;
+ 	struct channel_conf channel[MULTICHANNEL_MAX];
+ 	struct local_conf local;	/* unix socket facilities */
+-	int nice;
+ 	int limit;
+ 	int refresh;
+ 	int cache_timeout;		/* cache entries timeout */
+@@ -110,6 +109,8 @@ struct ct_conf {
+ 	int filter_from_kernelspace;
+ 	int event_iterations_limit;
+ 	int systemd;
++	int running_mode;
++	int startup_resync;
+ 	struct {
+ 		int error_queue_length;
+ 	} channelc;
+@@ -146,6 +147,7 @@ struct ct_general_state {
+ 	sigset_t 			block;
+ 	FILE 				*log;
+ 	FILE				*stats_log;
++	int				log_init;
+ 	struct local_server		local;
+ 	struct ct_mode 			*mode;
+ 	struct ct_filter		*us_filter;
+@@ -298,6 +300,7 @@ extern struct ct_mode stats_mode;
+ 
+ /* These live in run.c */
+ void killer(int foo);
++int evaluate(void);
+ int init(void);
+ void select_main_loop(void);
+ 
+diff --git a/include/helper.h b/include/helper.h
+index f412e55..3c0c5e0 100644
+--- a/include/helper.h
++++ b/include/helper.h
+@@ -76,30 +76,7 @@ enum ip_conntrack_dir {
+ 	IP_CT_DIR_MAX
+ };
+ 
+-/* Connection state tracking for netfilter.  This is separated from,
+-   but required by, the NAT layer; it can also be used by an iptables
+-   extension. */
+-enum ip_conntrack_info {
+-	/* Part of an established connection (either direction). */
+-	IP_CT_ESTABLISHED,
+-
+-	/* Like NEW, but related to an existing connection, or ICMP error
+-	   (in either direction). */
+-	IP_CT_RELATED,
+-
+-	/* Started a new connection to track (only
+-	   IP_CT_DIR_ORIGINAL); may be a retransmission. */
+-	IP_CT_NEW,
+-
+-	/* >= this indicates reply direction */
+-	IP_CT_IS_REPLY,
+-
+-	IP_CT_ESTABLISHED_REPLY = IP_CT_ESTABLISHED + IP_CT_IS_REPLY,
+-	IP_CT_RELATED_REPLY = IP_CT_RELATED + IP_CT_IS_REPLY,
+-	IP_CT_NEW_REPLY = IP_CT_NEW + IP_CT_IS_REPLY,
+-	/* Number of distinct IP_CT types (no NEW in reply dirn). */
+-	IP_CT_NUMBER = IP_CT_IS_REPLY * 2 - 1
+-};
++#include <linux/netfilter/nf_conntrack_common.h>
+ 
+ #define CTINFO2DIR(ctinfo) ((ctinfo) >= IP_CT_IS_REPLY ? IP_CT_DIR_REPLY : IP_CT_DIR_ORIGINAL)
+ 
+diff --git a/include/linux/netfilter/Makefile.am b/include/linux/netfilter/Makefile.am
+index 6574060..3ad1c95 100644
+--- a/include/linux/netfilter/Makefile.am
++++ b/include/linux/netfilter/Makefile.am
+@@ -1 +1,5 @@
+-noinst_HEADERS = nfnetlink.h nfnetlink_cttimeout.h nfnetlink_queue.h nfnetlink_cthelper.h
++noinst_HEADERS	= nfnetlink.h 			\
++		  nfnetlink_cttimeout.h 	\
++		  nfnetlink_queue.h		\
++		  nfnetlink_cthelper.h		\
++		  nf_conntrack_common.h
+diff --git a/include/linux/netfilter/nf_conntrack_common.h b/include/linux/netfilter/nf_conntrack_common.h
+new file mode 100644
+index 0000000..4cf003f
+--- /dev/null
++++ b/include/linux/netfilter/nf_conntrack_common.h
+@@ -0,0 +1,129 @@
++#ifndef _NF_CONNTRACK_COMMON_H
++#define _NF_CONNTRACK_COMMON_H
++/* Connection state tracking for netfilter.  This is separated from,
++   but required by, the NAT layer; it can also be used by an iptables
++   extension. */
++enum ip_conntrack_info {
++	/* Part of an established connection (either direction). */
++	IP_CT_ESTABLISHED,
++
++	/* Like NEW, but related to an existing connection, or ICMP error
++	   (in either direction). */
++	IP_CT_RELATED,
++
++	/* Started a new connection to track (only
++           IP_CT_DIR_ORIGINAL); may be a retransmission. */
++	IP_CT_NEW,
++
++	/* >= this indicates reply direction */
++	IP_CT_IS_REPLY,
++
++	IP_CT_ESTABLISHED_REPLY = IP_CT_ESTABLISHED + IP_CT_IS_REPLY,
++	IP_CT_RELATED_REPLY = IP_CT_RELATED + IP_CT_IS_REPLY,
++	/* No NEW in reply direction. */
++
++	/* Number of distinct IP_CT types. */
++	IP_CT_NUMBER,
++
++	/* only for userspace compatibility */
++#ifndef __KERNEL__
++	IP_CT_NEW_REPLY = IP_CT_NUMBER,
++#endif
++};
++
++#define NF_CT_STATE_INVALID_BIT			(1 << 0)
++#define NF_CT_STATE_BIT(ctinfo)			(1 << ((ctinfo) % IP_CT_IS_REPLY + 1))
++#define NF_CT_STATE_UNTRACKED_BIT		(1 << (IP_CT_NUMBER + 1))
++
++/* Bitset representing status of connection. */
++enum ip_conntrack_status {
++	/* It's an expected connection: bit 0 set.  This bit never changed */
++	IPS_EXPECTED_BIT = 0,
++	IPS_EXPECTED = (1 << IPS_EXPECTED_BIT),
++
++	/* We've seen packets both ways: bit 1 set.  Can be set, not unset. */
++	IPS_SEEN_REPLY_BIT = 1,
++	IPS_SEEN_REPLY = (1 << IPS_SEEN_REPLY_BIT),
++
++	/* Conntrack should never be early-expired. */
++	IPS_ASSURED_BIT = 2,
++	IPS_ASSURED = (1 << IPS_ASSURED_BIT),
++
++	/* Connection is confirmed: originating packet has left box */
++	IPS_CONFIRMED_BIT = 3,
++	IPS_CONFIRMED = (1 << IPS_CONFIRMED_BIT),
++
++	/* Connection needs src nat in orig dir.  This bit never changed. */
++	IPS_SRC_NAT_BIT = 4,
++	IPS_SRC_NAT = (1 << IPS_SRC_NAT_BIT),
++
++	/* Connection needs dst nat in orig dir.  This bit never changed. */
++	IPS_DST_NAT_BIT = 5,
++	IPS_DST_NAT = (1 << IPS_DST_NAT_BIT),
++
++	/* Both together. */
++	IPS_NAT_MASK = (IPS_DST_NAT | IPS_SRC_NAT),
++
++	/* Connection needs TCP sequence adjusted. */
++	IPS_SEQ_ADJUST_BIT = 6,
++	IPS_SEQ_ADJUST = (1 << IPS_SEQ_ADJUST_BIT),
++
++	/* NAT initialization bits. */
++	IPS_SRC_NAT_DONE_BIT = 7,
++	IPS_SRC_NAT_DONE = (1 << IPS_SRC_NAT_DONE_BIT),
++
++	IPS_DST_NAT_DONE_BIT = 8,
++	IPS_DST_NAT_DONE = (1 << IPS_DST_NAT_DONE_BIT),
++
++	/* Both together */
++	IPS_NAT_DONE_MASK = (IPS_DST_NAT_DONE | IPS_SRC_NAT_DONE),
++
++	/* Connection is dying (removed from lists), can not be unset. */
++	IPS_DYING_BIT = 9,
++	IPS_DYING = (1 << IPS_DYING_BIT),
++
++	/* Connection has fixed timeout. */
++	IPS_FIXED_TIMEOUT_BIT = 10,
++	IPS_FIXED_TIMEOUT = (1 << IPS_FIXED_TIMEOUT_BIT),
++
++	/* Conntrack is a template */
++	IPS_TEMPLATE_BIT = 11,
++	IPS_TEMPLATE = (1 << IPS_TEMPLATE_BIT),
++
++	/* Conntrack is a fake untracked entry */
++	IPS_UNTRACKED_BIT = 12,
++	IPS_UNTRACKED = (1 << IPS_UNTRACKED_BIT),
++
++	/* Conntrack got a helper explicitly attached via CT target. */
++	IPS_HELPER_BIT = 13,
++	IPS_HELPER = (1 << IPS_HELPER_BIT),
++};
++
++/* Connection tracking event types */
++enum ip_conntrack_events {
++	IPCT_NEW,		/* new conntrack */
++	IPCT_RELATED,		/* related conntrack */
++	IPCT_DESTROY,		/* destroyed conntrack */
++	IPCT_REPLY,		/* connection has seen two-way traffic */
++	IPCT_ASSURED,		/* connection status has changed to assured */
++	IPCT_PROTOINFO,		/* protocol information has changed */
++	IPCT_HELPER,		/* new helper has been set */
++	IPCT_MARK,		/* new mark has been set */
++	IPCT_SEQADJ,		/* sequence adjustment has changed */
++	IPCT_NATSEQADJ = IPCT_SEQADJ,
++	IPCT_SECMARK,		/* new security mark has been set */
++	IPCT_LABEL,		/* new connlabel has been set */
++};
++
++enum ip_conntrack_expect_events {
++	IPEXP_NEW,		/* new expectation */
++	IPEXP_DESTROY,		/* destroyed expectation */
++};
++
++/* expectation flags */
++#define NF_CT_EXPECT_PERMANENT		0x1
++#define NF_CT_EXPECT_INACTIVE		0x2
++#define NF_CT_EXPECT_USERSPACE		0x4
++
++
++#endif /* _NF_CONNTRACK_COMMON_H */
+diff --git a/include/local.h b/include/local.h
+index f9121b1..22859d7 100644
+--- a/include/local.h
++++ b/include/local.h
+@@ -6,7 +6,6 @@
+ #endif
+ 
+ struct local_conf {
+-	int backlog;
+ 	int reuseaddr;
+ 	char path[UNIX_PATH_MAX];
+ };
+diff --git a/include/queue_tx.h b/include/queue_tx.h
+new file mode 100644
+index 0000000..e29b1f0
+--- /dev/null
++++ b/include/queue_tx.h
+@@ -0,0 +1,7 @@
++#ifndef _QUEUE_TX_H_
++#define _QUEUE_TX_H_
++
++void tx_queue_add_ctlmsg(uint32_t flags, uint32_t from, uint32_t to);
++void tx_queue_add_ctlmsg2(uint32_t flags);
++
++#endif /* _QUEUE_TX_H_ */
+diff --git a/include/resync.h b/include/resync.h
+new file mode 100644
+index 0000000..827e38a
+--- /dev/null
++++ b/include/resync.h
+@@ -0,0 +1,8 @@
++#ifndef _RESYNC_H_
++#define _RESYNC_H_
++
++void resync_req(void);
++void resync_send(int (*do_cache_to_tx)(void *data1, void *data2));
++void resync_at_startup(void);
++
++#endif /*_RESYNC_H_ */
+diff --git a/m4/ax_check_link_flag.m4 b/m4/ax_check_link_flag.m4
+new file mode 100644
+index 0000000..eb01a6c
+--- /dev/null
++++ b/m4/ax_check_link_flag.m4
+@@ -0,0 +1,74 @@
++# ===========================================================================
++#    http://www.gnu.org/software/autoconf-archive/ax_check_link_flag.html
++# ===========================================================================
++#
++# SYNOPSIS
++#
++#   AX_CHECK_LINK_FLAG(FLAG, [ACTION-SUCCESS], [ACTION-FAILURE], [EXTRA-FLAGS], [INPUT])
++#
++# DESCRIPTION
++#
++#   Check whether the given FLAG works with the linker or gives an error.
++#   (Warnings, however, are ignored)
++#
++#   ACTION-SUCCESS/ACTION-FAILURE are shell commands to execute on
++#   success/failure.
++#
++#   If EXTRA-FLAGS is defined, it is added to the linker's default flags
++#   when the check is done.  The check is thus made with the flags: "LDFLAGS
++#   EXTRA-FLAGS FLAG".  This can for example be used to force the linker to
++#   issue an error when a bad flag is given.
++#
++#   INPUT gives an alternative input source to AC_LINK_IFELSE.
++#
++#   NOTE: Implementation based on AX_CFLAGS_GCC_OPTION. Please keep this
++#   macro in sync with AX_CHECK_{PREPROC,COMPILE}_FLAG.
++#
++# LICENSE
++#
++#   Copyright (c) 2008 Guido U. Draheim <guidod@gmx.de>
++#   Copyright (c) 2011 Maarten Bosmans <mkbosmans@gmail.com>
++#
++#   This program is free software: you can redistribute it and/or modify it
++#   under the terms of the GNU General Public License as published by the
++#   Free Software Foundation, either version 3 of the License, or (at your
++#   option) any later version.
++#
++#   This program is distributed in the hope that it will be useful, but
++#   WITHOUT ANY WARRANTY; without even the implied warranty of
++#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
++#   Public License for more details.
++#
++#   You should have received a copy of the GNU General Public License along
++#   with this program. If not, see <http://www.gnu.org/licenses/>.
++#
++#   As a special exception, the respective Autoconf Macro's copyright owner
++#   gives unlimited permission to copy, distribute and modify the configure
++#   scripts that are the output of Autoconf when processing the Macro. You
++#   need not follow the terms of the GNU General Public License when using
++#   or distributing such scripts, even though portions of the text of the
++#   Macro appear in them. The GNU General Public License (GPL) does govern
++#   all other use of the material that constitutes the Autoconf Macro.
++#
++#   This special exception to the GPL applies to versions of the Autoconf
++#   Macro released by the Autoconf Archive. When you make and distribute a
++#   modified version of the Autoconf Macro, you may extend this special
++#   exception to the GPL to apply to your modified version as well.
++
++#serial 4
++
++AC_DEFUN([AX_CHECK_LINK_FLAG],
++[AC_PREREQ(2.64)dnl for _AC_LANG_PREFIX and AS_VAR_IF
++AS_VAR_PUSHDEF([CACHEVAR],[ax_cv_check_ldflags_$4_$1])dnl
++AC_CACHE_CHECK([whether the linker accepts $1], CACHEVAR, [
++  ax_check_save_flags=$LDFLAGS
++  LDFLAGS="$LDFLAGS $4 $1"
++  AC_LINK_IFELSE([m4_default([$5],[AC_LANG_PROGRAM()])],
++    [AS_VAR_SET(CACHEVAR,[yes])],
++    [AS_VAR_SET(CACHEVAR,[no])])
++  LDFLAGS=$ax_check_save_flags])
++AS_VAR_IF(CACHEVAR,yes,
++  [m4_default([$2], :)],
++  [m4_default([$3], :)])
++AS_VAR_POPDEF([CACHEVAR])dnl
++])dnl AX_CHECK_LINK_FLAGS
+diff --git a/src/Makefile.am b/src/Makefile.am
+index 607f191..a9a8685 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -35,9 +35,9 @@ if HAVE_CTHELPER
+ nfct_LDADD += ${LIBNETFILTER_CTHELPER_LIBS}
+ endif
+ 
+-nfct_LDFLAGS = -export-dynamic
++nfct_LDFLAGS = -export-dynamic @LAZY_LDFLAGS@
+ 
+-conntrackd_SOURCES = alarm.c main.c run.c hash.c queue.c rbtree.c \
++conntrackd_SOURCES = alarm.c main.c run.c hash.c queue.c queue_tx.c rbtree.c \
+ 		    local.c log.c mcast.c udp.c netlink.c vector.c \
+ 		    filter.c fds.c event.c process.c origin.c date.c \
+ 		    cache.c cache-ct.c cache-exp.c \
+@@ -52,7 +52,7 @@ conntrackd_SOURCES = alarm.c main.c run.c hash.c queue.c rbtree.c \
+ 		    external_cache.c external_inject.c \
+ 		    internal_cache.c internal_bypass.c \
+ 		    read_config_yy.y read_config_lex.l \
+-		    stack.c
++		    stack.c resync.c
+ 
+ if HAVE_CTHELPER
+ conntrackd_SOURCES += cthelper.c helpers.c utils.c expect.c
+diff --git a/src/conntrack.c b/src/conntrack.c
+index ff030fe..8d19cca 100644
+--- a/src/conntrack.c
++++ b/src/conntrack.c
+@@ -43,6 +43,8 @@
+ #include <stdio.h>
+ #include <getopt.h>
+ #include <stdlib.h>
++#include <ctype.h>
++#include <limits.h>
+ #include <stdarg.h>
+ #include <errno.h>
+ #include <unistd.h>
+@@ -79,6 +81,7 @@ static struct {
+ 
+ 	/* Allow to filter by mark from kernel-space. */
+ 	struct nfct_filter_dump_mark filter_mark_kernel;
++	bool filter_mark_kernel_set;
+ 
+ 	/* Allows filtering by ctlabels */
+ 	struct nfct_bitmask *label;
+@@ -437,6 +440,9 @@ static const int opt2type[] = {
+ static const int opt2maskopt[] = {
+ 	['s']	= '{',
+ 	['d']	= '}',
++	['g']   = 0,
++	['j']   = 0,
++	['n']   = 0,
+ 	['r']	= 0, /* no netmask */
+ 	['q']	= 0, /* support yet */
+ 	['{']	= 0,
+@@ -448,6 +454,8 @@ static const int opt2maskopt[] = {
+ static const int opt2family_attr[][2] = {
+ 	['s']	= { ATTR_ORIG_IPV4_SRC,	ATTR_ORIG_IPV6_SRC },
+ 	['d']	= { ATTR_ORIG_IPV4_DST,	ATTR_ORIG_IPV6_DST },
++	['g']   = { ATTR_DNAT_IPV4, ATTR_DNAT_IPV6 },
++	['n']   = { ATTR_SNAT_IPV4, ATTR_SNAT_IPV6 },
+ 	['r']	= { ATTR_REPL_IPV4_SRC, ATTR_REPL_IPV6_SRC },
+ 	['q']	= { ATTR_REPL_IPV4_DST, ATTR_REPL_IPV6_DST },
+ 	['{']	= { ATTR_ORIG_IPV4_SRC,	ATTR_ORIG_IPV6_SRC },
+@@ -459,6 +467,8 @@ static const int opt2family_attr[][2] = {
+ static const int opt2attr[] = {
+ 	['s']	= ATTR_ORIG_L3PROTO,
+ 	['d']	= ATTR_ORIG_L3PROTO,
++	['g']	= ATTR_ORIG_L3PROTO,
++	['n']	= ATTR_ORIG_L3PROTO,
+ 	['r']	= ATTR_REPL_L3PROTO,
+ 	['q']	= ATTR_REPL_L3PROTO,
+ 	['{']	= ATTR_ORIG_L3PROTO,
+@@ -1047,10 +1057,8 @@ parse_inetaddr(const char *cp, struct addr_parse *parse)
+ {
+ 	if (inet_aton(cp, &parse->addr))
+ 		return AF_INET;
+-#ifdef HAVE_INET_PTON_IPV6
+ 	else if (inet_pton(AF_INET6, cp, &parse->addr6) > 0)
+ 		return AF_INET6;
+-#endif
+ 	return AF_UNSPEC;
+ }
+ 
+@@ -1094,58 +1102,85 @@ parse_addr(const char *cp, union ct_address *address, int *mask)
+ 	return family;
+ }
+ 
+-static void
+-nat_parse(char *arg, struct nf_conntrack *obj, int type)
++static bool
++valid_port(char *cursor)
+ {
+-	char *colon, *error;
+-	union ct_address parse;
++	const char *str = cursor;
++	/* Missing port number */
++	if (!*str)
++		return false;
+ 
+-	colon = strchr(arg, ':');
++	/* Must be entirely digits - no spaces or +/- */
++	while (*cursor) {
++		if (!isdigit(*cursor))
++			return false;
++		else
++			++cursor;
++	}
+ 
+-	if (colon) {
+-		uint16_t port;
++	/* Must be in range */
++	errno = 0;
++	long port = strtol(str, NULL, 10);
+ 
+-		*colon = '\0';
++	if ((errno == ERANGE && (port == LONG_MAX || port == LONG_MIN))
++		|| (errno != 0 && port == 0) || (port > USHRT_MAX))
++		return false;
+ 
+-		port = (uint16_t)atoi(colon+1);
+-		if (port == 0) {
+-			if (strlen(colon+1) == 0) {
+-				exit_error(PARAMETER_PROBLEM,
+-					   "No port specified after `:'");
+-			} else {
+-				exit_error(PARAMETER_PROBLEM,
+-					   "Port `%s' not valid", colon+1);
+-			}
+-		}
++	return true;
++}
+ 
+-		error = strchr(colon+1, ':');
+-		if (error)
++static void
++split_address_and_port(const char *arg, char **address, char **port_str)
++{
++	char *cursor = strchr(arg, '[');
++
++	if (cursor) {
++		/* IPv6 address with port*/
++		char *start = cursor + 1;
++
++		cursor = strchr(start, ']');
++		if (start == cursor) {
++			exit_error(PARAMETER_PROBLEM,
++				   "No IPv6 address specified");
++		} else if (!cursor) {
+ 			exit_error(PARAMETER_PROBLEM,
+-				   "Invalid port:port syntax");
+-
+-		if (type == CT_OPT_SRC_NAT)
+-			nfct_set_attr_u16(tmpl.ct, ATTR_SNAT_PORT, ntohs(port));
+-		else if (type == CT_OPT_DST_NAT)
+-			nfct_set_attr_u16(tmpl.ct, ATTR_DNAT_PORT, ntohs(port));
+-		else if (type == CT_OPT_ANY_NAT) {
+-			nfct_set_attr_u16(tmpl.ct, ATTR_SNAT_PORT, ntohs(port));
+-			nfct_set_attr_u16(tmpl.ct, ATTR_DNAT_PORT, ntohs(port));
++				   "No closing ']' around IPv6 address");
+ 		}
+-	}
++		size_t len = cursor - start;
+ 
+-	if (parse_addr(arg, &parse, NULL) == AF_UNSPEC) {
+-		if (strlen(arg) == 0) {
+-			exit_error(PARAMETER_PROBLEM, "No IP specified");
++		cursor = strchr(cursor, ':');
++		if (cursor) {
++			/* Copy address only if there is a port */
++			*address = strndup(start, len);
++		}
++	} else {
++		cursor = strchr(arg, ':');
++		if (cursor && !strchr(cursor + 1, ':')) {
++			/* IPv4 address with port */
++			*address = strndup(arg, cursor - arg);
+ 		} else {
++			/* v6 address */
++			cursor = NULL;
++		}
++	}
++	if (cursor) {
++		/* Parse port entry */
++		cursor++;
++		if (strlen(cursor) == 0) {
+ 			exit_error(PARAMETER_PROBLEM,
+-					"Invalid IP address `%s'", arg);
++				   "No port specified after `:'");
+ 		}
++		if (!valid_port(cursor)) {
++			exit_error(PARAMETER_PROBLEM,
++				   "Invalid port `%s'", cursor);
++		}
++		*port_str = strdup(cursor);
++	} else {
++		/* No port colon or more than one colon (ipv6)
++		 * assume arg is straight IP address and no port
++		 */
++		*address = strdup(arg);
+ 	}
+-
+-	if (type == CT_OPT_SRC_NAT || type == CT_OPT_ANY_NAT)
+-		nfct_set_attr_u32(tmpl.ct, ATTR_SNAT_IPV4, parse.v4);
+-	else if (type == CT_OPT_DST_NAT || type == CT_OPT_ANY_NAT)
+-		nfct_set_attr_u32(tmpl.ct, ATTR_DNAT_IPV4, parse.v4);
+ }
+ 
+ static void
+@@ -1289,7 +1324,7 @@ nfct_ip6_net_cmp(const union ct_address *addr, const struct ct_network *net)
+ 
+ static int
+ nfct_ip_net_cmp(int family, const union ct_address *addr,
+-                const struct ct_network *net)
++		const struct ct_network *net)
+ {
+ 	switch(family) {
+ 	case AF_INET:
+@@ -2128,6 +2163,7 @@ static void merge_bitmasks(struct nfct_bitmask **current,
+ 	nfct_bitmask_destroy(src);
+ }
+ 
++
+ static void
+ nfct_build_netmask(uint32_t *dst, int b, int n)
+ {
+@@ -2147,10 +2183,9 @@ nfct_build_netmask(uint32_t *dst, int b, int n)
+ }
+ 
+ static void
+-nfct_set_addr_opt(int opt, struct nf_conntrack *ct, union ct_address *ad,
+-		  int l3protonum)
++nfct_set_addr_only(const int opt, struct nf_conntrack *ct, union ct_address *ad,
++		   const int l3protonum)
+ {
+-	options |= opt2type[opt];
+ 	switch (l3protonum) {
+ 	case AF_INET:
+ 		nfct_set_attr_u32(ct,
+@@ -2163,24 +2198,33 @@ nfct_set_addr_opt(int opt, struct nf_conntrack *ct, union ct_address *ad,
+ 		              &ad->v6);
+ 		break;
+ 	}
++}
++
++static void
++nfct_set_addr_opt(const int opt, struct nf_conntrack *ct, union ct_address *ad,
++		  const int l3protonum)
++{
++	options |= opt2type[opt];
++	nfct_set_addr_only(opt, ct, ad, l3protonum);
+ 	nfct_set_attr_u8(ct, opt2attr[opt], l3protonum);
+ }
+ 
+ static void
+-nfct_parse_addr_from_opt(int opt, struct nf_conntrack *ct,
+-                         struct nf_conntrack *ctmask,
+-                         union ct_address *ad, int *family)
++nfct_parse_addr_from_opt(const int opt, const char *arg,
++			 struct nf_conntrack *ct,
++			 struct nf_conntrack *ctmask,
++			 union ct_address *ad, int *family)
+ {
+-	int l3protonum, mask, maskopt;
++	int mask, maskopt;
+ 
+-	l3protonum = parse_addr(optarg, ad, &mask);
++	const int l3protonum = parse_addr(arg, ad, &mask);
+ 	if (l3protonum == AF_UNSPEC) {
+ 		exit_error(PARAMETER_PROBLEM,
+-			   "Invalid IP address `%s'", optarg);
++			   "Invalid IP address `%s'", arg);
+ 	}
+ 	set_family(family, l3protonum);
+ 	maskopt = opt2maskopt[opt];
+-	if (!maskopt && mask != -1) {
++	if (mask != -1 && !maskopt) {
+ 		exit_error(PARAMETER_PROBLEM,
+ 		           "CIDR notation unavailable"
+ 		           " for `--%s'", get_long_opt(opt));
+@@ -2192,7 +2236,7 @@ nfct_parse_addr_from_opt(int opt, struct nf_conntrack *ct,
+ 	nfct_set_addr_opt(opt, ct, ad, l3protonum);
+ 
+ 	/* bail if we don't have a netmask to set*/
+-	if (!maskopt || mask == -1 || ctmask == NULL)
++	if (mask == -1 || !maskopt || ctmask == NULL)
+ 		return;
+ 
+ 	switch(l3protonum) {
+@@ -2211,6 +2255,24 @@ nfct_parse_addr_from_opt(int opt, struct nf_conntrack *ct,
+ 	nfct_set_addr_opt(maskopt, ctmask, ad, l3protonum);
+ }
+ 
++static void
++nfct_set_nat_details(const int opt, struct nf_conntrack *ct,
++		     union ct_address *ad, const char *port_str,
++		     const int family)
++{
++	const int type = opt2type[opt];
++
++	nfct_set_addr_only(opt, ct, ad, family);
++	if (port_str && type == CT_OPT_SRC_NAT) {
++		nfct_set_attr_u16(ct, ATTR_SNAT_PORT,
++				  ntohs((uint16_t)atoi(port_str)));
++	} else if (port_str && type == CT_OPT_DST_NAT) {
++		nfct_set_attr_u16(ct, ATTR_DNAT_PORT,
++				  ntohs((uint16_t)atoi(port_str)));
++	}
++
++}
++
+ int main(int argc, char *argv[])
+ {
+ 	int c, cmd;
+@@ -2289,17 +2351,18 @@ int main(int argc, char *argv[])
+ 		case 'd':
+ 		case 'r':
+ 		case 'q':
+-			nfct_parse_addr_from_opt(c, tmpl.ct, tmpl.mask,
+-			                         &ad, &family);
++			nfct_parse_addr_from_opt(c, optarg, tmpl.ct,
++						 tmpl.mask, &ad, &family);
+ 			break;
+ 		case '[':
+ 		case ']':
+-			nfct_parse_addr_from_opt(c, tmpl.exptuple, tmpl.mask,
+-			                         &ad, &family);
++			nfct_parse_addr_from_opt(c, optarg, tmpl.exptuple,
++						 tmpl.mask, &ad, &family);
+ 			break;
+ 		case '{':
+ 		case '}':
+-			nfct_parse_addr_from_opt(c, tmpl.mask, NULL, &ad, &family);
++			nfct_parse_addr_from_opt(c, optarg, tmpl.mask,
++						 NULL, &ad, &family);
+ 			break;
+ 		case 'p':
+ 			options |= CT_OPT_PROTO;
+@@ -2341,19 +2404,34 @@ int main(int argc, char *argv[])
+ 			break;
+ 		case 'n':
+ 		case 'g':
+-		case 'j': {
+-			char *tmp = NULL;
+-
++		case 'j':
+ 			options |= opt2type[c];
+-
+-			tmp = get_optional_arg(argc, argv);
+-			if (tmp == NULL)
+-				continue;
+-
+-			set_family(&family, AF_INET);
+-			nat_parse(tmp, tmpl.ct, opt2type[c]);
++			char *optional_arg = get_optional_arg(argc, argv);
++
++			if (optional_arg) {
++				char *port_str = NULL;
++				char *nat_address = NULL;
++
++				split_address_and_port(optional_arg,
++						       &nat_address,
++						       &port_str);
++				nfct_parse_addr_from_opt(c, nat_address,
++							 tmpl.ct, NULL,
++							 &ad, &family);
++				if (c == 'j') {
++					/* Set details on both src and dst
++					 * with any-nat
++					 */
++					nfct_set_nat_details('g', tmpl.ct, &ad,
++							     port_str, family);
++					nfct_set_nat_details('n', tmpl.ct, &ad,
++							     port_str, family);
++				} else {
++					nfct_set_nat_details(c, tmpl.ct, &ad,
++							     port_str, family);
++				}
++			}
+ 			break;
+-		}
+ 		case 'w':
+ 		case '(':
+ 		case ')':
+@@ -2374,6 +2452,7 @@ int main(int argc, char *argv[])
+ 			parse_u32_mask(optarg, &tmpl.mark);
+ 			tmpl.filter_mark_kernel.val = tmpl.mark.value;
+ 			tmpl.filter_mark_kernel.mask = tmpl.mark.mask;
++			tmpl.filter_mark_kernel_set = true;
+ 			break;
+ 		case 'l':
+ 		case '<':
+@@ -2523,11 +2602,14 @@ int main(int argc, char *argv[])
+ 		if (filter_dump == NULL)
+ 			exit_error(OTHER_PROBLEM, "OOM");
+ 
+-		nfct_filter_dump_set_attr(filter_dump, NFCT_FILTER_DUMP_MARK,
+-					  &tmpl.filter_mark_kernel);
+-		nfct_filter_dump_set_attr_u8(filter_dump,
+-					     NFCT_FILTER_DUMP_L3NUM,
+-					     family);
++		if (tmpl.filter_mark_kernel_set) {
++			nfct_filter_dump_set_attr(filter_dump,
++						  NFCT_FILTER_DUMP_MARK,
++						  &tmpl.filter_mark_kernel);
++			nfct_filter_dump_set_attr_u8(filter_dump,
++						     NFCT_FILTER_DUMP_L3NUM,
++						     family);
++		}
+ 
+ 		if (options & CT_OPT_ZERO)
+ 			res = nfct_query(cth, NFCT_Q_DUMP_FILTER_RESET,
+@@ -2626,11 +2708,14 @@ int main(int argc, char *argv[])
+ 		if (filter_dump == NULL)
+ 			exit_error(OTHER_PROBLEM, "OOM");
+ 
+-		nfct_filter_dump_set_attr(filter_dump, NFCT_FILTER_DUMP_MARK,
+-					  &tmpl.filter_mark_kernel);
+-		nfct_filter_dump_set_attr_u8(filter_dump,
+-					     NFCT_FILTER_DUMP_L3NUM,
+-					     family);
++		if (tmpl.filter_mark_kernel_set) {
++			nfct_filter_dump_set_attr(filter_dump,
++						  NFCT_FILTER_DUMP_MARK,
++						  &tmpl.filter_mark_kernel);
++			nfct_filter_dump_set_attr_u8(filter_dump,
++						     NFCT_FILTER_DUMP_L3NUM,
++						     family);
++		}
+ 
+ 		res = nfct_query(cth, NFCT_Q_DUMP_FILTER, filter_dump);
+ 
+diff --git a/src/cthelper.c b/src/cthelper.c
+index 54eb830..f01c509 100644
+--- a/src/cthelper.c
++++ b/src/cthelper.c
+@@ -325,6 +325,7 @@ static int nfq_queue_cb(const struct nlmsghdr *nlh, void *data)
+ 	if (pkt_verdict_issue(helper, myct, queue_num, id, verdict, pktb) < 0)
+ 		goto err4;
+ 
++	pktb_free(pktb);
+ 	nfct_destroy(ct);
+ 	if (myct->exp != NULL)
+ 		nfexp_destroy(myct->exp);
+diff --git a/src/ctnl.c b/src/ctnl.c
+index 10b5f4c..9d5dcb8 100644
+--- a/src/ctnl.c
++++ b/src/ctnl.c
+@@ -404,8 +404,8 @@ int ctnl_init(void)
+ 	else if (CONFIG(flags) & CTD_SYNC_MODE)
+ 		STATE(mode) = &sync_mode;
+ 	else {
+-		fprintf(stderr, "WARNING: No running mode specified. "
+-				"Defaulting to statistics mode.\n");
++		dlog(LOG_WARNING, "No running mode specified. "
++		     "Defaulting to statistics mode.");
+ 		CONFIG(flags) |= CTD_STATS_MODE;
+ 		STATE(mode) = &stats_mode;
+ 	}
+diff --git a/src/filter.c b/src/filter.c
+index 1ae2cc5..00a5e96 100644
+--- a/src/filter.c
++++ b/src/filter.c
+@@ -138,7 +138,7 @@ static struct ct_filter *__filter_alloc(struct ct_filter *filter)
+ 	if (!STATE(us_filter)) {
+ 		STATE(us_filter) = ct_filter_create();
+ 		if (!STATE(us_filter)) {
+-			fprintf(stderr, "Can't create ignore pool!\n");
++			dlog(LOG_ERR, "Can't create ignore pool!");
+ 			exit(EXIT_FAILURE);
+ 		}
+ 	}
+@@ -479,7 +479,7 @@ static struct exp_filter *exp_filter_alloc(void)
+ 	if (STATE(exp_filter) == NULL) {
+ 		STATE(exp_filter) = exp_filter_create();
+ 		if (STATE(exp_filter) == NULL) {
+-			fprintf(stderr, "Can't init expectation filtering!\n");
++			dlog(LOG_ERR, "Can't init expectation filtering!");
+ 			return NULL;
+ 		}
+ 	}
+diff --git a/src/helpers/Makefile.am b/src/helpers/Makefile.am
+index 78ef7aa..05801bc 100644
+--- a/src/helpers/Makefile.am
++++ b/src/helpers/Makefile.am
+@@ -3,40 +3,48 @@ include $(top_srcdir)/Make_global.am
+ pkglib_LTLIBRARIES = ct_helper_amanda.la \
+ 		     ct_helper_dhcpv6.la \
+ 		     ct_helper_ftp.la	\
++		     ct_helper_mdns.la	\
+ 		     ct_helper_rpc.la	\
+ 		     ct_helper_tftp.la	\
+ 		     ct_helper_tns.la	\
+ 		     ct_helper_sane.la	\
+ 		     ct_helper_ssdp.la
+ 
++HELPER_LDFLAGS = -avoid-version -module $(LIBNETFILTER_CONNTRACK_LIBS) @LAZY_LDFLAGS@
++HELPER_CFLAGS = $(AM_CFLAGS) $(LIBNETFILTER_CONNTRACK_CFLAGS)
++
+ ct_helper_amanda_la_SOURCES = amanda.c
+-ct_helper_amanda_la_LDFLAGS = -avoid-version -module $(LIBNETFILTER_CONNTRACK_LIBS)
+-ct_helper_amanda_la_CFLAGS = $(AM_CFLAGS) $(LIBNETFILTER_CONNTRACK_CFLAGS)
++ct_helper_amanda_la_LDFLAGS = $(HELPER_LDFLAGS)
++ct_helper_amanda_la_CFLAGS = $(HELPER_CFLAGS)
+ 
+ ct_helper_dhcpv6_la_SOURCES = dhcpv6.c
+-ct_helper_dhcpv6_la_LDFLAGS = -avoid-version -module $(LIBNETFILTER_CONNTRACK_LIBS)
+-ct_helper_dhcpv6_la_CFLAGS = $(AM_CFLAGS) $(LIBNETFILTER_CONNTRACK_CFLAGS)
++ct_helper_dhcpv6_la_LDFLAGS = $(HELPER_LDFLAGS)
++ct_helper_dhcpv6_la_CFLAGS = $(HELPER_CFLAGS)
+ 
+ ct_helper_ftp_la_SOURCES = ftp.c
+-ct_helper_ftp_la_LDFLAGS = -avoid-version -module $(LIBNETFILTER_CONNTRACK_LIBS)
+-ct_helper_ftp_la_CFLAGS = $(AM_CFLAGS) $(LIBNETFILTER_CONNTRACK_CFLAGS)
++ct_helper_ftp_la_LDFLAGS = $(HELPER_LDFLAGS)
++ct_helper_ftp_la_CFLAGS = $(HELPER_CFLAGS)
++
++ct_helper_mdns_la_SOURCES = mdns.c
++ct_helper_mdns_la_LDFLAGS = $(HELPER_LDFLAGS)
++ct_helper_mdns_la_CFLAGS = $(HELPER_CFLAGS)
+ 
+ ct_helper_rpc_la_SOURCES = rpc.c
+-ct_helper_rpc_la_LDFLAGS = -avoid-version -module $(LIBNETFILTER_CONNTRACK_LIBS)
+-ct_helper_rpc_la_CFLAGS = $(AM_CFLAGS) $(LIBNETFILTER_CONNTRACK_CFLAGS)
++ct_helper_rpc_la_LDFLAGS = $(HELPER_LDFLAGS)
++ct_helper_rpc_la_CFLAGS = $(HELPER_CFLAGS)
+ 
+ ct_helper_tftp_la_SOURCES = tftp.c
+-ct_helper_tftp_la_LDFLAGS = -avoid-version -module $(LIBNETFILTER_CONNTRACK_LIBS)
+-ct_helper_tftp_la_CFLAGS = $(AM_CFLAGS) $(LIBNETFILTER_CONNTRACK_CFLAGS)
++ct_helper_tftp_la_LDFLAGS = $(HELPER_LDFLAGS)
++ct_helper_tftp_la_CFLAGS = $(HELPER_CFLAGS)
+ 
+ ct_helper_tns_la_SOURCES = tns.c
+-ct_helper_tns_la_LDFLAGS = -avoid-version -module $(LIBNETFILTER_CONNTRACK_LIBS)
+-ct_helper_tns_la_CFLAGS = $(AM_CFLAGS) $(LIBNETFILTER_CONNTRACK_CFLAGS)
++ct_helper_tns_la_LDFLAGS = $(HELPER_LDFLAGS)
++ct_helper_tns_la_CFLAGS = $(HELPER_CFLAGS)
+ 
+ ct_helper_sane_la_SOURCES = sane.c
+-ct_helper_sane_la_LDFLAGS = -avoid-version -module $(LIBNETFILTER_CONNTRACK_LIBS)
+-ct_helper_sane_la_CFLAGS = $(AM_CFLAGS) $(LIBNETFILTER_CONNTRACK_CFLAGS)
++ct_helper_sane_la_LDFLAGS = $(HELPER_LDFLAGS)
++ct_helper_sane_la_CFLAGS = $(HELPER_CFLAGS)
+ 
+ ct_helper_ssdp_la_SOURCES = ssdp.c
+-ct_helper_ssdp_la_LDFLAGS = -avoid-version -module $(LIBNETFILTER_CONNTRACK_LIBS)
+-ct_helper_ssdp_la_CFLAGS = $(AM_CFLAGS) $(LIBNETFILTER_CONNTRACK_CFLAGS)
++ct_helper_ssdp_la_LDFLAGS = $(HELPER_LDFLAGS)
++ct_helper_ssdp_la_CFLAGS = $(HELPER_CFLAGS)
+diff --git a/src/helpers/amanda.c b/src/helpers/amanda.c
+index 9e6c4e7..faee1cd 100644
+--- a/src/helpers/amanda.c
++++ b/src/helpers/amanda.c
+@@ -75,6 +75,7 @@ static int nat_amanda(struct pkt_buff *pkt, uint32_t ctinfo,
+ 			break;
+ 		}
+ 	}
++	nfct_destroy(nat_tuple);
+ 
+ 	if (port == 0) {
+ 		pr_debug("all ports in use\n");
+diff --git a/src/helpers/ftp.c b/src/helpers/ftp.c
+index 24ee877..c3aa284 100644
+--- a/src/helpers/ftp.c
++++ b/src/helpers/ftp.c
+@@ -293,6 +293,9 @@ static int ftp_find_pattern(struct pkt_buff *pkt,
+ 	if (!numlen)
+ 		return 0;
+ 
++	*matchoff = i;
++	*matchlen = numlen;
++
+ 	pr_debug("Match succeded!\n");
+ 	return 1;
+ }
+@@ -420,6 +423,7 @@ static unsigned int nf_nat_ftp(struct pkt_buff *pkt,
+ 			break;
+ 		}
+ 	}
++	nfct_destroy(nat_tuple);
+ 
+ 	if (port == 0)
+ 		return NF_DROP;
+@@ -508,7 +512,7 @@ ftp_helper_cb(struct pkt_buff *pkt, uint32_t protoff,
+ 		goto out_update_nl;
+ 
+ 	pr_debug("conntrack_ftp: match `%.*s' (%u bytes at %u)\n",
+-		 matchlen, pktb_network_header(pkt) + matchoff,
++		 matchlen, pktb_network_header(pkt) + dataoff + matchoff,
+ 		 matchlen, ntohl(th->seq) + matchoff);
+ 
+ 	/* We refer to the reverse direction ("!dir") tuples here,
+diff --git a/src/helpers/mdns.c b/src/helpers/mdns.c
+new file mode 100644
+index 0000000..7605589
+--- /dev/null
++++ b/src/helpers/mdns.c
+@@ -0,0 +1,89 @@
++/*
++ * Copyright (C) 2016 Google Inc.
++ * Author: Kevin Cernekee <cernekee@chromium.org>
++ *
++ * This helper pokes a hole in the firewall for unicast mDNS replies
++ * (RFC6762 section 5.1).  It is needed because the destination address of
++ * the outgoing mDNS query (224.0.0.251) will not match the source address
++ * of the incoming response (192.168.x.x or similar).  The helper is not used
++ * for standard multicast queries/responses in which the sport and dport are
++ * both 5353, because those can be handled by a standard filter/INPUT rule.
++ *
++ * Usage:
++ *
++ *     nfct add helper mdns inet udp
++ *     iptables -t raw -A OUTPUT -p udp -d 224.0.0.251 '!' --sport 5353 \
++ *         --dport 5353 -j CT --helper mdns
++ *     iptables -t filter -A INPUT -p udp -d 224.0.0.251 --dport 5353 -j ACCEPT
++ *     iptables -t filter -A INPUT -m state --state ESTABLISHED,RELATED \
++ *         -j ACCEPT
++ *
++ * Requires Linux 3.12 or higher.  NAT is unsupported.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++#include "conntrackd.h"
++#include "helper.h"
++#include "myct.h"
++#include "log.h"
++
++#include <libnetfilter_conntrack/libnetfilter_conntrack.h>
++#include <linux/netfilter.h>
++
++static int mdns_helper_cb(struct pkt_buff *pkt, uint32_t protoff,
++			  struct myct *myct, uint32_t ctinfo)
++{
++	struct nf_expect *exp;
++	int dir = CTINFO2DIR(ctinfo);
++	union nfct_attr_grp_addr saddr;
++	uint16_t sport, dport;
++
++	exp = nfexp_new();
++	if (exp == NULL) {
++		pr_debug("conntrack_mdns: failed to allocate expectation\n");
++		return NF_ACCEPT;
++	}
++
++	cthelper_get_addr_src(myct->ct, dir, &saddr);
++	cthelper_get_port_src(myct->ct, dir, &sport);
++	cthelper_get_port_src(myct->ct, !dir, &dport);
++
++	if (cthelper_expect_init(exp,
++				 myct->ct,
++				 0 /* class */,
++				 NULL /* saddr */,
++				 &saddr /* daddr */,
++				 IPPROTO_UDP,
++				 &dport /* sport */,
++				 &sport /* dport */,
++				 NF_CT_EXPECT_PERMANENT)) {
++		pr_debug("conntrack_mdns: failed to init expectation\n");
++		nfexp_destroy(exp);
++		return NF_ACCEPT;
++	}
++
++	myct->exp = exp;
++	return NF_ACCEPT;
++}
++
++static struct ctd_helper mdns_helper = {
++	.name		= "mdns",
++	.l4proto	= IPPROTO_UDP,
++	.priv_data_len	= 0,
++	.cb		= mdns_helper_cb,
++	.policy		= {
++		[0] = {
++			.name		= "mdns",
++			.expect_max	= 8,
++			.expect_timeout	= 30,
++		},
++	},
++};
++
++static void __attribute__ ((constructor)) mdns_init(void)
++{
++	helper_register(&mdns_helper);
++}
+diff --git a/src/helpers/ssdp.c b/src/helpers/ssdp.c
+index bc41087..1f7f76f 100644
+--- a/src/helpers/ssdp.c
++++ b/src/helpers/ssdp.c
+@@ -1,5 +1,5 @@
+ /*
+- * SSDP connection tracking helper
++ * SSDP/UPnP connection tracking helper
+  * (SSDP = Simple Service Discovery Protocol)
+  * For documentation about SSDP see
+  * http://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol
+@@ -8,6 +8,33 @@
+  * Based on the SSDP conntrack helper (nf_conntrack_ssdp.c),
+  * :http://marc.info/?t=132945775100001&r=1&w=2
+  *  (C) 2012 Ian Pilcher <arequipeno@gmail.com>
++ * Copyright (C) 2017 Google Inc.
++ *
++ * This requires Linux 3.12 or higher.  Basic usage:
++ *
++ *     nfct add helper ssdp inet udp
++ *     nfct add helper ssdp inet tcp
++ *     iptables -t raw -A OUTPUT -p udp --dport 1900 -j CT --helper ssdp
++ *     iptables -t raw -A PREROUTING -p udp --dport 1900 -j CT --helper ssdp
++ *
++ * This helper supports SNAT when used in conjunction with a daemon that
++ * forwards SSDP broadcasts/replies between interfaces, e.g.
++ * https://chromium.googlesource.com/chromiumos/platform2/+/master/arc-networkd/multicast_forwarder.h
++ *
++ * If UPnP eventing is used, callbacks should be triggered at regular
++ * intervals to prevent the expectation from expiring.  It will expire
++ * after min(nf_conntrack_tcp_timeout_time_wait, ExpectTimeout) which
++ * is min(120, 300) = 120 by default.  The latter option can be changed
++ * in the conntrackd configuration file; the former option can be changed
++ * via procfs or through policy:
++ *
++ *     nfct timeout add long-timewait inet tcp \
++ *         established 1000 close 10 time_wait 10 last_ack 10
++ *     nfct timeout add long-timewait inet tcp time_wait 3600
++ *     iptables -t raw -A OUTPUT -p udp --dport 1900 -j CT --helper ssdp \
++ *         --timeout long-timewait
++ *     iptables -t raw -A PREROUTING -p udp --dport 1900 -j CT --helper ssdp \
++ *         --timeout long-timewait
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 as
+@@ -19,8 +46,10 @@
+ #include "myct.h"
+ #include "log.h"
+ #include <errno.h>
++#include <stdlib.h>
+ #include <arpa/inet.h>
+ #include <netinet/ip.h>
++#include <netinet/tcp.h>
+ #include <netinet/udp.h>
+ #include <libmnl/libmnl.h>
+ #include <libnetfilter_conntrack/libnetfilter_conntrack.h>
+@@ -36,8 +65,95 @@
+ #define SSDP_M_SEARCH		"M-SEARCH"
+ #define SSDP_M_SEARCH_SIZE	(sizeof SSDP_M_SEARCH - 1)
+ 
+-static int ssdp_helper_cb(struct pkt_buff *pkt, uint32_t protoff,
+-			  struct myct *myct, uint32_t ctinfo)
++/* So, this packet has hit the connection tracking matching code.
++   Mangle it, and change the expectation to match the new version. */
++static unsigned int nf_nat_ssdp(struct pkt_buff *pkt,
++				int ctinfo,
++				unsigned int matchoff,
++				unsigned int matchlen,
++				struct nf_conntrack *ct,
++				struct nf_expect *exp)
++{
++	union nfct_attr_grp_addr newip;
++	uint16_t port;
++	int dir = CTINFO2DIR(ctinfo);
++	char buffer[sizeof("255.255.255.255:65535")];
++	unsigned int buflen;
++	const struct nf_conntrack *expected;
++	struct nf_conntrack *nat_tuple;
++	uint16_t initial_port;
++
++	/* Connection will come from wherever this packet goes, hence !dir */
++	cthelper_get_addr_dst(ct, !dir, &newip);
++
++	expected = nfexp_get_attr(exp, ATTR_EXP_EXPECTED);
++
++	nat_tuple = nfct_new();
++	if (nat_tuple == NULL)
++		return NF_ACCEPT;
++
++	initial_port = nfct_get_attr_u16(expected, ATTR_PORT_DST);
++
++	/* pkt is NULL for NOTIFY (renewal, same dir), non-NULL otherwise */
++	nfexp_set_attr_u32(exp, ATTR_EXP_NAT_DIR, pkt ? !dir : dir);
++
++	/* libnetfilter_conntrack needs this */
++	nfct_set_attr_u8(nat_tuple, ATTR_L3PROTO, AF_INET);
++	nfct_set_attr_u32(nat_tuple, ATTR_IPV4_SRC, 0);
++	nfct_set_attr_u32(nat_tuple, ATTR_IPV4_DST, 0);
++	nfct_set_attr_u8(nat_tuple, ATTR_L4PROTO,
++			 nfct_get_attr_u8(ct, ATTR_L4PROTO));
++	nfct_set_attr_u16(nat_tuple, ATTR_PORT_DST, 0);
++
++	/* When you see the packet, we need to NAT it the same as the
++	   this one. */
++	nfexp_set_attr(exp, ATTR_EXP_FN, "nat-follow-master");
++
++	/* Try to get same port: if not, try to change it. */
++	for (port = ntohs(initial_port); port != 0; port++) {
++		int ret;
++
++		nfct_set_attr_u16(nat_tuple, ATTR_PORT_SRC, htons(port));
++		nfexp_set_attr(exp, ATTR_EXP_NAT_TUPLE, nat_tuple);
++
++		ret = cthelper_add_expect(exp);
++		if (ret == 0)
++			break;
++		else if (ret != -EBUSY) {
++			port = 0;
++			break;
++		}
++	}
++
++	if (port == 0)
++		return NF_DROP;
++
++	/* Only the SUBSCRIBE request contains an IP string that needs to be
++	   mangled. */
++	if (!matchoff)
++		return NF_ACCEPT;
++
++	buflen = snprintf(buffer, sizeof(buffer),
++				"%u.%u.%u.%u:%u",
++                                ((unsigned char *)&newip.ip)[0],
++                                ((unsigned char *)&newip.ip)[1],
++                                ((unsigned char *)&newip.ip)[2],
++                                ((unsigned char *)&newip.ip)[3], port);
++	if (!buflen)
++		goto out;
++
++	if (!nfq_tcp_mangle_ipv4(pkt, matchoff, matchlen, buffer, buflen))
++		goto out;
++
++	return NF_ACCEPT;
++
++out:
++	cthelper_del_expect(exp);
++	return NF_DROP;
++}
++
++static int handle_ssdp_new(struct pkt_buff *pkt, uint32_t protoff,
++			   struct myct *myct, uint32_t ctinfo)
+ {
+ 	int ret = NF_ACCEPT;
+ 	union nfct_attr_grp_addr daddr, saddr, taddr;
+@@ -109,12 +225,346 @@ static int ssdp_helper_cb(struct pkt_buff *pkt, uint32_t protoff,
+ 		nfexp_destroy(exp);
+ 		return NF_DROP;
+ 	}
++	nfexp_set_attr(exp, ATTR_EXP_HELPER_NAME, "ssdp");
++	if (nfct_get_attr_u32(myct->ct, ATTR_STATUS) & IPS_SRC_NAT)
++		return nf_nat_ssdp(pkt, ctinfo, 0, 0, myct->ct, exp);
++
+ 	myct->exp = exp;
+ 
+ 	return ret;
+ }
+ 
+-static struct ctd_helper ssdp_helper = {
++static int find_hdr(const char *name, const uint8_t *data, int data_len,
++		    char *val, int val_len, const uint8_t **pos)
++{
++	int name_len = strlen(name);
++	int i;
++
++	while (1) {
++		if (data_len < name_len + 2)
++			return -1;
++
++		if (strncasecmp(name, (char *)data, name_len) == 0)
++			break;
++
++		for (i = 0; ; i++) {
++			if (i >= data_len - 1)
++				return -1;
++			if (data[i] == '\r' && data[i+1] == '\n')
++				break;
++		}
++
++		data_len -= i+2;
++		data += i+2;
++	}
++
++	data_len -= name_len;
++	data += name_len;
++	if (pos)
++		*pos = data;
++
++	for (i = 0; ; i++, val_len--) {
++		if (!val_len)
++			return -1;
++		if (*data == '\r') {
++			*val = 0;
++			return 0;
++		}
++		*(val++) = *(data++);
++	}
++}
++
++static int parse_url(const char *url,
++		     uint8_t l3proto,
++		     union nfct_attr_grp_addr *addr,
++		     uint16_t *port,
++		     size_t *match_offset,
++		     size_t *match_len)
++{
++	const char *start = url, *end;
++	size_t ip_len;
++
++	if (strncasecmp(url, "http://[", 8) == 0) {
++		char buf[64] = {0};
++
++		if (l3proto != AF_INET6) {
++			pr_debug("conntrack_ssdp: IPv6 URL in IPv4 SSDP reply\n");
++			return -1;
++		}
++
++		url += 8;
++
++		end = strchr(url, ']');
++		if (!end) {
++			pr_debug("conntrack_ssdp: unterminated IPv6 address: '%s'\n", url);
++			return -1;
++		}
++
++		ip_len = end - url;
++		if (ip_len > sizeof(buf) - 1) {
++			pr_debug("conntrack_ssdp: IPv6 address too long: '%s'\n", url);
++			return -1;
++		}
++		strncpy(buf, url, ip_len);
++
++		if (inet_pton(AF_INET6, buf, addr) != 1) {
++			pr_debug("conntrack_ssdp: Error parsing IPv6 address: '%s'\n", buf);
++			return -1;
++		}
++	} else if (strncasecmp(url, "http://", 7) == 0) {
++		char buf[64] = {0};
++
++		if (l3proto != AF_INET) {
++			pr_debug("conntrack_ssdp: IPv4 URL in IPv6 SSDP reply\n");
++			return -1;
++		}
++
++		url += 7;
++		for (end = url; ; end++) {
++			if (*end != '.' && *end != '\0' &&
++			    (*end < '0' || *end > '9'))
++				break;
++		}
++
++		ip_len = end - url;
++		if (ip_len > sizeof(buf) - 1) {
++			pr_debug("conntrack_ssdp: IPv4 address too long: '%s'\n", url);
++			return -1;
++		}
++		strncpy(buf, url, ip_len);
++
++		if (inet_pton(AF_INET, buf, addr) != 1) {
++			pr_debug("conntrack_ssdp: Error parsing IPv4 address: '%s'\n", buf);
++			return -1;
++		}
++	} else {
++		pr_debug("conntrack_ssdp: header does not start with http://\n");
++		return -1;
++	}
++
++	if (match_offset)
++		*match_offset = url - start;
++
++	if (*end != ':') {
++		*port = htons(80);
++		if (match_len)
++			*match_len = ip_len;
++	} else {
++		char *endptr = NULL;
++		*port = htons(strtol(end + 1, &endptr, 10));
++		if (match_len)
++			*match_len = ip_len + endptr - end;;
++	}
++
++	return 0;
++}
++
++static int handle_ssdp_reply(struct pkt_buff *pkt, uint32_t protoff,
++			     struct myct *myct, uint32_t ctinfo)
++{
++	uint8_t *data = pktb_network_header(pkt);
++	size_t bytes_left = pktb_len(pkt);
++	char hdr_val[256];
++	union nfct_attr_grp_addr addr;
++	uint16_t port;
++	struct nf_expect *exp = NULL;
++
++	if (bytes_left < protoff + sizeof(struct udphdr)) {
++		pr_debug("conntrack_ssdp: Short packet\n");
++		return NF_ACCEPT;
++	}
++	bytes_left -= protoff + sizeof(struct udphdr);
++	data += protoff + sizeof(struct udphdr);
++
++	if (find_hdr("LOCATION: ", data, bytes_left,
++		     hdr_val, sizeof(hdr_val), NULL) < 0) {
++		pr_debug("conntrack_ssdp: No LOCATION header found\n");
++		return NF_ACCEPT;
++	}
++	pr_debug("conntrack_ssdp: found location URL `%s'\n", hdr_val);
++
++	if (parse_url(hdr_val, nfct_get_attr_u8(myct->ct, ATTR_L3PROTO),
++		      &addr, &port, NULL, NULL) < 0) {
++		pr_debug("conntrack_ssdp: Error parsing URL\n");
++		return NF_ACCEPT;
++	}
++
++	exp = nfexp_new();
++	if (cthelper_expect_init(exp,
++				 myct->ct,
++				 0 /* class */,
++				 NULL /* saddr */,
++				 &addr /* daddr */,
++				 IPPROTO_TCP,
++				 NULL /* sport */,
++				 &port /* dport */,
++				 NF_CT_EXPECT_PERMANENT /* flags */) < 0) {
++		pr_debug("conntrack_ssdp: Failed to init expectation\n");
++		nfexp_destroy(exp);
++		return NF_ACCEPT;
++	}
++
++	nfexp_set_attr(exp, ATTR_EXP_HELPER_NAME, "ssdp");
++	if (nfct_get_attr_u32(myct->ct, ATTR_STATUS) & IPS_SRC_NAT)
++		return nf_nat_ssdp(pkt, ctinfo, 0, 0, myct->ct, exp);
++
++	myct->exp = exp;
++	return NF_ACCEPT;
++}
++
++static int renew_exp(struct myct *myct, uint32_t ctinfo)
++{
++	int dir = CTINFO2DIR(ctinfo);
++	union nfct_attr_grp_addr saddr = {0}, daddr = {0};
++	uint16_t sport, dport;
++	struct nf_expect *exp = nfexp_new();
++
++	pr_debug("conntrack_ssdp: Renewing NOTIFY expectation\n");
++
++	cthelper_get_addr_src(myct->ct, dir, &saddr);
++	cthelper_get_addr_dst(myct->ct, dir, &daddr);
++	cthelper_get_port_src(myct->ct, dir, &sport);
++	cthelper_get_port_dst(myct->ct, dir, &dport);
++
++	if (cthelper_expect_init(exp,
++				 myct->ct,
++				 0 /* class */,
++				 &saddr /* saddr */,
++				 &daddr /* daddr */,
++				 IPPROTO_TCP,
++				 NULL /* sport */,
++				 &dport /* dport */,
++				 0 /* flags */) < 0) {
++		pr_debug("conntrack_ssdp: Failed to init expectation\n");
++		nfexp_destroy(exp);
++		return NF_ACCEPT;
++	}
++
++	nfexp_set_attr(exp, ATTR_EXP_HELPER_NAME, "ssdp");
++	if (nfct_get_attr_u32(myct->ct, ATTR_STATUS) & IPS_DST_NAT)
++		return nf_nat_ssdp(NULL, ctinfo, 0, 0, myct->ct, exp);
++
++	myct->exp = exp;
++	return NF_ACCEPT;
++}
++
++static int handle_http_request(struct pkt_buff *pkt, uint32_t protoff,
++			       struct myct *myct, uint32_t ctinfo)
++{
++	struct tcphdr *th;
++	unsigned int dataoff, datalen;
++	const uint8_t *data;
++	char hdr_val[256];
++	union nfct_attr_grp_addr cbaddr = {0}, daddr = {0}, saddr = {0};
++	uint16_t cbport;
++	struct nf_expect *exp = NULL;
++	const uint8_t *hdr_pos;
++	size_t ip_offset, ip_len;
++	int dir = CTINFO2DIR(ctinfo);
++
++	th = (struct tcphdr *) (pktb_network_header(pkt) + protoff);
++	dataoff = protoff + th->doff * 4;
++	datalen = pktb_len(pkt) - dataoff;
++	data = pktb_network_header(pkt) + dataoff;
++
++	if (datalen >= 7 && strncmp((char *)data, "NOTIFY ", 7) == 0)
++		return renew_exp(myct, ctinfo);
++
++	if (datalen < 10 || strncmp((char *)data, "SUBSCRIBE ", 10) != 0)
++		return NF_ACCEPT;
++
++	if (find_hdr("CALLBACK: <", data, datalen,
++		     hdr_val, sizeof(hdr_val), &hdr_pos) < 0) {
++		pr_debug("conntrack_ssdp: No CALLBACK header found\n");
++		return NF_ACCEPT;
++	}
++	pr_debug("conntrack_ssdp: found callback URL `%s'\n", hdr_val);
++
++	if (parse_url(hdr_val, nfct_get_attr_u8(myct->ct, ATTR_L3PROTO),
++		      &cbaddr, &cbport, &ip_offset, &ip_len) < 0) {
++		pr_debug("conntrack_ssdp: Error parsing URL\n");
++		return NF_ACCEPT;
++	}
++
++	cthelper_get_addr_dst(myct->ct, !dir, &daddr);
++	cthelper_get_addr_src(myct->ct, dir, &saddr);
++
++	if (memcmp(&saddr, &cbaddr, sizeof(cbaddr)) != 0) {
++		pr_debug("conntrack_ssdp: Callback address belongs to another host\n");
++		return NF_ACCEPT;
++	}
++
++	cthelper_get_addr_src(myct->ct, !dir, &saddr);
++
++	exp = nfexp_new();
++	if (cthelper_expect_init(exp,
++				 myct->ct,
++				 0 /* class */,
++				 &saddr /* saddr */,
++				 &daddr /* daddr */,
++				 IPPROTO_TCP,
++				 NULL /* sport */,
++				 &cbport /* dport */,
++				 0 /* flags */) < 0) {
++		pr_debug("conntrack_ssdp: Failed to init expectation\n");
++		nfexp_destroy(exp);
++		return NF_ACCEPT;
++	}
++
++	nfexp_set_attr(exp, ATTR_EXP_HELPER_NAME, "ssdp");
++	if (nfct_get_attr_u32(myct->ct, ATTR_STATUS) & IPS_SRC_NAT) {
++		return nf_nat_ssdp(pkt, ctinfo,
++				   (hdr_pos - data) + ip_offset,
++				   ip_len, myct->ct, exp);
++	}
++
++	myct->exp = exp;
++	return NF_ACCEPT;
++}
++
++static int ssdp_helper_cb(struct pkt_buff *pkt, uint32_t protoff,
++			  struct myct *myct, uint32_t ctinfo)
++{
++	uint8_t proto;
++
++	/* All new UDP conntracks are M-SEARCH queries. */
++	if (ctinfo == IP_CT_NEW)
++		return handle_ssdp_new(pkt, protoff, myct, ctinfo);
++
++	proto = nfct_get_attr_u16(myct->ct, ATTR_ORIG_L4PROTO);
++
++	/* All existing UDP conntracks are replies to an M-SEARCH query.
++	   M-SEARCH queries often generate replies from multiple devices
++	   on the LAN. */
++	if (proto == IPPROTO_UDP)
++		return handle_ssdp_reply(pkt, protoff, myct, ctinfo);
++	else {
++		/* TCP conntracks can represent:
++		 *
++		 *  - SUBSCRIBE requests (control point -> device) containing a
++		 *    callback URL.  These create an expectation that allows
++		 *    the NOTIFY callbacks to pass.
++		 *  - NOTIFY callbacks (device -> control point), which
++		 *    "auto-renew" the expectation
++		 *  - Some other HTTP request (don't care)
++		 *
++		 * Currently all TCP conntracks are scanned for SUBSCRIBE
++		 * and NOTIFY requests.  This is not ideal, because we do
++		 * not want callbacks to be able to create new expectations
++		 * on a different port.  Fixing this will require convincing
++		 * the kernel to pass private state data for related
++		 * conntracks. */
++		if (ctinfo == IP_CT_ESTABLISHED)
++			return handle_http_request(pkt, protoff, myct, ctinfo);
++		else
++			return NF_ACCEPT;
++	}
++
++	/* Not reached. */
++	return NF_DROP;
++}
++
++static struct ctd_helper ssdp_helper_udp = {
+ 	.name		= "ssdp",
+ 	.l4proto	= IPPROTO_UDP,
+ 	.priv_data_len	= 0,
+@@ -122,7 +572,21 @@ static struct ctd_helper ssdp_helper = {
+ 	.policy		= {
+ 		[0] = {
+ 			.name		= "ssdp",
+-			.expect_max	= 1,
++			.expect_max	= 8,
++			.expect_timeout	= 5 * 60,
++		},
++	},
++};
++
++static struct ctd_helper ssdp_helper_tcp = {
++	.name		= "ssdp",
++	.l4proto	= IPPROTO_TCP,
++	.priv_data_len	= 0,
++	.cb		= ssdp_helper_cb,
++	.policy		= {
++		[0] = {
++			.name		= "ssdp",
++			.expect_max	= 8,
+ 			.expect_timeout	= 5 * 60,
+ 		},
+ 	},
+@@ -130,5 +594,6 @@ static struct ctd_helper ssdp_helper = {
+ 
+ static void __attribute__ ((constructor)) ssdp_init(void)
+ {
+-	helper_register(&ssdp_helper);
++	helper_register(&ssdp_helper_udp);
++	helper_register(&ssdp_helper_tcp);
+ }
+diff --git a/src/helpers/tftp.c b/src/helpers/tftp.c
+index 45591c6..70dd28a 100644
+--- a/src/helpers/tftp.c
++++ b/src/helpers/tftp.c
+@@ -65,6 +65,7 @@ static unsigned int nat_tftp(struct pkt_buff *pkt, uint32_t ctinfo,
+ 	nfexp_set_attr_u32(exp, ATTR_EXP_NAT_DIR, MYCT_DIR_REPL);
+ 	nfexp_set_attr(exp, ATTR_EXP_FN, "nat-follow-master");
+ 	nfexp_set_attr(exp, ATTR_EXP_NAT_TUPLE, nat_tuple);
++	nfct_destroy(nat_tuple);
+ 
+ 	return NF_ACCEPT;
+ }
+diff --git a/src/local.c b/src/local.c
+index 3395b4c..2b67885 100644
+--- a/src/local.c
++++ b/src/local.c
+@@ -26,6 +26,8 @@
+ #include <arpa/inet.h>
+ #include <sys/un.h>
+ 
++#define UNIX_SOCKET_BACKLOG 100
++
+ int local_server_create(struct local_server *server, struct local_conf *conf)
+ {
+ 	int fd;
+@@ -53,7 +55,7 @@ int local_server_create(struct local_server *server, struct local_conf *conf)
+ 		return -1;
+ 	}
+ 
+-	if (listen(fd, conf->backlog) == -1) {
++	if (listen(fd, UNIX_SOCKET_BACKLOG) == -1) {
+ 		close(fd);
+ 		unlink(conf->path);
+ 		return -1;
+diff --git a/src/log.c b/src/log.c
+index d4de111..6deccfa 100644
+--- a/src/log.c
++++ b/src/log.c
+@@ -57,44 +57,76 @@ int init_log(void)
+ 	    CONFIG(stats).syslog_facility != -1)
+ 		openlog(PACKAGE, LOG_PID, CONFIG(syslog_facility));
+ 
++	STATE(log_init) = 1;
++
+ 	return 0;
+ }
+ 
+-void dlog(int priority, const char *format, ...)
+- {
+-	FILE *fd = STATE(log);
++static void logline_put(FILE *fd, int priority, const char *format,
++			va_list *args)
++{
+ 	time_t t;
+ 	char *buf;
+ 	const char *prio;
++
++	t = time(NULL);
++	buf = ctime(&t);
++	buf[strlen(buf)-1]='\0';
++
++	switch (priority) {
++	case LOG_INFO:
++		prio = "info";
++		break;
++	case LOG_NOTICE:
++		prio = "notice";
++		break;
++	case LOG_WARNING:
++		prio = "warning";
++		break;
++	case LOG_ERR:
++		prio = "ERROR";
++		break;
++	default:
++		prio = "?";
++		break;
++	}
++
++	fprintf(fd, "[%s] (pid=%d) [%s] ", buf, getpid(), prio);
++	vfprintf(fd, format, *args);
++	fprintf(fd, "\n");
++	fflush(fd);
++}
++
++void dlog(int priority, const char *format, ...)
++{
++	FILE *fd = STATE(log);
++	FILE *console_out;
+  	va_list args;
+- 
+-	if (fd) {
+-		t = time(NULL);
+-		buf = ctime(&t);
+-		buf[strlen(buf)-1]='\0';
++
++	if (CONFIG(running_mode) != DAEMON || STATE(log_init) == 0) {
+ 		switch (priority) {
+ 		case LOG_INFO:
+-			prio = "info";
+-			break;
+ 		case LOG_NOTICE:
+-			prio = "notice";
++			console_out = stdout;
+ 			break;
+ 		case LOG_WARNING:
+-			prio = "warning";
+-			break;
+ 		case LOG_ERR:
+-			prio = "ERROR";
+-			break;
+ 		default:
+-			prio = "?";
++			console_out = stderr;
+ 			break;
+ 		}
+ 		va_start(args, format);
+-		fprintf(fd, "[%s] (pid=%d) [%s] ", buf, getpid(), prio);
+-		vfprintf(fd, format, args);
++		logline_put(console_out, priority, format, &args);
++		va_end(args);
++	}
++
++	if (STATE(log_init) == 0)
++		return;
++
++	if (fd) {
++		va_start(args, format);
++		logline_put(fd, priority, format, &args);
+ 		va_end(args);
+-		fprintf(fd, "\n");
+-		fflush(fd);
+ 	}
+ 
+ 	if (CONFIG(syslog_facility) != -1) {
+@@ -184,6 +216,8 @@ void dlog_exp(FILE *fd, struct nf_expect *exp, unsigned int type)
+ 
+ void close_log(void)
+ {
++	STATE(log_init) = 0;
++
+ 	if (STATE(log) != NULL)
+ 		fclose(STATE(log));
+ 
+diff --git a/src/main.c b/src/main.c
+index d12fe18..7062e12 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -21,6 +21,7 @@
+ #include "log.h"
+ #include "helper.h"
+ #include "systemd.h"
++#include "resync.h"
+ 
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -30,15 +31,17 @@
+ #include <string.h>
+ #include <stdlib.h>
+ #include <unistd.h>
+-#include <sched.h>
+ #include <limits.h>
+ 
+ struct ct_general_state st;
+ struct ct_state state;
+ 
+-static const char usage_daemon_commands[] =
+-	"Daemon mode commands:\n"
+-	"  -d [options]\t\tRun in daemon mode\n";
++static const char usage_general_commands[] =
++	"General commands:\n"
++	"  -d, run in daemon mode\n"
++	"  -C [configfile], configuration file path\n"
++	"  -v, display conntrackd version\n"
++	"  -h, display this help information\n";
+ 
+ static const char usage_client_commands[] =
+ 	"Client mode commands:\n"
+@@ -54,22 +57,15 @@ static const char usage_client_commands[] =
+ 	"  -n, request resync with other node (only FT-FW and NOTRACK modes)\n"
+ 	"  -B, force a bulk send to other replica firewalls\n"
+ 	"  -x, dump cache in XML format (requires -i or -e)\n"
+-	"  -t, reset the kernel timeout (see PurgeTimeout clause)\n"
+-	"  -v, display conntrackd version\n"
+-	"  -h, display this help information\n";
+-
+-static const char usage_options[] =
+-	"Options:\n"
+-	"  -C [configfile], configuration file path\n";
++	"  -t, reset the kernel timeout (see PurgeTimeout clause)\n";
+ 
+ static void
+ show_usage(char *progname)
+ {
+ 	fprintf(stdout, "Connection tracking userspace daemon v%s\n", VERSION);
+ 	fprintf(stdout, "Usage: %s [commands] [options]\n\n", progname);
+-	fprintf(stdout, "%s\n", usage_daemon_commands);
++	fprintf(stdout, "%s\n", usage_general_commands);
+ 	fprintf(stdout, "%s\n", usage_client_commands);
+-	fprintf(stdout, "%s\n", usage_options);
+ }
+ 
+ static void
+@@ -90,7 +86,7 @@ set_operation_mode(int *current, int want, char *argv[])
+ 	}
+ 	if (*current != want) {
+ 		show_usage(argv[0]);
+-		fprintf(stderr, "\nError: Invalid parameters\n");
++		dlog(LOG_ERR, "Invalid parameters");
+ 		exit(EXIT_FAILURE);
+ 	}
+ }
+@@ -114,21 +110,12 @@ set_action_by_table(int i, int argc, char *argv[],
+ 	return i;
+ }
+ 
+-static void
+-set_nice_value(int nv)
+-{
+-	errno = 0;
+-	if (nice(nv) == -1 && errno) /* warn only */
+-		fprintf(stderr, "Cannot set nice level %d: %s\n",
+-			nv, strerror(errno));
+-}
+-
+ static void
+ do_chdir(const char *d)
+ {
+ 	if (chdir(d))
+-		fprintf(stderr, "Cannot change current directory to %s: %s\n",
+-			d, strerror(errno));
++		dlog(LOG_WARNING, "Cannot change current directory to %s: %s",
++		     d, strerror(errno));
+ }
+ 
+ int main(int argc, char *argv[])
+@@ -141,12 +128,12 @@ int main(int argc, char *argv[])
+ 
+ 	/* Check kernel version: it must be >= 2.6.18 */
+ 	if (uname(&u) == -1) {
+-		fprintf(stderr, "Can't retrieve kernel version via uname()\n");
++		dlog(LOG_ERR, "Can't retrieve kernel version via uname()");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 	sscanf(u.release, "%d.%d.%d", &version, &major, &minor);
+ 	if (version < 2 && major < 6 && minor < 18) {
+-		fprintf(stderr, "Linux kernel version must be >= 2.6.18\n");
++		dlog(LOG_ERR, "Linux kernel version must be >= 2.6.18");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 
+@@ -154,6 +141,7 @@ int main(int argc, char *argv[])
+ 		switch(argv[i][1]) {
+ 		case 'd':
+ 			set_operation_mode(&type, DAEMON, argv);
++			CONFIG(running_mode) = DAEMON;
+ 			break;
+ 		case 'c':
+ 			set_operation_mode(&type, REQUEST, argv);
+@@ -180,15 +168,14 @@ int main(int argc, char *argv[])
+ 				strncpy(config_file, argv[i], PATH_MAX);
+ 				if (strlen(argv[i]) >= PATH_MAX){
+ 					config_file[PATH_MAX-1]='\0';
+-					fprintf(stderr, "Path to config file "
+-						        "to long. Cutting it "
+-							"down to %d characters",
+-							PATH_MAX);
++					dlog(LOG_WARNING, "Path to config file"
++					     " to long. Cutting it down to %d"
++					     " characters", PATH_MAX);
+ 				}
+ 				break;
+ 			}
+ 			show_usage(argv[0]);
+-			fprintf(stderr, "Missing config filename\n");
++			dlog(LOG_ERR, "Missing config filename");
+ 			break;
+ 		case 'F':
+ 			set_operation_mode(&type, REQUEST, argv);
+@@ -209,10 +196,8 @@ int main(int argc, char *argv[])
+ 					action = CT_FLUSH_EXT_CACHE;
+ 					i++;
+ 				} else {
+-					fprintf(stderr, "ERROR: unknown "
+-							"parameter `%s' for "
+-							"option `-f'\n",
+-							argv[i+1]);
++					dlog(LOG_ERR, "unknown parameter `%s' "
++					     "for option `-f'", argv[i + 1]);
+ 					exit(EXIT_FAILURE);
+ 				}
+ 			} else {
+@@ -257,9 +242,9 @@ int main(int argc, char *argv[])
+ 					i++;
+ 				} else if (strncmp(argv[i+1], "multicast",
+ 						 strlen(argv[i+1])) == 0) {
+-					fprintf(stderr, "WARNING: use `link' "
+-						"instead of `multicast' as "
+-						"parameter.\n");
++					dlog(LOG_WARNING, "use `link' "
++					     "instead of `multicast' as "
++					     "parameter.");
+ 					action = STATS_LINK;
+ 					i++;
+ 				} else if (strncmp(argv[i+1], "link",
+@@ -287,10 +272,8 @@ int main(int argc, char *argv[])
+ 					action = EXP_STATS;
+ 					i++;
+ 				} else {
+-					fprintf(stderr, "ERROR: unknown "
+-							"parameter `%s' for "
+-							"option `-s'\n",
+-							argv[i+1]);
++					dlog(LOG_ERR, "unknown parameter `%s' "
++					     "for option `-s'", argv[i + 1]);
+ 					exit(EXIT_FAILURE);
+ 				}
+ 			} else {
+@@ -298,10 +281,6 @@ int main(int argc, char *argv[])
+ 				action = STATS;
+ 			}
+ 			break;
+-		case 'S':
+-			fprintf(stderr, "WARNING: -S option is obsolete. "
+-					"Ignoring.\n");
+-			break;
+ 		case 'n':
+ 			set_operation_mode(&type, REQUEST, argv);
+ 			action = REQUEST_DUMP;
+@@ -317,7 +296,7 @@ int main(int argc, char *argv[])
+ 				action = EXP_DUMP_EXT_XML;
+ 			else {
+ 				show_usage(argv[0]);
+-				fprintf(stderr, "Error: Invalid parameters\n");
++				dlog(LOG_ERR,  "Invalid parameters");
+ 				exit(EXIT_FAILURE);
+ 
+ 			}
+@@ -330,7 +309,7 @@ int main(int argc, char *argv[])
+ 			exit(EXIT_SUCCESS);
+ 		default:
+ 			show_usage(argv[0]);
+-			fprintf(stderr, "Unknown option: %s\n", argv[i]);
++			dlog(LOG_ERR, "Unknown option: %s", argv[i]);
+ 			return 0;
+ 			break;
+ 		}
+@@ -342,14 +321,23 @@ int main(int argc, char *argv[])
+ 	umask(0177);
+ 
+ 	if ((ret = init_config(config_file)) == -1) {
+-		fprintf(stderr, "can't open config file `%s'\n", config_file);
++		dlog(LOG_ERR, "can't open config file `%s'", config_file);
++		exit(EXIT_FAILURE);
++	}
++
++	/*
++	 * Evaluate configuration
++	 */
++	if (evaluate() == -1) {
++		dlog(LOG_ERR, "conntrackd cannot start, please review your "
++		     "configuration");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 
+ 	if (type == REQUEST) {
+ 		if (do_local_request(action, &conf.local, local_step) == -1) {
+-			fprintf(stderr, "can't connect: is conntrackd "
+-					"running? appropriate permissions?\n");
++			dlog(LOG_ERR, "can't connect: is conntrackd "
++			     "running? appropriate permissions?");
+ 			exit(EXIT_FAILURE);
+ 		}
+ 		exit(EXIT_SUCCESS);
+@@ -366,37 +354,20 @@ int main(int argc, char *argv[])
+ 	 */
+ 	ret = open(CONFIG(lockfile), O_CREAT | O_EXCL | O_TRUNC, 0600);
+ 	if (ret == -1) {
+-		fprintf(stderr, "lockfile `%s' exists, perhaps conntrackd "
+-			        "already running?\n", CONFIG(lockfile));
++		dlog(LOG_ERR, "lockfile `%s' exists, perhaps conntrackd"
++		     " already running?", CONFIG(lockfile));
+ 		exit(EXIT_FAILURE);
+ 	}
+ 	close(ret);
+ 
+-	/*
+-	 * Setting process priority and scheduler
+-	 */
+-	set_nice_value(CONFIG(nice));
+-
+-	if (CONFIG(sched).type != SCHED_OTHER) {
+-		struct sched_param schedparam = {
+-			.sched_priority = CONFIG(sched).prio,
+-		};
+-
+-		ret = sched_setscheduler(0, CONFIG(sched).type, &schedparam);
+-		if (ret == -1) {
+-			perror("sched");
+-			exit(EXIT_FAILURE);
+-		}
+-	}
+-
+ 	/*
+ 	 * initialization process
+ 	 */
+ 
+ 	if (init() == -1) {
++		dlog(LOG_ERR, "conntrackd cannot start, please review your "
++		     "configuration");
+ 		close_log();
+-		fprintf(stderr, "ERROR: conntrackd cannot start, please "
+-				"check the logfile for more info\n");
+ 		unlink(CONFIG(lockfile));
+ 		exit(EXIT_FAILURE);
+ 	}
+@@ -411,7 +382,9 @@ int main(int argc, char *argv[])
+ 		pid_t pid;
+ 
+ 		if ((pid = fork()) == -1) {
+-			perror("fork has failed: ");
++			dlog(LOG_ERR, "fork has failed: %s", strerror(errno));
++			close_log();
++			unlink(CONFIG(lockfile));
+ 			exit(EXIT_FAILURE);
+ 		} else if (pid) {
+ 			sd_ct_mainpid(pid);
+@@ -428,6 +401,7 @@ int main(int argc, char *argv[])
+ 		dlog(LOG_NOTICE, "-- starting in console mode --");
+ 
+ 	sd_ct_init();
++	resync_at_startup();
+ 
+ 	/*
+ 	 * run main process
+diff --git a/src/queue_tx.c b/src/queue_tx.c
+new file mode 100644
+index 0000000..0c99163
+--- /dev/null
++++ b/src/queue_tx.c
+@@ -0,0 +1,60 @@
++/*
++ * (C) 2006-2011 by Pablo Neira Ayuso <pablo@netfilter.org>
++ * (C) 2011 by Vyatta Inc. <http://www.vyatta.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++
++#include <stdint.h>
++#include "queue_tx.h"
++#include "queue.h"
++#include "conntrackd.h"
++#include "network.h"
++
++void tx_queue_add_ctlmsg(uint32_t flags, uint32_t from, uint32_t to)
++{
++	struct queue_object *qobj;
++	struct nethdr_ack *ack;
++
++	qobj = queue_object_new(Q_ELEM_CTL, sizeof(struct nethdr_ack));
++	if (qobj == NULL)
++		return;
++
++	ack		= (struct nethdr_ack *)qobj->data;
++	ack->type 	= NET_T_CTL;
++	ack->flags	= flags;
++	ack->from	= from;
++	ack->to		= to;
++
++	if (queue_add(STATE_SYNC(tx_queue), &qobj->qnode) < 0)
++		queue_object_free(qobj);
++}
++
++void tx_queue_add_ctlmsg2(uint32_t flags)
++{
++	struct queue_object *qobj;
++	struct nethdr *ctl;
++
++	qobj = queue_object_new(Q_ELEM_CTL, sizeof(struct nethdr_ack));
++	if (qobj == NULL)
++		return;
++
++	ctl		= (struct nethdr *)qobj->data;
++	ctl->type 	= NET_T_CTL;
++	ctl->flags	= flags;
++
++	if (queue_add(STATE_SYNC(tx_queue), &qobj->qnode) < 0)
++		queue_object_free(qobj);
++}
+diff --git a/src/read_config_lex.l b/src/read_config_lex.l
+index 2404058..120bc00 100644
+--- a/src/read_config_lex.l
++++ b/src/read_config_lex.l
+@@ -21,6 +21,7 @@
+ 
+ #include <string.h>
+ 
++#include "conntrackd.h"
+ #include "read_config_yy.h"
+ %}
+ 
+@@ -70,12 +71,8 @@ notrack		[N|n][O|o][T|t][R|r][A|a][C|c][K|k]
+ "RefreshTime"			{ return T_REFRESH; }
+ "CacheTimeout"			{ return T_EXPIRE; }
+ "CommitTimeout"			{ return T_TIMEOUT; }
+-"DelayDestroyMessages"		{ return T_DELAY; }
+ "HashLimit"			{ return T_HASHLIMIT; }
+ "Path"				{ return T_PATH; }
+-"IgnoreProtocol"		{ return T_IGNORE_PROTOCOL; }
+-"IgnoreTrafficFor"		{ return T_IGNORE_TRAFFIC; }
+-"StripNAT"			{ return T_STRIP_NAT; }
+ "Backlog"			{ return T_BACKLOG; }
+ "Group"				{ return T_GROUP; }
+ "Port"				{ return T_PORT; }
+@@ -85,22 +82,16 @@ notrack		[N|n][O|o][T|t][R|r][A|a][C|c][K|k]
+ "General"			{ return T_GENERAL; }
+ "Sync"				{ return T_SYNC; }
+ "Stats"				{ return T_STATS; }
+-"RelaxTransitions"		{ return T_RELAX_TRANSITIONS; }
+ "SocketBufferSize"		{ return T_BUFFER_SIZE; /* alias */ }
+ "SocketBufferSizeMaxGrown"	{ return T_BUFFER_SIZE_MAX_GROWN; /* alias */ }
+ "SocketBufferSizeMaxGrowth"	{ return T_BUFFER_SIZE_MAX_GROWN; /* alias */ }
+ "NetlinkBufferSize"		{ return T_BUFFER_SIZE; }
+ "NetlinkBufferSizeMaxGrowth"	{ return T_BUFFER_SIZE_MAX_GROWN; }
+ "Mode"				{ return T_SYNC_MODE; }
+-"ListenTo"			{ return T_LISTEN_TO; }
+-"Family"			{ return T_FAMILY; }
+-"ResendBufferSize"		{ return T_RESEND_BUFFER_SIZE; }
+ "ResendQueueSize"		{ return T_RESEND_QUEUE_SIZE; }
+ "Checksum"			{ return T_CHECKSUM; }
+ "ACKWindowSize"			{ return T_WINDOWSIZE; }
+-"Replicate"			{ return T_REPLICATE; }
+ "for"				{ return T_FOR; }
+-"CacheWriteThrough"		{ return T_WRITE_THROUGH; }
+ "SYN_SENT"			{ return T_SYN_SENT; }
+ "SYN_RECV"			{ return T_SYN_RECV; }
+ "ESTABLISHED"			{ return T_ESTABLISHED; }
+@@ -111,10 +102,6 @@ notrack		[N|n][O|o][T|t][R|r][A|a][C|c][K|k]
+ "CLOSE"				{ return T_CLOSE; /* alias of CLOSED */ }
+ "CLOSED"			{ return T_CLOSE; }
+ "LISTEN"			{ return T_LISTEN; }
+-"LogFileBufferSize"		{ return T_STAT_BUFFER_SIZE; }
+-"DestroyTimeout"		{ return T_DESTROY_TIMEOUT; }
+-"McastSndSocketBuffer"		{ return T_SNDBUFF; /* deprecated */ }
+-"McastRcvSocketBuffer"		{ return T_RCVBUFF; /* deprecated */ }
+ "SndSocketBuffer"		{ return T_SNDBUFF; }
+ "RcvSocketBuffer"		{ return T_RCVBUFF; }
+ "Filter"			{ return T_FILTER; }
+@@ -149,26 +136,27 @@ notrack		[N|n][O|o][T|t][R|r][A|a][C|c][K|k]
+ "ExpectMax"			{ return T_HELPER_EXPECT_MAX; }
+ "ExpectTimeout"			{ return T_HELPER_EXPECT_TIMEOUT; }
+ "Systemd"			{ return T_SYSTEMD; }
++"StartupResync"			{ return T_STARTUP_RESYNC; }
+ 
+ {is_on}			{ return T_ON; }
+ {is_off}		{ return T_OFF; }
+ {integer}		{ yylval.val = atoi(yytext); return T_NUMBER; }
+ {signed_integer}	{ yylval.val = atoi(yytext); return T_SIGNED_NUMBER; }
+-{ip4}			{ yylval.string = strdup(yytext); return T_IP; }
+-{ip6}			{ yylval.string = strdup(yytext); return T_IP; }
+-{path}			{ yylval.string = strdup(yytext); return T_PATH_VAL; }
++{ip4}			{ yylval.string = yytext; return T_IP; }
++{ip6}			{ yylval.string = yytext; return T_IP; }
++{path}			{ yylval.string = yytext; return T_PATH_VAL; }
+ {alarm}			{ return T_ALARM; }
+-{persistent}		{ fprintf(stderr, "\nWARNING: Now `persistent' mode "
+-				  "is called `alarm'. Please, update "
+-				  "your conntrackd.conf file.\n");
++{persistent}		{ dlog(LOG_WARNING, "Now `persistent' mode "
++			       "is called `alarm'. Please, update "
++				"your conntrackd.conf file.");
+ 			  return T_ALARM; }
+ {ftfw}			{ return T_FTFW; }
+-{nack}			{ fprintf(stderr, "\nWARNING: Now `nack' mode "
+-				  "is called `ftfw'. Please, update "
+-				  "your conntrackd.conf file.\n");
++{nack}			{ dlog(LOG_WARNING, "Now `nack' mode "
++			       "is called `ftfw'. Please, update "
++			       "your conntrackd.conf file.\n");
+ 			  return T_FTFW; }
+ {notrack}		{ return T_NOTRACK; }
+-{string}		{ yylval.string = strdup(yytext); return T_STRING; }
++{string}		{ yylval.string = yytext; return T_STRING; }
+ 
+ {comment}	;
+ {ws}		;
+diff --git a/src/read_config_yy.y b/src/read_config_yy.y
+index cc0eb18..32cca3c 100644
+--- a/src/read_config_yy.y
++++ b/src/read_config_yy.y
+@@ -30,7 +30,6 @@
+ #include "cidr.h"
+ #include "helper.h"
+ #include "stack.h"
+-#include <syslog.h>
+ #include <sched.h>
+ #include <dlfcn.h>
+ #include <libnetfilter_conntrack/libnetfilter_conntrack.h>
+@@ -41,13 +40,6 @@ extern int   yylineno;
+ 
+ struct ct_conf conf;
+ 
+-enum {
+-	CTD_CFG_ERROR = 0,
+-	CTD_CFG_WARN,
+-};
+-
+-static void print_err(int err, const char *msg, ...);
+-
+ static void __kernel_filter_start(void);
+ static void __kernel_filter_add_state(int value);
+ static void __max_dedicated_links_reached(void);
+@@ -70,18 +62,18 @@ enum {
+ 
+ %token T_IPV4_ADDR T_IPV4_IFACE T_PORT T_HASHSIZE T_HASHLIMIT T_MULTICAST
+ %token T_PATH T_UNIX T_REFRESH T_IPV6_ADDR T_IPV6_IFACE
+-%token T_IGNORE_UDP T_IGNORE_ICMP T_IGNORE_TRAFFIC T_BACKLOG T_GROUP
+-%token T_LOG T_UDP T_ICMP T_IGMP T_VRRP T_TCP T_IGNORE_PROTOCOL
+-%token T_LOCK T_STRIP_NAT T_BUFFER_SIZE_MAX_GROWN T_EXPIRE T_TIMEOUT
+-%token T_GENERAL T_SYNC T_STATS T_RELAX_TRANSITIONS T_BUFFER_SIZE T_DELAY
+-%token T_SYNC_MODE T_LISTEN_TO T_FAMILY T_RESEND_BUFFER_SIZE
++%token T_BACKLOG T_GROUP T_IGNORE
++%token T_LOG T_UDP T_ICMP T_IGMP T_VRRP T_TCP
++%token T_LOCK T_BUFFER_SIZE_MAX_GROWN T_EXPIRE T_TIMEOUT
++%token T_GENERAL T_SYNC T_STATS T_BUFFER_SIZE
++%token T_SYNC_MODE
+ %token T_ALARM T_FTFW T_CHECKSUM T_WINDOWSIZE T_ON T_OFF
+-%token T_REPLICATE T_FOR T_IFACE T_PURGE T_RESEND_QUEUE_SIZE
++%token T_FOR T_IFACE T_PURGE T_RESEND_QUEUE_SIZE
+ %token T_ESTABLISHED T_SYN_SENT T_SYN_RECV T_FIN_WAIT 
+ %token T_CLOSE_WAIT T_LAST_ACK T_TIME_WAIT T_CLOSE T_LISTEN
+-%token T_SYSLOG T_WRITE_THROUGH T_STAT_BUFFER_SIZE T_DESTROY_TIMEOUT
++%token T_SYSLOG
+ %token T_RCVBUFF T_SNDBUFF T_NOTRACK T_POLL_SECS
+-%token T_FILTER T_ADDRESS T_PROTOCOL T_STATE T_ACCEPT T_IGNORE
++%token T_FILTER T_ADDRESS T_PROTOCOL T_STATE T_ACCEPT
+ %token T_FROM T_USERSPACE T_KERNELSPACE T_EVENT_ITER_LIMIT T_DEFAULT
+ %token T_NETLINK_OVERRUN_RESYNC T_NICE T_IPV4_DEST_ADDR T_IPV6_DEST_ADDR
+ %token T_SCHEDULER T_TYPE T_PRIO T_NETLINK_EVENTS_RELIABLE
+@@ -89,7 +81,7 @@ enum {
+ %token T_OPTIONS T_TCP_WINDOW_TRACKING T_EXPECT_SYNC
+ %token T_HELPER T_HELPER_QUEUE_NUM T_HELPER_QUEUE_LEN T_HELPER_POLICY
+ %token T_HELPER_EXPECT_TIMEOUT T_HELPER_EXPECT_MAX
+-%token T_SYSTEMD
++%token T_SYSTEMD T_STARTUP_RESYNC
+ 
+ %token <string> T_IP T_PATH_VAL
+ %token <val> T_NUMBER
+@@ -106,10 +98,7 @@ lines : line
+       | lines line
+       ;
+ 
+-line : ignore_protocol
+-     | ignore_traffic
+-     | strip_nat
+-     | general
++line : general
+      | sync
+      | stats
+      | helper
+@@ -160,15 +149,15 @@ syslog_facility : T_SYSLOG T_STRING
+ 	else if (!strcmp($2, "local7"))
+ 		conf.syslog_facility = LOG_LOCAL7;
+ 	else {
+-		print_err(CTD_CFG_WARN, "'%s' is not a known syslog facility, "
+-					"ignoring", $2);
++		dlog(LOG_WARNING, "'%s' is not a known syslog facility, "
++		     "ignoring", $2);
+ 		break;
+ 	}
+ 
+ 	if (conf.stats.syslog_facility != -1 &&
+ 	    conf.syslog_facility != conf.stats.syslog_facility)
+-	    	print_err(CTD_CFG_WARN, "conflicting Syslog facility "
+-					"values, defaulting to General");
++		dlog(LOG_WARNING, "conflicting Syslog facility "
++		     "values, defaulting to General");
+ };
+ 
+ lock : T_LOCK T_PATH_VAL
+@@ -176,11 +165,6 @@ lock : T_LOCK T_PATH_VAL
+ 	strncpy(conf.lockfile, $2, FILENAME_MAXLEN);
+ };
+ 
+-strip_nat: T_STRIP_NAT
+-{
+-	print_err(CTD_CFG_WARN, "`StripNAT' clause is obsolete, ignoring");
+-};
+-
+ refreshtime : T_REFRESH T_NUMBER
+ {
+ 	conf.refresh = $2;
+@@ -201,95 +185,12 @@ purge: T_PURGE T_NUMBER
+ 	conf.purge_timeout = $2;
+ };
+ 
+-checksum: T_CHECKSUM T_ON 
+-{
+-	print_err(CTD_CFG_WARN, "the use of `Checksum' outside the "
+-				"`Multicast' clause is ambiguous");
+-	/* 
+-	 * XXX: The use of Checksum outside of the Multicast clause is broken
+-	 *	if we have more than one dedicated links.
+-	 */
+-	conf.channel[0].u.mcast.checksum = 0;
+-};
+-
+-checksum: T_CHECKSUM T_OFF
+-{
+-	print_err(CTD_CFG_WARN, "the use of `Checksum' outside the "
+-				"`Multicast' clause is ambiguous");
+-	/*
+-	 * XXX: The use of Checksum outside of the Multicast clause is broken
+-	 *	if we have more than one dedicated links.
+-	 */
+-	conf.channel[0].u.mcast.checksum = 1;
+-};
+-
+-ignore_traffic : T_IGNORE_TRAFFIC '{' ignore_traffic_options '}'
+-{
+-	ct_filter_set_logic(STATE(us_filter),
+-			    CT_FILTER_ADDRESS,
+-			    CT_FILTER_NEGATIVE);
+-
+-	print_err(CTD_CFG_WARN, "the clause `IgnoreTrafficFor' is obsolete. "
+-				"Use `Filter' instead");
+-};
+-
+-ignore_traffic_options :
+-		       | ignore_traffic_options ignore_traffic_option;
+-
+-ignore_traffic_option : T_IPV4_ADDR T_IP
+-{
+-	union inet_address ip;
+-
+-	memset(&ip, 0, sizeof(union inet_address));
+-
+-	if (!inet_aton($2, &ip.ipv4)) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv4, "
+-					"ignoring", $2);
+-		break;
+-	}
+-
+-	if (!ct_filter_add_ip(STATE(us_filter), &ip, AF_INET)) {
+-		if (errno == EEXIST)
+-			print_err(CTD_CFG_WARN, "IP %s is repeated "
+-						"in the ignore pool", $2);
+-		if (errno == ENOSPC)
+-			print_err(CTD_CFG_WARN, "too many IP in the "
+-						"ignore pool!");
+-	}
+-};
+-
+-ignore_traffic_option : T_IPV6_ADDR T_IP
+-{
+-	union inet_address ip;
+-
+-	memset(&ip, 0, sizeof(union inet_address));
+-
+-#ifdef HAVE_INET_PTON_IPV6
+-	if (inet_pton(AF_INET6, $2, &ip.ipv6) <= 0) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv6, ignoring", $2);
+-		break;
+-	}
+-#else
+-	print_err(CTD_CFG_WARN, "cannot find inet_pton(), IPv6 unsupported!");
+-#endif
+-
+-	if (!ct_filter_add_ip(STATE(us_filter), &ip, AF_INET6)) {
+-		if (errno == EEXIST)
+-			print_err(CTD_CFG_WARN, "IP %s is repeated "
+-						"in the ignore pool", $2);
+-		if (errno == ENOSPC)
+-			print_err(CTD_CFG_WARN, "too many IP in the "
+-						"ignore pool!");
+-	}
+-
+-};
+-
+ multicast_line : T_MULTICAST '{' multicast_options '}'
+ {
+ 	if (conf.channel_type_global != CHANNEL_NONE &&
+ 	    conf.channel_type_global != CHANNEL_MCAST) {
+-		print_err(CTD_CFG_ERROR, "cannot use `Multicast' with other "
+-					 "dedicated link protocols!");
++		dlog(LOG_ERR, "cannot use `Multicast' with other "
++		     "dedicated link protocols!");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 	conf.channel_type_global = CHANNEL_MCAST;
+@@ -302,8 +203,8 @@ multicast_line : T_MULTICAST T_DEFAULT '{' multicast_options '}'
+ {
+ 	if (conf.channel_type_global != CHANNEL_NONE &&
+ 	    conf.channel_type_global != CHANNEL_MCAST) {
+-		print_err(CTD_CFG_ERROR, "cannot use `Multicast' with other "
+-					 "dedicated link protocols!");
++		dlog(LOG_ERR, "cannot use `Multicast' with other "
++		     "dedicated link protocols!");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 	conf.channel_type_global = CHANNEL_MCAST;
+@@ -322,14 +223,14 @@ multicast_option : T_IPV4_ADDR T_IP
+ 	__max_dedicated_links_reached();
+ 
+ 	if (!inet_aton($2, &conf.channel[conf.channel_num].u.mcast.in)) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv4 address", $2);
++		dlog(LOG_WARNING, "%s is not a valid IPv4 address", $2);
+ 		break;
+ 	}
+ 
+         if (conf.channel[conf.channel_num].u.mcast.ipproto == AF_INET6) {
+-		print_err(CTD_CFG_WARN, "your multicast address is IPv4 but "
+-					"is binded to an IPv6 interface? "
+-					"Surely, this is not what you want");
++		dlog(LOG_WARNING, "your multicast address is IPv4 but "
++		     "is binded to an IPv6 interface? "
++		     "Surely, this is not what you want");
+ 		break;
+ 	}
+ 
+@@ -339,22 +240,22 @@ multicast_option : T_IPV4_ADDR T_IP
+ multicast_option : T_IPV6_ADDR T_IP
+ {
+ 	__max_dedicated_links_reached();
++	int err;
+ 
+-#ifdef HAVE_INET_PTON_IPV6
+-	if (inet_pton(AF_INET6, $2,
+-		      &conf.channel[conf.channel_num].u.mcast.in) <= 0) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv6 address", $2);
++	err = inet_pton(AF_INET6, $2,
++			&conf.channel[conf.channel_num].u.mcast.in);
++	if (err == 0) {
++		dlog(LOG_WARNING, "%s is not a valid IPv6 address", $2);
+ 		break;
++	} else if (err < 0) {
++		dlog(LOG_ERR, "inet_pton(): IPv6 unsupported!");
++		exit(EXIT_FAILURE);
+ 	}
+-#else
+-	print_err(CTD_CFG_WARN, "cannot find inet_pton(), IPv6 unsupported!");
+-	break;
+-#endif
+ 
+ 	if (conf.channel[conf.channel_num].u.mcast.ipproto == AF_INET) {
+-		print_err(CTD_CFG_WARN, "your multicast address is IPv6 but "
+-					"is binded to an IPv4 interface? "
+-					"Surely this is not what you want");
++		dlog(LOG_WARNING, "your multicast address is IPv6 but "
++		     "is binded to an IPv4 interface? "
++		     "Surely this is not what you want");
+ 		break;
+ 	}
+ 
+@@ -366,8 +267,7 @@ multicast_option : T_IPV6_ADDR T_IP
+ 
+ 		idx = if_nametoindex($2);
+ 		if (!idx) {
+-			print_err(CTD_CFG_WARN,
+-				  "%s is an invalid interface", $2);
++			dlog(LOG_WARNING, "%s is an invalid interface", $2);
+ 			break;
+ 		}
+ 
+@@ -381,14 +281,14 @@ multicast_option : T_IPV4_IFACE T_IP
+ 	__max_dedicated_links_reached();
+ 
+ 	if (!inet_aton($2, &conf.channel[conf.channel_num].u.mcast.ifa)) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv4 address", $2);
++		dlog(LOG_WARNING, "%s is not a valid IPv4 address", $2);
+ 		break;
+ 	}
+ 
+         if (conf.channel[conf.channel_num].u.mcast.ipproto == AF_INET6) {
+-		print_err(CTD_CFG_WARN, "your multicast interface is IPv4 but "
+-					"is binded to an IPv6 interface? "
+-					"Surely, this is not what you want");
++		dlog(LOG_WARNING, "your multicast interface is IPv4 but "
++		     "is binded to an IPv6 interface? "
++		     "Surely, this is not what you want");
+ 		break;
+ 	}
+ 
+@@ -397,7 +297,7 @@ multicast_option : T_IPV4_IFACE T_IP
+ 
+ multicast_option : T_IPV6_IFACE T_IP
+ {
+-	print_err(CTD_CFG_WARN, "`IPv6_interface' not required, ignoring");
++	dlog(LOG_WARNING, "`IPv6_interface' not required, ignoring");
+ }
+ 
+ multicast_option : T_IFACE T_STRING
+@@ -410,7 +310,7 @@ multicast_option : T_IFACE T_STRING
+ 
+ 	idx = if_nametoindex($2);
+ 	if (!idx) {
+-		print_err(CTD_CFG_WARN, "%s is an invalid interface", $2);
++		dlog(LOG_WARNING, "%s is an invalid interface", $2);
+ 		break;
+ 	}
+ 
+@@ -420,13 +320,6 @@ multicast_option : T_IFACE T_STRING
+ 	}
+ };
+ 
+-multicast_option : T_BACKLOG T_NUMBER
+-{
+-	print_err(CTD_CFG_WARN, "`Backlog' option inside Multicast clause is "
+-				"obsolete. Please, remove it from "
+-				"conntrackd.conf");
+-};
+-
+ multicast_option : T_GROUP T_NUMBER
+ {
+ 	__max_dedicated_links_reached();
+@@ -461,8 +354,8 @@ udp_line : T_UDP '{' udp_options '}'
+ {
+ 	if (conf.channel_type_global != CHANNEL_NONE &&
+ 	    conf.channel_type_global != CHANNEL_UDP) {
+-		print_err(CTD_CFG_ERROR, "cannot use `UDP' with other "
+-					 "dedicated link protocols!");
++		dlog(LOG_ERR, "cannot use `UDP' with other "
++		     "dedicated link protocols!");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 	conf.channel_type_global = CHANNEL_UDP;
+@@ -475,8 +368,8 @@ udp_line : T_UDP T_DEFAULT '{' udp_options '}'
+ {
+ 	if (conf.channel_type_global != CHANNEL_NONE &&
+ 	    conf.channel_type_global != CHANNEL_UDP) {
+-		print_err(CTD_CFG_ERROR, "cannot use `UDP' with other "
+-					 "dedicated link protocols!");
++		dlog(LOG_ERR, "cannot use `UDP' with other "
++		     "dedicated link protocols!");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 	conf.channel_type_global = CHANNEL_UDP;
+@@ -495,7 +388,7 @@ udp_option : T_IPV4_ADDR T_IP
+ 	__max_dedicated_links_reached();
+ 
+ 	if (!inet_aton($2, &conf.channel[conf.channel_num].u.udp.server.ipv4)) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv4 address", $2);
++		dlog(LOG_WARNING, "%s is not a valid IPv4 address", $2);
+ 		break;
+ 	}
+ 	conf.channel[conf.channel_num].u.udp.ipproto = AF_INET;
+@@ -504,17 +397,18 @@ udp_option : T_IPV4_ADDR T_IP
+ udp_option : T_IPV6_ADDR T_IP
+ {
+ 	__max_dedicated_links_reached();
++	int err;
+ 
+-#ifdef HAVE_INET_PTON_IPV6
+-	if (inet_pton(AF_INET6, $2,
+-		      &conf.channel[conf.channel_num].u.udp.server.ipv6) <= 0) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv6 address", $2);
++	err = inet_pton(AF_INET6, $2,
++			&conf.channel[conf.channel_num].u.udp.server.ipv6);
++	if (err == 0) {
++		dlog(LOG_WARNING, "%s is not a valid IPv6 address", $2);
+ 		break;
++	} else if (err < 0) {
++		dlog(LOG_ERR, "inet_pton(): IPv6 unsupported!");
++		exit(EXIT_FAILURE);
+ 	}
+-#else
+-	print_err(CTD_CFG_WARN, "cannot find inet_pton(), IPv6 unsupported!");
+-	break;
+-#endif
++
+ 	conf.channel[conf.channel_num].u.udp.ipproto = AF_INET6;
+ };
+ 
+@@ -523,7 +417,7 @@ udp_option : T_IPV4_DEST_ADDR T_IP
+ 	__max_dedicated_links_reached();
+ 
+ 	if (!inet_aton($2, &conf.channel[conf.channel_num].u.udp.client)) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv4 address", $2);
++		dlog(LOG_WARNING, "%s is not a valid IPv4 address", $2);
+ 		break;
+ 	}
+ 	conf.channel[conf.channel_num].u.udp.ipproto = AF_INET;
+@@ -532,17 +426,18 @@ udp_option : T_IPV4_DEST_ADDR T_IP
+ udp_option : T_IPV6_DEST_ADDR T_IP
+ {
+ 	__max_dedicated_links_reached();
++	int err;
+ 
+-#ifdef HAVE_INET_PTON_IPV6
+-	if (inet_pton(AF_INET6, $2,
+-		      &conf.channel[conf.channel_num].u.udp.client) <= 0) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv6 address", $2);
++	err = inet_pton(AF_INET6, $2,
++			&conf.channel[conf.channel_num].u.udp.client);
++	if (err == 0) {
++		dlog(LOG_WARNING, "%s is not a valid IPv6 address", $2);
+ 		break;
++	} else {
++		dlog(LOG_ERR, "inet_pton(): IPv6 unsupported!");
++		exit(EXIT_FAILURE);
+ 	}
+-#else
+-	print_err(CTD_CFG_WARN, "cannot find inet_pton(), IPv6 unsupported!");
+-	break;
+-#endif
++
+ 	conf.channel[conf.channel_num].u.udp.ipproto = AF_INET6;
+ };
+ 
+@@ -555,7 +450,7 @@ udp_option : T_IFACE T_STRING
+ 
+ 	idx = if_nametoindex($2);
+ 	if (!idx) {
+-		print_err(CTD_CFG_WARN, "%s is an invalid interface", $2);
++		dlog(LOG_WARNING, "%s is an invalid interface", $2);
+ 		break;
+ 	}
+ 	conf.channel[conf.channel_num].u.udp.server.ipv6.scope_id = idx;
+@@ -595,8 +490,8 @@ tcp_line : T_TCP '{' tcp_options '}'
+ {
+ 	if (conf.channel_type_global != CHANNEL_NONE &&
+ 	    conf.channel_type_global != CHANNEL_TCP) {
+-		print_err(CTD_CFG_ERROR, "cannot use `TCP' with other "
+-					 "dedicated link protocols!");
++		dlog(LOG_ERR, "cannot use `TCP' with other "
++		     "dedicated link protocols!");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 	conf.channel_type_global = CHANNEL_TCP;
+@@ -611,8 +506,8 @@ tcp_line : T_TCP T_DEFAULT '{' tcp_options '}'
+ {
+ 	if (conf.channel_type_global != CHANNEL_NONE &&
+ 	    conf.channel_type_global != CHANNEL_TCP) {
+-		print_err(CTD_CFG_ERROR, "cannot use `TCP' with other "
+-					 "dedicated link protocols!");
++		dlog(LOG_ERR, "cannot use `TCP' with other "
++		     "dedicated link protocols!");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 	conf.channel_type_global = CHANNEL_TCP;
+@@ -633,7 +528,7 @@ tcp_option : T_IPV4_ADDR T_IP
+ 	__max_dedicated_links_reached();
+ 
+ 	if (!inet_aton($2, &conf.channel[conf.channel_num].u.tcp.server.ipv4)) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv4 address", $2);
++		dlog(LOG_WARNING, "%s is not a valid IPv4 address", $2);
+ 		break;
+ 	}
+ 	conf.channel[conf.channel_num].u.tcp.ipproto = AF_INET;
+@@ -642,17 +537,18 @@ tcp_option : T_IPV4_ADDR T_IP
+ tcp_option : T_IPV6_ADDR T_IP
+ {
+ 	__max_dedicated_links_reached();
++	int err;
+ 
+-#ifdef HAVE_INET_PTON_IPV6
+-	if (inet_pton(AF_INET6, $2,
+-		      &conf.channel[conf.channel_num].u.tcp.server.ipv6) <= 0) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv6 address", $2);
++	err = inet_pton(AF_INET6, $2,
++			&conf.channel[conf.channel_num].u.tcp.server.ipv6);
++	if (err == 0) {
++		dlog(LOG_WARNING, "%s is not a valid IPv6 address", $2);
+ 		break;
++	} else if (err < 0) {
++		dlog(LOG_ERR, "inet_pton(): IPv6 unsupported!");
++		exit(EXIT_FAILURE);
+ 	}
+-#else
+-	print_err(CTD_CFG_WARN, "cannot find inet_pton(), IPv6 unsupported!");
+-	break;
+-#endif
++
+ 	conf.channel[conf.channel_num].u.tcp.ipproto = AF_INET6;
+ };
+ 
+@@ -661,7 +557,7 @@ tcp_option : T_IPV4_DEST_ADDR T_IP
+ 	__max_dedicated_links_reached();
+ 
+ 	if (!inet_aton($2, &conf.channel[conf.channel_num].u.tcp.client)) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv4 address", $2);
++		dlog(LOG_WARNING, "%s is not a valid IPv4 address", $2);
+ 		break;
+ 	}
+ 	conf.channel[conf.channel_num].u.tcp.ipproto = AF_INET;
+@@ -670,17 +566,18 @@ tcp_option : T_IPV4_DEST_ADDR T_IP
+ tcp_option : T_IPV6_DEST_ADDR T_IP
+ {
+ 	__max_dedicated_links_reached();
++	int err;
+ 
+-#ifdef HAVE_INET_PTON_IPV6
+-	if (inet_pton(AF_INET6, $2,
+-		      &conf.channel[conf.channel_num].u.tcp.client) <= 0) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv6 address", $2);
++	err = inet_pton(AF_INET6, $2,
++			&conf.channel[conf.channel_num].u.tcp.client);
++	if (err == 0) {
++		dlog(LOG_WARNING, "%s is not a valid IPv6 address", $2);
+ 		break;
++	} else if (err < 0) {
++		dlog(LOG_ERR, "inet_pton(): IPv6 unsupported!");
++		exit(EXIT_FAILURE);
+ 	}
+-#else
+-	print_err(CTD_CFG_WARN, "cannot find inet_pton(), IPv6 unsupported!");
+-	break;
+-#endif
++
+ 	conf.channel[conf.channel_num].u.tcp.ipproto = AF_INET6;
+ };
+ 
+@@ -693,7 +590,7 @@ tcp_option : T_IFACE T_STRING
+ 
+ 	idx = if_nametoindex($2);
+ 	if (!idx) {
+-		print_err(CTD_CFG_WARN, "%s is an invalid interface", $2);
++		dlog(LOG_WARNING, "%s is an invalid interface", $2);
+ 		break;
+ 	}
+ 	conf.channel[conf.channel_num].u.tcp.server.ipv6.scope_id = idx;
+@@ -758,49 +655,14 @@ unix_option : T_PATH T_PATH_VAL
+ 
+ unix_option : T_BACKLOG T_NUMBER
+ {
+-	conf.local.backlog = $2;
+-};
+-
+-ignore_protocol: T_IGNORE_PROTOCOL '{' ignore_proto_list '}'
+-{
+-	ct_filter_set_logic(STATE(us_filter),
+-			    CT_FILTER_L4PROTO,
+-			    CT_FILTER_NEGATIVE);
+-
+-	print_err(CTD_CFG_WARN, "the clause `IgnoreProtocol' is "
+-				"obsolete. Use `Filter' instead");
+-};
+-
+-ignore_proto_list:
+-		 | ignore_proto_list ignore_proto
+-		 ;
+-
+-ignore_proto: T_NUMBER
+-{
+-	if ($1 < IPPROTO_MAX)
+-		ct_filter_add_proto(STATE(us_filter), $1);
+-	else
+-		print_err(CTD_CFG_WARN, "protocol number `%d' is freak", $1);
+-};
+-
+-ignore_proto: T_STRING
+-{
+-	struct protoent *pent;
+-
+-	pent = getprotobyname($1);
+-	if (pent == NULL) {
+-		print_err(CTD_CFG_WARN, "getprotobyname() cannot find "
+-					"protocol `%s' in /etc/protocols", $1);
+-		break;
+-	}
+-	ct_filter_add_proto(STATE(us_filter), pent->p_proto);
++	dlog(LOG_WARNING, "deprecated unix backlog configuration, ignoring.");
+ };
+ 
+ sync: T_SYNC '{' sync_list '}'
+ {
+ 	if (conf.flags & CTD_STATS_MODE) {
+-		print_err(CTD_CFG_ERROR, "cannot use both `Stats' and `Sync' "
+-					 "clauses in conntrackd.conf");
++		dlog(LOG_ERR, "cannot use both `Stats' and `Sync' "
++		     "clauses in conntrackd.conf");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 	conf.flags |= CTD_SYNC_MODE;
+@@ -813,19 +675,12 @@ sync_line: refreshtime
+ 	 | expiretime
+ 	 | timeout
+ 	 | purge
+-	 | checksum
+ 	 | multicast_line
+ 	 | udp_line
+ 	 | tcp_line
+-	 | relax_transitions
+-	 | delay_destroy_msgs
+ 	 | sync_mode_alarm
+ 	 | sync_mode_ftfw
+ 	 | sync_mode_notrack
+-	 | listen_to
+-	 | state_replication
+-	 | cache_writethrough
+-	 | destroy_timeout
+ 	 | option_line
+ 	 ;
+ 
+@@ -907,19 +762,17 @@ sync_mode_alarm_line: refreshtime
+               		 | expiretime
+ 	     		 | timeout
+ 			 | purge
+-			 | relax_transitions
+-			 | delay_destroy_msgs
+ 			 ;
+ 
+ sync_mode_ftfw_list:
+ 	      | sync_mode_ftfw_list sync_mode_ftfw_line;
+ 
+ sync_mode_ftfw_line: resend_queue_size
+-		   | resend_buffer_size
+ 		   | timeout
+ 		   | purge
+ 		   | window_size
+ 		   | disable_external_cache
++		   | startup_resync
+ 		   ;
+ 
+ sync_mode_notrack_list:
+@@ -929,6 +782,7 @@ sync_mode_notrack_line: timeout
+ 		      | purge
+ 		      | disable_internal_cache
+ 		      | disable_external_cache
++		      | startup_resync
+ 		      ;
+ 
+ disable_internal_cache: T_DISABLE_INTERNAL_CACHE T_ON
+@@ -951,65 +805,25 @@ disable_external_cache: T_DISABLE_EXTERNAL_CACHE T_OFF
+ 	conf.sync.external_cache_disable = 0;
+ };
+ 
+-resend_buffer_size: T_RESEND_BUFFER_SIZE T_NUMBER
+-{
+-	print_err(CTD_CFG_WARN, "`ResendBufferSize' is deprecated. "
+-				"Use `ResendQueueSize' instead");
+-};
+-
+ resend_queue_size: T_RESEND_QUEUE_SIZE T_NUMBER
+ {
+ 	conf.resend_queue_size = $2;
+ };
+ 
+-window_size: T_WINDOWSIZE T_NUMBER
+-{
+-	conf.window_size = $2;
+-};
+-
+-destroy_timeout: T_DESTROY_TIMEOUT T_NUMBER
+-{
+-	print_err(CTD_CFG_WARN, "`DestroyTimeout' is deprecated. Remove it");
+-};
+-
+-relax_transitions: T_RELAX_TRANSITIONS
+-{
+-	print_err(CTD_CFG_WARN, "`RelaxTransitions' clause is obsolete. "
+-				"Please, remove it from conntrackd.conf");
+-};
+-
+-delay_destroy_msgs: T_DELAY
+-{
+-	print_err(CTD_CFG_WARN, "`DelayDestroyMessages' clause is obsolete. "
+-				"Please, remove it from conntrackd.conf");
+-};
+-
+-listen_to: T_LISTEN_TO T_IP
++startup_resync: T_STARTUP_RESYNC T_ON
+ {
+-	print_err(CTD_CFG_WARN, "the clause `ListenTo' is obsolete, ignoring");
++	conf.startup_resync = 1;
+ };
+ 
+-state_replication: T_REPLICATE states T_FOR state_proto
++startup_resync: T_STARTUP_RESYNC T_OFF
+ {
+-	ct_filter_set_logic(STATE(us_filter),
+-			    CT_FILTER_STATE,
+-			    CT_FILTER_POSITIVE);
+-
+-	print_err(CTD_CFG_WARN, "the clause `Replicate' is obsolete. "
+-				"Use `Filter' instead");
++	conf.startup_resync = 0;
+ };
+ 
+-states:
+-      | states state;
+-
+-state_proto: T_STRING
++window_size: T_WINDOWSIZE T_NUMBER
+ {
+-	if (strncmp($1, "TCP", strlen("TCP")) != 0) {
+-		print_err(CTD_CFG_WARN, "unsupported protocol `%s' in line %d",
+-					$1, yylineno);
+-	}
++	conf.window_size = $2;
+ };
+-state: tcp_state;
+ 
+ tcp_states:
+ 	  | tcp_states tcp_state;
+@@ -1087,18 +901,6 @@ tcp_state: T_LISTEN
+ 	__kernel_filter_add_state(TCP_CONNTRACK_LISTEN);
+ };
+ 
+-cache_writethrough: T_WRITE_THROUGH T_ON
+-{
+-	print_err(CTD_CFG_WARN, "`CacheWriteThrough' clause is obsolete, "
+-				"ignoring");
+-};
+-
+-cache_writethrough: T_WRITE_THROUGH T_OFF
+-{
+-	print_err(CTD_CFG_WARN, "`CacheWriteThrough' clause is obsolete, "
+-				"ignoring");
+-};
+-
+ general: T_GENERAL '{' general_list '}';
+ 
+ general_list:
+@@ -1115,7 +917,6 @@ general_line: hashsize
+ 	    | unix_line
+ 	    | netlink_buffer_size
+ 	    | netlink_buffer_size_max_grown
+-	    | family
+ 	    | event_iterations_limit
+ 	    | poll_secs
+ 	    | filter
+@@ -1166,7 +967,8 @@ netlink_events_reliable : T_NETLINK_EVENTS_RELIABLE T_OFF
+ 
+ nice : T_NICE T_SIGNED_NUMBER
+ {
+-	conf.nice = $2;
++	dlog(LOG_WARNING, "deprecated nice configuration, ignoring. The "
++	     "nice value can be set externally with nice(1) and renice(1).");
+ };
+ 
+ scheduler : T_SCHEDULER '{' scheduler_options '}';
+@@ -1182,7 +984,7 @@ scheduler_line : T_TYPE T_STRING
+ 	} else if (strcasecmp($2, "fifo") == 0) {
+ 		conf.sched.type = SCHED_FIFO;
+ 	} else {
+-		print_err(CTD_CFG_ERROR, "unknown scheduler `%s'", $2);
++		dlog(LOG_ERR, "unknown scheduler `%s'", $2);
+ 		exit(EXIT_FAILURE);
+ 	}
+ };
+@@ -1191,16 +993,11 @@ scheduler_line : T_PRIO T_NUMBER
+ {
+ 	conf.sched.prio = $2;
+ 	if (conf.sched.prio < 0 || conf.sched.prio > 99) {
+-		print_err(CTD_CFG_ERROR, "`Priority' must be [0, 99]\n", $2);
++		dlog(LOG_ERR, "`Priority' must be [0, 99]\n", $2);
+ 		exit(EXIT_FAILURE);
+ 	}
+ };
+ 
+-family : T_FAMILY T_STRING
+-{
+-	print_err(CTD_CFG_WARN, "`Family' is deprecated, ignoring");
+-};
+-
+ event_iterations_limit : T_EVENT_ITER_LIMIT T_NUMBER
+ {
+ 	CONFIG(event_iterations_limit) = $2;
+@@ -1211,7 +1008,7 @@ poll_secs: T_POLL_SECS T_NUMBER
+ 	conf.flags |= CTD_POLL;
+ 	conf.poll_kernel_secs = $2;
+ 	if (conf.poll_kernel_secs == 0) {
+-		print_err(CTD_CFG_ERROR, "`PollSecs' clause must be > 0");
++		dlog(LOG_ERR, "`PollSecs' clause must be > 0");
+ 		exit(EXIT_FAILURE);
+ 	}
+ };
+@@ -1265,8 +1062,8 @@ filter_protocol_item : T_STRING
+ 
+ 	pent = getprotobyname($1);
+ 	if (pent == NULL) {
+-		print_err(CTD_CFG_WARN, "getprotobyname() cannot find "
+-					"protocol `%s' in /etc/protocols", $1);
++		dlog(LOG_WARNING, "getprotobyname() cannot find "
++		     "protocol `%s' in /etc/protocols", $1);
+ 		break;
+ 	}
+ 	ct_filter_add_proto(STATE(us_filter), pent->p_proto);
+@@ -1284,8 +1081,8 @@ filter_protocol_item : T_TCP
+ 
+ 	pent = getprotobyname("tcp");
+ 	if (pent == NULL) {
+-		print_err(CTD_CFG_WARN, "getprotobyname() cannot find "
+-					"protocol `tcp' in /etc/protocols");
++		dlog(LOG_WARNING, "getprotobyname() cannot find "
++		     "protocol `tcp' in /etc/protocols");
+ 		break;
+ 	}
+ 	ct_filter_add_proto(STATE(us_filter), pent->p_proto);
+@@ -1303,7 +1100,7 @@ filter_protocol_item : T_UDP
+ 
+ 	pent = getprotobyname("udp");
+ 	if (pent == NULL) {
+-		print_err(CTD_CFG_WARN, "getprotobyname() cannot find "
++		dlog(LOG_WARNING, "getprotobyname() cannot find "
+ 					"protocol `udp' in /etc/protocols");
+ 		break;
+ 	}
+@@ -1363,14 +1160,14 @@ filter_address_item : T_IPV4_ADDR T_IP
+ 		*slash = '\0';
+ 		cidr = atoi(slash+1);
+ 		if (cidr > 32) {
+-			print_err(CTD_CFG_WARN, "%s/%d is not a valid network, "
+-						"ignoring", $2, cidr);
++			dlog(LOG_WARNING, "%s/%d is not a valid network, "
++			     "ignoring", $2, cidr);
+ 			break;
+ 		}
+ 	}
+ 
+ 	if (!inet_aton($2, &ip.ipv4)) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv4, ignoring", $2);
++		dlog(LOG_WARNING, "%s is not a valid IPv4, ignoring", $2);
+ 		break;
+ 	}
+ 
+@@ -1383,18 +1180,17 @@ filter_address_item : T_IPV4_ADDR T_IP
+ 
+ 		if (!ct_filter_add_netmask(STATE(us_filter), &tmp, AF_INET)) {
+ 			if (errno == EEXIST)
+-				print_err(CTD_CFG_WARN, "netmask %s is "
+-							"repeated in the "
+-							"ignore pool", $2);
++				dlog(LOG_WARNING, "netmask %s is "
++				     "repeated in the ignore pool", $2);
+ 		}
+ 	} else {
+ 		if (!ct_filter_add_ip(STATE(us_filter), &ip, AF_INET)) {
+ 			if (errno == EEXIST)
+-				print_err(CTD_CFG_WARN, "IP %s is repeated in "
+-							"the ignore pool", $2);
++				dlog(LOG_WARNING, "IP %s is repeated in "
++				     "the ignore pool", $2);
+ 			if (errno == ENOSPC)
+-				print_err(CTD_CFG_WARN, "too many IP in the "
+-							"ignore pool!");
++				dlog(LOG_WARNING, "too many IP in the "
++				     "ignore pool!");
+ 		}
+ 	}
+ 	__kernel_filter_start();
+@@ -1415,6 +1211,7 @@ filter_address_item : T_IPV6_ADDR T_IP
+ 	char *slash;
+ 	int cidr = 128;
+ 	struct nfct_filter_ipv6 filter_ipv6;
++	int err;
+ 
+ 	memset(&ip, 0, sizeof(union inet_address));
+ 
+@@ -1423,21 +1220,21 @@ filter_address_item : T_IPV6_ADDR T_IP
+ 		*slash = '\0';
+ 		cidr = atoi(slash+1);
+ 		if (cidr > 128) {
+-			print_err(CTD_CFG_WARN, "%s/%d is not a valid network, "
+-						"ignoring", $2, cidr);
++			dlog(LOG_WARNING, "%s/%d is not a valid network, "
++			     "ignoring", $2, cidr);
+ 			break;
+ 		}
+ 	}
+ 
+-#ifdef HAVE_INET_PTON_IPV6
+-	if (inet_pton(AF_INET6, $2, &ip.ipv6) <= 0) {
+-		print_err(CTD_CFG_WARN, "%s is not a valid IPv6, ignoring", $2);
++	err = inet_pton(AF_INET6, $2, &ip.ipv6);
++	if (err == 0) {
++		dlog(LOG_WARNING, "%s is not a valid IPv6, ignoring", $2);
+ 		break;
++	} else if (err < 0) {
++		dlog(LOG_ERR, "inet_pton(): IPv6 unsupported!");
++		exit(EXIT_FAILURE);
+ 	}
+-#else
+-	print_err(CTD_CFG_WARN, "cannot find inet_pton(), IPv6 unsupported!");
+-	break;
+-#endif
++
+ 	if (slash && cidr < 128) {
+ 		struct ct_filter_netmask_ipv6 tmp;
+ 
+@@ -1445,18 +1242,17 @@ filter_address_item : T_IPV6_ADDR T_IP
+ 		ipv6_cidr2mask_net(cidr, tmp.mask);
+ 		if (!ct_filter_add_netmask(STATE(us_filter), &tmp, AF_INET6)) {
+ 			if (errno == EEXIST)
+-				print_err(CTD_CFG_WARN, "netmask %s is "
+-							"repeated in the "
+-							"ignore pool", $2);
++				dlog(LOG_WARNING, "netmask %s is "
++				     "repeated in the ignore pool", $2);
+ 		}
+ 	} else {
+ 		if (!ct_filter_add_ip(STATE(us_filter), &ip, AF_INET6)) {
+ 			if (errno == EEXIST)
+-				print_err(CTD_CFG_WARN, "IP %s is repeated in "
+-							"the ignore pool", $2);
++				dlog(LOG_WARNING, "IP %s is repeated in "
++				     "the ignore pool", $2);
+ 			if (errno == ENOSPC)
+-				print_err(CTD_CFG_WARN, "too many IP in the "
+-							"ignore pool!");
++				dlog(LOG_WARNING, "too many IP in the "
++				     "ignore pool!");
+ 		}
+ 	}
+ 	__kernel_filter_start();
+@@ -1500,8 +1296,8 @@ filter_state_item : tcp_states T_FOR T_TCP;
+ stats: T_STATS '{' stats_list '}'
+ {
+ 	if (conf.flags & CTD_SYNC_MODE) {
+-		print_err(CTD_CFG_ERROR, "cannot use both `Stats' and `Sync' "
+-					 "clauses in conntrackd.conf");
++		dlog(LOG_ERR, "cannot use both `Stats' and `Sync' "
++		     "clauses in conntrackd.conf");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 	conf.flags |= CTD_STATS_MODE;
+@@ -1515,7 +1311,6 @@ stat_line: stat_logfile_bool
+ 	 | stat_logfile_path
+ 	 | stat_syslog_bool
+ 	 | stat_syslog_facility
+-	 | buffer_size
+ 	 ;
+ 
+ stat_logfile_bool : T_LOG T_ON
+@@ -1563,20 +1358,15 @@ stat_syslog_facility : T_SYSLOG T_STRING
+ 	else if (!strcmp($2, "local7"))
+ 		conf.stats.syslog_facility = LOG_LOCAL7;
+ 	else {
+-		print_err(CTD_CFG_WARN, "'%s' is not a known syslog facility, "
+-					"ignoring.", $2);
++		dlog(LOG_WARNING, "'%s' is not a known syslog facility, "
++		     "ignoring.", $2);
+ 		break;
+ 	}
+ 
+ 	if (conf.syslog_facility != -1 &&
+ 	    conf.stats.syslog_facility != conf.syslog_facility)
+-		print_err(CTD_CFG_WARN, "conflicting Syslog facility "
+-					"values, defaulting to General");
+-};
+-
+-buffer_size: T_STAT_BUFFER_SIZE T_NUMBER
+-{
+-	print_err(CTD_CFG_WARN, "`LogFileBufferSize' is deprecated");
++		dlog(LOG_WARNING, "conflicting Syslog facility "
++		     "values, defaulting to General");
+ };
+ 
+ helper: T_HELPER '{' helper_list '}'
+@@ -1604,7 +1394,7 @@ helper_type: T_TYPE T_STRING T_STRING T_STRING '{' helper_type_list  '}'
+ 	else if (strcmp($3, "inet6") == 0)
+ 		l3proto = AF_INET6;
+ 	else {
+-		print_err(CTD_CFG_ERROR, "unknown layer 3 protocol");
++		dlog(LOG_ERR, "unknown layer 3 protocol");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 
+@@ -1613,19 +1403,18 @@ helper_type: T_TYPE T_STRING T_STRING T_STRING '{' helper_type_list  '}'
+ 	else if (strcmp($4, "udp") == 0)
+ 		l4proto = IPPROTO_UDP;
+ 	else {
+-		print_err(CTD_CFG_ERROR, "unknown layer 4 protocol");
++		dlog(LOG_ERR, "unknown layer 4 protocol");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 
+ #ifdef BUILD_CTHELPER
+ 	helper = helper_find(CONNTRACKD_LIB_DIR, $2, l4proto, RTLD_NOW);
+ 	if (helper == NULL) {
+-		print_err(CTD_CFG_ERROR, "Unknown `%s' helper", $2);
++		dlog(LOG_ERR, "Unknown `%s' helper", $2);
+ 		exit(EXIT_FAILURE);
+ 	}
+ #else
+-	print_err(CTD_CFG_ERROR, "Helper support is disabled, recompile "
+-				 "conntrackd");
++	dlog(LOG_ERR, "Helper support is disabled, recompile conntrackd");
+ 	exit(EXIT_FAILURE);
+ #endif
+ 
+@@ -1669,9 +1458,8 @@ helper_type: T_TYPE T_STRING T_STRING T_STRING '{' helper_type_list  '}'
+ 				break;
+ 			}
+ 			if (matching == NULL) {
+-				print_err(CTD_CFG_ERROR,
+-					  "Unknown policy `%s' in helper "
+-					  "configuration", pol->name);
++				dlog(LOG_ERR, "Unknown policy `%s' in helper "
++				     "configuration", pol->name);
+ 				exit(EXIT_FAILURE);
+ 			}
+ 			/* FIXME: First set default policy, then change only
+@@ -1684,9 +1472,9 @@ helper_type: T_TYPE T_STRING T_STRING T_STRING '{' helper_type_list  '}'
+ 			break;
+ 		}
+ 		default:
+-			print_err(CTD_CFG_ERROR,
+-				  "Unexpected symbol parsing helper policy");
+-				exit(EXIT_FAILURE);
++			dlog(LOG_ERR, "Unexpected symbol parsing helper "
++			     "policy");
++			exit(EXIT_FAILURE);
+ 			break;
+ 		}
+ 	}
+@@ -1729,9 +1517,8 @@ helper_type: T_HELPER_POLICY T_STRING '{' helper_policy_list '}'
+ 
+ 	e = stack_item_pop(&symbol_stack, SYMBOL_HELPER_EXPECT_POLICY_LEAF);
+ 	if (e == NULL) {
+-		print_err(CTD_CFG_ERROR,
+-			  "Helper policy configuration empty, fix your "
+-			  "configuration file, please");
++		dlog(LOG_ERR, "Helper policy configuration empty, fix your "
++		     "configuration file, please");
+ 		exit(EXIT_FAILURE);
+ 		break;
+ 	}
+@@ -1787,38 +1574,17 @@ helper_policy_expect_timeout: T_HELPER_EXPECT_TIMEOUT T_NUMBER
+ int __attribute__((noreturn))
+ yyerror(char *msg)
+ {
+-	print_err(CTD_CFG_ERROR, "parsing config file in "
+-				 "line (%d), symbol '%s': %s",
+-				 yylineno, yytext, msg);
++	dlog(LOG_ERR, "parsing config file in line (%d), symbol '%s': %s",
++	     yylineno, yytext, msg);
+ 	exit(EXIT_FAILURE);
+ }
+ 
+-static void print_err(int type, const char *msg, ...)
+-{
+-	va_list args;
+-
+-	va_start(args, msg);
+-	switch(type) {
+-	case CTD_CFG_ERROR:
+-		fprintf(stderr, "ERROR: ");
+-		break;
+-	case CTD_CFG_WARN:
+-		fprintf(stderr, "WARNING: ");
+-		break;
+-	default:
+-		fprintf(stderr, "?: ");
+-	}
+-	vfprintf(stderr, msg, args);
+-	va_end(args);
+-	fprintf(stderr,"\n");
+-}
+-
+ static void __kernel_filter_start(void)
+ {
+ 	if (!STATE(filter)) {
+ 		STATE(filter) = nfct_filter_create();
+ 		if (!STATE(filter)) {
+-			print_err(CTD_CFG_ERROR, "cannot create ignore pool!");
++			dlog(LOG_ERR, "cannot create ignore pool!");
+ 			exit(EXIT_FAILURE);
+ 		}
+ 	}
+@@ -1840,9 +1606,8 @@ static void __kernel_filter_add_state(int value)
+ static void __max_dedicated_links_reached(void)
+ {
+ 	if (conf.channel_num >= MULTICHANNEL_MAX) {
+-		print_err(CTD_CFG_ERROR, "too many dedicated links in "
+-					 "the configuration file "
+-					 "(Maximum: %d)", MULTICHANNEL_MAX);
++		dlog(LOG_ERR, "too many dedicated links in the configuration "
++		     "file (Maximum: %d)", MULTICHANNEL_MAX);
+ 		exit(EXIT_FAILURE);
+ 	}
+ }
+@@ -1872,9 +1637,9 @@ init_config(char *filename)
+ 
+ #ifndef BUILD_SYSTEMD
+ 	if (CONFIG(systemd) == 1) {
+-		print_err(CTD_CFG_WARN, "systemd runtime support activated but"
+-					" conntrackd was built without support"
+-					" for it. Recompile conntrackd");
++		dlog(LOG_WARNING, "systemd runtime support activated but "
++		     "conntrackd was built without support "
++		     "for it. Recompile conntrackd");
+ 	}
+ #endif /* BUILD_SYSTEMD */
+ 
+diff --git a/src/resync.c b/src/resync.c
+new file mode 100644
+index 0000000..5394245
+--- /dev/null
++++ b/src/resync.c
+@@ -0,0 +1,48 @@
++/*
++ * (C) 2006-2011 by Pablo Neira Ayuso <pablo@netfilter.org>
++ * (C) 2011 by Vyatta Inc. <http://www.vyatta.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++
++#include "conntrackd.h"
++#include "network.h"
++#include "log.h"
++#include "queue_tx.h"
++#include "resync.h"
++#include "cache.h"
++
++void resync_req(void)
++{
++	dlog(LOG_NOTICE, "resync requested");
++	tx_queue_add_ctlmsg(NET_F_RESYNC, 0, 0);
++}
++
++void resync_send(int (*do_cache_to_tx)(void *data1, void *data2))
++{
++	dlog(LOG_NOTICE, "sending bulk update");
++	cache_iterate(STATE(mode)->internal->ct.data,
++		      NULL, do_cache_to_tx);
++	cache_iterate(STATE(mode)->internal->exp.data,
++		      NULL, do_cache_to_tx);
++}
++
++void resync_at_startup(void)
++{
++	if (CONFIG(startup_resync) == 0)
++		return;
++
++	resync_req();
++}
+diff --git a/src/run.c b/src/run.c
+index b71369b..f11a532 100644
+--- a/src/run.c
++++ b/src/run.c
+@@ -32,6 +32,7 @@
+ #include "internal.h"
+ #include "systemd.h"
+ 
++#include <sched.h>
+ #include <errno.h>
+ #include <signal.h>
+ #include <stdlib.h>
+@@ -221,11 +222,48 @@ static void local_cb(void *data)
+ 	do_local_server_step(&STATE(local), NULL, local_handler);
+ }
+ 
++int evaluate(void)
++{
++	if (CONFIG(sync).external_cache_disable &&
++	    CONFIG(commit_timeout)) {
++		dlog(LOG_WARNING, "`CommitTimeout' can't be combined with "
++		     "`DisableExternalCache', ignoring this option. "
++		     "Fix your configuration file.");
++		CONFIG(commit_timeout) = 0;
++	}
++
++	return 0;
++}
++
++
++static void set_scheduler(void)
++{
++	struct sched_param schedparam;
++	int sched_type;
++
++	if (CONFIG(sched).type == SCHED_OTHER) {
++		/* default */
++		schedparam.sched_priority = sched_get_priority_max(SCHED_RR);
++		sched_type = SCHED_RR;
++	} else {
++		schedparam.sched_priority = CONFIG(sched).prio;
++		sched_type = CONFIG(sched).type;
++	}
++
++	if (sched_setscheduler(0, sched_type, &schedparam) < 0)
++		dlog(LOG_WARNING, "scheduler configuration failed: %s. "
++		     "Likely a bug in conntrackd, please report it. "
++		     "Continuing with system default scheduler.",
++		     strerror(errno));
++}
++
+ int
+ init(void)
+ {
+ 	do_gettimeofday();
+ 
++	set_scheduler();
++
+ 	STATE(fds) = create_fds();
+ 	if (STATE(fds) == NULL) {
+ 		dlog(LOG_ERR, "can't create file descriptor pool");
+diff --git a/src/sync-ftfw.c b/src/sync-ftfw.c
+index 1bc2d9f..6dca3dc 100644
+--- a/src/sync-ftfw.c
++++ b/src/sync-ftfw.c
+@@ -20,11 +20,13 @@
+ #include "conntrackd.h"
+ #include "sync.h"
+ #include "queue.h"
++#include "queue_tx.h"
+ #include "network.h"
+ #include "alarm.h"
+ #include "log.h"
+ #include "cache.h"
+ #include "fds.h"
++#include "resync.h"
+ 
+ #include <string.h>
+ #include <errno.h>
+@@ -95,42 +97,6 @@ static void nethdr_set_hello(struct nethdr *net)
+ 	}
+ }
+ 
+-static void tx_queue_add_ctlmsg(uint32_t flags, uint32_t from, uint32_t to)
+-{
+-	struct queue_object *qobj;
+-	struct nethdr_ack *ack;
+-
+-	qobj = queue_object_new(Q_ELEM_CTL, sizeof(struct nethdr_ack));
+-	if (qobj == NULL)
+-		return;
+-
+-	ack		= (struct nethdr_ack *)qobj->data;
+-	ack->type 	= NET_T_CTL;
+-	ack->flags	= flags;
+-	ack->from	= from;
+-	ack->to		= to;
+-
+-	if (queue_add(STATE_SYNC(tx_queue), &qobj->qnode) < 0)
+-		queue_object_free(qobj);
+-}
+-
+-static void tx_queue_add_ctlmsg2(uint32_t flags)
+-{
+-	struct queue_object *qobj;
+-	struct nethdr *ctl;
+-
+-	qobj = queue_object_new(Q_ELEM_CTL, sizeof(struct nethdr_ack));
+-	if (qobj == NULL)
+-		return;
+-
+-	ctl		= (struct nethdr *)qobj->data;
+-	ctl->type 	= NET_T_CTL;
+-	ctl->flags	= flags;
+-
+-	if (queue_add(STATE_SYNC(tx_queue), &qobj->qnode) < 0)
+-		queue_object_free(qobj);
+-}
+-
+ /* this function is called from the alarm framework */
+ static void do_alive_alarm(struct alarm_block *a, void *data)
+ {
+@@ -224,15 +190,10 @@ static int ftfw_local(int fd, int type, void *data)
+ 
+ 	switch(type) {
+ 	case REQUEST_DUMP:
+-		dlog(LOG_NOTICE, "request resync");
+-		tx_queue_add_ctlmsg(NET_F_RESYNC, 0, 0);
++		resync_req();
+ 		break;
+ 	case SEND_BULK:
+-		dlog(LOG_NOTICE, "sending bulk update");
+-		cache_iterate(STATE(mode)->internal->ct.data,
+-			      NULL, do_cache_to_tx);
+-		cache_iterate(STATE(mode)->internal->exp.data,
+-			      NULL, do_cache_to_tx);
++		resync_send(do_cache_to_tx);
+ 		break;
+ 	case STATS_RSQUEUE:
+ 		ftfw_local_queue(fd);
+@@ -351,11 +312,8 @@ static int digest_msg(const struct nethdr *net)
+ 		return MSG_CTL;
+ 
+ 	} else if (IS_RESYNC(net)) {
+-		dp("RESYNC ALL\n");
+-		cache_iterate(STATE(mode)->internal->ct.data, NULL,
+-			      do_cache_to_tx);
+-		cache_iterate(STATE(mode)->internal->exp.data, NULL,
+-			      do_cache_to_tx);
++		dlog(LOG_NOTICE, "resync requested by other node");
++		resync_send(do_cache_to_tx);
+ 		return MSG_CTL;
+ 
+ 	} else if (IS_ALIVE(net))
+diff --git a/src/sync-mode.c b/src/sync-mode.c
+index e69ecfe..082e2ce 100644
+--- a/src/sync-mode.c
++++ b/src/sync-mode.c
+@@ -377,8 +377,8 @@ static int init_sync(void)
+ 	else if (CONFIG(flags) & CTD_SYNC_NOTRACK)
+ 		STATE_SYNC(sync) = &sync_notrack;
+ 	else {
+-		fprintf(stderr, "WARNING: No synchronization mode specified. "
+-				"Defaulting to FT-FW mode.\n");
++		dlog(LOG_WARNING, "No synchronization mode specified. "
++		     "Defaulting to FT-FW mode.");
+ 		CONFIG(flags) |= CTD_SYNC_FTFW;
+ 		STATE_SYNC(sync) = &sync_ftfw;
+ 	}
+@@ -412,7 +412,8 @@ static int init_sync(void)
+ 	STATE_SYNC(channel) =
+ 		multichannel_open(CONFIG(channel), CONFIG(channel_num));
+ 	if (STATE_SYNC(channel) == NULL) {
+-		dlog(LOG_ERR, "can't open channel socket");
++		dlog(LOG_ERR, "can't open channel socket: %s",
++		     strerror(errno));
+ 		return -1;
+ 	}
+ 	for (i=0; i<STATE_SYNC(channel)->channel_num; i++) {
+diff --git a/src/sync-notrack.c b/src/sync-notrack.c
+index c810bbb..1b53e1b 100644
+--- a/src/sync-notrack.c
++++ b/src/sync-notrack.c
+@@ -20,10 +20,12 @@
+ #include "conntrackd.h"
+ #include "sync.h"
+ #include "queue.h"
++#include "queue_tx.h"
+ #include "network.h"
+ #include "log.h"
+ #include "cache.h"
+ #include "fds.h"
++#include "resync.h"
+ 
+ #include <string.h>
+ 
+@@ -56,25 +58,6 @@ static struct cache_extra cache_notrack_extra = {
+ 	.destroy	= cache_notrack_del
+ };
+ 
+-static void tx_queue_add_ctlmsg(uint32_t flags, uint32_t from, uint32_t to)
+-{
+-	struct queue_object *qobj;
+-	struct nethdr_ack *ack;
+-
+-	qobj = queue_object_new(Q_ELEM_CTL, sizeof(struct nethdr_ack));
+-	if (qobj == NULL)
+-		return;
+-
+-	ack		= (struct nethdr_ack *)qobj->data;
+-        ack->type	= NET_T_CTL;
+-	ack->flags	= flags;
+-	ack->from	= from;
+-	ack->to		= to;
+-
+-	if (queue_add(STATE_SYNC(tx_queue), &qobj->qnode) < 0)
+-		queue_object_free(qobj);
+-}
+-
+ static int do_cache_to_tx(void *data1, void *data2)
+ {
+ 	struct cache_object *obj = data2;
+@@ -121,19 +104,13 @@ static int notrack_local(int fd, int type, void *data)
+ 
+ 	switch(type) {
+ 	case REQUEST_DUMP:
+-		dlog(LOG_NOTICE, "request resync");
+-		tx_queue_add_ctlmsg(NET_F_RESYNC, 0, 0);
++		resync_req();
+ 		break;
+ 	case SEND_BULK:
+-		dlog(LOG_NOTICE, "sending bulk update");
+-		if (CONFIG(sync).internal_cache_disable) {
++		if (CONFIG(sync).internal_cache_disable)
+ 			kernel_resync();
+-		} else {
+-			cache_iterate(STATE(mode)->internal->ct.data,
+-				      NULL, do_cache_to_tx);
+-			cache_iterate(STATE(mode)->internal->exp.data,
+-				      NULL, do_cache_to_tx);
+-		}
++		else
++			resync_send(do_cache_to_tx);
+ 		break;
+ 	default:
+ 		ret = 0;
+@@ -149,14 +126,11 @@ static int digest_msg(const struct nethdr *net)
+ 		return MSG_DATA;
+ 
+ 	if (IS_RESYNC(net)) {
+-		if (CONFIG(sync).internal_cache_disable) {
++		dlog(LOG_NOTICE, "resync requested by other node");
++		if (CONFIG(sync).internal_cache_disable)
+ 			kernel_resync();
+-		} else {
+-			cache_iterate(STATE(mode)->internal->ct.data,
+-				      NULL, do_cache_to_tx);
+-			cache_iterate(STATE(mode)->internal->exp.data,
+-				      NULL, do_cache_to_tx);
+-		}
++		else
++			resync_send(do_cache_to_tx);
+ 		return MSG_CTL;
+ 	}
+ 
+@@ -227,23 +201,6 @@ static void notrack_enqueue(struct cache_object *obj, int query)
+ 		cache_object_get(obj);
+ }
+ 
+-static void tx_queue_add_ctlmsg2(uint32_t flags)
+-{
+-	struct queue_object *qobj;
+-	struct nethdr *ctl;
+-
+-	qobj = queue_object_new(Q_ELEM_CTL, sizeof(struct nethdr_ack));
+-	if (qobj == NULL)
+-		return;
+-
+-	ctl		= (struct nethdr *)qobj->data;
+-	ctl->type	= NET_T_CTL;
+-	ctl->flags	= flags;
+-
+-	if (queue_add(STATE_SYNC(tx_queue), &qobj->qnode) < 0)
+-		queue_object_free(qobj);
+-}
+-
+ static void do_alive_alarm(struct alarm_block *a, void *data)
+ {
+ 	tx_queue_add_ctlmsg2(NET_F_ALIVE);
+diff --git a/src/systemd.c b/src/systemd.c
+index 4eb880c..64bfc66 100644
+--- a/src/systemd.c
++++ b/src/systemd.c
+@@ -1,5 +1,5 @@
+ /*
+- * (C) 2015 by Arturo Borrero Gonzalez <arturo.borrero.glez@gmail.com>
++ * (C) 2015 by Arturo Borrero Gonzalez <arturo@debian.org>
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License as published by
+@@ -19,6 +19,7 @@
+ #include "systemd.h"
+ #include "conntrackd.h"
+ #include "alarm.h"
++#include "log.h"
+ #include <systemd/sd-daemon.h>
+ #include <sys/types.h>
+ #include <unistd.h>
+@@ -42,8 +43,8 @@ void sd_ct_watchdog_init(void)
+ 
+ 	ret = sd_watchdog_enabled(0, &sd_watchdog_interval);
+ 	if (ret < 0) {
+-		fprintf(stderr, "WARNING: failed to get watchdog details from"
+-				" systemd: %s\n", strerror(-ret));
++		dlog(LOG_WARNING, "failed to get watchdog details from "
++		     "systemd: %s", strerror(-ret));
+ 		return;
+ 	} else if (ret == 0) {
+ 		/* no watchdog required */
+diff --git a/tests/conntrack/testsuite/00create b/tests/conntrack/testsuite/00create
+index 40e2c19..afe4342 100644
+--- a/tests/conntrack/testsuite/00create
++++ b/tests/conntrack/testsuite/00create
+@@ -18,3 +18,9 @@
+ -I -r 2.2.2.2 -q 1.1.1.1 -p tcp --reply-port-src 11 --reply-port-dst 21 --state LISTEN -u SEEN_REPLY -t 50 ; OK
+ # delete reverse
+ -D -r 2.2.2.2 -q 1.1.1.1 -p tcp --reply-port-src 11 --reply-port-dst 21 ; OK
++# create a v6 conntrack
++-I -s 2001:DB8::1.1.1.1 -d 2001:DB8::2.2.2.2 -p tcp --sport 10 --dport 20 --state LISTEN -u SEEN_REPLY -t 50 ; OK
++# delete v6 conntrack
++-D -s 2001:DB8::1.1.1.1 -d 2001:DB8::2.2.2.2 -p tcp --sport 10 --dport 20 ; OK
++# mismatched address family
++-I -s 2001:DB8::1.1.1.1 -d 2.2.2.2 -p tcp --sport 10 --dport 20 --state LISTEN -u SEEN_REPLY -t 50 ; BAD
+diff --git a/tests/conntrack/testsuite/03nat b/tests/conntrack/testsuite/03nat
+index f94e8ff..014feb8 100644
+--- a/tests/conntrack/testsuite/03nat
++++ b/tests/conntrack/testsuite/03nat
+@@ -36,5 +36,13 @@
+ -L --dst-nat 3.3.3.3:81 ; OK
+ # show
+ -L --dst-nat 1.1.1.1:80 ; OK
++# badport
++-L --dst-nat 1.1.1.1: ; BAD
++# badport
++-L --dst-nat 1.1.1.1::; BAD
++# badport
++-L --dst-nat 1.1.1.1:80:80; BAD
++# badport
++-L --dst-nat 1.1.1.1:65536; BAD
+ # delete
+ -D -s 1.1.1.1 ; OK
+diff --git a/tests/conntrack/testsuite/07nat6 b/tests/conntrack/testsuite/07nat6
+new file mode 100644
+index 0000000..8cecd8e
+--- /dev/null
++++ b/tests/conntrack/testsuite/07nat6
+@@ -0,0 +1,56 @@
++# create dummy
++-I -s 2001:DB8::1.1.1.1 -d 2001:DB8::2.2.2.2 --dst-nat 2001:DB8::3.3.3.3 -p tcp --sport 10 --dport 20 --state LISTEN -u SEEN_REPLY -t 50 ; OK
++# show
++-L --dst-nat ; OK
++# show
++-L --dst-nat 2001:DB8::3.3.3.3 ; OK
++# show
++-L --src-nat ; OK
++# delete
++-D -s 2001:DB8::1.1.1.1 ; OK
++# create dummy again
++-I -s 2001:DB8::1.1.1.1 -d 2001:DB8::2.2.2.2 --src-nat 2001:DB8::3.3.3.3 -p tcp --sport 10 --dport 20 --state LISTEN -u SEEN_REPLY -t 50 ; OK
++# show
++-L --src-nat ; OK
++# show
++-L --src-nat 2001:DB8::3.3.3.3 ; OK
++# show
++-L --dst-nat ; OK
++# show any-nat
++-L --any-nat ; OK
++# delete
++-D -s 2001:DB8::1.1.1.1 ; OK
++# bad combination
++-L --dst-nat --any-nat ; BAD
++# bad combination
++-L --src-nat --any-nat ; BAD
++# bad combination
++-L --src-nat --dst-nat --any-nat ; BAD
++# create
++-I -s 2001:DB8::1.1.1.1 -d 2001:DB8::2.2.2.2 --dst-nat [2001:DB8::3.3.3.3]:80 -p tcp --sport 10 --dport 20 --state LISTEN -u SEEN_REPLY -t 50 ; OK
++# show
++-L --dst-nat [2001:DB8::3.3.3.3]:80 ; OK
++# show
++-L --any-nat [2001:DB8::3.3.3.3]:80 ; OK
++# show
++-L --dst-nat [2001:DB8::3.3.3.3]:81 ; OK
++# show
++-L --dst-nat [2001:DB8::1.1.1.1]:80 ; OK
++# noport
++-L --dst-nat [2001:DB8::1.1.1.1]: ; BAD
++# badport
++-L --dst-nat [2001:DB8::1.1.1.1]:: ; BAD
++# badport
++-L --dst-nat [2001:DB8::1.1.1.1]:80:80 ; BAD
++# badport
++-L --dst-nat [2001:DB8::1.1.1.1]:65536 ; BAD
++# delete
++-D -s 2001:DB8::1.1.1.1 ; OK
++# mismatched address family
++-I -s 2001:DB8::1.1.1.1 -d 2001:DB8::2.2.2.2 --dst-nat 3.3.3.3 -p tcp --sport 10 --dport 20 --state LISTEN -u SEEN_REPLY -t 50 ; BAD
++# mismatched address family
++-I -s 1.1.1.1 -d 2.2.2.2 --dst-nat 2001:DB8::3.3.3.3 -p tcp --sport 10 --dport 20 --state LISTEN -u SEEN_REPLY -t 50 ; BAD
++# create - brackets only for ports in nat
++-I -s 2001:DB8::1.1.1.1 -d 2001:DB8::2.2.2.2 --dst-nat [2001:DB8::3.3.3.3] -p tcp --sport 10 --dport 20 --state LISTEN -u SEEN_REPLY -t 50 ; BAD
++# create - brackets rejected elsewhere
++-I -s [2001:DB8::1.1.1.1] -d 2001:DB8::2.2.2.2 --dst-nat 2001:DB8::3.3.3.3 -p tcp --sport 10 --dport 20 --state LISTEN -u SEEN_REPLY -t 50 ; BAD

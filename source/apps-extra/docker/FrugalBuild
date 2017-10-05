@@ -2,30 +2,33 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=docker
-pkgver=1.12.3
-pkgextraver="6b644ec"
-pkgrel=1
+pkgver=17.05.0
+_gitcommit="89658be"
+pkgrel=2
 pkgdesc="Docker - the Linux container runtime"
-archs=('!i686' 'x86_64')
+archs=('x86_64')
 groups=('apps-extra')
-depends=('bridge-utils' 'iproute2' 'libguestfs' 'sqlite3' 'lvm2' 'btrfs-progs>=4.8.1-2')
+depends=('bridge-utils' 'iproute2' 'libguestfs>=1.36.5' 'sqlite3' 'lvm2' 'btrfs-progs>=4.10-2')
 makedepends=('go>=1.7' 'git' 'mercurial' 'ca-certificates' 'sphinx-httpdomain' 'mkdocs' \
         'python-jinja' 'python-markupsafe' 'python-markdown' 'pyyaml' 'watchdog' 'pathtools')
-_F_github_name="docker"
-_F_github_author="docker"
+rodepends=('containerd' 'runc' 'libnetwork' 'tini')
+_F_github_name="moby"
+_F_github_author="moby"
 _F_github_tag_v="y"
-_F_systemd_units=(docker=)
+Finclude github
+up2date="lynx -read_timeout=280 -dump  https://github.com/moby/moby/tags | grep '\ce.tar.gz' | sed 's/.*v\(.*\)-ce.*/\1/' | sort -nr | head -n1"
+_F_cd_path="moby-$pkgver-ce"
+#up2date="$up2date | sed 's/-ce//'"
+source=(${source[@]//$pkgver/$pkgver-ce} \
+	_docker \
+	docker.conf)
+sha1sums=('b1294decbd28eac9df59ecea1d4dc86dcd64346f' \
+          '47027a4c415cb1aa556e54dd0dc1c80f4fbe076a' \
+          '36269e4f788302439cd6bc672a83f594348660db')
+
 provides=('lxc-docker')
 replaces=('lxc-docker')
 conflicts=('lxc-docker')
-_F_archive_grepv="rc[1-9]"
-Finclude github systemd
-source=(${source[@]} \
-	https://raw.githubusercontent.com/felixr/docker-zsh-completion/master/_docker\
-        ${pkgname}.service)
-sha1sums=('d72777c509205129960a76c2067250f1e455c188' \
-          '9c0a8bbf4a55d58ae5f823c0595eb4b535222da6' \
-          '28c77e8cf1ce9691089d19b010631743d55587bb')
 
 build() {
 	Fcd
@@ -35,38 +38,33 @@ build() {
 
         Fexec mkdir -p $Fsrcdir/gopath/src/github.com/docker
 	Fexec rm -rf $Fsrcdir/gopath/src/github.com/docker/docker
-        Fexec mv $Fsrcdir/$_F_github_name-$pkgver/ $Fsrcdir/gopath/src/github.com/docker/docker/
+        Fexec mv $Fsrcdir/$_F_github_name-$pkgver-ce/ $Fsrcdir/gopath/src/github.com/docker/docker/
 
         Fcd gopath/src/github.com/docker/docker
-        #Fexec mv vendor/src/github.com/opencontainers/runc/libcontainer/seccomp/{jump_amd64.go,jump_linux.go}
-        #Fsed ',amd64' '' vendor/src/github.com/opencontainers/runc/libcontainer/seccomp/jump_linux.go
 
-        export DOCKER_GITCOMMIT=$pkgextraver
+        export DOCKER_GITCOMMIT=$_gitcommit
         Fexec ./hack/make.sh dynbinary
 
         Finstall 644 _docker usr/share/zsh/site-functions/_docker
 
 
-        Fexe gopath/src/github.com/docker/docker/bundles/${pkgver}/dynbinary-client/docker-${pkgver} \
-                        usr/sbin/docker
-	Fexe gopath/src/github.com/docker/docker/bundles/${pkgver}/dynbinary-daemon/dockerd-${pkgver} \
-                        usr/sbin/dockerd
-	Fexe gopath/src/github.com/docker/docker/bundles/${pkgver}/dynbinary-daemon/docker-proxy-${pkgver} \
-                        usr/sbin/docker-proxy
+        Fexe gopath/src/github.com/docker/docker/bundles/${pkgver}-ce/dynbinary-client/docker-${pkgver}-ce \
+                        usr/bin/docker
+	Fexe gopath/src/github.com/docker/docker/bundles/${pkgver}-ce/dynbinary-daemon/dockerd-${pkgver}-ce \
+                        usr/bin/dockerd
 
         # install systemd service unit
-        Finstall 644 lib/systemd/system/docker.service
+        Finstall 644 gopath/src/github.com/docker/docker/contrib/init/systemd/docker.service lib/systemd/system/docker.service
+	Finstall 644 gopath/src/github.com/docker/docker/contrib/init/systemd/docker.socket lib/systemd/system/docker.socket
 
         Finstall 644 gopath/src/github.com/docker/docker/contrib/completion/bash/docker \
                 usr/share/bash-completion/completions/docker
 
-        Fmkdir usr/share/doc/docker-${pkgver}
+        Fmkdir usr/share/doc/docker-${pkgver}-ce
 
-        #cd $Fsrcdir/gopath/src/github.com/docker/docker/docs
-        #mkdocs build || Fdie
-
-	#Fcp  gopath/src/github.com/docker/docker/docs/_build/html/* \
-	#	usr/share/doc/docker-${pkgver}
+        # Create group using sysuser.d
+        Fmkdir usr/lib/sysusers.d/
+        Ffile /usr/lib/sysusers.d/$pkgname.conf
 
 }
 

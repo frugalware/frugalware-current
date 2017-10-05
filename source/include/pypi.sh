@@ -30,7 +30,7 @@
 ###
 [ -z "$_F_pypi_name" ] && _F_pypi_name="$pkgname"
 [ -z "$_F_pypi_ext" ] && _F_pypi_ext='.tar.gz'
-
+[ -z "$_F_archive_name" ] && _F_archive_name="$_F_pypi_name"
 ###
 # == OVERWRITTEN VARIABLES
 # * url (if not set)
@@ -39,5 +39,5 @@
 ###
 [ -z "$url" ] && url="http://pypi.python.org/pypi/$_F_pypi_name"
 up2date="Flastarchive https://pypi.python.org/pypi/${_F_pypi_name}/json $_F_pypi_ext"
-source=(https://files.pythonhosted.org/packages/source/${_F_pypi_name:0:1}/$_F_pypi_name/$_F_pypi_name-$pkgver$_F_pypi_ext)
+source=(https://files.pythonhosted.org/packages/source/${_F_pypi_name:0:1}/$_F_pypi_name/$_F_archive_name-$pkgver$_F_pypi_ext)
 

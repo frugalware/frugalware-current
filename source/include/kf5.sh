@@ -50,7 +50,10 @@ if [ -z "$_F_kde_ver" ]; then
 	fi
 fi
 
-
+## TMP set to unstable
+#if [ "$_F_kde_project" = "applications" ]; then
+#	_F_kde_unstable="yes"
+#fi
 
 if [ -z "$_F_kde_qtver" ]; then
 	_F_kde_qtver="$_F_kdever_qt5"
@@ -73,9 +76,8 @@ fi
 
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
-	_F_kde_up2date_mirror="ftp://ftp5.gwdg.de/pub/linux/kde/"
-	#_F_kde_mirror="http://vesta.informatik.rwth-aachen.de/ftp/pub/mirror/kde/"
-	_F_kde_mirror="http://download.kde.org/"
+	_F_kde_mirror="http://mirror.netcologne.de/kde/"
+	 _F_kde_up2date_mirror="ftp://ftp5.gwdg.de/pub/linux/kde/"
 fi
 
 if [ -z "$_F_kde_folder" ]; then
@@ -144,7 +146,8 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		up2date="ncftpls -x 'R' $_F_kde_up2date_mirror/$_F_kde_folder | Flasttar"
+		makedepends+=('rsync')
+		up2date="rsync -r -n  rsync://mirror.netcologne.de/kde/$_F_kde_folder | Flasttar"
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then
@@ -161,9 +164,6 @@ fi
 ## X11/mesa changes
 makedepends+=('x11-protos')
 
-## Use ncftp for up2date
-makedepends+=('ncftp')
-
 ###
 # == APPENDED VARIABLES
 # makedepends: if kde4 append automoc4 unless building it, if kf5 append some other deps.
@@ -176,7 +176,7 @@ else
 fi
 
 if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
-	makedepends+=('extra-cmake-modules>=5.27.0-2' 'qt5-tools')
+	makedepends+=('extra-cmake-modules>=5.37.0' 'qt5-tools' 'gperf')
 fi
 
 ## From gcc6 docs

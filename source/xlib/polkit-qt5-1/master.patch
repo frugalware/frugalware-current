@@ -1,0 +1,291 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index bb91bde..13d9dbd 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -33,9 +33,9 @@ if(USE_QT5)
+     message(STATUS "Using Qt 5")
+ 
+     set(REQUIRED_QT_VERSION 5.1.0)
++    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+ 
+     find_package(Qt5 ${REQUIRED_QT_VERSION} REQUIRED COMPONENTS Core DBus Widgets)
+-    add_definitions(-DQT_DISABLE_DEPRECATED_BEFORE=0)
+ 
+     set(POLKITQT-1_PCNAME "polkit-qt5-1")
+     set(POLKITQT-1_CORE_PCNAME "polkit-qt5-core-1")
+@@ -101,6 +101,7 @@ include_directories(
+     ${CMAKE_CURRENT_SOURCE_DIR}
+     ${CMAKE_CURRENT_SOURCE_DIR}/core
+     ${CMAKE_CURRENT_SOURCE_DIR}/includes
++    ${CMAKE_CURRENT_BINARY_DIR}
+ )
+ if(NOT USE_QT5)
+     include_directories(
+@@ -113,6 +114,7 @@ set(CMAKE_REQUIRED_INCLUDES ${POLKIT_INCLUDE_DIR} ${POLKIT_AGENT_INCLUDE_DIR})
+ set(CMAKE_REQUIRED_LIBRARIES ${POLKIT_LIBRARIES} ${POLKIT_AGENT_LIBRARY})
+ check_function_exists(polkit_agent_listener_register HAVE_POLKIT_AGENT_LISTENER_REGISTER)
+ check_function_exists(polkit_authority_get_sync HAVE_POLKIT_AUTHORITY_GET_SYNC)
++check_function_exists(polkit_system_bus_name_get_user_sync HAVE_POLKIT_SYSTEM_BUS_NAME_GET_USER_SYNC)
+ 
+ if (NOT HAVE_POLKIT_AGENT_LISTENER_REGISTER OR NOT HAVE_POLKIT_AUTHORITY_GET_SYNC)
+     message(STATUS "You have an older polkit-1 version: Polkit-Qt-1 will be built in compatibility mode")
+@@ -134,6 +136,7 @@ set(POLKITQT-1_LIBRARY_VERSION "${POLKITQT-1_ABI_VERSION}.${POLKITQT-1_VERSION_M
+ set(POLKITQT-1_LIB_NAMESPACE ${POLKITQT-1_CAMEL_NAME})
+ 
+ configure_file(polkitqt1-version.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/polkitqt1-version.h)
++configure_file(polkitqt1-config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/polkitqt1-config.h)
+ 
+ install(FILES
+     gui/polkitqt1-gui-action.h
+diff --git a/agent/polkitqt1-agent-listener.cpp b/agent/polkitqt1-agent-listener.cpp
+index 38744ec..5efc091 100644
+--- a/agent/polkitqt1-agent-listener.cpp
++++ b/agent/polkitqt1-agent-listener.cpp
+@@ -94,7 +94,7 @@ bool Listener::registerListener(const PolkitQt1::Subject &subject, const QString
+     bool r = polkit_agent_register_listener(d->listener,
+ #endif
+                                             subject.subject(),
+-                                            objectPath.toAscii().data(),
++                                            objectPath.toLatin1().data(),
+ #ifndef POLKIT_QT_1_COMPATIBILITY_MODE
+                                             NULL,
+ #endif
+diff --git a/agent/polkitqtlistener.cpp b/agent/polkitqtlistener.cpp
+index dc5fdda..59f8d5d 100644
+--- a/agent/polkitqtlistener.cpp
++++ b/agent/polkitqtlistener.cpp
+@@ -59,7 +59,7 @@ static gboolean polkit_qt_listener_initiate_authentication_finish(PolkitAgentLis
+         GAsyncResult         *res,
+         GError              **error);
+ 
+-G_DEFINE_TYPE(PolkitQtListener, polkit_qt_listener, POLKIT_AGENT_TYPE_LISTENER);
++G_DEFINE_TYPE(PolkitQtListener, polkit_qt_listener, POLKIT_AGENT_TYPE_LISTENER)
+ 
+ static void polkit_qt_listener_init(PolkitQtListener *listener)
+ {
+diff --git a/core/polkitqt1-authority.cpp b/core/polkitqt1-authority.cpp
+index dd014cf..886fb41 100644
+--- a/core/polkitqt1-authority.cpp
++++ b/core/polkitqt1-authority.cpp
+@@ -83,7 +83,10 @@ public:
+     // Polkit will return NULL on failures, hence we use it instead of 0
+     Private(Authority *qq) : q(qq)
+             , pkAuthority(NULL)
+-            , m_hasError(false) {}
++            , m_hasError(false)
++            , m_systemBus(0)
++    {
++    }
+ 
+     ~Private();
+ 
+@@ -103,6 +106,13 @@ public:
+     bool m_hasError;
+     Authority::ErrorCode m_lastError;
+     QString m_errorDetails;
++    // Local system bus. QDBusConnection::systemBus() may only be savely used
++    // inside a QCoreApplication scope as for example destruction of connected
++    // objects need to happen before the bus disappears. Since this class however
++    // is a global static and systemBus() internally is a global static we
++    // cannot assure destruction order. Instead we create a local copy of the
++    // global systemBus instance so we can make life time to our needs.
++    // This prevents crashes when cleaning up the global statics.
+     QDBusConnection *m_systemBus;
+     GCancellable *m_checkAuthorizationCancellable,
+     *m_enumerateActionsCancellable,
+@@ -127,6 +137,7 @@ public:
+ 
+ Authority::Private::~Private()
+ {
++    delete m_systemBus;
+     g_object_unref(m_checkAuthorizationCancellable);
+     g_object_unref(m_enumerateActionsCancellable);
+     g_object_unref(m_registerAuthenticationAgentCancellable);
+@@ -170,6 +181,9 @@ void Authority::Private::init()
+ 
+     g_type_init();
+ 
++    m_systemBus = new QDBusConnection(QDBusConnection::connectToBus(QDBusConnection::SystemBus,
++                                                                    QString("polkit_qt_system_bus")));
++
+     m_checkAuthorizationCancellable = g_cancellable_new();
+     m_enumerateActionsCancellable = g_cancellable_new();
+     m_registerAuthenticationAgentCancellable = g_cancellable_new();
+@@ -219,11 +233,17 @@ void Authority::Private::init()
+ 
+     // then we need to extract all seats from ConsoleKit
+     QDBusMessage msg = QDBusMessage::createMethodCall(consoleKitService, consoleKitManagerPath, consoleKitManagerInterface, "GetSeats");
+-    msg = QDBusConnection::systemBus().call(msg);
+-    if (!msg.arguments().isEmpty()) {
++    const QDBusMessage reply = m_systemBus->call(msg);
++
++    if (reply.type() != QDBusMessage::ErrorMessage && !reply.arguments().isEmpty()) {
+         // this method returns a list with present seats
+-        QList<QString> seats;
+-        qVariantValue<QDBusArgument> (msg.arguments()[0]) >> seats;
++        QStringList seats;
++        QVariant arg = reply.arguments()[0];
++        if (arg.type() == qMetaTypeId<QDBusArgument>()) {
++            arg.value<QDBusArgument>() >> seats;
++        } else {
++            seats = arg.toStringList();
++        }
+         // it can be multiple seats present so connect all their signals
+         Q_FOREACH(const QString &seat, seats) {
+             seatSignalsConnect(seat);
+@@ -256,8 +276,7 @@ void Authority::Private::seatSignalsConnect(const QString &seat)
+ void Authority::Private::dbusSignalAdd(const QString &service, const QString &path, const QString &interface, const QString &name)
+ {
+     // FIXME: This code seems to be nonfunctional - it needs to be fixed somewhere (is it Qt BUG?)
+-    QDBusConnection::systemBus().connect(service, path, interface, name,
+-                                         q, SLOT(dbusFilter(QDBusMessage)));
++    m_systemBus->connect(service, path, interface, name, q, SLOT(dbusFilter(QDBusMessage)));
+ }
+ 
+ void Authority::Private::dbusFilter(const QDBusMessage &message)
+@@ -267,7 +286,7 @@ void Authority::Private::dbusFilter(const QDBusMessage &message)
+ 
+         // TODO: Test this with the multiseat support
+         if (message.member() == "SeatAdded") {
+-            seatSignalsConnect(qVariantValue<QDBusObjectPath> (message.arguments()[0]).path());
++            seatSignalsConnect(message.arguments()[0].value<QDBusObjectPath>().path());
+         }
+     }
+ }
+@@ -323,7 +342,7 @@ Authority::Result Authority::checkAuthorizationSync(const QString &actionId, con
+ 
+     pk_result = polkit_authority_check_authorization_sync(d->pkAuthority,
+                 subject.subject(),
+-                actionId.toAscii().data(),
++                actionId.toLatin1().data(),
+                 NULL,
+                 (PolkitCheckAuthorizationFlags)(int)flags,
+                 NULL,
+@@ -358,7 +377,7 @@ void Authority::checkAuthorization(const QString &actionId, const Subject &subje
+ 
+     polkit_authority_check_authorization(d->pkAuthority,
+                                          subject.subject(),
+-                                         actionId.toAscii().data(),
++                                         actionId.toLatin1().data(),
+                                          NULL,
+                                          (PolkitCheckAuthorizationFlags)(int)flags,
+                                          d->m_checkAuthorizationCancellable,
+@@ -470,8 +489,8 @@ bool Authority::registerAuthenticationAgentSync(const Subject &subject, const QS
+     }
+ 
+     result = polkit_authority_register_authentication_agent_sync(d->pkAuthority,
+-             subject.subject(), locale.toAscii().data(),
+-             objectPath.toAscii().data(), NULL, &error);
++             subject.subject(), locale.toLatin1().data(),
++             objectPath.toLatin1().data(), NULL, &error);
+ 
+     if (error) {
+         d->setError(E_RegisterFailed, error->message);
+@@ -495,8 +514,8 @@ void Authority::registerAuthenticationAgent(const Subject &subject, const QStrin
+ 
+     polkit_authority_register_authentication_agent(d->pkAuthority,
+             subject.subject(),
+-            locale.toAscii().data(),
+-            objectPath.toAscii().data(),
++            locale.toLatin1().data(),
++            objectPath.toLatin1().data(),
+             d->m_registerAuthenticationAgentCancellable,
+             d->registerAuthenticationAgentCallback,
+             this);
+diff --git a/core/polkitqt1-subject.cpp b/core/polkitqt1-subject.cpp
+index f0d69c6..ea10828 100644
+--- a/core/polkitqt1-subject.cpp
++++ b/core/polkitqt1-subject.cpp
+@@ -19,6 +19,8 @@
+  */
+ 
+ #include "polkitqt1-subject.h"
++#include "polkitqt1-identity.h"
++#include "polkitqt1-config.h"
+ 
+ #include <QtCore/QDebug>
+ #include <polkit/polkit.h>
+@@ -180,6 +182,16 @@ void SystemBusNameSubject::setName(const QString &name)
+     polkit_system_bus_name_set_name((PolkitSystemBusName *) subject(), name.toUtf8().data());
+ }
+ 
++UnixUserIdentity SystemBusNameSubject::user()
++{
++#if HAVE_POLKIT_SYSTEM_BUS_NAME_GET_USER_SYNC
++    return UnixUserIdentity(polkit_system_bus_name_get_user_sync((PolkitSystemBusName *) subject(), NULL, NULL));
++#else
++    qWarning("Polkit is too old, returning invalid user from SystemBusNameSubject::user()!");
++    return UnixUserIdentity();
++#endif
++}
++
+ // ----- SystemSession
+ UnixSessionSubject::UnixSessionSubject(const QString &sessionId)
+         : Subject()
+diff --git a/core/polkitqt1-subject.h b/core/polkitqt1-subject.h
+index 4c7a22b..01323a2 100644
+--- a/core/polkitqt1-subject.h
++++ b/core/polkitqt1-subject.h
+@@ -40,6 +40,8 @@ typedef struct _PolkitSystemBusName PolkitSystemBusName;
+ namespace PolkitQt1
+ {
+ 
++class UnixUserIdentity;
++
+ /**
+  * \class Subject polkitqt1-subject.h Subject
+  * \author Jaroslav Reznik <jreznik@redhat.com>
+@@ -208,6 +210,15 @@ public:
+     * \param name System bus name.
+     */
+     void setName(const QString &name);
++
++    /**
++     * Returns the UnixUserIdentity for this subject.
++     *
++     * \note This can be an invalid UnixUserIdentity so be sure to check before using it
++     *
++     * \since 0.113
++     **/
++    UnixUserIdentity user();
+ };
+ 
+ /**
+diff --git a/polkitqt1-config.h.cmake b/polkitqt1-config.h.cmake
+new file mode 100644
+index 0000000..fed40a9
+--- /dev/null
++++ b/polkitqt1-config.h.cmake
+@@ -0,0 +1 @@
++#cmakedefine01 HAVE_POLKIT_SYSTEM_BUS_NAME_GET_USER_SYNC
+diff --git a/test/test.cpp b/test/test.cpp
+index afb7f64..2c7db28 100644
+--- a/test/test.cpp
++++ b/test/test.cpp
+@@ -46,7 +46,7 @@ void TestAuth::test_Auth_checkAuthorization()
+     // Test if the signal was emitted
+     QCOMPARE(spy.count(), 1);
+     // Test the result
+-    result = qVariantValue<PolkitQt1::Authority::Result> (spy.takeFirst()[0]);
++    result = spy.takeFirst()[0].value<PolkitQt1::Authority::Result>();
+     QCOMPARE(result, Authority::No);
+     QVERIFY(!authority->hasError());
+     spy.clear();
+@@ -92,7 +92,7 @@ void TestAuth::test_Auth_enumerateActions()
+     Authority::instance()->enumerateActions();
+     wait();
+     QCOMPARE(spy.count(), 1);
+-    list = qVariantValue<PolkitQt1::ActionDescription::List> (spy.takeFirst()[0]);
++    list = spy.takeFirst()[0].value<PolkitQt1::ActionDescription::List>();
+     QVERIFY(!Authority::instance()->hasError());
+     Q_FOREACH(const ActionDescription &ad, list) {
+         if ((ad.actionId() == "org.qt.policykit.examples.kick") ||
+@@ -154,7 +154,7 @@ void TestAuth::test_Authority()
+                        "OpenSession");
+     QDBusMessage reply = QDBusConnection::systemBus().call(msg);
+     QString cookie;
+-    cookie = qVariantValue<QString> (reply.arguments()[0]);
++    cookie = reply.arguments()[0].value<QString>();
+ 
+ 
+     msg = QDBusMessage::createMethodCall("org.freedesktop.ConsoleKit",

@@ -21,7 +21,7 @@
 # pkgrel=1
 # pkgdesc="A sawfish script which provides a run-command dialog."
 # url="http://sawfish.wikia.com/wiki/Run-application"
-# up2date="lynx -dump '$url' | grep -o 'Version: \(.*\)' | sed 's|Version: \(.*\)|\1|'"
+# up2date="lynx -read_timeout=280 -dump '$url' | grep -o 'Version: \(.*\)' | sed 's|Version: \(.*\)|\1|'"
 # source=(http://images.wikia.com/sawfish/images//2/25/$_F_sawfish_file)
 # Finclude sawfish-script
 # sha1sums=('7d65e7924ae73a3863a0e535939b4a8983bf49af')

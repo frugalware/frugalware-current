@@ -2,21 +2,66 @@
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=screen
-pkgver=4.4.0
-pkgrel=1
+pkgver=4.6.1
+pkgrel=3
 pkgdesc="A full-screen window manager that multiplexes a physical terminal"
 url="http://www.gnu.org/software/screen/screen.html"
 pkgurl="http://ftp.gnu.org/gnu/$pkgname/"
-depends=('ncurses>=6.0-6')
+depends=('ncurses>=6.0-6' 'pam')
 groups=('apps')
 archs=("x86_64")
 up2date="Flasttar $pkgurl"
-source=("$pkgurl/$pkgname-$pkgver.tar.gz" \
-	screen-4.0.3-nosuid.diff \
-	README.Frugalware)
-sha1sums=('f37f99ec57be1063c471c86511eab20a3afd39ff' \
-          '41890308184675c90cd528a206ce4117760188ca' \
-          'aee108ed81e41b3fd2e6d6d028a659fa7abd100a')
-Fconfopts+=" --disable-pam --enable-locale --enable-rxvt_osc --enable-colors256"
-unset MAKEFLAGS
+source=($pkgurl/$pkgname-$pkgver.tar.gz screen.conf screen-pam README.Frugalware)
+backup=('etc/screen/screenrc' 'etc/pam.d/screen')
+sha1sums=('444dae1c6d2ff0b7dfd774b4e53e49c69de811ee' \
+          '523a61585ff9571b8fa9cd511a95d1040218da87' \
+          '7bde8592f01e9eab13a5cc85a4902230a6fc47e4' \
+          'f7f2b22587df7e543fa67ada2b8ff8c04d412062')
+_Fbuild_no_patch="yes"
+
+build() {
+
+	Fcd
+	Fpatchall
+
+	_F_make_opts="-j1"
+
+	Fbuild \
+		--enable-pam \
+		--enable-colors256 \
+		--with-pty-group=5 \
+		--with-socket-dir=/run/screen \
+		--with-sys-screenrc=/etc/screen/screenrc \
+		--enable-rxvt_osc \
+		--enable-use-locale \
+		--enable-telnet
+
+	## no need for that
+	Frm usr/bin/${pkgname}
+	Fmv usr/bin/${pkgname}-${pkgver} usr/bin/${pkgname}
+
+	## PAM file
+	Finstall 0644 "$pkgname-pam" etc/pam.d/screen
+
+	## systemd file
+	Fmkdir run/screen
+	Finstall 0644 "$pkgname.conf" usr/lib/tmpfiles.d/screen.conf
+
+	## default rc file
+	Finstallrel 0644 ./etc/etcscreenrc etc/screen/screenrc
+
+	## example ~/.screenrc file
+	Finstallrel 0644 ./etc/screenrc etc/screen/screenrc.user.example
+
+	## Ok no SUID
+	Ffileschmod /usr/bin/screen 0755
+	Fdirschmod /run/screen 0777
+
+	Fmkdir etc/tmpfiles.d
+## fu** you systemd
+cat > $Fdestdir/etc/tmpfiles.d/$pkgname.conf << EOF
+d $Flocalstatedir/run/screen 0777 root root -
+EOF
+
+}
 # optimization OK

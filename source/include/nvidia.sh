@@ -76,7 +76,7 @@ url="http://www.nvidia.com/object/unix.html"
 if [ -n "$_F_nvidia_arch" ]; then
 	source=(ftp://download.nvidia.com/XFree86/Linux-$_F_nvidia_arch/$pkgver/$_F_nvidia_name.run)
 fi
-up2date="lynx -dump http://www.nvidia.com/object/unix.html|grep -m1 '"$_F_nvidia_up2date"'|sed 's/.*]//;s/-/_/'"
+up2date="lynx -read_timeout=280 -dump http://www.nvidia.com/object/unix.html|grep -m1 '"$_F_nvidia_up2date"'|sed 's/.*]//;s/-/_/'"
 
 _F_cd_path=$_F_nvidia_name
 _F_kernelmod_scriptlet=$_F_nvidia_install

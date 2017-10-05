@@ -21,7 +21,7 @@
 # makedepends=('pth') # it must be compiled with pth for gpg-agent
 # groups=('lib')
 # archs=('x86_64')
-# up2date="lynx -dump http://www.gnupg.org/\(en\)/download/index.html |grep libassuan.*tar |sed -n -e 's/.*n-\(.*\)\.t.*/\1/;s/-/_/;1 p'"
+# up2date="lynx -read_timeout=280 -dump http://www.gnupg.org/\(en\)/download/index.html |grep libassuan.*tar |sed -n -e 's/.*n-\(.*\)\.t.*/\1/;s/-/_/;1 p'"
 # source=(http://gd.tuwien.ac.at/privacy/gnupg/libassuan/libassuan-$pkgver.tar.bz2)
 # Finclude texinfo
 # sha1sums=('4e12bd924e01c31c7d4c021b465c94ec55b1cb17')

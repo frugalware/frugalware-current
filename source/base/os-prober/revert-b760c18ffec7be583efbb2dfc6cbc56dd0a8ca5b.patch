@@ -1,0 +1,162 @@
+diff -Naur os-prober-1.75/common.sh os-prober-1.75-p/common.sh
+--- os-prober-1.75/common.sh	2017-05-01 09:55:33.000000000 +0200
++++ os-prober-1.75-p/common.sh	2017-07-17 16:19:26.365449696 +0200
+@@ -204,14 +204,37 @@
+ 	fi
+ }
+ 
+-# Sets $mountboot as output variables.  This is very messy, but POSIX shell
+-# isn't really up to the task of doing it more cleanly.
++do_dmsetup () {
++	local prefix partition dm_device partition_name size_p
++	prefix="$1"
++	partition="$2"
++	dm_device=
++
++	if type dmsetup >/dev/null 2>&1 && \
++	   type blockdev >/dev/null 2>&1; then
++		partition_name="osprober-linux-${partition##*/}"
++		dm_device="/dev/mapper/$partition_name"
++		size_p=$(blockdev --getsize $partition )
++		if [ -e "$dm_device" ]; then
++			error "$dm_device already exists"
++			dm_device=
++		else
++			debug "creating device mapper device $dm_device"
++			echo "0 $size_p linear $partition 0" | dmsetup create -r $partition_name
++		fi
++	fi
++	echo "$dm_device"
++}
++
++# Sets $mountboot and $dm_device as output variables.  This is very messy,
++# but POSIX shell isn't really up to the task of doing it more cleanly.
+ linux_mount_boot () {
+ 	partition="$1"
+ 	tmpmnt="$2"
+ 
+ 	bootpart=""
+ 	mounted=""
++	dm_device=""
+ 	if [ -e "$tmpmnt/etc/fstab" ]; then
+ 		# Try to mount any /boot partition.
+ 		bootmnt=$(parsefstab < "$tmpmnt/etc/fstab" | grep " /boot ") || true
+@@ -282,6 +305,13 @@
+ 					if type grub-mount >/dev/null 2>&1 && \
+ 					   grub-mount "$boottomnt" "$tmpmnt/boot" 2>/dev/null; then
+ 						mounted=1
++					elif dm_device="$(do_dmsetup osprober-linux "$boottomnt")" && [ "$dm_device" ]; then
++						if mountinfo=`mount -o ro "$dm_device" "$tmpmnt/boot" -t "$3"`; then
++							debug "mounted as $3 filesystem"
++							mounted=1
++						else
++							error "failed to mount $dm_device on $tmpmnt/boot: $mountinfo"
++						fi
+ 					fi
+ 				fi
+ 			fi
+diff -Naur os-prober-1.75/debian/control os-prober-1.75-p/debian/control
+--- os-prober-1.75/debian/control	2017-05-01 09:55:33.000000000 +0200
++++ os-prober-1.75-p/debian/control	2017-07-17 16:19:26.366449724 +0200
+@@ -11,7 +11,7 @@
+ Package: os-prober-udeb
+ Package-Type: udeb
+ Architecture: any
+-Depends: ${misc:Depends}, ${shlibs:Depends}, di-utils-mapdevfs, anna (>= 1.16), grub-mount-udeb [linux-any kfreebsd-any]
++Depends: ${misc:Depends}, ${shlibs:Depends}, di-utils-mapdevfs, anna (>= 1.16), grub-mount-udeb [linux-any kfreebsd-any], dmsetup-udeb [linux-any]
+ Provides: os-prober
+ Description: utility to detect other OSes on a set of drives
+  This package is to be used by boot loader installers to detect other OSes
+@@ -22,7 +22,7 @@
+ Architecture: any
+ Section: utils
+ Priority: extra
+-Depends: ${shlibs:Depends}, ${misc:Depends}, grub-common [linux-any kfreebsd-any]
++Depends: ${shlibs:Depends}, ${misc:Depends}, grub-common [linux-any kfreebsd-any], dmsetup [linux-any]
+ Description: utility to detect other OSes on a set of drives
+  This package detects other OSes available on a system and outputs the
+  results in a generic machine-readable format.
+diff -Naur os-prober-1.75/linux-boot-probes/common/50mounted-tests os-prober-1.75-p/linux-boot-probes/common/50mounted-tests
+--- os-prober-1.75/linux-boot-probes/common/50mounted-tests	2017-05-01 09:55:33.000000000 +0200
++++ os-prober-1.75-p/linux-boot-probes/common/50mounted-tests	2017-07-17 16:19:26.366449724 +0200
+@@ -10,6 +10,12 @@
+ 			warn "failed to umount $tmpmnt"
+ 		fi
+ 	fi
++	for dm_device in $dm_devices; do
++		if [ -e "$dm_device" ]; then
++			debug "remove device mapper device $dm_device"
++			dmsetup remove $dm_device
++		fi
++	done
+ 	rmdir "$tmpmnt" || true
+ }
+ 
+@@ -48,18 +54,34 @@
+ fi
+ 
+ mounted=
++dm_devices=
+ if type grub-mount >/dev/null 2>&1 && \
+    type grub-probe >/dev/null 2>&1 && \
+    grub-mount "$partition" "$tmpmnt" 2>/dev/null; then
+ 	mounted=1
+ 	type="$(grub-probe -d "$partition" -t fs)"
+ 	[ "$type" ] || type=fuseblk
++elif dm_device="$(do_dmsetup osprober-linux "$partition")" && \
++     [ "$dm_device" ]; then
++	dm_devices="$dm_device"
++	for type in $types; do
++		if mountinfo=`mount -o ro -t "$type" "$dm_device" "$tmpmnt" 2>&1`; then
++			debug "mounted as $type filesystem"
++			mounted=1
++			break
++		else
++			debug "mounting $dm_device ($partition) as $type failed: $mountinfo"
++		fi
++	done
+ fi
+ 
+ if [ "$mounted" ]; then
+ 	linux_mount_boot "$partition" "$tmpmnt"
+ 	bootpart="${mountboot%% *}"
+ 	mounted="${mountboot#* }"
++	if [ "$dm_device" ]; then
++		dm_devices="$dm_device $dm_devices"
++	fi
+ 
+ 	for test in /usr/lib/linux-boot-probes/mounted/*; do
+ 		if [ -f "$test" ] && [ -x "$test" ]; then
+diff -Naur os-prober-1.75/os-probes/common/50mounted-tests os-prober-1.75-p/os-probes/common/50mounted-tests
+--- os-prober-1.75/os-probes/common/50mounted-tests	2017-05-01 09:55:33.000000000 +0200
++++ os-prober-1.75-p/os-probes/common/50mounted-tests	2017-07-17 16:19:26.366449724 +0200
+@@ -11,6 +11,11 @@
+ 			warn "failed to umount $tmpmnt"
+ 		fi
+ 	fi
++	if [ -e "$dm_device" ]
++	then
++		debug "remove device mapper device $dm_device"
++		dmsetup remove $dm_device
++	fi
+ 	rmdir "$tmpmnt" || true
+ }
+ 
+@@ -69,6 +74,17 @@
+ 		debug "mounted using GRUB, but unknown filesystem?"
+ 		type=fuseblk
+ 	fi
++elif dm_device="$(do_dmsetup osprober "$partition")" && \
++     [ "$dm_device" ]; then
++	for type in $types $delaytypes; do
++		if mountinfo=`mount -o ro -t "$type" "$dm_device" "$tmpmnt" 2>&1`; then
++			debug "mounted as $type filesystem"
++			mounted=1
++			break
++		else
++			debug "mounting $dm_device ($partition) as $type failed: $mountinfo"
++		fi
++	done
+ fi
+ 
+ if [ "$mounted" ]; then

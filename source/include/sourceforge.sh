@@ -82,7 +82,7 @@ if [ -n "$_F_sourceforge_sep" ] && [ "$_F_sourceforge_sep" = "None" ]; then
 fi
 
 if [ -z "$_F_sourceforge_rss_limit" ]; then
-	_F_sourceforge_rss_limit=20
+	_F_sourceforge_rss_limit=100
 fi
 
 ###
@@ -109,7 +109,7 @@ if [ -z "$_F_archive_grepv" ]; then
 	_F_archive_grepv="^$"
 fi
 Fpkgversep=$_F_sourceforge_sep
-up2date="lynx -dump "$_F_sourceforge_rss_url" | \
+up2date="lynx -read_timeout=280 -dump "$_F_sourceforge_rss_url" | \
 	egrep '/$_F_archive_name$_F_sourceforge_sep.*$_F_sourceforge_ext' | \
 	grep -v '$_F_archive_grepv' | \
 	sed -e 's|.*$_F_archive_name$_F_sourceforge_sep$_F_sourceforge_prefix||;s|$_F_sourceforge_ext.*||' | \

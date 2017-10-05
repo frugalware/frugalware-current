@@ -23,7 +23,7 @@
 # source=($url/files/releases/source/$pkgname/$pkgname-$pkgver.tar.bz2 \
 #         galago-sharp-0.5.0-fix-nunit-name.patch)
 # Finclude mono
-# up2date="lynx -dump http://www.galago-project.org/files/releases/source/$pkgname | Flasttar"
+# up2date="lynx -read_timeout=280 -dump http://www.galago-project.org/files/releases/source/$pkgname | Flasttar"
 # sha1sums=('67ec03129e3ca55c982f0fc3c61825779f80b9f0' \
 #           '3e4dcbd3fa3f7b5bb1995c3f268ac19e4c9da15f')
 # --------------------------------------------------

@@ -21,7 +21,7 @@
 
 if [ -n "$_F_gtk_apps_id" ]; then
 	url="http://www.gtk-apps.org/content/show.php?content=$_F_gtk_apps_id"
-	up2date="lynx -dump "$url"|grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed 's/      \(.*\).*/\1/'"
+	up2date="lynx -read_timeout=280 -dump "$url"|grep -v http|grep  -m1 '      [0-9.0-9.0-9]'|sed 's/      \(.*\).*/\1/'"
 fi
 
 ###

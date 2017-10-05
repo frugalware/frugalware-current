@@ -1,28 +1,23 @@
-#!/bin/sh
-set -e
+#!/bin/bash
 
-LIBDIR=/usr/lib/jitsi/lib/native
-APPDIR=/usr/lib/jitsi
-MAINCLASS=net.java.sip.communicator.launcher.SIPCommunicator
+CLIENTARGS=""
+uname -m | grep i686 && CLIENTARGS="-client -Xmx256m"
 
-cd "$APPDIR"
+if [[ -n ${JAVA_HOME} ]]; then
+  JAVABIN="${JAVA_HOME}/bin/java"
+else
+  JAVABIN="java"
+fi
 
-for jar in lib/*.jar; do
-	CLASSPATH=$CLASSPATH:$jar
-done
-for jar in sc-launcher.jar util.jar; do
-	CLASSPATH=$CLASSPATH:sc-bundles/$jar
-done
+SCDIR=/usr/lib/jitsi
+LIBPATH="${SCDIR}/lib"
+CLASSPATH="${LIBPATH}/felix.jar:${SCDIR}/sc-bundles/sc-launcher.jar:${SCDIR}/sc-bundles/util.jar:${SCDIR}/sc-bundles/dnsjava.jar:${LIBPATH}"
+FELIX_CONFIG="${LIBPATH}/felix.client.run.properties"
+LOG_CONFIG="${LIBPATH}/logging.properties"
+COMMAND="${JAVABIN} ${CLIENTARGS} -classpath ${CLASSPATH} -Djna.library.path=${LIBPATH}/native -Dfelix.config.properties=file:${FELIX_CONFIG} -Djava.util.logging.config.file=${LOG_CONFIG} net.java.sip.communicator.launcher.SIPCommunicator"
 
-# extra options
-OPTIONS="\
-	-Djna.library.path=$LIBDIR \
-	-Djava.library.path=$LIBDIR \
-	-Dfelix.config.properties=file:lib/felix.client.run.properties \
-	-Djava.util.logging.config.file=lib/logging.properties \
-"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${LIBPATH}/native"
 
-# set add LIBPATH to LD_LIBRARY_PATH for any sc natives (e.g. jmf .so's)
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LIBDIR
+cd "${SCDIR}"
 
-java ${VM_ARGS} -cp :${CLASSPATH} ${OPTIONS} -Djava.library.path="${LD_LIBRARY_PATH}" ${MAINCLASS}
+exec ${COMMAND} $*

@@ -2,28 +2,73 @@
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=x265
-pkgver=2.1
-pkgrel=1
+pkgver=2.5
+pkgrel=2
 Fpkgversep="_"
 pkgdesc="Open Source H265/HEVC video encoder."
 url="http://x265.org/"
-depends=('libstdc++>=6.2.1-5')
+depends=('libstdc++>=6.3.1-4')
 makedepends=('yasm>=1.3.0-2')
 Finclude cmake
 groups=('xmultimedia')
 archs=("x86_64")
 up2date="Flasttar http://ftp.videolan.org/pub/videolan/x265/"
 source=(http://ftp.videolan.org/pub/videolan/$pkgname/${pkgname}_${pkgver}.tar.gz)
-sha1sums=('37ed92b83dbe9e1420e1c226d35caeea16d4b0e4')
+sha1sums=('239e51560a6bdde934142f1c6f884d6e37cbe755')
+_F_cd_path="${pkgname}_${pkgver}"
+_F_cross32_simple_auto="yes"
+_F_cross32_delete=('usr/include')
+Finclude cross32
 
-CFLAGS+=" -fPIC"
-CXXFLAGS+=" -fPIC"
+build() {
+        Fcross32_prepare
+        Fcross32_copy_source
+	cd source
+        CMake_build -DLIB_INSTALL_DIR="lib32" -DBIN_INSTALL_DIR="/usr/i686-frugalware-linux/bin"
 
-build()
-{
-	Fcd ${pkgname}_${pkgver}/build/linux
-	cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=/usr ../../source || Fdie
-	make || Fdie
+        Fcross32_copy_back_source
+        Fcross32_reset_and_fix
+        Fcross32_delete_empty
+        Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one
+
+	Fexec mkdir build-12 || Fdie
+	Fexec mkdir build-10 || Fdie
+	Fexec mkdir build-8 || Fdie
+
+	Fexec cd build-12 || Fdie
+	Fexec cmake ../source \
+		-DCMAKE_INSTALL_PREFIX='/usr' \
+		-DHIGH_BIT_DEPTH='TRUE' \
+		-DMAIN12='TRUE' \
+		-DEXPORT_C_API='FALSE' \
+		-DENABLE_CLI='FALSE' \
+		-DENABLE_SHARED='FALSE' || Fdie
+	Fmake
+
+	Fexec cd ../build-10 || Fdie
+	Fexec cmake ../source \
+		-DCMAKE_INSTALL_PREFIX='/usr' \
+		-DHIGH_BIT_DEPTH='TRUE' \
+		-DEXPORT_C_API='FALSE' \
+		-DENABLE_CLI='FALSE' \
+		-DENABLE_SHARED='FALSE' || Fdie
+	Fmake
+
+	Fexec cd ../build-8 || Fdie
+
+	Fexec ln -s ../build-10/libx265.a libx265_main10.a || Fdie
+	Fexec ln -s ../build-12/libx265.a libx265_main12.a || Fdie
+
+	Fexec cmake ../source \
+		-DCMAKE_INSTALL_PREFIX='/usr' \
+		-DENABLE_SHARED='TRUE' \
+		-DEXTRA_LIB='x265_main10.a;x265_main12.a' \
+		-DEXTRA_LINK_FLAGS='-L.' \
+		-DLINKED_10BIT='TRUE' \
+		-DLINKED_12BIT='TRUE'
+	Fmake
 	CMake_install
 }
 
+
+# optimization OK

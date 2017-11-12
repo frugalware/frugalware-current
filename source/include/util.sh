@@ -480,6 +480,21 @@ Fdirschmod() {
 }
 
 ###
+# * Fdirchmod(): Changes the permissions of dir $Fdestdir.
+# First parameter: octal mode or [+-][rwxstugo] , second parameter: the dir_name
+###
+Fdirchmod() {
+
+	if [ -e "$Fdestdir/$2" ]; then
+		Fmessage "Changing permissions on directory: $2 to $1"
+		chmod $1 $Fdestdir/$2 || Fdie
+	else
+		Fmessage "Directory $2 doesn't exist.."
+		Fdie
+	fi
+}
+
+###
 # * Ffileschmod(): Changes the permissions of all file(s) inside $Fdestdir. First
 # parameter: where to start "find", second parameter: octal mode or
 # [+-][rwxstugo].

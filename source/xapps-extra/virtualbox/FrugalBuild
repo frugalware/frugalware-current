@@ -11,20 +11,20 @@ USE_VBOX_DEBUG=${USE_VBOX_DEBUG:-"n"}
 
 pkgname=virtualbox
 realname=VirtualBox
-pkgver=5.1.26
+pkgver=5.2.0
 pkgextra=
-pkgrel=12
+pkgrel=6
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' \
-         'alsa-lib>=1.1.4.1'  'curl' 'libxmu' 'libuuid' 'libcap' 'qt5-base>=5.9.0-4' 'qt5-x11extras>=5.9.0' \
+         'alsa-lib>=1.1.4.1'  'curl' 'libxmu' 'libuuid' 'libcap' 'qt5-base>=5.9.2' 'qt5-x11extras>=5.9.2' \
          'libvpx>=1.6.0' 'lvm2' 'libgl' 'libxext' 'libx11' 'libpulse' 'libglu' 'libxrandr' 'libxcomposite' \
 	 'libxinerama' 'libvncserver' 'iproute2')
-makedepends=('cdrtools' 'x11-protos' 'qt5-tools>=5.9.0' 'mesa-libgl-headers')
+makedepends=('cdrtools' 'x11-protos' 'qt5-tools>=5.9.2' 'mesa-libgl-headers' 'nasm' 'yasm')
 rodepends=("virtualbox-modules>=$pkgver")
 groups=('xapps-extra')
 archs=('x86_64')
-_F_archive_grepv="BETA"
+_F_archive_grepv="BETA\|RC"
 up2date="Flastverdir http://download.virtualbox.org/virtualbox/"
 source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver}${pkgextra}.tar.bz2 \
 	10-vboxdrv.rules \
@@ -32,8 +32,7 @@ source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver
 	60-vboxguest.rules \
 	vboxservice.service \
 	virtualbox-guest-utils.conf \
-	modules-depmod.patch \
-	kernel-module-guest-depmod.patch)
+	depmod.patch)
 
 _F_kernelmod_scriptlet="$startdir/$pkgname.install"
 Finclude kernel-module
@@ -48,22 +47,30 @@ Finclude kernel-module
 options=('scriptlet' 'nostrip' 'genscriptlet') ## we strip manually in build()
 
 _F_cd_path="${realname}-${pkgver}"
-sha1sums=('a99c032f72a3d106029a5c90032da55b25093f72' \
+sha1sums=('875704b2bbea3eb8161b7277b10df3dea5a748e2' \
           'aa931ae19edd8585150738f0efd8fedf5175a6d3' \
           '5e66ffd4607dafd9b55dc2b6e7591ef6892d4d49' \
           '08199d8e7906cb793277b798805d38ce386460d8' \
           '28fb53322691d32a82de87e63672229ea5b7159e' \
           '80ba54b1e13f0e8f53a84ca3f25df617fb53ae4c' \
-          'ca94de464d516b434c458c1c255c41c06799b941' \
-          '1634d3d18a4d645734088d06588c37dc50e06c03')
+          '4cd9c9ca67626d184136d95d82c28556e5e3e55e')
 
-subpkgs=("$pkgname-modules" "$pkgname-guest-additions")
-subdescs=('Kernel modules for VirtualBox' 'VirtualBox guest Additions')
-subarchs=('x86_64' 'x86_64')
-subgroups=('apps-extra' 'xapps-extra')
-subdepends=('kernel' 'kernel libxcomposite libxdamage libxrandr libxmu pam')
-suboptions=('scriptlet' 'scriptlet')
-subinstall=("$pkgname-modules.install" "$pkgname-guest-additions.install")
+subpkgs=("$pkgname-modules")
+subdescs=('Kernel modules for VirtualBox')
+subarchs=('x86_64')
+subgroups=('apps-extra')
+subdepends=("kernel$_F_kernelmod_name=$_F_kernelmod_pkgver")
+suboptions=('scriptlet')
+subinstall=("$pkgname-modules.install")
+
+subpkgs+=("$pkgname-guest-additions")
+subdescs+=('VirtualBox guest Additions')
+subarchs+=('x86_64')
+subgroups+=('xapps-extra')
+subdepends+=("kernel$_F_kernelmod_name=$_F_kernelmod_pkgver libxcomposite libxdamage libxrandr libxmu pam")
+suboptions+=('scriptlet')
+subinstall+=("$pkgname-guest-additions.install")
+
 
 build() {
 
@@ -94,6 +101,7 @@ build() {
 	fi
 
 	VboxSrcDir=${_F_cd_path}/out/linux.amd64/${VBoxBuildType}/bin
+	Fpatchall
 
 	# Configure and load our options
 	Fexec ./configure \
@@ -188,11 +196,10 @@ build() {
 
 	# host kernel modules
 	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/src || Fdie
-	Fpatch modules-depmod.patch
         Fmkdir ${_F_kernelmod_dir}/kernel/misc
 
-        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc || Fdie
-        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+        Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} || Fdie
+        Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
 
         #cleanup first
         Fexec rm -rf fw_tmp || Fdie
@@ -218,6 +225,7 @@ build() {
 	Fexe ${_F_cd_path}/src/VBox/Additions/x11/Installer/vboxclient.desktop etc/xdg/autostart/vboxclient.desktop
 	Fsplit virtualbox-guest-additions  etc/xdg
 
+
 	for m in {VBoxOGLerrorspu.so,VBoxOGLarrayspu.so,VBoxOGLpackspu.so,VBoxOGLcrutil.so,VBoxOGLfeedbackspu.so,VBoxOGL.so,VBoxOGLpassthroughspu.so}
 	do
 		Finstallrel 755 usr/lib/$m
@@ -237,15 +245,15 @@ build() {
 
 	# guest kernel modules
         Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions/src || Fdie
-	Fpatch kernel-module-guest-depmod.patch
         Fmkdir ${_F_kernelmod_dir}/kernel/misc
 
-        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \
-                MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc || Fdie
-        Fexec make KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} \
-                MODULE_DIR=${Fdestdir}/${_F_kernelmod_dir}/kernel/misc INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+        Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} || Fdie
+        Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
 
-        #cleanup first
+	## remove video one is in staging now
+	Frm ${_F_kernelmod_dir}/kernel/misc/vboxvideo*
+
+        #cleanup first ?!?!?! -- what for is that ? -- crazy
         Fexec rm -rf fw_tmp || Fdie
         Fexec mkdir fw_tmp || Fdie
 

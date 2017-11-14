@@ -2,7 +2,7 @@
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=firefox
-pkgver=56.0.2
+pkgver=57.0
 pathver=${pkgver} # version used in path names
 pkgrel=1
 pkgdesc="Mozilla Firefox web browser"
@@ -21,13 +21,20 @@ source=(http://ftp.mozilla.org/pub/$pkgname/releases/$pkgver/source/$pkgname-$pa
 	$pkgname.desktop \
 	prefs.js \
 	mozconfig \
-	ff-no-version.patch)
-sha1sums=('1b7310adea833a7c74498505f1207416690c9748' \
+	ff-no-version.patch \
+        ## STYLO \o/ \O/ .. OMG I wonder how FF QA's are compile testing!!!!
+        nspr-include-fixes-while-stylo-compile-errors.patch \
+        mozilla-bindgen-systemlibs.patch \
+        firefox-branded-icons.patch)
+sha1sums=('ce4fb33c451a2fbd0ed24d5f4b2c3c2e4ea22f33' \
           'a797c04d67d343d068c108b804883a7815f3197b' \
           'ff757068926b86e0c5ed82a0683fa645623c01d6' \
-          'e6789ad3634f43a8986ef35fe1876d4cde6a2e15' \
-          'da95212fe979e1e01e8db5ce5f8fcb2d8d937bfa' \
-          '104394fe469f67786c929ff7cc7b01d6989a2968')
+          '9e1295ad60671c16a84e56cba7f02f886591d4d8' \
+          '0c6cb69895dca1ac5715b5eec7c941cffb3cfbda' \
+          '104394fe469f67786c929ff7cc7b01d6989a2968' \
+          'b72297eafa8eed21bb688478c66dd6c7a13539ca' \
+          'edecd379e327956f21b5e873ad213ac4ddf185f0' \
+          '37c10bb9ca6c61ae10cf069078426a75ed4db439')
 
 
 options+=('scriptlet')
@@ -38,13 +45,17 @@ build() {
 	Fcd
 
 	## FIXME gcc6
-	CXXFLAGS+=" -fno-delete-null-pointer-checks -fno-strict-aliasing -fno-lifetime-dse -Wno-deprecated -Wno-deprecated-declarations"
-	CFLAGS+=" -fno-delete-null-pointer-checks -fno-strict-aliasing -fno-lifetime-dse -Wno-deprecated -Wno-deprecated-declarations"
+	CXXFLAGS+=" -fno-delete-null-pointer-checks -fno-strict-aliasing -Wno-deprecated -Wno-deprecated-declarations"
+	CFLAGS+="   -fno-delete-null-pointer-checks -fno-strict-aliasing -Wno-deprecated -Wno-deprecated-declarations"
 
-	# Autodetect language.
-	sed -i '/intl.locale.matchOS/s/false/true/' modules/libpref/init/all.js || Fdie
+        ## clang
+        #export CXX=clang++
+        #export CC=clang
+        #CXXFLAGS+=" -Qunused-arguments"
+        #CFLAGS+=" -Qunused-arguments"
 
-	cp "$Fsrcdir/mozconfig" .mozconfig || Fdie
+
+	Fexec cp "$Fsrcdir/mozconfig" .mozconfig || Fdie
 
 
 	export MOZILLA_OFFICIAL=1
@@ -53,9 +64,9 @@ build() {
 
 	Fpatchall
 	## these MOZ_*_OPTIMIZE_FLAGS are set by default to -Os/-O3 ...
-	make  -f client.mk build  MOZ_MAKE_FLAGS="$MAKEFLAGS" MOZ_OPTIMIZE_FLAGS="$CXXFLAGS" MOZ_PGO_OPTIMIZE_FLAGS="$CXXFLAGS" || Fdie
+	Fexec make -f client.mk build  MOZ_MAKE_FLAGS="$MAKEFLAGS" MOZ_OPTIMIZE_FLAGS="$CXXFLAGS" MOZ_PGO_OPTIMIZE_FLAGS="$CXXFLAGS" || Fdie
 
-        make  -f client.mk DESTDIR="$Fdestdir" install || Fdie
+        Fexec make -f client.mk DESTDIR="$Fdestdir" install || Fdie
 
 	# correction for broken ff symlink
 	Frm /usr/bin/firefox
@@ -86,8 +97,11 @@ build() {
 	# Change the default icons
 	Fln /usr/lib/$pkgname/browser/icons /usr/lib/$pkgname/chrome/icons/default
 
-	#Preferences file
-	Finstall 644 prefs.js usr/lib/$pkgname/defaults/pref/prefs.js
+	#Preferences
+        Fmkdir usr/lib/$pkgname/distribution/extensions
+        Fmkdir usr/lib/$pkgname/defaults/{preferences,pref}
+
+	Finstall 644 prefs.js usr/lib/$pkgname/defaults/preferences/prefs.js
 
 	#ldconfig
 	Fmkdir etc/ld.so.conf.d

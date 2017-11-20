@@ -70,7 +70,9 @@
 _F_scm_url=${_F_scm_url%/}
 
 if [ -z "$_F_scm_git_cloneopts" ]; then
-        _F_scm_git_cloneopts=" --depth=1"
+        if [ -z "$_F_scm_tag" ]; then
+                _F_scm_git_cloneopts=" --depth=1"
+        fi
 fi
 
 ###

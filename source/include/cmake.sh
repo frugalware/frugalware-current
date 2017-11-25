@@ -133,7 +133,9 @@ CMake_conf()
 CMake_prepare_build()
 {
 	Fcd
-	Fpatchall
+        if [ -z "$_Fbuild_no_patch" ]; then
+	        Fpatchall
+        fi
 	if [ "$_F_cmake_in_source_build" -eq "0" ]; then
 		if [ -d  "$_F_cmake_build_dir" ]; then
 			rm -rf $_F_cmake_build_dir || Fdie

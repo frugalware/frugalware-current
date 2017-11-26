@@ -131,9 +131,9 @@ Fdie() {
 }
 
 ## internal
-__is_deprecated() {
-	warning "Function ${FUNCNAME[1]}() is deprecated , port your package away from it."
-}
+#__is_deprecated() {
+#	warning "Function ${FUNCNAME[1]}() is deprecated , port your package away from it."
+#}
 
 ###
 # * Fcpvar(): Copy a variable to another by name. Parameters: 1) Destination
@@ -238,7 +238,7 @@ __Faddsubpkg() {
 ###
 Faddsubpkg() {
 
-	__is_deprecated
+	#__is_deprecated
 	local g a
 
 	if [ "$#" -lt 3 ]; then

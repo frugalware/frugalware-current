@@ -63,10 +63,17 @@
 # * _F_scm_module: name of the module to check out - required for cvs
 # * _F_scm_tag: name of the tag/branch to use - implemented for cvs/svn/git/mercurial
 # * _F_scm_want_up2date: disabled by default , enable if you want to see up2date's for this package
+# * _F_scm_git_cloneopts: clone options for git , defaults to --depth=1
 ###
 
 # slice the / suffix if there is any
 _F_scm_url=${_F_scm_url%/}
+
+if [ -z "$_F_scm_git_cloneopts" ]; then
+        if [ -z "$_F_scm_tag" ]; then
+                _F_scm_git_cloneopts=" --depth=1"
+        fi
+fi
 
 ###
 # == OVERWRITTEN VARIABLES
@@ -123,35 +130,38 @@ Funpack_scm()
 	local extra
 
 	if [ "$_F_scm_type" == "cvs" ]; then
+                Fmessage "Checking out with CVS.."
 		touch ~/.cvspass || Fdie
-		cvs -d ${_F_scm_url/@/:$_F_scm_password@} login || Fdie
+		Fexec cvs -d ${_F_scm_url/@/:$_F_scm_password@} login || Fdie
 		if [ -n "$_F_scm_tag" ]; then
-			cvs -d $_F_scm_url -r $_F_scm_tag co $_F_scm_module || Fdie
+			Fexec cvs -d $_F_scm_url -r $_F_scm_tag co $_F_scm_module || Fdie
 		else
-			cvs -d $_F_scm_url co $_F_scm_module || Fdie
+			Fexec cvs -d $_F_scm_url co $_F_scm_module || Fdie
 		fi
 		Fcd $_F_scm_module
 	elif [ "$_F_scm_type" == "subversion" ]; then
+                Fmessage "Checking out with SVN.."
 		if [ -z "$_F_scm_tag" ]; then
-			svn co $_F_scm_url $pkgname || Fdie
+			Fexec svn co $_F_scm_url $pkgname || Fdie
 		else
-			svn co -r $_F_scm_tag $_F_scm_url $pkgname || Fdie
+			Fexec svn co -r $_F_scm_tag $_F_scm_url $pkgname || Fdie
 		fi
 		Fcd $pkgname
 	elif [ "$_F_scm_type" == "git" ]; then
+                Fmessage "Checking out with GIT.."
 		if [ -d $pkgname ]; then
 			cd $pkgname
 			if [ -n "$_F_scm_tag" ]; then
-				git fetch
+				Fexec git fetch
 			else
-				git pull
+				Fexec git pull
 			fi
-			git checkout -f
+			Fexec git checkout -f
 		else
 			if [ -d $HOME/git/${_F_scm_url##*/} ]; then
-				_F_scm_git_cloneopts="$_F_scm_git_cloneopts --reference $HOME/git/${_F_scm_url##*/}"
+				_F_scm_git_cloneopts+=" --reference $HOME/git/${_F_scm_url##*/}"
 			fi
-			git clone $_F_scm_git_cloneopts $_F_scm_url $pkgname || Fdie
+			Fexec git clone $_F_scm_git_cloneopts $_F_scm_url $pkgname || Fdie
 			cd $pkgname
 		fi
 		if [ -n "$_F_scm_tag" ]; then
@@ -165,27 +175,29 @@ Funpack_scm()
 			fi
 			if [ -f .git/refs/remotes/origin/$_F_scm_tag2 ]; then
 				# this is a branch
-				git checkout origin/$_F_scm_tag2 || Fdie
+				Fexec git checkout origin/$_F_scm_tag2 || Fdie
 			else
 				# this is a tag or commit
-				git checkout $_F_scm_tag2 || Fdie
+				Fexec git checkout $_F_scm_tag2 || Fdie
 			fi
 		fi
 	elif [ "$_F_scm_type" == "mercurial" ]; then
+                Fmessage "Checking out with HG.."
 		if [ -z "$_F_scm_tag" ]; then
-			hg clone $_F_scm_url || Fdie
+			Fexec hg clone $_F_scm_url || Fdie
 		else
-			hg clone -r $_F_scm_tag $_F_scm_url || Fdie
+			Fexec hg clone -r $_F_scm_tag $_F_scm_url || Fdie
 		fi
 		Fcd ${_F_scm_url##*/}
 	elif [ "$_F_scm_type" == "bzr" ]; then
+                Fmessage "Checking out with BZR.."
 		if [ ! -d "${_F_scm_url##*/}" ]; then
-			bzr branch --stacked $_F_scm_url || Fdie
+			Fexec bzr branch --stacked $_F_scm_url || Fdie
 			Fcd ${_F_scm_url##*/}
 		else
 			Fcd ${_F_scm_url##*/}
-			bzr revert || Fdie
-			bzr pull || Fdie
+			Fexec bzr revert || Fdie
+			Fexec bzr pull || Fdie
 		fi
 	fi
 }

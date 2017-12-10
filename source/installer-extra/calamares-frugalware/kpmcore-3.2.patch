@@ -1,0 +1,146 @@
+diff -Naur calamares-3.1.8/src/modules/partition/CMakeLists.txt calamares-3.1.8-p/src/modules/partition/CMakeLists.txt
+--- calamares-3.1.8/src/modules/partition/CMakeLists.txt	2017-11-14 16:18:58.000000000 +0100
++++ calamares-3.1.8-p/src/modules/partition/CMakeLists.txt	2017-11-18 13:16:38.335840619 +0100
+@@ -5,14 +5,10 @@
+ include(GenerateExportHeader)
+ find_package( KF5 REQUIRED CoreAddons )
+ 
+-# These are needed because KPMcore links publicly against ConfigCore, I18n, IconThemes, KIOCore and Service
+-find_package( KF5 REQUIRED Config I18n IconThemes KIO Service )
++find_package( Qt5 REQUIRED DBus )
++find_package( KF5 REQUIRED Config I18n WidgetsAddons Service )
+ 
+-find_package( KPMcore 3.1.50 QUIET )
+-if ( KPMcore_FOUND )
+-    add_definitions(-DWITH_KPMCORE22)
+-endif()
+-find_package( KPMcore 3.0.3 QUIET )
++find_package( KPMcore 3.2 QUIET )
+ # 3.0.3 and newer has fixes for NVMe support; allow 3.0.2, but warn
+ # about it .. needs to use a different feature name because it otherwise
+ # gets reported as KPMcore (the package).
+@@ -25,15 +21,6 @@
+     add_feature_info( KPMcoreNVMe KPMcore_FOUND "Older KPMcore with no NVMe support" )
+ endif()
+ 
+-find_library( atasmart_LIB atasmart )
+-find_library( blkid_LIB blkid )
+-if( NOT atasmart_LIB )
+-  message( WARNING "atasmart library not found." )
+-endif()
+-if( NOT blkid_LIB )
+-  message( WARNING "blkid library not found." )
+-endif()
+-
+ 
+ include_directories( ${KPMCORE_INCLUDE_DIR} )
+ include_directories( ${PROJECT_BINARY_DIR}/src/libcalamaresui )
+diff -Naur calamares-3.1.8/src/modules/partition/core/KPMHelpers.cpp calamares-3.1.8-p/src/modules/partition/core/KPMHelpers.cpp
+--- calamares-3.1.8/src/modules/partition/core/KPMHelpers.cpp	2017-11-14 16:18:58.000000000 +0100
++++ calamares-3.1.8-p/src/modules/partition/core/KPMHelpers.cpp	2017-11-18 13:11:35.255540490 +0100
+@@ -116,9 +116,7 @@
+                     PartitionTable::Flags flags )
+ {
+     FileSystem* fs = FileSystemFactory::create( fsType, firstSector, lastSector
+-#ifdef WITH_KPMCORE22
+                                                 ,device.logicalSize()
+-#endif
+     );
+     return new Partition(
+                parent,
+@@ -153,9 +151,7 @@
+                            FileSystemFactory::create( FileSystem::Luks,
+                                                       firstSector,
+                                                       lastSector
+-#ifdef WITH_KPMCORE22
+                                                      ,device.logicalSize()
+-#endif
+                                                       ) );
+     if ( !fs )
+     {
+@@ -186,9 +182,7 @@
+                          partition->fileSystem().type(),
+                          partition->firstSector(),
+                          partition->lastSector()
+-#ifdef WITH_KPMCORE22
+                         ,device->logicalSize()
+-#endif
+                      );
+     return new Partition( partition->parent(),
+                           *device,
+diff -Naur calamares-3.1.8/src/modules/partition/jobs/FillGlobalStorageJob.cpp calamares-3.1.8-p/src/modules/partition/jobs/FillGlobalStorageJob.cpp
+--- calamares-3.1.8/src/modules/partition/jobs/FillGlobalStorageJob.cpp	2017-11-14 16:18:58.000000000 +0100
++++ calamares-3.1.8-p/src/modules/partition/jobs/FillGlobalStorageJob.cpp	2017-11-18 13:11:35.256540518 +0100
+@@ -77,50 +77,6 @@
+     return uuid;
+ }
+ 
+-// TODO: this will be available from KPMCore soon
+-static const char* filesystem_labels[] = {
+-    "unknown",
+-    "extended",
+-
+-    "ext2",
+-    "ext3",
+-    "ext4",
+-    "linuxswap",
+-    "fat16",
+-    "fat32",
+-    "ntfs",
+-    "reiser",
+-    "reiser4",
+-    "xfs",
+-    "jfs",
+-    "hfs",
+-    "hfsplus",
+-    "ufs",
+-    "unformatted",
+-    "btrfs",
+-    "hpfs",
+-    "luks",
+-    "ocfs2",
+-    "zfs",
+-    "exfat",
+-    "nilfs2",
+-    "lvm2 pv",
+-    "f2fs",
+-    "udf",
+-    "iso9660",
+-};
+-
+-Q_STATIC_ASSERT_X((sizeof(filesystem_labels) / sizeof(char *)) >= FileSystem::__lastType, "Mismatch in filesystem labels");
+-
+-static QString
+-untranslatedTypeName(FileSystem::Type t)
+-{
+-
+-    Q_ASSERT( t >= 0 );
+-    Q_ASSERT( t <= FileSystem::__lastType );
+-
+-    return QLatin1String(filesystem_labels[t]);
+-}
+ 
+ static QVariant
+ mapForPartition( Partition* partition, const QString& uuid )
+@@ -129,7 +85,7 @@
+     map[ "device" ] = partition->partitionPath();
+     map[ "mountPoint" ] = PartitionInfo::mountPoint( partition );
+     map[ "fsName" ] = partition->fileSystem().name();
+-    map[ "fs" ] = untranslatedTypeName( partition->fileSystem().type() );
++    map[ "fs" ] = partition->fileSystem().name( { QStringLiteral("C") } );  // Untranslated
+     if ( partition->fileSystem().type() == FileSystem::Luks &&
+          dynamic_cast< FS::luks& >( partition->fileSystem() ).innerFS() )
+         map[ "fs" ] = dynamic_cast< FS::luks& >( partition->fileSystem() ).innerFS()->name();
+diff -Naur calamares-3.1.8/src/modules/partition/tests/PartitionJobTests.cpp calamares-3.1.8-p/src/modules/partition/tests/PartitionJobTests.cpp
+--- calamares-3.1.8/src/modules/partition/tests/PartitionJobTests.cpp	2017-11-14 16:18:58.000000000 +0100
++++ calamares-3.1.8-p/src/modules/partition/tests/PartitionJobTests.cpp	2017-11-18 13:11:35.255540490 +0100
+@@ -219,9 +219,7 @@
+     else
+         lastSector = freeSpacePartition->lastSector();
+     FileSystem* fs = FileSystemFactory::create( type, firstSector, lastSector
+-#ifdef WITH_KPMCORE22
+         ,m_device->logicalSize()
+-#endif
+     );
+ 
+     Partition* partition = new Partition(

@@ -1,0 +1,133 @@
+diff -Naur qtdeclarative-opensource-src-5.9.2/src/qml/qml/qqmlimport.cpp qtdeclarative-opensource-src-5.9.2-p/src/qml/qml/qqmlimport.cpp
+--- qtdeclarative-opensource-src-5.9.2/src/qml/qml/qqmlimport.cpp	2017-09-28 21:01:41.000000000 +0200
++++ qtdeclarative-opensource-src-5.9.2-p/src/qml/qml/qqmlimport.cpp	2017-10-26 13:42:09.519763688 +0200
+@@ -471,17 +471,6 @@
+                 resultList.append(ref);
+             }
+         }
+-
+-        if (QQmlTypeModule *module = QQmlMetaType::typeModule(import->uri, import->majversion)) {
+-            module->walkCompositeSingletons([&resultList, &set](const QQmlType &singleton) {
+-                QQmlImports::CompositeSingletonReference ref;
+-                ref.typeName = singleton.elementName();
+-                ref.prefix = set.prefix;
+-                ref.majorVersion = singleton.majorVersion();
+-                ref.minorVersion = singleton.minorVersion();
+-                resultList.append(ref);
+-            });
+-        }
+     }
+ }
+ 
+diff -Naur qtdeclarative-opensource-src-5.9.2/src/qml/qml/qqmlmetatype.cpp qtdeclarative-opensource-src-5.9.2-p/src/qml/qml/qqmlmetatype.cpp
+--- qtdeclarative-opensource-src-5.9.2/src/qml/qml/qqmlmetatype.cpp	2017-09-28 21:01:41.000000000 +0200
++++ qtdeclarative-opensource-src-5.9.2-p/src/qml/qml/qqmlmetatype.cpp	2017-10-26 13:42:09.520763715 +0200
+@@ -1265,18 +1265,6 @@
+     return QQmlType();
+ }
+ 
+-void QQmlTypeModule::walkCompositeSingletons(const std::function<void(const QQmlType &)> &callback) const
+-{
+-    QMutexLocker lock(metaTypeDataLock());
+-    for (auto typeCandidates = d->typeHash.begin(), end = d->typeHash.end();
+-         typeCandidates != end; ++typeCandidates) {
+-        for (auto type: typeCandidates.value()) {
+-            if (type->regType == QQmlType::CompositeSingletonType)
+-                callback(QQmlType(type));
+-        }
+-    }
+-}
+-
+ QQmlTypeModuleVersion::QQmlTypeModuleVersion()
+ : m_module(0), m_minor(0)
+ {
+diff -Naur qtdeclarative-opensource-src-5.9.2/src/qml/qml/qqmlmetatype_p.h qtdeclarative-opensource-src-5.9.2-p/src/qml/qml/qqmlmetatype_p.h
+--- qtdeclarative-opensource-src-5.9.2/src/qml/qml/qqmlmetatype_p.h	2017-09-28 21:01:41.000000000 +0200
++++ qtdeclarative-opensource-src-5.9.2-p/src/qml/qml/qqmlmetatype_p.h	2017-10-26 13:42:09.520763715 +0200
+@@ -299,8 +299,6 @@
+     QQmlType type(const QHashedStringRef &, int) const;
+     QQmlType type(const QV4::String *, int) const;
+ 
+-    void walkCompositeSingletons(const std::function<void(const QQmlType &)> &callback) const;
+-
+     QQmlTypeModulePrivate *priv() { return d; }
+ private:
+     //Used by register functions and creates the QQmlTypeModule for them
+diff -Naur qtdeclarative-opensource-src-5.9.2/tests/auto/qml/qmldiskcache/tst_qmldiskcache.cpp qtdeclarative-opensource-src-5.9.2-p/tests/auto/qml/qmldiskcache/tst_qmldiskcache.cpp
+--- qtdeclarative-opensource-src-5.9.2/tests/auto/qml/qmldiskcache/tst_qmldiskcache.cpp	2017-09-28 21:01:41.000000000 +0200
++++ qtdeclarative-opensource-src-5.9.2-p/tests/auto/qml/qmldiskcache/tst_qmldiskcache.cpp	2017-10-26 13:42:09.520763715 +0200
+@@ -59,7 +59,6 @@
+     void cacheResources();
+     void stableOrderOfDependentCompositeTypes();
+     void singletonDependency();
+-    void cppRegisteredSingletonDependency();
+ };
+ 
+ // A wrapper around QQmlComponent to ensure the temporary reference counts
+@@ -791,66 +790,6 @@
+     }
+ }
+ 
+-void tst_qmldiskcache::cppRegisteredSingletonDependency()
+-{
+-    qmlClearTypeRegistrations();
+-    QScopedPointer<QQmlEngine> engine(new QQmlEngine);
+-
+-    QTemporaryDir tempDir;
+-    QVERIFY(tempDir.isValid());
+-
+-    const auto writeTempFile = [&tempDir](const QString &fileName, const char *contents) {
+-        QFile f(tempDir.path() + '/' + fileName);
+-        const bool ok = f.open(QIODevice::WriteOnly | QIODevice::Truncate);
+-        Q_ASSERT(ok);
+-        f.write(contents);
+-        return f.fileName();
+-    };
+-
+-    writeTempFile("MySingleton.qml", "import QtQml 2.0\npragma Singleton\nQtObject { property int value: 42 }");
+-
+-    qmlRegisterSingletonType(QUrl::fromLocalFile(tempDir.path() + QLatin1String("/MySingleton.qml")), "CppRegisteredSingletonDependency", 1, 0, "Singly");
+-
+-    const QString testFilePath = writeTempFile("main.qml", "import QtQml 2.0\nimport CppRegisteredSingletonDependency 1.0\nQtObject {\n"
+-                                                           "    function getValue() { return Singly.value; }\n"
+-                                                           "}");
+-
+-    {
+-        CleanlyLoadingComponent component(engine.data(), QUrl::fromLocalFile(testFilePath));
+-        QScopedPointer<QObject> obj(component.create());
+-        QVERIFY(!obj.isNull());
+-        QVariant value;
+-        QVERIFY(QMetaObject::invokeMethod(obj.data(), "getValue", Q_RETURN_ARG(QVariant, value)));
+-        QCOMPARE(value.toInt(), 42);
+-    }
+-
+-    const QString testFileCachePath = testFilePath + QLatin1Char('c');
+-    QVERIFY(QFile::exists(testFileCachePath));
+-    QDateTime initialCacheTimeStamp = QFileInfo(testFileCachePath).lastModified();
+-
+-    engine.reset(new QQmlEngine);
+-    waitForFileSystem();
+-
+-    writeTempFile("MySingleton.qml", "import QtQml 2.0\npragma Singleton\nQtObject { property int value: 100 }");
+-    waitForFileSystem();
+-
+-    {
+-        CleanlyLoadingComponent component(engine.data(), QUrl::fromLocalFile(testFilePath));
+-        QScopedPointer<QObject> obj(component.create());
+-        QVERIFY(!obj.isNull());
+-
+-        {
+-            QVERIFY(QFile::exists(testFileCachePath));
+-            QDateTime newCacheTimeStamp = QFileInfo(testFileCachePath).lastModified();
+-            QVERIFY2(newCacheTimeStamp > initialCacheTimeStamp, qPrintable(newCacheTimeStamp.toString()));
+-        }
+-
+-        QVariant value;
+-        QVERIFY(QMetaObject::invokeMethod(obj.data(), "getValue", Q_RETURN_ARG(QVariant, value)));
+-        QCOMPARE(value.toInt(), 100);
+-    }
+-}
+-
+ QTEST_MAIN(tst_qmldiskcache)
+ 
+ #include "tst_qmldiskcache.moc"

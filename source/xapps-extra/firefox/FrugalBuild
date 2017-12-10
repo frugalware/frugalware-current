@@ -2,16 +2,16 @@
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=firefox
-pkgver=55.0.3
+pkgver=57.0.2
 pathver=${pkgver} # version used in path names
-pkgrel=1
+pkgrel=2
 pkgdesc="Mozilla Firefox web browser"
 url="http://www.mozilla.org/products/firefox/"
 depends=('libevent' 'hunspell>=1.6.1' 'libidl' 'desktop-file-utils' 'nss>=3.29.5' 'jemalloc' \
 	'dbus-glib' 'curl>=7.50.3-2' 'nspr>=4.9.2' 'lcms' 'libxau>=1.0.4' 'libxdmcp' 'libxft>=2.1.13-2' \
 	'libxt' 'libstdc++>=6.2.1-5' 'libxdamage' 'libice' 'bzip2' 'alsa-lib' 'wireless_tools' 'cairo' 'sqlite3>=3.8.7.4' \
-	'startup-notification' 'libvpx>=1.6.0' 'libpulse>=9.0-2' 'gtk+2' 'ffmpeg>=3.3.2'  'lcms2' 'gtk+3>=3.22.4' 'icu4c>=58.1-3')
-makedepends=('zip' 'yasm' 'x11-protos' 'autoconf213' 'rust' 'cargo')
+	'startup-notification' 'libvpx>=1.6.0' 'libpulse>=9.0-2' 'gtk+2' 'ffmpeg>=3.3.2'  'lcms2' 'gtk+3>=3.22.4' 'icu4c>=60.1')
+makedepends=('zip' 'yasm' 'x11-protos' 'autoconf213' 'rust' 'cargo' 'clang')
 groups=('xapps-extra')
 archs=('x86_64')
 _F_archive_grepv="b[0-9]"
@@ -21,13 +21,20 @@ source=(http://ftp.mozilla.org/pub/$pkgname/releases/$pkgver/source/$pkgname-$pa
 	$pkgname.desktop \
 	prefs.js \
 	mozconfig \
-	ff-no-version.patch)
-sha1sums=('8d9b0861ad71845d4b0e668f1981ec99e617ff36' \
+	ff-no-version.patch \
+        ## STYLO \o/ \O/ .. OMG I wonder how FF QA's are compile testing!!!!
+        nspr-include-fixes-while-stylo-compile-errors.patch \
+        mozilla-bindgen-systemlibs.patch \
+        firefox-branded-icons.patch)
+sha1sums=('2edcb2fade6cc4ed9339825bad1bdad381da7824' \
           'a797c04d67d343d068c108b804883a7815f3197b' \
           'ff757068926b86e0c5ed82a0683fa645623c01d6' \
-          'e6789ad3634f43a8986ef35fe1876d4cde6a2e15' \
-          'f44786946babfcce220246185420a3c55cc26155' \
-          '104394fe469f67786c929ff7cc7b01d6989a2968')
+          '9e1295ad60671c16a84e56cba7f02f886591d4d8' \
+          '0c6cb69895dca1ac5715b5eec7c941cffb3cfbda' \
+          '104394fe469f67786c929ff7cc7b01d6989a2968' \
+          'b72297eafa8eed21bb688478c66dd6c7a13539ca' \
+          'edecd379e327956f21b5e873ad213ac4ddf185f0' \
+          '37c10bb9ca6c61ae10cf069078426a75ed4db439')
 
 
 options+=('scriptlet')
@@ -38,13 +45,17 @@ build() {
 	Fcd
 
 	## FIXME gcc6
-	CXXFLAGS+=" -fno-delete-null-pointer-checks -fno-strict-aliasing -fno-lifetime-dse -Wno-deprecated -Wno-deprecated-declarations"
-	CFLAGS+=" -fno-delete-null-pointer-checks -fno-strict-aliasing -fno-lifetime-dse -Wno-deprecated -Wno-deprecated-declarations"
+	CXXFLAGS+=" -fno-delete-null-pointer-checks -fno-strict-aliasing -Wno-deprecated -Wno-deprecated-declarations"
+	CFLAGS+="   -fno-delete-null-pointer-checks -fno-strict-aliasing -Wno-deprecated -Wno-deprecated-declarations"
 
-	# Autodetect language.
-	sed -i '/intl.locale.matchOS/s/false/true/' modules/libpref/init/all.js || Fdie
+        ## clang
+        #export CXX=clang++
+        #export CC=clang
+        #CXXFLAGS+=" -Qunused-arguments"
+        #CFLAGS+=" -Qunused-arguments"
 
-	cp "$Fsrcdir/mozconfig" .mozconfig || Fdie
+        sed -i '/intl.locale.matchOS/s/false/true/' modules/libpref/init/all.js || Fdie
+	Fexec cp "$Fsrcdir/mozconfig" .mozconfig || Fdie
 
 
 	export MOZILLA_OFFICIAL=1
@@ -53,9 +64,9 @@ build() {
 
 	Fpatchall
 	## these MOZ_*_OPTIMIZE_FLAGS are set by default to -Os/-O3 ...
-	make  -f client.mk build  MOZ_MAKE_FLAGS="$MAKEFLAGS" MOZ_OPTIMIZE_FLAGS="$CXXFLAGS" MOZ_PGO_OPTIMIZE_FLAGS="$CXXFLAGS" || Fdie
+	Fexec make -f client.mk build  MOZ_MAKE_FLAGS="$MAKEFLAGS" MOZ_OPTIMIZE_FLAGS="$CXXFLAGS" MOZ_PGO_OPTIMIZE_FLAGS="$CXXFLAGS" || Fdie
 
-        make  -f client.mk DESTDIR="$Fdestdir" install || Fdie
+        Fexec make -f client.mk DESTDIR="$Fdestdir" install || Fdie
 
 	# correction for broken ff symlink
 	Frm /usr/bin/firefox
@@ -86,8 +97,11 @@ build() {
 	# Change the default icons
 	Fln /usr/lib/$pkgname/browser/icons /usr/lib/$pkgname/chrome/icons/default
 
-	#Preferences file
-	Finstall 644 prefs.js usr/lib/$pkgname/defaults/pref/prefs.js
+	#Preferences
+        Fmkdir usr/lib/$pkgname/distribution/extensions
+        Fmkdir usr/lib/$pkgname/defaults/{preferences,pref}
+
+	Finstall 644 prefs.js usr/lib/$pkgname/defaults/preferences/prefs.js
 
 	#ldconfig
 	Fmkdir etc/ld.so.conf.d

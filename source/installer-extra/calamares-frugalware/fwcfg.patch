@@ -1,0 +1,97 @@
+From 2d022ce2f5a08348d7f84177d1612ffddb288f2a Mon Sep 17 00:00:00 2001
+From: Gabriel Craciunescu <crazy@frugalware.org>
+Date: Wed, 25 Oct 2017 01:29:20 +0200
+Subject: [PATCH] added fwcfg modules , idea from artix postcfg module
+
+---
+ src/modules/fwcfg/main.py     | 67 +++++++++++++++++++++++++++++++++++++++++++
+ src/modules/fwcfg/module.desc |  6 ++++
+ 2 files changed, 73 insertions(+)
+ create mode 100644 src/modules/fwcfg/main.py
+ create mode 100644 src/modules/fwcfg/module.desc
+
+diff --git a/src/modules/fwcfg/main.py b/src/modules/fwcfg/main.py
+new file mode 100644
+index 000000000..803537397
+--- /dev/null
++++ b/src/modules/fwcfg/main.py
+@@ -0,0 +1,67 @@
++#!/usr/bin/env python3
++# -*- coding: utf-8 -*-
++#
++# === This file is part of Calamares - <http://github.com/calamares> ===
++#
++#   Copyright 2014 - 2016, Philip Müller <philm@manjaro.org>
++#   Copyright 2016, Artoo <artoo@manjaro.org>
++#   Copyright 2016, Artoo <artoo@cromnix.org>
++#   Copyright 2017, Gabriel C <crazy@frugalware.org>
++#   Calamares is free software: you can redistribute it and/or modify
++#   it under the terms of the GNU General Public License as published by
++#   the Free Software Foundation, either version 3 of the License, or
++#   (at your option) any later version.
++#
++#   Calamares is distributed in the hope that it will be useful,
++#   but WITHOUT ANY WARRANTY; without even the implied warranty of
++#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++#   GNU General Public License for more details.
++#
++#   You should have received a copy of the GNU General Public License
++#   along with Calamares. If not, see <http://www.gnu.org/licenses/>.
++
++
++import os
++from os.path import join, exists
++
++import libcalamares
++from libcalamares.utils import debug, target_env_call
++
++
++class ConfigController:
++    """Configuration controller
++    """
++
++    def __init__(self):
++        self.root = libcalamares.globalstorage.value("rootMountPoint")
++
++    def run(self):
++        """Run the controller
++        """
++
++        #locale = libcalamares.globalstorage.value("locale")
++        vbox_sysfile = open("/sys/devices/virtual/dmi/id/bios_version", "r")
++        vbox_out = vbox_sysfile.read(10)
++        if 'VirtualBox' in vbox_out:
++            libcalamares.utils.debug("We are on VirtualBox. Installing Guest Additions..")
++            target_env_call(["pacman", "-Sy", "--noconfirm", "virtualbox-guest-additions"])
++
++        if (exists(join(self.root, "var/cache/pacman-g2/pkg"))):
++            libcalamares.utils.debug("Cleaning pacman cache..")
++            target_env_call(["pacman", "-Scc", "--noconfirm"])
++            target_env_call(["rm", "-rfv", "/var/cache/pacman-g2/pkg"])
++
++        if (exists(join(self.root, "etc/pacman-g2.conf.ORIG"))):
++            libcalamares.utils.debug("Fixing pacman configuration file..")
++            target_env_call(["mv", "-fv", "/etc/pacman-g2.conf.ORIG", "/etc/pacman-g2.conf"])
++
++        if (libcalamares.globalstorage.value("bootLoader") is not None):
++            target_env_call(["grub-mkconfig", "-o", "/boot/grub/grub.cfg"])
++
++
++def run():
++    """ Misc postinstall configurations """
++
++    config = ConfigController()
++
++    return config.run()
+diff --git a/src/modules/fwcfg/module.desc b/src/modules/fwcfg/module.desc
+new file mode 100644
+index 000000000..1f6ca499d
+--- /dev/null
++++ b/src/modules/fwcfg/module.desc
+@@ -0,0 +1,6 @@
++# Syntax is YAML 1.2
++---
++type:       "job"
++name:       "fwcfg"
++interface:  "python"
++script:     "main.py"

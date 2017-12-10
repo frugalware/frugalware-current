@@ -131,9 +131,9 @@ Fdie() {
 }
 
 ## internal
-__is_deprecated() {
-	warning "Function ${FUNCNAME[1]}() is deprecated , port your package away from it."
-}
+#__is_deprecated() {
+#	warning "Function ${FUNCNAME[1]}() is deprecated , port your package away from it."
+#}
 
 ###
 # * Fcpvar(): Copy a variable to another by name. Parameters: 1) Destination
@@ -238,7 +238,7 @@ __Faddsubpkg() {
 ###
 Faddsubpkg() {
 
-	__is_deprecated
+	#__is_deprecated
 	local g a
 
 	if [ "$#" -lt 3 ]; then
@@ -477,6 +477,21 @@ Finstall() {
 Fdirschmod() {
 	Fmessage "Changing directory permissions inside: $1"
 	find "$Fdestdir"/$1 -type d -print0 |xargs -0 chmod $2 || Fdie
+}
+
+###
+# * Fdirchmod(): Changes the permissions of dir $Fdestdir.
+# First parameter: octal mode or [+-][rwxstugo] , second parameter: the dir_name
+###
+Fdirchmod() {
+
+	if [ -e "$Fdestdir/$2" ]; then
+		Fmessage "Changing permissions on directory: $2 to $1"
+		chmod $1 $Fdestdir/$2 || Fdie
+	else
+		Fmessage "Directory $2 doesn't exist.."
+		Fdie
+	fi
 }
 
 ###

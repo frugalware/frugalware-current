@@ -29,7 +29,7 @@ Finclude i18n
 # * _F_mozilla_i18n_ext (optional, defaults to ".xpi"): The extention of the i18n archive name.
 ###
 
-: ${_F_mozilla_i18n_xpidirname="$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/$pkgver/linux-i686/xpi"} \
+: ${_F_mozilla_i18n_xpidirname="$_F_mozilla_i18n_dirname$_F_mozilla_i18n_name/releases/$pkgver/linux-x86_64/xpi"} \
   ${_F_mozilla_i18n_mirror="http://download-origin.cdn.mozilla.net/pub/mozilla.org/"} \
   ${_F_mozilla_i18n_ext=".xpi"}
 

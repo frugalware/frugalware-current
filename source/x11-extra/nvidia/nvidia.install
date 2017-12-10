@@ -51,6 +51,12 @@ post_install() {
 	/sbin/depmod -ea @_F_kernelmod_uname@
 	module_load
 
+
+	if ! grep -q 'rd.driver.blacklist=nouveau'  /etc/default/grub ; then
+		echo "Updating kernel cmdline to blacklist nouveau in initrd.."
+		sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/GRUB_CMDLINE_LINUX_DEFAULT="rd.driver.blacklist=nouveau /' /etc/default/grub
+	fi
+
 	if [ -f /boot/grub/grub.cfg ]; then
 		grub-mkconfig -o /boot/grub/grub.cfg > /dev/null 2>&1
 	fi
@@ -70,6 +76,11 @@ post_upgrade() {
 		fi
 	fi
 
+	if ! grep -q 'rd.driver.blacklist=nouveau'  /etc/default/grub ; then
+		 echo "Updating kernel cmdline to blacklist nouveau in initrd.."
+		 sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/GRUB_CMDLINE_LINUX_DEFAULT="rd.driver.blacklist=nouveau /' /etc/default/grub
+	fi
+
 	if [ -f /boot/grub/grub.cfg ]; then
 		grub-mkconfig -o /boot/grub/grub.cfg > /dev/null 2>&1
 	fi
@@ -85,15 +96,19 @@ pre_remove() {
 		grep -v '^nvidia' /etc/sysconfig/modules > /etc/sysconfig/modules.tmp
 		mv /etc/sysconfig/modules.tmp /etc/sysconfig/modules
 	fi
-        if [ -e /usr/lib/xorg/temp/libglx.so ]; then
-                mv /usr/lib/xorg/temp/libglx.so /usr/lib/xorg/modules/extensions/
-        fi
 }
 
 post_remove() {
 	/sbin/depmod -a @_F_kernelmod_uname@
+	## UHM.. FIXME .. FIXME -- crazy --
 	echo "*** Nvidia driver is removed now. To have a working Xorg Server again run : ***"
 	echo "*** pacman-g2 -S libgl libgl-headers libglx ****"
+
+	if grep -q 'rd.driver.blacklist=nouveau'  /etc/default/grub ; then
+		echo "Updating kernel cmdline..."
+		sed -i 's/rd.driver.blacklist=nouveau //' /etc/default/grub
+	fi
+
 	if [ -f /boot/grub/grub.cfg ]; then
 		grub-mkconfig -o /boot/grub/grub.cfg > /dev/null 2>&1
 	fi

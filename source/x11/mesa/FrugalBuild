@@ -32,9 +32,12 @@ if Fuse WAYLAND_EGL; then
 	USE_EGL=y
 fi
 
+## NOTE: on major bumps OR when enabling new features _comment_ out last 2 lines from FB
+##       we want to see whatever we are missing things in splitting. If we go and just Frm stuff
+##       we may 1) not notice new libs/files and 2) while 1 we may break things.
 pkgname=mesa
-pkgver=17.2.0
-pkgrel=2
+pkgver=17.2.6
+pkgrel=1
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 _F_archive_grepv="-rc"
@@ -63,8 +66,13 @@ if Fuse DEVEL; then
 	_F_scm_want_up2date=yes
 	Finclude scm
 else
-	source=("https://mesa.freedesktop.org/archive/$pkgname-$pkgver.tar.xz")
-	signatures=("${source[0]}".sig )
+	## please do NOT remove nouveau patches .. they may need re-diff'ing
+	## on major bumps  -- crazy --
+	source=(https://mesa.freedesktop.org/archive/$pkgname-$pkgver.tar.xz \
+		nouveau_locking_1.patch \
+		nouveau_locking_2.patch \
+		nouveau_locking_3.patch )
+	signatures=("${source[0]}".sig '' '' '' )
 fi
 
 subpkgs=('libgl' 'mesa-libgl-headers')
@@ -638,13 +646,16 @@ fi
 
 if Fuse GALLIUM; then
 
-	GALLIUM_DRIVERS+=",i915"
+	GALLIUM_DRIVERS+="i915"
 	GALLIUM_DRIVERS+=",nouveau"
 	GALLIUM_DRIVERS+=",r300,r600,radeonsi"
 	GALLIUM_DRIVERS+=",svga"
 	GALLIUM_DRIVERS+=",swrast"
+	GALLIUM_DRIVERS+=",swr"
+	GALLIUM_DRIVERS+=",virgl"
 	Fconfopts+=" --with-gallium-drivers=$GALLIUM_DRIVERS"
 	Fconfopts+=" --enable-llvm"
+	Fconfopts+=" --with-swr-archs=avx,avx2"
 	if ! Fuse OSMESA; then
 		Fconfopts+=" --enable-gallium-osmesa"
 	fi
@@ -664,12 +675,15 @@ if Fuse VULKAN; then
 	Fconfopts+=" --with-vulkan-drivers=intel,radeon"
 fi
 
+_Fbuild_no_patch=yes
+
 build() {
 
 	if Fuse DEVEL; then
 		Funpack_scm
 	fi
 
+	Fpatchall
 	## Hack for llvm built with cmake..  autoreconf breaks stuff :/
 	Fsed  "LLVM_SO_NAME=.*" "LLVM_SO_NAME=LLVM" configure
 
@@ -717,6 +731,10 @@ build() {
 	if Fuse OPENCL; then
 		Fsplit lib32-libcl usr/lib32/libMesaOpenCL*
 		Fsplit lib32-mesa-pipe-drivers usr/lib32/gallium-pipe/
+		## SWR is special it is a lib since one could
+		## build 4 backends .. and so we'll have libswr$backend_name.so.*
+		## which gets then loaded at runtime
+		Fsplit lib32-mesa-pipe-drivers usr/lib32/libswr*
 	fi
 
 	if Fuse VULKAN; then
@@ -809,8 +827,15 @@ build() {
 		Fsplit libgles usr/lib/pkgconfig/gles*.pc
 	fi
 
+	## FIXME: in setup too .. we use Fuse GALLIUM but have all these under
+	##        Fuse OPENCL ..
 	if Fuse OPENCL; then
 		Fsplit mesa-pipe-drivers usr/lib/gallium-pipe/
+		## SWR is special it is a lib since one could
+		## build 4 backends .. and so we'll have libswr$backend_name.so.*
+		## which gets then loaded at runtime
+		Fsplit mesa-pipe-drivers usr/lib/libswr*
+
 		Fsplit libcl usr/lib/libMesaOpenCL*
 		Fsplit libcl etc/OpenCL
 	fi
@@ -859,7 +884,8 @@ build() {
 	fi
 
 	# empty dirs
-	Frm usr/{lib,include,i686-frugalware-linux,lib32}/
+	Frm usr/{lib,include,i686-frugalware-linux,lib32,share/vulkan}/
+	Frm etc
 }
 
 # optimization OK

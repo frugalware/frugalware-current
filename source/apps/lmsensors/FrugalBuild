@@ -3,7 +3,6 @@
 # Contributor: Zsolt Szalai <xbit@frugalware.org>
 
 pkgname=lmsensors
-_F_archive_name=lm_sensors
 pkgver=3.4.0
 pkgrel=4
 pkgdesc="Linux System Hardware Monitor"
@@ -11,28 +10,43 @@ url="http://www.lm-sensors.org/"
 groups=('apps')
 archs=("x86_64")
 depends=('glibc>=2.25')
-makedepends=('kernel-source')
+makedepends=('kernel-source' 'lib32-bison')
 options=('force')
-#up2date="Flasttar http://www.lm-sensors.org/wiki/Download"
-## site is down use tricky up2date.. nothing is lost in internet :D
-up2date="Flasttar https://web.archive.org/web/20150628233244/http://www.lm-sensors.org/wiki/Download"
-## use sources from BLFS
-#source=(http://dl.lm-sensors.org/lm-sensors/releases/$_F_archive_name-$pkgver.tar.bz2 README.Frugalware)
-source=(http://ftp.osuosl.org/pub/blfs/conglomeration/lmsensors/$_F_archive_name-$pkgver.tar.bz2 README.Frugalware)
+_F_github_author="groeck"
+_F_github_name="lm-sensors"
+_F_github_tag=y
+_F_github_ver="V${pkgver//\./-}"
+_F_cross32_simple_auto=y
+_F_cd_path="${_F_github_name}-${pkgver//\./-}"
+Finclude github cross32
+up2date="$up2date | sed 's/-/\./g' | sed 's/V//g'"
 backup=(etc/{sensors3.conf,sysconfig/lm_sensors})
+source+=("README.Frugalware")
+sha1sums=('4a9026e4db894c98ee7cea0bec1188108e415f71' \
+          'ee447373129f3ddff3a4f2cf18de54004e1876c8')
+_F_cross32_delete=('usr/bin' 'usr/sbin')
 
 build() {
-	Fcd
+        Fcross32_prepare
+        Fcross32_copy_source
+	sed -i 's/CC := gcc/CC := gcc -m32/' Makefile || Fdie
+        make user || Fdie
+        make DESTDIR=$Fdestdir PREFIX=/usr LIBDIR=/usr/lib32 MANDIR=/usr/share/man INCLUDEDIR=/usr/i686-frugalware-linux/include user_install || Fdie
+
+        Fcross32_copy_back_source
+        Fcross32_reset_and_fix
+
+        Fcross32_delete_empty
+	Fsplit "${subpkgs[0]}" /\*
+
 	# Compatibility with kernel 3.x
 	Fsed '\\.(\\d+)(' '(' prog/detect/sensors-detect
+
 	make user || Fdie
 	make DESTDIR=$Fdestdir PREFIX=/usr MANDIR=/usr/share/man user_install || Fdie
 	Frm usr/include/linux/
 	Fdoc README.Frugalware
 	Ffilerel prog/init/lm_sensors.service /lib/systemd/system/$pkgname.service
-	#Fgenscriptlet
 }
 
-sha1sums=('3e245b61a69756ea94f9c8a7c7614ec543970b8c' \
-          'ee447373129f3ddff3a4f2cf18de54004e1876c8')
 # optimization OK

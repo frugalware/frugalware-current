@@ -2,7 +2,6 @@
 # Maintainer: crazy <crazy@frugalware.org>
 
 
-: ${USE_DEVEL="n"}
 : ${USE_DGA="y"}
 : ${USE_KDRIVE="y"}
 : ${USE_UDEV="y"}
@@ -10,18 +9,18 @@
 
 pkgname=xorg-server
 pkgver=1.19.5
-pkgrel=1
+pkgrel=2
 pkgdesc="Modular X.Org X Server"
 groups=('x11' 'xorg-core')
 archs=('x86_64')
-depends=('pixman>=0.32.8-3' 'libepoxy>=1.3.1-6' 'libsystemd>=231-13' \
-	'libdmx>=1.1.3-3' 'libxfont2>=2.0.1' 'libgl>=12.0.3-4')
-makedepends=('libxkbfile>=1.0.9-3' 'libxtst>=1.2.2-3' 'libxres>=1.0.7-4' \
-	'font-util>=1.3.1-3' 'doxygen' 'xmlto' 'fop' 'libxslt' 'wayland-protocols')
-rodepends=('libglx' 'xf86-video-vesa')
+depends=('pixman>=0.32.8-3' 'libepoxy>=1.3.1-6' 'libsystemd>=231-13' 'libdmx>=1.1.3-3' 'libxfont2>=2.0.1' 'pam' \
+	'mesa-libglx>=17.3.0-3' 'libglvnd' 'libglapi>=17.3.0-3' 'dbus' 'mesa-dri-drivers' 'libgbm>=17.3.0-3' 'mesa-libegl>=17.3.0-3')
+makedepends=('libxkbfile>=1.0.9-3' 'libxtst>=1.2.2-3' 'libxres>=1.0.7-4' 'font-util>=1.3.1-3' 'doxygen' 'xmlto' 'fop' \
+	'libxslt' 'wayland-protocols' 'mesa-libgl-headers>=17.3.0-3')
+rodepends=('xf86-video-vesa')
 provides=('libdri' 'xf86-video-modesetting' 'glamor')
-replaces=('libdri' 'xf86-video-modesetting' 'glamor' 'xf86-video-cirrus' \
-	'xf86-video-newport' 'xf86-video-rendition' \
+replaces=('libdri' 'xf86-video-modesetting' 'glamor' \
+	'xf86-video-cirrus' 'xf86-video-newport' 'xf86-video-rendition' \
 	'xf86-video-sunbw2' 'xf86-video-suncg14' 'xf86-video-suncg3' \
 	'xf86-video-suncg6' 'xf86-video-sunffb' 'xf86-video-sunleo' \
 	'xf86-video-suntcx' 'xf86-video-via' 'xf86-video-xgi' 'xf86-input-evtouch' )
@@ -30,20 +29,17 @@ conflicts=("${replaces[@]}")
 _F_archive_grepv="99"
 _F_cross32_combined=y
 Finclude xorg cross32
-sha1sums=('307d3405f709f7e41966c850b37deefe7f83eb9b')
+source+=(xorg-server-modules-path-nvidia-stuff.patch \
+	xserver-autobind-hotplug.patch)
+sha1sums=('307d3405f709f7e41966c850b37deefe7f83eb9b' \
+          '12c1561967d325e8eeebe8eac6af199817dca470' \
+          'f9cac3aedb5a8302162ba536550fdd466c6fc498')
 
-if Fuse $USE_DEVEL; then
-	pkgver=1.6.3.901.151.g120286a
-	unset source sha1sums
-	_F_scm_type="git"
-	_F_scm_url="git://anongit.freedesktop.org/xorg/xserver"
-	Finclude scm
-fi
-
-Fconfopts="${Fconfopts[@]}
-		--disable-static \
+Fconfopts+="    --disable-static \
 		--enable-ipv6 \
 		--enable-dri \
+		--enable-dri2 \
+		--enable-dri3 \
 		--enable-xcsecurity \
 		--enable-xorg \
 		--disable-xfake \
@@ -54,75 +50,79 @@ Fconfopts="${Fconfopts[@]}
 		--enable-xnest \
 		--enable-composite \
 		--enable-glx-tls \
-		--enable-install-setuid \
+		--disable-install-setuid \
 		--enable-record \
 		--enable-glamor \
 		--enable-xwayland \
-		--disable-systemd-logind \
-		--disable-suid-wrapper \
+		--enable-systemd-logind \
+		--enable-suid-wrapper \
 		--with-sha1=libgcrypt \
                 --with-vendor-web=https://www.frugalware.org \
                 --with-os-name=Frugalware_Linux \
                 --with-os-vendor=Frugalware.org-Development-Team \
                 --with-builder-addr=frugalware-devel@frugalware.org \
-		--enable-input-thread "
+		--enable-input-thread \
+		--enable-secure-rpc \
+		--disable-linux-acpi \
+		--disable-linux-apm"
 
 
 if Fuse $USE_UDEV; then
-	depends=(${depends[@]} 'libsystemd>=231-13')
-	rodepends=(${rodepends[@]} 'xf86-input-evdev')
-	Fconfopts="${Fconfopts[@]} \
-		--disable-config-hal \
-		--enable-config-udev"
+	depends+=('libsystemd>=231-13')
+	rodepends+=('xf86-input-evdev')
+	Fconfopts+=" --disable-config-hal --enable-config-udev --enable-config-udev-kms"
 else
-	 Fconfopts="${Fconfopts[@]} \
-                --disable-config-hal \
-		--disable-config-udev"
-	 rodepends=(${rodepends[@]} 'xf86-input-mouse' 'xf86-input-keyboard')
+	Fconfopts+=" --disable-config-hal --disable-config-udev --disable-config-udev-kms"
+	rodepends+=('xf86-input-mouse' 'xf86-input-keyboard')
 fi
 
-
-subpkgs=('libglx')
-subdescs=('Glx library for XOrg.')
-subdepends=('libgl>=12.0.3-2')
-subgroups=('x11 xorg-core')
+subpkgs=("lib32-$pkgname")
+subdescs=("Modular X.Org X Server (32-bit)")
+subgroups=('lib32-extra')
 subarchs=('x86_64')
+subdepends=('lib32-pixman>=0.32.8-3 lib32-libepoxy>=1.3.1-6 lib32-libsystemd>=231-17 lib32-libdmx>=1.1.3-3 lib32-libdbus lib32-mesa-libegl>=17.3.0-3 lib32-pam
+	lib32-libxfont2>=2.0.1 lib32-libglvnd lib32-mesa-libglx>=17.3.0-3 lib32-libglapi>=17.3.0-3 lib32-mesa-dri-drivers>=17.3.0-3 lib32-libgbm>=17.3.0-3')
 
-subpkgs=("${subpkgs[@]}" 'lib32-libglx')
-subdescs=("${subdescs[@]}" 'Glx library for XOrg. (32-bit)')
-subdepends=("${subdepends[@]}" 'lib32-libgl')
-subgroups=("${subgroups[@]}" 'lib32-extra')
-subarchs=("${subarchs[@]}" 'x86_64')
+subpkgs+=('xorg-server-xwayland')
+subdescs+=('Run X clients under wayland.')
+subdepends+=('mesa-libglx>=17.3.0-3 libglapi>=17.3.0-3 libglvnd libepoxy>=1.3.1-6 pixman>=0.32.8-3 libsystemd>=231-17 libxfont2>=2.0.1')
+subgroups+=('x11-extra')
+subarchs+=('x86_64')
 
-subpkgs=("${subpkgs[@]}" 'xorg-server-xwayland')
-subdescs=("${subdescs[@]}" 'run X clients under wayland.')
-subdepends=("${subdepends[@]}"  'libgl>=12.0.3-3 libepoxy>=1.3.1-6 pixman>=0.32.8-3 libsystemd>=231-6 libxfont2>=2.0.1')
-subgroups=("${subgroups[@]}" 'x11-extra')
-subarchs=("${subarchs[@]}" 'x86_64')
-
-subpkgs=("${subpkgs[@]}" 'lib32-xorg-server-xwayland')
-subdescs=("${subdescs[@]}" 'run X clients under wayland.')
-subdepends=("${subdepends[@]}"  'lib32-libgl>=12.0.3-3 lib32-libepoxy>=1.3.1-6 lib32-pixman>=0.32.8-3 lib32-libsystemd>=231-6 lib32-libxfont2>=2.0.1')
-subgroups=("${subgroups[@]}" 'lib32-extra')
-subarchs=("${subarchs[@]}" 'x86_64')
-
+subpkgs+=('lib32-xorg-server-xwayland')
+subdescs+=('Run X clients under wayland.')
+subdepends+=('lib32-mesa-libglx>=17.3.0-3 lib32-libglapi>=17.3.0-3 lib32-libglvnd lib32-libepoxy>=1.3.1-6 lib32-pixman>=0.32.8-3 lib32-libsystemd>=231-17 lib32-libxfont2>=2.0.1')
+subgroups+=('lib32-extra')
+subarchs+=('x86_64')
 
 if Fuse $USE_KDRIVE; then
-	subpkgs=("${subpkgs[@]}" "$pkgname-xephyr" "$pkgname-fbdev")
-	subdescs=("${subdescs[@]}" 'KDrive xephyr X server' 'KDrive fbdev X server')
-	subdepends=("${subdepends[@]}" 'libepoxy>=1.3.1-6 pixman>=0.32.8-3 libxfont>=1.5.1-2 libsystemd>=231-6 libgl>=12.0.3-3 xcb-util-image>=0.4.0-3 xcb-util-wm>=0.4.1-3 xcb-util-renderutil xcb-util-keysyms')
-	subdepends=("${subdepends[@]}" 'pixman>=0.32.8-3 libxfont>=1.5.1-3 libxau>=1.0.8-2 libsystemd>=231-6 libxdmcp>=1.1.2-3')
-	subgroups=("${subgroups[@]}" 'x11' 'x11-extra')
-	subarchs=("${subarchs[@]}" 'x86_64' 'x86_64')
+	subpkgs+=("$pkgname-xephyr")
+	subdescs+=('KDrive xephyr X server')
+	subdepends+=('libepoxy>=1.3.1-6 pixman>=0.32.8-3 libxfont>=1.5.1-2 libsystemd>=231-17 mesa-libglx>=17.3.0-3 libglapi>=17.3.0-3 libglvnd  xcb-util-image>=0.4.0-3 xcb-util-wm>=0.4.1-3 xcb-util-renderutil xcb-util-keysyms')
+	subgroups+=('x11')
+	subarchs+=('x86_64')
 
-        subpkgs=("${subpkgs[@]}" "lib32-$pkgname-xephyr" "lib32-$pkgname-fbdev")
-        subdescs=("${subdescs[@]}" 'KDrive xephyr X server (32-bit)' 'KDrive fbdev X server (32-bit)')
-        subdepends=("${subdepends[@]}" 'lib32-libepoxy>=1.3.1-6 lib32-pixman>=0.32.8-3 lib32-libxfont>=1.5.1-2 lib32-libsystemd>=231-6 lib32-libgl>=12.0.3-3 lib32-xcb-util-image>=0.4.0-3 lib32-xcb-util-wm>=0.4.1-3 lib32-xcb-util-renderutil lib32-xcb-util-keysyms')
-        subdepends=("${subdepends[@]}" 'lib32-pixman>=0.32.8-3 lib32-libxfont>=1.5.1-3 lib32-libxau>=1.0.8-2 lib32-libsystemd>=231-6 lib32-libxdmcp>=1.1.2-3')
-        subgroups=("${subgroups[@]}" 'lib32-extra' 'lib32-extra')
-        subarchs=("${subarchs[@]}" 'x86_64' 'x86_64')
+	subpkgs+=("$pkgname-fbdev")
+	subdescs+=('KDrive fbdev X server')
+	subdepends+=('pixman>=0.32.8-3 libxfont>=1.5.1-3 libxau>=1.0.8-2 libsystemd>=231-17 libxdmcp>=1.1.2-3')
+	subgroups+=('x11-extra')
+	subarchs+=('x86_64')
 
-	Fconfopts="${Fconfopts[@]}
+	subpkgs+=("lib32-$pkgname-xephyr")
+	subdescs+=('KDrive xephyr X server (32-bit)')
+	subdepends+=('lib32-libepoxy>=1.3.1-6 lib32-pixman>=0.32.8-3 lib32-libxfont>=1.5.1-2 lib32-libsystemd>=231-17
+		lib32-xcb-util-image>=0.4.0-3 lib32-xcb-util-wm>=0.4.1-3 lib32-xcb-util-renderutil lib32-xcb-util-keysyms
+		lib32-mesa-libglx>=17.3.0-3 lib32-libglapi>=17.3.0-3 lib32-libglvnd')
+	subgroups+=('lib32-extra')
+	subarchs+=('x86_64')
+
+	subpkgs+=("lib32-$pkgname-fbdev")
+	subdescs+=('KDrive fbdev X server (32-bit)')
+	subdepends+=('lib32-pixman>=0.32.8-3 lib32-libxfont>=1.5.1-3 lib32-libxau>=1.0.8-2 lib32-libsystemd>=231-17 lib32-libxdmcp>=1.1.2-3')
+	subgroups+=('lib32-extra')
+	subarchs+=('x86_64')
+
+	Fconfopts+=" \
 		--enable-xephyr \
 		--enable-xvfb \
 		--enable-kdrive \
@@ -131,7 +131,7 @@ if Fuse $USE_KDRIVE; then
 		--enable-kdrive-mouse
 		--enable-xfbdev"
 else
-	Fconfopts="${Fconfopts[@]}
+	Fconfopts+=" \
 		--disable-xephyr \
 		--disable-xvfb \
 		--disable-kdrive \
@@ -142,53 +142,40 @@ else
 fi
 
 if Fuse $USE_SERVERDMX; then
-	subpkgs=("${subpkgs[@]}" "$pkgname-dmx")
-	subdescs=("${subdescs[@]}" 'Distributed Multi-Head X server.')
-	subdepends=("${subdepends[@]}" 'libdmx>=1.1.3-3 libxaw>=1.0.13-3 libxrender>=0.9.10 libxi>=1.7.6-2 pixman>=0.32.8-3 libxfont2>=2.0.1 libsystemd>=231-6 libxtst libxres')
-	subgroups=("${subgroups[@]}" 'x11-extra')
-	subarchs=("${subarchs[@]}" 'x86_64')
+	subpkgs+=("$pkgname-dmx")
+	subdescs+=('Distributed Multi-Head X server.')
+	subdepends+=('libdmx>=1.1.3-3 libxaw>=1.0.13-3 libxrender>=0.9.10 libxi>=1.7.6-2 pixman>=0.32.8-3 libxfont2>=2.0.1 libsystemd>=231-17 libxtst libxres')
+	subgroups+=('x11-extra')
+	subarchs+=('x86_64')
 
-        subpkgs=("${subpkgs[@]}" "lib32-$pkgname-dmx")
-        subdescs=("${subdescs[@]}" 'Distributed Multi-Head X server. (32-bit)')
-        subdepends=("${subdepends[@]}" 'lib32-libdmx>=1.1.3-3 lib32-libxaw>=1.0.13-3 lib32-libxrender>=0.9.10 lib32-libxi>=1.7.6-2 lib32-pixman>=0.32.8-3 lib32-libxfont2>=2.0.1 lib32-libsystemd>=231-6 lib32-libxtst lib32-libxres')
-        subgroups=("${subgroups[@]}" 'lib32-extra')
-        subarchs=("${subarchs[@]}" 'x86_64')
+        subpkgs+=("lib32-$pkgname-dmx")
+        subdescs+=('Distributed Multi-Head X server. (32-bit)')
+        subdepends+=('lib32-libdmx>=1.1.3-3 lib32-libxaw>=1.0.13-3 lib32-libxrender>=0.9.10 lib32-libxi>=1.7.6-2 lib32-pixman>=0.32.8-3 lib32-libxfont2>=2.0.1 lib32-libsystemd>=231-17 lib32-libxtst lib32-libxres')
+        subgroups+=('lib32-extra')
+        subarchs+=('x86_64')
 
-	Fconfopts="${Fconfopts[@]}
-                --enable-dmx"
+	Fconfopts+=" --enable-dmx"
 else
-	Fconfopts="${Fconfopts[@]}
-		--disable-dmx"
+	Fconfopts+=" --disable-dmx"
 fi
 
 if Fuse $USE_DGA; then
-	makedepends=("${makedepends[@]}" 'xf86dgaproto>=2.1-2')
-	Fconfopts="${Fconfopts[@]}
-		--enable-dga"
+	makedepends+=('xf86dgaproto>=2.1-2')
+	Fconfopts+=" --enable-dga"
 else
-	Fconfopts="${Fconfopts[@]}
-		--disable-dga"
+	Fconfopts=" --disable-dga"
 fi
 
-subpkgs=("${subpkgs[@]}" "lib32-$pkgname")
-subdescs=("${subdescs[@]}" "Modular X.Org X Server (32-bit)")
-subgroups=("${subgroups[@]}" 'lib32-extra')
-subarchs=("${subarchs[@]}" 'x86_64')
-subdepends=("${subdepends[@]}" 'lib32-pixman>=0.32.8-3 lib32-libepoxy>=1.3.1-6 lib32-libsystemd>=231-6 lib32-libdmx>=1.1.3-3 lib32-libxfont2>=2.0.1 lib32-libgl>=12.0.3-4')
+_Fbuild_autoreconf=yes
+_Fbuild_no_patch=yes
 
 build() {
-	if Fuse $USE_DEVEL; then
-		Funpack_scm
-	fi
 
 	Fcd
-	Fautoreconf
+	Fpatchall
 	Fbuild_cross32
 
 	Frm usr/share/X11/xorg.conf.d/10-evdev.conf
-
-	Fsplit libglx usr/lib/xorg/modules/extensions/libglx.*
-	Fsplit lib32-libglx usr/lib32/xorg/modules/extensions/libglx.*
 
 	Fsplit xorg-server-xwayland usr/bin/Xwayland
 	Fsplit lib32-xorg-server-xwayland usr/i686-frugalware-linux/bin/Xwayland

@@ -42,3 +42,13 @@ fi
 if test -n "$_options"; then
 	/usr/bin/cpupower set $_options
 fi
+
+_options=""
+
+## disable C states
+if test -n "$disable_idle_states"; then
+	for jj in "${disable_idle_states[*]}"
+	do
+		/usr/bin/cpupower idle-set -d $jj
+	done
+fi

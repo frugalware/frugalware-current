@@ -34,7 +34,9 @@ fi
 _options=""
 
 if test -n "$perf_bias"; then
-	_add_option "--perf-bias $perf_bias"
+	if grep -q 'Intel' /proc/cpuinfo; then
+		_add_option "--perf-bias $perf_bias"
+	fi
 fi
 
 if test -n "$_options"; then

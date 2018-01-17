@@ -201,15 +201,18 @@ do
 	subconflicts=("${subconflicts[@]}" "")
 done
 
+
 Fsplitgid()
 {
 	Fsplit $1 $(grep -v '^%dir' $2|sort -u)
-	rm -vf $2
+	Fexec rm -vf $2
 }
 
 build()
 {
 	unset DISPLAY
+
+	local i f j
 
 	if [ ! -e src.downloaded ]; then
 		for i in "${modules[@]}"
@@ -217,16 +220,16 @@ build()
 			Fextract libreoffice-$i${pkgver/_/-}.tar.xz
 		done
 		Fcd libreoffice-${pkgver/_buildfix/-buildfix}
-		mkdir -p ext_source
+		Fexec mkdir -p ext_source
 		for i in ${ext_source[@]}
 		do
 			f=$(strip_url $i)
-			ln -sf $Fsrcdir/$f ext_source/$f
+			Fexec ln -sf $Fsrcdir/$f ext_source/$f
 		done
 	else
 		Fcd libreoffice-${pkgver/_buildfix/-buildfix}
 	fi
-	touch src.downloaded
+	Fexec touch src.downloaded
 
 	## FU**ING poppler GUY .. yeah he broke hell again .. ( that is for the 0.62.0++ crappoppler version )
 	Fsed "UTF8.h" "UnicodeMapFuncs.h" sdext/source/pdfimport/xpdfwrapper/pdfioutdev_gpl.cxx
@@ -234,8 +237,8 @@ build()
 	Fsed "mapUCS2" "mapUTF16" sdext/source/pdfimport/xpdfwrapper/pdfioutdev_gpl.cxx
 	## END crappoppler  workarounds
 	# Check for missing language packs.
-	langfile="solenv/inc/langlist.mk"
-	langs=$(sed ':a;N;$!ba;s/\\\n//g' $langfile|grep ^completelangiso=|sed 's/completelangiso=//;s/en-US //')
+	local langfile="solenv/inc/langlist.mk"
+	local langs=$(sed ':a;N;$!ba;s/\\\n//g' $langfile|grep ^completelangiso=|sed 's/completelangiso=//;s/en-US //')
 	if [ "$langs" != "${completelangiso[*]}" ]; then
 		Fmessage "Update completelangiso, '$langs' != '${completelangiso[*]}'"
 		return 1
@@ -243,7 +246,8 @@ build()
 
 	# SMP build
 	if [ ! -z "$MAKEFLAGS" ]; then
-		Fconfopts+=" --with-parallelism=${MAKEFLAGS/-j}"
+		local _makeflags=$(MAKEFLAGS)
+		Fconfopts+=" --with-parallelism=${_makeflags/-j}"
 		unset MAKEFLAGS
 	fi
 
@@ -288,9 +292,10 @@ build()
 	sed -i 's/test `id -u` = 0/false/' Makefile # missing fakeroot detection
 
 	if [ ! -e src.built ]; then
-		make build-nocheck || return 1
+		Fexec make build-nocheck || return 1
 	fi
-	touch src.built
+	Fexec touch src.built
+	[ ! -z "$MAKEFLAGS" ] && export MAKEFLAGS={$_makeflags}
 
 	# generate the icons and mime type stuff
 	export DESTDIR=../output
@@ -302,10 +307,10 @@ build()
 	pushd $WORKDIR/CustomTarget/sysui/share/libreoffice
 	./create_tree.sh
 	popd
-	mkdir $WORKDIR/os-integration
-	cp -pr $WORKDIR/CustomTarget/sysui/share/output/usr/share/* $WORKDIR/os-integration
+	Fexec mkdir $WORKDIR/os-integration
+	Fexec cp -pr $WORKDIR/CustomTarget/sysui/share/output/usr/share/* $WORKDIR/os-integration
 
-	make DESTDIR=$Fdestdir install || return 1
+	Fexec make DESTDIR=$Fdestdir install || Fdie
 
 	# Install wrappers, desktop files, icons and mime types and manpages
 	Fwrapper '/usr/lib/libreoffice/program/soffice "$@"' libreoffice
@@ -320,8 +325,10 @@ build()
 
 	# Desktop files
 	pushd $Fdestdir/usr/lib/libreoffice/share/xdg/
-	chmod u+w *.desktop
+	Fexec chmod u+w *.desktop
 	ICONVERSION=`echo $PRODUCTVERSION | sed -e 's/\.//'`
+
+	local file app icon
 	for file in *.desktop; do
 	    # remove the version from Name=
 	    # don't version the icons
@@ -383,12 +390,12 @@ build()
 	rm $Fdestdir/gid_Module_Optional_OGLTrans # would be 63K
 	rm $Fdestdir/gid_Module_Optional_Xsltfiltersamples # would be 214K
 	# Check if anything else optional remained.
-	cd $Fdestdir
+	Fexec cd $Fdestdir
 	if ls gid_Module_Optional_*; then
 		Fmessage "Unsplit subpackages: $(ls gid_Module_Optional_*)"
 		return 1
 	fi
-	rm -f $Fdestdir/gid_*
+	Fexec rm -f $Fdestdir/gid_*
 }
 
 # optimization OK

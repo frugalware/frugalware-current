@@ -1,8 +1,8 @@
 # Setup colors for 'ls' commands.
 if [ "$SHELL" = "/bin/zsh" ]; then
- eval `dircolors -z`
+ eval `dircolors -b`
 elif [ "$SHELL" = "/bin/ash" ]; then
- eval `dircolors -s`
+ eval `dircolors -c`
 else
  eval `dircolors -b`
 fi

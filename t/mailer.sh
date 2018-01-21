@@ -1,6 +1,6 @@
 #!/bin/bash
 
-stabledir="../../frugalware-stable/t"
+stabledir="run_just_current_please"
 
 gen_output()
 {

@@ -18,7 +18,7 @@
 
 
 qtpkgname=${pkgname/5-/}
-qtpkgfilename=${qtpkgname}-opensource-src-${pkgver}
+qtpkgfilename=${qtpkgname}-everywhere-src-${pkgver}
 pkgdesc="The Qt5 toolkit, ${qtpkgname}"
 url="http://www.qt.io"
 if [ -z "$groups" ]; then

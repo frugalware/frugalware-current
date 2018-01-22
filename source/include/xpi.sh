@@ -47,7 +47,7 @@ fi
 # * makedepends
 # * rodepends()
 ###
-makedepends=("${makedepends[@]}" 'unzip' 'xmlstarlet')
+makedepends=("${makedepends[@]}" 'unzip')
 if [ -z "$_F_xpi_productver" ]; then
 	rodepends=("${rodepends[@]}" "$_F_xpi_product")
 else
@@ -56,50 +56,26 @@ fi
 
 ###
 # == PROVIDED FUNCTIONS
-# * Fxpi_get(): Extract data in the install rdf. Arguments: 1) Path to the xpi
-# file. 2) XPATH request to the wanted information.
 ###
-Fxpi_get()
-{
-	# http://kb.mozillazine.org/Determine_extension_ID
-	# xml is provided by xmlstarlet
-	# sed removes empty lines (usefull for wrongly formated files)
-	unzip -qc $1 install.rdf | \
-		sed '/^\s*$/d' | \
-		xml sel -N rdf=http://www.w3.org/1999/02/22-rdf-syntax-ns# \
-		-N em=http://www.mozilla.org/2004/em-rdf# -t -v "$2"
-}
-
-###
-# * Fxpi_id(): Extract the extension id of a given xpi. Arguments: 1) Path to
-# the xpi file.
-###
-Fxpi_id()
-{
-	# http://kb.mozillazine.org/Determine_extension_ID
-	local id
-
-	id=`Fxpi_get "$1" "//rdf:Description[@about='urn:mozilla:install-manifest']/em:id"`
-	if [ -z "$id" ]; then
-		# Variant used by language pack at least
-		id=`Fxpi_get "$1" "//rdf:Description[@about='urn:mozilla:install-manifest']/@em:id"`
-	fi
-	if [ -z "$id" ]; then
-		error "identifier not found in $1"
-		Fdie
-	fi
-	echo -n "$id"
-}
 
 ###
 # * Fxpi_installxpi(): Arguments: 1) xpi to install.
 ###
 Fxpi_installxpi()
 {
-	local id=`Fxpi_id "$1"`
+
+	local lang_id full_id
+	lang_id=$(unzip -qc $1 manifest.json | grep langpack_id | sed 's/.*: "\(.*\).*",.*/\1/')
+	if [ -z $lang_id ]; then
+		error "identifier not found in $1"
+		Fdie
+	fi
+
+	full_id="langpack-$lang_id@firefox.mozilla.org"
+
 
 	Fmkdir "${_F_xpi_installpath}"
-	Fcprel "$1" "${_F_xpi_installpath}/${id}.xpi"
+	Fcprel "$1" "${_F_xpi_installpath}/${full_id}.xpi"
 }
 
 ###

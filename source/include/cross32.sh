@@ -102,7 +102,7 @@ __cross32_set_vars() {
 
 	## common
 	export CFLAGS="${CFLAGS_ORIG/x86-64/i686}"
-	export CXXFLAGS="${CXXLAGS_ORIG/x86-64/i686}"
+	export CXXFLAGS="${CXXFLAGS_ORIG/x86-64/i686}"
 	export CHOST="i686-frugalware-linux"
 	export CC="gcc -m32"
 	export CXX="g++ -m32"

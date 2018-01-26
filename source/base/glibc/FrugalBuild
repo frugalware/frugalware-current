@@ -7,25 +7,26 @@
 ## IF you still want to BUMP rebuild the TOOLCHAIN!!
 
 pkgname=glibc
-pkgver=2.26
+pkgver=2.26.9000
 pkgrel=1
+_githash="-1167-g2ec0e7eade"
 pkgdesc="GNU C Library"
 url="http://www.gnu.org/software/libc/libc.html"
 depends=()
-makedepends=('libxml2>=2.9.2-2' 'binutils>=2.28-3' 'gcc>=6.3.1-3' 'grep>=2.5.3-4' \
-	'zlib>=1.2.11-2' 'pacman-g2>=3.7.0-4')
+makedepends=('libxml2>=2.9.2-3' 'binutils>=2.29.1-2' 'gcc>=7.3.0' 'grep>=2.5.3-4' \
+	'zlib>=1.2.11-3' 'pacman-g2>=3.9.3-2')
 rodepends=('tzdata>=2017a' 'frugalware')
 groups=('base' 'chroot-core')
 archs=('x86_64')
 Fup2gnubz2
 _dlurl="http://ftp.gnu.org/pub/gnu/glibc"
-source=($_dlurl/glibc-$pkgver.tar.xz
-	glibc-2.26-branch-on-commit-51600b0fd76ce1d4a0eb1159087cab4fc3937dd6.patch.gz \
-	gshadow.patch)
-sha1sums=('7cf7d521f5ebece5dd27cfb3ca5e5f6b84da4bfd' \
-          '213a4aafdb7c625307e5047afb6af5817ee6ce45' \
-          '904ccc4fb4ff458bc483b345c4a307b3e0922cb0')
-options+=('scriptlet' 'noccache' 'static' 'nostrip')
+#source=($_dlurl/glibc-$pkgver.tar.xz
+#	glibc-2.26-branch-on-commit-51600b0fd76ce1d4a0eb1159087cab4fc3937dd6.patch.gz \
+#	gshadow.patch)
+## TMP before 2.27 releases
+source=(http://ftp.frugalware.org/pub/other/people/crazy/$pkgname-$pkgver$_githash.tar.xz)
+sha1sums=('e270a68b4f7e329280b93ffab730f41f8dc94bb2')
+options+=('scriptlet' 'noccache' 'static' 'nostrip' 'nofortify')
 
 
 subpkgs=("$pkgname-memusagestat")
@@ -41,21 +42,22 @@ provides=('lib32' 'lib32-glibc')
 
 _buildd() {
 
-	make  || Fdie
-	make  install_root=$Fdestdir install || Fdie
-	make  install_root=$Fdestdir localedata/install-locales || Fdie
+	Fexec make  || Fdie
+	Fexec make  install_root=$Fdestdir install || Fdie
+	Fexec make  install_root=$Fdestdir localedata/install-locales || Fdie
 }
 
 build() {
 
 
 	## FIXME
-	Fcd $pkgname-$pkgver
+	local _pkgstring="$pkgname-$pkgver$_githash"
+	Fcd $_pkgstring
 	Fpatchall
 	Ffilerel nscd/nscd.conf /etc/nscd.conf
 	Fexec cd ..
-	Fexec cp -Ra  $pkgname-$pkgver lib32-$pkgname-$pkgver
-	Fcd $pkgname-$pkgver
+	Fexec cp -Ra $_pkgstring lib32-$_pkgstring
+	Fcd $_pkgstring
 	## use Fdie here and kill the build
 	## if we get any errors. -- crazy --
 	rm -rf ../glibc-build || Fdie
@@ -63,11 +65,16 @@ build() {
 	rm -rf ../glibc-build32 || Fdie
 	mkdir ../glibc-build32 || Fdie
 
+	## so now lets fix C/CXX flags
+	CFLAGS="${CFLAGS/-fno-plt/}"
+	CXXFLAGS="${CXXFLAGS/-fno-plt/}"
+
+	## glibc want U_FORTIFY_SOURCE
+	CFLAGS+=" -Wp,-U_FORTIFY_SOURCE"
+	CXXFLAGS+=" -Wp,-U_FORTIFY_SOURCE"
 
 	## need for 32bit libs
 	GLIBOPTS32="--libdir=/usr/lib32 --libexecdir=/usr/lib32 --build=i686-frugalware-linux"
-	CFLAGS32="-march=i686 -mtune=generic -O2 -pipe"
-	CXXFLAGS32="-march=i686 -mtune=generic -O2 -pipe"
 
 	## untill there is some tc-32.sh we need such things
 	HOSTCF="$CFLAGS"
@@ -84,16 +91,18 @@ build() {
 		--with-headers=/usr/include \
 		--with-tls \
 		--with-__thread \
-		--enable-kernel=2.6.39 \
+		--enable-kernel=4.4.113 \
 		--without-selinux \
 		--enable-shared \
 		--enable-static \
 		--enable-bind-now \
 		--enable-obsolete-rpc \
+		--enable-obsolete-nsl \
 		--disable-werror \
 		--enable-static-nss \
 		--enable-add-ons \
 		--disable-profile \
+		--enable-tunables \
 		--enable-stackguard-randomization \
 		--enable-lock-elision=yes \
 		--enable-multi-arch \
@@ -105,8 +114,8 @@ build() {
 	## we don't need to delete all over the place
 	Fexec cd ../glibc-build32 || Fdie
 
-	export CFLAGS="$CFLAGS32"
-	export CXXFLAGS="$CXXFLAGS32"
+	export CFLAGS="${CFLAGS/x86-64/i686}"
+	export CXXFLAGS="${CXXFLAGS/x86-64/i686}"
 	export CXX="g++ -m32"
 	export CC="gcc -m32"
 	export BUILD_ARCH=x86_64
@@ -115,12 +124,12 @@ build() {
 	echo "slibdir=/usr/lib32" >> configparms
 	echo "rtlddir=/usr/lib32" >> configparms
 
-	Fexec ../lib32-$pkgname-$pkgver/configure $GLIBOPTS $GLIBOPTS32 || Fdie
+	Fexec ../lib32-$_pkgstring/configure $GLIBOPTS $GLIBOPTS32 || Fdie
 
 	_buildd
 
 	## be sure to symlink the right one
-	Fln /usr/lib32/ld-2.26.so /lib/ld-linux.so.2
+	Fln /usr/lib32/ld-2.26.9000.so /lib/ld-linux.so.2
 	Fln /usr/lib32 /lib32
 	Fmkdir etc/ld.so.conf.d
 	echo /usr/lib32  >> "$Fdestdir/etc/ld.so.conf.d/glibc32.conf" || Fdie
@@ -138,7 +147,7 @@ build() {
 	## put all in /lib we symlink to /lib64 , no need to move stuff around
 	echo "slibdir=/lib" >> configparms
 	echo "rtlddir=/lib" >> configparms
-	Fexec ../$pkgname-$pkgver/configure $GLIBOPTS $_GLIBOPTS || Fdie
+	Fexec ../$_pkgstring/configure $GLIBOPTS $_GLIBOPTS || Fdie
 
 	_buildd
 

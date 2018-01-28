@@ -39,6 +39,9 @@
 # * F32confopts - use like Fconfopts.
 ###
 
+if [ -z "$_F_cross32_new_path" ]; then
+	_F_cross32_combined="yes"
+fi
 
 ## since we need to build first the 32bit version
 ## we need to save these

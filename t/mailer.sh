@@ -47,7 +47,6 @@ cd `dirname $0`
 logdir=`mktemp -d`
 mkdir $logdir/s
 
-
 # run the tests
 for i in *
 do

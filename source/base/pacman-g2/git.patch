@@ -1,0 +1,90 @@
+diff --git a/etc/makepkg.conf.in b/etc/makepkg.conf.in
+index 24e0a14a..289f5f00 100644
+--- a/etc/makepkg.conf.in
++++ b/etc/makepkg.conf.in
+@@ -14,13 +14,14 @@ case $(uname -m) in
+ 	x86_64)
+ 		CARCH="x86_64"
+ 		CHOST="x86_64-frugalware-linux"
+-		CFLAGS="-march=x86-64 -mtune=generic -O2 -pipe -fstack-protector-strong -fno-plt"
+-		CXXFLAGS="-march=x86-64 -mtune=generic -O2 -pipe -fstack-protector-strong -fno-plt"
++		CFLAGS="-march=x86-64 -mtune=generic -O2 -pipe"
++		CXXFLAGS="-march=x86-64 -mtune=generic -O2 -pipe"
+ 		;;
+ esac
+ 
+-## options+=('noprotector') allows to manipulate -fstack-protector-strong
+-## from FrugalBuild. Eg, to use ..=${CFLAGS/-fstack-protector-strong/}
++## FLAGS added from makepkg:
++## -fno-plt : can be disbled with options+=('plt')
++## -fstack-protector-strong : can be disabled with options+=('noprotector')
+ export CARCH CHOST CFLAGS CXXFLAGS
+ 
+ ## -Wl,--as-needed is set from makepkg. Disable with options+=('noasneeded')
+diff --git a/scripts/makepkg b/scripts/makepkg
+index d6cde41f..47c473d7 100755
+--- a/scripts/makepkg
++++ b/scripts/makepkg
+@@ -1240,7 +1240,7 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+ 			msg "Your package has coding issues"
+ 			warning "Broken strict-aliasing rules detected"
+ 			warning "C/CXX FLAGS need -fno-strict-aliasing"
+-			warning "Please recompile with right CFLAGS"
++			warning "Please recompile with right C/CXX FLAGS"
+ 		fi
+ 		# copy build log to LOGDIR if set
+ 		if [ -d "$LOGDIR" ]; then
+@@ -1428,10 +1428,7 @@ if [ "$INCHROOT" == "1" ]; then
+ 	fi
+ 
+ 	if ! $ECHO $CFLAGS | grep -q "\-fstack-protector-strong" ; then
+-		if [ "`check_option NOPROTECTOR`" ]; then
+-			warning "You disabled stack-protector.. Do that *ONLY*"
+-			warning "when you have a very GOOD reason.."
+-		else
++		if [ ! "`check_option NOPROTECTOR`" ]; then
+ 			error "Your build/makepkg.conf is broken"
+ 			error "CFLAGS is missing -fstack-protector-strong"
+ 			error "and options+=('noprotector') is not set.."
+@@ -1440,12 +1437,9 @@ if [ "$INCHROOT" == "1" ]; then
+ 	fi
+ 
+ 	if ! $ECHO $CXXFLAGS | grep -q "\-fstack-protector-strong" ; then
+-		if [ "`check_option NOPROTECTOR`" ]; then
+-			warning "You disabled stack-protector.. Do that *ONLY*"
+-			warning "when you have a very GOOD reason.."
+-		else
++		if [ ! "`check_option NOPROTECTOR`" ]; then
+ 			error "Your build/makepkg.conf is broken"
+-			error "CXXFLAGS is missing -fstack-protector-strong missing"
++			error "CXXFLAGS is missing -fstack-protector-strong"
+ 			error "and options+=('noprotector') is not set.."
+ 			exit 1
+ 		fi
+@@ -1500,6 +1494,26 @@ if [ "$INCHROOT" == "1" ]; then
+ 		export CFLAGS CXXFLAGS
+ 	fi
+ 
++	## add before PLT
++	if [ "`check_option NOPROTECTOR`" ]; then
++		warning "Disabling -fstack-protector-strong in C/CXX FLAGS."
++		warning "Do that only with an GOOD reason.."
++	else
++		msg "Enabling -fstack-protector-strong in C/CXX FLAGS"
++		CFLAGS+=" -fstack-protector-strong"
++		CXXFLAGS+=" -fstack-protector-strong"
++		export CFLAGS CXXFLAGS
++	fi
++
++	if [ "`check_option PLT`" ]; then
++		 warning "Disabling -fno-plt C/CXX FLAGS"
++	else
++		msg "Enabling -fno-plt in C/CXX FLAGS"
++		CFLAGS+=" -fno-plt"
++		CXXFLAGS+=" -fno-plt"
++		export CFLAGS CXXFLAGS
++	fi
++
+ 	if [ "`check_option NORELRO`" ]; then
+ 		warning "Disabling LDFLAGS: -z,relro"
+ 		export ORELRO=0

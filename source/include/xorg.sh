@@ -36,6 +36,7 @@ if [ -z "$_F_xorg_name" ]; then
 	_F_xorg_name=$pkgname
 fi
 
+
 ###
 # == OVERWRITTEN VARIABLES
 # * url
@@ -59,6 +60,15 @@ if [[ $pkgname =~ ^xf86-input- ]]; then
 	archs=('x86_64')
 	depends=("${depends[@]}" 'xorg-server>=1.19.0')
 fi
+
+
+if [[ $pkgname =~ ^xf86-video- ]]; then
+	## -video stuff doesn't like some flags
+	options+=('nonow')
+	CFLAGS=${CFLAGS/-fno-plt/}
+	CXXFLAGS=${CXXFLAGS/-fno-plt/}
+fi
+
 url="http://xorg.freedesktop.org"
 
 # set individual to be 1 , released xorg is crap at the moment , no way to get something

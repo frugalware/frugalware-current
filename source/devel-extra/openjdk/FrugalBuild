@@ -10,25 +10,24 @@ _updatever=u151
 icedteaver=3.6.0
 javaver="$_java_ver-openjdk"
 pkgver=${_java_ver}${_updatever}_${icedteaver}
-pkgrel=1
+pkgrel=2
 
 pkgdesc="Open-source Java Development Kit implementation."
 url="http://openjdk.java.net/"
 groups=('devel-extra')
 archs=('x86_64')
 
-depends=('openjre')
 provides=('jdk')
 rodepends=("openjre=$pkgver-$pkgrel")
-makedepends=('apache-ant' 'zip' 'cpio' 'cups' \
-	'openjdk' 'libgif>=5.1.1' 'libxp' 'procps' 'sed>=4.2.1-2' \
+makedepends=('zip' 'cpio' 'cups' 'libgif>=5.1.1' 'libxp' 'procps' 'sed>=4.2.1-2' \
 	'cpio>=2.11-2' 'fastjar' 'x11-protos' 'krb5' 'libxt')
 
 
 # we update when there is a new icedtea release
 up2date="Flasttar http://icedtea.classpath.org/download/source/ | sed 's/$icedteaver/${_java_ver}${_updatever}_${icedteaver}/'"
 _url=http://icedtea.classpath.org/download/drops/icedtea8/${icedteaver}
-source=(http://icedtea.classpath.org/download/source/$_F_archive_name-$icedteaver.tar.xz
+source=(https://download.java.net/java/jdk8u172/archive/b03/binaries/jdk-8u172-ea-bin-b03-linux-x64-18_jan_2018.tar.gz \
+	http://icedtea.classpath.org/download/source/$_F_archive_name-$icedteaver.tar.xz \
         ${_url}/openjdk.tar.xz
         ${_url}/corba.tar.xz
         ${_url}/jaxp.tar.xz
@@ -38,7 +37,8 @@ source=(http://icedtea.classpath.org/download/source/$_F_archive_name-$icedteave
         ${_url}/hotspot.tar.xz
         ${_url}/nashorn.tar.xz
         openj{dk,re}.sh )
-sha1sums=('6d9450ea8c623046e5c19ba12d8d4fd0541c8832' \
+sha1sums=('6acd1c281048399767f5c571ff930a82218411cf' \
+          '6d9450ea8c623046e5c19ba12d8d4fd0541c8832' \
           '115c38071c1c65d40ad9f299d866db98a908d091' \
           'e8bfde4571923b1ffed6295c9a483895873590a6' \
           '72a7db37971c128366e9321b387f16d941b38bf1' \
@@ -49,27 +49,45 @@ sha1sums=('6d9450ea8c623046e5c19ba12d8d4fd0541c8832' \
           '3c9c25541ebe2fb3d2af6fc1f5b64cfab3a7e1d2' \
           '78e9431d03414d34234aae45e5c1c08569e10eb8' \
           '6b97ca73697d86f962cdc3396efac8717c4dfaa5')
-options+=('noversrc' 'noccache')
+options+=('noversrc')
+# 'norelro' 'noprotector')
 _F_cd_path=$_F_archive_name-$icedteaver
 NOEXTRACT=1
 
 
-subpkgs=('openjre' 'openjdk-source')
-subdescs=('Open-source Java Runtime Environment.' 'Java Development Kit source-code.')
-subdepends=('libjpeg>=8b libgif>=5.1.1 libuuid libxtst libffi libpulse>=7.1 lcms2 nss lksctp-tools libpng libxinerama libxrender libxcomposite freetype2 pcsc-lite libkrb5' '')
-subrodepends=('ca-certificates-java' "openjdk=$pkgver")
-subprovides=('jre' '')
-subgroups=('xapps' 'devel-extra')
-subarchs=('x86_64' 'x86_64')
+subpkgs+=('openjre')
+subdescs=('Open-source Java Runtime Environment.')
+subdepends=('libuuid libpulse>=7.1 lcms2 nss lksctp-tools  pcsc-lite libkrb5')
+subrodepends=('ca-certificates-java')
+subprovides=('jre')
+subgroups=('apps')
+subarchs=('x86_64')
+
+subpkgs+=('openjre-x')
+subdescs+=('Java graphic bindings')
+subdepends+=('libxtst libffi libjpeg-turbo libgif>=5.1.1 libpng libxinerama libxrender libxcomposite freetype2')
+subrodepends+=('openjre')
+subprovides+=( '')
+subgroups+=('xapps')
+subarchs+=( 'x86_64')
+
+subpkgs+=('openjdk-source')
+subdescs+=('Java Development Kit source-code.')
+subdepends+=('')
+subrodepends+=("openjdk=$pkgver")
+subprovides+=('')
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
 
 build()
 {
-	unset JAVA_HOME JDK_HOME CLASSPATH JAVAC JAVACFLAGS
 	export HOTSPOT_BUILD_JOBS="${MAKEFLAGS/-j}"
 	export PARALLEL_COMPILE_JOBS="${MAKEFLAGS/-j}"
-	export java="openjdk"
-
+	export JAVA_HOME="${Fsrcdir}/jdk1.8.0_172"
+	export CFLAGS+=" -fno-lifetime-dse"
+	export CPP_FLAGS+=" -fno-lifetime-dse"
 	Fextract $_F_archive_name-$icedteaver.tar.xz
+	Fextract jdk-8u172-ea-bin-b03-linux-x64-18_jan_2018.tar.gz
 
 	Fpatchall
 
@@ -103,6 +121,12 @@ build()
 	Fexe /etc/profile.d/openjdk.sh
 	Fexe /etc/profile.d/openjre.sh
 	Frm /usr/lib/jvm/java-$_java_ver-openjdk/jre/lib/security/cacerts
+
+	Fsplit openjre-x usr/lib/jvm/java-8-openjdk/lib/amd64/libjawt.so
+	Fsplit openjre-x usr/lib/jvm/java-8-openjdk/jre/lib/amd64/libjawt.so
+	Fsplit openjre-x usr/lib/jvm/java-8-openjdk/jre/lib/amd64/libsplashscreen.so
+	Fsplit openjre-x usr/lib/jvm/java-8-openjdk/jre/lib/amd64/libawt_xawt.so
+
 	Fsplit openjre usr/lib/jvm/java-$javaver/jre \
 		etc/profile.d/openjre.sh
 	Fsplit openjdk-source usr/lib/jvm/java-$javaver/src.zip

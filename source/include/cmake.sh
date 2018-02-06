@@ -110,7 +110,7 @@ CMake_conf()
 		-DCMAKE_INSTALL_BINDIR=${CROSS_BIN} \
 		-DCMAKE_INSTALL_SBINDIR=${CROSS_SBIN} \
 		-DSYSCONF_INSTALL_DIR=/etc \
-		-DLIBEXEC_INSTALL_DIR="/usr/lib/$pkgname" \
+		-DLIBEXEC_INSTALL_DIR="/usr/${CROSS_LIB}/$pkgname" \
 		-DCMAKE_BUILD_TYPE="$_F_cmake_type" \
 		-DCMAKE_VERBOSE_MAKEFILE="$_F_cmake_verbose" \
 		-DCMAKE_COLOR_MAKEFILE="$_F_cmake_color" \

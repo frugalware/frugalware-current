@@ -3,67 +3,46 @@
 
 pkgname=irrlicht
 pkgver=1.8.4
-pkgrel=1
+pkgrel=2
 pkgdesc="An open source high performance realtime 3D graphics engine."
-depends=('libgl>=11.1.1' 'libxcursor>=1.1.14-2' 'libjpeg>=9b')
+depends=('libx11' 'libxxf86vm' 'libglvnd' 'libxcursor')
 makedepends=('x11-protos')
 groups=('xlib-extra')
-archs=('i686' 'x86_64')
+archs=('x86_64')
 _F_sourceforge_ext=".zip"
 Finclude sourceforge
 sha1sums=('38bf0223fe868d243d6a39d0dc191c8df6e03b3b')
+_F_cd_path="$pkgname-$pkgver/source/Irrlicht"
+options=('static')
 
 build() {
-  Fcd
+	Fcd
+	Fexec sed -i "/^INSTALL_DIR/s:=.*:=$Fdestdir/usr/lib:" Makefile || Fdie
+	Fexec make sharedlib || Fdie
+	Fmake
+	Fmakeinstall
 
-  cd source/Irrlicht || Fdie
-  sed -i -e '/^CXXFLAGS/s:-g.*::' \
-	 -e '/^CXXFLAGS/s:-Wall::' \
-	 -e '/^CFLAGS/s/:= -O3 -fexpensive-optimizations/+=/' \
-	 -e '/^CXXINCS/s:-Izlib -Ijpeglib::' \
-	 -e '/^ZLIBOBJ/d' \
-	 -e '/^JPEGLIBOBJ/d' \
-	 -e '/^BZIP2OBJ/d' \
-	 -e '/.o=.d/d' \
-	 -e '/^sharedlib: LDFLAGS/s:+=:+= -lGL -lXxf86vm -ljpeg -lbz2 -lz:' \
-	 -e "/^INSTALL_DIR/s:=.*:=$Fdestdir/usr/lib:" \
-	 -e 's/0-SVN/1/' \
-	 -e 's/.$(VERSION_MINOR) -o/ -o/' \
-	 Makefile || Fdie
+	Fdoc "$pkgname-$pkgver/readme.txt"
+	Fln /usr/lib/libIrrlicht.so.$pkgver usr/lib/libIrrlicht.so.1
 
-  make sharedlib || Fdie
+	# Install static library and fix headers permissions
+	Finstall 644 "$pkgname-$pkgver/lib/Linux/libIrrlicht.a" usr/lib
+	Ffileschmod usr/include/$pkgname/ 644
 
-  make || Fdie
+	# Install media files for examples
+	Fmkdir usr/share/$pkgname
+	Fcp "$pkgname-$pkgver/media" usr/share/$pkgname/
 
-  Fmkdir usr/lib
-  Fmkdir usr/share/$pkgname/examples/bin
 
-  make install || Fdie
+	# Edit, build and install the examples
+	cd ../../examples || Fdie
+	sed -i '/define USE_IRRKLANG/s:.*://&:' ./Demo/CDemo.h || Fdie
+	sed -i '/^CXXFLAGS/d' $(grep -Rl "^CXXFLAGS =" *) || Fdie
 
-  cd $Fsrcdir/$_F_cd_path/ || Fdie
-  Fdocrel readme.txt
+	Fexec make || Fdie
 
-  # Install static library and fix headers permissions
-  install -m644 lib/Linux/libIrrlicht.a $Fdestdir/usr/lib || Fdie
-  chmod 644 $Fdestdir/usr/include/$pkgname/* || Fdie
+	Finstallrel 755  ../bin/Linux/* usr/share/$pkgname/examples/bin/
 
-  # Install media files for examples
-  cp -r media $Fdestdir/usr/share/$pkgname || Fdie
-
-  cd $Fdestdir/usr/lib || Fdie
-  ln -s libIrrlicht.so.$pkgver libIrrlicht.so.1 || Fdie
-
-  # Just a helper for examples compilation
-  ln -s libIrrlicht.so.$pkgver $Fsrcdir/$pkgname-$pkgver/lib/Linux/libIrrlicht.so || Fdie
-
-  # Edit, build and install the examples
-  cd $Fsrcdir/$pkgname-$pkgver/examples || Fdie
-  sed -i '/define USE_IRRKLANG/s:.*://&:' ./Demo/CDemo.h || Fdie
-  sed -i '/^CXXFLAGS/d' $(grep -Rl "^CXXFLAGS =" *) || Fdie
-
-  make || Fdie
-
-  install -m755  ../bin/Linux/* /$Fdestdir/usr/share/$pkgname/examples/bin/ || Fdie
 }
 
 # optimization OK

@@ -4,7 +4,7 @@
 
 pkgname=gdm
 pkgver=3.26.2.1
-pkgrel=3
+pkgrel=4
 pkgdesc="GNOME Display Manager"
 url="http://www.gnome.org/"
 backup=(etc/gdm/custom.conf etc/pam.d/gdm etc/pam.d/gdm-autologin \
@@ -14,16 +14,21 @@ depends=('dbus-glib>=0.108-3' 'accountsservice>=0.6.43-2' 'nss>=3.26' 'xorg-serv
 makedepends=('intltool>=0.51.0-4' 'gobject-introspection>=1.54.0' 'dconf>=0.26.0-5' 'gtk-doc')
 groups=('gnome' 'gnome-minimal')
 archs=("x86_64")
-#nofakeroot for recreate glib schema (use dbus...)
-#will see for don't use nofakeroot
-options+=('nofakeroot' 'scriptlet' 'force')
+options+=('scriptlet' 'force')
 _F_gnome_devel="n"
 _F_gnome_ext=".tar.xz"
 Finclude gnome
 sha1sums=('f0ecbe867bd0ef2b085ef79a56655f51bbef3193')
 
 build() {
-	Fmake --with-pam-prefix=/etc \
+
+	Fcd
+	## NO is broken anyway don't do that by default _yet_
+	## set WaylandEnable=false
+	Fsed '#WaylandEnable' 'WaylandEnable' data/gdm.conf-custom.in
+	Fautoreconf
+	Fbuild \
+		--with-pam-prefix=/etc \
 		--enable-gdm-xsession \
 		--enable-split-authentication \
 		--enable-console-helper \
@@ -33,9 +38,12 @@ build() {
 		--without-console-kit \
 		--without-plymouth \
 		--disable-fallback-greeter \
-		--with-initial-vt=12
-
-	Fmakeinstall
+		--with-initial-vt=7 \
+		--enable-wayland-support \
+		--with-pam-mod-dir=/lib/security \
+		--with-default-path=/usr/local/bin:/usr/local/sbin:/usr/bin \
+		--enable-authentication-scheme=pam \
+		--disable-schemas-compile
 	chmod 711 $Fdestdir/var/log/gdm || Fdie
 	# add logo to shell greeter
 	#Fcp ../org.gnome.login-screen.gschema.override usr/share/glib-2.0/schemas/

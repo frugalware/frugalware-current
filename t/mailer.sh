@@ -91,7 +91,7 @@ output=$(mktemp)
 cat $output > ~/public_html/stats/testsuite.txt
 cat $output \
 	| LC_ALL=en_US mail -r "Frugalware Testsuite <noreply@frugalware.org>" \
-	-s "Testsuite results for `date +%Y-%m-%d`" frugalware-devel@frugalware.org
+	-s "Testsuite results for `date +%Y-%m-%d`" frugalware@googlegroups.com
 rm -f $output
 if [ -e $HOME/dead.letter ]; then
 	# wtf

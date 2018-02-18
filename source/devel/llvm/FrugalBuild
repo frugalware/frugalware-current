@@ -5,8 +5,8 @@
 
 pkgname=llvm
 pkgver=5.0.1
-pkgrel=1
-gcc_ver=6.3.1-4
+pkgrel=5
+gcc_ver=7.3.0
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
 depends=("libstdc++>=${gcc_ver}")
@@ -15,7 +15,7 @@ makedepends=('groff' 'libffi>=3.2.1-2' 'python-sphinx>=1.4.4-2' 'python-requests
 	'typing' 'sphinx-websupport' 'certifi' 'python-idna' 'chardet3')
 ## tc bump -- we need for rebuilds foo>=x-y sytle to be sure is rebuilt with
 ## the right versions of the packages
-makedepends=("${makedepends[@]}" "libstdc++>=${gcc_ver}" 'binutils>=2.28-3' 'glibc>=2.25-5')
+makedepends=("${makedepends[@]}" "libstdc++>=${gcc_ver}" 'binutils>=2.30.0-5' 'glibc>=2.26.9000-3')
 rodepends=("$pkgname-libs")
 groups=('devel')
 archs=("x86_64")
@@ -32,18 +32,22 @@ else
 	source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.xz \
 		http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.xz \
 		http://llvm.org/releases/$pkgver/libcxx-$pkgver.src.tar.xz \
-		http://llvm.org/releases/$pkgver/libcxxabi-$pkgver.src.tar.xz )
+		http://llvm.org/releases/$pkgver/libcxxabi-$pkgver.src.tar.xz \
+		# clang-5.0: error: unknown argument: '-fno-plt'
+		# check whatever 6.x support it .. just compile libclc
+		no-plt.patch)
 	up2date="Flastarchive $url/releases/download.html .src.tar.xz"
 	_F_archive_ver="${pkgver}.src"
 sha1sums=('43d3659f8a3cef43e7435a3a874b0711f5888052' \
           '0cfb79b1fb767c18e167f4bc8836476ca24d9a19' \
           '90108818ea614faa92f10d1af0447402efd4de80' \
-          '25ee51e525082ca3f238e0aef5aaf7ab4d55e98d')
+          '25ee51e525082ca3f238e0aef5aaf7ab4d55e98d' \
+          'ca797af24b9e11c251f701422b9e26e222825b43')
 
 fi
 
 _F_cross32_delete=('usr/docs' 'usr/share' \
-	'usr/lib/ocaml' 'usr/libexec/' )
+	'usr/lib/ocaml' 'usr/libexec/')
 Finclude cross32
 
 subpkgs=("clang")
@@ -83,7 +87,7 @@ subarchs+=("x86_64")
 
 subpkgs+=("lib32-libc++")
 subdescs+=("A new implementation of the C++ standard library")
-subdepends+=("libgcc")
+subdepends+=("libgcc>=${gcc_ver}")
 subrodepends+=("")
 subgroups+=('lib-extra')
 subarchs+=("x86_64")
@@ -120,8 +124,9 @@ _common_cmake_confopts="	-DCMAKE_INSTALL_PREFIX=/usr \
 				-DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=On \
 				-DLIBCXX_INSTALL_EXPERIMENTAL_LIBRARY=Off"
 Finclude cmake
-
 options+=('static')
+_Fbuild_no_patch=yes
+
 
 build() {
         if Fuse DEVEL; then
@@ -137,12 +142,13 @@ build() {
                 git clone --depth=1 https://github.com/llvm-mirror/clang.git
                 Fexec cd ..
         else
+
 		Fexec mv -f ../cfe-${_F_archive_ver}/ tools/clang
 		Fexec mv -f ../libcxx-${_F_archive_ver}/ projects/libcxx
 		Fexec mv -f ../libcxxabi-${_F_archive_ver}/ projects/libcxxabi
 	fi
 
-
+	Fexec patch -Np1 -d tools/clang <../no-plt.patch || Fdie
         Fcross32_prepare
         Fcross32_copy_source
 
@@ -202,6 +208,11 @@ build() {
         Fexec make ocaml_doc
         CMake_install
 
+	## libexec stuff
+	Fmkdir usr/lib/$pkgname
+	Fsed 'libexec' 'lib/llvm' $Fdestdir/usr/bin/scan-build
+	Fmv usr/libexec/* usr/lib/llvm/
+	Frm usr/libexec
 	# Install man pages
 	Fmkdir usr/share/man/man1
 	Fcp ${_F_cd_path}/docs/_build/man/*.1 usr/share/man/man1/

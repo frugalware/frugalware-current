@@ -66,13 +66,24 @@ Fxpi_installxpi()
 
 	local lang_id full_id
 	lang_id=$(unzip -qc $1 manifest.json | grep langpack_id | sed 's/.*: "\(.*\).*",.*/\1/')
+       if [ -z "$_F_xpi_rdf" ]; then
+               ## new ff style
+               lang_id=$(unzip -qc $1 manifest.json | grep langpack_id | sed 's/.*: "\(.*\).*",.*/\1/')
+       else
+               # old way used by tbird ..
+               lang_id=$(unzip -qc $1 install.rdf | grep -m1 'em:id=' | sed 's/.*="\(.*\)".*/\1/')
+       fi
+	
 	if [ -z $lang_id ]; then
 		error "identifier not found in $1"
 		Fdie
 	fi
 
-	full_id="langpack-$lang_id@firefox.mozilla.org"
-
+       if [ -z "$_F_xpi_rdf" ]; then
+               full_id="langpack-$lang_id@firefox.mozilla.org"
+       else
+               full_id="$lang_id"
+       fi
 
 	Fmkdir "${_F_xpi_installpath}"
 	Fcprel "$1" "${_F_xpi_installpath}/${full_id}.xpi"

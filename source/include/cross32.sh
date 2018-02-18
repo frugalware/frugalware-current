@@ -39,6 +39,9 @@
 # * F32confopts - use like Fconfopts.
 ###
 
+if [ -z "$_F_cross32_new_path" ]; then
+	_F_cross32_combined="yes"
+fi
 
 ## since we need to build first the 32bit version
 ## we need to save these
@@ -101,8 +104,8 @@ __cross32_unset_vars() {
 __cross32_set_vars() {
 
 	## common
-	export CFLAGS="-march=i686 -mtune=generic -O2 -pipe"
-	export CXXFLAGS="-march=i686 -mtune=generic -O2 -pipe"
+	export CFLAGS="${CFLAGS_ORIG/x86-64/i686}"
+	export CXXFLAGS="${CXXFLAGS_ORIG/x86-64/i686}"
 	export CHOST="i686-frugalware-linux"
 	export CC="gcc -m32"
 	export CXX="g++ -m32"

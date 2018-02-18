@@ -65,7 +65,7 @@ CROSS_SBIN="sbin"
 # * makedepends(): add cmake and pkgconfig
 # * options(): add nostrip if _F_cmake_type is Debug*
 ###
-makedepends+=('cmake>=3.8.0' 'pkgconfig')
+makedepends+=('cmake>=3.10.2-2' 'pkgconfig')
 
 ###
 # == PROVIDED FUNCTIONS
@@ -110,6 +110,8 @@ CMake_conf()
 		-DCMAKE_INSTALL_BINDIR=${CROSS_BIN} \
 		-DCMAKE_INSTALL_SBINDIR=${CROSS_SBIN} \
 		-DSYSCONF_INSTALL_DIR=/etc \
+		-DLIBEXEC_INSTALL_DIR="/usr/${CROSS_LIB}/$pkgname" \
+		-DCMAKE_INSTALL_LIBEXECDIR="/usr/${CROSS_LIB}/$pkgname" \
 		-DCMAKE_BUILD_TYPE="$_F_cmake_type" \
 		-DCMAKE_VERBOSE_MAKEFILE="$_F_cmake_verbose" \
 		-DCMAKE_COLOR_MAKEFILE="$_F_cmake_color" \

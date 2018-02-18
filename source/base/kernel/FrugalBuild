@@ -39,12 +39,12 @@ up2date="Flasttar $url"
 _F_kernel_patches=(
                    enable_alx_wol.patch
                    0001-Revert-ath10k-activate-user-space-firmware-loading-a.patch
-                   # backport from 4.15 ( EPYC/RYZEN fixes )
-                   k10temp-add-ZEN-support.patch
-                   restore-SD_PREFER_SIBLING-on-MC-domains.patch
-                   introduce-NUMA-identity-node-sched-domain.patch
                    # mute PPS error shit .. buggy in 4.14.x
                    mute-pps_state_mismatch.patch
+		   # don't tell folks howto break a working box
+		   # also that msg is wrong , ancient and means for very old boxes
+		   # however after refactoring in 4.15 it bugs everyone
+		   drop_ancient-and-wrong-msg.patch
                    )
 
 for ppatch in "${_F_kernel_patches[@]}"
@@ -115,7 +115,7 @@ subinstall+=('')
 subpkgs+=("kernel$_F_kernel_name-source")
 subrodepends+=("make gcc>=6.2.1 kernel-headers")
 subdescs+=('Linux kernel source')
-subgroups+=('devel-extra')
+subgroups+=('devel-extra chroot-core')
 subdepends+=('')
 subreplaces+=('')
 subprovides+=('')
@@ -249,8 +249,9 @@ build()
 
 	Fexec make clean || Fdie
         Fsed '$(OPTIMIZATION) -fomit-frame-pointer' "$CFLAGS" Makefile
-        make DEBUG=false CPUFREQ_BENCH=false || Fdie
-        make DESTDIR="$Fdestdir" CPUFREQ_BENCH=false install || Fdie
+	Fsed 'lib64' 'lib' Makefile
+        Fexec make DEBUG=false CPUFREQ_BENCH=false || Fdie
+        Fexec make DESTDIR="$Fdestdir" CPUFREQ_BENCH=false install || Fdie
         Fmv /usr/man /usr/share
         Ffile /etc/sysconfig/cpupower
         Fexe /usr/sbin/cpupower.sh
@@ -279,6 +280,7 @@ build()
 	cd ../../../perf
 
         Fsed "lib64" "lib" Makefile.config
+	Fsed "libexec/perf-core" "lib/perf/perf-core" Makefile.config
         Fexec make                             \
                 WERROR=0                       \
                 DESTDIR="$Fdestdir/usr"        \
@@ -292,7 +294,7 @@ build()
 	Frm /usr/etc
 	Fsplit perf etc/
 	Fsplit perf usr/bin/
-	Fsplit perf usr/libexec/
+	Fsplit perf usr/lib/perf
 	Fsplit perf usr/share/
 
 }

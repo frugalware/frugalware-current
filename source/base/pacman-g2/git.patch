@@ -1,0 +1,181 @@
+diff --git a/etc/makepkg.conf.in b/etc/makepkg.conf.in
+index 24e0a14a..6d370c39 100644
+--- a/etc/makepkg.conf.in
++++ b/etc/makepkg.conf.in
+@@ -14,13 +14,16 @@ case $(uname -m) in
+ 	x86_64)
+ 		CARCH="x86_64"
+ 		CHOST="x86_64-frugalware-linux"
+-		CFLAGS="-march=x86-64 -mtune=generic -O2 -pipe -fstack-protector-strong -fno-plt"
+-		CXXFLAGS="-march=x86-64 -mtune=generic -O2 -pipe -fstack-protector-strong -fno-plt"
++		CFLAGS="-march=x86-64 -mtune=generic -O2 -pipe"
++		CXXFLAGS="-march=x86-64 -mtune=generic -O2 -pipe"
+ 		;;
+ esac
+ 
+-## options+=('noprotector') allows to manipulate -fstack-protector-strong
+-## from FrugalBuild. Eg, to use ..=${CFLAGS/-fstack-protector-strong/}
++## FLAGS added from makepkg:
++## -fno-plt : can be disbled with options+=('plt')
++## -fstack-protector-strong : can be disabled with options+=('noprotector')
++## -pie ( added by gcc as default ) : can be disabled with options+=('nopie')
++## -Wp,-D_FORTIFY_SOURCE=2 : can be disabled with options+=('nofortify')
+ export CARCH CHOST CFLAGS CXXFLAGS
+ 
+ ## -Wl,--as-needed is set from makepkg. Disable with options+=('noasneeded')
+diff --git a/scripts/makepkg b/scripts/makepkg
+index d6cde41f..97cb9408 100755
+--- a/scripts/makepkg
++++ b/scripts/makepkg
+@@ -1146,15 +1146,17 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+         ## we build for, with different flags etc .. copy the file only
+ 	## when not found in chroot .. we have checks for C/CXX/LD flags
+ 	## in makepkg itself... How that ever worked for the stable tree ?!?
+-	if [ ! -e $CHROOTDIR/etc/makepkg.conf ]; then
+-		## try first $HOME since devels may have different build users
+-		## for different trees or don't want to touch system one all the time
+-		if [ -e $HOME/.makepkg.conf ]; then
+-			cp -pf $HOME/.makepkg.conf $CHROOTDIR/etc/makepkg.conf >/dev/null
+-		else
+-			cp -pf /etc/makepkg.conf $CHROOTDIR/etc/makepkg.conf >/dev/null
+-		fi
++	## FIXME add per-tree-makepkg.conf support
++	## try first $HOME since devels may have different build users
++	## for different trees or don't want to touch system one all the time
++	if [ -e $HOME/.makepkg.conf ]; then
++		msg "Copying makepkg.conf from HOME.."
++		cp -pf $HOME/.makepkg.conf $CHROOTDIR/etc/makepkg.conf >/dev/null
++	else
++		msg "Copying /etc/makepkg.conf over.."
++		cp -pf /etc/makepkg.conf $CHROOTDIR/etc/makepkg.conf >/dev/null
+ 	fi
++
+ 	chmod 644 $CHROOTDIR/etc/sudoers
+ 	$ECHO "fst ALL=(ALL)       NOPASSWD: ALL" >$CHROOTDIR/etc/sudoers
+ 	chmod 440 $CHROOTDIR/etc/sudoers
+@@ -1240,7 +1242,7 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+ 			msg "Your package has coding issues"
+ 			warning "Broken strict-aliasing rules detected"
+ 			warning "C/CXX FLAGS need -fno-strict-aliasing"
+-			warning "Please recompile with right CFLAGS"
++			warning "Please recompile with right C/CXX FLAGS"
+ 		fi
+ 		# copy build log to LOGDIR if set
+ 		if [ -d "$LOGDIR" ]; then
+@@ -1420,6 +1422,17 @@ fi
+ 
+ if [ "$INCHROOT" == "1" ]; then
+ 
++	## add before PLT
++	if [ "`check_option NOPROTECTOR`" ]; then
++		warning "Disabling C/CXX FLAGS: -fstack-protector-strong"
++		warning "Do that only with an GOOD reason.."
++	else
++		msg "Enabling C/CXX FLAGS: -fstack-protector-strong"
++		CFLAGS+=" -fstack-protector-strong"
++		CXXFLAGS+=" -fstack-protector-strong"
++		export CFLAGS CXXFLAGS
++	fi
++
+ 	if  $ECHO $LDFLAGS | grep -q "\-Wl,--hash-style=both" ; then
+ 		error "You are using -Wl,--hash-style=both"
+ 		error "LDFLAGS changed to -Wl,--hash-style=gnu"
+@@ -1428,10 +1441,7 @@ if [ "$INCHROOT" == "1" ]; then
+ 	fi
+ 
+ 	if ! $ECHO $CFLAGS | grep -q "\-fstack-protector-strong" ; then
+-		if [ "`check_option NOPROTECTOR`" ]; then
+-			warning "You disabled stack-protector.. Do that *ONLY*"
+-			warning "when you have a very GOOD reason.."
+-		else
++		if [ ! "`check_option NOPROTECTOR`" ]; then
+ 			error "Your build/makepkg.conf is broken"
+ 			error "CFLAGS is missing -fstack-protector-strong"
+ 			error "and options+=('noprotector') is not set.."
+@@ -1440,12 +1450,9 @@ if [ "$INCHROOT" == "1" ]; then
+ 	fi
+ 
+ 	if ! $ECHO $CXXFLAGS | grep -q "\-fstack-protector-strong" ; then
+-		if [ "`check_option NOPROTECTOR`" ]; then
+-			warning "You disabled stack-protector.. Do that *ONLY*"
+-			warning "when you have a very GOOD reason.."
+-		else
++		if [ ! "`check_option NOPROTECTOR`" ]; then
+ 			error "Your build/makepkg.conf is broken"
+-			error "CXXFLAGS is missing -fstack-protector-strong missing"
++			error "CXXFLAGS is missing -fstack-protector-strong"
+ 			error "and options+=('noprotector') is not set.."
+ 			exit 1
+ 		fi
+@@ -1482,24 +1489,43 @@ if [ "$INCHROOT" == "1" ]; then
+ 	fi
+ 
+ 	if [ "`check_option NOASNEEDED`" ]; then
+-		warning "Using --no-as-needed in LDFLAGS ( are you sure ? )"
++		warning "Using LDFLAGS: --no-as-needed ( are you sure ? )"
+ 		LDFLAGS+=" -Wl,--no-as-needed"
+ 		export LDFLAGS
+ 	else
++		msg "Enabling LDFLAGS: -Wl,--as-needed"
+ 		LDFLAGS+=" -Wl,--as-needed"
+ 		export LDFLAGS
+ 	fi
+ 
+ 	if [ "`check_option NOFORTIFY`" ]; then
+-		warning "Disabling -D_FORTIFY_SOURCE=2.."
++		warning "Disabling C/CXX FLAGS: -D_FORTIFY_SOURCE=2"
+ 		export OFORTIFY=0
+ 	else
+-		msg "Enabling -Wp,-D_FORTIFY_SOURCE=2"
++		msg "Enabling C/CXX FLAGS: -Wp,-D_FORTIFY_SOURCE=2"
+ 		CFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
+ 		CXXFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
+ 		export CFLAGS CXXFLAGS
+ 	fi
+ 
++
++	if [ "`check_option PLT`" ]; then
++		 warning "Disabling C/CXX FLAGS: -fno-plt"
++	else
++		msg "Enabling C/CXX FLAGS: -fno-plt"
++		CFLAGS+=" -fno-plt"
++		CXXFLAGS+=" -fno-plt"
++		export CFLAGS CXXFLAGS
++	fi
++
++	if [ "`check_option NOPIE`" ]; then
++		warning "Disabling C/CXX FLAGS: -pie"
++		msg "Enabling C/CXX FLAGS: -fno-PIE"
++		CFLAGS+=" -fno-PIE"
++		CXXFLAGS+=" -fno-PIE"
++		export CFLAGS CXXFLAGS
++	fi
++
+ 	if [ "`check_option NORELRO`" ]; then
+ 		warning "Disabling LDFLAGS: -z,relro"
+ 		export ORELRO=0
+@@ -1837,7 +1863,23 @@ do
+ 	if [ -d ${dir}/usr/share/pkgconfig ]; then
+ 		error "Your package has broken pkgconfig PATH"
+ 		error "Files are installed in /usr/share/pkgconfig"
+-		error "but should be /usr/lib/pkgconfig!"
++		error "but should be /usr/lib/pkgconfig"
++		error "Bailing out, please fix your package!"
++		exit 1
++	fi
++	## invalid /security/ dir
++	if [ -d ${dir}/usr/lib/security ]; then
++		error "Your package installs PAM files in wrong PATH"
++		error "Files are installed in /usr/lib/security"
++		error "but should be /lib/security"
++		error "Bailing out, please fix your package!"
++		exit 1
++	fi
++	## invalid /libexec/ dirs
++	if [ -d ${dir}/usr/libexec ]; then
++		error "Your package has broken /libexec/ PATH"
++		error "Files are installed in /usr/libexec"
++		error "but should be /usr/lib/<pkgname>"
+ 		error "Bailing out, please fix your package!"
+ 		exit 1
+ 	fi

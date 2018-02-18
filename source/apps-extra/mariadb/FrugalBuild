@@ -1,0 +1,97 @@
+# Compiling Time: 5.57 SBU
+# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
+
+pkgname=mariadb
+pkgver=10.1.31
+pkgrel=1
+pkgdesc="A fast SQL database server"
+url="https://mariadb.org"
+backup=(etc/my.cnf etc/sysconfig/mysqld)
+depends=('openssl' 'lzo' 'libsystemd' 'libxml2' 'libaio')
+makedepends=('systemd' 'jemalloc' 'boost')
+groups=('apps-extra')
+archs=('x86_64')
+
+replaces=('mysql')
+provides=('mysql')
+conflicts=('mysql')
+
+up2date="lynx -dump 'https://downloads.mariadb.org/mariadb/+releases/' | grep Stable | grep 10.1 | head -n 1 | cut -d ' ' -f 4 | cut -d ']' -f 2"
+source=(http://ftp.hosteurope.de/mirror/mariadb.org//mariadb-${pkgver}/source/mariadb-${pkgver}.tar.gz fix-lz4.patch)
+sha1sums=('a28c68a02666e983f03f684b401140455797e39f' \
+          '7c35ed1dbd1835e6a6f9056679b143f32ab96f2d')
+
+_F_cmake_confopts+="    -DENABLED_LOCAL_INFILE=ON \
+			-DINSTALL_SYSTEMD_SYSUSERSDIR=/usr/lib/sysusers.d/ \
+			-DINSTALL_SYSTEMD_TMPFILESDIR=/etc/tmpfiles.d/ \
+			-DINSTALL_SYSTEMD_UNITDIR=/lib/systemd/system/ \
+			-DWITH_SYSTEMD=yes \
+			-DWITH_READLINE=ON \
+			-DWITH_ZLIB=system \
+			-DWITH_SSL=system \
+			-DWITH_PCRE=bundled \
+			-DWITH_JEMALLOC=ON \
+			-DWITH_EXTRA_CHARSETS=complex \
+			-DWITH_EMBEDDED_SERVER=ON \
+			-DWITH_ARCHIVE_STORAGE_ENGINE=1 \
+			-DWITH_BLACKHOLE_STORAGE_ENGINE=1 \
+			-DWITH_INNOBASE_STORAGE_ENGINE=1 \
+			-DWITH_PARTITION_STORAGE_ENGINE=1 \
+			-DWITH_TOKUDB_STORAGE_ENGINE=1 \
+                        -DINSTALL_DOCREADMEDIR=share/doc/mysql-$pkgver \
+                        -DINSTALL_INCLUDEDIR=include/mysql \
+                        -DINSTALL_SUPPORTFILESDIR=share/mysql \
+                        -DINSTALL_PLUGINDIR=lib/mysql \
+                        -DINSTALL_INFODIR=share/info \
+			-DINSTALL_MANDIR=share/man \
+			-DINSTALL_DOCDIR=share/docs \
+                        -DINSTALL_MYSQLSHAREDIR=share/mysql \
+                        -DINSTALL_SHAREDIR=share/mysql \
+			-DINSTALL_SYSCONFDIR=/etc/mysql \
+			-DINSTALL_SYSCONF2DIR=/etc/mysql \
+                        -DMYSQL_DATADIR=/var/lib/mysql \
+                        -DINSTALL_SCRIPTDIR=bin \
+                        -DMYSQL_UNIX_ADDR=/var/run/mysql/mysqld.sock
+			-DCMAKE_AR=/usr/bin/gcc-ar \
+			-DCMAKE_RANLIB=/usr/bin/gcc-ranlib \
+			-DBUILD_CONFIG=mysql_release"
+
+_F_cmake_type=Release
+Finclude cmake
+options=('static')
+
+subpkgs=('libmariadbclient' 'libmariadbd')
+subdescs=('Mariadb client library.' 'Embedded MariaDB Server Library')
+subdepends=('zlib openssl' 'zlib openssl lz4 lzo xz bzip2')
+subgroups=('lib' 'lib-extra')
+subarchs=('x86_64' 'x86_64')
+subreplaces=('libmysqlclient' 'libmysqld')
+subprovides=('libmysqlclient' 'libmysqld')
+subconflicts=('libmysqlclient' 'libmysqld')
+
+build() {
+
+	CXXFLAGS+=" -fno-strict-aliasing"
+	CFLAGS+=" -fno-strict-aliasing"
+
+	CMake_build
+
+	#somewhat wrong
+	Fmkdir usr/lib/pkgconfig/
+	Fmv usr/share/mysql/pkgconfig/mariadb.pc usr/lib/pkgconfig/
+	Frm usr/share/mysql/pkgconfig
+
+	# Prepare some data and log dir
+	Fmkdir var/lib/mysql/
+	Fmkdir var/log/mysql/
+
+	Fsplit libmariadbclient usr/lib/libmysqlclient* usr/include/mysql
+	Fsplit libmariadbd usr/lib/libmysqld.a
+	Fsplit libmariadbd usr/bin/*_embedded
+
+	# not needed
+	Frm usr/{data,mysql-test,sql-bench}
+  	Frm usr/share/man/man1/mysql-test-run.pl.1
+}
+
+# optimization ok

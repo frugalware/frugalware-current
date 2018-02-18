@@ -61,8 +61,8 @@ fi
 
 if [ -z "$_F_sourceforge_mirror" ]; then
 	# set our preferred mirror
-	_F_sourceforge_mirror="downloads"
-	#_F_sourceforge_mirror="dfn"
+	#_F_sourceforge_mirror="downloads"
+	_F_sourceforge_mirror="netcologne.dl"
 fi
 
 if [ -z "$_F_sourceforge_dirname" ]; then

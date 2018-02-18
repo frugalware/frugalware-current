@@ -897,6 +897,7 @@ Fbuildsystem_configure() {
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
 		Fconfoptstryset "host" "$Fbuildchost"
+		Fconfoptstryset "libexecdir" "/usr/lib/$pkgname"
 		#Fconfoptstryset "target" "$Fbuildchost"
 		## try to disable silent rules
 		## we already set V=1 by default but this isn't going to work

@@ -108,6 +108,10 @@ fi
 url="http://www.gnome.org/"
 _F_cd_path=$_F_gnome_name-$pkgver
 makedepends+=('x11-protos' 'gnome-common')
+# really no worth to pull per package all are full with warnings
+CFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
+CXXFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
+
 ###
 # == APPENDED VARIABLES
 # * scriptlet to options()

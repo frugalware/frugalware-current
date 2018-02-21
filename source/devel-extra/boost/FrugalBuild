@@ -6,7 +6,7 @@
 
 pkgname=boost
 pkgver=1.66.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Boost header files, examples and tools"
 _F_sourceforge_ext=".tar.bz2"
 Finclude sourceforge python
@@ -51,30 +51,54 @@ build()
 	local JOBS="$(sed -e 's/.*\(-j *[0-9]\+\).*/\1/' <<< ${MAKEFLAGS})"
 
 	Fcd
-	./bootstrap.sh --with-toolset=gcc --with-icu
+	Fexec ./bootstrap.sh --with-toolset=gcc --with-icu || Fdie
 	# Support for OpenMPI
 	echo "using mpi ;" >> project-config.jam
+
+	Fexec ./b2      variant=release \
+		debug-symbols=off \
+                threading=multi \
+                runtime-link=shared \
+                link=shared,static \
+                toolset=gcc \
+                optimization=speed \
+                python=2.7 \
+                -sHAVE_ICU=1 -sICU_PATH=/usr \
+                -sBOOST_ROOT="$Fsrcdir" \
+                -sEXPAT_INCLUDE=/usr/include \
+                -sEXPAT_LIBPATH=/usr/lib \
+                --prefix="$Fdestdir/usr" \
+                --exec-prefix="$Fdestdir/usr" \
+                --includedir="$Fdestdir/usr/include" \
+                --libdir="$Fdestdir/usr/lib" \
+                --layout=system \
+                cflags="${CXXFLAGS}" \
+                linkflags="${LDFLAGS}" \
+                ${JOBS}  install || Fdie
 
 
    	# Add an extra python version. This does not replace anything and python 2.x
    	# need to be the default.
 
-	## that never worked ...
-	_F_python3_ver="`F_python3_getver`"
-   	echo "using python : ${_F_python3_ver} : /usr/bin/python3 : /usr/include/python${_F_python3_ver}m : /usr/lib ;" \
-		>> project-config.jam
+	# Python3 version
+	Fexec sed -e '/using python/ s@;@: /usr/include/python${PYTHON_VERSION/3*/${PYTHON_VERSION}m} ;@' \
+		-i bootstrap.sh || Fdie
 
-	./b2 	variant=release \
+	Fexec ./bootstrap.sh --with-toolset=gcc --with-icu --with-python=/usr/bin/python3 \
+		-with-libraries=python
+
+	Fexec ./b2 clean || Fdie
+
+	Fexec ./b2 	variant=release \
 		debug-symbols=off \
 		threading=multi \
 		runtime-link=shared \
 		link=shared,static \
 		toolset=gcc \
 		optimization=speed \
+		python=3.6 \
 		-sHAVE_ICU=1 -sICU_PATH=/usr \
 		-sBOOST_ROOT="$Fsrcdir" \
-		-sPYTHON_ROOT=/usr \
-                -sPYTHON_VERSION="$_F_python_ver" \
 		-sEXPAT_INCLUDE=/usr/include \
 		-sEXPAT_LIBPATH=/usr/lib \
 		--prefix="$Fdestdir/usr" \

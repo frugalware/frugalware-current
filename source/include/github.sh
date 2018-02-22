@@ -102,7 +102,6 @@ fi
 ## __F* internal
 __F_github_full_archive_name="${_F_github_full_archive_name}${_F_github_ext}"
 _F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/${__F_github_full_archive_name}"
-_F_github_up2date="releases/latest"
 
 ## heh ok
 if [ -n "$_F_archive_grepv" ]; then
@@ -111,6 +110,12 @@ fi
 
 if [ -n "$_F_github_grepv" ]; then
 	off='| grep -v -- $_F_github_grepv'
+fi
+
+if [ -z "$_F_github_grepv" ]; then
+	_F_github_up2date="releases/latest"
+else
+	_F_github_up2date="releases"
 fi
 
 ## fixme ?

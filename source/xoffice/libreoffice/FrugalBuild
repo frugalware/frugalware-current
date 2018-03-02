@@ -2,6 +2,12 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 # Contributor: Laszlo Dvornik <dvornik@gnome.hu>
 
+
+: ${USE_KF5="n"}
+
+## TODO: build with only en_US for testing
+#: ${USE_ONE_LANG="n"}
+
 pkgname=libreoffice
 pkgver=6.0.2.1
 minor=${pkgver:0:5} # x.y.z
@@ -91,6 +97,20 @@ makedepends=(
 	'icu4c>=60.1'
 	'nasm'
 )
+
+if Fuse KF5; then
+	makedepends+=(
+		'qt5-base'
+		'qt5-x11extras'
+		'kconfig'
+		'kcoreaddons'
+		'ki18n'
+		'kio'
+		'kwindowsystem'
+		'kdelibs4support'
+		)
+fi
+
 groups=('xoffice')
 archs=("x86_64")
 mirror="http://download.documentfoundation.org/libreoffice/src/$minor"
@@ -100,17 +120,25 @@ up2date="Flasttar $mirror"
 modules=('' 'help-' 'translations-')
 source=(
 )
+
 signatures=(
 )
+
 for i in "${modules[@]}"
 do
 	source=(${source[@]} $mirror/libreoffice-$i${pkgver/_/-}.tar.xz)
 	signatures=("${signatures[@]}" $mirror/libreoffice-$i${pkgver/_/-}.tar.xz.asc)
 done
-# .patch files here.
-source+=()
-# One '' for each .patch here.
-signatures+=()
+
+if Fuse KF5; then
+        source+=(kf5-qt5.patch)
+        signatures+=('')
+else
+	# .patch files here.
+	source+=()
+	# One '' for each .patch here.
+	signatures+=()
+fi
 
 ext_source=(http://dev-www.libreoffice.org/extern/185d60944ea767075d27247c3162b3bc-unowinreg.dll \
 	http://dev-www.libreoffice.org/src/798b2ffdc8bcfe7bca2cf92b62caf685-rhino1_5R5.zip \
@@ -129,16 +157,37 @@ replaces=('calligra' 'calligra-libs' 'calligra-data' 'calligra-tools' 'calligra-
 conflicts=("$replaces[@]}")
 
 
-subpkgs=("$pkgname-gtk3" "$pkgname-postgresql")
-subdescs=("$pkgname GTK3 integration" \
-	"$pkgname postgresql SDBC driver")
-subdepends=("gtk+3"  "libpq")
-subrodepends=("$pkgname>=$pkgver" "$pkgname>=$pkgver libkrb5>=1.14.3")
-subarchs=("x86_64"  'x86_64')
-subgroups=('xapps-extra'  'xapps-extra')
-subinstall=("$_F_gnome_scriptlet"  "")
-subreplaces=("$pkgname-gnome"  "")
-subconflicts=("$pkgname-gnome"  "")
+subpkgs=("$pkgname-gtk3")
+subdescs=("$pkgname GTK3 integration")
+subdepends=("gtk+3")
+subrodepends=("$pkgname>=$pkgver")
+subarchs=("x86_64")
+subgroups=('xapps-extra')
+subinstall=("$_F_gnome_scriptlet")
+subreplaces=("$pkgname-gnome")
+subconflicts=("$pkgname-gnome")
+
+if Fuse KF5; then
+	subpkgs+=("$pkgname-kde5")
+	subdescs+=("$pkgname KF5/Qt5 integration")
+	subdepends+=("gtk+3 qt5-base qt5-x11extras kconfig kcoreaddons ki18n kio kwindowsystem")
+	subrodepends+=("$pkgname>=$pkgver")
+	subarchs+=("x86_64")
+	subgroups+=('kde5-extra')
+	subinstall+=("")
+	subreplaces+=("")
+	subconflicts+=("")
+fi
+
+subpkgs+=("$pkgname-postgresql")
+subdescs+=("$pkgname postgresql SDBC driver")
+subdepends+=("libpq")
+subrodepends+=("$pkgname>=$pkgver libkrb5>=1.14.3")
+subarchs+=('x86_64')
+subgroups+=('xapps-extra')
+subinstall+=("")
+subreplaces+=("")
+subconflicts+=("")
 
 # sed ':a;N;$!ba;s/\\\n//g' solenv/inc/langlist.mk|grep ^completelangiso=|sed 's/completelangiso=//;s/en-US //'
 completelangiso=(af am ar as ast be bg bn bn-IN bo br brx bs ca ca-valencia cs
@@ -230,13 +279,24 @@ build()
 	fi
 	Fexec touch src.downloaded
 
+	Fpatchall
 	## nope -isystem breaks hell since gcc 6.xx
 	Fsed '-isystem' '-I' configure.ac
+
+	if Fuse KF5; then
+		## yet another -isystem crap
+		Fexec sed -i -e 's/KF5_CFLAGS=$(printf.*//g' configure.ac || Fdie
+		export QT5DIR="/usr"
+		export KF5DIR="/usr"
+		Fconfopts+=" --enable-gtk3-kde5 --enable-qt5 --enable-kde5"
+	fi
+
 	## FU**ING poppler GUY .. yeah he broke hell again .. ( that is for the 0.62.0++ crappoppler version )
 	Fsed "UTF8.h" "UnicodeMapFuncs.h" sdext/source/pdfimport/xpdfwrapper/pdfioutdev_gpl.cxx
 	## second one .. broken API , YAY!
 	Fsed "mapUCS2" "mapUTF16" sdext/source/pdfimport/xpdfwrapper/pdfioutdev_gpl.cxx
 	## END crappoppler  workarounds
+
 	# Check for missing language packs.
 	local langfile="solenv/inc/langlist.mk"
 	local langs=$(sed ':a;N;$!ba;s/\\\n//g' $langfile|grep ^completelangiso=|sed 's/completelangiso=//;s/en-US //')
@@ -246,10 +306,11 @@ build()
 	fi
 
 	# SMP build
-	if [ ! -z "$MAKEFLAGS" ]; then
+	if [ -n "$MAKEFLAGS" ]; then
 		local _makeflags="$MAKEFLAGS"
 		Fconfopts+=" --with-parallelism=${_makeflags/-j}"
 		unset MAKEFLAGS
+		export LO_SMP_BUILD=1
 	fi
 
 	_F_cd_path="."
@@ -259,7 +320,7 @@ build()
 		[ $i == scripting-beanshell ] && continue
 		Fconfopts+=" --enable-ext-$i"
 	done
-	Fpatchall
+
 	export OPENCOLLADA_CFLAGS='-I/usr/include/COLLADABaseUtils -I/usr/include/COLLADAFramework -I/usr/include/COLLADASaxFrameworkLoader -I/usr/include/GeneratedSaxParser'
 	export OPENCOLLADA_LIBS='-lOpenCOLLADABaseUtils -lOpenCOLLADAFramework -lOpenCOLLADASaxFrameworkLoader -lGeneratedSaxParser'
 	_F_conf_configure="./autogen.sh"
@@ -290,17 +351,17 @@ build()
                 --enable-gtk3 \
                 --disable-gtk \
 		--disable-odk
-	sed -i 's/test `id -u` = 0/false/' Makefile # missing fakeroot detection
+
+	Fexec sed -i 's/test `id -u` = 0/false/' Makefile # missing fakeroot detection
 
 	if [ ! -e src.built ]; then
 		Fexec make verbose=t build-nocheck || return 1
 	fi
 	Fexec touch src.built
-	[ ! -z "$MAKEFLAGS" ] && export MAKEFLAGS={$_makeflags}
+	[ -n "$LO_SMP_BUILD" ] && export MAKEFLAGS={$_makeflags}
 
 	# generate the icons and mime type stuff
 	export DESTDIR=../output
-	export KDEMAINDIR=/usr
 	export GNOMEDIR=/usr
 	export GNOME_MIME_THEME=hicolor
 	export PREFIXDIR=/usr
@@ -339,7 +400,7 @@ build()
 		$file
 	done
 	# do not show math and startcenter
-	sed -i -e /NoDisplay/s/false/true/ math.desktop startcenter.desktop
+	Fexec sed -i -e /NoDisplay/s/false/true/ math.desktop startcenter.desktop
 	# relocate the .desktop files
 	Fmkdir /usr/share/applications
 	for app in base calc draw impress math startcenter writer xsltfilter; do
@@ -351,7 +412,7 @@ build()
 	# Icons
 	pushd $WORKDIR/os-integration
 	#get rid of the gnome icons and other unneeded files
-	rm -rf icons/gnome applications application-registry
+	Fexec rm -rf icons/gnome applications application-registry
 	# relocate the rest of them
 	# 512x512 icons are not used by anything
 	for icon in `find icons -path '*/512x512' -prune -o -type f -print`; do
@@ -378,6 +439,10 @@ build()
 		done
 	done
 
+
+	if Fuse KF5; then
+		Fsplitgid $pkgname-kde5 $Fdestdir/gid_Module_Optional_Kde
+	fi
 	Fsplitgid $pkgname-gtk3 $Fdestdir/gid_Module_Optional_Gnome
 	Fbuild_gnome_scriptlet
 	Fsplitgid $pkgname-postgresql $Fdestdir/gid_Module_Optional_PostgresqlSdbc

@@ -14,7 +14,7 @@ depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6
 makedepends=('ninja' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' \
 		'x11-protos' 'krb5' 'cups' 'gtk+2' 'python-ply' \
 		'python-markupsafe' 'beautifulsoup4' 'html5lib-python' \
-		'webencodings' 'protobuf-python' 'nodejs' 'mesa-dri-drivers')
+		'webencodings' 'protobuf-python' 'clang>=6.0.0' 'nodejs' 'mesa-dri-drivers')
 license=('BSD')
 groups=('xapps-extra')
 archs=('x86_64')
@@ -24,25 +24,46 @@ _F_archive_name="chromium"
 up2date="lynx -dump 'http://chromium.woolyss.com/#stable-chromium-version' | \
 	egrep -o '([0123456789.]*)/DEPS' | \
 	egrep -o '([0123456789.]*)'"
+## NOTE: *-flags-* patches need re-diffed maybe _do not drop_
+##       also do not drop -fpermissive one just re-diff
+## TODO: figure headless build maybe ?
 source=(https://commondatastorage.googleapis.com/chromium-browser-official/chromium-${pkgver}.tar.xz \
         $pkgname.desktop \
         $pkgname.sh \
 	chromium-last-commit-position-r1.patch \
-	chromium-widevine.patch )
+	chromium-widevine.patch \
+	## self explained :)
+	chromium-55.0.2883.75-sandbox-pie.patch \
+	## fix weird warning
+	chromium-65.0.3325.146-enum-boolean.patch \
+	## shut-up next weird warning , broken comments // foo bar \ <-- -W... spams to hell for that
+	chromium-65.0.3325.146-shut-up.patch \
+	## do not remove or WTF eats you , error without
+	chromium-56.0.2924.87-fpermissive.patch \
+	## compile errors on both gcc and llvm
+	chromium-65.0.3325.146-fix-missing-incudes.patch \
+	# bring back some default *flags
+	chromium-65.0.3325.146-frugalware-compiler-flags.patch \
+	## no Thx
+	chromium-65.0.3325.146-drop-weird-clang-flags.patch)
 sha1sums=('4f736ba24ae34b3b9d7e074ee93f527a85a5b0cb' \
           '264b8e7c4e3273263d504e041e5e4d152677922c' \
           '4c41d59b4d85a9f0443d6ca1dec456e50059dab5' \
           'd03e6465cd5a84580f9dad5d45f24ccd42bb71e6' \
-          'c5719d06e0b39dfd3ca74f9f42684f4ee7584ade')
+          'c5719d06e0b39dfd3ca74f9f42684f4ee7584ade' \
+          '80fe0928557e7c260ad18359b42bb4797d8ee668' \
+          'a1e75cefef6d5f4e9a50a2dd35e55cba72679697' \
+          'd1c9ce4e887b2bff4cba82daad5e344a1ab2b71b' \
+          'f4677d94da4c27ef9a98b85e5ef5539bcea7031f' \
+          '188c2fc130b69510637119c0f773a1f0fb96c9b2' \
+          '3d36ad24d9f8483e961ffe6956885fe6578c2a00' \
+          'bdb12aab6df90324d3f78fdc01dfa2e455c4d60c')
 
 chromium_path="chromium"
 
 provides=('chromium-dev')
 replaces=('chromium-dev')
 conflicts=('chromium-dev')
-
-CXXFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
-CFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
 
 # Google API keys (see http://www.chromium.org/developers/how-tos/api-keys)
 # Note: These are for Frugalware use ONLY. For your own distribution, please
@@ -180,6 +201,7 @@ build() {
 		url/third_party/mozilla
 		v8/src/third_party/valgrind
 		v8/third_party/inspector_protocol
+		v8/src/third_party/utf8-decoder
 		base/third_party/libevent
 		third_party/adobe
 		third_party/speech-dispatcher
@@ -198,7 +220,8 @@ build() {
 
 	Fexec build/linux/unbundle/remove_bundled_libraries.py "${keeplibs[@]}" --do-remove || Fdie
 
-
+	## FIXME: some things missing..
+	## eg: opus , libusb and some more
 	gn_system_libraries="
 		flac
 		libdrm
@@ -217,39 +240,42 @@ build() {
 	Fexec third_party/libaddressinput/chromium/tools/update-strings.py || Fdie
 
 	myconf_gn+=" is_debug=false"
-	#   myconf_gn+=" is_debug=true"
 	myconf_gn+=" enable_iterator_debugging=false"
 	myconf_gn+=" enable_nacl=false"
 	myconf_gn+=" remove_webcore_debug_symbols=true"
 
 	myconf_gn+=" enable_hangout_services_extension=false"
 	myconf_gn+=" enable_widevine=true"
-	myconf_gn+=" use_allocator=\"tcmalloc\""
+	## !!Do NOT change that!!
+	myconf_gn+=" use_allocator=\"none\" "
 	myconf_gn+=" use_kerberos=true"
 	myconf_gn+=" use_pulseaudio=true"
 	myconf_gn+=" fieldtrial_testing_like_official_build=true"
-	myconf_gn+=" clang_use_chrome_plugins=false"
 	myconf_gn+=" linux_use_bundled_binutils=false"
 	myconf_gn+=" use_gold=false use_sysroot=false"
 	myconf_gn+=" proprietary_codecs=true "
+	myconf_gn+=" enable_ac3_eac3_audio_demuxing=true "
+	myconf_gn+=" enable_hevc_demuxing=true "
+	myconf_gn+=" enable_mse_mpeg2ts_stream_parser=true "
 	myconf_gn+=" use_gio=false "
-	myconf_gn+=" use_gnome_keyring=false"
-	#   myconf_gn+=" use_ozone=true "
+	myconf_gn+=" use_gnome_keyring=false "
 	myconf_gn+=" use_aura=true "
 	myconf_gn+=" use_glib=true "
 	myconf_gn+=" use_gtk3=true "
 	myconf_gn+=" use_xkbcommon=true"
-	#remoting needs gtk2 so we disable it, test if it still needs gtk2 and if not enable
+	## FIXME: all that stuff isn't really working..
 	myconf_gn+=" enable_remoting=true "
 	myconf_gn+=" use_system_libjpeg=true "
 	myconf_gn+=" use_custom_libcxx=false "
+	## TODO: some BUILD.gn breaks and mixes that.. figure
 	myconf_gn+=" use_system_harfbuzz=true"
-	myconf_gn+=" enable_swiftshader=false "
-	myconf_gn+=" is_clang=false "
+	myconf_gn+=" enable_swiftshader=true "
 	myconf_gn+=" is_component_build=false "
+	myconf_gn+=" treat_warnings_as_errors=false "
+	myconf_gn+=" ffmpeg_branding=\"Chrome\" "
 
-	myconf_gn+=" ffmpeg_branding=\"Chrome\""
-
+	## FIXME: need $USE
+	myconf_gn+=" is_clang=true clang_base_path=\"/usr\" clang_use_chrome_plugins=false use_lld=false "
 	myconf_gn+=" google_api_key=\"${_google_api_key}\""
 	myconf_gn+=" google_default_client_id=\"${_google_default_client_id}\""
 	myconf_gn+=" google_default_client_secret=\"${_google_default_client_secret}\""
@@ -260,12 +286,19 @@ build() {
 
 	Fexec tools/gn/bootstrap/bootstrap.py -v --gn-gen-args "${myconf_gn}" || Fdie
 
+	## FIXME gn segfaults when build with clang++>=6.x
+	export CC=clang
+	export CXX=clang++
+
 	Fexec out/Release/gn gen --args="${myconf_gn}" out/Release || Fdie
 	Fexec mkdir -p third_party/node/linux/node-linux-x64/bin || Fdie
 	Fexec rm -rf third_party/node/linux/node-linux-x64/bin/node
 	Fexec ln -s /usr/bin/node third_party/node/linux/node-linux-x64/bin/
 
-	Fexec ninja -C out/Release pdf chrome chrome_sandbox chromedriver widevinecdmadapter clear_key_cdm || Fdie
+	Fexec ninja -vvv -C out/Release pdf chrome chrome_sandbox chromedriver widevinecdmadapter clear_key_cdm || Fdie
+
+	Fmessage "Plulling ls on out/Release.."
+	Fexec ls out/Release
 
 	Fmkdir usr/lib/${chromium_path}
         Fexerel out/Release/chrome usr/lib/${chromium_path}/chromium
@@ -276,13 +309,19 @@ build() {
 	Fcprel out/Release/locales usr/lib/${chromium_path}/
 	Fcprel out/Release/resources usr/lib/${chromium_path}/
 
+	if [[ -d out/Release/swiftshader ]]; then
+		Fcprel out/Release/swiftshader usr/lib/${chromium_path}/
+	fi
+
+	## is that right ?
 	Fcprel out/Release/icudtl.dat usr/lib/${chromium_path}/
 
         find $Fdestdir/usr/lib/${chromium_path}/ -name '*.d' -type f -delete
+	find $Fdestdir/usr/lib/${chromium_path}/ -name '*.TOC' -type f -delete
 
         Finstall 644 $pkgname.desktop usr/share/applications/$pkgname.desktop
 
-	local size size2
+	local size size2 j
 	for size in 22 24 48 64 128 256; do
 		Finstallrel 644 "chrome/app/theme/chromium/product_logo_$size.png" \
 		"usr/share/icons/hicolor/${size}x${size}/apps/$pkgname.png"
@@ -293,10 +332,18 @@ build() {
 		"usr/share/icons/hicolor/${size2}x${size2}/apps/$pkgname.png"
 	done
 
-	Finstallrel 644 out/Release/natives_blob.bin usr/lib/${chromium_path}
+	for j in $(ls out/Release/*.bin)
+	do
+		Finstallrel 644 ${j} usr/lib/${chromium_path}
+	done
+
 	Finstallrel 644 out/Release/snapshot_blob.bin usr/lib/${chromium_path}
 	Finstallrel 644 out/Release/chromedriver usr/lib/${chromium_path}
 	Finstallrel 644 out/Release/libwidevinecdmadapter.so usr/lib/${chromium_path}
+
+	if [[ -e out/Release/libclearkeycdm.so ]]; then
+		Finstallrel 644 out/Release/libclearkeycdm.so usr/lib/${chromium_path}
+	fi
 
 	Fdirschmod usr/lib/${chromium_path}/locales 755
 

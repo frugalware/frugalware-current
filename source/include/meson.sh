@@ -69,6 +69,13 @@ Meson_setup()
 		exit 1
 		;;
 	esac
+
+	## workaround for this POS .. so we can work from cross32 with it
+	if [ -z "$_F_meson_is_cross32" ]; then
+		export CC="$_F_meson_cc"
+		export CXX="$_F_meson_cxx"
+	fi
+
 }
 
 ## FIXME
@@ -89,8 +96,7 @@ Meson_conf()
 	## NOTE: no other backend but ninja for LINUX
 	Meson_setup
 	## we need all these to be sure we build with own flags..
-	CC="$_F_meson_cc" CXX="$_F_meson_cxx" CFLAGS="$CFLAGS" \
-	CXXFLAGS="$CXXFLAGS" LDFLAGS="$LDFLAGS" \
+	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" LDFLAGS="$LDFLAGS" \
 		Fexec meson \
 			--prefix ${CROSS_PREFIX} \
 			--datadir share \

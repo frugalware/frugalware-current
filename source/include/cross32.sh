@@ -36,16 +36,65 @@
 # _F_cross32_subdepends=('foo bar baz')
 # * _F_cross32_delete - a list of files or folders to be deleted form 32bit subpackage. Example:
 # _F_cross32_delete=('usr/share/myfile' 'usr/lib32/libfoo.so.1')
-# * F32confopts - use like Fconfopts.
+# * _F_cross32_compiler - set an compiler , defaults to gcc , possible values are gcc or clang for 64bit
+# and gcc only for 32bit
+# * _F_cross32_use_meson - use meson schema automatically
+# * _F_cross32_meson_confopts_64 - use to set extra meson options for 64bit build
+# * _F_cross32_meson_confopts_32 - use to set extra meson options for 32bit build
+# * _F_cross32_use_cmake - use cmake schema automatically
+# * _F_cross32_cmake_confopts_64 - use to set extra cmake options for 64bit build
+# * _F_cross32_cmake_confopts_32 - use to set extra cmake options for 32bit build
+# * F32confopts - use like Fconfopts ( autotools only )
 ###
+
+if [ -z "$_F_cross32_compiler" ]; then
+	_F_cross32_compiler="gcc"
+fi
 
 if [ -z "$_F_cross32_new_path" ]; then
 	_F_cross32_combined="yes"
 fi
 
+if [ -n "$_F_cross32_use_meson" ]; then
+	_F_meson_is_cross32="yes"
+	Finclude meson
+fi
+
+if [ -n "$_F_cross32_use_cmake" ]; then
+	Finclude cmake
+fi
+
+## FIXME
+if [ -n "$_F_cross32_use_meson" ] && [ -n "$_F_cross32_use_cmake" ]; then
+	Fmessage "ERROR: you cannot set cmake and meson.."
+	Fdie
+fi
+
+if [ -z "$_F_cross32_use_meson" ] && [ -z "$_F_cross32_use_cmake" ]; then
+	_F_cross32_use_default="yes"
+fi
+
+case "$_F_cross32_compiler" in
+gcc)
+	_F_cross32_cc="gcc"
+	_F_cross32_cxx="g++"
+	;;
+clang)
+	## TODO: add extra flags for clang
+	_F_cross32_cc="clang"
+	_F_cross32_cxx="clang++"
+	makedepends+=('clang')
+	;;
+*)
+	Fmessage "Unknow compiler , cannot continue.."
+	exit 1
+	;;
+esac
+
 ## since we need to build first the 32bit version
 ## we need to save these
 __cross32_save_orig_vars() {
+
 
 	CFLAGS_ORIG="$CFLAGS"
 	CXXFLAGS_ORIG="$CXXFLAGS"
@@ -56,6 +105,15 @@ __cross32_save_orig_vars() {
 	fi
 	PATH_ORIG="$PATH"
 	ASFLAGS_ORIG="$ASFLAGS"
+
+	CC_ORIG="$_F_cross32_cc"
+	CXX_ORIG="$_F_cross32_cxx"
+
+	CROSS_PREFIX_ORIG="$CROSS_PREFIX"
+	CROSS_INC_ORIG="$CROSS_INC"
+	CROSS_LIB_ORIG="$CROSS_LIB"
+	CROSS_BIN_ORIG="$CROSS_BIN"
+	CROSS_SBIN_ORIG="$CROSS_SBIN"
 }
 
 
@@ -68,8 +126,8 @@ __cross32_export_orig_vars() {
 	export CHOST="$CHOST_ORIG"
 	export Fbuildchost="$CHOST_ORIG"
 
-	export CC="gcc"
-	export CXX="g++"
+	export CC="$CC_ORIG"
+	export CXX="$CXX_ORIG"
 
 	if [ -n "$_F_cross32_combined" ]; then
 		export PKG_CONFIG_PATH="$PKGCONFIG_ORIG"
@@ -84,6 +142,13 @@ __cross32_export_orig_vars() {
 	## reset ASFLAGS
 	export ASFLAGS="$ASFLAGS_ORIG"
 
+	# CROSS_XXX stuff
+	export CROSS_PREFIX="$CROSS_PREFIX_ORIG"
+	export CROSS_INC="$CROSS_INC_ORIG"
+	export CROSS_LIB="$CROSS_LIB_ORIG"
+	export CROSS_BIN="$CROSS_BIN_ORIG"
+	export CROSS_SBIN="$CROSS_SBIN_ORIG"
+
 }
 
 
@@ -93,7 +158,7 @@ __cross32_unset_vars() {
 	unset CFLAGS CXXFLAGS CHOST PKG_CONFIG_PATH PATH
 
 	## cmake.sh , meson.sh
-	unset CROSS_LIB CROSS_BIN CROSS_SBIN
+	unset CROSS_LIB CROSS_BIN CROSS_SBIN CROSS_PREFIX CROSS_INC
 
 	## util.sh
 	unset Fbuildchost
@@ -103,18 +168,30 @@ __cross32_unset_vars() {
 ## set up tc32
 __cross32_set_vars() {
 
-	## common
-	export CFLAGS="${CFLAGS_ORIG/x86-64/i686}"
-	export CXXFLAGS="${CXXFLAGS_ORIG/x86-64/i686}"
+
+	## util.sh
 	export CHOST="i686-frugalware-linux"
-	export CC="gcc -m32"
-	export CXX="g++ -m32"
-	LDFLAGS+=" -L/usr/lib32"
-	export CPPFLAGS=" -I/usr/${CHOST}/include"
+	export Fbuildchost="${CHOST}"
+
+	## cmake.sh , meson.sh
+	export CROSS_PREFIX="/usr"
+	export CROSS_INC="${CROSS_PREFIX}/${CHOST}/include"
+	export CROSS_LIB="lib32"
+	export CROSS_BIN="${CROSS_PREFIX}/${CHOST}/bin"
+	export CROSS_SBIN="${CROSS_PREFIX}/${CHOST}/sbin"
+
+	## common
+	export CFLAGS=" -m32 ${CFLAGS_ORIG/x86-64/i686}"
+	export CXXFLAGS=" -m32 ${CXXFLAGS_ORIG/x86-64/i686}"
+	## clang is broken for 32bit , force gcc
+	export CC="gcc"
+	export CXX="g++"
+	LDFLAGS+=" -L${CROSS_PREFIX}/${CROSS_LIB}"
+	export CPPFLAGS=" -I${CROSS_INC}"
 	if [ -n "$_F_cross32_combined" ]; then
-		export PKG_CONFIG_PATH="/usr/lib32/pkgconfig"
+		export PKG_CONFIG_PATH="${CROSS_PREFIX}/${CROSS_LIB}/pkgconfig"
 	else
-		export PKG_CONFIG_LIBDIR="/usr/lib32/pkgconfig"
+		export PKG_CONFIG_LIBDIR="${CROSS_PREFIX}/${CROSS_LIB}/pkgconfig"
 	fi
 	export ASFLAGS="--32"
 
@@ -124,32 +201,24 @@ __cross32_set_vars() {
 
 	export PATH=/usr/${CHOST}/bin:usr/${CHOST}/sbin:$PATH_ORIG
 
-	export CROSS_LIB="lib32"
-	export CROSS_BIN="lib32/${CHOST}/bin"
-	export CROSS_SBIN="lib32/${CHOST}/sbin"
+	## auto tools - default
+	if [ -n "$_F_cross32_use_default" ]; then
+		if [ -z "$_F_conf_configure" ]; then
+			_F_conf_configure="./configure"
+		fi
 
-	## util.sh
-	export Fbuildchost="${CHOST}"
+		F32bindir="/usr/${CHOST}/bin"
+		F32sbindir="/usr/${CHOST}/sbin"
+		F32includedir="/usr/${CHOST}/include"
+		F32libdir="/usr/lib32"
+		F32libexecdir="/usr/${CHOST}/${pkgname}"
 
-	if [ -z "$_F_conf_configure" ]; then
-		_F_conf_configure="./configure"
+		Fconfoptstryset "bindir" "$F32bindir"
+		Fconfoptstryset "sbindir" "$F32sbindir"
+		Fconfoptstryset "libdir" "$F32libdir"
+		Fconfoptstryset "includedir" "$F32includedir"
+		Fconfoptstryset "libexecdir" "$F32libexecdir"
 	fi
-
-	F32bindir="/usr/${CHOST}/bin"
-	F32sbindir="/usr/${CHOST}/sbin"
-	F32includedir="/usr/${CHOST}/include"
-	F32libdir="/usr/lib32"
-	F32libexecdir="/usr/${CHOST}/${pkgname}"
-
-	Fconfoptstryset "bindir" "$F32bindir"
-	Fconfoptstryset "sbindir" "$F32sbindir"
-	Fconfoptstryset "libdir" "$F32libdir"
-	Fconfoptstryset "includedir" "$F32includedir"
-	Fconfoptstryset "libexecdir" "$F32libexecdir"
-
-
-	## ./configure ..
-	##F32confopts+=" pkgconfigdir=/usr/lib32/pkgconfig"
 
 }
 
@@ -187,43 +256,60 @@ __cross32_bug_me_set() {
 	msg2 "CPPFLAGS to $CPPFLAGS"
 	msg2 "PKG_CONFIG_PATH to $PKG_CONFIG_PATH"
 	msg2 "PATH to $PATH"
+	msg2 "CROSS_PREFIX to $CROSS_PREFIX"
+	msg2 "CROSS_LIB to $CROSS_LIB"
+	msg2 "CROSS_BIN to $CROSS_BIN"
+	msg2 "CROSS_SBIN to $CROSS_SBIN"
+	msg2 "CROSS_INC to $CROSS_INC"
 }
 
 __cross32_bug_me_reset() {
 
 	Fmessage "Setting up ENV for 64bit tool chain:"
-        msg2 "CFLAGS to $CFLAGS"
-        msg2 "CXXFLAGS to $CXXFLAGS"
-        msg2 "LDFLAGS to $LDFLAGS"
-        msg2 "CHOST to $CHOST"
-        msg2 "CC to $CC"
-        msg2 "CXX to $CXX"
+	msg2 "CFLAGS to $CFLAGS"
+	msg2 "CXXFLAGS to $CXXFLAGS"
+	msg2 "LDFLAGS to $LDFLAGS"
+	msg2 "CHOST to $CHOST"
+	msg2 "CC to $CC"
+	msg2 "CXX to $CXX"
 	msg2 "PATH to $PATH"
+	msg2 "CROSS_PREFIX to $CROSS_PREFIX"
+	msg2 "CROSS_LIB to $CROSS_LIB"
+	msg2 "CROSS_BIN to $CROSS_BIN"
+	msg2 "CROSS_SBIN to $CROSS_SBIN"
+	msg2 "CROSS_INC to $CROSS_INC"
 }
 
 __cross32_conf_make_opts_pre_save() {
 
-	## this is ..
-	F_CONFOPTS="$Fconfopts"
-	if [ -n "$_F32_make_opts" ]; then
-                FMAKEOPTS="$_F_make_opts"
-                _F_make_opts=""
-        else
-                _F32_make_opts="$_F_make_opts"
-        fi
+	## autotools only..
+	if [ -n "$_F_cross32_use_default" ]; then
+		## this is ..
+		F_CONFOPTS="$Fconfopts"
+		if [ -n "$_F32_make_opts" ]; then
+			FMAKEOPTS="$_F_make_opts"
+			_F_make_opts=""
+		else
+			_F32_make_opts="$_F_make_opts"
+		fi
+	fi
 }
 
 __cross32_conf_make_opts_reset() {
 
+	## autotools only
+	if [ -n "$_F_cross32_use_default" ]; then
+		Fconfopts=""
+		if [ -n "$_F32_make_opts" ]; then
+			_F_make_opts="$FMAKEOPTS"
+		fi
+		Fconfopts+=" $F_CONFOPTS"
+	fi
 
-	Fconfopts=""
-	if [ -n "$_F32_make_opts" ]; then
-                _F_make_opts="$FMAKEOPTS"
-        fi
-        Fconfopts+=" $F_CONFOPTS"
 }
 
 Fcross32_prepare() {
+
 
 	__cross32_conf_make_opts_pre_save
         __cross32_save_orig_vars
@@ -282,11 +368,52 @@ __cross32_common_build() {
 
 	Fcross32_prepare
 	Fcross32_copy_source
-	Fbuild $F32confopts $_F32_make_opts
+
+	if [ -n "$_F_cross32_use_default" ]; then
+		Fbuild $F32confopts $_F32_make_opts
+	elif [ -n "$_F_cross32_use_meson" ]; then
+		if [ -n "$_F_cross32_meson_confopts_32" ]; then
+			_F_meson_confopts="$_F_cross32_meson_confopts_32"
+		fi
+		Meson_build
+		## zero _F_meson_confopts
+		_F_meson_confopts=""
+	elif [ -n "$_F_cross32_use_cmake" ]; then
+		if [ -n "$_F_cross32_cmake_confopts_32" ]; then
+			_F_cmake_confopts="$_F_cross32_cmake_confopts_32"
+		fi
+		CMake_build
+		## zero _F_cmake_confopts
+		_F_cmake_confopts=""
+	fi
+
 	## HACK2
 	Fcross32_copy_back_source
 	Fcross32_reset_and_fix
 
+}
+
+__cross32_64bit_build() {
+
+	if [ -n "$_F_cross32_use_default" ]; then
+		Fbuild
+	elif [ -n "$_F_cross32_use_meson" ]; then
+		if [ -n "$_F_cross32_meson_confopts_64" ]; then
+			_F_meson_confopts="$_F_cross32_meson_confopts_64"
+		fi
+		Meson_build
+		_F_meson_confopts=""
+	elif [ -n "$_F_cross32_use_cmake" ]; then
+		if [ -n "$_F_cross32_cmake_confopts_64" ]; then
+			_F_cmake_confopts="$_F_cross32_cmake_confopts_64"
+		fi
+		CMake_build
+		_F_cmake_confopts=""
+	fi
+}
+
+Fcross32_64bit_build() {
+	__cross32_64bit_build
 }
 
 Fcross32_common_build() {
@@ -332,14 +459,18 @@ Fbuild_cross32() {
 
 		Fcross32_common_build ## 32bit
 		Fcross32_delete_empty
-		Fbuild ## second build 64bit
+		## 64bit
+		Fcross32_64bit_build
+
 	else
 		## with subpackge
 		Fmessage "Auto building lib32-${pkgname} subpackage"
-		Fcross32_common_build
+		Fcross32_common_build ## 32bit
 		Fcross32_delete_empty
 		Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one
-		Fbuild ## 64bit
+		## 64bit
+		Fcross32_64bit_build
+
 	fi
 
 }

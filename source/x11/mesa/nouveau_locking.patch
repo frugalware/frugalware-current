@@ -1,6 +1,7 @@
-diff -ur mesa-17.2.1/src/gallium/auxiliary/os/os_thread.h mesa-17.2.1-nouvlock-1/src/gallium/auxiliary/os/os_thread.h
---- mesa-17.2.1/src/gallium/auxiliary/os/os_thread.h	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/auxiliary/os/os_thread.h	2017-09-27 12:14:56.113118361 +0200
+diff --git a/src/gallium/auxiliary/os/os_thread.h b/src/gallium/auxiliary/os/os_thread.h
+index f2629c5ffe..eedeab5e76 100644
+--- a/src/gallium/auxiliary/os/os_thread.h
++++ b/src/gallium/auxiliary/os/os_thread.h
 @@ -42,6 +42,25 @@
  #include "util/u_thread.h"
  
@@ -27,10 +28,29 @@ diff -ur mesa-17.2.1/src/gallium/auxiliary/os/os_thread.h mesa-17.2.1-nouvlock-1
  #define pipe_mutex_assert_locked(mutex) \
     __pipe_mutex_assert_locked(&(mutex))
  
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_buffer.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nouveau_buffer.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_buffer.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nouveau_buffer.c	2017-09-27 12:14:56.114118346 +0200
-@@ -380,6 +380,7 @@
+diff --git a/src/gallium/drivers/nouveau/nouveau_buffer.c b/src/gallium/drivers/nouveau/nouveau_buffer.c
+index 2c604419ce..e14ba7faaa 100644
+--- a/src/gallium/drivers/nouveau/nouveau_buffer.c
++++ b/src/gallium/drivers/nouveau/nouveau_buffer.c
+@@ -80,6 +80,8 @@ release_allocation(struct nouveau_mm_allocation **mm,
+ inline void
+ nouveau_buffer_release_gpu_storage(struct nv04_resource *buf)
+ {
++   if (buf->fence)
++      pipe_mutex_lock(buf->fence->screen->push_mutex);
+    if (buf->fence && buf->fence->state < NOUVEAU_FENCE_STATE_FLUSHED) {
+       nouveau_fence_work(buf->fence, nouveau_fence_unref_bo, buf->bo);
+       buf->bo = NULL;
+@@ -89,6 +91,8 @@ nouveau_buffer_release_gpu_storage(struct nv04_resource *buf)
+ 
+    if (buf->mm)
+       release_allocation(&buf->mm, buf->fence);
++   if (buf->fence)
++      pipe_mutex_unlock(buf->fence->screen->push_mutex);
+ 
+    if (buf->domain == NOUVEAU_BO_VRAM)
+       NOUVEAU_DRV_STAT_RES(buf, buf_obj_current_bytes_vid, -(uint64_t)buf->base.width0);
+@@ -380,6 +384,7 @@ nouveau_buffer_transfer_map(struct pipe_context *pipe,
                              struct pipe_transfer **ptransfer)
  {
     struct nouveau_context *nv = nouveau_context(pipe);
@@ -38,7 +58,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_buffer.c mesa-17.2.1-no
     struct nv04_resource *buf = nv04_resource(resource);
     struct nouveau_transfer *tx = MALLOC_STRUCT(nouveau_transfer);
     uint8_t *map;
-@@ -424,14 +425,19 @@
+@@ -424,14 +429,19 @@ nouveau_buffer_transfer_map(struct pipe_context *pipe,
                 buf->data = NULL;
              }
              nouveau_transfer_staging(nv, tx, false);
@@ -59,7 +79,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_buffer.c mesa-17.2.1-no
           }
        }
        return buf->data ? (buf->data + box->x) : tx->map;
-@@ -477,7 +483,9 @@
+@@ -477,7 +487,9 @@ nouveau_buffer_transfer_map(struct pipe_context *pipe,
                              PIPE_TRANSFER_PERSISTENT))) {
           /* Discarding was not possible, must sync because
            * subsequent transfers might use UNSYNCHRONIZED. */
@@ -69,7 +89,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_buffer.c mesa-17.2.1-no
        } else
        if (usage & PIPE_TRANSFER_DISCARD_RANGE) {
           /* The whole range is being discarded, so it doesn't matter what was
-@@ -486,10 +494,13 @@
+@@ -486,10 +498,13 @@ nouveau_buffer_transfer_map(struct pipe_context *pipe,
           map = tx->map;
        } else
        if (nouveau_buffer_busy(buf, PIPE_TRANSFER_READ)) {
@@ -85,7 +105,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_buffer.c mesa-17.2.1-no
        } else {
           /* It is expected that the returned buffer be a representation of the
            * data in question, so we must copy it over from the buffer. */
-@@ -513,9 +524,13 @@
+@@ -513,9 +528,13 @@ nouveau_buffer_transfer_flush_region(struct pipe_context *pipe,
  {
     struct nouveau_transfer *tx = nouveau_transfer(transfer);
     struct nv04_resource *buf = nv04_resource(transfer->resource);
@@ -100,7 +120,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_buffer.c mesa-17.2.1-no
  
     util_range_add(&buf->valid_buffer_range,
                    tx->base.box.x + box->x,
-@@ -535,11 +550,15 @@
+@@ -535,11 +554,15 @@ nouveau_buffer_transfer_unmap(struct pipe_context *pipe,
     struct nouveau_context *nv = nouveau_context(pipe);
     struct nouveau_transfer *tx = nouveau_transfer(transfer);
     struct nv04_resource *buf = nv04_resource(transfer->resource);
@@ -117,10 +137,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_buffer.c mesa-17.2.1-no
  
           util_range_add(&buf->valid_buffer_range,
                          tx->base.box.x, tx->base.box.x + tx->base.box.width);
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nouveau_fence.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nouveau_fence.c	2017-09-27 12:14:56.198117111 +0200
-@@ -67,12 +67,14 @@
+diff --git a/src/gallium/drivers/nouveau/nouveau_fence.c b/src/gallium/drivers/nouveau/nouveau_fence.c
+index d14c59b2dd..24a24df5a2 100644
+--- a/src/gallium/drivers/nouveau/nouveau_fence.c
++++ b/src/gallium/drivers/nouveau/nouveau_fence.c
+@@ -67,12 +67,14 @@ nouveau_fence_emit(struct nouveau_fence *fence)
  
     ++fence->ref;
  
@@ -135,7 +156,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.c mesa-17.2.1-nou
  
     screen->fence.emit(&screen->base, &fence->sequence);
  
-@@ -86,6 +88,9 @@
+@@ -86,6 +88,9 @@ nouveau_fence_del(struct nouveau_fence *fence)
     struct nouveau_fence *it;
     struct nouveau_screen *screen = fence->screen;
  
@@ -145,7 +166,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.c mesa-17.2.1-nou
     if (fence->state == NOUVEAU_FENCE_STATE_EMITTED ||
         fence->state == NOUVEAU_FENCE_STATE_FLUSHED) {
        if (fence == screen->fence.head) {
-@@ -119,6 +124,7 @@
+@@ -119,6 +124,7 @@ nouveau_fence_update(struct nouveau_screen *screen, bool flushed)
        return;
     screen->fence.sequence_ack = sequence;
  
@@ -153,7 +174,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.c mesa-17.2.1-nou
     for (fence = screen->fence.head; fence; fence = next) {
        next = fence->next;
        sequence = fence->sequence;
-@@ -140,6 +146,7 @@
+@@ -140,6 +146,7 @@ nouveau_fence_update(struct nouveau_screen *screen, bool flushed)
           if (fence->state == NOUVEAU_FENCE_STATE_EMITTED)
              fence->state = NOUVEAU_FENCE_STATE_FLUSHED;
     }
@@ -161,7 +182,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.c mesa-17.2.1-nou
  }
  
  #define NOUVEAU_FENCE_MAX_SPINS (1 << 31)
-@@ -194,18 +201,27 @@
+@@ -194,18 +201,27 @@ nouveau_fence_wait(struct nouveau_fence *fence, struct pipe_debug_callback *debu
     uint32_t spins = 0;
     int64_t start = 0;
  
@@ -189,7 +210,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.c mesa-17.2.1-nou
           return true;
        }
        if (!spins)
-@@ -223,6 +239,8 @@
+@@ -223,6 +239,8 @@ nouveau_fence_wait(struct nouveau_fence *fence, struct pipe_debug_callback *debu
                  fence->sequence,
                  screen->fence.sequence_ack, screen->fence.sequence);
  
@@ -198,9 +219,10 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.c mesa-17.2.1-nou
     return false;
  }
  
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.h mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nouveau_fence.h
---- mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.h	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nouveau_fence.h	2017-09-27 12:14:56.198117111 +0200
+diff --git a/src/gallium/drivers/nouveau/nouveau_fence.h b/src/gallium/drivers/nouveau/nouveau_fence.h
+index e14572bce8..35ed94fa5b 100644
+--- a/src/gallium/drivers/nouveau/nouveau_fence.h
++++ b/src/gallium/drivers/nouveau/nouveau_fence.h
 @@ -2,6 +2,7 @@
  #ifndef __NOUVEAU_FENCE_H__
  #define __NOUVEAU_FENCE_H__
@@ -209,7 +231,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.h mesa-17.2.1-nou
  #include "util/u_inlines.h"
  #include "util/list.h"
  
-@@ -46,10 +47,10 @@
+@@ -46,10 +47,10 @@ static inline void
  nouveau_fence_ref(struct nouveau_fence *fence, struct nouveau_fence **ref)
  {
     if (fence)
@@ -222,10 +244,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_fence.h mesa-17.2.1-nou
           nouveau_fence_del(*ref);
     }
  
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_screen.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nouveau_screen.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_screen.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nouveau_screen.c	2017-09-27 12:14:56.198117111 +0200
-@@ -80,10 +80,14 @@
+diff --git a/src/gallium/drivers/nouveau/nouveau_screen.c b/src/gallium/drivers/nouveau/nouveau_screen.c
+index c144b39b2d..222b2fc0e8 100644
+--- a/src/gallium/drivers/nouveau/nouveau_screen.c
++++ b/src/gallium/drivers/nouveau/nouveau_screen.c
+@@ -80,10 +80,14 @@ nouveau_screen_fence_finish(struct pipe_screen *screen,
                              struct pipe_fence_handle *pfence,
                              uint64_t timeout)
  {
@@ -241,7 +264,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_screen.c mesa-17.2.1-no
  }
  
  
-@@ -179,6 +183,9 @@
+@@ -179,6 +183,9 @@ nouveau_screen_init(struct nouveau_screen *screen, struct nouveau_device *dev)
     if (nv_dbg)
        nouveau_mesa_debug = atoi(nv_dbg);
  
@@ -251,7 +274,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_screen.c mesa-17.2.1-no
     /* These must be set before any failure is possible, as the cleanup
      * paths assume they're responsible for deleting them.
      */
-@@ -283,6 +290,9 @@
+@@ -281,6 +288,9 @@ nouveau_screen_fini(struct nouveau_screen *screen)
     nouveau_drm_del(&screen->drm);
     close(fd);
  
@@ -261,9 +284,10 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_screen.c mesa-17.2.1-no
     disk_cache_destroy(screen->disk_shader_cache);
  }
  
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_screen.h mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nouveau_screen.h
---- mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_screen.h	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nouveau_screen.h	2017-09-27 12:14:56.199117096 +0200
+diff --git a/src/gallium/drivers/nouveau/nouveau_screen.h b/src/gallium/drivers/nouveau/nouveau_screen.h
+index e4fbae99ca..5de6853fd9 100644
+--- a/src/gallium/drivers/nouveau/nouveau_screen.h
++++ b/src/gallium/drivers/nouveau/nouveau_screen.h
 @@ -4,6 +4,7 @@
  #include "pipe/p_screen.h"
  #include "util/disk_cache.h"
@@ -272,7 +296,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_screen.h mesa-17.2.1-no
  
  #ifdef DEBUG
  # define NOUVEAU_ENABLE_DRIVER_STATISTICS
-@@ -23,6 +24,7 @@
+@@ -23,6 +24,7 @@ struct nouveau_screen {
     struct nouveau_object *channel;
     struct nouveau_client *client;
     struct nouveau_pushbuf *pushbuf;
@@ -280,7 +304,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_screen.h mesa-17.2.1-no
  
     int refcount;
  
-@@ -40,6 +42,7 @@
+@@ -40,6 +42,7 @@ struct nouveau_screen {
        struct nouveau_fence *head;
        struct nouveau_fence *tail;
        struct nouveau_fence *current;
@@ -288,10 +312,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nouveau_screen.h mesa-17.2.1-no
        u32 sequence;
        u32 sequence_ack;
        void (*emit)(struct pipe_screen *, u32 *sequence);
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_clear.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv30/nv30_clear.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_clear.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv30/nv30_clear.c	2017-09-27 12:14:56.199117096 +0200
-@@ -58,8 +58,11 @@
+diff --git a/src/gallium/drivers/nouveau/nv30/nv30_clear.c b/src/gallium/drivers/nouveau/nv30/nv30_clear.c
+index 4e6df1eff6..8e05c6b0a3 100644
+--- a/src/gallium/drivers/nouveau/nv30/nv30_clear.c
++++ b/src/gallium/drivers/nouveau/nv30/nv30_clear.c
+@@ -58,8 +58,11 @@ nv30_clear(struct pipe_context *pipe, unsigned buffers,
     struct pipe_framebuffer_state *fb = &nv30->framebuffer;
     uint32_t colr = 0, zeta = 0, mode = 0;
  
@@ -304,7 +329,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_clear.c mesa-17.2.1-n
  
     if (buffers & PIPE_CLEAR_COLOR && fb->nr_cbufs) {
        colr  = pack_rgba(fb->cbufs[0]->format, color->f);
-@@ -96,6 +99,7 @@
+@@ -96,6 +99,7 @@ nv30_clear(struct pipe_context *pipe, unsigned buffers,
     PUSH_DATA (push, mode);
  
     nv30_state_release(nv30);
@@ -312,7 +337,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_clear.c mesa-17.2.1-n
  }
  
  static void
-@@ -126,11 +130,15 @@
+@@ -126,11 +130,15 @@ nv30_clear_render_target(struct pipe_context *pipe, struct pipe_surface *ps,
        rt_format |= NV30_3D_RT_FORMAT_TYPE_LINEAR;
     }
  
@@ -329,7 +354,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_clear.c mesa-17.2.1-n
  
     BEGIN_NV04(push, NV30_3D(RT_ENABLE), 1);
     PUSH_DATA (push, NV30_3D_RT_ENABLE_COLOR0);
-@@ -155,6 +163,8 @@
+@@ -155,6 +163,8 @@ nv30_clear_render_target(struct pipe_context *pipe, struct pipe_surface *ps,
                      NV30_3D_CLEAR_BUFFERS_COLOR_B |
                      NV30_3D_CLEAR_BUFFERS_COLOR_A);
  
@@ -338,7 +363,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_clear.c mesa-17.2.1-n
     nv30->dirty |= NV30_NEW_FRAMEBUFFER | NV30_NEW_SCISSOR;
  }
  
-@@ -191,11 +201,15 @@
+@@ -191,11 +201,15 @@ nv30_clear_depth_stencil(struct pipe_context *pipe, struct pipe_surface *ps,
     if (buffers & PIPE_CLEAR_STENCIL)
        mode |= NV30_3D_CLEAR_BUFFERS_STENCIL;
  
@@ -355,7 +380,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_clear.c mesa-17.2.1-n
  
     BEGIN_NV04(push, NV30_3D(RT_ENABLE), 1);
     PUSH_DATA (push, 0);
-@@ -221,6 +235,8 @@
+@@ -221,6 +235,8 @@ nv30_clear_depth_stencil(struct pipe_context *pipe, struct pipe_surface *ps,
     BEGIN_NV04(push, NV30_3D(CLEAR_BUFFERS), 1);
     PUSH_DATA (push, mode);
  
@@ -364,10 +389,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_clear.c mesa-17.2.1-n
     nv30->dirty |= NV30_NEW_FRAMEBUFFER | NV30_NEW_SCISSOR;
  }
  
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_context.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv30/nv30_context.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_context.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv30/nv30_context.c	2017-09-27 12:14:56.290115758 +0200
-@@ -198,6 +198,8 @@
+diff --git a/src/gallium/drivers/nouveau/nv30/nv30_context.c b/src/gallium/drivers/nouveau/nv30/nv30_context.c
+index e137525c2b..881057ab57 100644
+--- a/src/gallium/drivers/nouveau/nv30/nv30_context.c
++++ b/src/gallium/drivers/nouveau/nv30/nv30_context.c
+@@ -198,6 +198,8 @@ nv30_context_create(struct pipe_screen *pscreen, void *priv, unsigned ctxflags)
     if (!nv30)
        return NULL;
  
@@ -376,7 +402,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_context.c mesa-17.2.1
     nv30->screen = screen;
     nv30->base.screen = &screen->base;
     nv30->base.copy_data = nv30_transfer_copy_data;
-@@ -230,6 +232,7 @@
+@@ -230,6 +232,7 @@ nv30_context_create(struct pipe_screen *pscreen, void *priv, unsigned ctxflags)
     ret = nouveau_bufctx_new(nv30->base.client, 64, &nv30->bufctx);
     if (ret) {
        nv30_context_destroy(pipe);
@@ -384,7 +410,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_context.c mesa-17.2.1
        return NULL;
     }
  
-@@ -263,10 +266,13 @@
+@@ -263,10 +266,13 @@ nv30_context_create(struct pipe_screen *pscreen, void *priv, unsigned ctxflags)
     nv30->blitter = util_blitter_create(pipe);
     if (!nv30->blitter) {
        nv30_context_destroy(pipe);
@@ -398,10 +424,115 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_context.c mesa-17.2.1
 +
     return pipe;
  }
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_miptree.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv30/nv30_miptree.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_miptree.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv30/nv30_miptree.c	2017-09-27 12:14:56.290115758 +0200
-@@ -130,10 +130,12 @@
+diff --git a/src/gallium/drivers/nouveau/nv30/nv30_draw.c b/src/gallium/drivers/nouveau/nv30/nv30_draw.c
+index 798ec1423d..236ae9144e 100644
+--- a/src/gallium/drivers/nouveau/nv30/nv30_draw.c
++++ b/src/gallium/drivers/nouveau/nv30/nv30_draw.c
+@@ -127,6 +127,8 @@ nv30_render_draw_elements(struct vbuf_render *render,
+    struct nouveau_pushbuf *push = nv30->screen->base.pushbuf;
+    unsigned i;
+ 
++   pipe_mutex_lock(nv30->screen->base.push_mutex);
++
+    BEGIN_NV04(push, NV30_3D(VTXBUF(0)), r->vertex_info.num_attribs);
+    for (i = 0; i < r->vertex_info.num_attribs; i++) {
+       PUSH_RESRC(push, NV30_3D(VTXBUF(i)), BUFCTX_VTXTMP,
+@@ -134,8 +136,10 @@ nv30_render_draw_elements(struct vbuf_render *render,
+                        NOUVEAU_BO_LOW | NOUVEAU_BO_RD, 0, NV30_3D_VTXBUF_DMA1);
+    }
+ 
+-   if (!nv30_state_validate(nv30, ~0, false))
++   if (!nv30_state_validate(nv30, ~0, false)) {
++      pipe_mutex_unlock(nv30->screen->base.push_mutex);
+       return;
++   }
+ 
+    BEGIN_NV04(push, NV30_3D(VERTEX_BEGIN_END), 1);
+    PUSH_DATA (push, r->prim);
+@@ -160,6 +164,8 @@ nv30_render_draw_elements(struct vbuf_render *render,
+    BEGIN_NV04(push, NV30_3D(VERTEX_BEGIN_END), 1);
+    PUSH_DATA (push, NV30_3D_VERTEX_BEGIN_END_STOP);
+    PUSH_RESET(push, BUFCTX_VTXTMP);
++
++   pipe_mutex_unlock(nv30->screen->base.push_mutex);
+ }
+ 
+ static void
+@@ -172,6 +178,8 @@ nv30_render_draw_arrays(struct vbuf_render *render, unsigned start, uint nr)
+    unsigned ps = fn + (pn ? 1 : 0);
+    unsigned i;
+ 
++   pipe_mutex_lock(nv30->screen->base.push_mutex);
++
+    BEGIN_NV04(push, NV30_3D(VTXBUF(0)), r->vertex_info.num_attribs);
+    for (i = 0; i < r->vertex_info.num_attribs; i++) {
+       PUSH_RESRC(push, NV30_3D(VTXBUF(i)), BUFCTX_VTXTMP,
+@@ -179,8 +187,10 @@ nv30_render_draw_arrays(struct vbuf_render *render, unsigned start, uint nr)
+                        NOUVEAU_BO_LOW | NOUVEAU_BO_RD, 0, NV30_3D_VTXBUF_DMA1);
+    }
+ 
+-   if (!nv30_state_validate(nv30, ~0, false))
++   if (!nv30_state_validate(nv30, ~0, false)) {
++      pipe_mutex_unlock(nv30->screen->base.push_mutex);
+       return;
++   }
+ 
+    BEGIN_NV04(push, NV30_3D(VERTEX_BEGIN_END), 1);
+    PUSH_DATA (push, r->prim);
+@@ -197,6 +207,8 @@ nv30_render_draw_arrays(struct vbuf_render *render, unsigned start, uint nr)
+    BEGIN_NV04(push, NV30_3D(VERTEX_BEGIN_END), 1);
+    PUSH_DATA (push, NV30_3D_VERTEX_BEGIN_END_STOP);
+    PUSH_RESET(push, BUFCTX_VTXTMP);
++
++   pipe_mutex_unlock(nv30->screen->base.push_mutex);
+ }
+ 
+ static void
+@@ -386,6 +398,8 @@ nv30_render_vbo(struct pipe_context *pipe, const struct pipe_draw_info *info)
+ 
+    nv30_render_validate(nv30);
+ 
++   pipe_mutex_unlock(nv30->screen->base.push_mutex);
++
+    if (nv30->draw_dirty & NV30_NEW_VIEWPORT)
+       draw_set_viewport_states(draw, 0, 1, &nv30->viewport);
+    if (nv30->draw_dirty & NV30_NEW_RASTERIZER)
+@@ -452,6 +466,8 @@ nv30_render_vbo(struct pipe_context *pipe, const struct pipe_draw_info *info)
+       if (transfer[i])
+          pipe_buffer_unmap(pipe, transfer[i]);
+ 
++   pipe_mutex_lock(nv30->screen->base.push_mutex);
++
+    nv30->draw_dirty = 0;
+    nv30_state_release(nv30);
+ }
+diff --git a/src/gallium/drivers/nouveau/nv30/nv30_fragprog.c b/src/gallium/drivers/nouveau/nv30/nv30_fragprog.c
+index 6de61bcc1c..fd21f99be5 100644
+--- a/src/gallium/drivers/nouveau/nv30/nv30_fragprog.c
++++ b/src/gallium/drivers/nouveau/nv30/nv30_fragprog.c
+@@ -38,6 +38,8 @@ nv30_fragprog_upload(struct nv30_context *nv30)
+    struct nv30_fragprog *fp = nv30->fragprog.program;
+    struct pipe_context *pipe = &nv30->base.pipe;
+ 
++   pipe_mutex_unlock(nv->screen->push_mutex);
++
+    if (unlikely(!fp->buffer))
+       fp->buffer = pipe_buffer_create(pipe->screen, 0, 0, fp->insn_len * 4);
+ 
+@@ -60,6 +62,8 @@ nv30_fragprog_upload(struct nv30_context *nv30)
+ 
+    if (nv04_resource(fp->buffer)->domain != NOUVEAU_BO_VRAM)
+       nouveau_buffer_migrate(nv, nv04_resource(fp->buffer), NOUVEAU_BO_VRAM);
++
++   pipe_mutex_lock(nv->screen->push_mutex);
+ }
+ 
+ void
+diff --git a/src/gallium/drivers/nouveau/nv30/nv30_miptree.c b/src/gallium/drivers/nouveau/nv30/nv30_miptree.c
+index 165b8f29b4..b748e49417 100644
+--- a/src/gallium/drivers/nouveau/nv30/nv30_miptree.c
++++ b/src/gallium/drivers/nouveau/nv30/nv30_miptree.c
+@@ -130,10 +130,12 @@ nv30_resource_copy_region(struct pipe_context *pipe,
     struct nv30_context *nv30 = nv30_context(pipe);
     struct nv30_rect src, dst;
  
@@ -414,7 +545,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_miptree.c mesa-17.2.1
        return;
     }
  
-@@ -143,6 +145,7 @@
+@@ -143,6 +145,7 @@ nv30_resource_copy_region(struct pipe_context *pipe,
                         src_box->width, src_box->height, &dst);
  
     nv30_transfer_rect(nv30, NEAREST, &src, &dst);
@@ -422,7 +553,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_miptree.c mesa-17.2.1
  }
  
  static void
-@@ -163,6 +166,7 @@
+@@ -163,6 +166,7 @@ nv30_resource_resolve(struct nv30_context *nv30,
     y1 = src.y1;
  
     /* On nv3x we must use sifm which is restricted to 1024x1024 tiles */
@@ -430,7 +561,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_miptree.c mesa-17.2.1
     for (y = src.y0; y < y1; y += h) {
        h = y1 - y;
        if (h > 1024)
-@@ -193,6 +197,7 @@
+@@ -193,6 +197,7 @@ nv30_resource_resolve(struct nv30_context *nv30,
           nv30_transfer_rect(nv30, BILINEAR, &src, &dst);
        }
     }
@@ -438,7 +569,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_miptree.c mesa-17.2.1
  }
  
  void
-@@ -308,8 +313,12 @@
+@@ -308,8 +313,12 @@ nv30_miptree_transfer_map(struct pipe_context *pipe, struct pipe_resource *pt,
     tx->tmp.y1     = tx->tmp.h;
     tx->tmp.z      = 0;
  
@@ -452,7 +583,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_miptree.c mesa-17.2.1
  
     if (tx->tmp.bo->map) {
        *ptransfer = &tx->base;
-@@ -340,11 +349,13 @@
+@@ -340,11 +349,13 @@ nv30_miptree_transfer_unmap(struct pipe_context *pipe,
     struct nv30_transfer *tx = nv30_transfer(ptx);
  
     if (ptx->usage & PIPE_TRANSFER_WRITE) {
@@ -466,10 +597,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_miptree.c mesa-17.2.1
     } else {
        nouveau_bo_ref(NULL, &tx->tmp.bo);
     }
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_query.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv30/nv30_query.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_query.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv30/nv30_query.c	2017-09-27 12:14:56.290115758 +0200
-@@ -152,6 +152,7 @@
+diff --git a/src/gallium/drivers/nouveau/nv30/nv30_query.c b/src/gallium/drivers/nouveau/nv30/nv30_query.c
+index f26728868a..8deb0c0a45 100644
+--- a/src/gallium/drivers/nouveau/nv30/nv30_query.c
++++ b/src/gallium/drivers/nouveau/nv30/nv30_query.c
+@@ -153,6 +153,7 @@ nv30_query_begin(struct pipe_context *pipe, struct pipe_query *pq)
     struct nv30_query *q = nv30_query(pq);
     struct nouveau_pushbuf *push = nv30->base.pushbuf;
  
@@ -477,7 +609,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_query.c mesa-17.2.1-n
     switch (q->type) {
     case PIPE_QUERY_TIME_ELAPSED:
        q->qo[0] = nv30_query_object_new(nv30->screen);
-@@ -161,7 +162,7 @@
+@@ -162,7 +163,7 @@ nv30_query_begin(struct pipe_context *pipe, struct pipe_query *pq)
        }
        break;
     case PIPE_QUERY_TIMESTAMP:
@@ -486,7 +618,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_query.c mesa-17.2.1-n
     default:
        BEGIN_NV04(push, NV30_3D(QUERY_RESET), 1);
        PUSH_DATA (push, q->report);
-@@ -172,6 +173,7 @@
+@@ -173,6 +174,7 @@ nv30_query_begin(struct pipe_context *pipe, struct pipe_query *pq)
        BEGIN_NV04(push, SUBC_3D(q->enable), 1);
        PUSH_DATA (push, 1);
     }
@@ -494,7 +626,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_query.c mesa-17.2.1-n
     return true;
  }
  
-@@ -183,6 +185,7 @@
+@@ -184,6 +186,7 @@ nv30_query_end(struct pipe_context *pipe, struct pipe_query *pq)
     struct nv30_query *q = nv30_query(pq);
     struct nouveau_pushbuf *push = nv30->base.pushbuf;
  
@@ -502,7 +634,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_query.c mesa-17.2.1-n
     q->qo[1] = nv30_query_object_new(screen);
     if (q->qo[1]) {
        BEGIN_NV04(push, NV30_3D(QUERY_GET), 1);
-@@ -194,6 +197,7 @@
+@@ -195,6 +198,7 @@ nv30_query_end(struct pipe_context *pipe, struct pipe_query *pq)
        PUSH_DATA (push, 0);
     }
     PUSH_KICK (push);
@@ -510,7 +642,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_query.c mesa-17.2.1-n
     return true;
  }
  
-@@ -248,9 +252,11 @@
+@@ -250,9 +254,11 @@ nv40_query_render_condition(struct pipe_context *pipe,
     nv30->render_cond_mode = mode;
     nv30->render_cond_cond = condition;
  
@@ -522,7 +654,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_query.c mesa-17.2.1-n
        return;
     }
  
-@@ -262,6 +268,7 @@
+@@ -264,6 +270,7 @@ nv40_query_render_condition(struct pipe_context *pipe,
  
     BEGIN_NV04(push, SUBC_3D(0x1e98), 1);
     PUSH_DATA (push, 0x02000000 | q->qo[1]->hw->start);
@@ -530,10 +662,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_query.c mesa-17.2.1-n
  }
  
  static void
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_vbo.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv30/nv30_vbo.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_vbo.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv30/nv30_vbo.c	2017-09-27 12:14:56.291115743 +0200
-@@ -569,6 +569,8 @@
+diff --git a/src/gallium/drivers/nouveau/nv30/nv30_vbo.c b/src/gallium/drivers/nouveau/nv30/nv30_vbo.c
+index bb0a8a0b1d..6c87decb5e 100644
+--- a/src/gallium/drivers/nouveau/nv30/nv30_vbo.c
++++ b/src/gallium/drivers/nouveau/nv30/nv30_vbo.c
+@@ -569,6 +569,8 @@ nv30_draw_vbo(struct pipe_context *pipe, const struct pipe_draw_info *info)
     if (nv30->vbo_push_hint != !!nv30->vbo_fifo)
        nv30->dirty |= NV30_NEW_ARRAYS;
  
@@ -542,7 +675,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_vbo.c mesa-17.2.1-nou
     push->user_priv = &nv30->bufctx;
     if (nv30->vbo_user && !(nv30->dirty & (NV30_NEW_VERTEX | NV30_NEW_ARRAYS)))
        nv30_update_user_vbufs(nv30);
-@@ -576,10 +578,12 @@
+@@ -576,10 +578,12 @@ nv30_draw_vbo(struct pipe_context *pipe, const struct pipe_draw_info *info)
     nv30_state_validate(nv30, ~0, true);
     if (nv30->draw_flags) {
        nv30_render_vbo(pipe, info);
@@ -555,7 +688,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_vbo.c mesa-17.2.1-nou
        return;
     }
  
-@@ -636,6 +640,7 @@
+@@ -636,6 +640,7 @@ nv30_draw_vbo(struct pipe_context *pipe, const struct pipe_draw_info *info)
  
     nv30_state_release(nv30);
     nv30_release_user_vbufs(nv30);
@@ -563,10 +696,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv30/nv30_vbo.c mesa-17.2.1-nou
  }
  
  void
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_compute.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_compute.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_compute.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_compute.c	2017-09-27 12:14:56.291115743 +0200
-@@ -249,9 +249,11 @@
+diff --git a/src/gallium/drivers/nouveau/nv50/nv50_compute.c b/src/gallium/drivers/nouveau/nv50/nv50_compute.c
+index d781f6fd7d..3c174e419e 100644
+--- a/src/gallium/drivers/nouveau/nv50/nv50_compute.c
++++ b/src/gallium/drivers/nouveau/nv50/nv50_compute.c
+@@ -249,9 +249,11 @@ nv50_launch_grid(struct pipe_context *pipe, const struct pipe_grid_info *info)
     struct nv50_program *cp = nv50->compprog;
     bool ret;
  
@@ -578,7 +712,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_compute.c mesa-17.2.1
        return;
     }
  
-@@ -284,6 +286,8 @@
+@@ -284,6 +286,8 @@ nv50_launch_grid(struct pipe_context *pipe, const struct pipe_grid_info *info)
     BEGIN_NV04(push, SUBC_CP(NV50_GRAPH_SERIALIZE), 1);
     PUSH_DATA (push, 0);
  
@@ -587,10 +721,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_compute.c mesa-17.2.1
     /* bind a compute shader clobbers fragment shader state */
     nv50->dirty_3d |= NV50_NEW_3D_FRAGPROG;
  }
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_context.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_context.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_context.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_context.c	2017-09-27 12:14:56.291115743 +0200
-@@ -38,7 +38,9 @@
+diff --git a/src/gallium/drivers/nouveau/nv50/nv50_context.c b/src/gallium/drivers/nouveau/nv50/nv50_context.c
+index 61243438fc..d10f4afb15 100644
+--- a/src/gallium/drivers/nouveau/nv50/nv50_context.c
++++ b/src/gallium/drivers/nouveau/nv50/nv50_context.c
+@@ -38,7 +38,9 @@ nv50_flush(struct pipe_context *pipe,
     if (fence)
        nouveau_fence_ref(screen->fence.current, (struct nouveau_fence **)fence);
  
@@ -600,7 +735,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_context.c mesa-17.2.1
  
     nouveau_context_update_frame_stats(nouveau_context(pipe));
  }
-@@ -48,10 +50,12 @@
+@@ -48,10 +50,12 @@ nv50_texture_barrier(struct pipe_context *pipe, unsigned flags)
  {
     struct nouveau_pushbuf *push = nv50_context(pipe)->base.pushbuf;
  
@@ -613,7 +748,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_context.c mesa-17.2.1
  }
  
  static void
-@@ -104,6 +108,7 @@
+@@ -104,6 +108,7 @@ nv50_emit_string_marker(struct pipe_context *pipe, const char *str, int len)
        data_words = string_words;
     else
        data_words = string_words + !!(len & 3);
@@ -621,7 +756,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_context.c mesa-17.2.1
     BEGIN_NI04(push, SUBC_3D(NV04_GRAPH_NOP), data_words);
     if (string_words)
        PUSH_DATAp(push, str, string_words);
-@@ -112,6 +117,7 @@
+@@ -112,6 +117,7 @@ nv50_emit_string_marker(struct pipe_context *pipe, const char *str, int len)
        memcpy(&data, &str[string_words * 4], len & 3);
        PUSH_DATA (push, data);
     }
@@ -629,7 +764,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_context.c mesa-17.2.1
  }
  
  void
-@@ -282,6 +288,8 @@
+@@ -282,6 +288,8 @@ nv50_create(struct pipe_screen *pscreen, void *priv, unsigned ctxflags)
        return NULL;
     pipe = &nv50->base.pipe;
  
@@ -638,7 +773,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_context.c mesa-17.2.1
     if (!nv50_blitctx_create(nv50))
        goto out_err;
  
-@@ -379,11 +387,14 @@
+@@ -379,11 +387,14 @@ nv50_create(struct pipe_screen *pscreen, void *priv, unsigned ctxflags)
  
     util_dynarray_init(&nv50->global_residents, NULL);
  
@@ -653,10 +788,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_context.c mesa-17.2.1
     if (nv50->bufctx_3d)
        nouveau_bufctx_del(&nv50->bufctx_3d);
     if (nv50->bufctx_cp)
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_context.h mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_context.h
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_context.h	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_context.h	2017-09-27 12:14:56.292115728 +0200
-@@ -221,6 +221,11 @@
+diff --git a/src/gallium/drivers/nouveau/nv50/nv50_context.h b/src/gallium/drivers/nouveau/nv50/nv50_context.h
+index 224535a938..a5a7ec7c17 100644
+--- a/src/gallium/drivers/nouveau/nv50/nv50_context.h
++++ b/src/gallium/drivers/nouveau/nv50/nv50_context.h
+@@ -221,6 +221,11 @@ void nv50_default_kick_notify(struct nouveau_pushbuf *);
  /* nv50_draw.c */
  extern struct draw_stage *nv50_draw_render_stage(struct nv50_context *);
  
@@ -668,10 +804,31 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_context.h mesa-17.2.1
  /* nv50_shader_state.c */
  void nv50_vertprog_validate(struct nv50_context *);
  void nv50_gmtyprog_validate(struct nv50_context *);
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_query.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_query.c	2017-09-27 12:14:56.292115728 +0200
-@@ -70,7 +70,7 @@
+diff --git a/src/gallium/drivers/nouveau/nv50/nv50_miptree.c b/src/gallium/drivers/nouveau/nv50/nv50_miptree.c
+index f2e304fde6..7f281f993e 100644
+--- a/src/gallium/drivers/nouveau/nv50/nv50_miptree.c
++++ b/src/gallium/drivers/nouveau/nv50/nv50_miptree.c
+@@ -163,10 +163,13 @@ nv50_miptree_destroy(struct pipe_screen *pscreen, struct pipe_resource *pt)
+ {
+    struct nv50_miptree *mt = nv50_miptree(pt);
+ 
+-   if (mt->base.fence && mt->base.fence->state < NOUVEAU_FENCE_STATE_FLUSHED)
++   if (mt->base.fence && mt->base.fence->state < NOUVEAU_FENCE_STATE_FLUSHED) {
++      pipe_mutex_lock(nouveau_screen(pscreen)->push_mutex);
+       nouveau_fence_work(mt->base.fence, nouveau_fence_unref_bo, mt->base.bo);
+-   else
++      pipe_mutex_unlock(nouveau_screen(pscreen)->push_mutex);
++   } else {
+       nouveau_bo_ref(NULL, &mt->base.bo);
++   }
+ 
+    nouveau_fence_ref(NULL, &mt->base.fence);
+    nouveau_fence_ref(NULL, &mt->base.fence_wr);
+diff --git a/src/gallium/drivers/nouveau/nv50/nv50_query.c b/src/gallium/drivers/nouveau/nv50/nv50_query.c
+index e30380cd84..ed09c61b7f 100644
+--- a/src/gallium/drivers/nouveau/nv50/nv50_query.c
++++ b/src/gallium/drivers/nouveau/nv50/nv50_query.c
+@@ -70,7 +70,7 @@ nv50_get_query_result(struct pipe_context *pipe, struct pipe_query *pq,
     return q->funcs->get_query_result(nv50_context(pipe), q, wait, result);
  }
  
@@ -680,10 +837,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query.c mesa-17.2.1-n
  nv50_render_condition(struct pipe_context *pipe,
                        struct pipe_query *pq,
                        boolean condition, enum pipe_render_cond_flag mode)
-@@ -145,6 +145,16 @@
+@@ -145,6 +145,16 @@ nv50_render_condition(struct pipe_context *pipe,
+    PUSH_DATA (push, hq->bo->offset + hq->offset);
  }
  
- static void
++static void
 +nv50_render_condition_locked(struct pipe_context *pipe,
 +                             struct pipe_query *pq,
 +                             boolean condition, uint mode)
@@ -693,11 +851,10 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query.c mesa-17.2.1-n
 +   pipe_mutex_unlock(nouveau_context(pipe)->screen->push_mutex);
 +}
 +
-+static void
+ static void
  nv50_set_active_query_state(struct pipe_context *pipe, boolean enable)
  {
- }
-@@ -160,7 +170,7 @@
+@@ -161,7 +171,7 @@ nv50_init_query_functions(struct nv50_context *nv50)
     pipe->end_query = nv50_end_query;
     pipe->get_query_result = nv50_get_query_result;
     pipe->set_active_query_state = nv50_set_active_query_state;
@@ -706,10 +863,25 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query.c mesa-17.2.1-n
     nv50->cond_condmode = NV50_3D_COND_MODE_ALWAYS;
  }
  
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c	2017-09-27 12:14:56.292115728 +0200
-@@ -129,6 +129,7 @@
+diff --git a/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c b/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c
+index ac3e409b2d..917f5d2f17 100644
+--- a/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c
++++ b/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c
+@@ -56,9 +56,12 @@ nv50_hw_query_allocate(struct nv50_context *nv50, struct nv50_query *q,
+       if (hq->mm) {
+          if (hq->state == NV50_HW_QUERY_STATE_READY)
+             nouveau_mm_free(hq->mm);
+-         else
++         else {
++            pipe_mutex_lock(screen->base.push_mutex);
+             nouveau_fence_work(screen->base.fence.current,
+                                nouveau_mm_free_work, hq->mm);
++            pipe_mutex_unlock(screen->base.push_mutex);
++         }
+       }
+    }
+    if (size) {
+@@ -129,6 +132,7 @@ nv50_hw_begin_query(struct nv50_context *nv50, struct nv50_query *q)
  {
     struct nouveau_pushbuf *push = nv50->base.pushbuf;
     struct nv50_hw_query *hq = nv50_hw_query(q);
@@ -717,7 +889,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c mesa-17.2.
  
     if (hq->funcs && hq->funcs->begin_query)
        return hq->funcs->begin_query(nv50, hq);
-@@ -154,6 +155,7 @@
+@@ -154,6 +158,7 @@ nv50_hw_begin_query(struct nv50_context *nv50, struct nv50_query *q)
     if (!hq->is64bit)
        hq->data[0] = hq->sequence++; /* the previously used one */
  
@@ -725,7 +897,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c mesa-17.2.
     switch (q->type) {
     case PIPE_QUERY_OCCLUSION_COUNTER:
     case PIPE_QUERY_OCCLUSION_PREDICATE:
-@@ -193,10 +195,13 @@
+@@ -194,10 +199,13 @@ nv50_hw_begin_query(struct nv50_context *nv50, struct nv50_query *q)
        break;
     default:
        assert(0);
@@ -742,7 +914,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c mesa-17.2.
  }
  
  static void
-@@ -212,6 +217,7 @@
+@@ -213,6 +221,7 @@ nv50_hw_end_query(struct nv50_context *nv50, struct nv50_query *q)
  
     hq->state = NV50_HW_QUERY_STATE_ENDED;
  
@@ -750,7 +922,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c mesa-17.2.
     switch (q->type) {
     case PIPE_QUERY_OCCLUSION_COUNTER:
     case PIPE_QUERY_OCCLUSION_PREDICATE:
-@@ -264,6 +270,7 @@
+@@ -266,6 +275,7 @@ nv50_hw_end_query(struct nv50_context *nv50, struct nv50_query *q)
        assert(0);
        break;
     }
@@ -758,7 +930,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c mesa-17.2.
     if (hq->is64bit)
        nouveau_fence_ref(nv50->screen->base.fence.current, &hq->fence);
  }
-@@ -286,16 +293,21 @@
+@@ -288,16 +298,21 @@ nv50_hw_get_query_result(struct nv50_context *nv50, struct nv50_query *q,
        nv50_hw_query_update(q);
  
     if (hq->state != NV50_HW_QUERY_STATE_READY) {
@@ -781,10 +953,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw.c mesa-17.2.
     }
     hq->state = NV50_HW_QUERY_STATE_READY;
  
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c	2017-09-27 12:14:56.293115714 +0200
-@@ -176,6 +176,7 @@
+diff --git a/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c b/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c
+index bcfba9f5a8..31445eb508 100644
+--- a/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c
++++ b/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c
+@@ -176,6 +176,7 @@ nv50_hw_sm_begin_query(struct nv50_context *nv50, struct nv50_hw_query *hq)
        return false;
     }
  
@@ -792,7 +965,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c mesa-17
     assert(cfg->num_counters <= 4);
     PUSH_SPACE(push, 4 * 4);
  
-@@ -208,6 +209,7 @@
+@@ -208,6 +209,7 @@ nv50_hw_sm_begin_query(struct nv50_context *nv50, struct nv50_hw_query *hq)
        BEGIN_NV04(push, NV50_CP(MP_PM_SET(c)), 1);
        PUSH_DATA (push, 0);
     }
@@ -800,7 +973,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c mesa-17
     return true;
  }
  
-@@ -237,6 +239,7 @@
+@@ -237,6 +239,7 @@ nv50_hw_sm_end_query(struct nv50_context *nv50, struct nv50_hw_query *hq)
        screen->pm.prog = prog;
     }
  
@@ -808,7 +981,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c mesa-17
     /* disable all counting */
     PUSH_SPACE(push, 8);
     for (c = 0; c < 4; c++) {
-@@ -260,6 +263,7 @@
+@@ -260,6 +263,7 @@ nv50_hw_sm_end_query(struct nv50_context *nv50, struct nv50_hw_query *hq)
     PUSH_SPACE(push, 2);
     BEGIN_NV04(push, SUBC_CP(NV50_GRAPH_SERIALIZE), 1);
     PUSH_DATA (push, 0);
@@ -816,7 +989,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c mesa-17
  
     pipe->bind_compute_state(pipe, screen->pm.prog);
     input[0] = hq->bo->offset + hq->base_offset;
-@@ -276,6 +280,7 @@
+@@ -276,6 +280,7 @@ nv50_hw_sm_end_query(struct nv50_context *nv50, struct nv50_hw_query *hq)
  
     nouveau_bufctx_reset(nv50->bufctx_cp, NV50_BIND_CP_QUERY);
  
@@ -824,7 +997,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c mesa-17
     /* re-active other counters */
     PUSH_SPACE(push, 8);
     mask = 0;
-@@ -302,6 +307,7 @@
+@@ -302,6 +307,7 @@ nv50_hw_sm_end_query(struct nv50_context *nv50, struct nv50_hw_query *hq)
                      | cfg->ctr[i].unit | cfg->ctr[i].mode);
        }
     }
@@ -832,7 +1005,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c mesa-17
  }
  
  static inline bool
-@@ -343,7 +349,9 @@
+@@ -343,7 +349,9 @@ nv50_hw_sm_get_query_result(struct nv50_context *nv50, struct nv50_hw_query *hq,
  
     cfg = nv50_hw_sm_query_get_cfg(nv50, hq);
  
@@ -842,10 +1015,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_query_hw_sm.c mesa-17
     if (!ret)
        return false;
  
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_surface.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_surface.c	2017-09-27 12:14:56.293115714 +0200
-@@ -204,10 +204,13 @@
+diff --git a/src/gallium/drivers/nouveau/nv50/nv50_surface.c b/src/gallium/drivers/nouveau/nv50/nv50_surface.c
+index 908c534b92..cbe4f7a8ea 100644
+--- a/src/gallium/drivers/nouveau/nv50/nv50_surface.c
++++ b/src/gallium/drivers/nouveau/nv50/nv50_surface.c
+@@ -204,10 +204,13 @@ nv50_resource_copy_region(struct pipe_context *pipe,
     bool m2mf;
     unsigned dst_layer = dstz, src_layer = src_box->z;
  
@@ -859,7 +1033,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
        return;
     }
  
-@@ -247,6 +250,7 @@
+@@ -247,6 +250,7 @@ nv50_resource_copy_region(struct pipe_context *pipe,
           else
              srect.base += src_mt->layer_stride;
        }
@@ -867,7 +1041,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
        return;
     }
  
-@@ -270,6 +274,7 @@
+@@ -270,6 +274,7 @@ nv50_resource_copy_region(struct pipe_context *pipe,
           break;
     }
     nouveau_bufctx_reset(nv50->bufctx, NV50_BIND_2D);
@@ -875,7 +1049,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
  }
  
  static void
-@@ -289,14 +294,18 @@
+@@ -289,14 +294,18 @@ nv50_clear_render_target(struct pipe_context *pipe,
  
     assert(dst->texture->target != PIPE_BUFFER);
  
@@ -895,7 +1069,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
  
     PUSH_REFN(push, bo, mt->base.domain | NOUVEAU_BO_WR);
  
-@@ -358,6 +367,8 @@
+@@ -358,6 +367,8 @@ nv50_clear_render_target(struct pipe_context *pipe,
        PUSH_DATA (push, nv50->cond_condmode);
     }
  
@@ -904,7 +1078,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
     nv50->dirty_3d |= NV50_NEW_3D_FRAMEBUFFER | NV50_NEW_3D_SCISSOR;
  }
  
-@@ -382,6 +393,8 @@
+@@ -382,6 +393,8 @@ nv50_clear_depth_stencil(struct pipe_context *pipe,
     assert(dst->texture->target != PIPE_BUFFER);
     assert(nouveau_bo_memtype(bo)); /* ZETA cannot be linear */
  
@@ -913,7 +1087,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
     if (clear_flags & PIPE_CLEAR_DEPTH) {
        BEGIN_NV04(push, NV50_3D(CLEAR_DEPTH), 1);
        PUSH_DATAf(push, depth);
-@@ -394,8 +407,10 @@
+@@ -394,8 +407,10 @@ nv50_clear_depth_stencil(struct pipe_context *pipe,
        mode |= NV50_3D_CLEAR_BUFFERS_S;
     }
  
@@ -925,7 +1099,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
  
     PUSH_REFN(push, bo, mt->base.domain | NOUVEAU_BO_WR);
  
-@@ -446,6 +461,8 @@
+@@ -446,6 +461,8 @@ nv50_clear_depth_stencil(struct pipe_context *pipe,
        PUSH_DATA (push, nv50->cond_condmode);
     }
  
@@ -934,7 +1108,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
     nv50->dirty_3d |= NV50_NEW_3D_FRAMEBUFFER | NV50_NEW_3D_SCISSOR;
  }
  
-@@ -534,9 +551,12 @@
+@@ -534,9 +551,12 @@ nv50_clear(struct pipe_context *pipe, unsigned buffers,
     unsigned i, j, k;
     uint32_t mode = 0;
  
@@ -948,7 +1122,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
  
     /* We have to clear ALL of the layers, not up to the min number of layers
      * of any attachment. */
-@@ -602,6 +622,7 @@
+@@ -602,6 +622,7 @@ nv50_clear(struct pipe_context *pipe, unsigned buffers,
     /* restore the array mode */
     BEGIN_NV04(push, NV50_3D(RT_ARRAY_MODE), 1);
     PUSH_DATA (push, nv50->rt_array_mode);
@@ -956,7 +1130,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
  }
  
  static void
-@@ -729,14 +750,18 @@
+@@ -729,14 +750,18 @@ nv50_clear_buffer(struct pipe_context *pipe,
  
     assert(size % data_size == 0);
  
@@ -976,7 +1150,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
     }
  
     elements = size / data_size;
-@@ -752,8 +777,10 @@
+@@ -752,8 +777,10 @@ nv50_clear_buffer(struct pipe_context *pipe,
     PUSH_DATAf(push, color.f[2]);
     PUSH_DATAf(push, color.f[3]);
  
@@ -988,7 +1162,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
  
     PUSH_REFN(push, buf->bo, buf->domain | NOUVEAU_BO_WR);
  
-@@ -808,6 +835,8 @@
+@@ -808,6 +835,8 @@ nv50_clear_buffer(struct pipe_context *pipe,
                               data, data_size);
     }
  
@@ -997,7 +1171,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
     nv50->dirty_3d |= NV50_NEW_3D_FRAMEBUFFER | NV50_NEW_3D_SCISSOR;
  }
  
-@@ -1724,6 +1753,8 @@
+@@ -1724,6 +1753,8 @@ nv50_blit(struct pipe_context *pipe, const struct pipe_blit_info *info)
          info->src.box.height != -info->dst.box.height))
        eng3d = true;
  
@@ -1006,7 +1180,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
     if (nv50->screen->num_occlusion_queries_active) {
        BEGIN_NV04(push, NV50_3D(SAMPLECNT_ENABLE), 1);
        PUSH_DATA (push, 0);
-@@ -1738,6 +1769,8 @@
+@@ -1738,6 +1769,8 @@ nv50_blit(struct pipe_context *pipe, const struct pipe_blit_info *info)
        BEGIN_NV04(push, NV50_3D(SAMPLECNT_ENABLE), 1);
        PUSH_DATA (push, 1);
     }
@@ -1015,10 +1189,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_surface.c mesa-17.2.1
  }
  
  static void
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_transfer.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_transfer.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_transfer.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_transfer.c	2017-09-27 12:14:56.294115699 +0200
-@@ -304,6 +304,7 @@
+diff --git a/src/gallium/drivers/nouveau/nv50/nv50_transfer.c b/src/gallium/drivers/nouveau/nv50/nv50_transfer.c
+index 8209f1f1e8..c751ade345 100644
+--- a/src/gallium/drivers/nouveau/nv50/nv50_transfer.c
++++ b/src/gallium/drivers/nouveau/nv50/nv50_transfer.c
+@@ -304,6 +304,7 @@ nv50_miptree_transfer_map(struct pipe_context *pctx,
        unsigned base = tx->rect[0].base;
        unsigned z = tx->rect[0].z;
        unsigned i;
@@ -1026,7 +1201,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_transfer.c mesa-17.2.
        for (i = 0; i < box->depth; ++i) {
           nv50_m2mf_transfer_rect(nv50, &tx->rect[1], &tx->rect[0],
                                   tx->nblocksx, tx->nblocksy);
-@@ -313,6 +314,9 @@
+@@ -313,6 +314,9 @@ nv50_miptree_transfer_map(struct pipe_context *pctx,
              tx->rect[0].base += mt->layer_stride;
           tx->rect[1].base += size;
        }
@@ -1036,7 +1211,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_transfer.c mesa-17.2.
        tx->rect[0].z = z;
        tx->rect[0].base = base;
        tx->rect[1].base = 0;
-@@ -349,6 +353,7 @@
+@@ -349,6 +353,7 @@ nv50_miptree_transfer_unmap(struct pipe_context *pctx,
     unsigned i;
  
     if (tx->base.usage & PIPE_TRANSFER_WRITE) {
@@ -1044,7 +1219,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_transfer.c mesa-17.2.
        for (i = 0; i < tx->base.box.depth; ++i) {
           nv50_m2mf_transfer_rect(nv50, &tx->rect[0], &tx->rect[1],
                                   tx->nblocksx, tx->nblocksy);
-@@ -362,6 +367,7 @@
+@@ -362,6 +367,7 @@ nv50_miptree_transfer_unmap(struct pipe_context *pctx,
        /* Allow the copies above to finish executing before freeing the source */
        nouveau_fence_work(nv50->screen->base.fence.current,
                           nouveau_fence_unref_bo, tx->rect[1].bo);
@@ -1052,10 +1227,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_transfer.c mesa-17.2.
     } else {
        nouveau_bo_ref(NULL, &tx->rect[1].bo);
     }
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_vbo.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_vbo.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_vbo.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nv50/nv50_vbo.c	2017-09-27 12:30:06.223830218 +0200
-@@ -770,6 +770,8 @@
+diff --git a/src/gallium/drivers/nouveau/nv50/nv50_vbo.c b/src/gallium/drivers/nouveau/nv50/nv50_vbo.c
+index ed041121a2..f6109cd71a 100644
+--- a/src/gallium/drivers/nouveau/nv50/nv50_vbo.c
++++ b/src/gallium/drivers/nouveau/nv50/nv50_vbo.c
+@@ -770,6 +770,8 @@ nv50_draw_vbo(struct pipe_context *pipe, const struct pipe_draw_info *info)
     bool tex_dirty = false;
     int s;
  
@@ -1064,16 +1240,17 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nv50/nv50_vbo.c mesa-17.2.1-nou
     if (info->index_size && !info->has_user_indices)
        BCTX_REFN(nv50->bufctx_3d, 3D_INDEX, nv04_resource(info->index.resource), RD);
  
-@@ -900,4 +902,5 @@
+@@ -900,4 +902,5 @@ cleanup:
     nouveau_pushbuf_bufctx(push, NULL);
  
     nouveau_bufctx_reset(nv50->bufctx_3d, NV50_BIND_3D_INDEX);
 +   pipe_mutex_unlock(nv50->screen->base.push_mutex);
  }
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_compute.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_compute.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_compute.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_compute.c	2017-09-27 12:14:56.295115685 +0200
-@@ -424,13 +424,17 @@
+diff --git a/src/gallium/drivers/nouveau/nvc0/nvc0_compute.c b/src/gallium/drivers/nouveau/nvc0/nvc0_compute.c
+index 11635c9465..b8efd1e63e 100644
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_compute.c
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_compute.c
+@@ -424,13 +424,17 @@ void
  nvc0_launch_grid(struct pipe_context *pipe, const struct pipe_grid_info *info)
  {
     struct nvc0_context *nvc0 = nvc0_context(pipe);
@@ -1091,17 +1268,18 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_compute.c mesa-17.2.1
        return;
     }
  
-@@ -498,4 +502,6 @@
+@@ -498,4 +502,6 @@ nvc0_launch_grid(struct pipe_context *pipe, const struct pipe_grid_info *info)
     nouveau_bufctx_reset(nvc0->bufctx_cp, NVC0_BIND_CP_SUF);
     nvc0->dirty_cp |= NVC0_NEW_CP_SURFACES;
     nvc0->images_dirty[5] |= nvc0->images_valid[5];
 +
 +   pipe_mutex_unlock(screen->base.push_mutex);
  }
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c	2017-09-27 12:14:56.295115685 +0200
-@@ -39,7 +39,9 @@
+diff --git a/src/gallium/drivers/nouveau/nvc0/nvc0_context.c b/src/gallium/drivers/nouveau/nvc0/nvc0_context.c
+index 2e4490b8d9..ad95ea668d 100644
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_context.c
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_context.c
+@@ -39,7 +39,9 @@ nvc0_flush(struct pipe_context *pipe,
     if (fence)
        nouveau_fence_ref(screen->fence.current, (struct nouveau_fence **)fence);
  
@@ -1111,7 +1289,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c mesa-17.2.1
  
     nouveau_context_update_frame_stats(&nvc0->base);
  }
-@@ -49,8 +51,10 @@
+@@ -49,8 +51,10 @@ nvc0_texture_barrier(struct pipe_context *pipe, unsigned flags)
  {
     struct nouveau_pushbuf *push = nvc0_context(pipe)->base.pushbuf;
  
@@ -1122,7 +1300,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c mesa-17.2.1
  }
  
  static void
-@@ -60,6 +64,8 @@
+@@ -60,6 +64,8 @@ nvc0_memory_barrier(struct pipe_context *pipe, unsigned flags)
     struct nouveau_pushbuf *push = nvc0->base.pushbuf;
     int i, s;
  
@@ -1131,7 +1309,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c mesa-17.2.1
     if (flags & PIPE_BARRIER_MAPPED_BUFFER) {
        for (i = 0; i < nvc0->num_vtxbufs; ++i) {
           if (!nvc0->vtxbuf[i].buffer.resource && !nvc0->vtxbuf[i].is_user_buffer)
-@@ -105,6 +111,8 @@
+@@ -105,6 +111,8 @@ nvc0_memory_barrier(struct pipe_context *pipe, unsigned flags)
        nvc0->cb_dirty = true;
     if (flags & (PIPE_BARRIER_VERTEX_BUFFER | PIPE_BARRIER_INDEX_BUFFER))
        nvc0->base.vbo_dirty = true;
@@ -1140,7 +1318,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c mesa-17.2.1
  }
  
  static void
-@@ -121,6 +129,7 @@
+@@ -121,6 +129,7 @@ nvc0_emit_string_marker(struct pipe_context *pipe, const char *str, int len)
        data_words = string_words;
     else
        data_words = string_words + !!(len & 3);
@@ -1148,7 +1326,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c mesa-17.2.1
     BEGIN_NIC0(push, SUBC_3D(NV04_GRAPH_NOP), data_words);
     if (string_words)
        PUSH_DATAp(push, str, string_words);
-@@ -129,6 +138,7 @@
+@@ -129,6 +138,7 @@ nvc0_emit_string_marker(struct pipe_context *pipe, const char *str, int len)
        memcpy(&data, &str[string_words * 4], len & 3);
        PUSH_DATA (push, data);
     }
@@ -1156,7 +1334,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c mesa-17.2.1
  }
  
  static void
-@@ -356,6 +366,8 @@
+@@ -366,6 +376,8 @@ nvc0_create(struct pipe_screen *pscreen, void *priv, unsigned ctxflags)
        return NULL;
     pipe = &nvc0->base.pipe;
  
@@ -1165,7 +1343,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c mesa-17.2.1
     if (!nvc0_blitctx_create(nvc0))
        goto out_err;
  
-@@ -463,12 +475,15 @@
+@@ -478,12 +490,15 @@ nvc0_create(struct pipe_screen *pscreen, void *priv, unsigned ctxflags)
  
     util_dynarray_init(&nvc0->global_residents, NULL);
  
@@ -1181,10 +1359,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.c mesa-17.2.1
        if (nvc0->bufctx_3d)
           nouveau_bufctx_del(&nvc0->bufctx_3d);
        if (nvc0->bufctx_cp)
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.h mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_context.h
---- mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.h	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_context.h	2017-09-27 12:14:56.296115670 +0200
-@@ -302,6 +302,11 @@
+diff --git a/src/gallium/drivers/nouveau/nvc0/nvc0_context.h b/src/gallium/drivers/nouveau/nvc0/nvc0_context.h
+index 0729c88dff..3109c598d9 100644
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_context.h
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_context.h
+@@ -318,6 +318,11 @@ uint32_t nvc0_program_symbol_offset(const struct nvc0_program *,
                                      uint32_t label);
  void nvc0_program_init_tcp_empty(struct nvc0_context *);
  
@@ -1196,10 +1375,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_context.h mesa-17.2.1
  /* nvc0_shader_state.c */
  void nvc0_vertprog_validate(struct nvc0_context *);
  void nvc0_tctlprog_validate(struct nvc0_context *);
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_query.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_query.c	2017-09-27 12:14:56.296115670 +0200
-@@ -92,7 +92,7 @@
+diff --git a/src/gallium/drivers/nouveau/nvc0/nvc0_query.c b/src/gallium/drivers/nouveau/nvc0/nvc0_query.c
+index d0a9e0c2c0..7f965bdb6b 100644
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_query.c
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_query.c
+@@ -92,7 +92,7 @@ nvc0_get_query_result_resource(struct pipe_context *pipe,
                                         index, resource, offset);
  }
  
@@ -1208,7 +1388,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query.c mesa-17.2.1-n
  nvc0_render_condition(struct pipe_context *pipe,
                        struct pipe_query *pq,
                        boolean condition, enum pipe_render_cond_flag mode)
-@@ -169,6 +169,16 @@
+@@ -170,6 +170,16 @@ nvc0_render_condition(struct pipe_context *pipe,
     }
  }
  
@@ -1225,7 +1405,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query.c mesa-17.2.1-n
  int
  nvc0_screen_get_driver_query_info(struct pipe_screen *pscreen,
                                    unsigned id,
-@@ -278,6 +288,6 @@
+@@ -279,6 +289,6 @@ nvc0_init_query_functions(struct nvc0_context *nvc0)
     pipe->get_query_result = nvc0_get_query_result;
     pipe->get_query_result_resource = nvc0_get_query_result_resource;
     pipe->set_active_query_state = nvc0_set_active_query_state;
@@ -1233,10 +1413,25 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query.c mesa-17.2.1-n
 +   pipe->render_condition = nvc0_render_condition_locked;
     nvc0->cond_condmode = NVC0_3D_COND_MODE_ALWAYS;
  }
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c	2017-09-27 12:14:56.296115670 +0200
-@@ -154,6 +154,7 @@
+diff --git a/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c b/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c
+index 7568eeb94d..64de7f1283 100644
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c
+@@ -48,9 +48,12 @@ nvc0_hw_query_allocate(struct nvc0_context *nvc0, struct nvc0_query *q,
+       if (hq->mm) {
+          if (hq->state == NVC0_HW_QUERY_STATE_READY)
+             nouveau_mm_free(hq->mm);
+-         else
++         else {
++            pipe_mutex_lock(screen->base.push_mutex);
+             nouveau_fence_work(screen->base.fence.current,
+                                nouveau_mm_free_work, hq->mm);
++            pipe_mutex_unlock(screen->base.push_mutex);
++         }
+       }
+    }
+    if (size) {
+@@ -154,6 +157,7 @@ nvc0_hw_begin_query(struct nvc0_context *nvc0, struct nvc0_query *q)
     }
     hq->sequence++;
  
@@ -1244,7 +1439,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c mesa-17.2.
     switch (q->type) {
     case PIPE_QUERY_OCCLUSION_COUNTER:
     case PIPE_QUERY_OCCLUSION_PREDICATE:
-@@ -198,6 +199,7 @@
+@@ -199,6 +203,7 @@ nvc0_hw_begin_query(struct nvc0_context *nvc0, struct nvc0_query *q)
     default:
        break;
     }
@@ -1252,7 +1447,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c mesa-17.2.
     hq->state = NVC0_HW_QUERY_STATE_ACTIVE;
     return ret;
  }
-@@ -221,6 +223,7 @@
+@@ -222,6 +227,7 @@ nvc0_hw_end_query(struct nvc0_context *nvc0, struct nvc0_query *q)
     }
     hq->state = NVC0_HW_QUERY_STATE_ENDED;
  
@@ -1260,7 +1455,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c mesa-17.2.
     switch (q->type) {
     case PIPE_QUERY_OCCLUSION_COUNTER:
     case PIPE_QUERY_OCCLUSION_PREDICATE:
-@@ -276,6 +279,7 @@
+@@ -278,6 +284,7 @@ nvc0_hw_end_query(struct nvc0_context *nvc0, struct nvc0_query *q)
     default:
        break;
     }
@@ -1268,7 +1463,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c mesa-17.2.
     if (hq->is64bit)
        nouveau_fence_ref(nvc0->screen->base.fence.current, &hq->fence);
  }
-@@ -298,16 +302,21 @@
+@@ -300,16 +307,21 @@ nvc0_hw_get_query_result(struct nvc0_context *nvc0, struct nvc0_query *q,
        nvc0_hw_query_update(nvc0->screen->base.client, q);
  
     if (hq->state != NVC0_HW_QUERY_STATE_READY) {
@@ -1291,7 +1486,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c mesa-17.2.
        NOUVEAU_DRV_STAT(&nvc0->screen->base, query_sync_count, 1);
     }
     hq->state = NVC0_HW_QUERY_STATE_READY;
-@@ -375,6 +384,8 @@
+@@ -378,6 +390,8 @@ nvc0_hw_get_query_result_resource(struct nvc0_context *nvc0,
  
     assert(!hq->funcs || !hq->funcs->get_query_result);
  
@@ -1300,7 +1495,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c mesa-17.2.
     if (index == -1) {
        /* TODO: Use a macro to write the availability of the query */
        if (hq->state != NVC0_HW_QUERY_STATE_READY)
-@@ -383,6 +394,7 @@
+@@ -386,6 +400,7 @@ nvc0_hw_get_query_result_resource(struct nvc0_context *nvc0,
        nvc0->base.push_cb(&nvc0->base, buf, offset,
                           result_type >= PIPE_QUERY_TYPE_I64 ? 2 : 1,
                           ready);
@@ -1308,7 +1503,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c mesa-17.2.
        return;
     }
  
-@@ -469,6 +481,8 @@
+@@ -473,6 +488,8 @@ nvc0_hw_get_query_result_resource(struct nvc0_context *nvc0,
     PUSH_DATAh(push, buf->address + offset);
     PUSH_DATA (push, buf->address + offset);
  
@@ -1317,10 +1512,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw.c mesa-17.2.
     if (buf->mm) {
        nouveau_fence_ref(nvc0->screen->base.fence.current, &buf->fence);
        nouveau_fence_ref(nvc0->screen->base.fence.current, &buf->fence_wr);
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c	2017-09-27 12:14:56.297115656 +0200
-@@ -2325,6 +2325,7 @@
+diff --git a/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c b/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c
+index df5723dc37..0b610d501b 100644
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c
+@@ -2325,6 +2325,7 @@ nve4_hw_sm_begin_query(struct nvc0_context *nvc0, struct nvc0_hw_query *hq)
        return false;
     }
  
@@ -1328,7 +1524,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c mesa-17
     assert(cfg->num_counters <= 4);
     PUSH_SPACE(push, 4 * 8 * + 6);
  
-@@ -2385,6 +2386,7 @@
+@@ -2385,6 +2386,7 @@ nve4_hw_sm_begin_query(struct nvc0_context *nvc0, struct nvc0_hw_query *hq)
        PUSH_DATA (push, 0xff);
     }
  
@@ -1336,7 +1532,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c mesa-17
     return true;
  }
  
-@@ -2408,6 +2410,7 @@
+@@ -2408,6 +2410,7 @@ nvc0_hw_sm_begin_query(struct nvc0_context *nvc0, struct nvc0_hw_query *hq)
        return false;
     }
  
@@ -1344,7 +1540,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c mesa-17
     assert(cfg->num_counters <= 8);
     PUSH_SPACE(push, 8 * 8 + 2);
  
-@@ -2454,6 +2457,7 @@
+@@ -2454,6 +2457,7 @@ nvc0_hw_sm_begin_query(struct nvc0_context *nvc0, struct nvc0_hw_query *hq)
        BEGIN_NVC0(push, NVC0_CP(MP_PM_SET(c)), 1);
        PUSH_DATA (push, 0);
     }
@@ -1352,7 +1548,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c mesa-17
     return true;
  }
  
-@@ -2546,6 +2550,7 @@
+@@ -2546,6 +2550,7 @@ nvc0_hw_sm_end_query(struct nvc0_context *nvc0, struct nvc0_hw_query *hq)
     if (unlikely(!screen->pm.prog))
        screen->pm.prog = nvc0_hw_sm_get_program(screen);
  
@@ -1360,7 +1556,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c mesa-17
     /* disable all counting */
     PUSH_SPACE(push, 8);
     for (c = 0; c < 8; ++c)
-@@ -2576,6 +2581,7 @@
+@@ -2576,6 +2581,7 @@ nvc0_hw_sm_end_query(struct nvc0_context *nvc0, struct nvc0_hw_query *hq)
  
     /* upload input data for the compute shader which reads MP counters */
     nvc0_hw_sm_upload_input(nvc0, hq);
@@ -1368,7 +1564,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c mesa-17
  
     pipe->bind_compute_state(pipe, screen->pm.prog);
     for (i = 0; i < 3; i++) {
-@@ -2589,6 +2595,7 @@
+@@ -2589,6 +2595,7 @@ nvc0_hw_sm_end_query(struct nvc0_context *nvc0, struct nvc0_hw_query *hq)
  
     nouveau_bufctx_reset(nvc0->bufctx_cp, NVC0_BIND_CP_QUERY);
  
@@ -1376,7 +1572,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c mesa-17
     /* re-activate other counters */
     PUSH_SPACE(push, 16);
     mask = 0;
-@@ -2613,6 +2620,7 @@
+@@ -2613,6 +2620,7 @@ nvc0_hw_sm_end_query(struct nvc0_context *nvc0, struct nvc0_hw_query *hq)
           PUSH_DATA (push, (cfg->ctr[i].func << 4) | cfg->ctr[i].mode);
        }
     }
@@ -1384,10 +1580,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_query_hw_sm.c mesa-17
  }
  
  static inline bool
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_screen.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_screen.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_screen.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_screen.c	2017-09-27 12:14:56.298115641 +0200
-@@ -534,7 +534,9 @@
+diff --git a/src/gallium/drivers/nouveau/nvc0/nvc0_screen.c b/src/gallium/drivers/nouveau/nvc0/nvc0_screen.c
+index 0d5582c8e4..9a1a739546 100644
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_screen.c
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_screen.c
+@@ -545,7 +545,9 @@ nvc0_screen_destroy(struct pipe_screen *pscreen)
         * _current_ one, and remove both.
         */
        nouveau_fence_ref(screen->base.fence.current, &current);
@@ -1397,10 +1594,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_screen.c mesa-17.2.1-
        nouveau_fence_ref(NULL, &current);
        nouveau_fence_ref(NULL, &screen->base.fence.current);
     }
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c	2017-09-27 12:14:56.298115641 +0200
-@@ -206,11 +206,14 @@
+diff --git a/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c b/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c
+index 9445c05f3a..b05441f652 100644
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c
+@@ -206,11 +206,14 @@ nvc0_resource_copy_region(struct pipe_context *pipe,
     bool m2mf;
     unsigned dst_layer = dstz, src_layer = src_box->z;
  
@@ -1415,7 +1613,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
        return;
     }
     NOUVEAU_DRV_STAT(&nvc0->screen->base, tex_copy_count, 1);
-@@ -251,6 +254,7 @@
+@@ -251,6 +254,7 @@ nvc0_resource_copy_region(struct pipe_context *pipe,
           else
              srect.base += src_mt->layer_stride;
        }
@@ -1423,7 +1621,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
        return;
     }
  
-@@ -273,6 +277,7 @@
+@@ -273,6 +277,7 @@ nvc0_resource_copy_region(struct pipe_context *pipe,
           break;
     }
     nouveau_bufctx_reset(nvc0->bufctx, 0);
@@ -1431,7 +1629,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
  }
  
  static void
-@@ -291,8 +296,12 @@
+@@ -291,8 +296,12 @@ nvc0_clear_render_target(struct pipe_context *pipe,
  
     assert(dst->texture->target != PIPE_BUFFER);
  
@@ -1445,7 +1643,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
  
     PUSH_REFN (push, res->bo, res->domain | NOUVEAU_BO_WR);
  
-@@ -357,6 +366,8 @@
+@@ -357,6 +366,8 @@ nvc0_clear_render_target(struct pipe_context *pipe,
        IMMED_NVC0(push, NVC0_3D(COND_MODE), nvc0->cond_condmode);
  
     nvc0->dirty_3d |= NVC0_NEW_3D_FRAMEBUFFER;
@@ -1454,7 +1652,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
  }
  
  static void
-@@ -542,8 +553,11 @@
+@@ -542,8 +553,11 @@ nvc0_clear_buffer(struct pipe_context *pipe,
  
     assert(size % data_size == 0);
  
@@ -1466,7 +1664,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
        return;
     }
  
-@@ -553,8 +567,10 @@
+@@ -553,8 +567,10 @@ nvc0_clear_buffer(struct pipe_context *pipe,
        nvc0_clear_buffer_push(pipe, res, offset, fixup_size, data, data_size);
        offset += fixup_size;
        size -= fixup_size;
@@ -1478,7 +1676,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
     }
  
     elements = size / data_size;
-@@ -564,8 +580,10 @@
+@@ -564,8 +580,10 @@ nvc0_clear_buffer(struct pipe_context *pipe,
        width &= ~0xff;
     assert(width > 0);
  
@@ -1490,7 +1688,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
  
     PUSH_REFN (push, buf->bo, buf->domain | NOUVEAU_BO_WR);
  
-@@ -613,6 +631,8 @@
+@@ -613,6 +631,8 @@ nvc0_clear_buffer(struct pipe_context *pipe,
     }
  
     nvc0->dirty_3d |= NVC0_NEW_3D_FRAMEBUFFER;
@@ -1499,7 +1697,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
  }
  
  static void
-@@ -635,8 +655,11 @@
+@@ -635,8 +655,11 @@ nvc0_clear_depth_stencil(struct pipe_context *pipe,
  
     assert(dst->texture->target != PIPE_BUFFER);
  
@@ -1512,7 +1710,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
  
     PUSH_REFN (push, mt->base.bo, mt->base.domain | NOUVEAU_BO_WR);
  
-@@ -685,6 +708,8 @@
+@@ -685,6 +708,8 @@ nvc0_clear_depth_stencil(struct pipe_context *pipe,
        IMMED_NVC0(push, NVC0_3D(COND_MODE), nvc0->cond_condmode);
  
     nvc0->dirty_3d |= NVC0_NEW_3D_FRAMEBUFFER;
@@ -1521,7 +1719,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
  }
  
  void
-@@ -698,9 +723,13 @@
+@@ -698,9 +723,13 @@ nvc0_clear(struct pipe_context *pipe, unsigned buffers,
     unsigned i, j, k;
     uint32_t mode = 0;
  
@@ -1536,7 +1734,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
  
     if (buffers & PIPE_CLEAR_COLOR && fb->nr_cbufs) {
        BEGIN_NVC0(push, NVC0_3D(CLEAR_COLOR(0)), 4);
-@@ -759,6 +788,8 @@
+@@ -759,6 +788,8 @@ nvc0_clear(struct pipe_context *pipe, unsigned buffers,
                      (j << NVC0_3D_CLEAR_BUFFERS_LAYER__SHIFT));
        }
     }
@@ -1545,7 +1743,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
  }
  
  
-@@ -1171,8 +1202,8 @@
+@@ -1171,8 +1202,8 @@ nvc0_blitctx_post_blit(struct nvc0_blitctx *blit)
     nvc0->samplers_dirty[4] |= 3;
  
     if (nvc0->cond_query && !blit->render_condition_enable)
@@ -1556,7 +1754,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
  
     nouveau_bufctx_reset(nvc0->bufctx_3d, NVC0_BIND_3D_VTX_TMP);
     nouveau_bufctx_reset(nvc0->bufctx_3d, NVC0_BIND_3D_FB);
-@@ -1634,6 +1665,8 @@
+@@ -1634,6 +1665,8 @@ nvc0_blit(struct pipe_context *pipe, const struct pipe_blit_info *info)
     if (info->num_window_rectangles > 0 || info->window_rectangle_include)
        eng3d = true;
  
@@ -1565,7 +1763,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
     if (nvc0->screen->num_occlusion_queries_active)
        IMMED_NVC0(push, NVC0_3D(SAMPLECNT_ENABLE), 0);
  
-@@ -1645,6 +1678,8 @@
+@@ -1645,6 +1678,8 @@ nvc0_blit(struct pipe_context *pipe, const struct pipe_blit_info *info)
     if (nvc0->screen->num_occlusion_queries_active)
        IMMED_NVC0(push, NVC0_3D(SAMPLECNT_ENABLE), 1);
  
@@ -1574,10 +1772,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c mesa-17.2.1
     NOUVEAU_DRV_STAT(&nvc0->screen->base, tex_blit_count, 1);
  }
  
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_transfer.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_transfer.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_transfer.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_transfer.c	2017-09-27 12:14:56.382114407 +0200
-@@ -366,16 +366,18 @@
+diff --git a/src/gallium/drivers/nouveau/nvc0/nvc0_transfer.c b/src/gallium/drivers/nouveau/nvc0/nvc0_transfer.c
+index 225b894717..1bd63b25bc 100644
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_transfer.c
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_transfer.c
+@@ -366,16 +366,18 @@ nvc0_mt_sync(struct nvc0_context *nvc0, struct nv50_miptree *mt, unsigned usage)
     return !mt->base.fence_wr || nouveau_fence_wait(mt->base.fence_wr, &nvc0->base.debug);
  }
  
@@ -1604,7 +1803,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_transfer.c mesa-17.2.
     struct nv50_miptree *mt = nv50_miptree(res);
     struct nvc0_transfer *tx;
     uint32_t size;
-@@ -489,9 +491,29 @@
+@@ -489,9 +491,29 @@ nvc0_miptree_transfer_map(struct pipe_context *pctx,
     return tx->rect[1].bo->map;
  }
  
@@ -1637,7 +1836,7 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_transfer.c mesa-17.2.
  {
     struct nvc0_context *nvc0 = nvc0_context(pctx);
     struct nvc0_transfer *tx = (struct nvc0_transfer *)transfer;
-@@ -531,6 +553,18 @@
+@@ -531,6 +553,18 @@ nvc0_miptree_transfer_unmap(struct pipe_context *pctx,
     FREE(tx);
  }
  
@@ -1656,10 +1855,11 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_transfer.c mesa-17.2.
  /* This happens rather often with DTD9/st. */
  static void
  nvc0_cb_push(struct nouveau_context *nv,
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_vbo.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_vbo.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_vbo.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nvc0_vbo.c	2017-09-27 12:26:24.165064878 +0200
-@@ -921,6 +921,8 @@
+diff --git a/src/gallium/drivers/nouveau/nvc0/nvc0_vbo.c b/src/gallium/drivers/nouveau/nvc0/nvc0_vbo.c
+index 66de6d9e2f..ccc20278d1 100644
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_vbo.c
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_vbo.c
+@@ -921,6 +921,8 @@ nvc0_draw_vbo(struct pipe_context *pipe, const struct pipe_draw_info *info)
     struct nvc0_screen *screen = nvc0->screen;
     int s;
  
@@ -1668,16 +1868,17 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nvc0_vbo.c mesa-17.2.1-nou
     /* NOTE: caller must ensure that (min_index + index_bias) is >= 0 */
     nvc0->vb_elt_first = info->min_index + info->index_bias;
     nvc0->vb_elt_limit = info->max_index - info->min_index;
-@@ -1083,4 +1085,5 @@
-    nouveau_pushbuf_bufctx(push, NULL);
+@@ -1094,4 +1096,5 @@ cleanup:
  
     nouveau_bufctx_reset(nvc0->bufctx_3d, NVC0_BIND_3D_IDX);
+    nouveau_bufctx_reset(nvc0->bufctx_3d, NVC0_BIND_3D_BINDLESS);
 +   pipe_mutex_unlock(screen->base.push_mutex);
  }
-diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nve4_compute.c mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nve4_compute.c
---- mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nve4_compute.c	2017-09-18 01:03:22.000000000 +0200
-+++ mesa-17.2.1-nouvlock-1/src/gallium/drivers/nouveau/nvc0/nve4_compute.c	2017-09-27 12:28:05.022595701 +0200
-@@ -667,12 +667,15 @@
+diff --git a/src/gallium/drivers/nouveau/nvc0/nve4_compute.c b/src/gallium/drivers/nouveau/nvc0/nve4_compute.c
+index f641f4777d..4af5c80027 100644
+--- a/src/gallium/drivers/nouveau/nvc0/nve4_compute.c
++++ b/src/gallium/drivers/nouveau/nvc0/nve4_compute.c
+@@ -667,12 +667,15 @@ void
  nve4_launch_grid(struct pipe_context *pipe, const struct pipe_grid_info *info)
  {
     struct nvc0_context *nvc0 = nvc0_context(pipe);
@@ -1693,10 +1894,10 @@ diff -ur mesa-17.2.1/src/gallium/drivers/nouveau/nvc0/nve4_compute.c mesa-17.2.1
     desc = nve4_compute_alloc_launch_desc(&nvc0->base, &desc_bo, &desc_gpuaddr);
     if (!desc) {
        ret = -1;
-@@ -742,6 +745,7 @@
-       NOUVEAU_ERR("Failed to launch grid !\n");
+@@ -753,6 +756,7 @@ out:
     nouveau_scratch_done(&nvc0->base);
     nouveau_bufctx_reset(nvc0->bufctx_cp, NVC0_BIND_CP_DESC);
+    nouveau_bufctx_reset(nvc0->bufctx_cp, NVC0_BIND_CP_BINDLESS);
 +   pipe_mutex_unlock(screen->base.push_mutex);
  }
  

@@ -2,9 +2,9 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=docker
-pkgver=17.05.0
-_gitcommit="89658be"
-pkgrel=3
+pkgver=18.03.0
+_gitcommit=0520e243029d1361649afb0706a1c5d9a1c012b8
+pkgrel=1
 pkgdesc="Docker - the Linux container runtime"
 archs=('x86_64')
 groups=('apps-extra')
@@ -12,19 +12,19 @@ depends=('bridge-utils' 'iproute2' 'libguestfs>=1.36.5' 'sqlite3' 'lvm2' 'btrfs-
 makedepends=('go>=1.7' 'git' 'mercurial' 'ca-certificates' 'sphinx-httpdomain' 'mkdocs' \
         'python-jinja' 'python-markupsafe' 'python-markdown' 'pyyaml' 'watchdog' 'pathtools')
 rodepends=('containerd' 'runc' 'libnetwork' 'tini')
-_F_github_name="moby"
-_F_github_author="moby"
+_F_github_author="docker"
+_F_github_name="docker-ce"
 _F_github_tag_v="y"
 Finclude github
-up2date="lynx -read_timeout=280 -dump  https://github.com/moby/moby/tags | grep '\ce.tar.gz' | sed 's/.*v\(.*\)-ce.*/\1/' | sort -nr | head -n1"
-_F_cd_path="moby-$pkgver-ce"
-#up2date="$up2date | sed 's/-ce//'"
+up2date="$up2date | sed 's/-ce//'"
+_F_cd_path="$_F_github_name-$pkgver-ce"
 source=(${source[@]//$pkgver/$pkgver-ce} \
 	_docker \
 	docker.conf)
-sha1sums=('b1294decbd28eac9df59ecea1d4dc86dcd64346f' \
+sha1sums=('b95651cbf5add2faa2ccc32bf1d78bb0e884f019' \
           '47027a4c415cb1aa556e54dd0dc1c80f4fbe076a' \
           '36269e4f788302439cd6bc672a83f594348660db')
+options=('nostrip')
 
 provides=('lxc-docker')
 replaces=('lxc-docker')
@@ -33,38 +33,64 @@ conflicts=('lxc-docker')
 build() {
 	Fcd
 	Fpatchall
+	unset CFLAGS
+	unset CXXFLAGS
+	unset LDFLAGS
 
-        export GOPATH="$Fsrcdir/gopath:$Fsrcdir/gopath/src/github.com/docker/docker/vendor"
+	export GOPATH="$Fsrcdir/gopath"
+	export PATH="$PATH:$GOPATH/bin"
 
-        Fexec mkdir -p $Fsrcdir/gopath/src/github.com/docker
-	Fexec rm -rf $Fsrcdir/gopath/src/github.com/docker/docker
-        Fexec mv $Fsrcdir/$_F_github_name-$pkgver-ce/ $Fsrcdir/gopath/src/github.com/docker/docker/
+	# Cleanup
+	Fexec rm -rf $GOPATH || Fdie
+	Fexec mkdir -p $GOPATH/src/github.com/docker || Fdie
 
-        Fcd gopath/src/github.com/docker/docker
+	# CLI
+	Fexec mv $Fsrcdir/$_F_github_name-$pkgver-ce/components/cli $Fsrcdir/gopath/src/github.com/docker/cli || Fdie
+	Fexec cd $GOPATH/src/github.com/docker/cli || Fdie
+	DISABLE_WARN_OUTSIDE_CONTAINER=1 VERSION=$pkgver-ce make dynbinary || Fdie
 
-        export DOCKER_GITCOMMIT=$_gitcommit
-        Fexec ./hack/make.sh dynbinary
+	# Daemon
+	Fexec mv $Fsrcdir/$_F_github_name-$pkgver-ce/components/engine $Fsrcdir/gopath/src/github.com/docker/docker || Fdie
+	Fexec cd $GOPATH/src/github.com/docker/docker || Fdie
+	VERSION=$pkgver-ce DOCKER_BUILDTAGS='seccomp journald' DOCKER_GITCOMMIT=$_gitcommit ./hack/make.sh dynbinary || Fdie
 
-        Finstall 644 _docker usr/share/zsh/site-functions/_docker
+	# man
+	Fexec go get github.com/cpuguy83/go-md2man || Fdie
+	Fexec cd $GOPATH/src/github.com/docker/cli || Fdie
+	DISABLE_WARN_OUTSIDE_CONTAINER=1 make manpages || Fdie
 
+	Fexec cd $Fsrcdir
+	for man in $(find gopath/src/github.com/docker/cli/man/man* -type f)
+	do
+		Fman $man || Fdie
+	done
 
-        Fexe gopath/src/github.com/docker/docker/bundles/${pkgver}-ce/dynbinary-client/docker-${pkgver}-ce \
-                        usr/bin/docker
-	Fexe gopath/src/github.com/docker/docker/bundles/${pkgver}-ce/dynbinary-daemon/dockerd-${pkgver}-ce \
-                        usr/bin/dockerd
+	# cli
+	Fexe gopath/src/github.com/docker/docker/bundles/dynbinary-daemon/dockerd-${pkgver}-ce usr/bin/docker
 
-        # install systemd service unit
-        Finstall 644 gopath/src/github.com/docker/docker/contrib/init/systemd/docker.service lib/systemd/system/docker.service
+	# daemon
+	Fexe gopath/src/github.com/docker/docker/bundles/dynbinary-daemon/dockerd-${pkgver}-ce usr/bin/dockerd
+
+	# install systemd service unit
+	Finstall 644 gopath/src/github.com/docker/docker/contrib/init/systemd/docker.service lib/systemd/system/docker.service
 	Finstall 644 gopath/src/github.com/docker/docker/contrib/init/systemd/docker.socket lib/systemd/system/docker.socket
 
-        Finstall 644 gopath/src/github.com/docker/docker/contrib/completion/bash/docker \
-                usr/share/bash-completion/completions/docker
+	# bash completion
+	Finstall 644 gopath/src/github.com/docker/cli/contrib/completion/bash/docker \
+		usr/share/bash-completion/completions/docker
+	# zsh
+        Finstall 644 gopath/src/github.com/docker/cli/contrib/completion/zsh/_docker \
+		usr/share/zsh/site-functions/_docker
 
-        Fmkdir usr/share/doc/docker-${pkgver}-ce
+	# fish
+	Finstall 644 gopath/src/github.com/docker/cli/contrib/completion/fish/docker.fish \
+		usr/share/fish/vendor_completions.d/docker.fish
 
-        # Create group using sysuser.d
-        Fmkdir usr/lib/sysusers.d/
-        Ffile /usr/lib/sysusers.d/$pkgname.conf
+	Fmkdir usr/share/doc/docker-${pkgver}-ce
+
+	# Create group using sysuser.d
+	Fmkdir usr/lib/sysusers.d/
+	Ffile /usr/lib/sysusers.d/$pkgname.conf
 
 }
 

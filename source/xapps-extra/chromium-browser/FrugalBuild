@@ -2,13 +2,14 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=chromium-browser
-pkgver=65.0.3325.181
+pkgver=66.0.3359.117
 pkgrel=1
 pkgdesc='Development version of Chromium browser'
 url='http://www.chromium.org/'
 depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6' 'libcups' \
 	'speech-dispatcher>=0.7.1-4' 'libxtst>=1.2.2-2' 'pango' 'atk' 'libxkbcommon' 'libxml2' \
-	'libatomic' 'pciutils>=3.5' 'gtk+3' 'libxslt' 'libwebp>=0.6.0-3' 'libdrm' 'harfbuzz' 'libjpeg-turbo')
+	'libatomic' 'pciutils>=3.5' 'gtk+3' 'libxslt' 'libwebp>=0.6.0-3' \
+	'libdrm' 'harfbuzz' 'libjpeg-turbo')
 #using the built in ones for now
 #depends+=('libevent>=2.0.22-3')
 makedepends=('ninja' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' \
@@ -45,8 +46,10 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
 	# bring back some default *flags
 	chromium-65.0.3325.146-frugalware-compiler-flags.patch \
 	## no Thx
-	chromium-65.0.3325.146-drop-weird-clang-flags.patch)
-sha1sums=('20218999db4b9bc483654f695324830d0c887f7e' \
+	chromium-65.0.3325.146-drop-weird-clang-flags.patch \
+	##  https://bugs.chromium.org/p/chromium/issues/detail?id=832283
+	add-missing-blink-tools.patch)
+sha1sums=('465acad10843b6ec61bae5f41164bbb3edf8d9df' \
           '264b8e7c4e3273263d504e041e5e4d152677922c' \
           '4c41d59b4d85a9f0443d6ca1dec456e50059dab5' \
           'd03e6465cd5a84580f9dad5d45f24ccd42bb71e6' \
@@ -57,7 +60,8 @@ sha1sums=('20218999db4b9bc483654f695324830d0c887f7e' \
           'f4677d94da4c27ef9a98b85e5ef5539bcea7031f' \
           '188c2fc130b69510637119c0f773a1f0fb96c9b2' \
           'e0fb16c7fffc622db78db37ee09a8983d44e6a19' \
-          'bdb12aab6df90324d3f78fdc01dfa2e455c4d60c')
+          'bdb12aab6df90324d3f78fdc01dfa2e455c4d60c' \
+          '7db2634b10b87c8681b21705f6a22b57cda810a5')
 
 chromium_path="chromium"
 
@@ -100,6 +104,13 @@ build() {
 		third_party/angle/src/third_party/compiler
 		third_party/angle/src/third_party/libXNVCtrl
 		third_party/angle/src/third_party/trace_event
+		third_party/angle/third_party/vulkan-validation-layers
+		third_party/angle/third_party/glslang
+		third_party/angle/third_party/spirv-tools
+		third_party/angle/third_party/spirv-headers
+		#third_party/SPIRV-Tools
+		#third_party/shaderc
+		#third_party/glslang
 		third_party/blink
 		third_party/boringssl
 		third_party/boringssl/src/third_party/fiat
@@ -150,14 +161,12 @@ build() {
 		third_party/libwebm
 		third_party/libxml/chromium
 		third_party/libyuv
-		third_party/llvm
 		third_party/lss
 		third_party/lzma_sdk
 		third_party/markupsafe
 		third_party/mesa
 		third_party/metrics_proto
 		third_party/modp_b64
-		third_party/mt19937ar
 		third_party/node
 		third_party/node/node_modules/polymer-bundler/lib/third_party/UglifyJS2
 		third_party/openmax_dl
@@ -165,13 +174,14 @@ build() {
 		third_party/pdfium
 		third_party/pdfium/third_party/agg23
 		third_party/pdfium/third_party/base
-		third_party/pdfium/third_party/build
 		third_party/pdfium/third_party/bigint
 		third_party/pdfium/third_party/freetype
 		third_party/pdfium/third_party/lcms
 		third_party/pdfium/third_party/libopenjpeg20
 		third_party/pdfium/third_party/libpng16
 		third_party/pdfium/third_party/libtiff
+		third_party/pdfium/third_party/eu-strip
+		third_party/pdfium/third_party/skia_shared
 		third_party/ply
 		third_party/polymer
 		third_party/protobuf
@@ -179,7 +189,7 @@ build() {
 		third_party/qcms
 		third_party/s2cellid
 		third_party/sfntly
-		third_party/skia
+  		third_party/skia
 		third_party/skia/third_party/gif
 		third_party/skia/third_party/vulkan
 		third_party/smhasher
@@ -215,6 +225,9 @@ build() {
 		third_party/openh264
 		third_party/libvpx
 		third_party/libvpx/source/libvpx/third_party/x86inc
+		buildtools/third_party/libc++
+		buildtools/third_party/libc++abi
+		third_party/unrar
 		third_party/icu)
 	# Remove most bundled libraries. Some are still needed.
 
@@ -284,13 +297,23 @@ build() {
 	myconf_gn+=" fatal_linker_warnings=false"
 	myconf_gn+=" target_cpu=\"x64\""
 
+	## TODO: figure vulkan
+	## vulkan_lib_dir = getenv("VULKAN_SDK") + "/lib" .. hmm?
+	#export VULKAN_SDK=/usr
+	myconf_gn+=" enable_vulkan=false "
+	## libaom won't build with 'gn' builds manually
+	## but what need that ?
+	myconf_gn+=" enable_av1_decoder=false "
+
+
+	## f*cking morons that is such weird..
+	## fix that f*cking logic by packaging gn
+	## WORKAROUND
+	CC=gcc CXX=g++ Fexec tools/gn/bootstrap/bootstrap.py -s -v --gn-gen-args "${myconf_gn}" || Fdie
+	## END
 
 	export CC=clang
 	export CXX=clang++
-
-	## WT<piep>
-	CFLAGS="-O2" CXXFLAGS="-O2" LDFLAGS="" \
-	Fexec tools/gn/bootstrap/bootstrap.py -v --gn-gen-args "${myconf_gn}" || Fdie
 
 	Fexec out/Release/gn gen --args="${myconf_gn}" out/Release || Fdie
 	Fexec mkdir -p third_party/node/linux/node-linux-x64/bin || Fdie

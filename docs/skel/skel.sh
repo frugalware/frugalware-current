@@ -21,8 +21,8 @@
 # name (for example the upstream name contains uppercase letters) then use this
 # to declare the real name
 ###
-if [ -z "$_F_berlios_name" ]; then
-	_F_berlios_name=$pkgname
+if [ -z "$_F_skel_name" ]; then
+	_F_skel_name=$pkgname
 fi
 
 ###

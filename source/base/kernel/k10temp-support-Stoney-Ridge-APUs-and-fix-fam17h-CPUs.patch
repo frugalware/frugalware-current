@@ -1,0 +1,93 @@
+diff -Naur linux-4.16.5/arch/x86/kernel/amd_nb.c linux-4.16.5-p/arch/x86/kernel/amd_nb.c
+--- linux-4.16.5/arch/x86/kernel/amd_nb.c	2018-04-26 11:00:39.000000000 +0200
++++ linux-4.16.5-p/arch/x86/kernel/amd_nb.c	2018-04-29 04:23:02.724990611 +0200
+@@ -14,8 +14,11 @@
+ #include <asm/amd_nb.h>
+ 
+ #define PCI_DEVICE_ID_AMD_17H_ROOT	0x1450
++#define PCI_DEVICE_ID_AMD_17H_RR_ROOT	0x15d0
+ #define PCI_DEVICE_ID_AMD_17H_DF_F3	0x1463
+ #define PCI_DEVICE_ID_AMD_17H_DF_F4	0x1464
++#define PCI_DEVICE_ID_AMD_17H_RR_DF_F3	0x15eb
++#define PCI_DEVICE_ID_AMD_17H_RR_DF_F4	0x15ec
+ 
+ /* Protect the PCI config register pairs used for SMN and DF indirect access. */
+ static DEFINE_MUTEX(smn_mutex);
+@@ -24,6 +27,7 @@
+ 
+ static const struct pci_device_id amd_root_ids[] = {
+ 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_ROOT) },
++	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_RR_ROOT) },
+ 	{}
+ };
+ 
+@@ -39,6 +43,7 @@
+ 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_NB_F3) },
+ 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_M30H_NB_F3) },
+ 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_DF_F3) },
++	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_RR_DF_F3) },
+ 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_CNB17H_F3) },
+ 	{}
+ };
+@@ -51,6 +56,7 @@
+ 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_NB_F4) },
+ 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_M30H_NB_F4) },
+ 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_DF_F4) },
++	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_RR_DF_F4) },
+ 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_CNB17H_F4) },
+ 	{}
+ };
+diff -Naur linux-4.16.5/drivers/hwmon/k10temp.c linux-4.16.5-p/drivers/hwmon/k10temp.c
+--- linux-4.16.5/drivers/hwmon/k10temp.c	2018-04-26 11:00:39.000000000 +0200
++++ linux-4.16.5-p/drivers/hwmon/k10temp.c	2018-04-29 04:34:27.740375466 +0200
+@@ -23,6 +23,7 @@
+ #include <linux/init.h>
+ #include <linux/module.h>
+ #include <linux/pci.h>
++#include <asm/amd_nb.h>
+ #include <asm/processor.h>
+ 
+ MODULE_DESCRIPTION("AMD Family 10h+ CPU core temperature monitor");
+@@ -36,10 +37,19 @@
+ /* Provide lock for writing to NB_SMU_IND_ADDR */
+ static DEFINE_MUTEX(nb_smu_ind_mutex);
+ 
++/* Stoney Ridge */
++#ifndef PCI_DEVICE_ID_AMD_15H_M70H_NB_F3
++#define PCI_DEVICE_ID_AMD_15H_M70H_NB_F3       0x15b3
++#endif
++
+ #ifndef PCI_DEVICE_ID_AMD_17H_DF_F3
+ #define PCI_DEVICE_ID_AMD_17H_DF_F3	0x1463
+ #endif
+ 
++#ifndef PCI_DEVICE_ID_AMD_17H_RR_DF_F3
++#define PCI_DEVICE_ID_AMD_17H_RR_DF_F3	0x14eb
++#endif
++
+ /* CPUID function 0x80000001, ebx */
+ #define CPUID_PKGTYPE_MASK	0xf0000000
+ #define CPUID_PKGTYPE_F		0x00000000
+@@ -116,8 +126,8 @@
+ 
+ static void read_tempreg_nb_f17(struct pci_dev *pdev, u32 *regval)
+ {
+-	amd_nb_index_read(pdev, PCI_DEVFN(0, 0), 0x60,
+-			  F17H_M01H_REPORTED_TEMP_CTRL_OFFSET, regval);
++	amd_smn_read(amd_pci_dev_to_node_id(pdev),
++		     F17H_M01H_REPORTED_TEMP_CTRL_OFFSET, regval);
+ }
+ 
+ static ssize_t temp1_input_show(struct device *dev,
+@@ -289,9 +299,11 @@
+ 	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_15H_M10H_F3) },
+ 	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_15H_M30H_NB_F3) },
+ 	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_15H_M60H_NB_F3) },
++	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_15H_M70H_NB_F3) },
+ 	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_16H_NB_F3) },
+ 	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_16H_M30H_NB_F3) },
+ 	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_17H_DF_F3) },
++	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_17H_RR_DF_F3) },
+ 	{}
+ };
+ MODULE_DEVICE_TABLE(pci, k10temp_id_table);

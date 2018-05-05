@@ -147,7 +147,8 @@ fi
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
 		makedepends+=('rsync')
-		up2date="rsync -r -n  rsync://mirror.netcologne.de/kde/$_F_kde_folder | Flasttar"
+		#up2date="rsync -r -n  rsync://mirror.netcologne.de/kde/$_F_kde_folder | Flasttar"
+		up2date="rsync -r -n rsync://ftp.rz.uni-wuerzburg.de/ftp/MIRROR/kde/$_F_kde_folder | Flasttar"
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

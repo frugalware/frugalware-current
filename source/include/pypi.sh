@@ -33,9 +33,17 @@ Finclude python
 # from pypi is ignored and you can define custom ones
 ###
 
-[ -z "$_F_pypi_name" ] && _F_pypi_name="$pkgname"
-[ -z "$_F_pypi_ext" ] && _F_pypi_ext='.tar.gz'
-[ -z "$_F_archive_name" ] && _F_archive_name="$_F_pypi_name"
+if [ -z "$_F_pypi_name" ]; then
+	_F_pypi_name="$pkgname"
+fi
+
+if [ -z "$_F_pypi_ext" ]; then
+	_F_pypi_ext='.tar.gz'
+fi
+
+if [ -z "$_F_archive_name" ]; then
+	_F_archive_name="$_F_pypi_name"
+fi
 
 ###
 # == OVERWRITTEN VARIABLES
@@ -49,5 +57,7 @@ if [ -z "$_F_pypi_nopypi" ]; then
 	source=(https://files.pythonhosted.org/packages/source/${_F_pypi_name:0:1}/$_F_pypi_name/$_F_archive_name-$pkgver$_F_pypi_ext)
 fi
 
-[ -z "$archs" ] && archs=('x86_64')
+if [ -z "$archs" ]; then
+	archs=('x86_64')
+fi
 

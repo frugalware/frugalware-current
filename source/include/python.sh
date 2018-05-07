@@ -34,8 +34,16 @@
 # * _F_python3_libdir
 # * _F_python3_ver
 ###
-_F_python_libdir=`python -c 'from distutils import sysconfig; print sysconfig.get_python_lib()[1:]'`
-_F_python_ver=`python -c 'from distutils import sysconfig; print sysconfig.get_python_version()'`
+
+_F_python_libdir()
+{
+	python -c 'from distutils import sysconfig; print sysconfig.get_python_lib()[1:]'
+}
+
+_F_python_ver()
+{
+	python -c 'from distutils import sysconfig; print sysconfig.get_python_version()'
+}
 
 ###
 # == PROVIDED FUNCTIONS

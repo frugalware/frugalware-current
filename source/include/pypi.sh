@@ -1,7 +1,5 @@
 #!/bin/sh
 
-Finclude python
-
 ###
 # = pypi.sh(3)
 # James Buren <ryuo@frugalware.org>

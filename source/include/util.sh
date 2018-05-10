@@ -805,7 +805,7 @@ Fbuildsystem_make() {
 
 	case "$command" in
 	'probe')
-		test -f GNUmakefile -o -f makefile -o -f Makefile
+		test -f GNUmakefile -o -f makefile -o -f Makefile -a ! setup.py
 		return $?
 		;;
 	'make')

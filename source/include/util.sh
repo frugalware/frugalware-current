@@ -1037,11 +1037,11 @@ Fbuildsystem_python_setup() {
 		;;
 	'make')
 		# does configure and build
-		Fexec "$_python" setup.py build "$@"
+		Fexec "$_python" setup.py build "$@" || Fdie
 		return $?
 		;;
 	'install')
-		Fexec "$_python" setup.py install --prefix "$Fprefix" --root "$Fdestdir" --install-data $_F_python_install_data_dir "$@"
+		Fexec "$_python" setup.py install --prefix "$Fprefix" --root "$Fdestdir" --install-data $_F_python_install_data_dir "$@" || Fdie
 		return $?
 		;;
 	*)

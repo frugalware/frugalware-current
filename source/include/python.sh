@@ -35,28 +35,42 @@
 # * _F_python3_ver
 ###
 
-_F_python_libdir()
+if [ -e /usr/bin/python ]; then
+	_F_python_libdir=`python -c 'from distutils import sysconfig; print sysconfig.get_python_lib()[1:]'`
+	_F_python_ver=`python -c 'from distutils import sysconfig; print sysconfig.get_python_version()'`
+fi
+
+if [ -e /usr/bin/python3 ]; then
+	_F_python3_libdir=`python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_lib()[1:])'`
+	_F_python3_ver=`python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_version())'`
+fi
+
+###
+# == PROVIDED FUNCTIONS
+# * _F_python2_getlibdir
+# * _F_python2_getver
+# * _F_python3_getlibdir
+# * _F_python3_getver
+###
+
+
+_F_python2_getlibdir()
 {
 	python -c 'from distutils import sysconfig; print sysconfig.get_python_lib()[1:]'
 }
 
-_F_python_ver()
+_F_python2_getver()
 {
 	python -c 'from distutils import sysconfig; print sysconfig.get_python_version()'
 }
 
-###
-# == PROVIDED FUNCTIONS
-# * F_python3_getlibdir
-# * F_python3_getver
-###
 
-F_python3_getlibdir()
+_F_python3_getlibdir()
 {
 	python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_lib()[1:])'
 }
 
-F_python3_getver()
+_F_python3_getver()
 {
 	python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_version())'
 }

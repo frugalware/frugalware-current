@@ -76,7 +76,8 @@ fi
 
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
-	_F_kde_mirror="http://ftp.rz.uni-wuerzburg.de/ftp/MIRROR/kde/"
+	#_F_kde_mirror="http://ftp.rz.uni-wuerzburg.de/ftp/MIRROR/kde/"
+	_F_kde_mirror="http://ftp.gwdg.de/pub/linux/kde/"
 	 _F_kde_up2date_mirror="ftp://ftp5.gwdg.de/pub/linux/kde/"
 fi
 
@@ -147,8 +148,8 @@ fi
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
 		makedepends+=('rsync')
-		#up2date="rsync -r -n  rsync://mirror.netcologne.de/kde/$_F_kde_folder | Flasttar"
-		up2date="rsync -r -n rsync://ftp.rz.uni-wuerzburg.de/ftp/MIRROR/kde/$_F_kde_folder | Flasttar"
+		up2date="rsync -r -n  rsync://ftp.gwdg.de/pub/linux/kde/$_F_kde_folder | Flasttar"
+		#up2date="rsync -r -n rsync://ftp.rz.uni-wuerzburg.de/ftp/MIRROR/kde/$_F_kde_folder | Flasttar"
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

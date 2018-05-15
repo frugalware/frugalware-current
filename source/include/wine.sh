@@ -43,7 +43,7 @@ wine)
 	conflicts=('wine-devel' 'lib32-wine-devel')
 	provides=('lib32-wine')
 	replaces=('lib32-wine')
-	source=(https://dl.winehq.org/wine/source/${pkgver}/wine-$pkgver.tar.xz \
+	source=(https://dl.winehq.org/wine/source/${pkgver%.*}/wine-$pkgver.tar.xz \
 		0001-programs-winhlp32-Use-noyywrap-for-macro.lex.l-and-p.patch )
 	;;
 

@@ -189,6 +189,8 @@ _F_KDE_GCC_VER=$(gcc --version | head -n1 | cut -d" " -f4)
 
 case "$_F_KDE_GCC_VER" in
 6.*) _F_KDE_CXX_FLAGS+=" -fno-delete-null-pointer-checks";;
+7.*) _F_KDE_CXX_FLAGS+=" -fno-delete-null-pointer-checks";;
+8.*) _F_KDE_CXX_FLAGS+=" -fno-delete-null-pointer-checks";;
 esac
 
 case "$_F_cmake_type" in

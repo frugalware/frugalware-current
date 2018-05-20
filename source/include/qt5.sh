@@ -17,7 +17,7 @@
 ###
 
 ## always use these
-_qt_extra_cxx+=" -Wno-deprecated -Wno-deprecated-declarations"
+_qt_extra_cxx+=" -Wno-deprecated -Wno-deprecated-declarations  -fno-delete-null-pointer-checks"
 
 if [ -n "$_F_qt_extra_cxx" ]; then
         _qt_extra_cxx+=" ${_F_qt_extra_cxx[@]}"

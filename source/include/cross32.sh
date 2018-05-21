@@ -186,7 +186,7 @@ __cross32_set_vars() {
 	## clang is broken for 32bit , force gcc
 	export CC="gcc"
 	export CXX="g++"
-	LDFLAGS+=" -L${CROSS_PREFIX}/${CROSS_LIB}"
+	LDFLAGS+=" -L${CROSS_PREFIX}/${CROSS_LIB} -m32"
 	export CPPFLAGS=" -I${CROSS_INC}"
 	if [ -n "$_F_cross32_combined" ]; then
 		export PKG_CONFIG_PATH="${CROSS_PREFIX}/${CROSS_LIB}/pkgconfig"

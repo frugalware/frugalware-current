@@ -2,37 +2,59 @@
 # Maintainer: Baste <baste@frugalware.org>
 
 pkgname=mozjs
-pkgver=52.2.1
-pkgrel=3
+pkgver=52.6.0
+pkgrel=1
 pkgdesc="JavaScript interpreter and libraries"
 url="https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Releases/38"
-depends=('nspr' 'readline' 'zlib' 'libstdc++>=6.3.1-4' 'icu4c>=60.1')
-makedepends=()
+depends=('nspr' 'readline' 'zlib' 'libstdc++>=6.3.1-4' 'icu4c>=60.1' 'libffi')
 groups=('devel')
 archs=("x86_64")
-source=(http://ftp.gnome.org/pub/GNOME/teams/releng/tarballs-needing-help/mozjs/mozjs-52.2.1gnome1.tar.gz)
-#up2date="Flasttar $url | sed 's/$pkgextra//g'"
-up2date="$pkgver"
-_F_cd_path="mozjs-52.2.1gnome1"
-sha1sums=('1ec6399a90c7060908bfc3b96d1f1068ab2bfc78')
+source=(http://ftp.gnome.org/pub/GNOME/teams/releng/tarballs-needing-help/mozjs/mozjs-${pkgver}gnome1.tar.xz)
+_F_archive_prefix="gnome1"
+up2date="Flasttar http://ftp.gnome.org/pub/GNOME/teams/releng/tarballs-needing-help/mozjs/"
+sha1sums=('c769de854d047a8e6cda9c9b2b21baca3ac38d4c')
 options+=('static')
 
+Fconfopts="	--with-system-nspr \
+		--enable-system-ffi \
+                --with-system-zlib \
+		--with-system-icu \
+		--with-intl-api \
+		--enable-ctypes \
+                --enable-threadsafe \
+		--enable-shared-js \
+                --enable-gcgenerational \
+		--disable-optimize \
+		--enable-pie \
+		--prefix=/usr"
+F32confopts="	--host=i686-frugalware-linux \
+		--includedir=/usr/i686-frugalware-linux/include \
+		--bindir=/usr/i686-frugalware-linux/bin \
+		--libdir=/usr/lib32"
+
+_F_cross32_simple_auto=yes
+Finclude cross32
+
 build() {
-	Fcd
-	# Remove zlib directory (to be sure using system version)
-	rm -rf modules/zlib
-	#Fpatchall
-	cd js/src
-	#autoconf-2.13
-	# Correct sed expression for new sed
-	#sed -i 's|\^\[:space:\]|^\[\[:space:\]\]|g' configure
-	Fmake --with-system-nspr --enable-system-ffi \
-		--with-system-zlib --with-system-icu --with-intl-api --enable-ctypes \
-		--enable-threadsafe --enable-system-ffi --enable-shared-js \
-		--enable-gcgenerational --disable-optimize --enable-pie --prefix=/usr
-	Fmakeinstall
+        Fcross32_prepare
+	Fexec cp -r js js.cross32 || Fdie
+	Fexec cd js/src || Fdie
+        Fbuild $F32confopts
+        Fcross32_delete_empty
+	Frm usr/lib32/*.ajs
+	Frm usr/i686-frugalware-linux/bin/js52
+        Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one
+
+        ## 64bit
+	Fexec cd ../.. || Fdie
+	Fexec rm -rf js || Fdie
+	Fexec cp -r js.cross32 js || Fdie
+        Fcross32_reset_and_fix
+	Fexec cd js/src || Fdie
+        Fbuild
 	Frm usr/lib/*.ajs
 	Frm usr/bin/js52
 }
+
 
 # optimization OK

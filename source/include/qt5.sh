@@ -36,8 +36,9 @@ if [ -z "$_F_qt_nocore" ]; then
 	_F_archive_grepv="5.8"
 	up2date="Flastverdir http://download.qt-project.org/official_releases/qt/\$(Flastverdir http://download.qt-project.org/official_releases/qt/)"
 	_F_cd_path=${qtpkgfilename}
-	makedepends+=('x11-protos' 'gperf')
 fi
+
+makedepends+=('x11-protos' 'gperf')
 
 if [ -z "$archs" ]; then
 	archs=('x86_64')

@@ -93,7 +93,7 @@ CMake_setup()
 CMake_conf()
 {
 	CMake_setup
-
+	CXXFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations  -fno-delete-null-pointer-checks"
 	## CMAKE_INSTALL_PREFIX -> prefix
 	## SYSCONF_INSTALL_DIR -> sysconfdir
 	## LIB_INSTALL_DIR -> libdir

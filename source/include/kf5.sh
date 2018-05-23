@@ -51,9 +51,9 @@ if [ -z "$_F_kde_ver" ]; then
 fi
 
 ## TMP set to unstable
-#if [ "$_F_kde_project" = "applications" ]; then
-#	_F_kde_unstable="yes"
-#fi
+if [ "$_F_kde_project" = "plasma" ]; then
+	_F_kde_unstable="yes"
+fi
 
 if [ -z "$_F_kde_qtver" ]; then
 	_F_kde_qtver="$_F_kdever_qt5"

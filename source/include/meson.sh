@@ -95,6 +95,7 @@ Meson_conf()
 	export LC_ALL=en_US.utf8
 	## NOTE: no other backend but ninja for LINUX
 	Meson_setup
+	CXXFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations  -fno-delete-null-pointer-checks"
 	## we need all these to be sure we build with own flags..
 	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" LDFLAGS="$LDFLAGS" \
 		Fexec meson \

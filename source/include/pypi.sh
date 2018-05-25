@@ -31,6 +31,11 @@
 # from pypi is ignored and you can define custom ones
 ###
 
+## util.sh: force on here
+if [ -z "$_F_conf_python_style" ]; then
+	_F_conf_python_style=yes
+fi
+
 if [ -z "$_F_pypi_name" ]; then
 	_F_pypi_name="$pkgname"
 fi

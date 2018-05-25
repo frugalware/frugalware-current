@@ -805,7 +805,11 @@ Fbuildsystem_make() {
 
 	case "$command" in
 	'probe')
-		test -f GNUmakefile -o -f makefile -o -f Makefile -a ! -f setup.py
+		if [ -n "$_F_conf_python_style" ]; then
+			test -f GNUmakefile -o -f makefile -o -f Makefile -a ! -f setup.py
+		else
+			test -f GNUmakefile -o -f makefile -o -f Makefile
+		fi
 		return $?
 		;;
 	'make')

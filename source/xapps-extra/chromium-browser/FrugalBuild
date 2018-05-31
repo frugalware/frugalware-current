@@ -2,7 +2,7 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=chromium-browser
-pkgver=66.0.3359.181
+pkgver=67.0.3396.62
 pkgrel=1
 pkgdesc='Development version of Chromium browser'
 url='http://www.chromium.org/'
@@ -32,42 +32,31 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
         $pkgname.desktop \
         $pkgname.sh \
 	chromium-last-commit-position-r1.patch \
-	chromium-widevine.patch \
 	## self explained :)
 	chromium-55.0.2883.75-sandbox-pie.patch \
-	## fix weird warning
-	chromium-65.0.3325.146-enum-boolean.patch \
-	## shut-up next weird warning , broken comments // foo bar \ <-- -W... spams to hell for that
-	chromium-65.0.3325.146-shut-up.patch \
-	## do not remove or WTF eats you , error without
-	chromium-56.0.2924.87-fpermissive.patch \
 	## compile errors on both gcc and llvm
 	chromium-65.0.3325.146-fix-missing-incudes.patch \
 	# bring back some default *flags
-	chromium-65.0.3325.146-frugalware-compiler-flags.patch \
+	chromium-67.0.3396.62-frugalware-compiler-flags.patch \
 	## no Thx
 	chromium-65.0.3325.146-drop-weird-clang-flags.patch \
 	##  https://bugs.chromium.org/p/chromium/issues/detail?id=832283
 	add-missing-blink-tools.patch)
-sha1sums=('5c3f055f227666ecadbc5d0e3ba999b4ffb318d1' \
+sha1sums=('60df9ab6a5e902dc2cdc38cf7cf82643a774540c' \
           '264b8e7c4e3273263d504e041e5e4d152677922c' \
           '4c41d59b4d85a9f0443d6ca1dec456e50059dab5' \
           'd03e6465cd5a84580f9dad5d45f24ccd42bb71e6' \
-          'c5719d06e0b39dfd3ca74f9f42684f4ee7584ade' \
           '80fe0928557e7c260ad18359b42bb4797d8ee668' \
-          'a1e75cefef6d5f4e9a50a2dd35e55cba72679697' \
-          'd1c9ce4e887b2bff4cba82daad5e344a1ab2b71b' \
-          'f4677d94da4c27ef9a98b85e5ef5539bcea7031f' \
           '188c2fc130b69510637119c0f773a1f0fb96c9b2' \
-          'e0fb16c7fffc622db78db37ee09a8983d44e6a19' \
+          '73c3539e8229f9525a88609fa5bd934dc6d5504b' \
           'bdb12aab6df90324d3f78fdc01dfa2e455c4d60c' \
           '7db2634b10b87c8681b21705f6a22b57cda810a5')
 
 chromium_path="chromium"
 
-provides=('chromium-dev')
-replaces=('chromium-dev')
-conflicts=('chromium-dev')
+provides=('chromium-dev' 'chromium-widevine')
+replaces=('chromium-dev' 'chromium-widevine')
+conflicts=('chromium-dev' 'chromium-widevine')
 
 # Google API keys (see http://www.chromium.org/developers/how-tos/api-keys)
 # Note: These are for Frugalware use ONLY. For your own distribution, please
@@ -130,6 +119,9 @@ build() {
 		third_party/ced
 		third_party/cld_3
 		third_party/crc32c
+		third_party/crashpad
+		third_party/crashpad/crashpad
+		third_party/crashpad/crashpad/third_party
 		third_party/cros_system_api
 		third_party/devscripts
 		third_party/dom_distiller_js
@@ -225,8 +217,11 @@ build() {
 		third_party/libvpx/source/libvpx/third_party/x86inc
 		buildtools/third_party/libc++
 		buildtools/third_party/libc++abi
+		## FIXME
 		third_party/unrar
-		third_party/icu)
+		third_party/icu
+		## WHAT? cmon
+		third_party/apple_apsl)
 	# Remove most bundled libraries. Some are still needed.
 
 	Fexec build/linux/unbundle/remove_bundled_libraries.py "${keeplibs[@]}" --do-remove || Fdie
@@ -258,7 +253,7 @@ build() {
 	myconf_gn+=" remove_webcore_debug_symbols=true"
 
 	myconf_gn+=" enable_hangout_services_extension=false"
-	myconf_gn+=" enable_widevine=true"
+	myconf_gn+=" enable_widevine=false"
 	## !!Do NOT change that!!
 	myconf_gn+=" use_allocator=\"none\" "
 	myconf_gn+=" use_kerberos=true"
@@ -288,7 +283,8 @@ build() {
 	myconf_gn+=" ffmpeg_branding=\"Chrome\" "
 
 	## FIXME: need $USE
-	myconf_gn+=" is_clang=true clang_base_path=\"/usr\" clang_use_chrome_plugins=false "
+	#myconf_gn+=" is_clang=true clang_base_path=\"/usr\" clang_use_chrome_plugins=false "
+	myconf_gn+=" is_clang=false clang_use_chrome_plugins=false"
 	myconf_gn+=" google_api_key=\"${_google_api_key}\""
 	myconf_gn+=" google_default_client_id=\"${_google_default_client_id}\""
 	myconf_gn+=" google_default_client_secret=\"${_google_default_client_secret}\""
@@ -305,22 +301,17 @@ build() {
 	## but what need that ?
 	myconf_gn+=" enable_av1_decoder=false "
 
-
-	## f*cking morons that is such weird..
-	## fix that f*cking logic by packaging gn
-	## WORKAROUND
-	CC=gcc CXX=g++ Fexec tools/gn/bootstrap/bootstrap.py -s -v --gn-gen-args "${myconf_gn}" || Fdie
-	## END
-
-	export CC=clang
-	export CXX=clang++
+	export AR=ar
+	export CC=gcc
+	export CXX=g++
+	Fexec tools/gn/bootstrap/bootstrap.py -s -v --gn-gen-args "${myconf_gn}" || Fdie
 
 	Fexec out/Release/gn gen --args="${myconf_gn}" out/Release || Fdie
 	Fexec mkdir -p third_party/node/linux/node-linux-x64/bin || Fdie
 	Fexec rm -rf third_party/node/linux/node-linux-x64/bin/node
 	Fexec ln -s /usr/bin/node third_party/node/linux/node-linux-x64/bin/
 
-	Fexec ninja -vvv -C out/Release pdf chrome chrome_sandbox chromedriver widevinecdmadapter clear_key_cdm || Fdie
+	Fexec ninja -vvv -C out/Release pdf chrome chrome_sandbox chromedriver clear_key_cdm || Fdie
 
 	Fmessage "Plulling ls on out/Release.."
 	Fexec ls out/Release
@@ -364,11 +355,11 @@ build() {
 
 	Finstallrel 644 out/Release/snapshot_blob.bin usr/lib/${chromium_path}
 	Finstallrel 644 out/Release/chromedriver usr/lib/${chromium_path}
-	Finstallrel 644 out/Release/libwidevinecdmadapter.so usr/lib/${chromium_path}
 
 	if [[ -e out/Release/libclearkeycdm.so ]]; then
 		Finstallrel 644 out/Release/libclearkeycdm.so usr/lib/${chromium_path}
 	fi
+
 
 	Fdirschmod usr/lib/${chromium_path}/locales 755
 

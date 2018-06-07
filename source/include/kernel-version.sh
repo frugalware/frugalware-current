@@ -17,7 +17,7 @@
 # * _F_kernelver_nextver: the next kernel version
 ###
 _F_kernelver_ver=4.17
-_F_kernelver_rel=1
+_F_kernelver_rel=2
 
 ###
 # == APPENDED VALUES

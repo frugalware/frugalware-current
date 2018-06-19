@@ -36,8 +36,9 @@ if [ -z "$_F_qt_nocore" ]; then
 	_F_archive_grepv="5.8"
 	up2date="Flastverdir http://download.qt-project.org/official_releases/qt/\$(Flastverdir http://download.qt-project.org/official_releases/qt/)"
 	_F_cd_path=${qtpkgfilename}
-	makedepends+=('x11-protos' 'gperf')
 fi
+
+makedepends+=('x11-protos' 'gperf')
 
 if [ -z "$archs" ]; then
 	archs=('x86_64')
@@ -49,7 +50,7 @@ _qmake_conf() {
 	## alyway drop in CXX/LD FLAGS
 	if [ -z "$_F_qt_nobase_flags" ]; then
 		## use whatever flags from qt-base configuration file
-		Fexec qmake-qt5 QMAKE_CXXFLAGS+=" ${_qt_extra_cxx[@]}"  QMAKE_LFLAGS+=" ${LDFLAGS}" QMAKE_CFLAGS_ISYSTEM=-I "$@"
+		Fexec qmake-qt5 QMAKE_CXXFLAGS+=" ${_qt_extra_cxx[@]}"  QMAKE_LFLAGS+=" ${LDFLAGS}" QMAKE_CFLAGS_ISYSTEM=-I ${_FQt_confopts[@]} "$@"
 	else
 		## kill flags from qt-base and use = our ones so options=('flags_options')
 		## are working. That is for the case some app won't work with some CXX/LD flags
@@ -58,7 +59,8 @@ _qmake_conf() {
 			QMAKE_LFLAGS=" ${LDFLAGS}" \
 			QMAKE_CFLAGS_ISYSTEM=-I \
 			QMAKE_CXXFLAGS_RELEASE="" \
-			QMAKE_CXXFLAGS_DEBUG="" "$@"
+			QMAKE_CXXFLAGS_DEBUG="" \
+			${_FQt_confopts[@]} "$@"
 	fi
 }
 

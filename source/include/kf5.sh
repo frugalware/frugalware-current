@@ -51,7 +51,7 @@ if [ -z "$_F_kde_ver" ]; then
 fi
 
 ## TMP set to unstable
-#if [ "$_F_kde_project" = "applications" ]; then
+#if [ "$_F_kde_project" = "plasma" ]; then
 #	_F_kde_unstable="yes"
 #fi
 
@@ -188,9 +188,9 @@ fi
 _F_KDE_GCC_VER=$(gcc --version | head -n1 | cut -d" " -f4)
 
 case "$_F_KDE_GCC_VER" in
-6.*) _F_KDE_CXX_FLAGS+=" -fno-delete-null-pointer-checks";;
-7.*) _F_KDE_CXX_FLAGS+=" -fno-delete-null-pointer-checks";;
-8.*) _F_KDE_CXX_FLAGS+=" -fno-delete-null-pointer-checks";;
+6.*) _F_KDE_CXX_FLAGS_EXTRA+=" -fno-delete-null-pointer-checks";;
+7.*) _F_KDE_CXX_FLAGS_EXTRA+=" -fno-delete-null-pointer-checks";;
+8.*) _F_KDE_CXX_FLAGS_EXTRA+=" -fno-delete-null-pointer-checks";;
 esac
 
 case "$_F_cmake_type" in
@@ -199,7 +199,7 @@ Debug*)	_F_KDE_CXX_FLAGS+=" -O0 -ggdb3 -DDEBUG";;
 esac
 
 ## to much auto::<...> deprecated messages
-_F_KDE_CXX_FLAGS+=" -Wno-deprecated -Wno-deprecated-declarations"
+_F_KDE_CXX_FLAGS_WARN+=" -Wno-deprecated -Wno-deprecated-declarations"
 
 _F_KDE_LD_FLAGS="-Wl,--no-undefined"
 

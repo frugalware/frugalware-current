@@ -76,7 +76,7 @@ fi
 
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
-	_F_kde_mirror="ftp://ftp5.gwdg.de/pub/linux/kde/"
+	_F_kde_mirror="https://ftp5.gwdg.de/pub/linux/kde/"
 	#_F_kde_mirror="http://ftp.rz.uni-wuerzburg.de/ftp/MIRROR/kde/"
 	 _F_kde_up2date_mirror="ftp://ftp5.gwdg.de/pub/linux/kde/"
 fi

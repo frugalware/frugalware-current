@@ -137,14 +137,27 @@ Meson_make()
 {
 	Meson_prepare_build
 	Meson_conf "$@"
+
+	if [[ -n $MAKEFLAGS ]]; then
+		_flags="${MAKEFLAGS/-j/}"
+	else
+		_flags="1"
+	fi
+
 	## we run ninja with verbose , *always*
-	Fexec ninja -v -C "$_F_meson_build_dir" || Fdie
+	Fexec ninja -j$_flags -v -C "$_F_meson_build_dir" || Fdie
 }
 
 Meson_install()
 {
 
-	DESTDIR=$Fdestdir Fexec ninja -v -C "$_F_meson_build_dir" install || Fdie
+	if [[ -n $MAKEFLAGS ]]; then
+		_flags="${MAKEFLAGS/-j/}"
+	else
+		_flags="1"
+	fi
+
+	DESTDIR=$Fdestdir Fexec ninja -j$_flags -v -C "$_F_meson_build_dir" install || Fdie
 	Fremove_static_libs ## should not be needed but ..
 }
 ###

@@ -91,7 +91,7 @@ fi
 # * up2date
 # * source()
 ###
-_F_sourceforge_url="http://sourceforge.net/projects/$_F_sourceforge_dirname"
+_F_sourceforge_url="https://sourceforge.net/projects/$_F_sourceforge_dirname"
 
 if [ -z "$_F_sourceforge_subdir" ]; then
 	_F_sourceforge_rss_url="$_F_sourceforge_url/rss'?'limit=$_F_sourceforge_rss_limit"
@@ -116,4 +116,4 @@ up2date="lynx -read_timeout=280 -dump "$_F_sourceforge_rss_url" | \
 	Fsort | tac | \
 	head -n 1"
 
-source=("http://${_F_sourceforge_mirror}.sourceforge.net/${_F_sourceforge_dirname}/${_F_archive_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext}")
+source=("https://${_F_sourceforge_mirror}.sourceforge.net/${_F_sourceforge_dirname}/${_F_archive_name}${_F_sourceforge_sep}${_F_sourceforge_pkgver}${_F_sourceforge_ext}")

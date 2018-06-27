@@ -48,7 +48,7 @@
 [ -z "$_F_perl_sourcename" ] && _F_perl_sourcename="$_F_perl_name"
 [ -z "$_F_perl_url" ] && _F_perl_url="https://cpan.metacpan.org/authors/id/"
 [ -z "$_F_perl_no_url" ] && url="http://cpan.org/"
-[ -z "$_F_perl_no_up2date" ] && up2date="lynx -dump https://metacpan.org/pod/${_F_perl_name/-/::} | grep -om1 '$_F_perl_name-\(.*\)$_F_perl_ext' | sed 's/.*-\(.*\)$_F_perl_ext/\1/'"
+[ -z "$_F_perl_no_up2date" ] && up2date="lynx -dump https://metacpan.org/pod/$(echo $_F_perl_name | sed 's/-/::/g') | grep -om1 '$_F_perl_name-\(.*\)$_F_perl_ext' | sed 's/.*-\(.*\)$_F_perl_ext/\1/'"
 [ -z "$_F_perl_no_source" ] && source=($_F_perl_url$_F_perl_author/$_F_perl_sourcename-$pkgver$_F_perl_ext)
 
 ###

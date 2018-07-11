@@ -1883,7 +1883,7 @@ Fextract() {
 	local cmd file
 	file="${1}"
 	case `Flowerstr "$file"` in
-		*.tar.bz2|*.tbz2)
+		*.tar.bz2|*.tbz2|*.tbz)
 		cmd="tar $_F_extract_taropts --use-compress-program=bzip2 -xf $file" ;;
 		*.tar.gz|*.tar.z|*.tgz)
 		cmd="tar $_F_extract_taropts --use-compress-program=gzip -xf $file" ;;

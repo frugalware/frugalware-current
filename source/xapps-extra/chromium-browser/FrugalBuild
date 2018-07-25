@@ -2,20 +2,20 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=chromium-browser
-pkgver=67.0.3396.99
+pkgver=68.0.3440.75
 pkgrel=1
 pkgdesc='Development version of Chromium browser'
 url='http://www.chromium.org/'
 depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6' 'libcups' \
 	'speech-dispatcher>=0.7.1-4' 'libxtst>=1.2.2-2' 'pango' 'atk' 'libxkbcommon' 'libxml2' \
-	'libatomic' 'pciutils>=3.5' 'gtk+3' 'libxslt' 'libwebp>=0.6.0-3' \
-	'libdrm' 'harfbuzz' 'libjpeg-turbo' 'fontconfig')
+	'libatomic' 'pciutils>=3.5' 'gtk+3' 'libxslt' \
+	'libdrm' 'harfbuzz' 'libjpeg-turbo' 'fontconfig' 'icu4c')
 #using the built in ones for now
 #depends+=('libevent>=2.0.22-3')
 makedepends=('ninja' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' \
 		'x11-protos' 'krb5' 'cups' 'gtk+2' 'python-ply' \
 		'python-markupsafe' 'beautifulsoup4' 'html5lib-python' \
-		'webencodings' 'protobuf-python' 'clang>=6.0.0-2' 'nodejs' 'mesa-dri-drivers')
+		'webencodings' 'protobuf-python' 'nodejs' 'mesa-dri-drivers')
 license=('BSD')
 groups=('xapps-extra')
 archs=('x86_64')
@@ -38,16 +38,19 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
 	chromium-65.0.3325.146-fix-missing-incudes.patch \
 	# bring back some default *flags
 	chromium-67.0.3396.62-frugalware-compiler-flags.patch \
-	## no Thx
-	chromium-65.0.3325.146-drop-weird-clang-flags.patch)
-sha1sums=('8deb0a383a86bfd7c2ae1cbf6582449d9ad55e38' \
+	fix-build-with-gcc.patch \
+	chromium-cors-string-r0.patch \
+	chromium-libjpeg-r0.patch )
+sha1sums=('2bcfa6a458441a78975ef808d65a716d9b969d47' \
           '264b8e7c4e3273263d504e041e5e4d152677922c' \
           '4c41d59b4d85a9f0443d6ca1dec456e50059dab5' \
           'd03e6465cd5a84580f9dad5d45f24ccd42bb71e6' \
           '80fe0928557e7c260ad18359b42bb4797d8ee668' \
           '188c2fc130b69510637119c0f773a1f0fb96c9b2' \
           '73c3539e8229f9525a88609fa5bd934dc6d5504b' \
-          'bdb12aab6df90324d3f78fdc01dfa2e455c4d60c')
+          'ce8f9ed45dea7b8201d918c1acc3ff641755a26e' \
+          '596860e62568d6c5ff487f24a953f30a4fc9b634' \
+          'cff9952b726d61f12194d7584f04e2358c668bc1')
 
 chromium_path="chromium"
 
@@ -79,8 +82,11 @@ build() {
 		base/third_party/xdg_user_dirs
 		chrome/third_party/mozilla_security_manager
 		courgette/third_party
+		net/third_party/http2
+		net/third_party/spdy
 		net/third_party/mozilla_security_manager
 		net/third_party/nss
+		net/third_party/quic
 		third_party/WebKit
 		third_party/analytics
 		third_party/angle
@@ -146,8 +152,10 @@ build() {
 		third_party/libsrtp
 		third_party/libudev
 		third_party/libwebm
+		third_party/libsync
 		third_party/libxml/chromium
 		third_party/libyuv
+		third_party/libwebp
 		third_party/lss
 		third_party/lzma_sdk
 		third_party/markupsafe
@@ -169,16 +177,20 @@ build() {
 		third_party/pdfium/third_party/libtiff
 		third_party/pdfium/third_party/eu-strip
 		third_party/pdfium/third_party/skia_shared
+		third_party/perfetto
 		third_party/ply
 		third_party/polymer
 		third_party/protobuf
 		third_party/protobuf/third_party/six
+		third_party/pyjson5
 		third_party/qcms
+		third_party/rnnoise
 		third_party/s2cellid
 		third_party/sfntly
   		third_party/skia
 		third_party/skia/third_party/gif
 		third_party/skia/third_party/vulkan
+		third_party/skia/third_party/skcms
 		third_party/smhasher
 		third_party/spirv-headers
 		third_party/spirv-tools-angle
@@ -196,6 +208,7 @@ build() {
 		third_party/woff2
 		third_party/zlib/google
 		url/third_party/mozilla
+		v8/third_party/antlr4
 		v8/src/third_party/valgrind
 		v8/third_party/inspector_protocol
 		v8/src/third_party/utf8-decoder
@@ -214,9 +227,7 @@ build() {
 		third_party/libvpx/source/libvpx/third_party/x86inc
 		buildtools/third_party/libc++
 		buildtools/third_party/libc++abi
-		## FIXME
 		third_party/unrar
-		third_party/icu
 		## WHAT? cmon
 		third_party/apple_apsl)
 	# Remove most bundled libraries. Some are still needed.
@@ -226,12 +237,13 @@ build() {
 	## FIXME: some things missing..
 	## eg: opus , libusb and some more
 	gn_system_libraries="
+		icu
 		fontconfig
 		freetype
 		flac
 		libdrm
 		libpng
-		libwebp
+		libjpeg
 		libxslt
 		snappy
 		yasm
@@ -325,9 +337,6 @@ build() {
 	if [[ -d out/Release/swiftshader ]]; then
 		Fcprel out/Release/swiftshader usr/lib/${chromium_path}/
 	fi
-
-	## is that right ?
-	Fcprel out/Release/icudtl.dat usr/lib/${chromium_path}/
 
         find $Fdestdir/usr/lib/${chromium_path}/ -name '*.d' -type f -delete
 	find $Fdestdir/usr/lib/${chromium_path}/ -name '*.TOC' -type f -delete

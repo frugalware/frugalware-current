@@ -3,30 +3,25 @@
 # Contributor: Krisztian VASAS <iron@frugalware.org>
 
 pkgname=thunderbird
-pkgver=52.9.1
+pkgver=60.0
 pkgrel=1
 pkgdesc="Mozilla Thunderbird mail and newsgroup client"
 url="http://www.mozilla.org/products/thunderbird/"
-depends=('alsa-lib' 'curl' 'cairo>=1.8.10-2' 'dbus-glib' 'gtk+2>=2.20.0-2' 'libpng>=1.4.1' 'nss>=3.17.4' \
-	'nspr>=4.8.7' 'pango>=1.28.0-2' 'wireless_tools' 'libstdc++>=7.3.0-7' 'libxt>=1.0.5' 'libidl' 'sqlite3>=3.6.23.1' \
-	'libnotify' 'hunspell>=1.6.1' 'libpulse>=6.0' 'libevent' 'libvpx>=1.6.0' 'icu4c>=60.1')
-makedepends=('zip' 'yasm' 'x11-protos' 'rust' 'cargo')
+depends=('libnotify' 'hunspell>=1.6.1' 'libpulse>=6.0' 'libevent' \
+	'pango' 'nspr' 'nss' 'gtk+3' 'gtk+2' 'dbus-glib' 'libvpx' 'libxt')
+makedepends=('yasm' 'x11-protos' 'rust' 'cargo' 'clang')
 groups=('xapps')
 archs=("x86_64")
 options=('scriptlet')
 _F_archive_grepv="[[:alpha:]]+\|b[0-9]"
 up2date="Flastverdir http://download.cdn.mozilla.net/pub/mozilla.org/thunderbird/releases/"
 source=(http://download.cdn.mozilla.net/pub/mozilla.org/thunderbird/releases/$pkgver/source/$pkgname-$pkgver.source.tar.xz \
-	0001-Bug-1338655-Don-t-try-to-build-mp4parse-bindings.-r-.patch \
 	$pkgname.desktop \
-	mozconfig \
-	gcc6.patch )
+	mozconfig )
 
-sha1sums=('9970d78084fe979f568ea00bf06b8e81a738e630' \
-          '4270f1d0822757f53d99e129dfb74d7bf79adb62' \
+sha1sums=('b9e3cccac0ac3b33892b5a32354f7119ddc6482d' \
           '1c10547ed6e098308358e4717e4fcbe9c3afc979' \
-          '50f18439fef81ee3d131b416371bc2a68acd23f4' \
-          '83a97b8135078ad31aee165c0c437ec3c20eea5f')
+          'cbb22be60a4435d898ba2b920ae69002418334f7')
 
 replaces=('lightning')
 conflicts=('lightning')
@@ -34,53 +29,28 @@ conflicts=('lightning')
 build()
 {
 	Fcd
-	## FIXME GCC6
-	CXXFLAGS+=" -fno-strict-aliasing -Wno-deprecated -Wno-deprecated-declarations"
-	CFLAGS+=" -fno-strict-aliasing -Wno-deprecated -Wno-deprecated-declarations"
-
-	cp "$Fsrcdir/mozconfig" .mozconfig || Fdie
-
-	sed -i '/ac_cpp=/s/$CPPFLAGS/& -O2/' mozilla/configure || Fdie ## ?!?!
-
-	Fsed	'pref("intl.locale.matchOS",                 false' \
-		'pref("intl.locale.matchOS",                 true'  \
-		mozilla/modules/libpref/init/all.js
-
-
-	LDFLAGS+=" -Wl,-rpath,/usr/lib/thunderbird"
-
-	export MOZILLA_OFFICIAL=1
-	export BUILD_OFFICIAL=1
 
 	Fpatchall
 
-	Fsed '#include <curl/types.h>' '' mozilla/toolkit/crashreporter/google-breakpad/src/common/linux/http_upload.cc
+	cp "$Fsrcdir/mozconfig" .mozconfig || Fdie
 
-	make -f client.mk build MOZ_MAKE_FLAGS="$MAKEFLAGS" MOZ_OPTIMIZE_FLAGS="$CXXFLAGS" MOZ_PGO_OPTIMIZE_FLAGS="$CXXFLAGS"  || Fdie
+	Fexec ./mach configure || Fdie
+	Fexec ./mach build || Fdie
+	Fexec ./mach buildsymbols || Fdie
+	DESTDIR="$Fdestdir" Fexec ./mach install || Fdie
 
-        make -f client.mk DESTDIR="$Fdestdir" install || Fdie
+	# Install icons for the menu file.
+	for i in 16 22 24 32 48 256; do
+		Finstallrel 644 comm/mail/branding/thunderbird/default${i}.png \
+			usr/share/icons/hicolor/${i}x${i}/apps/$pkgname.png
+	done
 
-	# Get rid of versions in path names and files.
-	Fmv /usr/lib/$pkgname-$pkgver /usr/lib/$pkgname
-	Fln $pkgname /usr/lib/$pkgname-$pkgver
-	Fsed "$pkgname-$pkgver" "$pkgname" $Fdestdir/usr/lib/$pkgname/$pkgname
-
-	# Fixing symlinks
-	Frm /usr/bin/$pkgname
-	Fln /usr/lib/$pkgname/${pkgname}-bin /usr/bin/$pkgname
-
-	# Install icon for the menu file.
-	Finstallrel 0644 ./other-licenses/branding/thunderbird/mailicon256.png \
-		/usr/share/pixmaps/$pkgname.png
 
 	# Install menu file.
 	Ffile /usr/share/applications/$pkgname.desktop
 
-	Frm usr/lib/thunderbird-$pkgver/dictionaries
-        Fln /usr/share/myspell/dicts usr/lib/thunderbird-$pkgver/dictionaries
-
-        # We don't want the development stuff
-        Frm /usr/{include,lib/thunderbird-devel-*,share/idl}
+	Frm usr/lib/thunderbird/dictionaries
+        Fln /usr/share/myspell/dicts usr/lib/thunderbird/dictionaries
 
 }
 

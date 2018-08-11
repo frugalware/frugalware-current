@@ -80,7 +80,7 @@ Fxpi_installxpi()
 	fi
 
        if [ -z "$_F_xpi_rdf" ]; then
-               full_id="langpack-$lang_id@firefox.mozilla.org"
+               full_id="langpack-$lang_id@${_F_xpi_product}.mozilla.org"
        else
                full_id="$lang_id"
        fi

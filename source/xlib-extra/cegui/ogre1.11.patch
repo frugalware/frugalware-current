@@ -1,0 +1,232 @@
+diff -Naur cegui-0.8.7/cegui/include/CEGUI/RendererModules/Ogre/Texture.h cegui-0.8.7.new/cegui/include/CEGUI/RendererModules/Ogre/Texture.h
+--- cegui-0.8.7/cegui/include/CEGUI/RendererModules/Ogre/Texture.h	2016-04-23 20:19:40.000000000 +0200
++++ cegui-0.8.7.new/cegui/include/CEGUI/RendererModules/Ogre/Texture.h	2018-08-15 16:55:57.420174172 +0200
+@@ -88,7 +88,7 @@
+     //! destructor.
+     virtual ~OgreTexture();
+     //! construct an empty texture
+-    void createEmptyOgreTexture();
++    void createEmptyOgreTexture(PixelFormat pixel_format);
+     //! release the underlying Ogre texture.
+     void freeOgreTexture();
+     //! updates cached scale value used to map pixels to texture co-ords.
+diff -Naur cegui-0.8.7/cegui/src/RendererModules/Ogre/CMakeLists.txt cegui-0.8.7.new/cegui/src/RendererModules/Ogre/CMakeLists.txt
+--- cegui-0.8.7/cegui/src/RendererModules/Ogre/CMakeLists.txt	2016-04-23 20:18:29.000000000 +0200
++++ cegui-0.8.7.new/cegui/src/RendererModules/Ogre/CMakeLists.txt	2018-08-15 16:56:03.577173972 +0200
+@@ -9,3 +9,13 @@
+ 
+ cegui_target_link_libraries(${CEGUI_TARGET_NAME} ${CEGUI_BASE_LIBNAME})
+ 
++if (CEGUI_FOUND_OGRE_VERSION_MAJOR GREATER 0 AND CEGUI_FOUND_OGRE_VERSION_MINOR GREATER 10)
++target_compile_features(${CEGUI_TARGET_NAME} PRIVATE cxx_std_11)
++
++target_compile_definitions(${CEGUI_TARGET_NAME}
++        PRIVATE
++        -DOGRE_VERSION_MAJOR=${CEGUI_FOUND_OGRE_VERSION_MAJOR}
++        -DOGRE_VERSION_MINOR=${CEGUI_FOUND_OGRE_VERSION_MINOR}
++        )
++endif(CEGUI_FOUND_OGRE_VERSION_MAJOR GREATER 0 AND CEGUI_FOUND_OGRE_VERSION_MINOR GREATER 10)
++
+diff -Naur cegui-0.8.7/cegui/src/RendererModules/Ogre/GeometryBuffer.cpp cegui-0.8.7.new/cegui/src/RendererModules/Ogre/GeometryBuffer.cpp
+--- cegui-0.8.7/cegui/src/RendererModules/Ogre/GeometryBuffer.cpp	2016-04-23 20:19:40.000000000 +0200
++++ cegui-0.8.7.new/cegui/src/RendererModules/Ogre/GeometryBuffer.cpp	2018-08-15 16:56:03.577173972 +0200
+@@ -132,7 +132,7 @@
+ {
+     OGRE_DELETE rop.vertexData;
+     rop.vertexData = 0;
+-    vb.setNull();
++    vb.reset();
+ }
+ 
+ //----------------------------------------------------------------------------//
+diff -Naur cegui-0.8.7/cegui/src/RendererModules/Ogre/Renderer.cpp cegui-0.8.7.new/cegui/src/RendererModules/Ogre/Renderer.cpp
+--- cegui-0.8.7/cegui/src/RendererModules/Ogre/Renderer.cpp	2016-04-23 20:19:40.000000000 +0200
++++ cegui-0.8.7.new/cegui/src/RendererModules/Ogre/Renderer.cpp	2018-08-15 16:56:03.577173972 +0200
+@@ -62,6 +62,12 @@
+ #include <OgreHlmsDatablock.h>
+ #endif
+ 
++#if OGRE_VERSION_MAJOR >= 1 && OGRE_VERSION_MINOR >= 11
++#ifdef OGRE_BUILD_COMPONENT_RTSHADERSYSTEM
++#include <RTShaderSystem/OgreRTShaderConfig.h>
++#endif
++#endif
++
+ // Start of CEGUI namespace section
+ namespace CEGUI
+ {
+@@ -792,7 +798,7 @@
+     // Check if built with RT Shader System and if it is: Check if fixed function pipeline is enabled
+     #else
+         #if defined RTSHADER_SYSTEM_BUILD_CORE_SHADERS
+-            bool isFixedFunctionEnabled = d_pimpl->d_renderSystem->getFixedPipelineEnabled();
++            bool isFixedFunctionEnabled = d_pimpl->d_renderSystem->getCapabilities()->hasCapability(Ogre::RSC_FIXED_FUNCTION);
+         #else
+             bool isFixedFunctionEnabled = true;
+         #endif
+@@ -920,7 +926,7 @@
+         }
+         else// If no shader was compatible
+         {
+-            d_pimpl->d_vertexShader.setNull();
++            d_pimpl->d_vertexShader.reset();
+             CEGUI_THROW(RendererException(
+                 "OgreRenderer::initialiseShaders: No supported syntax - "
+                 "unable to compile '__cegui_internal_vs__'"));
+@@ -971,8 +977,8 @@
+         }
+         else
+         {
+-            d_pimpl->d_vertexShader.setNull();
+-            d_pimpl->d_pixelShader.setNull();
++            d_pimpl->d_vertexShader.reset();
++            d_pimpl->d_pixelShader.reset();
+ 
+             CEGUI_THROW(RendererException(
+                 "OgreRenderer::initialiseShaders: No supported syntax - "
+@@ -1003,10 +1009,10 @@
+     if (d_pimpl->d_hlmsSamplerblock != NULL)
+         hlmsManager->destroySamplerblock(d_pimpl->d_hlmsSamplerblock);
+ #endif
+-    d_pimpl->d_pixelShaderParameters.setNull();
+-    d_pimpl->d_vertexShaderParameters.setNull();
+-    d_pimpl->d_pixelShader.setNull();
+-    d_pimpl->d_vertexShader.setNull();
++    d_pimpl->d_pixelShaderParameters.reset();
++    d_pimpl->d_vertexShaderParameters.reset();
++    d_pimpl->d_pixelShader.reset();
++    d_pimpl->d_vertexShader.reset();
+ }
+ 
+ //----------------------------------------------------------------------------//
+diff -Naur cegui-0.8.7/cegui/src/RendererModules/Ogre/ResourceProvider.cpp cegui-0.8.7.new/cegui/src/RendererModules/Ogre/ResourceProvider.cpp
+--- cegui-0.8.7/cegui/src/RendererModules/Ogre/ResourceProvider.cpp	2016-04-23 20:19:40.000000000 +0200
++++ cegui-0.8.7.new/cegui/src/RendererModules/Ogre/ResourceProvider.cpp	2018-08-15 16:56:03.577173972 +0200
+@@ -59,7 +59,7 @@
+     Ogre::DataStreamPtr input = Ogre::ResourceGroupManager::getSingleton().
+         openResource(filename.c_str(), orpGroup.c_str());
+ 
+-    if (input.isNull())
++    if (!input)
+         CEGUI_THROW(InvalidRequestException(
+             "Unable to open resource file '" + filename +
+             "' in resource group '" + orpGroup + "'."));
+diff -Naur cegui-0.8.7/cegui/src/RendererModules/Ogre/Texture.cpp cegui-0.8.7.new/cegui/src/RendererModules/Ogre/Texture.cpp
+--- cegui-0.8.7/cegui/src/RendererModules/Ogre/Texture.cpp	2016-04-23 20:19:40.000000000 +0200
++++ cegui-0.8.7.new/cegui/src/RendererModules/Ogre/Texture.cpp	2018-08-15 16:56:03.577173972 +0200
+@@ -79,7 +79,7 @@
+     d_texelScaling(0, 0),
+     d_name(name)
+ {
+-    createEmptyOgreTexture();
++    createEmptyOgreTexture(Texture::PF_RGBA);
+ }
+ 
+ //----------------------------------------------------------------------------//
+@@ -91,7 +91,6 @@
+     d_texelScaling(0, 0),
+     d_name(name)
+ {
+-    createEmptyOgreTexture();
+     loadFromFile(filename, resourceGroup);
+ }
+ 
+@@ -103,10 +102,10 @@
+     d_texelScaling(0, 0),
+     d_name(name)
+ {
+-    createEmptyOgreTexture();
++    createEmptyOgreTexture(Texture::PF_RGBA);
+ 
+     // throw exception if no texture was able to be created
+-    if (d_texture.isNull())
++    if (!d_texture)
+         CEGUI_THROW(RendererException(
+             "Failed to create Texture object with spcecified size."));
+     
+@@ -214,6 +213,7 @@
+ 
+     const Ogre::PixelBox* pixelBox = new Ogre::PixelBox(buffer_size.d_width, buffer_size.d_height,
+                                                         1, toOgrePixelFormat(pixel_format), bufferCopy);
++    createEmptyOgreTexture(pixel_format);
+     d_texture->freeInternalResources();
+     d_texture->setWidth(buffer_size.d_width);
+     d_texture->setHeight(buffer_size.d_height);
+@@ -222,7 +222,7 @@
+     d_texture->getBuffer(0,0).get()->blitFromMemory(*pixelBox);
+ 
+     // throw exception if no texture was able to be created
+-    if (d_texture.isNull())
++    if (!d_texture)
+         CEGUI_THROW(RendererException(
+             "Failed to blit to Texture from memory."));
+ 
+@@ -235,36 +235,36 @@
+ //----------------------------------------------------------------------------//
+ void OgreTexture::blitFromMemory(const void* sourceData, const Rectf& area)
+ {
+-    if (d_texture.isNull()) // TODO: exception?
++    if (!d_texture) // TODO: exception?
+         return;
+ 
+     // NOTE: const_cast because Ogre takes pointer to non-const here. Rather
+     // than allow that to dictate poor choices in our own APIs, we choose to
+     // address the issue as close to the source of the problem as possible.
+     Ogre::PixelBox pb(area.getWidth(), area.getHeight(),
+-                      1, Ogre::PF_A8R8G8B8, const_cast<void*>(sourceData));
+-    Ogre::Image::Box box(area.left(), area.top(), area.right(), area.bottom());
++                      1, d_texture->getFormat(), const_cast<void*>(sourceData));
++    Ogre::Box box(area.left(), area.top(), area.right(), area.bottom());
+     d_texture->getBuffer()->blitFromMemory(pb, box);
+ }
+ 
+ //----------------------------------------------------------------------------//
+ void OgreTexture::blitToMemory(void* targetData)
+ {
+-    if (d_texture.isNull()) // TODO: exception?
++    if (!d_texture) // TODO: exception?
+         return;
+ 
+     Ogre::PixelBox pb(d_size.d_width, d_size.d_height,
+-                      1, Ogre::PF_A8R8G8B8, targetData);
++                      1, d_texture->getFormat(), targetData);
+     d_texture->getBuffer()->blitToMemory(pb);
+ }
+ 
+ //----------------------------------------------------------------------------//
+ void OgreTexture::freeOgreTexture()
+ {
+-    if (!d_texture.isNull() && !d_isLinked)
++    if (d_texture && !d_isLinked)
+         Ogre::TextureManager::getSingleton().remove(d_texture->getHandle());
+ 
+-    d_texture.setNull();
++    d_texture.reset();
+ }
+ 
+ //----------------------------------------------------------------------------//
+@@ -320,7 +320,7 @@
+     d_texture = texture;
+     d_isLinked = !take_ownership;
+ 
+-    if (!d_texture.isNull())
++    if (d_texture)
+     {
+         d_size.d_width = d_texture->getWidth();
+         d_size.d_height= d_texture->getHeight();
+@@ -400,13 +400,13 @@
+ }
+ 
+ //----------------------------------------------------------------------------//
+-void OgreTexture::createEmptyOgreTexture()
++void OgreTexture::createEmptyOgreTexture(PixelFormat pixel_format)
+ {
+     // try to create a Ogre::Texture with given dimensions
+     d_texture = Ogre::TextureManager::getSingleton().createManual(
+         getUniqueName(), "General", Ogre::TEX_TYPE_2D,
+         1, 1, 0,
+-        Ogre::PF_A8B8G8R8);
++        toOgrePixelFormat(pixel_format));
+ }
+ 
+ 

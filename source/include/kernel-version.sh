@@ -16,7 +16,7 @@
 # * _F_kernelver_stable: the number of the -stable patch to use (if any)
 # * _F_kernelver_nextver: the next kernel version
 ###
-_F_kernelver_ver=4.18.1
+_F_kernelver_ver=4.18.2
 _F_kernelver_rel=1
 
 ###

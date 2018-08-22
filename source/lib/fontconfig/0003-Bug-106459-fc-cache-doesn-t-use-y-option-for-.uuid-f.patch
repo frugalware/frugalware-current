@@ -1,0 +1,179 @@
+From 0b85e77ede3497b8533b8fcb67d03d8ad174998d Mon Sep 17 00:00:00 2001
+From: Akira TAGOH <akira@tagoh.org>
+Date: Sun, 13 May 2018 16:21:58 +0900
+Subject: [PATCH] Bug 106459 - fc-cache doesn't use -y option for .uuid files
+
+https://bugs.freedesktop.org/show_bug.cgi?id=106459
+---
+ src/fccache.c    | 48 +++++++++++++++++++++++++++++++++++++-----------
+ test/run-test.sh | 25 +++++++++++++++++++++++++
+ 2 files changed, 62 insertions(+), 11 deletions(-)
+
+diff --git a/src/fccache.c b/src/fccache.c
+index 7abb750..09e876b 100644
+--- a/src/fccache.c
++++ b/src/fccache.c
+@@ -51,13 +51,23 @@ FcDirCacheCreateUUID (FcChar8  *dir,
+ 		      FcBool    force,
+ 		      FcConfig *config)
+ {
++    const FcChar8 *sysroot = FcConfigGetSysRoot (config);
++    FcChar8 *target;
+     FcBool ret = FcTrue;
+ #ifndef _WIN32
+     FcChar8 *uuidname;
+ 
+-    uuidname = FcStrBuildFilename (dir, ".uuid", NULL);
++    if (sysroot)
++	target = FcStrBuildFilename (sysroot, dir, NULL);
++    else
++	target = FcStrdup (dir);
++    uuidname = FcStrBuildFilename (target, ".uuid", NULL);
++
+     if (!uuidname)
++    {
++	FcStrFree (target);
+ 	return FcFalse;
++    }
+ 
+     if (force || access ((const char *) uuidname, F_OK) < 0)
+     {
+@@ -69,7 +79,7 @@ FcDirCacheCreateUUID (FcChar8  *dir,
+ 	struct stat statb;
+ 	struct timeval times[2];
+ 
+-	if (FcStat (dir, &statb) != 0)
++	if (FcStat (target, &statb) != 0)
+ 	{
+ 	    ret = FcFalse;
+ 	    goto bail1;
+@@ -96,7 +106,7 @@ FcDirCacheCreateUUID (FcChar8  *dir,
+ 	    hash_add = FcHashTableReplace;
+ 	else
+ 	    hash_add = FcHashTableAdd;
+-	if (!hash_add (config->uuid_table, dir, uuid))
++	if (!hash_add (config->uuid_table, target, uuid))
+ 	{
+ 	    ret = FcFalse;
+ 	    goto bail3;
+@@ -124,14 +134,15 @@ FcDirCacheCreateUUID (FcChar8  *dir,
+ 	    times[0].tv_usec = 0;
+ 	    times[1].tv_usec = 0;
+ #endif
+-	    if (utimes ((const  char *) dir, times) != 0)
++	    if (utimes ((const  char *) target, times) != 0)
+ 	    {
+-		fprintf (stderr, "Unable to revert mtime: %s\n", dir);
++		fprintf (stderr, "Unable to revert mtime: %s\n", target);
+ 	    }
+ 	}
+     }
+-    bail1:
++bail1:
+     FcStrFree (uuidname);
++    FcStrFree (target);
+ #endif
+ 
+     return ret;
+@@ -144,10 +155,17 @@ FcDirCacheReadUUID (FcChar8  *dir,
+ {
+     void *u;
+     uuid_t uuid;
++    const FcChar8 *sysroot = FcConfigGetSysRoot (config);
++    FcChar8 *target;
++
++    if (sysroot)
++	target = FcStrBuildFilename (sysroot, dir, NULL);
++    else
++	target = FcStrdup (dir);
+ 
+-    if (!FcHashTableFind (config->uuid_table, dir, &u))
++    if (!FcHashTableFind (config->uuid_table, target, &u))
+     {
+-	FcChar8 *uuidname = FcStrBuildFilename (dir, ".uuid", NULL);
++	FcChar8 *uuidname = FcStrBuildFilename (target, ".uuid", NULL);
+ 	int fd;
+ 
+ 	if ((fd = FcOpen ((char *) uuidname, O_RDONLY)) >= 0)
+@@ -162,7 +180,7 @@ FcDirCacheReadUUID (FcChar8  *dir,
+ 		{
+ 		    if (FcDebug () & FC_DBG_CACHE)
+ 			printf ("FcDirCacheReadUUID %s -> %s\n", uuidname, suuid);
+-		    FcHashTableAdd (config->uuid_table, dir, uuid);
++		    FcHashTableAdd (config->uuid_table, target, uuid);
+ 		}
+ 	    }
+ 	    close (fd);
+@@ -176,6 +194,7 @@ FcDirCacheReadUUID (FcChar8  *dir,
+     }
+     else
+ 	FcHashUuidFree (u);
++    FcStrFree (target);
+ }
+ #endif
+ 
+@@ -259,18 +278,25 @@ static FcChar8 *
+ FcDirCacheBasenameUUID (const FcChar8 *dir, FcChar8 cache_base[CACHEBASE_LEN], FcConfig *config)
+ {
+     void *u;
+-    FcChar8 *alias;
++    FcChar8 *alias, *target;
++    const FcChar8 *sysroot = FcConfigGetSysRoot (config);
+ 
+     if (!FcHashTableFind (config->alias_table, dir, (void **)&alias))
+ 	alias = FcStrdup (dir);
+-    if (FcHashTableFind (config->uuid_table, alias, &u))
++    if (sysroot)
++	target = FcStrBuildFilename (sysroot, alias, NULL);
++    else
++	target = FcStrdup (alias);
++    if (FcHashTableFind (config->uuid_table, target, &u))
+     {
+ 	uuid_unparse (u, (char *) cache_base);
+ 	strcat ((char *) cache_base, "-" FC_ARCHITECTURE FC_CACHE_SUFFIX);
+ 	FcHashUuidFree (u);
++	FcStrFree (target);
+ 	FcStrFree (alias);
+ 	return cache_base;
+     }
++    FcStrFree (target);
+     FcStrFree (alias);
+     return NULL;
+ }
+diff --git a/test/run-test.sh b/test/run-test.sh
+index 5ef4787..e375608 100644
+--- a/test/run-test.sh
++++ b/test/run-test.sh
+@@ -203,4 +203,29 @@ fi
+ rm -rf $TESTTMPDIR out1 out2 xxx bind-fonts.conf
+ fi
+ 
++dotest "sysroot option"
++prep
++mkdir -p $MyPWD/sysroot/$FONTDIR
++mkdir -p $MyPWD/sysroot/$CACHEDIR
++cp $FONT1 $MyPWD/sysroot/$FONTDIR
++cp $MyPWD/fonts.conf $MyPWD/sysroot/$MyPWD/fonts.conf
++$FCCACHE -y $MyPWD/sysroot
++stat $MyPWD/sysroot/$FONTDIR/.uuid
++if test $? != 0; then
++  echo "*** Test failed: $TEST"
++  exit 1
++fi
++
++dotest "creating uuid-based cache file on sysroot"
++uuid=`cat $MyPWD/sysroot/$FONTDIR/.uuid`
++ls $MyPWD/sysroot/$CACHEDIR/$uuid*
++if [ $? != 0 ]; then
++  echo "*** Test failed: $TEST"
++  echo "No cache for $uuid"
++  ls $MyPWD/sysroot/$CACHEDIR
++  exit 1
++fi
++
++rm -rf $MyPWD/sysroot
++
+ rm -rf $FONTDIR $CACHEFILE $CACHEDIR $FONTCONFIG_FILE out
+-- 
+2.17.0
+

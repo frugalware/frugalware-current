@@ -1,0 +1,44 @@
+From: Chris Liddell <chris.liddell@artifex.com>
+Date: Thu, 23 Aug 2018 14:41:18 +0000 (+0100)
+Subject: Bug 699664: Ensure the correct is in place before cleanup
+X-Git-Tag: ghostpdl-9.24rc1~14
+X-Git-Url: http://git.ghostscript.com/?p=ghostpdl.git;a=commitdiff_plain;h=241d9111
+
+Bug 699664: Ensure the correct is in place before cleanup
+
+If the PS job replaces the device and leaves that graphics state in place, we
+wouldn't cleanup the default device in the normal way, but rely on the garbage
+collector.
+
+This works (but isn't ideal), *except* when the job replaces the device with
+the null device (using the nulldevice operator) - this means that
+.uninstallpagedevice doesn't replace the existing device with the nulldevice
+(since it is already installed), the device from the graphics ends up being
+freed - and as it is the nulldevice, which we rely on, memory corruption
+and a segfault can happen.
+
+We avoid this by checking if the current device is the nulldevice, and if so,
+restoring it away, before continuing with the device cleanup.
+---
+
+diff --git a/psi/imain.c b/psi/imain.c
+index 2fe1546..138bfc8 100644
+--- a/psi/imain.c
++++ b/psi/imain.c
+@@ -936,6 +936,16 @@ gs_main_finit(gs_main_instance * minst, int exit_status, int code)
+             i_ctx_p = minst->i_ctx_p; /* interp_reclaim could change it. */
+         }
+ 
++        if (i_ctx_p->pgs != NULL && i_ctx_p->pgs->device != NULL &&
++            gx_device_is_null(i_ctx_p->pgs->device)) {
++            /* if the job replaced the device with the nulldevice, we we need to grestore
++               away that device, so the block below can properly dispense
++               with the default device.
++             */
++            int code = gs_grestoreall(i_ctx_p->pgs);
++            if (code < 0) return_error(gs_error_Fatal);
++        }
++
+         if (i_ctx_p->pgs != NULL && i_ctx_p->pgs->device != NULL) {
+             gx_device *pdev = i_ctx_p->pgs->device;
+             const char * dname = pdev->dname;

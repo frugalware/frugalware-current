@@ -1,0 +1,52 @@
+From: Chris Liddell <chris.liddell@artifex.com>
+Date: Tue, 21 Aug 2018 19:17:51 +0000 (+0100)
+Subject: Bug 699658: Fix handling of pre-SAFER opened files.
+X-Git-Tag: ghostpdl-9.24rc1~21
+X-Git-Url: http://git.ghostscript.com/?p=ghostpdl.git;a=commitdiff_plain;h=a054156d
+
+Bug 699658: Fix handling of pre-SAFER opened files.
+
+Temp files opened for writing before SAFER is engaged are not subject to the
+SAFER restrictions - that is handled by recording in a dictionary, and
+checking that as part of the permissions checks.
+
+By adding a custom error handler for invalidaccess, that allowed the filename
+to be added to the dictionary (despite the attempted open throwing the error)
+thus meaning subsequent accesses were erroneously permitted.
+---
+
+diff --git a/Resource/Init/gs_init.ps b/Resource/Init/gs_init.ps
+index a6e49f0..5a5a428 100644
+--- a/Resource/Init/gs_init.ps
++++ b/Resource/Init/gs_init.ps
+@@ -2036,6 +2036,19 @@ readonly def
+             concatstrings concatstrings .generate_dir_list_templates
+         } if
+       ]
++      /PermitFileWriting [
++          currentuserparams /PermitFileWriting get aload pop
++          (TMPDIR) getenv not
++          {
++            (TEMP) getenv not
++            {
++              (TMP) getenv not
++              {
++                (/temp) (/tmp)
++              } if
++            } if
++          } if
++      ]
+       /LockFilePermissions //true
+     >> setuserparams
+   }
+@@ -2122,7 +2135,9 @@ readonly def
+ % the file can be deleted later, even if SAFER is set.
+ /.tempfile {
+   .tempfile	% filename file
+-  //SAFETY /tempfiles get 2 .argindex //true .forceput
++    //SAFETY /safe get not { % only add the filename if we're not yet safe
++    //SAFETY /tempfiles get 2 .argindex //true .forceput
++  } if
+ } .bind executeonly odef
+ 
+ % If we are running in SAFER mode, lock things down

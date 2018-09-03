@@ -1,0 +1,78 @@
+diff -Naur linux-4.18.5/kernel/time/clocksource.c linux-4.18.5-p/kernel/time/clocksource.c
+--- linux-4.18.5/kernel/time/clocksource.c	2018-08-24 13:04:51.000000000 +0200
++++ linux-4.18.5-p/kernel/time/clocksource.c	2018-09-03 14:59:28.254685297 +0200
+@@ -108,13 +108,28 @@
+ static int finished_booting;
+ 
+ #ifdef CONFIG_CLOCKSOURCE_WATCHDOG
+-static void clocksource_watchdog_work(struct work_struct *work);
++static void clocksource_watchdog_work(struct kthread_work *work);
+ static void clocksource_select(void);
+ 
+ static LIST_HEAD(watchdog_list);
+ static struct clocksource *watchdog;
+ static struct timer_list watchdog_timer;
+-static DECLARE_WORK(watchdog_work, clocksource_watchdog_work);
++
++/*
++ * We must use a kthread_worker here, because:
++ *
++ *   clocksource_watchdog_work()
++ *     clocksource_select()
++ *       __clocksource_select()
++ *         timekeeping_notify()
++ *           stop_machine()
++ *
++ * cannot be called from a reqular workqueue, because of deadlocks between
++ * workqueue and stopmachine.
++ */
++static struct kthread_worker *watchdog_worker;
++static DEFINE_KTHREAD_WORK(watchdog_work, clocksource_watchdog_work);
++
+ static DEFINE_SPINLOCK(watchdog_lock);
+ static int watchdog_running;
+ static atomic_t watchdog_reset_pending;
+@@ -154,7 +169,7 @@
+ 
+ 	/* kick clocksource_watchdog_work() */
+ 	if (finished_booting)
+-		schedule_work(&watchdog_work);
++		kthread_queue_work(watchdog_worker, &watchdog_work);
+ }
+ 
+ /**
+@@ -195,7 +210,7 @@
+ 		/* Clocksource already marked unstable? */
+ 		if (cs->flags & CLOCK_SOURCE_UNSTABLE) {
+ 			if (finished_booting)
+-				schedule_work(&watchdog_work);
++				kthread_queue_work(watchdog_worker, &watchdog_work);
+ 			continue;
+ 		}
+ 
+@@ -265,7 +280,7 @@
+ 			 */
+ 			if (cs != curr_clocksource) {
+ 				cs->flags |= CLOCK_SOURCE_RESELECT;
+-				schedule_work(&watchdog_work);
++				kthread_queue_work(watchdog_worker, &watchdog_work);
+ 			} else {
+ 				tick_clock_notify();
+ 			}
+@@ -414,7 +429,7 @@
+ 	return select;
+ }
+ 
+-static void clocksource_watchdog_work(struct work_struct *work)
++static void clocksource_watchdog_work(struct kthread_work *work)
+ {
+ 	mutex_lock(&clocksource_mutex);
+ 	if (__clocksource_watchdog_work())
+@@ -668,6 +683,7 @@
+ {
+ 	mutex_lock(&clocksource_mutex);
+ 	curr_clocksource = clocksource_default_clock();
++	watchdog_worker = kthread_create_worker(0, "cs-watchdog");
+ 	finished_booting = 1;
+ 	/*
+ 	 * Run the watchdog first to eliminate unstable clock sources

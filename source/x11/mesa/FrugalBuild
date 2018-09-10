@@ -17,7 +17,6 @@
 : ${USE_OSMESA="y"}
 : ${USE_VDPAU="y"}
 : ${USE_VAAPI="y"}
-: ${USE_TEXTURE_FLOAT="y"}
 : ${USE_XA="y"}
 : ${USE_NINE="y"}
 : ${USE_OMX="y"}
@@ -28,7 +27,7 @@
 ##       we may 1) not notice new libs/files and 2) while 1 we may break things.
 pkgname=mesa
 pkgver=18.2.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 _F_archive_grepv="-rc"
@@ -56,8 +55,10 @@ else
 	## on major bumps  -- crazy --
 	source=(https://mesa.freedesktop.org/archive/$pkgname-$pkgver.tar.xz \
 		nouveau_locking.patch \
-		0002-hardware-gloat.patch)
-	signatures=("${source[0]}".sig '' '')
+		0002-hardware-gloat.patch \
+		fix-lib32-build.patch \
+		workaround-swr-building-with-lvm6.patch )
+	signatures=("${source[0]}".sig '' '' '' '')
 fi
 
 subpkgs=('mesa-libgl-headers')
@@ -545,12 +546,6 @@ else
 	Fconfopts+=" --disable-osmesa"
 fi
 
-if Fuse TEXTURE_FLOAT; then
-	Fconfopts+=" --enable-texture-float=yes"
-else
-	Fconfopts+=" --disable-texture-float"
-fi
-
 if Fuse VAAPI; then
 	Fconfopts+=" --enable-va"
 else
@@ -584,8 +579,7 @@ else
 fi
 
 if Fuse GALLIUM; then
-	Fconfopts+=" --with-gallium-drivers=i915,nouveau,r300,r600,radeonsi,svga,swrast,virgl"
-	F32confopts+=" --with-gallium-drivers=i915,nouveau,r300,r600,radeonsi,svga,swrast,virgl"
+	Fconfopts+=" --with-gallium-drivers=i915,nouveau,r300,r600,radeonsi,svga,swr,swrast,virgl"
 	Fconfopts+=" --enable-llvm"
 	Fconfopts+=" --with-swr-archs=avx,avx2"
 	if ! Fuse OSMESA; then
@@ -674,6 +668,7 @@ build() {
  	if Fuse OPENCL; then
 		Fsplit lib32-libcl usr/lib32/libMesaOpenCL*
 		Fsplit lib32-mesa-pipe-drivers usr/lib32/gallium-pipe/
+		Fsplit lib32-mesa-pipe-drivers usr/lib32/libswr*
 	fi
 
 	if Fuse VULKAN; then
@@ -771,6 +766,7 @@ build() {
 	##        Fuse OPENCL ..
 	if Fuse OPENCL; then
 		Fsplit mesa-pipe-drivers usr/lib/gallium-pipe/
+		Fsplit mesa-pipe-drivers usr/lib/libswr*
 
 		Fsplit libcl usr/lib/libMesaOpenCL*
 		Fsplit libcl etc/OpenCL

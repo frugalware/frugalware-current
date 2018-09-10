@@ -17,23 +17,17 @@
 : ${USE_OSMESA="y"}
 : ${USE_VDPAU="y"}
 : ${USE_VAAPI="y"}
-: ${USE_TEXTURE_FLOAT="y"}
-: ${USE_WAYLAND_EGL="n"}
 : ${USE_XA="y"}
 : ${USE_NINE="y"}
 : ${USE_OMX="y"}
 : ${USE_VULKAN="y"}
 
-if Fuse WAYLAND_EGL; then
-	USE_EGL=y
-fi
-
 ## NOTE: on major bumps OR when enabling new features _comment_ out last 2 lines from FB
 ##       we want to see whatever we are missing things in splitting. If we go and just Frm stuff
 ##       we may 1) not notice new libs/files and 2) while 1 we may break things.
 pkgname=mesa
-pkgver=18.1.7
-pkgrel=1
+pkgver=18.2.0
+pkgrel=2
 pkgdesc="Mesa is a 3D graphics library"
 url="http://mesa3d.sourceforge.net/"
 _F_archive_grepv="-rc"
@@ -41,7 +35,7 @@ up2date="Flasttar https://mesa.freedesktop.org/archive/"
 depends=()
 makedepends=('makedepend>=1.0.5-3' 'mako>=1.0.4-2' 'xorgproto' 'dri2proto' 'xproto' \
 	'lib32-libglvnd' 'libglvnd' 'kbproto' 'xcb-proto' 'lib32-xcb-proto' 'xextproto'  \
-	'damageproto' 'fixesproto' 'lib32-wayland-protocols' 'wayland-protocols' \
+	'damageproto' 'fixesproto' 'lib32-wayland-protocols' 'wayland-protocols' 'lib32-libxrandr' 'libxrandr' \
 	'systemd>=231-6' 'llvm>=6.0.0' 'lib32-llvm>=6.0.0' 'clang>=6.0.0' 'lib32-clang>=6.0.0')
 archs=('x86_64')
 groups=('x11' 'xorg-core' 'xorg-libs')
@@ -61,8 +55,10 @@ else
 	## on major bumps  -- crazy --
 	source=(https://mesa.freedesktop.org/archive/$pkgname-$pkgver.tar.xz \
 		nouveau_locking.patch \
-		0002-hardware-gloat.patch )
-	signatures=("${source[0]}".sig '' '')
+		0002-hardware-gloat.patch \
+		fix-lib32-build.patch \
+		workaround-swr-building-with-lvm6.patch )
+	signatures=("${source[0]}".sig '' '' '' '')
 fi
 
 subpkgs=('mesa-libgl-headers')
@@ -395,30 +391,6 @@ if Fuse VAAPI; then
 	makedepends+=('lib32-libva>=1.7.1')
 fi
 
-if Fuse WAYLAND_EGL; then
-	subpkgs+=('libwayland-egl')
-	subdescs+=('Mesa Wayland EGL library.')
-	subdepends+=('')
-	subrodepends+=('mesa-libegl')
-	subgroups+=('x11')
-	subarchs+=("${archs[*]}")
-	subbackup+=('')
-	subprovides+=('mesa-libwayland-egl') # hmm ?
-	subreplaces+=('')
-	subconflicts+=('')
-
-	subpkgs+=('lib32-libwayland-egl')
-	subdescs+=('Mesa Wayland EGL library. (32-bit)')
-	subdepends+=('')
-	subrodepends+=('lib32-mesa-libegl')
-	subgroups+=('lib32-extra')
-	subarchs+=("${archs[*]}")
-	subbackup+=('')
-	subprovides+=('lib32-mesa-libwayland-egl') # hmm?
-	subreplaces+=('')
-	subconflicts+=('')
-fi
-
 if Fuse NINE; then
 	subpkgs+=('mesa-nine')
 	subdescs+=('Mesa Support for DirectX 9')
@@ -574,12 +546,6 @@ else
 	Fconfopts+=" --disable-osmesa"
 fi
 
-if Fuse TEXTURE_FLOAT; then
-	Fconfopts+=" --enable-texture-float=yes"
-else
-	Fconfopts+=" --disable-texture-float"
-fi
-
 if Fuse VAAPI; then
 	Fconfopts+=" --enable-va"
 else
@@ -606,9 +572,6 @@ fi
 
 if Fuse EGL; then
 	EGL_PLATFORMS="drm,x11"
-	if Fuse WAYLAND_EGL; then
-		EGL_PLATFORMS+=",wayland"
-	fi
 	Fconfopts+=" --with-platforms=$EGL_PLATFORMS"
 	Fconfopts+=" --enable-egl"
 else
@@ -616,14 +579,7 @@ else
 fi
 
 if Fuse GALLIUM; then
-	GALLIUM_DRIVERS+="i915"
-	GALLIUM_DRIVERS+=",nouveau"
-	GALLIUM_DRIVERS+=",r300,r600,radeonsi"
-	GALLIUM_DRIVERS+=",svga"
-	GALLIUM_DRIVERS+=",swrast"
-	GALLIUM_DRIVERS+=",swr"
-	GALLIUM_DRIVERS+=",virgl"
-	Fconfopts+=" --with-gallium-drivers=$GALLIUM_DRIVERS"
+	Fconfopts+=" --with-gallium-drivers=i915,nouveau,r300,r600,radeonsi,svga,swr,swrast,virgl"
 	Fconfopts+=" --enable-llvm"
 	Fconfopts+=" --with-swr-archs=avx,avx2"
 	if ! Fuse OSMESA; then
@@ -712,9 +668,6 @@ build() {
  	if Fuse OPENCL; then
 		Fsplit lib32-libcl usr/lib32/libMesaOpenCL*
 		Fsplit lib32-mesa-pipe-drivers usr/lib32/gallium-pipe/
-		## SWR is special it is a lib since one could
-		## build 4 backends .. and so we'll have libswr$backend_name.so.*
-		## which gets then loaded at runtime
 		Fsplit lib32-mesa-pipe-drivers usr/lib32/libswr*
 	fi
 
@@ -755,10 +708,6 @@ build() {
 		Fsplit lib32-libxatracker usr/lib32/pkgconfig/xatracker.pc
 	fi
 
-	if Fuse WAYLAND_EGL; then
-		Fsplit lib32-libwayland-egl usr/lib32/libwayland-egl.*
-		Fsplit lib32-libwayland-egl usr/lib32/pkgconfig/wayland-egl.pc
-	fi
 	Fcross32_delete_empty
 
 	# 64-Bit build
@@ -817,9 +766,6 @@ build() {
 	##        Fuse OPENCL ..
 	if Fuse OPENCL; then
 		Fsplit mesa-pipe-drivers usr/lib/gallium-pipe/
-		## SWR is special it is a lib since one could
-		## build 4 backends .. and so we'll have libswr$backend_name.so.*
-		## which gets then loaded at runtime
 		Fsplit mesa-pipe-drivers usr/lib/libswr*
 
 		Fsplit libcl usr/lib/libMesaOpenCL*
@@ -844,10 +790,6 @@ build() {
 		Fsplit mesa-vdpau-drivers usr/lib/vdpau/
 	fi
 
-	if Fuse WAYLAND_EGL; then
-		Fsplit libwayland-egl usr/lib/libwayland-egl.*
-		Fsplit libwayland-egl usr/lib/pkgconfig/wayland-egl.pc
-	fi
 
 	if Fuse NINE; then
 		Fsplit mesa-nine usr/include/d3dadapter/

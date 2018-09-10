@@ -4,20 +4,26 @@
 
 pkgname=cups
 pkgver=2.2.8
-pkgrel=2
+pkgrel=3
 pkgdesc="The CUPS Printing System"
-depends=('avahi>=0.6.31-9' 'libusb1>=1.0.20-5' 'pam')
+depends=('avahi>=0.6.31-9' 'libusb1>=1.0.20-5' 'pam' 'dbus')
 rodepends=('libcups') #'cups-filters')
 makedepends=('xdg-utils' 'hicolor-icon-theme' 'clang>=3.8.1-4' 'lib32-libusb1')
 groups=('xapps')
 archs=("x86_64")
-backup=(etc/cups/{printers.conf,classes.conf,client.conf,cupsd.conf,mime.types,mime.convs})
+## on next major bump ( 2.3.x ) we add cups-files.conf to backup , right now is broken and we need to be sure
+## user/groups are set in that config. Yes yes fix from .install file but no need right now.. - crazy -
+backup=(etc/cups/{printers.conf,classes.conf,client.conf,cupsd.conf,subscriptions.conf,snmp.conf} \
+	usr/share/cups/mime/{mime.types,mime.convs} etc/dbus-1/system.d/cups.conf)
 _F_github_author="apple"
 _F_github_tag_v=y
 Finclude github
+## be-sure-user-and-group-is-enabled.patch cannot be dropped .. we need lp to be enabled ofc.. NOT sure
+## WTH crapple smokes..
 source=(https://github.com/apple/cups/releases/download/v${pkgver}/cups-${pkgver}-source.tar.gz
+	be-sure-user-and-group-is-enabled.patch
 	https://github.com/heftig/cups/commit/455c52a027ab3548953372a0b7bdb0008420e9ba.patch cups)
-signatures=("${source[0]}.sig" '' '')
+signatures=("${source[0]}.sig" '' '' '')
 url="http://www.cups.org/"
 
 provides=('cupsddk')
@@ -29,23 +35,24 @@ subdescs=('Main library of the CUPS printing system.')
 subgroups=('lib')
 subdepends=('gnutls>=3.4.15-2 avahi>=0.6.31-9 pam')
 subarchs=("x86_64")
-suboptions=('')
 
 subpkgs+=("lib32-libcups")
 subdescs+=("Main library of the CUPS printing system. ( 32bit )")
 subdepends+=("lib32-gnutls lib32-avahi lib32-pam")
 subgroups+=('lib32-extra')
 subarchs+=('x86_64')
-suboptions+=('force')
 
-options+=('force' 'noccache')
+options+=('noccache')
 Fconfopts+="	--with-cups-user=lp \
                 --with-cups-group=lp \
                 --with-logdir=/var/log/cups \
                 --with-docdir=/usr/share/cups/doc \
-                --enable-pam \
-                --enable-ssl \
-                --enable-threads"
+		--enable-pam=yes \
+		--enable-raw-printing \
+		--enable-ssl=yes \
+		--enable-threads \
+		--enable-dbus"
+
 Finclude cross32
 
 build() {
@@ -81,6 +88,9 @@ build() {
 
 	# fix perms on /var/spool
 	Fdirchmod 755 var/spool
+
+	## do not ever remove
+	Fexec chgrp -R lp $Fdestdir/etc/cups
 
 	Frm /etc/rc.d
 	Frm /usr/share/cups/{banners,data}/ # Conflicts with cups-filters

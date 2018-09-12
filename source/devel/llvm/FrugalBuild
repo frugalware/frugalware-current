@@ -5,7 +5,7 @@
 
 pkgname=llvm
 pkgver=6.0.1
-pkgrel=1
+pkgrel=2
 gcc_ver=7.3.0
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
@@ -31,6 +31,7 @@ if Fuse DEVEL; then
 else
 	source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.xz \
 		http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.xz \
+		http://llvm.org/releases/$pkgver/clang-tools-extra-$pkgver.src.tar.xz
 		http://llvm.org/releases/$pkgver/libcxx-$pkgver.src.tar.xz \
 		http://llvm.org/releases/$pkgver/libcxxabi-$pkgver.src.tar.xz \
 		http://releases.llvm.org/$pkgver/lld-$pkgver.src.tar.xz)
@@ -38,6 +39,7 @@ else
 	_F_archive_ver="${pkgver}.src"
 sha1sums=('09a6316c5225cab255ba12391e7abe5ff4d28935' \
           'd93d8f3e3d7eb549ac58507383f7fcbdd78804d7' \
+          '0e4077e46dba66f9db17eb55b1e913b44cb19fd3' \
           '6506139683ca5319f90c84c8a29b633afda849ce' \
           '54bff42750c9c81dba60710d6ee70d1c9e83c5af' \
           '2d132743a795292f5e688e5bb1f61c654b4314f4')
@@ -46,7 +48,7 @@ fi
 
 _F_cross32_delete=('usr/docs' 'usr/share' \
 	'usr/lib/ocaml' 'usr/libexec/')
-Finclude cross32
+Finclude cross32 python
 
 subpkgs=("clang")
 subdescs=("C/C++ language family frontend for LLVM")
@@ -146,6 +148,7 @@ build() {
 		Fexec mv -f ../libcxx-${_F_archive_ver}/ projects/libcxx
 		Fexec mv -f ../libcxxabi-${_F_archive_ver}/ projects/libcxxabi
 		Fexec mv -f ../lld-${_F_archive_ver}/ tools/lld
+		Fexec mv -f ../clang-tools-extra-${_F_archive_ver}/ tools/clang/tools/extra
 	fi
 
         Fcross32_prepare
@@ -183,6 +186,9 @@ build() {
         Fsplit lib32-clang usr/i686-frugalware-linux/include/clang*
         Fsplit lib32-clang usr/lib32/clang/
         Fsplit lib32-clang usr/lib32/libclang*
+	Fsplit lib32-clang usr/i686-frugalware-linux/bin/find-all-symbols
+	Fsplit lib32-clang usr/i686-frugalware-linux/bin/modularize
+	Fsplit lib32-clang usr/lib32/libfindAllSymbols.a
 
 	Frm usr/include
 	Fmkdir usr/bin/
@@ -207,11 +213,20 @@ build() {
         Fexec make ocaml_doc
         CMake_install
 
+	## Python bindings
+	Fmkdir ${_F_python_libdir}
+	Fcprel ../tools/clang/bindings/python/clang ${_F_python_libdir}
+	Fexec python -m compileall $Fdestdir/${_F_python_libdir}
+	Fexec python -O -m compileall $Fdestdir/${_F_python_libdir}
+	Fexec python -m compileall $Fdestdir/usr/share
+	Fexec python -O -m compileall $Fdestdir/usr/share
+
 	## libexec stuff
 	Fmkdir usr/lib/$pkgname
 	Fsed 'libexec' 'lib/llvm' $Fdestdir/usr/bin/scan-build
 	Fmv usr/libexec/* usr/lib/llvm/
 	Frm usr/libexec
+
 	# Install man pages
 	Fmkdir usr/share/man/man1
 	Fcp ${_F_cd_path}/docs/_build/man/*.1 usr/share/man/man1/
@@ -236,11 +251,20 @@ build() {
 
 	Fsplit clang usr/bin/clang*
 	Fsplit clang usr/bin/c-index-test
+	Fsplit clang usr/bin/scan-build
+	Fsplit clang usr/bin/scan-view
 	Fsplit clang usr/include/clang*
 	Fsplit clang usr/lib/clang/
 	Fsplit clang usr/lib/libclang*
 	Fsplit clang usr/share/man/man1/clang*
 	Fsplit clang usr/share/doc/$pkgname-$pkgver/html/clang/
+	Fsplit clang usr/bin/find-all-symbols
+	Fsplit clang usr/bin/modularize
+	Fsplit clang usr/lib/libfindAllSymbols.a
+	Fsplit clang usr/lib/python2.7/
+	Fsplit clang usr/share/clang/
+	Fsplit clang usr/share/opt-viewer/
+	Fsplit clang usr/share/scan-view/
 
 	Fsplit $pkgname-ocaml usr/lib/ocaml/
 	Fsplit $pkgname-ocaml usr/lib/cmake/llvm/{Find,Add}OCaml.cmake

@@ -20,6 +20,6 @@
 _F_kdever_frameworks=5.50
 _F_kdever_frameworks_revision=0
 _F_kf5_full="${_F_kdever_frameworks}.${_F_kdever_frameworks_revision}"
-_F_kdever_plasma=5.13.4
+_F_kdever_plasma=5.13.5
 _F_kdever_qt5=5.11.1
 _F_kdever_apps=18.08.0

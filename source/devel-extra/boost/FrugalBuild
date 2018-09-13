@@ -6,14 +6,15 @@
 
 pkgname=boost
 pkgver=1.66.0
-pkgrel=3
+pkgrel=4
 pkgdesc="Boost header files, examples and tools"
 _F_sourceforge_ext=".tar.bz2"
 Finclude sourceforge python
 url="http://boost.org/"
 depends=()
 up2date="lynx -dump http://www.boost.org/users/download/|grep 'Current Release'|tail -n 1 | sed 's/.*]\(.*\) -.*/\1/'"
-makedepends=('python3>=3.6.6' 'python>=2.7.15' 'icu4c>=60.2-2' 'bzip2>=1.0.6-16' 'zlib>=1.2.11-6' 'openssl>=1.0.2-20')
+makedepends=('python3>=3.6.6' 'python>=2.7.15' 'icu4c>=60.2-2' 'bzip2>=1.0.6-16' \
+	'zlib>=1.2.11-6' 'openssl>=1.0.2-20' 'python2-numpy' 'python3-numpy')
 source=(${source/-$pkgver/_${pkgver//./_}})
 groups=('devel-extra')
 archs=('x86_64')
@@ -46,23 +47,34 @@ subarchs+=("x86_64")
 build()
 {
 
-	CXXFLAGS+=" -fPIC -DPIC -Wno-deprecated-declarations -fno-strict-aliasing"
+	CXXFLAGS+=" -fPIC -Wno-deprecated-declarations"
 
 	local JOBS="$(sed -e 's/.*\(-j *[0-9]\+\).*/\1/' <<< ${MAKEFLAGS})"
 
+	Fexec cd $Fsrcdir || Fdie
+	Fexec cp -Ra ${_F_cd_path} ${_F_cd_path}2 || Fdie
 	Fcd
-	Fexec ./bootstrap.sh --with-toolset=gcc --with-icu || Fdie
+	Fpatchall
+	Fexec ./bootstrap.sh --with-toolset=gcc --with-icu --with-python=/usr/bin/python3 || Fdie
 	# Support for OpenMPI
 	echo "using mpi ;" >> project-config.jam
 
-	Fexec ./b2      variant=release \
+
+	## -a and build-dir is *needed* .. for some reason
+	## without the second p bindings you build is broken
+	## while uses wrong py version to build.
+
+	## also -I/.. is neede for now to workaround crap from jam file
+
+	Fexec ./b2 -a --build-dir=$Fsrcdir/python3 \
+		variant=release \
 		debug-symbols=off \
                 threading=multi \
                 runtime-link=shared \
                 link=shared,static \
                 toolset=gcc \
+		python=3.6 \
                 optimization=speed \
-                python=2.7 \
                 -sHAVE_ICU=1 -sICU_PATH=/usr \
                 -sBOOST_ROOT="$Fsrcdir" \
                 -sEXPAT_INCLUDE=/usr/include \
@@ -72,31 +84,31 @@ build()
                 --includedir="$Fdestdir/usr/include" \
                 --libdir="$Fdestdir/usr/lib" \
                 --layout=system \
-                cflags="${CXXFLAGS}" \
+		cflags="${CXXFLAGS} -I/usr/include/python3.6m" \
                 linkflags="${LDFLAGS}" \
+		-d+2 \
                 ${JOBS}  install || Fdie
 
 
-   	# Add an extra python version. This does not replace anything and python 2.x
-   	# need to be the default.
+	Fcd ${_F_cd_path}2
 
-	# Python3 version
-	Fexec sed -e '/using python/ s@;@: /usr/include/python${PYTHON_VERSION/3*/${PYTHON_VERSION}m} ;@' \
-		-i bootstrap.sh || Fdie
+	Fpatchall
+	Fexec ./bootstrap.sh --with-toolset=gcc \
+		--with-icu \
+		--with-python=/usr/bin/python \
+		--with-libraries=python
+	echo "using mpi ;" >> project-config.jam
 
-	Fexec ./bootstrap.sh --with-toolset=gcc --with-icu --with-python=/usr/bin/python3 \
-		-with-libraries=python
-
-	Fexec ./b2 clean || Fdie
-
-	Fexec ./b2 	variant=release \
+	Fexec ./b2 --clean
+	Fexec ./b2 -a --build-dir=$Fsrcdir/python2 \
+		variant=release \
 		debug-symbols=off \
 		threading=multi \
 		runtime-link=shared \
 		link=shared,static \
 		toolset=gcc \
 		optimization=speed \
-		python=3.6 \
+		python=2.7 \
 		-sHAVE_ICU=1 -sICU_PATH=/usr \
 		-sBOOST_ROOT="$Fsrcdir" \
 		-sEXPAT_INCLUDE=/usr/include \
@@ -106,8 +118,9 @@ build()
 		--includedir="$Fdestdir/usr/include" \
 		--libdir="$Fdestdir/usr/lib" \
 		--layout=system \
-		cflags="${CXXFLAGS}" \
+		cflags="${CXXFLAGS} -fno-strict-aliasing -I/usr/include/python2.7" \
 		linkflags="${LDFLAGS}" \
+		-d+2 \
 		${JOBS}  install || Fdie
 
 	#for k3d

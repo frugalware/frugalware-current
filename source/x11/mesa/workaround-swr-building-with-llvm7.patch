@@ -1,0 +1,107 @@
+diff -Naur mesa-18.2.0/src/gallium/drivers/swr/Makefile.am mesa-18.2.0-p/src/gallium/drivers/swr/Makefile.am
+--- mesa-18.2.0/src/gallium/drivers/swr/Makefile.am	2018-09-07 23:18:07.000000000 +0200
++++ mesa-18.2.0-p/src/gallium/drivers/swr/Makefile.am	2018-09-10 15:36:53.456889287 +0200
+@@ -49,7 +49,8 @@
+ # SWR_AVX_CXXFLAGS needed for intrinsic usage in swr api headers
+ libmesaswr_la_CXXFLAGS = \
+ 	$(SWR_AVX_CXXFLAGS) \
+-	$(COMMON_CXXFLAGS)
++	$(COMMON_CXXFLAGS) \
++	-fpermissive
+ 
+ if HAVE_SWR_AVX
+ libmesaswr_la_CXXFLAGS += -DHAVE_SWR_AVX
+--- mesa-18.2.1/src/gallium/drivers/swr/rasterizer/jitter/gen_builder.hpp	2018-09-21 12:58:27.000000000 +0200
++++ mesa-18.2.1.new/src/gallium/drivers/swr/rasterizer/jitter/gen_builder.hpp	2018-09-23 21:48:14.029493537 +0200
+@@ -988,7 +988,7 @@
+ 
+ Value* INVARIANT_GROUP_BARRIER(Value *Ptr)
+ {
+-    return IRB()->CreateInvariantGroupBarrier(Ptr);
++    return IRB()->CreateLaunderInvariantGroup(Ptr);
+ }
+ 
+ Value* VECTOR_SPLAT(unsigned NumElts, Value *V, const Twine &Name = "")
+diff --git a/src/gallium/drivers/swr/rasterizer/jitter/blend_jit.cpp b/src/gallium/drivers/swr/rasterizer/jitter/blend_jit.cpp
+index f89c502db7..d5328c8e4e 100644
+--- a/src/gallium/drivers/swr/rasterizer/jitter/blend_jit.cpp
++++ b/src/gallium/drivers/swr/rasterizer/jitter/blend_jit.cpp
+@@ -870,7 +870,6 @@ struct BlendJit : public Builder
+         passes.add(createCFGSimplificationPass());
+         passes.add(createEarlyCSEPass());
+         passes.add(createInstructionCombiningPass());
+-        passes.add(createInstructionSimplifierPass());
+         passes.add(createConstantPropagationPass());
+         passes.add(createSCCPPass());
+         passes.add(createAggressiveDCEPass());
+diff --git a/src/gallium/drivers/swr/rasterizer/jitter/fetch_jit.cpp b/src/gallium/drivers/swr/rasterizer/jitter/fetch_jit.cpp
+index b4d326ebdc..3ad0fabe81 100644
+--- a/src/gallium/drivers/swr/rasterizer/jitter/fetch_jit.cpp
++++ b/src/gallium/drivers/swr/rasterizer/jitter/fetch_jit.cpp
+@@ -294,7 +294,6 @@ Function* FetchJit::Create(const FETCH_COMPILE_STATE& fetchState)
+     optPasses.add(createCFGSimplificationPass());
+     optPasses.add(createEarlyCSEPass());
+     optPasses.add(createInstructionCombiningPass());
+-    optPasses.add(createInstructionSimplifierPass());
+     optPasses.add(createConstantPropagationPass());
+     optPasses.add(createSCCPPass());
+     optPasses.add(createAggressiveDCEPass());
+diff --git a/src/gallium/drivers/swr/rasterizer/jitter/streamout_jit.cpp b/src/gallium/drivers/swr/rasterizer/jitter/streamout_jit.cpp
+index 8f86af2a4b..11ad36521b 100644
+--- a/src/gallium/drivers/swr/rasterizer/jitter/streamout_jit.cpp
++++ b/src/gallium/drivers/swr/rasterizer/jitter/streamout_jit.cpp
+@@ -306,7 +306,6 @@ struct StreamOutJit : public Builder
+         passes.add(createCFGSimplificationPass());
+         passes.add(createEarlyCSEPass());
+         passes.add(createInstructionCombiningPass());
+-        passes.add(createInstructionSimplifierPass());
+         passes.add(createConstantPropagationPass());
+         passes.add(createSCCPPass());
+         passes.add(createAggressiveDCEPass());
+diff --git a/src/gallium/drivers/swr/rasterizer/codegen/gen_llvm_ir_macros.py b/src/gallium/drivers/swr/rasterizer/codegen/gen_llvm_ir_macros.py
+index 2e7f1a88a0..9b20dc2c49 100644
+--- a/src/gallium/drivers/swr/rasterizer/codegen/gen_llvm_ir_macros.py
++++ b/src/gallium/drivers/swr/rasterizer/codegen/gen_llvm_ir_macros.py
+@@ -57,7 +57,6 @@ intrinsics = [
+     ['VHSUBPS',     ['a', 'b'], 'a'],
+     ['VPTESTC',     ['a', 'b'], 'mInt32Ty'],
+     ['VPTESTZ',     ['a', 'b'], 'mInt32Ty'],
+-    ['VFMADDPS',    ['a', 'b', 'c'], 'a'],
+     ['VPHADDD',     ['a', 'b'], 'a'],
+     ['PDEP32',      ['a', 'b'], 'a'],
+     ['RDTSC',       [], 'mInt64Ty'],
+diff --git a/src/gallium/drivers/swr/rasterizer/jitter/builder_misc.cpp b/src/gallium/drivers/swr/rasterizer/jitter/builder_misc.cpp
+index 4116dad443..50375f41f2 100644
+--- a/src/gallium/drivers/swr/rasterizer/jitter/builder_misc.cpp
++++ b/src/gallium/drivers/swr/rasterizer/jitter/builder_misc.cpp
+@@ -754,17 +754,7 @@ namespace SwrJit
+ 
+     Value* Builder::FMADDPS(Value* a, Value* b, Value* c)
+     {
+-        Value* vOut;
+-        // use FMADs if available
+-        if (JM()->mArch.AVX2())
+-        {
+-            vOut = VFMADDPS(a, b, c);
+-        }
+-        else
+-        {
+-            vOut = FADD(FMUL(a, b), c);
+-        }
+-        return vOut;
++        return FADD(FMUL(a, b), c); // llvm automatically optimizes this to VFMADDPS
+     }
+ 
+     //////////////////////////////////////////////////////////////////////////
+diff --git a/src/gallium/drivers/swr/rasterizer/jitter/functionpasses/lower_x86.cpp b/src/gallium/drivers/swr/rasterizer/jitter/functionpasses/lower_x86.cpp
+index 7605823c04..c34959d35e 100644
+--- a/src/gallium/drivers/swr/rasterizer/jitter/functionpasses/lower_x86.cpp
++++ b/src/gallium/drivers/swr/rasterizer/jitter/functionpasses/lower_x86.cpp
+@@ -76,7 +76,6 @@ namespace SwrJit
+         {"meta.intrinsic.VCVTPS2PH", Intrinsic::x86_vcvtps2ph_256},
+         {"meta.intrinsic.VPTESTC", Intrinsic::x86_avx_ptestc_256},
+         {"meta.intrinsic.VPTESTZ", Intrinsic::x86_avx_ptestz_256},
+-        {"meta.intrinsic.VFMADDPS", Intrinsic::x86_fma_vfmadd_ps_256},
+         {"meta.intrinsic.VPHADDD", Intrinsic::x86_avx2_phadd_d},
+         {"meta.intrinsic.PDEP32", Intrinsic::x86_bmi_pdep_32},
+         {"meta.intrinsic.RDTSC", Intrinsic::x86_rdtsc},

@@ -4,7 +4,7 @@
 
 pkgname=php
 pkgver=5.6.38
-pkgrel=2
+pkgrel=3
 pkgdesc="A widely-used general-purpose scripting language"
 url="http://www.php.net"
 backup=(etc/{php.ini,httpd/conf/modules.d/$pkgname.conf})
@@ -32,6 +32,15 @@ subdescs=("CGI binary for php and its libs.")
 subrodepends=("$pkgname=$pkgver")
 subgroups=('devel-extra')
 subarchs=("x86_64")
+subbackup=('')
+
+subpkgs+=("$pkgname-fpm")
+suboptions+=('nodocs') ## its depends on PHP and the same files are installed etc
+subdescs+=("FastCGI Process Manager for PHP.")
+subrodepends+=("$pkgname=$pkgver systemd") ## oh oh oh
+subgroups+=('devel-extra')
+subarchs+=("x86_64")
+subbackup+=("etc/php//php-fpm.conf etc/php/php-fpm.d/www.conf")
 
 replaces=('php-pecl-fileinfo')
 conflicts=('php-pecl-fileinfo')
@@ -122,29 +131,53 @@ build()
 		--enable-cgi \
 		--enable-discard-path \
 		--enable-force-cgi-redirect
-	make ${JOBS} || Fdie
-	make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php PEAR_INSTALLDIR=/usr/share/pear install || Fdie
+	Fexec make ${JOBS} || Fdie
+	Fexec make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php PEAR_INSTALLDIR=/usr/share/pear install || Fdie
 	## remove stuff is in php
-	Fcd $Fdestdir
+	#Fcd $Fdestdir
 	Frm etc ./{.registry,.channels,.depdb*,.lock,.file*} usr/{include,share,lib,man} usr/php/man
 	Frm usr/bin/{phpize,php-config,pecl,pear*,php,phar*}
-
-	## yeah mv because Fdoc will not work
-	## and if I don't move it it will be installed in PHP build as well =)
 	Fmkdir usr/share/doc/$pkgname-cgi-$pkgver
-	mv -f $Fsrcdir/README.Frugalware $Fdestdir/usr/share/doc/$pkgname-cgi-$pkgver/
-	## split it
+	Fexec mv -f $Fsrcdir/README.Frugalware $Fdestdir/usr/share/doc/$pkgname-cgi-$pkgver/ || Fdie
 	Fsplit $pkgname-cgi /usr
+	## PHP-FPM
+	Fmessage "Building PHP-FPM.."
+	Fexec make distclean || Fdie
+	sh buildconf --force || Fdie
+	Fconf \
+		${phpconfig} \
+		--enable-fpm \
+		--with-fpm-user=nobody \
+		--with-fpm-group=nobody \
+		--with-fpm-systemd \
+		--with-fpm-acl \
+		--enable-embed=shared
+
+	Fexec make ${JOBS} || Fdie
+	Fexec make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php PEAR_INSTALLDIR=/usr/share/pear install || Fdie
+	Frm  ./{.registry,.channels,.depdb*,.lock,.file*} usr/{include,share,lib,man,bin,php} usr/php/man
+	Frm usr/bin/{phpize,php-config,pecl,pear*,php,phar*}
+	Finstallrel 0644 sapi/fpm/php-fpm.service lib/systemd/system/php-fpm.service
+	Finstallrel 0644 sapi/fpm/www.conf.in etc/php/php-fpm.d/www.conf
+	Finstallrel 0644 sapi/fpm/php-fpm.conf etc/php/php-fpm.conf
+	Finstallrel 0644 sapi/fpm/php-fpm.8 usr/share/man/man8/php-fpm.8
+	Finstallrel 0644 sapi/fpm/status.html usr/share/php/fpm/status.html
+	Frm etc/php-fpm.conf.default
+	Frm etc/{httpd,php.ini,pear.conf}
+	Fmkdir usr/share/doc/$pkgname-fpm-$pkgver
+	mv -f $Fsrcdir/README.Frugalware $Fdestdir/usr/share/doc/$pkgname-fpm-$pkgver/
+	## split it
+	Fsplit $pkgname-fpm /usr
 	## PHP build
 	# clean
 	Fmessage "Building PHP ..."
-	make distclean || Fdie
+	Fexec make distclean || Fdie
 	sh buildconf --force || Fdie
 	Fconf ${phpconfig} --with-apxs2 --with-readline
 	make ${JOBS} || Fdie
 	Fmkdir usr/lib/apache
 	Fsed "-i -a -n php5" "-i -n php5" Makefile
-	make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php PEAR_INSTALLDIR=/usr/share/pear install || Fdie
+	Fexec make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php PEAR_INSTALLDIR=/usr/share/pear install || Fdie
 	Fsed "$Fdestdir" "" $Fdestdir/usr/{bin/pear,share/pear/pearcmd.php}
 	Ffile /etc/httpd/conf/modules.d/$pkgname.conf
 	Ffile /etc/php.ini

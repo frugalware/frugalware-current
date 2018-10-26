@@ -1,0 +1,112 @@
+diff -Naur imap-2007f/Makefile imap-2007f-p/Makefile
+--- imap-2007f/Makefile	2011-07-23 02:20:21.000000000 +0200
++++ imap-2007f-p/Makefile	2018-10-24 18:27:47.671353125 +0200
+@@ -294,7 +294,7 @@
+ 
+ # Make the IMAP Toolkit
+ 
+-all:	c-client SPECIALS rebuild bundled
++all:	c-client SPECIALS rebuild
+ 
+ c-client:
+ 	@echo Not processed yet.  In a first-time build, you must specify
+@@ -669,16 +669,9 @@
+ 	$(TOOLS)/$@ "$(LN)" src/ansilib c-client
+ 	$(TOOLS)/$@ "$(LN)" src/charset c-client
+ 	$(TOOLS)/$@ "$(LN)" src/osdep/$(SYSTEM) c-client
+-	$(TOOLS)/$@ "$(LN)" src/mtest mtest
+-	$(TOOLS)/$@ "$(LN)" src/ipopd ipopd
+-	$(TOOLS)/$@ "$(LN)" src/imapd imapd
+-	$(TOOLS)/$@ "$(LN)" src/mailutil mailutil
+-	$(TOOLS)/$@ "$(LN)" src/mlock mlock
+-	$(TOOLS)/$@ "$(LN)" src/dmail dmail
+-	$(TOOLS)/$@ "$(LN)" src/tmail tmail
+ 	$(LN) $(TOOLS)/$@ .
+ 
+-build:	OSTYPE rebuild rebuildclean bundled
++build:	OSTYPE rebuild rebuildclean
+ 
+ OSTYPE:
+ 	@$(MAKE) ip$(IP)
+@@ -694,8 +687,6 @@
+ 	echo $(BUILDTYPE) > OSTYPE
+ 	$(TOUCH) rebuild
+ 
+-rebuild:
+-	@$(SH) -c '(test $(BUILDTYPE) = rebuild -o $(BUILDTYPE) = `$(CAT) OSTYPE`) || (echo Already built for `$(CAT) OSTYPE` -- you must do \"make clean\" first && exit 1)'
+ 	@echo Rebuilding c-client for `$(CAT) OSTYPE`...
+ 	@$(TOUCH) SPECIALS
+ 	$(CD) c-client;$(MAKE) all CC=`$(CAT) CCTYPE` \
+@@ -704,28 +695,6 @@
+ rebuildclean:
+ 	$(SH) -c '$(RM) rebuild || true'
+ 
+-bundled:
+-	@echo Building bundled tools...
+-	$(CD) mtest;$(MAKE)
+-	$(CD) ipopd;$(MAKE)
+-	$(CD) imapd;$(MAKE)
+-	$(CD) mailutil;$(MAKE)
+-	@$(SH) -c '(test -f /usr/include/sysexits.h ) || make sysexitwarn'
+-	$(CD) mlock;$(MAKE) || true
+-	$(CD) dmail;$(MAKE) || true
+-	$(CD) tmail;$(MAKE) || true
+-
+-
+-sysexitwarn:
+-	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+-	@echo + Hmm...it does not look like /usr/include/sysexits.h exists.
+-	@echo + Either your system is too ancient to have the sysexits.h
+-	@echo + include, or your C compiler gets it from some other location
+-	@echo + than /usr/include.  If your system is too old to have the
+-	@echo + sysexits.h include, you will not be able to build the
+-	@echo + following programs.
+-	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+-
+ clean:
+ 	@echo Removing old processed sources and binaries...
+ 	$(SH) -c '$(RM) an ua OSTYPE SPECIALS c-client mtest imapd ipopd mailutil mlock dmail tmail || true'
+diff -Naur imap-2007f/src/osdep/unix/Makefile imap-2007f-p/src/osdep/unix/Makefile
+--- imap-2007f/src/osdep/unix/Makefile	2011-07-23 02:20:10.000000000 +0200
++++ imap-2007f-p/src/osdep/unix/Makefile	2018-10-24 18:34:10.765149908 +0200
+@@ -54,8 +54,8 @@
+ 
+ # Extended flags needed for SSL.  You may need to modify.
+ 
+-SSLDIR=/usr/local/ssl
+-SSLCERTS=$(SSLDIR)/certs
++SSLDIR=/usr
++SSLCERTS=/etc/ssl/certs
+ SSLKEYS=$(SSLCERTS)
+ SSLINCLUDE=$(SSLDIR)/include
+ SSLLIB=$(SSLDIR)/lib
+@@ -962,21 +962,25 @@
+ 
+ # Once-only environment setup
+ 
+-once:	onceenv ckp$(PASSWDTYPE) ssl$(SSLTYPE) osdep.c
++once:	ssl$(SSLTYPE) onceenv ckp$(PASSWDTYPE) osdep.c
+ 
+ onceenv:
+ 	@echo Once-only environment setup...
+ 	echo $(CC) > CCTYPE
+-	echo $(BASECFLAGS) '$(EXTRACFLAGS)' -DCHUNKSIZE=$(CHUNKSIZE) > CFLAGS
+-	echo -DCREATEPROTO=$(CREATEPROTO) -DEMPTYPROTO=$(EMPTYPROTO) \
++	echo `$(CAT) CFLAGS` $(BASECFLAGS) '$(EXTRACFLAGS)' -DCHUNKSIZE=$(CHUNKSIZE) > CFLAGS
++	echo `$(CAT) OSCFLAGS` -DCREATEPROTO=$(CREATEPROTO) -DEMPTYPROTO=$(EMPTYPROTO) \
+ 	 -DMD5ENABLE=\"$(MD5PWD)\" -DMAILSPOOL=\"$(MAILSPOOL)\" \
+ 	 -DANONYMOUSHOME=\"$(MAILSPOOL)/anonymous\" \
+ 	 -DACTIVEFILE=\"$(ACTIVEFILE)\" -DNEWSSPOOL=\"$(NEWSSPOOL)\" \
+ 	 -DRSHPATH=\"$(RSHPATH)\" -DLOCKPGM=\"$(LOCKPGM)\" \
+ 	 -DLOCKPGM1=\"$(LOCKPGM1)\" -DLOCKPGM2=\"$(LOCKPGM2)\" \
+ 	 -DLOCKPGM3=\"$(LOCKPGM3)\" > OSCFLAGS
+-	echo $(BASELDFLAGS) $(EXTRALDFLAGS) > LDFLAGS
++	echo $(EXTRALIBS) `$(CAT) LDFLAGS` > LIBS
++	echo $(EXTRALDFLAGS) `$(CAT) LDFLAGS` -lcrypt $(BASELDFLAGS) > LDFLAGS
+ 	echo "$(ARRC) $(ARCHIVE) $(BINARIES);$(RANLIB) $(ARCHIVE)" > ARCHIVE
++	echo "`$(CAT) CCTYPE` `$(CAT) CFLAGS` $(EXTRALDFLAGS) `$(CAT) OSFLAGS` -shared \
++	 -Wl,-soname,libc-client.so.1 -o libc-client.so.1.0.0 $(BINARIES)" `$(CAT) LIBS` $(BASELDFLAGS) \
++	 >> ARCHIVE
+ 	echo $(OS) > OSTYPE
+ 	./drivers $(EXTRADRIVERS) $(DEFAULTDRIVERS) dummy
+ 	./mkauths $(EXTRAAUTHENTICATORS) $(DEFAULTAUTHENTICATORS)

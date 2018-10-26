@@ -4,13 +4,13 @@
 
 pkgname=php
 pkgver=5.6.38
-pkgrel=5
+pkgrel=7
 pkgdesc="A widely-used general-purpose scripting language"
 url="http://www.php.net"
 backup=(etc/{php.ini,httpd/conf/modules.d/$pkgname.conf})
-depends=('openssl>=1.0.0' 'libjpeg-turbo' 'freetype2>=2.3.1' 'libpng>=1.6.20' 'gdbm>=1.15' 'curl>=7.19.0' 'libxml2' 'libmcrypt' \
-	'libidn>=1.30' 'libmariadbclient' 'libpq>=8.4.0' 'sqlite3' 're2c' 'zlib' 'ncurses>=6.0-3' 'readline>=6.3-6' 'libxslt')
-makedepends=('apache>=2.4.35' 'bzip2' 'tidy>=5.6.0' 'freetds' 'mariadb' \
+depends=('openssl>=1.0.0' 'libjpeg-turbo' 'db' 'freetype2>=2.3.1' 'libpng>=1.6.20' 'gdbm>=1.15' 'curl>=7.19.0' 'libxml2' 'libmcrypt' \
+	'libidn>=1.30' 'libmariadbclient' 'libpq>=8.4.0' 'sqlite3' 're2c' 'zlib' 'ncurses>=6.0-3' 'readline>=6.3-6' 'libxslt' 'c-client')
+makedepends=('apache>=2.4.35' 'bzip2' 'tidy>=5.6.0' 'freetds' 'mariadb' 'krb5' \
 	'postgresql>=8.4.0' 'openldap>=2.4.22-2' 'libldap>=2.4.16' 'unixodbc' \
 	'mhash' 'gmp>=5.0.1' 'icu4c>=60.1' 'aspell' 'libxslt' 'enchant1')
 groups=('devel')
@@ -18,14 +18,16 @@ archs=("x86_64")
 up2date="lynx -dump $url/downloads.php | grep -m1 'php-5.6.*' | sed 's/.*php-\(.*\).tar.* .*/\1/'"
 source=(http://www.php.net/distributions/$pkgname-$pkgver.tar.xz \
 	php.ini php.conf README.Frugalware phpize.in.patch fpm-service.patch \
-	https://gitweb.gentoo.org/repo/gentoo.git/plain/dev-lang/php/files/php-freetype-2.9.1.patch)
+	https://gitweb.gentoo.org/repo/gentoo.git/plain/dev-lang/php/files/php-freetype-2.9.1.patch \
+	php-5.5.6-db-6.0.patch)
 sha1sums=('35d737db0ab83b6925b5e9fa365888d9287e789c' \
           'e2570373192e6b9b63cc7aa128297fa185592e6a' \
           '0850ef23512a02e8460dc36f08f453d148dcd9df' \
           '40ae88f0721e02a2c75de76be342c51c85bf734d' \
           '4c598e1c8683518090f7a0e9fef01c57593137c8' \
           'd9e819581cf803c4e0756b4b7372c55737fa7a62' \
-          'ef5094e8724beb883ab69d29d308d4b61ee774f9')
+          'ef5094e8724beb883ab69d29d308d4b61ee774f9' \
+          '857941c377083fb38f23b535867a009816e636ac')
 
 subpkgs=("$pkgname-cgi")
 suboptions=('nodocs') ## its depends on PHP and the same files are installed etc
@@ -43,6 +45,14 @@ subgroups+=('devel-extra')
 subarchs+=("x86_64")
 subbackup+=("etc/php//php-fpm.conf etc/php/php-fpm.d/www.conf")
 
+subpkgs+=("$pkgname-embed")
+suboptions+=('nodocs') ## its depends on PHP and the same files are installed etc
+subdescs+=("Embedded PHP SAPI library")
+subrodepends+=("$pkgname=$pkgver pcre openssl libxml2")
+subgroups+=('devel-extra')
+subarchs+=("x86_64")
+subbackup+=('')
+
 replaces=('php-pecl-fileinfo')
 conflicts=('php-pecl-fileinfo')
 provides=('php-pecl-fileinfo')
@@ -50,7 +60,7 @@ provides=('php-pecl-fileinfo')
 build()
 {
 	## the php config
-	phpconfig="--with-config-file-path=/etc \
+	phpconfig=" --with-config-file-path=/etc \
 		--enable-bcmath=shared \
 		--enable-calendar=shared \
 		--enable-ftp=shared \
@@ -85,6 +95,7 @@ build()
 		--with-gdbm=shared \
 		--with-jpeg-dir=/usr \
 		--with-mcrypt=shared,/usr \
+		--with-kerberos=shared,/usr \
 		--with-mysql=shared,/usr \
 		--with-mysql-sock=/var/run/mysql/mysqld.sock \
 		--with-openssl \
@@ -93,12 +104,13 @@ build()
 		--with-png-dir=/usr \
 		--with-regex=php \
 		--with-zlib \
-		--with-xsl \
+		--with-xsl=shared,/usr \
+		--with-readline=/usr \
 		--with-pgsql=shared \
 		--with-mysqli \
 		--with-curl=/usr \
 		--with-curl=shared \
-		--with-xmlrpc \
+		--with-xmlrpc=shared \
 		--with-tidy \
 		--with-tidy=shared \
 		--with-ldap=shared \
@@ -109,83 +121,73 @@ build()
 		--with-icu-dir=/usr \
 		--with-pspell=shared \
 		--with-xsl=shared \
+		--with-imap=shared,/usr \
+		--with-imap-ssl=shared,/usr \
+		--with-db4=/usr \
 		--with-enchant=shared,/usr \
 		--with-mhash=shared,/usr"
 
-	## this is true for both
-	# OK make install does not really like SMP and random dies so ..
-	JOBS="$MAKEFLAGS"
-	unset MAKEFLAGS
+	## DO NOT REMOVE mod line
+	export EXTENSION_DIR=/usr/lib/php
 	export CC="gcc"
 	export CXX="g++"
+	CFLAGS+=" -DU_USING_ICU_NAMESPACE=1 -fPIC -fno-strict-aliasing"
+	CXXFLAGS+=" -DU_USING_ICU_NAMESPACE=1 -fPIC -fno-strict-aliasing"
 	Fcd
 	Fpatchall
 	# see http://bugs.gentoo.org/show_bug.cgi?id=217392
 	sed -re 's:(#ifdef HAVE_CONFIG_H.*):#define _GNU_SOURCE\n\1:' -i ext/posix/posix.c
 	## PHP-CGI first
-	Fmessage "Building PHP-CGI.."
-        sh buildconf --force || Fdie
-	## do we really need this ? --disable-all ..
-        Fconf \
+	Fmessage "Building PHP CGI, FPM, EMBED.."
+	Fexec rm -rf autom4te.cache configure || Fdie
+        Fexec ./buildconf --force || Fdie
+        Fmake \
 		${phpconfig} \
 		--enable-fastcgi \
 		--enable-cgi \
-		--enable-discard-path \
-		--enable-force-cgi-redirect
-	Fexec make ${JOBS} || Fdie
-	Fexec make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php PEAR_INSTALLDIR=/usr/share/pear install || Fdie
-	## remove stuff is in php
-	#Fcd $Fdestdir
-	Frm etc ./{.registry,.channels,.depdb*,.lock,.file*} usr/{include,share,lib,man} usr/php/man
-	Frm usr/bin/{phpize,php-config,pecl,pear*,php,phar*}
-	Fmkdir usr/share/doc/$pkgname-cgi-$pkgver
-	Fexec mv -f $Fsrcdir/README.Frugalware $Fdestdir/usr/share/doc/$pkgname-cgi-$pkgver/ || Fdie
-	Fsplit $pkgname-cgi /usr
-	## PHP-FPM
-	Fmessage "Building PHP-FPM.."
-	Fexec make distclean || Fdie
-	sh buildconf --force || Fdie
-	Fconf \
-		${phpconfig} \
 		--enable-fpm \
 		--with-fpm-user=nobody \
 		--with-fpm-group=nobody \
 		--with-fpm-systemd \
 		--with-fpm-acl \
 		--enable-embed=shared
-
-	Fexec make ${JOBS} || Fdie
-	Fexec make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php PEAR_INSTALLDIR=/usr/share/pear install || Fdie
-	Frm  ./{.registry,.channels,.depdb*,.lock,.file*} usr/{include,share,lib,man,bin,php} usr/php/man
-	Frm usr/bin/{phpize,php-config,pecl,pear*,php,phar*}
+	## -FPM
+	Fexec make -j1 INSTALL_ROOT=$Fdestdir install-fpm || Fdie
 	Finstallrel 0644 sapi/fpm/php-fpm.service lib/systemd/system/php-fpm.service
 	Finstallrel 0644 sapi/fpm/www.conf.in etc/php/php-fpm.d/www.conf
 	Finstallrel 0644 sapi/fpm/php-fpm.conf etc/php/php-fpm.conf
 	Finstallrel 0644 sapi/fpm/php-fpm.8 usr/share/man/man8/php-fpm.8
 	Finstallrel 0644 sapi/fpm/status.html usr/share/php/fpm/status.html
 	Frm etc/php-fpm.conf.default
-	Frm etc/{httpd,php.ini,pear.conf}
-	Fmkdir usr/share/doc/$pkgname-fpm-$pkgver
-	mv -f $Fsrcdir/README.Frugalware $Fdestdir/usr/share/doc/$pkgname-fpm-$pkgver/
-	## split it
+	Frm usr/php
 	Fsplit $pkgname-fpm  /\*
-	## PHP build
-	# clean
-	Fmessage "Building PHP ..."
-	Fexec make distclean || Fdie
-	sh buildconf --force || Fdie
-	Fconf ${phpconfig} --with-apxs2 --with-readline
-	make ${JOBS} || Fdie
-	Fmkdir usr/lib/apache
-	Fsed "-i -a -n php5" "-i -n php5" Makefile
-	Fexec make INSTALL_ROOT=$Fdestdir EXTENSION_DIR=/usr/lib/php PEAR_INSTALLDIR=/usr/share/pear install || Fdie
-	Fsed "$Fdestdir" "" $Fdestdir/usr/{bin/pear,share/pear/pearcmd.php}
-	Ffile /etc/httpd/conf/modules.d/$pkgname.conf
+
+	## -CGI
+	Fexec make -j1 INSTALL_ROOT=$Fdestdir install-cgi || Fdie
+	Fsplit $pkgname-cgi /\*
+
+	## -EMDED
+	Fexec make -j1 INSTALL_ROOT=$Fdestdir PHP_SAPI=embed install-sapi || Fdie
+	Fsplit $pkgname-embed /\*
+
+	## -MAIN
+	Fexec make -j1 INSTALL_ROOT=$Fdestdir install-{modules,cli,build,headers,programs,pharcmd,pear} || Fdie
 	Ffile /etc/php.ini
 	Fln /etc/php.ini /usr/lib/php.ini
 	Fln /usr/share/libtool/config/ltmain.sh /usr/lib/php/build/ltmain.sh
 	Fln /usr/share/aclocal/libtool.m4 /usr/lib/php/build/libtool.m4
-	Frm /usr/bin/php-cgi
+	Fsed "$Fdestdir" "" $Fdestdir/usr/{bin/pear,share/pear/pearcmd.php}
+
+	## PHP Apache ( MAIN too for 5.x ..)
+	Fmessage "Building PHP Indianer mod..."
+	Fexec make distclean || Fdie
+	Fexec rm -rf autom4te.cache configure || Fdie
+	Fexec ./buildconf --force || Fdie
+	Fmake ${phpconfig} --with-apxs2
+	Ffile /etc/httpd/conf/modules.d/$pkgname.conf
+	Finstallrel 0755 libs/libphp5.so usr/lib/apache/libphp5.so
+
+	## clean junk
 	Frm /.[a-z]* ## lol
 }
 

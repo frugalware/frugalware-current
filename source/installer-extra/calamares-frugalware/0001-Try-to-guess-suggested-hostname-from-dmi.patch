@@ -1,0 +1,56 @@
+From 81f27f5e041b2aac513e5bceea9f424c991634f1 Mon Sep 17 00:00:00 2001
+From: Gabriel Craciunescu <crazy@frugalware.org>
+Date: Thu, 2 Nov 2017 16:35:53 +0100
+Subject: [PATCH] Try to guess suggested hostname from dmi
+
+- nothing compicated for now , just try to get something
+  from /sys/devices/virtual/dmi/id/product_name and fallback
+  to -pc thigy
+---
+ src/modules/users/UsersPage.cpp | 23 ++++++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/src/modules/users/UsersPage.cpp b/src/modules/users/UsersPage.cpp
+index 04b851cf9..99d2dd175 100644
+--- a/src/modules/users/UsersPage.cpp
++++ b/src/modules/users/UsersPage.cpp
+@@ -33,6 +33,7 @@
+ #include "utils/Retranslator.h"
+ 
+ #include <QBoxLayout>
++#include <QFile>
+ #include <QLabel>
+ #include <QLineEdit>
+ #include <QRegExp>
+@@ -249,7 +250,27 @@ UsersPage::fillSuggestions()
+     {
+         if ( !cleanParts.isEmpty() && !cleanParts.first().isEmpty() )
+         {
+-            QString hostnameSuggestion = QString( "%1-pc" ).arg( cleanParts.first() );
++
++            QString dmiProductName;
++            QString hostnameSuggestion;
++            // yes validateHostnameText() but these files sometimes have a lot crap in it
++            QRegExp dmirx( "[^a-zA-Z0-9]", Qt::CaseInsensitive );
++            QFile dmiFile( QStringLiteral( "/sys/devices/virtual/dmi/id/product_name" ) );
++
++            if ( dmiFile.exists() &&
++                 dmiFile.open(QIODevice::ReadOnly))
++            {
++                dmiProductName = QString::fromLocal8Bit( dmiFile.readAll().simplified().data() )
++                                 .toLower().replace(dmirx, " ").remove(' ');
++            }
++            if ( !dmiProductName.isEmpty() )
++            {
++                hostnameSuggestion = QString( "%1-%2" ).arg( cleanParts.first() ).arg( dmiProductName );
++            }
++            else
++            {
++               hostnameSuggestion = QString( "%1-pc" ).arg( cleanParts.first() );
++            }
+             if ( HOSTNAME_RX.indexIn( hostnameSuggestion ) != -1 )
+             {
+                 ui->textBoxHostname->setText( hostnameSuggestion );
+-- 
+2.19.1
+

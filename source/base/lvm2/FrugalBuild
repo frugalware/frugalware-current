@@ -2,27 +2,32 @@
 # Maintainer: James Buren <ryuo@frugalware.org>
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
+
+## WARING: always check local whatever services/socket files chaged
+##         NEVER drop fix-service-files.patch but re-diff
+## Also we need be sure to 'always force lvmetad stuff to 0 for all 2.03*++ versions
+
 pkgname=lvm2
 _F_archive_name="LVM2"
 Fpkgversep="."
 pkgver=2.03.01
-pkgrel=1
+pkgrel=2
 pkgdesc="Logical Volume Manager 2 utilities"
 url="http://sources.redhat.com/lvm2/"
 rodepends=("$pkgname-libs")
 depends=('libsystemd>=231-22' 'readline>=7.0-3' 'ncurses>=6.1' 'libblkid>=2.31.1-3' 'thin-provisioning-tools>=0.7.5-2')
-backup=(etc/lvm/lvm.conf)
+makedepends=('systemd')
+backup=('etc/lvm/lvm.conf')
 groups=('base')
 archs=('x86_64')
 _F_archive_grepv="-rc"
 up2date="Flastarchive http://mirrors.kernel.org/sourceware/lvm2/ .tgz"
-source=(http://mirrors.kernel.org/sourceware/lvm2/${_F_archive_name}.$pkgver.tgz lvm.service README.Frugalware)
-#signatures=($source.asc '' '')
+source=(http://mirrors.kernel.org/sourceware/lvm2/${_F_archive_name}.$pkgver.tgz \
+	fix-service-files.patch README.Frugalware 11-lvm2.conf)
 sha1sums=('fcf9480a9988df50eb8e18ed58113f5cd396e3b4' \
-          '09d747449f89e521b38b618820e033f4c2f1bc47' \
-          'e37d0434fd92a964fdc6fdb8054805a22871d368')
-_F_systemd_units=(lvm=e)
-Finclude systemd
+          '76efebd70c04bb87afba0a95452af0d838e48990' \
+          'e37d0434fd92a964fdc6fdb8054805a22871d368' \
+          '69c67b40d9ad48d8973bd8382fa6c93fbc7faec7')
 
 # Needed to avoid recursive depends between this and systemd.
 subpkgs=("$pkgname-libs")
@@ -32,20 +37,24 @@ subgroups=("${groups[*]} core") ## that makes it depends itself!!!
 subdepends=('libblkid>=2.31.1-3') ## libsystemd>=224-9
 subrodepends=('libgudev>=230-7')
 
+## fix me lockd?
 Fconfopts+="	--enable-cmdlib \
 		--enable-pkgconfig \
 		--with-udevdir=/lib/udev/rules.d \
 		--enable-udev_sync \
 		--enable-udev_rules \
+		--enable-notify-dbus \
+		--enable-dmfilemapd \
 		--enable-dmeventd \
 		--enable-lvmpolld \
 		--enable-readline \
+		--disable-selinux \
 		--with-cache=internal \
 		--with-thin=internal \
 		--with-systemdsystemunitdir=/lib/systemd/system \
 		--sbindir=/sbin \
 		--enable-udev-systemd-background-jobs \
-		-with-default-dm-run-dir=/run \
+		--with-default-dm-run-dir=/run \
 		--with-default-locking-dir=/run/lock/lvm \
 		--with-default-pid-dir=/run \
 		--with-default-run-dir=/run/lvm \
@@ -55,17 +64,23 @@ build()
 {
 	export PATH="/usr/sbin:$PATH"
 	Fcd LVM2.$pkgver
-	Fsed "use_lvmetad = @DEFAULT_USE_LVMETAD@" "use_lvmetad = 1" conf/example.conf.in
+	## disable , we use new way ( at least as long we have systemd here )
+	## NOTE: that depends on install_systemd_generators
+	## NOTE2: *03.*++ versions do not even have lvmetad services and any other stuff anymore
+	##       but depends on lvm2-activation-generator.
+	## NOTE3: near all .service files are broken , missing [Install] all over the place or
+	##        still depends on removed sokets/services!! see fix-service-files.patch
+	Fsed "use_lvmetad = @DEFAULT_USE_LVMETAD@" "use_lvmetad = 0" conf/example.conf.in
+	Fpatchall
 	Fmake
 
-	Fexec make device-mapper || return 1
+	Fexec make device-mapper || Fdie
 	Fmakeinstall
-	Fexec make DESTDIR=$Fdestdir exec_prefix=/ install_device-mapper install_systemd_units || Fdie
+	Fexec make DESTDIR=$Fdestdir exec_prefix=/ install_device-mapper install_system_dirs install_systemd_units install_systemd_generators install_tmpfiles_configuration || Fdie
 
-	Ffile /lib/systemd/system/lvm.service
+	Ffile /etc/dracut.conf.d/11-lvm2.conf
 	Fmkdir /etc/systemd/system/sysinit.target.wants
 	Fdoc README.Frugalware
-	Fgenscriptlet
 	Fsplit $pkgname-libs lib/libdevmapper.*
 	Fsplit $pkgname-libs lib/liblvm2cmd.*
 	Fsplit $pkgname-libs {,usr/}lib/libdevmapper-event.*

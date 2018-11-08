@@ -1,0 +1,54 @@
+_service_lvm2() {
+
+	/bin/systemctl --quiet enable blk-availability.service 2>/dev/null
+	/bin/systemctl --quiet enable dm-event.service 2>/dev/null
+	/bin/systemctl --quiet enable dm-event.socket 2>/dev/null
+	/bin/systemctl --quiet enable lvm2-monitor.service 2>/dev/null
+	/bin/systemctl --quiet enable lvm2-lvmpolld.service 2>/dev/null
+	/bin/systemctl --quiet enable lvm2-lvmpolld.socket 2>/dev/null
+	
+}
+
+_fix_conf() {
+
+	local ret
+	
+	ret=$(/sbin/lvm dumpconfig global/use_lvmetad | sed 's/.*=//g')
+
+	if [[ $ret != 0 ]]; then
+		echo " ==> Fixing lvm.conf. use_lvmetad need be enabled an set to 0"
+		sed -i -e 's/use_lvmetad.*=.*/use_lvmetad  = 0/g' /etc/lvm/*conf*
+	fi
+
+	## some unusual formated conf maybe ?
+	ret=$(/sbin/lvm dumpconfig global/use_lvmetad | sed 's/.*=//g')
+	if [[ $ret != 0 ]]; then
+		echo "==> WARNING: DO NOT reboot! Fixing lvm.conf failed.."
+		echo "==> WARNING: Open /etc/lvm/lvm.conf and set use_lvmetad  = 0"
+	fi
+}
+
+post_install() {
+
+	_service_lvm2
+	true
+}
+
+pre_upgrade() {
+
+	_fix_conf
+	true
+}
+
+post_upgrade() {
+
+	_service_lvm2
+	/bin/systemctl daemon-reload
+	true
+}
+
+
+op=$1
+shift
+$op $*
+

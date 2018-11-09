@@ -1,6 +1,13 @@
 systemd_units=(@_F_systemd_units@)
 
-post_install()
+
+reload_tmpfiles_sysusers() {
+
+	/bin/systemctl try-reload-or-restart systemd-sysusers.service
+	/bin/systemd-tmpfiles --create 2>/dev/null
+}
+
+handle_service()
 {
 	local unit
 	local op
@@ -17,12 +24,25 @@ post_install()
 			systemctl start $unit.service >/dev/null 2>&1
 		fi
 	done
+
+	reload_tmpfiles_sysusers
+}
+
+post_install() {
+
+	handle_service
+	reload_tmpfiles_sysusers
 }
 
 post_upgrade()
 {
 
+	# reload first .. stuff may be changed on upgrade
 	systemctl daemon-reload >/dev/null 2>&1
+	# re-fire
+	handle_service
+	# fire tempfiles / sysusers .. that is handled on boot only , why ?!?
+	reload_tmpfiles_sysusers
 }
 
 pre_remove()

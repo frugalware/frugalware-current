@@ -3,18 +3,20 @@
 
 pkgname=vulkan-loader-layers
 pkgdesc="Vulkan Validation Layers"
-pkgver=1.1.73.0
+pkgver=1.1.85.0
 pkgrel=1
 archs=(x86_64)
 groups=('devel-extra')
-depends=('libstdc++' 'libx11')
-makedepends=('python3' 'x11-protos' 'wayland' 'libwayland-egl' 'git' 'lib32-wayland' 'lib32-libwayland-egl' 'libxrandr' 'lib32-libxrandr')
+depends=('libstdc++')
+makedepends=('python3' 'x11-protos' 'wayland' 'libwayland-egl' 'git' 'libxrandr' 'vulkan-headers' 'vulkan-icd-loader')
 url="https://www.khronos.org/vulkan/"
 _F_github_author=KhronosGroup
-_F_github_name=Vulkan-LoaderAndValidationLayers
+_F_github_name=Vulkan-ValidationLayers
 _F_github_tag=yes
-_F_github_devel=yes
-_F_cmake_confopts+="		-DBUILD_WSI_XCB_SUPPORT=On \
+_F_github_full_archive_name="sdk-$pkgver"
+_F_cmake_build_dir="build"
+_F_cmake_confopts+="		-C helper.cmake \
+				-DBUILD_WSI_XCB_SUPPORT=On \
 				-DBUILD_WSI_XLIB_SUPPORT=On \
 				-DBUILD_WSI_WAYLAND_SUPPORT=On
 				-DCMAKE_INSTALL_SYSCONFDIR=/etc \
@@ -27,59 +29,21 @@ _F_cmake_confopts+="		-DBUILD_WSI_XCB_SUPPORT=On \
 				-DBUILD_WSI_MIR_SUPPORT=Off \
 				-DCMAKE_BUILD_TYPE=Release"
 
-_F_cross32_delete=('usr/include')
-_F_scm_tag="sdk-$pkgver"
-Finclude github cross32 cmake
-_F_cd_path="$pkgname"
-_F_archive_name="sdk"
-up2date="Flasttar https://github.com/KhronosGroup/Vulkan-LoaderAndValidationLayers/releases"
+Finclude github cmake
+up2date="$up2date | sed 's/sdk-//g'"
+sha1sums=('4f832b932dc3e4b14b0f83b8ca662b0d7af4c32a')
+_F_cd_path="Vulkan-ValidationLayers-sdk-$pkgver"
 
 replaces=('mesa-vulkan')
 conflicts=('mesa-vulkan')
 
-subpkgs=("vulkan-icd-loader")
-subdescs=("Vulkan Installable Client Driver (ICD) Loader")
-subdepends=("glibc")
-subgroups=('lib-extra')
-subarchs=('x86_64')
-
-subpkgs+=("lib32-${pkgname}")
-subdescs+=("$pkgdesc ( 32bit )")
-subdepends+=("libstdc++ lib32-libx11")
-subgroups+=('lib32-extra')
-subarchs+=('x86_64')
-
-subpkgs+=("lib32-vulkan-icd-loader")
-subdescs+=("Vulkan Installable Client Driver (ICD) Loader ( 32bit )")
-subdepends+=("glibc")
-subgroups+=('lib32-extra')
-subarchs+=('x86_64')
-
-build() {
-	Funpack_scm
-	Fcd
-
-	Fcross32_prepare
-
-	export PKG_CONFIG_PATH="/usr/lib32/pkgconfig"
-
-        Fexec  ./update_external_sources.sh || Fdie
-	CMake_build -DCMAKE_INSTALL_LIBDIR=lib32
-
-        Fcross32_reset_and_fix
-        Fcross32_delete_empty
-	Fsplit "lib32-vulkan-icd-loader" usr/lib32/libvulkan.so\*
-	Fsplit "lib32-${pkgname}" /\*
-
-
-	export PKG_CONFIG_PATH="/usr/lib/pkgconfig"
-	Fexec cd .. || Fdie
-	Fexec rm -rf frugalware_cmake_build || Fdie
-	Fexec rm -rf external || Fdie
-	Fexec  ./update_external_sources.sh || Fdie
-	CMake_build -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_BINDIR=bin
-	Fsplit "vulkan-icd-loader" usr/lib/libvulkan.so\*
-
+build(){
+	CMake_prepare_build
+	Fexec ../scripts/update_deps.py || Fdie
+	CMake_conf
+	Fexec make || Fdie
+	CMake_install
 }
+
 
 # optimization OK

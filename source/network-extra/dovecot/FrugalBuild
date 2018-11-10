@@ -1,23 +1,24 @@
 # Compiling Time: 0.14 SBU
-# Maintainer: kikadf <kikadf.01@gmail.com>
-# Contributor: Krisztian VASAS <iron@frugalware.org>
+# Maintainer: crazy <crazy@frugalware.org>
 
 
 pkgname=dovecot
 pkgver=2.3.3
-pkgrel=1
+pkgrel=2
 mainver=${pkgver%.*}
 pkgdesc="An open source IMAP and POP3 server, written with security primarily in mind."
 url="http://www.dovecot.org"
-depends=('libldap>=2.4.44-2' 'cyrus-sasl-gssapiv2' 'libmariadbclient' 'libpq>=9.5.4' 'krb5' 'e2fsprogs' 'openssl>=1.0.2-10')
-makedepends=('mariadb' 'postgresql>=9.5.4' 'openldap>=2.4.44-2')
+depends=('libldap>=2.4.44-2' 'clucene' 'curl' 'pam' 'libsodium' 'libmariadbclient' 'libpq>=9.5.4' 'libkrb5' 'e2fsprogs' 'openssl>=1.0.2-10')
+makedepends=('mariadb' 'postgresql>=9.5.4' 'openldap>=2.4.44-2' 'krb5')
 groups=('network-extra')
 archs=('x86_64')
 up2date="Flasttar ${url}/download.html"
-backup=(etc/$pkgname/$pkgname.conf etc/$pkgname/conf.d/{20-lmtp.conf,15-lda.conf,20-imap.conf,15-mailboxes.conf,10-master.conf,10-auth.conf,90-quota.conf,10-ssl.conf,90-acl.conf,20-pop3.conf,10-mail.conf,90-plugin.conf,10-logging.conf,10-director.conf})
-source=("${url}/releases/2.3/${pkgname}-${pkgver}.tar.gz")
-sha1sums=('26be4a4b5b7c175b19e634b1498075a8bc1c086c')
-_F_systemd_scriptlet="$pkgname.install"
+source=(${url}/releases/2.3/${pkgname}-${pkgver}.tar.gz \
+	dovecot.sysusers  dovecot.tmpfiles)
+sha1sums=('26be4a4b5b7c175b19e634b1498075a8bc1c086c' \
+          '783526e7ba1265fbff421972b82f2bd5cbc38210' \
+          'e0ec75cd1e2b7425d5f4249985283f3a95ba64e8')
+
 _F_systemd_units=(dovecot=)
 Finclude systemd
 
@@ -25,20 +26,37 @@ build()
 {
 
 	Fcd
-	Fbuild  --with-mysql \
+	Fautoreconf
+	Fconf  \
+		--with-nss \
+		--with-lzma \
+		--with-lz4 \
+		--with-zlib \
+		--with-bzlib \
+		--with-libcap \
+		--with-mysql \
 		--with-pgsql \
+		--with-sqlite \
+		--with-pam \
+		--with-sodium \
+		--with-lucene \
+		--with-libcap \
 		--with-ssl=openssl \
-		--with-ldap \
-		--with-cyrus-sasls \
+		--with-ssldir=/etc/ssl \
+		--with-ldap=plugin \
 		--with-gssapi \
-		--with-deliver \
-		--with-iopoll=epoll \
 		--with-moduledir=/usr/lib/dovecot/modules \
 		--sysconfdir=/etc \
 		--with-systemdsystemunitdir=/lib/systemd/system \
 		--docdir=/usr/share/doc/dovecot-${pkgver}
-	Frm /etc/$pkgname
-	Fcprel $Fdestdir/usr/share/doc/$pkgname-$pkgver/example-config/. etc/$pkgname/
+
+	## do not remove , out-of-tree-modules need it
+	Fexec make dovecot-config || Fdie
+	Fexec make || Fdie
+	Fmakeinstall
+
+	Ffile $pkgname.sysusers  /usr/lib/sysusers.d/$pkgname.conf
+	Ffile $pkgname.tmpfiles  /usr/lib/tmpfiles.d/$pkgname.conf
 	Fgenscriptlet
 }
 

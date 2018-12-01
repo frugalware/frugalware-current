@@ -20,7 +20,7 @@ __license__ = "GPL"
 import os, pwd, getopt, sys
 
 server = "git.frugalware.org"
-repodir = "/home/ftp/pub/other/homepage-ng/git/repos"
+repodir = "/srv/ftp/pub/other/homepage-ng/git/repos"
 
 class Options:
 	def __init__(self):

@@ -71,6 +71,6 @@ _F_kde_defaults=1
 _F_kde_name="$_F_phonon_backend_name"
 _F_kde_pkgver="$_F_phonon_backend_pkgver"
 _F_kde_ext=".tar.xz"
-_F_kde_folder="stable/phonon/$_F_phonon_backend_name"
+_F_kde_dirname="stable/phonon/$_F_phonon_backend_name/$_F_phonon_backend_pkgver"
 Finclude kf5
 

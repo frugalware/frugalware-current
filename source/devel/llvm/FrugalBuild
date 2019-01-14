@@ -5,7 +5,7 @@
 
 pkgname=llvm
 pkgver=7.0.1
-pkgrel=1
+pkgrel=2
 gcc_ver=7.3.0
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
@@ -29,20 +29,22 @@ if Fuse DEVEL; then
 	_F_cd_path="llvm"
         Finclude scm
 else
-	source=(http://llvm.org/releases/$pkgver/$pkgname-$pkgver.src.tar.xz \
-		http://llvm.org/releases/$pkgver/cfe-$pkgver.src.tar.xz \
-		http://llvm.org/releases/$pkgver/clang-tools-extra-$pkgver.src.tar.xz
-		http://llvm.org/releases/$pkgver/libcxx-$pkgver.src.tar.xz \
-		http://llvm.org/releases/$pkgver/libcxxabi-$pkgver.src.tar.xz \
-		http://releases.llvm.org/$pkgver/lld-$pkgver.src.tar.xz)
+	source=(https://releases.llvm.org/$pkgver/$pkgname-$pkgver.src.tar.xz \
+		https://releases.llvm.org/$pkgver/cfe-$pkgver.src.tar.xz \
+		https://releases.llvm.org/$pkgver/clang-tools-extra-$pkgver.src.tar.xz
+		https://releases.llvm.org/$pkgver/libcxx-$pkgver.src.tar.xz \
+		https://releases.llvm.org/$pkgver/libcxxabi-$pkgver.src.tar.xz \
+		https://releases.llvm.org/$pkgver/lld-$pkgver.src.tar.xz \
+		https://releases.llvm.org/$pkgver/compiler-rt-$pkgver.src.tar.xz )
 	up2date="Flastarchive $url/releases/download.html .src.tar.xz"
 	_F_archive_ver="${pkgver}.src"
-sha1sums=('f97632fcc3186eb0d396492ef8acfc807648580f' \
-          '427e12762836d808583fb4149c033d02de0a8db2' \
-          '6f4048482c4cf1818133120565c2dcd1d3a62747' \
-          '67ec388c7a8030010a68f71f43f85b0d77748add' \
-          '416a1be0317e18ac5a5c2f5108e2ee0ce6c67c0e' \
-          '3b69e107f27d466488838d5fa65bdfd77b885007')
+	signatures=("${source[0]}.sig" \
+		    "${source[1]}.sig" \
+		    "${source[2]}.sig" \
+		    "${source[3]}.sig" \
+		    "${source[4]}.sig" \
+		    "${source[5]}.sig" \
+		    "${source[6]}.sig")
 
 fi
 
@@ -53,15 +55,23 @@ Finclude cross32 python
 subpkgs=("clang")
 subdescs=("C/C++ language family frontend for LLVM")
 subdepends=("libxml2 libffi")
-subrodepends=("$pkgname>=$pkgver $pkgname-libs>=$pkgver")
+subrodepends=("$pkgname>=$pkgver $pkgname-libs>=$pkgver compiler-rt>=$pkgver")
 subgroups=('devel-extra')
 subarchs=("x86_64")
+
 
 subpkgs+=("lib32-clang")
 subdescs+=("C/C++ language family frontend for LLVM (32-bit)")
 subdepends+=("lib32-libxml2 lib32-libffi")
 subrodepends+=("lib32-${pkgname}>=$pkgver lib32-${pkgname}-libs>=$pkgver")
 subgroups+=('lib32-extra')
+subarchs+=("x86_64")
+
+subpkgs+=("compiler-rt")
+subdescs+=("Compiler runtime libraries for clang")
+subdepends+=("")
+subrodepends+=("")
+subgroups+=('devel-extra')
 subarchs+=("x86_64")
 
 subpkgs+=("$pkgname-ocaml")
@@ -193,7 +203,7 @@ build() {
 	Frm usr/include
 	Fmkdir usr/bin/
 	Fmv usr/i686-frugalware-linux/bin/llvm-config usr/bin/llvm-config32
-        Fsplit lib32-libc++ usr/lib32/libc++*
+        Fsplit lib32-libc++ usr/lib32/libc++\*
 	Fsplit lib32-libc++ usr/i686-frugalware-linux/include/c++/
 
 	Fsplit lib32-$pkgname-libs usr/lib32/\*.so\*
@@ -203,6 +213,11 @@ build() {
 	## 64-bit CMake options
 	_F_cmake_confopts="    ${_common_cmake_confopts} \
 				-DFFI_INCLUDE_DIR=$(pkg-config --cflags-only-I libffi | cut -c3-)"
+
+	Fcd
+	# compiler-rt only works on x86_64
+	Fexec mv -f ../compiler-rt-${_F_archive_ver}/ projects/compiler-rt
+
         CMake_make
 
         Fexec make -C ../docs -f Makefile.sphinx man || Fdie
@@ -248,6 +263,12 @@ build() {
 	Fcp ${_F_cd_path}/${_F_cmake_build_dir}/docs/ocamldoc/html/* usr/share/doc/$pkgname-$pkgver/ocamldoc
 	Frm usr/docs
 
+	Fsplit compiler-rt usr/lib/clang/${pkgver}/include/sanitizer
+        Fsplit compiler-rt usr/lib/clang/${pkgver}/include/xray
+	Fsplit compiler-rt usr/lib/clang/${pkgver}/lib/
+	Fsplit compiler-rt usr/lib/clang/${pkgver}/share/
+	Fsplit compiler-rt usr/share/doc/llvm-${pkgver}/html/clang/_static/language_data.js
+	Fsplit compiler-rt usr/share/doc/llvm-${pkgver}/html/_static/language_data.js
 
 	Fsplit clang usr/bin/clang*
 	Fsplit clang usr/bin/c-index-test

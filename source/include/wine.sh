@@ -26,7 +26,7 @@ depends+=('lib32-lcms2' 'lib32-libxcursor' 'lib32-libxi' 'lib32-libxrandr' 'lib3
 	'lib32-libxrender' 'lib32-freetype2' 'lib32-libxml2' 'lib32-ncurses')
 makedepends=('x11-protos' 'cups')
 _F_cd_path="wine-$pkgver"
-options=('genscriptlet' 'nostrip')
+options=('genscriptlet' 'nostrip' 'static')
 archs=('x86_64')
 _F_conf_configure="../configure"
 _F_archive_grepv="\-rc"

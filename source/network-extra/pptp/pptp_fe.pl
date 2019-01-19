@@ -180,10 +180,10 @@ sub cmd_disconnect {
 	return 1 if $State eq "disconnected";
 
 	my $interface = net_interface_up($Net);
-	my $pid_file = "/var/run/$interface.pid";
+	my $pid_file = "/run/$interface.pid";
 
 	# delete the named pipes - XXX this is a bit crude
-	system("rm -f /var/run/pptp/*");
+	system("rm -f /run/pptp/*");
 	
 	$State = "disconnected", return 1 unless $interface && -f $pid_file;
 

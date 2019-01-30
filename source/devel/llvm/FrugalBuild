@@ -5,7 +5,7 @@
 
 pkgname=llvm
 pkgver=7.0.1
-pkgrel=3
+pkgrel=4
 gcc_ver=7.3.1
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
@@ -35,7 +35,10 @@ else
 		https://releases.llvm.org/$pkgver/libcxx-$pkgver.src.tar.xz \
 		https://releases.llvm.org/$pkgver/libcxxabi-$pkgver.src.tar.xz \
 		https://releases.llvm.org/$pkgver/lld-$pkgver.src.tar.xz \
-		https://releases.llvm.org/$pkgver/compiler-rt-$pkgver.src.tar.xz )
+		https://releases.llvm.org/$pkgver/compiler-rt-$pkgver.src.tar.xz \
+		add-discriminator-to-debuginfo-test.patch  rusty-discriminator.patch)
+	# (crazy) for the patches see :
+	# https://reviews.llvm.org/D42082 , https://reviews.llvm.org/D52340 , https://github.com/rust-lang/rust/issues/54614
 	up2date="Flastarchive $url/releases/download.html .src.tar.xz"
 	_F_archive_ver="${pkgver}.src"
 	signatures=("${source[0]}.sig" \
@@ -44,7 +47,8 @@ else
 		    "${source[3]}.sig" \
 		    "${source[4]}.sig" \
 		    "${source[5]}.sig" \
-		    "${source[6]}.sig")
+		    "${source[6]}.sig" \
+		     "" "")
 
 fi
 
@@ -118,6 +122,7 @@ subarchs+=("x86_64")
 
 # Common CMake options
 _F_cmake_type="Release"
+# (crazy) FIXME , why do we need DC_INCLUDE_DIRS ?
 _common_cmake_confopts="	-DCMAKE_INSTALL_PREFIX=/usr \
 				-DLLVM_BUILD_LLVM_DYLIB=ON \
 				-DLLVM_DYLIB_EXPORT_ALL=ON \
@@ -130,7 +135,7 @@ _common_cmake_confopts="	-DCMAKE_INSTALL_PREFIX=/usr \
 				-DLLVM_ENABLE_DOXYGEN=OFF \
 				-DLLVM_HOST_TRIPLE=${CARCH}-frugalware-linux \
 				-DLLVM_DEFAULT_TARGET_TRIPLE=${CARCH}-frugalware-linux \
-				-DC_INCLUDE_DIRS=/usr/local/include:/usr/$CHOST/include:/usr/include/c++/${gcc_ver}:/usr/include/c++/${gcc_ver}/backward:/usr/include/c++/${gcc_ver}/${CHOST}-frugalware-linux:/usr/include \
+				-DC_INCLUDE_DIRS=/usr/local/include:/usr/${CHOST}/include:/usr/include/c++/${gcc_ver}/${CHOST}:/usr/include/c++/${gcc_ver}/backward:/usr/include/c++/${gcc_ver}:/usr/include \
 				-DLLVM_BINUTILS_INCDIR=/usr/include \
 				-DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=ON \
 				-DLIBCXX_INSTALL_EXPERIMENTAL_LIBRARY=OFF"
@@ -140,6 +145,10 @@ _Fbuild_no_patch=yes
 
 
 build() {
+
+	CFLAGS+=" -fno-strict-aliasing"
+	CXXFLAGS+=" -fno-strict-aliasing"
+
         if Fuse DEVEL; then
                 Funpack_scm
         fi
@@ -160,7 +169,7 @@ build() {
 		Fexec mv -f ../lld-${_F_archive_ver}/ tools/lld
 		Fexec mv -f ../clang-tools-extra-${_F_archive_ver}/ tools/clang/tools/extra
 	fi
-
+	Fpatchall
         Fcross32_prepare
         Fcross32_copy_source
 

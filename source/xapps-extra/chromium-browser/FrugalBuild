@@ -2,20 +2,19 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=chromium-browser
-pkgver=71.0.3578.98
+pkgver=72.0.3626.81
 pkgrel=1
 pkgdesc='Development version of Chromium browser'
 url='http://www.chromium.org/'
 depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6' 'libcups' \
 	'speech-dispatcher>=0.7.1-4' 'libxtst>=1.2.2-2' 'pango' 'atk' 'libxkbcommon' 'libxml2' \
-	'libatomic' 'pciutils>=3.5' 'gtk+3' 'libxslt' 'icu4c'
-	'libdrm' 'harfbuzz' 'libjpeg-turbo' 'fontconfig' 'libva')
+	'libatomic' 'pciutils>=3.5' 'gtk+3' 'libxslt' 'libdrm' 'harfbuzz' 'libjpeg-turbo' 'fontconfig' 'libva')
 #using the built in ones for now
 #depends+=('libevent>=2.0.22-3')
-makedepends=('ninja' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' \
+makedepends=('ninja' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' 'gn' \
 		'x11-protos' 'krb5' 'cups' 'gtk+2' 'python-ply' \
 		'python-markupsafe' 'beautifulsoup4' 'html5lib-python' \
-		'webencodings' 'protobuf-python' 'nodejs' \
+		'webencodings' 'protobuf-python' 'nodejs' 'openjdk'\
 		'mesa-dri-drivers' 'clang' 'vulkan-headers')
 license=('BSD')
 groups=('xapps-extra')
@@ -36,19 +35,15 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
 	chromium-65.0.3325.146-fix-missing-incudes.patch \
 	# bring back some default *flags
 	chromium-67.0.3396.62-frugalware-compiler-flags.patch \
-	chromium-system-icu.patch \
-	chromium-vaapi-r21.patch \
-	chromium-harfbuzz-r0.patch  \
-	0001-gn-bootstrap-Remove-sysroot-related-options.patch )
-sha1sums=('5de8e48fc1f277afb16a7a484dfa0360e568632c' \
+	chromium-webrtc-missing-header.patch \
+	enable-vaapi.patch )
+sha1sums=('16836d6f211aad133d184d1d0e347f47ea024336' \
           '264b8e7c4e3273263d504e041e5e4d152677922c' \
           '4c41d59b4d85a9f0443d6ca1dec456e50059dab5' \
           '188c2fc130b69510637119c0f773a1f0fb96c9b2' \
           '73c3539e8229f9525a88609fa5bd934dc6d5504b' \
-          '7d5ee94950432d0fde6d889dcad4c9a2ff9d9dd7' \
-          'eb4eb6cc9088e2174b54460582972a70047df2ab' \
-          '1a5c082beb8b7e76c178fdf68ce7f211fee0ad40' \
-          'c2c7bc359d14b5f0dce4723995bb1c7292fbce4d')
+          '406837074dec6840b536ac452e0cc1acf6e4d611' \
+          '4bc50d064302f15c1fb106fddeaef859b344cce4')
 
 chromium_path="chromium"
 
@@ -86,16 +81,13 @@ build() {
 		net/third_party/quic
 		net/third_party/spdy
 		net/third_party/uri_template
-		third_party/WebKit
 		third_party/abseil-cpp
-		third_party/analytics
 		third_party/angle
 		third_party/angle/src/common/third_party/base
 		third_party/angle/src/common/third_party/smhasher
 		third_party/angle/src/third_party/compiler
 		third_party/angle/src/third_party/libXNVCtrl
 		third_party/angle/src/third_party/trace_event
-		third_party/angle/third_party/vulkan-validation-layers
 		third_party/angle/third_party/vulkan-loader
 		third_party/angle/third_party/vulkan-headers
 		third_party/angle/third_party/vulkan-tools
@@ -135,7 +127,6 @@ build() {
 		third_party/flatbuffers
 		third_party/flot
 		third_party/freetype
-		third_party/glslang-angle
 		third_party/google_input_tools
 		third_party/google_input_tools/third_party/closure_library
 		third_party/google_input_tools/third_party/closure_library/third_party/closure
@@ -196,14 +187,12 @@ build() {
 		third_party/skia/third_party/skcms
 		third_party/smhasher
 		third_party/spirv-headers
-		third_party/spirv-tools-angle
 		third_party/sqlite
 		third_party/swiftshader
 		third_party/swiftshader/third_party/llvm-subzero
 		third_party/swiftshader/third_party/subzero
 		third_party/usrsctp
 		third_party/vulkan
-		third_party/vulkan-validation-layers
 		third_party/web-animations-js
 		third_party/webdriver
 		third_party/webrtc
@@ -242,6 +231,11 @@ build() {
 		third_party/SPIRV-Tools
 		third_party/jsoncpp
 		## WHAT? cmon
+		third_party/angle/src/common/third_party/xxhash
+		third_party/angle/third_party/vulkan-validation-layers
+		third_party/nasm
+		third_party/icu
+		third_party/closure_compiler
 		third_party/apple_apsl)
 	# Remove most bundled libraries. Some are still needed.
 
@@ -250,7 +244,6 @@ build() {
 	## FIXME: some things missing..
 	## eg: opus , libusb and some more
 	gn_system_libraries="
-		icu
 		fontconfig
 		freetype
 		flac
@@ -329,9 +322,8 @@ build() {
 	#export AR=ar
 	export CC=clang
 	export CXX=clang++
-	Fexec tools/gn/bootstrap/bootstrap.py -s -v --gn-gen-args "${myconf_gn}" || Fdie
 
-	Fexec out/Release/gn gen --args="${myconf_gn}" out/Release || Fdie
+	Fexec gn gen --args="${myconf_gn}" out/Release || Fdie
 	Fexec mkdir -p third_party/node/linux/node-linux-x64/bin || Fdie
 	Fexec rm -rf third_party/node/linux/node-linux-x64/bin/node
 	Fexec ln -s /usr/bin/node third_party/node/linux/node-linux-x64/bin/
@@ -354,8 +346,7 @@ build() {
 		Fcprel out/Release/swiftshader usr/lib/${chromium_path}/
 	fi
 
-	## is that right ?
-	#Fcprel out/Release/icudtl.dat usr/lib/${chromium_path}/
+	Fcprel out/Release/icudtl.dat usr/lib/${chromium_path}/
 
         find $Fdestdir/usr/lib/${chromium_path}/ -name '*.d' -type f -delete
 	find $Fdestdir/usr/lib/${chromium_path}/ -name '*.TOC' -type f -delete

@@ -7,48 +7,37 @@ pkgrel=2
 pkgdesc='Atom package manager'
 archs=('x86_64')
 groups=('devel-extra')
-depends=('libsecret' 'nodejs>=11' 'python')
+depends=('libsecret' 'nodejs>=10.1' 'python')
 makedepends=('git')
 _F_github_author="atom"
 _F_github_tag_v=y
 Finclude github
 _F_cd_path="$pkgname-$_F_github_ver"
-source+=(no-scripts.patch \
-	use-system-npm.patch \
-	apm.js )
+source+=(no-scripts.patch use-system-npm.patch)
 sha1sums=('67b84bf37dcfa0adfca9d09b5a4cc7c6c9ec958e' \
           'd8e7b5cf7be7b3f4d9783a933becf16f88627274' \
-          'd63833b32f8b1936181d628f77e92a1a0c65f7ed' \
-          'df235241440c74b4597dddb250469145dcf0a4d8')
+          'd63833b32f8b1936181d628f77e92a1a0c65f7ed')
 
 _apmdir='/usr/lib/node_modules/atom-package-manager'
 up2date="$up2date | sed 's/-.//g'"
 
 build() {
 	Fpatchall
-	Fexec rm -rf "${Fsrcdir}"/apm-build || Fdie
-
 	Fcd
 
-	# Use custom launcher
-	Fexec rm bin/apm{,.cmd} bin/npm{,.cmd} || Fdie
-	Fexec rm src/cli.coffee || Fdie
-	Fexec mv "${Fsrcdir}"/apm.js bin/apm
-	
-	Fexec rm BUNDLED_NODE_VERSION script/* || Fdie
-
 	Fexec npm install coffee-script || Fdie
-	Fexec npx coffee -c --no-header -o lib src/*.coffee || Fdie
+	Fexec ./node_modules/.bin/coffee -c --no-header -o lib src/*.coffee || Fdie
 	Fexec rm -r node_modules || Fdie
-	Fexec npm install --user root -g --prefix="${Fsrcdir}"/apm-build/usr $(npm pack | tail -1) || Fdie
-
-	Fcp apm-build/usr /
+	Fexec npm install --user root -g --prefix="${Fdestdir}"/usr $(npm pack | tail -1) || Fdie
 
 	# Remove occurrences of ${Fdestdir}
 	Fexec find "${Fdestdir}" -name "package.json" \
 		-exec sed -e "s|${Fdestdir}||" \
                  -e "s|${Fsrcdir}/apm-${pkgver}|${_apmdir}|" \
                  -i '{}' \;
+
+	# WTF
+	Frm usr/etc
 
 	# Remove useless stuff
 	Fexec find "${Fdestdir}"/usr/lib \
@@ -77,7 +66,8 @@ build() {
 		-or -name "test" -prune -exec rm -r '{}' \; \
 		-or -name "tests" -prune -exec rm -r '{}' \;
 
-
+	# man..
+	Fwrapper '/usr/bin/node /usr/lib/node_modules/atom-package-manager/lib/cli.js "$@"' 'apm'
 }
 
 

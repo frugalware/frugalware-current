@@ -3,42 +3,50 @@
 # Contributor: darknekros <darknekros@gmail.com>
 
 pkgname=atom
-pkgver=1.34.0
+pkgver=1.30.0
 pkgrel=1
 pkgdesc="Atom is a hackable text editor for the 21st century from GitHub."
-depends=('apm>=2.1.3' 'electron' 'libxkbfile' 'ctags' 'git')
-makedepends=('x11-protos')
+depends=('libgnome-keyring' 'nodejs>=6.3.1-2' 'gconf' 'python' 'git' 'alsa-lib' 'libcups' \
+	'libnotify' 'libxtst' 'nss' 'gtk+3' 'libsecret' 'ctags' 'libxscrnsaver')
+makedepends=('ca-certificates' 'cups' 'x11-protos' 'libxkbfile' 'apm')
 groups=('xapps-extra')
 archs=('x86_64')
 _F_github_tag_v=$pkgver
 Finclude github
 source+=(symbols-view-use-system-ctags.patch \
-	dugite-use-system-git.patch \
-	use-system-electron.patch \
-	use-system-apm.patch \
-	fix-atom-sh.patch \
-	fix-restart.patch \
-	atom.js )
-sha1sums=('e5ec77be54803201604a324ffadc5799f277c5a3' \
+	dugite-use-system-git.patch )
+sha1sums=('3919d34cfe8f307c6c9970c5be8b840a74b66189' \
           '46e2d16197f14de0bcef451b8b4aef40d9642180' \
-          '8eda668e40affe5316c4616299807598ad95ffa1' \
-          '04129c751d8c87e1aaea7fac7da1d266b9e7a33a' \
-          'fe977aba5bff947d4145bf83824e24f53d7625aa' \
-          '90c289da6855fd9ff8d6b62d320643bdf5c1a6e5' \
-          '417bd60e8466a25e85bf726d0f3a94f5458bdf6f' \
-          'fb611e81849bf7901bee1ae5ef23b92382f0a8c6')
+          '8eda668e40affe5316c4616299807598ad95ffa1')
 build() {
 	export CC=gcc CXX=g++ || Fdie
-	Fpatch use-system-electron.patch
-	Fpatch use-system-apm.patch
-	Fpatch fix-atom-sh.patch
-	Fpatch fix-restart.patch
 	Fcd
 
-	ATOM_RESOURCE_PATH="$Fsrcdir/$_F_cd_path" \
-	ATOM_RESOURCE_PATH="${PWD}" \
-	npm_config_target=$(tail -c +2 /usr/lib/electron/version) \
-	apm install || Fdie
+	## fix desktop file here since they change stuff on each release and the install
+	## paths point to chroot !?! WTH this..
+	Fsed "Exec=.*" "Exec=/usr/bin/atom %F" resources/linux/atom.desktop.in
+	## this only work bc we install the icons in hicolor too
+	Fsed "Icon=.*" "Icon=atom" resources/linux/atom.desktop.in
+
+	Fsed  "path.join('/usr', 'local')"  "\"$Fdestdir/usr\"" script/lib/install-application.js
+
+	# Workaround for Node 10
+	sed -e 's|"electron-link": "0.2.0"|"electron-link": "../../electron-link"|' \
+		-i script/package.json
+	cd ..
+	git clone https://github.com/atom/electron-link.git
+	cd electron-link
+	git checkout v0.2.0
+	sed -e 's/"leveldown": "^1.6.0"/"leveldown": "^2.0.1"/' -i package.json
+	npm install
+	npx babel src -d lib
+	cd node_modules/levelup
+	sed -e 's/"leveldown": "^1.1.0"/"leveldown": "^2.0.1"/' -i package.json
+
+	cd "$Fsrcdir/$_F_cd_path"
+	pwd
+	export ATOM_RESOURCE_PATH="$Fsrcdir/$_F_cd_path"
+	Fexec apm install || Fdie
 
 	# Use system ctags
 	Fexec cd node_modules/symbols-view || Fdie
@@ -49,35 +57,25 @@ build() {
 	# Use system git
 	Fexec cd node_modules/dugite || Fdie
 	Fpatch dugite-use-system-git.patch
+	Fexec rm -r git || Fdie
 	Fexec cd ../..
 
+	Fsed "/usr/share/icons/hicolor" "$Fdestdir/usr/share/icons/hicolor" script/lib/install-application.js
 	Fmkdir usr/share/icons/hicolor
-	Fexec cd script || Fdie
-	Fexec npm install || Fdie
-	Fexec ./build || Fdie
-	Fexec cd .. || Fdie
+	Fexec ./script/build --build-dir "$Fsrcdir/atom-build" --install=${Fdestdir}/usr || Fdie
 
-	Fmkdir usr/lib/
-	Fcprel out/app usr/lib/atom
-	Finstallrel 644 out/startup.js usr/lib/atom/startup.js
-  	Finstall 755 atom.js usr/lib/atom/atom
+	## hmm ? -- ok but we need this in hicolor too so themes work -- crazy --
 
-	Fmkdir usr/share/applications/
-	Fexec  sed -e "s|<%= appName %>|Atom|" \
-		-e "s/<%= description %>/${pkgdesc}/" \
-		-e "s|<%= installDir %>|/usr|" \
-		-e "s|<%= appFileName %>|atom|" \
-		-e "s|<%= iconPath %>|atom|" \
-		resources/linux/atom.desktop.in > "${Fdestdir}/usr/share/applications/atom.desktop"
+	Fcp "atom-$pkgver/resources/app-icons/stable/png/*.png" "usr/share/atom/resources"
 
-	for size in 16 24 32 48 64 128 256 512 1024; do
-		Finstallrel 644 resources/app-icons/stable/png/${size}.png \
-		usr/share/icons/hicolor/${size}x${size}/apps/atom.png
-	 done
+	local i
+	for i in 16 24 32 48 64 128 256 512 1024
+	do
+		 Finstallrel 644 "resources/app-icons/stable/png/${i}.png" "usr/share/icons/hicolor/${i}x${i}/apps/$pkgname.png"
+	done
 
-	Fln  ../../../share/icons/hicolor/1024x1024/apps/atom.png usr/lib/atom/resources/atom.png
-
-	Finstallrel 755 atom.sh usr/bin/atom
+	# Fix apm conflicts
+	Frm usr/bin/apm
 
 }
 

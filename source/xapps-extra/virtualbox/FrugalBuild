@@ -10,7 +10,7 @@ pkgname=virtualbox
 realname=VirtualBox
 pkgver=6.0.4
 pkgextra=
-pkgrel=10
+pkgrel=11
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' \
@@ -29,7 +29,9 @@ source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver
 	60-vboxguest.rules \
 	vboxservice.service \
 	virtualbox-guest-utils.conf \
-	depmod.patch)
+	depmod.patch \
+	kernel-5.0.patch \
+	tmp-disable-vboxvideo-ko.patch)
 
 _F_kernelmod_scriptlet="$startdir/$pkgname.install"
 Finclude kernel-module
@@ -50,7 +52,9 @@ sha1sums=('39c472d49e8e25dce39a3d296ca4033ae4643dd1' \
           '08199d8e7906cb793277b798805d38ce386460d8' \
           '28fb53322691d32a82de87e63672229ea5b7159e' \
           '80ba54b1e13f0e8f53a84ca3f25df617fb53ae4c' \
-          '6f0f27a0020fa1e425ca7aca51e923077876f227')
+          '6f0f27a0020fa1e425ca7aca51e923077876f227' \
+          '58d227d250a8bf71a67d3f2736925843b1c71145' \
+          '650860de391bc220ff87454d52b51aa7bd6059f9')
 
 subpkgs=("$pkgname-modules")
 subdescs=('Kernel modules for VirtualBox')
@@ -127,7 +131,7 @@ build() {
            Finstall 0644 ${_F_cd_path}/src/VBox/Artwork/OSE/virtualbox-${k}px.png  usr/share/icons/hicolor/${k}x${k}/apps/virtualbox.png
         done
 
-        Finstall 0644 ${_F_cd_path}/src/VBox/Artwork/OSE/virtualbox.svg usr/share/icons/hicolor/scalable/apps/virtualbox.svg
+	Finstall 0644 ${_F_cd_path}/src/VBox/Artwork/OSE/virtualbox.svg usr/share/icons/hicolor/scalable/apps/virtualbox.svg
 
 	cd ${Fsrcdir}/${VboxSrcDir} || Fdie
 
@@ -142,20 +146,20 @@ build() {
 
 	Fexerel VBoxTunctl "usr/bin/VBoxTunctl"
 
-        Fexerel components/* "usr/lib/virtualbox/components"
+	Fexerel components/* "usr/lib/virtualbox/components"
 
-        Fexerel *.so "usr/lib/virtualbox"
+	Fexerel *.so "usr/lib/virtualbox"
 
-        Finstallrel 644 *.r0 "usr/lib/virtualbox/"
+	Finstallrel 644 *.r0 "usr/lib/virtualbox/"
 
 	## vmmraw stuff
 	Finstallrel 644 *.rc "usr/lib/virtualbox/"
 
-        Finstallrel 644 VBoxEFI*.fd "usr/lib/virtualbox/"
+	Finstallrel 644 VBoxEFI*.fd "usr/lib/virtualbox/"
 
 	Finstallrel 4755 VBoxVolInfo VBoxNetNAT VirtualBoxVM VBoxNetDHCP VBoxNetAdpCtl VBoxSDL VBoxHeadless "usr/lib/virtualbox"
 
-        Fexerel VBoxManage VirtualBox VBoxSVC VBoxExtPackHelperApp VBoxXPCOMIPCD VBoxTestOGL VBoxBalloonCtrl "usr/lib/virtualbox"
+	Fexerel VBoxManage VirtualBox VBoxSVC VBoxExtPackHelperApp VBoxXPCOMIPCD VBoxTestOGL VBoxBalloonCtrl "usr/lib/virtualbox"
 
 	Fexerel nls/*.qm "usr/share/virtualbox/nls"
 
@@ -180,7 +184,7 @@ build() {
 
 	#install configuration
 	Fmkdir etc/vbox
-        echo 'INSTALL_DIR=/usr/lib/virtualbox' > "$Fdestdir/etc/vbox/vbox.cfg"
+	echo 'INSTALL_DIR=/usr/lib/virtualbox' > "$Fdestdir/etc/vbox/vbox.cfg"
 
 	#udev and licence
 	Finstall 0644 "VirtualBox-${pkgver}/COPYING" "usr/share/licenses/virtualbox/LICENSE"
@@ -198,24 +202,22 @@ build() {
 
 	# host kernel modules
 	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/src || Fdie
+	Fmkdir ${_F_kernelmod_dir}/kernel/misc
 
-        Fmkdir ${_F_kernelmod_dir}/kernel/misc
+	Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} || Fdie
+	Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
 
-        Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} || Fdie
-        Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
-
-        #cleanup first
-        Fexec rm -rf fw_tmp || Fdie
-        Fexec mkdir fw_tmp || Fdie
-
-        Fexec cd fw_tmp || Fdie
+	#cleanup first
+	Fexec rm -rf fw_tmp || Fdie
+	Fexec mkdir fw_tmp || Fdie
+	Fexec cd fw_tmp || Fdie
 
 	Fsed "@_F_kernelmod_uname@" "$_F_kernelmod_uname" $startdir/virtualbox-modules.install
 	Fkernelver_compress_modules
 
 	Fsplit virtualbox-modules ${_F_kernelmod_dir}/kernel/misc
 
-        # guest additions
+	# guest additions
 	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions || Fdie
 	Fexerel usr/bin/VBoxClient
 	Fexerel usr/bin/VBoxControl
@@ -248,17 +250,21 @@ build() {
 	Fsplit virtualbox-guest-additions usr/lib/sysusers.d/
 
 	# guest kernel modules
-        Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions/src || Fdie
-        Fmkdir ${_F_kernelmod_dir}/kernel/misc
+	KMOD_NAMES="vboxguest vboxsf"
+    Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions/src || Fdie
+    Fmkdir ${_F_kernelmod_dir}/kernel/misc
 
-        Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} || Fdie
-        Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+	for mod in ${KMOD_NAMES[@]}
+	do
+		Fexec make -C $mod V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname}  || Fdie
+		Fexec make -C $mod V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+	done
 
-        #cleanup first ?!?!?! -- what for is that ? -- crazy
-        Fexec rm -rf fw_tmp || Fdie
-        Fexec mkdir fw_tmp || Fdie
+    #cleanup first ?!?!?! -- what for is that ? -- crazy
+    Fexec rm -rf fw_tmp || Fdie
+    Fexec mkdir fw_tmp || Fdie
 
-        Fexec cd fw_tmp || Fdie
+    Fexec cd fw_tmp || Fdie
 
 	Fsed "@_F_kernelmod_uname@" "$_F_kernelmod_uname" $startdir/virtualbox-guest-additions.install
 

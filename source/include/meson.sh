@@ -36,7 +36,7 @@ fi
 # * options(): add nostrip if _F_meson_build_type is debug*
 ###
 
-makedepends+=('meson>=0.43.0-3' 'pkgconfig')
+makedepends+=('meson>=0.50.0-4' 'pkgconfig')
 
 ###
 # == PROVIDED FUNCTIONS

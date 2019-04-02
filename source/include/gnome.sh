@@ -85,7 +85,9 @@ _F_gnome_pygtkdefsdir="usr/share/pygtk/2.0/defs"
 #_F_gnome_pkgurl="https://download.gnome.org/sources"
 _F_gnome_pkgurl="https://ftp.gnome.org/pub/GNOME/sources"
 if [ -z "$_F_gnome_up2date" ]; then
-	_F_archive_grepv="3.32.*"
+	if [ -z "$_F_archive_grepv" ]; then
+		_F_archive_grepv="3.32.*"
+	fi
 fi
 
 if [[ "$_F_gnome_devel" == "y" ]]; then

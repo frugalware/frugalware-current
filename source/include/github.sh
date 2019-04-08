@@ -112,7 +112,12 @@ if [ -n "$_F_github_grepv" ]; then
 	off='| grep -v -- $_F_github_grepv'
 fi
 
-_F_github_up2date="releases"
+if [ -z "$_F_github_up2date_path" ]; then
+       _F_github_up2date="releases"
+else
+       _F_github_up2date="$_F_github_up2date_path"
+fi
+
 
 ## fixme ?
 if [ -n "$_F_github_devel" ]; then

@@ -1,0 +1,219 @@
+diff -Naur VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_drv.c VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_drv.c
+--- VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_drv.c	2019-01-25 19:12:34.000000000 +0100
++++ VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_drv.c	2019-04-15 23:40:57.207224118 +0200
+@@ -41,6 +41,10 @@
+ 
+ #include "vbox_drv.h"
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
++#include <drm/drm_probe_helper.h>
++#endif
++
+ #include "version-generated.h"
+ #include "revision-generated.h"
+ 
+@@ -267,7 +271,10 @@
+ 
+ static struct drm_driver driver = {
+ 	.driver_features =
+-	    DRIVER_MODESET | DRIVER_GEM | DRIVER_HAVE_IRQ | DRIVER_IRQ_SHARED |
++	    DRIVER_MODESET | DRIVER_GEM | DRIVER_HAVE_IRQ |
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
++	    DRIVER_IRQ_SHARED |
++#endif
+ 	    DRIVER_PRIME,
+ 	.dev_priv_size = 0,
+ 
+diff -Naur VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_drv.h VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_drv.h
+--- VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_drv.h	2019-01-25 19:12:34.000000000 +0100
++++ VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_drv.h	2019-04-15 23:40:57.195224042 +0200
+@@ -116,6 +116,13 @@
+ }
+ #endif
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) && !defined(RHEL_75)
++static inline void drm_gem_object_put(struct drm_gem_object *obj)
++{
++	drm_gem_object_unreference(obj);
++}
++#endif
++
+ #define DRIVER_AUTHOR       VBOX_VENDOR
+ 
+ #define DRIVER_NAME         "vboxvideo"
+@@ -174,8 +181,10 @@
+ 	int fb_mtrr;
+ 
+ 	struct {
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+ 		struct drm_global_reference mem_global_ref;
+ 		struct ttm_bo_global_ref bo_global_ref;
++#endif
+ 		struct ttm_bo_device bdev;
+ 		bool mm_initialised;
+ 	} ttm;
+diff -Naur VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_irq.c VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_irq.c
+--- VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_irq.c	2019-01-25 19:12:35.000000000 +0100
++++ VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_irq.c	2019-04-15 23:40:57.207224118 +0200
+@@ -33,7 +33,11 @@
+  */
+ #include "vbox_drv.h"
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+ #include <drm/drm_crtc_helper.h>
++#else
++#include <drm/drm_probe_helper.h>
++#endif
+ #include <VBoxVideo.h>
+ 
+ static void vbox_clear_irq(void)
+diff -Naur VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_main.c VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_main.c
+--- VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_main.c	2019-01-25 19:12:35.000000000 +0100
++++ VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_main.c	2019-04-15 23:41:00.385244466 +0200
+@@ -600,24 +600,18 @@
+ }
+ #endif
+ 
+-static void vbox_bo_unref(struct vbox_bo **bo)
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
++static void ttm_bo_put(struct ttm_buffer_object *bo)
+ {
+-	struct ttm_buffer_object *tbo;
+-
+-	if ((*bo) == NULL)
+-		return;
+-
+-	tbo = &((*bo)->bo);
+-	ttm_bo_unref(&tbo);
+-	if (!tbo)
+-		*bo = NULL;
++	ttm_bo_unref(&bo);
+ }
++#endif
+ 
+ void vbox_gem_free_object(struct drm_gem_object *obj)
+ {
+ 	struct vbox_bo *vbox_bo = gem_to_vbox_bo(obj);
+ 
+-	vbox_bo_unref(&vbox_bo);
++	ttm_bo_put(&vbox_bo->bo);
+ }
+ 
+ static inline u64 vbox_bo_mmap_offset(struct vbox_bo *bo)
+@@ -652,7 +646,7 @@
+ 	bo = gem_to_vbox_bo(obj);
+ 	*offset = vbox_bo_mmap_offset(bo);
+ 
+-	drm_gem_object_unreference(obj);
++	drm_gem_object_put(obj);
+ 	ret = 0;
+ 
+ out_unlock:
+diff -Naur VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_mode.c VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_mode.c
+--- VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_mode.c	2019-01-25 19:12:35.000000000 +0100
++++ VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_mode.c	2019-04-15 23:40:57.204224099 +0200
+@@ -42,6 +42,9 @@
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) || defined(RHEL_72)
+ #include <drm/drm_plane_helper.h>
+ #endif
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
++#include <drm/drm_probe_helper.h>
++#endif
+ 
+ #include "VBoxVideo.h"
+ 
+diff -Naur VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_ttm.c VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_ttm.c
+--- VirtualBox-6.0.4/src/VBox/Additions/linux/drm/vbox_ttm.c	2019-01-25 19:12:35.000000000 +0100
++++ VirtualBox-6.0.4-p/src/VBox/Additions/linux/drm/vbox_ttm.c	2019-04-15 23:40:57.206224112 +0200
+@@ -46,6 +46,7 @@
+ 	return container_of(bd, struct vbox_private, ttm.bdev);
+ }
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+ static int vbox_ttm_mem_global_init(struct drm_global_reference *ref)
+ {
+ 	return ttm_mem_global_init(ref->object);
+@@ -64,6 +65,7 @@
+ 	struct drm_global_reference *global_ref;
+ 	int ret;
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+ 	global_ref = &vbox->ttm.mem_global_ref;
+ 	global_ref->global_type = DRM_GLOBAL_TTM_MEM;
+ 	global_ref->size = sizeof(struct ttm_mem_global);
+@@ -76,6 +78,7 @@
+ 	}
+ 
+ 	vbox->ttm.bo_global_ref.mem_glob = vbox->ttm.mem_global_ref.object;
++#endif
+ 	global_ref = &vbox->ttm.bo_global_ref.ref;
+ 	global_ref->global_type = DRM_GLOBAL_TTM_BO;
+ 	global_ref->size = sizeof(struct ttm_bo_global);
+@@ -85,7 +88,9 @@
+ 	ret = drm_global_item_ref(global_ref);
+ 	if (ret) {
+ 		DRM_ERROR("Failed setting up TTM BO subsystem.\n");
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+ 		drm_global_item_unref(&vbox->ttm.mem_global_ref);
++#endif
+ 		return ret;
+ 	}
+ 
+@@ -100,6 +105,7 @@
+ 	drm_global_item_unref(&vbox->ttm.bo_global_ref.ref);
+ 	drm_global_item_unref(&vbox->ttm.mem_global_ref);
+ }
++#endif
+ 
+ static void vbox_bo_ttm_destroy(struct ttm_buffer_object *tbo)
+ {
+@@ -287,12 +293,16 @@
+ 	struct drm_device *dev = vbox->dev;
+ 	struct ttm_bo_device *bdev = &vbox->ttm.bdev;
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+ 	ret = vbox_ttm_global_init(vbox);
+ 	if (ret)
+ 		return ret;
++#endif
+ 
+ 	ret = ttm_bo_device_init(&vbox->ttm.bdev,
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+ 				 vbox->ttm.bo_global_ref.ref.object,
++#endif
+ 				 &vbox_bo_driver,
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0) || defined(RHEL_71)
+ 				 dev->anon_inode->i_mapping,
+@@ -300,7 +310,11 @@
+ 				 DRM_FILE_PAGE_OFFSET, true);
+ 	if (ret) {
+ 		DRM_ERROR("Error initialising bo driver; %d\n", ret);
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+ 		goto err_ttm_global_release;
++#else
++		return ret;
++#endif
+ 	}
+ 
+ 	ret = ttm_bo_init_mm(bdev, TTM_PL_VRAM,
+@@ -322,8 +336,10 @@
+ 
+ err_device_release:
+ 	ttm_bo_device_release(&vbox->ttm.bdev);
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+ err_ttm_global_release:
+ 	vbox_ttm_global_release(vbox);
++#endif
+ 	return ret;
+ }
+ 
+@@ -337,7 +353,9 @@
+ 	arch_phys_wc_del(vbox->fb_mtrr);
+ #endif
+ 	ttm_bo_device_release(&vbox->ttm.bdev);
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+ 	vbox_ttm_global_release(vbox);
++#endif
+ }
+ 
+ void vbox_ttm_placement(struct vbox_bo *bo, int domain)

@@ -1,0 +1,96 @@
+From d8349170010156b5d781a8efbb9b379ab9de581b Mon Sep 17 00:00:00 2001
+From: Gabriel Craciunescu <nix.or.die@gmail.com>
+Date: Mon, 15 Apr 2019 18:58:07 +0200
+Subject: [PATCH 1/4] Add a way to disable cancel button with a option while
+ installing
+
+ https://github.com/calamares/calamares/issues/1122
+---
+ settings.conf                      | 5 +++++
+ src/libcalamares/Settings.cpp      | 8 ++++++++
+ src/libcalamares/Settings.h        | 3 +++
+ src/libcalamaresui/ViewManager.cpp | 2 ++
+ 4 files changed, 18 insertions(+)
+
+diff --git a/settings.conf b/settings.conf
+index 8135ef3db..4a2eba9ea 100644
+--- a/settings.conf
++++ b/settings.conf
+@@ -163,3 +163,8 @@ dont-chroot: false
+ #
+ # YAML: boolean.
+ disable-cancel: false
++
++# If this is set to true, the "Cancel" button will be disabled once
++# you start the 'Installation', meaning there won't be a way to cancel
++# the Installtion until finished , or falied itself.
++dont-cancel: false
+diff --git a/src/libcalamares/Settings.cpp b/src/libcalamares/Settings.cpp
+index 710846a2c..58a34ec34 100644
+--- a/src/libcalamares/Settings.cpp
++++ b/src/libcalamares/Settings.cpp
+@@ -185,6 +185,7 @@ Settings::Settings( const QString& settingsFilePath,
+     , m_doChroot( true )
+     , m_promptInstall( false )
+     , m_disableCancel( false )
++    , m_dontCancel( false )
+ {
+     cDebug() << "Using Calamares settings file at" << settingsFilePath;
+     QFile file( settingsFilePath );
+@@ -206,6 +207,7 @@ Settings::Settings( const QString& settingsFilePath,
+             m_doChroot = !requireBool( config, "dont-chroot", false );
+             m_isSetupMode = requireBool( config, "oem-setup", !m_doChroot );
+             m_disableCancel = requireBool( config, "disable-cancel", false );
++            m_dontCancel = requireBool( config, "dont-cancel", false );
+         }
+         catch ( YAML::Exception& e )
+         {
+@@ -274,5 +276,11 @@ Settings::disableCancel() const
+     return m_disableCancel;
+ }
+ 
++bool
++Settings::dontCancel() const
++{
++    return m_dontCancel;
++}
++
+ 
+ }
+diff --git a/src/libcalamares/Settings.h b/src/libcalamares/Settings.h
+index 0c0f0aa91..836926cf3 100644
+--- a/src/libcalamares/Settings.h
++++ b/src/libcalamares/Settings.h
+@@ -69,6 +69,8 @@ public:
+ 
+     bool disableCancel() const;
+ 
++    bool dontCancel() const;
++
+ private:
+     static Settings* s_instance;
+ 
+@@ -84,6 +86,7 @@ private:
+     bool m_isSetupMode;
+     bool m_promptInstall;
+     bool m_disableCancel;
++    bool m_dontCancel;
+ };
+ 
+ }
+diff --git a/src/libcalamaresui/ViewManager.cpp b/src/libcalamaresui/ViewManager.cpp
+index f9a7c9e06..44a67a254 100644
+--- a/src/libcalamaresui/ViewManager.cpp
++++ b/src/libcalamaresui/ViewManager.cpp
+@@ -281,6 +281,8 @@ ViewManager::next()
+         {
+             m_back->setEnabled( false );
+             m_next->setEnabled( false );
++            if (Calamares::Settings::instance()->dontCancel())
++                m_quit->setEnabled( false );
+         }
+     }
+     else
+-- 
+2.21.0
+

@@ -60,7 +60,7 @@ CROSS_LIB="lib"
 CROSS_BIN="bin"
 CROSS_SBIN="sbin"
 CROSS_PREFIX="/usr"
-CROSS_INC="${CROSS_PREFIX}/include"
+CROSS_INC="include"
 
 ###
 # == APPENDED VARIABLES

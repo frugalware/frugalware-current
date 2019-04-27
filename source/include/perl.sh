@@ -64,7 +64,7 @@
 [ -z "$_F_cd_path" ] && _F_cd_path="$_F_perl_sourcename-$pkgver"
 pkgname="perl-`echo $_F_perl_name|tr [A-Z] [a-z]`"
 [ -z "$pkgrel" ] && pkgrel=1
-depends+=('perl>=5.26.1')
+depends+=('perl>=5.28.2')
 [ -z "$groups" ] && groups=('devel-extra')
 [ -z "$archs" ] && archs=('x86_64')
 

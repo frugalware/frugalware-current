@@ -1217,12 +1217,14 @@ __kill_libtool_dependency_libs() {
 
 		local la=$(find $Fdestdir -type f -name "*.la")
 		if [[ ${la[@]} ]]; then
-			Fmessage "Setting Libtool's dependency_libs=.* to ZERO in:"
+			#Fmessage "Setting Libtool's dependency_libs=.* to ZERO in:"
+			Fmessage "Removing Libtool's .la files:"
 			local i
 			for i in ${la[@]}
 			do
 				Fmessage "--> $i"
-				sed -i "s/^dependency_libs=.*/dependency_libs=''/" ${i}
+				#sed -i "s/^dependency_libs=.*/dependency_libs=''/" ${i}
+				rm -rf ${i}
 			done
 		fi
 	fi

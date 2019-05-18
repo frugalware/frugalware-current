@@ -1,33 +1,364 @@
+diff --git a/NEWS b/NEWS
+index 380506b4..4dc5904a 100644
+--- a/NEWS
++++ b/NEWS
+@@ -1,20 +1,20 @@
+ VERSION         DESCRIPTION
+ -----------------------------------------------------------------------------
++3.9.5         - makepkg and makepkg.conf updates
+ 3.9.4         - makepkg updates
+               - added 'nonow' and 'noprotect' options
+ 3.9.3         - update for new gcc7 based tool chain
+               - added nofortify and norelro options
+-	      - makepkg and makepkg.conf fixes
++	          - makepkg and makepkg.conf fixes
+ 3.9.2         - makepkg fixes
+-	      - added fw32-makepkg tool
++	          - added fw32-makepkg tool
+ 3.9.1         - various bug fixes
+ 3.9.0         - various bug fixes
+               - initial implementation for future hooks system
+ 3.8.9         - makepkg: supports kernel.org gpg signatures now
+               - makepkg: support for fw32 compilation
+               - makepkg: allow disabling of ccache on a per package basis
+-3.8.8         - makepkg: more stacked repo work (to allow a wip repo
+-              based on an other wip repo)
++3.8.8         - makepkg: more stacked repo work (to allow a wip repo based on an other wip repo)
+               - support for newer libarchive
+               - support static libarchive
+               - libftp: yet another timeout fix
+diff --git a/configure.ac b/configure.ac
+index fad0e7a6..5655d675 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -2,7 +2,7 @@ ENV_CFLAGS=$CFLAGS
+ 
+ AC_PREREQ(2.59)
+ dnl Update it right before the release since $pkgver_foo are all _post_ release snapshots
+-AC_INIT([pacman-g2 package manager], 3.9.4, [frugalware-devel@frugalware.org], pacman-g2)
++AC_INIT([pacman-g2 package manager], 3.9.5, [frugalware-devel@frugalware.org], pacman-g2)
+ AC_CONFIG_MACRO_DIR([m4])
+ AC_LANG(C)
+ AC_CONFIG_HEADERS(config.h)
 diff --git a/etc/makepkg.conf.in b/etc/makepkg.conf.in
-index 24e0a14a..6d370c39 100644
+index 24e0a14a..3a6b8959 100644
 --- a/etc/makepkg.conf.in
 +++ b/etc/makepkg.conf.in
-@@ -14,13 +14,16 @@ case $(uname -m) in
+@@ -10,23 +10,54 @@ export FTPAGENT="/usr/bin/wget -U makepkg --continue --passive-ftp --tries=3 --w
+ # The rsync utility that makepkg should use to access the Frugalware mirrors
+ export RSYNCAGENT="rsync -e 'ssh -q -o GlobalKnownHostsFile=$HOME/.ssh/known_hosts -i $HOME/.ssh/id_dsa' -vP"
+ 
++
++## to be moved after infra for znver1 is there
+ case $(uname -m) in
  	x86_64)
  		CARCH="x86_64"
  		CHOST="x86_64-frugalware-linux"
 -		CFLAGS="-march=x86-64 -mtune=generic -O2 -pipe -fstack-protector-strong -fno-plt"
 -		CXXFLAGS="-march=x86-64 -mtune=generic -O2 -pipe -fstack-protector-strong -fno-plt"
-+		CFLAGS="-march=x86-64 -mtune=generic -O2 -pipe"
-+		CXXFLAGS="-march=x86-64 -mtune=generic -O2 -pipe"
  		;;
  esac
  
 -## options+=('noprotector') allows to manipulate -fstack-protector-strong
 -## from FrugalBuild. Eg, to use ..=${CFLAGS/-fstack-protector-strong/}
-+## FLAGS added from makepkg:
-+## -fno-plt : can be disbled with options+=('plt')
-+## -fstack-protector-strong : can be disabled with options+=('noprotector')
-+## -pie ( added by gcc as default ) : can be disabled with options+=('nopie')
-+## -Wp,-D_FORTIFY_SOURCE=2 : can be disabled with options+=('nofortify')
- export CARCH CHOST CFLAGS CXXFLAGS
+-export CARCH CHOST CFLAGS CXXFLAGS
+-
+-## -Wl,--as-needed is set from makepkg. Disable with options+=('noasneeded')
+-## -Wl,z,now is set from makepkg. Disable with options+=('nonow')
+-## -Wl,z,relro is set from makepkg. Disable with options+=('norelro')
+-export LDFLAGS="-Wl,--hash-style=gnu -Wl,-O1 -Wl,--sort-common"
++export CARCH CHOST
++
++### C/XX FLAGS:
++# -pipe : always enabled.
++# -fno-plt : options+=('plt') to disable.
++# -fstack-protector-strong : options+=('noprotector') to disable.
++# -fstack-clash-protection : options+=('noclash') to disable.
++# -Wformat -Werror=format-security : options+=('nowfsecurity') to disable.
++# -pie ( added by gcc as default ) : options+=('nopie') to disable.
++# -Wp,-D_FORTIFY_SOURCE=2 : options+=('nofortify') to disable.
++# -flto : options+=('noflto') to disable.
++
++### LDFLAGS:
++# always ON: "-Wl,--hash-style=gnu -Wl,-O1 -Wl,--sort-common"
++# -Wl,--as-needed: options+=('noasneeded') to disable.
++# -Wl,z,now: options+=('nonow') to disable.
++# -Wl,z,relro : options+=('norelro') to disable.
++# -Wl,-z,defs : options+=('nodefs') to disable.
++
++### Optimization Levels
++# options+=('osmall')  : enables -Os
++# options+=('omedium') : enables -O2
++# options+=('ofast')   : enables -O3
++# options+=('ofaster') : enables -Ofast
++# options+=('odebug')  : enables -O0 -ggdb3 (for now)
++### Default: omedium ( -O2 )
++
++### LD options
++# options+=('ldbfd') : enabled -fuse-ld=bfd (bfd linker)
++# options+=('ldlld') : enabled -fuse-ld=lld (lld linker (clang))
++### Default is gold
++
++### Build Type:
++# generic : -march=x86-64 -mtune=generic
++# znver1  : -march=znver1 -mtune=znver1 ( not fully implemented )
++# none    : empy flags
++### NOTE: Empty or/and unknow value will cause makepkg to error out!
++
++export BUILD_TYPE="generic"
  
- ## -Wl,--as-needed is set from makepkg. Disable with options+=('noasneeded')
+ # SMP Systems
+ #export MAKEFLAGS="-j2"
+diff --git a/lib/libpacman/deps.c b/lib/libpacman/deps.c
+index 1b7582ee..a8410124 100644
+--- a/lib/libpacman/deps.c
++++ b/lib/libpacman/deps.c
+@@ -712,7 +712,7 @@ int _pacman_depcmp(pmpkg_t *pkg, pmdepend_t *dep)
+ 
+ 		if(strlen(dep->version) > 0) {
+ 			_pacman_log(PM_LOG_DEBUG, _("depcmp: %s-%s %s %s-%s => %s"),
+-								_pacman_pkg_getinfo(pkg, PM_PKG_NAME), _pacman_pkg_getinfo(pkg, PM_PKG_NAME),
++								_pacman_pkg_getinfo(pkg, PM_PKG_NAME), _pacman_pkg_getinfo(pkg, PM_PKG_VERSION),
+ 								mod, dep->name, dep->version,
+ 								(equal ? "match" : "no match"));
+ 		} else {
+diff --git a/scripts/Makefile.am b/scripts/Makefile.am
+index c0559759..c73ff8f7 100644
+--- a/scripts/Makefile.am
++++ b/scripts/Makefile.am
+@@ -1,2 +1,2 @@
+ AUTOMAKE_OPTIONS = std-options
+-bin_SCRIPTS = gensync makepkg  makeworld updatesync pacman-g2-optimize
++bin_SCRIPTS = gensync makepkg makeworld updatesync
 diff --git a/scripts/makepkg b/scripts/makepkg
-index d6cde41f..97cb9408 100755
+index d6cde41f..b7ce2b1d 100755
 --- a/scripts/makepkg
 +++ b/scripts/makepkg
-@@ -1146,15 +1146,17 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+@@ -28,10 +28,9 @@
+ ## bash's 'echo' is buggy and does not check on write() for errors
+ ECHO="/bin/echo"
+ startdir=`pwd`
+-PKGDEST=$startdir
++PKGDEST="$startdir"
+ USE_COLOR="n"
+ FORCE_BUILDTYPE="0"
+-OFORTIFY="1"
+ 
+ # Options
+ 
+@@ -48,6 +47,7 @@ INSTALL=0
+ DOWNLOAD=""
+ NOBUILD=0
+ NOCCACHE=0
++PTS=0
+ NODEPS=0
+ NOEXTRACT=0
+ NOSTRIP=0
+@@ -119,8 +119,14 @@ Fextract() {
+ }
+ 
+ # Frugalware extensions to makepkg
+-[ -e /usr/lib/frugalware/fwmakepkg ] && . /usr/lib/frugalware/fwmakepkg
++if [ -e /usr/lib/frugalware/fwmakepkg ]; then
++	. /usr/lib/frugalware/fwmakepkg
++else
++	error "Cannot find fwmakepkg, abording.."
++	Fdie
++fi
+ 
++### FIXME
+ # repoman.conf for $fst_root
+ [ -f /etc/repoman.conf ] && source /etc/repoman.conf
+ [ -n "$repos" ] && TREE="$repos"
+@@ -350,6 +356,7 @@ usage() {
+ 	$ECHO "  -n, --nostrip    Do not strip binaries/libraries"
+ 	$ECHO "  -o, --nobuild    Download and extract files only"
+ 	$ECHO "  -p <buildscript> Use an alternate build script (instead of $BUILDSCRIPT)"
++	$ECHO "  -P, --pts        Mount /dev/pts"
+ 	$ECHO "  -r, --rmdeps     Remove installed dependencies after a successful build"
+ 	$ECHO "  -R, --chroot     Build the package in a chroot environment (default)"
+ 	$ECHO "  -H, --host       Build the package on the host system"
+@@ -375,16 +382,19 @@ usage() {
+ chroot_umount() {
+     msg "Attempting to umount chroot directories..."
+     umount $CHROOTDIR/dev/shm >/dev/null
++    if [ "$PTS" = "1" ]; then
++		umount $CHROOTDIR/dev/pts >/dev/null
++    fi
+     umount $CHROOTDIR/proc >/dev/null
+     umount $CHROOTDIR/sys >/dev/null
+     umount $CHROOTDIR/dev >/dev/null
+     umount $CHROOTDIR/var/cache/pacman-g2 >/dev/null
+     if [ "$NOCCACHE" = "0" -a -d /usr/lib/ccache/bin -a ! "`check_option NOCCACHE`" ]; then
+-	umount $CHROOTDIR/var/cache/ccache/$pkgname >/dev/null
++		umount $CHROOTDIR/var/cache/ccache/$pkgname >/dev/null
+     fi
+     if [ "$?" != "0" ]; then
+-	error "An error occurred while attempting to umount chroot directories."
+-	exit 1
++		error "An error occurred while attempting to umount chroot directories."
++		exit 1
+     fi
+     msg "Successfully umounted chroot directories."
+ }
+@@ -395,14 +405,17 @@ chroot_mount() {
+     mount -t sysfs none $CHROOTDIR/sys >/dev/null
+     mount -t devtmpfs none $CHROOTDIR/dev >/dev/null
+     mount -o bind /dev/shm $CHROOTDIR/dev/shm
++    if [ "$PTS" = "1" ]; then
++		mount -o bind /dev/pts $CHROOTDIR/dev/pts >/dev/null
++    fi
+     mount -o bind /var/cache/pacman-g2 $CHROOTDIR/var/cache/pacman-g2 >/dev/null
+     if [ "$NOCCACHE" = "0" -a -d /usr/lib/ccache/bin -a ! "`check_option NOCCACHE`" ]; then
+-	mount -o bind $CCACHE_BASEDIR/$pkgname \
+-	$CHROOTDIR/var/cache/ccache/$pkgname >/dev/null
++		mount -o bind $CCACHE_BASEDIR/$pkgname \
++		$CHROOTDIR/var/cache/ccache/$pkgname >/dev/null
+     fi
+     if [ "$?" != "0" ]; then
+-	error "An error occurred while attempting to mount chroot directories."
+-	exit 1
++		error "An error occurred while attempting to mount chroot directories."
++		exit 1
+     fi
+     msg "Successfully mounted chroot directories."
+ }
+@@ -583,7 +596,7 @@ create_pkg()
+ 
+ strip_pkg()
+ {
+-	local dir="" subpkg="" p="$1"
++	local dir="" subpkg="" p="$1" binary strip_flags lto_file
+ 
+ 	if [ "$p" = "$pkgname" ]; then
+ 		dir="$startdir/pkg"
+@@ -591,15 +604,39 @@ strip_pkg()
+ 		dir="$startdir/pkg.$p"
+ 		subpkg="subpackage "
+ 	fi
++
+ 	if [ ! "`check_option NOSTRIP`" -a "$NOSTRIP" = "0" ]; then
+-		msg "Stripping symbols from libraries from $subpkg$1..."
+-		find $dir/{,usr,usr/local,opt/*}/{lib,lib32} -type f -not -name "*.dll" -not -name "*.exe" -not -name "*.a"  -not -name "*.o" \
+-			-exec /usr/bin/strip -s '{}' \; 2>&1 \
+-			| grep -v "No such file" | grep -v "format not recognized"
+-		msg "Stripping symbols from binaries from $subpkg$p..."
+-		find $dir/{,usr,usr/local,usr/i686-frugalware-linux,opt/*}/{bin,sbin} -type f -not -name "*.dll" -not -name "*.exe" -not -name "*.a"  -not -name "*.o" \
+-			-exec /usr/bin/strip -s '{}' \; 2>&1 \
+-			| grep -v "No such file" | grep -v "format not recognized"
++		msg "Stripping symbols from from $subpkg$1..."
++		find $dir/{,usr,usr/local,opt/*,x86_64-frugalware-linux,i686-frugalware-linux}/{lib,lib32,bin,sbin} \
++			 -type f -not -name "*.dll" -not -name "*.exe" -not -name "*.pc" -not -name "*.la" \
++			 -not -name "*.pc" -not -name "*.cmake" -perm -u+w -print0 2>/dev/null | while read -rd '' binary ; do
++		case "$(file -bi "$binary")" in
++			*application/x-sharedlib*)  # Libraries (.so)
++				strip_flags="--strip-unneeded";;
++			*application/x-archive*)    # Libraries (.a)
++				# broken with LTO
++				if readelf -s "$binary" | grep -qi "gnu_lto"; then
++					continue
++				else
++					strip_flags="--strip-debug"
++				fi;;
++			*application/x-object*)
++				case "$binary" in
++					*.ko) # Kernel module
++						strip_flags="--strip-unneeded";;
++					*)
++						continue;;
++				esac;;
++			*application/x-executable*) # Binaries
++				strip_flags="--strip-all";;
++			*application/x-pie-executable*)  # Relocatable binaries
++				strip_flags="--strip-unneeded";;
++			*)
++				continue ;;
++			esac
++			strip ${strip_flags} "$binary"
++		done
++
+ 	fi
+ }
+ 
+@@ -678,7 +715,7 @@ if [ -z "$PKG_COMP" ]; then
+ fi
+ 
+ if [ "$USE_AUTO_MAKEFLAGS" != "n" ]; then
+-	export MAKEFLAGS="-j`grep -c ^processor /proc/cpuinfo`"
++	export MAKEFLAGS="-j`getconf _NPROCESSORS_ONLN`"
+ fi
+ 
+ ARGLIST=$@
+@@ -697,6 +734,7 @@ while [ "$#" -ne "0" ]; do
+ 		--sudosync)   DEP_SUDO=1 ;;
+ 		--builddeps)  DEP_SRC=1 ;;
+ 		--noccache)   NOCCACHE=1 ;;
++		--pts)        PTS=1;;
+ 		--nodeps)     NODEPS=1 ;;
+ 		--noextract)  NOEXTRACT=1 ;;
+ 		--install)    INSTALL=1 ;;
+@@ -720,7 +758,7 @@ while [ "$#" -ne "0" ]; do
+ 			exit 1
+ 			;;
+ 		-*)
+-			while getopts "aA:bBcCdD:efgGhij:kl:Lmnop:urRHsSt:w:z:-" opt; do
++			while getopts "aA:bBcCdD:efgGhij:kl:LmnoPp:urRHsSt:w:z:-" opt; do
+ 				case $opt in
+ 					a) SEARCHDEPS=1 ;;
+ 					A) CACHEURL=$OPTARG ;;
+@@ -744,6 +782,7 @@ while [ "$#" -ne "0" ]; do
+ 					m) USE_COLOR="n" ;;
+ 					n) NOSTRIP=1 ;;
+ 					o) NOBUILD=1; CHROOT=0 ;;
++					P) PTS=1;;
+ 					p) BUILDSCRIPT=$OPTARG ;;
+ 					r) RMDEPS=1 ;;
+ 					R) CHROOT=1 ;;
+@@ -915,8 +954,30 @@ if [ ! -f $BUILDSCRIPT ]; then
+ 	exit 1
+ fi
+ 
++
++save_flags() {
++
++	if [[ -n $CFLAGS ]]; then
++		_FB_CFLAGS="$CFLAGS"
++	fi
++
++	if [[ -n $CXXFLAGS ]]; then
++        _FB_CXXFLAGS="$CXXFLAGS"
++	fi
++
++	if [[ -n $LDFLAGS ]]; then
++		_FB_LDFLAGS="$LDFLAGS"
++	fi
++
++	unset CFLAGS CXXFLAGS LDFLAGS
++	export _FB_CFLAGS _FB_CXXFLAGS _FB_LDFLAGS
++}
++
+ source ./$BUILDSCRIPT
+ 
++# save C/CXX/LD flags from FB
++save_flags
++
+ # check for no-no's
+ if [ -z "$pkgver" ]; then
+ 	error "pkgver is not allowed to be empty."
+@@ -952,11 +1013,8 @@ if [ "$F_makepkg_scm" = "git" -a ! "`check_option NOVERSRC`" ]; then
+ 	if [ -n "$_serverlist" -a "${_serverlist:0:6}" != "git://" ]; then
+ 		serverlist=$_serverlist
+ 	fi
+-else
+-if [ -f "$fst_root/${TREE}/_darcs/prefs/defaultrepo" ]; then
+-	serverlist="`cat $fst_root/${TREE}/_darcs/prefs/defaultrepo`"
+-fi
+ fi
++
+ if [ -z "$CACHEURL" ]; then
+ 	CACHEURL="${serverlist}/source/$groups/$pkgname"
+ fi
+@@ -1146,15 +1204,17 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
          ## we build for, with different flags etc .. copy the file only
  	## when not found in chroot .. we have checks for C/CXX/LD flags
  	## in makepkg itself... How that ever worked for the stable tree ?!?
@@ -53,7 +384,7 @@ index d6cde41f..97cb9408 100755
  	chmod 644 $CHROOTDIR/etc/sudoers
  	$ECHO "fst ALL=(ALL)       NOPASSWD: ALL" >$CHROOTDIR/etc/sudoers
  	chmod 440 $CHROOTDIR/etc/sudoers
-@@ -1240,7 +1242,7 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+@@ -1240,7 +1300,7 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
  			msg "Your package has coding issues"
  			warning "Broken strict-aliasing rules detected"
  			warning "C/CXX FLAGS need -fno-strict-aliasing"
@@ -62,99 +393,318 @@ index d6cde41f..97cb9408 100755
  		fi
  		# copy build log to LOGDIR if set
  		if [ -d "$LOGDIR" ]; then
-@@ -1420,6 +1422,17 @@ fi
+@@ -1412,112 +1472,197 @@ if grep -i -q "^# Compiling Time: [~0-9\.]\+ SBU$" $BUILDSCRIPT && \
+ 	fi
+ fi
  
- if [ "$INCHROOT" == "1" ]; then
+-### we use at least -Wl,--hash-style=xx and conditional
+-## -Wl,--as-needed. Gcc6 WIP will add -Wl,-O1.. HOWEVER some build server(s)
+-## seems to use veryyyyyy old makepkg.conf even witout --hash-style=xxx..
+-## check here and workaround this when needed..
  
-+	## add before PLT
+ 
+-if [ "$INCHROOT" == "1" ]; then
++## ignore flags are still in makepkg.conf
++setflags() {
++
++	unset LDFLAGS CFLAGS CXXFLAGS
+ 
+-	if  $ECHO $LDFLAGS | grep -q "\-Wl,--hash-style=both" ; then
+-		error "You are using -Wl,--hash-style=both"
+-		error "LDFLAGS changed to -Wl,--hash-style=gnu"
+-		error "Fix your makepkg.conf"
++	if [ -z "$BUILD_TYPE" ]; then
++		error "BUILD_TYPE cannot be empty, please fix your makepkg.conf"
+ 		exit 1
+ 	fi
+ 
+-	if ! $ECHO $CFLAGS | grep -q "\-fstack-protector-strong" ; then
+-		if [ "`check_option NOPROTECTOR`" ]; then
+-			warning "You disabled stack-protector.. Do that *ONLY*"
+-			warning "when you have a very GOOD reason.."
+-		else
+-			error "Your build/makepkg.conf is broken"
+-			error "CFLAGS is missing -fstack-protector-strong"
+-			error "and options+=('noprotector') is not set.."
+-			exit 1
+-		fi
++	case "$BUILD_TYPE" in
++		generic)
++				_MFLAGS="-march=x86-64 -mtune=generic"
++				;;
++		znver1)
++				_MFLAGS="-march=znver1 -mtune=znver1"
++				;;
++		none)
++				_MFLAGS=""
++				;;
++		*)
++				error "Unknow BUILD_TYPE. (valid types: generic , znver1 or none )"
++				exit 1
++				;;
++	esac
++
++	_LDFLAGS=""
++	_FLAGS=""
++
++	## Optimization level
++	# osmall  = -Os
++	# omedium = -O2 ( default )
++	# ofast   = -O3
++	# ofaster = -Ofast ( O3++ )
++	# odebug  = -O0 -ggdb
++
++	## yes I know..
++	_OFLAG="-O2"
++
++	## this is not perfect
++	if [ "`check_option OSMALL`" ]; then
++			_OFLAG="-Os"
+ 	fi
+ 
+-	if ! $ECHO $CXXFLAGS | grep -q "\-fstack-protector-strong" ; then
+-		if [ "`check_option NOPROTECTOR`" ]; then
+-			warning "You disabled stack-protector.. Do that *ONLY*"
+-			warning "when you have a very GOOD reason.."
+-		else
+-			error "Your build/makepkg.conf is broken"
+-			error "CXXFLAGS is missing -fstack-protector-strong missing"
+-			error "and options+=('noprotector') is not set.."
+-			exit 1
+-		fi
++	if [ "`check_option OMEDIUM`" ]; then
++			_OFLAG="-O2"
+ 	fi
+ 
+-	if ! $ECHO $LDFLAGS | grep -q "\-Wl,--hash-style=gnu" ; then
+-        	warning "Broken LDFLAGS found, -Wl,--hash-style=gnu is missing from makepkg.conf!!"
+-        	warning "Setting BUILDTYPE=custom , fix your makepkg.conf"
+-		FORCE_BUILDTYPE="1"
+-        	LDFLAGS+=" -Wl,--hash-style=gnu"
+-        	export LDFLAGS
++	if [ "`check_option OFAST`" ]; then
++			_OFLAG="-O3"
+ 	fi
+ 
+-	if ! $ECHO $LDFLAGS | grep -q "\-Wl,-O1" ; then
+-        	warning "Broken LDFLAGS found, -Wl,-O1 is missing from makepkg.conf!!"
+-        	warning "Setting BUILDTYPE=custom , fix your makepkg.conf"
+-		FORCE_BUILDTYPE="1"
+-        	LDFLAGS+=" -Wl,-O1"
+-		export LDFLAGS
++	if [ "`check_option OFASTER`" ]; then
++			_OFLAG="-Ofast"
+ 	fi
+ 
+-	if ! $ECHO $LDFLAGS | grep -q "\-Wl,--sort-common" ; then
+-		warning "Broken LDFLAGS found, -Wl,--sort-common is missing from makepkg.conf!!"
+-		warning "Setting BUILDTYPE=custom , fix your makepkg.conf"
+-		FORCE_BUILDTYPE="1"
+-		LDFLAGS+=" -Wl,--sort-common"
+-		export LDFLAGS
++	if [ "`check_option ODEBG`" ]; then
++			_OFLAG=" -O0 -ggdb3"
+ 	fi
+ 
+-	if [ "`check_option ASNEEDED`" ]; then
+-        	error "You are using deprecated option 'asneeded'."
+-        	error "This is now default, please remove and retry."
+-		exit 1
++	## LD's
++	# Since we try with gold default lets have
++	# options to switch them with options=()
++	if [ "`check_option LDBFD`" -a "`check_option LDLLD`" ]; then
++		error "Having ldbfd and ldlld enabled is not possible."
++		Fdie
+ 	fi
+ 
+-	if [ "`check_option NOASNEEDED`" ]; then
+-		warning "Using --no-as-needed in LDFLAGS ( are you sure ? )"
+-		LDFLAGS+=" -Wl,--no-as-needed"
+-		export LDFLAGS
++	if [ "`check_option LDBFD`" ]; then
++		_LD_PLUGIN=" -fuse-ld=bfd"
++	fi
++
++	if [ "`check_option LDLLD`" ]; then
++		_LD_PLUGIN=" -fuse-ld=lld"
++	fi
++
 +	if [ "`check_option NOPROTECTOR`" ]; then
 +		warning "Disabling C/CXX FLAGS: -fstack-protector-strong"
 +		warning "Do that only with an GOOD reason.."
 +	else
-+		msg "Enabling C/CXX FLAGS: -fstack-protector-strong"
-+		CFLAGS+=" -fstack-protector-strong"
-+		CXXFLAGS+=" -fstack-protector-strong"
-+		export CFLAGS CXXFLAGS
++		_FLAGS+=" -fstack-protector-strong"
 +	fi
 +
- 	if  $ECHO $LDFLAGS | grep -q "\-Wl,--hash-style=both" ; then
- 		error "You are using -Wl,--hash-style=both"
- 		error "LDFLAGS changed to -Wl,--hash-style=gnu"
-@@ -1428,10 +1441,7 @@ if [ "$INCHROOT" == "1" ]; then
- 	fi
- 
- 	if ! $ECHO $CFLAGS | grep -q "\-fstack-protector-strong" ; then
--		if [ "`check_option NOPROTECTOR`" ]; then
--			warning "You disabled stack-protector.. Do that *ONLY*"
--			warning "when you have a very GOOD reason.."
--		else
-+		if [ ! "`check_option NOPROTECTOR`" ]; then
- 			error "Your build/makepkg.conf is broken"
- 			error "CFLAGS is missing -fstack-protector-strong"
- 			error "and options+=('noprotector') is not set.."
-@@ -1440,12 +1450,9 @@ if [ "$INCHROOT" == "1" ]; then
- 	fi
- 
- 	if ! $ECHO $CXXFLAGS | grep -q "\-fstack-protector-strong" ; then
--		if [ "`check_option NOPROTECTOR`" ]; then
--			warning "You disabled stack-protector.. Do that *ONLY*"
--			warning "when you have a very GOOD reason.."
--		else
-+		if [ ! "`check_option NOPROTECTOR`" ]; then
- 			error "Your build/makepkg.conf is broken"
--			error "CXXFLAGS is missing -fstack-protector-strong missing"
-+			error "CXXFLAGS is missing -fstack-protector-strong"
- 			error "and options+=('noprotector') is not set.."
- 			exit 1
- 		fi
-@@ -1482,24 +1489,43 @@ if [ "$INCHROOT" == "1" ]; then
- 	fi
- 
- 	if [ "`check_option NOASNEEDED`" ]; then
--		warning "Using --no-as-needed in LDFLAGS ( are you sure ? )"
-+		warning "Using LDFLAGS: --no-as-needed ( are you sure ? )"
- 		LDFLAGS+=" -Wl,--no-as-needed"
- 		export LDFLAGS
++	if [ "`check_option NOCLASH`" ]; then
++		warning "Disabling C/CXX FLAGS: -fstack-clash-protection"
++		warning "Do that only with an GOOD reason.."
++	else
++		_FLAGS+=" -fstack-clash-protection"
++	fi
++
++	if [ "`check_option NOWFSECURITY`" ]; then
++		warning "Disabling C/CXX FLAGS: -Werror=format-security"
  	else
-+		msg "Enabling LDFLAGS: -Wl,--as-needed"
- 		LDFLAGS+=" -Wl,--as-needed"
- 		export LDFLAGS
+-		LDFLAGS+=" -Wl,--as-needed"
+-		export LDFLAGS
++		_FLAGS+=" -Wformat -Werror=format-security"
  	fi
  
  	if [ "`check_option NOFORTIFY`" ]; then
 -		warning "Disabling -D_FORTIFY_SOURCE=2.."
+-		export OFORTIFY=0
 +		warning "Disabling C/CXX FLAGS: -D_FORTIFY_SOURCE=2"
- 		export OFORTIFY=0
  	else
 -		msg "Enabling -Wp,-D_FORTIFY_SOURCE=2"
-+		msg "Enabling C/CXX FLAGS: -Wp,-D_FORTIFY_SOURCE=2"
- 		CFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
- 		CXXFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
- 		export CFLAGS CXXFLAGS
- 	fi
- 
+-		CFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
+-		CXXFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
+-		export CFLAGS CXXFLAGS
++		_FLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
++	fi
 +
 +	if [ "`check_option PLT`" ]; then
-+		 warning "Disabling C/CXX FLAGS: -fno-plt"
++		warning "Disabling C/CXX FLAGS: -fno-plt"
 +	else
-+		msg "Enabling C/CXX FLAGS: -fno-plt"
-+		CFLAGS+=" -fno-plt"
-+		CXXFLAGS+=" -fno-plt"
-+		export CFLAGS CXXFLAGS
++		_FLAGS+=" -fno-plt"
 +	fi
 +
 +	if [ "`check_option NOPIE`" ]; then
 +		warning "Disabling C/CXX FLAGS: -pie"
-+		msg "Enabling C/CXX FLAGS: -fno-PIE"
-+		CFLAGS+=" -fno-PIE"
-+		CXXFLAGS+=" -fno-PIE"
-+		export CFLAGS CXXFLAGS
++		_FLAGS+=" -no-pie"
 +	fi
 +
++	if [ "`check_option NOLTO`" ]; then
++		warning "Disabling C/CXX FLAGS: -flto"
++		_FLAGS+=" -fno-lto"
++	else
++		_lto_cpus="$(getconf _NPROCESSORS_ONLN)"
++		_FLAGS+=" -flto=$_lto_cpus"
++	fi
++
++	if [ "`check_option ASNEEDED`" ]; then
++		error "You are using deprecated option 'asneeded'."
++		error "This is now default, please remove and retry."
++		exit 1
++	fi
++
++	if [ "`check_option NOASNEEDED`" ]; then
++		warning "Using LDFLAGS: --no-as-needed ( are you sure ? )"
++		_LDFLAGS+=" -Wl,--no-as-needed"
++	else
++		_LDFLAGS+=" -Wl,--as-needed"
+ 	fi
+ 
  	if [ "`check_option NORELRO`" ]; then
  		warning "Disabling LDFLAGS: -z,relro"
- 		export ORELRO=0
-@@ -1837,7 +1863,23 @@ do
+-		export ORELRO=0
+ 	else
+-		msg "Enabling LDFLAGS: -z,relro"
+-		LDFLAGS+=" -Wl,-z,relro"
+-		export LDFLAGS
++		_LDFLAGS+=" -Wl,-z,relro"
+ 	fi
+ 
+ 	if [ "`check_option NONOW`" ]; then
+ 		warning "Disabling LDFLAGS: -z,now"
+-		export ONOW=0
+ 	else
+-		msg "Enabling LDFLAGS: -z,now"
+-		LDFLAGS+=" -Wl,-z,now"
+-		export LDFLAGS
++		_LDFLAGS+=" -Wl,-z,now"
+ 	fi
+-fi
++	## underlinking detection
++	if [ "`check_option NODEFS`" ]; then
++		warning "Disabling LDFLAGS: -z,defs"
++	else
++		_LDFLAGS+=" -Wl,-z,defs"
++	fi
++
++	## put all together.
++	## FB w/out build()
++	[[ -n ${_FB_CFLAGS} ]] && _FLAGS+=" ${_FB_CFLAGS}"
++	[[ -n ${_FB_CXXFLAGS} ]] && _FLAGS+=" ${_FB_CXXFLAGS}"
++	[[ -n ${_FB_LDFLAGS} ]] && _LDFLAGS+=" ${_FB_LDFLAGS}"
++
++	# need that bc we may pull in dplicated flags from FB and/or Finclde
++	# just sanitize all FLAGS here
++	_FLAGS="$(/bin/echo ${_FLAGS[@]} | tr [:space:] '\n' | awk '!a[$0]++' | tr '\n' ' ')"
++	_LDFLAGS="$(/bin/echo ${_LDFLAGS[@]} | tr [:space:] '\n' | awk '!a[$0]++' | tr '\n' ' ')"
++
++	CFLAGS="${_MFLAGS} ${_OFLAG} ${_FLAGS} ${_LD_PLUGIN} -pipe"
++	CXXFLAGS="${_MFLAGS} ${_OFLAG} ${_FLAGS} ${_LD_PLUGIN} -pipe"
++	LDFLAGS=" -Wl,--hash-style=gnu -Wl,-O1 -Wl,--sort-common ${_LDFLAGS} ${CFLAGS}"
++
++
++	export LDFLAGS CFLAGS CXXFLAGS
++
++	if ! $ECHO $CFLAGS | grep -q "\-fstack-protector-strong" ; then
++		if [ ! "`check_option NOPROTECTOR`" ]; then
++			error "Your build is broken"
++			error "CFLAGS is missing -fstack-protector-strong"
++			error "and options+=('noprotector') is not set.."
++			exit 1
++		fi
++	fi
++
++	if ! $ECHO $CXXFLAGS | grep -q "\-fstack-protector-strong" ; then
++		if [ ! "`check_option NOPROTECTOR`" ]; then
++			error "Your build is broken"
++			error "CXXFLAGS is missing -fstack-protector-strong"
++			error "and options+=('noprotector') is not set.."
++			exit 1
++		fi
++	fi
++}
++
+ # retrieve sources
+ msg "Retrieving Sources..."
+ mkdir -p src
+@@ -1724,6 +1869,31 @@ else
+ 	fi
+ fi
+ 
++setflags
++
++msg "Enabling CFLAGS: "
++for _c in ${CFLAGS[@]}
++do
++    msg "   $_c "
++done
++
++msg "Enabling CXXFLAGS: "
++for _cxx in ${CXXFLAGS[@]}
++do
++    msg "   $_cxx "
++done
++
++# Only show these in _LDFLAGS
++# full LDFLAGS have CFLAGS too
++msg "Enabling LDFLAGS: "
++for _ld in ${_LDFLAGS[@]}
++do
++    msg "   $_ld "
++done
++
++unset _FB_CFLAGS _FB_CXXFLAGS _FB_LDFLAGS
++unset _MFLAGS _OFLAG _FLAGS _LD_PLUGIN _LDFLAGS
++
+ if [ "`id -u`" = "0" ]; then
+ 	# chown all source files to root.root
+ 	chown -R root.root $startdir/src
+@@ -1799,7 +1969,7 @@ fi
+ if [ "$SBU" == "1" ]; then
+ 	# $SBU not yet set
+ 	totaltime="$(( $(date +%s) - $stime ))"
+-	if [ -z "$HRBT" ]; then 
++	if [ -z "$HRBT" ]; then
+ 		msg "Elapsed Time: $totaltime seconds"
+ 	else
+ 		hours="$(( $totaltime / 3600 ))"
+@@ -1837,7 +2007,23 @@ do
  	if [ -d ${dir}/usr/share/pkgconfig ]; then
  		error "Your package has broken pkgconfig PATH"
  		error "Files are installed in /usr/share/pkgconfig"
@@ -179,3 +729,52 @@ index d6cde41f..97cb9408 100755
  		error "Bailing out, please fix your package!"
  		exit 1
  	fi
+@@ -2046,6 +2232,11 @@ find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/{info,man} -type f 2>/dev
+ 			rm -f "$ln"
+ 			ln -sf "${fn}.gz" "${ln}.gz"
+ 		done
++		# we have some weird formatting bug for xml
++		# and some custom made ones. untill we figure
++		# workaround it - crazy -
++		# drop spaces , tabs and all empty lines..
++		sed -i -e 's/^[ \t]*//' -e '/^$/d' "$i"
+ 		# compress the original
+ 		gzip -9 "$i"
+ 	fi
+@@ -2151,23 +2342,6 @@ elif [ "$RMDEPS" = "1" -a "$DEP_SUDO" = "1" ]; then
+ 	fi
+ fi
+ 
+-
+-msg "This package was built with:"
+-msg2 "HOST_CFLAGS:    $CFLAGS "
+-msg2 "HOST_CXXFLAGS:  $CXXFLAGS "
+-msg2 "HOST_LDFLAGS:   $LDFLAGS "
+-if [ "$OFORTIFY" == "0" ]; then
+-	msg2 "FORTIFY_FLAGS:   OFF "
+-fi
+-
+-if [ "$ONORELRO" == "0" ]; then
+-	msg2 "RELRO_LDFLAGS:   OFF "
+-fi
+-
+-if [ "$ONOW" == "0" ]; then
+-	msg2 "BINDNOW_LDFLAGS:   OFF "
+-fi
+-
+ msg "Finished making: $pkgname  (`date`)"
+ 
+ install_pkg
+diff --git a/src/pacman-g2/pacman-g2.c b/src/pacman-g2/pacman-g2.c
+index 4f7d33da..d939d664 100644
+--- a/src/pacman-g2/pacman-g2.c
++++ b/src/pacman-g2/pacman-g2.c
+@@ -182,7 +182,7 @@ static void version(void)
+ {
+ 	printf("\n");
+ 	printf(" .--.                  Pacman-G2 v%s - libpacman v%s\n", PACKAGE_VERSION, PM_VERSION);
+-	printf("/ _.-' .-.  .-.  .-.   Copyright (C) 2002-2010 Pacman-G2 Team\n");
++	printf("/ _.-' .-.  .-.  .-.   Copyright (C) 2002-2018 Pacman-G2 Team\n");
+ 	printf("\\  '-. '-'  '-'  '-'   See /usr/share/doc/pacman-g2-%s/AUTHORS for more info.\n", PACKAGE_VERSION);
+ 	printf(" '--'                  \n");
+ 	printf(_("                       This program may be freely redistributed under\n"));

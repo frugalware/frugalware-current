@@ -1,0 +1,83 @@
+From f10648e0350707e0e51576c60f3f5b9cbb14ab75 Mon Sep 17 00:00:00 2001
+From: Alan Modra <amodra@gmail.com>
+Date: Fri, 17 May 2019 19:09:42 +0930
+Subject: [PATCH 128/128] PR24567, assertion failure in ldlang.c:6868 when
+ compiling with -flto
+
+As the existing comment said: "a common ought to be overridden by a
+def in a -flto object".  This patch makes the code actually do that,
+rather than allowing a normal object file common to override a -flto
+defined symbol.
+
+	PR 24567
+	* plugin.c (plugin_notice): Do not let a common symbol override
+	a non-common definition in IR.
+
+(cherry picked from commit af4fa23fba220c1b26bb3c8a7996b406dcc181cc)
+---
+ ld/ChangeLog |  6 ++++++
+ ld/plugin.c  | 42 ++++++++++++++++++++++++------------------
+ 2 files changed, 30 insertions(+), 18 deletions(-)
+
+diff --git a/ld/plugin.c b/ld/plugin.c
+index ea1a7f7064..e4e781c2a8 100644
+--- a/ld/plugin.c
++++ b/ld/plugin.c
+@@ -1316,30 +1316,36 @@ plugin_notice (struct bfd_link_info *info,
+ 	  ref = TRUE;
+ 	}
+ 
+-      /* Otherwise, it must be a new def.  */
+-      else
++
++      /* A common symbol should be merged with other commons or
++	 defs with the same name.  In particular, a common ought
++	 to be overridden by a def in a -flto object.  In that
++	 sense a common is also a ref.  */
++      else if (bfd_is_com_section (section))
+ 	{
+-	  /* Ensure any symbol defined in an IR dummy BFD takes on a
+-	     new value from a real BFD.  Weak symbols are not normally
+-	     overridden by a new weak definition, and strong symbols
+-	     will normally cause multiple definition errors.  Avoid
+-	     this by making the symbol appear to be undefined.  */
+-	  if (((h->type == bfd_link_hash_defweak
+-		|| h->type == bfd_link_hash_defined)
+-	       && is_ir_dummy_bfd (sym_bfd = h->u.def.section->owner))
+-	      || (h->type == bfd_link_hash_common
+-		  && is_ir_dummy_bfd (sym_bfd = h->u.c.p->section->owner)))
++	  if (h->type == bfd_link_hash_common
++	      && is_ir_dummy_bfd (sym_bfd = h->u.c.p->section->owner))
+ 	    {
+ 	      h->type = bfd_link_hash_undefweak;
+ 	      h->u.undef.abfd = sym_bfd;
+ 	    }
++	  ref = TRUE;
++	}
+ 
+-	  /* A common symbol should be merged with other commons or
+-	     defs with the same name.  In particular, a common ought
+-	     to be overridden by a def in a -flto object.  In that
+-	     sense a common is also a ref.  */
+-	  if (bfd_is_com_section (section))
+-	    ref = TRUE;
++      /* Otherwise, it must be a new def.
++	 Ensure any symbol defined in an IR dummy BFD takes on a
++	 new value from a real BFD.  Weak symbols are not normally
++	 overridden by a new weak definition, and strong symbols
++	 will normally cause multiple definition errors.  Avoid
++	 this by making the symbol appear to be undefined.  */
++      else if (((h->type == bfd_link_hash_defweak
++		 || h->type == bfd_link_hash_defined)
++		&& is_ir_dummy_bfd (sym_bfd = h->u.def.section->owner))
++	       || (h->type == bfd_link_hash_common
++		   && is_ir_dummy_bfd (sym_bfd = h->u.c.p->section->owner)))
++	{
++	  h->type = bfd_link_hash_undefweak;
++	  h->u.undef.abfd = sym_bfd;
+ 	}
+ 
+       if (ref)
+-- 
+2.21.0
+

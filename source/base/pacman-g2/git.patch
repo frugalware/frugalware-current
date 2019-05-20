@@ -41,10 +41,10 @@ index fad0e7a6..5655d675 100644
  AC_LANG(C)
  AC_CONFIG_HEADERS(config.h)
 diff --git a/etc/makepkg.conf.in b/etc/makepkg.conf.in
-index 24e0a14a..3a6b8959 100644
+index 24e0a14a..bbf77795 100644
 --- a/etc/makepkg.conf.in
 +++ b/etc/makepkg.conf.in
-@@ -10,23 +10,54 @@ export FTPAGENT="/usr/bin/wget -U makepkg --continue --passive-ftp --tries=3 --w
+@@ -10,23 +10,55 @@ export FTPAGENT="/usr/bin/wget -U makepkg --continue --passive-ftp --tries=3 --w
  # The rsync utility that makepkg should use to access the Frugalware mirrors
  export RSYNCAGENT="rsync -e 'ssh -q -o GlobalKnownHostsFile=$HOME/.ssh/known_hosts -i $HOME/.ssh/id_dsa' -vP"
  
@@ -84,7 +84,7 @@ index 24e0a14a..3a6b8959 100644
 +# -Wl,--as-needed: options+=('noasneeded') to disable.
 +# -Wl,z,now: options+=('nonow') to disable.
 +# -Wl,z,relro : options+=('norelro') to disable.
-+# -Wl,-z,defs : options+=('nodefs') to disable.
++# -Wl,-z,defs : options+=('ldefs') to enable
 +
 +### Optimization Levels
 +# options+=('osmall')  : enables -Os
@@ -97,6 +97,7 @@ index 24e0a14a..3a6b8959 100644
 +### LD options
 +# options+=('ldbfd') : enabled -fuse-ld=bfd (bfd linker)
 +# options+=('ldlld') : enabled -fuse-ld=lld (lld linker (clang))
++# options+=('ldgold') : enabled -fuse-ld=gold
 +### Default is gold
 +
 +### Build Type:
@@ -131,7 +132,7 @@ index c0559759..c73ff8f7 100644
 -bin_SCRIPTS = gensync makepkg  makeworld updatesync pacman-g2-optimize
 +bin_SCRIPTS = gensync makepkg makeworld updatesync
 diff --git a/scripts/makepkg b/scripts/makepkg
-index d6cde41f..b7ce2b1d 100755
+index d6cde41f..2faab7e4 100755
 --- a/scripts/makepkg
 +++ b/scripts/makepkg
 @@ -28,10 +28,9 @@
@@ -170,7 +171,19 @@ index d6cde41f..b7ce2b1d 100755
  # repoman.conf for $fst_root
  [ -f /etc/repoman.conf ] && source /etc/repoman.conf
  [ -n "$repos" ] && TREE="$repos"
-@@ -350,6 +356,7 @@ usage() {
+@@ -142,6 +148,11 @@ fi
+ 
+ ### SUBROUTINES ###
+ 
++
++if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
++	export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
++fi
++
+ plain() {
+ 	if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
+ 		$ECHO -e "    \033[1;1m$1\033[1;0m" >&2
+@@ -350,6 +361,7 @@ usage() {
  	$ECHO "  -n, --nostrip    Do not strip binaries/libraries"
  	$ECHO "  -o, --nobuild    Download and extract files only"
  	$ECHO "  -p <buildscript> Use an alternate build script (instead of $BUILDSCRIPT)"
@@ -178,7 +191,7 @@ index d6cde41f..b7ce2b1d 100755
  	$ECHO "  -r, --rmdeps     Remove installed dependencies after a successful build"
  	$ECHO "  -R, --chroot     Build the package in a chroot environment (default)"
  	$ECHO "  -H, --host       Build the package on the host system"
-@@ -375,16 +382,19 @@ usage() {
+@@ -375,16 +387,19 @@ usage() {
  chroot_umount() {
      msg "Attempting to umount chroot directories..."
      umount $CHROOTDIR/dev/shm >/dev/null
@@ -201,7 +214,7 @@ index d6cde41f..b7ce2b1d 100755
      fi
      msg "Successfully umounted chroot directories."
  }
-@@ -395,14 +405,17 @@ chroot_mount() {
+@@ -395,14 +410,17 @@ chroot_mount() {
      mount -t sysfs none $CHROOTDIR/sys >/dev/null
      mount -t devtmpfs none $CHROOTDIR/dev >/dev/null
      mount -o bind /dev/shm $CHROOTDIR/dev/shm
@@ -223,7 +236,7 @@ index d6cde41f..b7ce2b1d 100755
      fi
      msg "Successfully mounted chroot directories."
  }
-@@ -583,7 +596,7 @@ create_pkg()
+@@ -583,7 +601,7 @@ create_pkg()
  
  strip_pkg()
  {
@@ -232,7 +245,7 @@ index d6cde41f..b7ce2b1d 100755
  
  	if [ "$p" = "$pkgname" ]; then
  		dir="$startdir/pkg"
-@@ -591,15 +604,39 @@ strip_pkg()
+@@ -591,15 +609,39 @@ strip_pkg()
  		dir="$startdir/pkg.$p"
  		subpkg="subpackage "
  	fi
@@ -280,7 +293,7 @@ index d6cde41f..b7ce2b1d 100755
  	fi
  }
  
-@@ -678,7 +715,7 @@ if [ -z "$PKG_COMP" ]; then
+@@ -678,7 +720,7 @@ if [ -z "$PKG_COMP" ]; then
  fi
  
  if [ "$USE_AUTO_MAKEFLAGS" != "n" ]; then
@@ -289,7 +302,7 @@ index d6cde41f..b7ce2b1d 100755
  fi
  
  ARGLIST=$@
-@@ -697,6 +734,7 @@ while [ "$#" -ne "0" ]; do
+@@ -697,6 +739,7 @@ while [ "$#" -ne "0" ]; do
  		--sudosync)   DEP_SUDO=1 ;;
  		--builddeps)  DEP_SRC=1 ;;
  		--noccache)   NOCCACHE=1 ;;
@@ -297,7 +310,7 @@ index d6cde41f..b7ce2b1d 100755
  		--nodeps)     NODEPS=1 ;;
  		--noextract)  NOEXTRACT=1 ;;
  		--install)    INSTALL=1 ;;
-@@ -720,7 +758,7 @@ while [ "$#" -ne "0" ]; do
+@@ -720,7 +763,7 @@ while [ "$#" -ne "0" ]; do
  			exit 1
  			;;
  		-*)
@@ -306,7 +319,7 @@ index d6cde41f..b7ce2b1d 100755
  				case $opt in
  					a) SEARCHDEPS=1 ;;
  					A) CACHEURL=$OPTARG ;;
-@@ -744,6 +782,7 @@ while [ "$#" -ne "0" ]; do
+@@ -744,6 +787,7 @@ while [ "$#" -ne "0" ]; do
  					m) USE_COLOR="n" ;;
  					n) NOSTRIP=1 ;;
  					o) NOBUILD=1; CHROOT=0 ;;
@@ -314,7 +327,7 @@ index d6cde41f..b7ce2b1d 100755
  					p) BUILDSCRIPT=$OPTARG ;;
  					r) RMDEPS=1 ;;
  					R) CHROOT=1 ;;
-@@ -915,8 +954,30 @@ if [ ! -f $BUILDSCRIPT ]; then
+@@ -915,8 +959,30 @@ if [ ! -f $BUILDSCRIPT ]; then
  	exit 1
  fi
  
@@ -345,7 +358,7 @@ index d6cde41f..b7ce2b1d 100755
  # check for no-no's
  if [ -z "$pkgver" ]; then
  	error "pkgver is not allowed to be empty."
-@@ -952,11 +1013,8 @@ if [ "$F_makepkg_scm" = "git" -a ! "`check_option NOVERSRC`" ]; then
+@@ -952,11 +1018,8 @@ if [ "$F_makepkg_scm" = "git" -a ! "`check_option NOVERSRC`" ]; then
  	if [ -n "$_serverlist" -a "${_serverlist:0:6}" != "git://" ]; then
  		serverlist=$_serverlist
  	fi
@@ -358,7 +371,7 @@ index d6cde41f..b7ce2b1d 100755
  if [ -z "$CACHEURL" ]; then
  	CACHEURL="${serverlist}/source/$groups/$pkgname"
  fi
-@@ -1146,15 +1204,17 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+@@ -1146,15 +1209,17 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
          ## we build for, with different flags etc .. copy the file only
  	## when not found in chroot .. we have checks for C/CXX/LD flags
  	## in makepkg itself... How that ever worked for the stable tree ?!?
@@ -384,7 +397,7 @@ index d6cde41f..b7ce2b1d 100755
  	chmod 644 $CHROOTDIR/etc/sudoers
  	$ECHO "fst ALL=(ALL)       NOPASSWD: ALL" >$CHROOTDIR/etc/sudoers
  	chmod 440 $CHROOTDIR/etc/sudoers
-@@ -1240,7 +1300,7 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+@@ -1240,7 +1305,7 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
  			msg "Your package has coding issues"
  			warning "Broken strict-aliasing rules detected"
  			warning "C/CXX FLAGS need -fno-strict-aliasing"
@@ -393,7 +406,7 @@ index d6cde41f..b7ce2b1d 100755
  		fi
  		# copy build log to LOGDIR if set
  		if [ -d "$LOGDIR" ]; then
-@@ -1412,112 +1472,197 @@ if grep -i -q "^# Compiling Time: [~0-9\.]\+ SBU$" $BUILDSCRIPT && \
+@@ -1412,112 +1477,199 @@ if grep -i -q "^# Compiling Time: [~0-9\.]\+ SBU$" $BUILDSCRIPT && \
  	fi
  fi
  
@@ -526,6 +539,10 @@ index d6cde41f..b7ce2b1d 100755
 +		_LD_PLUGIN=" -fuse-ld=bfd"
 +	fi
 +
++	if [ "`check_option LDGOLD`" ]; then
++ 		_LD_PLUGIN=" -fuse-ld=gold"
++	fi
++
 +	if [ "`check_option LDLLD`" ]; then
 +		_LD_PLUGIN=" -fuse-ld=lld"
 +	fi
@@ -540,15 +557,15 @@ index d6cde41f..b7ce2b1d 100755
 +	if [ "`check_option NOCLASH`" ]; then
 +		warning "Disabling C/CXX FLAGS: -fstack-clash-protection"
 +		warning "Do that only with an GOOD reason.."
-+	else
+ 	else
+-		LDFLAGS+=" -Wl,--as-needed"
+-		export LDFLAGS
 +		_FLAGS+=" -fstack-clash-protection"
 +	fi
 +
 +	if [ "`check_option NOWFSECURITY`" ]; then
 +		warning "Disabling C/CXX FLAGS: -Werror=format-security"
- 	else
--		LDFLAGS+=" -Wl,--as-needed"
--		export LDFLAGS
++	else
 +		_FLAGS+=" -Wformat -Werror=format-security"
  	fi
  
@@ -556,11 +573,7 @@ index d6cde41f..b7ce2b1d 100755
 -		warning "Disabling -D_FORTIFY_SOURCE=2.."
 -		export OFORTIFY=0
 +		warning "Disabling C/CXX FLAGS: -D_FORTIFY_SOURCE=2"
- 	else
--		msg "Enabling -Wp,-D_FORTIFY_SOURCE=2"
--		CFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
--		CXXFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
--		export CFLAGS CXXFLAGS
++	else
 +		_FLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
 +	fi
 +
@@ -592,7 +605,11 @@ index d6cde41f..b7ce2b1d 100755
 +	if [ "`check_option NOASNEEDED`" ]; then
 +		warning "Using LDFLAGS: --no-as-needed ( are you sure ? )"
 +		_LDFLAGS+=" -Wl,--no-as-needed"
-+	else
+ 	else
+-		msg "Enabling -Wp,-D_FORTIFY_SOURCE=2"
+-		CFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
+-		CXXFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
+-		export CFLAGS CXXFLAGS
 +		_LDFLAGS+=" -Wl,--as-needed"
  	fi
  
@@ -617,9 +634,7 @@ index d6cde41f..b7ce2b1d 100755
  	fi
 -fi
 +	## underlinking detection
-+	if [ "`check_option NODEFS`" ]; then
-+		warning "Disabling LDFLAGS: -z,defs"
-+	else
++	if [ "`check_option LDEFS`" ]; then
 +		_LDFLAGS+=" -Wl,-z,defs"
 +	fi
 +
@@ -663,7 +678,7 @@ index d6cde41f..b7ce2b1d 100755
  # retrieve sources
  msg "Retrieving Sources..."
  mkdir -p src
-@@ -1724,6 +1869,31 @@ else
+@@ -1724,6 +1876,31 @@ else
  	fi
  fi
  
@@ -695,7 +710,7 @@ index d6cde41f..b7ce2b1d 100755
  if [ "`id -u`" = "0" ]; then
  	# chown all source files to root.root
  	chown -R root.root $startdir/src
-@@ -1799,7 +1969,7 @@ fi
+@@ -1799,7 +1976,7 @@ fi
  if [ "$SBU" == "1" ]; then
  	# $SBU not yet set
  	totaltime="$(( $(date +%s) - $stime ))"
@@ -704,7 +719,7 @@ index d6cde41f..b7ce2b1d 100755
  		msg "Elapsed Time: $totaltime seconds"
  	else
  		hours="$(( $totaltime / 3600 ))"
-@@ -1837,7 +2007,23 @@ do
+@@ -1837,7 +2014,23 @@ do
  	if [ -d ${dir}/usr/share/pkgconfig ]; then
  		error "Your package has broken pkgconfig PATH"
  		error "Files are installed in /usr/share/pkgconfig"
@@ -729,7 +744,7 @@ index d6cde41f..b7ce2b1d 100755
  		error "Bailing out, please fix your package!"
  		exit 1
  	fi
-@@ -2046,6 +2232,11 @@ find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/{info,man} -type f 2>/dev
+@@ -2046,6 +2239,11 @@ find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/{info,man} -type f 2>/dev
  			rm -f "$ln"
  			ln -sf "${fn}.gz" "${ln}.gz"
  		done
@@ -741,7 +756,31 @@ index d6cde41f..b7ce2b1d 100755
  		# compress the original
  		gzip -9 "$i"
  	fi
-@@ -2151,23 +2342,6 @@ elif [ "$RMDEPS" = "1" -a "$DEP_SUDO" = "1" ]; then
+@@ -2059,13 +2257,21 @@ for d in $startdir/{pkg,pkg.*} ; do
+ 			if [ "$d" = "$startdir/pkg" ]; then
+ 				msg2 "Maybe broken link ${l#$d} in pkg $pkgname found."
+ 			else
+-				msg2 "Maybe broken link ${l#$d} in pkg ${d##*/pkg.} found."
++				if [[ "$(/bin/echo ${d##*/pkg.} | sed 's/.*-\(.*\)/\1/')" =~ "devel" ]]; then
++					continue
++				else
++					msg2 "Maybe broken link ${l#$d} in pkg ${d##*/pkg.} found."
++				fi
+ 			fi
+ 		elif ls -l "$l" | awk '{print $NF}' | grep -q "$startdir" ; then
+ 			if [ "$d" = "$startdir/pkg" ]; then
+ 				msg2 "Broken link ${l#$d} in pkg $pkgname found."
+ 			else
+-				msg2 "Broken link ${l#$d} in pkg ${d##*/pkg.} found."
++				if [[ "$(/bin/echo ${d##*/pkg.} | sed 's/.*-\(.*\)/\1/')" =~ "devel" ]]; then
++					continue
++				else
++					msg2 "Broken link ${l#$d} in pkg ${d##*/pkg.} found."
++				fi
+ 			fi
+ 		fi
+ 	done
+@@ -2151,23 +2357,6 @@ elif [ "$RMDEPS" = "1" -a "$DEP_SUDO" = "1" ]; then
  	fi
  fi
  

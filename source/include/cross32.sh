@@ -312,10 +312,10 @@ Fcross32_prepare() {
 
 
 	__cross32_conf_make_opts_pre_save
-        __cross32_save_orig_vars
-        __cross32_unset_vars
-        __cross32_set_vars
-        __cross32_bug_me_set
+	__cross32_save_orig_vars
+	__cross32_unset_vars
+	__cross32_set_vars
+	__cross32_bug_me_set
 }
 
 Fcross32_reset_and_fix() {
@@ -331,13 +331,13 @@ Fcross32_reset_and_fix() {
 __cross32_delete_static() {
 
     Fmessage "Removing static libs."
-        find $Fdestdir -type f -name "*.a" -exec rmdir -v  {} +
+	find $Fdestdir -type f -name "*.a" -exec rm -rfv  {} +
 }
 
 __cross32_delete_empty() {
 
 	Fmessage "Removing empty dir(s)."
-        find $Fdestdir -type d -empty -exec rmdir -v  {} +
+    find $Fdestdir -type d -empty -exec rmdir -v  {} +
 }
 
 Fcross32_delete_static() {

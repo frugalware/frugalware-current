@@ -1,0 +1,114 @@
+From bdbda56f8f96cb9f0c6d574d641b0e214ab4b67d Mon Sep 17 00:00:00 2001
+From: Yu Watanabe <watanabe.yu+github@gmail.com>
+Date: Mon, 15 Apr 2019 17:34:00 +0900
+Subject: [PATCH 17/29] network: prevent interfaces to be initialized multiple
+ times
+
+When a uevent is received during the relevant interface is in
+LINK_STATE_PENDING, then the interface may be initialized twice.
+To prevent that, this introduces LINK_STATE_INITIALIZED.
+
+(cherry picked from commit bd08ce56156751d58584a44e766ef61340cdae2d)
+---
+ src/network/networkd-link.c | 15 ++++++++++-----
+ src/network/networkd-link.h | 13 +++++++------
+ 2 files changed, 17 insertions(+), 11 deletions(-)
+
+diff --git a/src/network/networkd-link.c b/src/network/networkd-link.c
+index 3e334c8d29..d372f9adc7 100644
+--- a/src/network/networkd-link.c
++++ b/src/network/networkd-link.c
+@@ -1452,7 +1452,7 @@ static int set_mtu_handler(sd_netlink *rtnl, sd_netlink_message *m, Link *link)
+ 
+         log_link_debug(link, "Setting MTU done.");
+ 
+-        if (link->state == LINK_STATE_PENDING)
++        if (link->state == LINK_STATE_INITIALIZED)
+                 (void) link_configure_after_setting_mtu(link);
+ 
+         return 1;
+@@ -2641,7 +2641,7 @@ static int link_enter_join_netdev(Link *link) {
+ 
+         assert(link);
+         assert(link->network);
+-        assert(link->state == LINK_STATE_PENDING);
++        assert(link->state == LINK_STATE_INITIALIZED);
+ 
+         link_set_state(link, LINK_STATE_CONFIGURING);
+ 
+@@ -3054,7 +3054,7 @@ static int link_configure(Link *link) {
+ 
+         assert(link);
+         assert(link->network);
+-        assert(link->state == LINK_STATE_PENDING);
++        assert(link->state == LINK_STATE_INITIALIZED);
+ 
+         if (STRPTR_IN_SET(link->kind, "can", "vcan"))
+                 return link_configure_can(link);
+@@ -3203,7 +3203,7 @@ static int link_configure_after_setting_mtu(Link *link) {
+ 
+         assert(link);
+         assert(link->network);
+-        assert(link->state == LINK_STATE_PENDING);
++        assert(link->state == LINK_STATE_INITIALIZED);
+ 
+         if (link->setting_mtu)
+                 return 0;
+@@ -3354,10 +3354,13 @@ static int link_initialized_and_synced(Link *link) {
+         assert(link->ifname);
+         assert(link->manager);
+ 
+-        if (link->state != LINK_STATE_PENDING)
++        /* We may get called either from the asynchronous netlink callback,
++         * or directly for link_add() if running in a container. See link_add(). */
++        if (!IN_SET(link->state, LINK_STATE_PENDING, LINK_STATE_INITIALIZED))
+                 return 1;
+ 
+         log_link_debug(link, "Link state is up-to-date");
++        link_set_state(link, LINK_STATE_INITIALIZED);
+ 
+         r = link_new_bound_by_list(link);
+         if (r < 0)
+@@ -3433,6 +3436,7 @@ int link_initialized(Link *link, sd_device *device) {
+                 return 0;
+ 
+         log_link_debug(link, "udev initialized link");
++        link_set_state(link, LINK_STATE_INITIALIZED);
+ 
+         link->sd_device = sd_device_ref(device);
+ 
+@@ -4351,6 +4355,7 @@ void link_clean(Link *link) {
+ 
+ static const char* const link_state_table[_LINK_STATE_MAX] = {
+         [LINK_STATE_PENDING] = "pending",
++        [LINK_STATE_INITIALIZED] = "initialized",
+         [LINK_STATE_CONFIGURING] = "configuring",
+         [LINK_STATE_CONFIGURED] = "configured",
+         [LINK_STATE_UNMANAGED] = "unmanaged",
+diff --git a/src/network/networkd-link.h b/src/network/networkd-link.h
+index e65246c87d..e322ec2262 100644
+--- a/src/network/networkd-link.h
++++ b/src/network/networkd-link.h
+@@ -20,12 +20,13 @@
+ #include "set.h"
+ 
+ typedef enum LinkState {
+-        LINK_STATE_PENDING,
+-        LINK_STATE_CONFIGURING,
+-        LINK_STATE_CONFIGURED,
+-        LINK_STATE_UNMANAGED,
+-        LINK_STATE_FAILED,
+-        LINK_STATE_LINGER,
++        LINK_STATE_PENDING,     /* udev has not initialized the link */
++        LINK_STATE_INITIALIZED, /* udev has initialized the link */
++        LINK_STATE_CONFIGURING, /* configuring addresses, routes, etc. */
++        LINK_STATE_CONFIGURED,  /* everything is configured */
++        LINK_STATE_UNMANAGED,   /* Unmanaged=yes is set */
++        LINK_STATE_FAILED,      /* at least one configuration process failed */
++        LINK_STATE_LINGER,      /* RTM_DELLINK for the link has been received */
+         _LINK_STATE_MAX,
+         _LINK_STATE_INVALID = -1
+ } LinkState;
+-- 
+2.21.0
+

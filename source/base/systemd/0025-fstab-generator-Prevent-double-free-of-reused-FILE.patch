@@ -1,0 +1,34 @@
+From 29d355e755297357c03658e1f5b6cbc0c3c71124 Mon Sep 17 00:00:00 2001
+From: Wieland Hoffmann <themineo@gmail.com>
+Date: Thu, 2 May 2019 20:10:08 +0200
+Subject: [PATCH 25/29] fstab-generator: Prevent double free of reused FILE*
+
+When the .automount unit file already existed for any reason in the
+`normal-dir` passed to `systemd-fstab-generator`, but the normal .mount unit
+file did not, `f` was closed (but _not_ set to NULL). The call to
+`generator_open_unit_file(..., automount_name, &f)` then failed because the
+.mount unit file already existed. Now `f` did not point to an open FILE and the
+later cleanup from the `_cleanup_fclose_` attribute failed with a double free.
+Reset `f` to NULL before reusing it.
+
+(cherry picked from commit 8a7033ac2f3ac6d30ae7f453074a1ed47243fbf2)
+---
+ src/fstab-generator/fstab-generator.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/fstab-generator/fstab-generator.c b/src/fstab-generator/fstab-generator.c
+index d35f2f993e..6ddba53671 100644
+--- a/src/fstab-generator/fstab-generator.c
++++ b/src/fstab-generator/fstab-generator.c
+@@ -464,7 +464,7 @@ static int add_mount(
+                 if (r < 0)
+                         return log_error_errno(r, "Failed to generate unit name: %m");
+ 
+-                fclose(f);
++                f = safe_fclose(f);
+ 
+                 r = generator_open_unit_file(dest, "/etc/fstab", automount_name, &f);
+                 if (r < 0)
+-- 
+2.21.0
+

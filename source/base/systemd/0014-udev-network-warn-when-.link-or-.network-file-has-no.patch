@@ -1,0 +1,126 @@
+From 0f5caf88a68e8ce41f24e62227dff133772a6fcc Mon Sep 17 00:00:00 2001
+From: Yu Watanabe <watanabe.yu+github@gmail.com>
+Date: Sat, 20 Apr 2019 14:40:24 +0200
+Subject: [PATCH 14/29] udev,network: warn when .link or .network file has no
+ [Match] section
+
+Closes #12098.
+
+(cherry picked from commit 84ea567eb4326eb970a33188649fde6bea2a0d4e)
+---
+ man/systemd.link.xml             |  9 +++++++--
+ man/systemd.network.xml          | 10 +++++++---
+ network/99-default.link          |  3 +++
+ src/network/networkd-network.c   |  8 ++++++++
+ src/network/test-networkd-conf.c |  1 +
+ src/udev/net/link-config.c       |  8 ++++++++
+ 6 files changed, 34 insertions(+), 5 deletions(-)
+
+diff --git a/man/systemd.link.xml b/man/systemd.link.xml
+index af9799e8c0..ea744bd251 100644
+--- a/man/systemd.link.xml
++++ b/man/systemd.link.xml
+@@ -60,8 +60,13 @@
+   <refsect1>
+     <title>[Match] Section Options</title>
+ 
+-    <para>A link file is said to match a device if each of the entries in the [Match] section matches, or if
+-    the section is empty. The following keys are accepted:</para>
++    <para>A link file is said to match a device if all matches specified by the
++    <literal>[Match]</literal> section are satisfied. When a link file does not contain valid settings
++    in <literal>[Match]</literal> section, then the file will match all devices and
++    <command>systemd-udevd</command> warns about that. Hint: to avoid the warning and to make it clear
++    that all interfaces shall be matched, add the following:
++    <programlisting>OriginalName=*</programlisting>
++    The following keys are accepted:</para>
+ 
+     <variablelist class='network-directives'>
+       <varlistentry>
+diff --git a/man/systemd.network.xml b/man/systemd.network.xml
+index 4127084703..bdac3a8150 100644
+--- a/man/systemd.network.xml
++++ b/man/systemd.network.xml
+@@ -77,9 +77,13 @@
+       is applied, all later files are ignored, even if they match as
+       well.</para>
+ 
+-      <para>A network file is said to match a device if each of the
+-      entries in the <literal>[Match]</literal> section matches, or if
+-      the section is empty. The following keys are accepted:</para>
++      <para>A network file is said to match a network interface if all matches specified by the
++      <literal>[Match]</literal> section are satisfied. When a network file does not contain valid
++      settings in <literal>[Match]</literal> section, then the file will match all interfaces and
++      <command>systemd-networkd</command> warns about that. Hint: to avoid the warning and to make it
++      clear that all interfaces shall be matched, add the following:
++      <programlisting>Name=*</programlisting>
++      The following keys are accepted:</para>
+ 
+       <variablelist class='network-directives'>
+         <varlistentry>
+diff --git a/network/99-default.link b/network/99-default.link
+index 92fcbe83ea..347d4b72d2 100644
+--- a/network/99-default.link
++++ b/network/99-default.link
+@@ -7,6 +7,9 @@
+ #  the Free Software Foundation; either version 2.1 of the License, or
+ #  (at your option) any later version.
+ 
++[Match]
++OriginalName=*
++
+ [Link]
+ NamePolicy=keep kernel database onboard slot path
+ MACAddressPolicy=persistent
+diff --git a/src/network/networkd-network.c b/src/network/networkd-network.c
+index 836776ae84..ec6fe6da7a 100644
+--- a/src/network/networkd-network.c
++++ b/src/network/networkd-network.c
+@@ -174,6 +174,14 @@ int network_verify(Network *network) {
+         assert(network);
+         assert(network->filename);
+ 
++        if (set_isempty(network->match_mac) && strv_isempty(network->match_path) &&
++            strv_isempty(network->match_driver) && strv_isempty(network->match_type) &&
++            strv_isempty(network->match_name) && !network->conditions)
++                log_warning("%s: No valid settings found in the [Match] section. "
++                            "The file will match all interfaces. "
++                            "If that is intended, please add Name=* in the [Match] section.",
++                            network->filename);
++
+         /* skip out early if configuration does not match the environment */
+         if (!condition_test_list(network->conditions, NULL, NULL, NULL))
+                 return log_debug_errno(SYNTHETIC_ERRNO(EINVAL),
+diff --git a/src/network/test-networkd-conf.c b/src/network/test-networkd-conf.c
+index 6408719d15..05fc01d048 100644
+--- a/src/network/test-networkd-conf.c
++++ b/src/network/test-networkd-conf.c
+@@ -173,6 +173,7 @@ static void test_config_parse_address_one(const char *rvalue, int family, unsign
+ 
+         assert_se(network = new0(Network, 1));
+         assert_se(network->filename = strdup("hogehoge.network"));
++        assert_se(config_parse_ifnames("network", "filename", 1, "section", 1, "Name", 0, "*", &network->match_name, network) == 0);
+         assert_se(config_parse_address("network", "filename", 1, "section", 1, "Address", 0, rvalue, network, network) == 0);
+         assert_se(network->n_static_addresses == 1);
+         assert_se(network_verify(network) >= 0);
+diff --git a/src/udev/net/link-config.c b/src/udev/net/link-config.c
+index 14690e364b..6425b3d43c 100644
+--- a/src/udev/net/link-config.c
++++ b/src/udev/net/link-config.c
+@@ -159,6 +159,14 @@ int link_load_one(link_config_ctx *ctx, const char *filename) {
+         if (link->speed > UINT_MAX)
+                 return -ERANGE;
+ 
++        if (set_isempty(link->match_mac) && strv_isempty(link->match_path) &&
++            strv_isempty(link->match_driver) && strv_isempty(link->match_type) &&
++            strv_isempty(link->match_name) && !link->conditions)
++                log_warning("%s: No valid settings found in the [Match] section. "
++                            "The file will match all interfaces. "
++                            "If that is intended, please add OriginalName=* in the [Match] section.",
++                            filename);
++
+         if (!condition_test_list(link->conditions, NULL, NULL, NULL)) {
+                 log_debug("%s: Conditions do not match the system environment, skipping.", filename);
+                 return 0;
+-- 
+2.21.0
+

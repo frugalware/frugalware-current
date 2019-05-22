@@ -1,0 +1,44 @@
+From 84bab914b8de6a5c29b0ef4e217a5ce767eb564f Mon Sep 17 00:00:00 2001
+From: Aaron Barany <aaron.barany@here.com>
+Date: Mon, 29 Apr 2019 15:00:30 -0700
+Subject: [PATCH 23/29] alloc-util: don't use malloc_usable_size() to determine
+ allocated size
+
+This reverts commit d4b604baeadbb2498e4f2c3e260260eed210f5d6.
+
+When realloc() is called, the extra memory between the originally
+requested size and the end of malloc_usable_size() isn't copied. (at
+least with the version of glibc that currently ships on Arch Linux)
+As a result, some elements get lost and use uninitialized memory, most
+commonly 0, and can lead to crashes.
+
+fixes #12384
+
+(cherry picked from commit fcc72fd0f103c95810f0335684d0bf6f6ed6481b)
+---
+ src/basic/alloc-util.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/src/basic/alloc-util.c b/src/basic/alloc-util.c
+index 1e4ee722f2..f4bd33f4e0 100644
+--- a/src/basic/alloc-util.c
++++ b/src/basic/alloc-util.c
+@@ -1,6 +1,5 @@
+ /* SPDX-License-Identifier: LGPL-2.1+ */
+ 
+-#include <malloc.h>
+ #include <stdint.h>
+ #include <string.h>
+ 
+@@ -65,7 +64,7 @@ void* greedy_realloc(void **p, size_t *allocated, size_t need, size_t size) {
+                 return NULL;
+ 
+         *p = q;
+-        *allocated = _unlikely_(size == 0) ? newalloc : malloc_usable_size(q) / size;
++        *allocated = newalloc;
+         return q;
+ }
+ 
+-- 
+2.21.0
+

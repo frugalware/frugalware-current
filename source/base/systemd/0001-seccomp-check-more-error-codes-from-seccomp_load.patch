@@ -1,0 +1,184 @@
+From c46112521d8b624c288e2d76a2440814796eb31e Mon Sep 17 00:00:00 2001
+From: Anita Zhang <the.anitazha@gmail.com>
+Date: Wed, 10 Apr 2019 16:08:41 -0700
+Subject: [PATCH 01/29] seccomp: check more error codes from seccomp_load()
+
+We noticed in our tests that occasionally SystemCallFilter= would
+fail to set and the service would run with no syscall filtering.
+Most of the time the same tests would apply the filter and fail
+the service as expected. While it's not totally clear why this happens,
+we noticed seccomp_load() in the systemd code base would fail open for
+all errors except EPERM and EACCES.
+
+ENOMEM, EINVAL, and EFAULT seem like reasonable values to add to the
+error set based on what I gather from libseccomp code and man pages:
+
+-ENOMEM: out of memory, failed to allocate space for a libseccomp structure, or would exceed a defined constant
+-EINVAL: kernel isn't configured to support the operations, args are invalid (to seccomp_load(), seccomp(), or prctl())
+-EFAULT: addresses passed as args are invalid
+(cherry picked from commit 7bc5e0b12b7647ac203eeb81092c08724f9bbed3)
+---
+ src/nspawn/nspawn-seccomp.c |  4 ++--
+ src/nspawn/nspawn.c         |  2 +-
+ src/shared/seccomp-util.c   | 22 +++++++++++-----------
+ src/shared/seccomp-util.h   |  6 ++++++
+ 4 files changed, 20 insertions(+), 14 deletions(-)
+
+diff --git a/src/nspawn/nspawn-seccomp.c b/src/nspawn/nspawn-seccomp.c
+index 9b5eb011ae..9222f2bc84 100644
+--- a/src/nspawn/nspawn-seccomp.c
++++ b/src/nspawn/nspawn-seccomp.c
+@@ -187,7 +187,7 @@ int setup_seccomp(uint64_t cap_list_retain, char **syscall_whitelist, char **sys
+                         return r;
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return log_error_errno(r, "Failed to install seccomp filter: %m");
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to install filter set for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+@@ -223,7 +223,7 @@ int setup_seccomp(uint64_t cap_list_retain, char **syscall_whitelist, char **sys
+                 }
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return log_error_errno(r, "Failed to install seccomp audit filter: %m");
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to install filter set for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+diff --git a/src/nspawn/nspawn.c b/src/nspawn/nspawn.c
+index 3b0ecb1db9..e05fa3dbf2 100644
+--- a/src/nspawn/nspawn.c
++++ b/src/nspawn/nspawn.c
+@@ -2948,7 +2948,7 @@ static int inner_child(
+                 if (is_seccomp_available()) {
+ 
+                         r = seccomp_load(arg_seccomp);
+-                        if (IN_SET(r, -EPERM, -EACCES))
++                        if (ERRNO_IS_SECCOMP_FATAL(r))
+                                 return log_error_errno(r, "Failed to install seccomp filter: %m");
+                         if (r < 0)
+                                 log_debug_errno(r, "Failed to install seccomp filter: %m");
+diff --git a/src/shared/seccomp-util.c b/src/shared/seccomp-util.c
+index 8ed09fd49e..95e46a6aa4 100644
+--- a/src/shared/seccomp-util.c
++++ b/src/shared/seccomp-util.c
+@@ -952,7 +952,7 @@ int seccomp_load_syscall_filter_set(uint32_t default_action, const SyscallFilter
+                         return log_debug_errno(r, "Failed to add filter set: %m");
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return r;
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to install filter set for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+@@ -1007,7 +1007,7 @@ int seccomp_load_syscall_filter_set_raw(uint32_t default_action, Hashmap* set, u
+                 }
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return r;
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to install filter set for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+@@ -1193,7 +1193,7 @@ int seccomp_restrict_namespaces(unsigned long retain) {
+                         continue;
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return r;
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to install namespace restriction rules for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+@@ -1230,7 +1230,7 @@ int seccomp_protect_sysctl(void) {
+                 }
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return r;
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to install sysctl protection rules for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+@@ -1394,7 +1394,7 @@ int seccomp_restrict_address_families(Set *address_families, bool whitelist) {
+                 }
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return r;
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to install socket family rules for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+@@ -1471,7 +1471,7 @@ int seccomp_restrict_realtime(void) {
+                 }
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return r;
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to install realtime protection rules for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+@@ -1598,7 +1598,7 @@ int seccomp_memory_deny_write_execute(void) {
+                 }
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return r;
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to install MemoryDenyWriteExecute= rule for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+@@ -1651,7 +1651,7 @@ int seccomp_restrict_archs(Set *archs) {
+                 return r;
+ 
+         r = seccomp_load(seccomp);
+-        if (IN_SET(r, -EPERM, -EACCES))
++        if (ERRNO_IS_SECCOMP_FATAL(r))
+                 return r;
+         if (r < 0)
+                 log_debug_errno(r, "Failed to restrict system call architectures, skipping: %m");
+@@ -1753,7 +1753,7 @@ int seccomp_lock_personality(unsigned long personality) {
+                 }
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return r;
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to enable personality lock for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+@@ -1794,7 +1794,7 @@ int seccomp_protect_hostname(void) {
+                 }
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return r;
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to apply hostname restrictions for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+@@ -1956,7 +1956,7 @@ int seccomp_restrict_suid_sgid(void) {
+                         continue;
+ 
+                 r = seccomp_load(seccomp);
+-                if (IN_SET(r, -EPERM, -EACCES))
++                if (ERRNO_IS_SECCOMP_FATAL(r))
+                         return r;
+                 if (r < 0)
+                         log_debug_errno(r, "Failed to apply suid/sgid restrictions for architecture %s, skipping: %m", seccomp_arch_to_string(arch));
+diff --git a/src/shared/seccomp-util.h b/src/shared/seccomp-util.h
+index 14dbc42691..2566d2d17f 100644
+--- a/src/shared/seccomp-util.h
++++ b/src/shared/seccomp-util.h
+@@ -95,6 +95,12 @@ extern const uint32_t seccomp_local_archs[];
+              seccomp_local_archs[_i] != (uint32_t) -1;                  \
+              (arch) = seccomp_local_archs[++_i])
+ 
++/* EACCES: does not have the CAP_SYS_ADMIN or no_new_privs == 1
++ * ENOMEM: out of memory, failed to allocate space for a libseccomp structure, or would exceed a defined constant
++ * EFAULT: addresses passed as args (by libseccomp) are invalid */
++#define ERRNO_IS_SECCOMP_FATAL(r)                                       \
++        IN_SET(abs(r), EPERM, EACCES, ENOMEM, EFAULT)
++
+ DEFINE_TRIVIAL_CLEANUP_FUNC(scmp_filter_ctx, seccomp_release);
+ 
+ int parse_syscall_archs(char **l, Set **archs);
+-- 
+2.21.0
+

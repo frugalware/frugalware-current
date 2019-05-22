@@ -1,0 +1,187 @@
+From 77f7755e76c97a808473dbd511a89e8fd108ecbe Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Zbigniew=20J=C4=99drzejewski-Szmek?= <zbyszek@in.waw.pl>
+Date: Thu, 18 Apr 2019 13:06:41 +0200
+Subject: [PATCH 10/29] sd-bus: add symbol to tell linker that new vtable
+ functions are used
+
+In 856ad2a86bd9b3e264a090fcf4b0d05bfaa91030 sd_bus_add_object_vtable() and
+sd_bus_add_fallback_vtable() were changed to take an updated sd_bus_vtable[]
+array with additional 'features' and 'names' fields in the union.
+
+The commit tried to check whether the old or the new table format is used, by
+looking at the vtable[0].x.start.element_size field, on the assumption that the
+added fields caused the structure size to grow. Unfortunately, this assumption
+was false, and on arm32 (at least), the structure size is unchanged.
+
+In libsystemd we use symbol versioning and a major.minor.patch semantic
+versioning of the library name (major equals the number in the so-name).  When
+systemd-242 was released, the minor number was (correctly) bumped, but this is
+not enough, because no new symbols were added or symbol versions changed. This
+means that programs compiled with the new systemd headers and library could be
+successfully linked to older versions of the library. For example rpm only
+looks at the so-name and the list of versioned symbols, completely ignoring the
+major.minor numbers in the library name. But the older library does not
+understand the new vtable format, and would return -EINVAL after failing the
+size check (on those architectures where the structure size did change, i.e.
+all 64 bit architectures).
+
+To force new libsystemd (with the functions that take the updated
+sd_bus_vtable[] format) to be used, let's pull in a dummy symbol from the table
+definition. This is a bit wasteful, because a dummy pointer has to be stored,
+but the effect is negligible. In particular, the pointer doesn't even change
+the size of the structure because if fits in an unused area in the union.
+
+The number stored in the new unsigned integer is not checked anywhere. If the
+symbol exists, we already know we have the new version of the library, so an
+additional check would not tell us anything.
+
+An alternative would be to make sd_bus_add_{object,fallback}_vtable() versioned
+symbols, using .symver linker annotations. We would provide
+sd_bus_add_{object,fallback}_vtable@LIBSYSTEMD_221 (for backwards
+compatibility) and e.g. sd_bus_add_{object,fallback}_vtable@@LIBSYSTEMD_242
+(the default) with the new implementation. This would work too, but is more
+work. We would have to version at least those two functions. And it turns out
+that the .symver linker instructions have to located in the same compilation
+unit as the function being annotated. We first compile libsystemd.a, and then
+link it into libsystemd.so and various other targets, including
+libsystemd-shared.so, and the nss modules. If the .symver annotations were
+placed next to the function definitions (in bus-object.c), they would influence
+all targets that link libsystemd.a, and cause problems, because those functions
+should not be exported there. To export them only in libsystemd.so, compilation
+would have to be rearranged, so that the functions exported in libsystemd.so
+would not be present in libsystemd.a, but a separate compilation unit containg
+them and the .symver annotations would be linked solely into libsystemd.so.
+This is certainly possible, but more work than the approach in this patch.
+
+856ad2a86bd9b3e264a090fcf4b0d05bfaa91030 has one more issue: it relies on the
+undefined fields in sd_bus_vtable[] array to be zeros. But the structure
+contains a union, and fields of the union do not have to be zero-initalized by
+the compiler. This means that potentially, we could have garbarge values there,
+for example when reading the old vtable format definition from the new function
+implementation. In practice this should not be an issue at all, because vtable
+definitions are static data and are placed in the ro-data section, which is
+fully initalized, so we know that those undefined areas will be zero. Things
+would be different if somebody defined the vtable array on the heap or on the
+stack. Let's just document that they should zero-intialize the unused areas
+in this case.
+
+The symbol checking code had to be updated because otherwise gcc warns about a
+cast from unsigned to a pointer.
+
+(cherry picked from commit 8dd8a286d1d2770a22116d4eb730b2c3f5fa28a4)
+---
+ src/libsystemd/libsystemd.sym       |  5 +++++
+ src/libsystemd/sd-bus/bus-objects.c |  6 +++++-
+ src/systemd/sd-bus-vtable.h         | 13 ++++++++++++-
+ src/test/generate-sym-test.py       | 12 ++++++++----
+ 4 files changed, 30 insertions(+), 6 deletions(-)
+
+diff --git a/src/libsystemd/libsystemd.sym b/src/libsystemd/libsystemd.sym
+index a6748ceb20..a9ab0605ce 100644
+--- a/src/libsystemd/libsystemd.sym
++++ b/src/libsystemd/libsystemd.sym
+@@ -676,3 +676,8 @@ LIBSYSTEMD_241 {
+ global:
+         sd_bus_close_unref;
+ } LIBSYSTEMD_240;
++
++LIBSYSTEMD_243 {
++global:
++        sd_bus_object_vtable_format;
++} LIBSYSTEMD_241;
+diff --git a/src/libsystemd/sd-bus/bus-objects.c b/src/libsystemd/sd-bus/bus-objects.c
+index d9fc25605a..ce2cb94bde 100644
+--- a/src/libsystemd/sd-bus/bus-objects.c
++++ b/src/libsystemd/sd-bus/bus-objects.c
+@@ -1701,7 +1701,8 @@ struct sd_bus_vtable_original {
+ #define VTABLE_ELEMENT_SIZE sizeof(struct sd_bus_vtable)
+ 
+ static int vtable_features(const sd_bus_vtable *vtable) {
+-        if (vtable[0].x.start.element_size == VTABLE_ELEMENT_SIZE_ORIGINAL)
++        if (vtable[0].x.start.element_size < VTABLE_ELEMENT_SIZE ||
++            !vtable[0].x.start.vtable_format_reference)
+                 return 0;
+         return vtable[0].x.start.features;
+ }
+@@ -1928,6 +1929,9 @@ fail:
+         return r;
+ }
+ 
++/* This symbol exists solely to tell the linker that the "new" vtable format is used. */
++_public_ const unsigned sd_bus_object_vtable_format = 242;
++
+ _public_ int sd_bus_add_object_vtable(
+                 sd_bus *bus,
+                 sd_bus_slot **slot,
+diff --git a/src/systemd/sd-bus-vtable.h b/src/systemd/sd-bus-vtable.h
+index 8a73ef0503..e3804e203c 100644
+--- a/src/systemd/sd-bus-vtable.h
++++ b/src/systemd/sd-bus-vtable.h
+@@ -52,6 +52,15 @@ enum {
+         _SD_BUS_VTABLE_PARAM_NAMES     = 1 << 0,
+ };
+ 
++extern const unsigned sd_bus_object_vtable_format;
++
++/* Note: unused areas in the sd_bus_vtable[] array must be initalized to 0. The stucture contains an embedded
++ * union, and the compiler is NOT required to initalize the unused areas of the union when the rest of the
++ * structure is initalized. Normally the array is defined as read-only data, in which case the linker places
++ * it in the BSS section, which is always fully initalized, so this is not a concern. But if the array is
++ * created on the stack or on the heap, care must be taken to initalize the unused areas, for examply by
++ * first memsetting the whole region to zero before filling the data in. */
++
+ struct sd_bus_vtable {
+         /* Please do not initialize this structure directly, use the
+          * macros below instead */
+@@ -62,6 +71,7 @@ struct sd_bus_vtable {
+                 struct {
+                         size_t element_size;
+                         uint64_t features;
++                        const unsigned *vtable_format_reference;
+                 } start;
+                 struct {
+                         const char *member;
+@@ -93,7 +103,8 @@ struct sd_bus_vtable {
+                 .x = {                                                  \
+                     .start = {                                          \
+                         .element_size = sizeof(sd_bus_vtable),          \
+-                        .features = _SD_BUS_VTABLE_PARAM_NAMES          \
++                        .features = _SD_BUS_VTABLE_PARAM_NAMES,         \
++                        .vtable_format_reference = &sd_bus_object_vtable_format, \
+                     },                                                  \
+                 },                                                      \
+         }
+diff --git a/src/test/generate-sym-test.py b/src/test/generate-sym-test.py
+index 357cce8e44..2510809452 100755
+--- a/src/test/generate-sym-test.py
++++ b/src/test/generate-sym-test.py
+@@ -6,18 +6,22 @@ for header in sys.argv[2:]:
+     print('#include "{}"'.format(header.split('/')[-1]))
+ 
+ print('''
+-void* functions[] = {''')
++const void* symbols[] = {''')
+ 
+ for line in open(sys.argv[1]):
+     match = re.search('^ +([a-zA-Z0-9_]+);', line)
+     if match:
+-        print('    {},'.format(match.group(1)))
++        s = match.group(1)
++        if s == 'sd_bus_object_vtable_format':
++            print(f'    &{s},')
++        else:
++            print(f'    {s},')
+ 
+ print('''};
+ 
+ int main(void) {
+     unsigned i;
+-    for (i = 0; i < sizeof(functions)/sizeof(void*); i++)
+-         printf("%p\\n", functions[i]);
++    for (i = 0; i < sizeof(symbols)/sizeof(void*); i++)
++         printf("%p\\n", symbols[i]);
+     return 0;
+ }''')
+-- 
+2.21.0
+

@@ -1,0 +1,661 @@
+diff --git a/src/Android.mk b/src/Android.mk
+new file mode 100644
+index 0000000..b3410e1
+--- /dev/null
++++ b/src/Android.mk
+@@ -0,0 +1,60 @@
++#
++# Copyright (C) 2019 The Android-x86 Open Source Project
++#
++# Licensed under the GNU Lesser General Public License Version 2.1.
++# You may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#      https://www.gnu.org/licenses/lgpl-2.1.html
++#
++
++LOCAL_PATH := $(call my-dir)
++
++include $(CLEAR_VARS)
++
++LOCAL_MODULE := makeguids
++LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
++LOCAL_CFLAGS := -DEFIVAR_BUILD_ENVIRONMENT
++LOCAL_SRC_FILES := guid.c makeguids.c
++LOCAL_LDLIBS := -ldl
++include $(BUILD_HOST_EXECUTABLE)
++
++include $(CLEAR_VARS)
++
++LOCAL_MODULE := libefivar
++LOCAL_MODULE_CLASS := STATIC_LIBRARIES
++LIBEFIBOOT_SOURCES := \
++	crc32.c \
++	creator.c \
++	disk.c \
++	gpt.c \
++	loadopt.c \
++	path-helpers.c \
++	$(notdir $(wildcard $(LOCAL_PATH)/linux*.c))
++
++LIBEFIVAR_SOURCES := \
++	dp.c \
++	dp-acpi.c \
++	dp-hw.c \
++	dp-media.c \
++	dp-message.c \
++	efivarfs.c \
++	error.c \
++	export.c \
++	guid.c \
++	guids.S \
++	lib.c \
++	vars.c
++
++LOCAL_SRC_FILES := $(LIBEFIBOOT_SOURCES) $(LIBEFIVAR_SOURCES)
++LOCAL_CFLAGS := -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -std=gnu11
++LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
++LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_C_INCLUDES) $(LOCAL_C_INCLUDES)/efivar $(local-generated-sources-dir)
++LIBEFIVAR_GUIDS_H := $(local-generated-sources-dir)/efivar/efivar-guids.h
++LOCAL_GENERATED_SOURCES := $(LIBEFIVAR_GUIDS_H) $(local-generated-sources-dir)/guid-symbols.c
++$(LIBEFIVAR_GUIDS_H): PRIVATE_CUSTOM_TOOL = $^ $(addprefix $(dir $(@D)),guids.bin names.bin guid-symbols.c efivar/efivar-guids.h)
++$(LIBEFIVAR_GUIDS_H): $(BUILD_OUT_EXECUTABLES)/makeguids $(LOCAL_PATH)/guids.txt
++	$(transform-generated-source)
++$(lastword $(LOCAL_GENERATED_SOURCES)): $(LIBEFIVAR_GUIDS_H)
++
++include $(BUILD_STATIC_LIBRARY)
+diff --git a/src/dp-media.c b/src/dp-media.c
+index 96a576f..be691c4 100644
+--- a/src/dp-media.c
++++ b/src/dp-media.c
+@@ -46,8 +46,7 @@ _format_media_dn(char *buf, size_t size, const_efidp dp)
+ 			break;
+ 		case EFIDP_HD_SIGNATURE_GUID:
+ 			format(buf, size, off, "HD", "GPT,");
+-			format_guid(buf, size, off, "HD",
+-				    (efi_guid_t *)dp->hd.signature);
++			format_guid(buf, size, off, "HD", dp->hd.signature);
+ 			format(buf, size, off, "HD",
+ 			       ",0x%"PRIx64",0x%"PRIx64")",
+ 			       dp->hd.start, dp->hd.size);
+diff --git a/src/dp-message.c b/src/dp-message.c
+index 3724e5f..55fa781 100644
+--- a/src/dp-message.c
++++ b/src/dp-message.c
+@@ -364,7 +364,7 @@ _format_message_dn(char *buf, size_t size, const_efidp dp)
+ 			       dp->infiniband.port_gid[1],
+ 			       dp->infiniband.port_gid[0]);
+ 			format_guid(buf, size, off, "Infiniband",
+-				    (efi_guid_t *)&dp->infiniband.ioc_guid);
++				    &dp->infiniband.ioc_guid);
+ 			format(buf, size, off, "Infiniband",
+ 			       ",%"PRIu64",%"PRIu64")",
+ 			       dp->infiniband.target_port_id,
+@@ -620,11 +620,13 @@ _format_message_dn(char *buf, size_t size, const_efidp dp)
+ 			  ) / sizeof(efi_ip_addr_t);
+ 		format(buf, size, off, "Dns", "Dns(");
+ 		for (int i=0; i < end; i++) {
+-			const efi_ip_addr_t *addr = &dp->dns.addrs[i];
++			efi_ip_addr_t addr;
++
++			memcpy(&addr, &dp->dns.addrs[i], sizeof(addr));
+ 			if (i != 0)
+ 				format(buf, size, off, "Dns", ",");
+ 			format_ip_addr(buf, size, off, "Dns",
+-				       dp->dns.is_ipv6, addr);
++				       dp->dns.is_ipv6, &addr);
+ 		}
+ 		format(buf, size, off, "Dns", ")");
+ 		break;
+@@ -676,16 +678,16 @@ efidp_make_ipv4(uint8_t *buf, ssize_t size, uint32_t local, uint32_t remote,
+ 					EFIDP_MSG_IPv4, sizeof (*ipv4));
+ 	ssize_t req = sizeof (*ipv4);
+ 	if (size && sz == req) {
+-		*((char *)ipv4->local_ipv4_addr) = htonl(local);
+-		*((char *)ipv4->remote_ipv4_addr) = htonl(remote);
++		*((uint32_t *)ipv4->local_ipv4_addr) = htonl(local);
++		*((uint32_t *)ipv4->remote_ipv4_addr) = htonl(remote);
+ 		ipv4->local_port = htons(local_port);
+ 		ipv4->remote_port = htons(remote_port);
+ 		ipv4->protocol = htons(protocol);
+ 		ipv4->static_ip_addr = 0;
+ 		if (is_static)
+ 			ipv4->static_ip_addr = 1;
+-		*((char *)ipv4->gateway) = htonl(gateway);
+-		*((char *)ipv4->netmask) = htonl(netmask);
++		*((uint32_t *)ipv4->gateway) = htonl(gateway);
++		*((uint32_t *)ipv4->netmask) = htonl(netmask);
+ 	}
+ 
+ 	if (sz < 0)
+diff --git a/src/dp.h b/src/dp.h
+index aa4e390..1f921d5 100644
+--- a/src/dp.h
++++ b/src/dp.h
+@@ -70,8 +70,11 @@
+ #define format_guid(buf, size, off, dp_type, guid) ({			\
+ 		int _rc;						\
+ 		char *_guidstr = NULL;					\
++		efi_guid_t _guid;					\
++		const efi_guid_t * const _guid_p = &_guid;		\
+ 									\
+-		_rc = efi_guid_to_str(guid, &_guidstr);			\
++		memmove(&_guid, guid, sizeof(_guid));			\
++		_rc = efi_guid_to_str(_guid_p, &_guidstr);		\
+ 		if (_rc < 0) {						\
+ 			efi_error("could not build %s GUID DP string",	\
+ 				  dp_type);				\
+@@ -79,7 +82,7 @@
+ 			_guidstr = onstack(_guidstr,			\
+ 					   strlen(_guidstr)+1);		\
+ 			_rc = format(buf, size, off, dp_type, "%s",	\
+-				     _guidstr);	\
++				     _guidstr);				\
+ 		}							\
+ 		_rc;							\
+ 	})
+diff --git a/src/guid.c b/src/guid.c
+index 306c9ff..3156b3b 100644
+--- a/src/guid.c
++++ b/src/guid.c
+@@ -31,7 +31,7 @@
+ extern const efi_guid_t efi_guid_zero;
+ 
+ int NONNULL(1, 2) PUBLIC
+-efi_guid_cmp(const efi_guid_t *a, const efi_guid_t *b)
++efi_guid_cmp(const void * const a, const void * const b)
+ {
+ 	return memcmp(a, b, sizeof (efi_guid_t));
+ }
+diff --git a/src/include/efivar/efivar.h b/src/include/efivar/efivar.h
+index 316891c..ad6449d 100644
+--- a/src/include/efivar/efivar.h
++++ b/src/include/efivar/efivar.h
+@@ -128,7 +128,7 @@ extern int efi_symbol_to_guid(const char *symbol, efi_guid_t *guid)
+ 
+ extern int efi_guid_is_zero(const efi_guid_t *guid);
+ extern int efi_guid_is_empty(const efi_guid_t *guid);
+-extern int efi_guid_cmp(const efi_guid_t *a, const efi_guid_t *b);
++extern int efi_guid_cmp(const void * const a, const void * const b);
+ 
+ /* import / export functions */
+ typedef struct efi_variable efi_variable_t;
+diff --git a/src/linux-acpi-root.c b/src/linux-acpi-root.c
+index 06e69ee..30728de 100644
+--- a/src/linux-acpi-root.c
++++ b/src/linux-acpi-root.c
+@@ -51,13 +51,6 @@ parse_acpi_root(struct device *dev, const char *current, const char *root UNUSED
+         char *colon;
+ 
+         const char *devpart = current;
+-        char *spaces;
+-
+-        pos = strlen(current);
+-        spaces = alloca(pos+1);
+-        memset(spaces, ' ', pos+1);
+-        spaces[pos] = '\0';
+-        pos = 0;
+ 
+         debug("entry");
+ 
+diff --git a/src/linux-emmc.c b/src/linux-emmc.c
+index 87e9247..b290ed0 100644
+--- a/src/linux-emmc.c
++++ b/src/linux-emmc.c
+@@ -50,13 +50,6 @@ parse_emmc(struct device *dev, const char *current, const char *root UNUSED)
+         int rc;
+         int32_t tosser0, tosser1, tosser2, tosser3, slot_id, partition;
+         int pos0 = 0, pos1 = 0;
+-        char *spaces;
+-
+-        pos0 = strlen(current);
+-        spaces = alloca(pos0+1);
+-        memset(spaces, ' ', pos0+1);
+-        spaces[pos0] = '\0';
+-        pos0 = 0;
+ 
+         debug("entry");
+ 
+@@ -65,8 +58,6 @@ parse_emmc(struct device *dev, const char *current, const char *root UNUSED)
+                     &tosser0, &tosser1, &tosser2, &slot_id,
+                     &pos0, &tosser3, &partition, &pos1);
+         debug("current:\"%s\" rc:%d pos0:%d pos1:%d\n", current, rc, pos0, pos1);
+-        arrow(LOG_DEBUG, spaces, 9, pos0, rc, 4);
+-        arrow(LOG_DEBUG, spaces, 9, pos1, rc, 6);
+         /*
+          * If it isn't of that form, it's not one of our emmc devices.
+          */
+diff --git a/src/linux-md.c b/src/linux-md.c
+index 0a5c1cd..cb584c9 100644
+--- a/src/linux-md.c
++++ b/src/linux-md.c
+@@ -44,13 +44,6 @@ parse_md(struct device *dev, const char *current, const char *root UNUSED)
+         int rc;
+         int32_t md, tosser0, part;
+         int pos0 = 0, pos1 = 0;
+-        char *spaces;
+-
+-        pos0 = strlen(current);
+-        spaces = alloca(pos0+1);
+-        memset(spaces, ' ', pos0+1);
+-        spaces[pos0] = '\0';
+-        pos0 = 0;
+ 
+         debug("entry");
+ 
+@@ -58,7 +51,6 @@ parse_md(struct device *dev, const char *current, const char *root UNUSED)
+         rc = sscanf(current, "md%d/%nmd%dp%d%n",
+                     &md, &pos0, &tosser0, &part, &pos1);
+         debug("current:\"%s\" rc:%d pos0:%d pos1:%d\n", current, rc, pos0, pos1);
+-        arrow(LOG_DEBUG, spaces, 9, pos0, rc, 3);
+         /*
+          * If it isn't of that form, it's not one of our partitioned md devices.
+          */
+diff --git a/src/linux-nvme.c b/src/linux-nvme.c
+index d68d11a..1d8fc65 100644
+--- a/src/linux-nvme.c
++++ b/src/linux-nvme.c
+@@ -54,13 +54,6 @@ parse_nvme(struct device *dev, const char *current, const char *root UNUSED)
+         int32_t tosser0, tosser1, tosser2, ctrl_id, ns_id, partition;
+         uint8_t *filebuf = NULL;
+         int pos0 = 0, pos1 = 0;
+-        char *spaces;
+-
+-        pos0 = strlen(current);
+-        spaces = alloca(pos0+1);
+-        memset(spaces, ' ', pos0+1);
+-        spaces[pos0] = '\0';
+-        pos0 = 0;
+ 
+         debug("entry");
+ 
+@@ -69,8 +62,6 @@ parse_nvme(struct device *dev, const char *current, const char *root UNUSED)
+                     &tosser0, &ctrl_id, &ns_id, &pos0,
+                     &tosser1, &tosser2, &partition, &pos1);
+         debug("current:\"%s\" rc:%d pos0:%d pos1:%d\n", current, rc, pos0, pos1);
+-        arrow(LOG_DEBUG, spaces, 9, pos0, rc, 3);
+-        arrow(LOG_DEBUG, spaces, 9, pos1, rc, 6);
+         /*
+          * If it isn't of that form, it's not one of our nvme devices.
+          */
+diff --git a/src/linux-pci-root.c b/src/linux-pci-root.c
+index a2d9fb0..0605acf 100644
+--- a/src/linux-pci-root.c
++++ b/src/linux-pci-root.c
+@@ -48,13 +48,6 @@ parse_pci_root(struct device *dev, const char *current, const char *root UNUSED)
+         uint16_t root_domain;
+         uint8_t root_bus;
+         const char *devpart = current;
+-        char *spaces;
+-
+-        pos = strlen(current);
+-        spaces = alloca(pos+1);
+-        memset(spaces, ' ', pos+1);
+-        spaces[pos] = '\0';
+-        pos = 0;
+ 
+         debug("entry");
+ 
+@@ -115,7 +108,6 @@ dp_create_pci_root(struct device *dev UNUSED,
+                         return new;
+                 }
+         }
+-        off += new;
+         sz += new;
+ 
+         debug("returning %zd", sz);
+diff --git a/src/linux-pci.c b/src/linux-pci.c
+index f63f591..64aaefb 100644
+--- a/src/linux-pci.c
++++ b/src/linux-pci.c
+@@ -48,13 +48,6 @@ parse_pci(struct device *dev, const char *current, const char *root)
+         int rc;
+         int pos;
+         const char *devpart = current;
+-        char *spaces;
+-
+-        pos = strlen(current);
+-        spaces = alloca(pos+1);
+-        memset(spaces, ' ', pos+1);
+-        spaces[pos] = '\0';
+-        pos = 0;
+ 
+         debug("entry");
+ 
+@@ -75,7 +68,6 @@ parse_pci(struct device *dev, const char *current, const char *root)
+                 rc = sscanf(devpart, "%hx:%hhx:%hhx.%hhx/%n",
+                             &domain, &bus, &device, &function, &pos);
+                 debug("current:\"%s\" rc:%d pos:%d", devpart, rc, pos);
+-                arrow(LOG_DEBUG, spaces, 9, pos, rc, 3);
+                 if (rc != 4)
+                         break;
+                 devpart += pos;
+diff --git a/src/linux-sata.c b/src/linux-sata.c
+index 8526502..3564117 100644
+--- a/src/linux-sata.c
++++ b/src/linux-sata.c
+@@ -148,13 +148,6 @@ parse_sata(struct device *dev, const char *devlink, const char *root UNUSED)
+         uint64_t scsi_lun, tosser3;
+         int pos = 0;
+         int rc;
+-        char *spaces;
+-
+-        pos = strlen(current);
+-        spaces = alloca(pos+1);
+-        memset(spaces, ' ', pos+1);
+-        spaces[pos] = '\0';
+-        pos = 0;
+ 
+         debug("entry");
+         if (is_pata(dev)) {
+@@ -169,7 +162,6 @@ parse_sata(struct device *dev, const char *devlink, const char *root UNUSED)
+         debug("searching for ata1/");
+         rc = sscanf(current, "ata%"PRIu32"/%n", &print_id, &pos);
+         debug("current:\"%s\" rc:%d pos:%d\n", current, rc, pos);
+-        arrow(LOG_DEBUG, spaces, 9, pos, rc, 1);
+         /*
+          * If we don't find this one, it isn't an ata device, so return 0 not
+          * error.  Later errors mean it is an ata device, but we can't parse
+@@ -183,7 +175,6 @@ parse_sata(struct device *dev, const char *devlink, const char *root UNUSED)
+         debug("searching for host0/");
+         rc = sscanf(current, "host%"PRIu32"/%n", &scsi_bus, &pos);
+         debug("current:\"%s\" rc:%d pos:%d\n", current, rc, pos);
+-        arrow(LOG_DEBUG, spaces, 9, pos, rc, 1);
+         if (rc != 1)
+                 return -1;
+         current += pos;
+@@ -193,7 +184,6 @@ parse_sata(struct device *dev, const char *devlink, const char *root UNUSED)
+         rc = sscanf(current, "target%"PRIu32":%"PRIu32":%"PRIu64"/%n",
+                     &scsi_device, &scsi_target, &scsi_lun, &pos);
+         debug("current:\"%s\" rc:%d pos:%d\n", current, rc, pos);
+-        arrow(LOG_DEBUG, spaces, 9, pos, rc, 3);
+         if (rc != 3)
+                 return -1;
+         current += pos;
+@@ -203,7 +193,6 @@ parse_sata(struct device *dev, const char *devlink, const char *root UNUSED)
+         rc = sscanf(current, "%"PRIu32":%"PRIu32":%"PRIu32":%"PRIu64"/%n",
+                     &tosser0, &tosser1, &tosser2, &tosser3, &pos);
+         debug("current:\"%s\" rc:%d pos:%d\n", current, rc, pos);
+-        arrow(LOG_DEBUG, spaces, 9, pos, rc, 4);
+         if (rc != 4)
+                 return -1;
+         current += pos;
+diff --git a/src/linux-scsi.c b/src/linux-scsi.c
+index a5e81cf..04892f0 100644
+--- a/src/linux-scsi.c
++++ b/src/linux-scsi.c
+@@ -45,13 +45,6 @@ parse_scsi_link(const char *current, uint32_t *scsi_host,
+         int rc;
+         int sz = 0;
+         int pos0 = 0, pos1 = 0;
+-        char *spaces;
+-
+-        sz = strlen(current);
+-        spaces = alloca(sz+1);
+-        memset(spaces, ' ', sz+1);
+-        spaces[sz] = '\0';
+-        sz = 0;
+ 
+         debug("entry");
+         /*
+@@ -108,7 +101,6 @@ parse_scsi_link(const char *current, uint32_t *scsi_host,
+         debug("searching for host4/");
+         rc = sscanf(current, "host%d/%n", scsi_host, &pos0);
+         debug("current:\"%s\" rc:%d pos0:%d\n", current+sz, rc, pos0);
+-        arrow(LOG_DEBUG, spaces, 9, pos0, rc, 1);
+         if (rc != 1)
+                 return -1;
+         sz += pos0;
+@@ -126,8 +118,6 @@ parse_scsi_link(const char *current, uint32_t *scsi_host,
+         rc = sscanf(current+sz, "port-%d:%d%n:%d%n", &tosser0,
+                     &tosser1, &pos0, &tosser2, &pos1);
+         debug("current:\"%s\" rc:%d pos0:%d pos1:%d\n", current+sz, rc, pos0, pos1);
+-        arrow(LOG_DEBUG, spaces, 9, pos0, rc, 2);
+-        arrow(LOG_DEBUG, spaces, 9, pos1, rc, 3);
+         if (rc == 2 || rc == 3) {
+                 sz += pos0;
+                 pos0 = 0;
+@@ -153,7 +143,6 @@ parse_scsi_link(const char *current, uint32_t *scsi_host,
+                 debug("searching for expander-4:0/");
+                 rc = sscanf(current+sz, "expander-%d:%d/%n", &tosser0, &tosser1, &pos0);
+                 debug("current:\"%s\" rc:%d pos0:%d\n", current+sz, rc, pos0);
+-                arrow(LOG_DEBUG, spaces, 9, pos0, rc, 2);
+                 if (rc == 2) {
+                         if (!remote_target_id) {
+                                 efi_error("Device is PHY is a remote target, but remote_target_id is NULL");
+@@ -169,7 +158,6 @@ parse_scsi_link(const char *current, uint32_t *scsi_host,
+                         debug("searching for port-2:0:2/");
+                         rc = sscanf(current+sz, "port-%d:%d:%d/%n", &tosser0, &tosser1, &tosser2, &pos0);
+                         debug("current:\"%s\" rc:%d pos0:%d\n", current+sz, rc, pos0);
+-                        arrow(LOG_DEBUG, spaces, 9, pos0, rc, 3);
+                         if (rc != 3) {
+                                 efi_error("Couldn't parse port expander port string");
+                                 return -1;
+@@ -192,8 +180,6 @@ parse_scsi_link(const char *current, uint32_t *scsi_host,
+ 
+                 pos1 = 0;
+                 rc = sscanf(current + sz + pos0, ":%d%n", &tosser2, &pos1);
+-                arrow(LOG_DEBUG, spaces, 9, pos0, rc + 2, 2);
+-                arrow(LOG_DEBUG, spaces, 9, pos0 + pos1, rc + 2, 3);
+                 if (rc != 0 && rc != 1)
+                         return -1;
+                 if (remote_port_id && rc == 1)
+@@ -217,7 +203,6 @@ parse_scsi_link(const char *current, uint32_t *scsi_host,
+         rc = sscanf(current + sz, "target%d:%d:%"PRIu64"/%n", &tosser0, &tosser1,
+                     &tosser3, &pos0);
+         debug("current:\"%s\" rc:%d pos0:%d\n", current+sz, rc, pos0);
+-        arrow(LOG_DEBUG, spaces, 9, pos0, rc, 3);
+         if (rc != 3)
+                 return -1;
+         sz += pos0;
+@@ -230,7 +215,6 @@ parse_scsi_link(const char *current, uint32_t *scsi_host,
+         rc = sscanf(current + sz, "%d:%d:%d:%"PRIu64"/%n",
+                     scsi_bus, scsi_device, scsi_target, scsi_lun, &pos0);
+         debug("current:\"%s\" rc:%d pos0:%d\n", current+sz, rc, pos0);
+-        arrow(LOG_DEBUG, spaces, 9, pos0, rc, 4);
+         if (rc != 4)
+                 return -1;
+         sz += pos0;
+@@ -247,13 +231,6 @@ parse_scsi(struct device *dev, const char *current, const char *root UNUSED)
+         ssize_t sz;
+         int pos;
+         int rc;
+-        char *spaces;
+-
+-        pos = strlen(current);
+-        spaces = alloca(pos+1);
+-        memset(spaces, ' ', pos+1);
+-        spaces[pos] = '\0';
+-        pos = 0;
+ 
+         debug("entry");
+ 
+@@ -265,7 +242,6 @@ parse_scsi(struct device *dev, const char *current, const char *root UNUSED)
+                     &dev->scsi_info.scsi_lun,
+                     &pos);
+         debug("current:\"%s\" rc:%d pos:%d\n", dev->device, rc, pos);
+-        arrow(LOG_DEBUG, spaces, 9, pos, rc, 3);
+         if (rc != 4)
+                 return 0;
+ 
+diff --git a/src/linux-soc-root.c b/src/linux-soc-root.c
+index 394f496..373cd59 100644
+--- a/src/linux-soc-root.c
++++ b/src/linux-soc-root.c
+@@ -43,13 +43,6 @@ parse_soc_root(struct device *dev UNUSED, const char *current, const char *root
+         int rc;
+         int pos;
+         const char *devpart = current;
+-        char *spaces;
+-
+-        pos = strlen(current);
+-        spaces = alloca(pos+1);
+-        memset(spaces, ' ', pos+1);
+-        spaces[pos] = '\0';
+-        pos = 0;
+ 
+         debug("entry");
+ 
+diff --git a/src/linux-virtblk.c b/src/linux-virtblk.c
+index c54a813..2e9889d 100644
+--- a/src/linux-virtblk.c
++++ b/src/linux-virtblk.c
+@@ -50,20 +50,12 @@ parse_virtblk(struct device *dev, const char *current, const char *root UNUSED)
+         uint32_t tosser;
+         int pos;
+         int rc;
+-        char *spaces;
+-
+-        pos = strlen(current);
+-        spaces = alloca(pos+1);
+-        memset(spaces, ' ', pos+1);
+-        spaces[pos] = '\0';
+-        pos = 0;
+ 
+         debug("entry");
+ 
+         debug("searching for virtio0/");
+         rc = sscanf(current, "virtio%x/%n", &tosser, &pos);
+         debug("current:\"%s\" rc:%d pos:%d\n", current, rc, pos);
+-        arrow(LOG_DEBUG, spaces, 9, pos, rc, 1);
+         /*
+          * If we couldn't find virtioX/ then it isn't a virtio device.
+          */
+diff --git a/src/linux.c b/src/linux.c
+index 6d405af..4bb453b 100644
+--- a/src/linux.c
++++ b/src/linux.c
+@@ -252,15 +252,6 @@ static struct dev_probe *dev_probes[] = {
+         NULL
+ };
+ 
+-static inline bool
+-supports_iface(struct dev_probe *probe, enum interface_type iftype)
+-{
+-        for (unsigned int i = 0; probe->iftypes[i] != unknown; i++)
+-                if (probe->iftypes[i] == iftype)
+-                        return true;
+-        return false;
+-}
+-
+ void HIDDEN
+ device_free(struct device *dev)
+ {
+diff --git a/src/ucs2.h b/src/ucs2.h
+index dbb5900..fd8b056 100644
+--- a/src/ucs2.h
++++ b/src/ucs2.h
+@@ -23,16 +23,20 @@
+ 	(((val) & ((mask) << (shift))) >> (shift))
+ 
+ static inline size_t UNUSED
+-ucs2len(const uint16_t * const s, ssize_t limit)
++ucs2len(const void *vs, ssize_t limit)
+ {
+ 	ssize_t i;
+-	for (i = 0; i < (limit >= 0 ? limit : i+1) && s[i] != (uint16_t)0; i++)
++	const uint8_t *s8 = vs;
++
++	for (i = 0;
++	     i < (limit >= 0 ? limit : i+1) && !(s8[0] == 0 && s8[1] == 0);
++	     i++, s8 += 2)
+ 		;
+ 	return i;
+ }
+ 
+ static inline size_t UNUSED
+-ucs2size(const uint16_t * const s, ssize_t limit)
++ucs2size(const void *s, ssize_t limit)
+ {
+ 	size_t rc = ucs2len(s, limit);
+ 	rc *= sizeof (uint16_t);
+@@ -69,10 +73,11 @@ utf8size(uint8_t *s, ssize_t limit)
+ }
+ 
+ static inline unsigned char * UNUSED
+-ucs2_to_utf8(const uint16_t * const chars, ssize_t limit)
++ucs2_to_utf8(const void * const voidchars, ssize_t limit)
+ {
+ 	ssize_t i, j;
+ 	unsigned char *ret;
++	const uint16_t * const chars = voidchars;
+ 
+ 	if (limit < 0)
+ 		limit = ucs2len(chars, -1);
+@@ -124,10 +129,12 @@ ucs2_to_utf8(const uint16_t * const chars, ssize_t limit)
+ }
+ 
+ static inline ssize_t UNUSED NONNULL(4)
+-utf8_to_ucs2(uint16_t *ucs2, ssize_t size, int terminate, uint8_t *utf8)
++utf8_to_ucs2(void *ucs2void, ssize_t size, int terminate, uint8_t *utf8)
+ {
+ 	ssize_t req;
+ 	ssize_t i, j;
++	uint16_t *ucs2 = ucs2void;
++	uint16_t val16;
+ 
+ 	if (!ucs2 && size > 0) {
+ 		errno = EINVAL;
+@@ -162,10 +169,13 @@ utf8_to_ucs2(uint16_t *ucs2, ssize_t size, int terminate, uint8_t *utf8)
+ 			val = utf8[i] & 0x7f;
+ 			i += 1;
+ 		}
+-		ucs2[j] = val;
++		val16 = val;
++		ucs2[j] = val16;
++	}
++	if (terminate) {
++		val16 = 0;
++		ucs2[j++] = val16;
+ 	}
+-	if (terminate)
+-		ucs2[j++] = (uint16_t)0;
+ 	return j;
+ };
+ 
+diff --git a/src/util.h b/src/util.h
+index f63a890..d98bfa1 100644
+--- a/src/util.h
++++ b/src/util.h
+@@ -52,6 +52,15 @@
+ #define PACKED __attribute__((__packed__))
+ #define VERSION(sym, ver) __asm__(".symver " # sym "," # ver)
+ 
++#define __branch_check__(x, expect, is_constant) \
++	__builtin_expect(!!(x), expect)
++#ifndef likely
++#define likely(x) (__branch_check__(x, 1, __builtin_constant_p(x)))
++#endif
++#ifndef unlikely
++#define unlikely(x) (__branch_check__(x, 0, __builtin_constant_p(x)))
++#endif
++
+ /*
+  * I'm not actually sure when these appear, but they're present in the
+  * version in front of me.
+@@ -243,6 +252,17 @@ lcm(uint64_t x, uint64_t y)
+         return (x / n) * y;
+ }
+ 
++#ifndef strdupa
++#define strdupa(s)                                                      \
++       (__extension__ ({                                                \
++                const char *__in = (s);                                 \
++                size_t __len = strlen (__in);                           \
++                char *__out = (char *) alloca (__len + 1);              \
++                strcpy(__out, __in);                                    \
++                __out;                                                  \
++        }))
++#endif
++
+ #ifndef strndupa
+ #define strndupa(s, l)                                                  \
+        (__extension__ ({                                                \
+@@ -379,7 +399,6 @@ swizzle_guid_to_uuid(efi_guid_t *guid)
+ #undef log
+ #endif
+ #define log(level, fmt, args...) log_(__FILE__, __LINE__, __func__, level, fmt, ## args)
+-#define arrow(l,b,o,p,n,m) ({if(n==m){char c_=b[p+1]; b[o]='^'; b[p+o]='^';b[p+o+1]='\0';log(l,"%s",b);b[o]=' ';b[p+o]=' ';b[p+o+1]=c_;}})
+ #define debug(fmt, args...) log(LOG_DEBUG, fmt, ## args)
+ 
+ #endif /* EFIVAR_UTIL_H */

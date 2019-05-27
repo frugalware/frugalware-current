@@ -138,17 +138,17 @@ Fset_lto_toolchain() {
 
 	if [ ! "`check_option NOLTO`" ]; then # LTO build
 		if [ ! "`check_option CLANG`" ]; then # gcc build
-			Fmessage "Setting NM AR RANLIB Fmessage for gcc LTO build."
+			Fmessage "Setting NM AR RANLIB for gcc LTO build."
 			export NM=gcc-nm
 			export AR=gcc-ar
 			export RANLIB=gcc-ranlib
-		else
+		else # clang
 			Fmessage "Setting NM AR RANLIB for clang LTO build."
 			export NM=llvm-nm
 			export AR=llvm-ar
 			export RANLIB=llvm-ranlib
 		fi
-	else
+	else # NON LTO. Maybe again set clang to llvm-* ?
 		Fmessage "Setting NM AR RANLIB for NON-LTO build."
 		export NM=binutils-nm
 		export AR=binutils-ar

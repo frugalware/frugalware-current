@@ -118,7 +118,7 @@ index e67744ba..7499ed22 100644
 +
 +	ofaster: build packages with -Ofast optimization
 +
-+	odebug: build packages with -O0 -ggdb3
++	odebug: build packages with -O0 -ggdb3 
  
  	static: builds static libs for the package
  
@@ -188,10 +188,10 @@ index 49b512c4..78dc3f6f 100644
 +makepkgdir = $(sysconfdir)/makepkg.d
 +makepkg_DATA = current-makepkg.conf
 diff --git a/etc/makepkg.conf.in b/etc/current-makepkg.conf.in
-similarity index 76%
+similarity index 75%
 rename from etc/makepkg.conf.in
 rename to etc/current-makepkg.conf.in
-index 24e0a14a..3ea5ff3f 100644
+index 24e0a14a..206250bf 100644
 --- a/etc/makepkg.conf.in
 +++ b/etc/current-makepkg.conf.in
 @@ -1,5 +1,5 @@
@@ -201,7 +201,7 @@ index 24e0a14a..3ea5ff3f 100644
  #
  
  # The FTP/HTTP download utility that makepkg should use to acquire sources
-@@ -10,23 +10,24 @@ export FTPAGENT="/usr/bin/wget -U makepkg --continue --passive-ftp --tries=3 --w
+@@ -10,39 +10,34 @@ export FTPAGENT="/usr/bin/wget -U makepkg --continue --passive-ftp --tries=3 --w
  # The rsync utility that makepkg should use to access the Frugalware mirrors
  export RSYNCAGENT="rsync -e 'ssh -q -o GlobalKnownHostsFile=$HOME/.ssh/known_hosts -i $HOME/.ssh/id_dsa' -vP"
  
@@ -235,7 +235,8 @@ index 24e0a14a..3ea5ff3f 100644
  
  # SMP Systems
  #export MAKEFLAGS="-j2"
-@@ -35,14 +36,9 @@ export USE_AUTO_MAKEFLAGS="y"
+-export USE_AUTO_MAKEFLAGS="y"
+ 
  # Default name of build scripts
  export BUILDSCRIPT="FrugalBuild"
  
@@ -250,7 +251,7 @@ index 24e0a14a..3ea5ff3f 100644
  
  # Enable fakeroot for building packages as a non-root user
  export USE_FAKEROOT="y"
-@@ -93,3 +89,8 @@ SBU="1"
+@@ -93,3 +88,8 @@ SBU="1"
  
  # Options for xz used in compression
  export XZ_OPT="--threads=0"
@@ -349,7 +350,7 @@ index dbb1555c..ba907f15 100755
  rootdir=`cd $d && pwd`/`basename $1`
  d=`dirname $2`
 diff --git a/scripts/makepkg b/scripts/makepkg
-index d6cde41f..9691271e 100755
+index d6cde41f..78b35b2f 100755
 --- a/scripts/makepkg
 +++ b/scripts/makepkg
 @@ -28,10 +28,13 @@
@@ -801,10 +802,17 @@ index d6cde41f..9691271e 100755
  	fi
  }
  
-@@ -667,22 +951,8 @@ if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
- 	fi
- fi
+@@ -660,29 +944,9 @@ install_pkg()
+ 	exit 0
+ }
  
+-if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
+-	if [ "$(/usr/bin/tput colors)" -lt 3 ]; then
+-		USE_COLOR="n"
+-		warning "Disabling color as the terminal does not support it."
+-	fi
+-fi
+-
 -if [ -z "$PKG_EXT" ]; then
 -	error "The PKG_EXT environment variable is not defined, check your /etc/makepkg.conf!"
 -	exit 1
@@ -818,14 +826,14 @@ index d6cde41f..9691271e 100755
 -if [ "$USE_AUTO_MAKEFLAGS" != "n" ]; then
 -	export MAKEFLAGS="-j`grep -c ^processor /proc/cpuinfo`"
 -fi
--
+ 
  ARGLIST=$@
 -COMPRESS_PROGRAM="$PKG_COMP"
 +COMPRESS_PROGRAM=""
  
  while [ "$#" -ne "0" ]; do
  	case $1 in
-@@ -697,6 +967,7 @@ while [ "$#" -ne "0" ]; do
+@@ -697,6 +961,7 @@ while [ "$#" -ne "0" ]; do
  		--sudosync)   DEP_SUDO=1 ;;
  		--builddeps)  DEP_SRC=1 ;;
  		--noccache)   NOCCACHE=1 ;;
@@ -833,7 +841,7 @@ index d6cde41f..9691271e 100755
  		--nodeps)     NODEPS=1 ;;
  		--noextract)  NOEXTRACT=1 ;;
  		--install)    INSTALL=1 ;;
-@@ -720,7 +991,7 @@ while [ "$#" -ne "0" ]; do
+@@ -720,7 +985,7 @@ while [ "$#" -ne "0" ]; do
  			exit 1
  			;;
  		-*)
@@ -842,7 +850,13 @@ index d6cde41f..9691271e 100755
  				case $opt in
  					a) SEARCHDEPS=1 ;;
  					A) CACHEURL=$OPTARG ;;
-@@ -744,6 +1015,7 @@ while [ "$#" -ne "0" ]; do
+@@ -739,11 +1004,12 @@ while [ "$#" -ne "0" ]; do
+ 						exit 0
+ 						;;
+ 					i) INSTALL=1 ;;
+-					j) export MAKEFLAGS="-j$OPTARG" ;;
++					j) _MAKEFLAGS="-j$OPTARG" ;;
+ 					l) DOWNLOAD="$OPTARG" ;;
  					m) USE_COLOR="n" ;;
  					n) NOSTRIP=1 ;;
  					o) NOBUILD=1; CHROOT=0 ;;
@@ -850,13 +864,15 @@ index d6cde41f..9691271e 100755
  					p) BUILDSCRIPT=$OPTARG ;;
  					r) RMDEPS=1 ;;
  					R) CHROOT=1 ;;
-@@ -774,6 +1046,43 @@ while [ "$#" -ne "0" ]; do
+@@ -774,6 +1040,45 @@ while [ "$#" -ne "0" ]; do
  	shift
  done
  
 +
 +## -t foo,bar -> foo
 +MAKEPKG_TREE=$(/bin/echo $TREE | cut -d, -f1)
++
++[[ -z ${MAKEFLAGS} ]] && export MAKEFLAGS="-j`getconf _NPROCESSORS_ONLN`"
 +
 +# makepkg configuration
 +if [ -e "/etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf" ]; then
@@ -868,6 +884,9 @@ index d6cde41f..9691271e 100755
 +    Fdie
 +fi
 +
++if [[ -n ${_MAKEFLAGS} ]]; then
++       export MAKEFLAGS="${_MAKEFLAGS}"
++fi
 +
 +if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
 +    if [ "$(/usr/bin/tput colors)" -lt 3 ]; then
@@ -876,9 +895,6 @@ index d6cde41f..9691271e 100755
 +    fi
 +fi
 +
-+if [ "$USE_AUTO_MAKEFLAGS" != "n" -o "$USE_AUTO_MAKEFLAGS" != "N" ]; then
-+		export MAKEFLAGS="-j`getconf _NPROCESSORS_ONLN`"
-+fi
 +
 +# nothing from command line , so lets set from makepkg.conf
 +# if found , or force xz
@@ -894,7 +910,7 @@ index d6cde41f..9691271e 100755
  # see if we need to append bases to $TREE
  if ! echo $TREE |grep -q ,; then
  	# only parse _bases if they were no provided on the commandline
-@@ -865,7 +1174,7 @@ if [ ! -z "$DOWNLOAD" -a "$INFAKEROOT" != "1" ]; then
+@@ -865,7 +1170,7 @@ if [ ! -z "$DOWNLOAD" -a "$INFAKEROOT" != "1" ]; then
  
  	# check for a download utility
  	if [ -z "$FTPAGENT" ]; then
@@ -903,7 +919,15 @@ index d6cde41f..9691271e 100755
  		msg "Aborting..."
  		exit 1
  	fi
-@@ -907,7 +1216,7 @@ fi
+@@ -876,6 +1181,7 @@ if [ ! -z "$DOWNLOAD" -a "$INFAKEROOT" != "1" ]; then
+ 		exit 1
+ 	fi
+ 
++	# FIXME: that need be generated from TREE info.
+ 	confs=`cat /etc/pacman-g2.conf |grep ^Include|sed 's/.* = \(.*\)/\1/'`
+ 
+ 	# searching for a mirror
+@@ -907,7 +1213,7 @@ fi
  if [ "$PACKAGER" != "" ]; then
  	packager="$PACKAGER"
  else
@@ -912,7 +936,7 @@ index d6cde41f..9691271e 100755
  	exit 1
  fi
  if [ ! -f $BUILDSCRIPT ]; then
-@@ -915,8 +1224,30 @@ if [ ! -f $BUILDSCRIPT ]; then
+@@ -915,8 +1221,30 @@ if [ ! -f $BUILDSCRIPT ]; then
  	exit 1
  fi
  
@@ -943,7 +967,7 @@ index d6cde41f..9691271e 100755
  # check for no-no's
  if [ -z "$pkgver" ]; then
  	error "pkgver is not allowed to be empty."
-@@ -952,11 +1283,8 @@ if [ "$F_makepkg_scm" = "git" -a ! "`check_option NOVERSRC`" ]; then
+@@ -952,11 +1280,8 @@ if [ "$F_makepkg_scm" = "git" -a ! "`check_option NOVERSRC`" ]; then
  	if [ -n "$_serverlist" -a "${_serverlist:0:6}" != "git://" ]; then
  		serverlist=$_serverlist
  	fi
@@ -956,7 +980,7 @@ index d6cde41f..9691271e 100755
  if [ -z "$CACHEURL" ]; then
  	CACHEURL="${serverlist}/source/$groups/$pkgname"
  fi
-@@ -1035,25 +1363,14 @@ fi
+@@ -1035,25 +1360,14 @@ fi
  
  # Generate the Changelog if necessary.
  indir=n
@@ -987,7 +1011,7 @@ index d6cde41f..9691271e 100755
  		if [ "`id -u`" = "0" ]; then
  			chown `stat -c %u:%g $BUILDSCRIPT` \
  				Changelog
-@@ -1095,9 +1412,9 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+@@ -1095,9 +1409,9 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
  			$ECHO "Include = $CHROOTDIR/etc/pacman-g2/repos/$repo" >>$_F_makepkg_pacconf
  		done
  		mkdir -p $CHROOTDIR/{tmp,var/log,etc/pacman-g2/repos}
@@ -999,7 +1023,7 @@ index d6cde41f..9691271e 100755
  		fi
  		$PACMAN -r "$CHROOTDIR" -Syf $COREPKGS --noconfirm --config $_F_makepkg_pacconf
  		if [ "$?" != "0" ]; then
-@@ -1129,9 +1446,9 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+@@ -1129,9 +1443,9 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
  	chmod 1777 $CHROOTDIR/{var,}/tmp
  
  	msg "Copying config files to chroot"
@@ -1011,7 +1035,7 @@ index d6cde41f..9691271e 100755
  	fi
  
  	for i in resolv.conf passwd shadow group fstab
-@@ -1142,19 +1459,18 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+@@ -1142,19 +1456,18 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
  		fi
  		cp -pf /etc/$i $CHROOTDIR/etc >/dev/null
  	done
@@ -1042,7 +1066,7 @@ index d6cde41f..9691271e 100755
  	chmod 644 $CHROOTDIR/etc/sudoers
  	$ECHO "fst ALL=(ALL)       NOPASSWD: ALL" >$CHROOTDIR/etc/sudoers
  	chmod 440 $CHROOTDIR/etc/sudoers
-@@ -1240,7 +1556,7 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+@@ -1240,7 +1553,7 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
  			msg "Your package has coding issues"
  			warning "Broken strict-aliasing rules detected"
  			warning "C/CXX FLAGS need -fno-strict-aliasing"
@@ -1051,7 +1075,7 @@ index d6cde41f..9691271e 100755
  		fi
  		# copy build log to LOGDIR if set
  		if [ -d "$LOGDIR" ]; then
-@@ -1262,7 +1578,6 @@ fi
+@@ -1262,7 +1575,6 @@ fi
  if [ "`id -u`" != "0" ]; then
  	if [ "$USE_FAKEROOT" = "y" -o "$USE_FAKEROOT" = "Y" ]; then
  		if [ `type -p fakeroot` ]; then
@@ -1059,7 +1083,7 @@ index d6cde41f..9691271e 100755
  			if [ "$INCHROOT" != "1" ]; then
  				fakeroot -- $0 -F $ARGLIST
  			else
-@@ -1280,12 +1595,17 @@ if [ "`id -u`" != "0" ]; then
+@@ -1280,12 +1592,17 @@ if [ "`id -u`" != "0" ]; then
  	else
  		warning "Running makepkg as an unprivileged user will result in non-root"
  		plain "ownership of the packaged files.  Try using the fakeroot"
@@ -1078,7 +1102,7 @@ index d6cde41f..9691271e 100755
  msg "Making package: $pkgname $pkgver-$pkgrel (`date`)"
  
  # version checking
-@@ -1412,112 +1732,6 @@ if grep -i -q "^# Compiling Time: [~0-9\.]\+ SBU$" $BUILDSCRIPT && \
+@@ -1412,112 +1729,6 @@ if grep -i -q "^# Compiling Time: [~0-9\.]\+ SBU$" $BUILDSCRIPT && \
  	fi
  fi
  
@@ -1191,7 +1215,7 @@ index d6cde41f..9691271e 100755
  # retrieve sources
  msg "Retrieving Sources..."
  mkdir -p src
-@@ -1724,6 +1938,10 @@ else
+@@ -1724,6 +1935,10 @@ else
  	fi
  fi
  
@@ -1202,7 +1226,7 @@ index d6cde41f..9691271e 100755
  if [ "`id -u`" = "0" ]; then
  	# chown all source files to root.root
  	chown -R root.root $startdir/src
-@@ -1799,7 +2017,7 @@ fi
+@@ -1799,7 +2014,7 @@ fi
  if [ "$SBU" == "1" ]; then
  	# $SBU not yet set
  	totaltime="$(( $(date +%s) - $stime ))"
@@ -1211,7 +1235,7 @@ index d6cde41f..9691271e 100755
  		msg "Elapsed Time: $totaltime seconds"
  	else
  		hours="$(( $totaltime / 3600 ))"
-@@ -1837,7 +2055,23 @@ do
+@@ -1837,7 +2052,23 @@ do
  	if [ -d ${dir}/usr/share/pkgconfig ]; then
  		error "Your package has broken pkgconfig PATH"
  		error "Files are installed in /usr/share/pkgconfig"
@@ -1236,7 +1260,7 @@ index d6cde41f..9691271e 100755
  		error "Bailing out, please fix your package!"
  		exit 1
  	fi
-@@ -2046,6 +2280,11 @@ find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/{info,man} -type f 2>/dev
+@@ -2046,6 +2277,11 @@ find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/{info,man} -type f 2>/dev
  			rm -f "$ln"
  			ln -sf "${fn}.gz" "${ln}.gz"
  		done
@@ -1248,7 +1272,7 @@ index d6cde41f..9691271e 100755
  		# compress the original
  		gzip -9 "$i"
  	fi
-@@ -2059,13 +2298,21 @@ for d in $startdir/{pkg,pkg.*} ; do
+@@ -2059,13 +2295,21 @@ for d in $startdir/{pkg,pkg.*} ; do
  			if [ "$d" = "$startdir/pkg" ]; then
  				msg2 "Maybe broken link ${l#$d} in pkg $pkgname found."
  			else
@@ -1272,7 +1296,7 @@ index d6cde41f..9691271e 100755
  			fi
  		fi
  	done
-@@ -2151,23 +2398,6 @@ elif [ "$RMDEPS" = "1" -a "$DEP_SUDO" = "1" ]; then
+@@ -2151,23 +2395,6 @@ elif [ "$RMDEPS" = "1" -a "$DEP_SUDO" = "1" ]; then
  	fi
  fi
  

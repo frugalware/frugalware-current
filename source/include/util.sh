@@ -926,7 +926,7 @@ Fbuildsystem_configure() {
 		Fconfoptstryset "infodir" "$Finfodir"
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
-		Fconfoptstryset "host" "$Fbuildchost"
+		#Fconfoptstryset "host" "$Fbuildchost"
 		Fconfoptstryset "libexecdir" "/usr/lib/$pkgname"
 		#Fconfoptstryset "target" "$Fbuildchost"
 		## try to disable silent rules

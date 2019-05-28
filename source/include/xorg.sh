@@ -64,7 +64,7 @@ fi
 
 if [[ $pkgname =~ ^xf86-video- ]]; then
 	## -video stuff doesn't like some flags
-	options+=('nonow' 'plt')
+	options+=('nonow' 'plt' 'nolto')
 fi
 
 url="http://xorg.freedesktop.org"

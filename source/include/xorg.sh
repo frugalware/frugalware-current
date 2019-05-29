@@ -55,6 +55,7 @@ fi
 ###
 if [[ $pkgname =~ ^xf86-input- ]]; then
 	[ -z "$pkgrel" ] && pkgrel=1
+	_F_xorg_dir="driver"
 	pkgdesc="X.Org driver for ${pkgname#xf86-input-} input devices"
 	url="http://xorg.freedesktop.org"
 	groups=('x11' 'xorg-core' 'xorg-drivers' 'xorg-input-drivers')
@@ -66,6 +67,7 @@ fi
 
 if [[ $pkgname =~ ^xf86-video- ]]; then
 	[ -z "$pkgrel" ] && pkgrel=1
+	_F_xorg_dir="driver"
 	## -video stuff doesn't like some flags
 	url="http://xorg.freedesktop.org"
 	groups=('x11' 'xorg-core' 'xorg-drivers' 'xorg-video-drivers')
@@ -86,7 +88,7 @@ else
 	_F_xorg_release_dir="X11R7.3/src"
 fi
 
-_F_xorg_dir=`echo ${groups[$((${#groups[@]}-1))]}|sed 's/xorg-\(.*\)/\1/;s/s$//'`
+[ -z "$_F_xorg_dir" ] && _F_xorg_dir=`echo ${groups[$((${#groups[@]}-1))]}|sed 's/xorg-\(.*\)/\1/;s/s$//'`
 _F_xorg_version="X11R7."
 [ "$_F_xorg_name" = "xorg-server" ] && _F_xorg_dir="xserver"
 _F_xorg_url="$url/releases/$_F_xorg_release_dir/$_F_xorg_dir/"

@@ -56,7 +56,8 @@ fi
 if [[ $pkgname =~ ^xf86-input- ]]; then
 	[ -z "$pkgrel" ] && pkgrel=1
 	pkgdesc="X.Org driver for ${pkgname#xf86-input-} input devices"
-	groups=('x11' 'xorg-core' 'xorg-drivers')
+	url="http://xorg.freedesktop.org"
+	groups=('x11' 'xorg-core' 'xorg-drivers' 'xorg-input-drivers')
 	archs=('x86_64')
 	options+=('nolto')
 	depends+=('xorg-server>=1.20.4-3')
@@ -64,7 +65,12 @@ fi
 
 
 if [[ $pkgname =~ ^xf86-video- ]]; then
+	[ -z "$pkgrel" ] && pkgrel=1
 	## -video stuff doesn't like some flags
+	url="http://xorg.freedesktop.org"
+	groups=('x11' 'xorg-core' 'xorg-drivers' 'xorg-video-drivers')
+	archs=('x86_64')
+	depends+=('xorg-server>=1.20.4-3')
 	options+=('nonow' 'plt' 'nolto')
 fi
 

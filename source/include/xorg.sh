@@ -58,7 +58,7 @@ if [[ $pkgname =~ ^xf86-input- ]]; then
 	pkgdesc="X.Org driver for ${pkgname#xf86-input-} input devices"
 	groups=('x11' 'xorg-core' 'xorg-drivers')
 	archs=('x86_64')
-	options+=('nolto'
+	options+=('nolto')
 	depends+=('xorg-server>=1.20.4-3')
 fi
 

@@ -3,12 +3,28 @@
 
 pkgname=lirc
 pkgver=0.10.1
-pkgrel=3
+pkgrel=4
 pkgdesc="LIRC is a package that allows you to decode and send infra-red signals of many commonly used remote controls."
 url="http://www.lirc.org/"
 _F_archive_grepv="pre"
 _F_sourceforge_rss_limit=50
 Finclude sourceforge
+depends=('alsa-lib>=1.1.2-2' 'libusb>=0.1.5-4' 'libudev>=242-3')
+makedepends=('help2man' 'libxslt' 'systemd-devel' 'python3-setuptools')
+rodepends=("liblirc=$pkgver")
+groups=('apps-extra')
+replaces=('lirc_modules')
+archs=('x86_64')
+# do not remove /run fixup patch
+source+=(lirc.logrotate fw_path.patch use-run-not-var-run.patch stop-to-package-an-tarball-of-self.patch)
+backup=('etc/lirc/lirc_options.conf' 'etc/lirc/lircd.conf' 'etc/lirc/lircmd.conf')
+sha1sums=('0188b9886d3bd0d4f0819050865001e2dc7e85e3' \
+          '4342b004eb53d51fcbb9af2cf136bb4990874608' \
+          '960ef79d7c4c2d2b5abb5ab7321e52f20db5e45c' \
+          'c1768a5fdec1d72fd7bb37fbdbf40f1b7d41001d' \
+          'f524bc61ea5af419d5277b12f1552742f9b0485f')
+
+options+=('scriptlet' 'force')
 
 subpkgs=('liblirc')
 subdescs=('Client library for lirc.')
@@ -16,26 +32,14 @@ subdepends=('glibc>=2.27-2')
 subgroups=('lib')
 subarchs=('x86_64')
 suboptions=('force')
-
-depends=('alsa-lib>=1.1.2-2' 'libusb>=0.1.5-4' 'libsystemd>=231-7' 'python3>=3.6.4')
-makedepends=('help2man' 'libxslt' 'systemd')
-rodepends=("liblirc=$pkgver")
-groups=('apps-extra')
-replaces=('lirc_modules')
-archs=('x86_64')
-# do not remove /run fixup patch
-source+=(lirc.logrotate fw_path.patch use-run-not-var-run.patch)
-backup=('etc/lirc/lirc_options.conf' 'etc/lirc/lircd.conf' 'etc/lirc/lircmd.conf')
-sha1sums=('0188b9886d3bd0d4f0819050865001e2dc7e85e3' \
-          '4342b004eb53d51fcbb9af2cf136bb4990874608' \
-          '960ef79d7c4c2d2b5abb5ab7321e52f20db5e45c' \
-          'c1768a5fdec1d72fd7bb37fbdbf40f1b7d41001d')
-
-options+=('scriptlet' 'force')
+_Fbuild_no_patch=yes
 
 build() {
 
 	_F_make_opts="-j1"
+	Fcd
+	Fpatchall
+	Fautoreconf
 	Fbuild
 	Fsed '/usr/bin/setfacl' '/bin/setfacl' contrib/60-lirc.rules
 	Ffilerel contrib/*.rules /etc/udev/rules.d/
@@ -44,6 +48,10 @@ build() {
 	Ffile lirc.logrotate /etc/logrotate.d/
 	Fmkdir /etc/tmpfiles.d
 	Fmkdir /run/lirc
+	# WHAT THE F***
+	# /usr/share/lirc/lirc-0.10.1.tar.gz
+	Frm usr/share/lirc/lirc*.gz
+
 	Frm var/run
         cat > $Fdestdir/etc/tmpfiles.d/lirc.conf << EOF
 d /run/lirc 0755 root root -

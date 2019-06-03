@@ -118,6 +118,7 @@ FQt_build()
 	FQt_make
 	FQt_install
 	FQt_symlink
+	Ffix_la_files
 }
 
 ## to be removed soon

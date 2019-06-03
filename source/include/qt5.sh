@@ -63,6 +63,7 @@ _qmake_conf() {
 			QMAKE_CFLAGS_ISYSTEM=-I \
 			QMAKE_CXXFLAGS_RELEASE="" \
 			QMAKE_CXXFLAGS_DEBUG="" \
+			QMAKE_LFLAGS_RELEASE="" \
 			${_FQt_confopts[@]} "$@"
 	fi
 }

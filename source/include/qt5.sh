@@ -35,7 +35,10 @@ if [ -z "$_F_qt_nocore" ]; then
 	_F_archive_grepv="5.8"
 	up2date="Flastverdir http://download.qt-project.org/official_releases/qt/\$(Flastverdir http://download.qt-project.org/official_releases/qt/)"
 	_F_cd_path=${qtpkgfilename}
-	options+=('ofast')
+	## fixme , need some var from qt5-base..
+	if [ ! "`check_option ODEBUG`" ]; then
+		options+=('ofast')
+	fi
 fi
 
 if [[ "$pkgname" =~ "qt5-base" ]]; then
@@ -50,15 +53,23 @@ fi
 
 _qmake_conf() {
 
+
+	if [ ! "`check_option ODEBUG`" ]; then
+		_build_type="release"
+	else
+		_build_type="debug"
+	fi
+
 	## always replace -isystem with -I..
 	## alyway drop in CXX/LD FLAGS
 	if [ -z "$_F_qt_nobase_flags" ]; then
 		## use whatever flags from qt-base configuration file
-		Fexec qmake-qt5 QMAKE_CXXFLAGS+=" ${_qt_extra_cxx[@]}"  QMAKE_LFLAGS+=" ${LDFLAGS}" QMAKE_CFLAGS_ISYSTEM=-I ${_FQt_confopts[@]} "$@"
+		Fexec qmake-qt5 CONFIG+="$_build_type" QMAKE_CXXFLAGS+=" ${_qt_extra_cxx[@]}"  QMAKE_LFLAGS+=" ${LDFLAGS}" QMAKE_CFLAGS_ISYSTEM=-I ${_FQt_confopts[@]} "$@"
 	else
 		## kill flags from qt-base and use = our ones so options=('flags_options')
 		## are working. That is for the case some app won't work with some CXX/LD flags
 		Fexec qmake-qt5 \
+			CONFIG+="$_build_type" \
 			QMAKE_CXXFLAGS=" ${CXXFLAGS} ${_qt_extra_cxx[@]}"  \
 			QMAKE_LFLAGS=" ${LDFLAGS}" \
 			QMAKE_CFLAGS_ISYSTEM=-I \

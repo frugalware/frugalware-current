@@ -5,7 +5,7 @@
 pkgname=grub2
 _F_archive_name=grub
 pkgver=2.02
-pkgrel=22
+pkgrel=23
 pkgdesc="The GNU GRand Unified Bootloader"
 url="http://www.gnu.org/software/grub/"
 rodepends=('grub-theme-frugalware' 'scriptlet-core')
@@ -19,9 +19,6 @@ archs=('x86_64')
 up2date="Flasttar http://git.savannah.gnu.org/cgit/grub.git"
 _F_archive_grepv="rc\|beta"
 
-replaces=('elilo')
-provides=("${replaces[@]}")
-conflicts=("${replaces[@]}")
 
 source=(http://ftp.gnu.org/gnu/grub/grub-$pkgver${pkgextraver/-/\~}.tar.xz
 	grub
@@ -195,7 +192,8 @@ subgroups+=('base-extra')
 subarchs+=('x86_64')
 subdepends+=('fuse>=2.7.9-4')
 
-Fconfopts+="	--enable-mm-debug \
+Fconfopts+=" \
+		--enable-mm-debug \
 		--enable-nls \
 		--enable-device-mapper \
 		--enable-cache-stats \
@@ -206,7 +204,17 @@ Fconfopts+="	--enable-mm-debug \
 
 _build_grub_platform()
 {
-	Fmake --with-platform=$1
+
+	if [[ $1 = "bios" ]]; then
+		_emu_bios=" --enable-efiemu"
+	fi
+	Fconf \
+		CFLAGS="-O2 -fuse-ld=bfd" \
+		TARGET_LDFLAGS="-static" \
+		$_emu_bios \
+		--with-platform=$1
+
+	Fexec make -j1 || Fdie
 	Fmakeinstall
 	Fexec make distclean || Fdie
 }
@@ -220,8 +228,6 @@ build()
 	unset CXXFLAGS
 	unset LDFLAGS
 	unset MAKEFLAGS
-	# well but still opimize a bit
-	CFLAGS=" -march=x86-64 -mtune=generic -Os -pipe"
 
 	## disable patch 0035.. we don't want yet linux16
 	## we don't use any kind splash etc and with it we boot at lowest
@@ -241,11 +247,7 @@ build()
 
 	_build_grub_platform efi
 	_build_grub_platform pc
-	for i in $Fdestdir/{usr/bin,usr/sbin}/*; do
-		if file $i | grep -q 'ELF'; then
-		  strip $i || Fdie
-		fi
-	done
+
 	Ffile /etc/default/grub
 
 	Fsplit grub2-mkfont /usr/bin/grub-mkfont

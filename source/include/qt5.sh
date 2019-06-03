@@ -37,7 +37,11 @@ if [ -z "$_F_qt_nocore" ]; then
 	_F_cd_path=${qtpkgfilename}
 fi
 
-makedepends+=('x11-protos' 'gperf')
+if [[ "$pkgname" =~ "qt5-base" ]]; then
+	makedepends+=('x11-protos' 'gperf')
+else
+	makedepends+=('x11-protos' 'gperf' "qt5-base-static>=5.12.3-3")
+fi
 
 if [ -z "$archs" ]; then
 	archs=('x86_64')

@@ -22,6 +22,10 @@ if [ -n "$_F_qt_extra_cxx" ]; then
         _qt_extra_cxx+=" ${_F_qt_extra_cxx[@]}"
 fi
 
+if [ -n "$_F_qt_extra_ldflags" ]; then
+        _qt_extra_ldflags+=" ${_F_qt_extra_ldflags[@]}"
+fi
+
 if [ -z "$_F_qt_nocore" ]; then
 	qtpkgname=${pkgname/5-/}
 	qtpkgfilename=${qtpkgname}-everywhere-src-${pkgver}
@@ -35,10 +39,6 @@ if [ -z "$_F_qt_nocore" ]; then
 	_F_archive_grepv="5.8"
 	up2date="Flastverdir http://download.qt-project.org/official_releases/qt/\$(Flastverdir http://download.qt-project.org/official_releases/qt/)"
 	_F_cd_path=${qtpkgfilename}
-	## fixme , need some var from qt5-base..
-	if [ ! "`check_option ODEBUG`" ]; then
-		options+=('ofast')
-	fi
 fi
 
 if [[ "$pkgname" =~ "qt5-base" ]]; then
@@ -60,24 +60,20 @@ _qmake_conf() {
 		_build_type="debug"
 	fi
 
-	## always replace -isystem with -I..
-	## alyway drop in CXX/LD FLAGS
-	if [ -z "$_F_qt_nobase_flags" ]; then
-		## use whatever flags from qt-base configuration file
-		Fexec qmake-qt5 CONFIG+="$_build_type" QMAKE_CXXFLAGS+=" ${_qt_extra_cxx[@]}"  QMAKE_LFLAGS+=" ${LDFLAGS}" QMAKE_CFLAGS_ISYSTEM=-I ${_FQt_confopts[@]} "$@"
-	else
-		## kill flags from qt-base and use = our ones so options=('flags_options')
-		## are working. That is for the case some app won't work with some CXX/LD flags
-		Fexec qmake-qt5 \
-			CONFIG+="$_build_type" \
-			QMAKE_CXXFLAGS=" ${CXXFLAGS} ${_qt_extra_cxx[@]}"  \
-			QMAKE_LFLAGS=" ${LDFLAGS}" \
-			QMAKE_CFLAGS_ISYSTEM=-I \
-			QMAKE_CXXFLAGS_RELEASE="" \
-			QMAKE_CXXFLAGS_DEBUG="" \
-			QMAKE_LFLAGS_RELEASE="" \
-			${_FQt_confopts[@]} "$@"
-	fi
+	## kill flags from qt-base and use = our ones so options=('flags_options')
+	## are working. That is for the case some app won't work with some CXX/LD flags
+	Fexec qmake-qt5 \
+		CONFIG+="${_build_type}" \
+		QMAKE_CFLAGS_ISYSTEM=-I \
+		QMAKE_CXXFLAGS=" ${_qt_extra_cxx[@]} ${CXXFLAGS}"  \
+		QMAKE_CXXFLAGS_RELEASE=" ${_qt_extra_cxx[@]} ${CXXFLAGS}" \
+		QMAKE_LFLAGS=" ${_qt_extra_ldflags[@]} ${LDFLAGS}" \
+		QMAKE_LFLAGS_RELEASE=" ${_qt_extra_ldflags[@]} ${LDFLAGS}" \
+		QMAKE_CXXFLAGS_DEBUG="" \
+		QMAKE_CFLAGS_OPTIMIZE="" \
+		QMAKE_CFLAGS_OPTIMIZE_SIZE="" \
+		QMAKE_CFLAGS_OPTIMIZE_FULL="" \
+		${_FQt_confopts[@]} "$@"
 }
 
 _qmake_make() {

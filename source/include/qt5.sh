@@ -64,10 +64,14 @@ _qmake_conf() {
 		_build_type="debug"
 	fi
 
+	if [  "`check_option NOLTO`" ]; then
+		_drop_lto="CONFIG-=ltcg"
+	fi
 	## kill flags from qt-base and use = our ones so options=('flags_options')
 	## are working. That is for the case some app won't work with some CXX/LD flags
 	Fexec qmake-qt5 \
 		CONFIG+="${_build_type}" \
+		${_drop_lto} \
 		QMAKE_CFLAGS_ISYSTEM=-I \
 		QMAKE_CXXFLAGS=" ${_qt_extra_cxx[@]} ${CXXFLAGS}"  \
 		QMAKE_CXXFLAGS_RELEASE=" ${_qt_extra_cxx[@]} ${CXXFLAGS}" \

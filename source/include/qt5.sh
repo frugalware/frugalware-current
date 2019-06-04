@@ -9,6 +9,14 @@
 #
 # == SYNOPSIS
 # Common schema for qt5 packages
+#
+# == OPTIONS
+# * _F_qt_extra_cxx: adding extra CXX compiler flags.
+#  _F_qt_extra_cxx+=" -fsomething"
+# * _F_qt_extra_ldflags: adding extra LD linker flags.
+#  _F_qt_extra_ldflags+=" -lfoo"
+# * _F_qt_nocore: when set to true it indicates is not a core
+#   qt5 package.
 ###
 
 ###

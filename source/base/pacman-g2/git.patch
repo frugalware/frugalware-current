@@ -118,7 +118,7 @@ index e67744ba..7499ed22 100644
 +
 +	ofaster: build packages with -Ofast optimization
 +
-+	odebug: build packages with -O0 -ggdb3 
++	odebug: build packages with -O0 -ggdb3
  
  	static: builds static libs for the package
  
@@ -350,7 +350,7 @@ index dbb1555c..ba907f15 100755
  rootdir=`cd $d && pwd`/`basename $1`
  d=`dirname $2`
 diff --git a/scripts/makepkg b/scripts/makepkg
-index d6cde41f..78b35b2f 100755
+index d6cde41f..c68b6879 100755
 --- a/scripts/makepkg
 +++ b/scripts/makepkg
 @@ -28,10 +28,13 @@
@@ -408,7 +408,7 @@ index d6cde41f..78b35b2f 100755
  plain() {
  	if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
  		$ECHO -e "    \033[1;1m$1\033[1;0m" >&2
-@@ -180,10 +160,283 @@ error() {
+@@ -180,10 +160,290 @@ error() {
  	fi
  }
  
@@ -535,11 +535,14 @@ index d6cde41f..78b35b2f 100755
 +		_FLAGS+=" -fstack-protector-strong"
 +	fi
 +
-+	if [ "`check_option NOCLASH`" ]; then
-+		warning "Disabling C/CXX FLAGS: -fstack-clash-protection"
-+		warning "Do that only with an GOOD reason.."
-+	else
-+		_FLAGS+=" -fstack-clash-protection"
++	# clang does not have this
++	if [ ! "`check_option CLANG`" ]; then
++		if [ "`check_option NOCLASH`" ]; then
++			warning "Disabling C/CXX FLAGS: -fstack-clash-protection"
++			warning "Do that only with an GOOD reason.."
++		else
++			_FLAGS+=" -fstack-clash-protection"
++		fi
 +	fi
 +
 +	if [ "`check_option NOWFSECURITY`" ]; then
@@ -569,8 +572,12 @@ index d6cde41f..78b35b2f 100755
 +		warning "Disabling C/CXX FLAGS: -flto"
 +		_FLAGS+=" -fno-lto"
 +	else
-+		_lto_cpus="$(getconf _NPROCESSORS_ONLN)"
-+		_FLAGS+=" -flto=$_lto_cpus"
++		if [ ! "`check_option CLANG`" ]; then
++			_lto_cpus="$(getconf _NPROCESSORS_ONLN)"
++			_FLAGS+=" -flto=$_lto_cpus"
++		else
++			_FLAGS+=" -flto"
++		fi
 +	fi
 +
 +	if [ "`check_option ASNEEDED`" ]; then
@@ -614,7 +621,7 @@ index d6cde41f..78b35b2f 100755
 +	_LDFLAGS="$(/bin/echo ${_LDFLAGS[@]} | tr [:space:] '\n' | awk '!a[$0]++' | tr '\n' ' ')"
 +	_CFLAGS="${_MFLAGS} ${_OFLAG} ${_FLAGS} ${_LD_PLUGIN} -pipe"
 +	_CXXFLAGS="${_MFLAGS} ${_OFLAG} ${_FLAGS} ${_LD_PLUGIN} -pipe"
-+	LDFLAGS_=" ${_LDFLAGS} ${CFLAGS} ${CXXFLAGS}"
++	LDFLAGS_=" ${_LDFLAGS} ${_CFLAGS} ${_CXXFLAGS}"
 +
 +	CFLAGS="$(/bin/echo ${_CFLAGS[@]} | tr [:space:] '\n' | awk '!a[$0]++' | tr '\n' ' ')"
 +	CXXFLAGS="$(/bin/echo ${_CXXFLAGS[@]} | tr [:space:] '\n' | awk '!a[$0]++' | tr '\n' ' ')"
@@ -692,7 +699,7 @@ index d6cde41f..78b35b2f 100755
  checkdeps() {
  
  	local missdep=""
-@@ -350,6 +603,7 @@ usage() {
+@@ -350,6 +610,7 @@ usage() {
  	$ECHO "  -n, --nostrip    Do not strip binaries/libraries"
  	$ECHO "  -o, --nobuild    Download and extract files only"
  	$ECHO "  -p <buildscript> Use an alternate build script (instead of $BUILDSCRIPT)"
@@ -700,7 +707,7 @@ index d6cde41f..78b35b2f 100755
  	$ECHO "  -r, --rmdeps     Remove installed dependencies after a successful build"
  	$ECHO "  -R, --chroot     Build the package in a chroot environment (default)"
  	$ECHO "  -H, --host       Build the package on the host system"
-@@ -375,16 +629,19 @@ usage() {
+@@ -375,16 +636,19 @@ usage() {
  chroot_umount() {
      msg "Attempting to umount chroot directories..."
      umount $CHROOTDIR/dev/shm >/dev/null
@@ -723,7 +730,7 @@ index d6cde41f..78b35b2f 100755
      fi
      msg "Successfully umounted chroot directories."
  }
-@@ -395,14 +652,17 @@ chroot_mount() {
+@@ -395,14 +659,17 @@ chroot_mount() {
      mount -t sysfs none $CHROOTDIR/sys >/dev/null
      mount -t devtmpfs none $CHROOTDIR/dev >/dev/null
      mount -o bind /dev/shm $CHROOTDIR/dev/shm
@@ -745,7 +752,7 @@ index d6cde41f..78b35b2f 100755
      fi
      msg "Successfully mounted chroot directories."
  }
-@@ -583,7 +843,7 @@ create_pkg()
+@@ -583,7 +850,7 @@ create_pkg()
  
  strip_pkg()
  {
@@ -754,7 +761,7 @@ index d6cde41f..78b35b2f 100755
  
  	if [ "$p" = "$pkgname" ]; then
  		dir="$startdir/pkg"
-@@ -591,15 +851,39 @@ strip_pkg()
+@@ -591,15 +858,39 @@ strip_pkg()
  		dir="$startdir/pkg.$p"
  		subpkg="subpackage "
  	fi
@@ -802,7 +809,7 @@ index d6cde41f..78b35b2f 100755
  	fi
  }
  
-@@ -660,29 +944,9 @@ install_pkg()
+@@ -660,29 +951,9 @@ install_pkg()
  	exit 0
  }
  
@@ -833,7 +840,7 @@ index d6cde41f..78b35b2f 100755
  
  while [ "$#" -ne "0" ]; do
  	case $1 in
-@@ -697,6 +961,7 @@ while [ "$#" -ne "0" ]; do
+@@ -697,6 +968,7 @@ while [ "$#" -ne "0" ]; do
  		--sudosync)   DEP_SUDO=1 ;;
  		--builddeps)  DEP_SRC=1 ;;
  		--noccache)   NOCCACHE=1 ;;
@@ -841,7 +848,7 @@ index d6cde41f..78b35b2f 100755
  		--nodeps)     NODEPS=1 ;;
  		--noextract)  NOEXTRACT=1 ;;
  		--install)    INSTALL=1 ;;
-@@ -720,7 +985,7 @@ while [ "$#" -ne "0" ]; do
+@@ -720,7 +992,7 @@ while [ "$#" -ne "0" ]; do
  			exit 1
  			;;
  		-*)
@@ -850,7 +857,7 @@ index d6cde41f..78b35b2f 100755
  				case $opt in
  					a) SEARCHDEPS=1 ;;
  					A) CACHEURL=$OPTARG ;;
-@@ -739,11 +1004,12 @@ while [ "$#" -ne "0" ]; do
+@@ -739,11 +1011,12 @@ while [ "$#" -ne "0" ]; do
  						exit 0
  						;;
  					i) INSTALL=1 ;;
@@ -864,7 +871,7 @@ index d6cde41f..78b35b2f 100755
  					p) BUILDSCRIPT=$OPTARG ;;
  					r) RMDEPS=1 ;;
  					R) CHROOT=1 ;;
-@@ -774,6 +1040,45 @@ while [ "$#" -ne "0" ]; do
+@@ -774,6 +1047,45 @@ while [ "$#" -ne "0" ]; do
  	shift
  done
  
@@ -910,7 +917,7 @@ index d6cde41f..78b35b2f 100755
  # see if we need to append bases to $TREE
  if ! echo $TREE |grep -q ,; then
  	# only parse _bases if they were no provided on the commandline
-@@ -865,7 +1170,7 @@ if [ ! -z "$DOWNLOAD" -a "$INFAKEROOT" != "1" ]; then
+@@ -865,7 +1177,7 @@ if [ ! -z "$DOWNLOAD" -a "$INFAKEROOT" != "1" ]; then
  
  	# check for a download utility
  	if [ -z "$FTPAGENT" ]; then
@@ -919,7 +926,7 @@ index d6cde41f..78b35b2f 100755
  		msg "Aborting..."
  		exit 1
  	fi
-@@ -876,6 +1181,7 @@ if [ ! -z "$DOWNLOAD" -a "$INFAKEROOT" != "1" ]; then
+@@ -876,6 +1188,7 @@ if [ ! -z "$DOWNLOAD" -a "$INFAKEROOT" != "1" ]; then
  		exit 1
  	fi
  
@@ -927,7 +934,7 @@ index d6cde41f..78b35b2f 100755
  	confs=`cat /etc/pacman-g2.conf |grep ^Include|sed 's/.* = \(.*\)/\1/'`
  
  	# searching for a mirror
-@@ -907,7 +1213,7 @@ fi
+@@ -907,7 +1220,7 @@ fi
  if [ "$PACKAGER" != "" ]; then
  	packager="$PACKAGER"
  else
@@ -936,7 +943,7 @@ index d6cde41f..78b35b2f 100755
  	exit 1
  fi
  if [ ! -f $BUILDSCRIPT ]; then
-@@ -915,8 +1221,30 @@ if [ ! -f $BUILDSCRIPT ]; then
+@@ -915,8 +1228,30 @@ if [ ! -f $BUILDSCRIPT ]; then
  	exit 1
  fi
  
@@ -967,7 +974,7 @@ index d6cde41f..78b35b2f 100755
  # check for no-no's
  if [ -z "$pkgver" ]; then
  	error "pkgver is not allowed to be empty."
-@@ -952,11 +1280,8 @@ if [ "$F_makepkg_scm" = "git" -a ! "`check_option NOVERSRC`" ]; then
+@@ -952,11 +1287,8 @@ if [ "$F_makepkg_scm" = "git" -a ! "`check_option NOVERSRC`" ]; then
  	if [ -n "$_serverlist" -a "${_serverlist:0:6}" != "git://" ]; then
  		serverlist=$_serverlist
  	fi
@@ -980,7 +987,7 @@ index d6cde41f..78b35b2f 100755
  if [ -z "$CACHEURL" ]; then
  	CACHEURL="${serverlist}/source/$groups/$pkgname"
  fi
-@@ -1035,25 +1360,14 @@ fi
+@@ -1035,25 +1367,14 @@ fi
  
  # Generate the Changelog if necessary.
  indir=n
@@ -1011,7 +1018,7 @@ index d6cde41f..78b35b2f 100755
  		if [ "`id -u`" = "0" ]; then
  			chown `stat -c %u:%g $BUILDSCRIPT` \
  				Changelog
-@@ -1095,9 +1409,9 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+@@ -1095,9 +1416,9 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
  			$ECHO "Include = $CHROOTDIR/etc/pacman-g2/repos/$repo" >>$_F_makepkg_pacconf
  		done
  		mkdir -p $CHROOTDIR/{tmp,var/log,etc/pacman-g2/repos}
@@ -1023,7 +1030,7 @@ index d6cde41f..78b35b2f 100755
  		fi
  		$PACMAN -r "$CHROOTDIR" -Syf $COREPKGS --noconfirm --config $_F_makepkg_pacconf
  		if [ "$?" != "0" ]; then
-@@ -1129,9 +1443,9 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+@@ -1129,9 +1450,9 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
  	chmod 1777 $CHROOTDIR/{var,}/tmp
  
  	msg "Copying config files to chroot"
@@ -1035,7 +1042,7 @@ index d6cde41f..78b35b2f 100755
  	fi
  
  	for i in resolv.conf passwd shadow group fstab
-@@ -1142,19 +1456,18 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+@@ -1142,19 +1463,18 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
  		fi
  		cp -pf /etc/$i $CHROOTDIR/etc >/dev/null
  	done
@@ -1066,16 +1073,27 @@ index d6cde41f..78b35b2f 100755
  	chmod 644 $CHROOTDIR/etc/sudoers
  	$ECHO "fst ALL=(ALL)       NOPASSWD: ALL" >$CHROOTDIR/etc/sudoers
  	chmod 440 $CHROOTDIR/etc/sudoers
-@@ -1240,7 +1553,7 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
- 			msg "Your package has coding issues"
+@@ -1237,10 +1557,17 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+ 
+ 		## this may cause real problems so wan about
+ 		if grep -q "\pointer will break strict-aliasing rules" "${BUILDLOG}"  2>/dev/null; then
+-			msg "Your package has coding issues"
++			warning "Your package has coding issues"
  			warning "Broken strict-aliasing rules detected"
  			warning "C/CXX FLAGS need -fno-strict-aliasing"
 -			warning "Please recompile with right CFLAGS"
 +			warning "Please recompile with right C/CXX FLAGS"
++		fi
++
++		if grep -q "\needed to handle lto object" "${BUILDLOG}"  2>/dev/null; then
++			warning "Your package may have LTO building problems!"
++			warning "Please check your Build log."
++			msg2 "eg: grep 'needed to handle lto object' $(echo ${BUILDLOG} | sed 's/.*\///g')"
++			warning "If unsure add 'options+=('nolto')' and rebuild the package."
  		fi
  		# copy build log to LOGDIR if set
  		if [ -d "$LOGDIR" ]; then
-@@ -1262,7 +1575,6 @@ fi
+@@ -1262,7 +1589,6 @@ fi
  if [ "`id -u`" != "0" ]; then
  	if [ "$USE_FAKEROOT" = "y" -o "$USE_FAKEROOT" = "Y" ]; then
  		if [ `type -p fakeroot` ]; then
@@ -1083,7 +1101,7 @@ index d6cde41f..78b35b2f 100755
  			if [ "$INCHROOT" != "1" ]; then
  				fakeroot -- $0 -F $ARGLIST
  			else
-@@ -1280,12 +1592,17 @@ if [ "`id -u`" != "0" ]; then
+@@ -1280,12 +1606,17 @@ if [ "`id -u`" != "0" ]; then
  	else
  		warning "Running makepkg as an unprivileged user will result in non-root"
  		plain "ownership of the packaged files.  Try using the fakeroot"
@@ -1102,7 +1120,7 @@ index d6cde41f..78b35b2f 100755
  msg "Making package: $pkgname $pkgver-$pkgrel (`date`)"
  
  # version checking
-@@ -1412,112 +1729,6 @@ if grep -i -q "^# Compiling Time: [~0-9\.]\+ SBU$" $BUILDSCRIPT && \
+@@ -1412,112 +1743,6 @@ if grep -i -q "^# Compiling Time: [~0-9\.]\+ SBU$" $BUILDSCRIPT && \
  	fi
  fi
  
@@ -1215,7 +1233,7 @@ index d6cde41f..78b35b2f 100755
  # retrieve sources
  msg "Retrieving Sources..."
  mkdir -p src
-@@ -1724,6 +1935,10 @@ else
+@@ -1724,6 +1949,10 @@ else
  	fi
  fi
  
@@ -1226,7 +1244,7 @@ index d6cde41f..78b35b2f 100755
  if [ "`id -u`" = "0" ]; then
  	# chown all source files to root.root
  	chown -R root.root $startdir/src
-@@ -1799,7 +2014,7 @@ fi
+@@ -1799,7 +2028,7 @@ fi
  if [ "$SBU" == "1" ]; then
  	# $SBU not yet set
  	totaltime="$(( $(date +%s) - $stime ))"
@@ -1235,7 +1253,7 @@ index d6cde41f..78b35b2f 100755
  		msg "Elapsed Time: $totaltime seconds"
  	else
  		hours="$(( $totaltime / 3600 ))"
-@@ -1837,7 +2052,23 @@ do
+@@ -1837,7 +2066,23 @@ do
  	if [ -d ${dir}/usr/share/pkgconfig ]; then
  		error "Your package has broken pkgconfig PATH"
  		error "Files are installed in /usr/share/pkgconfig"
@@ -1260,7 +1278,7 @@ index d6cde41f..78b35b2f 100755
  		error "Bailing out, please fix your package!"
  		exit 1
  	fi
-@@ -2046,6 +2277,11 @@ find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/{info,man} -type f 2>/dev
+@@ -2046,6 +2291,11 @@ find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/{info,man} -type f 2>/dev
  			rm -f "$ln"
  			ln -sf "${fn}.gz" "${ln}.gz"
  		done
@@ -1272,7 +1290,7 @@ index d6cde41f..78b35b2f 100755
  		# compress the original
  		gzip -9 "$i"
  	fi
-@@ -2059,13 +2295,21 @@ for d in $startdir/{pkg,pkg.*} ; do
+@@ -2059,13 +2309,21 @@ for d in $startdir/{pkg,pkg.*} ; do
  			if [ "$d" = "$startdir/pkg" ]; then
  				msg2 "Maybe broken link ${l#$d} in pkg $pkgname found."
  			else
@@ -1296,7 +1314,7 @@ index d6cde41f..78b35b2f 100755
  			fi
  		fi
  	done
-@@ -2151,23 +2395,6 @@ elif [ "$RMDEPS" = "1" -a "$DEP_SUDO" = "1" ]; then
+@@ -2151,23 +2409,6 @@ elif [ "$RMDEPS" = "1" -a "$DEP_SUDO" = "1" ]; then
  	fi
  fi
  
@@ -1402,4 +1420,3 @@ index 4f7d33da..d939d664 100644
  	printf("\\  '-. '-'  '-'  '-'   See /usr/share/doc/pacman-g2-%s/AUTHORS for more info.\n", PACKAGE_VERSION);
  	printf(" '--'                  \n");
  	printf(_("                       This program may be freely redistributed under\n"));
-

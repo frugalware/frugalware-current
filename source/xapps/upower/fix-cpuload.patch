@@ -1,0 +1,51 @@
+From 04ee9afb58db5e9c4a9c7341a58ad729f261d229 Mon Sep 17 00:00:00 2001
+From: Hans de Goede <hdegoede@redhat.com>
+Date: Mon, 20 May 2019 19:34:19 +0200
+Subject: UpKbdBacklight: Fix endless loop burning 100% CPU on keyboard plugout
+
+If an external keyboard with a backlight gets unplugged then
+up_kbd_backlight_event_io would constantly get called, burning 100% CPU.
+
+To make things worse, up_kbd_backlight_event_io would also constantly post
+DBUS events, causing gnome-shell to also become very unresponsive.
+
+This commit fixes this by returning FALSE from up_kbd_backlight_event_io
+on unplug.
+
+While at it also fix calling up_kbd_backlight_emit_change with a negative
+brightness value in other error scenarios. Specifically this fixes
+calling up_kbd_backlight_emit_change with -1 on the initial
+up_kbd_backlight_event_io call in which case up_kbd_backlight_brightness_read
+will typically fail with ENODATA.
+---
+ src/up-kbd-backlight.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/src/up-kbd-backlight.c b/src/up-kbd-backlight.c
+index 405fcff..f9663e7 100644
+--- a/src/up-kbd-backlight.c
++++ b/src/up-kbd-backlight.c
+@@ -31,6 +31,7 @@
+ #include <unistd.h>
+ #include <string.h>
+ #include <dirent.h>
++#include <errno.h>
+ 
+ #include "up-kbd-backlight.h"
+ #include "up-daemon.h"
+@@ -220,7 +221,11 @@ up_kbd_backlight_event_io (GIOChannel *channel, GIOCondition condition, gpointer
+ 		return FALSE;
+ 
+ 	brightness = up_kbd_backlight_brightness_read (kbd_backlight, kbd_backlight->priv->fd_hw_changed);
+-	up_kbd_backlight_emit_change (kbd_backlight, brightness, "internal");
++	if (brightness < 0 && errno == ENODEV)
++		return FALSE;
++
++	if (brightness >= 0)
++		up_kbd_backlight_emit_change (kbd_backlight, brightness, "internal");
+ 
+ 	return TRUE;
+ }
+-- 
+cgit v1.1
+

@@ -19,8 +19,8 @@
 # == OPTIONS
 # * _F_sysvinit_units: a string of all sysvinit units to disable
 # * _F_systemd_units: a string of all systemd units to manage. append a
-# '=' after the system service name with 'e' and/or 's' for it to be
-# enabled and/or started at install time
+# '=' after the system service name with 'e' , 'd' and/or 's' for it to be
+# enabled, disabled  and/or started at install time
 # * _F_systemd_scriptlet: set this with the name of your custom scriptlet
 ###
 if [ -z "$_F_systemd_units" ]; then

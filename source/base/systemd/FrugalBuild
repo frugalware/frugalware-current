@@ -6,13 +6,14 @@
 
 pkgname=systemd
 pkgver=242
-pkgrel=3
+pkgrel=4
 pkgdesc="A System and Service Manager"
 url="http://www.freedesktop.org/wiki/Software/systemd"
 depends=('kmod>=25-2' 'cryptsetup-luks>=2.0.1-3' 'lz4>=1.8.1.2-2' 'libseccomp' 'libidn2' 'pcre2' 'openssl>=1.1.1')
 makedepends=('docbook-xsl' 'docbook-xml' 'intltool>=0.51.0-3' 'bash-completion' \
 	'gperf>=3.0.4-5' 'lxml>=4.1.1-2' 'gobject-introspection>=1.54.1-2' 'polkit' 'libxkbcommon')
-rodepends=('dbus>=1.12.2-4' "libsystemd>=$pkgver" "libudev>=$pkgver" 'scriptlet-core' 'hwdata' 'systemd-sysvinit' \
+rodepends=('dbus>=1.12.2-4' "libsystemd>=$pkgver" "$pkgname-systemctl>=$pkgver" "libudev>=$pkgver" \
+	'scriptlet-core' 'hwdata' 'systemd-sysvinit' \
 	'frugalware>=2.1-129' 'shadow>=4.6-5')
 options+=('scriptlet' 'noccache' 'ofast')
 _F_github_tag_v=y
@@ -197,6 +198,30 @@ subdepends+=('')
 suboptions+=('')
 
 
+subpkgs+=("$pkgname-systemctl")
+subdescs+=('The systemd system and service manager')
+subrodepends+=("libsystemd>=$pkgver")
+subreplaces+=('')
+subgroups+=('base core systemd-utils')
+subarchs+=('x86_64')
+subprovides+=('')
+subconflicts+=('')
+subdepends+=('cryptsetup-luks kmod libseccomp libidn2')
+suboptions+=('')
+
+
+subpkgs+=("$pkgname-nspawn")
+subdescs+=('Spawn a command or OS in a light-weight container.')
+subrodepends+=("libsystemd>=$pkgver")
+subreplaces+=('')
+subgroups+=('base-extra')
+subarchs+=('x86_64')
+subprovides+=('')
+subconflicts+=('')
+subdepends+=('libseccomp cryptsetup-luks kmod libidn2')
+suboptions+=('')
+
+
 build()
 {
 
@@ -294,12 +319,19 @@ build()
 
 	## wtf these guys smoke..
 	## https://www.freedesktop.org/software/systemd/man/systemd.offline-updates.html
-	## HELL NO.. Just wipe this shit away
+	## HELL NO.. Just wipe this away
 
 	Frm lib/systemd/system-generators/systemd-system-update-generator
 	Frm lib/systemd/system/system-update*
 	Frm usr/share/man/man8/systemd-system-update*
 	Frm usr/share/man/man7/systemd.offline*
+
+	## why these gets installed when systemd-boot is off ?
+	Frm usr/bin/kernel-install
+	Frm usr/share/bash-completion/completions/kernel-install
+	Frm /usr/share/man/man8/kernel-install.*
+	Frm /usr/share/zsh/site-functions/_kernel-install
+
 
 	Fcp console.conf etc/tmpfiles.d/console.conf
 
@@ -322,9 +354,6 @@ cat > $Fdestdir/etc/systemd/system/getty@tty1.service.d/noclear.conf << EOF
 TTYVTDisallocate=no
 EOF
 
-	# we have runlevel 4 as the x11 target, not 5
-	Fln multi-user.target /lib/systemd/system/runlevel5.target
-	Fln graphical.target /lib/systemd/system/runlevel4.target
 
 	# Make sure these directories are properly owned
 	Fmkdir lib/systemd/system/basic.target.wants
@@ -363,17 +392,38 @@ EOF
 	# fixme
 	Frm /lib/udev/hwdb.d # Use the one from hwdata
 
-	Fsplit systemd-remote lib/systemd/systemd-journal-gatewayd
-	Fsplit systemd-remote lib/systemd/systemd-journal-remote
-	Fsplit systemd-remote lib/systemd/systemd-journal-upload
+	Fsplit systemd-remote lib/systemd/systemd-journal-{gatewayd,remote,upload}
+	Fsplit systemd-remote etc/systemd/journal-{remote,upload}.conf
+	Fsplit systemd-remote usr/lib/sysusers.d/systemd-remote.conf
+	Fsplit systemd-remote lib/systemd/system/systemd-journal-{remote,gatewayd}.{service,socket}
+	Fsplit systemd-remote usr/share/man/man5/journal-remote.conf*
+	Fsplit systemd-remote usr/share/man/man8/systemd-journal-remote*
+	Fsplit systemd-remote lib/systemd/system/systemd-journal-upload.*
+	Fsplit systemd-remote usr/share/man/man5/journal-upload.conf*
+	Fsplit systemd-remote usr/share/man/man8/systemd-journal-upload*
+	Fsplit systemd-remote usr/share/man/man8/systemd-journal-gatewayd*
+	Fsplit systemd-remote usr/share/systemd/gatewayd
+	Fsplit systemd-remote var/log/journal/remote
 
 	Fsplit systemd-pull lib/systemd/systemd-pull
+
+
+	Fsplit systemd-nspawn lib/systemd/system/systemd-nspawn*
+	Fsplit systemd-nspawn usr/bin/systemd-nspawn
+	Fsplit systemd-nspawn usr/lib/tmpfiles.d/systemd-nspawn.conf
+	Fsplit systemd-nspawn usr/share/bash-completion/completions/systemd-nspawn
+ 	Fsplit systemd-nspawn usr/share/man/man1/systemd-nspawn*
+	Fsplit systemd-nspawn usr/share/man/man5/systemd.nspawn*
+	Fsplit systemd-nspawn usr/share/zsh/site-functions/_systemd-nspawn
+
+	Fsplit $pkgname-systemctl bin/systemctl
 
 	## libsystemd-shared not sure about this one
 	Fsplit libsystemd lib/security
 	Fsplit libsystemd lib/systemd/libsystemd*
 	Fsplit libsystemd lib/libsystemd*
 	Fsplit libsystemd lib/libnss*
+	Fsplit libsystemd usr/lib/pkgconfig/libsystemd.pc
 
 	Fsplit libudev lib/libudev*
 	Fsplit libudev usr/lib/pkgconfig/{libudev,udev}.pc

@@ -2,7 +2,9 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 # Contributor: Laszlo Dvornik <dvornik@gnome.hu>
 
+# use both but split in different packages
 : ${USE_KF5="y"}
+: ${USE_GTK3_KF5="y"}
 
 pkgname=libreoffice
 pkgver=6.2.4.2
@@ -80,6 +82,7 @@ makedepends=(
 	'doxygen'
 	'glm'
 	'gperf'
+	'openldap'
 	'gst1-plugins-base'
 	'gstreamer1'
 	'hunspell>=1.7.0'
@@ -163,13 +166,25 @@ subconflicts=("$pkgname-gnome")
 if Fuse KF5; then
 	subpkgs+=("$pkgname-kde5")
 	subdescs+=("$pkgname KF5/Qt5 integration")
-	subdepends+=("gtk+3 qt5-base qt5-x11extras kconfig kcoreaddons ki18n kio kwindowsystem")
+	subdepends+=("qt5-base qt5-x11extras kconfig kcoreaddons ki18n kio kwindowsystem")
 	subrodepends+=("$pkgname>=$pkgver")
 	subarchs+=("x86_64")
 	subgroups+=('kde5')
 	subinstall+=("")
 	subreplaces+=("")
 	subconflicts+=("")
+fi
+
+if Fuse GTK3_KF5; then
+    subpkgs+=("$pkgname-gtk3-kde5")
+    subdescs+=("$pkgname KF5/Qt5 integration using GTK3.")
+    subdepends+=("gtk+3 qt5-base qt5-x11extras kconfig kcoreaddons ki18n kio kwindowsystem")
+    subrodepends+=("$pkgname>=$pkgver $pkgname-gtk3")
+    subarchs+=("x86_64")
+    subgroups+=('kde5-extra')
+    subinstall+=("")
+    subreplaces+=("")
+    subconflicts+=("")
 fi
 
 subpkgs+=("$pkgname-postgresql")
@@ -216,13 +231,13 @@ do
 	subpkgs=("${subpkgs[@]}" "$pkgname-l10n-`echo ${completelangiso[$i]}|tr '[A-Z]' '[a-z]'`")
 	subdescs=("${subdescs[@]}" "Installs ${completelangdescs[$i]} support in LibreOffice")
 	subinstall=("${subinstall[@]}" '')
-        subdepends=("${subdepends[@]}" "")
-        subrodepends=("${subrodepends[@]}" "$pkgname>=$pkgver")
-        subgroups=("${subgroups[@]}" "locale-extra")
-        subarchs=("${subarchs[@]}" "x86_64")
+	subdepends=("${subdepends[@]}" "")
+	subrodepends=("${subrodepends[@]}" "$pkgname>=$pkgver")
+	subgroups=("${subgroups[@]}" "locale-extra")
+	subarchs=("${subarchs[@]}" "x86_64")
 	subreplaces=("${subreplaces[@]}" "calligra-l10n-`echo ${completelangiso[$i]}|tr '[A-Z]' '[a-z]'`")
 	subconflicts=("${subconflicts[@]}" "calligra-l10n-`echo ${completelangiso[$i]}|tr '[A-Z]' '[a-z]'`")
-        i=$(($i+1))
+	i=$(($i+1))
 done
 
 extensions=(nlpsolver scripting-beanshell scripting-javascript)
@@ -253,6 +268,13 @@ Fsplitgid()
 build()
 {
 	unset DISPLAY
+	# vmiklos btw that is bggy
+	# using such generic BUILD_TYPE names can conflict
+	# we any build system or bash script etc our there.
+	# NOTE this is _our_ BUILD_TYPE..
+	# will change our in toolchain repo but we need unset here
+	# just to be sure nothing uses that.
+	[[ -n $BUILD_TYPE ]] && unset BUILD_TYPE
 
 	local i f j
 
@@ -277,12 +299,19 @@ build()
 	## nope -isystem breaks hell since gcc 6.xx
 	#Fsed '-isystem' '-I' configure.ac
 
+	## fixme , maybe use QT5 only sbpackage
+	## once that plugin really works.
+	## for now is packaged just for testing.
 	if Fuse KF5; then
 		export QT5DIR="/usr"
 		export KF5DIR="/usr"
-		Fconfopts+=" --enable-gtk3-kde5 --enable-qt5 --enable-kde5"
+		Fconfopts+=" --enable-qt5 --enable-kde5"
 	fi
-
+	if Fuse GTK3_KF5; then
+		export QT5DIR="/usr"
+		export KF5DIR="/usr"
+		Fconfopts+=" --enable-gtk3-kde5"
+	fi
 	## FU**ING poppler GUY .. yeah he broke hell again .. ( that is for the 0.62.0++ crappoppler version )
 	Fsed "UTF8.h" "UnicodeMapFuncs.h" sdext/source/pdfimport/xpdfwrapper/pdfioutdev_gpl.cxx
 	## second one .. broken API , YAY!
@@ -434,15 +463,30 @@ build()
 	done
 
 
-	if Fuse KF5; then
-		Fsplitgid $pkgname-kde5 $Fdestdir/gid_Module_Optional_Kde
+	if Fuse KF5 || Fuse GTK3_KF5; then
+		# spliting manally
+		rm $Fdestdir/gid_Module_Optional_Kde
 	fi
+
+	if Fuse KF5; then
+		Fsplit $pkgname-kde5 usr/lib/libreoffice/program/{libkde5be1lo,libvclplug_kde5lo,libvclplug_qt5lo}.so
+		Fsplit $pkgname-kde5 usr/lib/libreoffice/program/lo_kde5filepicker
+	fi
+
+	if Fuse GTK3_KF5; then
+		Fsplit $pkgname-gtk3-kde5 usr/lib/libreoffice/program/libvclplug_gtk3_kde5lo.so
+	fi
+
+	# Gtk3
 	Fsplitgid $pkgname-gtk3 $Fdestdir/gid_Module_Optional_Gnome
+	Fsplit $pkgname-gtk3 usr/lib/libreoffice/program/liblibreofficekitgtk.so
 	Fbuild_gnome_scriptlet
+
 	Fsplitgid $pkgname-postgresql $Fdestdir/gid_Module_Optional_PostgresqlSdbc
 	Fsplitgid $pkgname-nlpsolver $Fdestdir/gid_Module_Optional_Extensions_NLPSolver
 	Fsplitgid $pkgname-scripting-beanshell $Fdestdir/gid_Module_Optional_Extensions_Script_Provider_For_BS
 	Fsplitgid $pkgname-scripting-javascript $Fdestdir/gid_Module_Optional_Extensions_Script_Provider_For_JS
+
 	# It makes no sense to split these
 	rm $Fdestdir/gid_Module_Optional_Extensions_Script_Provider_For_Python $Fdestdir/gid_Module_Optional_Pyuno $Fdestdir/gid_Module_Optional_Pyuno_LibreLogo # would be 381K
 	rm $Fdestdir/gid_Module_Optional_Grfflt # would be 290K

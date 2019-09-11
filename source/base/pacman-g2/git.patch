@@ -1,36 +1,1055 @@
-diff --git a/etc/makepkg.conf.in b/etc/makepkg.conf.in
-index 24e0a14a..6d370c39 100644
+diff --git a/NEWS b/NEWS
+index 380506b4..4dc5904a 100644
+--- a/NEWS
++++ b/NEWS
+@@ -1,20 +1,20 @@
+ VERSION         DESCRIPTION
+ -----------------------------------------------------------------------------
++3.9.5         - makepkg and makepkg.conf updates
+ 3.9.4         - makepkg updates
+               - added 'nonow' and 'noprotect' options
+ 3.9.3         - update for new gcc7 based tool chain
+               - added nofortify and norelro options
+-	      - makepkg and makepkg.conf fixes
++	          - makepkg and makepkg.conf fixes
+ 3.9.2         - makepkg fixes
+-	      - added fw32-makepkg tool
++	          - added fw32-makepkg tool
+ 3.9.1         - various bug fixes
+ 3.9.0         - various bug fixes
+               - initial implementation for future hooks system
+ 3.8.9         - makepkg: supports kernel.org gpg signatures now
+               - makepkg: support for fw32 compilation
+               - makepkg: allow disabling of ccache on a per package basis
+-3.8.8         - makepkg: more stacked repo work (to allow a wip repo
+-              based on an other wip repo)
++3.8.8         - makepkg: more stacked repo work (to allow a wip repo based on an other wip repo)
+               - support for newer libarchive
+               - support static libarchive
+               - libftp: yet another timeout fix
+diff --git a/configure.ac b/configure.ac
+index fad0e7a6..ad3b4a9e 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -2,7 +2,7 @@ ENV_CFLAGS=$CFLAGS
+ 
+ AC_PREREQ(2.59)
+ dnl Update it right before the release since $pkgver_foo are all _post_ release snapshots
+-AC_INIT([pacman-g2 package manager], 3.9.4, [frugalware-devel@frugalware.org], pacman-g2)
++AC_INIT([pacman-g2 package manager], 3.9.5, [frugalware-devel@frugalware.org], pacman-g2)
+ AC_CONFIG_MACRO_DIR([m4])
+ AC_LANG(C)
+ AC_CONFIG_HEADERS(config.h)
+@@ -43,7 +43,7 @@ dnl Put out version numbers to config.h
+ AC_DEFINE_UNQUOTED([PM_VERSION], ["$PM_VERSION"], [libpacman version number])
+ 
+ dnl Configuration files
+-AC_CONFIG_FILES([etc/makepkg.conf] [etc/pacman-g2.conf])
++AC_CONFIG_FILES([etc/current-makepkg.conf] [etc/pacman-g2.conf])
+ 
+ AC_PROG_CC
+ AC_HEADER_STDC
+@@ -139,12 +139,6 @@ AC_SUBST(CARCH)
+ AC_SUBST(CARCHFLAGS)
+ AC_SUBST(CHOST)
+ 
+-dnl Default package file extension
+-AC_ARG_WITH([package-extension],
+-	[AS_HELP_STRING([--with-package-extension=<extension>], [define the default package extension (default: fpm)])],
+-	[PKG_EXT="$withval"], [PKG_EXT="fpm"])
+-AC_SUBST(PKG_EXT)
+-
+ dnl Default package file compression
+ AC_ARG_WITH([package-compression],
+ 	[AS_HELP_STRING([--with-package-compression=<compression>], [define the default package compression (default: xz)])],
+@@ -503,7 +497,6 @@ pacman-g2-$VERSION:
+ 	Architecture used cflag		: ${CARCHFLAGS}
+ 	Architecture CHOST		: ${CHOST}
+ 
+-	Default package extension	: ${PKG_EXT}
+ 	Default package compression	: ${PKG_COMP}
+ 
+ 	Doxygen support			: ${DOXYSTATUS}
+diff --git a/doc/FrugalBuild.txt b/doc/FrugalBuild.txt
+index e67744ba..7499ed22 100644
+--- a/doc/FrugalBuild.txt
++++ b/doc/FrugalBuild.txt
+@@ -39,7 +39,7 @@ so we use `SBU`s instead of minutes as a unit.
+ `SBU` is the Static Binutils Unit, which means the time `repoman merge
+ binutils` takes on your machine. By default `makepkg` will print out how many
+ seconds the build took. After you have built `binutils`, you should update your
+-`/etc/makepkg.conf`:
++`/etc/makepkg.d/*makepkg.conf`:
+ 
+ ----
+ SBU="257"
+@@ -333,7 +333,37 @@ options (array)::
+ 
+ 	norelro: removes -Wl,-z,relro from LDFLAGS
+ 
+-	noprotector: allows to manipulate stack protector C/CXX FLAGS
++	nopie: disables PIE builds.
++
++	nolto: disables LTO builds.
++
++	noclash: removes -fstack-clash-protection from C/CXX FLAGS
++
++	noprotector: removes -fstack-protector-strong from C/CXX FLAGS
++
++	nowfsecurity: removes -Wformat -Werror=format-security from C/CXX FLAGS
++
++	nofortify: removes -D_FORTIFY_SOURCE=2 from C/CXX FLAGS
++
++	plt: build with PLT enabled (default: -fno-plt)
++
++	ldefs: is adding -Wl,-z,defs to LDFLAGS
++
++	ldgold: build with gold linker
++
++	ldbfd: build with bdf linker ( default )
++
++	ldlld: build with llvm lld linker
++
++	osmall: build packages with -Os optimization
++
++	omedium: build packages with -O2 optimization ( default )
++
++	ofast: build packages with -O3 optimization
++
++	ofaster: build packages with -Ofast optimization
++
++	odebug: build packages with -O0 -ggdb3
+ 
+ 	static: builds static libs for the package
+ 
+@@ -462,6 +492,22 @@ subgroups=('apps' 'apps')
+ subarchs=('x86_64' 'x86_64')
+ ----
+ 
++or
++
++----
++subpkgs=('foo')
++subdescs=('desc of foo')
++subdepends=('foodep1 foodep2')
++subgroups=('apps')
++subarchs=('x86_64')
++
++subpkgs+=('bar')
++subdescs+=('desc of bar')
++subdepends+=('bardep1 bardep2')
++subgroups+=('apps')
++subarchs+=('x86_64')
++----
++
+ You may define conflicts, replaces and other directives for your subpackages,
+ but the requirement is only to define these 5 ones.
+ 
+@@ -488,7 +534,6 @@ installation/deinstallation:
+ ----
+ post_install()
+ {
+-        chkconfig --add rc.foobar
+         # On install (not upgrade), enable (but don't start) the
+         # units by default
+         systemctl enable foobar.service >/dev/null 2>&1
+@@ -497,18 +542,16 @@ post_install()
+ post_upgrade()
+ {
+         # Reload init system configuration, to make systemd honour changed
+-	# unit files
++		# unit files
+         systemctl daemon-reload >/dev/null 2>&1
+         if [ `vercmp $2 4.4-5` -lt 0 ]; then
+-                if chkconfig rc.foobar; then
+-                        post_install
+-                fi
++                do_domething
+         fi
+ }
+ 
+ pre_remove()
+ {
+-        chkconfig --del rc.foobar
++
+         # On uninstall (not upgrade), disable and stop the units
+         systemctl --no-reload disable foobar.service >/dev/null 2>&1
+         systemctl stop foobar.service >/dev/null 2>&1
+diff --git a/etc/Makefile.am b/etc/Makefile.am
+index 49b512c4..78dc3f6f 100644
+--- a/etc/Makefile.am
++++ b/etc/Makefile.am
+@@ -1,3 +1,5 @@
+ SUBDIRS = pacman-g2 bash_completion.d
+-EXTRA_DIST = makepkg.conf pacman-g2.conf
+-dist_sysconf_DATA = makepkg.conf pacman-g2.conf
++EXTRA_DIST = current-makepkg.conf pacman-g2.conf
++dist_sysconf_DATA = pacman-g2.conf
++makepkgdir = $(sysconfdir)/makepkg.d
++makepkg_DATA = current-makepkg.conf
+diff --git a/etc/makepkg.conf.in b/etc/current-makepkg.conf.in
+similarity index 75%
+rename from etc/makepkg.conf.in
+rename to etc/current-makepkg.conf.in
+index 24e0a14a..206250bf 100644
 --- a/etc/makepkg.conf.in
-+++ b/etc/makepkg.conf.in
-@@ -14,13 +14,16 @@ case $(uname -m) in
++++ b/etc/current-makepkg.conf.in
+@@ -1,5 +1,5 @@
+ #
+-# /etc/makepkg.conf
++# /etc/makepkg.d/current-makepkg.conf
+ #
+ 
+ # The FTP/HTTP download utility that makepkg should use to acquire sources
+@@ -10,39 +10,34 @@ export FTPAGENT="/usr/bin/wget -U makepkg --continue --passive-ftp --tries=3 --w
+ # The rsync utility that makepkg should use to access the Frugalware mirrors
+ export RSYNCAGENT="rsync -e 'ssh -q -o GlobalKnownHostsFile=$HOME/.ssh/known_hosts -i $HOME/.ssh/id_dsa' -vP"
+ 
++
++## to be moved after infra for znver1 is there
+ case $(uname -m) in
  	x86_64)
  		CARCH="x86_64"
  		CHOST="x86_64-frugalware-linux"
 -		CFLAGS="-march=x86-64 -mtune=generic -O2 -pipe -fstack-protector-strong -fno-plt"
 -		CXXFLAGS="-march=x86-64 -mtune=generic -O2 -pipe -fstack-protector-strong -fno-plt"
-+		CFLAGS="-march=x86-64 -mtune=generic -O2 -pipe"
-+		CXXFLAGS="-march=x86-64 -mtune=generic -O2 -pipe"
  		;;
  esac
  
 -## options+=('noprotector') allows to manipulate -fstack-protector-strong
 -## from FrugalBuild. Eg, to use ..=${CFLAGS/-fstack-protector-strong/}
-+## FLAGS added from makepkg:
-+## -fno-plt : can be disbled with options+=('plt')
-+## -fstack-protector-strong : can be disabled with options+=('noprotector')
-+## -pie ( added by gcc as default ) : can be disabled with options+=('nopie')
-+## -Wp,-D_FORTIFY_SOURCE=2 : can be disabled with options+=('nofortify')
- export CARCH CHOST CFLAGS CXXFLAGS
+-export CARCH CHOST CFLAGS CXXFLAGS
++export CARCH CHOST
++
++# Build Type:
++#  generic : -march=x86-64 -mtune=generic
++#  znver1  : -march=znver1 -mtune=znver1 ( not fully implemented )
++#  none    : empy flags
++
  
- ## -Wl,--as-needed is set from makepkg. Disable with options+=('noasneeded')
+-## -Wl,--as-needed is set from makepkg. Disable with options+=('noasneeded')
+-## -Wl,z,now is set from makepkg. Disable with options+=('nonow')
+-## -Wl,z,relro is set from makepkg. Disable with options+=('norelro')
+-export LDFLAGS="-Wl,--hash-style=gnu -Wl,-O1 -Wl,--sort-common"
++export BUILD_TYPE="generic"
+ 
+ # SMP Systems
+ #export MAKEFLAGS="-j2"
+-export USE_AUTO_MAKEFLAGS="y"
+ 
+ # Default name of build scripts
+ export BUILDSCRIPT="FrugalBuild"
+ 
+-# Package extension
+-export PKG_EXT="@PKG_EXT@"
+-
+ # Package compression
+ export PKG_COMP="@PKG_COMP@"
+ 
+-# Database extension
+-export DB_EXT="fdb"
+ 
+ # Enable fakeroot for building packages as a non-root user
+ export USE_FAKEROOT="y"
+@@ -93,3 +88,8 @@ SBU="1"
+ 
+ # Options for xz used in compression
+ export XZ_OPT="--threads=0"
++
++# User configuration
++if [ -e ~/.makepkg.d/current-makepkg.conf ]; then
++    source ~/.makepkg.d/current-makepkg.conf
++fi
+diff --git a/lib/libpacman/deps.c b/lib/libpacman/deps.c
+index 1b7582ee..a8410124 100644
+--- a/lib/libpacman/deps.c
++++ b/lib/libpacman/deps.c
+@@ -712,7 +712,7 @@ int _pacman_depcmp(pmpkg_t *pkg, pmdepend_t *dep)
+ 
+ 		if(strlen(dep->version) > 0) {
+ 			_pacman_log(PM_LOG_DEBUG, _("depcmp: %s-%s %s %s-%s => %s"),
+-								_pacman_pkg_getinfo(pkg, PM_PKG_NAME), _pacman_pkg_getinfo(pkg, PM_PKG_NAME),
++								_pacman_pkg_getinfo(pkg, PM_PKG_NAME), _pacman_pkg_getinfo(pkg, PM_PKG_VERSION),
+ 								mod, dep->name, dep->version,
+ 								(equal ? "match" : "no match"));
+ 		} else {
+diff --git a/scripts/Makefile.am b/scripts/Makefile.am
+index c0559759..c73ff8f7 100644
+--- a/scripts/Makefile.am
++++ b/scripts/Makefile.am
+@@ -1,2 +1,2 @@
+ AUTOMAKE_OPTIONS = std-options
+-bin_SCRIPTS = gensync makepkg  makeworld updatesync pacman-g2-optimize
++bin_SCRIPTS = gensync makepkg makeworld updatesync
+diff --git a/scripts/gensync b/scripts/gensync
+index dbb1555c..ba907f15 100755
+--- a/scripts/gensync
++++ b/scripts/gensync
+@@ -1,32 +1,35 @@
+ #!/bin/bash
+-# 
++#
+ #   gensync
+-#  
++#
+ #   Copyright (c) 2005 by Aurelien Foret <orelien@chez.com>
+ #   Copyright (c) 2005 by Judd Vinet <jvinet@zeroflux.org>
+ #   Copyright (c) 2005 by Christian Hamar <krics@linuxforum.hu>
+ #   Copyright (c) 2005, 2006, 2007, 2008, 2010 by Miklos Vajna <vmiklos@frugalware.org>
+-#  
++#
+ #   This program is free software; you can redistribute it and/or modify
+ #   it under the terms of the GNU General Public License as published by
+ #   the Free Software Foundation; either version 2 of the License, or
+ #   (at your option) any later version.
+-# 
++#
+ #   This program is distributed in the hope that it will be useful,
+ #   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ #   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ #   GNU General Public License for more details.
+-#  
++#
+ #   You should have received a copy of the GNU General Public License
+ #   along with this program; if not, write to the Free Software
+-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
++#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+ #   USA.
+ #
+ 
+ # makepkg configuration
+-[ -f /etc/makepkg.conf ] && source /etc/makepkg.conf
+ [ -z "$arch" ] && arch=`arch`
++
++# FIXME
+ CARCH="$arch"
++PKG_EXT="fpm"
++DB_EXT="fdb"
+ 
+ usage() {
+   echo "gensync"
+@@ -59,7 +62,11 @@ die() {
+ 
+ # Frugalware functions
+ CHROOT=1
+-[ -e /usr/lib/frugalware/fwmakepkg ] && . /usr/lib/frugalware/fwmakepkg
++if [ -e /usr/lib/frugalware/fwmakepkg ]; then
++	. /usr/lib/frugalware/fwmakepkg
++else
++	die "Missing /usr/lib/frugalware/fwmakepkg"
++fi
+ 
+ get_sha1checksum()
+ {
+@@ -223,7 +230,6 @@ if [ "$1" = "-c" -o "$1" = "--check-only" ]; then
+ 	shift 1
+ fi
+ 
+-[ -z "$DB_EXT" ] && die "Please make sure that you edit /etc/makepkg.conf and set the DB_EXT= variable"
+ d=`dirname $1`
+ rootdir=`cd $d && pwd`/`basename $1`
+ d=`dirname $2`
 diff --git a/scripts/makepkg b/scripts/makepkg
-index d6cde41f..97cb9408 100755
+index d6cde41f..c68b6879 100755
 --- a/scripts/makepkg
 +++ b/scripts/makepkg
-@@ -1146,15 +1146,17 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
-         ## we build for, with different flags etc .. copy the file only
- 	## when not found in chroot .. we have checks for C/CXX/LD flags
- 	## in makepkg itself... How that ever worked for the stable tree ?!?
+@@ -28,10 +28,13 @@
+ ## bash's 'echo' is buggy and does not check on write() for errors
+ ECHO="/bin/echo"
+ startdir=`pwd`
+-PKGDEST=$startdir
++PKGDEST="$startdir"
+ USE_COLOR="n"
+ FORCE_BUILDTYPE="0"
+-OFORTIFY="1"
++
++## Fixme
++PKG_EXT="fpm"
++DB_EXT="fdb"
+ 
+ # Options
+ 
+@@ -48,6 +51,7 @@ INSTALL=0
+ DOWNLOAD=""
+ NOBUILD=0
+ NOCCACHE=0
++PTS=0
+ NODEPS=0
+ NOEXTRACT=0
+ NOSTRIP=0
+@@ -118,30 +122,6 @@ Fextract() {
+ 	fi
+ }
+ 
+-# Frugalware extensions to makepkg
+-[ -e /usr/lib/frugalware/fwmakepkg ] && . /usr/lib/frugalware/fwmakepkg
+-
+-# repoman.conf for $fst_root
+-[ -f /etc/repoman.conf ] && source /etc/repoman.conf
+-[ -n "$repos" ] && TREE="$repos"
+-
+-# makepkg configuration
+-[ -f /etc/makepkg.conf ] && source /etc/makepkg.conf
+-
+-INFAKEROOT=
+-if [ "$1" = "-F" ]; then
+-	INFAKEROOT=1
+-	shift
+-fi
+-
+-INCHROOT=
+-if [ "$1" = "--inchroot" ]; then
+-	INCHROOT=1
+-	shift
+-fi
+-
+-### SUBROUTINES ###
+-
+ plain() {
+ 	if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
+ 		$ECHO -e "    \033[1;1m$1\033[1;0m" >&2
+@@ -180,10 +160,290 @@ error() {
+ 	fi
+ }
+ 
++
++# Frugalware extensions to makepkg
++if [ -e /usr/lib/frugalware/fwmakepkg ]; then
++    . /usr/lib/frugalware/fwmakepkg
++else
++    error "Cannot find fwmakepkg, abording.."
++    Fdie
++fi
++
++if [ -e /etc/repoman.conf ] ; then
++    source /etc/repoman.conf
++    if [ -n "$repos" ]; then
++        TREE="$repos"
++    else
++        error "Missing repos=() in repoman.conf, abording.."
++        Fdie
++    fi
++else
++        error "Missing repoman.conf, abording.."
++        Fdie
++fi
++
++INFAKEROOT=
++if [ "$1" = "-F" ]; then
++    INFAKEROOT=1
++    shift
++fi
++
++INCHROOT=
++if [ "$1" = "--inchroot" ]; then
++    INCHROOT=1
++    shift
++fi
++
++### SUBROUTINES ###
++
++## ignore flags are still in /etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf
++setflags() {
++
++	unset LDFLAGS CFLAGS CXXFLAGS
++
++	if [ -z "$BUILD_TYPE" ]; then
++		error "BUILD_TYPE cannot be empty, please fix your /etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf"
++		exit 1
++	fi
++
++	case "$BUILD_TYPE" in
++		generic)
++				_MFLAGS="-march=x86-64 -mtune=generic"
++				;;
++		znver1)
++				_MFLAGS="-march=znver1 -mtune=znver1"
++				;;
++		none)
++				_MFLAGS=""
++				;;
++		*)
++				error "Unknow BUILD_TYPE. (valid types: generic , znver1 or none )"
++				exit 1
++				;;
++	esac
++
++	_LDFLAGS=" -Wl,--hash-style=gnu -Wl,--sort-common"
++	_FLAGS=""
++
++	## Optimization level
++	# osmall  = -Os
++	# omedium = -O2 ( default )
++	# ofast   = -O3
++	# ofaster = -Ofast ( O3++ )
++	# odebug  = -O0 -ggdb
++
++	## yes I know..
++	_OFLAG="-O2"
++
++	## this is not perfect
++	if [ "`check_option OSMALL`" ]; then
++			_OFLAG="-Os"
++	fi
++
++	if [ "`check_option OMEDIUM`" ]; then
++			_OFLAG="-O2"
++	fi
++
++	if [ "`check_option OFAST`" ]; then
++			_OFLAG="-O3"
++	fi
++
++	if [ "`check_option OFASTER`" ]; then
++			_OFLAG="-Ofast"
++	fi
++
++	if [ "`check_option ODEBG`" ]; then
++			_OFLAG=" -O0 -ggdb3"
++	fi
++
++	## LD's
++	# Since we try with gold default lets have
++	# options to switch them with options=()
++	if [ "`check_option LDGOLD`" -a "`check_option LDLLD`" ]; then
++		error "Having ldbfd and ldlld enabled is not possible."
++		Fdie
++	fi
++
++	if [ "`check_option LDBFD`" ]; then
++		_LD_PLUGIN=" -fuse-ld=bfd"
++	fi
++
++	if [ "`check_option LDGOLD`" ]; then
++		_LD_PLUGIN=" -fuse-ld=gold"
++	fi
++
++	if [ "`check_option LDLLD`" ]; then
++		_LD_PLUGIN=" -fuse-ld=lld"
++	fi
++
++	if [ "`check_option NOPROTECTOR`" ]; then
++		warning "Disabling C/CXX FLAGS: -fstack-protector-strong"
++		warning "Do that only with an GOOD reason.."
++	else
++		_FLAGS+=" -fstack-protector-strong"
++	fi
++
++	# clang does not have this
++	if [ ! "`check_option CLANG`" ]; then
++		if [ "`check_option NOCLASH`" ]; then
++			warning "Disabling C/CXX FLAGS: -fstack-clash-protection"
++			warning "Do that only with an GOOD reason.."
++		else
++			_FLAGS+=" -fstack-clash-protection"
++		fi
++	fi
++
++	if [ "`check_option NOWFSECURITY`" ]; then
++		warning "Disabling C/CXX FLAGS: -Werror=format-security"
++	else
++		_FLAGS+=" -Wformat -Werror=format-security"
++	fi
++
++	if [ "`check_option NOFORTIFY`" ]; then
++		warning "Disabling C/CXX FLAGS: -D_FORTIFY_SOURCE=2"
++	else
++		_FLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
++	fi
++
++	if [ "`check_option PLT`" ]; then
++		warning "Disabling C/CXX FLAGS: -fno-plt"
++	else
++		_FLAGS+=" -fno-plt"
++	fi
++
++	if [ "`check_option NOPIE`" ]; then
++		warning "Disabling C/CXX FLAGS: -pie"
++		_FLAGS+=" -no-pie"
++	fi
++
++	if [ "`check_option NOLTO`" ]; then
++		warning "Disabling C/CXX FLAGS: -flto"
++		_FLAGS+=" -fno-lto"
++	else
++		if [ ! "`check_option CLANG`" ]; then
++			_lto_cpus="$(getconf _NPROCESSORS_ONLN)"
++			_FLAGS+=" -flto=$_lto_cpus"
++		else
++			_FLAGS+=" -flto"
++		fi
++	fi
++
++	if [ "`check_option ASNEEDED`" ]; then
++		error "You are using deprecated option 'asneeded'."
++		error "This is now default, please remove and retry."
++		exit 1
++	fi
++
++	if [ "`check_option NOASNEEDED`" ]; then
++		warning "Using LDFLAGS: --no-as-needed ( are you sure ? )"
++		_LDFLAGS+=" -Wl,--no-as-needed"
++	else
++		_LDFLAGS+=" -Wl,--as-needed"
++	fi
++
++	if [ "`check_option NORELRO`" ]; then
++		warning "Disabling LDFLAGS: -z,relro"
++	else
++		_LDFLAGS+=" -Wl,-z,relro"
++	fi
++
++	if [ "`check_option NONOW`" ]; then
++		warning "Disabling LDFLAGS: -z,now"
++	else
++		_LDFLAGS+=" -Wl,-z,now"
++	fi
++	## underlinking detection
++	if [ "`check_option LDEFS`" ]; then
++		_LDFLAGS+=" -Wl,-z,defs"
++	fi
++
++	## put all together.
++	## FB w/out build()
++	[[ -n ${_FB_CFLAGS} ]] && _FLAGS+=" ${_FB_CFLAGS}"
++	[[ -n ${_FB_CXXFLAGS} ]] && _FLAGS+=" ${_FB_CXXFLAGS}"
++	[[ -n ${_FB_LDFLAGS} ]] && _LDFLAGS+=" ${_FB_LDFLAGS}"
++
++	# need that bc we may pull in dplicated flags from FB and/or Finclde
++	# just sanitize all FLAGS here
++
++	_LDFLAGS="$(/bin/echo ${_LDFLAGS[@]} | tr [:space:] '\n' | awk '!a[$0]++' | tr '\n' ' ')"
++	_CFLAGS="${_MFLAGS} ${_OFLAG} ${_FLAGS} ${_LD_PLUGIN} -pipe"
++	_CXXFLAGS="${_MFLAGS} ${_OFLAG} ${_FLAGS} ${_LD_PLUGIN} -pipe"
++	LDFLAGS_=" ${_LDFLAGS} ${_CFLAGS} ${_CXXFLAGS}"
++
++	CFLAGS="$(/bin/echo ${_CFLAGS[@]} | tr [:space:] '\n' | awk '!a[$0]++' | tr '\n' ' ')"
++	CXXFLAGS="$(/bin/echo ${_CXXFLAGS[@]} | tr [:space:] '\n' | awk '!a[$0]++' | tr '\n' ' ')"
++	LDFLAGS="$(/bin/echo ${LDFLAGS_[@]} | tr [:space:] '\n' | awk '!a[$0]++' | tr '\n' ' ')"
++
++	export LDFLAGS CFLAGS CXXFLAGS
++
++	if ! $ECHO $CFLAGS | grep -q "\-fstack-protector-strong" ; then
++		if [ ! "`check_option NOPROTECTOR`" ]; then
++			error "Your build is broken"
++			error "CFLAGS is missing -fstack-protector-strong"
++			error "and options+=('noprotector') is not set.."
++			exit 1
++		fi
++	fi
++
++	if ! $ECHO $CXXFLAGS | grep -q "\-fstack-protector-strong" ; then
++		if [ ! "`check_option NOPROTECTOR`" ]; then
++			error "Your build is broken"
++			error "CXXFLAGS is missing -fstack-protector-strong"
++			error "and options+=('noprotector') is not set.."
++			exit 1
++		fi
++	fi
++}
++
++
++build_info() {
++
++	if [[ $GENSHA1 = 0 ]]; then
++		[[ -n "$USE_FAKEROOT" ]] && _FAKEROOT=Yes || _FAKEROOT=No
++		[[ -n "$INCHROOT" ]] && _CHROOT=Yes || _CHROOT=No
++
++		plain "--------------------------------------------------------------"
++		msg2 "  Build configuration:"
++		msg2 ""
++		msg2 "   TREE:                 ${MAKEPKG_TREE}"
++		msg2 "   CARCH:                ${CARCH}"
++		msg2 "   CHOST:                ${CHOST}"
++		msg2 "   BUILD_TYPE:           ${BUILD_TYPE}"
++		msg2 "   CHROOT:               ${_CHROOT}"
++		msg2 "   FAKEROOT:             ${_FAKEROOT}"
++		msg2 "   BUILDSCRIPT:          ${BUILDSCRIPT}"
++		msg2 "   COMPRESSION:          ${COMPRESS_PROGRAM}"
++		msg2 "   MAKEFLAGS:            ${MAKEFLAGS}"
++		msg2 "   CFLAGS: "
++		for _c in ${CFLAGS}
++		do
++			msg2 "                        $_c "
++		done
++
++		msg2 "   CXXFLAGS: "
++		for _cxx in ${CXXFLAGS}
++		do
++			msg2 "                        $_cxx "
++		done
++		# Only show these in _LDFLAGS
++		# full LDFLAGS have CFLAGS too
++		msg2 "   LDFLAGS: "
++		for _ld in ${_LDFLAGS}
++		do
++			msg2 "                        $_ld "
++		done
++		plain "-------------------------------------------------------------"
++	fi
++}
++
++
+ strip_url() {
+ 	$ECHO "$1" | sed 's|^.*://.*/||g'
+ }
+ 
++
++
+ checkdeps() {
+ 
+ 	local missdep=""
+@@ -350,6 +610,7 @@ usage() {
+ 	$ECHO "  -n, --nostrip    Do not strip binaries/libraries"
+ 	$ECHO "  -o, --nobuild    Download and extract files only"
+ 	$ECHO "  -p <buildscript> Use an alternate build script (instead of $BUILDSCRIPT)"
++	$ECHO "  -P, --pts        Mount /dev/pts"
+ 	$ECHO "  -r, --rmdeps     Remove installed dependencies after a successful build"
+ 	$ECHO "  -R, --chroot     Build the package in a chroot environment (default)"
+ 	$ECHO "  -H, --host       Build the package on the host system"
+@@ -375,16 +636,19 @@ usage() {
+ chroot_umount() {
+     msg "Attempting to umount chroot directories..."
+     umount $CHROOTDIR/dev/shm >/dev/null
++    if [ "$PTS" = "1" ]; then
++		umount $CHROOTDIR/dev/pts >/dev/null
++    fi
+     umount $CHROOTDIR/proc >/dev/null
+     umount $CHROOTDIR/sys >/dev/null
+     umount $CHROOTDIR/dev >/dev/null
+     umount $CHROOTDIR/var/cache/pacman-g2 >/dev/null
+     if [ "$NOCCACHE" = "0" -a -d /usr/lib/ccache/bin -a ! "`check_option NOCCACHE`" ]; then
+-	umount $CHROOTDIR/var/cache/ccache/$pkgname >/dev/null
++		umount $CHROOTDIR/var/cache/ccache/$pkgname >/dev/null
+     fi
+     if [ "$?" != "0" ]; then
+-	error "An error occurred while attempting to umount chroot directories."
+-	exit 1
++		error "An error occurred while attempting to umount chroot directories."
++		exit 1
+     fi
+     msg "Successfully umounted chroot directories."
+ }
+@@ -395,14 +659,17 @@ chroot_mount() {
+     mount -t sysfs none $CHROOTDIR/sys >/dev/null
+     mount -t devtmpfs none $CHROOTDIR/dev >/dev/null
+     mount -o bind /dev/shm $CHROOTDIR/dev/shm
++    if [ "$PTS" = "1" ]; then
++		mount -o bind /dev/pts $CHROOTDIR/dev/pts >/dev/null
++    fi
+     mount -o bind /var/cache/pacman-g2 $CHROOTDIR/var/cache/pacman-g2 >/dev/null
+     if [ "$NOCCACHE" = "0" -a -d /usr/lib/ccache/bin -a ! "`check_option NOCCACHE`" ]; then
+-	mount -o bind $CCACHE_BASEDIR/$pkgname \
+-	$CHROOTDIR/var/cache/ccache/$pkgname >/dev/null
++		mount -o bind $CCACHE_BASEDIR/$pkgname \
++		$CHROOTDIR/var/cache/ccache/$pkgname >/dev/null
+     fi
+     if [ "$?" != "0" ]; then
+-	error "An error occurred while attempting to mount chroot directories."
+-	exit 1
++		error "An error occurred while attempting to mount chroot directories."
++		exit 1
+     fi
+     msg "Successfully mounted chroot directories."
+ }
+@@ -583,7 +850,7 @@ create_pkg()
+ 
+ strip_pkg()
+ {
+-	local dir="" subpkg="" p="$1"
++	local dir="" subpkg="" p="$1" binary strip_flags lto_file
+ 
+ 	if [ "$p" = "$pkgname" ]; then
+ 		dir="$startdir/pkg"
+@@ -591,15 +858,39 @@ strip_pkg()
+ 		dir="$startdir/pkg.$p"
+ 		subpkg="subpackage "
+ 	fi
++
+ 	if [ ! "`check_option NOSTRIP`" -a "$NOSTRIP" = "0" ]; then
+-		msg "Stripping symbols from libraries from $subpkg$1..."
+-		find $dir/{,usr,usr/local,opt/*}/{lib,lib32} -type f -not -name "*.dll" -not -name "*.exe" -not -name "*.a"  -not -name "*.o" \
+-			-exec /usr/bin/strip -s '{}' \; 2>&1 \
+-			| grep -v "No such file" | grep -v "format not recognized"
+-		msg "Stripping symbols from binaries from $subpkg$p..."
+-		find $dir/{,usr,usr/local,usr/i686-frugalware-linux,opt/*}/{bin,sbin} -type f -not -name "*.dll" -not -name "*.exe" -not -name "*.a"  -not -name "*.o" \
+-			-exec /usr/bin/strip -s '{}' \; 2>&1 \
+-			| grep -v "No such file" | grep -v "format not recognized"
++		msg "Stripping symbols from from $subpkg$1..."
++		find $dir/{,usr,usr/local,opt/*,x86_64-frugalware-linux,i686-frugalware-linux}/{lib,lib32,bin,sbin} \
++			 -type f -not -name "*.dll" -not -name "*.exe" -not -name "*.pc" -not -name "*.la" \
++			 -not -name "*.pc" -not -name "*.cmake" -perm -u+w -print0 2>/dev/null | while read -rd '' binary ; do
++		case "$(file -bi "$binary")" in
++			*application/x-sharedlib*)  # Libraries (.so)
++				strip_flags="--strip-unneeded";;
++			*application/x-archive*)    # Libraries (.a)
++				# broken with LTO
++				if readelf -s "$binary" | grep -qi "gnu_lto"; then
++					continue
++				else
++					strip_flags="--strip-debug"
++				fi;;
++			*application/x-object*)
++				case "$binary" in
++					*.ko) # Kernel module
++						strip_flags="--strip-unneeded";;
++					*)
++						continue;;
++				esac;;
++			*application/x-executable*) # Binaries
++				strip_flags="--strip-all";;
++			*application/x-pie-executable*)  # Relocatable binaries
++				strip_flags="--strip-unneeded";;
++			*)
++				continue ;;
++			esac
++			strip ${strip_flags} "$binary"
++		done
++
+ 	fi
+ }
+ 
+@@ -660,29 +951,9 @@ install_pkg()
+ 	exit 0
+ }
+ 
+-if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
+-	if [ "$(/usr/bin/tput colors)" -lt 3 ]; then
+-		USE_COLOR="n"
+-		warning "Disabling color as the terminal does not support it."
+-	fi
+-fi
+-
+-if [ -z "$PKG_EXT" ]; then
+-	error "The PKG_EXT environment variable is not defined, check your /etc/makepkg.conf!"
+-	exit 1
+-fi
+-
+-if [ -z "$PKG_COMP" ]; then
+-	error "The PKG_COMP environment variable is not defined, check your /etc/makepkg.conf!"
+-	exit 1
+-fi
+-
+-if [ "$USE_AUTO_MAKEFLAGS" != "n" ]; then
+-	export MAKEFLAGS="-j`grep -c ^processor /proc/cpuinfo`"
+-fi
+ 
+ ARGLIST=$@
+-COMPRESS_PROGRAM="$PKG_COMP"
++COMPRESS_PROGRAM=""
+ 
+ while [ "$#" -ne "0" ]; do
+ 	case $1 in
+@@ -697,6 +968,7 @@ while [ "$#" -ne "0" ]; do
+ 		--sudosync)   DEP_SUDO=1 ;;
+ 		--builddeps)  DEP_SRC=1 ;;
+ 		--noccache)   NOCCACHE=1 ;;
++		--pts)        PTS=1;;
+ 		--nodeps)     NODEPS=1 ;;
+ 		--noextract)  NOEXTRACT=1 ;;
+ 		--install)    INSTALL=1 ;;
+@@ -720,7 +992,7 @@ while [ "$#" -ne "0" ]; do
+ 			exit 1
+ 			;;
+ 		-*)
+-			while getopts "aA:bBcCdD:efgGhij:kl:Lmnop:urRHsSt:w:z:-" opt; do
++			while getopts "aA:bBcCdD:efgGhij:kl:LmnoPp:urRHsSt:w:z:-" opt; do
+ 				case $opt in
+ 					a) SEARCHDEPS=1 ;;
+ 					A) CACHEURL=$OPTARG ;;
+@@ -739,11 +1011,12 @@ while [ "$#" -ne "0" ]; do
+ 						exit 0
+ 						;;
+ 					i) INSTALL=1 ;;
+-					j) export MAKEFLAGS="-j$OPTARG" ;;
++					j) _MAKEFLAGS="-j$OPTARG" ;;
+ 					l) DOWNLOAD="$OPTARG" ;;
+ 					m) USE_COLOR="n" ;;
+ 					n) NOSTRIP=1 ;;
+ 					o) NOBUILD=1; CHROOT=0 ;;
++					P) PTS=1;;
+ 					p) BUILDSCRIPT=$OPTARG ;;
+ 					r) RMDEPS=1 ;;
+ 					R) CHROOT=1 ;;
+@@ -774,6 +1047,45 @@ while [ "$#" -ne "0" ]; do
+ 	shift
+ done
+ 
++
++## -t foo,bar -> foo
++MAKEPKG_TREE=$(/bin/echo $TREE | cut -d, -f1)
++
++[[ -z ${MAKEFLAGS} ]] && export MAKEFLAGS="-j`getconf _NPROCESSORS_ONLN`"
++
++# makepkg configuration
++if [ -e "/etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf" ]; then
++    source /etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf
++else
++    error "Please update your build system and use"
++    error "per tree based makepkg.conf configurations."
++	error "eg: /etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf"
++    Fdie
++fi
++
++if [[ -n ${_MAKEFLAGS} ]]; then
++       export MAKEFLAGS="${_MAKEFLAGS}"
++fi
++
++if [ "$USE_COLOR" = "Y" -o "$USE_COLOR" = "y" ]; then
++    if [ "$(/usr/bin/tput colors)" -lt 3 ]; then
++        USE_COLOR="n"
++        warning "Disabling color as the terminal does not support it."
++    fi
++fi
++
++
++# nothing from command line , so lets set from makepkg.conf
++# if found , or force xz
++if [[ -z ${COMPRESS_PROGRAM} ]]; then
++	if [[ -n "$PKG_COMP" ]]; then
++		COMPRESS_PROGRAM="$PKG_COMP"
++	else
++		warning "The PKG_COMP environment variable is not defined, using 'xz'"
++		COMPRESS_PROGRAM="xz"
++	fi
++fi
++
+ # see if we need to append bases to $TREE
+ if ! echo $TREE |grep -q ,; then
+ 	# only parse _bases if they were no provided on the commandline
+@@ -865,7 +1177,7 @@ if [ ! -z "$DOWNLOAD" -a "$INFAKEROOT" != "1" ]; then
+ 
+ 	# check for a download utility
+ 	if [ -z "$FTPAGENT" ]; then
+-		error "FTPAGENT is not configured. Check the /etc/makepkg.conf file."
++		error "FTPAGENT is not configured. Check the /etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf file."
+ 		msg "Aborting..."
+ 		exit 1
+ 	fi
+@@ -876,6 +1188,7 @@ if [ ! -z "$DOWNLOAD" -a "$INFAKEROOT" != "1" ]; then
+ 		exit 1
+ 	fi
+ 
++	# FIXME: that need be generated from TREE info.
+ 	confs=`cat /etc/pacman-g2.conf |grep ^Include|sed 's/.* = \(.*\)/\1/'`
+ 
+ 	# searching for a mirror
+@@ -907,7 +1220,7 @@ fi
+ if [ "$PACKAGER" != "" ]; then
+ 	packager="$PACKAGER"
+ else
+-	error "Please make sure that you edit /etc/makepkg.conf and set the PACKAGER= variable"
++	error "Please make sure that you edit /etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf and set the PACKAGER= variable"
+ 	exit 1
+ fi
+ if [ ! -f $BUILDSCRIPT ]; then
+@@ -915,8 +1228,30 @@ if [ ! -f $BUILDSCRIPT ]; then
+ 	exit 1
+ fi
+ 
++
++save_flags() {
++
++	if [[ -n $CFLAGS ]]; then
++		_FB_CFLAGS="$CFLAGS"
++	fi
++
++	if [[ -n $CXXFLAGS ]]; then
++        _FB_CXXFLAGS="$CXXFLAGS"
++	fi
++
++	if [[ -n $LDFLAGS ]]; then
++		_FB_LDFLAGS="$LDFLAGS"
++	fi
++
++	unset CFLAGS CXXFLAGS LDFLAGS
++	export _FB_CFLAGS _FB_CXXFLAGS _FB_LDFLAGS
++}
++
+ source ./$BUILDSCRIPT
+ 
++# save C/CXX/LD flags from FB
++save_flags
++
+ # check for no-no's
+ if [ -z "$pkgver" ]; then
+ 	error "pkgver is not allowed to be empty."
+@@ -952,11 +1287,8 @@ if [ "$F_makepkg_scm" = "git" -a ! "`check_option NOVERSRC`" ]; then
+ 	if [ -n "$_serverlist" -a "${_serverlist:0:6}" != "git://" ]; then
+ 		serverlist=$_serverlist
+ 	fi
+-else
+-if [ -f "$fst_root/${TREE}/_darcs/prefs/defaultrepo" ]; then
+-	serverlist="`cat $fst_root/${TREE}/_darcs/prefs/defaultrepo`"
+-fi
+ fi
++
+ if [ -z "$CACHEURL" ]; then
+ 	CACHEURL="${serverlist}/source/$groups/$pkgname"
+ fi
+@@ -1035,25 +1367,14 @@ fi
+ 
+ # Generate the Changelog if necessary.
+ indir=n
+-if [ "$F_makepkg_scm" = "git" ]; then
+-	git rev-parse --git-dir &>/dev/null && indir=y
+-elif [ "$F_makepkg_scm" = "darcs" ]; then
+-	darcs --commands 2>&1|grep -q add && indir=y
+-elif [ "$F_makepkg_scm" = "svn" ]; then
+-	svn info $BUILDSCRIPT &>/dev/null && indir=y
+-fi
++
++
++git rev-parse --git-dir &>/dev/null && indir=y
++
+ if [ "$indir" = "y" ] && [ "$GENSHA1" = "0" -a "$NOBUILD" = "0" ]; then
+ 	if [ ! -e Changelog ] || [ `stat -c %Y Changelog|sed 's/\..*//'` -lt `stat -c %Y $BUILDSCRIPT|sed 's/\..*//'` ]; then
+ 		msg "Generating the Changelog..."
+-		if [ "$F_makepkg_scm" = "git" ]; then
+-			git log $BUILDSCRIPT >Changelog
+-		elif [ "$F_makepkg_scm" = "darcs" ]; then
+-			darcs changes $BUILDSCRIPT | \
+-				sed "s|\(.*\)source/\(.*\)/$BUILDSCRIPT\(.*\)|\1\2\3|;/Can't find changes prior to:/,\$d" \
+-				>Changelog
+-		elif [ "$F_makepkg_scm" = "svn" ]; then
+-			svn log $BUILDSCRIPT >Changelog
+-		fi
++		git log $BUILDSCRIPT >Changelog
+ 		if [ "`id -u`" = "0" ]; then
+ 			chown `stat -c %u:%g $BUILDSCRIPT` \
+ 				Changelog
+@@ -1095,9 +1416,9 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+ 			$ECHO "Include = $CHROOTDIR/etc/pacman-g2/repos/$repo" >>$_F_makepkg_pacconf
+ 		done
+ 		mkdir -p $CHROOTDIR/{tmp,var/log,etc/pacman-g2/repos}
+-		cp -pf /etc/pacman-g2/repos/* $CHROOTDIR/etc/pacman-g2/repos >/dev/null
++		cp -pf /etc/pacman-g2/repos/* $CHROOTDIR/etc/pacman-g2/repos 2>/dev/null
+ 		if [ -d ~/.pacman-g2/repos ]; then
+-			cp -pf ~/.pacman-g2/repos/* $CHROOTDIR/etc/pacman-g2/repos >/dev/null
++			cp -pf ~/.pacman-g2/repos/* $CHROOTDIR/etc/pacman-g2/repos 2>/dev/null
+ 		fi
+ 		$PACMAN -r "$CHROOTDIR" -Syf $COREPKGS --noconfirm --config $_F_makepkg_pacconf
+ 		if [ "$?" != "0" ]; then
+@@ -1129,9 +1450,9 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+ 	chmod 1777 $CHROOTDIR/{var,}/tmp
+ 
+ 	msg "Copying config files to chroot"
+-	cp -pf /etc/pacman-g2/repos/* $CHROOTDIR/etc/pacman-g2/repos >/dev/null
++	cp -pf /etc/pacman-g2/repos/* $CHROOTDIR/etc/pacman-g2/repos 2>/dev/null
+ 	if [ -d ~/.pacman-g2/repos ]; then
+-		cp -pf ~/.pacman-g2/repos/* $CHROOTDIR/etc/pacman-g2/repos >/dev/null
++		cp -pf ~/.pacman-g2/repos/* $CHROOTDIR/etc/pacman-g2/repos 2>/dev/null
+ 	fi
+ 
+ 	for i in resolv.conf passwd shadow group fstab
+@@ -1142,19 +1463,18 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+ 		fi
+ 		cp -pf /etc/$i $CHROOTDIR/etc >/dev/null
+ 	done
+-	## makepkg.conf is _special_ we may want to have different trees
+-        ## we build for, with different flags etc .. copy the file only
+-	## when not found in chroot .. we have checks for C/CXX/LD flags
+-	## in makepkg itself... How that ever worked for the stable tree ?!?
 -	if [ ! -e $CHROOTDIR/etc/makepkg.conf ]; then
 -		## try first $HOME since devels may have different build users
 -		## for different trees or don't want to touch system one all the time
@@ -39,122 +1058,202 @@ index d6cde41f..97cb9408 100755
 -		else
 -			cp -pf /etc/makepkg.conf $CHROOTDIR/etc/makepkg.conf >/dev/null
 -		fi
-+	## FIXME add per-tree-makepkg.conf support
-+	## try first $HOME since devels may have different build users
-+	## for different trees or don't want to touch system one all the time
-+	if [ -e $HOME/.makepkg.conf ]; then
-+		msg "Copying makepkg.conf from HOME.."
-+		cp -pf $HOME/.makepkg.conf $CHROOTDIR/etc/makepkg.conf >/dev/null
++
++	if [ -e "/etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf" ]; then
++		msg "Copying ${MAKEPKG_TREE}-makepkg.conf"
++		# upgrade old , new way may give some problems so lets be sure
++		[[ ! -e "$CHROOTDIR/etc/makepkg.d" ]] && mkdir -p "$CHROOTDIR/etc/makepkg.d"
++		cp -pf /etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf $CHROOTDIR/etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf >/dev/null
 +	else
-+		msg "Copying /etc/makepkg.conf over.."
-+		cp -pf /etc/makepkg.conf $CHROOTDIR/etc/makepkg.conf >/dev/null
++		error "Oupps!!. Something is wrong!!"
++		error "Cannot find /etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf, abording.."
++		Fdie
  	fi
 +
  	chmod 644 $CHROOTDIR/etc/sudoers
  	$ECHO "fst ALL=(ALL)       NOPASSWD: ALL" >$CHROOTDIR/etc/sudoers
  	chmod 440 $CHROOTDIR/etc/sudoers
-@@ -1240,7 +1242,7 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
- 			msg "Your package has coding issues"
+@@ -1237,10 +1557,17 @@ if [ "$CHROOT" = "1" -a "$INCHROOT" != "1" ]; then
+ 
+ 		## this may cause real problems so wan about
+ 		if grep -q "\pointer will break strict-aliasing rules" "${BUILDLOG}"  2>/dev/null; then
+-			msg "Your package has coding issues"
++			warning "Your package has coding issues"
  			warning "Broken strict-aliasing rules detected"
  			warning "C/CXX FLAGS need -fno-strict-aliasing"
 -			warning "Please recompile with right CFLAGS"
 +			warning "Please recompile with right C/CXX FLAGS"
++		fi
++
++		if grep -q "\needed to handle lto object" "${BUILDLOG}"  2>/dev/null; then
++			warning "Your package may have LTO building problems!"
++			warning "Please check your Build log."
++			msg2 "eg: grep 'needed to handle lto object' $(echo ${BUILDLOG} | sed 's/.*\///g')"
++			warning "If unsure add 'options+=('nolto')' and rebuild the package."
  		fi
  		# copy build log to LOGDIR if set
  		if [ -d "$LOGDIR" ]; then
-@@ -1420,6 +1422,17 @@ fi
+@@ -1262,7 +1589,6 @@ fi
+ if [ "`id -u`" != "0" ]; then
+ 	if [ "$USE_FAKEROOT" = "y" -o "$USE_FAKEROOT" = "Y" ]; then
+ 		if [ `type -p fakeroot` ]; then
+-			msg "Entering fakeroot environment"
+ 			if [ "$INCHROOT" != "1" ]; then
+ 				fakeroot -- $0 -F $ARGLIST
+ 			else
+@@ -1280,12 +1606,17 @@ if [ "`id -u`" != "0" ]; then
+ 	else
+ 		warning "Running makepkg as an unprivileged user will result in non-root"
+ 		plain "ownership of the packaged files.  Try using the fakeroot"
+-		plain "environment.  (USE_FAKEROOT=y in makepkg.conf)"
++		plain "environment.  (USE_FAKEROOT=y in /etc/makepkg.d/${MAKEPKG_TREE}-makepkg.conf)"
+ 		plain ""
+ 		sleep 1
+ 	fi
+ fi
  
- if [ "$INCHROOT" == "1" ]; then
- 
-+	## add before PLT
-+	if [ "`check_option NOPROTECTOR`" ]; then
-+		warning "Disabling C/CXX FLAGS: -fstack-protector-strong"
-+		warning "Do that only with an GOOD reason.."
-+	else
-+		msg "Enabling C/CXX FLAGS: -fstack-protector-strong"
-+		CFLAGS+=" -fstack-protector-strong"
-+		CXXFLAGS+=" -fstack-protector-strong"
-+		export CFLAGS CXXFLAGS
-+	fi
 +
- 	if  $ECHO $LDFLAGS | grep -q "\-Wl,--hash-style=both" ; then
- 		error "You are using -Wl,--hash-style=both"
- 		error "LDFLAGS changed to -Wl,--hash-style=gnu"
-@@ -1428,10 +1441,7 @@ if [ "$INCHROOT" == "1" ]; then
- 	fi
++## don't move these from here
++setflags
++build_info
++
+ msg "Making package: $pkgname $pkgver-$pkgrel (`date`)"
  
- 	if ! $ECHO $CFLAGS | grep -q "\-fstack-protector-strong" ; then
+ # version checking
+@@ -1412,112 +1743,6 @@ if grep -i -q "^# Compiling Time: [~0-9\.]\+ SBU$" $BUILDSCRIPT && \
+ 	fi
+ fi
+ 
+-### we use at least -Wl,--hash-style=xx and conditional
+-## -Wl,--as-needed. Gcc6 WIP will add -Wl,-O1.. HOWEVER some build server(s)
+-## seems to use veryyyyyy old makepkg.conf even witout --hash-style=xxx..
+-## check here and workaround this when needed..
+-
+-
+-if [ "$INCHROOT" == "1" ]; then
+-
+-	if  $ECHO $LDFLAGS | grep -q "\-Wl,--hash-style=both" ; then
+-		error "You are using -Wl,--hash-style=both"
+-		error "LDFLAGS changed to -Wl,--hash-style=gnu"
+-		error "Fix your makepkg.conf"
+-		exit 1
+-	fi
+-
+-	if ! $ECHO $CFLAGS | grep -q "\-fstack-protector-strong" ; then
 -		if [ "`check_option NOPROTECTOR`" ]; then
 -			warning "You disabled stack-protector.. Do that *ONLY*"
 -			warning "when you have a very GOOD reason.."
 -		else
-+		if [ ! "`check_option NOPROTECTOR`" ]; then
- 			error "Your build/makepkg.conf is broken"
- 			error "CFLAGS is missing -fstack-protector-strong"
- 			error "and options+=('noprotector') is not set.."
-@@ -1440,12 +1450,9 @@ if [ "$INCHROOT" == "1" ]; then
- 	fi
- 
- 	if ! $ECHO $CXXFLAGS | grep -q "\-fstack-protector-strong" ; then
+-			error "Your build/makepkg.conf is broken"
+-			error "CFLAGS is missing -fstack-protector-strong"
+-			error "and options+=('noprotector') is not set.."
+-			exit 1
+-		fi
+-	fi
+-
+-	if ! $ECHO $CXXFLAGS | grep -q "\-fstack-protector-strong" ; then
 -		if [ "`check_option NOPROTECTOR`" ]; then
 -			warning "You disabled stack-protector.. Do that *ONLY*"
 -			warning "when you have a very GOOD reason.."
 -		else
-+		if [ ! "`check_option NOPROTECTOR`" ]; then
- 			error "Your build/makepkg.conf is broken"
+-			error "Your build/makepkg.conf is broken"
 -			error "CXXFLAGS is missing -fstack-protector-strong missing"
-+			error "CXXFLAGS is missing -fstack-protector-strong"
- 			error "and options+=('noprotector') is not set.."
- 			exit 1
- 		fi
-@@ -1482,24 +1489,43 @@ if [ "$INCHROOT" == "1" ]; then
- 	fi
- 
- 	if [ "`check_option NOASNEEDED`" ]; then
+-			error "and options+=('noprotector') is not set.."
+-			exit 1
+-		fi
+-	fi
+-
+-	if ! $ECHO $LDFLAGS | grep -q "\-Wl,--hash-style=gnu" ; then
+-        	warning "Broken LDFLAGS found, -Wl,--hash-style=gnu is missing from makepkg.conf!!"
+-        	warning "Setting BUILDTYPE=custom , fix your makepkg.conf"
+-		FORCE_BUILDTYPE="1"
+-        	LDFLAGS+=" -Wl,--hash-style=gnu"
+-        	export LDFLAGS
+-	fi
+-
+-	if ! $ECHO $LDFLAGS | grep -q "\-Wl,-O1" ; then
+-        	warning "Broken LDFLAGS found, -Wl,-O1 is missing from makepkg.conf!!"
+-        	warning "Setting BUILDTYPE=custom , fix your makepkg.conf"
+-		FORCE_BUILDTYPE="1"
+-        	LDFLAGS+=" -Wl,-O1"
+-		export LDFLAGS
+-	fi
+-
+-	if ! $ECHO $LDFLAGS | grep -q "\-Wl,--sort-common" ; then
+-		warning "Broken LDFLAGS found, -Wl,--sort-common is missing from makepkg.conf!!"
+-		warning "Setting BUILDTYPE=custom , fix your makepkg.conf"
+-		FORCE_BUILDTYPE="1"
+-		LDFLAGS+=" -Wl,--sort-common"
+-		export LDFLAGS
+-	fi
+-
+-	if [ "`check_option ASNEEDED`" ]; then
+-        	error "You are using deprecated option 'asneeded'."
+-        	error "This is now default, please remove and retry."
+-		exit 1
+-	fi
+-
+-	if [ "`check_option NOASNEEDED`" ]; then
 -		warning "Using --no-as-needed in LDFLAGS ( are you sure ? )"
-+		warning "Using LDFLAGS: --no-as-needed ( are you sure ? )"
- 		LDFLAGS+=" -Wl,--no-as-needed"
- 		export LDFLAGS
- 	else
-+		msg "Enabling LDFLAGS: -Wl,--as-needed"
- 		LDFLAGS+=" -Wl,--as-needed"
- 		export LDFLAGS
- 	fi
- 
- 	if [ "`check_option NOFORTIFY`" ]; then
+-		LDFLAGS+=" -Wl,--no-as-needed"
+-		export LDFLAGS
+-	else
+-		LDFLAGS+=" -Wl,--as-needed"
+-		export LDFLAGS
+-	fi
+-
+-	if [ "`check_option NOFORTIFY`" ]; then
 -		warning "Disabling -D_FORTIFY_SOURCE=2.."
-+		warning "Disabling C/CXX FLAGS: -D_FORTIFY_SOURCE=2"
- 		export OFORTIFY=0
- 	else
+-		export OFORTIFY=0
+-	else
 -		msg "Enabling -Wp,-D_FORTIFY_SOURCE=2"
-+		msg "Enabling C/CXX FLAGS: -Wp,-D_FORTIFY_SOURCE=2"
- 		CFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
- 		CXXFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
- 		export CFLAGS CXXFLAGS
+-		CFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
+-		CXXFLAGS+=" -Wp,-D_FORTIFY_SOURCE=2"
+-		export CFLAGS CXXFLAGS
+-	fi
+-
+-	if [ "`check_option NORELRO`" ]; then
+-		warning "Disabling LDFLAGS: -z,relro"
+-		export ORELRO=0
+-	else
+-		msg "Enabling LDFLAGS: -z,relro"
+-		LDFLAGS+=" -Wl,-z,relro"
+-		export LDFLAGS
+-	fi
+-
+-	if [ "`check_option NONOW`" ]; then
+-		warning "Disabling LDFLAGS: -z,now"
+-		export ONOW=0
+-	else
+-		msg "Enabling LDFLAGS: -z,now"
+-		LDFLAGS+=" -Wl,-z,now"
+-		export LDFLAGS
+-	fi
+-fi
+ # retrieve sources
+ msg "Retrieving Sources..."
+ mkdir -p src
+@@ -1724,6 +1949,10 @@ else
  	fi
+ fi
  
 +
-+	if [ "`check_option PLT`" ]; then
-+		 warning "Disabling C/CXX FLAGS: -fno-plt"
-+	else
-+		msg "Enabling C/CXX FLAGS: -fno-plt"
-+		CFLAGS+=" -fno-plt"
-+		CXXFLAGS+=" -fno-plt"
-+		export CFLAGS CXXFLAGS
-+	fi
++unset _FB_CFLAGS _FB_CXXFLAGS _FB_LDFLAGS
++unset _MFLAGS _OFLAG _FLAGS _LD_PLUGIN _LDFLAGS
 +
-+	if [ "`check_option NOPIE`" ]; then
-+		warning "Disabling C/CXX FLAGS: -pie"
-+		msg "Enabling C/CXX FLAGS: -fno-PIE"
-+		CFLAGS+=" -fno-PIE"
-+		CXXFLAGS+=" -fno-PIE"
-+		export CFLAGS CXXFLAGS
-+	fi
-+
- 	if [ "`check_option NORELRO`" ]; then
- 		warning "Disabling LDFLAGS: -z,relro"
- 		export ORELRO=0
-@@ -1837,7 +1863,23 @@ do
+ if [ "`id -u`" = "0" ]; then
+ 	# chown all source files to root.root
+ 	chown -R root.root $startdir/src
+@@ -1799,7 +2028,7 @@ fi
+ if [ "$SBU" == "1" ]; then
+ 	# $SBU not yet set
+ 	totaltime="$(( $(date +%s) - $stime ))"
+-	if [ -z "$HRBT" ]; then 
++	if [ -z "$HRBT" ]; then
+ 		msg "Elapsed Time: $totaltime seconds"
+ 	else
+ 		hours="$(( $totaltime / 3600 ))"
+@@ -1837,7 +2066,23 @@ do
  	if [ -d ${dir}/usr/share/pkgconfig ]; then
  		error "Your package has broken pkgconfig PATH"
  		error "Files are installed in /usr/share/pkgconfig"
@@ -179,3 +1278,145 @@ index d6cde41f..97cb9408 100755
  		error "Bailing out, please fix your package!"
  		exit 1
  	fi
+@@ -2046,6 +2291,11 @@ find $startdir/{pkg,pkg.*}/{usr{,/local,/share},opt/*}/{info,man} -type f 2>/dev
+ 			rm -f "$ln"
+ 			ln -sf "${fn}.gz" "${ln}.gz"
+ 		done
++		# we have some weird formatting bug for xml
++		# and some custom made ones. untill we figure
++		# workaround it - crazy -
++		# drop spaces , tabs and all empty lines..
++		sed -i -e 's/^[ \t]*//' -e '/^$/d' "$i"
+ 		# compress the original
+ 		gzip -9 "$i"
+ 	fi
+@@ -2059,13 +2309,21 @@ for d in $startdir/{pkg,pkg.*} ; do
+ 			if [ "$d" = "$startdir/pkg" ]; then
+ 				msg2 "Maybe broken link ${l#$d} in pkg $pkgname found."
+ 			else
+-				msg2 "Maybe broken link ${l#$d} in pkg ${d##*/pkg.} found."
++				if [[ "$(/bin/echo ${d##*/pkg.} | sed 's/.*-\(.*\)/\1/')" =~ "devel" ]]; then
++					continue
++				else
++					msg2 "Maybe broken link ${l#$d} in pkg ${d##*/pkg.} found."
++				fi
+ 			fi
+ 		elif ls -l "$l" | awk '{print $NF}' | grep -q "$startdir" ; then
+ 			if [ "$d" = "$startdir/pkg" ]; then
+ 				msg2 "Broken link ${l#$d} in pkg $pkgname found."
+ 			else
+-				msg2 "Broken link ${l#$d} in pkg ${d##*/pkg.} found."
++				if [[ "$(/bin/echo ${d##*/pkg.} | sed 's/.*-\(.*\)/\1/')" =~ "devel" ]]; then
++					continue
++				else
++					msg2 "Broken link ${l#$d} in pkg ${d##*/pkg.} found."
++				fi
+ 			fi
+ 		fi
+ 	done
+@@ -2151,23 +2409,6 @@ elif [ "$RMDEPS" = "1" -a "$DEP_SUDO" = "1" ]; then
+ 	fi
+ fi
+ 
+-
+-msg "This package was built with:"
+-msg2 "HOST_CFLAGS:    $CFLAGS "
+-msg2 "HOST_CXXFLAGS:  $CXXFLAGS "
+-msg2 "HOST_LDFLAGS:   $LDFLAGS "
+-if [ "$OFORTIFY" == "0" ]; then
+-	msg2 "FORTIFY_FLAGS:   OFF "
+-fi
+-
+-if [ "$ONORELRO" == "0" ]; then
+-	msg2 "RELRO_LDFLAGS:   OFF "
+-fi
+-
+-if [ "$ONOW" == "0" ]; then
+-	msg2 "BINDNOW_LDFLAGS:   OFF "
+-fi
+-
+ msg "Finished making: $pkgname  (`date`)"
+ 
+ install_pkg
+diff --git a/scripts/updatesync b/scripts/updatesync
+index f1f3415f..ef360224 100755
+--- a/scripts/updatesync
++++ b/scripts/updatesync
+@@ -1,31 +1,35 @@
+ #!/bin/bash
+-# 
++#
+ #   updatesync
+-#  
++#
+ #   Copyright (c) 2004 by Jason Chu <jchu@xentac.net>
+ #   Copyright (c) 2007, 2008, 2010 by Miklos Vajna <vmiklos@frugalware.org>
+ #   Derived from gensync (c) 2002-2006 Judd Vinet <jvinet@zeroflux.org>
+-#  
++#
+ #   This program is free software; you can redistribute it and/or modify
+ #   it under the terms of the GNU General Public License as published by
+ #   the Free Software Foundation; either version 2 of the License, or
+ #   (at your option) any later version.
+-# 
++#
+ #   This program is distributed in the hope that it will be useful,
+ #   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ #   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ #   GNU General Public License for more details.
+-#  
++#
+ #   You should have received a copy of the GNU General Public License
+ #   along with this program; if not, write to the Free Software
+-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
++#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+ #   USA.
+ #
+ 
+ # makepkg configuration
+-[ -f /etc/makepkg.conf ] && source /etc/makepkg.conf
++
+ [ -z "$arch" ] && arch=`arch`
++
++# FIXME
+ CARCH="$arch"
++PKG_EXT="fpm"
++DB_EXT="fdb"
+ 
+ usage() {
+ 	echo "updatesync"
+@@ -60,7 +64,11 @@ die()
+ 
+ # Frugalware functions
+ CHROOT=1
+-[ -e /usr/lib/frugalware/fwmakepkg ] && . /usr/lib/frugalware/fwmakepkg
++if [ -e /usr/lib/frugalware/fwmakepkg ]; then
++	. /usr/lib/frugalware/fwmakepkg
++else
++	die "Missing /usr/lib/frugalware/fwmakepkg"
++fi
+ 
+ get_sha1checksum()
+ {
+@@ -262,7 +270,7 @@ if [ "$action" = "upd" -a ! -f $option ]; then
+ 	option=$curdir/$option
+ fi
+ 
+-[ -z "$DB_EXT" ] && die "Please make sure that you edit /etc/makepkg.conf and set the DB_EXT= variable"
++
+ bdb=`basename $pkgdb`
+ udb=`basename $bdb .fdb`.tar
+ echo "updatesync: uncompressing to $ustmpdir..." >&2
+diff --git a/src/pacman-g2/pacman-g2.c b/src/pacman-g2/pacman-g2.c
+index 4f7d33da..d939d664 100644
+--- a/src/pacman-g2/pacman-g2.c
++++ b/src/pacman-g2/pacman-g2.c
+@@ -182,7 +182,7 @@ static void version(void)
+ {
+ 	printf("\n");
+ 	printf(" .--.                  Pacman-G2 v%s - libpacman v%s\n", PACKAGE_VERSION, PM_VERSION);
+-	printf("/ _.-' .-.  .-.  .-.   Copyright (C) 2002-2010 Pacman-G2 Team\n");
++	printf("/ _.-' .-.  .-.  .-.   Copyright (C) 2002-2018 Pacman-G2 Team\n");
+ 	printf("\\  '-. '-'  '-'  '-'   See /usr/share/doc/pacman-g2-%s/AUTHORS for more info.\n", PACKAGE_VERSION);
+ 	printf(" '--'                  \n");
+ 	printf(_("                       This program may be freely redistributed under\n"));

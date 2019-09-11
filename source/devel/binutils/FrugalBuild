@@ -3,20 +3,54 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=binutils
-pkgver=2.30.0
-pkgrel=11
+pkgver=2.32
+pkgrel=6
 pkgdesc="A set of programs to assemble and manipulate binary and object files"
 url="http://www.gnu.org/software/binutils/"
-depends=('bash' 'glibc>=2.27-6')
-makedepends=('gcc>=7.3.1-2' 'fakeroot>=1.21-3')
+depends=('bash' 'glibc>=2.29-4' 'libstdc++>=9.1.0-2')
+makedepends=('gcc>=9.1.0-2' 'fakeroot>=1.21-3' 'glibc-devel>=2.29-4')
 groups=('devel' 'devel-core')
 archs=("x86_64")
-options+=('static' 'noccache')
+options+=('static' 'noccache' 'ldgold')
 Fup2gnubz2
-source=(http://ftp.gnu.org/gnu/$pkgname/$pkgname-${pkgver/.0/}.tar.xz)
-sha1sums=('574d3b5650413d6ee65195a4f5ecbddc3a38f718')
+source=(http://ftp.gnu.org/gnu/$pkgname/$pkgname-$pkgver.tar.xz \
+		ar nm ranlib \
+		binutils-2.22.52.0.4-no-config-h-check.patch \
+		binutils-fix-testsuite-failures.patch \
+		binutils-CVE-2019-9071.patch \
+		binutils-CVE-2019-9073.patch \
+		binutils-CVE-2019-9074.patch \
+		binutils-CVE-2019-9075.patch \
+		binutils-CVE-2019-9077.patch \
+		binutils-do-not-link-with-static-libstdc++.patch \
+		binutils-gold-ignore-discarded-note-relocs.patch \
+		binutils-readelf-other-sym-info.patch \
+		0017-x86-64-Restore-PIC-check-for-PCREL-reloc-against-pro.patch \
+		0095-x86-Also-check-x86-linker_def-for-non-shared-definit.patch \
+		0122-Work-around-gcc9-warning-bug.patch \
+		0128-PR24567-assertion-failure-in-ldlang.c-6868-when-comp.patch)
+
+sha1sums=('cd45a512af1c8a508976c1beb4f5825b3bb89f4d' \
+          'cc3be2c00a2cbd99a6269ebaee52a40032414db7' \
+          'e0baa5fac1888362c2e7f87b3cb26227385ca2dd' \
+          '03a138682f5103580a335fe41b6e23d584b3fa26' \
+          'c9fc0f97fe57531f4098d9266bb6b72d8e83c157' \
+          '58af80ede7e225620e32e218aa95f5215f9dad2e' \
+          'f08e2483f53a8b4aa49a13138aec930a259bd8fa' \
+          'd43e99d057df6c422b19df2fdc1722ab05637cfe' \
+          'c41212e7ff4d03cf18c4672d80dfabc2fc197db6' \
+          'd321d27120ab38f454e88ca844831f4b3b5d2514' \
+          '5deef3682392ca0ba6349f4fdc55ef8c5a556766' \
+          'ebbe98e93f5aab71492cc23b99fb218b1c4d3138' \
+          '630ac801f47dddb109f4962f325285c3c4940c50' \
+          '83aea5962fc9a5ab037d61b9a526ae4380edb718' \
+          'c59909d2ee92d37ab6b9a4069c65fc989efacbe6' \
+          'd485e23f7718ecd04ac5214525928d0dfba2e98a' \
+          'b4a8c38922dd1dbfa90753c799f4954afa1be95d' \
+          'e99e5f715ab00110f32e4ac4d73f0785210d754d')
 
 Fconfopts+="	\
+		--enable-64-bit-bfd \
 		--enable-shared \
 		--disable-werror \
 		--enable-gold=yes \
@@ -25,19 +59,43 @@ Fconfopts+="	\
 		--enable-multilib \
 		--enable-lto \
 		--with-system-zlib \
-		--enable-threads \
-		--enable-relro \
+		--enable-threads=yes \
+		--enable-relro=yes \
 		--with-pic \
-		--enable-deterministic-archives \
 		--enable-default-hash-style=gnu"
+
+subpkgs=("${pkgname}-devel")
+subdescs=("Develompent files for $pkgname")
+subdepends=('')
+subgroups=('devel devel-core')
+subarchs=('x86_64')
+
 
 build()
 {
-	Fcd $pkgname-${pkgver/.0/}
+
+	Fcd
 	Fpatchall
 	Fmake
-	Fexec make -k LDFLAGS="" check || true
+	#Fexec make -k  check || true
 	Fmakeinstall
+
+	# LTO
+	for i in ar nm ranlib
+	do
+		Fmv /usr/bin/$i /usr/bin/$pkgname-$i
+		Fmv /usr/x86_64-frugalware-linux/bin/$i /usr/x86_64-frugalware-linux/bin/$pkgname-$i
+	done
+
+	Finstall 0755 /usr/bin/nm
+	Finstall 0755 /usr/bin/ar
+	Finstall 0755 /usr/bin/ranlib
+	Finstall 0755 /usr/x86_64-frugalware-linux/bin/nm
+	Finstall 0755 /usr/x86_64-frugalware-linux/bin/ar
+	Finstall 0755 /usr/x86_64-frugalware-linux/bin/ranlib
+
+	Fsplit $pkgname-devel usr/include
+	Fsplit $pkgname-devel usr/lib/{libbfd.a,libbfd.so,libopcodes.a,libopcodes.so}
 }
 
 # optimization OK

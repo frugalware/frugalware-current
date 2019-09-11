@@ -26,7 +26,7 @@ depends+=('lib32-lcms2' 'lib32-libxcursor' 'lib32-libxi' 'lib32-libxrandr' 'lib3
 	'lib32-libxrender' 'lib32-freetype2' 'lib32-libxml2' 'lib32-ncurses' 'lib32-vkd3d')
 makedepends=('x11-protos' 'cups')
 _F_cd_path="wine-$pkgver"
-options=('genscriptlet' 'nostrip' 'static')
+options=('genscriptlet' 'nostrip' 'static' 'nolto')
 archs=('x86_64')
 _F_conf_configure="../configure"
 _F_archive_grepv="\-rc"
@@ -51,12 +51,12 @@ wine-devel)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Development)"
 	_F_archive_name="wine"
 	up2date="Flasttar $url/news"
+	options+=('plt')
 	conflicts=('wine' 'lib32-wine-devel')
 	provides=('wine' 'lib32-wine-devel')
 	replaces=('lib32-wine-devel')
-	options=('plt')
 	depends+=('vulkan-icd-loader' 'lib32-vulkan-icd-loader')
-	source=(https://dl.winehq.org/wine/source/${pkgver%.*}.x/wine-$pkgver.tar.xz \
+	source=(https://dl.winehq.org/wine/source/${pkgver%%.*}.x/wine-$pkgver.tar.xz \
 		0001-programs-winhlp32-Use-noyywrap-for-macro.lex.l-and-p.patch )
 	;;
 

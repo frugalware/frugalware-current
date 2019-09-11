@@ -55,7 +55,6 @@ else
     makedepends+=('ninja')
 fi
 
-### hmmm
 CROSS_LIB="lib"
 CROSS_BIN="bin"
 CROSS_SBIN="sbin"
@@ -93,11 +92,6 @@ CMake_setup()
 CMake_conf()
 {
 	CMake_setup
-	CXXFLAGS+=" -Wno-deprecated -Wno-deprecated-declarations  -fno-delete-null-pointer-checks"
-	## CMAKE_INSTALL_PREFIX -> prefix
-	## SYSCONF_INSTALL_DIR -> sysconfdir
-	## LIB_INSTALL_DIR -> libdir
-	## LOCALSTATE_INSTALL_DIR -> localstatedir
 
 	if [ "$_F_cmake_in_source_build" -eq "0" ]; then
 		_F_cmake_src=".."
@@ -162,7 +156,6 @@ CMake_make()
 {
 	CMake_prepare_build
 	CMake_conf "$@"
-	## do _not_ use any F* stuff here , cmake does not like it
 	${cmake_builder} || Fdie
 }
 

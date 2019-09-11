@@ -8,12 +8,13 @@
 ## -> https://www.cilkplus.org/
 
 USE_SHARED=${USE_SHARED:-"y"}
-USE_BRANCH=${USE_BRANCH:-"y"}
+USE_BRANCH=${USE_BRANCH:-"n"}
 
 USE_LANGS=${USE_LANGS:-"y"}
 USE_CXX=${USE_CXX:-"$USE_LANGS"}
 USE_FORTRAN=${USE_FORTRAN:-"$USE_LANGS"}
 USE_OBJC=${USE_OBJC:-"$USE_LANGS"}
+USE_GDC=${USE_GDC:-"$USE_LANGS"}
 
 # Activate required langage
 Fuse $USE_OBJC && USE_CXX="y"
@@ -21,21 +22,21 @@ Fuse $USE_OBJC && USE_CXX="y"
 pkgname=gcc
 if Fuse $USE_BRANCH; then
 	## released version is 6.2.0 .. branch is minor+1
-	pkgver=7.3.1
+	pkgver=9.1.1
 	gccver=$pkgver
 else
-	pkgver=7.3.0
+	pkgver=9.1.0
 	gccver=$pkgver
 fi
 pkgrel=3
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
-depends=('binutils>=2.30.0-11' 'glibc>=2.27-6' 'libmpc>=1.1.0-9' 'zlib>=1.2.11-9')
-makedepends=('kernel-headers>=4.16.11' 'lib32-zlib>=1.2.11-9')
+depends=('binutils>=2.32-5' 'glibc>=2.29-5' 'libmpc>=1.1.0-11' 'zlib>=1.2.11-11')
+makedepends=('kernel-headers>=4.16.11' 'lib32-zlib>=1.2.11-11' 'glibc-devel>=2.29-5' 'binutils-devel>=2.32-5')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('x86_64')
-options+=('scriptlet' 'noccache' 'static')
+options+=('scriptlet' 'noccache' 'static' 'nowfsecurity' 'nolto') #fixme
 if Fuse $USE_BRANCH; then
 	_pkgver=20180524
 	## well something
@@ -47,7 +48,7 @@ else
 
 	up2date="lynx -dump http://ftp.gnu.org/pub/gnu/gcc/|grep gcc-.*/$|sed -n 's|.*gcc-\(.*\)/|\1|;$ p'"
 	source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.xz)
-	sha1sums=('9689b9cae7b2886fdaa08449a26701f095c04e48')
+	sha1sums=('ded538076858926d361af790d59c1f8440dd29b2')
 fi
 
 ## nothing should use that however ..
@@ -65,7 +66,7 @@ if Fuse $USE_SHARED; then
 fi
 if Fuse $USE_CXX; then
 	subpkgs=("${subpkgs[@]}" 'libstdc++' 'gcc-g++')
-	subdescs=("${subdescs[@]}" 'GNU Standard C++ Library' 'C++ suport for GCC')
+	subdescs=("${subdescs[@]}" 'GNU Standard C++ Library' 'C++ support for GCC')
 	subrodepends=("${subrodepends[@]}" 'libgcc' 'libstdc++ gcc')
 	subgroups=("${subgroups[@]}" 'base chroot-core' 'devel devel-core')
 	subprovides=("${subprovides[@]}" 'lib32-libstdc++' 'lib32-gcc-g++')
@@ -88,6 +89,16 @@ if Fuse $USE_FORTRAN; then
 	subprovides=("${subprovides[@]}" 'lib32-libquadmath' 'lib32-libgfortran' 'lib32-gcc-gfortran')
 	subreplaces=("${subreplaces[@]}" 'lib32-libquadmath' 'lib32-libgfortran' 'lib32-gcc-gfortran')
 fi
+
+if Fuse $USE_GDC; then
+    subpkgs=("${subpkgs[@]}" 'gcc-gdc')
+    subdescs=("${subdescs[@]}"  'D support for GCC')
+    subrodepends=("${subrodepends[@]}" 'libgcc libmpc mpfr gmp zlib')
+    subgroups=("${subgroups[@]}" 'devel-extra')
+    subprovides=("${subprovides[@]}" '')
+    subreplaces=("${subreplaces[@]}" '')
+fi
+
 i=0
 while [ $i -lt ${#subpkgs[@]} ]
 do
@@ -123,6 +134,7 @@ build()
 	fi
 
 	Fuse $USE_OBJC && langlist="$langlist,objc,obj-c++"
+	Fuse $USE_GDC && langlist="$langlist,d"
 
 	if Fuse $USE_FORTRAN; then
 		langlist="$langlist,fortran"
@@ -132,10 +144,9 @@ build()
 	fi
 
 	_F_conf_configure=../$_F_cd_path/configure
-	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" XCFLAGS="$CFLAGS" TCFLAGS="$CFLAGS" AR_FLAGS="crD" ARFLAGS="crD"
+	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" XCFLAGS="$CFLAGS" TCFLAGS="$CFLAGS"
 	Fconf \
 		--enable-languages=$langlist \
-		--enable-bootstrap \
 		--enable-multilib \
 		--enable-lto \
 		--enable-clocale=gnu \
@@ -143,6 +154,9 @@ build()
 		--enable-shared \
 		--disable-libunwind-exceptions \
 		--verbose \
+		--with-diagnostics-color=auto-if-env \
+		--enable-gold=yes \
+		--enable-ld=default \
 		--enable-threads=posix \
 		--with-system-zlib \
 		--libdir=/usr/lib \
@@ -274,6 +288,14 @@ build()
 		Fsplit libatomic usr/lib/libatomic.*
 	fi
 
+	if Fuse $USE_GDC; then
+		Fsplit gcc-gdc usr/bin/{gdc,x86_64-frugalware-linux-gdc}
+		Fsplit gcc-gdc usr/lib/gcc/$gcchost/$gccver/d21
+		Fsplit gcc-gdc usr/lib/gcc/$gcchost/$gccver/include/d
+		Fsplit gcc-gdc usr/{lib,lib32}/{libgdruntime.*,libgphobos.*}
+		Fsplit gcc-gdc usr/share/info/gdc.*
+		Fsplit gcc-gdc usr/share/man/man1/gdc*
+	fi
 
 	## maybe llvm32 will need these too , not-so-sure :)
 	for i in /usr/lib/gcc/$gcchost/$gccver/32/{crtbegin.o,crtend.o,libgcc.a}; do

@@ -1,0 +1,189 @@
+From 49364d83d58d6357aa0fcd1b448b48218d244675 Mon Sep 17 00:00:00 2001
+From: "H.J. Lu" <hjl.tools@gmail.com>
+Date: Wed, 17 Apr 2019 09:08:46 -0700
+Subject: [PATCH 095/128] x86: Also check x86 linker_def for non-shared
+ definition
+
+Since elf_x86_linker_defined sets linker_def in elf_x86_link_hash_entry
+for linker defined symbols, SYMBOL_DEFINED_NON_SHARED_P should also check
+linker_def in elf_x86_link_hash_entry.
+
+bfd/
+
+	PR ld/24458
+	* elfxx-x86.h (SYMBOL_DEFINED_NON_SHARED_P): Also check x86
+	linker_def.
+
+ld/
+
+	PR ld/24458
+	* testsuite/ld-x86-64/x86-64.exp: Run PR ld/24458 tests.
+	* testsuite/ld-x86-64/pr24458.s: New file.
+	* testsuite/ld-x86-64/pr24458a-x32.d: Likewise.
+	* testsuite/ld-x86-64/pr24458a.d: Likewise.
+	* testsuite/ld-x86-64/pr24458b-x32.d: Likewise.
+	* testsuite/ld-x86-64/pr24458b.d: Likewise.
+	* testsuite/ld-x86-64/pr24458c-x32.d: Likewise.
+	* testsuite/ld-x86-64/pr24458c.d: Likewise.
+
+(cherry picked from commit 4e84a8f8bbeab52fa7048873655e582ceb92534d)
+---
+ bfd/ChangeLog                         |  6 ++++++
+ bfd/elfxx-x86.h                       |  1 +
+ ld/ChangeLog                          | 12 ++++++++++++
+ ld/testsuite/ld-x86-64/pr24458.s      |  5 +++++
+ ld/testsuite/ld-x86-64/pr24458a-x32.d | 10 ++++++++++
+ ld/testsuite/ld-x86-64/pr24458a.d     | 10 ++++++++++
+ ld/testsuite/ld-x86-64/pr24458b-x32.d | 10 ++++++++++
+ ld/testsuite/ld-x86-64/pr24458b.d     | 10 ++++++++++
+ ld/testsuite/ld-x86-64/pr24458c-x32.d | 10 ++++++++++
+ ld/testsuite/ld-x86-64/pr24458c.d     | 10 ++++++++++
+ ld/testsuite/ld-x86-64/x86-64.exp     |  6 ++++++
+ 11 files changed, 90 insertions(+)
+ create mode 100644 ld/testsuite/ld-x86-64/pr24458.s
+ create mode 100644 ld/testsuite/ld-x86-64/pr24458a-x32.d
+ create mode 100644 ld/testsuite/ld-x86-64/pr24458a.d
+ create mode 100644 ld/testsuite/ld-x86-64/pr24458b-x32.d
+ create mode 100644 ld/testsuite/ld-x86-64/pr24458b.d
+ create mode 100644 ld/testsuite/ld-x86-64/pr24458c-x32.d
+ create mode 100644 ld/testsuite/ld-x86-64/pr24458c.d
+
+diff --git a/bfd/elfxx-x86.h b/bfd/elfxx-x86.h
+index 28d540b83b..610b2f3a68 100644
+--- a/bfd/elfxx-x86.h
++++ b/bfd/elfxx-x86.h
+@@ -166,6 +166,7 @@
+   ((H)->def_regular \
+    || (H)->root.linker_def \
+    || (H)->root.ldscript_def \
++   || ((struct elf_x86_link_hash_entry *) (H))->linker_def \
+    || ELF_COMMON_DEF_P (H))
+ 
+ /* TRUE if relative relocation should be generated.  GOT reference to
+diff --git a/ld/testsuite/ld-x86-64/pr24458.s b/ld/testsuite/ld-x86-64/pr24458.s
+new file mode 100644
+index 0000000000..7dbd47af63
+--- /dev/null
++++ b/ld/testsuite/ld-x86-64/pr24458.s
+@@ -0,0 +1,5 @@
++	.text
++	.globl	_start
++	.type	_start, @function
++_start:
++	movq	__ehdr_start(%rip), %rax
+diff --git a/ld/testsuite/ld-x86-64/pr24458a-x32.d b/ld/testsuite/ld-x86-64/pr24458a-x32.d
+new file mode 100644
+index 0000000000..ae3994a557
+--- /dev/null
++++ b/ld/testsuite/ld-x86-64/pr24458a-x32.d
+@@ -0,0 +1,10 @@
++#source: pr24458.s
++#as: --x32 -mx86-used-note=yes
++#ld: -m elf32_x86_64
++#readelf: -n
++
++Displaying notes found in: .note.gnu.property
++  Owner                 Data size	Description
++  GNU                  0x[0-9a-f]+	NT_GNU_PROPERTY_TYPE_0
++      Properties: x86 ISA used: <None>
++	x86 feature used: x86
+diff --git a/ld/testsuite/ld-x86-64/pr24458a.d b/ld/testsuite/ld-x86-64/pr24458a.d
+new file mode 100644
+index 0000000000..9e2e8b0979
+--- /dev/null
++++ b/ld/testsuite/ld-x86-64/pr24458a.d
+@@ -0,0 +1,10 @@
++#source: pr24458.s
++#as: --64 -mx86-used-note=yes
++#ld: -m elf_x86_64
++#readelf: -n
++
++Displaying notes found in: .note.gnu.property
++  Owner                 Data size	Description
++  GNU                  0x[0-9a-f]+	NT_GNU_PROPERTY_TYPE_0
++      Properties: x86 ISA used: <None>
++	x86 feature used: x86
+diff --git a/ld/testsuite/ld-x86-64/pr24458b-x32.d b/ld/testsuite/ld-x86-64/pr24458b-x32.d
+new file mode 100644
+index 0000000000..57d10ab11e
+--- /dev/null
++++ b/ld/testsuite/ld-x86-64/pr24458b-x32.d
+@@ -0,0 +1,10 @@
++#source: pr24458.s
++#as: --x32 -mx86-used-note=yes
++#ld: -pie -m elf32_x86_64
++#readelf: -n
++
++Displaying notes found in: .note.gnu.property
++  Owner                 Data size	Description
++  GNU                  0x[0-9a-f]+	NT_GNU_PROPERTY_TYPE_0
++      Properties: x86 ISA used: <None>
++	x86 feature used: x86
+diff --git a/ld/testsuite/ld-x86-64/pr24458b.d b/ld/testsuite/ld-x86-64/pr24458b.d
+new file mode 100644
+index 0000000000..bdcc79a341
+--- /dev/null
++++ b/ld/testsuite/ld-x86-64/pr24458b.d
+@@ -0,0 +1,10 @@
++#source: pr24458.s
++#as: --64 -mx86-used-note=yes
++#ld: -pie -m elf_x86_64
++#readelf: -n
++
++Displaying notes found in: .note.gnu.property
++  Owner                 Data size	Description
++  GNU                  0x[0-9a-f]+	NT_GNU_PROPERTY_TYPE_0
++      Properties: x86 ISA used: <None>
++	x86 feature used: x86
+diff --git a/ld/testsuite/ld-x86-64/pr24458c-x32.d b/ld/testsuite/ld-x86-64/pr24458c-x32.d
+new file mode 100644
+index 0000000000..4d76636404
+--- /dev/null
++++ b/ld/testsuite/ld-x86-64/pr24458c-x32.d
+@@ -0,0 +1,10 @@
++#source: pr24458.s
++#as: --x32 -mx86-used-note=yes
++#ld: -shared -m elf32_x86_64
++#readelf: -n
++
++Displaying notes found in: .note.gnu.property
++  Owner                 Data size	Description
++  GNU                  0x[0-9a-f]+	NT_GNU_PROPERTY_TYPE_0
++      Properties: x86 ISA used: <None>
++	x86 feature used: x86
+diff --git a/ld/testsuite/ld-x86-64/pr24458c.d b/ld/testsuite/ld-x86-64/pr24458c.d
+new file mode 100644
+index 0000000000..e299831681
+--- /dev/null
++++ b/ld/testsuite/ld-x86-64/pr24458c.d
+@@ -0,0 +1,10 @@
++#source: pr24458.s
++#as: --64 -mx86-used-note=yes
++#ld: -shared -m elf_x86_64
++#readelf: -n
++
++Displaying notes found in: .note.gnu.property
++  Owner                 Data size	Description
++  GNU                  0x[0-9a-f]+	NT_GNU_PROPERTY_TYPE_0
++      Properties: x86 ISA used: <None>
++	x86 feature used: x86
+diff --git a/ld/testsuite/ld-x86-64/x86-64.exp b/ld/testsuite/ld-x86-64/x86-64.exp
+index 5eb556515f..9a76486fbc 100644
+--- a/ld/testsuite/ld-x86-64/x86-64.exp
++++ b/ld/testsuite/ld-x86-64/x86-64.exp
+@@ -426,6 +426,12 @@ run_dump_test "pr23930"
+ run_dump_test "pr23930-x32"
+ run_dump_test "pr24151a"
+ run_dump_test "pr24151a-x32"
++run_dump_test "pr24458a"
++run_dump_test "pr24458a-x32"
++run_dump_test "pr24458b"
++run_dump_test "pr24458b-x32"
++run_dump_test "pr24458c"
++run_dump_test "pr24458c-x32"
+ 
+ if { ![istarget "x86_64-*-linux*"] && ![istarget "x86_64-*-nacl*"]} {
+     return
+-- 
+2.21.0
+

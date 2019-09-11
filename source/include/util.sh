@@ -130,6 +130,32 @@ Fdie() {
 	exit 2
 }
 
+###
+# * Fset_lto_toolchain(): Helper function to handle NM, AR, RANLIB for LTO
+##
+
+Fset_lto_toolchain() {
+
+	if [ ! "`check_option NOLTO`" ]; then # LTO build
+		if [ ! "`check_option CLANG`" ]; then # gcc build
+			Fmessage "Setting NM AR RANLIB for gcc LTO build."
+			export NM=gcc-nm
+			export AR=gcc-ar
+			export RANLIB=gcc-ranlib
+		else # clang
+			Fmessage "Setting NM AR RANLIB for clang LTO build."
+			export NM=llvm-nm
+			export AR=llvm-ar
+			export RANLIB=llvm-ranlib
+		fi
+	else # NON LTO. Maybe again set clang to llvm-* ?
+		Fmessage "Setting NM AR RANLIB for NON-LTO build."
+		export NM=binutils-nm
+		export AR=binutils-ar
+		export RANLIB=binutils-ranlib
+	fi
+}
+
 ## internal
 #__is_deprecated() {
 #	warning "Function ${FUNCNAME[1]}() is deprecated , port your package away from it."
@@ -900,7 +926,7 @@ Fbuildsystem_configure() {
 		Fconfoptstryset "infodir" "$Finfodir"
 		Fconfoptstryset "mandir" "$Fmandir"
 		Fconfoptstryset "build" "$Fbuildchost"
-		Fconfoptstryset "host" "$Fbuildchost"
+		#Fconfoptstryset "host" "$Fbuildchost"
 		Fconfoptstryset "libexecdir" "/usr/lib/$pkgname"
 		#Fconfoptstryset "target" "$Fbuildchost"
 		## try to disable silent rules
@@ -1134,6 +1160,7 @@ __as_needed_libtool_hack() {
 ###
 Fconf() {
 	Fcd
+	Fset_lto_toolchain
 	Fmessage "Configuring..."
 
 	if Fbuildsystem_configure 'probe'; then
@@ -1217,12 +1244,14 @@ __kill_libtool_dependency_libs() {
 
 		local la=$(find $Fdestdir -type f -name "*.la")
 		if [[ ${la[@]} ]]; then
-			Fmessage "Setting Libtool's dependency_libs=.* to ZERO in:"
+			#Fmessage "Setting Libtool's dependency_libs=.* to ZERO in:"
+			Fmessage "Removing Libtool's .la files:"
 			local i
 			for i in ${la[@]}
 			do
 				Fmessage "--> $i"
-				sed -i "s/^dependency_libs=.*/dependency_libs=''/" ${i}
+				#sed -i "s/^dependency_libs=.*/dependency_libs=''/" ${i}
+				rm -rf ${i}
 			done
 		fi
 	fi

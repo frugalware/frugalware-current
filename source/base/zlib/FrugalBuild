@@ -8,16 +8,17 @@ USE_ASM=${USE_ASM:-"n"}
 
 pkgname=zlib
 pkgver=1.2.11
-pkgrel=9
+pkgrel=13
 pkgdesc="A compression/decompression library"
 url="http://www.zlib.net/"
-depends=('glibc>=2.27-6')
+depends=('glibc>=2.29-5')
+makedepends=('glibc-devel>=2.29-5')
 groups=('base' 'chroot-core')
 archs=('x86_64')
 up2date="lynx -dump http://www.zlib.net/ | grep -m 1 'zlib source code' | cut -d ' ' -f 16 | tr -d ,"
 source=(http://www.zlib.net/$pkgname-$pkgver.tar.xz)
 sha1sums=('e1cb0d5c92da8e9a8c2635dfa249c341dfd00322')
-options+=('static' 'nostrip')
+options+=('static' 'ldgold')
 Finclude cross32
 
 subpkgs=("lib32-${pkgname}")
@@ -26,6 +27,13 @@ subdepends=("${depends[@]}")
 subgroups=('lib32-extra')
 subarchs=('x86_64')
 suboptions=('force')
+
+subpkgs+=("${pkgname}-static")
+subdescs+=("Static files for $pkgname")
+subdepends+=('')
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
+suboptions+=('')
 
 build()
 {
@@ -39,39 +47,43 @@ build()
 	Fcross32_prepare
 	Fexec cp contrib/asm686/match.S match.S || Fdie
 
-	F32confopts="	--prefix=/usr \
+	F32confopts=" \
+			--prefix=/usr \
 			--libdir=/usr/lib32"
 
 	Fconf --shared $F32confopts
-	make $MAKEFLAGS || Fdie
+	Fexec make $MAKEFLAGS || Fdie
 	Fmakeinstall
 
-	cd contrib/minizip || Fdie
+	Fexec cd contrib/minizip || Fdie
 	Fautoreconf
 	Fbuild $F32confopts
 
 	Fcross32_delete_empty
 	Frm usr/{include,share}
 
-        Fsplit "lib32-zlib" /\*
+	Fsplit "lib32-zlib" /\*
 
-	make distclean
-	cd ../../
-	make distclean
+	Fexec make distclean || Fdie
+	Fexec cd ../../ || Fdie
+	Fexec make distclean || Fdie
 	Fcross32_reset_and_fix
 
 	## 64-bit
-        Fconfopts="     --prefix=/usr \
-                        --libdir=/usr/lib"
+	Fconfopts=" \
+			--prefix=/usr \
+			--libdir=/usr/lib"
 
 	Fexec cp contrib/gcc_gvmat64/gvmat64.S match.S || Fdie
-        Fconf --shared
-        make $MAKEFLAGS || Fdie
-        Fmakeinstall
+	Fconf --shared
+	Fexec make $MAKEFLAGS || Fdie
+	Fmakeinstall
 
-        cd contrib/minizip || Fdie
-        Fautoreconf
-        Fbuild
+	Fexec cd contrib/minizip || Fdie
+	Fautoreconf
+	Fbuild
+
+	Fsplit ${pkgname}-static usr/lib/*.a
 
 }
 

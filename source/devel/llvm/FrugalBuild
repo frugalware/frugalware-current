@@ -5,8 +5,8 @@
 
 pkgname=llvm
 pkgver=8.0.0
-pkgrel=1
-gcc_ver=7.3.1
+pkgrel=2
+gcc_ver=9.1.0
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
 depends=("libstdc++>=${gcc_ver}")
@@ -15,19 +15,20 @@ makedepends=('groff' 'libffi>=3.2.1-2' 'python-sphinx>=1.4.4-2' 'python-requests
 	'typing' 'sphinx-websupport' 'certifi' 'python-idna' 'chardet3' 'python-packaging' 'python-recommonmark')
 ## tc bump -- we need for rebuilds foo>=x-y sytle to be sure is rebuilt with
 ## the right versions of the packages
-makedepends=("${makedepends[@]}" "libstdc++>=${gcc_ver}" 'binutils>=2.30.0-5' 'glibc>=2.26.9000-3')
+makedepends=("${makedepends[@]}" "libstdc++>=${gcc_ver}" 'binutils>=2.32' 'glibc>=2.29-5')
 rodepends=("$pkgname-libs")
 groups=('devel')
 archs=("x86_64")
 
+
 if Fuse DEVEL; then
-        unset source sha1sums
-        pkgver=999.g61d9d49
-        pkgrel=0
-        _F_scm_type="git"
-        _F_scm_url="https://github.com/llvm-mirror/llvm.git"
+	unset source sha1sums
+	pkgver=999.g61d9d49
+	pkgrel=0
+	_F_scm_type="git"
+	_F_scm_url="https://github.com/llvm-mirror/llvm.git"
 	_F_cd_path="llvm"
-        Finclude scm
+	Finclude scm
 else
 	source=(https://releases.llvm.org/$pkgver/$pkgname-$pkgver.src.tar.xz \
 		https://releases.llvm.org/$pkgver/cfe-$pkgver.src.tar.xz \
@@ -85,7 +86,7 @@ subarchs+=("x86_64")
 
 subpkgs+=("$pkgname-libs")
 subdescs+=("LLVM shared libs")
-subdepends+=("ncurses>=6.0-16 libedit>=20160903_3.1-4")
+subdepends+=("ncurses>=6.0-16 libedit>=20190324_3.1")
 subrodepends+=("")
 subgroups+=('lib')
 subarchs+=("x86_64")
@@ -112,7 +113,7 @@ subgroups+=('lib32-extra')
 subarchs+=("x86_64")
 
 subpkgs+=("lib32-${pkgname}")
-subdescs+=("Low Level Virtual Machine (Compiler , Tools and Libs) (32-bit)")
+subdescs+=("Low Level Virtual Machine (Compiler, Tools and Libs) (32-bit)")
 subdepends+=("libstdc++>=${gcc_ver}")
 subrodepends+=("")
 subgroups+=('lib32-extra')
@@ -138,7 +139,7 @@ _common_cmake_confopts="	-DCMAKE_INSTALL_PREFIX=/usr \
 				-DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=ON \
 				-DLIBCXX_INSTALL_EXPERIMENTAL_LIBRARY=OFF"
 Finclude cmake
-options+=('static')
+options+=('static' 'nolto')
 _Fbuild_no_patch=yes
 
 
@@ -155,21 +156,21 @@ build() {
 	# clang must be copied here to build with llvm
 	Fexec rm -rf tools/clang
 
-        if Fuse DEVEL; then
-                Fexec cd tools
-                git clone --depth=1 https://github.com/llvm-mirror/clang.git
-                Fexec cd ..
-        else
-
+	if Fuse DEVEL; then
+		Fexec cd tools || Fdie
+		git clone --depth=1 https://github.com/llvm-mirror/clang.git
+		Fexec cd .. || Fdie
+	else
 		Fexec mv -f ../cfe-${_F_archive_ver}/ tools/clang
 		Fexec mv -f ../libcxx-${_F_archive_ver}/ projects/libcxx
 		Fexec mv -f ../libcxxabi-${_F_archive_ver}/ projects/libcxxabi
 		Fexec mv -f ../lld-${_F_archive_ver}/ tools/lld
 		Fexec mv -f ../clang-tools-extra-${_F_archive_ver}/ tools/clang/tools/extra
 	fi
+
 	Fpatchall
-        Fcross32_prepare
-        Fcross32_copy_source
+	Fcross32_prepare
+	Fcross32_copy_source
 
 	## 32-bit CMake options
 	_F_cmake_confopts+="	${_common_cmake_confopts}
@@ -180,29 +181,29 @@ build() {
 
 	sed -i '/^[[:blank:]]*find_library(FFI_LIBRARY_PATH/i\list(INSERT CMAKE_LIBRARY_PATH 0 /usr/lib32)' cmake/config-ix.cmake
 
-        CMake_make
+	CMake_make
 
-        Fexec make -C ../docs -f Makefile.sphinx man || Fdie
-        Fexec make -C ../docs -f Makefile.sphinx html || Fdie
-        Fexec make -C ../tools/clang/docs -f Makefile.sphinx html || Fdie
-        Fexec make -C ../tools/clang/docs -f Makefile.sphinx man || Fdie
+	Fexec make -C ../docs -f Makefile.sphinx man || Fdie
+	Fexec make -C ../docs -f Makefile.sphinx html || Fdie
+	Fexec make -C ../tools/clang/docs -f Makefile.sphinx html || Fdie
+	Fexec make -C ../tools/clang/docs -f Makefile.sphinx man || Fdie
 
-        Fexec make ocaml_doc
+	Fexec make ocaml_doc
 	CMake_install
 
-        Fcross32_copy_back_source
-        Fcross32_reset_and_fix
+	Fcross32_copy_back_source
+	Fcross32_reset_and_fix
 	Fcross32_delete_empty
 
-        Fmkdir usr/i686-frugalware-linux/
-        Fmv usr/include usr/i686-frugalware-linux/
-        Fmv usr/bin usr/i686-frugalware-linux/
+	Fmkdir usr/i686-frugalware-linux/
+	Fmv usr/include usr/i686-frugalware-linux/
+	Fmv usr/bin usr/i686-frugalware-linux/
 
-        Fsplit lib32-clang usr/i686-frugalware-linux/bin/clang*
-        Fsplit lib32-clang usr/i686-frugalware-linux/bin/c-index-test
-        Fsplit lib32-clang usr/i686-frugalware-linux/include/clang*
-        Fsplit lib32-clang usr/lib32/clang/
-        Fsplit lib32-clang usr/lib32/libclang*
+	Fsplit lib32-clang usr/i686-frugalware-linux/bin/clang*
+	Fsplit lib32-clang usr/i686-frugalware-linux/bin/c-index-test
+	Fsplit lib32-clang usr/i686-frugalware-linux/include/clang*
+	Fsplit lib32-clang usr/lib32/clang/
+	Fsplit lib32-clang usr/lib32/libclang*
 	Fsplit lib32-clang usr/i686-frugalware-linux/bin/find-all-symbols
 	Fsplit lib32-clang usr/i686-frugalware-linux/bin/modularize
 	Fsplit lib32-clang usr/lib32/libfindAllSymbols.a
@@ -210,7 +211,7 @@ build() {
 	Frm usr/include
 	Fmkdir usr/bin/
 	Fmv usr/i686-frugalware-linux/bin/llvm-config usr/bin/llvm-config32
-        Fsplit lib32-libc++ usr/lib32/libc++\*
+	Fsplit lib32-libc++ usr/lib32/libc++\*
 	Fsplit lib32-libc++ usr/i686-frugalware-linux/include/c++/
 
 	Fsplit lib32-$pkgname-libs usr/lib32/\*.so\*
@@ -225,15 +226,15 @@ build() {
 	# compiler-rt only works on x86_64
 	Fexec mv -f ../compiler-rt-${_F_archive_ver}/ projects/compiler-rt
 
-        CMake_make
+	CMake_make
 
-        Fexec make -C ../docs -f Makefile.sphinx man || Fdie
-        Fexec make -C ../docs -f Makefile.sphinx html || Fdie
-        Fexec make -C ../tools/clang/docs -f Makefile.sphinx html || Fdie
-        Fexec make -C ../tools/clang/docs -f Makefile.sphinx man || Fdie
+	Fexec make -C ../docs -f Makefile.sphinx man || Fdie
+	Fexec make -C ../docs -f Makefile.sphinx html || Fdie
+	Fexec make -C ../tools/clang/docs -f Makefile.sphinx html || Fdie
+	Fexec make -C ../tools/clang/docs -f Makefile.sphinx man || Fdie
 
-        Fexec make ocaml_doc
-        CMake_install
+	Fexec make ocaml_doc
+	CMake_install
 
 	## Python bindings
 	Fmkdir ${_F_python_libdir}
@@ -271,7 +272,7 @@ build() {
 	Frm usr/docs
 
 	Fsplit compiler-rt usr/lib/clang/${pkgver}/include/sanitizer
-        Fsplit compiler-rt usr/lib/clang/${pkgver}/include/xray
+	Fsplit compiler-rt usr/lib/clang/${pkgver}/include/xray
 	Fsplit compiler-rt usr/lib/clang/${pkgver}/lib/
 	Fsplit compiler-rt usr/lib/clang/${pkgver}/share/
 	Fsplit compiler-rt usr/share/doc/llvm-${pkgver}/html/clang/_static/language_data.js

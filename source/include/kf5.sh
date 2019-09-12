@@ -143,7 +143,7 @@ fi
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
 		makedepends+=('rsync')
-		up2date="rsync -r -n rsync://${_F_kde_up2date_mirror}$_F_kde_folder | Flasttar"
+		up2date="rsync --contimeout=3 -r -n rsync://${_F_kde_up2date_mirror}$_F_kde_folder | Flasttar"
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

@@ -144,7 +144,7 @@ fi
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
 		makedepends+=('ncftp')
-		up2date='ncftpls -R ${_F_kde_up2date_mirror}/${_F_kde_folder} | grep "${_F_kde_name}-\(.*\)${_F_kde_ext}$" | sort -u | head -n1 | sed "s/.*${_F_kde_name}-\(.*\)${_F_kde_ext}/\1/"'
+		up2date='ncftpls -R ${_F_kde_up2date_mirror}/${_F_kde_folder} | grep "${_F_kde_name}-\(.*\)${_F_kde_ext}$" | tail -n1 | sed "s/.*${_F_kde_name}-\(.*\)${_F_kde_ext}/\1/"'
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

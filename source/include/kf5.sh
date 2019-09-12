@@ -72,8 +72,9 @@ fi
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
 	_F_kde_mirror="https://ftp.gwdg.de/pub/linux/kde/"
-	_F_kde_up2date_mirror="ftp.gwdg.de/pub/linux/kde/"
-	#_F_kde_up2date_mirror="ftp.rz.uni-wuerzburg.de/ftp/MIRROR/kde/"
+	## If the mirror breaks search one supporting ncftpls -R
+	## see https://download.kde.org/extra/download-mirrors.html
+	_F_kde_up2date_mirror="ftp://mirror.easyname.at/kde"
 fi
 
 if [ -z "$_F_kde_folder" ]; then
@@ -142,8 +143,8 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		makedepends+=('rsync')
-		up2date="rsync --contimeout=3 -r -n rsync://${_F_kde_up2date_mirror}$_F_kde_folder | Flasttar"
+		makedepends+=('ncftp')
+		up2date='ncftpls -R ${_F_kde_up2date_mirror}/${_F_kde_folder} | grep "${_F_kde_name}-\(.*\)${_F_kde_ext}$" | sort -u | head -n1 | sed "s/.*${_F_kde_name}-\(.*\)${_F_kde_ext}/\1/"'
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

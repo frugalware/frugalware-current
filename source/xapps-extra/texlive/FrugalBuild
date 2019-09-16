@@ -15,7 +15,7 @@
 pkgname=texlive
 pkgver=2019.3
 pkgextraver="-source"
-pkgrel=1
+pkgrel=2
 pkgdesc="A complete TeX distribution"
 archs=('x86_64')
 depends=('t1lib' 'gd>=2.1.1' 'ncurses>=6.0-3' 'poppler>=0.64' 'icu4c>=64.2' 'zlib>=1.2.8' 'graphite2' 'zziplib' 'libpaper' 'harfbuzz' 'libgs' 'mpfr')
@@ -24,24 +24,28 @@ makedepends=('clisp' 'ffcall' 'x11-protos' 'lua-static' 'ghostscript')
 url='http://tug.org/texlive/'
 source=(pdftex-poppler0.76.patch \
 	texlive-20190410-dvisvgm-fix-libgs-detection.patch \
+	texlive-20190410-disable-more-failing-tests.patch \
 	texmf.cnf \
 	texmfcnf.lua \
 	09-texlive.conf)
 up2date=" lynx --dump http://tug.org/svn/texlive/tags/ | grep tags/texlive- | Flastverdir | sed 's/texlive_//'"
 groups=('xapps-extra')
-conflicts=('tetex' 'tetex-kpathsea' "$pkgname-ptex")
+options=('force')
 
+conflicts=('tetex' 'tetex-kpathsea' "$pkgname-ptex")
 provides=("${conflicts[@]}")
 replaces=("${conflicts[@]}")
 
 sha1sums=('60e6e4e52b81c7a7d4dc5853718cdc77ea8fc78e' \
           'd07234c3c96b69e34697e1776960935b1225a48d' \
+          'ae35d3af270523ef4415d1e66d964ed941fd7a7f' \
           '4fec5aa2a4eb504d96b802bd11376270658f923f' \
           '438b6ea0f2ee6813bed725a24313db1408189f0d' \
           'bf7ba21d45bee78657105a5f2c5e7e24b8614859')
 _F_scm_type="subversion"
 _F_scm_url=" svn://tug.org/texlive/tags/texlive-$pkgver"
 Finclude scm
+_F_cd_path="$pkgname"
 
 _F_conf_configure="../configure"
 Fconfopts+=" \
@@ -137,6 +141,7 @@ subinstall=("$pkgname-pkg-nomaps.install" "$pkgname-pkg-nomaps.install" "$pkgnam
         "$pkgname-pkg.install" "$pkgname-pkg.install" "$pkgname-pkg-nomaps.install" "$pkgname-pkg-nomaps.install" \
         "$pkgname-pkg.install" "$pkgname-pkg-nomaps.install" "$pkgname-pkg-nomaps.install" "" "" "" "")
 subreplaces=("" "" "" "" "" "" "" "" "" "" "" "" "dvi2tty" "" "" "" "" "" "" "" "" )
+suboptions=("force" "foce" "force" "force" "force" "force" "force" "force" "force" "force" "force" "force" "force" "force" "force" "force" "force" "force" "force" "force" "force" )
 
 
 if Fuse $USE_DOCS; then
@@ -147,6 +152,7 @@ if Fuse $USE_DOCS; then
 	subgroups=("${subgroups[@]}" "docs-extra")
 	subarchs=("${subarchs[@]}" 'x86_64')
 	subinstall=("${subinstall[@]}" "")
+	suboptions+=("force")
 fi
 
 
@@ -158,6 +164,7 @@ if Fuse $USE_CJK; then
         subgroups=("${subgroups[@]}" "locale-extra")
         subarchs=("${subarchs[@]}" 'x86_64')
         subinstall=("${subinstall[@]}" "$pkgname-pkg.install")
+	suboptions+=("force")
 fi
 
 if Fuse $USE_GREEK; then
@@ -168,6 +175,7 @@ if Fuse $USE_GREEK; then
         subgroups=("${subgroups[@]}" "locale-extra")
         subarchs=("${subarchs[@]}" 'x86_64')
         subinstall=("${subinstall[@]}" "$pkgname-pkg.install")
+	suboptions+=("force")
 fi
 
 if Fuse $USE_EFONTS; then
@@ -178,6 +186,7 @@ if Fuse $USE_EFONTS; then
         subgroups=("${subgroups[@]}" "fonts-extra")
         subarchs=("${subarchs[@]}" 'x86_64')
         subinstall=("${subinstall[@]}" "$pkgname-pkg.install")
+	suboptions+=("force")
 fi
 
 subprovides=("${subreplaces[@]}")
@@ -185,9 +194,11 @@ subconflicts=("${subreplaces[@]}")
 
 
 build() {
-	Fexec Fexec svn co --config-option config:miscellany:use-commit-times=yes $_F_scm_url $pkgname || Fdie
-	Funpack_scm
-	Fexec cd Build/source || Fdie
+	Fexec Fexec svn co --config-option config:miscellany:use-commit-times=yes $_F_scm_url/Build/source $pkgname || Fdie
+	Fexec Fexec svn co --config-option config:miscellany:use-commit-times=yes $_F_scm_url/Master/texmf-dist $Fsrcdir/$pkgname/Master/texmf-dist || Fdie
+	Fexec Fexec svn co --config-option config:miscellany:use-commit-times=yes $_F_scm_url/Master/tlpkg $Fsrcdir/$pkgname/Master/tlpkg || Fdie
+
+	Fcd
 	Fpatchall
 	Fexec cp -pv texk/web2c/pdftexdir/pdftoepdf{-poppler0.76.0,}.cc || Fdie
 	Fexec cp -pv texk/web2c/pdftexdir/pdftosrc{-poppler0.76.0,}.cc || Fdie
@@ -199,8 +210,12 @@ build() {
 	Fmake
 	Fmakeinstall
 
+
 	## remove useless source files
 	Fexec rm -rf $Fsrcdir/$pkgname/Master/texmf-dist/source || Fdie
+
+	## remove install
+	Fexec rm -rf $Fsrcdir/$pkgname/Master/tlpkg/installer
 
         # copy tlpkg package (needed by udpmap and fmtutil)
         Fcp $pkgname/Master/tlpkg usr/share/

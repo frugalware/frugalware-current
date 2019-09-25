@@ -4,11 +4,11 @@
 
 pkgname=ncurses
 pkgver=6.1
-pkgrel=3
+pkgrel=6
 pkgdesc="A System V curses emulation library"
 url="http://www.gnu.org/software/ncurses/ncurses.html"
-depends=('glibc>=2.27-6' 'gmp>=6.1.2-9')
-makedepends=('gcc>=7.3.1-3')
+depends=('glibc>=2.29-4' 'gmp>=6.1.2-10')
+makedepends=('gcc>=9.1.0-2' 'glibc-devel>=2.29-4')
 groups=('base' 'chroot-core')
 archs=('x86_64')
 Fup2gnugz
@@ -22,7 +22,12 @@ subdescs=("$pkgdesc ( 32bit )")
 subdepends=('glibc>=2.27-6 lib32-gmp>=6.1.2-9')
 subgroups=('lib32-extra')
 subarchs=('x86_64')
-suboptions=('force')
+
+subpkgs+=("${pkgname}-static")
+subdescs+=("Static files for $pkgname")
+subdepends+=('')
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
 
 ncurses_conf=" --with-shared --with-normal --without-debug \
                      --with-install-prefix=$Fdestdir \
@@ -33,23 +38,23 @@ ncurses_conf64=" --with-pkg-config-libdir=/usr/lib/pkgconfig --libdir=/lib"
 
 _build64()
 {
-	cp -R $pkgname-$pkgver ${pkgname}w-$pkgver || Fdie
+	Fexec cp -R $pkgname-$pkgver ${pkgname}w-$pkgver || Fdie
 	## just in case you wonder why this first is because the 'normal'
 	## ncurses will overwrite the 'conflicting' files on make install.
 	## the /share/ stuff and so is not needed -- crazy --
 
 	## widec version
-	cd ${pkgname}w-$pkgver
+	Fexec cd ${pkgname}w-$pkgver || Fdie
 	Fmake ${ncurses_conf} ${ncurses_conf64} \
 		--enable-widec \
 		--includedir=/usr/include/ncursesw \
 		--program-suffix="w"
-	make install || Fdie
+	Fexec make install || Fdie
 
 	## normal version
-	cd ../$pkgname-$pkgver
+	Fexec cd ../$pkgname-$pkgver || Fdie
 	Fmake ${ncurses_conf} ${ncurses_conf64}
-	make install || Fdie
+	Fexec make install || Fdie
 
 	Fln libncursesw.so.${pkgver} /lib/libtinfo.so."$pkgver"
 	Fln libtinfo.so.${pkgver} /lib/libtinfo.so
@@ -61,26 +66,25 @@ _build32()
 {
 
 
-        cp -R $pkgname-$pkgver ${pkgname}w-$pkgver || Fdie
+	Fexec cp -R $pkgname-$pkgver ${pkgname}w-$pkgver || Fdie
 	_F_conf_configure="$Fsrcdir/${pkgname}w-$pkgver/configure"
 	Fcross32_prepare
-        ## widec version
-        cd ${pkgname}w-$pkgver
-        Fmake ${ncurses_conf} ${ncurses_conf32} \
+	# widec version
+	Fexec cd ${pkgname}w-$pkgver || Fdie
+	Fmake ${ncurses_conf} ${ncurses_conf32} \
                 --enable-widec \
                 --includedir=/usr/${CHOST}/include/ncursesw \
                 --program-suffix="w"
-        make install || Fdie
+	Fexec make install || Fdie
 
-        ## normal version
+	## normal version
 	export _F_conf_configure="$Fsrcdir/${pkgname}-$pkgver/configure"
-        cd ../$pkgname-$pkgver
-        Fmake ${ncurses_conf} ${ncurses_conf32}
-        make install || Fdie
+	Fexec cd ../$pkgname-$pkgver || Fdie
+	Fmake ${ncurses_conf} ${ncurses_conf32}
+	Fexec make install || Fdie
 
-        Fln libncursesw.so.${pkgver} /usr/lib32/libtinfo.so."$pkgver"
-        Fln libtinfo.so.${pkgver} /usr/lib32/libtinfo.so
-
+	Fln libncursesw.so.${pkgver} /usr/lib32/libtinfo.so."$pkgver"
+	Fln libtinfo.so.${pkgver} /usr/lib32/libtinfo.so
 
 	Frm usr/share/{terminfo,tabset} ## guess this can be shared with 64bit version ?
 
@@ -97,6 +101,7 @@ build() {
 	_build32
 	Fcross32_reset_and_fix
 	Fcross32_delete_empty
+	Frm lib/*.a
 	Fexec cd $Fsrcdir || Fdie
 	Fexec rm -rf ./$pkgname-$pkgver ./${pkgname}w-$pkgver || Fdie
 	Fexec cp -Ra  ${pkgname}-${pkgver}-2 $pkgname-$pkgver || Fdie
@@ -105,6 +110,8 @@ build() {
 	Fconfopts="$_Fconfopts"
 
 	_build64
+
+	Fsplit $pkgname-static /lib/*.a
 }
 
 

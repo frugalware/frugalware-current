@@ -1,0 +1,80 @@
+
+ With gold set default there is no way that buildsystem
+ will let you configure.
+
+ LIBC_PROG_FOO_GNU is somewhat broken.
+ LD detection assumes 'ld' is your default linker
+ ( even you export LD= or use -fuse-ld= flag )
+ While so LIBC_LINKER_FEATURE breaks , because it takes $LD
+ ( which is not what you set ).
+
+ However LIBC_LINKER_FEATURE does not need to have libc_linker_check
+ because later down it links with -Wl,--no-dynamic-linker in the test,
+ meaning it will fail anyway for an linker won't support --no-dynamic-linker.
+
+ By removing that check we can now build with -fuse-ld=bfd in CFLAGS.
+
+
+diff -Naur glibc-2.29/aclocal.m4 glibc-2.29-p/aclocal.m4
+--- glibc-2.29/aclocal.m4	2019-01-31 17:45:36.000000000 +0100
++++ glibc-2.29-p/aclocal.m4	2019-05-19 09:12:47.992978444 +0200
+@@ -99,6 +99,12 @@
+ AC_DEFUN([LIBC_PROG_FOO_GNU],
+ [# Most GNU programs take a -v and spit out some text including
+ # the word 'GNU'.  Some try to read stdin, so give them /dev/null.
++# yes but that breaks LD gold/bfd with static pie at least
++# *if* you have gold defalt. Gold does not support --no-dynamic-linker
++# but with the way buidsystem is done there is _NO_ way to set your LD right.
++# so patch LIBC_LINKER_FEATURE ( that is buggy too )
++# gold -> GNU gold (GNU Binutils 2.30) 1.15
++# bfd  -> GNU ld (GNU Binutils) 2.30
+ if $1 -o conftest -v </dev/null 2>&1 | grep GNU > /dev/null 2>&1; then
+   $2
+ else
+@@ -114,6 +120,7 @@
+     CC="$CC -B$path_binutils"
+ fi
+ AS=`$CC -print-prog-name=as`
++# wel...
+ LD=`$CC -print-prog-name=ld`
+ AR=`$CC -print-prog-name=ar`
+ AC_SUBST(AR)
+@@ -222,9 +229,8 @@
+ AC_DEFUN([LIBC_LINKER_FEATURE],
+ [AC_MSG_CHECKING([for linker that supports $1])
+ libc_linker_feature=no
++dnl That gnu_ld thing is already broken
+ if test x"$gnu_ld" = x"yes"; then
+-  libc_linker_check=`$LD -v --help 2>/dev/null | grep "\$1"`
+-  if test -n "$libc_linker_check"; then
+     cat > conftest.c <<EOF
+ int _start (void) { return 42; }
+ EOF
+@@ -236,7 +242,6 @@
+       libc_linker_feature=yes
+     fi
+     rm -f conftest*
+-  fi
+ fi
+ if test $libc_linker_feature = yes; then
+   $3
+diff -Naur glibc-2.29/configure glibc-2.29-p/configure
+--- glibc-2.29/configure	2019-01-31 17:45:36.000000000 +0100
++++ glibc-2.29-p/configure	2019-05-19 08:46:24.115515469 +0200
+@@ -5922,8 +5922,6 @@
+ $as_echo_n "checking for linker that supports --no-dynamic-linker... " >&6; }
+ libc_linker_feature=no
+ if test x"$gnu_ld" = x"yes"; then
+-  libc_linker_check=`$LD -v --help 2>/dev/null | grep "\--no-dynamic-linker"`
+-  if test -n "$libc_linker_check"; then
+     cat > conftest.c <<EOF
+ int _start (void) { return 42; }
+ EOF
+@@ -5940,7 +5938,6 @@
+       libc_linker_feature=yes
+     fi
+     rm -f conftest*
+-  fi
+ fi
+ if test $libc_linker_feature = yes; then
+   libc_cv_no_dynamic_linker=yes

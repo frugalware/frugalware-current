@@ -1,0 +1,1404 @@
+diff --git a/Makefile b/Makefile
+index f2458dc..38765b0 100644
+--- a/Makefile
++++ b/Makefile
+@@ -35,15 +35,13 @@ man8dir = /usr/share/man/man8
+ sysconfdir = /etc
+ docdir = /usr/share/doc/pacman-tools-$(VERSION)
+ FINCDIR = $(shell [ -e /usr/lib/frugalware/fwmakepkg ] && source /usr/lib/frugalware/fwmakepkg; echo $$Fincdir)
+-DOCS = $(wildcard *.txt) $(wildcard syncpkgd/*.txt) $(wildcard mkiso/*.txt)
++DOCS = $(wildcard *.txt) $(wildcard syncpkgd/*.txt)
+ MANS = $(subst .txt,.1,$(DOCS))
+ 
+-PROGRAMS = bumppkg chkdep chkworld fblint fpmdiff fwcpan fwmirror \
+-	mkisorelease mkpkghtml pear-makefb pootle-update \
+-	portpkg repoman revdep-rebuild rpm2fpm syncemul wipcheck
++PROGRAMS = bumppkg chkdep chkworld chkworld.py fblint fpmdiff fwcpan fwmirror \
++	mkpkghtml repoman revdep-rebuild wipcheck
+ 
+ compile: $(PROGRAMS) apidocs docs
+-	$(MAKE) -C mkiso
+ 	$(MAKE) -C repoman.d
+ 
+ docs: $(MANS)
+@@ -69,8 +67,6 @@ install: compile
+ 	$(INSTALL) -m644 repoman.d/stable $(DESTDIR)$(sysconfdir)/repoman.d/stable
+ 	$(INSTALL) lib/fwmakepkg $(DESTDIR)$(libdir)
+ 	$(INSTALL) etcconfig.py $(DESTDIR)$(sbindir)/etcconfig
+-	$(INSTALL) mkiso/mkiso $(DESTDIR)$(bindir)/mkiso
+-	$(INSTALL) -m644 mkiso/volumes.xml $(DESTDIR)$(docdir)/volumes.xml
+ 	$(INSTALL) -m644 hooks/* $(DESTDIR)$(docdir)/hooks
+ ifneq ($(FINCDIR),)
+ 	$(INSTALL) -m644 apidocs/*.3 $(DESTDIR)$(man3dir)
+@@ -79,7 +75,6 @@ endif
+ 
+ clean:
+ 	rm -rf genauthors apidocs $(MANS)
+-	$(MAKE) -C mkiso clean
+ 
+ dist:
+ 	git archive --format=tar --prefix=pacman-tools-$(VERSION)/ HEAD > pacman-tools-$(VERSION).tar
+diff --git a/bumppkg b/bumppkg
+index fe4226b..ac1496e 100755
+--- a/bumppkg
++++ b/bumppkg
+@@ -1,22 +1,22 @@
+ #!/bin/bash
+-# 
++#
+ #   bumppkg
+-#  
++#
+ #   Copyright (c) 2006-2007 by Miklos Vajna <vmiklos@frugalware.org>
+-#  
++#
+ #   This program is free software; you can redistribute it and/or modify
+ #   it under the terms of the GNU General Public License as published by
+ #   the Free Software Foundation; either version 2 of the License, or
+ #   (at your option) any later version.
+-# 
++#
+ #   This program is distributed in the hope that it will be useful,
+ #   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ #   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ #   GNU General Public License for more details.
+-#  
++#
+ #   You should have received a copy of the GNU General Public License
+ #   along with this program; if not, write to the Free Software
+-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
++#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+ #   USA.
+ #
+ 
+@@ -56,15 +56,15 @@ get_root()
+ 	echo $i
+ 	fi
+ }
+-
++USE_COLOR=y
+ src_cleanup()
+ {
+ 	Fmessage "cleaning up old source files"
+-	root="`get_root`"
++	local root="`get_root`"
+ 	if [ "$F_makepkg_scm" = "git" ]; then
+ 		git clean -x -d -f .
+ 	else
+-	local i workdir
++	local i workdir rootlist darcsdir
+ 
+ 	workdir=`pwd|sed "s|$root||"`
+ 	rootlist=`mktemp`
+@@ -93,7 +93,7 @@ update_pkgrel()
+ update_pkgver()
+ {
+ 	Fmessage "updating \$pkgver and \$pkgrel"
+-	newpkgver=`chkworld |grep != |sed 's/.*!= \([^ ]*\) .*/\1/'`
++	local newpkgver=`chkworld |grep != |sed 's/.*!= \([^ ]*\) .*/\1/'`
+ 	if [[ "$newpkgver" =~ " " ]] || [ -z "$newpkgver" ]; then
+ 		die "Dunno what is the new version or this package is already up to date!"
+ 	fi
+@@ -127,9 +127,9 @@ do_push()
+ 	fi
+ }
+ 
+-USE_COLOR="y"
++
+ . /usr/lib/frugalware/fwmakepkg
+-. /etc/makepkg.conf
++. /etc/repoman.conf
+ 
+ if [ "$1" == "-h" -o "$1" == "--help" ]; then
+ 	man bumppkg
+@@ -152,11 +152,6 @@ if [ "$1" == "--rebuild" ]; then
+ 	source ./FrugalBuild || die "failed to source the FrugalBuild!"
+ 	newrel=$(echo $pkgrel|sed 's/[0-9]\+$//')$(($(echo $pkgrel|sed 's/.*[^0-9]\([0-9]\+\)$/\1/')+1))
+ 	update_pkgrel $newrel
+-	if [ "$tree" == "stable" ] && echo "$pkgrel" | grep -q "^[0-9]\+$"; then
+-		# first stable rebuild, like 1 -> 2foo1
+-		codename=$(sed 's/.*(\(.*\))/\1/' /etc/frugalware-release|tr '[A-Z]' '[a-z]')
+-		update_pkgrel ${newrel}${codename}1
+-	fi
+ 	if [ "$1" != "--nobuild" ]; then
+ 		do_build $tree u
+ 	else
+@@ -172,6 +167,16 @@ if [ "$1" == "--rebuild" ]; then
+ 	exit 0
+ fi
+ 
++
++if [ "$1" = "--update" ]; then
++
++	source ./FrugalBuild || die "failed to source the FrugalBuild!"
++	newrel=$(echo $pkgrel|sed 's/[0-9]\+$//')$(($(echo $pkgrel|sed 's/.*[^0-9]\([0-9]\+\)$/\1/')+1))
++	Fmessage "Updating \$pkgrel from: $pkgrel to $newrel."
++	update_pkgrel $newrel
++	exit 0
++fi
++
+ check_complex
+ update_pkgver
+ update_pkgrel
+diff --git a/chkdep b/chkdep
+index e1e6047..309a9b6 100755
+--- a/chkdep
++++ b/chkdep
+@@ -52,6 +52,10 @@ def rmdupdeps(deps):
+ 	newdeps = []
+ 	for i in deps:
+ 		if i not in ignorepkgs:
++			if i in depdeps:
++				if trace:
++					print "Ignoring %s as it is already a dependency of some other dependency." % i
++				continue
+ 			gotdeps = filter(lambda x: x != i, getdeps(i))
+ 			getdeps_deps = []
+ 			if trace:
+@@ -265,7 +269,7 @@ for i in depfiles:
+ if pkg:
+ 	shutil.rmtree(fpmroot)
+ 
+-if trace:
+-	print "Dependencies before dependency cleanup: depends=('" + "' '".join(deps) + "')"
++
++print "Full DEPENDS:	depends=('" + "' '".join(deps) + "')"
+ deps = rmdupdeps(deps)
+-print "depends=('" + "' '".join(deps) + "')"
++print "Cleaned up DEPENDS:   depends=('" + "' '".join(deps) + "')"
+diff --git a/chkworld b/chkworld
+index 98e9d51..5700b0d 100755
+--- a/chkworld
++++ b/chkworld
+@@ -2,7 +2,6 @@
+ 
+ package Chkworld;
+ 
+-use sort "_quicksort";
+ use warnings;
+ no warnings qw( uninitialized );
+ use File::Find;
+diff --git a/chkworld.py b/chkworld.py
+new file mode 100755
+index 0000000..6a31533
+--- /dev/null
++++ b/chkworld.py
+@@ -0,0 +1,230 @@
++#!/usr/bin/env python
++#
++#   chkworld.py, a rewrite of the chkworld tool by Zsolt Szalai.
++#
++#   Copyright (c) 2014 by Paolo Cretaro <melko@frugalware.org>
++#
++#   This program is free software; you can redistribute it and/or modify
++#   it under the terms of the GNU General Public License as published by
++#   the Free Software Foundation; either version 2 of the License, or
++#   (at your option) any later version.
++#
++#   This program is distributed in the hope that it will be useful,
++#   but WITHOUT ANY WARRANTY; without even the implied warranty of
++#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++#   GNU General Public License for more details.
++#
++#   You should have received a copy of the GNU General Public License
++#   along with this program; if not, write to the Free Software
++#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
++#   USA.
++#
++
++import os
++import getopt
++import sys
++import subprocess
++import signal
++from multiprocessing import Process, Queue
++from re import search as regex_search
++from time import asctime, localtime
++
++signal.signal(signal.SIGPIPE, signal.SIG_DFL)
++
++def usage():
++	os.system("man chkworld")
++
++
++def html_preout():
++	print "<html>\n\t<head>\n\t\t<title>\n\t\t\tChkworld status\n\t\t</title>\n\t</head>\n\t<body>\n"
++	print "\t\t<i>Last updated: {0}</i>\n".format(asctime(localtime()))
++	print "\t\t<table>\n"
++
++
++def html_postout():
++	print "\t\t</table>\n"
++	print "\t\t<table>\n"
++	print "\t\t\t<tr>\n\t\t\t\t<td>\n\t\t\t\t\tTotal packages checked:\n\t\t\t\t</td>"
++	print "\t\t\t\t<td>\n\t\t\t\t\t{0}\n\t\t\t\t</td>\n\t\t\t</tr>".format(total)
++	print "\t\t\t<tr>\n\t\t\t\t<td>\n\t\t\t\t\tPassed\n\t\t\t\t</td>"
++	print "\t\t\t\t<td>\n\t\t\t\t\t{0}\n\t\t\t\t</td>\n\t\t\t</tr>".format(passed)
++	print "\t\t\t<tr>\n\t\t\t\t<td>\n\t\t\t\t\tNeed to update:\n\t\t\t\t</td>"
++	print "\t\t\t\t<td>\n\t\t\t\t\t{0}\n\t\t\t\t</td>\n\t\t\t</tr>".format(needupdate)
++	print "\t\t\t<tr>\n\t\t\t\t<td>\n\t\t\t\t\tTimed out:\n\t\t\t\t</td>"
++	print "\t\t\t\t<td>\n\t\t\t\t\t{0}\n\t\t\t\t</td>\n\t\t\t</tr>".format(timeouted)
++	print "\t\t\t<tr>\n\t\t\t\t<td>\n\t\t\t\t\tMaybe broken up2date:\n\t\t\t\t</td>"
++	print "\t\t\t\t<td>\n\t\t\t\t\t{0}\n\t\t\t\t</td>\n\t\t\t</tr>".format(maybebroken)
++	print "\t\t</table>\n"
++	print "\t</body>\n</html>\n"
++
++
++def std_postout():
++	print "\nTotal packages checked: {0}".format(total)
++	print "Passed                : {0}".format(passed)
++	print "Need to update        : {0}".format(needupdate)
++	print "Timed out             : {0}".format(timeouted)
++	print "Maybe broken up2date  : {0}".format(maybebroken)
++
++
++def find_file(filename, path, blacklist):
++	global total, passed, needupdate, timeouted, maybebroken
++	matches = []
++
++	for root, dirs, files in os.walk(path):
++		for d in dirs:
++			if os.path.join(root, d) in blacklist:
++				dirs.remove(d)  # Remove folders in blacklist
++		if filename in files and root not in blacklist:
++			fb = FrugalBuild(os.path.join(root, filename))
++			if fb.skip:
++				continue
++			total += 1
++			if fb.up2date == "":
++				maybebroken += 1
++			elif fb.up2date == "TIMEOUT":
++				timeouted += 1
++			elif fb.pkgver != fb.up2date:
++				needupdate += 1
++			else:
++				passed += 1
++				continue
++			matches.append(fb)
++			if not sort:
++				fb.print_wrapper()
++	return matches
++
++
++def run_command(fb, command):
++	cwd = os.getcwd()
++	os.chdir(fb)  # this is necessary otherwise it won't use user repo but system one (stable on genesis)
++	p = subprocess.Popen("source {0};source ./FrugalBuild; {1}".format(fwmakepkg, command),
++		stdout=subprocess.PIPE,
++		stderr=subprocess.PIPE,
++		shell=True)
++	out, err = p.communicate()
++	os.chdir(cwd)
++	return out
++
++
++class FrugalBuild:
++	def eval_up2date(self):
++		self.queue.put(run_command(self.path, "eval $up2date").strip())
++
++	def __init__(self, path):
++		self.path = os.path.dirname(path)
++		self.pkgname, self.pkgver, self.group = run_command(
++			self.path,
++			"echo $pkgname;echo $pkgver;echo $groups").split()
++		self.up2date = run_command(self.path, "echo -n $up2date")
++		try:
++			with open(path, "r") as f:
++				self.m8r = regex_search(
++					r"# Maintainer:\s+(.*?)\s+<",
++					f.read()).groups()[0]
++		except (IndexError, AttributeError):
++			self.m8r = "????????"  # probably Maintainer is empty or without mail
++
++		self.skip = False
++		if devel and self.m8r != devel:
++			self.skip = True
++			return  # just ignore this package and don't eval $up2date
++
++		if " " in self.up2date:  # hardcoded version numer in $up2date
++			self.queue = Queue()
++			p = Process(target=self.eval_up2date)
++			p.start()
++			p.join(timeout)
++
++			if p.is_alive():
++				p.terminate()
++				p.join()
++				self.up2date = "TIMEOUT"
++			else:
++				self.up2date = self.queue.get()
++			del self.queue
++
++	def print_html(self):
++		print "\t\t\t<tr>\n\t\t\t\t<td>\n\t\t\t\t\t{0}/{1}-{2}\n\t\t\t\t</td>".format(self.group, self.pkgname, self.pkgver)
++		if self.up2date == "":
++			print "\t\t\t\t<td>\n\t\t\t\t\t<font color=\"red\">There was no output! {0}</font>\n\t\t\t\t</td>\n\t\t\t</tr>\n".format(self.m8r)
++		elif self.up2date == "TIMEOUT":
++			print "\t\t\t\t<td>\n\t\t\t\t\t<font color=\"red\">Timed out! {0}</font>\n\t\t\t\t</td>\n\t\t\t</tr>\n".format(self.m8r)
++		else:
++			print "\t\t\t\t<td>\n\t\t\t\t\t<font color=\"red\">!= {0} {1}</font>\n\t\t\t\t</td>\n\t\t\t</tr>\n".format(self.up2date, self.m8r)
++
++	def print_term(self):
++		if color:
++			s_timeout = "\033[1;33mTimed out!\033[1;0m"
++			s_broken = "\033[1;33mThere was no output!\033[1;0m"
++			s_update = "\033[1;31m{0}\033[1;0m".format(self.up2date)
++		else:
++			s_timeout = "Timed out!"
++			s_broken = "There was no output!"
++			s_update = self.up2date
++
++		print "{0}/{1}-{2}".format(self.group, self.pkgname, self.pkgver),
++		if self.up2date == "":
++			print "   {0}   {1}".format(s_broken, self.m8r)
++		elif self.up2date == "TIMEOUT":
++			print "   {0}   {1}".format(s_timeout, self.m8r)
++		else:
++			print "   != {0}   {1}".format(s_update, self.m8r)
++
++	def print_wrapper(self):
++		if html:
++			self.print_html()
++		else:
++			self.print_term()
++
++
++try:
++	opts, args = getopt.gnu_getopt(
++		sys.argv[1:],
++		"r:t:d:mscb",
++		["dir=", "time=", "devel=", "html", "sort", "color", "blacklist"])
++except getopt.GetoptError:
++	usage()
++	sys.exit(1)
++
++fwmakepkg = "/usr/lib/frugalware/fwmakepkg"
++directory = "."
++timeout = 30
++devel = ""
++html = False
++sort = False
++color = False
++blacklist_paths = []
++
++total = 0
++passed = 0
++needupdate = 0
++timeouted = 0
++maybebroken = 0
++
++for opt, arg in opts:
++	if opt in ("-r", "--dir"):
++		directory = arg
++	if opt in ("-t", "--time"):
++		timeout = int(arg)
++	if opt in ("-d", "--devel"):
++		devel = arg
++	if opt in ("-m", "--html"):
++		html = True
++	if opt in ("-s", "--sort"):
++		sort = True
++	if opt in ("-c", "--color"):
++		color = True
++	if opt in ("-b", "--blacklist"):
++		blacklist_paths = [os.path.normpath(a) for a in args]
++
++if html:
++	html_preout()
++frugalbuilds = find_file("FrugalBuild", directory, blacklist_paths)
++if sort:
++	frugalbuilds.sort(key=lambda fb: fb.m8r.lower())  # otherwise [A-Z] comes before [a-z]
++	for frugalbuild in frugalbuilds:
++		frugalbuild.print_wrapper()
++if html:
++	html_postout()
++else:
++	std_postout()
+diff --git a/darcs-git.py b/darcs-git.py
+index c4bf90f..bcdbbfe 100755
+--- a/darcs-git.py
++++ b/darcs-git.py
+@@ -142,6 +142,16 @@ def svn_check():
+ 	sock.close()
+ 	return os.path.exists(os.path.join(cdup, ".git/svn"))
+ 
++def svn_get_remote():
++	sock = os.popen("git config svn-remote.svn.fetch")
++	# Returns something like ':refs/remotes/origin/master'.
++	fetch = sock.readline().strip()
++	sock.close()
++	if not len(fetch):
++		return "git-svn"
++	else:
++		return fetch[1:]
++
+ def darcs_check():
+ 	sock = os.popen("git rev-parse --show-cdup")
+ 	cdup = sock.read().strip()
+@@ -630,7 +640,7 @@ Options:
+ 		usage(0)
+ 	remote = "%s/%s" % (options.gitopts, get_merge(branch))
+ 	if svn_check():
+-		remote = "git-svn"
++		remote = svn_get_remote()
+ 	elif darcs_check():
+ 		remote = "darcs/upstream"
+ 	logopts = ""
+@@ -710,7 +720,7 @@ Options:
+ 		os.system("git fetch %s" % options.gitopts)
+ 	remote = "%s/%s" % (options.gitopts, get_merge(branch))
+ 	if svn_check():
+-		remote = "git-svn"
++		remote = svn_get_remote()
+ 	elif darcs_check():
+ 		remote = "darcs/upstream"
+ 	sock = os.popen("git log %s..%s 2>&1" % (branch, remote))
+@@ -850,7 +860,9 @@ Options:
+ 		msg = " ".join(argv[:2])
+ 	else:
+ 		msg = argv[0]
+-	ret += os.system("git tag -a -m '%s' %s" % (msg, argv[-1]))
++	ret += os.system("git tag -a -m '%s' '%s'" % (msg, argv[-1]))
++	if ret:
++		os.system("git reset --hard HEAD^")
+ 	return ret
+ 
+ def rollback(argv):
+diff --git a/fblint b/fblint
+index 44bd36d..8c661ed 100755
+--- a/fblint
++++ b/fblint
+@@ -1,22 +1,22 @@
+ #!/bin/bash
+-# 
++#
+ #   fblint for Frugalware
+-#  
+-#   Copyright (c) 2006, 2007, 2008, 2009, 2010 by Miklos Vajna <vmiklos@frugalware.org>
+-#  
++#
++#   Copyright (c) 2006, 2007, 2008, 2009, 2010 - 2016 by Miklos Vajna <vmiklos@frugalware.org>
++#
+ #   This program is free software; you can redistribute it and/or modify
+ #   it under the terms of the GNU General Public License as published by
+ #   the Free Software Foundation; either version 2 of the License, or
+ #   (at your option) any later version.
+-# 
++#
+ #   This program is distributed in the hope that it will be useful,
+ #   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ #   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ #   GNU General Public License for more details.
+-#  
++#
+ #   You should have received a copy of the GNU General Public License
+ #   along with this program; if not, write to the Free Software
+-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
++#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+ #   USA.
+ #
+ 
+@@ -44,7 +44,8 @@ check()
+ 
+ get_root()
+ {
+-	local i
++	local i _scm
++
+ 	i=`git rev-parse --git-dir 2>/dev/null`
+ 	if [ -n "$i" ]; then
+ 		echo $(basename $(dirname $i))
+@@ -94,8 +95,12 @@ fi
+ _fblint_done="0"
+ _fblint_failed="0"
+ CHROOT=1
+-. /usr/lib/frugalware/fwmakepkg
+-. /etc/makepkg.conf
++if [ -e /usr/lib/frugalware/fwmakepkg ]; then
++	. /usr/lib/frugalware/fwmakepkg
++else
++	echo "Error! Missing /usr/lib/frugalware/fwmakepkg"
++	exit 1
++fi
+ 
+ [ "$_fblint_verbose" ] && echo -n "Checking if FrugalBuild exists ... "
+ if [ -e $_fblint_fb ]; then
+@@ -129,7 +134,7 @@ check "groups" "[ ! -z \"$groups\" ]"
+ # with it
+ check "empty option" "[ -z \"$option\" ]"
+ check "valid first group" "! echo $groups |grep -q -- - || echo $groups|grep -q -- -extra$"
+-check "valid options()" "[ -z \"$(echo ${options[@]}|tr ' ' '\n' |grep -v '\(nodocs\|nostrip\|force\|nobuild\|nofakeroot\|scriptlet\|stick\|nomirror\|noversrc\|noccache\|asneeded\|noasneeded\)')\" ]"
++check "valid options()" "[ -z \"$(echo ${options[@]}|tr ' ' '\n' |grep -v '\(clang\|ldlld\|ldbfd\|ldgold\|ldefs\|nowfsecurity\|noclash\|ldlld\|ldbfd\|ofaster\|ofast\|omedium\|osmall\|odebug\|nodevel\|nolto\|nopie\|plt\|nonow\|noprotector\|norelro\|nofortify\|libtool\|static\|nodocs\|nostrip\|force\|nobuild\|nofakeroot\|scriptlet\|stick\|nomirror\|noversrc\|noccache\|asneeded\|noasneeded\)')\" ]"
+ check "archs" "[ ! -z \"$archs\" ]"
+ check "up2date" "test -n \"`echo $up2date|sed 's/\$(/\\\\\$(/g'`\""
+ _fblint_have_remote_source=n
+@@ -166,23 +171,24 @@ if [ ! -z "$subpkgs" ]; then
+ 	check "subdescs" "[ ! -z \"$subdescs\" ]"
+ 	check "subgroups" "[ ! -z \"$subgroups\" ]"
+ 	check "subarchs" "[ ! -z \"$subarchs\" ]"
+-	check "right number of subdescs" "[ \"${#subdescs[@]}\" = 0 ] || [ \"${#subdescs[@]}\" == \"${#subpkgs[@]}\" ]"
+-	check "right number of sublicense" "[ \"${#sublicense[@]}\" = 0 ] || [ \"${#sublicense[@]}\" = \"${#subpkgs[@]}\" ]"
++	check "right number of subdescs" "[ \"${#subdescs[@]}\" = 0 -o \"${#subdescs[@]}\" == \"${#subpkgs[@]}\" ]"
++	check "right number of sublicense" "[ \"${#sublicense[@]}\" = 0 -o \"${#sublicense[@]}\" = \"${#subpkgs[@]}\" ]"
+ 	check "right number of subreplaces" \
+-		"[ \"${#subreplaces[@]}\" = 0 ] || [ \"${#subreplaces[@]}\" = \"${#subpkgs[@]}\" ]"
+-	check "right number of subgroups" "[ \"${#subgroups[@]}\" = 0 ] || [ \"${#subgroups[@]}\" = \"${#subpkgs[@]}\" ]"
+-	check "right number of subarchs" "[ \"${#subarchs[@]}\" = 0 ] || [ \"${#subarchs[@]}\" = \"${#subpkgs[@]}\" ]"
+-	check "right number of subdepends" "[ \"${#subdepends[@]}\" = 0 ] || [ \"${#subdepends[@]}\" = \"${#subpkgs[@]}\" ]"
++		"[ \"${#subreplaces[@]}\" = 0 -o \"${#subreplaces[@]}\" = \"${#subpkgs[@]}\" ]"
++	check "right number of subgroups" "[ \"${#subgroups[@]}\" = 0 -o \"${#subgroups[@]}\" = \"${#subpkgs[@]}\" ]"
++	check "right number of subarchs" "[ \"${#subarchs[@]}\" = 0 -o \"${#subarchs[@]}\" = \"${#subpkgs[@]}\" ]"
++	check "right number of subdepends" "[ \"${#subdepends[@]}\" = 0 -o \"${#subdepends[@]}\" = \"${#subpkgs[@]}\" ]"
+ 	check "right number of subrodepends" \
+-		"[ \"${#subrodepends[@]}\" = 0 ] || [ \"${#subrodepends[@]}\" = \"${#subpkgs[@]}\" ]"
+-	check "right number of subremoves" "[ \"${#subremoves[@]}\" = 0 ] || [ \"${#subremoves[@]}\" = \"${#subpkgs[@]}\" ]"
++		"[ \"${#subrodepends[@]}\" = 0 -o \"${#subrodepends[@]}\" = \"${#subpkgs[@]}\" ]"
++	check "right number of subremoves" "[ \"${#subremoves[@]}\" = 0 -o \"${#subremoves[@]}\" = \"${#subpkgs[@]}\" ]"
+ 	check "right number of subconflicts" \
+-		"[ \"${#subconflicts[@]}\" = 0 ] || [ \"${#subconflicts[@]}\" = \"${#subpkgs[@]}\" ]"
++		"[ \"${#subconflicts[@]}\" = 0 -o \"${#subconflicts[@]}\" = \"${#subpkgs[@]}\" ]"
+ 	check "right number of subprovides" \
+-		"[ \"${#subprovides[@]}\" = 0 ] || [ \"${#subprovides[@]}\" = \"${#subpkgs[@]}\" ]"
+-	check "right number of subbackup" "[ \"${#subbackup[@]}\" = 0 ] || [ \"${#subbackup[@]}\" = \"${#subpkgs[@]}\" ]"
+-	check "right number of subinstall" "[ \"${#subinstall[@]}\" = 0 ] || [ \"${#subinstall[@]}\" = \"${#subpkgs[@]}\" ]"
+-	check "right number of suboptions" "[ \"${#suboptions[@]}\" = 0 ] || [ \"${#suboptions[@]}\" = \"${#subpkgs[@]}\" ]"
++		"[ \"${#subprovides[@]}\" = 0 -o \"${#subprovides[@]}\" = \"${#subpkgs[@]}\" ]"
++	check "right number of subbackup" "[ \"${#subbackup[@]}\" = 0 -o \"${#subbackup[@]}\" = \"${#subpkgs[@]}\" ]"
++	check "right number of subtriggers" "[ \"${#subtriggers[@]}\" = 0 -o \"${#subtriggers[@]}\" = \"${#subpkgs[@]}\" ]"
++	check "right number of subinstall" "[ \"${#subinstall[@]}\" = 0 -o \"${#subinstall[@]}\" = \"${#subpkgs[@]}\" ]"
++	check "right number of suboptions" "[ \"${#suboptions[@]}\" = 0 -o \"${#suboptions[@]}\" = \"${#subpkgs[@]}\" ]"
+ fi
+ 
+ codename=$(grep ^VERSION $(git rev-parse --show-cdup)/docs/Makefile|sed 's/.*(\(.*\))/\1/'|tr '[A-Z]' '[a-z]')
+diff --git a/find-missing-rebuilds b/find-missing-rebuilds
+index 6f7842d..38b6b11 100755
+--- a/find-missing-rebuilds
++++ b/find-missing-rebuilds
+@@ -1,4 +1,4 @@
+-#!/bin/sh
++#!/bin/bash
+ 
+ File=err.txt
+ cd ~
+@@ -6,11 +6,28 @@ if [ -e $File ]; then
+ 	rm $File
+ fi
+ touch $File
+-LD_LIST="/usr/lib/firefox:/usr/lib/octave-3.2.4:/usr/lib/perl5/site_perl/current/$(uname -m)-linux-thread-multi/auto/QtCore4/:/usr/lib/R/lib:/usr/lib/xulrunner"
+-for i in $(find /usr/bin 2>/dev/null; find /usr/lib -executable 2>/dev/null)
++
++LD_LIST=()
++LD_LIST+=("/usr/lib/R/lib")
++LD_LIST+=("/usr/lib/firefox")
++LD_LIST+=("/usr/lib/kde4")
++LD_LIST+=("/usr/lib/octave-3.2.4")
++LD_LIST+=("/usr/lib/perl5/site_perl/current/$(uname -m)-linux-thread-multi/auto/QtCore4/")
++LD_LIST+=("/usr/lib/xulrunner")
++
++PATH_LIST=()
++PATH_LIST+=("/bin")
++PATH_LIST+=("/lib")
++PATH_LIST+=("/sbin")
++PATH_LIST+=("/usr/bin")
++PATH_LIST+=("/usr/lib")
++PATH_LIST+=("/usr/libexec")
++PATH_LIST+=("/usr/sbin")
++
++for i in $(for path in "${PATH_LIST[@]}"; do find "$path" -executable 2>/dev/null; done)
+ do
+ #	echo "Scanning: $i" >&2
+-	result=`LD_LIBRARY_PATH="$LD_LIST" ldd $i 2>/dev/null | grep "not found"`
++	result=$(LD_LIBRARY_PATH="$(IFS=':'; echo "$LD_LIBRARY_PATH:${LD_LIST[*]}")" ldd $i 2>/dev/null | grep "not found")
+ 	if [ "$result" != "" ]
+ 	then
+ 		echo "Broken: $i" >&2
+diff --git a/fpmdiff b/fpmdiff
+index 03e8768..9337a37 100755
+--- a/fpmdiff
++++ b/fpmdiff
+@@ -14,6 +14,7 @@ while [ $# -gt 0 ]; do
+ 		show_version=y
+ 		;;
+ 	--)
++		shift
+ 		break
+ 		;;
+ 	--*|-?)
+@@ -33,16 +34,17 @@ while [ $# -gt 0 ]; do
+ 		;;
+ 	*)
+ 		# Not an option
+-		if [ ! -r "$1" -o ! -r "$2" ]; then
+-			echo "One of the fpms is not readable." >&2
+-			exit 1
+-		fi
+ 		break
+ 		;;
+ 	esac
+ 	shift
+ done
+ 
++if [ ! -r "$1" -o ! -r "$2" ]; then
++	echo "One of the fpms is not readable." >&2
++	exit 1
++fi
++
+ if [ "$show_usage" == y ]; then
+ 	man fpmdiff
+ 	exit 1
+@@ -68,8 +70,8 @@ if [ "$clean_up" == y ]; then
+ 	re+='s|^(/usr/share/doc/[^/]+)-[^-/]+|\1-${pkgver}|;'
+ fi
+ 
+-pacman-g2 -Ql -p "$1" | sed -r "$re" > $old
+-pacman-g2 -Ql -p "$2" | sed -r "$re" > $new
++pacman-g2 -Ql -p "$1" | sed -r "$re" | sort -n > $old
++pacman-g2 -Ql -p "$2" | sed -r "$re" | sort -n > $new
+ 
+ diff -U 0 $old $new | sed '1,2d;/^@/d'
+ rm -f $old $new
+diff --git a/fwcpan b/fwcpan
+index 760b8f5..435d903 100755
+--- a/fwcpan
++++ b/fwcpan
+@@ -1,22 +1,22 @@
+ #!/bin/bash
+-# 
++#
+ #   fwcpan
+-#  
++#
+ #   Copyright (c) 2006 by Miklos Vajna <vmiklos@frugalware.org>
+-#  
++#
+ #   This program is free software; you can redistribute it and/or modify
+ #   it under the terms of the GNU General Public License as published by
+ #   the Free Software Foundation; either version 2 of the License, or
+ #   (at your option) any later version.
+-# 
++#
+ #   This program is distributed in the hope that it will be useful,
+ #   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ #   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ #   GNU General Public License for more details.
+-#  
++#
+ #   You should have received a copy of the GNU General Public License
+ #   along with this program; if not, write to the Free Software
+-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
++#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+ #   USA.
+ #
+ 
+@@ -42,6 +42,16 @@ else
+ 	needle="$1"
+ fi
+ 
++## grep: Übereinstimmungen in Binärdatei (Standardeingabe)
++## seems to be some bug in grep
++## well 2 fixes for this issue ..
++## 1) use grep -a all over the place
++## 2) use LC_ALL=C or LC_ALL=en_US
++
++OLD_LC_ALL=`echo $LC_ALL`
++unset LC_ALL
++export LC_ALL=C
++
+ echo -n "Searching CPAN... "
+ dump=`mktemp`
+ lynx -dump "http://search.cpan.org/search?query=$needle&mode=module" >$dump
+@@ -81,7 +91,7 @@ tar xOzf $srcdump $modname-$pkgver/Makefile.PL >$makedump 2>/dev/null
+ 
+ cat << EOF > FrugalBuild
+ # Compiling Time: 0.1 SBU
+-# Maintainer: Zsolt Szalai <xbit@frugalware.org>
++# Maintainer:
+ 
+ _F_perl_name=$modname
+ _F_perl_author=$modauthor
+@@ -98,6 +108,9 @@ sed -i "/archs=('i686')/d" FrugalBuild
+ 
+ echo "done."
+ 
++unset LC_ALL
++export LC_ALL=$OLD_LC_ALL
++
+ rm -f $dump $srcdump $makedump
+ 
+ if [ "$inst" = "1" ]; then
+diff --git a/fwmirror b/fwmirror
+index 93ee9a6..d09b9d2 100755
+--- a/fwmirror
++++ b/fwmirror
+@@ -28,9 +28,9 @@ parse_coma()
+ in_array()
+ {
+ 	local i=""
+-
+-	needle=$1
++	local needle=$1
+ 	shift 1
++
+ 	# array() undefined
+ 	[ -z "$1" ] && return 1
+ 	for i in $*
+diff --git a/portpkg b/portpkg
+deleted file mode 100755
+index ce237db..0000000
+--- a/portpkg
++++ /dev/null
+@@ -1,47 +0,0 @@
+-#!/bin/bash
+-
+-die()
+-{
+-	echo "$@"
+-	exit 1
+-}
+-
+-uname_m=`uname -m`
+-if [ "${uname_m:0:3}" == "arm" ]; then
+-	uname_m="arm"
+-fi
+-
+-if grep -q subarchs FrugalBuild && ! grep -q "subarchs.*$uname_m" FrugalBuild; then
+-	die "please add $uname_m to subarchs() manually and restart"
+-fi
+-. /usr/lib/frugalware/fwmakepkg
+-
+-. ./FrugalBuild || die "error while parsing the buildscript"
+-
+-# update archs()
+-if ! echo ${archs[@]} |grep -q $uname_m; then
+-	if grep -q archs= FrugalBuild; then
+-		sed -i "s/^\(archs=(.*\))/\1 '$uname_m')/" FrugalBuild
+-	else
+-		echo "archs=(\${archs[@]} '$uname_m')" >> FrugalBuild
+-	fi
+-	. ./FrugalBuild
+-	echo ${archs[@]} |grep -q $uname_m || die "failed to add $uname_m to archs()"
+-fi
+-
+-if ! ls *fpm &>/dev/null; then
+-	makepkg -dgu || die "failed to download sources"
+-	rm -rf src || die "failed to remove duplicated sources"
+-	sudo makepkg -cu || die "build failed"
+-fi
+-
+-if [ "$1" == "--push" -o "$1" == "--silentpush" ]; then
+-	repoman rec "- added $uname_m to archs()" || die "failed to record the patch"
+-	if [ "$1" == "--push" ]; then
+-		repoman -k push
+-	else
+-		dg push -a
+-	fi
+-else
+-	die "now run '$0 --push' to record and push your changes"
+-fi
+diff --git a/portpkg.txt b/portpkg.txt
+deleted file mode 100644
+index 23c1660..0000000
+--- a/portpkg.txt
++++ /dev/null
+@@ -1,17 +0,0 @@
+-= portpkg(1)
+-
+-== NAME
+-
+-portpkg - port a package to a new architecture
+-
+-== SYNOPSIS
+-
+-portpkg [options]
+-
+-== OPTIONS
+-
+---push::
+-	Push the package after a successful build.
+-
+---silentpush::
+-	Just modify the buildscript and let syncpkgd build the binary package.
+diff --git a/repoman b/repoman
+index 76f9dff..a9dbf22 100755
+--- a/repoman
++++ b/repoman
+@@ -1,22 +1,22 @@
+ #!/bin/bash
+ #
+ #   repoman, a script to build and maintain packages
+-#  
++#
+ #   Copyright (c) 2005, 2006, 2007, 2008, 2009, 2010, 2011 by Miklos Vajna <vmiklos@frugalware.org>
+-#  
++#
+ #   This program is free software; you can redistribute it and/or modify
+ #   it under the terms of the GNU General Public License as published by
+ #   the Free Software Foundation; either version 2 of the License, or
+ #   (at your option) any later version.
+-# 
++#
+ #   This program is distributed in the hope that it will be useful,
+ #   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ #   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ #   GNU General Public License for more details.
+-#  
++#
+ #   You should have received a copy of the GNU General Public License
+ #   along with this program; if not, write to the Free Software
+-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, 
++#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+ #   USA.
+ #
+ 
+@@ -344,7 +344,9 @@ server()
+ 
+ _ssh()
+ {
+-	$repoman_ssh $host "$sudo_cmd repoman server $*"
++	
++	[[ -z "$repoman_port" ]] && repoman_port="22"
++	$repoman_ssh -p$repoman_port $host "$sudo_cmd repoman server $*"
+ }
+ 
+ delete()
+@@ -403,24 +405,32 @@ upload()
+ 			echo "Please fix your package."
+ 			exit 1
+ 		fi
++		if echo $src | grep -q fpm$ && pacman-g2 -Ql -p $src | grep -q 'usr/usr'; then
++                        echo "$src has broken /usr DIR , files are installed"
++                        echo "in /usr/usr , refusing to upload!"
++                        echo "Please fix your package."
++                        exit 1
++		fi
++		if echo $src | grep -q fpm$ && pacman-g2 -Ql -p $src | grep -q 'usr/share/pkgconfig'; then
++                        echo "$src has invalid pkgconfig path , files are installed"
++                        echo "in /usr/share/pkgconfig , should be /usr/lib/pkgconfig, refusing to upload!"
++                        echo "Please fix your package."
++                        exit 1
++		fi
++		if echo $src | grep -q fpm$ && pacman-g2 -Ql -p $src | grep -q 'usr/share/perl5'; then
++                        echo "$src has invalid perl path , files are installed"
++                        echo "in /usr/share/perl5 , refusing to upload!"
++                        echo "Please fix your package."
++                        exit 1
++		fi
++
+ 		name=`basename $src`
+ 		msg "Requesting a temporary file"
+ 		tmp=`_ssh "mktemp"`
+ 		[ -z "$tmp" ] && exit 1
+-		if [  "$REPOMAN_USE_TUNNEL" == "yes" ]; then
+-			## Fix me ? well since we use something like:
+-			## local -> genesis ( genesis acts like tunnel for itself )
+-			## or remote_box -> genesis , local -> remote_box we are always
+-			## using 127.0.0.1 .. scp -S really sucks and I get a lot problems
+-			## with rsync -e with all this tunneling =)
+-			## the other solution may be to force host when tunnel is used to be user@127.0.0.1
+-			## since -p <port> user@local gives out user@genesis .. 
+-			msg "Uploading file: $src (to $tmp) over local tunnel."
+-                        $repoman_scp $src 127.0.0.1:$tmp
+-                else
+-			msg "Uploading file: $src (to $tmp)"
+-                        $repoman_scp $src $host:$tmp
+-                fi
++		msg "Uploading file: $src (to $tmp)"
++		[[ -z "$repoman_port" ]] && repoman_port="22"
++        $repoman_scp -P$repoman_port $src $host:$tmp
+ 		sha=`sha1sum $src|sed 's/\(.*\)  .*/\1/'`
+ 		if ! _ssh "upload '$path' '$tmp' '$sha' '$dest/$src'"; then
+ 			return 1
+@@ -601,9 +611,15 @@ $@" | darcs rec -a --pipe .
+ __pkg_commit_info()
+ {
+ 	local commitmsg
+-	commitmsg="$pkgname-$pkgver-$pkgrel-$arch"
+-	msg "Your git commit command is:"
+-	msg "git commit -a -e -m $commitmsg"
++	if [ -e ./FrugalBuild ]; then
++		commitmsg="$pkgname-$pkgver-$pkgrel-$arch"
++		msg "Your git commit command is:"
++		msg "git commit -a -e -m $commitmsg"
++	else
++		msg "Cannot find any FrugalBuild in `pwd`"
++		msg "Commit command cannot be auto generated"
++		exit 1
++	fi
+ }
+ 
+ commit_info()
+@@ -952,14 +968,20 @@ search()
+ info()
+ {
+ 	chk_updated $fst_root
++	if [ -z "$1" ]; then
++		msg " Use repoman info <pkgname>"
++		exit 1
++	fi
+ 	for i in ${repos[@]}
+ 	do
+-		if [ -d $fst_root/$i/source/*/$1 ]; then
++		if [ ! -d $fst_root/$i/source/*/$1 ]; then
++			msg "  Could not find package $1.. Typo?"
++			exit 1
++		else
+ 			cd $fst_root/$i/source/*/$1
+ 			startdir=`pwd`
+ 			source ./FrugalBuild
+-			[ ${#depends[*]} -eq 0 ] && depends="" || depends="${depends[@]} "
+-			[ ${#rodepends[*]} -gt 0 ] && depends="$depends${rodepends[@]}"
++			[[ -n ${rodepends[@]} ]] && depends+=" ${rodepends[@]}"
+ 			echo "Repository        : $i"
+ 			echo "Name              : $pkgname"
+ 			echo "Version           : $pkgver-$pkgrel"
+@@ -1022,6 +1044,7 @@ upgrade()
+ 
+ merge()
+ {
++
+ 	local i repo target
+ 	if echo $1 |grep -q /; then
+ 		repo=${1%/*}
+@@ -1030,24 +1053,24 @@ merge()
+ 		repo="${repos[@]}"
+ 		target=$1
+ 	fi
+-	if [ -z "$force" ]; then
+-		# install essential packages if necessary
+-		echo -n "checking for essential packages... "
+-		. /etc/makepkg.conf
+-		for i in "$COREPKGS"
+-		do
+-			missing="$missing `pacman -Sg $i |grep -v '^\w'` "
+-		done
+-		missdep=`pacman-g2 -T $missing| sed 's|.\+: ||'`
+-		if [ -n "$missdep" ]; then
+-			echo "failed"
+-			echo "Use the following command to install the missing packages:"
+-			echo "pacman-g2 -S `echo $missdep| sed 's|=.*$||;s|>.*$||;s|<.*$||'`"
+-			exit 1
+-		else
+-			echo "done"
+-		fi
+-	fi
++	#if [ -z "$force" ]; then
++	#	# install essential packages if necessary
++	#	echo -n "checking for essential packages... "
++	#	. /etc/makepkg.conf
++	#	for i in "$COREPKGS"
++	#	do
++	#		missing="$missing `pacman -Sg $i |grep -v '^\w'` "
++	#	done
++	#	missdep=`pacman-g2 -T $missing| sed 's|.\+: ||'`
++	#	if [ -n "$missdep" ]; then
++	#		echo "failed"
++	#		echo "Use the following command to install the missing packages:"
++	#		echo "pacman-g2 -S `echo $missdep| sed 's|=.*$||;s|>.*$||;s|<.*$||'`"
++	#		exit 1
++	#	else
++	#		echo "done"
++	#	fi
++	#fi
+ 	found=0
+ 	for i in ${repo[@]}
+ 	do
+@@ -1085,11 +1108,8 @@ fi
+ # Initializing variables.
+ version='0.3.1'
+ if [ -z "$arch" ]; then
+-	if [[ "`uname -m`" == arm* ]]; then
+-		arch="arm"
+-	else
+ 		arch="`uname -m`"
+-    fi
++
+ fi
+ mktemp_local="mktemp -p $HOME"
+ sudo_env="sudo -E"
+diff --git a/repoman.conf b/repoman.conf
+index b6240c9..090c161 100644
+--- a/repoman.conf
++++ b/repoman.conf
+@@ -8,7 +8,7 @@
+ # the order is important, the first repo will be used as a default for
+ # developer actions (like up, del and so on)
+ source /etc/repoman.d/current
+-#source /etc/repoman.d/stable
++
+ 
+ # default repo to search the include dir in
+ fst_root=/var/fst/
+@@ -26,13 +26,12 @@ upgrade_ignore=""
+ # DEFAULTS:
+ # repoman_ssh="ssh"
+ # repoman_scp="scp"
+-# REPOMAN_USE_TUNNEL="no"
++# repoman_port="22"
+ # See README.Frugalware on HowTo use these
+ 
+-REPOMAN_USE_TUNNEL="no"
+ repoman_ssh="ssh"
+ repoman_scp="scp"
+-
++repoman_port="22"
+ # User configuration
+ if [ -e ~/.repoman.conf ]; then
+ 	source ~/.repoman.conf
+diff --git a/repoman.d/current b/repoman.d/current
+index 9993f51..6858c49 100644
+--- a/repoman.d/current
++++ b/repoman.d/current
+@@ -6,16 +6,8 @@ repos=(${repos[@]} 'current')
+ 
+ current_servers=(
+ "git://github.com/frugalware/frugalware-current.git"
+-"git://gitorious.org/frugalware/frugalware-current.git"
+-"git://git.utsl.gen.nz/mirror/repo.or.cz/frugalware-current.git"
+-"git://repo.or.cz/frugalware-current.git"
+ )
+ 
+-# additional servers in case you are behind a firewall where only http
+-# is allowed:
+-# http://git.gitorious.org/frugalware/frugalware-current.git
+-# http://git.utsl.gen.nz/mirror/repo.or.cz/frugalware-current.git
+-# http://repo.or.cz/r/frugalware-current.git
+ 
+ # the rest is only for developers who upload packages
+ # if the server requires sudo usage, the name of the user to execute the commands as
+diff --git a/repoman.txt b/repoman.txt
+index 5adb852..61e5cb4 100644
+--- a/repoman.txt
++++ b/repoman.txt
+@@ -83,8 +83,17 @@ $ git config user.name "John Smith"
+ $ git config user.email john@frugalware.org
+ $ git config remote.origin.receivepack "sudo -u <owner> git-receive-pack"
+ $ git config branch.master.rebase true
++$ git config push.default simple
++$ git config core.whitespace trailing-space,space-before-tab,indent-with-non-tab
+ ----
+ 
++To set your default editor and pager you can do:
++
++----
++$ git config core.editor <your_editor>
++$ git config core.pager <your_pager>
++----
++ 
+ Here you should substitute <owner> with the nick of the repo owner, currently
+ 'repo'.
+ 
+@@ -418,8 +427,9 @@ $ repoman fpmmerge flac113
+ 
+ After merge, you may want to reuse your WIP repo. To do so, you need to:
+ 
+-- update the repo on the server (`ssh git.frugalware.org; cd /pub/other/people/nick/flac113; git pull -r`)
+ - remove existing fpms/fdbs (`rm -f frugalware-*/*`)
++- clean the repo by doing : (`git clean -x -d -f`)
++- update the repo on the server (`ssh git.frugalware.org; cd /pub/other/people/nick/flac113; git pull -r`)
+ 
+ == GLOBAL OPTIONS
+ 
+diff --git a/rpm2fpm b/rpm2fpm
+deleted file mode 100755
+index 286600f..0000000
+--- a/rpm2fpm
++++ /dev/null
+@@ -1,159 +0,0 @@
+-#! /bin/bash
+-#
+-# rpm2fpm
+-#
+-# by Marcus Habermehl (BMH1980) <bmh1980de@yahoo.de>
+-#
+-# Converting rpm archives to a Frugalware fpm archive.
+-
+-export USE_COLOR="y"
+-
+-if [ -f /usr/lib/frugalware/fwmakepkg ] ; then
+-	. /usr/lib/frugalware/fwmakepkg
+-else
+-	Fmessage()
+-	{
+-		echo "$@"
+-	}
+-fi
+-
+-CURDIR=$(pwd)
+-CPIOPKG=$(mktemp)
+-BUILDDIR=$(mktemp -d)
+-
+-INSTALL=0
+-REMOVE=0
+-
+-# Usage informations.
+-usage()
+-{
+-	echo "$1"
+-	echo "usage: $1 [options]"
+-	echo "options:"
+-	echo "  -i, --install install the created fpm package"
+-	echo "  -r, --remove  delete the rpm package after converting"
+-	echo
+-}
+-
+-# Check the command line.
+-while (( $# > 1 )) ; do
+-	case $1 in
+-		-h|--help)    usage && exit 0 ;;
+-		-i|--install) INSTALL=1 ;;
+-		-r|--remove)  REMOVE=1 ;;
+-		*)            usage && exit 1 ;;
+-	esac
+-	shift
+-done
+-
+-# Get the absolute path of the given rpm archive.
+-RPMPKG=$(cd `dirname $1`;echo `pwd`/`basename $1`)
+-
+-# Create directory structure from the rpm archive.
+-Fmessage "Creating directories... "
+-for i in $(rpm -qlp ${RPMPKG}) ; do
+-	mkdir -p ${BUILDDIR}/$(dirname $i) 2> /dev/null
+-done
+-
+-# Convert the rpm archive to a cpio archive.
+-Fmessage "Converting rpm archive to cpio archive... "
+-rpm2cpio ${RPMPKG} > ${CPIOPKG} 2> /dev/null
+-
+-cd ${BUILDDIR}
+-
+-# Extract the cpio archive.
+-Fmessage "Extracting cpio archive... "
+-cpio -ivI ${CPIOPKG} 2> /dev/null
+-
+-# Creating the .FILELIST for the fpm archive.
+-Fmessage "Creating .FILELIST... "
+-find . -mindepth 1 | sed 's|^./||' | sort > ${BUILDDIR}/.FILELIST 2> /dev/null
+-
+-# Extract needed informations for the fpm archive from the rpm archive.
+-Fmessage "Getting informations from the rpm archive... "
+-PKGNAME=$(rpm -q --queryformat=%{name} -p ${RPMPKG})
+-PKGVER=$(rpm -q --queryformat=%{version}-%{release} -p ${RPMPKG})
+-PKGDESC=$(rpm -q --queryformat=%{summary} -p ${RPMPKG})
+-URL=$(rpm -q --queryformat=%{url} -p ${RPMPKG})
+-LICENSE=$(rpm -q --queryformat=%{license} -p ${RPMPKG})
+-BUILDDATE=$(python -c "import time; print time.ctime($(rpm -q --queryformat=%{buildtime} -p ${RPMPKG}))")
+-PACKAGER="rpm2fpm"
+-SIZE=$(rpm -q --queryformat=%{size} -p ${RPMPKG})
+-ARCH=$(rpm -q --queryformat=%{arch} -p ${RPMPKG})
+-GROUP=$(rpm -q --queryformat=%{group} -p ${RPMPKG} | tr [:upper:] [:lower:] | tr / - | tr \  _)
+-
+-# Correct some archs
+-case "$ARCH" in
+-i386|i486|i586)
+-	ARCH="i686";;
+-esac
+-
+-# Write the .PKGINFO file for the fpm archive.
+-Fmessage "Generating .PKGINFO... "
+-echo "# Generated by rpm2fpm
+-# $(LC_ALL=C date)
+-pkgname = ${PKGNAME}
+-pkgver = ${PKGVER}
+-pkgdesc = ${PKGDESC}
+-url = ${URL}
+-license = ${LICENSE}
+-builddate = ${BUILDDATE}
+-packager = ${PACKAGER}
+-size = ${SIZE}
+-arch = ${ARCH}
+-group = ${GROUP}" > ${BUILDDIR}/.PKGINFO
+-
+-# Get the dependencies and write they to the .PKGINFO file.
+-Fmessage "Query dependencies... "
+-eval "`chkdep -d .`"
+-for i in ${depends[*]} ; do
+-	echo "depend = ${i}" >> ${BUILDDIR}/.PKGINFO
+-done
+-
+-# Extracting existing install scripts and write them to .INSTALL.
+-Fmessage "Checking for install scripts... "
+-post_install="$(rpm -q --queryformat=%{postin} -p ${RPMPKG})"
+-pre_install="$(rpm -q --queryformat=%{prein} -p ${RPMPKG})"
+-post_uninstall="$(rpm -q --queryformat=%{postun} -p ${RPMPKG})"
+-pre_uninstall="$(rpm -q --queryformat=%{preun} -p ${RPMPKG})"
+-if [[ ${post_install} != \(none\) ]] ; then
+-	echo -e "post_install(){ ${post_install}\n}" >> ${BUILDDIR}/.INSTALL
+-fi
+-if [[ ${pre_install} != \(none\) ]] ; then
+-	echo -e "pre_install(){ ${pre_install}\n}" >> ${BUILDDIR}/.INSTALL
+-fi
+-if [[ ${post_uninstall} != \(none\) ]] ; then
+-	echo -e "post_uninstall(){ ${post_uninstall}\n}" >> ${BUILDDIR}/.INSTALL
+-fi
+-if [[ ${pre_uninstall} != \(none\) ]] ; then
+-	echo -e "pre_uninstall(){ ${pre_uninstall}\n}" >> ${BUILDDIR}/.INSTALL
+-fi
+-
+-# Compressing the files.
+-FPMPKG=${CURDIR}/${PKGNAME}-${PKGVER}-${ARCH}.fpm
+-Fmessage "Creating fpm archive $(basename ${FPMPKG})... "
+-cd ${BUILDDIR}
+-if [ -f ${BUILDDIR}/.INSTALL ]; then
+-	tar -cvjf ${FPMPKG} .PKGINFO .FILELIST .INSTALL * 2> /dev/null > /dev/null
+-else
+-	tar -cvjf ${FPMPKG} .PKGINFO .FILELIST * 2> /dev/null > /dev/null
+-fi
+-
+-cd ${CURDIR}
+-
+-# Removing temporary build directory.
+-Fmessage "Removing build dir... "
+-rm -fr ${BUILDDIR} ${CPIOPKG} 2> /dev/null
+-
+-# Remove the rpm archive.
+-if (( ${REMOVE} == 1 )) ; then
+-	Fmessage "Removing ${RPMPKG}... "
+-	rm -f ${RPMPKG} 2> /dev/null
+-fi
+-
+-# Install the fpm archive.
+-if (( ${INSTALL} == 1 )) ; then
+-	su -c "pacman -A ${FPMPKG}"
+-fi
+-
+-exit 0
+diff --git a/rpm2fpm.txt b/rpm2fpm.txt
+deleted file mode 100644
+index d17091f..0000000
+--- a/rpm2fpm.txt
++++ /dev/null
+@@ -1,20 +0,0 @@
+-= rpm2fpm(1)
+-
+-== NAME
+-
+-rpm2fpm - converts rpm archives to frugalware ones
+-
+-== SYNOPSIS
+-
+-rpm2fpm [options] [<rpm file>]
+-
+-== OPTIONS
+-
+--h, --help::
+-	This man page.
+-
+--i, --install::
+-	Install the created fpm package.
+-
+--r, --remove::
+-	Delete the rpm package after converting.
+diff --git a/syncemul b/syncemul
+deleted file mode 100755
+index 3a08cb2..0000000
+--- a/syncemul
++++ /dev/null
+@@ -1,33 +0,0 @@
+-#!/bin/bash
+-
+-. /usr/lib/frugalware/fwmakepkg
+-
+-if [ "$1" == "-h" -o "$1" == "--help" ]; then
+-	man syncemul
+-	exit $?
+-fi
+-
+-if [ "$1" == "-v" -o "$1" == "--version" ]; then
+-	pacman-g2 -Q pacman-tools
+-	exit $?
+-fi
+-
+-if [ "`pwd|sed 's|.*/\(.*\)|\1|'`" != "emul-extra" ]; then
+-	echo "where are you?"
+-	exit 1
+-fi
+-
+-if [ "$F_makepkg_scm" = "git" ]; then
+-	git pull
+-else
+-	darcs pull -a
+-fi
+-
+-for i in `chkworld |grep ^Checking |sed 's|.*/\(.*\)-[^-]*\.\.\..*|\1|'`
+-do
+-	cd $i
+-	bumppkg
+-	repoman rec "version bump"
+-	repoman -k push
+-	cd ..
+-done
+diff --git a/syncemul.txt b/syncemul.txt
+deleted file mode 100644
+index 15a0a25..0000000
+--- a/syncemul.txt
++++ /dev/null
+@@ -1,26 +0,0 @@
+-= syncemul(1)
+-
+-== NAME
+-
+-syncemul - updates existing packages for emulation of i686 on x86_64
+-
+-== SYNOPSIS
+-
+-syncemul [options]
+-
+-== OPTIONS
+-
+---help::
+-	Display this manpage.
+-
+---version::
+-	Display the package version.
+-
+-== DESCRIPTION
+-
+-You should use this script, like:
+-
+-----
+-$ cd /path/to/source/emul-extra
+-$ syncemul
+-----
+diff --git a/syncpkgd/syncpkgcd.py b/syncpkgd/syncpkgcd.py
+index c5e69bb..41d7b74 100644
+--- a/syncpkgd/syncpkgcd.py
++++ b/syncpkgd/syncpkgcd.py
+@@ -281,7 +281,7 @@ class Syncpkgcd:
+ 					continue
+ 				if ".git" in root:
+ 					continue
+-				if dir == pkgname:
++				if dir == pkgname and os.path.exists("%s/FrugalBuild" % os.path.join(root, dir)):
+ 					os.chdir(os.path.join(root, dir))
+ 					return True
+ 		return False
+diff --git a/syncpkgd/syncpkgcd.txt b/syncpkgd/syncpkgcd.txt
+index 1965728..3a1d2ab 100644
+--- a/syncpkgd/syncpkgcd.txt
++++ b/syncpkgd/syncpkgcd.txt
+@@ -42,10 +42,10 @@ provide the syncpkgd server, so contact us to get an account.
+ * Generate an ssh key with no passphrase, using:
+ 
+ ----
+-$ ssh-keygen -t dsa
++$ ssh-keygen -t rsa
+ ----
+ 
+-NOTE: The `\~/.ssh/id_dsa.pub` file should be appended to `\~/.ssh/authorized_keys` on
++NOTE: The `\~/.ssh/id_rsa.pub` file should be appended to `\~/.ssh/authorized_keys` on
+ the server with a `command="syncpkg-shell <nick>" ` prefix.
+ 
+ * Now login to git.frugalware.org manually so that the fingerprint of the
+diff --git a/wipcheck b/wipcheck
+index 873dc53..0637e67 100755
+--- a/wipcheck
++++ b/wipcheck
+@@ -23,7 +23,6 @@
+ # fake variable for fwmakepkg
+ CHROOT=1
+ 
+-. /etc/makepkg.conf
+ . /usr/lib/frugalware/fwmakepkg
+ 
+ die()

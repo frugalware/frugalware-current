@@ -50,11 +50,6 @@ if [ -z "$_F_kde_ver" ]; then
 	fi
 fi
 
-## TMP set to unstable
-#if [ "$_F_kde_project" = "plasma" ]; then
-#	_F_kde_unstable="yes"
-#fi
-
 if [ -z "$_F_kde_qtver" ]; then
 	_F_kde_qtver="$_F_kdever_qt5"
 fi
@@ -77,8 +72,9 @@ fi
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
 	_F_kde_mirror="https://ftp.gwdg.de/pub/linux/kde/"
-	_F_kde_up2date_mirror="ftp.gwdg.de/pub/linux/kde/"
-	#_F_kde_up2date_mirror="ftp.rz.uni-wuerzburg.de/ftp/MIRROR/kde/"
+	## If the mirror breaks search one supporting ncftpls -R
+	## see https://download.kde.org/extra/download-mirrors.html
+	_F_kde_up2date_mirror="ftp://mirror.easyname.at/kde"
 fi
 
 if [ -z "$_F_kde_folder" ]; then
@@ -147,8 +143,8 @@ fi
 
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
-		makedepends+=('rsync')
-		up2date="rsync -r -n rsync://${_F_kde_up2date_mirror}$_F_kde_folder | Flasttar"
+		makedepends+=('ncftp')
+		up2date='ncftpls -R ${_F_kde_up2date_mirror}/${_F_kde_folder} | grep "${_F_kde_name}-[0-9].\(.*\)${_F_kde_ext}$" | tail -n1 | sed "s/.*${_F_kde_name}-\(.*\)${_F_kde_ext}/\1/"'
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then
@@ -180,26 +176,10 @@ if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
 	makedepends+=("extra-cmake-modules>=$_F_kf5_full" "qt5-tools>=$_F_kdever_qt5" 'gperf')
 fi
 
-## From gcc6 docs
-## Value range propagation now assumes that the this pointer of C++ member functions is non-null. This eliminates common
-## null pointer checks but also breaks some non-conforming code-bases (such as Qt-5, Chromium, KDevelop). As a temporary
-## work-around -fno-delete-null-pointer-checks can be used. Wrong code can be identified by using -fsanitize=undefined.
-
-_F_KDE_GCC_VER=$(gcc --version | head -n1 | cut -d" " -f4)
-
-case "$_F_KDE_GCC_VER" in
-6.*) _F_KDE_CXX_FLAGS_EXTRA+=" -fno-delete-null-pointer-checks";;
-7.*) _F_KDE_CXX_FLAGS_EXTRA+=" -fno-delete-null-pointer-checks";;
-8.*) _F_KDE_CXX_FLAGS_EXTRA+=" -fno-delete-null-pointer-checks";;
-esac
-
 case "$_F_cmake_type" in
 None)	_F_KDE_CXX_FLAGS+=" -DNDEBUG -DQT_NO_DEBUG";;
 Debug*)	_F_KDE_CXX_FLAGS+=" -O0 -ggdb3 -DDEBUG";;
 esac
-
-## to much auto::<...> deprecated messages
-_F_KDE_CXX_FLAGS_WARN+=" -Wno-deprecated -Wno-deprecated-declarations"
 
 _F_KDE_LD_FLAGS="-Wl,--no-undefined"
 
@@ -218,7 +198,6 @@ __kde_in_array()
         local i
         _package=$1
         shift 1
-        # array() undefined
         [ -z "$1" ] && return 1
         for i in "$@"
         do
@@ -237,7 +216,6 @@ __KDE_pre_build_check()
 		Fmessage "FOUND $pkgname-compiletime: package will be automagically built!!"
 	fi
 
-	## TODO: add check for missing $CARCH in subarchs ( porting / splitting issues )
 }
 
 ###
@@ -404,10 +382,7 @@ KDE_export_flags()
 {
 
 	if [[ "$_F_cmake_type" == Debug ]] || [[ "$_F_cmake_type" == DEBUG ]]; then
-		unset CFLAGS CXXFLAGS
-		options+=('nostrip')
-		export CXXFLAGS="$_F_KDE_CXX_FLAGS"
-		export CFLAGS="$_F_KDE_CXX_FLAGS"
+		options+=('nostrip' 'odebug')
 		export LDFLAGS="$LDFLAGS $_F_KDE_LD_FLAGS"
 	else
 		export CFLAGS="$CFLAGS $_F_KDE_CXX_FLAGS"

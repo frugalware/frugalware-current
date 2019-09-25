@@ -1,0 +1,61 @@
+#!/bin/sh
+
+REAL_RANLIB=binutils-ranlib
+PARENT="$(readlink /proc/$PPID/exe)"
+WRAPPED=false
+
+# If /proc isn't mounted, let's do the least evil thing we can
+if [ -z "$PARENT" ]; then
+    WRAPPED=true
+# If we're being called by gcc-ranlib or llvm-ranlib,
+# we're already wrapped (and need to make sure we don't
+# call ourselves recursively)
+elif echo "$PARENT" |grep -qE -- '-ranlib$'; then
+    WRAPPED=true
+# Fun... We're running inside qemu binfmt_misc emulation,
+# so we have to determine our parent the evil and less
+# reliable way...
+elif echo "$PARENT" |grep -qE -- 'qemu'; then
+    if grep -qE -- '-ranlib' /proc/$PPID/cmdline; then
+		WRAPPED=true
+    fi
+fi
+# If we're being called by gcc-ranlib or llvm-ranlib, we're
+# already wrapped
+if ! "$WRAPPED"; then
+
+	which llvm-ranlib &>/dev/null && IS_LLVM_RANLIB=true
+	which gcc-ranlib &>/dev/null && IS_GCC_RANLIB=true
+	which gcc-nm &>/dev/null && IS_GCC_NM=true
+	[[ -z "$IS_GCC_NM" ]] && echo "${0}-wrapper ERROR: GCC-NM missing, cannot continue!" && exit 1
+
+	for i in "$@"; do
+		[ "$(echo $i |cut -b1)" = '-' ] && continue
+		if echo "$i" |grep -qE '\.(o|a)$' && [ -e "$i" ]; then
+	    	if LANG=C gcc-nm "$i" 2>&1 |grep -qi "file format not recognized"; then
+				if [[ -n "$IS_LLVM_RANLIB" ]]; then
+		    		REAL_RANLIB=llvm-ranlib
+		    		break
+				else
+					echo "${0}-wrapper ERROR: LLVM-LTO code but missing llvm-ranlib, cannot continue!"
+					exit 1
+				fi
+			fi
+			if LANG=C readelf -s "$i" | grep -q "gnu_lto"; then
+				if [[ -n "$IS_GCC_RANLIB" ]]; then
+					REAL_RANLIB=gcc-ranlib
+					break
+				else
+					echo "${0}-wrapper ERROR: GCC-LTO code but missing gcc-ranlib, cannot continue!"
+					exit
+				fi
+			fi
+		fi
+    done
+
+	# static LTO stuff sucks hell , force gcc-xxx
+	if [ "$REAL_RANLIB" = 'binutils-ranlib' ]; then
+		REAL_RANLIB=gcc-ranlib
+	fi
+fi
+exec "$REAL_RANLIB" "$@"

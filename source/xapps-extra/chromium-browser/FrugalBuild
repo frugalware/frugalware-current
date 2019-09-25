@@ -2,7 +2,7 @@
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
 pkgname=chromium-browser
-pkgver=74.0.3729.169
+pkgver=77.0.3865.90
 pkgrel=1
 pkgdesc='Development version of Chromium browser'
 url='http://www.chromium.org/'
@@ -16,7 +16,7 @@ makedepends=('ninja' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' 'gn' \
 		'x11-protos' 'krb5' 'cups' 'gtk+2' 'python-ply' \
 		'python-markupsafe' 'beautifulsoup4' 'html5lib-python' \
 		'webencodings' 'protobuf-python' 'nodejs' 'openjdk'\
-		'mesa-dri-drivers' 'clang')
+		'mesa-dri-drivers' 'clang' 'spirv-headers')
 license=('BSD')
 groups=('xapps-extra')
 archs=('x86_64')
@@ -34,14 +34,27 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
 	#chromium-55.0.2883.75-sandbox-pie.patch \
 	## compile errors on both gcc and llvm
 	# bring back some default *flags
-	chromium-67.0.3396.62-frugalware-compiler-flags.patch
-	chromium-system-icu.patch widevine.patch)
-sha1sums=('bcbb3fa78f041d5b6e3d1c600739692c35e39385' \
+	chromium-77.0.3865.75-frugalware-compiler-flags.patch
+	chromium-system-icu.patch \
+	widevine.patch \
+	chromium-system-zlib.patch \
+	include-limits-in-web_time_range.cc.patch \
+	link-against-harfbuzz-subset.patch \
+	fix-wrong-string-initialization-in-LinkedHashSet.patch \
+	chromium-76.0.3809.100-pulse-api-change.patch \
+	include-memory-in-one_euro_filter.h.patch )
+sha1sums=('730ffd45ffc7bfe338d090332e0549293d439f59' \
           '264b8e7c4e3273263d504e041e5e4d152677922c' \
           '4c41d59b4d85a9f0443d6ca1dec456e50059dab5' \
-          '73c3539e8229f9525a88609fa5bd934dc6d5504b' \
-          '9ad5aea5ed6b29ea7e0546db3c2deee6ce530a0c' \
-          'a7d5c26577a25f257998cb512bbc9a3c90e79d4a')
+          'fc2fc19690837fcb9346a5429eb5d87e38af12ee' \
+          'cdae2d273244479fe80cefc006541b034d354a7b' \
+          'a7d5c26577a25f257998cb512bbc9a3c90e79d4a' \
+          'ec20c8c021828e1e7c6331b50cd53612825c75a8' \
+          'a47d34786e33c0f0802899de80f96320865d5fa0' \
+          'e68d78746a10d511c9f0cab89e7fae0551869093' \
+          '58c2345b02282a4f38e48c54c3fe7b4be6179b6f' \
+          '31d1cafa04696ca243ae3990faec882d0c945f1e' \
+          '843c7abc0a2af0ba2c5dcda49568cf52ef538162')
 
 chromium_path="chromium"
 
@@ -71,6 +84,7 @@ build() {
 		base/third_party/valgrind
 		base/third_party/xdg_mime
 		base/third_party/xdg_user_dirs
+		base/third_party/cityhash
 		chrome/third_party/mozilla_security_manager
 		courgette/third_party
 		net/third_party/mozilla_security_manager
@@ -119,7 +133,6 @@ build() {
 		third_party/dav1d
 		third_party/devscripts
 		third_party/dom_distiller_js
-		third_party/fips181
 		third_party/flatbuffers
 		third_party/flot
 		third_party/freetype
@@ -154,7 +167,6 @@ build() {
 		third_party/modp_b64
 		third_party/node
 		third_party/node/node_modules/polymer-bundler/lib/third_party/UglifyJS2
-		third_party/openmax_dl
 		third_party/ots
 		third_party/pdfium
 		third_party/pdfium/third_party/agg23
@@ -187,6 +199,7 @@ build() {
 		third_party/sqlite
 		third_party/swiftshader
 		third_party/swiftshader/third_party/llvm-subzero
+		third_party/swiftshader/third_party/llvm-7.0
 		third_party/swiftshader/third_party/subzero
 		third_party/usrsctp
 		third_party/vulkan
@@ -232,6 +245,18 @@ build() {
 		third_party/nasm
 		third_party/closure_compiler
 		third_party/emoji-segmenter
+		third_party/dawn
+		third_party/boringssl
+		third_party/boringssl/src/third_party/fiat
+		third_party/boringssl/src/third_party/sike
+		third_party/boringssl/linux-aarch64/crypto/third_party/sike
+		third_party/boringssl/linux-x86_64/crypto/third_party/sike
+		third_party/pffft
+		third_party/openscreen
+		third_party/openscreen/src/third_party/tinycbor
+		third_party/skia/include/third_party/skcms		
+		third_party/axe-core
+		third_party/one_euro_filter
 		third_party/apple_apsl)
 	# Remove most bundled libraries. Some are still needed.
 
@@ -262,7 +287,6 @@ build() {
 	myconf_gn+=" is_debug=false"
 	myconf_gn+=" enable_iterator_debugging=false"
 	myconf_gn+=" enable_nacl=false"
-	myconf_gn+=" remove_webcore_debug_symbols=true"
 
 	myconf_gn+=" enable_hangout_services_extension=false"
 	myconf_gn+=" enable_widevine=true"
@@ -349,7 +373,7 @@ build() {
 	Finstall 644 $pkgname.desktop usr/share/applications/$pkgname.desktop
 
 	local size size2 j
-	for size in 22 24 48 64 128 256; do
+	for size in 24 48 64 128 256; do
 		Finstallrel 644 "chrome/app/theme/chromium/product_logo_$size.png" \
 			"usr/share/icons/hicolor/${size}x${size}/apps/$pkgname.png"
 	done

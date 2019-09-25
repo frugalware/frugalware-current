@@ -1,0 +1,51 @@
+#!/bin/sh
+
+REAL_NM=binutils-nm
+PARENT="$(readlink /proc/$PPID/exe)"
+WRAPPED=false
+
+# If /proc isn't mounted, let's do the least evil thing we can
+if [ -z "$PARENT" ]; then
+	WRAPPED=true
+# If we're being called by gcc-nm or llvm-nm, we're already
+# wrapped (and need to make sure we don't call ourselves recursively)
+elif echo "$PARENT" |grep -qE -- '-nm$'; then
+	WRAPPED=true
+# Fun... We're running inside qemu binfmt_misc emulation,
+# so we have to determine our parent the evil and less
+# reliable way...
+elif echo "$PARENT" |grep -qE -- 'qemu'; then
+	if grep -qE -- '-nm' /proc/$PPID/cmdline; then
+		WRAPPED=true
+    fi
+fi
+
+# If we're being called by gcc-nm or llvm-nm, we're
+# already wrapped...
+if ! "$WRAPPED"; then
+
+	which llvm-nm &>/dev/null && IS_LLVM_NM=true
+	which gcc-nm &>/dev/null && IS_GCC_NM=true
+	[[ -z "$IS_GCC_NM" ]] && echo "${0}-wrapper ERROR: GCC-NM missing, cannot continue!" && exit 1
+    for i in "$@"; do
+		[ "$(echo $i |cut -b1)" = '-' ] && continue
+		if echo "$i" |grep -qE '\.(o|a)$' && [ -e "$i" ]; then
+			if LANG=C gcc-nm "$i" 2>&1 |grep -qi "file format not recognized"; then
+				if [[ -n "$IS_LLVM_NM" ]]; then
+					REAL_NM=llvm-nm
+					break
+				else
+					echo "${0}-wrapper ERROR: LLVM-LTO code but missing llvm-nm, cannot continue!"
+					exit 1
+				fi
+			fi
+
+			if LANG=C readelf -s "$i" | grep -q "gnu_lto"; then
+				# already checked
+				REAL_NM=gcc-nm
+				break
+			fi
+	fi
+    done
+fi
+exec "$REAL_NM" "$@"

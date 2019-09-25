@@ -5,13 +5,13 @@
 pkgname=grub2
 _F_archive_name=grub
 pkgver=2.02
-pkgrel=20
+pkgrel=23
 pkgdesc="The GNU GRand Unified Bootloader"
 url="http://www.gnu.org/software/grub/"
 rodepends=('grub-theme-frugalware' 'scriptlet-core')
 makedepends=('unifont' 'rsync' 'xz' 'freetype2>=2.9' 'dejavu-ttf' 'python>=2.7.14-2' 'autogen'
              'texinfo' 'help2man' 'gettext' 'fuse>=2.7.9-4')
-options+=('nostrip' 'noasneeded' 'nofortify' 'norelro')
+options+=('noccache' 'noasneeded' 'nofortify' 'norelro' 'nonow' 'nolto' 'noprotector' 'noclash')
 backup=('etc/default/grub' 'etc/grub.d/40_custom')
 depends+=('efibootmgr')
 groups=('base')
@@ -19,13 +19,12 @@ archs=('x86_64')
 up2date="Flasttar http://git.savannah.gnu.org/cgit/grub.git"
 _F_archive_grepv="rc\|beta"
 
-replaces=('elilo')
-provides=("${replaces[@]}")
-conflicts=("${replaces[@]}")
 
 source=(http://ftp.gnu.org/gnu/grub/grub-$pkgver${pkgextraver/-/\~}.tar.xz
 	grub
 	README.Frugalware
+	86_64_PLT32.patch
+	packed-not-aligned-error.patch
 	0001-IBM-client-architecture-CAS-reboot-support.patch
 	0002-for-ppc-reset-console-display-attr-when-clear-screen.patch
 	0003-Disable-GRUB-video-support-for-IBM-power-machines.patch
@@ -104,6 +103,8 @@ source=(http://ftp.gnu.org/gnu/grub/grub-$pkgver${pkgextraver/-/\~}.tar.xz
 sha1sums=('3d7eb6eaab28b88cb969ba9ab24af959f4d1b178' \
           'b070489950b87e4a9ca97d4e85db79879daae36a' \
           '9de273e2fb3095694e82cf9969de61e994f2bce6' \
+          'b493254720c942b09bc3a12f756a8606e3176968' \
+          '256a97c1fa60545c7838da7fed8c7c05362d8b65' \
           '0a5e537237d93b8ef222b72d39e74daf10e24f47' \
           '42f362c84ca27f5eb19c905aa43989cf78ae3e4c' \
           '376c610850384dd12c3b947d717c16f9f96da44a' \
@@ -191,7 +192,8 @@ subgroups+=('base-extra')
 subarchs+=('x86_64')
 subdepends+=('fuse>=2.7.9-4')
 
-Fconfopts+="	--enable-mm-debug \
+Fconfopts+=" \
+		--enable-mm-debug \
 		--enable-nls \
 		--enable-device-mapper \
 		--enable-cache-stats \
@@ -202,7 +204,17 @@ Fconfopts+="	--enable-mm-debug \
 
 _build_grub_platform()
 {
-	Fmake --with-platform=$1
+
+	if [[ $1 = "bios" ]]; then
+		_emu_bios=" --enable-efiemu"
+	fi
+	Fconf \
+		CFLAGS="-O2 -fuse-ld=bfd" \
+		TARGET_LDFLAGS="-static" \
+		$_emu_bios \
+		--with-platform=$1
+
+	Fexec make -j1 || Fdie
 	Fmakeinstall
 	Fexec make distclean || Fdie
 }
@@ -235,11 +247,7 @@ build()
 
 	_build_grub_platform efi
 	_build_grub_platform pc
-	for i in $Fdestdir/{usr/bin,usr/sbin}/*; do
-		if file $i | grep -q 'ELF'; then
-		  strip $i || Fdie
-		fi
-	done
+
 	Ffile /etc/default/grub
 
 	Fsplit grub2-mkfont /usr/bin/grub-mkfont

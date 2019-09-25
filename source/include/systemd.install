@@ -1,29 +1,43 @@
 systemd_units=(@_F_systemd_units@)
-
+systemd_sunits=(@_F_systemd_sockets@)
 
 reload_tmpfiles_sysusers() {
 
-	/bin/systemd-sysusers
-	/bin/systemd-tmpfiles --create 2>/dev/null
+	[[ -e /bin/systemd-sysusers ]] && /bin/systemd-sysusers
+	[[ -e /bin/systemd-tmpfiles ]] && /bin/systemd-tmpfiles --create 2>/dev/null
 }
 
 handle_service()
 {
-	local unit
-	local op
-	local i
+	local unit sunit
+	local op sop
+	local i j
 
 
 	for i in ${systemd_units[@]}; do
 		unit=$(echo $i | cut -f 1 -d '=')
 		op=$(echo $i | cut -f 2 -d '=')
 		if echo $op | grep -q 'e'; then
-			systemctl enable $unit.service >/dev/null 2>&1
+			/bin/systemctl -q enable $unit.service >/dev/null 2>&1
 		fi
 		if echo $op | grep -q 's'; then
-			systemctl start $unit.service >/dev/null 2>&1
+			/bin/systemctl -q start $unit.service >/dev/null 2>&1
+		fi
+		if echo $op | grep -q 'd'; then
+			/bin/systemctl -q disable $unit.service >/dev/null 2>&1
 		fi
 	done
+
+	for j in ${systemd_sockets[@]}; do
+		sunit=$(echo $j | cut -f 1 -d '=')
+		sop=$(echo $j | cut -f 2 -d '=')
+		if echo $sop | grep -q 'e'; then
+			/bin/systemctl -q enable $sunit.socket >/dev/null 2>&1
+		fi
+		if echo $sop | grep -q 's'; then
+			/bin/systemctl -q start $sunit.socket >/dev/null 2>&1
+		fi
+	done  
 
 	reload_tmpfiles_sysusers
 }
@@ -37,25 +51,34 @@ post_upgrade()
 {
 
 	# reload first .. stuff may be changed on upgrade
-	systemctl daemon-reload >/dev/null 2>&1
+	/bin/systemctl daemon-reload >/dev/null 2>&1
 	reload_tmpfiles_sysusers
 }
 
 pre_remove()
 {
-	local unit
-	local i
+	local unit sunit
+	local i j
 
 	for i in ${systemd_units[@]}; do
 		unit=$(echo $i | cut -f 1 -d '=')
-		systemctl --no-reload disable $unit.service >/dev/null 2>&1
-		systemctl stop $unit.service >/dev/null 2>&1
+		/bin/systemctl --no-reload -q disable $unit.service >/dev/null 2>&1
+		/bin/systemctl -q stop $unit.service >/dev/null 2>&1
 	done
+
+	## usually a service will take down the socket but
+	## there to much strange things around..
+	for j in ${systemd_sockets[@]}; do
+		sunit=$(echo $j | cut -f 1 -d '=')
+		/bin/systemctl --no-reload -q disable $sunit.socket >/dev/null 2>&1
+		/bin/systemctl -q stop $sunit.socket >/dev/null 2>&1
+	done
+
 }
 
 post_remove()
 {
-	systemctl daemon-reload >/dev/null 2>&1
+	/bin/systemctl daemon-reload >/dev/null 2>&1
 }
 
 op=$1

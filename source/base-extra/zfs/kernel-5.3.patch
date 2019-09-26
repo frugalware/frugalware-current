@@ -1,0 +1,530 @@
+diff -Naur zfs-zfs-0.8.1/.gitignore zfs-zfs-0.8.1.new/.gitignore
+--- zfs-zfs-0.8.1/.gitignore	2019-06-14 18:43:18.000000000 +0200
++++ zfs-zfs-0.8.1.new/.gitignore	2019-09-26 09:52:55.254819605 +0200
+@@ -63,3 +63,14 @@
+ *.log
+ venv
+ 
++#
++# Module leftovers
++#
++/module/avl/zavl.mod
++/module/icp/icp.mod
++/module/lua/zlua.mod
++/module/nvpair/znvpair.mod
++/module/spl/spl.mod
++/module/unicode/zunicode.mod
++/module/zcommon/zcommon.mod
++/module/zfs/zfs.mod
+diff -Naur zfs-zfs-0.8.1/include/spl/sys/mutex.h zfs-zfs-0.8.1.new/include/spl/sys/mutex.h
+--- zfs-zfs-0.8.1/include/spl/sys/mutex.h	2019-06-14 18:43:18.000000000 +0200
++++ zfs-zfs-0.8.1.new/include/spl/sys/mutex.h	2019-09-26 09:52:48.061771474 +0200
+@@ -179,7 +179,4 @@
+ 	/* NOTE: do not dereference mp after this point */	\
+ }
+ 
+-int spl_mutex_init(void);
+-void spl_mutex_fini(void);
+-
+ #endif /* _SPL_MUTEX_H */
+diff -Naur zfs-zfs-0.8.1/include/spl/sys/rwlock.h zfs-zfs-0.8.1.new/include/spl/sys/rwlock.h
+--- zfs-zfs-0.8.1/include/spl/sys/rwlock.h	2019-06-14 18:43:18.000000000 +0200
++++ zfs-zfs-0.8.1.new/include/spl/sys/rwlock.h	2019-09-26 09:52:48.062771480 +0200
+@@ -29,43 +29,6 @@
+ #include <linux/rwsem.h>
+ #include <linux/sched.h>
+ 
+-/* Linux kernel compatibility */
+-#if defined(CONFIG_PREEMPT_RT_FULL)
+-#define	SPL_RWSEM_SINGLE_READER_VALUE	(1)
+-#define	SPL_RWSEM_SINGLE_WRITER_VALUE	(0)
+-#elif defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
+-#define	SPL_RWSEM_SINGLE_READER_VALUE	(1)
+-#define	SPL_RWSEM_SINGLE_WRITER_VALUE	(-1)
+-#elif defined(RWSEM_ACTIVE_MASK)
+-#define	SPL_RWSEM_SINGLE_READER_VALUE	(RWSEM_ACTIVE_READ_BIAS)
+-#define	SPL_RWSEM_SINGLE_WRITER_VALUE	(RWSEM_ACTIVE_WRITE_BIAS)
+-#endif
+-
+-/* Linux 3.16 changed activity to count for rwsem-spinlock */
+-#if defined(CONFIG_PREEMPT_RT_FULL)
+-#define	RWSEM_COUNT(sem)	sem->read_depth
+-#elif defined(HAVE_RWSEM_ACTIVITY)
+-#define	RWSEM_COUNT(sem)	sem->activity
+-/* Linux 4.8 changed count to an atomic_long_t for !rwsem-spinlock */
+-#elif defined(HAVE_RWSEM_ATOMIC_LONG_COUNT)
+-#define	RWSEM_COUNT(sem)	atomic_long_read(&(sem)->count)
+-#else
+-#define	RWSEM_COUNT(sem)	sem->count
+-#endif
+-
+-#if defined(RWSEM_SPINLOCK_IS_RAW)
+-#define	spl_rwsem_lock_irqsave(lk, fl)		raw_spin_lock_irqsave(lk, fl)
+-#define	spl_rwsem_unlock_irqrestore(lk, fl)	\
+-    raw_spin_unlock_irqrestore(lk, fl)
+-#define	spl_rwsem_trylock_irqsave(lk, fl)	raw_spin_trylock_irqsave(lk, fl)
+-#else
+-#define	spl_rwsem_lock_irqsave(lk, fl)		spin_lock_irqsave(lk, fl)
+-#define	spl_rwsem_unlock_irqrestore(lk, fl)	spin_unlock_irqrestore(lk, fl)
+-#define	spl_rwsem_trylock_irqsave(lk, fl)	spin_trylock_irqsave(lk, fl)
+-#endif /* RWSEM_SPINLOCK_IS_RAW */
+-
+-#define	spl_rwsem_is_locked(rwsem)		rwsem_is_locked(rwsem)
+-
+ typedef enum {
+ 	RW_DRIVER	= 2,
+ 	RW_DEFAULT	= 4,
+@@ -78,15 +41,9 @@
+ 	RW_READER	= 2
+ } krw_t;
+ 
+-/*
+- * If CONFIG_RWSEM_SPIN_ON_OWNER is defined, rw_semaphore will have an owner
+- * field, so we don't need our own.
+- */
+ typedef struct {
+ 	struct rw_semaphore rw_rwlock;
+-#ifndef CONFIG_RWSEM_SPIN_ON_OWNER
+ 	kthread_t *rw_owner;
+-#endif
+ #ifdef CONFIG_LOCKDEP
+ 	krw_type_t	rw_type;
+ #endif /* CONFIG_LOCKDEP */
+@@ -97,31 +54,19 @@
+ static inline void
+ spl_rw_set_owner(krwlock_t *rwp)
+ {
+-/*
+- * If CONFIG_RWSEM_SPIN_ON_OWNER is defined, down_write, up_write,
+- * downgrade_write and __init_rwsem will set/clear owner for us.
+- */
+-#ifndef CONFIG_RWSEM_SPIN_ON_OWNER
+ 	rwp->rw_owner = current;
+-#endif
+ }
+ 
+ static inline void
+ spl_rw_clear_owner(krwlock_t *rwp)
+ {
+-#ifndef CONFIG_RWSEM_SPIN_ON_OWNER
+ 	rwp->rw_owner = NULL;
+-#endif
+ }
+ 
+ static inline kthread_t *
+ rw_owner(krwlock_t *rwp)
+ {
+-#ifdef CONFIG_RWSEM_SPIN_ON_OWNER
+-	return (SEM(rwp)->owner);
+-#else
+ 	return (rwp->rw_owner);
+-#endif
+ }
+ 
+ #ifdef CONFIG_LOCKDEP
+@@ -148,62 +93,22 @@
+ #define	spl_rw_lockdep_on_maybe(rwp)
+ #endif /* CONFIG_LOCKDEP */
+ 
+-
+ static inline int
+-RW_WRITE_HELD(krwlock_t *rwp)
++RW_LOCK_HELD(krwlock_t *rwp)
+ {
+-	return (rw_owner(rwp) == current);
++	return (rwsem_is_locked(SEM(rwp)));
+ }
+ 
+ static inline int
+-RW_LOCK_HELD(krwlock_t *rwp)
++RW_WRITE_HELD(krwlock_t *rwp)
+ {
+-	return (spl_rwsem_is_locked(SEM(rwp)));
++	return (rw_owner(rwp) == current);
+ }
+ 
+ static inline int
+ RW_READ_HELD(krwlock_t *rwp)
+ {
+-	if (!RW_LOCK_HELD(rwp))
+-		return (0);
+-
+-	/*
+-	 * rw_semaphore cheat sheet:
+-	 *
+-	 * < 3.16:
+-	 * There's no rw_semaphore.owner, so use rwp.owner instead.
+-	 * If rwp.owner == NULL then it's a reader
+-	 *
+-	 * 3.16 - 4.7:
+-	 * rw_semaphore.owner added (https://lwn.net/Articles/596656/)
+-	 * and CONFIG_RWSEM_SPIN_ON_OWNER introduced.
+-	 * If rw_semaphore.owner == NULL then it's a reader
+-	 *
+-	 * 4.8 - 4.16.16:
+-	 * RWSEM_READER_OWNED added as an internal #define.
+-	 * (https://lore.kernel.org/patchwork/patch/678590/)
+-	 * If rw_semaphore.owner == 1 then it's a reader
+-	 *
+-	 * 4.16.17 - 4.19:
+-	 * RWSEM_OWNER_UNKNOWN introduced as ((struct task_struct *)-1L)
+-	 * (https://do-db2.lkml.org/lkml/2018/5/15/985)
+-	 * If rw_semaphore.owner == 1 then it's a reader.
+-	 *
+-	 * 4.20+:
+-	 * RWSEM_OWNER_UNKNOWN changed to ((struct task_struct *)-2L)
+-	 * (https://lkml.org/lkml/2018/9/6/986)
+-	 * If rw_semaphore.owner & 1 then it's a reader, and also the reader's
+-	 * task_struct may be embedded in rw_semaphore->owner.
+-	 */
+-#if	defined(CONFIG_RWSEM_SPIN_ON_OWNER) && defined(RWSEM_OWNER_UNKNOWN)
+-	if (RWSEM_OWNER_UNKNOWN == (struct task_struct *)-2L) {
+-		/* 4.20+ kernels with CONFIG_RWSEM_SPIN_ON_OWNER */
+-		return ((unsigned long) SEM(rwp)->owner & 1);
+-	}
+-#endif
+-
+-	/* < 4.20 kernel or !CONFIG_RWSEM_SPIN_ON_OWNER */
+-	return (rw_owner(rwp) == NULL || (unsigned long) rw_owner(rwp) == 1);
++	return (RW_LOCK_HELD(rwp) && rw_owner(rwp) == NULL);
+ }
+ 
+ /*
+@@ -228,6 +133,12 @@
+  */
+ #define	rw_destroy(rwp)		((void) 0)
+ 
++/*
++ * Upgrading a rwsem from a reader to a writer is not supported by the
++ * Linux kernel.  The lock must be dropped and reacquired as a writer.
++ */
++#define	rw_tryupgrade(rwp)	RW_WRITE_HELD(rwp)
++
+ #define	rw_tryenter(rwp, rw)						\
+ ({									\
+ 	int _rc_ = 0;							\
+@@ -285,25 +196,6 @@
+ 	downgrade_write(SEM(rwp));					\
+ 	spl_rw_lockdep_on_maybe(rwp);					\
+ })
+-
+-#define	rw_tryupgrade(rwp)						\
+-({									\
+-	int _rc_ = 0;							\
+-									\
+-	if (RW_WRITE_HELD(rwp)) {					\
+-		_rc_ = 1;						\
+-	} else {							\
+-		spl_rw_lockdep_off_maybe(rwp);				\
+-		if ((_rc_ = rwsem_tryupgrade(SEM(rwp))))		\
+-			spl_rw_set_owner(rwp);				\
+-		spl_rw_lockdep_on_maybe(rwp);				\
+-	}								\
+-	_rc_;								\
+-})
+ /* END CSTYLED */
+ 
+-int spl_rw_init(void);
+-void spl_rw_fini(void);
+-int rwsem_tryupgrade(struct rw_semaphore *rwsem);
+-
+ #endif /* _SPL_RWLOCK_H */
+diff -Naur zfs-zfs-0.8.1/module/Makefile.in zfs-zfs-0.8.1.new/module/Makefile.in
+--- zfs-zfs-0.8.1/module/Makefile.in	2019-06-14 18:43:18.000000000 +0200
++++ zfs-zfs-0.8.1.new/module/Makefile.in	2019-09-26 09:54:47.579571143 +0200
+@@ -1,11 +1,11 @@
+-subdir-m += avl
+-subdir-m += icp
+-subdir-m += lua
+-subdir-m += nvpair
+-subdir-m += spl
+-subdir-m += unicode
+-subdir-m += zcommon
+-subdir-m += zfs
++obj-m += avl/
++obj-m += icp/
++obj-m += lua/
++obj-m += nvpair/
++obj-m += spl/
++obj-m += unicode/
++obj-m += zcommon/
++obj-m += zfs/
+ 
+ INSTALL_MOD_DIR ?= extra
+ 
+@@ -60,12 +60,12 @@
+ modules_uninstall:
+ 	@# Uninstall the kernel modules
+ 	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@
+-	list='$(subdir-m)'; for subdir in $$list; do \
++	list='$(obj-m)'; for subdir in $$list; do \
+ 		$(RM) -R $$kmoddir/$(INSTALL_MOD_DIR)/$$subdir; \
+ 	done
+ 
+ distdir:
+-	list='$(subdir-m)'; for subdir in $$list; do \
++	list='$(obj-m)'; for subdir in $$list; do \
+ 		(cd @top_srcdir@/module && find $$subdir -name '*.c' -o -name '*.h' -o -name '*.S' |\
+ 		xargs cp --parents -t $$distdir); \
+ 	done
+diff -Naur zfs-zfs-0.8.1/module/spl/Makefile.in zfs-zfs-0.8.1.new/module/spl/Makefile.in
+--- zfs-zfs-0.8.1/module/spl/Makefile.in	2019-06-14 18:43:18.000000000 +0200
++++ zfs-zfs-0.8.1.new/module/spl/Makefile.in	2019-09-26 09:52:48.062771480 +0200
+@@ -16,10 +16,8 @@
+ $(MODULE)-objs += spl-kmem-cache.o
+ $(MODULE)-objs += spl-kobj.o
+ $(MODULE)-objs += spl-kstat.o
+-$(MODULE)-objs += spl-mutex.o
+ $(MODULE)-objs += spl-proc.o
+ $(MODULE)-objs += spl-procfs-list.o
+-$(MODULE)-objs += spl-rwlock.o
+ $(MODULE)-objs += spl-taskq.o
+ $(MODULE)-objs += spl-thread.o
+ $(MODULE)-objs += spl-tsd.o
+diff -Naur zfs-zfs-0.8.1/module/spl/spl-generic.c zfs-zfs-0.8.1.new/module/spl/spl-generic.c
+--- zfs-zfs-0.8.1/module/spl/spl-generic.c	2019-06-14 18:43:18.000000000 +0200
++++ zfs-zfs-0.8.1.new/module/spl/spl-generic.c	2019-09-26 09:52:48.063771487 +0200
+@@ -694,51 +694,41 @@
+ 	if ((rc = spl_kvmem_init()))
+ 		goto out1;
+ 
+-	if ((rc = spl_mutex_init()))
+-		goto out2;
+-
+-	if ((rc = spl_rw_init()))
+-		goto out3;
+-
+ 	if ((rc = spl_tsd_init()))
+-		goto out4;
++		goto out2;
+ 
+ 	if ((rc = spl_taskq_init()))
+-		goto out5;
++		goto out3;
+ 
+ 	if ((rc = spl_kmem_cache_init()))
+-		goto out6;
++		goto out4;
+ 
+ 	if ((rc = spl_vn_init()))
+-		goto out7;
++		goto out5;
+ 
+ 	if ((rc = spl_proc_init()))
+-		goto out8;
++		goto out6;
+ 
+ 	if ((rc = spl_kstat_init()))
+-		goto out9;
++		goto out7;
+ 
+ 	if ((rc = spl_zlib_init()))
+-		goto out10;
++		goto out8;
+ 
+ 	return (rc);
+ 
+-out10:
+-	spl_kstat_fini();
+-out9:
+-	spl_proc_fini();
+ out8:
+-	spl_vn_fini();
++	spl_kstat_fini();
+ out7:
+-	spl_kmem_cache_fini();
++	spl_proc_fini();
+ out6:
+-	spl_taskq_fini();
++	spl_vn_fini();
+ out5:
+-	spl_tsd_fini();
++	spl_kmem_cache_fini();
+ out4:
+-	spl_rw_fini();
++	spl_taskq_fini();
+ out3:
+-	spl_mutex_fini();
++	spl_tsd_fini();
+ out2:
+ 	spl_kvmem_fini();
+ out1:
+@@ -755,8 +745,6 @@
+ 	spl_kmem_cache_fini();
+ 	spl_taskq_fini();
+ 	spl_tsd_fini();
+-	spl_rw_fini();
+-	spl_mutex_fini();
+ 	spl_kvmem_fini();
+ }
+ 
+diff -Naur zfs-zfs-0.8.1/module/spl/spl-mutex.c zfs-zfs-0.8.1.new/module/spl/spl-mutex.c
+--- zfs-zfs-0.8.1/module/spl/spl-mutex.c	2019-06-14 18:43:18.000000000 +0200
++++ zfs-zfs-0.8.1.new/module/spl/spl-mutex.c	1970-01-01 01:00:00.000000000 +0100
+@@ -1,30 +0,0 @@
+-/*
+- *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
+- *  Copyright (C) 2007 The Regents of the University of California.
+- *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
+- *  Written by Brian Behlendorf <behlendorf1@llnl.gov>.
+- *  UCRL-CODE-235197
+- *
+- *  This file is part of the SPL, Solaris Porting Layer.
+- *  For details, see <http://zfsonlinux.org/>.
+- *
+- *  The SPL is free software; you can redistribute it and/or modify it
+- *  under the terms of the GNU General Public License as published by the
+- *  Free Software Foundation; either version 2 of the License, or (at your
+- *  option) any later version.
+- *
+- *  The SPL is distributed in the hope that it will be useful, but WITHOUT
+- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+- *  for more details.
+- *
+- *  You should have received a copy of the GNU General Public License along
+- *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
+- *
+- *  Solaris Porting Layer (SPL) Mutex Implementation.
+- */
+-
+-#include <sys/mutex.h>
+-
+-int spl_mutex_init(void) { return 0; }
+-void spl_mutex_fini(void) { }
+diff -Naur zfs-zfs-0.8.1/module/spl/spl-rwlock.c zfs-zfs-0.8.1.new/module/spl/spl-rwlock.c
+--- zfs-zfs-0.8.1/module/spl/spl-rwlock.c	2019-06-14 18:43:18.000000000 +0200
++++ zfs-zfs-0.8.1.new/module/spl/spl-rwlock.c	1970-01-01 01:00:00.000000000 +0100
+@@ -1,132 +0,0 @@
+-/*
+- *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
+- *  Copyright (C) 2007 The Regents of the University of California.
+- *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
+- *  Written by Brian Behlendorf <behlendorf1@llnl.gov>.
+- *  UCRL-CODE-235197
+- *
+- *  This file is part of the SPL, Solaris Porting Layer.
+- *  For details, see <http://zfsonlinux.org/>.
+- *
+- *  The SPL is free software; you can redistribute it and/or modify it
+- *  under the terms of the GNU General Public License as published by the
+- *  Free Software Foundation; either version 2 of the License, or (at your
+- *  option) any later version.
+- *
+- *  The SPL is distributed in the hope that it will be useful, but WITHOUT
+- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+- *  for more details.
+- *
+- *  You should have received a copy of the GNU General Public License along
+- *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
+- *
+- *  Solaris Porting Layer (SPL) Reader/Writer Lock Implementation.
+- */
+-
+-#include <sys/rwlock.h>
+-#include <linux/module.h>
+-
+-#if defined(CONFIG_PREEMPT_RT_FULL)
+-
+-#include <linux/rtmutex.h>
+-#define	RT_MUTEX_OWNER_MASKALL	1UL
+-
+-static int
+-__rwsem_tryupgrade(struct rw_semaphore *rwsem)
+-{
+-#if defined(READER_BIAS) && defined(WRITER_BIAS)
+-	/*
+-	 * After the 4.9.20-rt16 kernel the realtime patch series lifted the
+-	 * single reader restriction.  While this could be accommodated by
+-	 * adding additional compatibility code assume the rwsem can never
+-	 * be upgraded.  All caller must already cleanly handle this case.
+-	 */
+-	return (0);
+-#else
+-	ASSERT((struct task_struct *)
+-	    ((unsigned long)rwsem->lock.owner & ~RT_MUTEX_OWNER_MASKALL) ==
+-	    current);
+-
+-	/*
+-	 * Prior to 4.9.20-rt16 kernel the realtime patch series, rwsem is
+-	 * implemented as a single mutex held by readers and writers alike.
+-	 * However, this implementation would prevent a thread from taking
+-	 * a read lock twice, as the mutex would already be locked on
+-	 * the second attempt. Therefore the implementation allows a
+-	 * single thread to take a rwsem as read lock multiple times
+-	 * tracking that nesting as read_depth counter.
+-	 */
+-	if (rwsem->read_depth <= 1) {
+-		/*
+-		 * In case, the current thread has not taken the lock
+-		 * more than once as read lock, we can allow an
+-		 * upgrade to a write lock. rwsem_rt.h implements
+-		 * write locks as read_depth == 0.
+-		 */
+-		rwsem->read_depth = 0;
+-		return (1);
+-	}
+-	return (0);
+-#endif
+-}
+-#elif defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
+-static int
+-__rwsem_tryupgrade(struct rw_semaphore *rwsem)
+-{
+-	int ret = 0;
+-	unsigned long flags;
+-	spl_rwsem_lock_irqsave(&rwsem->wait_lock, flags);
+-	if (RWSEM_COUNT(rwsem) == SPL_RWSEM_SINGLE_READER_VALUE &&
+-	    list_empty(&rwsem->wait_list)) {
+-		ret = 1;
+-		RWSEM_COUNT(rwsem) = SPL_RWSEM_SINGLE_WRITER_VALUE;
+-	}
+-	spl_rwsem_unlock_irqrestore(&rwsem->wait_lock, flags);
+-	return (ret);
+-}
+-#elif defined(RWSEM_ACTIVE_MASK)
+-#if defined(HAVE_RWSEM_ATOMIC_LONG_COUNT)
+-static int
+-__rwsem_tryupgrade(struct rw_semaphore *rwsem)
+-{
+-	long val;
+-	val = atomic_long_cmpxchg(&rwsem->count, SPL_RWSEM_SINGLE_READER_VALUE,
+-	    SPL_RWSEM_SINGLE_WRITER_VALUE);
+-	return (val == SPL_RWSEM_SINGLE_READER_VALUE);
+-}
+-#else
+-static int
+-__rwsem_tryupgrade(struct rw_semaphore *rwsem)
+-{
+-	typeof(rwsem->count) val;
+-	val = cmpxchg(&rwsem->count, SPL_RWSEM_SINGLE_READER_VALUE,
+-	    SPL_RWSEM_SINGLE_WRITER_VALUE);
+-	return (val == SPL_RWSEM_SINGLE_READER_VALUE);
+-}
+-#endif
+-#else
+-static int
+-__rwsem_tryupgrade(struct rw_semaphore *rwsem)
+-{
+-	return (0);
+-}
+-#endif
+-
+-int
+-rwsem_tryupgrade(struct rw_semaphore *rwsem)
+-{
+-	if (__rwsem_tryupgrade(rwsem)) {
+-		rwsem_release(&rwsem->dep_map, 1, _RET_IP_);
+-		rwsem_acquire(&rwsem->dep_map, 0, 1, _RET_IP_);
+-#ifdef CONFIG_RWSEM_SPIN_ON_OWNER
+-		rwsem->owner = current;
+-#endif
+-		return (1);
+-	}
+-	return (0);
+-}
+-EXPORT_SYMBOL(rwsem_tryupgrade);
+-
+-int spl_rw_init(void) { return 0; }
+-void spl_rw_fini(void) { }

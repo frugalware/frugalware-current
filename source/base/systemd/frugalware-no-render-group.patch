@@ -1,0 +1,68 @@
+diff -Naur systemd-242/meson.build systemd-242-p/meson.build
+--- systemd-242/meson.build	2019-04-11 18:28:36.000000000 +0200
++++ systemd-242-p/meson.build	2019-05-22 14:27:33.370322615 +0200
+@@ -832,9 +832,6 @@
+ dev_kvm_mode = get_option('dev-kvm-mode')
+ substs.set('DEV_KVM_MODE', dev_kvm_mode)
+ conf.set10('DEV_KVM_UACCESS', dev_kvm_mode != '0666')
+-group_render_mode = get_option('group-render-mode')
+-substs.set('GROUP_RENDER_MODE', group_render_mode)
+-conf.set10('GROUP_RENDER_UACCESS', group_render_mode != '0666')
+ 
+ kill_user_processes = get_option('default-kill-user-processes')
+ conf.set10('KILL_USER_PROCESSES', kill_user_processes)
+@@ -3124,7 +3121,6 @@
+         'minimum container UID base:        @0@'.format(container_uid_base_min),
+         'maximum container UID base:        @0@'.format(container_uid_base_max),
+         '/dev/kvm access mode:              @0@'.format(get_option('dev-kvm-mode')),
+-        'render group access mode:          @0@'.format(get_option('group-render-mode')),
+         'certificate root directory:        @0@'.format(get_option('certificate-root')),
+         'support URL:                       @0@'.format(support_url),
+         'nobody user name:                  @0@'.format(nobody_user),
+diff -Naur systemd-242/meson_options.txt systemd-242-p/meson_options.txt
+--- systemd-242/meson_options.txt	2019-04-11 18:28:36.000000000 +0200
++++ systemd-242-p/meson_options.txt	2019-05-22 14:28:59.332795803 +0200
+@@ -192,8 +192,6 @@
+        value : 'nobody')
+ option('dev-kvm-mode', type : 'string', value : '0666',
+        description : '/dev/kvm access mode')
+-option('group-render-mode', type : 'string', value : '0666',
+-       description : 'Access mode for devices owned by render group (e.g. /dev/dri/renderD*, /dev/kfd).')
+ option('default-kill-user-processes', type : 'boolean',
+        description : 'the default value for KillUserProcesses= setting')
+ option('gshadow', type : 'boolean',
+diff -Naur systemd-242/rules/50-udev-default.rules.in systemd-242-p/rules/50-udev-default.rules.in
+--- systemd-242/rules/50-udev-default.rules.in	2019-04-11 18:28:36.000000000 +0200
++++ systemd-242-p/rules/50-udev-default.rules.in	2019-05-22 14:30:45.571381615 +0200
+@@ -31,14 +31,11 @@
+ 
+ SUBSYSTEM=="video4linux", GROUP="video"
+ SUBSYSTEM=="graphics", GROUP="video"
+-SUBSYSTEM=="drm", KERNEL!="renderD*", GROUP="video"
++SUBSYSTEM=="drm", GROUP="video"
+ SUBSYSTEM=="dvb", GROUP="video"
+ SUBSYSTEM=="media", GROUP="video"
+ SUBSYSTEM=="cec", GROUP="video"
+ 
+-SUBSYSTEM=="drm", KERNEL=="renderD*", GROUP="render", MODE="@GROUP_RENDER_MODE@"
+-SUBSYSTEM=="kfd", GROUP="render", MODE="@GROUP_RENDER_MODE@"
+-
+ SUBSYSTEM=="sound", GROUP="audio", \
+   OPTIONS+="static_node=snd/seq", OPTIONS+="static_node=snd/timer"
+ 
+diff -Naur systemd-242/src/login/70-uaccess.rules.m4 systemd-242-p/src/login/70-uaccess.rules.m4
+--- systemd-242/src/login/70-uaccess.rules.m4	2019-04-11 18:28:36.000000000 +0200
++++ systemd-242-p/src/login/70-uaccess.rules.m4	2019-05-22 14:32:52.161081072 +0200
+@@ -45,11 +45,7 @@
+ SUBSYSTEM=="firewire", ATTR{units}=="*0x00a02d:0x014001*", TAG+="uaccess"
+ 
+ # DRI video devices
+-SUBSYSTEM=="drm", KERNEL=="card*", TAG+="uaccess"
+-m4_ifdef(`GROUP_RENDER_UACCESS',``
+-# DRI render nodes
+-SUBSYSTEM=="drm", KERNEL=="renderD*", TAG+="uaccess"''
+-)m4_dnl
++SUBSYSTEM=="drm", KERNEL=="card*|renderD*", TAG+="uaccess"
+ m4_ifdef(`DEV_KVM_UACCESS',``
+ # KVM
+ SUBSYSTEM=="misc", KERNEL=="kvm", TAG+="uaccess"''

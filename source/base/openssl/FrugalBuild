@@ -1,54 +1,64 @@
 # Compiling Time: 0.84 SBU
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
-# Maintainer: voroskoi <voroskoi@frugalware.org>
+# Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=openssl
-pkgver=1.0.2
-pkgextraver=r
-pkgrel=24
+pkgver=1.1.1
+pkgextraver=d
+pkgrel=4
 pkgdesc="The Open Source toolkit for Secure Sockets Layer and Transport Layer Security"
 url="http://www.openssl.org/source/"
 groups=('base' 'chroot-core')
 archs=('x86_64')
-depends=('glibc>=2.26.9000-3')
-makedepends=('util-linux>=2.31.1-2')
-_F_archive_grepv="beta"
-## check for extra pkgver when you bump this
-_F_archive_grepv="1.1.*"
-up2date="lynx -dump -listonly ftp://ftp.openssl.org/source/ | egrep -v '(beta|pre|1.1)' | Flasttar"
-source=($url$pkgname-$pkgver$pkgextraver.tar.gz \
-	http://caunter.ca/ssl.certs.shar)
-signatures=("$source.asc" '')
-
-_F_conf_configure="./Configure"
-_F_cross32_simple_auto=yes
+depends=('glibc>=2.29-5')
+makedepends=('util-linux>=2.31.1-2' 'lib32-util-linux')
+backup=('etc/ssl/openssl.cnf')
+up2date="lynx -dump -listonly ftp://ftp.openssl.org/source/ | egrep -v '(beta|pre)' | Flasttar"
+source=($url$pkgname-$pkgver$pkgextraver.tar.gz http://caunter.ca/ssl.certs.shar)
+_F_cross32_simple_auto="yes"
 Finclude cross32
-makedepends+=('lib32-util-linux')
-
 options+=('static')
+sha1sums=('056057782325134b76d1931c48f2c7e6595d7ef4' \
+          'b849677e0745b0363811c3362884a6d504eec0a9')
+
+subpkgs+=("${pkgname}-static")
+subdescs+=("Static files for $pkgname")
+subdepends+=('')
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
+suboptions+=('')
+
+subpkgs+=("${pkgname}-docs")
+subdescs+=("HTML documentation for $pkgname")
+subdepends+=('')
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
+suboptions+=('')
 
 build()
 {
-	unset MAKEFLAGS
+	local i
 
 	Fcd
-	## no thx
-	Fsed '-O3' '' Configure
+	# kill demoCA
+	Fsed './demoCA' '/etc/ssl' apps/CA.pl.in
+	Fsed './demoCA' '/etc/ssl' apps/openssl.cnf
+
 	# 32-Bit build
 	Fcross32_prepare
 	Fcross32_copy_source
 
-	Fconf   --prefix=/usr \
-		--openssldir=/etc/ssl \
-		--libdir=lib32 \
-		shared \
-		linux-elf \
-		"-Wa,--noexecstack ${CPPFLAGS} ${CFLAGS} ${LDFLAGS}"
+	Fexec ./Configure	\
+			--prefix=/usr \
+			--openssldir=/etc/ssl \
+			--libdir=lib32 \
+			shared \
+			linux-elf \
+			"-Wa,--noexecstack ${CPPFLAGS} ${CFLAGS} ${LDFLAGS}"
 
 
-	Fpatchall
 	Fexec make || Fdie
-	Fexec make INSTALL_PREFIX=$Fdestdir MANDIR=/usr/share/man MANSUFFIX=openssl install || Fdie
+	Fexec make DESTDIR=$Fdestdir MANDIR=/usr/share/man MANSUFFIX=openssl install || Fdie
 
 	## fix up
 	Fmkdir usr/$CHOST/{include,bin}
@@ -63,8 +73,8 @@ build()
 		Fsed "includedir=.*" "includedir=/usr/$CHOST/include" $Fdestdir/usr/lib32/pkgconfig/${i}.pc
 	done
 
-	Fln libssl.so.1.0.0 /usr/lib32/libssl.so.1  # look out!!
-	Fln libcrypto.so.1.0.0 /usr/lib32/libcrypto.so.1  # look out!!
+	Fln libssl.so.1.1 /usr/lib32/libssl.so.1  # look out!!
+	Fln libcrypto.so.1.1 /usr/lib32/libcrypto.so.1  # look out!!
 
 	Fsplit "${subpkgs[0]}" /\*
 
@@ -74,26 +84,26 @@ build()
 	## 64bit
 	Fcd
 	Fsed '-O3' '' Configure
-	Fconf   --prefix=/usr \
-		--openssldir=/etc/ssl \
-		--libdir=lib \
-		shared \
-		enable-ec_nistp_64_gcc_128 \
-		linux-x86_64 \
-		"-Wa,--noexecstack ${CPPFLAGS} ${CFLAGS} ${LDFLAGS}"
+	Fexec ./Configure	\
+			--prefix=/usr \
+			--openssldir=/etc/ssl \
+			--libdir=lib \
+			shared \
+			linux-x86_64 \
+			"-Wa,--noexecstack ${CPPFLAGS} ${CFLAGS} ${LDFLAGS}"
 
-        Fpatchall
-        Fexec make || Fdie
-        Fexec make INSTALL_PREFIX=$Fdestdir MANDIR=/usr/share/man MANSUFFIX=openssl install || Fdie
+	Fexec make || Fdie
+	Fexec make DESTDIR=$Fdestdir MANDIR=/usr/share/man MANSUFFIX=openssl install || Fdie
 
-	## DON'T pacman static need these
-	#Frm usr/lib/*.a
-	cd ${Fdestdir}/etc/ssl/certs || Fdie
-	sh ${Fsrcdir}/ssl.certs.shar || Fdie
+	Fexec cd ${Fdestdir}/etc/ssl/certs || Fdie
+	Fexec sh ${Fsrcdir}/ssl.certs.shar || Fdie
 
 
-	Fln libssl.so.1.0.0 /usr/lib/libssl.so.1  # look out!!
-	Fln libcrypto.so.1.0.0 /usr/lib/libcrypto.so.1  # look out!!
+	Fln libssl.so.1.1 /usr/lib/libssl.so.1  # look out!!
+	Fln libcrypto.so.1.1 /usr/lib/libcrypto.so.1  # look out!!
+
+	Fsplit ${pkgname}-static usr/lib/*.a
+	Fsplit ${pkgname}-docs usr/share/doc/openssl
 
 
 }

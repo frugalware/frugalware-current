@@ -1,0 +1,51 @@
+#!/bin/sh
+
+REAL_AR=binutils-ar
+PARENT="$(readlink /proc/$PPID/exe)"
+WRAPPED=false
+
+# If /proc isn't mounted, let's do the least evil thing we can
+if [ -z "$PARENT" ]; then
+    WRAPPED=true
+# If we're being called by gcc-ar or llvm-ar, we're already
+# wrapped (and need to make sure we don't call ourselves recursively)
+elif echo "$PARENT" |grep -qE -- '-ar$'; then
+    WRAPPED=true
+# Fun... We're running inside qemu binfmt_misc emulation,
+# so we have to determine our parent the evil and less
+# reliable way...
+elif echo "$PARENT" |grep -qE -- 'qemu'; then
+    if grep -qE -- '-ar' /proc/$PPID/cmdline; then
+		WRAPPED=true
+    fi
+fi
+if ! "$WRAPPED"; then
+
+	which llvm-ar &>/dev/null && IS_LLVM_AR=true
+	which gcc-ar &>/dev/null && IS_GCC_AR=true
+	for i in "$@"; do
+		[ "$(echo $i |cut -b1)" = '-' ] && continue
+		if echo "$i" | grep -qE '\.(o|ol)$' && [ -e "$i" ]; then
+			if LANG=C file "$i" |grep -q "LLVM IR bitcode"; then
+				if [[ -n "$IS_LLVM_AR" ]]; then
+					REAL_AR=llvm-ar
+					break
+				else
+					echo "${0}-wrapper ERROR: LLVM-LTO code but missing llvm-ar, cannot continue!"
+					exit 1
+				fi
+			fi
+
+			if LANG=C readelf -s "$i" | grep -q "gnu_lto"; then
+				if [[ -n "$IS_GCC_AR" ]]; then
+					REAL_AR=gcc-ar
+					break
+				else
+					echo "${0}-wrapper ERROR: GCC-LTO code but missing gcc-ar, cannot continue!"
+					exit 1
+				fi
+			fi
+		fi
+    done
+fi
+exec "$REAL_AR" "$@"

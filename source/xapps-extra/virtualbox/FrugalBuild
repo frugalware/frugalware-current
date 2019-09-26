@@ -8,12 +8,12 @@ USE_VBOX_DEBUG=${USE_VBOX_DEBUG:-"n"}
 
 pkgname=virtualbox
 realname=VirtualBox
-pkgver=6.0.4
+pkgver=6.0.12
 pkgextra=
-pkgrel=18
+pkgrel=6
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
-depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' \
+depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' 'openssl>=1.1.1' \
          'alsa-lib>=1.1.4.1'  'curl' 'libxmu' 'libuuid' 'libcap' 'qt5-base>=5.11.0-2' 'qt5-x11extras>=5.11.0-2' \
          'libvpx>=1.8.0' 'lvm2' 'mesa-libglx>=17.3.0-3' 'libxext' 'libx11' 'libpulse' 'libglu' 'libxrandr' 'libxcomposite' \
 	 'libxinerama' 'libvncserver' 'iproute2' 'mesa-libegl>=17.3.0-3' 'libglvnd' 'xrandr' 'libinput' 'opus')
@@ -29,9 +29,7 @@ source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver
 	60-vboxguest.rules \
 	vboxservice.service \
 	virtualbox-guest-utils.conf \
-	depmod.patch \
-	kernel-5.0.patch \
-	tmp-disable-vboxvideo-ko.patch)
+	depmod.patch)
 
 _F_kernelmod_scriptlet="$startdir/$pkgname.install"
 Finclude kernel-module
@@ -43,18 +41,16 @@ Finclude kernel-module
 ## SUP_IOCTL_LDR_OPEN: pReq->u.In.cbImageBits < pReq->u.In.cbImageWithTabs
 
 ## duh this genscriptlet sh*t is plain broken
-options=('scriptlet' 'nostrip' 'genscriptlet') ## we strip manually in build()
+options=('noccache' 'scriptlet' 'nostrip' 'genscriptlet' 'nowfsecurity' 'nolto' 'nofortify') ## we strip manually in build()
 
 _F_cd_path="${realname}-${pkgver}"
-sha1sums=('39c472d49e8e25dce39a3d296ca4033ae4643dd1' \
+sha1sums=('65d23867812b97976c393e161a4fea7ef90d66bf' \
           'aa931ae19edd8585150738f0efd8fedf5175a6d3' \
           '0666fa77bb8aab6d2ca3501256c9f0124175f45c' \
           '08199d8e7906cb793277b798805d38ce386460d8' \
           '28fb53322691d32a82de87e63672229ea5b7159e' \
           '80ba54b1e13f0e8f53a84ca3f25df617fb53ae4c' \
-          '6f0f27a0020fa1e425ca7aca51e923077876f227' \
-          '58d227d250a8bf71a67d3f2736925843b1c71145' \
-          '650860de391bc220ff87454d52b51aa7bd6059f9')
+          'ed04bf751eae0516e98c81157676d7af8ee41c14')
 
 subpkgs=("$pkgname-modules")
 subdescs=('Kernel modules for VirtualBox')
@@ -88,14 +84,14 @@ build() {
 	## Change all back to VBoxVGA , *SVGA and *VMSVGA not yet working right.
 	Fsed 'GraphicsControllerType_VBoxSVGA' 'GraphicsControllerType_VBoxVGA' src/VBox/Main/src-all/Global.cpp
 	Fsed 'GraphicsControllerType_VMSVGA' 'GraphicsControllerType_VBoxVGA' src/VBox/Main/src-all/Global.cpp
-        Fexec cp "$Fsrcdir/LocalConfig.kmk" . || Fdie
+	Fexec cp "$Fsrcdir/LocalConfig.kmk" . || Fdie
 
 	Fsed 'DocPath=.*' '' src/VBox/Installer/common/virtualbox.desktop.in
 
 	echo -e "\nVBOX_GCC_OPT=$CXXFLAGS" >> LocalConfig.kmk ## DO NOT REMOVE
 
 	Fmessage "Building with the following LocalConfig:"
-	cat LocalConfig.kmk
+	Fexec cat LocalConfig.kmk
 
 	if Fuse $USE_VBOX_DEBUG; then
 		VBoxBuildType="debug"
@@ -129,11 +125,11 @@ build() {
 
 	for k in 16 20 32 40 48 64 128; do
            Finstall 0644 ${_F_cd_path}/src/VBox/Artwork/OSE/virtualbox-${k}px.png  usr/share/icons/hicolor/${k}x${k}/apps/virtualbox.png
-        done
+	done
 
 	Finstall 0644 ${_F_cd_path}/src/VBox/Artwork/OSE/virtualbox.svg usr/share/icons/hicolor/scalable/apps/virtualbox.svg
 
-	cd ${Fsrcdir}/${VboxSrcDir} || Fdie
+	Fexec cd ${Fsrcdir}/${VboxSrcDir} || Fdie
 
 
 	## FIXME: lot stuff missing
@@ -170,7 +166,6 @@ build() {
 	## icons
 	pushd icons
 	for j in ./*; do
-	  #echo $j
 	  Finstallrel 644 $j/* "usr/share/icons/hicolor/$j/mimetypes"
 	done
 	popd
@@ -204,8 +199,8 @@ build() {
 	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/src || Fdie
 	Fmkdir ${_F_kernelmod_dir}/kernel/misc
 
-	Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} || Fdie
-	Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+	Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} || Fdie
+	Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
 
 	#cleanup first
 	Fexec rm -rf fw_tmp || Fdie
@@ -232,10 +227,7 @@ build() {
 	Fsplit virtualbox-guest-additions  etc/xdg
 
 
-	for m in {VBoxOGLerrorspu.so,VBoxOGLarrayspu.so,VBoxOGLpackspu.so,VBoxOGLcrutil.so,VBoxOGLfeedbackspu.so,VBoxOGL.so,VBoxOGLpassthroughspu.so}
-	do
-		Finstallrel 755 usr/lib/$m
-	done
+	Finstallrel 755 usr/lib/VBoxOGL.so
 
 	Fln /usr/lib/VBoxOGL.so usr/lib/dri/vboxvideo_dri.so
 	Fsplit virtualbox-guest-additions usr/lib/VBoxOGL*.so
@@ -250,14 +242,14 @@ build() {
 	Fsplit virtualbox-guest-additions usr/lib/sysusers.d/
 
 	# guest kernel modules
-	KMOD_NAMES="vboxguest vboxsf"
+	KMOD_NAMES="vboxguest" #TODO Temp disable some
     Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions/src || Fdie
     Fmkdir ${_F_kernelmod_dir}/kernel/misc
 
 	for mod in ${KMOD_NAMES[@]}
 	do
-		Fexec make -C $mod V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname}  || Fdie
-		Fexec make -C $mod V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}/${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+		Fexec make -C $mod V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname}  || Fdie
+		Fexec make -C $mod V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
 	done
 
     #cleanup first ?!?!?! -- what for is that ? -- crazy

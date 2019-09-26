@@ -2,25 +2,24 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 # Maintainer: crazy <crazy@frugalware.org>
 
-USE_DEVEL=${USE_DEVEL:-"n"}
 
 pkgname=mplayer
 _F_archive_name=MPlayer
-pkgver=1.3.0
-pkgrel=9
+pkgver=1.4
+pkgrel=2
 pkgdesc="The Movie Player"
 url="http://www.mplayerhq.hu/"
 depends=('gnutls>=3.4.8' 'libjpeg-turbo' 'libgif>=5.1.2' 'libpng>=1.6.20' 'libbluray>=1.0.0' 'cdparanoia>=10.2-4' \
 	'libass>=0.13.6' 'libmad>=0.15.1b-8' 'speex>=1.2rc2-4' 'libtheora>=1.1.1-4' 'ncurses>=6.0-6' \
 	'a52dec>=0.7.4-5' 'faad2>=2.7-5' 'opencore-amr>=0.1.3-2' 'libdv>=1.0.0-4' 'xvidcore>=1.3.4-2' \
 	'libvpx>=1.8' 'libvdpau>=1.1.1-2' 'libxxf86dga>=1.1.4-2' 'aalib>=1.4rc5-8' 'libpulse>=7.1-4' \
-	'openal>=1.17.1-2' 'faac>=1.29' 'x264>=20151115_2245-2' 'lame>=3.99.5-4' 'liblirc>=0.9.1-2' 'codecs')
+	'openal>=1.17.1-2' 'faac>=1.29' 'x264>=20151115_2245-2' 'lame>=3.99.5-4' 'liblirc>=0.9.1-2')
 makedepends=('yasm' 'x11-protos' 'v4l-utils>=1.8.1-3' 'ffmpeg>=3.3.3-2' 'gsm>=1.0.14-2' 'rtmpdump>=2.4-2' 'lzo>=2.09-4')
 groups=('xmultimedia')
 backup=('etc/mplayer/mplayer.conf')
 conflicts=('mplayer2')
 archs=("x86_64")
-options=('scriptlet')
+options+=('nolto')
 up2date="Flasttar $url/MPlayer/releases"
 source=(http://www.mplayerhq.hu/MPlayer/releases/$_F_archive_name-$pkgver.tar.xz \
 	http://www.mplayerhq.hu/MPlayer/releases/fonts/font-arial-cp1250.tar.bz2 \
@@ -28,25 +27,12 @@ source=(http://www.mplayerhq.hu/MPlayer/releases/$_F_archive_name-$pkgver.tar.xz
 	http://www.mplayerhq.hu/MPlayer/releases/fonts/font-arial-iso-8859-2.tar.bz2 \
 	http://www.mplayerhq.hu/MPlayer/releases/fonts/font-arial-iso-8859-7.tar.bz2)
 
-sha1sums=('11db20434a4e1aabb9c52f7712241dae1b3730e3' \
+sha1sums=('0954a7141de7c945d90db234e39a78c27cf73f78' \
           'ccf11dce5d0fb72fd3af97f788b7471cd0cd0b68' \
           '152c40bf20de34aa8802d7f80d34d673b0b67212' \
           '7b99bbe0e9ba89a57eccbea8f93c453c4f268181' \
           '2a3fa8cf54ec3ed4dfa1a0e72f2d207c13507b9d')
 
-if Fuse $USE_DEVEL; then
-	pkgver=1.1.35924
-	pkgrel=1
-	makedepends=(${makedepends[@]} 'git')
-	source=(${source[1]} ${source[2]} ${source[3]} ${source[4]} ${source[5]})
-	sha1sums=(${sha1sums[1]} ${sha1sums[2]} ${sha1sums[3]} ${sha1sums[4]} ${sha1sums[5]})
-	_F_scm_type="subversion"
-	_F_scm_url="svn://svn.mplayerhq.hu/mplayer/trunk"
-	Finclude scm
-fi
-
-# To add v4l support.
-# mknod -m 660 /dev/video0 c 81 0
 
 subpkgs=('mencoder')
 subdescs=('The Movie Encoder')
@@ -54,30 +40,26 @@ subrodepends=("${depends[*]}")
 subdepends=('')
 subgroups=('xmultimedia')
 subarchs=("x86_64")
-suboptions=('force')
 
 build()
 {
-	if Fuse $USE_DEVEL; then
-		Funpack_scm
-		git clone --depth 1 git://git.videolan.org/ffmpeg.git ffmpeg || Fdie
-	else
-		Fcd $_F_archive_name-$pkgver
-	fi
-	unset CFLAGS
+	Fcd $_F_archive_name-$pkgver
 	Fpatchall
 	Fexec ./configure --prefix=/usr --mandir=/usr/share/man \
 		--confdir=/etc/mplayer --disable-gui --language=all \
 		--enable-runtime-cpudetection --enable-liblzo \
 		--enable-mga --enable-xmga --enable-tdfxfb || Fdie
-	unset MAKEFLAGS
+
 	Fexec make || Fdie
 	Fexec make DESTDIR=$Fdestdir install || Fdie
 	Fmkdir usr/share/doc/$pkgname-$pkgver
-	mv DOCS/* $Fdestdir/usr/share/doc/$pkgname-$pkgver/
+	Fexec mv DOCS/* $Fdestdir/usr/share/doc/$pkgname-$pkgver/ || Fdie
 
 	# Fonts.
 	Frm /usr/share/mplayer/font
+
+	Fmkdir usr/share/mplayer
+	local i j
 	for i in cp1250 iso-8859-1 iso-8859-2 iso-8859-7
 	do
 		mv $Fsrcdir/font-arial-$i/font-arial-{14,18,24,28}-$i \
@@ -92,11 +74,11 @@ build()
 	Fln /usr/share/fonts/X11/TTF/DejaVuSans.ttf /usr/share/mplayer/subfont.ttf
 
 	Fsplit mencoder usr/bin/mencoder usr/share/man/man1/mencoder.1
-	cd $Fdestdir
-	for i in usr/share/man/*/man1/mencoder.1
+	Fexec cd $Fdestdir || Fdie
+	for j in usr/share/man/*/man1/mencoder.1
 	do
-		[ ! -f "$i" ] && continue
-		Fsplit mencoder $i
+		[ ! -f "$j" ] && continue
+		Fsplit mencoder $j
 	done
 }
 

@@ -312,10 +312,10 @@ Fcross32_prepare() {
 
 
 	__cross32_conf_make_opts_pre_save
-        __cross32_save_orig_vars
-        __cross32_unset_vars
-        __cross32_set_vars
-        __cross32_bug_me_set
+	__cross32_save_orig_vars
+	__cross32_unset_vars
+	__cross32_set_vars
+	__cross32_bug_me_set
 }
 
 Fcross32_reset_and_fix() {
@@ -328,10 +328,20 @@ Fcross32_reset_and_fix() {
 
 }
 
+__cross32_delete_static() {
+
+    Fmessage "Removing static libs."
+	find $Fdestdir -type f -name "*.a" -exec rm -rfv  {} +
+}
+
 __cross32_delete_empty() {
 
-	Fmessage "Removing empty dir(s)"
-        find $Fdestdir -type d -empty -exec rmdir -v  {} +
+	Fmessage "Removing empty dir(s)."
+    find $Fdestdir -type d -empty -exec rmdir -v  {} +
+}
+
+Fcross32_delete_static() {
+    __cross32_delete_static
 }
 
 Fcross32_delete_empty() {
@@ -459,6 +469,7 @@ Fbuild_cross32() {
 
 		Fcross32_common_build ## 32bit
 		Fcross32_delete_empty
+		Fcross32_delete_static
 		## 64bit
 		Fcross32_64bit_build
 
@@ -467,6 +478,7 @@ Fbuild_cross32() {
 		Fmessage "Auto building lib32-${pkgname} subpackage"
 		Fcross32_common_build ## 32bit
 		Fcross32_delete_empty
+		Fcross32_delete_static
 		Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one
 		## 64bit
 		Fcross32_64bit_build

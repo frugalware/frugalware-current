@@ -10,13 +10,14 @@
 pkgname=lvm2
 _F_archive_name="LVM2"
 Fpkgversep="."
-pkgver=2.03.02
-pkgrel=6
+pkgver=2.03.05
+pkgrel=1
 pkgdesc="Logical Volume Manager 2 utilities"
 url="http://sources.redhat.com/lvm2/"
 rodepends=("$pkgname-libs")
-depends=('libsystemd>=231-22' 'readline>=8.0' 'ncurses>=6.1' 'libblkid>=2.31.1-3' 'thin-provisioning-tools>=0.7.5-2')
-makedepends=('systemd')
+# workaround for merge ... FIXME
+depends=('libudev>=242' 'systemd-systemctl' 'libsystemd' 'readline>=8.0' 'ncurses>=6.1' 'libblkid>=2.31.1-3' 'thin-provisioning-tools>=0.7.5-2')
+makedepends=('systemd-devel')
 backup=('etc/lvm/lvm.conf')
 groups=('base')
 archs=('x86_64')
@@ -26,7 +27,7 @@ source=(http://mirrors.kernel.org/sourceware/lvm2/${_F_archive_name}.$pkgver.tgz
 	fix-service-files.patch \
 	README.Frugalware \
 	11-lvm2.conf stop-the-flood-by-default.patch)
-sha1sums=('c18fd7603188723c4e3d4f791250265da414806b' \
+sha1sums=('edfa340a4bbdb3e995521bebbe5307fd7687ac3b' \
           'b80d6dcc94c73563f98d053aaf3669e10bcd7bc9' \
           'e37d0434fd92a964fdc6fdb8054805a22871d368' \
           '69c67b40d9ad48d8973bd8382fa6c93fbc7faec7' \
@@ -74,18 +75,12 @@ build()
 	## NOTE3: near all .service files are broken , missing [Install] all over the place or
 	##        still depends on removed sokets/services!! see fix-service-files.patch
 	Fsed "use_lvmetad = @DEFAULT_USE_LVMETAD@" "use_lvmetad = 0" conf/example.conf.in
-	## global { ->
-	## global {
-	##		event_activation = 0
-	## fixes new errors introduced in .02 , man pages tells that need be there an 0
-	## to make the generators working
-	Fexec sed  -i '/global {/ a \        event_activation = 0' conf/example.conf.in
 	Fpatchall
 	Fmake
 
 	Fexec make device-mapper || Fdie
 	Fmakeinstall
-	Fexec make DESTDIR=$Fdestdir exec_prefix=/ install_device-mapper install_system_dirs install_systemd_units install_systemd_generators install_tmpfiles_configuration || Fdie
+	Fexec make -j1 DESTDIR=$Fdestdir exec_prefix=/ install_device-mapper install_system_dirs install_systemd_units install_systemd_generators install_tmpfiles_configuration || Fdie
 
 	Ffile /etc/dracut.conf.d/11-lvm2.conf
 	Fmkdir /etc/systemd/system/sysinit.target.wants

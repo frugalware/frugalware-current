@@ -1,0 +1,75 @@
+diff -ruN ./virtualbox-6.0.10.orig/r0drv/linux/mp-r0drv-linux.c ./virtualbox-6.0.10/r0drv/linux/mp-r0drv-linux.c
+--- a/src/VBox/Runtime/r0drv/linux/mp-r0drv-linux.c	2019-07-12 11:38:58.000000000 +0300
++++ b/src/VBox/Runtime/r0drv/linux/mp-r0drv-linux.c	2019-07-22 21:03:06.993331834 +0300
+@@ -283,12 +283,7 @@
+     if (RTCpuSetCount(&OnlineSet) > 1)
+     {
+         /* Fire the function on all other CPUs without waiting for completion. */
+-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+-        int rc = smp_call_function(rtmpLinuxAllWrapper, &Args, 0 /* wait */);
+-# else
+-        int rc = smp_call_function(rtmpLinuxAllWrapper, &Args, 0 /* retry */, 0 /* wait */);
+-# endif
+-        Assert(!rc); NOREF(rc);
++        NOREF(smp_call_function(rtmpLinuxAllWrapper, &Args, 0 /* wait */));
+     }
+ #endif
+ 
+@@ -326,7 +321,6 @@
+ {
+ #ifdef CONFIG_SMP
+     IPRT_LINUX_SAVE_EFL_AC();
+-    int rc;
+     RTMPARGS Args;
+ 
+     RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
+@@ -337,14 +331,11 @@
+     Args.cHits = 0;
+ 
+     RTThreadPreemptDisable(&PreemptState);
+-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+-    rc = smp_call_function(rtmpLinuxWrapper, &Args, 1 /* wait */);
+-# else /* older kernels */
+-    rc = smp_call_function(rtmpLinuxWrapper, &Args, 0 /* retry */, 1 /* wait */);
+-# endif /* older kernels */
++
++    NOREF(smp_call_function(rtmpLinuxWrapper, &Args, 1 /* wait */));
++
+     RTThreadPreemptRestore(&PreemptState);
+ 
+-    Assert(rc == 0); NOREF(rc);
+     IPRT_LINUX_RESTORE_EFL_AC();
+ #else
+     RT_NOREF(pfnWorker, pvUser1, pvUser2);
+diff -ruN ./virtualbox-6.0.10.orig/vboxnetflt/linux/VBoxNetFlt-linux.c ./virtualbox-6.0.10/vboxnetflt/linux/VBoxNetFlt-linux.c
+--- a/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c	2019-07-22 21:05:55.545025085 +0300
++++ b/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c	2019-07-22 21:06:08.743978844 +0300
+@@ -2107,6 +2107,8 @@
+     struct in_device *in_dev;
+     struct inet6_dev *in6_dev;
+ 
++    const struct in_ifaddr *ifa;
++
+     if (ulEventType != NETDEV_REGISTER)
+         return NOTIFY_OK;
+ 
+@@ -2123,7 +2125,8 @@
+ #endif
+     if (in_dev != NULL)
+     {
+-        for_ifa(in_dev) {
++        rcu_read_lock();
++        in_dev_for_each_ifa_rcu(ifa, in_dev) {
+             if (VBOX_IPV4_IS_LOOPBACK(ifa->ifa_address))
+                 return NOTIFY_OK;
+ 
+@@ -2137,7 +2140,8 @@
+ 
+             pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
+                 /* :fAdded */ true, kIntNetAddrType_IPv4, &ifa->ifa_address);
+-        } endfor_ifa(in_dev);
++        }
++     rcu_read_unlock();
+     }
+ 
+     /*

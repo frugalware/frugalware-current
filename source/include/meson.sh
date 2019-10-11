@@ -18,7 +18,10 @@
 
 
 if [ -z "$_F_meson_build_type" ]; then
-	_F_meson_build_type="release"
+	## DO NOT CHANGE THAT!
+	## These meson folks are simple an plain morons.
+    ## buildtype = release is -O3 optimized and so on.
+	_F_meson_build_type="plain"
 fi
 
 if [ -z "$_F_meson_compiler" ]; then

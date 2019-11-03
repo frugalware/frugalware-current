@@ -52,7 +52,7 @@ fi
 if [[ "$pkgname" =~ "qt5-base" ]]; then
 	makedepends+=('x11-protos' 'gperf')
 else
-	makedepends+=('x11-protos' 'gperf' "qt5-base-static>=5.12.3-3")
+	makedepends+=('x11-protos' 'gperf' "qt5-base-static>=5.13.2")
 fi
 
 if [[ ! "$pkgname" =~ "qt5-base" ]] || [[ ! "$pkgname" =~ "qt5-declarative" ]]; then

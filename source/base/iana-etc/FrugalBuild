@@ -3,28 +3,46 @@
 
 pkgname=iana-etc
 pkgver=2.30
-pkgrel=5
+pkgrel=6
 pkgdesc="Protocols and services provided by IANA"
 url="http://sethwklein.net/iana-etc"
 depends=()
 groups=('base')
 archs=('x86_64')
-up2date="Flasttar $url"
-source=(http://sethwklein.net/${pkgname}-${pkgver}.tar.bz2 parse-newer-list-format.patch)
-removes=('/etc/protocols' '/etc/services')
-sha1sums=('218593bcb9264014c4e397d838b2c218eac9df06' \
-          '1e306cf77bc4e97cc020d6c53cb9de81c186a483')
+up2date="$pkgver"
+backup=("etc/{protocols,services}")
+source=(https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xml
+        https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xml)
+sha1sums=('d6b77944a95e843b92717fb738e9509a4efc71e6' \
+          '147359296ef805cb01b60616f3f4d7c8bf594b26')
 
 build() {
 
-	Fcd
-	Fpatchall
-	## weird but
-	Fexec make get || Fdie
-	Fmakeinstall
+	cd $Fsrcdir
+	Fmkdir usr/share/iana-etc etc
 
-	Finstallrel 0644 usr/share/iana-etc/port-numbers.iana
-	Finstallrel 0644 usr/share/iana-etc/protocol-numbers.iana
+	Finstall 0644 service-names-port-numbers.xml usr/share/iana-etc/port-numbers.iana
+	Finstall 0644 protocol-numbers.xml usr/share/iana-etc/protocol-numbers.iana
+
+
+	gawk -F"[<>]" '
+BEGIN { print "# Full data: /usr/share/iana-etc/protocol-numbers.iana\n" }
+(/<record/) { v=n="" }
+(/<value/) { v=$3 }
+(/<name/ && $3!~/ /) { n=$3 }
+(/<\/record/ && n && v!="") { printf "%-12s %3i %s\n", tolower(n),v,n }
+' protocol-numbers.xml > "$Fdestdir/etc/protocols"
+
+	gawk -F"[<>]" '
+BEGIN { print "# Full data: /usr/share/iana-etc/port-numbers.iana\n" }
+(/<record/) { n=u=p=c="" }
+(/<name/ && !/\(/) { n=$3 }
+(/<number/) { u=$3 }
+(/<protocol/) { p=$3 }
+(/Unassigned/ || /Reserved/ || /historic/) { c=1 }
+(/<\/record/ && n && u && p && !c) { printf "%-15s %5i/%s\n", n,u,p }
+' service-names-port-numbers.xml > "$Fdestdir/etc/services"
+
 
 }
 

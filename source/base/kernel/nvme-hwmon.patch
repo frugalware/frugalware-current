@@ -1,0 +1,300 @@
+v3: NVME -> NVMe
+    Call nvme_hwmon_init() only once, when the controller is first
+    identified
+    Protect call to nvme_get_log() and reading the log with mutex
+    Convert error return from nvme_get_log() to Linux error code
+    in nvme_hwmon_get_smart_log()
+    Don't read smart log for reporting warning and critical limits
+    Use get_unaligned_le16() instead of le16_to_cpup() to read the
+    composite temperature
+    Use #ifdef CONFIG_NVME_HWMON instead of IS_ENABLED(CONFIG_NVME_HWMON)
+    -EPROTO -> -EIO for generic NVMe level errors
+    Tab-align '=' in data structure initializations
+
+v2: Use devm_kfree() to release memory in error path
+
+Tested with the following NVMe drives:
+	Intel SSDPEKKW512G7 500GB
+	Samsung SSD 960 EVO 500GB
+	Samsung SSD 970 EVO 500GB
+	Samsung SSD 970 EVO 1TB
+
+ drivers/nvme/host/Kconfig      |  10 ++
+ drivers/nvme/host/Makefile     |   1 +
+ drivers/nvme/host/core.c       |   6 ++
+ drivers/nvme/host/nvme-hwmon.c | 181 +++++++++++++++++++++++++++++++++
+ drivers/nvme/host/nvme.h       |   8 ++
+ 5 files changed, 206 insertions(+)
+ create mode 100644 drivers/nvme/host/nvme-hwmon.c
+
+diff --git a/drivers/nvme/host/Kconfig b/drivers/nvme/host/Kconfig
+index 2b36f052bfb9..c6439638a419 100644
+--- a/drivers/nvme/host/Kconfig
++++ b/drivers/nvme/host/Kconfig
+@@ -23,6 +23,16 @@ config NVME_MULTIPATH
+ 	   /dev/nvmeXnY device will show up for each NVMe namespaces,
+ 	   even if it is accessible through multiple controllers.
+ 
++config NVME_HWMON
++	bool "NVMe hardware monitoring"
++	depends on (NVME_CORE=y && HWMON=y) || (NVME_CORE=m && HWMON)
++	help
++	  This provides support for NVMe hardware monitoring. If enabled,
++	  a hardware monitoring device will be created for each NVMe drive
++	  in the system.
++
++	  If unsure, say N.
++
+ config NVME_FABRICS
+ 	tristate
+ 
+diff --git a/drivers/nvme/host/Makefile b/drivers/nvme/host/Makefile
+index 8a4b671c5f0c..03de4797a877 100644
+--- a/drivers/nvme/host/Makefile
++++ b/drivers/nvme/host/Makefile
+@@ -14,6 +14,7 @@ nvme-core-$(CONFIG_TRACING)		+= trace.o
+ nvme-core-$(CONFIG_NVME_MULTIPATH)	+= multipath.o
+ nvme-core-$(CONFIG_NVM)			+= lightnvm.o
+ nvme-core-$(CONFIG_FAULT_INJECTION_DEBUG_FS)	+= fault_inject.o
++nvme-core-$(CONFIG_NVME_HWMON)		+= nvme-hwmon.o
+ 
+ nvme-y					+= pci.o
+ 
+diff --git a/drivers/nvme/host/core.c b/drivers/nvme/host/core.c
+index fa7ba09dca77..d039e392de36 100644
+--- a/drivers/nvme/host/core.c
++++ b/drivers/nvme/host/core.c
+@@ -2796,6 +2796,9 @@ int nvme_init_identify(struct nvme_ctrl *ctrl)
+ 	ctrl->oncs = le16_to_cpu(id->oncs);
+ 	ctrl->mtfa = le16_to_cpu(id->mtfa);
+ 	ctrl->oaes = le32_to_cpu(id->oaes);
++	ctrl->wctemp = le16_to_cpu(id->wctemp);
++	ctrl->cctemp = le16_to_cpu(id->cctemp);
++
+ 	atomic_set(&ctrl->abort_limit, id->acl + 1);
+ 	ctrl->vwc = id->vwc;
+ 	if (id->mdts)
+@@ -2895,6 +2898,9 @@ int nvme_init_identify(struct nvme_ctrl *ctrl)
+ 	if (ret < 0)
+ 		return ret;
+ 
++	if (!ctrl->identified)
++		nvme_hwmon_init(ctrl);
++
+ 	ctrl->identified = true;
+ 
+ 	return 0;
+diff --git a/drivers/nvme/host/nvme-hwmon.c b/drivers/nvme/host/nvme-hwmon.c
+new file mode 100644
+index 000000000000..8a86f0363531
+--- /dev/null
++++ b/drivers/nvme/host/nvme-hwmon.c
+@@ -0,0 +1,181 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * NVM Express hardware monitoring support
++ * Copyright (c) 2019, Guenter Roeck
++ */
++
++#include <linux/hwmon.h>
++#include <asm/unaligned.h>
++
++#include "nvme.h"
++
++struct nvme_hwmon_data {
++	struct nvme_ctrl *ctrl;
++	struct nvme_smart_log log;
++	struct mutex read_lock;
++};
++
++static int nvme_hwmon_get_smart_log(struct nvme_hwmon_data *data)
++{
++	int ret;
++
++	ret = nvme_get_log(data->ctrl, NVME_NSID_ALL, NVME_LOG_SMART, 0,
++			   &data->log, sizeof(data->log), 0);
++
++	return ret <= 0 ? ret : -EIO;
++}
++
++static int nvme_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
++			   u32 attr, int channel, long *val)
++{
++	struct nvme_hwmon_data *data = dev_get_drvdata(dev);
++	struct nvme_smart_log *log = &data->log;
++	int temp;
++	int err;
++
++	/*
++	 * First handle attributes which don't require us to read
++	 * the smart log.
++	 */
++	switch (attr) {
++	case hwmon_temp_max:
++		*val = (data->ctrl->wctemp - 273) * 1000;
++		return 0;
++	case hwmon_temp_crit:
++		*val = (data->ctrl->cctemp - 273) * 1000;
++		return 0;
++	default:
++		break;
++	}
++
++	mutex_lock(&data->read_lock);
++	err = nvme_hwmon_get_smart_log(data);
++	if (err)
++		goto unlock;
++
++	switch (attr) {
++	case hwmon_temp_input:
++		if (!channel)
++			temp = get_unaligned_le16(log->temperature);
++		else
++			temp = le16_to_cpu(log->temp_sensor[channel - 1]);
++		*val = (temp - 273) * 1000;
++		break;
++	case hwmon_temp_crit_alarm:
++		*val = !!(log->critical_warning & NVME_SMART_CRIT_TEMPERATURE);
++		break;
++	default:
++		err = -EOPNOTSUPP;
++		break;
++	}
++unlock:
++	mutex_unlock(&data->read_lock);
++	return err;
++}
++
++static const char * const nvme_hwmon_sensor_names[] = {
++	"Composite",
++	"Sensor 1",
++	"Sensor 2",
++	"Sensor 3",
++	"Sensor 4",
++	"Sensor 5",
++	"Sensor 6",
++	"Sensor 7",
++	"Sensor 8",
++};
++
++static int nvme_hwmon_read_string(struct device *dev,
++				  enum hwmon_sensor_types type, u32 attr,
++				  int channel, const char **str)
++{
++	*str = nvme_hwmon_sensor_names[channel];
++	return 0;
++}
++
++static umode_t nvme_hwmon_is_visible(const void *_data,
++				     enum hwmon_sensor_types type,
++				     u32 attr, int channel)
++{
++	const struct nvme_hwmon_data *data = _data;
++
++	switch (attr) {
++	case hwmon_temp_crit:
++		if (!channel && data->ctrl->cctemp)
++			return 0444;
++		break;
++	case hwmon_temp_max:
++		if (!channel && data->ctrl->wctemp)
++			return 0444;
++		break;
++	case hwmon_temp_crit_alarm:
++		if (!channel)
++			return 0444;
++		break;
++	case hwmon_temp_input:
++	case hwmon_temp_label:
++		if (!channel || data->log.temp_sensor[channel - 1])
++			return 0444;
++		break;
++	default:
++		break;
++	}
++	return 0;
++}
++
++static const struct hwmon_channel_info *nvme_hwmon_info[] = {
++	HWMON_CHANNEL_INFO(chip, HWMON_C_REGISTER_TZ),
++	HWMON_CHANNEL_INFO(temp,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++				HWMON_T_LABEL | HWMON_T_CRIT_ALARM,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL),
++	NULL
++};
++
++static const struct hwmon_ops nvme_hwmon_ops = {
++	.is_visible	= nvme_hwmon_is_visible,
++	.read		= nvme_hwmon_read,
++	.read_string	= nvme_hwmon_read_string,
++};
++
++static const struct hwmon_chip_info nvme_hwmon_chip_info = {
++	.ops	= &nvme_hwmon_ops,
++	.info	= nvme_hwmon_info,
++};
++
++void nvme_hwmon_init(struct nvme_ctrl *ctrl)
++{
++	struct device *dev = ctrl->device;
++	struct nvme_hwmon_data *data;
++	struct device *hwmon;
++	int err;
++
++	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
++	if (!data)
++		return;
++
++	data->ctrl = ctrl;
++	mutex_init(&data->read_lock);
++
++	err = nvme_hwmon_get_smart_log(data);
++	if (err) {
++		dev_warn(dev, "Failed to read smart log (error %d)\n", err);
++		devm_kfree(dev, data);
++		return;
++	}
++
++	hwmon = devm_hwmon_device_register_with_info(dev, dev_name(dev), data,
++						     &nvme_hwmon_chip_info,
++						     NULL);
++	if (IS_ERR(hwmon)) {
++		dev_warn(dev, "Failed to instantiate hwmon device\n");
++		devm_kfree(dev, data);
++	}
++}
+diff --git a/drivers/nvme/host/nvme.h b/drivers/nvme/host/nvme.h
+index 22e8401352c2..cb3b242a214e 100644
+--- a/drivers/nvme/host/nvme.h
++++ b/drivers/nvme/host/nvme.h
+@@ -231,6 +231,8 @@ struct nvme_ctrl {
+ 	u16 kas;
+ 	u8 npss;
+ 	u8 apsta;
++	u16 wctemp;
++	u16 cctemp;
+ 	u32 oaes;
+ 	u32 aen_result;
+ 	u32 ctratt;
+@@ -652,4 +654,10 @@ static inline struct nvme_ns *nvme_get_ns_from_dev(struct device *dev)
+ 	return dev_to_disk(dev)->private_data;
+ }
+ 
++#ifdef CONFIG_NVME_HWMON
++void nvme_hwmon_init(struct nvme_ctrl *ctrl);
++#else
++static inline void nvme_hwmon_init(struct nvme_ctrl *ctrl) { }
++#endif
++
+ #endif /* _NVME_H */
+-- 
+2.17.1
+

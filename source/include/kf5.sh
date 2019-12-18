@@ -45,7 +45,7 @@ if [ -z "$_F_kde_ver" ]; then
 		_F_kde_ver="${_F_kdever_frameworks}.${_F_kdever_frameworks_revision}"
 	elif [ "$_F_kde_project" = "plasma" ]; then
 		_F_kde_ver="$_F_kdever_plasma"
-	elif [ "$_F_kde_project" = "applications" ]; then
+	elif [ "$_F_kde_project" = "release-service" ]; then
 		_F_kde_ver="$_F_kdever_apps"
 	fi
 fi
@@ -93,7 +93,7 @@ if [ -z "$_F_kde_dirname" ]; then
 	if [ "$_F_kde_project" = "frameworks" ]; then
 		_F_kde_dirname="$_F_kde_folder/$_F_kdever_frameworks"
 	fi
-	if [ "$_F_kde_project" = "applications" ]; then
+	if [ "$_F_kde_project" = "release-service" ]; then
 		 _F_kde_dirname="$_F_kde_folder/$_F_kdever_apps/src"
 	fi
 fi
@@ -136,7 +136,7 @@ if [ -z "$groups" ]; then
 		groups+=('plasma')
 	elif [ "$_F_kde_project" = "frameworks" ]; then
 		groups+=('kf5')
-	elif [ "$_F_kde_project" = "applications" ]; then
+	elif [ "$_F_kde_project" = "release-service" ]; then
 		groups+=('kde5')
 	fi
 fi

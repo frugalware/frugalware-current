@@ -1,0 +1,118 @@
+diff -Naur inkscape-INKSCAPE_0_92_4/src/extension/internal/pdfinput/pdf-input.cpp inkscape-INKSCAPE_0_92_4.new/src/extension/internal/pdfinput/pdf-input.cpp
+--- inkscape-INKSCAPE_0_92_4/src/extension/internal/pdfinput/pdf-input.cpp	2019-01-15 05:39:13.000000000 +0100
++++ inkscape-INKSCAPE_0_92_4.new/src/extension/internal/pdfinput/pdf-input.cpp	2020-01-04 14:21:20.478633575 +0100
+@@ -689,12 +689,12 @@
+         //
+         gchar const *poppler_datadir = g_getenv("POPPLER_DATADIR");
+         if (poppler_datadir != NULL) {
+-            globalParams = new GlobalParams(poppler_datadir);
++            globalParams = _POPPLER_NEW_GLOBAL_PARAMS(poppler_datadir);
+         } else {
+-            globalParams = new GlobalParams();
++            globalParams = _POPPLER_NEW_GLOBAL_PARAMS();
+         }
+ #else
+-        globalParams = new GlobalParams();
++        globalParams = _POPPLER_NEW_GLOBAL_PARAMS();
+ #endif // ENABLE_OSX_APP_LOCATIONS
+     }
+ 
+diff -Naur inkscape-INKSCAPE_0_92_4/src/extension/internal/pdfinput/pdf-parser.cpp inkscape-INKSCAPE_0_92_4.new/src/extension/internal/pdfinput/pdf-parser.cpp
+--- inkscape-INKSCAPE_0_92_4/src/extension/internal/pdfinput/pdf-parser.cpp	2019-01-15 05:39:13.000000000 +0100
++++ inkscape-INKSCAPE_0_92_4.new/src/extension/internal/pdfinput/pdf-parser.cpp	2020-01-04 14:21:20.479633582 +0100
+@@ -426,7 +426,7 @@
+ 	error(errInternal, -1, "Weird page contents");
+     	return;
+   }
+-  parser = new Parser(xref, new Lexer(xref, obj), gFalse);
++  parser = new _POPPLER_NEW_PARSER(xref, obj);
+   go(topLevel);
+   delete parser;
+   parser = NULL;
+@@ -3394,7 +3394,7 @@
+     }
+ }
+ 
+-void ClipHistoryEntry::setClip(GfxPath *clipPathA, GfxClipType clipTypeA) {
++void ClipHistoryEntry::setClip(_POPPLER_CONST_84 GfxPath *clipPathA, GfxClipType clipTypeA) {
+     // Free previous clip path
+     if (clipPath) {
+         delete clipPath;
+diff -Naur inkscape-INKSCAPE_0_92_4/src/extension/internal/pdfinput/poppler-transition-api.h inkscape-INKSCAPE_0_92_4.new/src/extension/internal/pdfinput/poppler-transition-api.h
+--- inkscape-INKSCAPE_0_92_4/src/extension/internal/pdfinput/poppler-transition-api.h	2019-01-15 05:39:13.000000000 +0100
++++ inkscape-INKSCAPE_0_92_4.new/src/extension/internal/pdfinput/poppler-transition-api.h	2020-01-04 14:22:08.757970639 +0100
+@@ -3,6 +3,37 @@
+ 
+ #include <glib/poppler-features.h>
+ 
++#if POPPLER_CHECK_VERSION(0, 84, 0)
++#define _POPPLER_CONST_84
++#else
++#define _POPPLER_CONST_84 const
++#endif
++
++#if POPPLER_CHECK_VERSION(0, 83, 0)
++#define _POPPLER_CONST_83 const
++#else
++#define _POPPLER_CONST_83
++#endif
++
++#if POPPLER_CHECK_VERSION(0, 82, 0)
++#define _POPPLER_CONST_82 const
++#else
++#define _POPPLER_CONST_82
++#endif
++
++#if POPPLER_CHECK_VERSION(0, 76, 0)
++#define _POPPLER_NEW_PARSER(xref, obj) Parser(xref, obj, gFalse)
++#else
++#define _POPPLER_NEW_PARSER(xref, obj) Parser(xref, new Lexer(xref, obj), gFalse)
++#endif
++
++#if POPPLER_CHECK_VERSION(0, 83, 0)
++#define _POPPLER_NEW_GLOBAL_PARAMS(args...) std::unique_ptr<GlobalParams>(new GlobalParams(args))
++#else
++#define _POPPLER_NEW_GLOBAL_PARAMS(args...) new GlobalParams(args)
++#endif
++
++
+ #if POPPLER_CHECK_VERSION(0, 72, 0)
+ #define getCString c_str
+ #endif
+diff -Naur inkscape-INKSCAPE_0_92_4/src/extension/internal/pdfinput/svg-builder.cpp inkscape-INKSCAPE_0_92_4.new/src/extension/internal/pdfinput/svg-builder.cpp
+--- inkscape-INKSCAPE_0_92_4/src/extension/internal/pdfinput/svg-builder.cpp	2019-01-15 05:39:13.000000000 +0100
++++ inkscape-INKSCAPE_0_92_4.new/src/extension/internal/pdfinput/svg-builder.cpp	2020-01-04 14:25:35.119409484 +0100
+@@ -264,10 +264,10 @@
+ /**
+  * \brief Generates a SVG path string from poppler's data structure
+  */
+-static gchar *svgInterpretPath(GfxPath *path) {
++static gchar *svgInterpretPath(_POPPLER_CONST_84 GfxPath *path) {
+     Inkscape::SVG::PathString pathString;
+     for (int i = 0 ; i < path->getNumSubpaths() ; ++i ) {
+-        GfxSubpath *subpath = path->getSubpath(i);
++        _POPPLER_CONST_84 GfxSubpath *subpath = path->getSubpath(i);
+         if (subpath->getNumPoints() > 0) {
+             pathString.moveTo(subpath->getX(0), subpath->getY(0));
+             int j = 1;
+@@ -1379,7 +1379,7 @@
+ void SvgBuilder::addChar(GfxState *state, double x, double y,
+                          double dx, double dy,
+                          double originX, double originY,
+-                         CharCode /*code*/, int /*nBytes*/, Unicode *u, int uLen) {
++                         CharCode /*code*/, int /*nBytes*/, Unicode const *u, int uLen) {
+ 
+ 
+     bool is_space = ( uLen == 1 && u[0] == 32 );
+diff -Naur inkscape-INKSCAPE_0_92_4/src/extension/internal/pdfinput/svg-builder.h inkscape-INKSCAPE_0_92_4.new/src/extension/internal/pdfinput/svg-builder.h
+--- inkscape-INKSCAPE_0_92_4/src/extension/internal/pdfinput/svg-builder.h	2019-01-15 05:39:13.000000000 +0100
++++ inkscape-INKSCAPE_0_92_4.new/src/extension/internal/pdfinput/svg-builder.h	2020-01-04 14:21:20.480633589 +0100
+@@ -141,7 +141,7 @@
+     void addChar(GfxState *state, double x, double y,
+                  double dx, double dy,
+                  double originX, double originY,
+-                 CharCode code, int nBytes, Unicode *u, int uLen);
++                 CharCode code, int nBytes, Unicode const *u, int uLen);
+     void beginTextObject(GfxState *state);
+     void endTextObject(GfxState *state);
+ 

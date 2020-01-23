@@ -24,13 +24,14 @@ depends=('lcms2' 'openal' 'libglu' 'libldap' 'libpcap' 'libpulse' 'libmpg123' 'l
 #32 bit
 depends+=('lib32-lcms2' 'lib32-libxcursor' 'lib32-libxi' 'lib32-libxrandr' 'lib32-libxinerama' 'lib32-libxcomposite' \
 	'lib32-libxrender' 'lib32-freetype2' 'lib32-libxml2' 'lib32-ncurses' 'lib32-vkd3d')
-makedepends=('x11-protos' 'cups')
+makedepends=('x11-protos' 'cups' 'bison')
 _F_cd_path="wine-$pkgver"
 options=('genscriptlet' 'nostrip' 'static' 'nolto')
 archs=('x86_64')
 _F_conf_configure="../configure"
 _F_archive_grepv="\-rc"
 F32confopts+="	--libdir=/usr/lib32"
+options+=('plt')
 
 Finclude cross32
 
@@ -43,7 +44,7 @@ wine)
 	conflicts=('wine-devel' 'lib32-wine-devel')
 	provides=('lib32-wine')
 	replaces=('lib32-wine')
-	source=(https://dl.winehq.org/wine/source/${pkgver%.*}/wine-$pkgver.tar.xz \
+	source=(https://dl.winehq.org/wine/source/${pkgver}/wine-$pkgver.tar.xz \
 		0001-programs-winhlp32-Use-noyywrap-for-macro.lex.l-and-p.patch )
 	;;
 
@@ -51,12 +52,11 @@ wine-devel)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Development)"
 	_F_archive_name="wine"
 	up2date="Flasttar $url/news"
-	options+=('plt')
 	conflicts=('wine' 'lib32-wine-devel')
 	provides=('wine' 'lib32-wine-devel')
 	replaces=('lib32-wine-devel')
 	depends+=('vulkan-icd-loader' 'lib32-vulkan-icd-loader')
-	source=(https://dl.winehq.org/wine/source/${pkgver%%.*}.x/wine-$pkgver.tar.xz \
+	source=(https://dl.winehq.org/wine/source/${pkgver}/wine-$pkgver.tar.xz \
 		0001-programs-winhlp32-Use-noyywrap-for-macro.lex.l-and-p.patch )
 	;;
 

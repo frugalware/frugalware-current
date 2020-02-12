@@ -1,0 +1,104 @@
+# Compiling Time: 0.01 SBU
+# Maintainer: Miklos Vajna <vmiklos@frugalware.org>
+
+pkgname=speech_tools
+pkgver=1.2.96_beta
+pkgrel=1
+pkgdesc="Speech tools for Festival Text to Speech engine"
+url="http://www.cstr.ed.ac.uk/"
+pkgurl="http://www.festvox.org/packed/festival/latest/"
+depends=('libstdc++' 'ncurses')
+makedepends=('cpio')
+groups=('apps-extra')
+archs=('i686' 'x86_64')
+up2date="Flasttar $pkgurl|sed 's/-/_/g'"
+source=($pkgurl/speech_tools-${pkgver/_/-}.tar.gz \
+	speech-tools-1.2.96_beta-gcc42.patch  speech-tools-1.2.96_beta-gcc43-include.patch)
+sha1sums=('7f208863833a7e7ea4838e0f0f04a4881b32cf56' \
+          '3cf29f9dcb9fdfd90249003b7eca9d71a88b8219' \
+          'afb2ecfacc123411acb7e82ae9b7c707bd32b922')
+
+build()
+{
+	unset MAKEFLAGS
+	Fcd $pkgname
+	Fpatchall
+	Fsed 'head -1' 'head -n 1' config.guess
+	Fsed '-O3' "$CXXFLAGS" base_class/Makefile
+	# i want my shared libs back!
+	Fsed '#.*\(SHARED=2\)' '\1' config/config.in
+	Fconf
+	
+	make OPTIMISE_CXXFLAGS="${CXXFLAGS}" OPTIMISE_CCFLAGS="${CFLAGS}" \
+		|| return 1
+
+	Fmkdir /usr/lib
+	Fexerel lib/libestbase.so.1.2.96.1 /usr/lib
+	Fexerel lib/libeststring.so.1.2 /usr/lib
+	Fln libestbase.so.1.2.96.1 /usr/lib/libestbase.so
+	Fln libeststring.so.1.2 /usr/lib/libeststring.so
+	Ffilerel lib/libestbase.a /usr/lib/
+	Ffilerel lib/libestools.a /usr/lib/
+	Ffilerel lib/libeststring.a /usr/lib/
+
+	# $old is needed (at me on x86_64) if $old isn't available then
+	# Normally $i == $Fdestdir/usr/bin/align (example) but some way
+	# $i after first Fsed modified to $i == $Fdestdir/usr/bin/$Fdestdir/usr/bin/$i
+	# this is strange.. but $old solve this. Maybe a bug in Fsed macro
+
+	cd bin
+	for i in *
+	do
+		[ $i = "Makefile" ] && continue
+		Fexerel /usr/bin/$i
+		old=$i
+
+		Fsed "$Fsrcdir/$pkgname/testsuite/data" \
+			"/usr/share/speech-tools/testsuite" $Fdestdir/usr/bin/$i
+		i=$old
+
+		Fsed "$Fsrcdir/$pkgname/bin" "/usr/libexec/speech-tools" \
+			$Fdestdir/usr/bin/$i
+		i=$old
+
+		Fsed "$Fsrcdir/$pkgname/main" "/usr/libexec/speech-tools" \
+			$Fdestdir/usr/bin/$i
+		i=$old
+
+		Fsed "$Fsrcdir/$pkgname/lib" "/usr/lib" $Fdestdir/usr/bin/$i
+	done
+	cd ..
+
+	cd main
+	for i in `find -perm +100 -type f`
+	do
+		Fexerel /usr/libexec/speech-tools/$i
+	done
+	cd ..
+
+	Ffilerel lib/siod/* /usr/share/speech-tools/lib/siod
+
+	Fdocrel lib/example_data/*
+
+	find config -print |cpio -pmd $Fdestdir/usr/share/speech-tools \
+		|| return 1
+
+	cd include
+	find . -print |cpio -pmd $Fdestdir/usr/include/speech-tools \
+		|| return 1
+	cd ..
+
+	Fln /usr/include/speech-tools /usr/share/speech-tools/include
+	chmod 755 $Fdestdir/usr/include/speech-tools
+
+	chown -R root:0 $Fdestdir
+
+	find $Fdestdir/usr/share/speech-tools/config -type f \
+		|xargs sed -i 's/-ltermcap/-lncurses/g'
+
+	Fdocrel lib/cstrutt.dtd
+}
+
+# optimization OK
+
+

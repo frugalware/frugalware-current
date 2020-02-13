@@ -2,94 +2,123 @@
 # Maintainer: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=festival
-pkgver=1.96_beta
+pkgver=2.5.0
 pkgrel=1
 pkgdesc="A Text to Speech engine."
-url="http://www.cstr.ed.ac.uk/"
-pkgurl="http://www.festvox.org/packed/festival/latest/"
-depends=('speech_tools')
+url="http://festvox.org/festival/"
+pkgurl="http://www.festvox.org/packed/festival/"
 groups=('apps-extra')
-archs=('i686' 'x86_64')
-up2date="Flasttar $pkgurl|sed 's/-/_/g'"
-source=($pkgurl/$pkgname-${pkgver/_/-}.tar.gz \
-	festival-1.96_beta-gcc43.patch \
-	server.scm \
-	rc.$pkgname \
-	README.Frugalware \
-	$pkgurl/festlex_CMU.tar.gz \
-	$pkgurl/festlex_OALD.tar.gz \
-	$pkgurl/festlex_POSLEX.tar.gz \
-	$pkgurl/festvox_don.tar.gz \
-	$pkgurl/festvox_kallpc16k.tar.gz \
-	$pkgurl/festvox_kedlpc16k.tar.gz \
-	$pkgurl/festvox_rablpc16k.tar.gz \
-	$pkgurl/festvox_us1.tar.gz \
-	$pkgurl/festvox_us3.tar.gz)
-sha1sums=('ffb1a7f8a587cee942de7722f9b7a58e4fd0a8e2' \
-          '3dc6b811919db2f636435f9ca78a83b276f40755' \
-          '7187026f176c104e3406652642b85605af8409ba' \
-          '49184c95ba8b3e6cdda6d819e2b12b5bd2154f63' \
-          '9e9cfb45499b605483666f19664d95ac85c8f3c2' \
-          '968f0007c4cd7d92ce0a786840b6dc64628776b7' \
-          '53c9470d62da9754db85b11c2c82a3dd6b5ddc71' \
-          'cb7f7a3643c1af95d82144a342397cc118605f73' \
-          'c841345bf3ad02067b38010e8a1dcb827d85c361' \
-          'ad18502ae0fd10bdc3db189fa9afa8a167eceebb' \
-          '777e58d25fd499530601c514650328267fb716fb' \
-          '164983d46df6a09b07a5550f4613047f94b1764a' \
-          'f740064af99670e35879352d164b7aa9f2079820' \
-          '8302d0875c2872c45ff4a8ec633f9bb916a2a814')
+archs=('x86_64')
+depends=('ncurses')
+up2date="Flastarchive ${pkgurl}$(Flastverdir $pkgurl)/ -release.tar.gz"
+source=($pkgurl${pkgver%.*}/speech_tools-${pkgver/_/-}-release.tar.gz \
+	$pkgurl${pkgver%.*}/festival-${pkgver/_/-}-release.tar.gz \
+	$pkgurl${pkgver%.*}/festlex_CMU.tar.gz \
+	$pkgurl${pkgver%.*}/festlex_OALD.tar.gz \
+	$pkgurl${pkgver%.*}/festlex_POSLEX.tar.gz \
+	speechconfig.patch \
+        festconfig.patch \
+        festival-shared-build.patch \
+        festival-2.5.0-compile.patch)
+sha1sums=('8154c956465b2407c4de1700c7ecd0b04b4694ca' \
+          'a433de2d1c344a1af63579e757551432abe583ca' \
+          'd9576230c6698e1f05440ccd34063b64b9aaeb99' \
+          'fc517917dba3c208f55146873624cf88c011e22f' \
+          '37c3a3e131c38f343053ce3aec8d654d7b123bb9' \
+          '29355c3f64b236e42ba318f8a795d956b3a7ac49' \
+          '6e5e5a3a211c8c250b980a6f1172c0d6370a8294' \
+          '7b9bdf9c173a75d1ebcbbd5cbb66986250bb6b83' \
+          '8b2483e440f878702249e8c5764b931b063799c2')
+_F_cd_path="."
+
 build()
 {
-	unset MAKEFLAGS
-	Fcd $pkgname
 	Fpatchall
-	# --with-system-speech-tools
-	Fsed '\(EST=\).*' '\1/usr/share/speech-tools' config/config.in
-	# --without-multisyn, broken
-	Fsed 'clunits hts_engine MultiSyn' 'clunits hts_engine' config/config.in
+	Fcd
 
-	# examples path
-	Fsed "\.\./examples/" "/usr/share/doc/$pkgname-$pkgver/examples/" \
-		lib/festival.scm
+	# Avoid make failure on making scripts and docs
+	Fsed 'examples bin doc' 'examples' festival/Makefile
+
+	# Build Speech Tools first
+	cd speech_tools
 	Fconf
-	
-	make PROJECT_LIBDEPS="" REQUIRED_LIBDEPS="" LOCAL_LIBDEPS="" \
-		OPTIMISE_CXXFLAGS="${CXXFLAGS}" OPTIMISE_CCFLAGS="${CFLAGS}" \
-		|| return 1
-	
-	# binaries
-	Fexerel src/main/festival /usr/bin/festival
-	Fexerel lib/etc/*Linux*/audsp /usr/bin/audsp
+	Fexec make -j1 OPTIMISE_CXXFLAGS="${CXXFLAGS}" OPTIMISE_CCFLAGS="${CFLAGS}" || Fdie
 
-	# libs, dicts, voices
-	Fmkdir /usr/share/festival/
-	cp -r lib/* $Fdestdir/usr/share/festival/
-	Frm /usr/share/festival/etc
+	# Build Festival itself
+	cd ../festival
+	Fexec ./configure --prefix=/usr --sysconfdir=/etc
+	Fexec make -j1 OPTIMISE_CXXFLAGS="${CXXFLAGS}" OPTIMISE_CCFLAGS="${CFLAGS}" || Fdie
 
-	# examples
-	Fmkdir /usr/share/doc/$pkgname-$pkgver/examples/
-	cp -r examples/* $Fdestdir/usr/share/doc/$pkgname-$pkgver/examples/
 
-	# remove builddir references from examples
-	for i in $Fdestdir/usr/share/doc/$pkgname-$pkgver/examples/*.sh; do
-		j=${i%%.sh}
-		chmod a+x $j
-		Fsed "$Fsrcdir/$pkgname/bin/festival" "/usr/bin/festival" $j
+	# Install Speech Tools first
+	cd ../speech_tools
+	Fmkdir usr/{bin,lib,include/speech_tools/{,instantiate,ling_class,rxp,sigpr,unix}}
+
+	#binaries
+	for i in $(grep -l 'EST shared script' bin/*); do
+		cp -f main/$(basename $i) bin;
+	done
+	Fexerel bin/[a-z]* usr/bin/
+	Frm usr/bin/{est_gdb,est_examples,est_program}
+
+ 	#libraries
+	Finstallrel 755  lib/lib*.so.* usr/lib/
+	Fln libestbase.so.${pkgver}.1 usr/lib/libestbase.so
+	Fln libestools.so.${pkgver}.1 usr/lib/libestools.so
+	Fln libeststring.so.1.2 usr/lib/libeststring.so
+
+	#headers
+	for dir in {.,instantiate,ling_class,rxp,sigpr,unix}; do
+    		Finstallrel 644 include/$dir/*.h usr/include/speech_tools/$dir
 	done
 
-	# header files
-	Ffilerel src/include/*.h /usr/include/festival
+	# Install Festival itself
+  	cd "$Fsrcdir"/festival
 
-	# man pages
-	Ffilerel doc/festival.1 /usr/man/man1/festival.1
-	Ffilerel doc/festival_client.1 /usr/man/man1/festival_client.1
+	#binaries
+	Fexerel src/main/festival /usr/bin/festival
+	Fexerel src/main/festival_client usr/bin/festival_client
+	Fexerel examples/benchmark usr/bin/benchmark
+	Fexerel examples/dumpfeats usr/bin/dumpfeats
+	Fexerel examples/durmeanstd usr/bin/durmeanstd
+	Fexerel examples/latest usr/bin/lates
+	Fexerel examples/make_utts usr/bin/make_utts
+	Fexerel examples/powmeanstd usr/bin/powmeanstd
+	Fexerel examples/run-festival-script usr/bin/run-festival-script
+	Fexerel examples/saytime usr/bin/saytime
+	Fexerel examples/scfg_parse_text usr/bin/scfg_parse_text
+	Fexerel examples/text2pos usr/bin/text2pos
+	Fexerel examples/text2wave usr/bin/text2wave
 
-	# server
-	Ffile /etc/festival/server.scm
-	Frcd
+	#libraries
+  	Finstallrel 755 src/lib/libFestival.so.* usr/lib/
+	Fln libFestival.so.2.5.0.0 usr/lib/libFestival.so
+
+	#headers
+	Fmkdir usr/share/festival/etc/Linux/
+	Finstallrel 644 src/include/*.h usr/include/festival
+
+	Fmkdir usr/share/festival
+	Finstallrel 644  lib/dicts/oald/* usr/share/festival/dicts/oald/
+	rm -rf lib/dicts/oald/
+	Finstallrel 644  lib/dicts/cmu/* usr/share/festival/dicts/cmu/
+	rm -rf lib/dicts/cmu/
+	Finstallrel 644  lib/dicts/* usr/share/festival/dicts/
+	rm -rf lib/dicts/
+	Finstallrel 644  lib/etc/Linux/* usr/share/festival/etc/Linux/
+	rm -rf lib/etc/Linux
+	Finstallrel 644  lib/etc/* usr/share/festival/etc/
+	rm -rf lib/etc
+	Finstallrel 644  lib/multisyn/* usr/share/festival/multisyn/
+	rm -rf lib/multisyn/
+  	Finstallrel 644  lib/* usr/share/festival/
+	rm -fv $(find "$Fdestdir"/usr/share/festival -name Makefile)
+	rm -fv $(find "$Fdestdir"/usr/bin -name Makefile)
+
+	#create voices directory
+	Fmkdir usr/share/festival/voices
+
 }
-
 
 
 # optimization OK

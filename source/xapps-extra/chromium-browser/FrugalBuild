@@ -1,8 +1,15 @@
 # Compiling Time: 26.46 SBU
 # Maintainer: Marius Cirsta <mcirsta@frugalware.org>
 
+
+## Clang only build for now GCC need patching and logic changes to $USE
+USE_CLANG=${USE_CLANG:-"y"}
+## try to use chromium stuff to build with LTO
+USE_DISTRO_LTO=${USE_DISTRO_LTO:-"n"}
+USE_DISTRO_FLAGS=${USE_DISTRO_FLAGS:-"y"}
+
 pkgname=chromium-browser
-pkgver=80.0.3987.106
+pkgver=80.0.3987.116
 pkgrel=1
 pkgdesc='Chromium browser'
 url='http://www.chromium.org/'
@@ -32,9 +39,6 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
         $pkgname.sh \
 	## self explained :)
 	#chromium-55.0.2883.75-sandbox-pie.patch \
-	## compile errors on both gcc and llvm
-	# bring back some default *flags
-	chromium-77.0.3865.75-frugalware-compiler-flags.patch
 	chromium-system-zlib.patch \
 	vaapi-fix.patch \
 	fix-building-with-unbundled-libxml.patch \
@@ -43,10 +47,9 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
 	cros-search-service-Include-cmath-for-std-pow.patch \
 	chromium-widevine.patch )
 
-sha1sums=('3a5cd472c9735582f254059bf4fbc996badfaa42' \
+sha1sums=('7490f07c41a140d6a2841132c039db714602ed26' \
           '264b8e7c4e3273263d504e041e5e4d152677922c' \
           '4c41d59b4d85a9f0443d6ca1dec456e50059dab5' \
-          '4d8950bf1917355f9eaae356ad73050aca1b3eec' \
           '0cba07b441be6146e1a4b6c2d55c552ccadd2213' \
           '11b99a9344367b9a0885cde87d538377c1dc3fd1' \
           'f3a1bc4b8c268dd63ba02f9889d369d721adc58d' \
@@ -61,6 +64,15 @@ provides=('chromium-dev')
 replaces=('chromium-dev')
 conflicts=('chromium-dev')
 
+if Fuse $USE_CLANG; then
+	# stupid compiler, clash protection = none
+	options+=('noclash')
+fi
+
+if ! Fuse $USE_DISTRO_LTO; then
+	options+=('nolto')
+fi
+options+=('osmall')
 # Google API keys (see http://www.chromium.org/developers/how-tos/api-keys)
 # Note: These are for Frugalware use ONLY. For your own distribution, please
 # get your own set of keys. Feel free to contact mcirsta@frugalware.org for
@@ -74,7 +86,7 @@ build() {
 	Fpatchall
 
 	export LANG=en_US.UTF-8
-	
+
 	local keeplibs=(
 
 		base/third_party/cityhash
@@ -293,6 +305,12 @@ build() {
 
 	Fexec third_party/libaddressinput/chromium/tools/update-strings.py || Fdie
 
+	if Fuse $USE_CLANG; then
+        myconf_gn+=" is_clang=true clang_base_path=\"/usr\" clang_use_chrome_plugins=false "
+	else
+        myconf_gn+=" is_clang=false clang_use_chrome_plugins=false"
+    fi
+	myconf_gn+=" use_gold=false"
 	myconf_gn+=" is_debug=false"
 	myconf_gn+=" enable_iterator_debugging=false"
 	myconf_gn+=" enable_nacl=false"
@@ -305,7 +323,7 @@ build() {
 	myconf_gn+=" use_pulseaudio=true"
 	myconf_gn+=" fieldtrial_testing_like_official_build=true"
 	myconf_gn+=" linux_use_bundled_binutils=false"
-	myconf_gn+=" use_gold=false use_sysroot=false"
+	myconf_gn+=" use_sysroot=false"
 	myconf_gn+=" proprietary_codecs=true "
 	myconf_gn+=" enable_mse_mpeg2ts_stream_parser=true "
 	myconf_gn+=" use_gio=false "
@@ -325,9 +343,6 @@ build() {
 	myconf_gn+=" treat_warnings_as_errors=false "
 	myconf_gn+=" ffmpeg_branding=\"Chrome\" "
 
-	## FIXME: need $USE
-	myconf_gn+=" is_clang=true clang_base_path=\"/usr\" clang_use_chrome_plugins=false "
-	#myconf_gn+=" is_clang=false clang_use_chrome_plugins=false"
 	myconf_gn+=" google_api_key=\"${_google_api_key}\""
 	myconf_gn+=" google_default_client_id=\"${_google_default_client_id}\""
 	myconf_gn+=" google_default_client_secret=\"${_google_default_client_secret}\""
@@ -338,16 +353,47 @@ build() {
 	myconf_gn+=" icu_use_data_file=false"
 
 	myconf_gn+=" enable_vulkan=true "
-	## libaom won't build with 'gn' builds manually
-	## but what need that ?
-	myconf_gn+=" enable_av1_decoder=false "
+	myconf_gn+=" enable_av1_decoder=true "
 
 	# Enable VA-API
 	myconf_gn+=" use_vaapi=true "
 
-	#export AR=ar
-	export CC=clang
-	export CXX=clang++
+	## that kills chromium shitty flags, but we may run into some issues
+	if Fuse $USE_DISTRO_FLAGS; then
+		myconf_gn+=" custom_toolchain=\"//build/toolchain/linux/unbundle:default\""
+		myconf_gn+=" host_toolchain=\"//build/toolchain/linux/unbundle:default\""
+	fi
+
+	if ! Fuse $USE_DISTRO_LTO; then
+		if Fuse $USE_CLANG; then
+			myconf_gn+=" thin_lto_enable_optimizations=true use_lld=true use_thin_lto=true"
+			export LD="ld.lld"
+		fi
+	fi
+
+	if Fuse $USE_CLANG; then
+		CFLAGS+=" -Qunused-arguments -fPIE -pie -fPIC"
+		CXXFLAGS+=" -Qunused-arguments -fPIE -pie -fPIC"
+		_lto_cpus="$(getconf _NPROCESSORS_ONLN)"
+		LDFLAGS+=" -Wl,--thinlto-jobs=$_lto_cpus"
+		export AR="llvm-ar"
+		export NM="llvm-nm"
+		export RANLIB="llvm-ranlib"
+		export CC=clang
+		export CXX=clang++
+	else
+		## this need some patches to work actually, do not use is broken
+		export LD="ld.bfd"
+		export AR="gcc-ar"
+		export NM="gcc-nm"
+		export RANLIB="gcc-ranlib"
+		export CC=gcc
+		export CXX=g++
+	fi
+
+	## kill weird warnings
+	CFLAGS+=" -Wno-unknown-warning-option"
+	CXXFLAGS+=" -Wno-unknown-warning-option"
 
 	Fexec gn gen --args="${myconf_gn}" out/Release --script-executable=/usr/bin/python || Fdie
 	Fexec mkdir -p third_party/node/linux/node-linux-x64/bin || Fdie

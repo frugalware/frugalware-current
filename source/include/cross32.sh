@@ -449,9 +449,9 @@ fi
 ## don't use this with things have more subs..
 if [ -n "$_F_cross32_simple" ]; then
 	if [ -z "$_F_cross32_subdepends" ]; then
-		error "You need _F_cross32_subdepends=('depends_here') to be set"
-		error "Fix your package!.."
-		exit 1
+		Fmessage "You need _F_cross32_subdepends=('depends_here') to be set"
+		Fmessage "Fix your package!.."
+		#exit 1
 	else
 		subpkgs=("lib32-${pkgname}")
 		subdescs=("$pkgdesc ( 32bit )")

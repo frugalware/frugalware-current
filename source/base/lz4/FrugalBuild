@@ -3,7 +3,7 @@
 
 pkgname=lz4
 pkgver=1.9.2
-pkgrel=2
+pkgrel=3
 pkgdesc="Extremely Fast Compression algorithm"
 url="http://www.lz4.org/"
 groups=('base' 'core' 'chroot-core')
@@ -11,20 +11,44 @@ archs=('x86_64')
 depends=('glibc>=2.29-5')
 makedepends=('gcc>=9.2.1')
 _F_github_tag_v="yes"
-Finclude github
+_F_cross32_simple_auto="yes"
+_F_cross32_delete=('usr/bin')
+Finclude github cross32
 sha1sums=('4dc36f29d7b4e5b45b114be2674068200714abb3')
 _F_make_opts="PREFIX=/usr"
 options+=('static' 'ldgold') ## pacman/libarchive >=3.2.1
 
 subpkgs=("${pkgname}-static")
 subdescs=("Static files for $pkgname")
-subdepends=('')
+subdepends=('glibc')
 subgroups=('devel-extra')
 subarchs=('x86_64')
+suboptions=('')
+
+subpkgs+=("lib32-${pkgname}")
+subdescs+=("$pkgdesc ( 32bit )")
+subdepends+=("${_F_cross32_subdepends[*]}")
+subgroups+=('lib32-extra')
+subarchs+=('x86_64')
+suboptions+=('')
 
 build() {
+        Fcross32_prepare
+        Fcross32_copy_source
+	Fexec make -C lib PREFIX=/usr || Fdie
+	Fexec make -C programs PREFIX=/usr lz4 lz4c || Fdie
+	Fexec make install PREFIX=/usr LIBDIR=/usr/lib32 PKGCONFIGDIR=/usr/lib32/pkgconfig DESTDIR="${Fdestdir}" || Fdie
+        Fcross32_copy_back_source
+        Fcross32_reset_and_fix
 
-	Fbuild
+        Fcross32_delete_empty
+        Fcross32_delete_static
+        Fsplit "${subpkgs[1]}" /\* ## everything else ignored only first one
+         ## 64bit
+	Fexec  make -C lib PREFIX=/usr
+	Fexec  make -C programs PREFIX=/usr lz4 lz4c || Fdie
+	Fexec make install PREFIX=/usr DESTDIR="${Fdestdir}"
+
 	Fsplit ${pkgname}-static usr/lib/*.a
 }
 

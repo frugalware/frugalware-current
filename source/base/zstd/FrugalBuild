@@ -3,23 +3,39 @@
 
 pkgname=zstd
 pkgver=1.4.4
-pkgrel=1
+pkgrel=2
 pkgdesc='Zstandard - Fast real-time compression algorithm'
 archs=('x86_64')
 groups=('base')
 depends=('zlib>=1.2.11-13' 'xz>=5.2.4-2' 'lz4>=1.9.1-2')
 _F_github_author="facebook"
 _F_github_tag_v=y
-Finclude github
+_F_cross32_simple_auto=y
+_F_cross32_delete=('usr/bin' 'usr/include')
+Finclude github cross32
 url='http://www.zstd.net/'
-sha1sums=('8ec1a47b704001c1804b8670a3c86f4baf035c07')
-_F_make_opts+=" PREFIX=/usr"
+source+=("fix-pkgconfig-file.patch")
+sha1sums=('8ec1a47b704001c1804b8670a3c86f4baf035c07' \
+          '680bc4f1193f1fd760d9244ddbdb0bd95924f5db')
 options+=('ldgold')
 
-# optimization OK
-
 build() {
+	Fcross32_prepare
+        Fcross32_copy_source
+	_F_make_opts+=" PREFIX=/usr LIBDIR=/usr/lib32 PKGCONFIGDIR=/usr/lib32/pkgconfig"
 	Fbuild
+	Fcross32_copy_back_source
+        Fcross32_reset_and_fix
+
+	Fcross32_delete_empty
+	Fcross32_delete_static
+        Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one
+        ## 64bit
+        _F_make_opts+=" PREFIX=/usr LIBDIR=/usr/lib PKGCONFIGDIR=/usr/lib/pkgconfig"
+        Fbuild
+
 	Fexec make -C contrib/pzstd || Fdie
 	Fexerel contrib/pzstd/pzstd usr/bin/pzstd
 }
+
+# optimization OK

@@ -23,7 +23,7 @@ depends=('lcms2' 'openal' 'libglu' 'libldap' 'libpcap' 'libpulse' 'libmpg123' 'l
 	'libxcursor' 'libxi' 'libxrandr' 'libxinerama' 'libxcomposite' 'sane-backends' 'v4l-utils' 'libxrender' 'libxslt' 'vkd3d')
 #32 bit
 depends+=('lib32-lcms2' 'lib32-libxcursor' 'lib32-libxi' 'lib32-libxrandr' 'lib32-libxinerama' 'lib32-libxcomposite' \
-	'lib32-libxrender' 'lib32-freetype2' 'lib32-libxml2' 'lib32-ncurses' 'lib32-vkd3d' 'lib32-ocl-icd')
+	'lib32-libxrender' 'lib32-freetype2' 'lib32-libxml2' 'lib32-ncurses' 'lib32-vkd3d' 'lib32-ocl-icd lib32-libldap')
 makedepends=('x11-protos' 'cups' 'bison' 'opencl-headers')
 _F_cd_path="wine-$pkgver"
 options=('genscriptlet' 'nostrip' 'static' 'nolto')
@@ -56,7 +56,7 @@ wine-devel)
 	conflicts=('wine' 'lib32-wine-devel')
 	provides=('wine' 'lib32-wine-devel')
 	replaces=('lib32-wine-devel')
-	depends+=('vulkan-icd-loader' 'lib32-vulkan-icd-loader')
+	depends+=('vulkan-icd-loader' 'lib32-vulkan-icd-loader' 'faudio' 'lib32-faudio')
 	source=(https://dl.winehq.org/wine/source/${pkgver%%.*}.x/wine-$pkgver.tar.xz \
 		fix-opencl-header.patch \
 		0001-programs-winhlp32-Use-noyywrap-for-macro.lex.l-and-p.patch )

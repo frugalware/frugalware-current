@@ -1,0 +1,322 @@
+diff -Naur src/shared/linux_osl.c src-crap-o-meter-all-in-one/shared/linux_osl.c
+--- src/shared/linux_osl.c	2015-09-19 00:47:30.000000000 +0200
++++ src-crap-o-meter-all-in-one/shared/linux_osl.c	2020-03-31 01:15:04.230234663 +0200
+@@ -30,6 +30,7 @@
+ #include <pcicfg.h>
+ 
+ #include <linux/fs.h>
++#include <linux/io.h>
+ 
+ #define PCI_CFG_RETRY 		10
+ 
+@@ -942,7 +943,7 @@
+ void *
+ osl_reg_map(uint32 pa, uint size)
+ {
+-	return (ioremap_nocache((unsigned long)pa, (unsigned long)size));
++	return (ioremap((unsigned long)pa, (unsigned long)size));
+ }
+ 
+ void
+@@ -1072,11 +1073,21 @@
+ {
+ 	struct file *fp = (struct file *)image;
+ 	int rdlen;
++	loff_t pos;
+ 
+ 	if (!image)
+ 		return 0;
+ 
+-	rdlen = kernel_read(fp, fp->f_pos, buf, len);
++	pos = fp->f_pos;
++	rdlen = kernel_read(fp, 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
++			pos, 
++#endif
++			buf, len
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
++			,&pos 
++#endif
++	);
+ 	if (rdlen > 0)
+ 		fp->f_pos += rdlen;
+ 
+diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-crap-o-meter-all-in-one/wl/sys/wl_cfg80211_hybrid.c
+--- src/wl/sys/wl_cfg80211_hybrid.c	2015-09-19 00:47:30.000000000 +0200
++++ src-crap-o-meter-all-in-one/wl/sys/wl_cfg80211_hybrid.c	2020-03-31 00:54:55.904392696 +0200
+@@ -30,6 +30,9 @@
+ #include <linux/kthread.h>
+ #include <linux/netdevice.h>
+ #include <linux/ieee80211.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
++#include <linux/sched/signal.h>
++#endif
+ #include <net/cfg80211.h>
+ #include <linux/nl80211.h>
+ #include <net/rtnetlink.h>
+@@ -43,6 +46,11 @@
+ #define EVENT_FLAGS(e) dtoh16((e)->flags)
+ #define EVENT_STATUS(e) dtoh32((e)->status)
+ 
++#ifndef IEEE80211_BAND_2GHZ
++#define IEEE80211_BAND_2GHZ NL80211_BAND_2GHZ
++#define IEEE80211_BAND_5GHZ NL80211_BAND_5GHZ
++#endif
++
+ #ifdef BCMDBG
+ u32 wl_dbg_level = WL_DBG_ERR | WL_DBG_INFO;
+ #else
+@@ -50,7 +58,11 @@
+ #endif
+ 
+ static s32 wl_cfg80211_change_iface(struct wiphy *wiphy, struct net_device *ndev,
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++           enum nl80211_iftype type, struct vif_params *params);
++#else
+            enum nl80211_iftype type, u32 *flags, struct vif_params *params);
++#endif
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
+ static s32
+ wl_cfg80211_scan(struct wiphy *wiphy,
+@@ -463,7 +475,11 @@
+ 
+ static s32
+ wl_cfg80211_change_iface(struct wiphy *wiphy, struct net_device *ndev,
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++                         enum nl80211_iftype type,
++#else
+                          enum nl80211_iftype type, u32 *flags,
++#endif
+    struct vif_params *params)
+ {
+ 	struct wl_cfg80211_priv *wl = wiphy_to_wl(wiphy);
+@@ -2358,6 +2374,20 @@
+                     const wl_event_msg_t *e, void *data)
+ {
+ 	struct wl_cfg80211_connect_info *conn_info = wl_to_conn(wl);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++	struct cfg80211_bss *bss;
++	struct wlc_ssid *ssid;
++	ssid = &wl->profile->ssid;
++	bss = cfg80211_get_bss(wl_to_wiphy(wl), NULL, (s8 *)&wl->bssid,
++	ssid->SSID, ssid->SSID_len, WLAN_CAPABILITY_ESS, WLAN_CAPABILITY_ESS);
++	struct cfg80211_roam_info roam_info = {
++		.bss = bss,
++		.req_ie = conn_info->req_ie,
++		.req_ie_len = conn_info->req_ie_len,
++		.resp_ie = conn_info->resp_ie,
++		.resp_ie_len = conn_info->resp_ie_len,
++	};
++#endif
+ 	s32 err = 0;
+ 
+ 	wl_get_assoc_ies(wl);
+@@ -2365,12 +2395,17 @@
+ 	memcpy(&wl->bssid, &e->addr, ETHER_ADDR_LEN);
+ 	wl_update_bss_info(wl);
+ 	cfg80211_roamed(ndev,
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++			&roam_info,
++#else
+ #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 39)
+ 			&wl->conf->channel,	 
+ #endif
+ 			(u8 *)&wl->bssid,
+ 			conn_info->req_ie, conn_info->req_ie_len,
+-			conn_info->resp_ie, conn_info->resp_ie_len, GFP_KERNEL);
++			conn_info->resp_ie, conn_info->resp_ie_len,
++#endif
++			GFP_KERNEL);
+ 	WL_DBG(("Report roaming result\n"));
+ 
+ 	set_bit(WL_STATUS_CONNECTED, &wl->status);
+@@ -2386,8 +2421,15 @@
+ 	s32 err = 0;
+ 
+ 	if (wl->scan_request) {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
++		struct cfg80211_scan_info info = {
++			.aborted = true
++		};
+ 		WL_DBG(("%s: Aborting scan\n", __FUNCTION__));
+-		cfg80211_scan_done(wl->scan_request, true);     
++		cfg80211_scan_done(wl->scan_request, &info);
++#else
++		cfg80211_scan_done(wl->scan_request, true);
++#endif
+ 		wl->scan_request = NULL;
+ 	}
+ 
+@@ -2488,7 +2530,14 @@
+ 
+ scan_done_out:
+ 	if (wl->scan_request) {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
++		struct cfg80211_scan_info info = {
++			.aborted = false
++		};
++		cfg80211_scan_done(wl->scan_request, &info);
++#else
+ 		cfg80211_scan_done(wl->scan_request, false);
++#endif
+ 		wl->scan_request = NULL;
+ 	}
+ 	rtnl_unlock();
+@@ -2913,7 +2962,14 @@
+ 	s32 err = 0;
+ 
+ 	if (wl->scan_request) {
+-		cfg80211_scan_done(wl->scan_request, true);	
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
++		struct cfg80211_scan_info info = {
++			.aborted = true
++		};
++		cfg80211_scan_done(wl->scan_request, &info);
++#else
++		cfg80211_scan_done(wl->scan_request, true);
++#endif
+ 		wl->scan_request = NULL;
+ 	}
+ 
+diff -Naur src/wl/sys/wl_linux.c src-crap-o-meter-all-in-one/wl/sys/wl_linux.c
+--- src/wl/sys/wl_linux.c	2015-09-19 00:47:30.000000000 +0200
++++ src-crap-o-meter-all-in-one/wl/sys/wl_linux.c	2020-03-31 01:15:24.960330187 +0200
+@@ -45,6 +45,7 @@
+ #include <linux/completion.h>
+ #include <linux/usb.h>
+ #include <linux/pci_ids.h>
++#include <linux/io.h>
+ #define WLC_MAXBSSCFG		1	
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+@@ -93,7 +94,13 @@
+ 
+ #include <wlc_wowl.h>
+ 
+-static void wl_timer(ulong data);
++static void wl_timer(
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
++		struct timer_list *tl
++#else
++		ulong data
++#endif
++		);
+ static void _wl_timer(wl_timer_t *t);
+ static struct net_device *wl_alloc_linux_if(wl_if_t *wlif);
+ 
+@@ -117,6 +124,9 @@
+ 
+ typedef struct priv_link {
+ 	wl_if_t *wlif;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
++	unsigned long last_rx;
++#endif
+ } priv_link_t;
+ 
+ #define WL_DEV_IF(dev)          ((wl_if_t*)((priv_link_t*)DEV_PRIV(dev))->wlif)
+@@ -582,7 +592,7 @@
+ 	}
+ 	wl->bcm_bustype = bustype;
+ 
+-	if ((wl->regsva = ioremap_nocache(dev->base_addr, PCI_BAR0_WINSZ)) == NULL) {
++	if ((wl->regsva = ioremap(dev->base_addr, PCI_BAR0_WINSZ)) == NULL) {
+ 		WL_ERROR(("wl%d: ioremap() failed\n", unit));
+ 		goto fail;
+ 	}
+@@ -772,7 +782,7 @@
+ 	if ((val & 0x0000ff00) != 0)
+ 		pci_write_config_dword(pdev, 0x40, val & 0xffff00ff);
+ 		bar1_size = pci_resource_len(pdev, 2);
+-		bar1_addr = (uchar *)ioremap_nocache(pci_resource_start(pdev, 2),
++		bar1_addr = (uchar *)ioremap(pci_resource_start(pdev, 2),
+ 			bar1_size);
+ 	wl = wl_attach(pdev->vendor, pdev->device, pci_resource_start(pdev, 0), PCI_BUS, pdev,
+ 		pdev->irq, bar1_addr, bar1_size);
+@@ -2165,8 +2175,8 @@
+ 	wlif = WL_DEV_IF(dev);
+ 	wl = WL_INFO(dev);
+ 
++	skb->prev = NULL;
+ 	if (WL_ALL_PASSIVE_ENAB(wl) || (WL_RTR() && WL_CONFIG_SMP())) {
+-		skb->prev = NULL;
+ 
+ 		TXQ_LOCK(wl);
+ 
+@@ -2298,9 +2308,19 @@
+ }
+ 
+ static void
+-wl_timer(ulong data)
+-{
+-	wl_timer_t *t = (wl_timer_t *)data;
++wl_timer(
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
++		struct timer_list *tl
++#else
++		ulong data
++#endif
++) {
++	wl_timer_t *t =
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
++		from_timer(t, tl, timer);
++#else
++		(wl_timer_t *)data;
++#endif
+ 
+ 	if (!WL_ALL_PASSIVE_ENAB(t->wl))
+ 		_wl_timer(t);
+@@ -2352,9 +2372,13 @@
+ 
+ 	bzero(t, sizeof(wl_timer_t));
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
++	timer_setup(&t->timer, wl_timer, 0);
++#else
+ 	init_timer(&t->timer);
+ 	t->timer.data = (ulong) t;
+ 	t->timer.function = wl_timer;
++#endif
+ 	t->wl = wl;
+ 	t->fn = fn;
+ 	t->arg = arg;
+@@ -2449,6 +2473,9 @@
+ {
+ 	struct sk_buff *oskb = (struct sk_buff *)p;
+ 	struct sk_buff *skb;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
++	priv_link_t *priv_link;
++#endif
+ 	uchar *pdata;
+ 	uint len;
+ 
+@@ -2915,7 +2942,13 @@
+ 	if (skb == NULL) return;
+ 
+ 	skb->dev = wl->monitor_dev;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
++	priv_link = MALLOC(wl->osh, sizeof(priv_link_t));
++	priv_link = netdev_priv(skb->dev);
++	priv_link->last_rx = jiffies;
++#else
+ 	skb->dev->last_rx = jiffies;
++#endif
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
+ 	skb_reset_mac_header(skb);
+ #else
+@@ -3335,10 +3368,16 @@
+ }
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
+ static const struct file_operations wl_fops = {
+ 	.owner	= THIS_MODULE,
+ 	.read	= wl_proc_read,
+ 	.write	= wl_proc_write,
++#else
++static const struct proc_ops wl_fops = {
++	.proc_read   = wl_proc_read,
++	.proc_write  = wl_proc_write,
++#endif
+ };
+ #endif
+ 

@@ -18,6 +18,7 @@
 ###
 _F_kernelver_ver=5.6
 _F_kernelver_rel=1
+_F_kernel_mod_compress=zstd
 
 ###
 # == APPENDED VALUES
@@ -38,9 +39,26 @@ Fkernelver_genscriptlet_hook()
 
 Fkernelver_compress_modules()
 {
-	local _directory
-	_directory="$Fdestdir/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel"
-	Fexec find $_directory -name "*.ko" -exec xz '{}' \; || Fdie
+	if [ -n "$_F_kernel_mod_compress" ]; then
+		case "$_F_kernel_mod_compress" in
+			zstd) _Fkernelver_compress_modules_zstd ;;
+			xz)   _Fkernelver_compress_modules_xz ;;
+		esac
+	fi
+}
+
+_Fkernelver_compress_modules_zstd()
+{
+    local _directory
+    _directory="$Fdestdir/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel"
+    Fexec find $_directory -name "*.ko" -exec zstd -T0 -19 -q --rm -f '{}' \; || Fdie
+}
+
+_Fkernelver_compress_modules_xz()
+{
+    local _directory
+    _directory="$Fdestdir/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel"
+    Fexec find $_directory -name "*.ko" -exec xz -T0 '{}' \; || Fdie
 }
 
 makedepends=("${makedepends[@]}" 'ca-certificates')

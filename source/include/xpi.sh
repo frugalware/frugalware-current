@@ -47,7 +47,7 @@ fi
 # * makedepends
 # * rodepends()
 ###
-makedepends=("${makedepends[@]}" 'unzip')
+makedepends=("${makedepends[@]}" 'unzip' 'jq')
 if [ -z "$_F_xpi_productver" ]; then
 	rodepends=("${rodepends[@]}" "$_F_xpi_product")
 else
@@ -65,10 +65,10 @@ Fxpi_installxpi()
 {
 
 	local lang_id full_id
-	lang_id=$(unzip -qc $1 manifest.json | grep langpack_id | sed 's/.*: "\(.*\).*",.*/\1/')
+	lang_id=$(unzip -qc $1 manifest.json | jq -r '.langpack_id')
        if [ -z "$_F_xpi_rdf" ]; then
                ## new ff style
-               lang_id=$(unzip -qc $1 manifest.json | grep langpack_id | sed 's/.*: "\(.*\).*",.*/\1/')
+               lang_id=$(unzip -qc $1 manifest.json | jq -r '.langpack_id')
        else
                # old way used by tbird ..
                lang_id=$(unzip -qc $1 install.rdf | grep -m1 'em:id=' | sed 's/.*="\(.*\)".*/\1/')

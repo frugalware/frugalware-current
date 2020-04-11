@@ -82,7 +82,7 @@ install=$_F_haskell_install
 # * makedepends: ghc to makedepends=()
 ###
 options+=('scriptlet' 'genscriptlet')
-makedepends+=('ghc>=8.8.3' 'ghc-docs>=8.8.3')
+makedepends+=('ghc>=8.10.1' 'ghc-docs>=8.10.1')
 
 ###
 # == PROVIDED FUNCTIONS

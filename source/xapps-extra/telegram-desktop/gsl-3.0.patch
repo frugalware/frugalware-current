@@ -1,0 +1,73 @@
+diff -Naur tdesktop-2.1.0-full/Telegram/lib_base/base/bytes.h tdesktop-2.1.0-full.new/Telegram/lib_base/base/bytes.h
+--- tdesktop-2.1.0-full/Telegram/lib_base/base/bytes.h	2020-04-14 13:36:00.000000000 +0200
++++ tdesktop-2.1.0-full.new/Telegram/lib_base/base/bytes.h	2020-04-25 20:24:16.993071579 +0200
+@@ -23,7 +23,7 @@
+ using array = std::array<type, Size>;
+ 
+ inline span make_detached_span(QByteArray &container) {
+-	return gsl::as_writeable_bytes(gsl::make_span(container));
++	return gsl::as_writable_bytes(gsl::make_span(container));
+ }
+ 
+ template <
+@@ -32,7 +32,12 @@
+ 		!std::is_const_v<Container>
+ 		&& !std::is_same_v<Container, QByteArray>>>
+ inline span make_span(Container &container) {
+-	return gsl::as_writeable_bytes(gsl::make_span(container));
++	return gsl::as_writable_bytes(gsl::make_span(container));
++}
++
++template<>
++inline span make_span<span, void>(span &container) {
++	return container;
+ }
+ 
+ template <typename Container>
+@@ -40,9 +45,13 @@
+ 	return gsl::as_bytes(gsl::make_span(container));
+ }
+ 
++inline const_span make_span(const_span &container) {
++	return container;
++}
++
+ template <typename Type, std::ptrdiff_t Extent>
+ inline span make_span(gsl::span<Type, Extent> container) {
+-	return gsl::as_writeable_bytes(container);
++	return gsl::as_writable_bytes(container);
+ }
+ 
+ template <typename Type, std::ptrdiff_t Extent>
+@@ -52,7 +61,7 @@
+ 
+ template <typename Type>
+ inline span make_span(Type *value, std::size_t count) {
+-	return gsl::as_writeable_bytes(gsl::make_span(value, count));
++	return gsl::as_writable_bytes(gsl::make_span(value, count));
+ }
+ 
+ template <typename Type>
+--- tdesktop-2.1.0-full/Telegram/SourceFiles/media/streaming/media_streaming_file.cpp	2020-04-24 07:08:08.000000000 +0200
++++ tdesktop-2.1.0-full.new/Telegram/SourceFiles/media/streaming/media_streaming_file.cpp	2020-04-26 10:26:06.784024550 +0200
+@@ -40,8 +40,7 @@
+ }
+ 
+ int File::Context::read(bytes::span buffer) {
+-	const auto amount = std::min(size_type(_size - _offset), buffer.size());
+-	Assert(amount >= 0);
++	const auto amount = std::min(std::size_t(_size - _offset), buffer.size());
+ 
+ 	if (unroll()) {
+ 		return -1;
+--- tdesktop-2.1.0-full/Telegram/SourceFiles/mtproto/details/mtproto_tls_socket.cpp	2020-04-24 07:08:08.000000000 +0200
++++ tdesktop-2.1.0-full.new/Telegram/SourceFiles/mtproto/details/mtproto_tls_socket.cpp	2020-04-26 10:26:06.784024550 +0200
+@@ -707,7 +707,7 @@
+ 		if (available <= 0) {
+ 			return written;
+ 		}
+-		const auto write = std::min(index_type(available), buffer.size());
++		const auto write = std::min(std::size_t(available), buffer.size());
+ 		if (write <= 0) {
+ 			return written;
+ 		}

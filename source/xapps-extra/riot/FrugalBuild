@@ -2,11 +2,11 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=riot
-pkgver=1.6.0
+pkgver=1.6.1
 pkgrel=1
 pkgdesc='A feature-rich client for Matrix.org'
-depends=('7zip')
-makedepends=('nodejs' 'git' 'yarn')
+depends=('7zip' 'sqlcipher')
+makedepends=('nodejs' 'git' 'yarn' 'cargo')
 groups=('xapps-extra')
 archs=('x86_64')
 _F_github_author="vector-im"
@@ -19,22 +19,37 @@ _F_desktop_icon=riot-web
 _F_desktop_categories=Network
 _F_gnome_iconcache=y
 Finclude github gnome-scriptlet
-sha1sums=('179bd013e209ed200b8a505bab61f78413a12a2a')
+source+=("https://github.com/vector-im/riot-desktop/archive/v${pkgver}.zip")
+sha1sums=('1ced96f8fb0957063b2b1da41f552671c044a9b7' \
+          '73260716c7f16015c54bdc747a9883b2112cb336')
 
 build() {
-  Fcd
-  Fexec yarn install || Fdie
-  Fexec node_modules/.bin/electron-builder -l --x64 || Fdie
-
   Fmkdir usr/share/$pkgname
-  Fcprel electron_app/dist/linux-unpacked/\* usr/share/$pkgname/
 
-  Finstallrel 644 res/themes/riot/img/logos/riot-im-logo.svg usr/share/icons/hicolor/scalable/apps/${pkgname}.svg
+  Fcd
+  Fsed '"target": "deb"' '"target": "dir"' package.json
+  Fexec yarn install || Fdie
+
+  Fexec cd ../riot-desktop-${pkgver} || Fdie
+  Fsed '"https://packages.riot.im/desktop/update/"' 'null' riot.im/release/config.json
+  Fexec yarn install || Fdie
+
+  Fexec cd ../riot-web-$pkgver
+  Fexec yarn build || Fdie
+
+  Fexec cd ../riot-desktop-${pkgver} || Fdie
+  Fexec yarn run build:native || Fdie
+  Fexec yarn run build || Fdie
+
+  Fcprel dist/linux-unpacked/\* usr/share/$pkgname/
+  Fcp $_F_cd_path/webapp usr/share/$pkgname
+
+  Finstall 644 $_F_cd_path/res/themes/riot/img/logos/riot-im-logo.svg usr/share/icons/hicolor/scalable/apps/${pkgname}.svg
   for size in 128x128 16x16 24x24 256x256 48x48 512x512 64x64 96x96
   do
-	  Finstallrel 644 electron_app/build/icons/$size.png /usr/share/icons/hicolor/$size/apps/${pkgname}.png
+	  Finstall 644 riot-desktop-$pkgver/build/icons/$size.png /usr/share/icons/hicolor/$size/apps/${pkgname}.png
   done
-  Fln /usr/share/$pkgname/riot-web /usr/bin/$pkgname
+  Fln /usr/share/$pkgname/riot-desktop /usr/bin/$pkgname
 
   Fdesktop2
 }

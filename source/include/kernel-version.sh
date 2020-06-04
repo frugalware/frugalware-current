@@ -16,9 +16,9 @@
 # * _F_kernelver_stable: the number of the -stable patch to use (if any)
 # * _F_kernelver_nextver: the next kernel version
 ###
-_F_kernelver_ver=5.6.15
+_F_kernelver_ver=5.7
 _F_kernel_mod_compress=zstd
-_F_kernelver_rel=1
+_F_kernelver_rel=2
 
 ###
 # == APPENDED VALUES

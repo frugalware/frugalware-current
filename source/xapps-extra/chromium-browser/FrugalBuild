@@ -6,16 +6,14 @@ USE_DISTRO_LTO=${USE_DISTRO_LTO:-"n"}
 USE_DISTRO_FLAGS=${USE_DISTRO_FLAGS:-"y"}
 
 pkgname=chromium-browser
-pkgver=83.0.4103.97
-pkgrel=3
+pkgver=83.0.4103.106
+pkgrel=1
 pkgdesc='Chromium browser'
 url='http://www.chromium.org/'
 depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6' 'libcups' \
 	'speech-dispatcher>=0.7.1-4' 'libxtst>=1.2.2-2' 'pango' 'atk' 'libxkbcommon' 'libxml2' \
 	'libatomic' 'pciutils>=3.5' 'gtk+3' 'libxslt' 'libdrm' 'icu4c>=67.1' 'json-glib' 'ffmpeg' 'opus' \
 	'harfbuzz' 'libjpeg-turbo' 'fontconfig' 'libva' 'libvpx' 'libwebp')
-#using the built in ones for now
-#depends+=('libevent>=2.0.22-3')
 makedepends=('ninja' 'yasm' 'libexif' 'gperf' 'libpthread-stubs' 'gn>=0.1731' \
 		'x11-protos' 'krb5' 'cups' 'gtk+2' 'python-ply' \
 		'python-markupsafe' 'beautifulsoup4' 'html5lib-python' \
@@ -38,6 +36,14 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
 	v8-remove-soon-to-be-removed-getAllFieldPositions.patch \
 	iwyu-std-numeric_limits-is-defined-in-limits.patch \
 	include-memory-header-to-get-the-definition-of-std-u.patch \
+	chromium-70.0.3538.67-sandbox-pie.patch \
+	vdpau-support.patch \
+	chromium-skia-harmony.patch \
+	chromium-81-extra-media.patch \
+	chromium-69-wmvflvmpg.patch \
+	chromium-40-sorenson-spark.patch \
+	chromium-81-dont-pretend-vaapi-is-broken.patch \
+	chromium-81-enable-gpu-features.patch \
 	chromium-compiler-r12.patch \
 	chromium-83-gcc-iterator.patch \
 	chromium-83-gcc-permissive.patch \
@@ -45,16 +51,26 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
 	chromium-83-gcc-template.patch \
 	chromium-82-gcc-noexcept.patch \
 	chromium-82-gcc-template.patch \
+	chromium-78.0.3904.70-gcc9-drop-rsp-clobber.patch \
+	chromium-69-no-static-libstdc++.patch \
         $pkgname.desktop \
         $pkgname.sh)
 
-sha1sums=('014518b09466d291ff47486002902b93146a28f2' \
+sha1sums=('ec4b27065e7fb79d9c416b291499ecf9ae748cb2' \
           'ceaa2e3a4fd6011ad1857ae5c2edc03115705732' \
           'e58d2085d51e40e8331628b8e27878e357285c35' \
           '4a2f35ed8eab8a67f02fe7e4d6722e0373d3b0fc' \
           '33a75a70af01915e223fc7b0a3e1d8e91e0f6c8f' \
           '4bbf3dcf1bb9d4c288f274c0da6dc41e944de39b' \
           'edf448ff7c828fde02a9ffa50eb7ba3564e7b5ed' \
+          'e2068f7122c7b61704285ac1ba0f7a60aa77bafd' \
+          '499115d27108375450656bae2acb2fb1a0d0dcf8' \
+          '1f16dac7acfbb2737ed007c343f801f22180fccb' \
+          'ee4618b34076e8c17622fe3a0bb1a7d536b46024' \
+          '07804bb9d724cb898b1142bf9f98fd16907c0f5f' \
+          '1cc3fa4ac64fab39380764a083fbdbb663c2e683' \
+          'ad990c97d77222cd773683c1cf2d1f5bd469f756' \
+          '7053389af82b05c6e7194988c62806a37f1ebe13' \
           '6b048f25e1803a768398e165db243d727edcb760' \
           '43b97c8e00c016a4685b0e288c307b67662854b6' \
           'ea897f7495983961a27fb6fcc88c2267a8599026' \
@@ -62,6 +78,8 @@ sha1sums=('014518b09466d291ff47486002902b93146a28f2' \
           'be4f37fec6f910b99072e722954d21a9214bad12' \
           '0455ed8bb965c31c9ff1b816da6e56d0156adc12' \
           '7cdf294e17c5d8038b556f1f1668a38cccfb3106' \
+          'be6ea9f0e6c92dfa3b4b1e320c6f52f9b3edb155' \
+          'd2debbc9d26b1d358c5b05c9dd8d2ee45fe3ad76' \
           '264b8e7c4e3273263d504e041e5e4d152677922c' \
           '4c41d59b4d85a9f0443d6ca1dec456e50059dab5')
 
@@ -74,7 +92,6 @@ conflicts=('chromium-dev')
 if ! Fuse $USE_DISTRO_LTO; then
 	options+=('nolto')
 fi
-options+=('osmall')
 
 # Google API keys (see http://www.chromium.org/developers/how-tos/api-keys)
 # Note: These are for Frugalware use ONLY. For your own distribution, please
@@ -349,7 +366,7 @@ build() {
 	myconf_gn+=" enable_swiftshader=true "
 	myconf_gn+=" is_component_build=false "
 	myconf_gn+=" treat_warnings_as_errors=false "
-	myconf_gn+=" ffmpeg_branding=\"Chrome\" "
+	myconf_gn+=" ffmpeg_branding=\"ChromeOS\" "
 
 	myconf_gn+=" google_api_key=\"${_google_api_key}\""
 	myconf_gn+=" google_default_client_id=\"${_google_default_client_id}\""
@@ -360,11 +377,11 @@ build() {
 	myconf_gn+=" target_cpu=\"x64\""
 	myconf_gn+=" icu_use_data_file=false"
 
-	myconf_gn+=" enable_vulkan=true "
-	myconf_gn+=" enable_av1_decoder=true "
+	myconf_gn+=" enable_vulkan=true is_component_ffmpeg=true "
+	myconf_gn+=" enable_av1_decoder=true"
 
-#	# Enable VA-API
-#	#myconf_gn+=" use_vaapi=true "
+	# Enable VA-API
+	myconf_gn+=" use_vaapi=true "
 
 	## that kills chromium shitty flags, but we may run into some issues
 	if Fuse $USE_DISTRO_FLAGS; then

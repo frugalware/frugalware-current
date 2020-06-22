@@ -760,7 +760,7 @@ Fdeststrip() {
 ###
 __Fpatch() {
 	local level="1"
-	if ! patch -Np1 --dry-run -i "$Fsrcdir/$1" >/dev/null; then
+	if ! patch -Np1 --dry-run -i "$Fsrcdir/$1"; then
 		if ! patch -Np0 --dry-run -i "$Fsrcdir/$1"; then
 			return 1
 		fi
@@ -769,7 +769,7 @@ __Fpatch() {
 	# if we are here, the patch applied with -p0, so it's no good
 	# showing the output again
 	if [ "$level" = 0 ]; then
-		patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" >/dev/null || Fdie
+		patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" || Fdie
 	else
 		patch -Np$level --no-backup-if-mismatch -i "$Fsrcdir/$1" || Fdie
 	fi

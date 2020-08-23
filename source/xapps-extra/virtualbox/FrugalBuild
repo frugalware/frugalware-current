@@ -6,11 +6,26 @@
 
 USE_VBOX_DEBUG=${USE_VBOX_DEBUG:-"n"}
 
+## Guest Modules
+
+## NOTE: All 3 exists in mainline kernel, however
+## all have issues and mixing them is not a good idea either,
+## since they don't support the same set of features yet.
+## We can try in kernel 5.9+ again but then we need take care of the
+## used VirtualBox version.
+
+USE_VBOXGUEST=${USE_VBOXGUEST:-"y"}
+USE_VBOXVIDEO=${USE_VBOXVIDEO:-"y"}
+USE_VBOXSF=${USE_VBOXSF:-"y"}
+## TODO ( 5.9++ )
+USE_VBOX_MODS_MAINLINE=${USE_VBOX_MODS_MAINLINE:-"n"}
+
+
 pkgname=virtualbox
 realname=VirtualBox
 pkgver=6.1.12
 pkgextra=a
-pkgrel=8
+pkgrel=9
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' 'openssl>=1.1.1' \
@@ -29,9 +44,13 @@ source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver
 	LocalConfig.kmk \
 	60-vboxguest.rules \
 	vboxservice.service \
+	vboxdrmclient.service \
+	vboxdrmclient.path \
 	virtualbox-guest-utils.conf \
-	kbuild-mod-fixes-for-kernel-5.5.patch \
+	guest-mods-fix.patch \
+	host-mods-fix.patch \
 	kernel-5.8.patch \
+	VirtualBox-6.1.2-revert-removal-of-vital-symbols.patch \
 	depmod.patch)
 
 _F_kernelmod_scriptlet="$startdir/$pkgname.install"
@@ -51,10 +70,14 @@ sha1sums=('e987efb4b6f0b074b2aa5f61a471f0aacb5edf14' \
           'aa931ae19edd8585150738f0efd8fedf5175a6d3' \
           '0666fa77bb8aab6d2ca3501256c9f0124175f45c' \
           '08199d8e7906cb793277b798805d38ce386460d8' \
-          '28fb53322691d32a82de87e63672229ea5b7159e' \
+          'a9aa624222d458396d6d7e2cfa8acb03a7420961' \
+          '06321cf7aecca8cad7701ad9230e4c765ba35cda' \
+          '9de06686eadee89de812767dd1260e921ca5e761' \
           '80ba54b1e13f0e8f53a84ca3f25df617fb53ae4c' \
-          '3adcaa0eaf82ae1a149a5bf885f21ac5e477f136' \
+          'f5e19c8c2fd0bdc7cc7c47410f59ee6b2b84ec3f' \
+          '316d171e5f7ea28b7528d568385b08eb7da9a79e' \
           'f2405faf208f1581ae194549a0cdfb76642eff21' \
+          '90b2600bd8a0bb23a62ad6e062976e81cfa98124' \
           'ed04bf751eae0516e98c81157676d7af8ee41c14')
 
 subpkgs=("$pkgname-modules")
@@ -69,7 +92,7 @@ subpkgs+=("$pkgname-guest-additions")
 subdescs+=('VirtualBox guest Additions')
 subarchs+=('x86_64')
 subgroups+=('xapps-extra')
-subdepends+=("kernel$_F_kernelmod_name=$_F_kernelmod_pkgver libxcomposite libxdamage libxrandr libxmu pam")
+subdepends+=("kernel$_F_kernelmod_name=$_F_kernelmod_pkgver libxcomposite libxdamage libxrandr libxmu pam mesa-dri-drivers xf86-video-vmware")
 suboptions+=('scriptlet')
 subinstall+=("$pkgname-guest-additions.install")
 
@@ -87,9 +110,6 @@ build() {
 	Fsed '.*&& check_makeself' '' configure # we don't have makeself
 	Fsed 'smc-napa' 'smcnapa' src/VBox/Devices/PC/vbox.dsl
 
-	## Change all back to VBoxVGA , *SVGA and *VMSVGA not yet working right.
-	Fsed 'GraphicsControllerType_VBoxSVGA' 'GraphicsControllerType_VBoxVGA' src/VBox/Main/src-all/Global.cpp
-	Fsed 'GraphicsControllerType_VMSVGA' 'GraphicsControllerType_VBoxVGA' src/VBox/Main/src-all/Global.cpp
 	Fexec cp "$Fsrcdir/LocalConfig.kmk" . || Fdie
 
 	Fsed 'DocPath=.*' '' src/VBox/Installer/common/virtualbox.desktop.in
@@ -208,10 +228,6 @@ build() {
 	Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} || Fdie
 	Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
 
-	#cleanup first
-	Fexec rm -rf fw_tmp || Fdie
-	Fexec mkdir fw_tmp || Fdie
-	Fexec cd fw_tmp || Fdie
 
 	Fsed "@_F_kernelmod_uname@" "$_F_kernelmod_uname" $startdir/virtualbox-modules.install
 	Fkernelver_compress_modules
@@ -220,57 +236,66 @@ build() {
 
 	# guest additions
 	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions || Fdie
+	Fexec ls -1
 	Fexerel usr/bin/VBoxClient
 	Fexerel usr/bin/VBoxControl
 	Fexerel usr/bin/VBoxService
+	Fexerel usr/bin/VBoxDRMClient
 	Fexerel sbin/mount.vboxsf
 	Fexe ${_F_cd_path}/src/VBox/Additions/x11/Installer/98vboxadd-xclient usr/bin/VBoxClient-all
+	## segfaults for everyone just not for us, however let's use  a service now
+	# I wonder if that has something to do with our stripping?!
+	Fsed '/usr/bin/VBoxClient --vmsvga' '#/usr/bin/VBoxClient --vmsvga' $Fdestdir/usr/bin/VBoxClient-all
 
-	Fsplit virtualbox-guest-additions  usr/bin/{VBoxClient,VBoxControl,VBoxService,VBoxClient-all}
+	Fsplit virtualbox-guest-additions  usr/bin/{VBoxClient,VBoxControl,VBoxService,VBoxDRMClient,VBoxClient-all}
 	Fsplit virtualbox-guest-additions sbin/mount.vboxsf
 
 	Fexe ${_F_cd_path}/src/VBox/Additions/x11/Installer/vboxclient.desktop etc/xdg/autostart/vboxclient.desktop
 	Fsplit virtualbox-guest-additions  etc/xdg
-
-
-	## gone?
-	#Finstallrel 755 usr/lib/VBoxOGL.so
-
-	#Fln /usr/lib/VBoxOGL.so usr/lib/dri/vboxvideo_dri.so
-	#Fsplit virtualbox-guest-additions usr/lib/VBoxOGL*.so
-	#Fsplit virtualbox-guest-additions usr/lib/dri/
 
 	Finstallrel 755 lib/security/pam_vbox.so
 
 	# TODO remove after systemd is gone
 	Finstall 644 lib/udev/rules.d/60-vboxguest.rules
 	Finstall 644 lib/systemd/system/vboxservice.service
+	Finstall 644 lib/systemd/system/vboxdrmclient.service
+	Finstall 644 lib/systemd/system/vboxdrmclient.path
 	Finstall 644 usr/lib/sysusers.d/virtualbox-guest-utils.conf
 	Fsplit virtualbox-guest-additions usr/lib/sysusers.d/
 
 	# guest kernel modules
-	KMOD_NAMES="vboxguest" #TODO Temp disable some
-    Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions/src || Fdie
-    Fmkdir ${_F_kernelmod_dir}/kernel/misc
+	KMOD_NAMES=""
+	if Fuse $USE_VBOXGUEST; then
+		KMOD_NAMES+=" vboxguest "
+	fi
+	if Fuse $USE_VBOXVIDEO; then
+		KMOD_NAMES+=" vboxvideo "
+	fi
+	if Fuse $USE_VBOXSF; then
+		KMOD_NAMES+=" vboxsf "
+	fi
 
-	for mod in ${KMOD_NAMES[@]}
-	do
-		Fexec make -C $mod V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname}  || Fdie
-		Fexec make -C $mod V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
-	done
+	## at least one needs be enabled
+	if [[ -n $KMOD_NAMES ]]; then
+		Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions/src || Fdie
+		Fmkdir ${_F_kernelmod_dir}/kernel/misc
 
-    #cleanup first ?!?!?! -- what for is that ? -- crazy
-    Fexec rm -rf fw_tmp || Fdie
-    Fexec mkdir fw_tmp || Fdie
+		for mod in ${KMOD_NAMES[@]}
+		do
+			Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname}  $mod || Fdie
+			Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install_$mod || Fdie
+		done
 
-    Fexec cd fw_tmp || Fdie
+		Fsed "@_F_kernelmod_uname@" "$_F_kernelmod_uname" $startdir/virtualbox-guest-additions.install
 
-	Fsed "@_F_kernelmod_uname@" "$_F_kernelmod_uname" $startdir/virtualbox-guest-additions.install
-
-	Fkernelver_compress_modules
+		Fkernelver_compress_modules
+		Fsplit virtualbox-guest-additions lib/modules/
+	fi
 
 	Fln /lib/systemd/system/vboxservice.service /lib/systemd/system/multi-user.target.wants/vboxservice.service
-	Fsplit virtualbox-guest-additions lib/modules/
+	Fln /lib/systemd/system/vboxdrmclient.service /lib/systemd/system/multi-user.target.wants/vboxdrmclient.service
+	Fln /lib/systemd/system/vboxdrmclient.path /lib/systemd/system/multi-user.target.wants/vboxdrmclient.path
+
 	Fsplit virtualbox-guest-additions lib/security/
 	Fsplit virtualbox-guest-additions lib/systemd/
 	Fsplit virtualbox-guest-additions lib/udev/rules.d/60-vboxguest.rules

@@ -25,7 +25,7 @@ pkgname=virtualbox
 realname=VirtualBox
 pkgver=6.1.12
 pkgextra=a
-pkgrel=9
+pkgrel=10
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' 'openssl>=1.1.1' \
@@ -68,7 +68,7 @@ options=('noccache' 'scriptlet' 'nostrip' 'genscriptlet' 'nowfsecurity' 'nolto' 
 _F_cd_path="${realname}-${pkgver}"
 sha1sums=('e987efb4b6f0b074b2aa5f61a471f0aacb5edf14' \
           'aa931ae19edd8585150738f0efd8fedf5175a6d3' \
-          '0666fa77bb8aab6d2ca3501256c9f0124175f45c' \
+          '6f7131ae93bc1a5a0c15e215382e3671cfba3048' \
           '08199d8e7906cb793277b798805d38ce386460d8' \
           'a9aa624222d458396d6d7e2cfa8acb03a7420961' \
           '06321cf7aecca8cad7701ad9230e4c765ba35cda' \
@@ -100,6 +100,7 @@ subinstall+=("$pkgname-guest-additions.install")
 build() {
 
 	Fcd
+	SVNR=$(grep '$Rev:' Config.kmk | sed 's/.*: \(.*\).*\$.*/\1/' | tr -d [:space:])
 	## FIXME: figure these
 	Fsed '/usr/X11R6/bin/xterm' '/usr/bin/xterm' \
 		src/VBox/Runtime/VBox/RTAssertShouldPanic-vbox.cpp
@@ -109,6 +110,8 @@ build() {
 	Fsed 'VBOX_WITH_CLOUD_NET = 1' 'VBOX_WITH_CLOUD_NET :=' Config.kmk
 	Fsed '.*&& check_makeself' '' configure # we don't have makeself
 	Fsed 'smc-napa' 'smcnapa' src/VBox/Devices/PC/vbox.dsl
+
+	Fsed 'opt/VirtualBox' 'usr/share/virtualbox' src/VBox/RDP/client-1.8.4/Makefile.kmk
 
 	Fexec cp "$Fsrcdir/LocalConfig.kmk" . || Fdie
 
@@ -143,6 +146,7 @@ build() {
 	## we want to build verbose - DO NOT DISABLE THIS
 	Fexec kmk KBUILD_VERBOSE=2  all || Fdie
 
+	Fexec kmk KBUILD_VERBOSE=2 -C src/VBox/ExtPacks/VNC packing
 
 	local i k j s m
 
@@ -166,6 +170,9 @@ build() {
 	done
 
 	Fexerel VBoxTunctl "usr/bin/VBoxTunctl"
+	Fexerel rdesktop-vrdp "usr/bin/rdesktop-vrdp"
+	Fexerel vboximg-mount "usr/bin/vboximg-mount"
+	Fexerel vbox-img "usr/bin/vbox-img"
 
 	# workaround broken symlink
 	Fexec rm -rf components/VBoxREM.so || Fdie
@@ -181,10 +188,11 @@ build() {
 
 	Finstallrel 4755 VBoxVolInfo VBoxNetNAT VirtualBoxVM VBoxNetDHCP VBoxNetAdpCtl VBoxSDL VBoxHeadless "usr/lib/virtualbox"
 
-	Fexerel VBoxManage VirtualBox VBoxSVC VBoxExtPackHelperApp VBoxXPCOMIPCD VBoxTestOGL VBoxBalloonCtrl "usr/lib/virtualbox"
+	Fexerel VBoxManage VirtualBox VBoxSVC VBoxExtPackHelperApp VBoxXPCOMIPCD VBoxTestOGL VBoxBalloonCtrl  "usr/lib/virtualbox"
 
 	Fexerel nls/*.qm "usr/share/virtualbox/nls"
-
+	Fmkdir usr/share/virtualbox
+	Finstallrel 644 rdesktop-vrdp-keymaps/* "usr/share/virtualbox/rdesktop-vrdp-keymaps"
 	#useless scripts
 	Fexerel VBoxCreateUSBNode.sh VBoxSysInfo.sh "usr/share/virtualbox"
 
@@ -304,6 +312,11 @@ build() {
 	##  but no way to do that different atm
 	Fbuild_kernelmod_scriptlet
 
+	Fmkdir /usr/share/virtualbox/extensions
+	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/packages || Fdie
+	Finstallrel 644 "VNC-${pkgver}r${SVNR}.vbox-extpack" "usr/share/virtualbox/extensions"
+
 }
 
 # optimization OK
+

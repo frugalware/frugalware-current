@@ -3,11 +3,11 @@
 # Contributor: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=polkit
-pkgver=0.116
-pkgrel=2
+pkgver=0.117
+pkgrel=1
 pkgdesc="Policy framework for controlling privileges for system-wide services"
 url="http://www.freedesktop.org/wiki/Software/polkit"
-depends=('pam>=1.3.0-4' 'expat>=2.1.0-6' 'libsystemd>=242' 'mozjs' \
+depends=('pam>=1.3.0-4' 'expat>=2.1.0-6' 'libsystemd>=242' 'mozjs>=68' \
 	'scriptlet-core' 'libffi>=3.2.1-2')
 makedepends=('intltool>=0.51.0-2' 'gobject-introspection>=1.46.0-2' 'docbook-xsl' 'gtk-doc' 'systemd-devel>=242')
 groups=('base')
@@ -15,31 +15,52 @@ archs=('x86_64')
 up2date="Flasttar http://www.freedesktop.org/software/$pkgname/releases"
 source=(http://www.freedesktop.org/software/$pkgname/releases/$pkgname-$pkgver.tar.gz \
 	$pkgname.conf x11vars.patch)
-sha1sums=('7fafbf4d2b9a308ad4ad3a174b01970b78c09eea' \
+sha1sums=('0c375fa621bc9f74f2972e00fb517a408f419adf' \
           '78587a357a20ca9cd6a33512b87f5d4c13a47aaa' \
           '40c8369a7d73a73cad1bc6ce30cced12468986e7')
 
 replaces=('policykit')
 conflicts=('policykit')
-options+=('scriptlet')
+options+=('scriptlet' 'nolto')
 
 Fconfopts+="	--with-os-type=FrugalWare \
                 --disable-selinux \
                 --enable-libsystemd-login=yes \
                 --enable-introspection \
                 --enable-examples"
+F32confopts+="	--with-os-type=FrugalWare \
+                --disable-selinux \
+		--libdir=/usr/lib32 \
+                --enable-libsystemd-login=yes"
+
 _Fbuild_autoreconf="yes"
 
 _F_cross32_combined="yes"
 _F_cross32_simple="true"
-_F_cross32_subdepends=('lib32-pam' 'lib32-expat' 'lib32-glib2' 'lib32-libsystemd' 'lib32-mozjs')
+_F_cross32_subdepends=('lib32-pam' 'lib32-expat' 'lib32-glib2' 'lib32-libsystemd')
 _F_cross32_delete=('usr/share/' 'lib/' 'usr/lib/')
 Finclude cross32
 
 build() {
+        Fcross32_prepare
+        Fcross32_copy_source
+	Fconf $F32confopts
 
-	export NM=gcc-nm
-	Fbuild_cross32
+	Fexec make -C src/polkit polkitenumtypes.h || Fdie
+	Fexec make -C src/polkit libpolkit-gobject-1.la || Fdie
+	Fexec make -C src/polkitagent polkitagentenumtypes.h marshal.stamp || Fdie
+	Fexec make -C src/polkitagent libpolkit-agent-1.la || Fdie
+
+	Fexec make -C src/polkit DESTDIR="${Fdestdir}" lib_LTLIBRARIES=libpolkit-gobject-1.la install-libLTLIBRARIES || Fdie
+	Fexec make -C src/polkitagent DESTDIR="${Fdestdir}" lib_LTLIBRARIES=libpolkit-agent-1.la install-libLTLIBRARIES || Fdie
+	Fexec make -C data DESTDIR="${Fdestdir}" install-pkgconfigDATA || Fdie
+
+        Fcross32_copy_back_source
+        Fcross32_reset_and_fix
+
+        Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one
+	## 64bit
+        Fcross32_64bit_build
 
 	Fdirschown etc/polkit-1/rules.d 67 root
 	Fdirschown usr/share/polkit-1/rules.d 67 root

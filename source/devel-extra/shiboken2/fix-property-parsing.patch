@@ -1,0 +1,136 @@
+From 074e52bccfba94c97cc132060e7087f830756b26 Mon Sep 17 00:00:00 2001
+From: Friedemann Kleint <Friedemann.Kleint@qt.io>
+Date: Thu, 10 Sep 2020 09:04:51 +0200
+Subject: shiboken2: Fix property parsing
+
+- Use simplify() on the specification to allow for arbitrary white space
+- Fix misplaced qualifiers like Q_PROPERTY(QXYSeries *series...
+- Output the error of translateType() in the
+  "Unable to decide type of property.." warning
+- Handle '*' indirections in the type name for type lookup and
+  add the indirections to PropertySpec. This fixes most
+  of the "Unable to decide type of property.." warnings of the build
+
+Task-number: PYSIDE-1019
+Change-Id: I8028536b1f52816c4eb66b23f6c5b3b161489dc5
+Reviewed-by: Christian Tismer <tismer@stackless.com>
+---
+ .../shiboken2/ApiExtractor/abstractmetabuilder.cpp | 24 +++++++++++++++++-----
+ .../shiboken2/ApiExtractor/abstractmetalang.cpp    |  8 +++++---
+ /ApiExtractor/abstractmetalang.h  |  4 ++++
+ 3 files changed, 28 insertions(+), 8 deletions(-)
+
+diff --git a//ApiExtractor/abstractmetabuilder.cpp b//ApiExtractor/abstractmetabuilder.cpp
+index f9e34ba5..7619891b 100644
+--- a//ApiExtractor/abstractmetabuilder.cpp
++++ b//ApiExtractor/abstractmetabuilder.cpp
+@@ -2801,7 +2801,7 @@ void AbstractMetaBuilderPrivate::parseQ_Properties(AbstractMetaClass *metaClass,
+ }
+ 
+ QPropertySpec *AbstractMetaBuilderPrivate::parseQ_Property(AbstractMetaClass *metaClass,
+-                                                           const QString &declaration,
++                                                           const QString &declarationIn,
+                                                            const QStringList &scopes,
+                                                            QString *errorMessage)
+ {
+@@ -2809,33 +2809,47 @@ QPropertySpec *AbstractMetaBuilderPrivate::parseQ_Property(AbstractMetaClass *me
+ 
+     // Q_PROPERTY(QString objectName READ objectName WRITE setObjectName NOTIFY objectNameChanged)
+ 
++    const QString declaration = declarationIn.simplified();
+     auto propertyTokens = declaration.splitRef(QLatin1Char(' '), Qt::SkipEmptyParts);
+     if (propertyTokens.size()  < 4) {
+         *errorMessage = QLatin1String("Insufficient number of tokens");
+         return nullptr;
+     }
+ 
+-    const QString typeName = propertyTokens.takeFirst().toString();
+-    const QString name = propertyTokens.takeFirst().toString();
++    QString fullTypeName = propertyTokens.takeFirst().toString();
++    QString name = propertyTokens.takeFirst().toString();
++    // Fix errors like "Q_PROPERTY(QXYSeries *series .." to be of type "QXYSeries*"
++    while (name.startsWith(QLatin1Char('*'))) {
++        fullTypeName += name.at(0);
++        name.remove(0, 1);
++    }
++
++    int indirections = 0;
++    QString typeName = fullTypeName;
++    for (; typeName.endsWith(QLatin1Char('*')); ++indirections)
++        typeName.chop(1);
+ 
+     QScopedPointer<AbstractMetaType> type;
++    QString typeError;
+     for (int j = scopes.size(); j >= 0 && type.isNull(); --j) {
+         QStringList qualifiedName = scopes.mid(0, j);
+         qualifiedName.append(typeName);
+         TypeInfo info;
++        info.setIndirections(indirections);
+         info.setQualifiedName(qualifiedName);
+-        type.reset(translateType(info, metaClass));
++        type.reset(translateType(info, metaClass, {}, &typeError));
+     }
+ 
+     if (!type) {
+         QTextStream str(errorMessage);
+         str << "Unable to decide type of property: \"" << name << "\" ("
+-            <<  typeName << ')';
++            <<  typeName << "): " << typeError;
+         return nullptr;
+     }
+ 
+     QScopedPointer<QPropertySpec> spec(new QPropertySpec(type->typeEntry()));
+     spec->setName(name);
++    spec->setIndirections(indirections);
+ 
+     for (int pos = 0; pos + 1 < propertyTokens.size(); pos += 2) {
+         if (propertyTokens.at(pos) == QLatin1String("READ"))
+diff --git a//ApiExtractor/abstractmetalang.cpp b//ApiExtractor/abstractmetalang.cpp
+index 9d770284..592f69c4 100644
+--- a//ApiExtractor/abstractmetalang.cpp
++++ b//ApiExtractor/abstractmetalang.cpp
+@@ -2786,14 +2786,16 @@ bool QPropertySpec::isValid() const
+ #ifndef QT_NO_DEBUG_STREAM
+ void QPropertySpec::formatDebug(QDebug &d) const
+ {
+-    d << '#' << m_index << " \"" << m_name << "\" (" << m_type->qualifiedCppName()
+-        << "), read=" << m_read;
++    d << '#' << m_index << " \"" << m_name << "\" (" << m_type->qualifiedCppName();
++    for (int i = 0; i < m_indirections; ++i)
++        d << '*';
++    d << "), read=" << m_read;
+     if (!m_write.isEmpty())
+         d << ", write=" << m_write;
+     if (!m_reset.isEmpty())
+           d << ", reset=" << m_reset;
+     if (!m_designable.isEmpty())
+-          d << ", esignable=" << m_designable;
++          d << ", designable=" << m_designable;
+ }
+ 
+ QDebug operator<<(QDebug d, const QPropertySpec &p)
+diff --git a//ApiExtractor/abstractmetalang.h b//ApiExtractor/abstractmetalang.h
+index de7a1e3a..9ceae14d 100644
+--- a//ApiExtractor/abstractmetalang.h
++++ b//ApiExtractor/abstractmetalang.h
+@@ -1743,6 +1743,9 @@ public:
+         return m_type;
+     }
+ 
++    int indirections() const { return m_indirections; }
++    void setIndirections(int indirections) { m_indirections = indirections; }
++
+     QString name() const
+     {
+         return m_name;
+@@ -1814,6 +1817,7 @@ private:
+     QString m_designable;
+     QString m_reset;
+     const TypeEntry *m_type;
++    int m_indirections = 0;
+     int m_index = -1;
+ };
+ 
+-- 
+cgit v1.2.1
+

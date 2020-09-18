@@ -112,6 +112,10 @@ if [ -n "$_F_github_grepv" ]; then
 	off='| grep -v -- $_F_github_grepv'
 fi
 
+if [ -z "$_F_github_grep" ]; then
+        _F_github_grep='archive'
+fi
+
 if [ -z "$_F_github_up2date_path" ]; then
        _F_github_up2date="releases"
 else
@@ -127,7 +131,7 @@ if [ -n "$_F_github_devel" ]; then
 	Finclude scm
 	unset _F_github_source _F_github_tag _F_github_tag_v source
 else
-	up2date="lynx -read_timeout=280 -dump  https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep  '\https\(.*\)$_F_github_ext'  $off | grep -m1 'archive' | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//' | sed 's/${_F_github_name}${_F_github_sep}//'"
+	up2date="lynx -read_timeout=280 -dump  https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep  '\https\(.*\)$_F_github_ext'  $off | grep -m1 $_F_github_grep | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//' | sed 's/${_F_github_name}${_F_github_sep}//'"
 	# On one line for Mr Portability, Hermier Portability.
 	source+=("${_F_github_source}")
 fi

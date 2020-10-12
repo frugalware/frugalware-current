@@ -1,6 +1,6 @@
-diff -Naur evdi-1.8.0/module/evdi_cursor.c evdi-1.8.0.new/module/evdi_cursor.c
+diff -Naur evdi-1.8.0/module/evdi_cursor.c evdi-1.8.0-p/module/evdi_cursor.c
 --- evdi-1.8.0/module/evdi_cursor.c	2020-07-31 12:07:08.000000000 +0200
-+++ evdi-1.8.0.new/module/evdi_cursor.c	2020-10-12 16:11:58.141201173 +0200
++++ evdi-1.8.0-p/module/evdi_cursor.c	2020-10-12 16:05:56.615556087 +0200
 @@ -55,7 +55,7 @@
  	if (obj)
  		drm_gem_object_get(&obj->base);
@@ -10,33 +10,53 @@ diff -Naur evdi-1.8.0/module/evdi_cursor.c evdi-1.8.0.new/module/evdi_cursor.c
  
  	cursor->obj = obj;
  }
-diff -Naur evdi-1.8.0/module/evdi_drv.c evdi-1.8.0.new/module/evdi_drv.c
+diff -Naur evdi-1.8.0/module/evdi_drv.c evdi-1.8.0-p/module/evdi_drv.c
 --- evdi-1.8.0/module/evdi_drv.c	2020-07-31 12:07:08.000000000 +0200
-+++ evdi-1.8.0.new/module/evdi_drv.c	2020-10-12 16:12:53.541612862 +0200
-@@ -91,7 +91,6 @@
++++ evdi-1.8.0-p/module/evdi_drv.c	2020-10-12 16:20:22.140941649 +0200
+@@ -16,6 +16,7 @@
+ #include <drm/drm_crtc_helper.h>
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
++#include <linux/iommu.h>
+ 
+ #include "evdi_drv.h"
+ #include "evdi_drm.h"
+@@ -91,7 +92,7 @@
  	.postclose = evdi_driver_postclose,
  
  	/* gem hooks */
 -	.gem_free_object = evdi_gem_free_object,
++	.gem_free_object_unlocked = evdi_gem_free_object,
  	.gem_vm_ops = &evdi_gem_vm_ops,
  
  	.dumb_create = evdi_dumb_create,
-@@ -169,12 +168,6 @@
+@@ -166,13 +167,20 @@
+ {
+ 	struct drm_device *dev;
+ 	int ret;
++#if IS_ENABLED(CONFIG_IOMMU_API) && defined(CONFIG_INTEL_IOMMU)
++	struct dev_iommu iommu;
++#endif
  
  	EVDI_CHECKPT();
  
 -	/* Intel-IOMMU workaround: platform-bus unsupported, force ID-mapping */
--#if IS_ENABLED(CONFIG_IOMMU_API) && defined(CONFIG_INTEL_IOMMU)
++/* Hmmm... */
++/* Intel-IOMMU workaround: platform-bus unsupported, force ID-mapping */
+ #if IS_ENABLED(CONFIG_IOMMU_API) && defined(CONFIG_INTEL_IOMMU)
 -#define INTEL_IOMMU_DUMMY_DOMAIN                ((void *)-1)
 -	pdev->dev.archdata.iommu = INTEL_IOMMU_DUMMY_DOMAIN;
--#endif
--
++
++	memset(&iommu, 0, sizeof(iommu));
++	iommu.priv = (void *)-1;
++	pdev->dev.iommu = &iommu;
++
+ #endif
+ 
  	dev = drm_dev_alloc(&driver, &pdev->dev);
- 	if (IS_ERR(dev))
- 		return PTR_ERR(dev);
-diff -Naur evdi-1.8.0/module/evdi_fb.c evdi-1.8.0.new/module/evdi_fb.c
+diff -Naur evdi-1.8.0/module/evdi_fb.c evdi-1.8.0-p/module/evdi_fb.c
 --- evdi-1.8.0/module/evdi_fb.c	2020-07-31 12:07:08.000000000 +0200
-+++ evdi-1.8.0.new/module/evdi_fb.c	2020-10-12 16:11:58.142201180 +0200
++++ evdi-1.8.0-p/module/evdi_fb.c	2020-10-12 16:05:56.626556166 +0200
 @@ -319,7 +319,7 @@
  
  	EVDI_CHECKPT();
@@ -64,9 +84,9 @@ diff -Naur evdi-1.8.0/module/evdi_fb.c evdi-1.8.0.new/module/evdi_fb.c
  	}
  }
  
-diff -Naur evdi-1.8.0/module/evdi_gem.c evdi-1.8.0.new/module/evdi_gem.c
+diff -Naur evdi-1.8.0/module/evdi_gem.c evdi-1.8.0-p/module/evdi_gem.c
 --- evdi-1.8.0/module/evdi_gem.c	2020-07-31 12:07:08.000000000 +0200
-+++ evdi-1.8.0.new/module/evdi_gem.c	2020-10-12 16:11:58.142201180 +0200
++++ evdi-1.8.0-p/module/evdi_gem.c	2020-10-12 16:20:16.976903378 +0200
 @@ -82,7 +82,7 @@
  		return ret;
  	}
@@ -76,9 +96,9 @@ diff -Naur evdi-1.8.0/module/evdi_gem.c evdi-1.8.0.new/module/evdi_gem.c
  	*handle_p = handle;
  	return 0;
  }
-diff -Naur evdi-1.8.0/module/evdi_modeset.c evdi-1.8.0.new/module/evdi_modeset.c
+diff -Naur evdi-1.8.0/module/evdi_modeset.c evdi-1.8.0-p/module/evdi_modeset.c
 --- evdi-1.8.0/module/evdi_modeset.c	2020-07-31 12:07:08.000000000 +0200
-+++ evdi-1.8.0.new/module/evdi_modeset.c	2020-10-12 16:11:58.142201180 +0200
++++ evdi-1.8.0-p/module/evdi_modeset.c	2020-10-12 16:05:56.633556217 +0200
 @@ -130,7 +130,7 @@
  			eobj, width, height, hot_x, hot_y,
  			format, stride);

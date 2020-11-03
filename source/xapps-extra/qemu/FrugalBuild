@@ -8,7 +8,7 @@
 ##       add virtgl stuff
 pkgname=qemu
 pkgver=5.1.0
-pkgrel=1
+pkgrel=2
 pkgdesc="QEMU is a FAST! processor emulator"
 url="http://www.nongnu.org/qemu/"
 depends=('libx11' 'sdl2' 'alsa-lib' 'cyrus-sasl' 'nss' 'libgl' 'pixman' \
@@ -16,7 +16,8 @@ depends=('libx11' 'sdl2' 'alsa-lib' 'cyrus-sasl' 'nss' 'libgl' 'pixman' \
 	'usbredir>=0.8.0' 'pulseaudio' 'ncurses>=6.0-3' 'libglu' 'libepoxy' \
 	'libaio' 'lzo' 'snappy' 'libseccomp' 'numactl' 'bluez' 'jemalloc' \
 	'curl' 'nettle>=3.6' 'libssh2' 'libgbm')
-makedepends=('texi2html' 'xfsprogs' 'mesa-libgl-headers' 'x11-protos' 'mesa-libegl')
+makedepends=('texi2html' 'xfsprogs' 'mesa-libgl-headers' 'x11-protos' \
+    'mesa-libegl' 'pcre-static' 'ncurses-static' 'glib2-static' 'zlib-static')
 replaces=('kqemu' 'qemu-kvm')
 conflicts=('kqemu' 'qemu-kvm')
 provides=('kqemu' 'qemu-kvm')
@@ -26,18 +27,29 @@ _F_archive_grepv="rc[0-9]"
 up2date="Flasttar http://wiki.qemu.org/download"
 source=(http://wiki.qemu.org/download/${pkgname}-${pkgver//_/-}.tar.bz2 \
 	qemu.conf qemu-guest-agent.service \
-	99-qemu-guest-agent.rules README.Frugalware)
+	99-qemu-guest-agent.rules \
+	qemu-static.conf \
+	README.Frugalware)
 sha1sums=('bcfe390af5eadffbce7effbf2edafddfc1973bbb' \
           'b44a774fe5ebcf52275ee0fc33a9654c157204ca' \
           '435373031bc0a1fed8abadab912460ddf98bc1c2' \
           'c997e6afd997aeb87791664c2583a009704a6792' \
+          '1e03379c8edc1c227a58962294d8d9899b4c7273' \
           '11fea2f36b44297e241d8cbbdbc4cd14f1150b72')
 options=('nolto')
+
 subpkgs=('qemu-guest')
 subdescs=('Files for use in QEMU guests.')
 subgroups=('apps-extra')
 subarchs=('x86_64')
 subdepends=('glib2')
+
+subpkgs+=('qemu-user-static')
+subdescs+=('Statically linked binaries of Qemu with user emulation')
+subgroups+=('apps-extra')
+subarchs+=('x86_64')
+subdepends+=('glibc')
+
 
 TARGETS="riscv32-softmmu riscv64-softmmu i386-softmmu x86_64-softmmu arm-softmmu"
 
@@ -48,6 +60,70 @@ build()
 
 	Fcd $pkgname-${pkgver%%_*}
 	Fpatchall
+
+	Fexec ./configure \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+        --localstatedir=/ \
+        --libexecdir=/usr/lib/qemu \
+        --enable-linux-user \
+        --disable-debug-info \
+        --disable-bsd-user \
+        --disable-werror \
+        --disable-system \
+        --disable-tools \
+        --disable-docs \
+        --disable-gtk \
+        --disable-gnutls \
+        --disable-nettle \
+        --disable-gcrypt \
+        --disable-glusterfs \
+        --disable-libnfs \
+        --disable-libiscsi \
+        --disable-vnc \
+        --disable-kvm \
+        --disable-libssh \
+        --disable-libxml2 \
+        --disable-vde \
+        --disable-sdl \
+        --disable-opengl \
+        --disable-xen \
+        --disable-fdt \
+        --disable-vhost-net \
+        --disable-vhost-crypto \
+        --disable-vhost-user \
+        --disable-vhost-vsock \
+        --disable-vhost-scsi \
+        --disable-tpm \
+        --disable-qom-cast-debug \
+        --disable-capstone \
+        --disable-zstd \
+        --disable-linux-io-uring \
+        --static || Fdie
+
+        Fexec make || Fdie
+        Fmakeinstall
+
+	# remove conflicting files
+	Frm var/
+	Frm usr/share/
+	Frm usr/include/
+
+	# never go full circle
+	Frm usr/bin/qemu-x86_64
+
+	# this will lead to problems
+	Frm usr/bin/qemu-i386
+
+	# install binfmt file
+	Finstall 644 usr/lib/binfmt.d/qemu-static.conf
+
+	# split everything
+	Fsplit $pkgname-user-static /\*
+
+	Fexec make clean || Fdie
+
+	# dynamic build
 	Fexec ./configure \
 		--prefix=/usr \
 		--sysconfdir=/etc \
@@ -59,7 +135,7 @@ build()
 		--enable-spice \
 		--enable-usb-redir \
 		--enable-jemalloc \
-		--enable-modules
+		--enable-modules || Fdie
 	Fexec make || Fdie
 	Fmakeinstall
 

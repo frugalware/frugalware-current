@@ -29,7 +29,7 @@ index 4242ce3e..b9cdf38e 100644
 +https://git.archlinux.org/svntogit/packages.git/plain/texlive-bin/trunk
 +by Arch Linux. A little modifications are made to avoid a crash for
 +some kind of pdf images, such as figure_missing.pdf in gnuplot.
-+The poppler should be 0.75.0 or newer versions.
++The poppler should be 0.86.0 or newer versions.
 +POPPLER_VERSION should be defined.
 +*/
 +
@@ -372,7 +372,7 @@ index 4242ce3e..b9cdf38e 100644
  {
      if (pagebox_spec == pdfboxspecmedia)
          return page->getMediaBox();
-@@ -724,17 +715,21 @@ read_pdf_info(char *image_name, char *page_name, int page_num,
+@@ -724,17 +715,17 @@ read_pdf_info(char *image_name, char *page_name, int page_num,
  {
      PdfDocument *pdf_doc;
      Page *page;
@@ -389,22 +389,18 @@ index 4242ce3e..b9cdf38e 100644
 -        globalParams = new GlobalParams();
 -        globalParams->setErrQuiet(gFalse);
 -        isInit = gTrue;
-+#if POPPLER_MAJOR_VERSION >= 1 || POPPLER_MINOR_VERSION >= 83
-+	globalParams.reset(new GlobalParams());
-+#else
 +        globalParams = std::make_unique<GlobalParams>();
-+#endif
 +        globalParams->setErrQuiet(false);
 +        isInit = true;
      }
      // open PDF file
      pdf_doc = find_add_document(image_name);
-@@ -760,29 +755,17 @@ read_pdf_info(char *image_name, char *page_name, int page_num,
+@@ -760,33 +751,20 @@ read_pdf_info(char *image_name, char *page_name, int page_num,
          }
      }
  #else
 -    pdf_version_found = pdf_doc->doc->getPDFVersion();
--    pdf_version_wanted = 1 + (minor_pdf_version_wanted * 0.1);
+-    pdf_version_wanted = major_pdf_version_wanted + (minor_pdf_version_wanted * 0.1);
 -    if (pdf_version_found > pdf_version_wanted + 0.01) {
 -        char msg[] =
 -            "PDF inclusion: found PDF version <%.1f>, but at most version <%.1f> allowed";
@@ -423,7 +419,7 @@ index 4242ce3e..b9cdf38e 100644
          // get page by name
          GString name(page_name);
 -        LinkDest *link = pdf_doc->doc->findDest(&name);
-+        LinkDest *link = pdf_doc->doc->findDest(&name).get();
++        std::unique_ptr<LinkDest> link = pdf_doc->doc->findDest(&name);
          if (link == 0 || !link->isOk())
              pdftex_fail("PDF inclusion: invalid destination <%s>", page_name);
          Ref ref = link->getPageRef();
@@ -432,7 +428,11 @@ index 4242ce3e..b9cdf38e 100644
          if (page_num == 0)
              pdftex_fail("PDF inclusion: destination is not a page <%s>",
                          page_name);
-@@ -839,8 +822,8 @@ void write_epdf(void)
+-        delete link;
+     } else {
+         // get page by number
+         if (page_num <= 0 || page_num > epdf_num_pages)
+@@ -839,8 +817,8 @@ void write_epdf(void)
      Page *page;
      Ref *pageRef;
      Dict *pageDict;
@@ -443,7 +443,7 @@ index 4242ce3e..b9cdf38e 100644
      bool writeSepGroup = false;
      Object info;
      char *key;
-@@ -867,10 +850,10 @@ void write_epdf(void)
+@@ -867,10 +845,10 @@ void write_epdf(void)
      encodingList = 0;
      page = pdf_doc->doc->getCatalog()->getPage(epdf_selected_page);
      pageRef = pdf_doc->doc->getCatalog()->getPageRef(epdf_selected_page);
@@ -457,7 +457,7 @@ index 4242ce3e..b9cdf38e 100644
      // write the Page header
      pdf_puts("/Type /XObject\n");
      pdf_puts("/Subtype /Form\n");
-@@ -886,7 +869,7 @@ void write_epdf(void)
+@@ -886,7 +864,7 @@ void write_epdf(void)
          pdf_printf("/%s.PageNumber %i\n", pdfkeyprefix, (int) epdf_selected_page);
      }
      if ((suppress_ptex_info & MASK_SUPPRESS_PTEX_INFODICT) == 0) {
@@ -466,7 +466,7 @@ index 4242ce3e..b9cdf38e 100644
          if (info.isRef()) {
              // the info dict must be indirect (PDF Ref p. 61)
              pdf_printf("/%s.InfoDict ", pdfkeyprefix);
-@@ -942,14 +925,14 @@ void write_epdf(void)
+@@ -942,14 +920,14 @@ void write_epdf(void)
      pdf_puts(stripzeros(s));
  
      // Metadata validity check (as a stream it must be indirect)
@@ -485,7 +485,7 @@ index 4242ce3e..b9cdf38e 100644
              pdf_newline();
              pdf_printf("/%s ", pageDictKeys[i]);
              copyObject(&dictObj); // preserves indirection
-@@ -957,8 +940,8 @@ void write_epdf(void)
+@@ -957,8 +935,8 @@ void write_epdf(void)
      } 
  
      // handle page group
@@ -496,7 +496,7 @@ index 4242ce3e..b9cdf38e 100644
          if (pdfpagegroupval == 0) { 
              // another pdf with page group was included earlier on the
              // same page; copy the Group entry as is.  See manual for
-@@ -972,11 +955,36 @@ void write_epdf(void)
+@@ -972,11 +950,36 @@ void write_epdf(void)
              copyObject(&dictObj);
          } else {
              // write Group dict as a separate object, since the Page dict also refers to it
@@ -536,7 +536,7 @@ index 4242ce3e..b9cdf38e 100644
              pdf_printf("/Group %ld 0 R\n", (long)pdfpagegroupval);
          }
      }
-@@ -989,28 +997,28 @@ void write_epdf(void)
+@@ -989,28 +992,28 @@ void write_epdf(void)
          pdftex_warn
              ("PDF inclusion: /Resources missing. 'This practice is not recommended' (PDF Ref)");
      } else {
@@ -571,7 +571,7 @@ index 4242ce3e..b9cdf38e 100644
  
          // Variant A: get stream and recompress under control
          // of \pdfcompresslevel
-@@ -1021,36 +1029,35 @@ void write_epdf(void)
+@@ -1021,36 +1024,35 @@ void write_epdf(void)
  
          // Variant B: copy stream without recompressing
          //
@@ -621,15 +621,16 @@ index 4242ce3e..b9cdf38e 100644
              if (i < l - 1)
                  pdf_newline();  // add a newline after each stream except the last
          }
-@@ -1105,6 +1112,5 @@ void epdf_check_mem()
+@@ -1104,7 +1106,5 @@ void epdf_check_mem()
+             n = p->next;
              delete_document(p);
          }
-         // see above for globalParams
+-        // see above for globalParams
 -        delete globalParams;
      }
  }
 diff --git a/texk/web2c/pdftexdir/pdftosrc.cc b/texk/web2c/pdftexdir/pdftosrc.cc
-index 67be229e..b6700fd6 100644
+index 67be229e..950e14ff 100644
 --- a/texk/web2c/pdftexdir/pdftosrc.cc
 +++ b/texk/web2c/pdftexdir/pdftosrc.cc
 @@ -16,6 +16,14 @@ GNU General Public License for more details.
@@ -640,14 +641,14 @@ index 67be229e..b6700fd6 100644
 +/*
 +This is based on the patch texlive-poppler-0.59.patch <2017-09-19> at
 +https://git.archlinux.org/svntogit/packages.git/plain/texlive-bin/trunk
-+by Arch Linux. The poppler should be 0.72.0 or newer versions.
++by Arch Linux. The poppler should be 0.83.0 or newer versions.
 +POPPLER_VERSION should be defined.
 +*/
 +
  #include <w2c/config.h>
  
  #include <stdlib.h>
-@@ -32,16 +40,12 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
+@@ -32,10 +40,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
  #include <goo/gmem.h>
  #include <goo/gfile.h>
  #else
@@ -659,26 +660,16 @@ index 67be229e..b6700fd6 100644
  #endif
  #include <assert.h>
  
- #include "Object.h"
- #include "Stream.h"
--#include "Lexer.h"
- #include "Parser.h"
- #include "Array.h"
- #include "Dict.h"
-@@ -74,7 +78,11 @@ int main(int argc, char *argv[])
+@@ -74,7 +79,7 @@ int main(int argc, char *argv[])
          exit(1);
      }
      fileName = new GString(argv[1]);
 -    globalParams = new GlobalParams();
-+#if POPPLER_MAJOR_VERSION >= 1 || POPPLER_MINOR_VERSION >= 83
-+    globalParams.reset(new GlobalParams());
-+#else
 +    globalParams = std::make_unique<GlobalParams>();
-+#endif
      doc = new PDFDoc(fileName);
      if (!doc->isOk()) {
          fprintf(stderr, "Invalid PDF file\n");
-@@ -86,36 +94,34 @@ int main(int argc, char *argv[])
+@@ -86,36 +91,34 @@ int main(int argc, char *argv[])
              objgen = atoi(argv[3]);
      }
      xref = doc->getXRef();
@@ -724,7 +715,7 @@ index 67be229e..b6700fd6 100644
          if ((p = strrchr(buf, '.')) == 0)
              p = strchr(buf, 0);
          if (objgen == 0)
-@@ -125,7 +131,7 @@ int main(int argc, char *argv[])
+@@ -125,7 +128,7 @@ int main(int argc, char *argv[])
          outname = buf;
      } else {                    // objnum < 0 means we are extracting the XRef table
          extract_xref_table = true;
@@ -733,12 +724,7 @@ index 67be229e..b6700fd6 100644
          if ((p = strrchr(buf, '.')) == 0)
              p = strchr(buf, 0);
          sprintf(p, ".xref");
-@@ -153,41 +159,32 @@ int main(int argc, char *argv[])
-                         (e->type == xrefEntryFree ? "f" : "n"));
-             else {              // e->offset is the object number of the object stream
-                 Stream *str;
--                Lexer *lexer;
-                 Parser *parser;
+@@ -158,36 +161,28 @@ int main(int argc, char *argv[])
                  Object objStr, obj1, obj2;
                  int nObjects, first, n;
                  int localOffset = 0;
@@ -786,7 +772,7 @@ index 67be229e..b6700fd6 100644
  
                  fprintf(outfile, "%.10lu 00000 n\n",
                          (long unsigned)(firstOffset + localOffset));
-@@ -198,7 +195,6 @@ int main(int argc, char *argv[])
+@@ -198,7 +193,6 @@ int main(int argc, char *argv[])
          s->reset();
          while ((c = s->getChar()) != EOF)
              fputc(c, outfile);
@@ -794,7 +780,7 @@ index 67be229e..b6700fd6 100644
      }
      if (objnum == 0)
          fprintf(stderr, "Source file extracted to %s\n", outname);
-@@ -207,7 +203,5 @@ int main(int argc, char *argv[])
+@@ -207,7 +201,5 @@ int main(int argc, char *argv[])
      else
          fprintf(stderr, "Cross-reference table extracted to %s\n", outname);
      fclose(outfile);
@@ -802,33 +788,6 @@ index 67be229e..b6700fd6 100644
      delete doc;
 -    delete globalParams;
  }
-diff --git a/texk/web2c/pdftexdir/utils.c b/texk/web2c/pdftexdir/utils.c
-index c93a8781..6f866e76 100644
---- a/texk/web2c/pdftexdir/utils.c
-+++ b/texk/web2c/pdftexdir/utils.c
-@@ -33,7 +33,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
- #include "ptexlib.h"
- #include <png.h>
- #ifdef POPPLER_VERSION
--#include <poppler-config.h>
- #define xpdfVersion POPPLER_VERSION
- #define xpdfString "poppler"
- #else
-diff --git a/texk/web2c/xetexdir/XeTeX_ext.c b/texk/web2c/xetexdir/XeTeX_ext.c
-index 4968ee41..0aee4ee3 100644
---- a/texk/web2c/xetexdir/XeTeX_ext.c
-+++ b/texk/web2c/xetexdir/XeTeX_ext.c
-@@ -38,7 +38,10 @@ authorization from the copyright holders.
- 
- #include <w2c/config.h>
- 
-+#ifndef POPPLER_VERSION
- #include <poppler-config.h>
-+#endif
-+
- #include <png.h>
- #include <zlib.h>
- #include <graphite2/Font.h>
 -- 
 2.24.1
 

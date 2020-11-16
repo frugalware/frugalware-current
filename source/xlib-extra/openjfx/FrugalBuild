@@ -2,80 +2,52 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=openjfx
-pkgver=8u202
-pkgextraver=b00
+pkgver=15.0.1+1
 pkgrel=1
-pkgdesc='Java OpenJFX 8 client application platform (open-source implementation of JavaFX)'
+pkgdesc='Java OpenJFX client application platform (open-source implementation of JavaFX)'
 archs=('x86_64')
 groups=('xlib-extra')
-url='https://wiki.openjdk.java.net/display/OpenJFX/Main'
-depends=("openjre-x" 'gstreamer1' 'libxtst' 'webkit-gtk2' 'ffmpeg>=4.1' 'qt5-base>=5.11.0-2' 'libxxf86vm' 'gtk+3')
-makedepends=('openjdk' 'mercurial' 'bison' 'gperf' 'libxtst' 'ffmpeg' 'python' 'ruby' 'gtk+2' 'x11-protos' 'cmake')
-_F_github_name="openjfx-8u-dev-rt"
-_F_github_author="teamfx"
+url='https://openjfx.io'
+depends=('gtk+2-libs' 'gtk+3' 'ffmpeg' 'openjre-x')
+makedepends=('openjdk' 'gradle' 'x11-protos' 'gtk+2' 'webkit-gtk3' 'cmake' 'ruby' 'apache-ant')
+_F_github_author="openjdk"
+_F_github_name="jfx"
 _F_github_tag=y
-_F_cd_path="rt-${pkgver}-ga"
+_F_github_grepv=16
 Finclude github
-source=(https://hg.openjdk.java.net/openjfx/8u/rt/archive/${pkgver//./}-ga.tar.bz2 \
-	gradle.properties \
-	https://services.gradle.org/distributions/gradle-4.8-bin.zip \
-	SurfaceData.patch \
-	java8-openjfx-no-xlocale.patch \
-	java8-openjfx-flags.patch )
-up2date="$up2date | sed s/-$pkgextraver//"
-sha1sums=('4342ed09c5fe224c3b5e3f1611d3a88c6f445759' \
-          'dd92e64729ebeccf3e990400b31841680cf04660' \
-          '678668676905441de9fc214a63cba1e938fd2c77' \
-          '0fb3dc2d6630ae3cf6079bb6b5ad505cfaea72a5' \
-          '23adaa03035447ecbff6acb75b8472505d3a2d28' \
-          'f89a361f3cf8a6f7ec12bb81cd436419d4dfc240')
-options=('nolto')
+source+=(gradle.properties)
+sha1sums=('3f92bd5ef8f64509e1c4def5b77b2753d87c659e' \
+          'ab3b67d36451d5388e8877381a60bfd54de54a8e')
+_F_cd_path="jfx-${pkgver/+/-}"
 
-## eh 4 in the morning .. lets quick do something
-_make_install_java() {
+subpkgs+=("$pkgname-source")
+subdescs+=("OpenJFX Sourcecode")
+subarchs+=('x86_64')
+subdepends+=('')
+subgroups+=('devel-extra')
 
-	local i a="$1" b="$2" c="$3" d="$4"
-
-	for i in `ls $a/*`
-	do
-		if [ -f "$i" ]; then
-			$b "$c" "$i" "$d"
-		fi
-	done
-
-}
+subpkgs+=("$pkgname-doc")
+subdescs+=("OpenJFX Documentation")
+subarchs+=('x86_64')
+subdepends+=('')
+subgroups+=('docs-extra')
 
 build() {
 	Fpatchall
 	Fcd
+	ln -s ../gradle.properties .
+	Fexec gradle --stacktrace zips  -g gradle-user-home || Fdie
 
-	Fsed qmake qmake-qt5 modules/web/src/main/native/Tools/Scripts/webkitdirs.pm
-	ln -sf "${Fsrcdir}/gradle.properties" . || Fdie
-	export GRADLE_USER_HOME="${Fsrcdir}/gradle_home"
-	mkdir -p ${GRADLE_USER_HOME}
+	Fmkdir usr/lib/jvm/java-15-openjdk/
+ 	Fcprel build/sdk/lib usr/lib/jvm/java-${pkgver%%.*}-openjdk/
+	Fcprel build/jmods usr/lib/jvm/java-${pkgver%%.*}-openjdk/
+	Fmkdir usr/share/doc/
+	Fcprel build/javadoc usr/share/doc/java-openjfx
 
-	Fexec "${Fsrcdir}"/gradle-4.8/bin/gradle || Fdie
+	Fmv usr/lib/jvm/java-15-openjdk/lib/src.zip usr/lib/jvm/java-15-openjdk/lib/javafx-src.zip
+	Fsplit $pkgname-source usr/lib/jvm/java-15-openjdk/lib/javafx-src.zip
+	Fsplit $pkgname-doc usr/share/doc/java-openjfx
 
-	Fmkdir usr/lib/jvm/java-8-openjdk/jre/lib/amd64
-	Fmkdir usr/lib/jvm/java-8-openjdk/jre/lib/ext
-	Fmkdir usr/lib/jvm/java-8-openjdk/lib
-	Fmkdir usr/lib/jvm/java-8-openjdk/bin
-
-	_make_install_java "build/sdk/rt/lib/amd64" Finstallrel 0755 "usr/lib/jvm/java-8-openjdk/jre/lib/amd64/"
-	_make_install_java "build/sdk/rt/lib/ext" Finstallrel 0644 "usr/lib/jvm/java-8-openjdk/jre/lib/ext/"
-
-	Finstallrel 0644 build/sdk/rt/lib/javafx.properties usr/lib/jvm/java-8-openjdk/jre/lib/
-	Finstallrel 0644 build/sdk/rt/lib/jfxswt.jar usr/lib/jvm/java-8-openjdk/jre/lib/
-
-	_make_install_java "build/libs" Finstallrel 0644 "usr/lib/jvm/java-8-openjdk/lib/"
-	_make_install_java "build/sdk/bin" Finstallrel 0755 "usr/lib/jvm/java-8-openjdk/bin/"
-
-	Fmkdir usr/share/man/man1
-	Finstallrel 0644 build/sdk/man/man1/javapackager.1 usr/share/man/man1/javapackager.1
-
-	Fdocrel build/javadoc
-
-	Finstallrel 0644 build/javafx-src.zip usr/lib/jvm/java-8-openjdk/javafx-src.zip
 }
 
 # optimization OK

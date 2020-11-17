@@ -1,0 +1,71 @@
+diff -Naur sddm-0.19.0/src/daemon/Display.cpp sddm-0.19.0-p/src/daemon/Display.cpp
+--- sddm-0.19.0/src/daemon/Display.cpp	2020-11-03 10:55:31.000000000 +0100
++++ sddm-0.19.0-p/src/daemon/Display.cpp	2020-11-17 21:55:17.949105544 +0100
+@@ -101,8 +101,15 @@
+         return m_seat;
+     }
+ 
+-    bool Display::start() {
+-        return m_started || m_displayServer->start();
++    void Display::start() {
++        // check flag
++        if (m_started)
++            return;
++
++        // start display server
++        if (!m_displayServer->start()) {
++            qFatal("Display server failed to start. Exiting");
++        }
+     }
+ 
+     bool Display::attemptAutologin() {
+diff -Naur sddm-0.19.0/src/daemon/Display.h sddm-0.19.0-p/src/daemon/Display.h
+--- sddm-0.19.0/src/daemon/Display.h	2020-11-03 10:55:31.000000000 +0100
++++ sddm-0.19.0-p/src/daemon/Display.h	2020-11-17 21:55:17.949105544 +0100
+@@ -54,7 +54,7 @@
+         Seat *seat() const;
+ 
+     public slots:
+-        bool start();
++        void start();
+         void stop();
+ 
+         void login(QLocalSocket *socket,
+diff -Naur sddm-0.19.0/src/daemon/Seat.cpp sddm-0.19.0-p/src/daemon/Seat.cpp
+--- sddm-0.19.0/src/daemon/Seat.cpp	2020-11-03 10:55:31.000000000 +0100
++++ sddm-0.19.0-p/src/daemon/Seat.cpp	2020-11-17 21:55:17.949105544 +0100
+@@ -52,7 +52,7 @@
+         return m_name;
+     }
+ 
+-    bool Seat::createDisplay(int terminalId) {
++    void Seat::createDisplay(int terminalId) {
+         //reload config if needed
+         mainConfig.load();
+ 
+@@ -84,12 +84,7 @@
+         m_displays << display;
+ 
+         // start the display
+-        if (!display->start()) {
+-            qCritical() << "Could not start Display server on vt" << terminalId;
+-            return false;
+-        }
+-
+-        return true;
++        display->start();
+     }
+ 
+     void Seat::removeDisplay(Display* display) {
+diff -Naur sddm-0.19.0/src/daemon/Seat.h sddm-0.19.0-p/src/daemon/Seat.h
+--- sddm-0.19.0/src/daemon/Seat.h	2020-11-03 10:55:31.000000000 +0100
++++ sddm-0.19.0-p/src/daemon/Seat.h	2020-11-17 21:55:17.949105544 +0100
+@@ -35,7 +35,7 @@
+         const QString &name() const;
+ 
+     public slots:
+-        bool createDisplay(int terminalId = -1);
++        void createDisplay(int terminalId = -1);
+         void removeDisplay(SDDM::Display* display);
+ 
+     private slots:

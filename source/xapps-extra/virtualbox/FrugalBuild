@@ -20,12 +20,17 @@ USE_VBOXSF=${USE_VBOXSF:-"y"}
 ## TODO ( 5.9++ )
 USE_VBOX_MODS_MAINLINE=${USE_VBOX_MODS_MAINLINE:-"n"}
 
+## NOTE: this is usually not needed unless vbox break stuff or we want to change something
+## right now, vbox broke EFI boot, we have to fix some code and build the FW ourselves
+USE_VBOX_FIRMWARE_BUILD=${USE_VBOX_FIRMWARE_BUILD:-"y"}
+## missing, and the one in /libs/ is not usable, is some custom suff
+_vbox_firmware_openssl="openssl-1.1.1h"
 
 pkgname=virtualbox
 realname=VirtualBox
 pkgver=6.1.16
 pkgextraver=""
-pkgrel=6
+pkgrel=7
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' 'openssl>=1.1.1' \
@@ -48,6 +53,9 @@ source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver
 	vboxdrmclient.path \
 	virtualbox-guest-utils.conf \
 	VirtualBox-6.1.2-revert-removal-of-vital-symbols.patch \
+	## note: both patches & openssl source & USE_VBOX_FIRMWARE_BUILD has to be set for that to work.
+	https://www.openssl.org/source/${_vbox_firmware_openssl}.tar.gz \
+	boot-efi-boot.patch firmware-build-fixes.patch \
 	depmod.patch)
 
 _F_kernelmod_scriptlet="$startdir/$pkgname.install"
@@ -65,13 +73,16 @@ options=('noccache' 'scriptlet' 'nostrip' 'genscriptlet' 'nowfsecurity' 'nolto' 
 _F_cd_path="${realname}-${pkgver}"
 sha1sums=('526fdb768335b71c534f40c593a8390e8ddbe450' \
           'aa931ae19edd8585150738f0efd8fedf5175a6d3' \
-          '6f7131ae93bc1a5a0c15e215382e3671cfba3048' \
+          '0bf23aad34416dd45545f2ea12171e701c4c94af' \
           '08199d8e7906cb793277b798805d38ce386460d8' \
           'a9aa624222d458396d6d7e2cfa8acb03a7420961' \
           '06321cf7aecca8cad7701ad9230e4c765ba35cda' \
           '9de06686eadee89de812767dd1260e921ca5e761' \
           '80ba54b1e13f0e8f53a84ca3f25df617fb53ae4c' \
           '90b2600bd8a0bb23a62ad6e062976e81cfa98124' \
+          '8d0d099e8973ec851368c8c775e05e1eadca1794' \
+          '27b54daccbba6e80218878cec192d23371f84016' \
+          '032c281fa3446928a46dbb3e4ea9f964a9a1d1d2' \
           'ed04bf751eae0516e98c81157676d7af8ee41c14')
 
 subpkgs=("$pkgname-modules")
@@ -136,10 +147,29 @@ build() {
 
 	Fexec source ./env.sh || Fdie
 
+
+	## NOTE: this needs to run before main kmk, *DD.so & *DD2.so uses the EFI* stuff we just build here
+	if Fuse $USE_VBOX_FIRMWARE_BUILD; then
+		## Building firmware
+		## Wipe prebuild *fd file
+		Frm src/VBox/Devices/EFI/FirmwareBin/*
+		Fexec cd src/VBox/Devices/EFI/Firmware || Fdie
+		. edksetup.sh || Fdie
+		## OpenSSL source is missing, we get it from upstream
+		Fexec cp -R $Fsrcdir/${_vbox_firmware_openssl}/* CryptoPkg/Library/OpensslLib/openssl/ || Fdie
+		## run the weird perl script
+		Fexec cd CryptoPkg/Library/OpensslLib/ || Fdie
+		Fexec perl process_files.pl || Fdie
+		Fexec cd ../../.. || Fdie
+		Fexec kmk || Fdie
+		Fexec cd $Fsrcdir/${_F_cd_path} || Fdie
+	fi
+
 	## we want to build verbose - DO NOT DISABLE THIS
 	Fexec kmk KBUILD_VERBOSE=2  all || Fdie
 
 	Fexec kmk KBUILD_VERBOSE=2 -C src/VBox/ExtPacks/VNC packing
+
 
 	local i k j s m
 

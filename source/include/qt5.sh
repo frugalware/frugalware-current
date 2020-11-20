@@ -44,7 +44,6 @@ if [ -z "$_F_qt_nocore" ]; then
 	fi
 	options+=('nodocs')
 	source=(http://download.qt.io/archive/qt/${pkgver%.*}/${pkgver}/submodules/${qtpkgfilename}.tar.xz)
-	_F_archive_grepv="5.8"
 	up2date="Flastverdir http://download.qt-project.org/official_releases/qt/\$(Flastverdir http://download.qt-project.org/official_releases/qt/)"
 	_F_cd_path=${qtpkgfilename}
 fi
@@ -52,11 +51,11 @@ fi
 if [[ "$pkgname" =~ "qt5-base" ]]; then
 	makedepends+=('x11-protos' 'gperf')
 else
-	makedepends+=('x11-protos' 'gperf' "qt5-base-static>=5.15.1")
+	makedepends+=('x11-protos' 'gperf' "qt5-base-static>=5.15.2")
 fi
 
 if [[ ! "$pkgname" =~ "qt5-base" ]] || [[ ! "$pkgname" =~ "qt5-declarative" ]]; then
-	makedepends+=('qt5-declarative-static>=5.15.1')
+	makedepends+=('qt5-declarative-static>=5.15.2')
 fi
 
 if [ -z "$archs" ]; then

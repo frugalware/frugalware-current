@@ -1,6 +1,0 @@
-export OPENJDKDIR=/usr/lib/jvm/java-15-openjdk
-export MANPATH=$MANPATH:$OPENJDKDIR/man
-export CLASSPATH=$CLASSPATH:$OPENJDKDIR/lib
-export JAVA_HOME=$OPENJDKDIR
-export PATH=$OPENJDKDIR/bin:$PATH
-

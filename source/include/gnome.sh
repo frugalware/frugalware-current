@@ -92,15 +92,15 @@ fi
 
 if [[ "$_F_gnome_devel" == "y" ]]; then
 	if [ -n "$_F_archive_grepv" ]; then
-		up2date="lynx -read_timeout=280 -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep -v "$_F_archive_grepv" | grep '[0-9]\.[0-9]*[0-9]/' |sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/' | sort -r | head -n1"
+		up2date="lynx -read_timeout=280 -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump -listonly $_F_gnome_pkgurl/$_F_gnome_name/?C=M\&O=D|grep -v "$_F_archive_grepv" | grep '[0-9]\.[0-9]*[0-9]/' |sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/' | sort -r | head -n1"
 	else
-		up2date="lynx -read_timeout=280 -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|  grep '[0-9]\.[0-9]*[0-9]/' |sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/' | sort -r | head -n1"
+		up2date="lynx -read_timeout=280 -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump -listonly $_F_gnome_pkgurl/$_F_gnome_name/?C=M\;O=D|  grep '[0-9]\.[0-9]*[0-9]/' |sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/' | sort -r | head -n1"
 	fi
 else
 	if [ -n "$_F_archive_grepv" ]; then
-		up2date="lynx -read_timeout=280 -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep -v "$_F_archive_grepv" |grep '[0-9]\.[0-9]*[02468]/'| grep -v ".9[0-9]." | sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/' | sort -r | head -n1"
+		up2date="lynx -read_timeout=280 -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump -listonly $_F_gnome_pkgurl/$_F_gnome_name/?C=M\&O=D|grep -v "$_F_archive_grepv" |grep '[0-9]\.[0-9]*[02468]/'| grep -v ".9[0-9]." | sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/' | sort -r | head -n1"
 	else
-		up2date="lynx -read_timeout=280 -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump $_F_gnome_pkgurl/$_F_gnome_name/?C=N\;O=D|grep '[0-9]\.[0-9]*[02468]/'| grep -v ".9[0-9]." | sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/' | sort -r | head -n1"
+		up2date="lynx -read_timeout=280 -dump $_F_gnome_pkgurl/$_F_gnome_name/\$(lynx -dump -listonly $_F_gnome_pkgurl/$_F_gnome_name/?C=M\&O=D|grep '[0-9]\.[0-9]*[02468]/'| grep -v ".9[0-9]." | sed -ne 's|.*]\(.*\)/.*|\1|' -e '1 p')/|grep ]LA|sed 's/.*S-\([0-9\.]*\).*/\1/' | sort -r | head -n1"
 	fi
 fi
 

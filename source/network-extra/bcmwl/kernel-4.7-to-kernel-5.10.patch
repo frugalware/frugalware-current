@@ -1,6 +1,6 @@
-diff -Naur src/shared/linux_osl.c src-crap-o-meter-all-in-one/shared/linux_osl.c
+diff -Naur src/shared/linux_osl.c src-p/shared/linux_osl.c
 --- src/shared/linux_osl.c	2015-09-19 00:47:30.000000000 +0200
-+++ src-crap-o-meter-all-in-one/shared/linux_osl.c	2020-03-31 01:15:04.230234663 +0200
++++ src-p/shared/linux_osl.c	2020-12-14 13:34:41.810370857 +0100
 @@ -30,6 +30,7 @@
  #include <pcicfg.h>
  
@@ -41,9 +41,9 @@ diff -Naur src/shared/linux_osl.c src-crap-o-meter-all-in-one/shared/linux_osl.c
  	if (rdlen > 0)
  		fp->f_pos += rdlen;
  
-diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-crap-o-meter-all-in-one/wl/sys/wl_cfg80211_hybrid.c
+diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-p/wl/sys/wl_cfg80211_hybrid.c
 --- src/wl/sys/wl_cfg80211_hybrid.c	2015-09-19 00:47:30.000000000 +0200
-+++ src-crap-o-meter-all-in-one/wl/sys/wl_cfg80211_hybrid.c	2020-03-31 00:54:55.904392696 +0200
++++ src-p/wl/sys/wl_cfg80211_hybrid.c	2020-12-14 13:37:21.520354758 +0100
 @@ -30,6 +30,9 @@
  #include <linux/kthread.h>
  #include <linux/netdevice.h>
@@ -54,7 +54,13 @@ diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-crap-o-meter-all-in-one/wl/sys/wl
  #include <net/cfg80211.h>
  #include <linux/nl80211.h>
  #include <net/rtnetlink.h>
-@@ -43,6 +46,11 @@
+@@ -38,11 +41,17 @@
+ #include <wlioctl.h>
+ #include <proto/802.11.h>
+ #include <wl_cfg80211_hybrid.h>
++#include <wl_linux.h>
+ 
+ #define EVENT_TYPE(e) dtoh32((e)->event_type)
  #define EVENT_FLAGS(e) dtoh16((e)->flags)
  #define EVENT_STATUS(e) dtoh32((e)->status)
  
@@ -66,7 +72,7 @@ diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-crap-o-meter-all-in-one/wl/sys/wl
  #ifdef BCMDBG
  u32 wl_dbg_level = WL_DBG_ERR | WL_DBG_INFO;
  #else
-@@ -50,7 +58,11 @@
+@@ -50,7 +59,11 @@
  #endif
  
  static s32 wl_cfg80211_change_iface(struct wiphy *wiphy, struct net_device *ndev,
@@ -78,7 +84,36 @@ diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-crap-o-meter-all-in-one/wl/sys/wl
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
  static s32
  wl_cfg80211_scan(struct wiphy *wiphy,
-@@ -463,7 +475,11 @@
+@@ -435,35 +448,17 @@
+ static s32
+ wl_dev_ioctl(struct net_device *dev, u32 cmd, void *arg, u32 len)
+ {
+-	struct ifreq ifr;
+-	struct wl_ioctl ioc;
+-	mm_segment_t fs;
+-	s32 err = 0;
+-
+ 	BUG_ON(len < sizeof(int));
+-
+-	memset(&ioc, 0, sizeof(ioc));
+-	ioc.cmd = cmd;
+-	ioc.buf = arg;
+-	ioc.len = len;
+-	strcpy(ifr.ifr_name, dev->name);
+-	ifr.ifr_data = (caddr_t)&ioc;
+-
+-	fs = get_fs();
+-	set_fs(get_ds());
+-#if defined(WL_USE_NETDEV_OPS)
+-	err = dev->netdev_ops->ndo_do_ioctl(dev, &ifr, SIOCDEVPRIVATE);
+-#else
+-	err = dev->do_ioctl(dev, &ifr, SIOCDEVPRIVATE);
+-#endif
+-	set_fs(fs);
+-
+-	return err;
++	return wlc_ioctl_internal(dev, cmd, arg, len);
+ }
  
  static s32
  wl_cfg80211_change_iface(struct wiphy *wiphy, struct net_device *ndev,
@@ -90,7 +125,7 @@ diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-crap-o-meter-all-in-one/wl/sys/wl
     struct vif_params *params)
  {
  	struct wl_cfg80211_priv *wl = wiphy_to_wl(wiphy);
-@@ -2358,6 +2374,20 @@
+@@ -2358,6 +2353,20 @@
                      const wl_event_msg_t *e, void *data)
  {
  	struct wl_cfg80211_connect_info *conn_info = wl_to_conn(wl);
@@ -111,7 +146,7 @@ diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-crap-o-meter-all-in-one/wl/sys/wl
  	s32 err = 0;
  
  	wl_get_assoc_ies(wl);
-@@ -2365,12 +2395,17 @@
+@@ -2365,12 +2374,17 @@
  	memcpy(&wl->bssid, &e->addr, ETHER_ADDR_LEN);
  	wl_update_bss_info(wl);
  	cfg80211_roamed(ndev,
@@ -130,7 +165,7 @@ diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-crap-o-meter-all-in-one/wl/sys/wl
  	WL_DBG(("Report roaming result\n"));
  
  	set_bit(WL_STATUS_CONNECTED, &wl->status);
-@@ -2386,8 +2421,15 @@
+@@ -2386,8 +2400,15 @@
  	s32 err = 0;
  
  	if (wl->scan_request) {
@@ -147,7 +182,7 @@ diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-crap-o-meter-all-in-one/wl/sys/wl
  		wl->scan_request = NULL;
  	}
  
-@@ -2488,7 +2530,14 @@
+@@ -2488,7 +2509,14 @@
  
  scan_done_out:
  	if (wl->scan_request) {
@@ -162,7 +197,7 @@ diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-crap-o-meter-all-in-one/wl/sys/wl
  		wl->scan_request = NULL;
  	}
  	rtnl_unlock();
-@@ -2913,7 +2962,14 @@
+@@ -2913,7 +2941,14 @@
  	s32 err = 0;
  
  	if (wl->scan_request) {
@@ -178,9 +213,62 @@ diff -Naur src/wl/sys/wl_cfg80211_hybrid.c src-crap-o-meter-all-in-one/wl/sys/wl
  		wl->scan_request = NULL;
  	}
  
-diff -Naur src/wl/sys/wl_linux.c src-crap-o-meter-all-in-one/wl/sys/wl_linux.c
+diff -Naur src/wl/sys/wlc_pub.h src-p/wl/sys/wlc_pub.h
+--- src/wl/sys/wlc_pub.h	2015-09-19 00:47:30.000000000 +0200
++++ src-p/wl/sys/wlc_pub.h	2020-12-14 13:37:21.522354770 +0100
+@@ -24,6 +24,7 @@
+ 
+ #include <wlc_types.h>
+ #include <wlc_utils.h>
++#include <siutils.h>
+ #include "proto/802.11.h"
+ #include "proto/bcmevent.h"
+ 
+diff -Naur src/wl/sys/wl_iw.c src-p/wl/sys/wl_iw.c
+--- src/wl/sys/wl_iw.c	2015-09-19 00:47:30.000000000 +0200
++++ src-p/wl/sys/wl_iw.c	2020-12-14 13:37:21.521354764 +0100
+@@ -37,6 +37,7 @@
+ 
+ #include <wl_dbg.h>
+ #include <wl_iw.h>
++#include <wl_linux.h>
+ 
+ extern bool wl_iw_conn_status_str(uint32 event_type, uint32 status,
+ 	uint32 reason, char* stringBuf, uint buflen);
+@@ -103,29 +104,7 @@
+ 	int len
+ )
+ {
+-	struct ifreq ifr;
+-	wl_ioctl_t ioc;
+-	mm_segment_t fs;
+-	int ret;
+-
+-	memset(&ioc, 0, sizeof(ioc));
+-	ioc.cmd = cmd;
+-	ioc.buf = arg;
+-	ioc.len = len;
+-
+-	strcpy(ifr.ifr_name, dev->name);
+-	ifr.ifr_data = (caddr_t) &ioc;
+-
+-	fs = get_fs();
+-	set_fs(get_ds());
+-#if defined(WL_USE_NETDEV_OPS)
+-	ret = dev->netdev_ops->ndo_do_ioctl(dev, &ifr, SIOCDEVPRIVATE);
+-#else
+-	ret = dev->do_ioctl(dev, &ifr, SIOCDEVPRIVATE);
+-#endif
+-	set_fs(fs);
+-
+-	return ret;
++	return wlc_ioctl_internal(dev, cmd, arg, len);
+ }
+ 
+ static int
+diff -Naur src/wl/sys/wl_linux.c src-p/wl/sys/wl_linux.c
 --- src/wl/sys/wl_linux.c	2015-09-19 00:47:30.000000000 +0200
-+++ src-crap-o-meter-all-in-one/wl/sys/wl_linux.c	2020-03-31 01:15:24.960330187 +0200
++++ src-p/wl/sys/wl_linux.c	2020-12-14 13:37:21.522354770 +0100
 @@ -45,6 +45,7 @@
  #include <linux/completion.h>
  #include <linux/usb.h>
@@ -232,7 +320,68 @@ diff -Naur src/wl/sys/wl_linux.c src-crap-o-meter-all-in-one/wl/sys/wl_linux.c
  			bar1_size);
  	wl = wl_attach(pdev->vendor, pdev->device, pci_resource_start(pdev, 0), PCI_BUS, pdev,
  		pdev->irq, bar1_addr, bar1_size);
-@@ -2165,8 +2175,8 @@
+@@ -1643,10 +1653,7 @@
+ 		goto done2;
+ 	}
+ 
+-	if (segment_eq(get_fs(), KERNEL_DS))
+-		buf = ioc.buf;
+-
+-	else if (ioc.buf) {
++	if (ioc.buf) {
+ 		if (!(buf = (void *) MALLOC(wl->osh, MAX(ioc.len, WLC_IOCTL_MAXLEN)))) {
+ 			bcmerror = BCME_NORESOURCE;
+ 			goto done2;
+@@ -1667,7 +1674,7 @@
+ 	WL_UNLOCK(wl);
+ 
+ done1:
+-	if (ioc.buf && (ioc.buf != buf)) {
++	if (ioc.buf) {
+ 		if (copy_to_user(ioc.buf, buf, ioc.len))
+ 			bcmerror = BCME_BADADDR;
+ 		MFREE(wl->osh, buf, MAX(ioc.len, WLC_IOCTL_MAXLEN));
+@@ -1680,6 +1687,39 @@
+ 	return (OSL_ERROR(bcmerror));
+ }
+ 
++int
++wlc_ioctl_internal(struct net_device *dev, int cmd, void *buf, int len)
++{
++	wl_info_t *wl;
++	wl_if_t *wlif;
++	int bcmerror;
++
++	if (!dev)
++		return -ENETDOWN;
++
++	wl = WL_INFO(dev);
++	wlif = WL_DEV_IF(dev);
++	if (wlif == NULL || wl == NULL || wl->dev == NULL)
++		return -ENETDOWN;
++
++	bcmerror = 0;
++
++	WL_TRACE(("wl%d: wlc_ioctl_internal: cmd 0x%x\n", wl->pub->unit, cmd));
++
++	WL_LOCK(wl);
++	if (!capable(CAP_NET_ADMIN)) {
++		bcmerror = BCME_EPERM;
++	} else {
++		bcmerror = wlc_ioctl(wl->wlc, cmd, buf, len, wlif->wlcif);
++	}
++	WL_UNLOCK(wl);
++
++	ASSERT(VALID_BCMERROR(bcmerror));
++	if (bcmerror != 0)
++		wl->pub->bcmerror = bcmerror;
++	return (OSL_ERROR(bcmerror));
++}
++
+ static struct net_device_stats*
+ wl_get_stats(struct net_device *dev)
+ {
+@@ -2165,8 +2205,8 @@
  	wlif = WL_DEV_IF(dev);
  	wl = WL_INFO(dev);
  
@@ -242,7 +391,7 @@ diff -Naur src/wl/sys/wl_linux.c src-crap-o-meter-all-in-one/wl/sys/wl_linux.c
  
  		TXQ_LOCK(wl);
  
-@@ -2298,9 +2308,19 @@
+@@ -2298,9 +2338,19 @@
  }
  
  static void
@@ -265,7 +414,7 @@ diff -Naur src/wl/sys/wl_linux.c src-crap-o-meter-all-in-one/wl/sys/wl_linux.c
  
  	if (!WL_ALL_PASSIVE_ENAB(t->wl))
  		_wl_timer(t);
-@@ -2352,9 +2372,13 @@
+@@ -2352,9 +2402,13 @@
  
  	bzero(t, sizeof(wl_timer_t));
  
@@ -279,7 +428,7 @@ diff -Naur src/wl/sys/wl_linux.c src-crap-o-meter-all-in-one/wl/sys/wl_linux.c
  	t->wl = wl;
  	t->fn = fn;
  	t->arg = arg;
-@@ -2449,6 +2473,9 @@
+@@ -2449,6 +2503,9 @@
  {
  	struct sk_buff *oskb = (struct sk_buff *)p;
  	struct sk_buff *skb;
@@ -289,7 +438,7 @@ diff -Naur src/wl/sys/wl_linux.c src-crap-o-meter-all-in-one/wl/sys/wl_linux.c
  	uchar *pdata;
  	uint len;
  
-@@ -2915,7 +2942,13 @@
+@@ -2915,7 +2972,13 @@
  	if (skb == NULL) return;
  
  	skb->dev = wl->monitor_dev;
@@ -303,7 +452,7 @@ diff -Naur src/wl/sys/wl_linux.c src-crap-o-meter-all-in-one/wl/sys/wl_linux.c
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
  	skb_reset_mac_header(skb);
  #else
-@@ -3335,10 +3368,16 @@
+@@ -3335,10 +3398,16 @@
  }
  
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
@@ -320,3 +469,22 @@ diff -Naur src/wl/sys/wl_linux.c src-crap-o-meter-all-in-one/wl/sys/wl_linux.c
  };
  #endif
  
+diff -Naur src/wl/sys/wl_linux.h src-p/wl/sys/wl_linux.h
+--- src/wl/sys/wl_linux.h	2015-09-19 00:47:30.000000000 +0200
++++ src-p/wl/sys/wl_linux.h	2020-12-14 13:37:21.522354770 +0100
+@@ -22,6 +22,7 @@
+ #define _wl_linux_h_
+ 
+ #include <wlc_types.h>
++#include <wlc_pub.h>
+ 
+ typedef struct wl_timer {
+ 	struct timer_list 	timer;
+@@ -187,6 +188,7 @@
+ extern int __devinit wl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent);
+ extern void wl_free(wl_info_t *wl);
+ extern int  wl_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd);
++extern int wlc_ioctl_internal(struct net_device *dev, int cmd, void *buf, int len);
+ extern struct net_device * wl_netdev_get(wl_info_t *wl);
+ 
+ #endif 

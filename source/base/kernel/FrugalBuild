@@ -60,6 +60,8 @@ _F_kernel_patches=(
 			## mute crap from ath* driver
 			## Please do not remove , not upstream yet
 			Unknow-SSD-HFM128GDHTNG-8310B-QUIRK_NO_APST.patch
+			## Broken SUBNQN on Viper VPN100
+			nvme-Patriot_Viper_VPN100-QUIRK_IGNORE_DEV_SUBNQN.patch
 			## added be_silent mod parameter to silence Unknow functions
 			## messages. After reproted upstream one may want to not be
 			## flooded with these. Implementing new ACPI stuff may take a long time
@@ -83,12 +85,23 @@ _F_kernel_patches=(
 			## Fix iwlwifi bad reporting of Intel/Killer chips
 			iwlwifi-fix-5e003982b07ae.patch
 			## UKMS Patchset
-			#https://raw.githubusercontent.com/dolohow/uksm/master/v5.x/uksm-5.9.patch
+			https://raw.githubusercontent.com/dolohow/uksm/master/v5.x/uksm-5.10.patch
 			## Re-Enable new energy driver for alle Ryzen
 			enable-new-amd-energy-driver-for-all-ryzen.patch
 			## Technically a error, present on all Ryzen platforms and not fatal
 			## Lower pci_err() to pci_info() for AMD-Vi init
-			amd_iommu_init_info.patch )
+			amd_iommu_init_info.patch
+			## we need revert the patch who drops voltages etc first
+			0001-Revert-hwmon-k10temp-Remove-support-for-displaying-v.patch
+			## fix k10temp modules for ZEN2 Desktop and add ZEN3 Ryzen Desktop support
+			k10temp-fix-ZEN2-desktop-add-ZEN3-desktop.patch
+			## backport two amd drivers
+			add-amd-sfh-hid_driver.patch
+			add-sbtsi_driver.patch
+			## revert forced default schedutil governor if Intel Pstae driver is enabled
+			## this is crazy stuff and need an bug report
+			0001-Revert-cpufreq-Avoid-configuring-old-governors-as-de.patch
+			revert-parts-of-a00ec3874e7d326ab2dffbed92faddf6a77a84e9-no-Intel-NO.patch)
 
 for ppatch in "${_F_kernel_patches[@]}"
 do
@@ -201,11 +214,16 @@ if [ -z "$_F_kernel_name" ]; then
 	subconflicts+=('')
 fi
 
+kmake() {
+
+	make -j $(getconf _NPROCESSORS_ONLN) "$@"
+}
+
 build()
 {
 
 	Fcd
-	Fexec make clean || Fdie
+	Fexec kmake clean || Fdie
 
 	if [ -e "$Fsrcdir/config.$CARCH" ]; then
 		Fexec cp $Fsrcdir/config.$CARCH .config || Fdie
@@ -237,7 +255,7 @@ build()
 	rm -fv localversion-*
 	rm -fv ../*.{gz,bz2,sign}
 
-	yes "" | make config
+	yes "" | kmake config
 
 
 	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
@@ -249,7 +267,7 @@ build()
 		fi
 		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_uname" Makefile
 	else
-		Fexec make include/config/kernel.release
+		Fexec kmake include/config/kernel.release
 		unset _F_kernel_ver
 		_F_kernel_uname=$(cat include/config/kernel.release)
 	fi
@@ -258,8 +276,8 @@ build()
 	Fmkdir /usr/src
 	Fexec cp -Ra $Fsrcdir/linux-$_F_kernelver_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
 	Fln linux-$_F_kernel_ver$_F_kernel_uname /usr/src/linux
-	Fexec make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname scripts || Fdie
-	Fexec make -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname prepare || Fdie
+	Fexec kmake -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname scripts || Fdie
+	Fexec kmake -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname prepare || Fdie
 
 	Fexec rm -rfv $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,.gitignore,.config.old,Documentation,COPYING,CREDITS,MAINTAINERS,README} || Fdie
 	Fexec rm -rff $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/usr/ || Fdie
@@ -278,7 +296,7 @@ build()
 
 
 	if [ -z "$_F_kernel_name" ]; then
-		Fexec make INSTALL_HDR_PATH=$Fdestdir/usr headers_install || Fdie
+		Fexec kmake INSTALL_HDR_PATH=$Fdestdir/usr headers_install || Fdie
 		[ -e $Fdestdir/usr/include/scsi ] && Frm /usr/include/scsi
 		[ -e $Fdestdir/usr/include/drm ] && Frm /usr/include/drm
 		Fsplit kernel-headers /usr
@@ -286,7 +304,7 @@ build()
 
 	## now time to eat some cookies and wait the kernel got compiled :)
 	## use verbose by default, we want to know what is going on...
-	Fexec make $MAKEFLAGS V=1 || Fdie
+	Fexec kmake V=1 || Fdie
 
 	Fmkdir /boot
 	Fmkdir /lib/modules
@@ -301,7 +319,7 @@ build()
 	Fln System.map-$_F_kernel_ver$_F_kernel_uname /boot/System.map
 	Fln $_F_kernel_path-$_F_kernel_ver$_F_kernel_uname /boot/$_F_kernel_path
 
-	make INSTALL_MOD_PATH=$Fdestdir $MAKEFLAGS modules_install || Fdie
+	Fexec kmake INSTALL_MOD_PATH=$Fdestdir $MAKEFLAGS modules_install || Fdie
 	# dump symol versions so that later builds will have dependencies and
 	# modversions
 	Ffilerel System.map /boot/System.map-$_F_kernel_ver$_F_kernel_uname
@@ -322,8 +340,8 @@ build()
 
 	# build bootconfig
 	Fexec cd tools/bootconfig
-	Fexec make || Fdie
-	Fexec make DESTDIR="$Fdestdir" install || Fdie
+	Fexec kmake || Fdie
+	Fexec kmake DESTDIR="$Fdestdir" install || Fdie
 	Fsplit bootconfig usr/sbin
 
 	Fexec cd ../..
@@ -331,12 +349,12 @@ build()
 	# build cpupower
 	Fexec cd tools/power/cpupower
 
-	Fexec make clean || Fdie
+	Fexec kmake clean || Fdie
 
 	Fsed '$(OPTIMIZATION) -fomit-frame-pointer' "$CFLAGS" Makefile
 	Fsed 'lib64' 'lib' Makefile
-	Fexec make DEBUG=false CPUFREQ_BENCH=false || Fdie
-	Fexec make DESTDIR="$Fdestdir" CPUFREQ_BENCH=false install || Fdie
+	Fexec kmake DEBUG=false CPUFREQ_BENCH=false || Fdie
+	Fexec kmake DESTDIR="$Fdestdir" CPUFREQ_BENCH=false install || Fdie
 	Fmv /usr/man /usr/share
 	Ffile /etc/sysconfig/cpupower
 	Fexe /usr/sbin/cpupower.sh
@@ -352,11 +370,11 @@ build()
 
 	# build x86_energy_perf_policy
 	Fexec cd ../x86/x86_energy_perf_policy
-	Fexec make clean || Fdie
+	Fexec kmake clean || Fdie
 	Fsed '$(OPTIMIZATION) -fomit-frame-pointer' "$CFLAGS" Makefile
-	Fexec make  || Fdie
+	Fexec kmake  || Fdie
 	Fmkdir usr/bin usr/share/man/man8
-	Fexec make DESTDIR="$Fdestdir" install || Fdie
+	Fexec kmake DESTDIR="$Fdestdir" install || Fdie
 
 	Fsplit x86_energy_perf_policy usr/bin/
 	Fsplit x86_energy_perf_policy usr/share/
@@ -366,7 +384,7 @@ build()
 
 	Fsed "lib64" "lib" Makefile.config
 	Fsed "libexec/perf-core" "lib/perf/perf-core" Makefile.config
-	Fexec make  						\
+	Fexec kmake  						\
 		WERROR=0						\
 		DESTDIR="$Fdestdir/usr"        	\
 		NO_GTK2=1                      	\

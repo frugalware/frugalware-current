@@ -58,8 +58,8 @@ wine-devel)
 	conflicts=('wine' 'lib32-wine-devel')
 	provides=('wine' 'lib32-wine-devel')
 	replaces=('lib32-wine-devel')
-	depends+=('vulkan-icd-loader' 'lib32-vulkan-icd-loader' 'faudio' 'lib32-faudio')
-	source=(https://dl.winehq.org/wine/source/${pkgver%%.*}.x/wine-$pkgver.tar.xz \
+	depends+=('gst1-plugins-base')
+	source=(https://dl.winehq.org/wine/source/${pkgver}/wine-$pkgver.tar.xz \
 		fix-opencl-header.patch \
 		0001-programs-winhlp32-Use-noyywrap-for-macro.lex.l-and-p.patch )
 	;;

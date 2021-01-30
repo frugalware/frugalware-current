@@ -1,0 +1,184 @@
+diff -Naur binutils-2.36/bfd/dwarf2.c binutils-2.36-p/bfd/dwarf2.c
+--- binutils-2.36/bfd/dwarf2.c	2021-01-24 09:40:06.000000000 +0100
++++ binutils-2.36-p/bfd/dwarf2.c	2021-01-30 01:56:27.156440668 +0100
+@@ -3289,9 +3289,6 @@
+ 	  return FALSE;
+ 	}
+ 
+-      if ((low_pc == 0 && high_pc == 0) || low_pc == high_pc)
+-	return FALSE;
+-
+       if (!arange_add (unit, arange, low_pc, high_pc))
+ 	return FALSE;
+     }
+diff -Naur binutils-2.36/bfd/elflink.c binutils-2.36-p/bfd/elflink.c
+--- binutils-2.36/bfd/elflink.c	2021-01-18 16:00:36.000000000 +0100
++++ binutils-2.36-p/bfd/elflink.c	2021-01-30 02:01:38.952110629 +0100
+@@ -537,8 +537,10 @@
+ 	      if (!elf_hash_table (info)->is_relocatable_executable
+ 		  || ((h->root.type == bfd_link_hash_defined
+ 		       || h->root.type == bfd_link_hash_defweak)
++		      && h->root.u.def.section->owner != NULL
+ 		      && h->root.u.def.section->owner->no_export)
+ 		  || (h->root.type == bfd_link_hash_common
++		      && h->root.u.c.p->section->owner != NULL
+ 		      && h->root.u.c.p->section->owner->no_export))
+ 		return TRUE;
+ 	    }
+@@ -13825,15 +13827,23 @@
+ 	      /* Since all sections, except for backend specific ones,
+ 		 have been garbage collected, call mark_hook on this
+ 		 section if any of its linked-to sections is marked.  */
+-	      asection *linked_to_sec = elf_linked_to_section (isec);
+-	      for (; linked_to_sec != NULL;
++	      asection *linked_to_sec;
++	      for (linked_to_sec = elf_linked_to_section (isec);
++		   linked_to_sec != NULL && !linked_to_sec->linker_mark;
+ 		   linked_to_sec = elf_linked_to_section (linked_to_sec))
+-		if (linked_to_sec->gc_mark)
+-		  {
+-		    if (!_bfd_elf_gc_mark (info, isec, mark_hook))
+-		      return FALSE;
+-		    break;
+-		  }
++		{
++		  if (linked_to_sec->gc_mark)
++		    {
++		      if (!_bfd_elf_gc_mark (info, isec, mark_hook))
++			return FALSE;
++		      break;
++		    }
++		  linked_to_sec->linker_mark = 1;
++		}
++	      for (linked_to_sec = elf_linked_to_section (isec);
++		   linked_to_sec != NULL && linked_to_sec->linker_mark;
++		   linked_to_sec = elf_linked_to_section (linked_to_sec))
++		linked_to_sec->linker_mark = 0;
+ 	    }
+ 
+ 	  if (!debug_frag_seen
+diff -Naur binutils-2.36/binutils/objcopy.c binutils-2.36-p/binutils/objcopy.c
+--- binutils-2.36/binutils/objcopy.c	2021-01-09 11:47:33.000000000 +0100
++++ binutils-2.36-p/binutils/objcopy.c	2021-01-30 01:54:29.395811786 +0100
+@@ -6018,7 +6018,7 @@
+     free (keep_specific_buffer);
+ 
+   if (localize_specific_buffer)
+-    free (globalize_specific_buffer);
++    free (localize_specific_buffer);
+ 
+   if (globalize_specific_buffer)
+     free (globalize_specific_buffer);
+diff -Naur binutils-2.36/gold/dwarf_reader.cc binutils-2.36-p/gold/dwarf_reader.cc
+--- binutils-2.36/gold/dwarf_reader.cc	2021-01-09 11:47:34.000000000 +0100
++++ binutils-2.36-p/gold/dwarf_reader.cc	2021-01-30 01:58:45.419180341 +0100
+@@ -1658,6 +1658,10 @@
+   header_.version = elfcpp::Swap_unaligned<16, big_endian>::readval(lineptr);
+   lineptr += 2;
+ 
++  // Skip address size and segment selector for DWARF5.
++  if (header_.version >= 5)
++    lineptr += 2;
++
+   if (header_.offset_size == 4)
+     header_.prologue_length = elfcpp::Swap_unaligned<32, big_endian>::readval(lineptr);
+   else
+diff -Naur binutils-2.36/ld/ldelf.c binutils-2.36-p/ld/ldelf.c
+--- binutils-2.36/ld/ldelf.c	2021-01-09 11:47:34.000000000 +0100
++++ binutils-2.36-p/ld/ldelf.c	2021-01-30 02:01:38.953110634 +0100
+@@ -2188,14 +2188,21 @@
+ 	       been discarded.  */
+ 	    asection *linked_to_sec;
+ 	    for (linked_to_sec = elf_linked_to_section (isec);
+-		 linked_to_sec != NULL;
++		 linked_to_sec != NULL && !linked_to_sec->linker_mark;
+ 		 linked_to_sec = elf_linked_to_section (linked_to_sec))
+-	      if (discarded_section (linked_to_sec))
+-		{
+-		  isec->output_section = bfd_abs_section_ptr;
+-		  isec->flags |= SEC_EXCLUDE;
+-		  break;
+-		}
++	      {
++		if (discarded_section (linked_to_sec))
++		  {
++		    isec->output_section = bfd_abs_section_ptr;
++		    isec->flags |= SEC_EXCLUDE;
++		    break;
++		  }
++		linked_to_sec->linker_mark = 1;
++	      }
++	    for (linked_to_sec = elf_linked_to_section (isec);
++		 linked_to_sec != NULL && linked_to_sec->linker_mark;
++		 linked_to_sec = elf_linked_to_section (linked_to_sec))
++	      linked_to_sec->linker_mark = 0;
+ 	  }
+       }
+ }
+diff -Naur binutils-2.36/ld/scripttempl/DWARF.sc binutils-2.36-p/ld/scripttempl/DWARF.sc
+--- binutils-2.36/ld/scripttempl/DWARF.sc	2021-01-09 11:47:34.000000000 +0100
++++ binutils-2.36-p/ld/scripttempl/DWARF.sc	2021-01-30 01:57:40.535833058 +0100
+@@ -9,19 +9,19 @@
+      Symbols in the DWARF debugging sections are relative to the beginning
+      of the section so we begin them at 0.  */
+ 
+-  /* DWARF 1 */
++  /* DWARF 1.  */
+   .debug          0 : { *(.debug) }
+   .line           0 : { *(.line) }
+ 
+-  /* GNU DWARF 1 extensions */
++  /* GNU DWARF 1 extensions.  */
+   .debug_srcinfo  0 : { *(.debug_srcinfo) }
+   .debug_sfnames  0 : { *(.debug_sfnames) }
+ 
+-  /* DWARF 1.1 and DWARF 2 */
++  /* DWARF 1.1 and DWARF 2.  */
+   .debug_aranges  0 : { *(.debug_aranges) }
+   .debug_pubnames 0 : { *(.debug_pubnames) }
+ 
+-  /* DWARF 2 */
++  /* DWARF 2.  */
+   .debug_info     0 : { *(.debug_info${RELOCATING+ .gnu.linkonce.wi.*}) }
+   .debug_abbrev   0 : { *(.debug_abbrev) }
+   .debug_line     0 : { *(.debug_line${RELOCATING+ .debug_line.* .debug_line_end}) }
+@@ -30,17 +30,23 @@
+   .debug_loc      0 : { *(.debug_loc) }
+   .debug_macinfo  0 : { *(.debug_macinfo) }
+ 
+-  /* SGI/MIPS DWARF 2 extensions */
++  /* SGI/MIPS DWARF 2 extensions.  */
+   .debug_weaknames 0 : { *(.debug_weaknames) }
+   .debug_funcnames 0 : { *(.debug_funcnames) }
+   .debug_typenames 0 : { *(.debug_typenames) }
+   .debug_varnames  0 : { *(.debug_varnames) }
+ 
+-  /* DWARF 3 */
++  /* DWARF 3.  */
+   .debug_pubtypes 0 : { *(.debug_pubtypes) }
+   .debug_ranges   0 : { *(.debug_ranges) }
+ 
+-  /* DWARF Extension.  */
+-  .debug_macro    0 : { *(.debug_macro) }
++  /* DWARF 5.  */
+   .debug_addr     0 : { *(.debug_addr) }
++  .debug_line_str 0 : { *(.debug_line_str) }
++  .debug_loclists 0 : { *(.debug_loclists) }
++  .debug_macro    0 : { *(.debug_macro) }
++  .debug_names    0 : { *(.debug_names) }
++  .debug_rnglists 0 : { *(.debug_rnglists) }
++  .debug_str_offsets 0 : { *(.debug_str_offsets) }
++  .debug_sup      0 : { *(.debug_sup) }
+ EOF
+diff -Naur binutils-2.36/opcodes/i386-gen.c binutils-2.36-p/opcodes/i386-gen.c
+--- binutils-2.36/opcodes/i386-gen.c	2021-01-09 11:47:34.000000000 +0100
++++ binutils-2.36-p/opcodes/i386-gen.c	2021-01-30 01:55:28.527127437 +0100
+@@ -1576,6 +1576,8 @@
+       *end++ = '\0';
+ 
+       inst = xmalloc (sizeof (*inst));
++      inst->next = NULL;
++      inst->args = NULL;
+ 
+       cur = next_field (buf, ':', &next, end);
+       inst->name = xstrdup (cur);

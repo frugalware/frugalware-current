@@ -59,7 +59,7 @@ wine-devel)
 	provides=('wine' 'lib32-wine-devel')
 	replaces=('lib32-wine-devel')
 	depends+=('gst1-plugins-base')
-	source=(https://dl.winehq.org/wine/source/${pkgver}/wine-$pkgver.tar.xz \
+	source=(https://dl.winehq.org/wine/source/${pkgver%%.*}.x/wine-$pkgver.tar.xz \
 		fix-opencl-header.patch \
 		0001-programs-winhlp32-Use-noyywrap-for-macro.lex.l-and-p.patch )
 	;;

@@ -1,0 +1,63 @@
+From 6a9dc5fd6170d0a41c8a14eb19e63d94bea5705a Mon Sep 17 00:00:00 2001
+From: "Gustavo A. R. Silva" <gustavoars@kernel.org>
+Date: Mon, 24 Aug 2020 15:36:14 -0500
+Subject: lib: Revert use of fallthrough pseudo-keyword in lib/
+
+The following build error for powerpc64 was reported by Nathan Chancellor:
+
+  "$ scripts/config --file arch/powerpc/configs/powernv_defconfig -e KERNEL_XZ
+
+   $ make -skj"$(nproc)" ARCH=powerpc CROSS_COMPILE=powerpc64le-linux- distclean powernv_defconfig zImage
+   ...
+   In file included from arch/powerpc/boot/../../../lib/decompress_unxz.c:234,
+                    from arch/powerpc/boot/decompress.c:38:
+   arch/powerpc/boot/../../../lib/xz/xz_dec_stream.c: In function 'dec_main':
+   arch/powerpc/boot/../../../lib/xz/xz_dec_stream.c:586:4: error: 'fallthrough' undeclared (first use in this function)
+     586 |    fallthrough;
+         |    ^~~~~~~~~~~
+
+   This will end up affecting distribution configurations such as Debian
+   and OpenSUSE according to my testing. I am not sure what the solution
+   is, the PowerPC wrapper does not set -D__KERNEL__ so I am not sure
+   that compiler_attributes.h can be safely included."
+
+In order to avoid these sort of problems, it seems that the best
+solution is to use /* fall through */ comments instead of the
+fallthrough pseudo-keyword macro in lib/, for now.
+
+Reported-by: Nathan Chancellor <natechancellor@gmail.com>
+Fixes: df561f6688fe ("treewide: Use fallthrough pseudo-keyword")
+Signed-off-by: Gustavo A. R. Silva <gustavoars@kernel.org>
+Reviewed-and-tested-by: Nathan Chancellor <natechancellor@gmail.com>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ lib/bootconfig.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+(limited to 'lib/bootconfig.c')
+
+diff --git a/lib/bootconfig.c b/lib/bootconfig.c
+index 1b5de2a45b277..2c905a91d4ebe 100644
+--- a/lib/bootconfig.c
++++ b/lib/bootconfig.c
+@@ -817,7 +817,7 @@ int __init xbc_init(char *buf, const char **emsg, int *epos)
+ 							q - 2);
+ 				break;
+ 			}
+-			fallthrough;
++			/* fall through */
+ 		case '=':
+ 			ret = xbc_parse_kv(&p, q, c);
+ 			break;
+@@ -826,7 +826,7 @@ int __init xbc_init(char *buf, const char **emsg, int *epos)
+ 			break;
+ 		case '#':
+ 			q = skip_comment(q);
+-			fallthrough;
++			/* fall through */
+ 		case ';':
+ 		case '\n':
+ 			ret = xbc_parse_key(&p, q);
+-- 
+cgit 1.2.3-1.el7
+

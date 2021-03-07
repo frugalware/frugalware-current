@@ -44,6 +44,7 @@ if [ -z "$_F_qt_nocore" ]; then
 	fi
 	options+=('nodocs')
 	source=(http://download.qt.io/archive/qt/${pkgver%.*}/${pkgver}/submodules/${qtpkgfilename}.tar.xz)
+	_F_archive_grepv="6\.0"
 	up2date="Flastverdir http://download.qt-project.org/official_releases/qt/\$(Flastverdir http://download.qt-project.org/official_releases/qt/)"
 	_F_cd_path=${qtpkgfilename}
 fi

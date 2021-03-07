@@ -1,0 +1,35 @@
+diff -Naur systemd-242/src/rfkill/rfkill.c systemd-242-p/src/rfkill/rfkill.c
+--- systemd-242/src/rfkill/rfkill.c	2019-04-11 18:28:36.000000000 +0200
++++ systemd-242-p/src/rfkill/rfkill.c	2021-03-07 02:41:04.497702387 +0100
+@@ -177,10 +177,12 @@
+         l = write(c->rfkill_fd, &we, sizeof(we));
+         if (l < 0)
+                 return log_error_errno(errno, "Failed to restore rfkill state for %i: %m", event->idx);
+-        if (l != sizeof(we))
++        if (l < RFKILL_EVENT_SIZE_V1)
+                 return log_error_errno(SYNTHETIC_ERRNO(EIO),
+                                        "Couldn't write rfkill event structure, too short.");
+ 
++	log_debug("Writing struct rfkill_event successful (%zd of %zu bytes).", l, sizeof we);
++
+         log_debug("Loaded state '%s' from %s.", one_zero(b), state_file);
+         return 0;
+ }
+@@ -309,7 +311,7 @@
+         }
+ 
+         for (;;) {
+-                struct rfkill_event event;
++                struct rfkill_event event = {};
+                 const char *type;
+                 ssize_t l;
+ 
+@@ -343,7 +345,7 @@
+                         log_error_errno(errno, "Failed to read from /dev/rfkill: %m");
+                 }
+ 
+-                if (l != RFKILL_EVENT_SIZE_V1)
++                if (l < RFKILL_EVENT_SIZE_V1)
+                         return log_error_errno(SYNTHETIC_ERRNO(EIO), "Read event structure of invalid size.");
+ 
+                 type = rfkill_type_to_string(event.type);

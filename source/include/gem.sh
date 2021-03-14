@@ -38,7 +38,7 @@ fi
 # * ruby to depends()
 # * rubygems to makedepends()
 ###
-depends=(${depends[@]} 'ruby>=2.7.1')
+depends=(${depends[@]} 'ruby>=3.0.0')
 
 ###
 # == OVERWRITTEN VARIABLES

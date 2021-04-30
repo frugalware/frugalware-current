@@ -1,22 +1,6 @@
-From cb04c523c759e3704c6d8f81ad6fec7c94e09f69 Mon Sep 17 00:00:00 2001
-From: Gabriel Craciunescu <nix.or.die@gmail.com>
-Date: Mon, 28 Dec 2020 16:23:11 +0100
-Subject: [PATCH] Revert "hwmon: (k10temp) Remove support for displaying
- voltage and current on Zen CPUs"
-
-This reverts commit 0a4e668b5d52eed8026f5d717196b02b55fb2dc6.
-
-While not perfect ( and in this case caused by wrong code ), is better
-than having nothing. Bugs could be fixed, and if not, such CPUs could be blacklisted
-from getting the voltage informations..
----
- drivers/hwmon/k10temp.c | 98 +++++++++++++++++++++++++++++++++++++++++
- 1 file changed, 98 insertions(+)
-
-diff --git a/drivers/hwmon/k10temp.c b/drivers/hwmon/k10temp.c
-index 3bc2551577a3..a250481b5a97 100644
---- a/drivers/hwmon/k10temp.c
-+++ b/drivers/hwmon/k10temp.c
+diff -Naur linux-5.12/drivers/hwmon/k10temp.c linux-5.12-p/drivers/hwmon/k10temp.c
+--- linux-5.12/drivers/hwmon/k10temp.c	2021-04-25 22:49:08.000000000 +0200
++++ linux-5.12-p/drivers/hwmon/k10temp.c	2021-04-26 15:49:17.205409281 +0200
 @@ -11,6 +11,13 @@
   *   convert raw register values is from https://github.com/ocerman/zenpower.
   *   The information is not confirmed from chip datasheets, but experiments
@@ -31,7 +15,44 @@ index 3bc2551577a3..a250481b5a97 100644
   */
  
  #include <linux/bitops.h>
-@@ -102,7 +109,10 @@ struct k10temp_data {
+@@ -80,17 +87,34 @@
+ /* F17h thermal registers through SMN */
+ #define F17H_M01H_SVI_TEL_PLANE0		(ZEN_SVI_BASE + 0xc)
+ #define F17H_M01H_SVI_TEL_PLANE1		(ZEN_SVI_BASE + 0x10)
++
++/* ZEN2 SP3/TR */
+ #define F17H_M31H_SVI_TEL_PLANE0		(ZEN_SVI_BASE + 0x14)
+ #define F17H_M31H_SVI_TEL_PLANE1		(ZEN_SVI_BASE + 0x10)
+ 
++/* ZEN2 Ryzen Desktop */
++#define F17H_M71H_SVI_TEL_PLANE0        (ZEN_SVI_BASE + 0x10)
++#define F17H_M71H_SVI_TEL_PLANE1        (ZEN_SVI_BASE + 0xc)
++
++/* Renoir is different */
++#define F17H_RN_SVI			0x0006F000
++#define F17H_RN_SVI_TEL_PLANE0		(F17H_RN_SVI + 0x38)
++#define F17H_RN_SVI_TEL_PLANE1		(F17H_RN_SVI + 0x3C)
++
++/* fixme: figure these */
+ #define F17H_M01H_CFACTOR_ICORE			1000000	/* 1A / LSB	*/
+ #define F17H_M01H_CFACTOR_ISOC			250000	/* 0.25A / LSB	*/
+ #define F17H_M31H_CFACTOR_ICORE			1000000	/* 1A / LSB	*/
+ #define F17H_M31H_CFACTOR_ISOC			310000	/* 0.31A / LSB	*/
+ 
+ /* F19h thermal registers through SMN */
+-#define F19H_M01_SVI_TEL_PLANE0			(ZEN_SVI_BASE + 0x14)
+-#define F19H_M01_SVI_TEL_PLANE1			(ZEN_SVI_BASE + 0x10)
++/* ZEN3 SP3/TR */
++#define F19H_M01H_SVI_TEL_PLANE0		(ZEN_SVI_BASE + 0x14)
++#define F19H_M01H_SVI_TEL_PLANE1		(ZEN_SVI_BASE + 0x10)
++
++/* ZEN3 Ryzen Desktop */
++#define F19H_M21H_SVI_TEL_PLANE0		(ZEN_SVI_BASE + 0x10)
++#define F19H_M21H_SVI_TEL_PLANE1		(ZEN_SVI_BASE + 0xc)
+ 
+ #define F19H_M01H_CFACTOR_ICORE			1000000	/* 1A / LSB	*/
+ #define F19H_M01H_CFACTOR_ISOC			310000	/* 0.31A / LSB	*/
+@@ -102,7 +126,10 @@
  	int temp_offset;
  	u32 temp_adjust_mask;
  	u32 show_temp;
@@ -42,7 +63,7 @@ index 3bc2551577a3..a250481b5a97 100644
  };
  
  #define TCTL_BIT	0
-@@ -127,6 +137,16 @@ static const struct tctl_offset tctl_offset_table[] = {
+@@ -127,6 +154,16 @@
  	{ 0x17, "AMD Ryzen Threadripper 29", 27000 }, /* 29{20,50,70,90}[W]X */
  };
  
@@ -59,7 +80,7 @@ index 3bc2551577a3..a250481b5a97 100644
  static void read_htcreg_pci(struct pci_dev *pdev, u32 *regval)
  {
  	pci_read_config_dword(pdev, REG_HARDWARE_THERMAL_CONTROL, regval);
-@@ -191,6 +211,16 @@ static const char *k10temp_temp_label[] = {
+@@ -191,6 +228,16 @@
  	"Tccd8",
  };
  
@@ -76,7 +97,7 @@ index 3bc2551577a3..a250481b5a97 100644
  static int k10temp_read_labels(struct device *dev,
  			       enum hwmon_sensor_types type,
  			       u32 attr, int channel, const char **str)
-@@ -199,6 +229,50 @@ static int k10temp_read_labels(struct device *dev,
+@@ -199,6 +246,50 @@
  	case hwmon_temp:
  		*str = k10temp_temp_label[channel];
  		break;
@@ -127,7 +148,7 @@ index 3bc2551577a3..a250481b5a97 100644
  	default:
  		return -EOPNOTSUPP;
  	}
-@@ -257,6 +331,10 @@ static int k10temp_read(struct device *dev, enum hwmon_sensor_types type,
+@@ -257,6 +348,10 @@
  	switch (type) {
  	case hwmon_temp:
  		return k10temp_read_temp(dev, attr, channel, val);
@@ -138,7 +159,7 @@ index 3bc2551577a3..a250481b5a97 100644
  	default:
  		return -EOPNOTSUPP;
  	}
-@@ -305,6 +383,11 @@ static umode_t k10temp_is_visible(const void *_data,
+@@ -305,6 +400,11 @@
  			return 0;
  		}
  		break;
@@ -150,7 +171,12 @@ index 3bc2551577a3..a250481b5a97 100644
  	default:
  		return 0;
  	}
-@@ -434,10 +517,20 @@ static int k10temp_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+@@ -430,16 +530,43 @@
+ 		data->is_zen = true;
+ 
+ 		switch (boot_cpu_data.x86_model) {
++		/* FIXME: those looks wrong too */
+ 		case 0x1:	/* Zen */
  		case 0x8:	/* Zen+ */
  		case 0x11:	/* Zen APU */
  		case 0x18:	/* Zen+ APU */
@@ -161,8 +187,9 @@ index 3bc2551577a3..a250481b5a97 100644
 +			data->cfactor[1] = F17H_M01H_CFACTOR_ISOC;
  			k10temp_get_ccd_support(pdev, data, 4);
  			break;
- 		case 0x31:	/* Zen2 Threadripper */
- 		case 0x71:	/* Zen2 */
+-		case 0x31:	/* Zen2 Threadripper */
+-		case 0x71:	/* Zen2 */
++		case 0x31:	/* Zen2 SP3/TR */
 +			data->show_current = !is_threadripper() && !is_epyc();
 +			data->cfactor[0] = F17H_M31H_CFACTOR_ICORE;
 +			data->cfactor[1] = F17H_M31H_CFACTOR_ISOC;
@@ -170,19 +197,46 @@ index 3bc2551577a3..a250481b5a97 100644
 +			data->svi_addr[1] = F17H_M31H_SVI_TEL_PLANE1;
  			k10temp_get_ccd_support(pdev, data, 8);
  			break;
++		case 0x60:	/* Renoir APUs */
++			data->show_current = true;
++			/* FIXME */
++			data->cfactor[0] = F17H_M31H_CFACTOR_ICORE;
++			data->cfactor[1] = F17H_M31H_CFACTOR_ISOC;
++			data->svi_addr[0] = F17H_RN_SVI_TEL_PLANE0;
++			data->svi_addr[1] = F17H_RN_SVI_TEL_PLANE1;
++			k10temp_get_ccd_support(pdev, data, 4); /* probably not needed */
++			break;
++		case 0x71:  /* ZEN2 Ryzen Desktop */
++			data->show_current = true;
++			data->cfactor[0] = F17H_M31H_CFACTOR_ICORE;
++			data->cfactor[1] = F17H_M31H_CFACTOR_ISOC;
++			data->svi_addr[0] = F17H_M71H_SVI_TEL_PLANE0;
++			data->svi_addr[1] = F17H_M71H_SVI_TEL_PLANE1;
++			k10temp_get_ccd_support(pdev, data, 4);
++			break;
  		}
-@@ -449,6 +542,11 @@ static int k10temp_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+ 	} else if (boot_cpu_data.x86 == 0x19) {
+ 		data->temp_adjust_mask = ZEN_CUR_TEMP_RANGE_SEL_MASK;
+@@ -449,9 +576,21 @@
  
  		switch (boot_cpu_data.x86_model) {
- 		case 0x0 ... 0x1:	/* Zen3 */
+ 		case 0x0 ... 0x1:	/* Zen3 SP3/TR */
+-		case 0x21:		/* Zen3 Ryzen Desktop */
 +			data->show_current = true;
-+			data->svi_addr[0] = F19H_M01_SVI_TEL_PLANE0;
-+			data->svi_addr[1] = F19H_M01_SVI_TEL_PLANE1;
++			data->svi_addr[0] = F19H_M01H_SVI_TEL_PLANE0;
++			data->svi_addr[1] = F19H_M01H_SVI_TEL_PLANE1;
 +			data->cfactor[0] = F19H_M01H_CFACTOR_ICORE;
 +			data->cfactor[1] = F19H_M01H_CFACTOR_ISOC;
  			k10temp_get_ccd_support(pdev, data, 8);
  			break;
++		case 0x21:  /* ZEN3 Ryzen Desktop */
++			data->show_current = true;
++			data->svi_addr[0] = F19H_M21H_SVI_TEL_PLANE0;
++			data->svi_addr[1] = F19H_M21H_SVI_TEL_PLANE1;
++			data->cfactor[0] = F19H_M01H_CFACTOR_ICORE;
++			data->cfactor[1] = F19H_M01H_CFACTOR_ISOC;
++			k10temp_get_ccd_support(pdev, data, 2);
++			break;
  		}
--- 
-2.29.2
-
+ 	} else {
+ 		data->read_htcreg = read_htcreg_pci;

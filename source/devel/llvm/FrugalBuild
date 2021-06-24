@@ -4,7 +4,7 @@
 : ${USE_DEVEL="n"}
 
 pkgname=llvm
-pkgver=11.1.0
+pkgver=12.0.0
 pkgrel=1
 gcc_ver=9.2.1
 url="http://www.llvm.org"
@@ -19,7 +19,6 @@ makedepends=("${makedepends[@]}" "libstdc++>=${gcc_ver}" 'binutils>=2.32' 'glibc
 rodepends=("$pkgname-libs")
 groups=('devel')
 archs=("x86_64")
-
 
 if Fuse DEVEL; then
 	unset source sha1sums
@@ -42,7 +41,9 @@ else
 		https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/libcxx-$pkgver.src.tar.xz \
 		https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/libcxxabi-$pkgver.src.tar.xz \
 		https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/lld-$pkgver.src.tar.xz \
-		https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/compiler-rt-$pkgver.src.tar.xz )
+		https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/libunwind-$pkgver.src.tar.xz \
+		https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/compiler-rt-$pkgver.src.tar.xz \
+		actually-use-external-clang-tools-extra-source-dir.patch )
 	_F_archive_ver="${pkgver}.src"
 	signatures=("${source[0]}.sig" \
 		    "${source[1]}.sig" \
@@ -50,7 +51,9 @@ else
 		    "${source[3]}.sig" \
 		    "${source[4]}.sig" \
 		    "${source[5]}.sig" \
-		    "${source[6]}.sig" )
+		    "${source[6]}.sig" \
+		    "${source[7]}.sig" \
+		    '' )
 
 fi
 
@@ -197,7 +200,6 @@ _F_cmake_type="Release"
 # (crazy) FIXME , why do we need DC_INCLUDE_DIRS ?
 _common_cmake_confopts="	-DCMAKE_INSTALL_PREFIX=/usr \
 				-DLLVM_BUILD_LLVM_DYLIB=ON \
-				-DLLVM_DYLIB_EXPORT_ALL=ON \
 				-DLLVM_LINK_LLVM_DYLIB=ON \
 				-DLLVM_ENABLE_RTTI=ON \
 				-DLLVM_INSTALL_UTILS=ON \
@@ -210,6 +212,7 @@ _common_cmake_confopts="	-DCMAKE_INSTALL_PREFIX=/usr \
 				-DC_INCLUDE_DIRS=/usr/local/include:/usr/${CHOST}/include:/usr/include/c++/${gcc_ver}/${CHOST}:/usr/include/c++/${gcc_ver}/backward:/usr/include/c++/${gcc_ver}:/usr/include \
 				-DLLVM_BINUTILS_INCDIR=/usr/include \
 				-DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=ON \
+				-DLLVM_EXTERNAL_CLANG_TOOLS_EXTRA_SOURCE_DIR=${Fsrcdir}/clang-tools-extra-${_F_archive_ver} \
 				-DLIBCXX_INSTALL_EXPERIMENTAL_LIBRARY=OFF"
 Finclude cmake
 options+=('static' 'nolto')
@@ -225,7 +228,11 @@ build() {
                 Funpack_scm
         fi
 
-	Fcd
+	Fexec cd ${Fsrcdir}/clang-tools-extra-${_F_archive_ver}
+	Fpatch actually-use-external-clang-tools-extra-source-dir.patch
+
+	Fexec cd ${Fsrcdir}/llvm-${_F_archive_ver}
+
 	# clang must be copied here to build with llvm
 	Fexec rm -rf tools/clang
 
@@ -234,14 +241,13 @@ build() {
 		git clone --depth=1 https://github.com/llvm-mirror/clang.git
 		Fexec cd .. || Fdie
 	else
+		Fexec mv -f ../libunwind-${_F_archive_ver}/ ../libunwind || Fdie
 		Fexec mv -f ../clang-${_F_archive_ver}/ tools/clang || Fdie
 		Fexec mv -f ../libcxx-${_F_archive_ver}/ projects/libcxx || Fdie
 		Fexec mv -f ../libcxxabi-${_F_archive_ver}/ projects/libcxxabi || Fdie
 		Fexec mv -f ../lld-${_F_archive_ver}/ tools/lld || Fdie
-		Fexec mv -f ../clang-tools-extra-${_F_archive_ver}/ tools/clang/tools/extra || Fdie
 	fi
 
-	Fpatchall
 	Fcross32_prepare
 	Fcross32_copy_source
 

@@ -355,8 +355,8 @@ Fcross32_copy_source() {
 	if [ -n "$_F_cd_path" ]; then
 		local src="$_F_cd_path"
 	else
-	     ## assume $pkgname-$pkgver$pkgextraver
-		local src="$pkgname-$pkgver$pkgextraver"
+	     ## assume $pkgname-${_F_archive_ver}
+		local src="$pkgname-${_F_archive_ver}"
 	fi
 	Fexec cd $Fsrcdir || Fdie
 	## copy to something unique

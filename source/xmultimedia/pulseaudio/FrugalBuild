@@ -2,26 +2,23 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=pulseaudio
-pkgver=14.2
+pkgver=15.0
 pkgrel=1
 pkgdesc="PulseAudio is a sound server with an advanced plugin system"
 url="http://www.freedesktop.org/wiki/Software/PulseAudio/"
 depends=('libtool>=2.4.6-5' 'dbus>=1.10.10-4' 'libsndfile>=1.0.26-3')
 rodepends=('libpulse')
-makedepends=('x11-protos' 'intltool' 'lib32-libsystemd' 'lib32-glib2' 'lib32-openssl' 'systemd' 'systemd-devel' 'abseil-cpp')
+makedepends=('x11-protos' 'intltool' 'lib32-libsystemd' 'lib32-glib2' \
+	'lib32-openssl' 'systemd' 'systemd-devel' 'abseil-cpp' \
+	'check' 'doxygen' 'lib32-check')
 groups=('xmultimedia')
-replaces=('pulseaudio-hal' 'padevchooser' 'pulseaudio-jack' 'pulseaudio-gconf')
-conflicts=('pulseaudio-hal' 'pulseaudio-jack')
-provides=('puseaudio-hal' 'pulseaudio-jack')
+replaces=('pulseaudio-hal' 'padevchooser' 'pulseaudio-jack' 'pulseaudio-gconf' 'pulseaudio-esd')
+conflicts=('pulseaudio-hal' 'pulseaudio-jack' 'pulseaudio-esd')
+provides=('puseaudio-hal' 'pulseaudio-jack' 'pulseaudio-esd')
 archs=("x86_64")
 up2date="Flasttar $url"
-source=(http://freedesktop.org/software/$pkgname/releases/$pkgname-$pkgver.tar.xz \
-	webrtc-1.0.patch \
-	default.pa)
-sha1sums=('5dfc46595e981f0eb6308d07666f4108a69b2106' \
-          '18cbab7ada7af7747afdac82c12b96a7d92be2dd' \
-          '6e673306a0fdf60f6c59f8c09f3d8049769c0632')
-
+source=(http://freedesktop.org/software/$pkgname/releases/$pkgname-$pkgver.tar.xz)
+sha1sums=('41e9f001770ccf7b47dc228311a99a09bb579563')
 
 subpkgs=('libpulse')
 subdescs=('pulseaduio client library')
@@ -54,15 +51,6 @@ subbackup+=('')
 subdepends+=('liblirc>=0.9.1-2')
 suboptions+=('')
 
-subpkgs+=('pulseaudio-esd')
-subdescs+=('PulseAudio ESD compatibility layer.')
-subrodepends+=("$pkgname>=$pkgver")
-subgroups+=('xmultimedia-extra')
-subarchs+=('x86_64')
-subbackup+=('')
-subdepends+=('glibc>=2.22-7')
-suboptions+=('')
-
 subpkgs+=('pulseaudio-bluetooth')
 subdescs+=('bluetooth module for PulseAudio sound server')
 subrodepends+=("$pkgname>=$pkgver")
@@ -90,33 +78,25 @@ subbackup+=('')
 subdepends+=('avahi>=0.6.31-7 openssl>=1.1.1')
 suboptions+=('')
 
-Fconfopts+="	--prefix=/usr \
-		--sysconfdir=/etc \
-		--libexecdir=/usr/lib \
-		--localstatedir=/var \
-		--with-udev-rules-dir=/lib/udev/rules.d \
-		--disable-solaris \
-		--enable-largefile \
-		--disable-static \
-		--enable-x11 \
-		--disable-gconf \
-		--enable-gsettings \
-		--with-pulsedsp-location=/usr/lib/pulseaudio \
-		--enable-bluez5-native-headset \
-		--with-systemduserunitdir=/lib/systemd/system"
-F32confopts="	--libdir=/usr/lib32 \
-		--disable-avahi \
-		--disable-x11 \
-		--disable-bluez5 \
-		--disable-gconf \
-		--disable-gsettings \
-		--disable-webrtc-aec \
-		--without-soxr \
-		--with-pulsedsp-location=/usr/lib32/pulseaudio \
-		--disable-bluez5-native-headset
-		--libexecdir=/usr/lib32/pulseaudio"
+_F_cross32_meson_confopts_64="	-Dudevrulesdir=/lib/udev/rules.d \
+				-Dx11=enabled \
+				-Dgsettings=enabled \
+				-Dpulsedsp-location=/usr/lib/pulseaudio \
+				-Dbluez5-native-headset=true \
+				-Dsystemduserunitdir=/lib/systemd/system"
+
+_F_cross32_meson_confopts_32="	-Davahi=disabled \
+				-Dx11=disabled \
+				-Dbluez5=disabled \
+				-Dgsettings=disabled \
+				-Dwebrtc-aec=disabled \
+				-Dlirc=disabled \
+				-Dsoxr=disabled \
+				-Dpulsedsp-location=/usr/lib32/pulseaudio \
+				-Dbluez5-native-headset=false"
 
 _F_systemd_units=(pulseaudio=)
+_F_cross32_use_meson=true
 Finclude systemd cross32
 
 install=$pkgname.install
@@ -127,8 +107,6 @@ options+=('nolto' 'ofast')
 
 build() {
 	Fcd
-	NOCONFIGURE=1 ./bootstrap.sh || Fdie
-
 	Fbuild_cross32
 
 	# Remove that file. Confuses dbus and running PA as system is a bad idea
@@ -136,10 +114,6 @@ build() {
 
 	Fsplit lib32-libpulse usr/lib32/
 	Fsplit lib32-libpulse usr/i686-frugalware-linux/
-
-	Ffile var/lib/gdm/.pulse/default.pa
-	Fdirschmod  var/lib/gdm 754
-	Fdirschown var/lib/gdm gdm gdm
 
 	## well try to avoid things like this :
 	## /usr/lib/libpulsecommon-7.0.so: broken symbolic link to pulseaudio/libpulsecommon-7.0.so
@@ -150,21 +124,6 @@ build() {
 	Fln pulseaudio/libpulsecommon-${soname}.so /usr/lib/libpulsecommon-${soname}.so
 
 	Fsplit $pkgname-lirc usr/lib/pulse-$pkgver/modules/module-lirc.so
-
-	Fsplit $pkgname-esd usr/bin/esdcompat
-	Fsplit $pkgname-esd usr/lib/pulse-$pkgver/modules/libprotocol-esound.so
-	Fsplit $pkgname-esd usr/lib/pulse-$pkgver/modules/module-esound-compat-spawnfd.so
-	Fsplit $pkgname-esd usr/lib/pulse-$pkgver/modules/module-esound-compat-spawnpid.so
-	Fsplit $pkgname-esd usr/lib/pulse-$pkgver/modules/module-esound-protocol-tcp.so
-	Fsplit $pkgname-esd usr/lib/pulse-$pkgver/modules/module-esound-protocol-unix.so
-	Fsplit $pkgname-esd usr/lib/pulse-$pkgver/modules/module-esound-sink.so
-
-	#Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/module-bluetooth-discover.so*
-	#Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/module-bluetooth-policy.so*
-	#Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/module-bluez5-discover.so
-	#Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/module-bluez5-device.so
-	#Fsplit $pkgname-bluetooth usr/lib/pulse-$pkgver/modules/libbluez5-util.so
-
 
 	## -X11
 	Fsplit $pkgname-x11 usr/lib/pulse-$pkgver/modules/module-x11-xsmp.so

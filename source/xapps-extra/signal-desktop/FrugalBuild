@@ -1,0 +1,50 @@
+# Compiling Time: 13.15 SBU
+# Maintainer: DeX77 <dex77@frugalware.org>
+
+pkgname=signal-desktop
+pkgver=5.13.0_beta.2
+pkgrel=1
+pkgdesc="Signal Private Messenger for Linux"
+archs=('x86_64')
+groups=('xapps-extra')
+url="https://signal.org"
+depends=('gtk+3' 'libvips' 'libxscrnsaver' 'hicolor-icon-theme')
+makedepends=('yarn' 'nodejs' 'git-lfs')
+_F_github_author=signalapp
+_F_github_tag_v=y
+_F_github_ver="${pkgver/_/-}"
+Finclude github
+source+=(expire-from-source-date-epoch.patch \
+	signal-desktop.desktop)
+sha1sums=('d62669feb41026fe5b118c7ee1681a1d767e971a' \
+          '16e78ec533b35032e1161a46848f9cb9399700a3' \
+          'f5e7541b5141b23caf4382679e364dc8c7e9a9fb')
+_F_cd_path="Signal-Desktop-${pkgver/_/-}"
+
+build() {
+	Fcd
+	Fpatchall
+
+	Fexec  git lfs install || Fdie
+	Fexec sed 's#"node": "#&>=#' -i package.json || Fdie
+
+	Fexec yarn install --ignore-engines || Fdie
+  	Fexec yarn generate exec:build-protobuf exec:transpile concat copy:deps sass || Fdie
+	Fexec yarn build || Fdie
+
+	Fmkdir usr/lib
+	Fmkdir usr/bin
+
+  	Fcprel release/linux-unpacked usr/lib/${pkgname}
+	Fln "/usr/lib/${pkgname}/${pkgname}" usr/bin/
+
+	Finstall 644 usr/share/applications/$pkgname.desktop
+	for i in 16 24 32 48 64 128 256 512 1024; do
+		Finstallrel 644 "build/icons/png/${i}x${i}.png" \
+		"usr/share/icons/hicolor/${i}x${i}/apps/${pkgname}.png"
+	done
+
+}
+
+
+# optimization OK

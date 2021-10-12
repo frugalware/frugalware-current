@@ -1662,35 +1662,6 @@ Fup2gnubz2()
 }
 
 ###
-# * Fdesktop(): Creates a .desktop file for graphical applications. Parameters:
-# 1) name of the executable binary 2) icon name from /usr/share/pixmaps 3)
-# categori(es) (optional). You can choose one or more from the followings:
-# System;Games;AudioVideo;GNOME;KDE;Network;Development;FileTransfer;GTK; 4)
-# mimetype(s) (optional). Example: Fdesktop vmware vmware-workstation.png
-# "System;" "application/x-vmware-vm;application/x-vmware-team;"
-#
-# NOTE: this function is obsolete, use Fdesktop2 instead.
-###
-Fdesktop()
-{
-	Fmkdir $Fmenudir
-	Fmessage "Installing desktop file: $pkgname.desktop"
-	cat > $Fdestdir$Fmenudir/$pkgname.desktop << EOF
-[Desktop Entry]
-Encoding=UTF-8
-Name=$pkgname
-Comment=$pkgdesc
-Exec=$1
-Terminal=false
-Type=Application
-StartupNotify=true
-Icon=$2
-Categories=Application;$3
-MimeType=$4
-EOF
-}
-
-###
 # * Fdesktop2(): Creates a .desktop for graphical applications. See the OPTIONS
 # section for options.
 ###
@@ -1739,18 +1710,7 @@ Fdesktop2()
 
 	Fmkdir $Fmenudir
 	Fmessage "Installing desktop file: $deskfilename"
-	cat > $Fdestdir$Fmenudir/$deskfilename << EOF
-[Desktop Entry]
-Name=$dname
-Comment=$ddesc
-Exec=$dexec
-Terminal=false
-Type=Application
-StartupNotify=true
-Icon=$dicon
-Categories=$dcategories
-MimeType=$dmime
-EOF
+	DNAME=$dname DDESC=$ddesc DEXEC=$dexec DICON=$dicon DCATEGORIES=$dcategories DMIME=$dmime envsubst <$Fincdir/fdesktop2.tmpl > $Fdestdir$Fmenudir/$deskfilename
 
 	if [ ! -z $_F_desktop_show_in ] ; then
 		echo "OnlyShowIn=$dshowin;" >> $Fdestdir$Fmenudir/$deskfilename

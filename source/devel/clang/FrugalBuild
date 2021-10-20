@@ -1,0 +1,151 @@
+# Compiling Time: 4.74 SBU
+# Maintainer: Marius Cirsta <mcirsta@frugalware.org>
+
+pkgname=clang
+pkgver=13.0.0
+pkgrel=1
+gcc_ver=11.2
+url="http://www.llvm.org"
+pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
+depends=("libstdc++>=${gcc_ver}")
+makedepends=("llvm>=$kgver" "llvm-static>=$pkgver" "lib32-llvm>=$kgver" "lib32-llvm-static>=$pkgver" \
+	"python3-sphinx"  "python3-charset-normalizer")
+rodepends=("$pkgname-libs")
+groups=('devel')
+archs=("x86_64")
+
+_F_github_author=llvm
+_F_github_name=llvm-project
+_F_github_tag=yes
+_F_github_grepv="rc1\|rc2\|rc3\|rc4\|init"
+Finclude github
+up2date="$up2date | sed 's/llvmorg-//'"
+source=(https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/$pkgname-$pkgver.src.tar.xz \
+	 https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/clang-tools-extra-$pkgver.src.tar.xz)
+_F_archive_ver="${pkgver}.src"
+signatures=("${source[0]}.sig" \
+            "${source[1]}.sig" )
+
+_F_cross32_delete=('usr/docs' 'usr/share' 'usr/libexec/')
+Finclude cross32 python
+
+subpkgs+=("clang-libs")
+subdescs+=("C/C++ language family frontend for LLVM Libs")
+subdepends+=("libxml2 libffi>=3.4 llvm-libs>=$pkgver")
+subrodepends+=("")
+subgroups+=('lib')
+subarchs+=("x86_64")
+
+subpkgs+=("lib32-clang")
+subdescs+=("C/C++ language family frontend for LLVM (32-bit)")
+subdepends+=("lib32-libxml2 lib32-libffi>=3.4")
+subrodepends+=("lib32-clang-libs>=$pkgver")
+subgroups+=('lib32-extra')
+subarchs+=("x86_64")
+
+subpkgs+=("lib32-clang-libs")
+subdescs+=("C/C++ language family frontend for LLVM Libs (32-bit)")
+subdepends+=("lib32-libxml2 lib32-libffi>=3.4 lib32-llvm-libs>=$pkgver")
+subrodepends+=("")
+subgroups+=('lib32-extra')
+subarchs+=("x86_64")
+
+subpkgs+=("lib32-clang-static")
+subdescs+=("C/C++ language family frontend for LLVM (32-bit static)")
+subdepends+=("")
+subrodepends+=("")
+subgroups+=('lib32-extra')
+subarchs+=("x86_64")
+
+subpkgs+=("clang-static")
+subdescs+=("C/C++ language family frontend for LLVM (32-bit static)")
+subdepends+=("")
+subrodepends+=("")
+subgroups+=('devel-extra')
+subarchs+=("x86_64")
+
+
+# Common CMake options
+_F_cmake_type="Release"
+_common_cmake_confopts="	-DCMAKE_INSTALL_PREFIX=/usr \
+				-DLLVM_LINK_LLVM_DYLIB=ON \
+				-DLLVM_ENABLE_RTTI=ON \
+				-DLLVM_EXTERNAL_CLANG_TOOLS_EXTRA_SOURCE_DIR=${Fsrcdir}/clang-tools-extra-${_F_archive_ver} \
+				-DLLVM_HOST_TRIPLE=${CARCH}-frugalware-linux"
+_F_cmake_use_ninja=true
+Finclude cmake
+options+=('static')
+_Fbuild_no_patch=yes
+
+
+build() {
+
+
+	Fcross32_prepare
+	Fcross32_copy_source
+
+	## 32-bit CMake options
+	_F_cmake_confopts+="	${_common_cmake_confopts}
+				-DLLVM_LIBDIR_SUFFIX=32 \
+				-DCMAKE_CXX_FLAGS:STRING=-m32"
+
+	CMake_make
+	CMake_install
+        DESTDIR=$Fdestdir ninja install-distribution || Fdie
+
+	Fcross32_copy_back_source
+	Fcross32_reset_and_fix
+	Fcross32_delete_empty
+
+
+	Fsplit lib32-$pkgname-static usr/lib32/*.a
+	Fsplit lib32-$pkgname-libs usr/lib32/
+
+	Fsplit lib32-$pkgname /\*
+
+	## 64-bit CMake options
+	_F_cmake_confopts="	${_common_cmake_confopts} \
+				-DLLVM_EXTERNAL_LIT=/usr/bin/lit"
+
+	Fcd
+
+	CMake_make
+
+	Fexec make -C ../docs -f Makefile.sphinx html || Fdie
+	Fexec make -C ../docs -f Makefile.sphinx man || Fdie
+
+	CMake_install
+	DESTDIR=$Fdestdir ninja install-distribution || Fdie
+
+	## Python bindings
+	Fmkdir ${_F_python_libdir}
+	Fcprel ../bindings/python/clang ${_F_python_libdir}
+	Fexec python -m compileall $Fdestdir/${_F_python_libdir}
+	Fexec python -O -m compileall $Fdestdir/${_F_python_libdir}
+	Fexec python -m compileall $Fdestdir/usr/share
+	Fexec python -O -m compileall $Fdestdir/usr/share
+
+        ## Pytho3n bindings
+        Fmkdir ${_F_python3_libdir}
+	Fcprel ..//bindings/python/clang ${_F_python3_libdir}
+        Fexec python3 -m compileall $Fdestdir/${_F_python3_libdir}
+        Fexec python3 -O -m compileall $Fdestdir/${_F_python3_libdir}
+        Fexec python3 -m compileall $Fdestdir/usr/share
+        Fexec python3 -O -m compileall $Fdestdir/usr/share
+
+	## libexec stuff
+	Fmkdir usr/lib/$pkgname
+	Fsed 'libexec' 'lib/clang' $Fdestdir/usr/bin/scan-build
+	Fmv usr/libexec/* usr/lib/clang/
+	Frm usr/libexec
+
+	# Install html docs of clang
+	Fmkdir usr/share/doc/$pkgname-$pkgver/html/clang
+	Fcp ${_F_cd_path}/docs/_build/html/* usr/share/doc/$pkgname-$pkgver/html/clang
+	Frm usr/share/doc/$pkgname-$pkgver/html/clang/_sources
+
+	Fsplit $pkgname-static usr/lib/*.a
+	Fsplit $pkgname-libs usr/lib/libclang*
+}
+
+# optimization OK

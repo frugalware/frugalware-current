@@ -2,25 +2,31 @@
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=rust
-pkgver=1.55.0
-_llvm_ver=12.0.1
+pkgver=1.56.1
+_llvm_ver=13.0.0
 pkgrel=1
 pkgdesc="Programming language focused on safety, speed and concurrency"
 url="https://www.rust-lang.org/"
 depends=('libffi' 'zlib' "llvm-libs>=$_llvm_ver")
-makedepends=('curl' 'python' 'perl' 'git' 'cmake' 'ninja' "clang>=$_llvm_ver" 'llvm')
+makedepends=('ninja' 'llvm' 'cmake' 'llvm-static')
 groups=('devel')
 archs=("x86_64")
 up2date="lynx -dump https://www.rust-lang.org/ | grep -m1 Version | sed 's/.*ion \(.*\)/\1/'"
 source=("https://static.rust-lang.org/dist/rustc-${pkgver}-src.tar.gz" \
-	"https://github.com/llvm/llvm-project/releases/download/llvmorg-$_llvm_ver/compiler-rt-$_llvm_ver.src.tar.xz" \
-	"config.toml")
-sha1sums=('89d4610016823fd81eea6dc99fddbb016feadb89' \
-          'd33af648dc9b901c6c9f6c5872af2f59203f1a25' \
-          'cb5cd1dc494944468cdf160f564269cb09af2ab5')
+	"https://static.rust-lang.org/dist/rust-${pkgver}-x86_64-unknown-linux-gnu.tar.gz" \
+	0001-bootstrap-Change-libexec-dir.patch \
+	0001-cargo-Change-libexec-dir.patch )
+sha1sums=('69bd2cda334611d84c24a12c5372ece712b9b519' \
+          '35ed6ccd1ecee53a91f2231542aacf5682fc8efa' \
+          '969d56b8f9d63b35ae4c5c125a5d98e2ea183536' \
+          '3c997560327a7385654ae0bcc8fb56ec8c94e885')
 _F_cd_path="rustc-${pkgver}-src"
-options+=('static' 'nostrip' 'noccache' 'force' 'nolto')
+options+=('static' 'nostrip' 'nolto')
 _F_make_opts+=" VERBOSE=1"
+
+provides=('cargo')
+replaces=('cargo')
+conflicts=('cargo')
 
 subpkgs=("lib32-${pkgname}")
 subdescs=("$pkgdesc ( 32bit )")
@@ -30,18 +36,51 @@ subarchs=('x86_64')
 subrodepends=('rust')
 
 build() {
+	Fexec ${Fsrcdir}/rust-1.56.1-x86_64-unknown-linux-gnu/install.sh --disable-ldconfig \
+		--without=rust-docs --destdir="${Fsrcdir}/rust_stage0" --prefix=/ || Fdie
 
 	Fcd
-	## just ./configure part with F<....>
 	Fpatchall
-	export RUSTFLAGS="$RUSTFLAGS -C link-args=-lffi"
 	export RUST_BACKTRACE=1
-	export RUST_COMPILER_RT_ROOT="$Fsrcdir/compiler-rt-$_llvm_ver.src"
+	cat >config.toml <<END
+changelog-seen = 2
+profile = "user"
+[llvm]
+link-shared = true
+[build]
+target = [
+  "x86_64-unknown-linux-gnu",
+  "i686-unknown-linux-gnu",
+]
+cargo = "${Fsrcdir}/rust_stage0/bin/cargo"
+rustc = "${Fsrcdir}/rust_stage0/bin/rustc"
+rustfmt = "${Fsrcdir}/rust_stage0/bin/rustfmt"
+locked-deps = true
+vendor = true
+tools = ["cargo", "rls", "clippy", "rustfmt", "analysis", "src", "rust-demangler"]
+sanitizers = true
+profiler = true
+[install]
+prefix = "/usr"
+[rust]
+debuginfo-level-std = 2
+channel = "stable"
+rpath = false
+backtrace-on-ice = true
+remap-debuginfo = true
+jemalloc = true
+codegen-units-std = 1
+[dist]
+compression-formats = ["gz"]
+[target.x86_64-unknown-linux-gnu]
+llvm-config = "/usr/bin/llvm-config"
+[target.wasm32-unknown-unknown]
+sanitizers = false
+profiler = false
+END
 
-	Fexec cp ../config.toml . || Fdie
 	## make && make install 'rust' way
-	Fexec python ./x.py --verbose  build || Fdie
-	DESTDIR=$Fdestdir Fexec python ./x.py install || Fdie
+	DESTDIR=$Fdestdir Fexec python ./x.py --verbose  install  -j1 || Fdie
 
 	## strip
 	Fexec strip --strip-unneeded $Fdestdir/usr/lib/rustlib/x86_64-unknown-linux-gnu/lib/*.so

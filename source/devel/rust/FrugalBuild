@@ -2,22 +2,24 @@
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=rust
-pkgver=1.56.1
+pkgver=1.57.0
 _llvm_ver=13.0.0
 pkgrel=1
 pkgdesc="Programming language focused on safety, speed and concurrency"
 url="https://www.rust-lang.org/"
 depends=('libffi' 'zlib' "llvm-libs>=$_llvm_ver")
-makedepends=('ninja' 'llvm' 'cmake' 'llvm-static')
+makedepends=('ninja' 'llvm' 'cmake' 'llvm-static' 'polly' 'openmp' 'mlir')
 groups=('devel')
 archs=("x86_64")
 up2date="lynx -dump https://www.rust-lang.org/ | grep -m1 Version | sed 's/.*ion \(.*\)/\1/'"
 source=("https://static.rust-lang.org/dist/rustc-${pkgver}-src.tar.gz" \
 	"https://static.rust-lang.org/dist/rust-${pkgver}-x86_64-unknown-linux-gnu.tar.gz" \
+	fix-build.patch \
 	0001-bootstrap-Change-libexec-dir.patch \
-	0001-cargo-Change-libexec-dir.patch )
-sha1sums=('69bd2cda334611d84c24a12c5372ece712b9b519' \
-          '35ed6ccd1ecee53a91f2231542aacf5682fc8efa' \
+	0001-cargo-Change-libexec-dir.patch)
+sha1sums=('0309f390b9bec1fd570e0a86cca05b54125840ba' \
+          'bc89585c90217b9982a19f47787fd76fa17caf77' \
+          '584fcfa14bf9426ff3a3590898951a2eaea00ace' \
           '969d56b8f9d63b35ae4c5c125a5d98e2ea183536' \
           '3c997560327a7385654ae0bcc8fb56ec8c94e885')
 _F_cd_path="rustc-${pkgver}-src"
@@ -30,23 +32,27 @@ conflicts=('cargo')
 
 subpkgs=("lib32-${pkgname}")
 subdescs=("$pkgdesc ( 32bit )")
-subdepends=("lib32-libffi")
+subdepends=("lib32-libffi lib32-xz")
 subgroups=('lib32-extra')
 subarchs=('x86_64')
 subrodepends=('rust')
 
 build() {
-	Fexec ${Fsrcdir}/rust-1.56.1-x86_64-unknown-linux-gnu/install.sh --disable-ldconfig \
+	Fexec ${Fsrcdir}/rust-${pkgver}-x86_64-unknown-linux-gnu/install.sh --disable-ldconfig \
 		--without=rust-docs --destdir="${Fsrcdir}/rust_stage0" --prefix=/ || Fdie
 
 	Fcd
 	Fpatchall
 	export RUST_BACKTRACE=1
+	export LIBGIT2_NO_PKG_CONFIG=1
+	export LIBSSH2_SYS_USE_PKG_CONFIG=1
+
+	export RUSTFLAGS="$RUSTFLAGS -C link-args=-llzma"
 	cat >config.toml <<END
 changelog-seen = 2
 profile = "user"
 [llvm]
-link-shared = true
+link-shared = false
 [build]
 target = [
   "x86_64-unknown-linux-gnu",
@@ -63,23 +69,19 @@ profiler = true
 [install]
 prefix = "/usr"
 [rust]
-debuginfo-level-std = 2
 channel = "stable"
 rpath = false
 backtrace-on-ice = true
-remap-debuginfo = true
 jemalloc = true
 codegen-units-std = 1
 [dist]
 compression-formats = ["gz"]
 [target.x86_64-unknown-linux-gnu]
 llvm-config = "/usr/bin/llvm-config"
-[target.wasm32-unknown-unknown]
-sanitizers = false
-profiler = false
 END
 
 	## make && make install 'rust' way
+	DESTDIR=$Fdestdir Fexec python ./x.py --verbose  build  -j $(nproc) || Fdie
 	DESTDIR=$Fdestdir Fexec python ./x.py --verbose  install  -j1 || Fdie
 
 	## strip

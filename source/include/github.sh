@@ -89,9 +89,11 @@ if [[ -z "$_F_github_full_archive_name" ]]; then
 	if [[ -n "$_F_github_tag_v" ]]; then
 		## tag_v should be v1.2.3.tar.gz
 		_F_github_full_archive_name="v${_F_github_ver}"
+		_F_github_up2date_path="tags"
 	elif [[ -n "$_F_github_tag" ]]; then
 		## tag should be 1.2.3.tar.gz
 		_F_github_full_archive_name="${_F_github_ver}"
+		_F_github_up2date_path="tags"
 	else
 		## normal stuff should be $pkgname-$pkgver.tar.gz ( but what is normal on github!)
 		## everything else _F_github_full_archive_name="someThIng_Like3-1_foo"

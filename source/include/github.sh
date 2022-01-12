@@ -129,7 +129,7 @@ fi
 if [ -n "$_F_github_devel" ]; then
 	# Not checked, but may work.
 	_F_scm_type=git
-	_F_scm_url=git://github.com/$_F_github_author/$_F_github_name
+	_F_scm_url=https://github.com/$_F_github_author/${_F_github_name}.git
 	Finclude scm
 	unset _F_github_source _F_github_tag _F_github_tag_v source
 else

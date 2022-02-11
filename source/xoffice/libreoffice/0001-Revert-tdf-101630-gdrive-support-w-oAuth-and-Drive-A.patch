@@ -1,4 +1,4 @@
-From 4da5b5658dff57b7540bfc97133629d2a8ccf53d Mon Sep 17 00:00:00 2001
+From 2bf7bb98f7ed854ea382ab8340baad797787d984 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Caol=C3=A1n=20McNamara?= <caolanm@redhat.com>
 Date: Sat, 14 Aug 2021 21:43:19 +0100
 Subject: [PATCH] Revert "tdf#101630 - gdrive support w/oAuth and Drive API v3"
@@ -12,9 +12,9 @@ This reverts commit b8b66a26f8f519a30b8e6b860a9247a8ffbb71cc.
  .../data/org/openoffice/Office/Common.xcu     |   2 +-
  ucb/source/ucp/cmis/auth_provider.cxx         | 130 +---
  ucb/source/ucp/cmis/auth_provider.hxx         |   8 +-
- ucb/source/ucp/cmis/cmis_content.cxx          |  21 +-
+ ucb/source/ucp/cmis/cmis_content.cxx          |  23 +-
  ucb/source/ucp/cmis/cmis_repo_content.cxx     |   4 +-
- 9 files changed, 55 insertions(+), 1007 deletions(-)
+ 9 files changed, 55 insertions(+), 1009 deletions(-)
  delete mode 100644 external/libcmis/libcmis_gdrive.patch.1
  delete mode 100644 external/libcmis/libcmis_oauth_pw_as_refreshtoken.patch.1
 
@@ -41,7 +41,7 @@ index 9945dda3dda5..a95015b41f3e 100644
  
  /* Alfresco Cloud */
 diff --git a/external/libcmis/UnpackedTarball_libcmis.mk b/external/libcmis/UnpackedTarball_libcmis.mk
-index 8398853e4511..a5be3078c95a 100644
+index f48201d319d0..64d4af395f44 100644
 --- a/external/libcmis/UnpackedTarball_libcmis.mk
 +++ b/external/libcmis/UnpackedTarball_libcmis.mk
 @@ -17,8 +17,6 @@ $(eval $(call gb_UnpackedTarball_add_patches,libcmis, \
@@ -50,9 +50,9 @@ index 8398853e4511..a5be3078c95a 100644
  	external/libcmis/libcmis_onedrive.patch \
 -	external/libcmis/libcmis_oauth_pw_as_refreshtoken.patch.1 \
 -	external/libcmis/libcmis_gdrive.patch.1 \
+ 	external/libcmis/libcmis-boost-string.patch \
  ))
  
- # vim: set noet sw=4 ts=4:
 diff --git a/external/libcmis/libcmis_gdrive.patch.1 b/external/libcmis/libcmis_gdrive.patch.1
 deleted file mode 100644
 index 24ff65d1ef15..000000000000
@@ -953,10 +953,10 @@ index a8cb06509421..000000000000
 - 
 - #endif /* _ONEDRIVE_SESSION_HXX_ */
 diff --git a/officecfg/registry/data/org/openoffice/Office/Common.xcu b/officecfg/registry/data/org/openoffice/Office/Common.xcu
-index d9c2d5df34e3..2277b42bdf74 100644
+index f543b6ebb3c9..24be0a7f2830 100644
 --- a/officecfg/registry/data/org/openoffice/Office/Common.xcu
 +++ b/officecfg/registry/data/org/openoffice/Office/Common.xcu
-@@ -431,7 +431,7 @@
+@@ -434,7 +434,7 @@
      </prop>
      <prop oor:name="CmisServersUrls">
        <value>
@@ -966,7 +966,7 @@ index d9c2d5df34e3..2277b42bdf74 100644
          <it>https://api.alfresco.com/cmis/versions/1.0/atom/</it>
          <it></it>
 diff --git a/ucb/source/ucp/cmis/auth_provider.cxx b/ucb/source/ucp/cmis/auth_provider.cxx
-index 05a8846a11a7..5c2ded12986e 100644
+index c3f99f5f3de5..0f5f45596adc 100644
 --- a/ucb/source/ucp/cmis/auth_provider.cxx
 +++ b/ucb/source/ucp/cmis/auth_provider.cxx
 @@ -11,10 +11,7 @@
@@ -980,13 +980,13 @@ index 05a8846a11a7..5c2ded12986e 100644
  #include <ucbhelper/simpleauthenticationrequest.hxx>
  #include <ucbhelper/authenticationfallback.hxx>
  
-@@ -67,91 +64,6 @@ namespace cmis
+@@ -66,91 +63,6 @@ namespace cmis
          return false;
      }
  
--    string AuthProvider::getRefreshToken(string& rUsername)
+-    std::string AuthProvider::getRefreshToken(std::string& rUsername)
 -    {
--        string refreshToken;
+-        std::string refreshToken;
 -        const css::uno::Reference<css::ucb::XCommandEnvironment> xEnv = getXEnv();
 -        if (xEnv.is())
 -        {
@@ -1040,8 +1040,8 @@ index 05a8846a11a7..5c2ded12986e 100644
 -        return refreshToken;
 -    }
 -
--    bool AuthProvider::storeRefreshToken(const string& username, const string& password,
--                                         const string& refreshToken)
+-    bool AuthProvider::storeRefreshToken(const std::string& username, const std::string& password,
+-                                         const std::string& refreshToken)
 -    {
 -        if (refreshToken.empty())
 -            return false;
@@ -1072,7 +1072,7 @@ index 05a8846a11a7..5c2ded12986e 100644
      css::uno::WeakReference< css::ucb::XCommandEnvironment> AuthProvider::sm_xEnv;
  
      void AuthProvider::setXEnv(const css::uno::Reference< css::ucb::XCommandEnvironment>& xEnv )
-@@ -164,7 +76,7 @@ namespace cmis
+@@ -163,7 +75,7 @@ namespace cmis
          return sm_xEnv;
      }
  
@@ -1081,7 +1081,7 @@ index 05a8846a11a7..5c2ded12986e 100644
              const char* /*username*/,
              const char* /*password*/ )
      {
-@@ -208,6 +120,46 @@ namespace cmis
+@@ -207,6 +119,46 @@ namespace cmis
  
          return strdup( "" );
      }
@@ -1149,11 +1149,11 @@ index 9092f3c6bd25..d9864c45b230 100644
                      const char* /*password*/ );
  
 diff --git a/ucb/source/ucp/cmis/cmis_content.cxx b/ucb/source/ucp/cmis/cmis_content.cxx
-index b5fb4ac3bda3..aa7628199a8c 100644
+index 7980a1821bba..93f43f4540a6 100644
 --- a/ucb/source/ucp/cmis/cmis_content.cxx
 +++ b/ucb/source/ucp/cmis/cmis_content.cxx
-@@ -347,15 +347,12 @@ namespace cmis
-             string rPassword = OUSTR_TO_STDSTR( m_aURL.getPassword( ) );
+@@ -343,15 +343,12 @@ namespace cmis
+             auto rPassword = OUSTR_TO_STDSTR( m_aURL.getPassword( ) );
  
              bool bSkipInitialPWAuth = false;
 -            if (m_aURL.getBindingUrl() == ONEDRIVE_BASE_URL
@@ -1169,7 +1169,7 @@ index b5fb4ac3bda3..aa7628199a8c 100644
              }
  
              bool bIsDone = false;
-@@ -368,9 +365,7 @@ namespace cmis
+@@ -364,9 +361,7 @@ namespace cmis
                      libcmis::OAuth2DataPtr oauth2Data;
                      if ( m_aURL.getBindingUrl( ) == GDRIVE_BASE_URL )
                      {
@@ -1177,19 +1177,21 @@ index b5fb4ac3bda3..aa7628199a8c 100644
 -                        bSkipInitialPWAuth = false;
 -                        libcmis::SessionFactory::setOAuth2AuthCodeProvider(AuthProvider::copyWebAuthCodeFallback);
 +                        libcmis::SessionFactory::setOAuth2AuthCodeProvider(AuthProvider::gdriveAuthCodeFallback);
-                         oauth2Data.reset( new libcmis::OAuth2Data(
+                         oauth2Data = boost::make_shared<libcmis::OAuth2Data>(
                              GDRIVE_AUTH_URL, GDRIVE_TOKEN_URL,
                              GDRIVE_SCOPE, GDRIVE_REDIRECT_URI,
-@@ -385,7 +380,7 @@ namespace cmis
+@@ -379,9 +374,7 @@ namespace cmis
+                             ALFRESCO_CLOUD_CLIENT_ID, ALFRESCO_CLOUD_CLIENT_SECRET );
+                     if ( m_aURL.getBindingUrl( ) == ONEDRIVE_BASE_URL )
                      {
-                         // reset the skip, so user gets a chance to cancel
-                         bSkipInitialPWAuth = false;
+-                        // reset the skip, so user gets a chance to cancel
+-                        bSkipInitialPWAuth = false;
 -                        libcmis::SessionFactory::setOAuth2AuthCodeProvider(AuthProvider::copyWebAuthCodeFallback);
 +                        libcmis::SessionFactory::setOAuth2AuthCodeProvider(AuthProvider::onedriveAuthCodeFallback);
-                         oauth2Data.reset( new libcmis::OAuth2Data(
+                         oauth2Data = boost::make_shared<libcmis::OAuth2Data>(
                              ONEDRIVE_AUTH_URL, ONEDRIVE_TOKEN_URL,
                              ONEDRIVE_SCOPE, ONEDRIVE_REDIRECT_URI,
-@@ -417,12 +412,6 @@ namespace cmis
+@@ -413,12 +406,6 @@ namespace cmis
                          else
                          {
                              m_pProvider->registerSession(sSessionId, m_aURL.getUsername( ), m_pSession);
@@ -1202,7 +1204,7 @@ index b5fb4ac3bda3..aa7628199a8c 100644
                          }
  
                          bIsDone = true;
-@@ -430,10 +419,7 @@ namespace cmis
+@@ -426,10 +413,7 @@ namespace cmis
                      catch( const libcmis::Exception & e )
                      {
                          if ( e.getType() != "permissionDenied" )
@@ -1213,7 +1215,7 @@ index b5fb4ac3bda3..aa7628199a8c 100644
                      }
                  }
                  else
-@@ -525,7 +511,6 @@ namespace cmis
+@@ -521,7 +505,6 @@ namespace cmis
                  }
                  catch ( const libcmis::Exception& )
                  {
@@ -1222,27 +1224,27 @@ index b5fb4ac3bda3..aa7628199a8c 100644
                  }
              }
 diff --git a/ucb/source/ucp/cmis/cmis_repo_content.cxx b/ucb/source/ucp/cmis/cmis_repo_content.cxx
-index 87a3f38dc792..507cade426ad 100644
+index c55b670526b8..d2945ddeb8f5 100644
 --- a/ucb/source/ucp/cmis/cmis_repo_content.cxx
 +++ b/ucb/source/ucp/cmis/cmis_repo_content.cxx
-@@ -165,7 +165,7 @@ namespace cmis
+@@ -168,7 +168,7 @@ namespace cmis
                      libcmis::OAuth2DataPtr oauth2Data;
                      if ( m_aURL.getBindingUrl( ) == GDRIVE_BASE_URL )
                      {
 -                        libcmis::SessionFactory::setOAuth2AuthCodeProvider( AuthProvider::copyWebAuthCodeFallback );
 +                        libcmis::SessionFactory::setOAuth2AuthCodeProvider( AuthProvider::gdriveAuthCodeFallback );
-                         oauth2Data.reset( new libcmis::OAuth2Data(
+                         oauth2Data = boost::make_shared<libcmis::OAuth2Data>(
                              GDRIVE_AUTH_URL, GDRIVE_TOKEN_URL,
                              GDRIVE_SCOPE, GDRIVE_REDIRECT_URI,
-@@ -178,7 +178,7 @@ namespace cmis
-                             ALFRESCO_CLOUD_CLIENT_ID, ALFRESCO_CLOUD_CLIENT_SECRET ) );
+@@ -181,7 +181,7 @@ namespace cmis
+                             ALFRESCO_CLOUD_CLIENT_ID, ALFRESCO_CLOUD_CLIENT_SECRET );
                      if ( m_aURL.getBindingUrl( ) == ONEDRIVE_BASE_URL )
                      {
 -                        libcmis::SessionFactory::setOAuth2AuthCodeProvider( AuthProvider::copyWebAuthCodeFallback );
 +                        libcmis::SessionFactory::setOAuth2AuthCodeProvider( AuthProvider::onedriveAuthCodeFallback );
-                         oauth2Data.reset( new libcmis::OAuth2Data(
+                         oauth2Data = boost::make_shared<libcmis::OAuth2Data>(
                              ONEDRIVE_AUTH_URL, ONEDRIVE_TOKEN_URL,
                              ONEDRIVE_SCOPE, ONEDRIVE_REDIRECT_URI,
 -- 
-2.31.1
+2.33.1
 

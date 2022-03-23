@@ -18,7 +18,7 @@
 ###
 _F_kernelver_ver=5.17
 _F_kernel_mod_compress=zstd
-_F_kernelver_rel=3
+_F_kernelver_rel=2
 
 ###
 # == APPENDED VALUES

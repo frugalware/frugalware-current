@@ -119,7 +119,13 @@ if [ -z "$_F_github_grep" ]; then
 fi
 
 if [ -z "$_F_github_up2date_path" ]; then
-       _F_github_up2date="releases"
+	if [[ -n "$_F_github_tag_v" ]]; then
+		_F_github_up2date="tags"
+	elif [[ -n "$_F_github_tag" ]]; then
+		_F_github_up2date="tags"
+	else
+	       _F_github_up2date="releases"
+	fi
 else
        _F_github_up2date="$_F_github_up2date_path"
 fi

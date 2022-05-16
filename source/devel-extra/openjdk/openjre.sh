@@ -1,4 +1,4 @@
-export OPENJREDIR=/usr/lib/jvm/java-17-openjdk/
+export OPENJREDIR=/usr/lib/jvm/java-18-openjdk/
 export MANPATH=$MANPATH:$OPENJREDIR/man
 export CLASSPATH=$CLASSPATH:$OPENJREDIR/lib
 

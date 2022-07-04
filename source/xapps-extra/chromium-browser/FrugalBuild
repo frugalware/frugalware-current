@@ -7,15 +7,15 @@ USE_DISTRO_FLAGS=${USE_DISTRO_FLAGS:-"y"}
 
 pkgname=chromium-browser
 pkgver=103.0.5060.53
-pkgrel=1
+pkgrel=2
 pkgdesc='Chromium browser'
 url='http://www.chromium.org/'
 depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6' 'libcups' \
 	'speech-dispatcher>=0.7.1-4' 'libxtst>=1.2.2-2' 'pango' 'atk' 'libxkbcommon' 'libxml2' \
 	'libatomic' 'pciutils>=3.5' 'gtk+3' 'libxslt' 'libdrm' 'icu4c>=71.1' 'json-glib' 'ffmpeg>=5.0' \
-	'harfbuzz>=3.0.0' 'libjpeg-turbo' 'fontconfig' 'libva' 'libwebp' 'opus' 'curl' 'freetype2')
+	'harfbuzz>=3.0.0' 'libjpeg-turbo' 'fontconfig' 'libva' 'libwebp' 'opus' 'curl' 'freetype2' 're2')
 makedepends=('ninja' 'python3-six' 'gn>=0.1731' 'cups' 'x11-protos' 'mesa-dri-drivers' 'nodejs' \
-	'openjdk' 'gperf' 'libxrandr' 'html5lib-python' 'vulkan-headers' 'clang' 'llvm' 'git')
+	'openjdk' 'gperf' 'libxrandr' 'html5lib-python' 'vulkan-headers'  'clang' 'llvm' 'git')
 license=('BSD')
 groups=('xapps-extra')
 archs=('x86_64')
@@ -164,9 +164,9 @@ build() {
 		third_party/googletest
 		third_party/openh264
 		third_party/hunspell
-		third_party/harfbuzz-ng
 		third_party/iccjpeg
 		third_party/inspector_protocol
+		third_party/harfbuzz-ng/utils
 		third_party/jinja2
 		third_party/jsoncpp
 		third_party/jstemplate
@@ -311,8 +311,7 @@ build() {
 		third_party/fxdiv
 		third_party/pthreadpool
 		third_party/fp16
-		third_party/xnnpack
-		third_party/re2 )
+		third_party/xnnpack )
 	# Remove most bundled libraries. Some are still needed.
 
 	Fexec build/linux/unbundle/remove_bundled_libraries.py "${keeplibs[@]}" --do-remove || Fdie
@@ -320,6 +319,7 @@ build() {
 	## FIXME: some things missing..
 	## eg: opus , libusb and some more
 	gn_system_libraries="
+		re2
 		fontconfig
 		ffmpeg
 		freetype
@@ -385,6 +385,10 @@ build() {
 	# Enable VA-API
 	myconf_gn+=" use_vaapi=true "
 
+	myconf_gn+=" is_official_build=true"
+	myconf_gn+=" is_cfi=false"
+	myconf_gn+=" chrome_pgo_phase=0"
+
 	## that kills chromium shitty flags, but we may run into some issues
 	if Fuse $USE_DISTRO_FLAGS; then
 		myconf_gn+=" custom_toolchain=\"//build/toolchain/linux/unbundle:default\""
@@ -412,16 +416,16 @@ build() {
 	# https://crbug.com/957519#c122
 	CXXFLAGS=${CXXFLAGS/-Wp,-D_GLIBCXX_ASSERTIONS}
 
+	# Allow system libs in official build
+	Fsed 'OFFICIAL_BUILD' 'GOOGLE_CHROME_BUILD' tools/generate_shim_headers/generate_shim_headers.py || Fdie
+
 	Fexec gn gen --args="${myconf_gn}" out/Release --script-executable=/usr/bin/python3 || Fdie
 	Fexec mkdir -p third_party/node/linux/node-linux-x64/bin || Fdie
 	Fexec rm -rf third_party/node/linux/node-linux-x64/bin/node
 	Fexec ln -s /usr/bin/node third_party/node/linux/node-linux-x64/bin/
-	Fexec ln -s /usr/lib/jvm/java-16-openjdk/bin/java third_party/jdk/current/bin/
+	Fexec ln -s /usr/bin/java third_party/jdk/current/bin/
 
 	Fexec ninja -vvv -C out/Release pdf chrome chrome_sandbox chromedriver clear_key_cdm || Fdie
-
-	Fmessage "Plulling ls on out/Release.."
-	Fexec ls out/Release
 
 	Fmkdir usr/lib/${chromium_path}
 	Fexerel out/Release/chrome usr/lib/${chromium_path}/chromium

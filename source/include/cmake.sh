@@ -29,8 +29,8 @@ if [ -z "$_F_cmake_color" ]; then
 	_F_cmake_color="OFF"
 fi
 
-if [ -z "$_F_cmake_in_source_build" ]; then
-	_F_cmake_in_source_build=0
+if [ -z "$_F_cmake_src_dir" ]; then
+	_F_cmake_src_dir="."
 fi
 
 
@@ -66,7 +66,7 @@ CROSS_INC="include"
 # * makedepends(): add cmake and pkgconfig
 # * options(): add nostrip if _F_cmake_type is Debug*
 ###
-makedepends+=('cmake>=3.10.2-2' 'pkgconfig')
+makedepends+=('cmake>=3.23' 'pkgconfig')
 
 ###
 # == PROVIDED FUNCTIONS
@@ -93,12 +93,6 @@ CMake_conf()
 {
 	CMake_setup
 
-	if [ "$_F_cmake_in_source_build" -eq "0" ]; then
-		_F_cmake_src=".."
-	else
-		_F_cmake_src="."
-	fi
-
 	cmake \
         ${cmake_generator} \
 		-DCMAKE_INSTALL_PREFIX=${CROSS_PREFIX} \
@@ -123,7 +117,7 @@ CMake_conf()
 		-DCMAKE_SKIP_INSTALL_RPATH="$_F_cmake_install_rpath" \
 		-DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG" \
 		-DCMAKE_C_FLAGS_RELEASE="-DNDEBUG" \
-		$_F_cmake_confopts "$@" $_F_cmake_src || Fdie
+		$_F_cmake_confopts "$@" -S $_F_cmake_src_dir -B $_F_cmake_build_dir|| Fdie
 }
 
 ###
@@ -135,18 +129,6 @@ CMake_prepare_build()
         if [ -z "$_Fbuild_no_patch" ]; then
 	        Fpatchall
         fi
-	if [ "$_F_cmake_in_source_build" -eq "0" ]; then
-		if [ -d  "$_F_cmake_build_dir" ]; then
-			rm -rf $_F_cmake_build_dir || Fdie
-			mkdir $_F_cmake_build_dir || Fdie
-			cd $_F_cmake_build_dir || Fdie
-		else
-			mkdir $_F_cmake_build_dir || Fdie
-			cd $_F_cmake_build_dir || Fdie
-		fi
-	else
-		export CMAKE_IN_SOURCE_BUILD=1
-	fi
 }
 
 ###
@@ -156,6 +138,7 @@ CMake_make()
 {
 	CMake_prepare_build
 	CMake_conf "$@"
+	cd $_F_cmake_build_dir || Fdie
 	${cmake_builder} || Fdie
 }
 

@@ -71,7 +71,7 @@ fi
 
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
-	_F_kde_mirror="https://ftp.gwdg.de/pub/linux/kde/"
+	_F_kde_mirror="https://download.kde.org/Attic"
 	## If the mirror breaks search one supporting ncftpls -R
 	## see https://download.kde.org/extra/download-mirrors.html
 	_F_kde_up2date_mirror="rsync://download.kde.org/kdeftp"

@@ -36,7 +36,7 @@ fi
 
 if [ -z "$_F_qt_nocore" ]; then
 	qtpkgname=${pkgname/5-/}
-	qtpkgfilename=${qtpkgname}-everywhere-src-${pkgver}
+	qtpkgfilename=${qtpkgname}-everywhere-opensource-src-${pkgver}
 	pkgdesc="The Qt5 toolkit, ${qtpkgname}"
 	url="http://www.qt.io"
 	if [ -z "$groups" ]; then
@@ -46,17 +46,17 @@ if [ -z "$_F_qt_nocore" ]; then
 	source=(http://download.qt.io/archive/qt/${pkgver%.*}/${pkgver}/submodules/${qtpkgfilename}.tar.xz)
 	_F_archive_grepv="6\."
 	up2date="Flastverdir http://download.qt-project.org/official_releases/qt/\$(Flastverdir http://download.qt-project.org/official_releases/qt/)"
-	_F_cd_path=${qtpkgfilename}
+	_F_cd_path=${qtpkgname}-everywhere-src-${pkgver}
 fi
 
 if [[ "$pkgname" =~ "qt5-base" ]]; then
 	makedepends+=('x11-protos' 'gperf')
 else
-	makedepends+=('x11-protos' 'gperf' "qt5-base-static>=5.15.2")
+	makedepends+=('x11-protos' 'gperf' "qt5-base-static>=5.15.4")
 fi
 
 if [[ ! "$pkgname" =~ "qt5-base" ]] || [[ ! "$pkgname" =~ "qt5-declarative" ]]; then
-	makedepends+=('qt5-declarative-static>=5.15.2')
+	makedepends+=('qt5-declarative-static>=5.15.4')
 fi
 
 if [ -z "$archs" ]; then

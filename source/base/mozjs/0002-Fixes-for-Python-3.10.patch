@@ -1,43 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: "Jan Alexander Steffens (heftig)" <jan.steffens@gmail.com>
-Date: Tue, 11 Jan 2022 19:26:43 +0100
-Subject: [PATCH] Fixes for Python 3.10
-
-Bug 1719144 cherry-picked from Firefox Nightly.
----
- python/mach/mach/config.py                    |   5 +-
- python/mach/mach/decorators.py                |   3 +-
- python/mach/mach/main.py                      |   2 +-
- .../mozbuild/backend/configenvironment.py     |   3 +-
- python/mozbuild/mozbuild/makeutil.py          |   2 +-
- python/mozbuild/mozbuild/util.py              |   3 +-
- taskcluster/taskgraph/util/schema.py          |   3 +-
- .../manifestparser/manifestparser/filters.py  |   3 +-
- third_party/python/gyp/pylib/gyp/common.py    |   3 +-
- third_party/python/requirements.in            |   2 +-
- third_party/python/requirements.txt           |   6 +-
- .../{ => voluptuous-0.12.1.dist-info}/COPYING |   0
- .../METADATA}                                 | 114 +++++++---
- .../voluptuous-0.12.1.dist-info/RECORD        |  11 +
- .../voluptuous-0.12.1.dist-info/WHEEL         |  11 +
- .../top_level.txt                             |   0
- .../python/voluptuous/voluptuous/__init__.py  |   2 +-
- .../python/voluptuous/voluptuous/error.py     |   4 +-
- .../voluptuous/voluptuous/schema_builder.py   |  25 ++-
- .../python/voluptuous/voluptuous/util.py      |  18 +-
- .../voluptuous/voluptuous/validators.py       | 198 ++++++++++++------
- 21 files changed, 300 insertions(+), 118 deletions(-)
- copy third_party/python/voluptuous/{ => voluptuous-0.12.1.dist-info}/COPYING (100%)
- rename third_party/python/voluptuous/{README.md => voluptuous-0.12.1.dist-info/METADATA} (83%)
- create mode 100644 third_party/python/voluptuous/voluptuous-0.12.1.dist-info/RECORD
- create mode 100644 third_party/python/voluptuous/voluptuous-0.12.1.dist-info/WHEEL
- rename third_party/python/{psutil-cp27-none-win_amd64/psutil-5.7.0.dist-info => voluptuous/voluptuous-0.12.1.dist-info}/top_level.txt (100%)
-
-diff --git a/python/mach/mach/config.py b/python/mach/mach/config.py
-index 7210eca82308..6605e381b310 100644
---- a/python/mach/mach/config.py
-+++ b/python/mach/mach/config.py
-@@ -17,6 +17,7 @@ settings are available.
+diff -Naur firefox-78.15.0/python/mach/mach/config.py firefox-78.15.0.new/python/mach/mach/config.py
+--- firefox-78.15.0/python/mach/mach/config.py	2021-09-28 12:04:57.000000000 +0200
++++ firefox-78.15.0.new/python/mach/mach/config.py	2022-08-24 19:30:18.978782840 +0200
+@@ -17,6 +17,7 @@
  from __future__ import absolute_import, unicode_literals
  
  import collections
@@ -45,7 +9,7 @@ index 7210eca82308..6605e381b310 100644
  import os
  import sys
  import six
-@@ -144,7 +145,7 @@ def reraise_attribute_error(func):
+@@ -144,7 +145,7 @@
      return _
  
  
@@ -54,7 +18,7 @@ index 7210eca82308..6605e381b310 100644
      """Interface for configuration settings.
  
      This is the main interface to the configuration.
-@@ -190,7 +191,7 @@ class ConfigSettings(collections.Mapping):
+@@ -190,7 +191,7 @@
      will result in exceptions being raised.
      """
  
@@ -63,11 +27,10 @@ index 7210eca82308..6605e381b310 100644
          """Represents an individual config section."""
          def __init__(self, config, name, settings):
              object.__setattr__(self, '_config', config)
-diff --git a/python/mach/mach/decorators.py b/python/mach/mach/decorators.py
-index 27f7f34a6ddc..8b1a49c76dc2 100644
---- a/python/mach/mach/decorators.py
-+++ b/python/mach/mach/decorators.py
-@@ -6,6 +6,7 @@ from __future__ import absolute_import, unicode_literals
+diff -Naur firefox-78.15.0/python/mach/mach/decorators.py firefox-78.15.0.new/python/mach/mach/decorators.py
+--- firefox-78.15.0/python/mach/mach/decorators.py	2021-09-28 12:04:57.000000000 +0200
++++ firefox-78.15.0.new/python/mach/mach/decorators.py	2022-08-24 19:30:18.978782840 +0200
+@@ -6,6 +6,7 @@
  
  import argparse
  import collections
@@ -75,7 +38,7 @@ index 27f7f34a6ddc..8b1a49c76dc2 100644
  
  from .base import MachError
  from .registrar import Registrar
-@@ -140,7 +141,7 @@ def CommandProvider(cls):
+@@ -140,7 +141,7 @@
                'Conditions argument must take a list ' + \
                'of functions. Found %s instead.'
  
@@ -84,11 +47,10 @@ index 27f7f34a6ddc..8b1a49c76dc2 100644
              msg = msg % (command.name, type(command.conditions))
              raise MachError(msg)
  
-diff --git a/python/mach/mach/main.py b/python/mach/mach/main.py
-index a7311806d0a4..0f2c6a16d9d2 100644
---- a/python/mach/mach/main.py
-+++ b/python/mach/mach/main.py
-@@ -16,7 +16,7 @@ import os
+diff -Naur firefox-78.15.0/python/mach/mach/main.py firefox-78.15.0.new/python/mach/mach/main.py
+--- firefox-78.15.0/python/mach/mach/main.py	2021-09-28 12:04:57.000000000 +0200
++++ firefox-78.15.0.new/python/mach/mach/main.py	2022-08-24 19:30:18.978782840 +0200
+@@ -16,7 +16,7 @@
  import sys
  import traceback
  import uuid
@@ -97,11 +59,10 @@ index a7311806d0a4..0f2c6a16d9d2 100644
  
  from six import string_types
  
-diff --git a/python/mozbuild/mozbuild/backend/configenvironment.py b/python/mozbuild/mozbuild/backend/configenvironment.py
-index 20d1a9fa69da..898cabb73b0b 100644
---- a/python/mozbuild/mozbuild/backend/configenvironment.py
-+++ b/python/mozbuild/mozbuild/backend/configenvironment.py
-@@ -9,7 +9,8 @@ import six
+diff -Naur firefox-78.15.0/python/mozbuild/mozbuild/backend/configenvironment.py firefox-78.15.0.new/python/mozbuild/mozbuild/backend/configenvironment.py
+--- firefox-78.15.0/python/mozbuild/mozbuild/backend/configenvironment.py	2021-09-28 12:04:57.000000000 +0200
++++ firefox-78.15.0.new/python/mozbuild/mozbuild/backend/configenvironment.py	2022-08-24 19:30:18.978782840 +0200
+@@ -9,7 +9,8 @@
  import sys
  import json
  
@@ -111,11 +72,10 @@ index 20d1a9fa69da..898cabb73b0b 100644
  from types import ModuleType
  
  import mozpack.path as mozpath
-diff --git a/python/mozbuild/mozbuild/makeutil.py b/python/mozbuild/mozbuild/makeutil.py
-index 4da1a3b268e5..4ce56848cd6c 100644
---- a/python/mozbuild/mozbuild/makeutil.py
-+++ b/python/mozbuild/mozbuild/makeutil.py
-@@ -7,7 +7,7 @@ from __future__ import absolute_import, print_function, unicode_literals
+diff -Naur firefox-78.15.0/python/mozbuild/mozbuild/makeutil.py firefox-78.15.0.new/python/mozbuild/mozbuild/makeutil.py
+--- firefox-78.15.0/python/mozbuild/mozbuild/makeutil.py	2021-09-28 12:04:57.000000000 +0200
++++ firefox-78.15.0.new/python/mozbuild/mozbuild/makeutil.py	2022-08-24 19:30:18.979782785 +0200
+@@ -7,7 +7,7 @@
  import os
  import re
  import six
@@ -124,11 +84,10 @@ index 4da1a3b268e5..4ce56848cd6c 100644
  
  
  class Makefile(object):
-diff --git a/python/mozbuild/mozbuild/util.py b/python/mozbuild/mozbuild/util.py
-index 044cf645c1f1..ed30088c0059 100644
---- a/python/mozbuild/mozbuild/util.py
-+++ b/python/mozbuild/mozbuild/util.py
-@@ -9,6 +9,7 @@ from __future__ import absolute_import, print_function, unicode_literals
+diff -Naur firefox-78.15.0/python/mozbuild/mozbuild/util.py firefox-78.15.0.new/python/mozbuild/mozbuild/util.py
+--- firefox-78.15.0/python/mozbuild/mozbuild/util.py	2021-09-28 12:04:57.000000000 +0200
++++ firefox-78.15.0.new/python/mozbuild/mozbuild/util.py	2022-08-24 19:30:18.979782785 +0200
+@@ -9,6 +9,7 @@
  
  import argparse
  import collections
@@ -136,7 +95,7 @@ index 044cf645c1f1..ed30088c0059 100644
  import ctypes
  import difflib
  import errno
-@@ -782,7 +783,7 @@ class HierarchicalStringList(object):
+@@ -782,7 +783,7 @@
          self._strings = StrictOrderingOnAppendList()
          self._children = {}
  
@@ -145,11 +104,10 @@ index 044cf645c1f1..ed30088c0059 100644
          def __init__(self, hsl):
              self._hsl = hsl
  
-diff --git a/taskcluster/taskgraph/util/schema.py b/taskcluster/taskgraph/util/schema.py
-index 0b15d3d5fd6f..29e36793f336 100644
---- a/taskcluster/taskgraph/util/schema.py
-+++ b/taskcluster/taskgraph/util/schema.py
-@@ -7,6 +7,7 @@ from __future__ import absolute_import, print_function, unicode_literals
+diff -Naur firefox-78.15.0/taskcluster/taskgraph/util/schema.py firefox-78.15.0.new/taskcluster/taskgraph/util/schema.py
+--- firefox-78.15.0/taskcluster/taskgraph/util/schema.py	2021-09-28 12:04:58.000000000 +0200
++++ firefox-78.15.0.new/taskcluster/taskgraph/util/schema.py	2022-08-24 19:30:18.979782785 +0200
+@@ -7,6 +7,7 @@
  import re
  import pprint
  import collections
@@ -157,7 +115,7 @@ index 0b15d3d5fd6f..29e36793f336 100644
  import voluptuous
  
  from six import text_type, iteritems
-@@ -160,7 +161,7 @@ def check_schema(schema):
+@@ -160,7 +161,7 @@
                      'Unexpected type in YAML schema: {} @ {}'.format(
                          type(k).__name__, path))
  
@@ -166,11 +124,10 @@ index 0b15d3d5fd6f..29e36793f336 100644
              for k, v in iteritems(sch):
                  child = "{}[{!r}]".format(path, k)
                  check_identifier(child, k)
-diff --git a/testing/mozbase/manifestparser/manifestparser/filters.py b/testing/mozbase/manifestparser/manifestparser/filters.py
-index 287ee033b222..b1d6080031f6 100644
---- a/testing/mozbase/manifestparser/manifestparser/filters.py
-+++ b/testing/mozbase/manifestparser/manifestparser/filters.py
-@@ -12,7 +12,8 @@ from __future__ import absolute_import
+diff -Naur firefox-78.15.0/testing/mozbase/manifestparser/manifestparser/filters.py firefox-78.15.0.new/testing/mozbase/manifestparser/manifestparser/filters.py
+--- firefox-78.15.0/testing/mozbase/manifestparser/manifestparser/filters.py	2021-09-28 12:04:57.000000000 +0200
++++ firefox-78.15.0.new/testing/mozbase/manifestparser/manifestparser/filters.py	2022-08-24 19:30:18.980782729 +0200
+@@ -12,7 +12,8 @@
  
  import itertools
  import os
@@ -180,10 +137,9 @@ index 287ee033b222..b1d6080031f6 100644
  
  import six
  from six import string_types
-diff --git a/third_party/python/gyp/pylib/gyp/common.py b/third_party/python/gyp/pylib/gyp/common.py
-index b268d229a483..2195e1e458e3 100644
---- a/third_party/python/gyp/pylib/gyp/common.py
-+++ b/third_party/python/gyp/pylib/gyp/common.py
+diff -Naur firefox-78.15.0/third_party/python/gyp/pylib/gyp/common.py firefox-78.15.0.new/third_party/python/gyp/pylib/gyp/common.py
+--- firefox-78.15.0/third_party/python/gyp/pylib/gyp/common.py	2021-09-28 12:05:01.000000000 +0200
++++ firefox-78.15.0.new/third_party/python/gyp/pylib/gyp/common.py	2022-08-24 19:30:18.980782729 +0200
 @@ -5,6 +5,7 @@
  from __future__ import with_statement
  
@@ -192,7 +148,7 @@ index b268d229a483..2195e1e458e3 100644
  import errno
  import filecmp
  import os.path
-@@ -494,7 +495,7 @@ def uniquer(seq, idfun=None):
+@@ -494,7 +495,7 @@
  
  
  # Based on http://code.activestate.com/recipes/576694/.
@@ -201,21 +157,19 @@ index b268d229a483..2195e1e458e3 100644
    def __init__(self, iterable=None):
      self.end = end = []
      end += [None, end, end]         # sentinel node for doubly linked list
-diff --git a/third_party/python/requirements.in b/third_party/python/requirements.in
-index b65c92e30c09..1127ab280c84 100644
---- a/third_party/python/requirements.in
-+++ b/third_party/python/requirements.in
-@@ -42,4 +42,4 @@ requests==2.9.1
+diff -Naur firefox-78.15.0/third_party/python/requirements.in firefox-78.15.0.new/third_party/python/requirements.in
+--- firefox-78.15.0/third_party/python/requirements.in	2021-09-28 12:05:01.000000000 +0200
++++ firefox-78.15.0.new/third_party/python/requirements.in	2022-08-24 19:30:18.980782729 +0200
+@@ -42,4 +42,4 @@
  responses==0.10.6
  sentry-sdk==0.14.3
  six==1.13.0
 -voluptuous==0.11.5
 +voluptuous==0.12.1
-diff --git a/third_party/python/requirements.txt b/third_party/python/requirements.txt
-index fd0b6cb1a181..5742c9cdb771 100644
---- a/third_party/python/requirements.txt
-+++ b/third_party/python/requirements.txt
-@@ -172,9 +172,9 @@ urllib3==1.25.9 \
+diff -Naur firefox-78.15.0/third_party/python/requirements.txt firefox-78.15.0.new/third_party/python/requirements.txt
+--- firefox-78.15.0/third_party/python/requirements.txt	2021-09-28 12:05:01.000000000 +0200
++++ firefox-78.15.0.new/third_party/python/requirements.txt	2022-08-24 19:30:18.981782674 +0200
+@@ -172,9 +172,9 @@
      --hash=sha256:3018294ebefce6572a474f0604c2021e33b3fd8006ecd11d62107a5d2a963527 \
      --hash=sha256:88206b0eb87e6d677d424843ac5209e3fb9d0190d0ee169599165ec25e9d9115 \
      # via sentry-sdk
@@ -228,140 +182,698 @@ index fd0b6cb1a181..5742c9cdb771 100644
      # via -r requirements-mach-vendor-python.in
  
  # WARNING: The following packages were not pinned, but pip requires them to be
-diff --git a/third_party/python/voluptuous/COPYING b/third_party/python/voluptuous/voluptuous-0.12.1.dist-info/COPYING
-similarity index 100%
-copy from third_party/python/voluptuous/COPYING
-copy to third_party/python/voluptuous/voluptuous-0.12.1.dist-info/COPYING
-diff --git a/third_party/python/voluptuous/README.md b/third_party/python/voluptuous/voluptuous-0.12.1.dist-info/METADATA
-similarity index 83%
-rename from third_party/python/voluptuous/README.md
-rename to third_party/python/voluptuous/voluptuous-0.12.1.dist-info/METADATA
-index 46e2288f4bea..914a5761d63a 100644
---- a/third_party/python/voluptuous/README.md
-+++ b/third_party/python/voluptuous/voluptuous-0.12.1.dist-info/METADATA
-@@ -1,7 +1,67 @@
-+<<<<<<<< HEAD:third_party/python/voluptuous/README.md
-+|||||||| parent of 8f49ebff11d78 (Bug 1719144 - Update voluptuous. r=firefox-build-system-reviewers,mhentges):third_party/python/voluptuous/voluptuous-0.11.5.dist-info/METADATA
-+Metadata-Version: 2.1
-+Name: voluptuous
-+Version: 0.11.5
-+Summary: # Voluptuous is a Python data validation library
-+Home-page: https://github.com/alecthomas/voluptuous
-+Author: Alec Thomas
-+Author-email: alec@swapoff.org
-+License: BSD
-+Download-URL: https://pypi.python.org/pypi/voluptuous
-+Platform: any
-+Classifier: Development Status :: 5 - Production/Stable
-+Classifier: Intended Audience :: Developers
-+Classifier: License :: OSI Approved :: BSD License
-+Classifier: Operating System :: OS Independent
-+Classifier: Programming Language :: Python :: 2
-+Classifier: Programming Language :: Python :: 2.7
-+Classifier: Programming Language :: Python :: 3
-+Classifier: Programming Language :: Python :: 3.6
-+Classifier: Programming Language :: Python :: 3.7
-+Description-Content-Type: text/markdown
-+
-+========
-+Metadata-Version: 2.1
-+Name: voluptuous
-+Version: 0.12.1
-+Summary: UNKNOWN
-+Home-page: https://github.com/alecthomas/voluptuous
-+Author: Alec Thomas
-+Author-email: alec@swapoff.org
-+License: BSD
-+Download-URL: https://pypi.python.org/pypi/voluptuous
-+Platform: any
-+Classifier: Development Status :: 5 - Production/Stable
-+Classifier: Intended Audience :: Developers
-+Classifier: License :: OSI Approved :: BSD License
-+Classifier: Operating System :: OS Independent
-+Classifier: Programming Language :: Python :: 2
-+Classifier: Programming Language :: Python :: 2.7
-+Classifier: Programming Language :: Python :: 3
-+Classifier: Programming Language :: Python :: 3.6
-+Classifier: Programming Language :: Python :: 3.7
-+Classifier: Programming Language :: Python :: 3.8
-+Classifier: Programming Language :: Python :: 3.9
-+Description-Content-Type: text/markdown
-+
-+
-+# CONTRIBUTIONS ONLY
-+
-+**What does this mean?** I do not have time to fix issues myself. The only way fixes or new features will be added is by people submitting PRs.
-+
-+**Current status:** Voluptuous is largely feature stable. There hasn't been a need to add new features in a while, but there are some bugs that should be fixed.
-+
-+**Why?** I no longer use Voluptuous personally (in fact I no longer regularly write Python code). Rather than leave the project in a limbo of people filing issues and wondering why they're not being worked on, I believe this notice will more clearly set expectations.
-+
-+>>>>>>>> 8f49ebff11d78 (Bug 1719144 - Update voluptuous. r=firefox-build-system-reviewers,mhentges):third_party/python/voluptuous/voluptuous-0.12.1.dist-info/METADATA
- # Voluptuous is a Python data validation library
- 
+diff -Naur firefox-78.15.0/third_party/python/voluptuous/README.md firefox-78.15.0.new/third_party/python/voluptuous/README.md
+--- firefox-78.15.0/third_party/python/voluptuous/README.md	2021-09-28 12:05:01.000000000 +0200
++++ firefox-78.15.0.new/third_party/python/voluptuous/README.md	1970-01-01 01:00:00.000000000 +0100
+@@ -1,723 +0,0 @@
+-# Voluptuous is a Python data validation library
+-
 -[![Build Status](https://travis-ci.org/alecthomas/voluptuous.png)](https://travis-ci.org/alecthomas/voluptuous)
 -[![Coverage Status](https://coveralls.io/repos/github/alecthomas/voluptuous/badge.svg?branch=master)](https://coveralls.io/github/alecthomas/voluptuous?branch=master) [![Gitter chat](https://badges.gitter.im/alecthomas.png)](https://gitter.im/alecthomas/Lobby)
-+[![image](https://img.shields.io/pypi/v/voluptuous.svg)](https://python.org/pypi/voluptuous)
-+[![image](https://img.shields.io/pypi/l/voluptuous.svg)](https://python.org/pypi/voluptuous)
-+[![image](https://img.shields.io/pypi/pyversions/voluptuous.svg)](https://python.org/pypi/voluptuous)
-+[![Build Status](https://travis-ci.org/alecthomas/voluptuous.svg)](https://travis-ci.org/alecthomas/voluptuous)
-+[![Coverage Status](https://coveralls.io/repos/github/alecthomas/voluptuous/badge.svg?branch=master)](https://coveralls.io/github/alecthomas/voluptuous?branch=master) [![Gitter chat](https://badges.gitter.im/alecthomas.svg)](https://gitter.im/alecthomas/Lobby)
- 
- Voluptuous, *despite* the name, is a Python data validation library. It
- is primarily intended for validating data coming into Python as JSON,
-@@ -32,6 +92,28 @@ The documentation is provided [here](http://alecthomas.github.io/voluptuous/).
- 
- See [CHANGELOG.md](https://github.com/alecthomas/voluptuous/blob/master/CHANGELOG.md).
- 
-+## Why use Voluptuous over another validation library?
-+
-+**Validators are simple callables:**
-+No need to subclass anything, just use a function.
-+
-+**Errors are simple exceptions:**
-+A validator can just `raise Invalid(msg)` and expect the user to get
-+useful messages.
-+
-+**Schemas are basic Python data structures:**
-+Should your data be a dictionary of integer keys to strings?
-+`{int: str}` does what you expect. List of integers, floats or
-+strings? `[int, float, str]`.
-+
-+**Designed from the ground up for validating more than just forms:**
-+Nested data structures are treated in the same way as any other
-+type. Need a list of dictionaries? `[{}]`
-+
-+**Consistency:**
-+Types in the schema are checked as types. Values are compared as
-+values. Callables are called to validate. Simple.
-+
- ## Show me an example
- 
- Twitter's [user search API](https://dev.twitter.com/rest/reference/get/users/search) accepts
-@@ -189,9 +271,9 @@ True
- 
- ```
- 
+-
+-Voluptuous, *despite* the name, is a Python data validation library. It
+-is primarily intended for validating data coming into Python as JSON,
+-YAML, etc.
+-
+-It has three goals:
+-
+-1.  Simplicity.
+-2.  Support for complex data structures.
+-3.  Provide useful error messages.
+-
+-## Contact
+-
+-Voluptuous now has a mailing list! Send a mail to
+-[<voluptuous@librelist.com>](mailto:voluptuous@librelist.com) to subscribe. Instructions
+-will follow.
+-
+-You can also contact me directly via [email](mailto:alec@swapoff.org) or
+-[Twitter](https://twitter.com/alecthomas).
+-
+-To file a bug, create a [new issue](https://github.com/alecthomas/voluptuous/issues/new) on GitHub with a short example of how to replicate the issue.
+-
+-## Documentation
+-
+-The documentation is provided [here](http://alecthomas.github.io/voluptuous/).
+-
+-## Changelog
+-
+-See [CHANGELOG.md](https://github.com/alecthomas/voluptuous/blob/master/CHANGELOG.md).
+-
+-## Show me an example
+-
+-Twitter's [user search API](https://dev.twitter.com/rest/reference/get/users/search) accepts
+-query URLs like:
+-
+-```
+-$ curl 'https://api.twitter.com/1.1/users/search.json?q=python&per_page=20&page=1'
+-```
+-
+-To validate this we might use a schema like:
+-
+-```pycon
+->>> from voluptuous import Schema
+->>> schema = Schema({
+-...   'q': str,
+-...   'per_page': int,
+-...   'page': int,
+-... })
+-
+-```
+-
+-This schema very succinctly and roughly describes the data required by
+-the API, and will work fine. But it has a few problems. Firstly, it
+-doesn't fully express the constraints of the API. According to the API,
+-`per_page` should be restricted to at most 20, defaulting to 5, for
+-example. To describe the semantics of the API more accurately, our
+-schema will need to be more thoroughly defined:
+-
+-```pycon
+->>> from voluptuous import Required, All, Length, Range
+->>> schema = Schema({
+-...   Required('q'): All(str, Length(min=1)),
+-...   Required('per_page', default=5): All(int, Range(min=1, max=20)),
+-...   'page': All(int, Range(min=0)),
+-... })
+-
+-```
+-
+-This schema fully enforces the interface defined in Twitter's
+-documentation, and goes a little further for completeness.
+-
+-"q" is required:
+-
+-```pycon
+->>> from voluptuous import MultipleInvalid, Invalid
+->>> try:
+-...   schema({})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "required key not provided @ data['q']"
+-True
+-
+-```
+-
+-...must be a string:
+-
+-```pycon
+->>> try:
+-...   schema({'q': 123})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "expected str for dictionary value @ data['q']"
+-True
+-
+-```
+-
+-...and must be at least one character in length:
+-
+-```pycon
+->>> try:
+-...   schema({'q': ''})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "length of value must be at least 1 for dictionary value @ data['q']"
+-True
+->>> schema({'q': '#topic'}) == {'q': '#topic', 'per_page': 5}
+-True
+-
+-```
+-
+-"per\_page" is a positive integer no greater than 20:
+-
+-```pycon
+->>> try:
+-...   schema({'q': '#topic', 'per_page': 900})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "value must be at most 20 for dictionary value @ data['per_page']"
+-True
+->>> try:
+-...   schema({'q': '#topic', 'per_page': -10})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "value must be at least 1 for dictionary value @ data['per_page']"
+-True
+-
+-```
+-
+-"page" is an integer \>= 0:
+-
+-```pycon
+->>> try:
+-...   schema({'q': '#topic', 'per_page': 'one'})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc)
+-"expected int for dictionary value @ data['per_page']"
+->>> schema({'q': '#topic', 'page': 1}) == {'q': '#topic', 'page': 1, 'per_page': 5}
+-True
+-
+-```
+-
+-## Defining schemas
+-
+-Schemas are nested data structures consisting of dictionaries, lists,
+-scalars and *validators*. Each node in the input schema is pattern
+-matched against corresponding nodes in the input data.
+-
+-### Literals
+-
+-Literals in the schema are matched using normal equality checks:
+-
+-```pycon
+->>> schema = Schema(1)
+->>> schema(1)
+-1
+->>> schema = Schema('a string')
+->>> schema('a string')
+-'a string'
+-
+-```
+-
+-### Types
+-
+-Types in the schema are matched by checking if the corresponding value
+-is an instance of the type:
+-
+-```pycon
+->>> schema = Schema(int)
+->>> schema(1)
+-1
+->>> try:
+-...   schema('one')
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "expected int"
+-True
+-
+-```
+-
 -### URL's
-+### URLs
- 
+-
 -URL's in the schema are matched by using `urlparse` library.
-+URLs in the schema are matched by using `urlparse` library.
- 
- ```pycon
- >>> from voluptuous import Url
-@@ -679,35 +761,13 @@ cross-field validator will not run:
- s({'password':'123', 'password_again': 1337})
- ```
- 
+-
+-```pycon
+->>> from voluptuous import Url
+->>> schema = Schema(Url())
+->>> schema('http://w3.org')
+-'http://w3.org'
+->>> try:
+-...   schema('one')
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "expected a URL"
+-True
+-
+-```
+-
+-### Lists
+-
+-Lists in the schema are treated as a set of valid values. Each element
+-in the schema list is compared to each value in the input data:
+-
+-```pycon
+->>> schema = Schema([1, 'a', 'string'])
+->>> schema([1])
+-[1]
+->>> schema([1, 1, 1])
+-[1, 1, 1]
+->>> schema(['a', 1, 'string', 1, 'string'])
+-['a', 1, 'string', 1, 'string']
+-
+-```
+-
+-However, an empty list (`[]`) is treated as is. If you want to specify a list that can
+-contain anything, specify it as `list`:
+-
+-```pycon
+->>> schema = Schema([])
+->>> try:
+-...   schema([1])
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "not a valid value @ data[1]"
+-True
+->>> schema([])
+-[]
+->>> schema = Schema(list)
+->>> schema([])
+-[]
+->>> schema([1, 2])
+-[1, 2]
+-
+-```
+-
+-### Sets and frozensets
+-
+-Sets and frozensets are treated as a set of valid values. Each element
+-in the schema set is compared to each value in the input data:
+-
+-```pycon
+->>> schema = Schema({42})
+->>> schema({42}) == {42}
+-True
+->>> try:
+-...   schema({43})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "invalid value in set"
+-True
+->>> schema = Schema({int})
+->>> schema({1, 2, 3}) == {1, 2, 3}
+-True
+->>> schema = Schema({int, str})
+->>> schema({1, 2, 'abc'}) == {1, 2, 'abc'}
+-True
+->>> schema = Schema(frozenset([int]))
+->>> try:
+-...   schema({3})
+-...   raise AssertionError('Invalid not raised')
+-... except Invalid as e:
+-...   exc = e
+->>> str(exc) == 'expected a frozenset'
+-True
+-
+-```
+-
+-However, an empty set (`set()`) is treated as is. If you want to specify a set
+-that can contain anything, specify it as `set`:
+-
+-```pycon
+->>> schema = Schema(set())
+->>> try:
+-...   schema({1})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "invalid value in set"
+-True
+->>> schema(set()) == set()
+-True
+->>> schema = Schema(set)
+->>> schema({1, 2}) == {1, 2}
+-True
+-
+-```
+-
+-### Validation functions
+-
+-Validators are simple callables that raise an `Invalid` exception when
+-they encounter invalid data. The criteria for determining validity is
+-entirely up to the implementation; it may check that a value is a valid
+-username with `pwd.getpwnam()`, it may check that a value is of a
+-specific type, and so on.
+-
+-The simplest kind of validator is a Python function that raises
+-ValueError when its argument is invalid. Conveniently, many builtin
+-Python functions have this property. Here's an example of a date
+-validator:
+-
+-```pycon
+->>> from datetime import datetime
+->>> def Date(fmt='%Y-%m-%d'):
+-...   return lambda v: datetime.strptime(v, fmt)
+-
+-```
+-
+-```pycon
+->>> schema = Schema(Date())
+->>> schema('2013-03-03')
+-datetime.datetime(2013, 3, 3, 0, 0)
+->>> try:
+-...   schema('2013-03')
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "not a valid value"
+-True
+-
+-```
+-
+-In addition to simply determining if a value is valid, validators may
+-mutate the value into a valid form. An example of this is the
+-`Coerce(type)` function, which returns a function that coerces its
+-argument to the given type:
+-
+-```python
+-def Coerce(type, msg=None):
+-    """Coerce a value to a type.
+-
+-    If the type constructor throws a ValueError, the value will be marked as
+-    Invalid.
+-    """
+-    def f(v):
+-        try:
+-            return type(v)
+-        except ValueError:
+-            raise Invalid(msg or ('expected %s' % type.__name__))
+-    return f
+-
+-```
+-
+-This example also shows a common idiom where an optional human-readable
+-message can be provided. This can vastly improve the usefulness of the
+-resulting error messages.
+-
+-### Dictionaries
+-
+-Each key-value pair in a schema dictionary is validated against each
+-key-value pair in the corresponding data dictionary:
+-
+-```pycon
+->>> schema = Schema({1: 'one', 2: 'two'})
+->>> schema({1: 'one'})
+-{1: 'one'}
+-
+-```
+-
+-#### Extra dictionary keys
+-
+-By default any additional keys in the data, not in the schema will
+-trigger exceptions:
+-
+-```pycon
+->>> schema = Schema({2: 3})
+->>> try:
+-...   schema({1: 2, 2: 3})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "extra keys not allowed @ data[1]"
+-True
+-
+-```
+-
+-This behaviour can be altered on a per-schema basis. To allow
+-additional keys use
+-`Schema(..., extra=ALLOW_EXTRA)`:
+-
+-```pycon
+->>> from voluptuous import ALLOW_EXTRA
+->>> schema = Schema({2: 3}, extra=ALLOW_EXTRA)
+->>> schema({1: 2, 2: 3})
+-{1: 2, 2: 3}
+-
+-```
+-
+-To remove additional keys use
+-`Schema(..., extra=REMOVE_EXTRA)`:
+-
+-```pycon
+->>> from voluptuous import REMOVE_EXTRA
+->>> schema = Schema({2: 3}, extra=REMOVE_EXTRA)
+->>> schema({1: 2, 2: 3})
+-{2: 3}
+-
+-```
+-
+-It can also be overridden per-dictionary by using the catch-all marker
+-token `extra` as a key:
+-
+-```pycon
+->>> from voluptuous import Extra
+->>> schema = Schema({1: {Extra: object}})
+->>> schema({1: {'foo': 'bar'}})
+-{1: {'foo': 'bar'}}
+-
+-```
+-
+-#### Required dictionary keys
+-
+-By default, keys in the schema are not required to be in the data:
+-
+-```pycon
+->>> schema = Schema({1: 2, 3: 4})
+->>> schema({3: 4})
+-{3: 4}
+-
+-```
+-
+-Similarly to how extra\_ keys work, this behaviour can be overridden
+-per-schema:
+-
+-```pycon
+->>> schema = Schema({1: 2, 3: 4}, required=True)
+->>> try:
+-...   schema({3: 4})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "required key not provided @ data[1]"
+-True
+-
+-```
+-
+-And per-key, with the marker token `Required(key)`:
+-
+-```pycon
+->>> schema = Schema({Required(1): 2, 3: 4})
+->>> try:
+-...   schema({3: 4})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "required key not provided @ data[1]"
+-True
+->>> schema({1: 2})
+-{1: 2}
+-
+-```
+-
+-#### Optional dictionary keys
+-
+-If a schema has `required=True`, keys may be individually marked as
+-optional using the marker token `Optional(key)`:
+-
+-```pycon
+->>> from voluptuous import Optional
+->>> schema = Schema({1: 2, Optional(3): 4}, required=True)
+->>> try:
+-...   schema({})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "required key not provided @ data[1]"
+-True
+->>> schema({1: 2})
+-{1: 2}
+->>> try:
+-...   schema({1: 2, 4: 5})
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "extra keys not allowed @ data[4]"
+-True
+-
+-```
+-
+-```pycon
+->>> schema({1: 2, 3: 4})
+-{1: 2, 3: 4}
+-
+-```
+-
+-### Recursive / nested schema
+-
+-You can use `voluptuous.Self` to define a nested schema:
+-
+-```pycon
+->>> from voluptuous import Schema, Self
+->>> recursive = Schema({"more": Self, "value": int})
+->>> recursive({"more": {"value": 42}, "value": 41}) == {'more': {'value': 42}, 'value': 41}
+-True
+-
+-```
+-
+-### Extending an existing Schema
+-
+-Often it comes handy to have a base `Schema` that is extended with more
+-requirements. In that case you can use `Schema.extend` to create a new
+-`Schema`:
+-
+-```pycon
+->>> from voluptuous import Schema
+->>> person = Schema({'name': str})
+->>> person_with_age = person.extend({'age': int})
+->>> sorted(list(person_with_age.schema.keys()))
+-['age', 'name']
+-
+-```
+-
+-The original `Schema` remains unchanged.
+-
+-### Objects
+-
+-Each key-value pair in a schema dictionary is validated against each
+-attribute-value pair in the corresponding object:
+-
+-```pycon
+->>> from voluptuous import Object
+->>> class Structure(object):
+-...     def __init__(self, q=None):
+-...         self.q = q
+-...     def __repr__(self):
+-...         return '<Structure(q={0.q!r})>'.format(self)
+-...
+->>> schema = Schema(Object({'q': 'one'}, cls=Structure))
+->>> schema(Structure(q='one'))
+-<Structure(q='one')>
+-
+-```
+-
+-### Allow None values
+-
+-To allow value to be None as well, use Any:
+-
+-```pycon
+->>> from voluptuous import Any
+-
+->>> schema = Schema(Any(None, int))
+->>> schema(None)
+->>> schema(5)
+-5
+-
+-```
+-
+-## Error reporting
+-
+-Validators must throw an `Invalid` exception if invalid data is passed
+-to them. All other exceptions are treated as errors in the validator and
+-will not be caught.
+-
+-Each `Invalid` exception has an associated `path` attribute representing
+-the path in the data structure to our currently validating value, as well
+-as an `error_message` attribute that contains the message of the original
+-exception. This is especially useful when you want to catch `Invalid`
+-exceptions and give some feedback to the user, for instance in the context of
+-an HTTP API.
+-
+-
+-```pycon
+->>> def validate_email(email):
+-...     """Validate email."""
+-...     if not "@" in email:
+-...         raise Invalid("This email is invalid.")
+-...     return email
+->>> schema = Schema({"email": validate_email})
+->>> exc = None
+->>> try:
+-...     schema({"email": "whatever"})
+-... except MultipleInvalid as e:
+-...     exc = e
+->>> str(exc)
+-"This email is invalid. for dictionary value @ data['email']"
+->>> exc.path
+-['email']
+->>> exc.msg
+-'This email is invalid.'
+->>> exc.error_message
+-'This email is invalid.'
+-
+-```
+-
+-The `path` attribute is used during error reporting, but also during matching
+-to determine whether an error should be reported to the user or if the next
+-match should be attempted. This is determined by comparing the depth of the
+-path where the check is, to the depth of the path where the error occurred. If
+-the error is more than one level deeper, it is reported.
+-
+-The upshot of this is that *matching is depth-first and fail-fast*.
+-
+-To illustrate this, here is an example schema:
+-
+-```pycon
+->>> schema = Schema([[2, 3], 6])
+-
+-```
+-
+-Each value in the top-level list is matched depth-first in-order. Given
+-input data of `[[6]]`, the inner list will match the first element of
+-the schema, but the literal `6` will not match any of the elements of
+-that list. This error will be reported back to the user immediately. No
+-backtracking is attempted:
+-
+-```pycon
+->>> try:
+-...   schema([[6]])
+-...   raise AssertionError('MultipleInvalid not raised')
+-... except MultipleInvalid as e:
+-...   exc = e
+->>> str(exc) == "not a valid value @ data[0][0]"
+-True
+-
+-```
+-
+-If we pass the data `[6]`, the `6` is not a list type and so will not
+-recurse into the first element of the schema. Matching will continue on
+-to the second element in the schema, and succeed:
+-
+-```pycon
+->>> schema([6])
+-[6]
+-
+-```
+-
+-## Multi-field validation
+-
+-Validation rules that involve multiple fields can be implemented as
+-custom validators. It's recommended to use `All()` to do a two-pass
+-validation - the first pass checking the basic structure of the data,
+-and only after that, the second pass applying your cross-field
+-validator:
+-
+-```python
+-def passwords_must_match(passwords):
+-    if passwords['password'] != passwords['password_again']:
+-        raise Invalid('passwords must match')
+-    return passwords
+-
+-s=Schema(All(
+-    # First "pass" for field types
+-    {'password':str, 'password_again':str},
+-    # Follow up the first "pass" with your multi-field rules
+-    passwords_must_match
+-))
+-
+-# valid
+-s({'password':'123', 'password_again':'123'})
+-
+-# raises MultipleInvalid: passwords must match
+-s({'password':'123', 'password_again':'and now for something completely different'})
+-
+-```
+-
+-With this structure, your multi-field validator will run with
+-pre-validated data from the first "pass" and so will not have to do
+-its own type checking on its inputs.
+-
+-The flipside is that if the first "pass" of validation fails, your
+-cross-field validator will not run:
+-
+-```
+-# raises Invalid because password_again is not a string
+-# passwords_must_match() will not run because first-pass validation already failed
+-s({'password':'123', 'password_again': 1337})
+-```
+-
 -## Running tests.
-+## Running tests
- 
- Voluptuous is using nosetests:
- 
-     $ nosetests
- 
- 
+-
+-Voluptuous is using nosetests:
+-
+-    $ nosetests
+-
+-
 -## Why use Voluptuous over another validation library?
 -
 -**Validators are simple callables**
@@ -384,63 +896,23 @@ index 46e2288f4bea..914a5761d63a 100644
 -:   Types in the schema are checked as types. Values are compared as
 -values. Callables are called to validate. Simple.
 -
- ## Other libraries and inspirations
- 
- Voluptuous is heavily inspired by
-diff --git a/third_party/python/voluptuous/voluptuous-0.12.1.dist-info/RECORD b/third_party/python/voluptuous/voluptuous-0.12.1.dist-info/RECORD
-new file mode 100644
-index 000000000000..5f7fde6e52bc
---- /dev/null
-+++ b/third_party/python/voluptuous/voluptuous-0.12.1.dist-info/RECORD
-@@ -0,0 +1,11 @@
-+voluptuous/__init__.py,sha256=tSYWPAIWee6YwcMK8hxmaiagG_swokUMeH8MluJLWZM,203
-+voluptuous/error.py,sha256=fLRmJwKp0bqRGgBM34ztg9MTxhEOf465sbQcvJlEtAk,4026
-+voluptuous/humanize.py,sha256=hZlhdN4aVeGDIXdtSTeyEbmku65SDPRuut3mOfuRQP0,1606
-+voluptuous/schema_builder.py,sha256=xVJpf3uJMyS1CKwzDw3rEK39ebqDiF_A2Kbq4VnZ3Aw,43677
-+voluptuous/util.py,sha256=RXLZ2b5y-A4az3teG6UpCx2UZcXpS11sIVCdORyKar8,3150
-+voluptuous/validators.py,sha256=xZgyKH-EVqUHCHral5gzViXq4HfEjJEsGdQy7z6llc0,32798
-+voluptuous-0.12.1.dist-info/COPYING,sha256=JHtJdren-k2J2Vh8qlCVVh60bcVFfyJ59ipitUUq3qk,1486
-+voluptuous-0.12.1.dist-info/METADATA,sha256=OdEydy5NydPFFzAhP8qj_YqJsQPQvoIt5ZT1t8B14Ok,20120
-+voluptuous-0.12.1.dist-info/WHEEL,sha256=S6zePDbUAjzMmpYOg2cHDxuYFWw7WiOXt6ogM6hIB5Q,92
-+voluptuous-0.12.1.dist-info/top_level.txt,sha256=TTdVb7M-vndb67UqTmAxuVjpAUakrlAWJYqvo3w4Iqc,11
-+voluptuous-0.12.1.dist-info/RECORD,,
-diff --git a/third_party/python/voluptuous/voluptuous-0.12.1.dist-info/WHEEL b/third_party/python/voluptuous/voluptuous-0.12.1.dist-info/WHEEL
-new file mode 100644
-index 000000000000..4c2552761e69
---- /dev/null
-+++ b/third_party/python/voluptuous/voluptuous-0.12.1.dist-info/WHEEL
-@@ -0,0 +1,11 @@
-+Wheel-Version: 1.0
-+<<<<<<<< HEAD:testing/web-platform/tests/tools/third_party/six/six-1.13.0.dist-info/WHEEL
-+Generator: bdist_wheel (0.32.1)
-+|||||||| parent of 8f49ebff11d78 (Bug 1719144 - Update voluptuous. r=firefox-build-system-reviewers,mhentges):third_party/python/voluptuous/voluptuous-0.11.5.dist-info/WHEEL
-+Generator: bdist_wheel (0.31.1)
-+========
-+Generator: bdist_wheel (0.36.1)
-+>>>>>>>> 8f49ebff11d78 (Bug 1719144 - Update voluptuous. r=firefox-build-system-reviewers,mhentges):third_party/python/voluptuous/voluptuous-0.12.1.dist-info/WHEEL
-+Root-Is-Purelib: true
-+Tag: py3-none-any
-+
-diff --git a/third_party/python/psutil-cp27-none-win_amd64/psutil-5.7.0.dist-info/top_level.txt b/third_party/python/voluptuous/voluptuous-0.12.1.dist-info/top_level.txt
-similarity index 100%
-rename from third_party/python/psutil-cp27-none-win_amd64/psutil-5.7.0.dist-info/top_level.txt
-rename to third_party/python/voluptuous/voluptuous-0.12.1.dist-info/top_level.txt
-diff --git a/third_party/python/voluptuous/voluptuous/__init__.py b/third_party/python/voluptuous/voluptuous/__init__.py
-index 10236d5a6670..4d09fe670fd4 100644
---- a/third_party/python/voluptuous/voluptuous/__init__.py
-+++ b/third_party/python/voluptuous/voluptuous/__init__.py
-@@ -5,5 +5,5 @@ from voluptuous.validators import *
- from voluptuous.util import *
- from voluptuous.error import *
- 
--__version__ = '0.11.5'
-+__version__ = '0.12.1'
- __author__ = 'alecthomas'
-diff --git a/third_party/python/voluptuous/voluptuous/error.py b/third_party/python/voluptuous/voluptuous/error.py
-index 86c4e0a35933..97f37d2c7c4b 100644
---- a/third_party/python/voluptuous/voluptuous/error.py
-+++ b/third_party/python/voluptuous/voluptuous/error.py
-@@ -142,11 +142,11 @@ class BooleanInvalid(Invalid):
+-## Other libraries and inspirations
+-
+-Voluptuous is heavily inspired by
+-[Validino](http://code.google.com/p/validino/), and to a lesser extent,
+-[jsonvalidator](http://code.google.com/p/jsonvalidator/) and
+-[json\_schema](http://blog.sendapatch.se/category/json_schema.html).
+-
+-[pytest-voluptuous](https://github.com/F-Secure/pytest-voluptuous) is a
+-[pytest](https://github.com/pytest-dev/pytest) plugin that helps in
+-using voluptuous validators in `assert`s.
+-
+-I greatly prefer the light-weight style promoted by these libraries to
+-the complexity of libraries like FormEncode.
+diff -Naur firefox-78.15.0/third_party/python/voluptuous/voluptuous/error.py firefox-78.15.0.new/third_party/python/voluptuous/voluptuous/error.py
+--- firefox-78.15.0/third_party/python/voluptuous/voluptuous/error.py	2021-09-28 12:05:01.000000000 +0200
++++ firefox-78.15.0.new/third_party/python/voluptuous/voluptuous/error.py	2022-08-24 19:30:18.982782618 +0200
+@@ -142,11 +142,11 @@
  
  
  class UrlInvalid(Invalid):
@@ -454,11 +926,20 @@ index 86c4e0a35933..97f37d2c7c4b 100644
  
  
  class FileInvalid(Invalid):
-diff --git a/third_party/python/voluptuous/voluptuous/schema_builder.py b/third_party/python/voluptuous/voluptuous/schema_builder.py
-index 8d7a81a3e3e5..df19c8da2ddf 100644
---- a/third_party/python/voluptuous/voluptuous/schema_builder.py
-+++ b/third_party/python/voluptuous/voluptuous/schema_builder.py
-@@ -22,6 +22,11 @@ else:
+diff -Naur firefox-78.15.0/third_party/python/voluptuous/voluptuous/__init__.py firefox-78.15.0.new/third_party/python/voluptuous/voluptuous/__init__.py
+--- firefox-78.15.0/third_party/python/voluptuous/voluptuous/__init__.py	2021-09-28 12:05:01.000000000 +0200
++++ firefox-78.15.0.new/third_party/python/voluptuous/voluptuous/__init__.py	2022-08-24 19:30:18.982782618 +0200
+@@ -5,5 +5,5 @@
+ from voluptuous.util import *
+ from voluptuous.error import *
+ 
+-__version__ = '0.11.5'
++__version__ = '0.12.1'
+ __author__ = 'alecthomas'
+diff -Naur firefox-78.15.0/third_party/python/voluptuous/voluptuous/schema_builder.py firefox-78.15.0.new/third_party/python/voluptuous/voluptuous/schema_builder.py
+--- firefox-78.15.0/third_party/python/voluptuous/voluptuous/schema_builder.py	2021-09-28 12:05:01.000000000 +0200
++++ firefox-78.15.0.new/third_party/python/voluptuous/voluptuous/schema_builder.py	2022-08-24 19:30:18.983782562 +0200
+@@ -22,6 +22,11 @@
      def iteritems(d):
          return d.iteritems()
  
@@ -470,7 +951,7 @@ index 8d7a81a3e3e5..df19c8da2ddf 100644
  """Schema validation for Python data structures.
  
  Given eg. a nested data structure like this:
-@@ -280,7 +285,7 @@ class Schema(object):
+@@ -280,7 +285,7 @@
              return schema.__voluptuous_compile__(self)
          if isinstance(schema, Object):
              return self._compile_object(schema)
@@ -479,7 +960,7 @@ index 8d7a81a3e3e5..df19c8da2ddf 100644
              return self._compile_dict(schema)
          elif isinstance(schema, list):
              return self._compile_list(schema)
-@@ -610,11 +615,11 @@ class Schema(object):
+@@ -610,11 +615,11 @@
              if not isinstance(data, seq_type):
                  raise er.SequenceTypeInvalid('expected a %s' % seq_type_name, path)
  
@@ -493,7 +974,7 @@ index 8d7a81a3e3e5..df19c8da2ddf 100644
                      ])
                  return data
  
-@@ -735,7 +740,7 @@ class Schema(object):
+@@ -735,7 +740,7 @@
  
          result = self.schema.copy()
  
@@ -502,7 +983,7 @@ index 8d7a81a3e3e5..df19c8da2ddf 100644
          def key_literal(key):
              return (key.schema if isinstance(key, Marker) else key)
  
-@@ -771,9 +776,10 @@ class Schema(object):
+@@ -771,9 +776,10 @@
                  result[key] = value
  
          # recompile and send old object
@@ -514,7 +995,7 @@ index 8d7a81a3e3e5..df19c8da2ddf 100644
  
  
  def _compile_scalar(schema):
-@@ -809,7 +815,7 @@ def _compile_scalar(schema):
+@@ -809,7 +815,7 @@
          def validate_callable(path, data):
              try:
                  return schema(data)
@@ -523,7 +1004,7 @@ index 8d7a81a3e3e5..df19c8da2ddf 100644
                  raise er.ValueInvalid('not a valid value', path)
              except er.Invalid as e:
                  e.prepend(path)
-@@ -1121,8 +1127,11 @@ class Inclusive(Optional):
+@@ -1121,8 +1127,11 @@
      True
      """
  
@@ -537,11 +1018,10 @@ index 8d7a81a3e3e5..df19c8da2ddf 100644
          self.group_of_inclusion = group_of_inclusion
  
  
-diff --git a/third_party/python/voluptuous/voluptuous/util.py b/third_party/python/voluptuous/voluptuous/util.py
-index 434c360c7e95..e0ff43f8500a 100644
---- a/third_party/python/voluptuous/voluptuous/util.py
-+++ b/third_party/python/voluptuous/voluptuous/util.py
-@@ -7,54 +7,62 @@ from voluptuous import validators
+diff -Naur firefox-78.15.0/third_party/python/voluptuous/voluptuous/util.py firefox-78.15.0.new/third_party/python/voluptuous/voluptuous/util.py
+--- firefox-78.15.0/third_party/python/voluptuous/voluptuous/util.py	2021-09-28 12:05:01.000000000 +0200
++++ firefox-78.15.0.new/third_party/python/voluptuous/voluptuous/util.py	2022-08-24 19:30:18.983782562 +0200
+@@ -7,6 +7,14 @@
  __author__ = 'tusharmakkar08'
  
  
@@ -556,7 +1036,7 @@ index 434c360c7e95..e0ff43f8500a 100644
  def Lower(v):
      """Transform a string to lower case.
  
-     >>> s = Schema(Lower)
+@@ -14,7 +22,7 @@
      >>> s('HI')
      'hi'
      """
@@ -565,9 +1045,7 @@ index 434c360c7e95..e0ff43f8500a 100644
  
  
  def Upper(v):
-     """Transform a string to upper case.
- 
-     >>> s = Schema(Upper)
+@@ -24,7 +32,7 @@
      >>> s('hi')
      'HI'
      """
@@ -576,9 +1054,7 @@ index 434c360c7e95..e0ff43f8500a 100644
  
  
  def Capitalize(v):
-     """Capitalise a string.
- 
-     >>> s = Schema(Capitalize)
+@@ -34,7 +42,7 @@
      >>> s('hello world')
      'Hello world'
      """
@@ -587,9 +1063,7 @@ index 434c360c7e95..e0ff43f8500a 100644
  
  
  def Title(v):
-     """Title case a string.
- 
-     >>> s = Schema(Title)
+@@ -44,7 +52,7 @@
      >>> s('hello world')
      'Hello World'
      """
@@ -598,9 +1072,7 @@ index 434c360c7e95..e0ff43f8500a 100644
  
  
  def Strip(v):
-     """Strip whitespace from a string.
- 
-     >>> s = Schema(Strip)
+@@ -54,7 +62,7 @@
      >>> s('  hello world  ')
      'hello world'
      """
@@ -609,11 +1081,10 @@ index 434c360c7e95..e0ff43f8500a 100644
  
  
  class DefaultTo(object):
-diff --git a/third_party/python/voluptuous/voluptuous/validators.py b/third_party/python/voluptuous/voluptuous/validators.py
-index d5e3ed598051..fac9cc7717c0 100644
---- a/third_party/python/voluptuous/voluptuous/validators.py
-+++ b/third_party/python/voluptuous/voluptuous/validators.py
-@@ -192,33 +192,44 @@ class _WithSubValidators(object):
+diff -Naur firefox-78.15.0/third_party/python/voluptuous/voluptuous/validators.py firefox-78.15.0.new/third_party/python/voluptuous/voluptuous/validators.py
+--- firefox-78.15.0/third_party/python/voluptuous/voluptuous/validators.py	2021-09-28 12:05:01.000000000 +0200
++++ firefox-78.15.0.new/third_party/python/voluptuous/voluptuous/validators.py	2022-08-24 19:30:18.983782562 +0200
+@@ -192,15 +192,26 @@
      def __init__(self, *validators, **kwargs):
          self.validators = validators
          self.msg = kwargs.pop('msg', None)
@@ -644,17 +1115,7 @@ index d5e3ed598051..fac9cc7717c0 100644
          return self._exec(self._compiled, value, path)
  
      def __call__(self, v):
-         return self._exec((Schema(val) for val in self.validators), v)
- 
-     def __repr__(self):
-         return '%s(%s, msg=%r)' % (
-             self.__class__.__name__,
-             ", ".join(repr(v) for v in self.validators),
-             self.msg
-         )
- 
- 
- class Any(_WithSubValidators):
+@@ -218,7 +229,7 @@
      """Use the first validated value.
  
      :param msg: Message to deliver to user if validation fails.
@@ -663,7 +1124,7 @@ index d5e3ed598051..fac9cc7717c0 100644
      :returns: Return value of the first validator that passes.
  
      >>> validate = Schema(Any('true', 'false',
-@@ -262,13 +273,57 @@ class Any(_WithSubValidators):
+@@ -262,13 +273,57 @@
  Or = Any
  
  
@@ -722,7 +1183,7 @@ index d5e3ed598051..fac9cc7717c0 100644
  
      >>> validate = Schema(All('10', Coerce(int)))
      >>> validate('10')
-@@ -303,7 +358,7 @@ class Match(object):
+@@ -303,7 +358,7 @@
      >>> with raises(MultipleInvalid, 'expected string or buffer'):
      ...   validate(123)
  
@@ -731,7 +1192,7 @@ index d5e3ed598051..fac9cc7717c0 100644
  
      >>> validate = Schema(Match(re.compile(r'0x[A-F0-9]+', re.I)))
      >>> validate('0x123ef4')
-@@ -361,38 +416,38 @@ def _url_validation(v):
+@@ -361,38 +416,38 @@
      return parsed
  
  
@@ -780,7 +1241,7 @@ index d5e3ed598051..fac9cc7717c0 100644
      ...   s("http://localhost/")
      >>> s('http://w3.org')
      'http://w3.org'
-@@ -423,29 +478,29 @@ def Url(v):
+@@ -423,14 +478,14 @@
          raise ValueError
  
  
@@ -797,14 +1258,7 @@ index d5e3ed598051..fac9cc7717c0 100644
      ...   IsFile()("random_filename_goes_here.py")
      >>> with raises(FileInvalid, 'Not a file'):
      ...   IsFile()(None)
-     """
-     try:
-         if v:
-             v = str(v)
-             return os.path.isfile(v)
-         else:
-             raise FileInvalid('Not a file')
-     except TypeError:
+@@ -445,7 +500,7 @@
          raise FileInvalid('Not a file')
  
  
@@ -813,7 +1267,7 @@ index d5e3ed598051..fac9cc7717c0 100644
  @truth
  def IsDir(v):
      """Verify the directory exists.
-@@ -487,20 +542,20 @@ def PathExists(v):
+@@ -487,11 +542,11 @@
          raise PathInvalid("Not a Path")
  
  
@@ -828,8 +1282,7 @@ index d5e3ed598051..fac9cc7717c0 100644
  
      >>> s = Schema(Maybe(int))
      >>> s(10)
-     10
-     >>> with raises(Invalid):
+@@ -500,7 +555,7 @@
      ...  s("string")
  
      """
@@ -838,7 +1291,7 @@ index d5e3ed598051..fac9cc7717c0 100644
  
  
  class Range(object):
-@@ -533,23 +588,30 @@ class Range(object):
+@@ -533,23 +588,30 @@
          self.msg = msg
  
      def __call__(self, v):
@@ -886,7 +1339,7 @@ index d5e3ed598051..fac9cc7717c0 100644
  
      def __repr__(self):
          return ('Range(min=%r, max=%r, min_included=%r,'
-@@ -579,32 +641,44 @@ class Clamp(object):
+@@ -579,11 +641,17 @@
          self.msg = msg
  
      def __call__(self, v):
@@ -909,14 +1362,7 @@ index d5e3ed598051..fac9cc7717c0 100644
  
      def __repr__(self):
          return 'Clamp(min=%s, max=%s)' % (self.min, self.max)
- 
- 
- class Length(object):
-     """The length of a value must be in a certain range."""
- 
-     def __init__(self, min=None, max=None, msg=None):
-         self.min = min
-         self.max = max
+@@ -598,13 +666,19 @@
          self.msg = msg
  
      def __call__(self, v):
@@ -943,7 +1389,7 @@ index d5e3ed598051..fac9cc7717c0 100644
  
      def __repr__(self):
          return 'Length(min=%s, max=%s)' % (self.min, self.max)
-@@ -663,27 +737,29 @@ class In(object):
+@@ -663,7 +737,8 @@
          except TypeError:
              check = True
          if check:
@@ -953,19 +1399,7 @@ index d5e3ed598051..fac9cc7717c0 100644
          return v
  
      def __repr__(self):
-         return 'In(%s)' % (self.container,)
- 
- 
- class NotIn(object):
-     """Validate that a value is not in a collection."""
- 
-     def __init__(self, container, msg=None):
-         self.container = container
-         self.msg = msg
- 
-     def __call__(self, v):
-         try:
-             check = v in self.container
+@@ -683,7 +758,8 @@
          except TypeError:
              check = True
          if check:
@@ -975,7 +1409,7 @@ index d5e3ed598051..fac9cc7717c0 100644
          return v
  
      def __repr__(self):
-@@ -722,7 +798,7 @@ class ExactSequence(object):
+@@ -722,7 +798,7 @@
      the validators.
  
      :param msg: Message to deliver to user if validation fails.
@@ -984,7 +1418,7 @@ index d5e3ed598051..fac9cc7717c0 100644
          constructors.
  
      >>> from voluptuous import Schema, ExactSequence
-@@ -887,7 +963,7 @@ class Unordered(object):
+@@ -887,7 +963,7 @@
  class Number(object):
      """
      Verify the number of digits that are present in the number(Precision),
@@ -993,7 +1427,7 @@ index d5e3ed598051..fac9cc7717c0 100644
  
      :raises Invalid: If the value does not match the provided Precision and Scale.
  
-@@ -951,13 +1027,13 @@ class SomeOf(_WithSubValidators):
+@@ -951,13 +1027,13 @@
      The output of each validator is passed as input to the next.
  
      :param min_valid: Minimum number of valid schemas.

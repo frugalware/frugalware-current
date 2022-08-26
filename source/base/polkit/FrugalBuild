@@ -3,67 +3,66 @@
 # Contributor: bouleetbil <bouleetbil@frogdev.info>
 
 pkgname=polkit
-pkgver=0.120
-pkgrel=3
+pkgver=121
+pkgrel=1
 pkgdesc="Policy framework for controlling privileges for system-wide services"
 url="http://www.freedesktop.org/wiki/Software/polkit"
-depends=('pam>=1.3.0-4' 'expat>=2.1.0-6' 'libsystemd>=242' 'mozjs>=78.0.1' \
+depends=('pam>=1.3.0-4' 'expat>=2.1.0-6' 'libsystemd>=242' 'duktape' \
 	'scriptlet-core' 'libffi>=3.2.1-2')
-makedepends=('intltool>=0.51.0-2' 'gobject-introspection>=1.46.0-2' 'docbook-xsl' 'gtk-doc' 'systemd-devel>=242')
+makedepends=('intltool>=0.51.0-2' 'gobject-introspection>=1.46.0-2' \
+	'docbook-xsl' 'gtk-doc' 'systemd-devel>=242' 'python3-pygments')
 groups=('base')
 archs=('x86_64')
 up2date="Flasttar http://www.freedesktop.org/software/$pkgname/releases"
 source=(http://www.freedesktop.org/software/$pkgname/releases/$pkgname-$pkgver.tar.gz \
-	$pkgname.conf \
-	CVE-2021-4034.patch \
-	x11vars.patch)
-sha1sums=('75d5885251eef36b28851e095120bc1f60714160' \
-          '78587a357a20ca9cd6a33512b87f5d4c13a47aaa' \
-          '485ce93d96883de06d195f6e49aca18e22655a18' \
-          '40c8369a7d73a73cad1bc6ce30cced12468986e7')
+	$pkgname.conf)
+sha1sums=('dc8e7ae38aafcc127f30683ebb338e2228fbfad0' \
+          '78587a357a20ca9cd6a33512b87f5d4c13a47aaa')
 
 replaces=('policykit')
 conflicts=('policykit')
-options+=('scriptlet' 'nolto')
+options+=('scriptlet')
 
-Fconfopts+="	--with-os-type=FrugalWare \
-                --disable-selinux \
-                --enable-libsystemd-login=yes \
-                --enable-introspection \
-                --enable-examples"
-F32confopts+="	--with-os-type=FrugalWare \
-                --disable-selinux \
-		--libdir=/usr/lib32 \
-                --enable-libsystemd-login=yes"
 
-_Fbuild_autoreconf="yes"
+_F_meson_confopts="	-Dos_type=FrugalWare \
+			-Dsession_tracking=libsystemd-login"
+_F_cross32_meson_confopts_64="	-Dexamples=true \
+	                        -Dgtk_doc=true \
+				-Dintrospection=true \
+				-Dman=true"
+
+_F_cross32_meson_confopts_32="	-Dexamples=false \
+	                        -Dgtk_doc=false \
+				-Dintrospection=false \
+				-Dman=false" \
+
 
 _F_cross32_combined="yes"
 _F_cross32_simple="true"
 _F_cross32_subdepends=('lib32-pam' 'lib32-expat' 'lib32-glib2' 'lib32-libsystemd')
 _F_cross32_delete=('usr/share/' 'lib/' 'usr/lib/')
+_F_cross32_use_meson=yes
 Finclude cross32
-_F_cd_path="$pkgname-$pkgver"
+_F_cd_path="$pkgname-v.${pkgver}"
 
 build() {
-        Fcross32_prepare
+	Fcross32_prepare
         Fcross32_copy_source
-	Fconf $F32confopts
 
-	Fexec make -C src/polkit polkitenumtypes.h || Fdie
-	Fexec make -C src/polkit libpolkit-gobject-1.la || Fdie
-	Fexec make -C src/polkitagent polkitagentenumtypes.h marshal.stamp || Fdie
-	Fexec make -C src/polkitagent libpolkit-agent-1.la || Fdie
+        _F_meson_confopts="$_F_cross32_meson_confopts_32"
+	Fcd
+	Fexec sed -i '/polkitbackend/d' src/meson.build || Fdie
 
-	Fexec make -C src/polkit DESTDIR="${Fdestdir}" lib_LTLIBRARIES=libpolkit-gobject-1.la install-libLTLIBRARIES || Fdie
-	Fexec make -C src/polkitagent DESTDIR="${Fdestdir}" lib_LTLIBRARIES=libpolkit-agent-1.la install-libLTLIBRARIES || Fdie
-	Fexec make -C data DESTDIR="${Fdestdir}" install-pkgconfigDATA || Fdie
-
-        Fcross32_copy_back_source
+        Meson_build
+        ## zero _F_meson_confopts
+        _F_meson_confopts=""
+	Fcross32_copy_back_source
         Fcross32_reset_and_fix
 
+        Fcross32_delete_empty
+        Fcross32_delete_static
         Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one
-	## 64bit
+        ## 64bit
         Fcross32_64bit_build
 
 	Fdirschown etc/polkit-1/rules.d 67 root

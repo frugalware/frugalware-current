@@ -47,7 +47,6 @@ wine)
 	provides=('lib32-wine')
 	replaces=('lib32-wine')
 	source=(https://dl.winehq.org/wine/source/${pkgver%.*}/wine-$pkgver.tar.xz \
-		fix-opencl-header.patch \
 		0001-programs-winhlp32-Use-noyywrap-for-macro.lex.l-and-p.patch )
 	;;
 

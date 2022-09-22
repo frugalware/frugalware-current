@@ -2,13 +2,13 @@
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=rust
-pkgver=1.63.0
-_llvm_ver=14.0.6
-pkgrel=2
+pkgver=1.64.0
+_llvm_ver=15.0.1
+pkgrel=1
 pkgdesc="Programming language focused on safety, speed and concurrency"
 url="https://www.rust-lang.org/"
 depends=('libffi' 'zlib>=1.2.12' "llvm-libs>=$_llvm_ver" 'curl')
-makedepends=('ninja' 'llvm' 'cmake' 'llvm-static' 'polly' 'openmp' 'mlir' 'compiler-rt')
+makedepends=('ninja' 'llvm' 'cmake' 'llvm-static' 'polly' 'openmp' 'mlir' 'compiler-rt' 'python3')
 groups=('devel')
 archs=("x86_64")
 up2date="lynx -dump https://www.rust-lang.org/ | grep -m1 Version | sed 's/.*ion \(.*\)/\1/'"
@@ -16,9 +16,9 @@ source=("https://static.rust-lang.org/dist/rustc-${pkgver}-src.tar.gz" \
 	"https://static.rust-lang.org/dist/rust-${pkgver}-x86_64-unknown-linux-gnu.tar.gz" \
 	0001-bootstrap-Change-libexec-dir.patch \
 	0001-cargo-Change-libexec-dir.patch)
-sha1sums=('7554fd6764e65fabe2e7e762a59c7794c14149a9' \
-          '3d20cda335d8bd2d0711f96ba9b3ff89441e51a3' \
-          '969d56b8f9d63b35ae4c5c125a5d98e2ea183536' \
+sha1sums=('d5ad8b274fbf1e6a7d78d4c6a25a90f3a37a780e' \
+          '0da3a240bce612b81d1f76301698ba540994a6cc' \
+          '1dc8e2bd62452a9fd7013be14bf7a27634ded19d' \
           '3c997560327a7385654ae0bcc8fb56ec8c94e885')
 _F_cd_path="rustc-${pkgver}-src"
 options+=('static' 'nostrip' 'nolto')
@@ -42,12 +42,19 @@ build() {
 	Fcd
 	Fpatchall
 	export LLVM_LINK_SHARED=1
+	export RUSTFLAGS="${RUSTFLAGS} -Lnative=/usr/lib"
+        export AR=ar
+        export NM=nm
+        export RANLIB=ranlib
+        export CC=gcc
+        export CXX=g++
 
 	cat >config.toml <<END
 changelog-seen = 2
 profile = "user"
 [llvm]
 link-shared = true
+skip-rebuild = true
 [build]
 target = [
   "x86_64-unknown-linux-gnu",
@@ -59,8 +66,6 @@ rustfmt = "${Fsrcdir}/rust_stage0/bin/rustfmt"
 locked-deps = true
 vendor = true
 tools = ["cargo", "rls", "clippy", "rustfmt", "analysis", "src", "rust-demangler"]
-sanitizers = true
-profiler = true
 [install]
 prefix = "/usr"
 [rust]
@@ -72,13 +77,14 @@ codegen-units-std = 1
 
 [dist]
 compression-formats = ["gz"]
+
 [target.x86_64-unknown-linux-gnu]
 llvm-config = "/usr/bin/llvm-config"
 END
 
 	## make && make install 'rust' way
-	DESTDIR=$Fdestdir Fexec python ./x.py --verbose  build  -j $(nproc) || Fdie
-	DESTDIR=$Fdestdir Fexec python ./x.py --verbose  install  -j1 || Fdie
+	DESTDIR=$Fdestdir Fexec python3 ./x.py --verbose  build  -j $(nproc) || Fdie
+	DESTDIR=$Fdestdir Fexec python3 ./x.py --verbose  install  -j1 || Fdie
 
 	## strip
 	Fexec strip --strip-unneeded $Fdestdir/usr/lib/rustlib/x86_64-unknown-linux-gnu/lib/*.so

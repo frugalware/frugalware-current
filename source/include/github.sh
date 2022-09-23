@@ -78,6 +78,9 @@ if [[ -n "$_F_github_tag_v" ]] && [[ -n "$_F_github_tag" ]]; then
 	#exit 1
 fi
 
+## My read public Token
+GH_TOKEN="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"
+
 ## set source to archive .. seems to be fine.
 ## releases , tags and tags_v are all under archive
 
@@ -115,7 +118,7 @@ if [ -n "$_F_github_grepv" ]; then
 fi
 
 if [ -z "$_F_github_grep" ]; then
-        _F_github_grep='archive'
+        _F_github_grep="browser_download_url"
 fi
 
 if [ -z "$_F_github_up2date_path" ]; then
@@ -139,7 +142,7 @@ if [ -n "$_F_github_devel" ]; then
 	Finclude scm
 	unset _F_github_source _F_github_tag _F_github_tag_v source
 else
-	up2date="lynx -read_timeout=280 -dump  https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep  '\https\(.*\)$_F_github_ext'  $off | grep -m1 $_F_github_grep | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//' | sed 's/${_F_github_name}${_F_github_sep}//'"
+	up2date="curl -s -H \"Authorization: Bearer ${GH_TOKEN}\" https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep  '\https\(.*\)$_F_github_ext'  $off | grep -m1 $_F_github_grep | sed 's/.*\/\(.*\)$_F_github_ext\"/\1/' | sed 's/^v//' | sed 's/${pkgname}${_F_github_sep}//'"
 	# On one line for Mr Portability, Hermier Portability.
 	source+=("${_F_github_source}")
 fi

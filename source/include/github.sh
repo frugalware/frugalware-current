@@ -114,8 +114,8 @@ if [ -n "$_F_github_grepv" ]; then
 	off='| grep -v -- $_F_github_grepv'
 fi
 
-if [ -z "$_F_github_grep" ]; then
-        _F_github_grep="github"
+if [ -n "$_F_github_grep" ]; then
+	on='| grep -- $_F_github_grep'
 fi
 
 if [ -z "$_F_github_up2date_path" ]; then
@@ -140,7 +140,14 @@ if [ -n "$_F_github_devel" ]; then
 	unset _F_github_source _F_github_tag _F_github_tag_v source
 else
 	makedepends+=('jq')
-	up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} |  jq -r '.[].assets[].browser_download_url' | grep  '\https\(.*\)$_F_github_ext' $off | grep -m1 $_F_github_grep | sed 's/.*\/\(.*\)${_F_github_ext}/\1/' | sed 's/^v//' | sed 's/${pkgname}${_F_github_sep}//'"
+	
+	if [[ "$_F_github_up2date" == "releases" ]]; then
+		up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} |  jq -r '.[].assets[].browser_download_url' | grep  '\https\(.*\)$_F_github_ext' $off $on | sed 's/.*\/\(.*\)${_F_github_ext}/\1/' | sed 's/^v//' | sed 's/${pkgname}${_F_github_sep}//' | head -n1 "
+	else
+		up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} |  jq -r '.[].name' $off $on | sed 's/^v//' | sed 's/${pkgname}${_F_github_sep}//' | head -n1"
+		
+	fi
+
 	# On one line for Mr Portability, Hermier Portability.
 	source+=("${_F_github_source}")
 fi

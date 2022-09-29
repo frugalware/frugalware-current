@@ -130,6 +130,9 @@ else
        _F_github_up2date="$_F_github_up2date_path"
 fi
 
+Fgettags() {
+	curl -s https://api.github.com/graphql -d '{ "query": "query { repository(owner: \"iputils\", name: \"iputils\") { refs( refPrefix: \"refs/tags/\" first: 100 orderBy: {field: TAG_COMMIT_DATE, direction: DESC}) { edges { node { name } } } } }" }'
+}
 
 ## fixme ?
 if [ -n "$_F_github_devel" ]; then
@@ -144,7 +147,7 @@ else
 	if [[ "$_F_github_up2date" == "releases" ]]; then
 		up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} |  jq -r '.[].assets[].browser_download_url' | grep  '\https\(.*\)$_F_github_ext' $off $on | sed 's/.*\/\(.*\)${_F_github_ext}/\1/' | sed 's/^v//' | sed 's/${pkgname}${_F_github_sep}//' | head -n1 "
 	else
-		up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} |  jq -r '.[].name' $off $on | sed 's/^v//' | sed 's/${pkgname}${_F_github_sep}//' | head -n1"
+		up2date="Fgettags | jq -r '.data.repository.refs.edges|.[].node.name' $off $on | sed 's/^v//' | sed 's/${pkgname}${_F_github_sep}//' | head -n1"
 		
 	fi
 

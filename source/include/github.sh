@@ -72,6 +72,14 @@ if [ -z "$url" ]; then
 	url=https://github.com/$_F_github_author/$_F_github_name
 fi
 
+if [[ -n "$_F_github_tag_v" ]]; then
+	_F_github_tag_prefix="v"
+fi
+
+if [[ -z "$_F_github_tag_prefix" ]]; then
+	_F_github_tag_prefix=$pkgname
+fi
+
 if [[ -n "$_F_github_tag_v" ]] && [[ -n "$_F_github_tag" ]]; then
 	echo "ERROR: Using TAG_V && TAG is not allowed!"
 	echo "ERROR: Bailing out, please fix your package.."
@@ -86,14 +94,9 @@ fi
 ## bleh
 ## ok allow to set this as custom name too
 if [[ -z "$_F_github_full_archive_name" ]]; then
-	if [[ -n "$_F_github_tag_v" ]]; then
+	if [[ -n "$_F_github_tag_v" ]] || [[ -n "$_F_github_tag" ]]; then
 		## tag_v should be v1.2.3.tar.gz
-		_F_github_full_archive_name="v${_F_github_ver}"
-		_F_github_up2date_path="tags"
-	elif [[ -n "$_F_github_tag" ]]; then
-		## tag should be 1.2.3.tar.gz
-		_F_github_full_archive_name="${_F_github_ver}"
-		_F_github_up2date_path="tags"
+		_F_github_full_archive_name="${_F_github_tag_prefix}${_F_github_ver}"
 	else
 		## normal stuff should be $pkgname-$pkgver.tar.gz ( but what is normal on github!)
 		## everything else _F_github_full_archive_name="someThIng_Like3-1_foo"
@@ -118,18 +121,6 @@ if [ -n "$_F_github_grep" ]; then
 	on='| grep -- $_F_github_grep'
 fi
 
-if [ -z "$_F_github_up2date_path" ]; then
-	if [[ -n "$_F_github_tag_v" ]]; then
-		_F_github_up2date="tags"
-	elif [[ -n "$_F_github_tag" ]]; then
-		_F_github_up2date="tags"
-	else
-	       _F_github_up2date="releases"
-	fi
-else
-       _F_github_up2date="$_F_github_up2date_path"
-fi
-
 ## fixme ?
 if [ -n "$_F_github_devel" ]; then
 	# Not checked, but may work.
@@ -138,7 +129,7 @@ if [ -n "$_F_github_devel" ]; then
 	Finclude scm
 	unset _F_github_source _F_github_tag _F_github_tag_v source
 else
-	up2date="lynx -dump https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[].assets[].browser_download_url' | grep  'https\(.*\)$_F_github_ext' $off $on | sed 's/.*\/\(.*\)${_F_github_ext}\(.*\)/\1/' | sed 's/^v//' | sed 's/${pkgname}${_F_github_sep}//' | head -n1 "
+	up2date="lynx -dump https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[].tag_name' $off $on | sed 's/${_F_github_tag_prefix}${_F_github_sep}//' | head -n1 "
 
 	# On one line for Mr Portability, Hermier Portability.
 	source+=("${_F_github_source}")

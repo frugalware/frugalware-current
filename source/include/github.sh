@@ -114,8 +114,8 @@ if [ -n "$_F_github_grepv" ]; then
 	off='| grep -v -- $_F_github_grepv'
 fi
 
-if [ -z "$_F_github_grep" ]; then
-        _F_github_grep='archive'
+if [ -n "$_F_github_grep" ]; then
+	on='| grep -- $_F_github_grep'
 fi
 
 if [ -z "$_F_github_up2date_path" ]; then
@@ -130,6 +130,24 @@ else
        _F_github_up2date="$_F_github_up2date_path"
 fi
 
+Fgettags() {
+	CURSOR=null
+	function getPage {
+		curl -s https://api.github.com/graphql -d "{ \"query\": \"query { repository(owner: \\\"${_F_github_author}\\\", name: \\\"${_F_github_name}\\\") { refs( refPrefix: \\\"refs/tags/\\\" first: 100 orderBy: {field: TAG_COMMIT_DATE, direction: DESC}, after: $1) { pageInfo { endCursor startCursor hasNextPage } edges { node { name } } } } }\" }"
+	}
+	output=""
+	while true; do
+	  page=$(getPage "$CURSOR")
+	    output=$(echo "$output" "$page")
+	      hasNextPage=$(echo "$page" | jq .data.repository.refs.pageInfo.hasNextPage)
+	        if [ "$hasNextPage" = "true" ]; then
+			CURSOR='\"'$(echo "$page" | jq -r .data.repository.refs.pageInfo.endCursor)'\"'
+		else
+			break
+		fi
+	done
+	echo "$output"
+}
 
 ## fixme ?
 if [ -n "$_F_github_devel" ]; then
@@ -139,7 +157,15 @@ if [ -n "$_F_github_devel" ]; then
 	Finclude scm
 	unset _F_github_source _F_github_tag _F_github_tag_v source
 else
-	up2date="lynx -read_timeout=280 -dump  https://github.com/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} | grep -v 'Source code' | grep  '\https\(.*\)$_F_github_ext'  $off | grep -m1 $_F_github_grep | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/^v//' | sed 's/${_F_github_name}${_F_github_sep}//'"
+	makedepends+=('jq')
+	
+	if [[ "$_F_github_up2date" == "releases" ]]; then
+		up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/${_F_github_up2date} |  jq -r '.[].assets[].browser_download_url' | grep  '\https\(.*\)$_F_github_ext' $off $on | sed 's/.*\/\(.*\)${_F_github_ext}/\1/' | sed 's/^v//' | sed 's/${pkgname}${_F_github_sep}//' | head -n1 "
+	else
+		up2date="Fgettags | jq -r '.data.repository.refs.edges|.[].node.name' $off $on | sed 's/^v//' | sed 's/${pkgname}${_F_github_sep}//' | head -n1"
+		
+	fi
+
 	# On one line for Mr Portability, Hermier Portability.
 	source+=("${_F_github_source}")
 fi

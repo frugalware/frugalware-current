@@ -131,7 +131,22 @@ else
 fi
 
 Fgettags() {
-	curl -s https://api.github.com/graphql -d '{ "query": "query { repository(owner: \"iputils\", name: \"iputils\") { refs( refPrefix: \"refs/tags/\" first: 100 orderBy: {field: TAG_COMMIT_DATE, direction: DESC}) { edges { node { name } } } } }" }'
+	CURSOR=null
+	function getPage {
+		curl -s https://api.github.com/graphql -d '{ "query": "query { repository(owner: \"iputils\", name: \"iputils\") { refs( refPrefix: \"refs/tags/\" first: 100 orderBy: {field: TAG_COMMIT_DATE, direction: DESC}) { pageInfo { endCursor startCursor hasNextPage } edges { node { name } } } } }" }'
+	}
+	output=""
+	while true; do
+	  page=$(getPage "$CURSOR")
+	    output=$(echo "$output" "$page")
+	      hasNextPage=$(echo "$page" | jq .data.repository.refs.pageInfo.hasNextPage)
+	        if [ "$hasNextPage" = "true" ]; then
+			CURSOR='\"'$(echo "$page" | jq -r .data.repository.refs.pageInfo.endCursor)'\"'
+		else
+			break
+		fi
+	done
+	echo "$output"
 }
 
 ## fixme ?

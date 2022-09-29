@@ -133,7 +133,7 @@ fi
 Fgettags() {
 	CURSOR=null
 	function getPage {
-		curl -s https://api.github.com/graphql -d '{ "query": "query { repository(owner: \"iputils\", name: \"iputils\") { refs( refPrefix: \"refs/tags/\" first: 100 orderBy: {field: TAG_COMMIT_DATE, direction: DESC}) { pageInfo { endCursor startCursor hasNextPage } edges { node { name } } } } }" }'
+		curl -s https://api.github.com/graphql -d "{ \"query\": \"query { repository(owner: \\\"${_F_github_author}\\\", name: \\\"${_F_github_name}\\\") { refs( refPrefix: \\\"refs/tags/\\\" first: 100 orderBy: {field: TAG_COMMIT_DATE, direction: DESC}, after: $1) { pageInfo { endCursor startCursor hasNextPage } edges { node { name } } } } }\" }"
 	}
 	output=""
 	while true; do

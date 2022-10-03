@@ -73,7 +73,7 @@ if [ -z "$url" ]; then
 fi
 
 if [[ -n "$_F_github_tag_v" ]]; then
-	_F_github_tag_prefix="v-"
+	_F_github_tag_prefix="v"
 fi
 
 if [[ -n "$_F_github_tag_v" ]] && [[ -n "$_F_github_tag" ]]; then

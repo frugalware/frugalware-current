@@ -73,7 +73,7 @@ if [ -z "$url" ]; then
 fi
 
 if [[ -n "$_F_github_tag_v" ]]; then
-	_F_github_tag_prefix="v"
+	_F_github_tag_prefix="v-"
 fi
 
 if [[ -n "$_F_github_tag_v" ]] && [[ -n "$_F_github_tag" ]]; then
@@ -126,7 +126,7 @@ if [ -n "$_F_github_devel" ]; then
 	unset _F_github_source _F_github_tag _F_github_tag_v source
 else
 	if [[ -n "$_F_github_tag_v" ]] || [[ -n "$_F_github_tag" ]]; then
-		up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/tags | grep  'https\(.*\)$_F_github_ext'  $off $on | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/${_F_github_tag_prefix}${_F_github_sep}//' | head -n1"
+		up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/tags | grep  'https\(.*\)$_F_github_ext'  $off $on | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/${_F_github_tag_prefix}//' | head -n1"
 	else
 		up2date="lynx -dump https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[].tag_name' $off $on | sed 's/${_F_github_tag_prefix}//' | head -n1 "
 	fi

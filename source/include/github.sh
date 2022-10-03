@@ -76,10 +76,6 @@ if [[ -n "$_F_github_tag_v" ]]; then
 	_F_github_tag_prefix="v"
 fi
 
-if [[ -z "$_F_github_tag_prefix" ]]; then
-	_F_github_tag_prefix="${pkgname}-"
-fi
-
 if [[ -n "$_F_github_tag_v" ]] && [[ -n "$_F_github_tag" ]]; then
 	echo "ERROR: Using TAG_V && TAG is not allowed!"
 	echo "ERROR: Bailing out, please fix your package.."
@@ -94,7 +90,7 @@ fi
 ## bleh
 ## ok allow to set this as custom name too
 if [[ -z "$_F_github_full_archive_name" ]]; then
-	if [[ -n "${_F_github_tag_prefix}" ]]; then
+	if [[ -n "$_F_github_tag_v" ]] || [[ -n "$_F_github_tag" ]]; then
 		## tag_v should be v1.2.3.tar.gz
 		_F_github_full_archive_name="${_F_github_tag_prefix}${_F_github_ver}"
 	else
@@ -129,7 +125,11 @@ if [ -n "$_F_github_devel" ]; then
 	Finclude scm
 	unset _F_github_source _F_github_tag _F_github_tag_v source
 else
-	up2date="lynx -dump https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[].tag_name' $off $on | sed 's/${_F_github_tag_prefix}//' | head -n1 "
+	if [[ -n "$_F_github_tag_v" ]] || [[ -n "$_F_github_tag" ]]; then
+		up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/tags | grep  'https\(.*\)$_F_github_ext'  $off $on | sed 's/.*\/\(.*\)$_F_github_ext/\1/' | sed 's/${_F_github_tag_prefix}//' | head -n1"
+	else
+		up2date="lynx -dump https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[].tag_name' $off $on | sed 's/${_F_github_tag_prefix}//' | head -n1 "
+	fi
 
 	# On one line for Mr Portability, Hermier Portability.
 	source+=("${_F_github_source}")

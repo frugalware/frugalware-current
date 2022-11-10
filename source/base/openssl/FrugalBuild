@@ -3,23 +3,20 @@
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=openssl
-pkgver=1.1.1
-pkgextraver=s
-pkgrel=23
+pkgver=3.0.7
+pkgrel=1
 pkgdesc="The Open Source toolkit for Secure Sockets Layer and Transport Layer Security"
 url="http://www.openssl.org/source/"
-groups=('base')
+groups=('base' 'chroot-core')
 archs=('x86_64')
 depends=('glibc>=2.35')
-makedepends=('util-linux>=2.31.1-2' 'lib32-util-linux' 'gcc>=12.2')
 backup=('etc/ssl/openssl.cnf')
-_F_archive_grepv="3.0"
 up2date="Flasttar https://ftp.openssl.org/source/ "
-source=($url$pkgname-$pkgver$pkgextraver.tar.gz http://caunter.ca/ssl.certs.shar)
+source=($url$pkgname-$pkgver.tar.gz http://caunter.ca/ssl.certs.shar)
 _F_cross32_simple_auto="yes"
 Finclude cross32
 options+=('static')
-sha1sums=('d316e1523a609bbfc4ddd3abfa9861db99f17044' \
+sha1sums=('f20736d6aae36bcbfa9aba0d358c71601833bf27' \
           '18282d8ccf17b03631957823a93c9c001f576526')
 
 subpkgs+=("${pkgname}-static")
@@ -38,7 +35,6 @@ suboptions+=('')
 
 build()
 {
-	local i
 
 	Fcd
 	# kill demoCA
@@ -54,12 +50,13 @@ build()
 			--openssldir=/etc/ssl \
 			--libdir=lib32 \
 			shared \
+			enable-ktls \
 			linux-elf \
 			"-Wa,--noexecstack ${CPPFLAGS} ${CFLAGS} ${LDFLAGS}"
 
-
+	Fexec make MAKEDEPPROG="${CC}" depend || Fdie
 	Fexec make || Fdie
-	Fexec make DESTDIR=$Fdestdir MANDIR=/usr/share/man MANSUFFIX=openssl install || Fdie
+	Fexec make DESTDIR=$Fdestdir MANDIR=/usr/share/man MANSUFFIX=openssl install_sw || Fdie
 
 	## fix up
 	Fmkdir usr/$CHOST/{include,bin}
@@ -74,9 +71,6 @@ build()
 		Fsed "includedir=.*" "includedir=/usr/$CHOST/include" $Fdestdir/usr/lib32/pkgconfig/${i}.pc
 	done
 
-	Fln libssl.so.1.1 /usr/lib32/libssl.so.1  # look out!!
-	Fln libcrypto.so.1.1 /usr/lib32/libcrypto.so.1  # look out!!
-
 	Fsplit "${subpkgs[0]}" /\*
 
 	Fcross32_copy_back_source
@@ -84,12 +78,13 @@ build()
 
 	## 64bit
 	Fcd
-	Fsed '-O3' '' Configure
 	Fexec ./Configure	\
 			--prefix=/usr \
 			--openssldir=/etc/ssl \
 			--libdir=lib \
 			-static \
+			enable-ktls \
+			enable-ec_nistp_64_gcc_128 \
 			linux-x86_64 \
 			"-Wa,--noexecstack ${CPPFLAGS} ${CFLAGS} ${LDFLAGS}"
 
@@ -105,7 +100,9 @@ build()
                         --openssldir=/etc/ssl \
                         --libdir=lib \
                         shared \
-                        linux-x86_64 \
+                        enable-ktls \
+			enable-ec_nistp_64_gcc_128 \
+			linux-x86_64 \
                         "-Wa,--noexecstack ${CPPFLAGS} ${CFLAGS} ${LDFLAGS}"
 
         Fexec make || Fdie
@@ -114,10 +111,6 @@ build()
 
 	Fexec cd ${Fdestdir}/etc/ssl/certs || Fdie
 	Fexec sh ${Fsrcdir}/ssl.certs.shar || Fdie
-
-
-	Fln libssl.so.1.1 /usr/lib/libssl.so.1  # look out!!
-	Fln libcrypto.so.1.1 /usr/lib/libcrypto.so.1  # look out!!
 
 	Frm usr/lib/*.a
 	Fsplit ${pkgname}-docs usr/share/doc/openssl

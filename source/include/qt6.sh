@@ -40,10 +40,6 @@ else
 	makedepends+=('x11-protos' 'gperf' "qt6-base-static")
 fi
 
-if [[ ! "$pkgname" =~ "qt6-base" ]] && [[ ! "$pkgname" =~ "qt6-declarative" ]]; then
-	makedepends+=('qt6-declarative-static')
-fi
-
 if [ -z "$archs" ]; then
 	archs=('x86_64')
 fi

@@ -1,0 +1,60 @@
+#!/bin/bash
+
+in_array()
+{
+	local i needle
+	needle=$1
+	shift 1
+	# array() undefined
+	[ -z "$1" ] && return 1
+	for i in $*
+	do
+		echo $i |grep -q "^$needle" && return 0
+	done
+	return 1
+}
+
+if [ "$1" == "--help" ]; then
+	echo "Missing qt5 packages"
+	exit 1
+fi
+
+
+if [ ! -d ../.git -o ! -d ../source ]; then
+	echo "hey, where are you?"
+	exit 1
+fi
+
+cd ..
+
+skip=(
+qt5-winextras
+tqt5-c
+qt5-opcua
+qt5-macextras
+qt5-knx
+qt5-coap
+qt5-androidextras
+qt5-activeqt
+)
+
+run_qt5() {
+
+	local upstream j
+	source source/include/util.sh
+
+	_F_archive_grepv="6\."
+	qtmayor=$(Flastverdir http://download.qt-project.org/official_releases/qt/)
+	qtver=$(Flastverdir http://download.qt-project.org/official_releases/qt/$qtmayor)
+
+	upstream=$(lynx -dump -listonly https://download.qt.io/archive/qt/${qtmayor}/${qtver}/submodules/ | grep -E "xz$" | rev | cut -d '/' -f 1 | rev | cut -d '-' -f 1 | sed 's/qt/qt5-/' )
+
+	for j in $upstream
+	do
+		if ! stat source/*/$j &>/dev/null && ! in_array $j ${skip[@]}; then
+			echo $j
+		fi
+	done
+}
+
+run_qt5

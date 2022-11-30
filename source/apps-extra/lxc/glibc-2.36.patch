@@ -1,0 +1,497 @@
+diff -Naur lxc-5.0.1/meson.build lxc-5.0.1.new/meson.build
+--- lxc-5.0.1/meson.build	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/meson.build	2022-11-14 11:46:55.110917550 +0100
+@@ -579,17 +579,13 @@
+ #include <uchar.h>
+ #include <sys/mount.h>
+ #include <sys/stat.h>
+-#include <linux/fs.h>
+ #include <linux/if_link.h>
+-#include <linux/openat2.h>
+-#include <linux/sched.h>
+ #include <linux/types.h>
+ '''
+ 
+ foreach decl: [
+     '__aligned_u64',
+     'struct clone_args',
+-    'struct mount_attr',
+     'struct open_how',
+     'struct rtnl_link_stats64',
+ ]
+@@ -609,7 +605,6 @@
+     ['struct seccomp_notif_sizes'],
+     ['struct clone_args'],
+     ['__aligned_u64'],
+-    ['struct mount_attr'],
+     ['struct open_how'],
+     ['struct rtnl_link_stats64'],
+ ]
+@@ -629,6 +624,75 @@
+     endif
+ endforeach
+ 
++decl_headers = '''
++#include <sys/mount.h>
++'''
++
++# We get -1 if the size cannot be determined
++if cc.sizeof('struct mount_attr', prefix: decl_headers, args: '-D_GNU_SOURCE') > 0
++    srcconf.set10('HAVE_' + 'struct mount_attr'.underscorify().to_upper(), true)
++    found_types += 'struct mount_attr (sys/mount.h)'
++else
++    srcconf.set10('HAVE_' + 'struct mount_attr'.underscorify().to_upper(), false)
++    missing_types += 'struct mount_attr (sys/mount.h)' endif
++
++## Check if sys/mount.h defines the fsconfig commands
++if cc.has_header_symbol('sys/mount.h', 'FSCONFIG_SET_FLAG')
++    srcconf.set10('HAVE_' + 'FSCONFIG_SET_FLAG'.underscorify().to_upper(), true)
++    found_types += 'FSCONFIG_SET_FLAG (sys/mount.h)'
++else
++    srcconf.set10('HAVE_' + 'FSCONFIG_SET_FLAG'.underscorify().to_upper(), false)
++    missing_types += 'FSCONFIG_SET_FLAG (sys/mount.h)'
++endif
++
++if cc.has_header_symbol('sys/mount.h', 'FS_CONFIG_SET_STRING')
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_STRING'.underscorify().to_upper(), true)
++    found_types += 'FS_CONFIG_SET_STRING (sys/mount.h)'
++else
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_STRING'.underscorify().to_upper(), false)
++    missing_types += 'FS_CONFIG_SET_STRING (sys/mount.h)'
++endif
++
++if cc.has_header_symbol('sys/mount.h', 'FS_CONFIG_SET_BINARY')
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_BINARY'.underscorify().to_upper(), true)
++    found_types += 'FS_CONFIG_SET_BINARY (sys/mount.h)'
++else
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_BINARY'.underscorify().to_upper(), false)
++    missing_types += 'FS_CONFIG_SET_BINARY (sys/mount.h)'
++endif
++
++if cc.has_header_symbol('sys/mount.h', 'FS_CONFIG_SET_PATH_EMPTY')
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_PATH_EMPTY'.underscorify().to_upper(), true)
++    found_types += 'FS_CONFIG_SET_PATH_EMPTY (sys/mount.h)'
++else
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_PATH_EMPTY'.underscorify().to_upper(), false)
++    missing_types += 'FS_CONFIG_SET_PATH_EMPTY (sys/mount.h)'
++endif
++
++if cc.has_header_symbol('sys/mount.h', 'FS_CONFIG_SET_PATH_FD')
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_PATH_FD'.underscorify().to_upper(), true)
++    found_types += 'FS_CONFIG_SET_PATH_FD (sys/mount.h)'
++else
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_PATH_FD'.underscorify().to_upper(), false)
++    missing_types += 'FS_CONFIG_SET_PATH_FD (sys/mount.h)'
++endif
++
++if cc.has_header_symbol('sys/mount.h', 'FS_CONFIG_SET_CMD_CREATE')
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_CMD_CREATE'.underscorify().to_upper(), true)
++    found_types += 'FS_CONFIG_SET_CMD_CREAT (sys/mount.h)'
++else
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_CMD_CREATE'.underscorify().to_upper(), false)
++    missing_types += 'FS_CONFIG_SET_CMD_CREATE (sys/mount.h)'
++endif
++
++if cc.has_header_symbol('sys/mount.h', 'FS_CONFIG_SET_CMD_RECONFIGURE')
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_CMD_RECONFIGURE'.underscorify().to_upper(), true)
++    found_types += 'FS_CONFIG_SET_CMD_RECONFIGURE (sys/mount.h)'
++else
++    srcconf.set10('HAVE_' + 'FS_CONFIG_SET_CMD_RECONFIGURE'.underscorify().to_upper(), false)
++    missing_types += 'FS_CONFIG_SET_CMD_RECONFIGURE (sys/mount.h)'
++endif
++
+ ## Headers.
+ foreach ident: [
+     ['bpf',               '''#include <sys/syscall.h>
+@@ -708,6 +772,7 @@
+     ['sys/resource.h'],
+     ['sys/memfd.h'],
+     ['sys/personality.h'],
++    ['sys/pidfd.h'],
+     ['sys/signalfd.h'],
+     ['sys/timerfd.h'],
+     ['pty.h'],
+diff -Naur lxc-5.0.1/src/lxc/conf.c lxc-5.0.1.new/src/lxc/conf.c
+--- lxc-5.0.1/src/lxc/conf.c	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/conf.c	2022-11-14 11:46:32.346204525 +0100
+@@ -2885,7 +2885,7 @@
+ 		struct lxc_mount_options opts = {};
+ 		int dfd_from;
+ 		const char *source_relative, *target_relative;
+-		struct lxc_mount_attr attr = {};
++		struct mount_attr attr = {};
+ 
+ 		ret = parse_lxc_mount_attrs(&opts, mntent.mnt_opts);
+ 		if (ret < 0)
+@@ -3005,7 +3005,7 @@
+ 
+ 		/* Set propagation mount options. */
+ 		if (opts.attr.propagation) {
+-			attr = (struct lxc_mount_attr) {
++			attr = (struct mount_attr) {
+ 				.propagation = opts.attr.propagation,
+ 			};
+ 
+@@ -4109,7 +4109,7 @@
+ 
+ 	for (;;) {
+ 		__do_close int fd_from = -EBADF, fd_userns = -EBADF;
+-		struct lxc_mount_attr attr = {};
++		struct mount_attr attr = {};
+ 		struct lxc_mount_options opts = {};
+ 		ssize_t ret;
+ 
+diff -Naur lxc-5.0.1/src/lxc/conf.h lxc-5.0.1.new/src/lxc/conf.h
+--- lxc-5.0.1/src/lxc/conf.h	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/conf.h	2022-11-14 11:46:32.346204525 +0100
+@@ -223,7 +223,7 @@
+ 	unsigned long mnt_flags;
+ 	unsigned long prop_flags;
+ 	char *data;
+-	struct lxc_mount_attr attr;
++	struct mount_attr attr;
+ 	char *raw_options;
+ };
+ 
+diff -Naur lxc-5.0.1/src/lxc/file_utils.c lxc-5.0.1.new/src/lxc/file_utils.c
+--- lxc-5.0.1/src/lxc/file_utils.c	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/file_utils.c	2022-11-14 11:46:55.111917493 +0100
+@@ -652,7 +652,7 @@
+ 	    unsigned int resolve_flags, mode_t mode)
+ {
+ 	__do_close int fd = -EBADF;
+-	struct lxc_open_how how = {
++	struct open_how how = {
+ 		.flags		= o_flags,
+ 		.mode		= mode,
+ 		.resolve	= resolve_flags,
+diff -Naur lxc-5.0.1/src/lxc/macro.h lxc-5.0.1.new/src/lxc/macro.h
+--- lxc-5.0.1/src/lxc/macro.h	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/macro.h	2022-11-14 11:46:55.107917719 +0100
+@@ -8,6 +8,7 @@
+ #include <asm/types.h>
+ #include <limits.h>
+ #include <linux/if_link.h>
++#include <linux/ioctl.h>
+ #include <linux/loop.h>
+ #include <linux/netlink.h>
+ #include <linux/rtnetlink.h>
+@@ -812,4 +813,16 @@
+ 
+ #define BIT(nr) (1UL << (nr))
+ 
++#ifndef FS_IOC_GETFLAGS
++#define FS_IOC_GETFLAGS _IOR('f', 1, long)
++#endif
++
++#ifndef FS_IOC_SETFLAGS
++#define FS_IOC_SETFLAGS _IOW('f', 2, long)
++#endif
++
++#ifndef FS_IMMUTABLE_FL
++#define FS_IMMUTABLE_FL 0x00000010 /* Immutable file */
++#endif
++
+ #endif /* __LXC_MACRO_H */
+diff -Naur lxc-5.0.1/src/lxc/mount_utils.c lxc-5.0.1.new/src/lxc/mount_utils.c
+--- lxc-5.0.1/src/lxc/mount_utils.c	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/mount_utils.c	2022-11-14 11:46:55.111917493 +0100
+@@ -31,7 +31,7 @@
+  * setting in @attr_set, but must also specify MOUNT_ATTR__ATIME in the
+  * @attr_clr field.
+  */
+-static inline void set_atime(struct lxc_mount_attr *attr)
++static inline void set_atime(struct mount_attr *attr)
+ {
+ 	switch (attr->attr_set & MOUNT_ATTR__ATIME) {
+ 	case MOUNT_ATTR_RELATIME:
+@@ -186,7 +186,7 @@
+ 	int fd_from;
+ 
+ 	if (!is_empty_string(path_from)) {
+-		struct lxc_open_how how = {
++		struct open_how how = {
+ 			.flags		= o_flags_from,
+ 			.resolve	= resolve_flags_from,
+ 		};
+@@ -237,7 +237,7 @@
+ 	int fd_to, ret;
+ 
+ 	if (!is_empty_string(path_to)) {
+-		struct lxc_open_how how = {
++		struct open_how how = {
+ 			.flags		= o_flags_to,
+ 			.resolve	= resolve_flags_to,
+ 		};
+@@ -272,7 +272,7 @@
+ {
+ 	__do_close int fd_tree_from = -EBADF;
+ 	unsigned int open_tree_flags = OPEN_TREE_CLONE | OPEN_TREE_CLOEXEC;
+-	struct lxc_mount_attr attr = {
++	struct mount_attr attr = {
+ 		.attr_set	= MOUNT_ATTR_IDMAP | attr_set,
+ 		.attr_clr	= attr_clr,
+ 		.userns_fd	= userns_fd,
+@@ -308,7 +308,7 @@
+ 	int fd_to, ret;
+ 
+ 	if (!is_empty_string(path_to)) {
+-		struct lxc_open_how how = {
++		struct open_how how = {
+ 			.flags		= o_flags_to,
+ 			.resolve	= resolve_flags_to,
+ 		};
+@@ -335,7 +335,7 @@
+ 		    __u64 attr_clr, __u64 propagation, int userns_fd,
+ 		    bool recursive)
+ {
+-	struct lxc_mount_attr attr = {
++	struct mount_attr attr = {
+ 		.attr_set	= attr_set,
+ 		.attr_clr	= attr_clr,
+ 		.propagation	= propagation,
+@@ -348,7 +348,7 @@
+ 	set_atime(&attr);
+ 
+ 	if (!is_empty_string(path_from)) {
+-		struct lxc_open_how how = {
++		struct open_how how = {
+ 			.flags		= o_flags_from,
+ 			.resolve	= resolve_flags_from,
+ 		};
+diff -Naur lxc-5.0.1/src/lxc/mount_utils.h lxc-5.0.1.new/src/lxc/mount_utils.h
+--- lxc-5.0.1/src/lxc/mount_utils.h	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/mount_utils.h	2022-11-14 11:46:55.108917663 +0100
+@@ -82,37 +82,53 @@
+ #endif
+ 
+ /* fsconfig() commands */
++#if !HAVE_FSCONFIG_SET_FLAG
+ #ifndef FSCONFIG_SET_FLAG
+ #define FSCONFIG_SET_FLAG 0 /* Set parameter, supplying no value */
+ #endif
++#endif
+ 
++#if !HAVE_FSCONFIG_SET_STRING
+ #ifndef FSCONFIG_SET_STRING
+ #define FSCONFIG_SET_STRING 1 /* Set parameter, supplying a string value */
+ #endif
++#endif
+ 
++#if !HAVE_FSCONFIG_SET_BINARY
+ #ifndef FSCONFIG_SET_BINARY
+ #define FSCONFIG_SET_BINARY 2 /* Set parameter, supplying a binary blob value */
+ #endif
++#endif
+ 
++#if !HAVE_FSCONFIG_SET_PATH
+ #ifndef FSCONFIG_SET_PATH
+ #define FSCONFIG_SET_PATH 3 /* Set parameter, supplying an object by path */
+ #endif
++#endif
+ 
++#if !HAVE_FSCONFIG_SET_PATH_EMPTY
+ #ifndef FSCONFIG_SET_PATH_EMPTY
+ #define FSCONFIG_SET_PATH_EMPTY 4 /* Set parameter, supplying an object by (empty) path */
+ #endif
++#endif
+ 
++#if !HAVE_FSCONFIG_SET_FD
+ #ifndef FSCONFIG_SET_FD
+ #define FSCONFIG_SET_FD 5 /* Set parameter, supplying an object by fd */
+ #endif
++#endif
+ 
++#if !HAVE_FSCONFIG_CMD_CREATE
+ #ifndef FSCONFIG_CMD_CREATE
+ #define FSCONFIG_CMD_CREATE 6 /* Invoke superblock creation */
+ #endif
++#endif
+ 
++#if !HAVE_FSCONFIG_CMD_RECONFIGURE
+ #ifndef FSCONFIG_CMD_RECONFIGURE
+ #define	FSCONFIG_CMD_RECONFIGURE 7	/* Invoke superblock reconfiguration */
+ #endif
++#endif
+ 
+ /* fsmount() flags */
+ #ifndef FSMOUNT_CLOEXEC
+diff -Naur lxc-5.0.1/src/lxc/process_utils.c lxc-5.0.1.new/src/lxc/process_utils.c
+--- lxc-5.0.1/src/lxc/process_utils.c	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/process_utils.c	2022-11-14 11:46:55.109917606 +0100
+@@ -90,7 +90,7 @@
+ __returns_twice pid_t lxc_raw_clone(unsigned long flags, int *pidfd)
+ {
+ 	pid_t pid;
+-	struct lxc_clone_args args = {
++	struct clone_args args = {
+ 		.flags		= flags,
+ 		.pidfd		= ptr_to_u64(pidfd),
+ 	};
+diff -Naur lxc-5.0.1/src/lxc/process_utils.h lxc-5.0.1.new/src/lxc/process_utils.h
+--- lxc-5.0.1/src/lxc/process_utils.h	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/process_utils.h	2022-11-14 11:46:55.109917606 +0100
+@@ -5,7 +5,6 @@
+ 
+ #include "config.h"
+ 
+-#include <linux/sched.h>
+ #include <sched.h>
+ #include <signal.h>
+ #include <stdbool.h>
+@@ -15,6 +14,10 @@
+ #include <sys/syscall.h>
+ #include <unistd.h>
+ 
++#if HAVE_SYS_PIDFD_H
++#include <sys/pidfd.h>
++#endif
++
+ #include "compiler.h"
+ #include "syscall_numbers.h"
+ 
+@@ -136,9 +139,11 @@
+ #endif
+ 
+ /* waitid */
++#if !HAVE_SYS_PIDFD_H
+ #ifndef P_PIDFD
+ #define P_PIDFD 3
+ #endif
++#endif
+ 
+ #ifndef CLONE_ARGS_SIZE_VER0
+ #define CLONE_ARGS_SIZE_VER0 64 /* sizeof first published struct */
+@@ -159,7 +164,8 @@
+ #define u64_to_ptr(x) ((void *)(uintptr_t)x)
+ #endif
+ 
+-struct lxc_clone_args {
++#if !HAVE_STRUCT_CLONE_ARGS
++struct clone_args {
+ 	__aligned_u64 flags;
+ 	__aligned_u64 pidfd;
+ 	__aligned_u64 child_tid;
+@@ -172,8 +178,9 @@
+ 	__aligned_u64 set_tid_size;
+ 	__aligned_u64 cgroup;
+ };
++#endif
+ 
+-__returns_twice static inline pid_t lxc_clone3(struct lxc_clone_args *args, size_t size)
++__returns_twice static inline pid_t lxc_clone3(struct clone_args *args, size_t size)
+ {
+ 	return syscall(__NR_clone3, args, size);
+ }
+diff -Naur lxc-5.0.1/src/lxc/start.c lxc-5.0.1.new/src/lxc/start.c
+--- lxc-5.0.1/src/lxc/start.c	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/start.c	2022-11-14 11:46:55.110917550 +0100
+@@ -1673,7 +1673,7 @@
+ 	} else {
+ 		int cgroup_fd = -EBADF;
+ 
+-		struct lxc_clone_args clone_args = {
++		struct clone_args clone_args = {
+ 			.flags = handler->clone_flags,
+ 			.pidfd = ptr_to_u64(&handler->pidfd),
+ 			.exit_signal = SIGCHLD,
+diff -Naur lxc-5.0.1/src/lxc/start.h lxc-5.0.1.new/src/lxc/start.h
+--- lxc-5.0.1/src/lxc/start.h	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/start.h	2022-11-14 11:46:55.110917550 +0100
+@@ -5,7 +5,6 @@
+ 
+ #include "config.h"
+ 
+-#include <linux/sched.h>
+ #include <sched.h>
+ #include <signal.h>
+ #include <stdbool.h>
+diff -Naur lxc-5.0.1/src/lxc/syscall_wrappers.h lxc-5.0.1.new/src/lxc/syscall_wrappers.h
+--- lxc-5.0.1/src/lxc/syscall_wrappers.h	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/syscall_wrappers.h	2022-11-14 11:46:55.111917493 +0100
+@@ -10,6 +10,7 @@
+ #include <linux/keyctl.h>
+ #include <sched.h>
+ #include <stdint.h>
++#include <sys/mount.h>
+ #include <sys/prctl.h>
+ #include <sys/syscall.h>
+ #include <sys/types.h>
+@@ -210,16 +211,18 @@
+ /*
+  * mount_setattr()
+  */
+-struct lxc_mount_attr {
++#if !HAVE_STRUCT_MOUNT_ATTR
++struct mount_attr {
+ 	__u64 attr_set;
+ 	__u64 attr_clr;
+ 	__u64 propagation;
+ 	__u64 userns_fd;
+ };
++#endif
+ 
+ #if !HAVE_MOUNT_SETATTR
+ static inline int mount_setattr(int dfd, const char *path, unsigned int flags,
+-				struct lxc_mount_attr *attr, size_t size)
++				struct mount_attr *attr, size_t size)
+ {
+ 	return syscall(__NR_mount_setattr, dfd, path, flags, attr, size);
+ }
+@@ -237,11 +240,13 @@
+  * @mode: O_CREAT/O_TMPFILE file mode.
+  * @resolve: RESOLVE_* flags.
+  */
+-struct lxc_open_how {
++#if !HAVE_STRUCT_OPEN_HOW
++struct open_how {
+ 	__u64 flags;
+ 	__u64 mode;
+ 	__u64 resolve;
+ };
++#endif
+ 
+ /* how->resolve flags for openat2(2). */
+ #ifndef RESOLVE_NO_XDEV
+@@ -293,7 +298,7 @@
+ #define PROTECT_OPEN_RW (O_CLOEXEC | O_NOCTTY | O_RDWR | O_NOFOLLOW)
+ 
+ #if !HAVE_OPENAT2
+-static inline int openat2(int dfd, const char *filename, struct lxc_open_how *how, size_t size)
++static inline int openat2(int dfd, const char *filename, struct open_how *how, size_t size)
+ {
+ 	return syscall(__NR_openat2, dfd, filename, how, size);
+ }
+diff -Naur lxc-5.0.1/src/lxc/utils.c lxc-5.0.1.new/src/lxc/utils.c
+--- lxc-5.0.1/src/lxc/utils.c	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/lxc/utils.c	2022-11-14 11:46:55.111917493 +0100
+@@ -19,8 +19,6 @@
+ #include <string.h>
+ #include <sys/mman.h>
+ #include <sys/mount.h>
+-/* Needs to be after sys/mount.h header */
+-#include <linux/fs.h>
+ #include <sys/param.h>
+ #include <sys/prctl.h>
+ #include <sys/stat.h>
+@@ -1097,7 +1095,7 @@
+ 			    unsigned int flags, const void *data)
+ {
+ 	__do_close int source_fd = -EBADF, target_fd = -EBADF;
+-	struct lxc_open_how how = {
++	struct open_how how = {
+ 		.flags		= PROTECT_OPATH_DIRECTORY,
+ 		.resolve	= PROTECT_LOOKUP_BENEATH_WITH_MAGICLINKS,
+ 	};
+diff -Naur lxc-5.0.1/src/tests/reboot.c lxc-5.0.1.new/src/tests/reboot.c
+--- lxc-5.0.1/src/tests/reboot.c	2022-07-28 06:20:41.000000000 +0200
++++ lxc-5.0.1.new/src/tests/reboot.c	2022-11-14 11:46:55.110917550 +0100
+@@ -32,8 +32,6 @@
+ 
+ #include "namespace.h"
+ 
+-#include <sched.h>
+-#include <linux/sched.h>
+ #include <linux/reboot.h>
+ 
+ int clone(int (*fn)(void *), void *child_stack, int flags, void *arg, ...);

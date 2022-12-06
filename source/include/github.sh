@@ -131,6 +131,8 @@ if [ -n "$_F_github_devel" ]; then
 else
 	if [[ -n "$_F_github_tag_v" ]] || [[ -n "$_F_github_tag" ]]; then
 		up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/tags | grep  'https\(.*\)$_F_github_ext'  $off $on | sed 's/.*\/\(.*\)$_F_github_ext/\1/' $prefix | head -n1"
+		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/refs/tags/${__F_github_full_archive_name}"
+
 	else
 		up2date="lynx -dump https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[].tag_name' $off $on $prefix | head -n1 "
 	fi

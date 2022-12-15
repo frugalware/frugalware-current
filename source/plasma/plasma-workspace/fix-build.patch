@@ -1,0 +1,61 @@
+From 1b6cf1da3fc26f5d0bfb6c77bc1d59e43bc88e59 Mon Sep 17 00:00:00 2001
+From: Vlad Zahorodnii <vlad.zahorodnii@kde.org>
+Date: Tue, 6 Dec 2022 21:12:57 +0200
+Subject: [PATCH] ksmserver: Fix build error
+
+Build fails for me with the following error message
+
+    In file included from /data/projects/build/plasma-workspace/ksmserver/ksmserver_autogen/mocs_compilation.cpp:2:
+    In file included from /data/projects/build/plasma-workspace/ksmserver/ksmserver_autogen/EWIEGA46WW/moc_server.cpp:10:
+    In file included from /data/projects/build/plasma-workspace/ksmserver/ksmserver_autogen/EWIEGA46WW/../../../../../src/plasma-workspace/ksmserver/server.h:23:
+    In file included from /data/projects/usr/include/KF5/KWindowSystem/fixx11h.h:10:
+    In file included from /data/projects/src/qt5/qtbase/include/QtCore/QtGlobal:1:
+    In file included from /data/projects/src/qt5/qtbase/include/QtCore/qglobal.h:1:
+    In file included from /data/projects/src/qt5/qtbase/include/QtCore/../../src/corelib/global/qglobal.h:142:
+    In file included from /usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/12.2.0/../../../../include/c++/12.2.0/algorithm:61:
+    /usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/12.2.0/../../../../include/c++/12.2.0/bits/stl_algo.h:5877:3: error: too many arguments provided to function-like macro invocation
+                    is_convertible<__samp_cat, random_access_iterator_tag>>::value,
+                    ^
+    /usr/include/X11/ICE/ICEmsg.h:38:9: note: macro 'static_assert' defined here
+    #define static_assert(cond, msg) /* skip for non-C11 compilers */
+---
+ ksmserver/server.cpp | 11 +++++++++++
+ ksmserver/server.h   |  3 ---
+ 2 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/ksmserver/server.cpp b/ksmserver/server.cpp
+index 1874a5a4c9..8a408cf73b 100644
+--- a/ksmserver/server.cpp
++++ b/ksmserver/server.cpp
+@@ -88,6 +88,17 @@
+ 
+ #include <updatelaunchenvjob.h>
+ 
++extern "C" {
++#include <X11/ICE/ICEmsg.h>
++#include <X11/ICE/ICEproto.h>
++#include <X11/ICE/ICEutil.h>
++}
++
++// ICEmsg.h has a static_assert macro, which conflicts with C++'s static_assert.
++#ifdef static_assert
++#undef static_assert
++#endif
++
+ KSMServer *the_server = nullptr;
+ 
+ KSMServer *KSMServer::self()
+diff --git a/ksmserver/server.h b/ksmserver/server.h
+index 95784d603f..b8904ff0c3 100644
+--- a/ksmserver/server.h
++++ b/ksmserver/server.h
+@@ -13,9 +13,6 @@
+ #include <X11/Xlib.h>
+ #include <X11/Xmd.h>
+ extern "C" {
+-#include <X11/ICE/ICEmsg.h>
+-#include <X11/ICE/ICEproto.h>
+-#include <X11/ICE/ICEutil.h>
+ #include <X11/SM/SM.h>
+ #include <X11/SM/SMlib.h>
+ }

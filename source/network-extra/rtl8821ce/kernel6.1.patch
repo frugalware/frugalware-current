@@ -1,0 +1,106 @@
+From 538c34671b391340e0ae23ff11bde77b6588496c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Wiktor=20Strz=C4=99ba=C5=82a?= <wiktorek140@gmail.com>
+Date: Thu, 15 Dec 2022 13:11:25 +0100
+Subject: [PATCH] update to 6.1 kernel
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Wiktor Strzębała <wiktorek140@gmail.com>
+---
+ os_dep/linux/ioctl_cfg80211.c | 21 +++++++++++++++++++--
+ os_dep/linux/os_intfs.c       |  4 ++++
+ os_dep/osdep_service.c        |  4 +++-
+ 3 files changed, 26 insertions(+), 3 deletions(-)
+
+diff --git a/os_dep/linux/ioctl_cfg80211.c b/os_dep/linux/ioctl_cfg80211.c
+index 7d3f0a9..e55ca5a 100644
+--- a/os_dep/linux/ioctl_cfg80211.c
++++ b/os_dep/linux/ioctl_cfg80211.c
+@@ -1648,6 +1648,9 @@ static int rtw_cfg80211_set_encryption(struct net_device *dev, struct ieee_param
+ }
+ 
+ static int cfg80211_rtw_add_key(struct wiphy *wiphy, struct net_device *ndev
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++	, int link_id
++#endif
+ 	, u8 key_index
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
+ 	, bool pairwise
+@@ -1792,6 +1795,9 @@ static int cfg80211_rtw_add_key(struct wiphy *wiphy, struct net_device *ndev
+ }
+ 
+ static int cfg80211_rtw_get_key(struct wiphy *wiphy, struct net_device *ndev
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++	, int link_id
++#endif
+ 	, u8 keyid
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
+ 	, bool pairwise
+@@ -1957,6 +1963,9 @@ static int cfg80211_rtw_get_key(struct wiphy *wiphy, struct net_device *ndev
+ }
+ 
+ static int cfg80211_rtw_del_key(struct wiphy *wiphy, struct net_device *ndev,
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++                int link_id,
++#endif
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
+ 				u8 key_index, bool pairwise, const u8 *mac_addr)
+ #else	/* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) */
+@@ -1977,7 +1986,11 @@ static int cfg80211_rtw_del_key(struct wiphy *wiphy, struct net_device *ndev,
+ }
+ 
+ static int cfg80211_rtw_set_default_key(struct wiphy *wiphy,
+-	struct net_device *ndev, u8 key_index
++	struct net_device *ndev
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++	, int link_id
++#endif
++    , u8 key_index
+ 	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)) || defined(COMPAT_KERNEL_RELEASE)
+ 	, bool unicast, bool multicast
+ 	#endif
+@@ -2025,7 +2038,11 @@ static int cfg80211_rtw_set_default_key(struct wiphy *wiphy,
+ 
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30))
+ int cfg80211_rtw_set_default_mgmt_key(struct wiphy *wiphy,
+-	struct net_device *ndev, u8 key_index)
++	struct net_device *ndev, 
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++	int link_idm,
++#endif
++    u8 key_index)
+ {
+ #define SET_DEF_KEY_PARAM_FMT " key_index=%d"
+ #define SET_DEF_KEY_PARAM_ARG , key_index
+diff --git a/os_dep/linux/os_intfs.c b/os_dep/linux/os_intfs.c
+index ca97b38..c93f668 100644
+--- a/os_dep/linux/os_intfs.c
++++ b/os_dep/linux/os_intfs.c
+@@ -1680,7 +1680,11 @@ int rtw_os_ndev_register(_adapter *adapter, const char *name)
+ 	u8 rtnl_lock_needed = rtw_rtnl_lock_needed(dvobj);
+ 
+ #ifdef CONFIG_RTW_NAPI
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++	netif_napi_add(ndev, &adapter->napi, rtw_recv_napi_poll);
++#else
+ 	netif_napi_add(ndev, &adapter->napi, rtw_recv_napi_poll, RTL_NAPI_WEIGHT);
++#endif
+ #endif /* CONFIG_RTW_NAPI */
+ 
+ #if defined(CONFIG_IOCTL_CFG80211)
+diff --git a/os_dep/osdep_service.c b/os_dep/osdep_service.c
+index a97d442..c7e60ea 100644
+--- a/os_dep/osdep_service.c
++++ b/os_dep/osdep_service.c
+@@ -2636,7 +2636,9 @@ u64 rtw_division64(u64 x, u64 y)
+ inline u32 rtw_random32(void)
+ {
+ #ifdef PLATFORM_LINUX
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++	return get_random_u32();
++#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ 	return prandom_u32();
+ #elif (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18))
+ 	u32 random_int;

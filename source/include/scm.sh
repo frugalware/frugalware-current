@@ -46,18 +46,13 @@
 # _F_scm_type="git"
 # _F_scm_url="http://www.kernel.org/pub/scm/linux/pcmcia/pcmciautils.git"
 # --------------------------------------------------
-# Example for bzr:
-# --------------------------------------------------
-# _F_scm_type="bzr"
-# _F_scm_url="http://people.ubuntu.com/~pitti/bzr/pmount"
-# --------------------------------------------------
 # Example for svn:
 # --------------------------------------------------
 # _F_scm_type="subversion"
 # _F_scm_url="svn://svn.mplayerhq.hu/mplayer/trunk"
 # --------------------------------------------------
 # == OPTIONS
-# * _F_scm_type: can be cvs, subversion, git, mercurial or bzr - required
+# * _F_scm_type: can be cvs, subversion, git or mercurial - required
 # * _F_scm_url: url of the repo - required
 # * _F_scm_password: password of the repo - required for cvs
 # * _F_scm_module: name of the module to check out - required for cvs
@@ -110,15 +105,6 @@ elif [ "$_F_scm_type" == "mercurial" ]; then
 		up2date="$pkgver"
 	fi
 	makedepends=(${makedepends[@]} 'mercurial')
-elif [ "$_F_scm_type" == "bzr" ]; then
-	if [ -n "$_F_scm_want_up2date" ]; then
-		# last version is 1.0, last rev is 577, then it should be
-		# 1.0.577 (so pacman-g2 will see the version is > 1.0 and < 1.1)
-		up2date="echo -n ${pkgver%.*}.;bzr revno $_F_scm_url"
-	else
-		up2date="$pkgver"
-	fi
-	makedepends=(${makedepends[@]} 'bzr')
 fi
 
 ###
@@ -189,16 +175,6 @@ Funpack_scm()
 			Fexec hg clone -r $_F_scm_tag $_F_scm_url || Fdie
 		fi
 		Fcd ${_F_scm_url##*/}
-	elif [ "$_F_scm_type" == "bzr" ]; then
-                Fmessage "Checking out with BZR.."
-		if [ ! -d "${_F_scm_url##*/}" ]; then
-			Fexec bzr branch --stacked $_F_scm_url || Fdie
-			Fcd ${_F_scm_url##*/}
-		else
-			Fcd ${_F_scm_url##*/}
-			Fexec bzr revert || Fdie
-			Fexec bzr pull || Fdie
-		fi
 	fi
 }
 

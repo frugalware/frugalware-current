@@ -53,35 +53,10 @@ up2date='lynx -dump http://rubygems.org/gems/$_F_gem_name | grep downloads/$_F_g
 # * Finstallgem()
 ###
 Finstallgem() {
-	gem install "$_F_gem_name" --local --version "$pkgver" --install-dir . --ignore-dependencies
-	cd gems/"$_F_gem_name"-"$pkgver"
-	Fpatchall
-	libdir=$(ruby -r rbconfig -e 'print RbConfig::CONFIG["rubylibdir"]')
-	archdir=$(ruby -r rbconfig -e 'print RbConfig::CONFIG["archdir"]')
-	if [ -d bin ]; then
-		Fmkdir /usr/bin
-		cp -R bin/* "$Fdestdir"/usr/bin || Fdie
-		Ffileschmod /usr/bin +x
-	fi
-	if [ -d lib ]; then
-		Fmkdir "$libdir"
-		cp -R lib/* "$Fdestdir"/"$libdir" || Fdie
-	fi
-	if [ -d ext ]; then
-		Fmkdir "$archdir"
-		cp -R ext/* "$Fdestdir"/"$archdir" || Fdie
-	fi
-	if [ -d doc -a -n "$(ls doc 2>/dev/null)" ]; then
-		Fmkdir /usr/share/doc/"$pkgname"-"$pkgver"
-		if [ -d doc/"$_F_gem_name"-"$pkgver" -a -n "$(ls doc/$pkgname-$pkgver 2>/dev/null)" ]; then
-			cp -R doc/"$_F_gem_name"-"$pkgver"/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
-			rm -rf doc/"$_F_gem_name"-"$pkgver"/ || Fdie
-		fi
-		if [ -n "$(ls doc)" ]; then
-			cp -R doc/* "$Fdestdir"/usr/share/doc/"$pkgname"-"$pkgver" || Fdie
-		fi
-	fi
-	mv $(find . -mindepth 1 -maxdepth 1 -type f) $Fsrcdir
+	local _gemdir="$(ruby -e 'puts Gem.default_dir')"
+
+	Fexec gem install "$_F_gem_name" --local --version "$pkgver" --install-dir "${Fdestdir}/$_gemdir" \
+		-n "${Fdestdir}/usr/bin" --ignore-dependencies --verbose || Fdie
 }
 
 ###

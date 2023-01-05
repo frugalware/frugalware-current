@@ -100,7 +100,7 @@ Meson_conf()
 	Meson_setup
 	## we need all these to be sure we build with own flags..
 	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" LDFLAGS="$LDFLAGS" \
-		Fexec meson \
+		Fexec meson setup \
 			--prefix ${CROSS_PREFIX} \
 			--datadir share \
 			--libdir ${CROSS_LIB} \

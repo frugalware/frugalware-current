@@ -2,26 +2,30 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=docker
-pkgver=19.03.15
-_gitcommit=99e3ed89195c4e551e87aad1e7453b65456b03ad
+pkgver=20.10.22
+_gitcommit=42c8b31
 pkgrel=1
 pkgdesc="Docker - the Linux container runtime"
 archs=('x86_64')
 groups=('apps-extra')
 backup=('etc/sysconfig/dockerd')
 depends=('bridge-utils' 'iproute2' 'libguestfs>=1.36.5' 'sqlite3' 'lvm2' 'btrfs-progs>=4.10-2')
-makedepends=('go>=1.7' 'git' 'mercurial' 'ca-certificates' 'sphinx-httpdomain' 'mkdocs' 'systemd-devel' \
-        'python-jinja' 'python-markupsafe' 'python-markdown' 'pyyaml' 'watchdog' 'pathtools')
+makedepends=('go>=1.7' 'go-md2man' 'systemd-devel')
 rodepends=('containerd' 'runc' 'libnetwork' 'tini')
 _F_github_author="docker"
-_F_github_name="docker-ce"
+_F_github_name="cli"
 _F_github_tag_v="y"
 _F_github_grepv="beta\|-rc"
 Finclude github
-up2date="$up2date | sed 's/-ce//'"
 _F_cd_path="$_F_github_name-$pkgver"
-source+=( _docker docker.conf docker.service docker.socket dockerd)
-sha1sums=('fc0263bef5a47b1b4db2c0fc4eca7d4b294f008e' \
+source+=(https://github.com/moby/moby/archive/refs/tags/v$pkgver.zip \
+	_docker \
+	docker.conf \
+	docker.service \
+	docker.socket \
+	dockerd)
+sha1sums=('2df623d10562e7635a343bb999b5ea96573f5f9f' \
+          '9dc0149ec593656c0a72163db42ee29135887dcb' \
           '47027a4c415cb1aa556e54dd0dc1c80f4fbe076a' \
           '36269e4f788302439cd6bc672a83f594348660db' \
           '41fbb144c622a04165ce06074552a40fc02dd101' \
@@ -36,9 +40,14 @@ conflicts=('lxc-docker')
 build() {
 	Fcd
 	Fpatchall
-	unset CFLAGS
-	unset CXXFLAGS
-	unset LDFLAGS
+	export CGO_CPPFLAGS="${CPPFLAGS}"
+	export CGO_CFLAGS="${CFLAGS}"
+	export CGO_CXXFLAGS="${CXXFLAGS}"
+	export CGO_LDFLAGS="${LDFLAGS}"
+	export LDFLAGS=''
+	export GOFLAGS='-buildmode=pie -trimpath -mod=readonly -modcacherw -ldflags=-linkmode=external'
+	export GO111MODULE=off
+	export DISABLE_WARN_OUTSIDE_CONTAINER=1
 
 	export GOPATH="$Fsrcdir/gopath"
 	export PATH="$PATH:$GOPATH/bin"
@@ -48,19 +57,15 @@ build() {
 	Fexec mkdir -p $GOPATH/src/github.com/docker || Fdie
 
 	# CLI
-	Fexec mv $Fsrcdir/$_F_github_name-$pkgver/components/cli $Fsrcdir/gopath/src/github.com/docker/cli || Fdie
+	Fexec mv $Fsrcdir/$_F_github_name-$pkgver $Fsrcdir/gopath/src/github.com/docker/cli || Fdie
 	Fexec cd $GOPATH/src/github.com/docker/cli || Fdie
-	DISABLE_WARN_OUTSIDE_CONTAINER=1 VERSION=$pkgver-ce make dynbinary || Fdie
+	Fexec make VERSION=$pkgver dynbinary || Fdie
+	Fexec make manpages || Fdie
 
 	# Daemon
-	Fexec mv $Fsrcdir/$_F_github_name-$pkgver/components/engine $Fsrcdir/gopath/src/github.com/docker/docker || Fdie
+	Fexec mv $Fsrcdir/moby-$pkgver $Fsrcdir/gopath/src/github.com/docker/docker || Fdie
 	Fexec cd $GOPATH/src/github.com/docker/docker || Fdie
-	VERSION=$pkgver-ce DOCKER_BUILDTAGS='seccomp journald' DOCKER_GITCOMMIT=$_gitcommit ./hack/make.sh dynbinary || Fdie
-
-	# man
-	Fexec go get github.com/cpuguy83/go-md2man || Fdie
-	Fexec cd $GOPATH/src/github.com/docker/cli || Fdie
-	DISABLE_WARN_OUTSIDE_CONTAINER=1 make manpages || Fdie
+	VERSION=$pkgver DOCKER_BUILDTAGS='seccomp journald' DOCKER_GITCOMMIT=$_gitcommit ./hack/make.sh dynbinary || Fdie
 
 	Fexec cd $Fsrcdir
 	for man in $(find gopath/src/github.com/docker/cli/man/man* -type f)
@@ -72,7 +77,7 @@ build() {
 	Fexe gopath/src/github.com/docker/cli/build/docker-linux-amd64 usr/bin/docker
 
 	# daemon
-	Fexe gopath/src/github.com/docker/docker/bundles/dynbinary-daemon/dockerd-${pkgver}-ce usr/bin/dockerd
+	Fexe gopath/src/github.com/docker/docker/bundles/dynbinary-daemon/dockerd-${pkgver} usr/bin/dockerd
 
 	# install systemd service unit and sysconfig file
 	Ffile /etc/sysconfig/dockerd
@@ -90,7 +95,7 @@ build() {
 	Finstall 644 gopath/src/github.com/docker/cli/contrib/completion/fish/docker.fish \
 		usr/share/fish/vendor_completions.d/docker.fish
 
-	Fmkdir usr/share/doc/docker-${pkgver}-ce
+	Fmkdir usr/share/doc/docker-${pkgver}
 
 	# Create group using sysuser.d
 	Fmkdir usr/lib/sysusers.d/

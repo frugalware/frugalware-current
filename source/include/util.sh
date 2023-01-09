@@ -1880,7 +1880,7 @@ Fextract() {
                 cmd="tar $_F_extract_taropts --use-compress-program=lzip -xf $file" ;;
 		*.tar.lzma)
 		cmd="tar $_F_extract_taropts --use-compress-program=lzma -xf $file" ;;
-		*.tar.xz)
+		*.tar.xz|*.txz)
 		cmd="tar $_F_extract_taropts --use-compress-program=xz -xf $file" ;;
 		*.tar)
 		cmd="tar $_F_extract_taropts -xf $file" ;;

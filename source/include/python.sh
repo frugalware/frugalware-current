@@ -34,8 +34,8 @@
 ###
 
 if [ -e /usr/bin/python3 ]; then
-	_F_python3_libdir=`python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_lib()[1:])'`
-	_F_python3_ver=`python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_version())'`
+	_F_python3_libdir=`python3 -c "import sysconfig; print(sysconfig.get_path('platlib')[1:])"`
+	_F_python3_ver=`python3 -c 'import sysconfig; print(sysconfig.get_python_version())'`
 fi
 
 ###
@@ -47,10 +47,10 @@ fi
 
 _F_python3_getlibdir()
 {
-	python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_lib()[1:])'
+	 python3 -c "import sysconfig; print(sysconfig.get_path('platlib')[1:])"
 }
 
 _F_python3_getver()
 {
-	python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_version())'
+	python3 -c 'import sysconfig; print(sysconfig.get_python_version())'
 }

@@ -1,0 +1,241 @@
+From 4a2afb4ce28b46ee463b1dc8d38d1c81962e3c88 Mon Sep 17 00:00:00 2001
+From: Kevin Rushforth <kcr@openjdk.org>
+Date: Wed, 2 Nov 2022 17:14:10 +0000
+Subject: [PATCH] 8295962: Reference to State in Task.java is ambiguous when
+ building with JDK 19
+
+Reviewed-by: angorya, arapte
+---
+ .../src/main/java/javafx/concurrent/Task.java | 28 +++++++++----------
+ .../java/javafx/concurrent/TaskShim.java      |  4 +--
+ .../test/javafx/concurrent/AbstractTask.java  |  6 ++--
+ .../javafx/concurrent/TaskCancelTest.java     | 15 +++++-----
+ .../javafx/concurrent/TaskSimpleTest.java     |  4 +--
+ 5 files changed, 29 insertions(+), 28 deletions(-)
+
+diff --git a/modules/javafx.graphics/src/main/java/javafx/concurrent/Task.java b/modules/javafx.graphics/src/main/java/javafx/concurrent/Task.java
+index 56f174fe6e5..43760c52907 100644
+--- a/modules/javafx.graphics/src/main/java/javafx/concurrent/Task.java
++++ b/modules/javafx.graphics/src/main/java/javafx/concurrent/Task.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2010, 2021, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2010, 2022, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -690,14 +690,14 @@ private Task(final TaskCallable<V> callableAdapter) {
+      */
+     protected abstract V call() throws Exception;
+ 
+-    private ObjectProperty<State> state = new SimpleObjectProperty<>(this, "state", State.READY);
+-    final void setState(State value) { // package access for the Service
++    private ObjectProperty<Worker.State> state = new SimpleObjectProperty<>(this, "state", Worker.State.READY);
++    final void setState(Worker.State value) { // package access for the Service
+         checkThread();
+-        final State s = getState();
+-        if (s != State.CANCELLED) {
++        final Worker.State s = getState();
++        if (s != Worker.State.CANCELLED) {
+             this.state.set(value);
+             // Make sure the running flag is set
+-            setRunning(value == State.SCHEDULED || value == State.RUNNING);
++            setRunning(value == Worker.State.SCHEDULED || value == Worker.State.RUNNING);
+ 
+             // Invoke the event handlers, and then call the protected methods.
+             switch (state.get()) {
+@@ -729,8 +729,8 @@ final void setState(State value) { // package access for the Service
+             }
+         }
+     }
+-    @Override public final State getState() { checkThread(); return state.get(); }
+-    @Override public final ReadOnlyObjectProperty<State> stateProperty() { checkThread(); return state; }
++    @Override public final Worker.State getState() { checkThread(); return state.get(); }
++    @Override public final ReadOnlyObjectProperty<Worker.State> stateProperty() { checkThread(); return state; }
+ 
+     /**
+      * The onSchedule event handler is called whenever the Task state
+@@ -1025,9 +1025,9 @@ protected void failed() { }
+             // state flag will not be readable immediately after this call. However,
+             // that would be the case anyway since these properties are not thread-safe.
+             if (isFxApplicationThread()) {
+-                setState(State.CANCELLED);
++                setState(Worker.State.CANCELLED);
+             } else {
+-                runLater(() -> setState(State.CANCELLED));
++                runLater(() -> setState(Worker.State.CANCELLED));
+             }
+         }
+         // return the flag
+@@ -1418,8 +1418,8 @@ private TaskCallable() { }
+             // in all cases so that developer code can be consistent.
+             task.started = true;
+             task.runLater(() -> {
+-                task.setState(State.SCHEDULED);
+-                task.setState(State.RUNNING);
++                task.setState(Worker.State.SCHEDULED);
++                task.setState(Worker.State.RUNNING);
+             });
+             // Go ahead and delegate to the wrapped callable
+             try {
+@@ -1434,7 +1434,7 @@ private TaskCallable() { }
+                         // can assume if the result is set, it has
+                         // succeeded.
+                         task.updateValue(result);
+-                        task.setState(State.SUCCEEDED);
++                        task.setState(Worker.State.SUCCEEDED);
+                     });
+                     return result;
+                 } else {
+@@ -1453,7 +1453,7 @@ private TaskCallable() { }
+                 // in that circumstance.
+                 task.runLater(() -> {
+                     task._setException(th);
+-                    task.setState(State.FAILED);
++                    task.setState(Worker.State.FAILED);
+                 });
+                 // Some error occurred during the call (it might be
+                 // an exception (either runtime or checked), or it might
+diff --git a/modules/javafx.graphics/src/shims/java/javafx/concurrent/TaskShim.java b/modules/javafx.graphics/src/shims/java/javafx/concurrent/TaskShim.java
+index 3c29383bf32..2e1f2a31dab 100644
+--- a/modules/javafx.graphics/src/shims/java/javafx/concurrent/TaskShim.java
++++ b/modules/javafx.graphics/src/shims/java/javafx/concurrent/TaskShim.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2015, 2022, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -49,7 +49,7 @@ public void runLater(Runnable r) {
+         super.runLater(r);
+     }
+ 
+-    public void shim_setState(State value) {
++    public void shim_setState(Worker.State value) {
+         super.setState(value);
+     }
+ 
+diff --git a/modules/javafx.graphics/src/test/java/test/javafx/concurrent/AbstractTask.java b/modules/javafx.graphics/src/test/java/test/javafx/concurrent/AbstractTask.java
+index 67a31c1244b..b835234da95 100644
+--- a/modules/javafx.graphics/src/test/java/test/javafx/concurrent/AbstractTask.java
++++ b/modules/javafx.graphics/src/test/java/test/javafx/concurrent/AbstractTask.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2010, 2022, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -26,8 +26,8 @@
+ package test.javafx.concurrent;
+ 
+ import java.util.concurrent.Semaphore;
+-import javafx.concurrent.Task;
+ import javafx.concurrent.TaskShim;
++import javafx.concurrent.Worker;
+ 
+ /**
+  * For testing purposes, we use this subclass of Task that will fake out the
+@@ -59,7 +59,7 @@ public abstract class AbstractTask extends TaskShim<String> {
+ 
+     // Simulates scheduling the concurrent for execution
+     public void simulateSchedule() {
+-        shim_setState(State.SCHEDULED);
++        shim_setState(Worker.State.SCHEDULED);
+     }
+ 
+     // For most tests, we want to pretend that we are on the FX app thread, always.
+diff --git a/modules/javafx.graphics/src/test/java/test/javafx/concurrent/TaskCancelTest.java b/modules/javafx.graphics/src/test/java/test/javafx/concurrent/TaskCancelTest.java
+index 878c8760525..4a52eb07880 100644
+--- a/modules/javafx.graphics/src/test/java/test/javafx/concurrent/TaskCancelTest.java
++++ b/modules/javafx.graphics/src/test/java/test/javafx/concurrent/TaskCancelTest.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2010, 2022, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -26,6 +26,7 @@
+ package test.javafx.concurrent;
+ 
+ import javafx.concurrent.Task;
++import javafx.concurrent.Worker;
+ import test.javafx.concurrent.mocks.EpicFailTask;
+ import test.javafx.concurrent.mocks.InfiniteTask;
+ import test.javafx.concurrent.mocks.RunAwayTask;
+@@ -57,7 +58,7 @@ public class TaskCancelTest {
+      */
+     @Test public void cancellingA_READY_TaskShouldChangeStateTo_CANCELLED() {
+         assertTrue(task.cancel());
+-        assertEquals(Task.State.CANCELLED, task.getState());
++        assertEquals(Worker.State.CANCELLED, task.getState());
+         assertTrue(task.isDone());
+     }
+ 
+@@ -69,7 +70,7 @@ public class TaskCancelTest {
+     @Test public void cancellingA_SCHEDULED_TaskShouldChangeStateTo_CANCELLED() {
+         task.simulateSchedule();
+         assertTrue(task.cancel());
+-        assertEquals(Task.State.CANCELLED, task.getState());
++        assertEquals(Worker.State.CANCELLED, task.getState());
+         assertTrue(task.isDone());
+     }
+ 
+@@ -90,7 +91,7 @@ public class TaskCancelTest {
+         assertTrue(task.cancel());
+         th.join();
+ 
+-        assertEquals(Task.State.CANCELLED, task.getState());
++        assertEquals(Worker.State.CANCELLED, task.getState());
+         // TODO why is this commented out?
+ //        assertNull(task.getException());
+         assertNull(task.getValue());
+@@ -105,7 +106,7 @@ public class TaskCancelTest {
+         Task t = new SimpleTask();
+         t.run();
+         assertFalse(t.cancel());
+-        assertEquals(Task.State.SUCCEEDED, t.getState());
++        assertEquals(Worker.State.SUCCEEDED, t.getState());
+         assertTrue(t.isDone());
+     }
+ 
+@@ -117,7 +118,7 @@ public class TaskCancelTest {
+         Task t = new EpicFailTask();
+         t.run();
+         assertFalse(t.cancel());
+-        assertEquals(Task.State.FAILED, t.getState());
++        assertEquals(Worker.State.FAILED, t.getState());
+         assertTrue(t.isDone());
+     }
+ 
+@@ -136,7 +137,7 @@ protected void loop(int count) throws Exception {
+         runAway.stopLooping.set(true);
+         th.join();
+ 
+-        assertEquals(Task.State.CANCELLED, runAway.getState());
++        assertEquals(Worker.State.CANCELLED, runAway.getState());
+         // TODO why is this commented out?
+ //        assertNull(task.getException());
+         assertNull(runAway.getValue());
+diff --git a/modules/javafx.graphics/src/test/java/test/javafx/concurrent/TaskSimpleTest.java b/modules/javafx.graphics/src/test/java/test/javafx/concurrent/TaskSimpleTest.java
+index 0dc8d7fda30..4417700accd 100644
+--- a/modules/javafx.graphics/src/test/java/test/javafx/concurrent/TaskSimpleTest.java
++++ b/modules/javafx.graphics/src/test/java/test/javafx/concurrent/TaskSimpleTest.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2010, 2022, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -65,7 +65,7 @@ public class TaskSimpleTest {
+      ***********************************************************************/
+ 
+     @Test public void stateShouldBe_READY_ByDefault() {
+-        assertEquals(Task.State.READY, task.getState());
++        assertEquals(Worker.State.READY, task.getState());
+     }
+ 
+     @Test public void workDoneShouldBe_Indeterminate_ByDefault() {

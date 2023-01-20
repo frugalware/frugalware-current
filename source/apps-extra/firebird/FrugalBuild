@@ -2,33 +2,35 @@
 # Maintainer: dex77 <dex77@frugalware.org>
 
 pkgname=firebird
-pkgver=3.0.7.33374_0
-pkgrel=4
+pkgver=4.0.2.2816_0
+pkgrel=1
 majorver="${pkgver%.*}"
 pkgdesc="SQL relational database management system"
-depends=('glibc' 'libstdc++' 'libgcc' 'libedit' 'ncurses')
+depends=('glibc' 'libstdc++' 'libgcc' 'libedit' 'ncurses' 'libtomcrypt' 're2')
 makedepends=('icu4c>=65.1')
 url="https://firebirdsql.org"
 rodepends=("libfbclient>=$pkgver-$pkgrel")
 groups=('apps-extra')
 archs=('x86_64')
 _F_archive_name="Firebird"
-up2date="Flasttar $url/en/firebird-3-0/"
-source=(https://github.com/FirebirdSQL/firebird/releases/download/R${majorver//\./_}/Firebird-${pkgver/_/-}.tar.bz2
-	firebird-logrotate \
-	firebird.conf \
-	Provide-sized-global-delete-operators-when-compiled.patch \
-	add-pkgconfig-files.patch)
-sha1sums=('15c5a11998ab606999b8ef61ff2c04d217064d62' \
+up2date="Flasttar $url/en/firebird-4-0/"
+source=(https://github.com/FirebirdSQL/firebird/releases/download/v${majorver}/Firebird-${pkgver/_/-}.tar.xz
+        firebird-logrotate \
+        firebird.conf \
+	add-pkgconfig-files.patch \
+	shared-re2.patch \
+	update-re2.patch )
+sha1sums=('29356301dd14629e0a421821cb394cef7db08442' \
           'ca23a67741ebb8cb6c222c4422ab3eb1b4c7f52a' \
           '5ca4921375cdca2bbe3c553905a3e9c14a151af3' \
-          '7ca2af2527fda0d809842ad4f6b65b88da6009b2' \
-          '883cbbbd6d6ee172657dccb58e14a8b35507c5cc')
-
+          '883cbbbd6d6ee172657dccb58e14a8b35507c5cc' \
+          '11db1cb656b9ea8e1dad140e99f3577f0e9c2131' \
+          '20f37903eba58c064e8bccc5075593ce0ff184a3')
+options=('nolto')
 
 subpkgs=('libfbclient')
 subdescs=('Multi-process, local client libraries for Firebird SQL RDBMS')
-subdepends=('glibc libstdc++ libgcc')
+subdepends=('libtommath libgcc')
 subgroups=('lib')
 subarchs=('x86_64')
 ## that's half right ..
@@ -58,13 +60,14 @@ Fconfopts="	        --prefix=/usr/lib/firebird \
                         --with-fblog=/var/log/firebird \
                         --with-fbglock=/run/firebird \
                         --with-fbplugins=/usr/lib/firebird/plugins \
-                        --with-builtin-tommath \
 			--disable-binreloc \
 			--with-service-name=gds-db"
 build()
 {
 	Fcd
 	Fpatchall
+
+	Fexec rm -r extern/{editline,libtommath,libtomcrypt,zlib} || Fdie
 	NOCONFIGURE=1 ./autogen.sh
 	Fconf
 
@@ -87,9 +90,7 @@ build()
 	## cleanup .. weird crappy package
 	Frm etc/firebird/{WhatsNew,README,*.txt}
 	Frm usr/sbin/*.sh
-	## sure lol
-	Fmv usr/lib/.tm/* usr/lib/
-	Frm usr/lib/.tm
+
 	## conflicts
 	Fmv usr/bin/isql usr/bin/isql-fb
 	Fln  /usr/lib/firebird/intl/fbintl.conf  /etc/firebird/fbintl.conf
@@ -103,12 +104,9 @@ build()
 	sed "s@firebird.log@/var/log/firebird/firebird.log@g" $Fsrcdir/firebird-logrotate > $Fdestdir/etc/logrotate.d/firebird
 
 	Fmv  usr/lib/firebird/misc/*.service lib/systemd/system/
-	Fmv  usr/lib/firebird/misc/*.socket lib/systemd/system/
 
 	Fsplit libfbclient usr/lib/libfbclient.so*
 	Fsplit libfbclient usr/lib/libgds.so*
-	Fsplit libfbclient usr/lib/libtommath.so*
-	Fsplit libfbclient usr/include
 }
 
 # optimization OK

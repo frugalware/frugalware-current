@@ -5,12 +5,12 @@
 ## 	  kernel-initrd
 
 pkgname=systemd
-pkgver=252.4
+pkgver=252.5
 pkgrel=1
 pkgdesc="A System and Service Manager"
 url="http://www.freedesktop.org/wiki/Software/systemd"
 depends=('kmod>=25-2' 'cryptsetup-luks>=2.0.1-3' 'lz4>=1.8.1.2-2' 'libseccomp' 'libidn2' 'pcre2' 'openssl>=1.1.1')
-makedepends=('docbook-xsl' 'docbook-xml' 'intltool>=0.51.0-3' 'bash-completion' 'python3-jinja' \
+makedepends=('docbook-xsl' 'docbook-xml' 'intltool>=0.51.0-3' 'bash-completion' 'python3-jinja' 'kernel-headers' \
 	'gperf>=3.0.4-5' 'python3-lxml>=4.1.1-2' 'gobject-introspection>=1.54.1-2' 'polkit' 'libxkbcommon')
 rodepends=('dbus>=1.12.2-4' "libsystemd>=$pkgver" "$pkgname-systemctl>=$pkgver" "libudev>=$pkgver" \
 	'scriptlet-core' 'hwdata' 'systemd-sysvinit' \
@@ -27,6 +27,8 @@ _F_cd_path="${pkgname}-stable-$pkgver"
 Finclude github cross32
 
 source+=(
+	line-continuation.patch
+	fix-build.patch
 	# frugalware stuff
 	console.conf
 	blacklist
@@ -43,7 +45,9 @@ source+=(
 	##
 	frugalware-systemd-sysusers-is-root-only.patch
 	)
-sha1sums=('c7845271caa24044a0a1397bc6b9cc6e6b0b9488' \
+sha1sums=('5e628d232a249857d62756478c65688b0874b6fe' \
+          '5e68c638068d76e5cd34c002d1f7f706206aa8d8' \
+          '2b1f95a340b649de3b886cac1924ad7908531d4a' \
           'cbc0db0e1ccc0a57b5e7773b2ec13f3aa9ff668c' \
           '4657cbad76a3d5c8aade4dba166b3f8704c7b07f' \
           '439e2be7278ecedb4a4f090241bb484a7a25a9c3' \
@@ -61,17 +65,6 @@ archs=('x86_64')
 
 #TODO : Remove backup, source rc for SysVinit when all rc scripts used systemd
 backup=(etc/{vconsole.conf,systemd/{system.conf,user.conf,logind.conf,journald.conf},machine-id,machine-info,locale.conf,udev/udev.conf,sysconfig/blacklist,tmpfiles.d/console.conf,dbus-1/system.d/org.freedesktop.{hostname,locale,login,systemd,timedate}1.conf,X11/xorg.conf.d/00-keyboard.conf} etc/rc.d/rc.local sbin/halt.local)
-
-subpkgs=('systemd-sysvinit')
-subdescs=('systemd System V init tools')
-subrodepends=("$pkgname=$pkgver")
-subreplaces=('sysvinit')
-subgroups=('base core')
-subarchs=('x86_64')
-subprovides=('sysvinit')
-subconflicts=('sysvinit')
-subdepends=('pam>=1.3.0-4 kmod>=25-2 libcap>=2.25-4 lz4>=1.8.1.2-2 libgcrypt>=1.8.0-2')
-suboptions=('')
 
 subpkgs+=('systemd-remote')
 subdescs+=('systemd remote journald')
@@ -188,8 +181,9 @@ _F_cross32_meson_confopts_64="	-Dnobody-user=nfsnobody -Dnobody-group=nfsnobody 
 				-Dpamconfdir=/etc/pam.d \
 				-Dpkgconfigdatadir=/usr/lib/pkgconfig \
 				-Dpkgconfiglibdir=/usr/lib/pkgconfig \
-				-Dsysvinit-path=/etc/rd.d \
-				-Dsysvrcnd-path=/etc/rc.d \
+				-Drpmmacrosdir=no \
+				-Dsysvinit-path= \
+				-Dsysvrcnd-path= \
 				-Drc-local=/etc/rc.d/rc.local \
 				-Dloadkeys-path=/usr/bin/loadkeys \
 				-Dsetfont-path=/usr/bin/setfont \
@@ -313,6 +307,9 @@ _F_cross32_meson_confopts_32="	-Daudit=false \
 				-Dhtml=false
 				-Dtranslations=false \
 				-Dmode=release \
+				-Drpmmacrosdir=no \
+				-Dsysvinit-path= \
+				-Dsysvrcnd-path= \
 				-Dpkgconfigdatadir=/usr/lib32/pkgconfig \
                                 -Dpkgconfiglibdir=/usr/lib32/pkgconfig"
 
@@ -359,8 +356,6 @@ build() {
 	Fln /bin/systemctl /sbin/shutdown
 	Fln /bin/systemctl /sbin/telinit
 	Fln /bin/systemctl /sbin/runlevel
-	Fsplit systemd-sysvinit sbin/{init,reboot,halt,poweroff,shutdown,telinit,runlevel}
-	Fsplit systemd-sysvinit usr/share/man/man8/{halt,poweroff,reboot,runlevel,shutdown,telinit}.*
 
 	Frm etc/systemd/system/*.target.wants
 

@@ -103,11 +103,11 @@ Fbuild_haskell_regscripts() {
 Fbuild_haskell() {
   Fcd
   Fpatchall
-  runhaskell $_F_haskell_setup configure $_F_haskell_confopts || Fdie
-  runhaskell $_F_haskell_setup haddock || Fdie
-  runhaskell $_F_haskell_setup build || Fdie
+  Fexec runhaskell $_F_haskell_setup configure $_F_haskell_confopts || Fdie
+  Fexec runhaskell $_F_haskell_setup haddock || Fdie
+  Fexec runhaskell $_F_haskell_setup build || Fdie
   Fbuild_haskell_regscripts
-  runhaskell $_F_haskell_setup copy --destdir=$Fdestdir
+  Fexec runhaskell $_F_haskell_setup copy --destdir=$Fdestdir
 }
 build() {
   Fbuild_haskell

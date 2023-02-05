@@ -161,6 +161,9 @@ fi
 ## X11/mesa changes
 makedepends+=('x11-protos')
 
+# kernel stuff
+makedepends+=('kernel-headers')
+
 ###
 # == APPENDED VARIABLES
 # makedepends: if kde4 append automoc4 unless building it, if kf5 append some other deps.

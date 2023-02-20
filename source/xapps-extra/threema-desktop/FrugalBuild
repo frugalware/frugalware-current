@@ -1,0 +1,70 @@
+# Compiling Time: 0.01 SBU
+# Maintainer: DeX77 <dex77@frugalware.org>
+
+pkgname=threema-desktop
+pkgdesc="Threema Desktop (Threema Web in Electron)."
+pkgver=1.2.27
+pkgrel=1
+_threema_web_ver=2.5.0
+archs=('x86_64')
+groups=('xapps-extra')
+_F_github_author="threema-ch"
+_F_github_name="threema-web-electron"
+_F_github_tag=y
+Finclude github
+depends=('glib2' 'dbus')
+makedepends=('nodejs' 'git')
+source+=("https://github.com/threema-ch/threema-web/archive/refs/tags/v${_threema_web_ver}.tar.gz" \
+	threema.desktop)
+sha1sums=('60f6a938d50b089c18324ad586a77db34ee25052' \
+          'd15e294e950aa13f4fd2917796f6e1c3c0bae415' \
+          '68ece38c62aba1e69e30d4a35b10cce597090964')
+_F_cd_path="threema-web-electron-$pkgver"
+
+build() {
+  Fcd
+
+  # Copy threema-web source code (since threema-web-electron submodule
+  # is not contained in GitHub export)
+  Fexec rm -r "app/dependencies/threema-web" || Fdie
+  Fexec cp -R "../threema-web-${_threema_web_ver}" "app/dependencies/threema-web" || Fdie
+
+  # Build Threema Web
+  export DEV_ENV=production
+  export threema_web_version=threema-web-${_threema_web_ver}
+  Fexec npm install || Fdie
+  Fexec ./tools/patches/patch-threema-web.sh || Fdie
+  Fexec npm run app:build:web || Fdie
+  Fexec ./tools/patches/post-patch-threema-web.sh || Fdie
+  Fexec touch app/dependencies/threema-web/release/threema-web-${_threema_web_ver}/userconfig.overrides.js || Fdie
+
+  # Build Electron app
+  Fexec npm run app:install
+  Fexec node tools/patches/post-patch-threema-web.js linux-deb consumer || Fdie
+  Fexec npm run electron:dist:linux:rpm:consumer || Fdie
+
+  # Copy application
+  Fmkdir usr/lib/${pkgname}
+  Fcprel app/build/dist-electron/packaged/Threema-linux-x64/\* \
+     usr/lib/${pkgname}
+
+  # Copy desktop file
+  Fmkdir usr/share/applications/
+  Fcp threema.desktop usr/share/applications/${pkgname}.desktop
+
+  #Symlink launcher
+  Fln /usr/lib/${pkgname}/threema-web usr/bin/threema
+
+  # Copy desktop files
+  for size in 1024x1024 128x128 2048x2048 256x256 48x48 512x512 64x64
+  do
+	Fmkdir usr/share/icons/hicolor/${size}/apps/
+	Fcprel app/assets/icons/png/consumer-${size}.png usr/share/icons/hicolor/${size}/apps/${pkgname}.png
+  done
+  Fmkdir usr/share/icons/hicolor/scalable/apps/
+  Fcprel app/assets/icons/svg/consumer.svg usr/share/icons/hicolor/scalable/apps/${pkgname}.svg
+
+}
+
+
+# optimization OK

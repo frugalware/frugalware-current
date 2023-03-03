@@ -1,0 +1,48 @@
+From 3109cde31ac76ac79a382f5a9cc97e424f79502d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Daniel=20Gl=C3=B6ckner?= <daniel-gl@gmx.net>
+Date: Fri, 3 Mar 2023 09:52:51 +0100
+Subject: [PATCH] UAudioDecoder_FFmpeg: don't use flush in new FFmpeg versions
+
+Many years have passed since they started to add support for flush into
+codecs. Now that the flush element has been removed from the structure,
+the time has come to assume that all major codecs support flush.
+
+I don't like Pascal/Delphi syntax. It would have been ctx->codec->flush
+in C. In {$MODE Delphi} one can write ctx.codec.flush instead of
+ctx^.codec^.flush. We need to write @ctx.codec.flush because functions
+without parameters can be called without (). &ctx->codec->flush in C
+would be @@ctx.codec.flush in Delphi...
+---
+ src/media/UAudioDecoder_FFmpeg.pas | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/src/media/UAudioDecoder_FFmpeg.pas b/src/media/UAudioDecoder_FFmpeg.pas
+index ad674dc21..32bc538bf 100644
+--- a/src/media/UAudioDecoder_FFmpeg.pas
++++ b/src/media/UAudioDecoder_FFmpeg.pas
+@@ -222,6 +222,16 @@   TAudioDecoder_FFmpeg = class(TInterfacedObject, IAudioDecoder)
+ 
+ function ParseThreadMain(Data: Pointer): integer; cdecl; forward;
+ 
++function CodecCanFlush(ctx: PAVCodecContext): boolean;
++begin
++{$IF LIBAVCODEC_VERSION < 60000000}
++	Result := false;
++	if (@ctx.codec.flush <> nil) then
++		Result := true;
++{$ELSE}
++	Result := true;
++{$ENDIF}
++end;
+ 
+ { TFFmpegDecodeStream }
+ 
+@@ -1056,7 +1066,7 @@ procedure TFFmpegDecodeStream.FlushCodecBuffers();
+ {$ENDIF}
+ begin
+   // if no flush operation is specified, avcodec_flush_buffers will not do anything.
+-  if (@fCodecCtx.codec.flush <> nil) then
++  if CodecCanFlush(fCodecCtx) then
+   begin
+     // flush buffers used by avcodec_decode_audio, etc.
+     avcodec_flush_buffers(fCodecCtx);

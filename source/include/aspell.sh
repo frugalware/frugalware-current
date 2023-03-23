@@ -52,8 +52,8 @@ url="http://aspell.net/"
 depends=('aspell>=0.60')
 groups=('locale-extra')
 archs=('x86_64')
-up2date="lynx -read_timeout=280 -dump ftp://ftp.gnu.org/pub/gnu/aspell/dict/$_F_aspell_lang/|grep aspell$_F_aspell_ver-$_F_aspell_lang.*bz2$|sed -n 's/.*aspell$_F_aspell_ver-$_F_aspell_lang-\(.*\).t.*/\1/;s/-/r/;$ p'"
-source=(ftp://ftp.gnu.org/gnu/aspell/dict/$_F_aspell_lang/$pkgname-${pkgver/r/-}.tar.bz2)
+up2date="lynx -read_timeout=280 -dump https://ftp.gnu.org/pub/gnu/aspell/dict/$_F_aspell_lang/|grep aspell$_F_aspell_ver-$_F_aspell_lang.*bz2$|sed -n 's/.*aspell$_F_aspell_ver-$_F_aspell_lang-\(.*\).t.*/\1/;s/-/r/;$ p'"
+source=(https://ftp.gnu.org/gnu/aspell/dict/$_F_aspell_lang/$pkgname-${pkgver/r/-}.tar.bz2)
 signatures=($source.sig)
 
 ###

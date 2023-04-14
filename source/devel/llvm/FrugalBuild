@@ -3,7 +3,7 @@
 
 pkgname=llvm
 pkgver=15.0.7
-pkgrel=1
+pkgrel=2
 gcc_ver=12.2.0
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
@@ -11,7 +11,7 @@ depends=("libstdc++>=${gcc_ver}" 'python3')
 makedepends=('groff' 'libffi' 'python3-sphinx' 'ocaml-ctypes>=0.18' \
 	'ocaml-findlib>=1.8.1' 'ncurses>=6.0-16' 'lib32-libffi' 'lib32-libxml2' \
 	'python3-recommonmark' "libstdc++>=${gcc_ver}" 'binutils>=2.32' 'mpfr' 'lib32-elfutils' \
-	'glibc>=2.35' "gcc>=${gcc_ver}" "python3-sphinx-markdown-tables" \
+	'glibc>=2.35' "gcc>=${gcc_ver}" "python3-sphinx-markdown-tables" 'mold' \
 	"python3-markdown" "python3-importlib-metadata" "python3-sphinx-automodapi")
 rodepends=("$pkgname-libs")
 groups=('devel')
@@ -23,10 +23,14 @@ _F_github_tag=yes
 _F_github_grepv="rc1\|rc2\|rc3\|rc4\|init"
 Finclude github
 up2date="$up2date | sed 's/llvmorg-//'"
-source=(https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/$pkgname-project-$pkgver.src.tar.xz)
+source=(https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/$pkgname-project-$pkgver.src.tar.xz \
+	wasi-toolchain.cmake \
+	WASI.cmake )
 _F_archive_ver="${pkgver}.src"
 _F_cd_path="llvm-project-${_F_archive_ver}"
-sha1sums=('bfda06ab090154d289013912266209595a2e3914')
+sha1sums=('bfda06ab090154d289013912266209595a2e3914' \
+          'a5d8c8cd93f043e5cfc2597f26312a1c42e35053' \
+          '9ce63f62034a467970f9b0911f2e5d4cb79e3bef')
 
 _F_cross32_delete=('usr/docs' 'usr/share' \
 	'usr/lib/ocaml' 'usr/libexec/' 'usr/lib')
@@ -63,6 +67,13 @@ subarchs+=("x86_64")
 subpkgs+=("compiler-rt")
 subdescs+=("Compiler runtime libraries for clang")
 subdepends+=("")
+subrodepends+=("")
+subgroups+=('devel')
+subarchs+=("x86_64")
+
+subpkgs+=("wasi-compiler-rt")
+subdescs+=("WASI LLVM compiler runtime")
+subdepends+=("wasi-libc")
 subrodepends+=("")
 subgroups+=('devel')
 subarchs+=("x86_64")
@@ -242,12 +253,14 @@ _F_cmake_src_dir="llvm"
 _common_cmake_confopts="	-DCMAKE_INSTALL_PREFIX=/usr \
 				-DLLVM_BUILD_LLVM_DYLIB=ON \
 				-DLLVM_LINK_LLVM_DYLIB=ON \
+				-DLLVM_USE_LINKER=mold \
 				-DLLVM_ENABLE_RTTI=ON \
 				-DLLVM_INSTALL_UTILS=ON \
 				-DLLVM_ENABLE_FFI=ON \
 				-DLIBOMP_INSTALL_ALIASES=OFF \
 				-DCMAKE_SKIP_RPATH=ON \
 				-DLLVM_USE_PERF=ON \
+				-DLIBOMP_USE_VERSION_SYMBOLS=OFF \
 				-DLIBOMPTARGET_BUILD_CUDA_PLUGIN=OFF \
 				-DLIBOMPTARGET_BUILD_AMDGPU_PLUGIN=OFF \
 				-DLLVM_BINUTILS_INCDIR=/usr/include"
@@ -255,6 +268,10 @@ Finclude cmake
 options+=('static' 'nolto')
 
 build() {
+	Fcd
+
+	Fexec mkdir -p cmake/Platform || Fdie
+	Fexec cp $Fsrcdir/WASI.cmake cmake/Platform || Fdie
 
 	Fcross32_prepare
 	Fcross32_copy_source
@@ -370,6 +387,22 @@ build() {
 	# Install html docs of llvm-ocaml
 	Fmkdir usr/share/doc/$pkgname-$pkgver/ocamldoc
 	Fcp ${_F_cd_path}/${_F_cmake_build_dir}/docs/ocamldoc/html/* usr/share/doc/$pkgname-$pkgver/ocamldoc
+
+	#wasi
+	Fexec cd .. || Fdie
+	Fexec rm -rf $_F_cmake_build_dir || Fdie
+
+	_F_cmake_confopts="     -DCMAKE_TOOLCHAIN_FILE=$Fsrcdir/wasi-toolchain.cmake \
+                                -DCOMPILER_RT_BAREMETAL_BUILD=On \
+                                -DCOMPILER_RT_INCLUDE_TESTS=OFF \
+                                -DCOMPILER_RT_HAS_FPIC_FLAG=OFF \
+                                -DCOMPILER_RT_DEFAULT_TARGET_ONLY=On \
+                                -DCOMPILER_RT_OS_DIR=wasi \
+                                -DWASI_SDK_PREFIX=/usr"
+	_F_cmake_src_dir="$Fsrcdir/$_F_cd_path/compiler-rt/lib/builtins"
+	CMake_build
+
+	Fsplit wasi-compiler-rt usr/lib/wasi
 
 	Fsplit compiler-rt-static usr/lib/clang/$pkgver/lib/x86_64-frugalware-linux/libclang_rt*.a
 

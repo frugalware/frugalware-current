@@ -1,0 +1,575 @@
+diff -Naur cgit-1.2.3/cache.c cgit-1.2.3.new/cache.c
+--- cgit-1.2.3/cache.c	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/cache.c	2023-03-29 11:25:39.648245535 +0200
+@@ -401,12 +401,12 @@
+ static char *sprintftime(const char *format, time_t time)
+ {
+ 	static char buf[64];
+-	struct tm *tm;
++	struct tm tm;
+ 
+ 	if (!time)
+ 		return NULL;
+-	tm = gmtime(&time);
+-	strftime(buf, sizeof(buf)-1, format, tm);
++	gmtime_r(&time, &tm);
++	strftime(buf, sizeof(buf)-1, format, &tm);
+ 	return buf;
+ }
+ 
+diff -Naur cgit-1.2.3/cgit.c cgit-1.2.3.new/cgit.c
+--- cgit-1.2.3/cgit.c	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/cgit.c	2023-03-29 11:26:03.927432292 +0200
+@@ -428,7 +428,7 @@
+ 	ctx.page.modified = time(NULL);
+ 	ctx.page.expires = ctx.page.modified;
+ 	ctx.page.etag = NULL;
+-	string_list_init(&ctx.cfg.mimetypes, 1);
++	string_list_init_dup(&ctx.cfg.mimetypes);
+ 	if (ctx.env.script_name)
+ 		ctx.cfg.script_name = xstrdup(ctx.env.script_name);
+ 	if (ctx.env.query_string)
+diff -Naur cgit-1.2.3/cgit.h cgit-1.2.3.new/cgit.h
+--- cgit-1.2.3/cgit.h	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/cgit.h	2023-03-29 11:25:05.682984242 +0200
+@@ -14,7 +14,7 @@
+ #include <tag.h>
+ #include <diff.h>
+ #include <diffcore.h>
+-#include <argv-array.h>
++#include <strvec.h>
+ #include <refs.h>
+ #include <revision.h>
+ #include <log-tree.h>
+diff -Naur cgit-1.2.3/tests/t0109-gitconfig.sh cgit-1.2.3.new/tests/t0109-gitconfig.sh
+--- cgit-1.2.3/tests/t0109-gitconfig.sh	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/tests/t0109-gitconfig.sh	2023-03-29 11:25:05.683984250 +0200
+@@ -25,7 +25,7 @@
+ 		-E CGIT_CONFIG="$PWD/cgitrc" \
+ 		-E QUERY_STRING="url=$1" \
+ 		-e access -f -o strace.out cgit &&
+-	test_must_fail grep "$non_existent_path" strace.out
++	! grep "$non_existent_path" strace.out
+ }
+ 
+ test_no_home_access_success() {
+diff -Naur cgit-1.2.3/ui-blame.c cgit-1.2.3.new/ui-blame.c
+--- cgit-1.2.3/ui-blame.c	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/ui-blame.c	2023-03-29 11:25:58.722392257 +0200
+@@ -10,7 +10,7 @@
+ #include "ui-blame.h"
+ #include "html.h"
+ #include "ui-shared.h"
+-#include "argv-array.h"
++#include "strvec.h"
+ #include "blame.h"
+ 
+ 
+@@ -104,7 +104,7 @@
+ 	enum object_type type;
+ 	char *buf;
+ 	unsigned long size;
+-	struct argv_array rev_argv = ARGV_ARRAY_INIT;
++	struct strvec rev_argv = STRVEC_INIT;
+ 	struct rev_info revs;
+ 	struct blame_scoreboard sb;
+ 	struct blame_origin *o;
+@@ -124,15 +124,16 @@
+ 		return;
+ 	}
+ 
+-	argv_array_push(&rev_argv, "blame");
+-	argv_array_push(&rev_argv, rev);
++	strvec_push(&rev_argv, "blame");
++	strvec_push(&rev_argv, rev);
+ 	init_revisions(&revs, NULL);
+ 	revs.diffopt.flags.allow_textconv = 1;
+-	setup_revisions(rev_argv.argc, rev_argv.argv, &revs, NULL);
++	setup_revisions(rev_argv.nr, rev_argv.v, &revs, NULL);
+ 	init_scoreboard(&sb);
+ 	sb.revs = &revs;
+ 	sb.repo = the_repository;
+-	setup_scoreboard(&sb, path, &o);
++	sb.path = path;
++	setup_scoreboard(&sb, &o);
+ 	o->suspects = blame_entry_prepend(NULL, 0, sb.num_lines, o);
+ 	prio_queue_put(&sb.commits, o->commit);
+ 	blame_origin_decref(o);
+@@ -220,8 +221,7 @@
+ }
+ 
+ static int walk_tree(const struct object_id *oid, struct strbuf *base,
+-		     const char *pathname, unsigned mode, int stage,
+-		     void *cbdata)
++		     const char *pathname, unsigned mode, void *cbdata)
+ {
+ 	struct walk_tree_context *walk_tree_ctx = cbdata;
+ 
+@@ -290,10 +290,8 @@
+ 	walk_tree_ctx.match_baselen = (path_items.match) ?
+ 				       basedir_len(path_items.match) : -1;
+ 
+-	read_tree_recursive(the_repository,
+-			    repo_get_commit_tree(the_repository, commit),
+-			    "", 0, 0,
+-			    &paths, walk_tree, &walk_tree_ctx);
++	read_tree(the_repository, repo_get_commit_tree(the_repository, commit),
++		  &paths, walk_tree, &walk_tree_ctx);
+ 	if (!walk_tree_ctx.state)
+ 		cgit_print_error_page(404, "Not found", "Not found");
+ 	else if (walk_tree_ctx.state == 2)
+diff -Naur cgit-1.2.3/ui-blob.c cgit-1.2.3.new/ui-blob.c
+--- cgit-1.2.3/ui-blob.c	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/ui-blob.c	2023-03-29 11:25:58.722392257 +0200
+@@ -19,7 +19,7 @@
+ };
+ 
+ static int walk_tree(const struct object_id *oid, struct strbuf *base,
+-		const char *pathname, unsigned mode, int stage, void *cbdata)
++		const char *pathname, unsigned mode, void *cbdata)
+ {
+ 	struct walk_tree_context *walk_tree_ctx = cbdata;
+ 
+@@ -56,9 +56,9 @@
+ 		goto done;
+ 	if (oid_object_info(the_repository, &oid, &size) != OBJ_COMMIT)
+ 		goto done;
+-	read_tree_recursive(the_repository,
+-			    repo_get_commit_tree(the_repository, lookup_commit_reference(the_repository, &oid)),
+-			    "", 0, 0, &paths, walk_tree, &walk_tree_ctx);
++	read_tree(the_repository,
++		  repo_get_commit_tree(the_repository, lookup_commit_reference(the_repository, &oid)),
++		  &paths, walk_tree, &walk_tree_ctx);
+ 
+ done:
+ 	free(path_items.match);
+@@ -92,10 +92,8 @@
+ 	type = oid_object_info(the_repository, &oid, &size);
+ 	if (type == OBJ_COMMIT) {
+ 		commit = lookup_commit_reference(the_repository, &oid);
+-		read_tree_recursive(the_repository,
+-				    repo_get_commit_tree(the_repository, commit),
+-				    "", 0, 0, &paths, walk_tree,
+-				    &walk_tree_ctx);
++		read_tree(the_repository, repo_get_commit_tree(the_repository, commit),
++			  &paths, walk_tree, &walk_tree_ctx);
+ 		if (!walk_tree_ctx.found_path)
+ 			return -1;
+ 		type = oid_object_info(the_repository, &oid, &size);
+@@ -151,10 +149,8 @@
+ 
+ 	if ((!hex) && type == OBJ_COMMIT && path) {
+ 		commit = lookup_commit_reference(the_repository, &oid);
+-		read_tree_recursive(the_repository,
+-				    repo_get_commit_tree(the_repository, commit),
+-				    "", 0, 0, &paths, walk_tree,
+-				    &walk_tree_ctx);
++		read_tree(the_repository, repo_get_commit_tree(the_repository, commit),
++			  &paths, walk_tree, &walk_tree_ctx);
+ 		type = oid_object_info(the_repository, &oid, &size);
+ 	}
+ 
+diff -Naur cgit-1.2.3/ui-log.c cgit-1.2.3.new/ui-log.c
+--- cgit-1.2.3/ui-log.c	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/ui-log.c	2023-03-29 11:26:07.793462028 +0200
+@@ -10,7 +10,7 @@
+ #include "ui-log.h"
+ #include "html.h"
+ #include "ui-shared.h"
+-#include "argv-array.h"
++#include "strvec.h"
+ 
+ static int files, add_lines, rem_lines, lines_counted;
+ 
+@@ -65,8 +65,9 @@
+ 		return;
+ 	html("<span class='decoration'>");
+ 	while (deco) {
+-		struct object_id peeled;
++		struct object_id oid_tag, peeled;
+ 		int is_annotated = 0;
++
+ 		strlcpy(buf, prettify_refname(deco->name), sizeof(buf));
+ 		switch(deco->type) {
+ 		case DECORATION_NONE:
+@@ -79,8 +80,8 @@
+ 				ctx.qry.showmsg, 0);
+ 			break;
+ 		case DECORATION_REF_TAG:
+-			if (!peel_ref(deco->name, &peeled))
+-				is_annotated = !oidcmp(&commit->object.oid, &peeled);
++			if (!read_ref(deco->name, &oid_tag) && !peel_iterated_oid(&oid_tag, &peeled))
++				is_annotated = !oideq(&oid_tag, &peeled);
+ 			cgit_tag_link(buf, NULL, is_annotated ? "tag-annotated-deco" : "tag-deco", buf);
+ 			break;
+ 		case DECORATION_REF_REMOTE:
+@@ -158,7 +159,7 @@
+ 		      "", &revs->diffopt);
+ 	diffcore_std(&revs->diffopt);
+ 
+-	found = !diff_queue_is_empty();
++	found = !diff_queue_is_empty(&revs->diffopt);
+ 	saved_fmt = revs->diffopt.output_format;
+ 	revs->diffopt.output_format = DIFF_FORMAT_CALLBACK;
+ 	revs->diffopt.format_callback = cgit_diff_tree_cb;
+@@ -366,23 +367,23 @@
+ {
+ 	struct rev_info rev;
+ 	struct commit *commit;
+-	struct argv_array rev_argv = ARGV_ARRAY_INIT;
++	struct strvec rev_argv = STRVEC_INIT;
+ 	int i, columns = commit_graph ? 4 : 3;
+ 	int must_free_tip = 0;
+ 
+ 	/* rev_argv.argv[0] will be ignored by setup_revisions */
+-	argv_array_push(&rev_argv, "log_rev_setup");
++	strvec_push(&rev_argv, "log_rev_setup");
+ 
+ 	if (!tip)
+ 		tip = ctx.qry.head;
+ 	tip = disambiguate_ref(tip, &must_free_tip);
+-	argv_array_push(&rev_argv, tip);
++	strvec_push(&rev_argv, tip);
+ 
+ 	if (grep && pattern && *pattern) {
+ 		pattern = xstrdup(pattern);
+ 		if (!strcmp(grep, "grep") || !strcmp(grep, "author") ||
+ 		    !strcmp(grep, "committer")) {
+-			argv_array_pushf(&rev_argv, "--%s=%s", grep, pattern);
++			strvec_pushf(&rev_argv, "--%s=%s", grep, pattern);
+ 		} else if (!strcmp(grep, "range")) {
+ 			char *arg;
+ 			/* Split the pattern at whitespace and add each token
+@@ -390,14 +391,14 @@
+ 			 * rev-list options. Also, replace the previously
+ 			 * pushed tip (it's no longer relevant).
+ 			 */
+-			argv_array_pop(&rev_argv);
++			strvec_pop(&rev_argv);
+ 			while ((arg = next_token(&pattern))) {
+ 				if (*arg == '-') {
+ 					fprintf(stderr, "Bad range expr: %s\n",
+ 						arg);
+ 					break;
+ 				}
+-				argv_array_push(&rev_argv, arg);
++				strvec_push(&rev_argv, arg);
+ 			}
+ 		}
+ 	}
+@@ -412,22 +413,22 @@
+ 	}
+ 
+ 	if (commit_graph && !ctx.qry.follow) {
+-		argv_array_push(&rev_argv, "--graph");
+-		argv_array_push(&rev_argv, "--color");
++		strvec_push(&rev_argv, "--graph");
++		strvec_push(&rev_argv, "--color");
+ 		graph_set_column_colors(column_colors_html,
+ 					COLUMN_COLORS_HTML_MAX);
+ 	}
+ 
+ 	if (commit_sort == 1)
+-		argv_array_push(&rev_argv, "--date-order");
++		strvec_push(&rev_argv, "--date-order");
+ 	else if (commit_sort == 2)
+-		argv_array_push(&rev_argv, "--topo-order");
++		strvec_push(&rev_argv, "--topo-order");
+ 
+ 	if (path && ctx.qry.follow)
+-		argv_array_push(&rev_argv, "--follow");
+-	argv_array_push(&rev_argv, "--");
++		strvec_push(&rev_argv, "--follow");
++	strvec_push(&rev_argv, "--");
+ 	if (path)
+-		argv_array_push(&rev_argv, path);
++		strvec_push(&rev_argv, path);
+ 
+ 	init_revisions(&rev, NULL);
+ 	rev.abbrev = DEFAULT_ABBREV;
+@@ -436,7 +437,7 @@
+ 	rev.show_root_diff = 0;
+ 	rev.ignore_missing = 1;
+ 	rev.simplify_history = 1;
+-	setup_revisions(rev_argv.argc, rev_argv.argv, &rev, NULL);
++	setup_revisions(rev_argv.nr, rev_argv.v, &rev, NULL);
+ 	load_ref_decorations(NULL, DECORATE_FULL_REFS);
+ 	rev.show_decorations = 1;
+ 	rev.grep_filter.ignore_case = 1;
+diff -Naur cgit-1.2.3/ui-plain.c cgit-1.2.3.new/ui-plain.c
+--- cgit-1.2.3/ui-plain.c	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/ui-plain.c	2023-03-29 11:25:58.722392257 +0200
+@@ -130,7 +130,7 @@
+ }
+ 
+ static int walk_tree(const struct object_id *oid, struct strbuf *base,
+-		const char *pathname, unsigned mode, int stage, void *cbdata)
++		const char *pathname, unsigned mode, void *cbdata)
+ {
+ 	struct walk_tree_context *walk_tree_ctx = cbdata;
+ 
+@@ -198,9 +198,8 @@
+ 	}
+ 	else
+ 		walk_tree_ctx.match_baselen = basedir_len(path_items.match);
+-	read_tree_recursive(the_repository,
+-		            repo_get_commit_tree(the_repository, commit),
+-		            "", 0, 0, &paths, walk_tree, &walk_tree_ctx);
++	read_tree(the_repository, repo_get_commit_tree(the_repository, commit),
++		  &paths, walk_tree, &walk_tree_ctx);
+ 	if (!walk_tree_ctx.match)
+ 		cgit_print_error_page(404, "Not found", "Not found");
+ 	else if (walk_tree_ctx.match == 2)
+diff -Naur cgit-1.2.3/ui-shared.c cgit-1.2.3.new/ui-shared.c
+--- cgit-1.2.3/ui-shared.c	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/ui-shared.c	2023-03-29 11:25:39.649245543 +0200
+@@ -22,10 +22,11 @@
+ 	static char month[][4] =
+ 		{"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+ 		 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+-	struct tm *tm = gmtime(&t);
+-	return fmt("%s, %02d %s %04d %02d:%02d:%02d GMT", day[tm->tm_wday],
+-		   tm->tm_mday, month[tm->tm_mon], 1900 + tm->tm_year,
+-		   tm->tm_hour, tm->tm_min, tm->tm_sec);
++	struct tm tm;
++	gmtime_r(&t, &tm);
++	return fmt("%s, %02d %s %04d %02d:%02d:%02d GMT", day[tm.tm_wday],
++		   tm.tm_mday, month[tm.tm_mon], 1900 + tm.tm_year,
++		   tm.tm_hour, tm.tm_min, tm.tm_sec);
+ }
+ 
+ void cgit_print_error(const char *fmt, ...)
+diff -Naur cgit-1.2.3/ui-snapshot.c cgit-1.2.3.new/ui-snapshot.c
+--- cgit-1.2.3/ui-snapshot.c	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/ui-snapshot.c	2023-03-29 11:25:05.683984250 +0200
+@@ -13,32 +13,32 @@
+ 
+ static int write_archive_type(const char *format, const char *hex, const char *prefix)
+ {
+-	struct argv_array argv = ARGV_ARRAY_INIT;
++	struct strvec argv = STRVEC_INIT;
+ 	const char **nargv;
+ 	int result;
+-	argv_array_push(&argv, "snapshot");
+-	argv_array_push(&argv, format);
++	strvec_push(&argv, "snapshot");
++	strvec_push(&argv, format);
+ 	if (prefix) {
+ 		struct strbuf buf = STRBUF_INIT;
+ 		strbuf_addstr(&buf, prefix);
+ 		strbuf_addch(&buf, '/');
+-		argv_array_push(&argv, "--prefix");
+-		argv_array_push(&argv, buf.buf);
++		strvec_push(&argv, "--prefix");
++		strvec_push(&argv, buf.buf);
+ 		strbuf_release(&buf);
+ 	}
+-	argv_array_push(&argv, hex);
++	strvec_push(&argv, hex);
+ 	/*
+ 	 * Now we need to copy the pointers to arguments into a new
+ 	 * structure because write_archive will rearrange its arguments
+ 	 * which may result in duplicated/missing entries causing leaks
+-	 * or double-frees in argv_array_clear.
++	 * or double-frees in strvec_clear.
+ 	 */
+-	nargv = xmalloc(sizeof(char *) * (argv.argc + 1));
+-	/* argv_array guarantees a trailing NULL entry. */
+-	memcpy(nargv, argv.argv, sizeof(char *) * (argv.argc + 1));
++	nargv = xmalloc(sizeof(char *) * (argv.nr + 1));
++	/* strvec guarantees a trailing NULL entry. */
++	memcpy(nargv, argv.v, sizeof(char *) * (argv.nr + 1));
+ 
+-	result = write_archive(argv.argc, nargv, NULL, the_repository, NULL, 0);
+-	argv_array_clear(&argv);
++	result = write_archive(argv.nr, nargv, NULL, the_repository, NULL, 0);
++	strvec_clear(&argv);
+ 	free(nargv);
+ 	return result;
+ }
+diff -Naur cgit-1.2.3/ui-stats.c cgit-1.2.3.new/ui-stats.c
+--- cgit-1.2.3/ui-stats.c	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/ui-stats.c	2023-03-29 11:25:39.649245543 +0200
+@@ -166,7 +166,7 @@
+ 	struct authorstat *authorstat;
+ 	struct string_list *items;
+ 	char *tmp;
+-	struct tm *date;
++	struct tm date;
+ 	time_t t;
+ 	uintptr_t *counter;
+ 
+@@ -180,9 +180,9 @@
+ 	authorstat = author->util;
+ 	items = &authorstat->list;
+ 	t = info->committer_date;
+-	date = gmtime(&t);
+-	period->trunc(date);
+-	tmp = xstrdup(period->pretty(date));
++	gmtime_r(&t, &date);
++	period->trunc(&date);
++	tmp = xstrdup(period->pretty(&date));
+ 	item = string_list_insert(items, tmp);
+ 	counter = (uintptr_t *)&item->util;
+ 	if (*counter)
+@@ -215,15 +215,15 @@
+ 	int argc = 3;
+ 	time_t now;
+ 	long i;
+-	struct tm *tm;
++	struct tm tm;
+ 	char tmp[11];
+ 
+ 	time(&now);
+-	tm = gmtime(&now);
+-	period->trunc(tm);
++	gmtime_r(&now, &tm);
++	period->trunc(&tm);
+ 	for (i = 1; i < period->count; i++)
+-		period->dec(tm);
+-	strftime(tmp, sizeof(tmp), "%Y-%m-%d", tm);
++		period->dec(&tm);
++	strftime(tmp, sizeof(tmp), "%Y-%m-%d", &tm);
+ 	argv[2] = xstrdup(fmt("--since=%s", tmp));
+ 	if (ctx.qry.path) {
+ 		argv[3] = "--";
+@@ -261,21 +261,21 @@
+ 	struct string_list_item *date;
+ 	time_t now;
+ 	long i, j, total, subtotal;
+-	struct tm *tm;
++	struct tm tm;
+ 	char *tmp;
+ 
+ 	time(&now);
+-	tm = gmtime(&now);
+-	period->trunc(tm);
++	gmtime_r(&now, &tm);
++	period->trunc(&tm);
+ 	for (i = 1; i < period->count; i++)
+-		period->dec(tm);
++		period->dec(&tm);
+ 
+ 	total = 0;
+ 	htmlf("<tr><td class='%s'>%s</td>", leftclass,
+ 		fmt(name, to - from + 1));
+ 	for (j = 0; j < period->count; j++) {
+-		tmp = period->pretty(tm);
+-		period->inc(tm);
++		tmp = period->pretty(&tm);
++		period->inc(&tm);
+ 		subtotal = 0;
+ 		for (i = from; i <= to; i++) {
+ 			author = &authors->items[i];
+@@ -300,20 +300,20 @@
+ 	struct string_list_item *date;
+ 	time_t now;
+ 	long i, j, total;
+-	struct tm *tm;
++	struct tm tm;
+ 	char *tmp;
+ 
+ 	time(&now);
+-	tm = gmtime(&now);
+-	period->trunc(tm);
++	gmtime_r(&now, &tm);
++	period->trunc(&tm);
+ 	for (i = 1; i < period->count; i++)
+-		period->dec(tm);
++		period->dec(&tm);
+ 
+ 	html("<table class='stats'><tr><th>Author</th>");
+ 	for (j = 0; j < period->count; j++) {
+-		tmp = period->pretty(tm);
++		tmp = period->pretty(&tm);
+ 		htmlf("<th>%s</th>", tmp);
+-		period->inc(tm);
++		period->inc(&tm);
+ 	}
+ 	html("<th>Total</th></tr>\n");
+ 
+@@ -329,10 +329,10 @@
+ 		items = &authorstat->list;
+ 		total = 0;
+ 		for (j = 0; j < period->count; j++)
+-			period->dec(tm);
++			period->dec(&tm);
+ 		for (j = 0; j < period->count; j++) {
+-			tmp = period->pretty(tm);
+-			period->inc(tm);
++			tmp = period->pretty(&tm);
++			period->inc(&tm);
+ 			date = string_list_lookup(items, tmp);
+ 			if (!date)
+ 				html("<td>0</td>");
+diff -Naur cgit-1.2.3/ui-tree.c cgit-1.2.3.new/ui-tree.c
+--- cgit-1.2.3/ui-tree.c	2020-03-14 00:49:52.000000000 +0100
++++ cgit-1.2.3.new/ui-tree.c	2023-03-29 11:25:58.722392257 +0200
+@@ -139,8 +139,7 @@
+ };
+ 
+ static int single_tree_cb(const struct object_id *oid, struct strbuf *base,
+-			  const char *pathname, unsigned mode, int stage,
+-			  void *cbdata)
++			  const char *pathname, unsigned mode, void *cbdata)
+ {
+ 	struct single_tree_ctx *ctx = cbdata;
+ 
+@@ -185,8 +184,7 @@
+ 		tree_ctx.name = NULL;
+ 		tree_ctx.count = 0;
+ 
+-		read_tree_recursive(the_repository, tree, "", 0, 1,
+-			&paths, single_tree_cb, &tree_ctx);
++		read_tree(the_repository, tree, &paths, single_tree_cb, &tree_ctx);
+ 
+ 		if (tree_ctx.count != 1)
+ 			break;
+@@ -199,7 +197,7 @@
+ }
+ 
+ static int ls_item(const struct object_id *oid, struct strbuf *base,
+-		const char *pathname, unsigned mode, int stage, void *cbdata)
++		const char *pathname, unsigned mode, void *cbdata)
+ {
+ 	struct walk_tree_context *walk_tree_ctx = cbdata;
+ 	char *name;
+@@ -294,14 +292,13 @@
+ 	}
+ 
+ 	ls_head();
+-	read_tree_recursive(the_repository, tree, "", 0, 1,
+-		&paths, ls_item, walk_tree_ctx);
++	read_tree(the_repository, tree, &paths, ls_item, walk_tree_ctx);
+ 	ls_tail();
+ }
+ 
+ 
+ static int walk_tree(const struct object_id *oid, struct strbuf *base,
+-		const char *pathname, unsigned mode, int stage, void *cbdata)
++		const char *pathname, unsigned mode, void *cbdata)
+ {
+ 	struct walk_tree_context *walk_tree_ctx = cbdata;
+ 
+@@ -326,7 +323,7 @@
+ 			return 0;
+ 		}
+ 	}
+-	ls_item(oid, base, pathname, mode, stage, walk_tree_ctx);
++	ls_item(oid, base, pathname, mode, walk_tree_ctx);
+ 	return 0;
+ }
+ 
+@@ -374,10 +371,8 @@
+ 		goto cleanup;
+ 	}
+ 
+-	read_tree_recursive(the_repository,
+-			    repo_get_commit_tree(the_repository, commit),
+-			    "", 0, 0,
+-			    &paths, walk_tree, &walk_tree_ctx);
++	read_tree(the_repository, repo_get_commit_tree(the_repository, commit),
++		  &paths, walk_tree, &walk_tree_ctx);
+ 	if (walk_tree_ctx.state == 1)
+ 		ls_tail();
+ 	else if (walk_tree_ctx.state == 2)

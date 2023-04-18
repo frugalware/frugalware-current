@@ -64,12 +64,6 @@ _F_gnome_pygtkdefsdir="usr/share/pygtk/2.0/defs"
 _F_gnome_pkgurl="https://ftp.gnome.org/pub/GNOME/sources"
 _F_archive_name="$_F_gnome_name"
 
-if [ -z "$_F_gnome_up2date" ]; then
-	if [ -z "$_F_archive_grepv" ]; then
-		_F_archive_grepv="3.32.*"
-	fi
-fi
-
 up2date="Flasttar $_F_gnome_pkgurl/$_F_gnome_name/\$(Flastverdir $_F_gnome_pkgurl/$_F_gnome_name )"
 
 if [ "$_F_gnome_git" != "n" ]; then
@@ -78,7 +72,7 @@ if [ "$_F_gnome_git" != "n" ]; then
 	_F_scm_type="git"
 	_F_scm_url="git://git.gnome.org/$_F_gnome_name"
 else
-	source=(https://download.gnome.org/sources/$_F_gnome_name/${pkgver%%.*}/$_F_gnome_name-$pkgver$_F_gnome_ext)
+	source=(https://download.gnome.org/sources/$_F_gnome_name/${pkgver%.*}/$_F_gnome_name-$pkgver$_F_gnome_ext)
 fi
 url="http://www.gnome.org/"
 _F_cd_path=$_F_gnome_name-$pkgver

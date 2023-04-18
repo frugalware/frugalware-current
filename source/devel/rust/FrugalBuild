@@ -9,18 +9,20 @@ pkgdesc="Programming language focused on safety, speed and concurrency"
 url="https://www.rust-lang.org/"
 depends=('libffi' 'zlib>=1.2.12' "llvm-libs>=$_llvm_ver" 'curl')
 makedepends=('ninja' 'llvm' 'cmake' 'llvm-static' 'polly' 'openmp' \
-	'mlir' 'compiler-rt' 'python3' 'kernel-headers')
+	'mlir' 'compiler-rt' 'python3' 'kernel-headers' 'wasi-libc' )
 groups=('devel')
 archs=("x86_64")
 up2date="lynx -dump https://www.rust-lang.org/ | grep -m1 Version | sed 's/.*ion \(.*\)/\1/'"
 source=("https://static.rust-lang.org/dist/rustc-${pkgver}-src.tar.gz" \
 	"https://static.rust-lang.org/dist/rust-${pkgver}-x86_64-unknown-linux-gnu.tar.gz" \
 	0001-bootstrap-Change-libexec-dir.patch \
-	0001-cargo-Change-libexec-dir.patch )
-sha1sums=('93ba30f5a4cb68788ff66cb8fd1dd4562893cab9' \
-          '9d8f876775e067ee1f2a4fcb81d9b28f26095a82' \
+	0001-cargo-Change-libexec-dir.patch \
+	0003-compiler-Use-wasm-ld-for-wasm-targets.patch )
+sha1sums=('f5bfc5b2f3211ec73413758184f768b1eba15a63' \
+          'c4f1e5e1ac13270ea128ca6544dc0fb7731b5b25' \
           '425ba59b2d5a54b88677744a4487757bcfe7b4a0' \
-          '5ae1f67f20ae3e9ae7e27cbb515ace1759b22648')
+          '5ae1f67f20ae3e9ae7e27cbb515ace1759b22648' \
+          'b8e29f2960f6972b83e771475c837f1a0a8da0d5')
 _F_cd_path="rustc-${pkgver}-src"
 options+=('static' 'nostrip' 'nolto')
 _F_make_opts+=" VERBOSE=1"
@@ -35,6 +37,13 @@ subdepends=("lib32-libffi lib32-xz")
 subgroups=('lib32-extra')
 subarchs=('x86_64')
 subrodepends=('rust')
+
+subpkgs+=("rust-wasm")
+subdescs+=("WebAssembly targets for Rust")
+subdepends+=("lld")
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
+subrodepends+=('rust')
 
 build() {
 	Fexec ${Fsrcdir}/rust-${pkgver}-x86_64-unknown-linux-gnu/install.sh --disable-ldconfig \
@@ -60,6 +69,8 @@ skip-rebuild = true
 target = [
   "x86_64-unknown-linux-gnu",
   "i686-unknown-linux-gnu",
+  "wasm32-unknown-unknown",
+  "wasm32-wasi",
 ]
 cargo = "${Fsrcdir}/rust_stage0/bin/cargo"
 rustc = "${Fsrcdir}/rust_stage0/bin/rustc"
@@ -67,6 +78,8 @@ rustfmt = "${Fsrcdir}/rust_stage0/bin/rustfmt"
 locked-deps = true
 vendor = true
 tools = ["cargo", "rls", "clippy", "rustfmt", "analysis", "src", "rust-demangler"]
+# Generating docs fails with the wasm32-* targets
+docs = false
 [install]
 prefix = "/usr"
 [rust]
@@ -81,6 +94,14 @@ compression-formats = ["gz"]
 
 [target.x86_64-unknown-linux-gnu]
 llvm-config = "/usr/bin/llvm-config"
+
+[target.wasm32-unknown-unknown]
+sanitizers = false
+profiler = false
+[target.wasm32-wasi]
+sanitizers = false
+profiler = false
+wasi-root = "/usr/share/wasi-sysroot"
 END
 
 	## make && make install 'rust' way
@@ -94,6 +115,8 @@ END
 	Fexec strip --strip-unneeded $Fdestdir/usr/bin/rustdoc
 
 	Fsplit lib32-rust /usr/lib/rustlib/i686-unknown-linux-gnu/
+
+	Fsplit rust-wasm usr/lib/rustlib/wasm32-*
 }
 
 # optimization ok

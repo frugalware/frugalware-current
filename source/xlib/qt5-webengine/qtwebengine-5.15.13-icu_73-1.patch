@@ -1,0 +1,984 @@
+Submitted By:            Pierre Labastie <pierre dot labastie at neuf dot fr>
+Date:                    2023-04-18
+Initial Package Version: 5.15.13
+Upstream Status:         Not Applied
+Origin:                  Self using commit 189d4fd8fad9 in qtwebengine-chromium
+Description:             Fixes building QtWebEngine with a system-installed
+                         Icu-73. Note that qtwebengine-chromium-6 is already
+                         fixed.
+
+diff -Naur a/src/3rdparty/chromium/base/BUILD.gn b/src/3rdparty/chromium/base/BUILD.gn
+--- a/src/3rdparty/chromium/base/BUILD.gn	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/base/BUILD.gn	2023-04-18 15:35:10.093662281 +0200
+@@ -2441,6 +2441,7 @@
+     "i18n/time_formatting.h",
+     "i18n/timezone.cc",
+     "i18n/timezone.h",
++    "i18n/uchar.h",
+     "i18n/unicodestring.h",
+     "i18n/utf8_validator_tables.cc",
+     "i18n/utf8_validator_tables.h",
+diff -Naur a/src/3rdparty/chromium/base/i18n/break_iterator.cc b/src/3rdparty/chromium/base/i18n/break_iterator.cc
+--- a/src/3rdparty/chromium/base/i18n/break_iterator.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/base/i18n/break_iterator.cc	2023-04-18 15:35:10.093662281 +0200
+@@ -7,6 +7,7 @@
+ #include <stdint.h>
+ 
+ #include "base/check.h"
++#include "base/i18n/uchar.h"
+ #include "base/lazy_instance.h"
+ #include "base/notreached.h"
+ #include "base/synchronization/lock.h"
+@@ -164,9 +165,9 @@
+       iter_ = line_break_cache.Pointer()->Lease(status);
+       break;
+     case RULE_BASED:
+-      iter_ =
+-          ubrk_openRules(rules_.c_str(), static_cast<int32_t>(rules_.length()),
+-                         nullptr, 0, &parse_error, &status);
++      iter_ = ubrk_openRules(ToUCharPtr(rules_.c_str()),
++                             static_cast<int32_t>(rules_.length()), nullptr, 0,
++                             &parse_error, &status);
+       if (U_FAILURE(status)) {
+         NOTREACHED() << "ubrk_openRules failed to parse rule string at line "
+                      << parse_error.line << ", offset " << parse_error.offset;
+@@ -182,7 +183,8 @@
+   }
+ 
+   if (string_.data() != nullptr) {
+-    ubrk_setText(static_cast<UBreakIterator*>(iter_), string_.data(),
++    ubrk_setText(static_cast<UBreakIterator*>(iter_),
++                 ToUCharPtr(string_.data()),
+                  static_cast<int32_t>(string_.size()), &status);
+     if (U_FAILURE(status)) {
+       return false;
+@@ -232,8 +234,8 @@
+ 
+ bool BreakIterator::SetText(const base::char16* text, const size_t length) {
+   UErrorCode status = U_ZERO_ERROR;
+-  ubrk_setText(static_cast<UBreakIterator*>(iter_),
+-               text, length, &status);
++  ubrk_setText(static_cast<UBreakIterator*>(iter_), ToUCharPtr(text), length,
++               &status);
+   pos_ = 0;  // implicit when ubrk_setText is done
+   prev_ = npos;
+   if (U_FAILURE(status)) {
+diff -Naur a/src/3rdparty/chromium/base/i18n/case_conversion.cc b/src/3rdparty/chromium/base/i18n/case_conversion.cc
+--- a/src/3rdparty/chromium/base/i18n/case_conversion.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/base/i18n/case_conversion.cc	2023-04-18 15:35:10.093662281 +0200
+@@ -6,6 +6,7 @@
+ 
+ #include <stdint.h>
+ 
++#include "base/i18n/uchar.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "base/strings/string16.h"
+ #include "base/strings/string_util.h"
+@@ -63,10 +64,10 @@
+     // ICU won't terminate the string if there's not enough room for the null
+     // terminator, but will otherwise. So we don't need to save room for that.
+     // Don't use WriteInto, which assumes null terminators.
+-    int32_t new_length = case_mapper(
+-        &dest[0], saturated_cast<int32_t>(dest.size()),
+-        string.data(), saturated_cast<int32_t>(string.size()),
+-        &error);
++    int32_t new_length =
++        case_mapper(ToUCharPtr(&dest[0]), saturated_cast<int32_t>(dest.size()),
++                    ToUCharPtr(string.data()),
++                    saturated_cast<int32_t>(string.size()), &error);
+     dest.resize(new_length);
+   } while (error == U_BUFFER_OVERFLOW_ERROR);
+   return dest;
+diff -Naur a/src/3rdparty/chromium/base/i18n/icu_string_conversions.cc b/src/3rdparty/chromium/base/i18n/icu_string_conversions.cc
+--- a/src/3rdparty/chromium/base/i18n/icu_string_conversions.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/base/i18n/icu_string_conversions.cc	2023-04-18 15:35:10.093662281 +0200
+@@ -11,6 +11,7 @@
+ #include <vector>
+ 
+ #include "base/check.h"
++#include "base/i18n/uchar.h"
+ #include "base/notreached.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+@@ -108,8 +109,8 @@
+ 
+   // ucnv_fromUChars returns size not including terminating null
+   int actual_size =
+-      ucnv_fromUChars(converter, &(*encoded)[0], encoded_max_length, src.data(),
+-                      src.length(), &status);
++      ucnv_fromUChars(converter, &(*encoded)[0], encoded_max_length,
++                      i18n::ToUCharPtr(src.data()), src.length(), &status);
+   encoded->resize(actual_size);
+   ucnv_close(converter);
+   if (U_SUCCESS(status))
+@@ -180,9 +181,10 @@
+ 
+   SetUpErrorHandlerForToUChars(on_error, converter, &status);
+   std::unique_ptr<char16[]> buffer(new char16[uchar_max_length]);
+-  int actual_size = ucnv_toUChars(converter, buffer.get(),
+-      static_cast<int>(uchar_max_length), encoded.data(),
+-      static_cast<int>(encoded.length()), &status);
++  int actual_size =
++      ucnv_toUChars(converter, i18n::ToUCharPtr(buffer.get()),
++                    static_cast<int>(uchar_max_length), encoded.data(),
++                    static_cast<int>(encoded.length()), &status);
+   ucnv_close(converter);
+   if (!U_SUCCESS(status)) {
+     utf16->clear();  // Make sure the output is empty on error.
+diff -Naur a/src/3rdparty/chromium/base/i18n/rtl.cc b/src/3rdparty/chromium/base/i18n/rtl.cc
+--- a/src/3rdparty/chromium/base/i18n/rtl.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/base/i18n/rtl.cc	2023-04-18 15:36:14.160511148 +0200
+@@ -223,7 +223,7 @@
+ }
+ 
+ TextDirection GetFirstStrongCharacterDirection(const string16& text) {
+-  const UChar* string = text.c_str();
++  const char16* string = text.c_str();
+   size_t length = text.length();
+   size_t position = 0;
+   while (position < length) {
+@@ -239,7 +239,7 @@
+ }
+ 
+ TextDirection GetLastStrongCharacterDirection(const string16& text) {
+-  const UChar* string = text.c_str();
++  const char16* string = text.c_str();
+   size_t position = text.length();
+   while (position > 0) {
+     UChar32 character;
+@@ -254,7 +254,7 @@
+ }
+ 
+ TextDirection GetStringDirection(const string16& text) {
+-  const UChar* string = text.c_str();
++  const char16* string = text.c_str();
+   size_t length = text.length();
+   size_t position = 0;
+ 
+@@ -404,7 +404,7 @@
+ }
+ 
+ bool StringContainsStrongRTLChars(const string16& text) {
+-  const UChar* string = text.c_str();
++  const char16* string = text.c_str();
+   size_t length = text.length();
+   size_t position = 0;
+   while (position < length) {
+diff -Naur a/src/3rdparty/chromium/base/i18n/string_search.cc b/src/3rdparty/chromium/base/i18n/string_search.cc
+--- a/src/3rdparty/chromium/base/i18n/string_search.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/base/i18n/string_search.cc	2023-04-18 15:35:10.093662281 +0200
+@@ -5,6 +5,7 @@
+ #include <stdint.h>
+ 
+ #include "base/i18n/string_search.h"
++#include "base/i18n/uchar.h"
+ 
+ #include "third_party/icu/source/i18n/unicode/usearch.h"
+ 
+@@ -19,10 +20,11 @@
+   const string16& dummy = find_this_;
+ 
+   UErrorCode status = U_ZERO_ERROR;
+-  search_ = usearch_open(find_this_.data(), find_this_.size(), dummy.data(),
+-                         dummy.size(), uloc_getDefault(),
+-                         nullptr,  // breakiter
+-                         &status);
++  search_ =
++      usearch_open(ToUCharPtr(find_this_.data()), find_this_.size(),
++                   ToUCharPtr(dummy.data()), dummy.size(), uloc_getDefault(),
++                   nullptr,  // breakiter
++                   &status);
+   if (U_SUCCESS(status)) {
+     // http://icu-project.org/apiref/icu4c40/ucol_8h.html#6a967f36248b0a1bc7654f538ee8ba96
+     // Set comparison level to UCOL_PRIMARY to ignore secondary and tertiary
+@@ -48,7 +50,7 @@
+                                       size_t* match_length,
+                                       bool forward_search) {
+   UErrorCode status = U_ZERO_ERROR;
+-  usearch_setText(search_, in_this.data(), in_this.size(), &status);
++  usearch_setText(search_, ToUCharPtr(in_this.data()), in_this.size(), &status);
+ 
+   // Default to basic substring search if usearch fails. According to
+   // http://icu-project.org/apiref/icu4c/usearch_8h.html, usearch_open will fail
+diff -Naur a/src/3rdparty/chromium/base/i18n/uchar.h b/src/3rdparty/chromium/base/i18n/uchar.h
+--- a/src/3rdparty/chromium/base/i18n/uchar.h	1970-01-01 01:00:00.000000000 +0100
++++ b/src/3rdparty/chromium/base/i18n/uchar.h	2023-04-18 15:35:10.093662281 +0200
+@@ -0,0 +1,43 @@
++// Copyright 2021 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_I18N_UCHAR_H_
++#define BASE_I18N_UCHAR_H_
++
++#include "base/strings/string16.h"
++#include "third_party/icu/source/common/unicode/utypes.h"
++
++// This file contains functions to convert between C-strings of character types
++// `UChar` and `base::char16`. This allows to change the underlying types
++// independently, simplifying the migration of both types to char16_t.
++// Naming and functionality of these functions is inspired by ICU's toUCharPtr.
++//
++// TODO(crbug.com/911896): Remove these functions once `base::char16` and
++// `UChar` are char16_t on all platforms.
++namespace base {
++namespace i18n {
++
++static_assert(sizeof(UChar) == sizeof(char16),
++              "Error: UChar and char16 are not of the same size.");
++
++inline const UChar* ToUCharPtr(const char16* str) {
++  return reinterpret_cast<const UChar*>(str);
++}
++
++inline UChar* ToUCharPtr(char16* str) {
++  return reinterpret_cast<UChar*>(str);
++}
++
++inline const char16* ToChar16Ptr(const UChar* str) {
++  return reinterpret_cast<const char16*>(str);
++}
++
++inline char16* ToChar16Ptr(UChar* str) {
++  return reinterpret_cast<char16*>(str);
++}
++
++}  // namespace i18n
++}  // namespace base
++
++#endif  // BASE_I18N_UCHAR_H_
+diff -Naur a/src/3rdparty/chromium/base/i18n/unicodestring.h b/src/3rdparty/chromium/base/i18n/unicodestring.h
+--- a/src/3rdparty/chromium/base/i18n/unicodestring.h	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/base/i18n/unicodestring.h	2023-04-18 15:35:10.093662281 +0200
+@@ -5,6 +5,7 @@
+ #ifndef BASE_I18N_UNICODESTRING_H_
+ #define BASE_I18N_UNICODESTRING_H_
+ 
++#include "base/i18n/uchar.h"
+ #include "base/strings/string16.h"
+ #include "third_party/icu/source/common/unicode/unistr.h"
+ #include "third_party/icu/source/common/unicode/uvernum.h"
+@@ -18,7 +19,7 @@
+ 
+ inline string16 UnicodeStringToString16(const icu::UnicodeString& unistr) {
+ #if U_ICU_VERSION_MAJOR_NUM >= 59
+-  return base::string16(icu::toUCharPtr(unistr.getBuffer()),
++  return base::string16(ToChar16Ptr(icu::toUCharPtr(unistr.getBuffer())),
+                         static_cast<size_t>(unistr.length()));
+ #else
+   return base::string16(unistr.getBuffer(),
+diff -Naur a/src/3rdparty/chromium/components/url_formatter/spoof_checks/idn_spoof_checker.cc b/src/3rdparty/chromium/components/url_formatter/spoof_checks/idn_spoof_checker.cc
+--- a/src/3rdparty/chromium/components/url_formatter/spoof_checks/idn_spoof_checker.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/components/url_formatter/spoof_checks/idn_spoof_checker.cc	2023-04-18 15:35:10.094662326 +0200
+@@ -5,6 +5,7 @@
+ #include "components/url_formatter/spoof_checks/idn_spoof_checker.h"
+ 
+ #include "base/check_op.h"
++#include "base/i18n/uchar.h"
+ #include "base/logging.h"
+ #include "base/no_destructor.h"
+ #include "base/numerics/safe_conversions.h"
+@@ -371,7 +372,7 @@
+     base::StringPiece16 top_level_domain_unicode) {
+   UErrorCode status = U_ZERO_ERROR;
+   int32_t result =
+-      uspoof_check(checker_, label.data(),
++      uspoof_check(checker_, base::i18n::ToUCharPtr(label.data()),
+                    base::checked_cast<int32_t>(label.size()), nullptr, &status);
+   // If uspoof_check fails (due to library failure), or if any of the checks
+   // fail, treat the IDN as unsafe.
+diff -Naur a/src/3rdparty/chromium/components/url_formatter/url_formatter.cc b/src/3rdparty/chromium/components/url_formatter/url_formatter.cc
+--- a/src/3rdparty/chromium/components/url_formatter/url_formatter.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/components/url_formatter/url_formatter.cc	2023-04-18 15:35:10.094662326 +0200
+@@ -8,6 +8,7 @@
+ #include <utility>
+ #include <vector>
+ 
++#include "base/i18n/uchar.h"
+ #include "base/lazy_instance.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "base/stl_util.h"
+@@ -436,8 +437,9 @@
+     // code units, |status| will be U_BUFFER_OVERFLOW_ERROR and we'll try
+     // the conversion again, but with a sufficiently large buffer.
+     output_length = uidna_labelToUnicode(
+-        uidna, comp, static_cast<int32_t>(comp_len), &(*out)[original_length],
+-        output_length, &info, &status);
++        uidna, base::i18n::ToUCharPtr(comp), static_cast<int32_t>(comp_len),
++        base::i18n::ToUCharPtr(&(*out)[original_length]), output_length, &info,
++        &status);
+   } while ((status == U_BUFFER_OVERFLOW_ERROR && info.errors == 0));
+ 
+   if (U_SUCCESS(status) && info.errors == 0) {
+diff -Naur a/src/3rdparty/chromium/content/child/browser_font_resource_trusted.cc b/src/3rdparty/chromium/content/child/browser_font_resource_trusted.cc
+--- a/src/3rdparty/chromium/content/child/browser_font_resource_trusted.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/content/child/browser_font_resource_trusted.cc	2023-04-18 15:35:10.094662326 +0200
+@@ -6,6 +6,7 @@
+ 
+ #include <stddef.h>
+ 
++#include "base/i18n/uchar.h"
+ #include "base/macros.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+@@ -73,8 +74,8 @@
+     } else {
+       bidi_ = ubidi_open();
+       UErrorCode uerror = U_ZERO_ERROR;
+-      ubidi_setPara(bidi_, text_.data(), text_.size(), run.rtl, nullptr,
+-                    &uerror);
++      ubidi_setPara(bidi_, base::i18n::ToUCharPtr(text_.data()), text_.size(),
++                    run.rtl, nullptr, &uerror);
+       if (U_SUCCESS(uerror))
+         num_runs_ = ubidi_countRuns(bidi_, &uerror);
+     }
+diff -Naur a/src/3rdparty/chromium/ppapi/proxy/pdf_resource.cc b/src/3rdparty/chromium/ppapi/proxy/pdf_resource.cc
+--- a/src/3rdparty/chromium/ppapi/proxy/pdf_resource.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/ppapi/proxy/pdf_resource.cc	2023-04-18 18:37:10.186167693 +0200
+@@ -65,10 +65,8 @@
+   if (locale_.empty())
+     locale_ = GetLocale() + "@collation=search";
+ 
+-  const base::char16* string =
+-      reinterpret_cast<const base::char16*>(input_string);
+-  const base::char16* term =
+-      reinterpret_cast<const base::char16*>(input_term);
++  const UChar* string = reinterpret_cast<const UChar*>(input_string);
++  const UChar* term = reinterpret_cast<const UChar*>(input_term);
+ 
+   UErrorCode status = U_ZERO_ERROR;
+   UStringSearch* searcher =
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/core/clipboard/clipboard_utilities.cc b/src/3rdparty/chromium/third_party/blink/renderer/core/clipboard/clipboard_utilities.cc
+--- a/src/3rdparty/chromium/third_party/blink/renderer/core/clipboard/clipboard_utilities.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/core/clipboard/clipboard_utilities.cc	2023-04-18 15:35:10.094662326 +0200
+@@ -30,6 +30,7 @@
+ 
+ #include "third_party/blink/renderer/core/clipboard/clipboard_utilities.h"
+ 
++#include "base/i18n/uchar.h"
+ #include "net/base/escape.h"
+ #include "third_party/blink/renderer/platform/image-encoders/image_encoder.h"
+ #include "third_party/blink/renderer/platform/weborigin/kurl.h"
+@@ -75,8 +76,9 @@
+         {reinterpret_cast<const char*>(str.Characters8()), str.length()});
+     return String(result.data(), result.size());
+   }
+-  auto result = net::EscapeForHTML({str.Characters16(), str.length()});
+-  return String(result.data(), result.size());
++  auto result = net::EscapeForHTML(
++      {base::i18n::ToChar16Ptr(str.Characters16()), str.length()});
++  return String(base::i18n::ToUCharPtr(result.data()), result.size());
+ }
+ 
+ String URLToImageMarkup(const KURL& url, const String& title) {
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/core/DEPS b/src/3rdparty/chromium/third_party/blink/renderer/core/DEPS
+--- a/src/3rdparty/chromium/third_party/blink/renderer/core/DEPS	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/core/DEPS	2023-04-18 15:35:10.094662326 +0200
+@@ -4,6 +4,7 @@
+     "+base/bits.h",
+     "+base/cancelable_callback.h",
+     "+base/files/file.h",
++    "+base/i18n/uchar.h",
+     "+base/mac/foundation_util.h",
+     "+base/mac/mac_util.h",
+     "+base/mac/scoped_cftyperef.h",
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/core/editing/editor_key_bindings.cc b/src/3rdparty/chromium/third_party/blink/renderer/core/editing/editor_key_bindings.cc
+--- a/src/3rdparty/chromium/third_party/blink/renderer/core/editing/editor_key_bindings.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/core/editing/editor_key_bindings.cc	2023-04-18 15:35:10.094662326 +0200
+@@ -26,6 +26,7 @@
+ 
+ #include "third_party/blink/renderer/core/editing/editor.h"
+ 
++#include "base/i18n/uchar.h"
+ #include "third_party/blink/public/common/input/web_input_event.h"
+ #include "third_party/blink/renderer/core/editing/commands/editor_command.h"
+ #include "third_party/blink/renderer/core/editing/editing_behavior.h"
+@@ -74,11 +75,12 @@
+     return false;
+ 
+   // Return true to prevent default action. e.g. Space key scroll.
+-  if (DispatchBeforeInputInsertText(evt->target()->ToNode(), key_event->text) !=
++  if (DispatchBeforeInputInsertText(evt->target()->ToNode(),
++                                    base::i18n::ToUCharPtr(key_event->text)) !=
+       DispatchEventResult::kNotCanceled)
+     return true;
+ 
+-  return InsertText(key_event->text, evt);
++  return InsertText(base::i18n::ToUCharPtr(key_event->text), evt);
+ }
+ 
+ void Editor::HandleKeyboardEvent(KeyboardEvent* evt) {
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/core/exported/DEPS b/src/3rdparty/chromium/third_party/blink/renderer/core/exported/DEPS
+--- a/src/3rdparty/chromium/third_party/blink/renderer/core/exported/DEPS	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/core/exported/DEPS	2023-04-18 15:35:10.094662326 +0200
+@@ -10,8 +10,9 @@
+ specific_include_rules = {
+   "web_view_impl\.cc": [
+     "+base/command_line.h",
++    "+base/i18n/uchar.h",
+     "+components/viz/common/features.h",
+     "+media/base/media_switches.h",
+     "+third_party/icu/source/common/unicode/uscript.h",
+   ],
+-}
+\ No newline at end of file
++}
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/core/exported/web_view_impl.cc b/src/3rdparty/chromium/third_party/blink/renderer/core/exported/web_view_impl.cc
+--- a/src/3rdparty/chromium/third_party/blink/renderer/core/exported/web_view_impl.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/core/exported/web_view_impl.cc	2023-04-18 15:35:10.094662326 +0200
+@@ -38,6 +38,7 @@
+ #include "base/memory/scoped_refptr.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/time/time.h"
++#include "base/i18n/uchar.h"
+ #include "build/build_config.h"
+ #include "cc/layers/picture_layer.h"
+ #include "media/base/media_switches.h"
+@@ -882,7 +883,7 @@
+          (event.GetType() == WebInputEvent::Type::kKeyUp));
+   TRACE_EVENT2("input", "WebViewImpl::handleKeyEvent", "type",
+                WebInputEvent::GetName(event.GetType()), "text",
+-               String(event.text).Utf8());
++               String(base::i18n::ToUCharPtr(event.text)).Utf8());
+ 
+   // Please refer to the comments explaining |suppress_next_keypress_event_|.
+   //
+@@ -964,7 +965,7 @@
+     const WebKeyboardEvent& event) {
+   DCHECK_EQ(event.GetType(), WebInputEvent::Type::kChar);
+   TRACE_EVENT1("input", "WebViewImpl::handleCharEvent", "text",
+-               String(event.text).Utf8());
++               String(base::i18n::ToUCharPtr(event.text)).Utf8());
+ 
+   // Please refer to the comments explaining |suppress_next_keypress_event_|
+   // |suppress_next_keypress_event_| is set if the KeyDown is
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/core/input/keyboard_event_manager.cc b/src/3rdparty/chromium/third_party/blink/renderer/core/input/keyboard_event_manager.cc
+--- a/src/3rdparty/chromium/third_party/blink/renderer/core/input/keyboard_event_manager.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/core/input/keyboard_event_manager.cc	2023-04-18 15:35:10.094662326 +0200
+@@ -6,6 +6,7 @@
+ 
+ #include <memory>
+ 
++#include "base/i18n/uchar.h"
+ #include "build/build_config.h"
+ #include "third_party/blink/public/common/input/web_input_event.h"
+ #include "third_party/blink/public/mojom/input/focus_type.mojom-blink.h"
+@@ -162,7 +163,7 @@
+   if ((evt.GetModifiers() & (WebKeyboardEvent::kKeyModifiers &
+                              ~WebInputEvent::kShiftKey)) != kAccessKeyModifiers)
+     return false;
+-  String key = String(evt.unmodified_text);
++  String key = String(base::i18n::ToUCharPtr(evt.unmodified_text));
+   Element* elem =
+       frame_->GetDocument()->GetElementByAccessKey(key.DeprecatedLower());
+   if (!elem)
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/modules/gamepad/DEPS b/src/3rdparty/chromium/third_party/blink/renderer/modules/gamepad/DEPS
+--- a/src/3rdparty/chromium/third_party/blink/renderer/modules/gamepad/DEPS	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/modules/gamepad/DEPS	2023-04-18 15:35:10.094662326 +0200
+@@ -14,6 +14,7 @@
+     "+third_party/blink/renderer/modules/event_modules.h",
+     "+third_party/blink/renderer/modules/gamepad",
+     "+third_party/blink/renderer/modules/modules_export.h",
++    "+base/i18n/uchar.h",
+     "+base/macros.h",
+ 
+     # For shared metrics.
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/modules/gamepad/gamepad.cc b/src/3rdparty/chromium/third_party/blink/renderer/modules/gamepad/gamepad.cc
+--- a/src/3rdparty/chromium/third_party/blink/renderer/modules/gamepad/gamepad.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/modules/gamepad/gamepad.cc	2023-04-18 15:35:10.094662326 +0200
+@@ -25,6 +25,7 @@
+ 
+ #include "third_party/blink/renderer/modules/gamepad/gamepad.h"
+ 
++#include "base/i18n/uchar.h"
+ #include "base/trace_event/trace_event.h"
+ #include "third_party/blink/renderer/core/timing/performance.h"
+ #include "third_party/blink/renderer/modules/gamepad/gamepad_comparisons.h"
+@@ -57,9 +58,10 @@
+ void Gamepad::UpdateFromDeviceState(const device::Gamepad& device_gamepad) {
+   bool newly_connected;
+   GamepadComparisons::HasGamepadConnectionChanged(
+-      connected(),                            // Old connected.
+-      device_gamepad.connected,               // New connected.
+-      id() != StringView(device_gamepad.id),  // ID changed.
++      connected(),               // Old connected.
++      device_gamepad.connected,  // New connected.
++      id() !=
++          StringView(base::i18n::ToUCharPtr(device_gamepad.id)),  // ID changed.
+       &newly_connected, nullptr);
+ 
+   SetConnected(device_gamepad.connected);
+@@ -74,7 +76,7 @@
+   // These fields are not expected to change and will only be written when the
+   // gamepad is newly connected.
+   if (newly_connected) {
+-    SetId(device_gamepad.id);
++    SetId(base::i18n::ToUCharPtr(device_gamepad.id));
+     SetMapping(device_gamepad.mapping);
+   }
+ }
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/modules/url_pattern/DEPS b/src/3rdparty/chromium/third_party/blink/renderer/modules/url_pattern/DEPS
+--- a/src/3rdparty/chromium/third_party/blink/renderer/modules/url_pattern/DEPS	1970-01-01 01:00:00.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/modules/url_pattern/DEPS	2023-04-18 15:35:10.094662326 +0200
+@@ -0,0 +1,7 @@
++# Copyright 2020 The Chromium Authors. All rights reserved.
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++include_rules = [
++    "+base/i18n/uchar.h",
++]
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/platform/DEPS b/src/3rdparty/chromium/third_party/blink/renderer/platform/DEPS
+--- a/src/3rdparty/chromium/third_party/blink/renderer/platform/DEPS	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/platform/DEPS	2023-04-18 15:35:10.094662326 +0200
+@@ -13,6 +13,7 @@
+     "+base/files",
+     "+base/containers/flat_map.h",
+     "+base/guid.h",
++    "+base/i18n/uchar.h",
+     "+base/json",
+     "+base/location.h",
+     "+base/logging.h",
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/file_path_conversion.cc b/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/file_path_conversion.cc
+--- a/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/file_path_conversion.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/file_path_conversion.cc	2023-04-18 15:35:10.094662326 +0200
+@@ -5,6 +5,7 @@
+ #include "third_party/blink/public/platform/file_path_conversion.h"
+ 
+ #include "base/files/file_path.h"
++#include "base/i18n/uchar.h"
+ #include "build/build_config.h"
+ #include "third_party/blink/public/platform/web_string.h"
+ #include "third_party/blink/renderer/platform/wtf/text/string_utf8_adaptor.h"
+@@ -17,8 +18,8 @@
+     return base::FilePath();
+ 
+   if (!str.Is8Bit()) {
+-    return base::FilePath::FromUTF16Unsafe(
+-        base::StringPiece16(str.Characters16(), str.length()));
++    return base::FilePath::FromUTF16Unsafe(base::StringPiece16(
++        base::i18n::ToChar16Ptr(str.Characters16()), str.length()));
+   }
+ 
+ #if defined(OS_POSIX)
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/url_conversion.cc b/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/url_conversion.cc
+--- a/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/url_conversion.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/url_conversion.cc	2023-04-18 15:35:10.094662326 +0200
+@@ -4,6 +4,7 @@
+ 
+ #include "third_party/blink/public/platform/url_conversion.h"
+ 
++#include "base/i18n/uchar.h"
+ #include "third_party/blink/public/platform/web_string.h"
+ #include "third_party/blink/renderer/platform/wtf/text/string_utf8_adaptor.h"
+ #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
+@@ -23,7 +24,8 @@
+   }
+ 
+   // GURL can consume UTF-16 directly.
+-  return GURL(base::StringPiece16(str.Characters16(), str.length()));
++  return GURL(base::StringPiece16(base::i18n::ToChar16Ptr(str.Characters16()),
++                                  str.length()));
+ }
+ 
+ }  // namespace blink
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/web_string.cc b/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/web_string.cc
+--- a/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/web_string.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/platform/exported/web_string.cc	2023-04-18 15:35:10.095662370 +0200
+@@ -30,6 +30,7 @@
+ 
+ #include "third_party/blink/public/platform/web_string.h"
+ 
++#include "base/i18n/uchar.h"
+ #include "base/strings/string_util.h"
+ #include "third_party/blink/renderer/platform/wtf/assertions.h"
+ #include "third_party/blink/renderer/platform/wtf/text/ascii_fast_path.h"
+@@ -56,7 +57,8 @@
+ WebString& WebString::operator=(WebString&&) = default;
+ 
+ WebString::WebString(const WebUChar* data, size_t len)
+-    : impl_(StringImpl::Create8BitIfPossible(data, len)) {}
++    : impl_(StringImpl::Create8BitIfPossible(base::i18n::ToUCharPtr(data),
++                                             len)) {}
+ 
+ void WebString::Reset() {
+   impl_ = nullptr;
+@@ -75,7 +77,8 @@
+ }
+ 
+ const WebUChar* WebString::Data16() const {
+-  return impl_ && !Is8Bit() ? impl_->Characters16() : nullptr;
++  return impl_ && !Is8Bit() ? base::i18n::ToChar16Ptr(impl_->Characters16())
++                            : nullptr;
+ }
+ 
+ std::string WebString::Utf8(UTF8ConversionMode mode) const {
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/platform/link_hash.cc b/src/3rdparty/chromium/third_party/blink/renderer/platform/link_hash.cc
+--- a/src/3rdparty/chromium/third_party/blink/renderer/platform/link_hash.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/platform/link_hash.cc	2023-04-18 15:35:10.095662370 +0200
+@@ -30,9 +30,11 @@
+ 
+ #include "third_party/blink/renderer/platform/link_hash.h"
+ 
++#include "base/i18n/uchar.h"
+ #include "third_party/blink/public/platform/platform.h"
+ #include "third_party/blink/renderer/platform/weborigin/kurl.h"
+ #include "third_party/blink/renderer/platform/wtf/text/string_utf8_adaptor.h"
++
+ #include "url/url_util.h"
+ 
+ namespace blink {
+@@ -51,7 +53,8 @@
+                                 relative_utf8.size(), nullptr, buffer, &parsed);
+   }
+   return url::ResolveRelative(base_utf8.data(), base_utf8.size(),
+-                              base.GetParsed(), relative.Characters16(),
++                              base.GetParsed(),
++                              base::i18n::ToChar16Ptr(relative.Characters16()),
+                               relative.length(), nullptr, buffer, &parsed);
+ }
+ 
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/platform/weborigin/kurl.cc b/src/3rdparty/chromium/third_party/blink/renderer/platform/weborigin/kurl.cc
+--- a/src/3rdparty/chromium/third_party/blink/renderer/platform/weborigin/kurl.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/platform/weborigin/kurl.cc	2023-04-18 15:35:10.095662370 +0200
+@@ -29,6 +29,7 @@
+ 
+ #include <algorithm>
+ 
++#include "base/i18n/uchar.h"
+ #include "third_party/blink/renderer/platform/weborigin/known_ports.h"
+ #include "third_party/blink/renderer/platform/weborigin/scheme_registry.h"
+ #include "third_party/blink/renderer/platform/wtf/math_extras.h"
+@@ -102,8 +103,9 @@
+   void ConvertFromUTF16(const base::char16* input,
+                         int input_length,
+                         url::CanonOutput* output) override {
+-    std::string encoded = encoding_->Encode(
+-        String(input, input_length), WTF::kURLEncodedEntitiesForUnencodables);
++    std::string encoded =
++        encoding_->Encode(String(base::i18n::ToUCharPtr(input), input_length),
++                          WTF::kURLEncodedEntitiesForUnencodables);
+     output->Append(encoded.c_str(), static_cast<int>(encoded.length()));
+   }
+ 
+@@ -338,10 +340,12 @@
+     path.len--;
+ 
+   url::Component file;
+-  if (string_.Is8Bit())
++  if (string_.Is8Bit()) {
+     url::ExtractFileName(AsURLChar8Subtle(string_), path, &file);
+-  else
+-    url::ExtractFileName(string_.Characters16(), path, &file);
++  } else {
++    url::ExtractFileName(base::i18n::ToChar16Ptr(string_.Characters16()), path,
++                         &file);
++  }
+ 
+   // Bug: https://bugs.webkit.org/show_bug.cgi?id=21015 this function returns
+   // a null string when the path is empty, which we duplicate here.
+@@ -363,9 +367,11 @@
+   if (!is_valid_ || parsed_.port.len <= 0)
+     return 0;
+   DCHECK(!string_.IsNull());
+-  int port = string_.Is8Bit()
+-                 ? url::ParsePort(AsURLChar8Subtle(string_), parsed_.port)
+-                 : url::ParsePort(string_.Characters16(), parsed_.port);
++  int port =
++      string_.Is8Bit()
++          ? url::ParsePort(AsURLChar8Subtle(string_), parsed_.port)
++          : url::ParsePort(base::i18n::ToChar16Ptr(string_.Characters16()),
++                           parsed_.port);
+   DCHECK_NE(port, url::PORT_UNSPECIFIED);  // Checked port.len <= 0 already.
+   DCHECK_NE(port, url::PORT_INVALID);      // Checked is_valid_ already.
+ 
+@@ -666,7 +672,8 @@
+     return false;
+   return string_.Is8Bit()
+              ? url::IsStandard(AsURLChar8Subtle(string_), parsed_.scheme)
+-             : url::IsStandard(string_.Characters16(), parsed_.scheme);
++             : url::IsStandard(base::i18n::ToChar16Ptr(string_.Characters16()),
++                               parsed_.scheme);
+ }
+ 
+ bool EqualIgnoringFragmentIdentifier(const KURL& a, const KURL& b) {
+@@ -716,10 +723,12 @@
+   if (!is_valid_ || !parsed_.path.is_valid())
+     return parsed_.CountCharactersBefore(url::Parsed::PATH, false);
+   url::Component filename;
+-  if (string_.Is8Bit())
++  if (string_.Is8Bit()) {
+     url::ExtractFileName(AsURLChar8Subtle(string_), parsed_.path, &filename);
+-  else
+-    url::ExtractFileName(string_.Characters16(), parsed_.path, &filename);
++  } else {
++    url::ExtractFileName(base::i18n::ToChar16Ptr(string_.Characters16()),
++                         parsed_.path, &filename);
++  }
+   return filename.begin;
+ }
+ 
+@@ -733,8 +742,8 @@
+     return url::FindAndCompareScheme(AsURLChar8Subtle(url), url.length(),
+                                      protocol, nullptr);
+   }
+-  return url::FindAndCompareScheme(url.Characters16(), url.length(), protocol,
+-                                   nullptr);
++  return url::FindAndCompareScheme(base::i18n::ToChar16Ptr(url.Characters16()),
++                                   url.length(), protocol, nullptr);
+ }
+ 
+ void KURL::Init(const KURL& base,
+@@ -765,10 +774,10 @@
+                                      clampTo<int>(relative_utf8.size()),
+                                      charset_converter, &output, &parsed_);
+   } else {
+-    is_valid_ = url::ResolveRelative(base_utf8.data(), base_utf8.size(),
+-                                     base.parsed_, relative.Characters16(),
+-                                     clampTo<int>(relative.length()),
+-                                     charset_converter, &output, &parsed_);
++    is_valid_ = url::ResolveRelative(
++        base_utf8.data(), base_utf8.size(), base.parsed_,
++        base::i18n::ToChar16Ptr(relative.Characters16()),
++        clampTo<int>(relative.length()), charset_converter, &output, &parsed_);
+   }
+ 
+   // AtomicString::fromUTF8 will re-hash the raw output and check the
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/platform/weborigin/security_origin.cc b/src/3rdparty/chromium/third_party/blink/renderer/platform/weborigin/security_origin.cc
+--- a/src/3rdparty/chromium/third_party/blink/renderer/platform/weborigin/security_origin.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/platform/weborigin/security_origin.cc	2023-04-18 15:35:10.095662370 +0200
+@@ -34,6 +34,7 @@
+ #include <string>
+ #include <utility>
+ 
++#include "base/i18n/uchar.h"
+ #include "net/base/url_util.h"
+ #include "third_party/blink/renderer/platform/blob/blob_url.h"
+ #include "third_party/blink/renderer/platform/blob/blob_url_null_origin_map.h"
+@@ -733,9 +734,9 @@
+     *success = url::CanonicalizeHost(
+         utf8.data(), url::Component(0, utf8.size()), &canon_output, &out_host);
+   } else {
+-    *success = url::CanonicalizeHost(host.Characters16(),
+-                                     url::Component(0, host.length()),
+-                                     &canon_output, &out_host);
++    *success = url::CanonicalizeHost(
++        base::i18n::ToChar16Ptr(host.Characters16()),
++        url::Component(0, host.length()), &canon_output, &out_host);
+   }
+   return String::FromUTF8(canon_output.data(), canon_output.length());
+ }
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/atomic_string.h b/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/atomic_string.h
+--- a/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/atomic_string.h	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/atomic_string.h	2023-04-18 15:35:10.095662370 +0200
+@@ -74,8 +74,6 @@
+   AtomicString(const LChar* chars, unsigned length);
+   AtomicString(const UChar* chars, unsigned length);
+   AtomicString(const UChar* chars);
+-  AtomicString(const char16_t* chars)
+-      : AtomicString(reinterpret_cast<const UChar*>(chars)) {}
+ 
+   template <wtf_size_t inlineCapacity>
+   explicit AtomicString(const Vector<UChar, inlineCapacity>& vector)
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/string_view.h b/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/string_view.h
+--- a/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/string_view.h	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/string_view.h	2023-04-18 15:35:10.095662370 +0200
+@@ -126,8 +126,6 @@
+   StringView(const UChar* chars, unsigned length)
+       : impl_(StringImpl::empty16_bit_), bytes_(chars), length_(length) {}
+   StringView(const UChar* chars);
+-  StringView(const char16_t* chars)
+-      : StringView(reinterpret_cast<const UChar*>(chars)) {}
+ 
+ #if DCHECK_IS_ON()
+   ~StringView();
+diff -Naur a/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/wtf_string.h b/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/wtf_string.h
+--- a/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/wtf_string.h	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/blink/renderer/platform/wtf/text/wtf_string.h	2023-04-18 15:35:10.095662370 +0200
+@@ -80,8 +80,6 @@
+ 
+   // Construct a string with UTF-16 data, from a null-terminated source.
+   String(const UChar*);
+-  String(const char16_t* chars)
+-      : String(reinterpret_cast<const UChar*>(chars)) {}
+ 
+   // Construct a string with latin1 data.
+   String(const LChar* characters, unsigned length);
+diff -Naur a/src/3rdparty/chromium/third_party/icu/BUILD.gn b/src/3rdparty/chromium/third_party/icu/BUILD.gn
+--- a/src/3rdparty/chromium/third_party/icu/BUILD.gn	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/icu/BUILD.gn	2023-04-18 15:35:10.095662370 +0200
+@@ -70,8 +70,6 @@
+ 
+   if (is_win) {
+     defines += [ "UCHAR_TYPE=wchar_t" ]
+-  } else {
+-    defines += [ "UCHAR_TYPE=uint16_t" ]
+   }
+ }
+ 
+@@ -408,8 +406,6 @@
+ 
+   if (is_win) {
+     defines += [ "UCHAR_TYPE=wchar_t" ]
+-  } else {
+-    defines += [ "UCHAR_TYPE=uint16_t" ]
+   }
+ }
+ 
+diff -Naur a/src/3rdparty/chromium/third_party/icu/icu.gyp b/src/3rdparty/chromium/third_party/icu/icu.gyp
+--- a/src/3rdparty/chromium/third_party/icu/icu.gyp	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/third_party/icu/icu.gyp	2023-04-18 15:35:10.095662370 +0200
+@@ -44,10 +44,6 @@
+           'UCHAR_TYPE=wchar_t',
+         ],
+ 	'cflags': [ '/utf-8' ],
+-      },{
+-        'defines': [
+-          'UCHAR_TYPE=uint16_t',
+-        ],
+       }],
+       ['(OS=="linux" or OS=="freebsd" or OS=="openbsd" or OS=="solaris" \
+          or OS=="netbsd" or OS=="mac" or OS=="android" or OS=="qnx") and \
+diff -Naur a/src/3rdparty/chromium/ui/base/l10n/l10n_util.cc b/src/3rdparty/chromium/ui/base/l10n/l10n_util.cc
+--- a/src/3rdparty/chromium/ui/base/l10n/l10n_util.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/ui/base/l10n/l10n_util.cc	2023-04-18 15:35:10.095662370 +0200
+@@ -19,6 +19,7 @@
+ #include "base/i18n/number_formatting.h"
+ #include "base/i18n/rtl.h"
+ #include "base/i18n/string_compare.h"
++#include "base/i18n/uchar.h"
+ #include "base/lazy_instance.h"
+ #include "base/notreached.h"
+ #include "base/stl_util.h"
+@@ -590,11 +591,13 @@
+     if (locale_code[0] == '-' || locale_code[0] == '_') {
+       actual_size = uloc_getDisplayCountry(
+           locale_code.c_str(), display_locale.c_str(),
+-          base::WriteInto(&display_name, kBufferSize), kBufferSize - 1, &error);
++          base::i18n::ToUCharPtr(base::WriteInto(&display_name, kBufferSize)),
++          kBufferSize - 1, &error);
+     } else {
+       actual_size = uloc_getDisplayName(
+           locale_code.c_str(), display_locale.c_str(),
+-          base::WriteInto(&display_name, kBufferSize), kBufferSize - 1, &error);
++          base::i18n::ToUCharPtr(base::WriteInto(&display_name, kBufferSize)),
++          kBufferSize - 1, &error);
+     }
+     if (disallow_default && U_USING_DEFAULT_WARNING == error)
+       return base::string16();
+diff -Naur a/src/3rdparty/chromium/ui/base/l10n/time_format.cc b/src/3rdparty/chromium/ui/base/l10n/time_format.cc
+--- a/src/3rdparty/chromium/ui/base/l10n/time_format.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/ui/base/l10n/time_format.cc	2023-04-18 15:35:10.095662370 +0200
+@@ -8,6 +8,7 @@
+ 
+ #include "base/check_op.h"
+ #include "base/component_export.h"
++#include "base/i18n/uchar.h"
+ #include "base/lazy_instance.h"
+ #include "base/notreached.h"
+ #include "base/numerics/safe_conversions.h"
+@@ -144,8 +145,9 @@
+   DCHECK_GT(capacity, 1);
+   base::string16 result;
+   UErrorCode error = U_ZERO_ERROR;
+-  time_string.extract(static_cast<UChar*>(base::WriteInto(&result, capacity)),
+-                      capacity, error);
++  time_string.extract(
++      base::i18n::ToUCharPtr(base::WriteInto(&result, capacity)), capacity,
++      error);
+   DCHECK(U_SUCCESS(error));
+   return result;
+ }
+diff -Naur a/src/3rdparty/chromium/ui/gfx/bidi_line_iterator.cc b/src/3rdparty/chromium/ui/gfx/bidi_line_iterator.cc
+--- a/src/3rdparty/chromium/ui/gfx/bidi_line_iterator.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/ui/gfx/bidi_line_iterator.cc	2023-04-18 15:35:10.095662370 +0200
+@@ -5,6 +5,7 @@
+ #include "ui/gfx/bidi_line_iterator.h"
+ 
+ #include "base/check.h"
++#include "base/i18n/uchar.h"
+ #include "base/notreached.h"
+ 
+ namespace ui {
+@@ -45,7 +46,8 @@
+   if (U_FAILURE(error))
+     return false;
+ 
+-  ubidi_setPara(bidi_, text.data(), static_cast<int>(text.length()),
++  ubidi_setPara(bidi_, base::i18n::ToUCharPtr(text.data()),
++                static_cast<int>(text.length()),
+                 GetParagraphLevelForDirection(direction), nullptr, &error);
+   return (U_SUCCESS(error));
+ }
+diff -Naur a/src/3rdparty/chromium/ui/gfx/font_fallback_unittest.cc b/src/3rdparty/chromium/ui/gfx/font_fallback_unittest.cc
+--- a/src/3rdparty/chromium/ui/gfx/font_fallback_unittest.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/ui/gfx/font_fallback_unittest.cc	2023-04-18 15:35:10.095662370 +0200
+@@ -6,6 +6,7 @@
+ 
+ #include <tuple>
+ 
++#include "base/i18n/uchar.h"
+ #include "base/stl_util.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/stringprintf.h"
+@@ -235,10 +236,10 @@
+     const UScriptCode script = static_cast<UScriptCode>(i);
+ 
+     // Make a sample text to test the script.
+-    UChar text[8];
++    base::char16 text[8];
+     UErrorCode errorCode = U_ZERO_ERROR;
+-    int text_length =
+-        uscript_getSampleString(script, text, base::size(text), &errorCode);
++    int text_length = uscript_getSampleString(
++        script, base::i18n::ToUCharPtr(text), base::size(text), &errorCode);
+     if (text_length <= 0 || errorCode != U_ZERO_ERROR)
+       continue;
+ 
+diff -Naur a/src/3rdparty/chromium/url/url_canon_icu.cc b/src/3rdparty/chromium/url/url_canon_icu.cc
+--- a/src/3rdparty/chromium/url/url_canon_icu.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/url/url_canon_icu.cc	2023-04-18 15:35:10.095662370 +0200
+@@ -9,6 +9,7 @@
+ #include <string.h>
+ 
+ #include "base/check.h"
++#include "base/i18n/uchar.h"
+ #include "third_party/icu/source/common/unicode/ucnv.h"
+ #include "third_party/icu/source/common/unicode/ucnv_cb.h"
+ #include "third_party/icu/source/common/unicode/utypes.h"
+@@ -94,8 +95,9 @@
+   do {
+     UErrorCode err = U_ZERO_ERROR;
+     char* dest = &output->data()[begin_offset];
+-    int required_capacity = ucnv_fromUChars(converter_, dest, dest_capacity,
+-                                            input, input_len, &err);
++    int required_capacity =
++        ucnv_fromUChars(converter_, dest, dest_capacity,
++                        base::i18n::ToUCharPtr(input), input_len, &err);
+     if (err != U_BUFFER_OVERFLOW_ERROR) {
+       output->set_length(begin_offset + required_capacity);
+       return;
+diff -Naur a/src/3rdparty/chromium/url/url_idna_icu.cc b/src/3rdparty/chromium/url/url_idna_icu.cc
+--- a/src/3rdparty/chromium/url/url_idna_icu.cc	2023-02-27 19:32:59.000000000 +0100
++++ b/src/3rdparty/chromium/url/url_idna_icu.cc	2023-04-18 15:35:10.095662370 +0200
+@@ -11,6 +11,7 @@
+ #include <ostream>
+ 
+ #include "base/check_op.h"
++#include "base/i18n/uchar.h"
+ #include "base/no_destructor.h"
+ #include "third_party/icu/source/common/unicode/uidna.h"
+ #include "third_party/icu/source/common/unicode/utypes.h"
+@@ -90,8 +91,10 @@
+   while (true) {
+     UErrorCode err = U_ZERO_ERROR;
+     UIDNAInfo info = UIDNA_INFO_INITIALIZER;
+-    int output_length = uidna_nameToASCII(uidna, src, src_len, output->data(),
+-                                          output->capacity(), &info, &err);
++    int output_length =
++        uidna_nameToASCII(uidna, base::i18n::ToUCharPtr(src), src_len,
++                          base::i18n::ToUCharPtr(output->data()),
++                          output->capacity(), &info, &err);
+     if (U_SUCCESS(err) && info.errors == 0) {
+       output->set_length(output_length);
+       return true;

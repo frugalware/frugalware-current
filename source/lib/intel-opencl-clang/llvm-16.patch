@@ -1,0 +1,125 @@
+From 9f50367661bb6345bf7b18102f1e415378afda06 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Franti=C5=A1ek=20Zatloukal?= <Zatloukal.Frantisek@gmail.com>
+Date: Fri, 21 Apr 2023 04:08:11 +0200
+Subject: [PATCH] Support llvm headers in
+ ${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}/ (#419)
+
+Fedora places llvm include files into that directory instead of assumed
+${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}/include/
+
+Try both, fail horribly when none of them exist
+---
+ cl_headers/CMakeLists.txt | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/cl_headers/CMakeLists.txt b/cl_headers/CMakeLists.txt
+index 86df76f..0223d52 100644
+--- a/cl_headers/CMakeLists.txt
++++ b/cl_headers/CMakeLists.txt
+@@ -19,8 +19,15 @@ add_custom_command(
+ endfunction(copy_file)
+ 
+ if(USE_PREBUILT_LLVM)
+-    set(OPENCL_HEADERS_DIR
+-      "${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}/include/")
++    if(EXISTS "${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}/")
++        set(OPENCL_HEADERS_DIR
++        "${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}/include/")
++    elseif(EXISTS "${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}/")
++        set(OPENCL_HEADERS_DIR
++            "${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}/include/")
++    else()
++        message(FATAL_ERROR "[OPENCL-CLANG] Couldn't find prebuilt LLVM include directory.")
++    endif()
+ else(USE_PREBUILT_LLVM)
+     set(OPENCL_HEADERS_DIR "${CLANG_SOURCE_DIR}/lib/Headers")
+ endif(USE_PREBUILT_LLVM)
+From 529a9188114bcbd8ed753d2276942384fa50d7a1 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Franti=C5=A1ek=20Zatloukal?= <Zatloukal.Frantisek@gmail.com>
+Date: Fri, 21 Apr 2023 04:07:21 +0200
+Subject: [PATCH] Fix standalone build (#415)
+
+Fixes https://github.com/intel/opencl-clang/issues/406
+Fixes https://github.com/intel/opencl-clang/issues/374
+---
+ cl_headers/CMakeLists.txt | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/cl_headers/CMakeLists.txt b/cl_headers/CMakeLists.txt
+index 788adff..86df76f 100644
+--- a/cl_headers/CMakeLists.txt
++++ b/cl_headers/CMakeLists.txt
+@@ -1,5 +1,9 @@
+ set(CL_HEADERS_LIB cl_headers)
+-set(CLANG_COMMAND $<TARGET_FILE:clang> )
++if(USE_PREBUILT_LLVM)
++    find_program(CLANG_COMMAND clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
++else()
++    set(CLANG_COMMAND $<TARGET_FILE:clang>)
++endif()
+ if(LLVM_USE_HOST_TOOLS AND NOT OPENCL_CLANG_BUILD_EXTERNAL)
+   build_native_tool(clang CLANG_COMMAND)
+ endif()
+From 7eed60a0ccefe9354da1ab0e54a045df8b6b06e9 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Franti=C5=A1ek=20Zatloukal?= <fzatlouk@redhat.com>
+Date: Fri, 14 Apr 2023 12:02:13 +0200
+Subject: [PATCH] Bump CMAKE_CXX_STANDARD to 17
+
+Fixes build issues
+---
+ CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3d7eff1..efb2adf 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -58,7 +58,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+       ${CMAKE_MODULE_PATH}
+       ${LLVM_CMAKE_DIR})
+ 
+-    set(CMAKE_CXX_STANDARD 14)
++    set(CMAKE_CXX_STANDARD 17)
+     set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+     option(LLVMSPIRV_INCLUDED_IN_LLVM
+---
+ CMakeLists.txt   | 2 +-
+ opencl_clang.cpp | 8 ++++----
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3d7eff1..d4713a6 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -341,7 +341,7 @@ target_link_libraries( ${TARGET_NAME}
+                        LLVMX86Info
+                        LLVMX86Disassembler
+                        LLVMAnalysis
+-                       LLVMCodeGen
++                       LLVMX86CodeGen
+                        LLVMCore
+                        LLVMipo
+                        LLVMInstCombine
+diff --git a/opencl_clang.cpp b/opencl_clang.cpp
+index eed8f02..930cc11 100644
+--- a/opencl_clang.cpp
++++ b/opencl_clang.cpp
+@@ -99,10 +99,10 @@ void CommonClangInitialize() {
+       // llvm_shutdown before static object are destroyed, so we use
+       // atexit to
+       // satisfy this requirement.
+       atexit(CommonClangTerminate);
+-      llvm::InitializeAllTargets();
+-      llvm::InitializeAllAsmPrinters();
+-      llvm::InitializeAllAsmParsers();
+-      llvm::InitializeAllTargetMCs();
++      llvm::InitializeNativeTarget();
++      llvm::InitializeNativeTargetAsmPrinter();
++      llvm::InitializeNativeTargetAsmParser();
++      //llvm::InitializeAllTargetMCs();
+       lazyCCInit = false;
+     }
+   }
+-- 
+2.40.0

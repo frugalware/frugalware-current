@@ -7,7 +7,7 @@ USE_DISTRO_FLAGS=${USE_DISTRO_FLAGS:-"y"}
 
 pkgname=chromium-browser
 pkgver=113.0.5672.63
-pkgrel=1
+pkgrel=2
 pkgdesc='Chromium browser'
 url='http://www.chromium.org/'
 depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6' 'libcups' \
@@ -16,7 +16,7 @@ depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6
 	'harfbuzz>=3.0.0' 'libjpeg-turbo' 'fontconfig' 'libva' 'libwebp' 'opus' 'curl' 'woff2' \
 	'freetype2' 're2>=2022.12.01' 'brotli' 'jsoncpp' 'libavif' 'flac>=1.4.0' 'qt5-base' )
 makedepends=('ninja' 'python3-six' 'gn>=0.1731' 'cups' 'x11-protos' 'mesa-dri-drivers' 'nodejs' \
-	'openjdk' 'gperf' 'libxrandr' 'html5lib-python' 'vulkan-headers' 'pipewire')
+	'openjdk' 'gperf' 'libxrandr' 'html5lib-python' 'vulkan-headers' 'pipewire' 'lld' 'clang' 'llvm' 'compiler-rt')
 license=('BSD')
 groups=('xapps-extra')
 archs=('x86_64')
@@ -27,20 +27,22 @@ up2date="Flasttar 'http://chromium.woolyss.com/#stable-chromium-version'"
 source=(https://commondatastorage.googleapis.com/chromium-browser-official/chromium-${pkgver}.tar.xz \
 	https://github.com/foutrelis/chromium-launcher/archive/v8/chromium-launcher-8.tar.gz \
 	add-cstring-for-std-strlen-in-web_view_impl.cc.patch \
-	chromium-113-compiler.patch \
 	download-bubble-typename.patch
 	webauthn-variant.patch \
+	lamba-bug.patch \
         chromium.desktop \
 	use-oauth2-client-switches-as-default.patch )
 sha1sums=('0e8a65693ffea4e4014b9572165363990a2ff7b4' \
           '0f969f454a5efdf1bb5b6a2ecf0f9bddd0c94cab' \
           'd71caca261a43c551b5e2b94aef41ba7f41aecb3' \
-          'd0e8f0bb8ffe7e731f571490e8d6d1b71742e5bc' \
           '63289fbcad925e3c997813a9a79a601f6be2b34b' \
           'f6fe48f2cc0a53895653a7895e053098edf8e090' \
+          '2e5fceed3a094f161a5090b8252eba5f913b6a0f' \
           '710c24b12f105ddbd91d5f1fbabb2cacf97128df' \
           '2a8832b2e780a37fba149188f01310df33cf7531')
 
+
+options+=('clang')
 
 chromium_path="chromium"
 
@@ -303,7 +305,8 @@ build() {
 		third_party/omnibox_prot
 		third_party/material_color_utilities
 		third_party/xnnpack
-		third_party/libaom/source/libaom/third_party/SVT-AV1 )
+		third_party/libaom/source/libaom/third_party/SVT-AV1
+		v8/third_party/glibc )
 	# Remove most bundled libraries. Some are still needed.
 
 	Fexec build/linux/unbundle/remove_bundled_libraries.py "${keeplibs[@]}" --do-remove || Fdie
@@ -338,9 +341,10 @@ build() {
 
 	Fexec third_party/libaddressinput/chromium/tools/update-strings.py || Fdie
 
-	myconf_gn+=" is_clang=false clang_use_chrome_plugins=false"
+	myconf_gn+=" clang_use_chrome_plugins=false"
+	myconf_gn+=" clang_base_path=\"/usr\""
 	myconf_gn+=" use_gold=false"
-	myconf_gn+=" use_lld=false"
+	myconf_gn+=" use_lld=true"
 	myconf_gn+=" is_debug=false"
 	myconf_gn+=" enable_iterator_debugging=false"
 	myconf_gn+=" enable_nacl=false"
@@ -405,11 +409,10 @@ build() {
 		myconf_gn+=" v8_snapshot_toolchain=\"//build/toolchain/linux/unbundle:default\""
 	fi
 
+	export CC=clang
+	export CXX=clang++
 	export AR=ar
 	export NM=nm
-	export RANLIB=ranlib
-	export CC=gcc
-	export CXX=g++
 
 	# https://github.com/ungoogled-software/ungoogled-chromium-archlinux/issues/123
 	CFLAGS=${CFLAGS/-fexceptions}

@@ -6,8 +6,8 @@ USE_DISTRO_LTO=${USE_DISTRO_LTO:-"n"}
 USE_DISTRO_FLAGS=${USE_DISTRO_FLAGS:-"y"}
 
 pkgname=chromium-browser
-pkgver=112.0.5615.165
-pkgrel=1
+pkgver=113.0.5672.63
+pkgrel=2
 pkgdesc='Chromium browser'
 url='http://www.chromium.org/'
 depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6' 'libcups' \
@@ -16,7 +16,7 @@ depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6
 	'harfbuzz>=3.0.0' 'libjpeg-turbo' 'fontconfig' 'libva' 'libwebp' 'opus' 'curl' 'woff2' \
 	'freetype2' 're2>=2022.12.01' 'brotli' 'jsoncpp' 'libavif' 'flac>=1.4.0' 'qt5-base' )
 makedepends=('ninja' 'python3-six' 'gn>=0.1731' 'cups' 'x11-protos' 'mesa-dri-drivers' 'nodejs' \
-	'openjdk' 'gperf' 'libxrandr' 'html5lib-python' 'vulkan-headers' 'pipewire' 'mold')
+	'openjdk' 'gperf' 'libxrandr' 'html5lib-python' 'vulkan-headers' 'pipewire' 'lld' 'clang' 'llvm' 'compiler-rt')
 license=('BSD')
 groups=('xapps-extra')
 archs=('x86_64')
@@ -26,19 +26,23 @@ _F_archive_name="chromium"
 up2date="Flasttar 'http://chromium.woolyss.com/#stable-chromium-version'"
 source=(https://commondatastorage.googleapis.com/chromium-browser-official/chromium-${pkgver}.tar.xz \
 	https://github.com/foutrelis/chromium-launcher/archive/v8/chromium-launcher-8.tar.gz \
+	add-cstring-for-std-strlen-in-web_view_impl.cc.patch \
+	download-bubble-typename.patch
+	webauthn-variant.patch \
+	lamba-bug.patch \
         chromium.desktop \
-	chromium-110-compiler.patch \
-	fix-blink-urlloader.patch \
-	more-unique_ptr-fixes.patch \
 	use-oauth2-client-switches-as-default.patch )
-sha1sums=('7716f009e3543104f33c839a7011862201e24fd7' \
+sha1sums=('0e8a65693ffea4e4014b9572165363990a2ff7b4' \
           '0f969f454a5efdf1bb5b6a2ecf0f9bddd0c94cab' \
+          'd71caca261a43c551b5e2b94aef41ba7f41aecb3' \
+          '63289fbcad925e3c997813a9a79a601f6be2b34b' \
+          'f6fe48f2cc0a53895653a7895e053098edf8e090' \
+          '2e5fceed3a094f161a5090b8252eba5f913b6a0f' \
           '710c24b12f105ddbd91d5f1fbabb2cacf97128df' \
-          '4898cab7ff3f0c9362df31d728e390cd1d0b0566' \
-          'c5069cd46444251bbd964c792a78201b8930b059' \
-          'd72ee0a894b56e26d804b6004293d3f18d36e595' \
           '2a8832b2e780a37fba149188f01310df33cf7531')
 
+
+options+=('clang')
 
 chromium_path="chromium"
 
@@ -300,7 +304,9 @@ build() {
 		third_party/bidimapper
 		third_party/omnibox_prot
 		third_party/material_color_utilities
-		third_party/xnnpack )
+		third_party/xnnpack
+		third_party/libaom/source/libaom/third_party/SVT-AV1
+		v8/third_party/glibc )
 	# Remove most bundled libraries. Some are still needed.
 
 	Fexec build/linux/unbundle/remove_bundled_libraries.py "${keeplibs[@]}" --do-remove || Fdie
@@ -317,7 +323,6 @@ build() {
 		harfbuzz-ng
 		icu
 		jsoncpp
-		libaom
 		libavif
 		libdrm
 		libjpeg
@@ -336,9 +341,10 @@ build() {
 
 	Fexec third_party/libaddressinput/chromium/tools/update-strings.py || Fdie
 
-	myconf_gn+=" is_clang=false clang_use_chrome_plugins=false"
+	myconf_gn+=" clang_use_chrome_plugins=false"
+	myconf_gn+=" clang_base_path=\"/usr\""
 	myconf_gn+=" use_gold=false"
-	myconf_gn+=" use_lld=false"
+	myconf_gn+=" use_lld=true"
 	myconf_gn+=" is_debug=false"
 	myconf_gn+=" enable_iterator_debugging=false"
 	myconf_gn+=" enable_nacl=false"
@@ -387,6 +393,10 @@ build() {
 	myconf_gn+=" chrome_pgo_phase=0"
 	myconf_gn+=" blink_enable_generated_code_formatting=false"
 
+	# disable DCHECK
+	myconf_gn+=" dcheck_always_on=false"
+	myconf_gn+=" dcheck_is_configurable=false"
+
 	# use ccache
 	myconf_gn+=" cc_wrapper=\"ccache\""
 	export CCACHE_CPP2=yes
@@ -399,14 +409,10 @@ build() {
 		myconf_gn+=" v8_snapshot_toolchain=\"//build/toolchain/linux/unbundle:default\""
 	fi
 
+	export CC=clang
+	export CXX=clang++
 	export AR=ar
 	export NM=nm
-	export RANLIB=ranlib
-	export CC=gcc
-	export CXX=g++
-
-	# use mold
-	export LDFLAGS="-fuse-ld=mold $LDFLAGS"
 
 	# https://github.com/ungoogled-software/ungoogled-chromium-archlinux/issues/123
 	CFLAGS=${CFLAGS/-fexceptions}

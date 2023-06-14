@@ -7,7 +7,7 @@ _java_ver=20
 _minorver=0
 _updatever=9
 pkgver=20.0.1
-pkgrel=1
+pkgrel=2
 
 pkgdesc="Open-source Java Development Kit implementation."
 url="http://openjdk.java.net/"
@@ -33,6 +33,11 @@ sha1sums=('a82a2f9cb9629bd0de6196cf419e2d4dd72213e9' \
 _F_cd_path="jdk${_java_ver}u-jdk-${pkgver}-${_updatever}"
 options=('noccache')
 _imgdir="${Fsrcdir}/${_F_cd_path}/build/linux-x86_64-server-release/images"
+_nonjre=(lib/ct.sym
+          lib/libattach.so
+          lib/libsaproc.so
+          lib/src.zip)
+
 
 Fconfopts=" --with-version-build="${_updatever}" \
 	    --with-version-pre="" \
@@ -81,9 +86,9 @@ build()
 	Fcd
 	Fpatchall
 
-	local _CXXFLAGS = $CXXFLAGS
-	local _CFLAGS = $CFLAGS
-	local _LDFLAGS = $LDFLAGS
+	local _CXXFLAGS="$CXXFLAGS"
+	local _CFLAGS="$CFLAGS"
+	local _LDFLAGS="$LDFLAGS"
 
 	unset MAKEFLAGS
 	unset CFLAGS
@@ -93,12 +98,21 @@ build()
 	Fexec bash configure $Fconfopts --with-extra-cflags="${_CFLAGS}" --with-extra-cxxflags="${_CXXFLAGS}" --with-extra-ldflags="${_LDFLAGS}" || Fdie
 	Fexec make images legacy-jre-image docs || Fdie
 
-	Fmkdir usr/lib/jvm/java-${_java_ver}-openjdk/
+	Fmkdir usr/lib/jvm/java-${_java_ver}-openjdk/bin/
 
 	cd ${_imgdir}/jre
 
-	Fcprel bin usr/lib/jvm/java-${_java_ver}-openjdk/
-	Fcprel lib usr/lib/jvm/java-${_java_ver}-openjdk/	
+	Fcprel lib usr/lib/jvm/java-${_java_ver}-openjdk/lib
+
+	for i in $(ls bin/); do
+	    Fcprel ../jdk/bin/$i usr/lib/jvm/java-${_java_ver}-openjdk/bin/
+	 done
+
+	Fcprel ../jdk/lib usr/lib/jvm/java-${_java_ver}-openjdk/
+
+	for f in "${_nonjre[@]}"; do
+		Frm usr/lib/jvm/java-${_java-ver}-openjdk/${f}
+	done
 
 	Fcprel ../jdk/release  usr/lib/jvm/java-${_java_ver}-openjdk/
 	Fcprel ../jdk/lib/modules  /usr/lib/jvm/java-${_java_ver}-openjdk/lib/
@@ -142,7 +156,7 @@ build()
         Frm usr/lib/jvm/java-${_java_ver}-openjdk/lib/libawt_xawt.{so,debuginfo}
         Frm usr/lib/jvm/java-${_java_ver}-openjdk/lib/libjsound.{so,debuginfo}
 	
-	find ${Fdest}usr/lib/jvm/java-${_java_ver}-openjdk/ -type d -empty -delete
+	find ${Fdestdir}usr/lib/jvm/java-${_java_ver}-openjdk/ -type d -empty -delete
 
         # Add ld.so.conf.d entry
         Fmkdir "etc/ld.so.conf.d"

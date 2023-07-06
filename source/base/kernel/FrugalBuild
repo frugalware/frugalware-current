@@ -10,15 +10,6 @@ USE_MAKE_CONFIG=${USE_MAKE_CONFIG:-"n"}
 
 Finclude kernel
 
-## ZFS sh**
-##  *** This kernel has unused symbols trimming enabled, please disable.
-##  *** Rebuild the kernel with CONFIG_TRIM_UNUSED_KSYMS=n set.
-
-## check in >=4.16.x , is being working on
-## DO NOT enable CONFIG_SP5100_TCO until
-## https://bugzilla.kernel.org/show_bug.cgi?id=114201 is *really* resolved
-## it kills lots AMD based systems off
-
 ## DO NOT enable any CONFIG_GOLDFISH , CONFIG_*_GOLDFISH the driver is broken
 ## once a decision is made upstream we may re-enbale but for now just don't
 
@@ -26,16 +17,6 @@ Finclude kernel
 ## DO NOT enable any X86_5LEVEL CONFIG .. this is a feature Intel CPUs
 ## will have sometime BUT if you enable such a kernel won't boot on any other BOX!
 
-## DO NOT enable CONFIG_MQ_IOSCHED_KYBER , on my EPYC box it corrupts
-## any FS in about seconds on NVMe's , need to investigate -- crazy --
-
-
-## CONFIG_IWLWIFI_BCAST_FILTERING=n
-## fix is in the works, with it set all AX200 cards with FW >=67, are broken
-
-## ENABLE in 14.15 ..
-
-## BPF speculation prevention ( spectre v2 part ) -> CONFIG_BPF_JIT_ALWAYS_ON
 
 url="https://www.kernel.org"
 depends=('kmod' 'sed')
@@ -43,8 +24,7 @@ makedepends+=('bison' 'rsync')
 [[ -z "$_F_kernel_name" ]] && makedepends+=('unifdef')
 groups=('base')
 archs=('x86_64')
-## Do NOT remove noccache here
-options+=('nodocs' 'genscriptlet' 'noccache')
+options+=('nodocs' 'genscriptlet' 'ldgold')
 _F_archive_grepv="rc"
 up2date="Flasttar $url"
 
@@ -57,10 +37,6 @@ _F_kernel_patches=(
 			##  all it does is to break silent boot. If is an bug will break the kernel
 			##  it will break anyway , no matter the error level.
 			acpi-use-kern_warning_even_when_error.patch
-			## mute crap from ath* driver
-			## 'XXX filesystem being mounted at XXXX supports timestamps until 2038'
-			## is just 2020 so flooding for 18 years with this on each mount AND/OR remount?. C'mon!
-			do_not_bug_the_next_18-years.patch
 			## -> dmesg | grep -E 'Applying debug destination|FW already configured'
 			iwlwifi-use-debug-for-debug-infos.patch
 			## somewhat broken
@@ -134,19 +110,19 @@ subreplaces+=('')
 suboptions+=('')
 subinstall+=('')
 
-subpkgs+=('perf')
-subdescs+=('Kernel performance profiling tool')
-subrodepends+=("kernel=$_F_kernelver_ver")
-subdepends+=('elfutils slang binutils>=2.40 xz python3>=3.11')
-subgroups+=('devel-extra')
-subarchs+=('x86_64')
-subbackup+=('')
-subconflicts+=('')
-subprovides+=('')
-subreplaces+=('')
-suboptions+=('')
-subinstall+=('')
-makedepends+=('python3-setuptools')
+#subpkgs+=('perf')
+#subdescs+=('Kernel performance profiling tool')
+#subrodepends+=("kernel=$_F_kernelver_ver")
+#subdepends+=('elfutils slang binutils>=2.40 xz python3>=3.11 libtraceevent numactl libunwind')
+#subgroups+=('devel-extra')
+#subarchs+=('x86_64')
+#subbackup+=('')
+#subconflicts+=('')
+#subprovides+=('')
+#subreplaces+=('')
+#suboptions+=('')
+#subinstall+=('')
+#makedepends+=('python3-setuptools')
 
 subpkgs+=("kernel$_F_kernel_name-docs")
 subdescs+=("Linux kernel documentation")
@@ -198,7 +174,6 @@ build()
 {
 
 	Fcd
-	Fexec kmake clean || Fdie
 
 	if [ -e "$Fsrcdir/config.$CARCH" ]; then
 		Fexec cp $Fsrcdir/config.$CARCH .config || Fdie
@@ -326,7 +301,6 @@ build()
 
 	Fexec kmake clean || Fdie
 
-	Fsed '$(OPTIMIZATION) -fomit-frame-pointer' "$CFLAGS" Makefile
 	Fsed 'lib64' 'lib' Makefile
 	Fexec kmake DEBUG=false CPUFREQ_BENCH=false || Fdie
 	Fexec kmake DESTDIR="$Fdestdir" CPUFREQ_BENCH=false install || Fdie
@@ -346,7 +320,6 @@ build()
 	# build x86_energy_perf_policy
 	Fexec cd ../x86/x86_energy_perf_policy
 	Fexec kmake clean || Fdie
-	Fsed '$(OPTIMIZATION) -fomit-frame-pointer' "$CFLAGS" Makefile
 	Fexec kmake  || Fdie
 	Fmkdir usr/bin usr/share/man/man8
 	Fexec kmake DESTDIR="$Fdestdir" install || Fdie
@@ -357,24 +330,32 @@ build()
 	# build perf
 	Fexec cd ../../../perf
 
-	Fsed "lib64" "lib" Makefile.config
-	Fsed "libexec/perf-core" "lib/perf/perf-core" Makefile.config
-	Fexec kmake  						\
-		WERROR=0						\
-		DESTDIR="$Fdestdir/usr"        	\
-		NO_GTK2=1                      	\
-		NO_LIBAUDIT=1                  	\
-		NO_LIBNUMA=1                   	\
-		NO_LIBUNWIND=1                 	\
-		PERF_VERSION="$pkgver-$pkgrel" 	\
-		install || Fdie
-
-	Fmv /usr/etc /etc/
-	Frm /usr/etc
-	Fsplit perf etc/
-	Fsplit perf usr/bin/
-	Fsplit perf usr/share/
-	Fsplit perf usr/lib
+#	Fsed "lib64" "lib" Makefile.config
+#	Fexec ln -sf Makefile.perf Makefile
+#	Fexec kmake				\
+#		WERROR=0			\
+#		NO_GTK2=1                      	\
+#		NO_LIBAUDIT=1                  	\
+#		NO_LIBNUMA=1                   	\
+#		NO_LIBUNWIND=1                 	\
+#		NO_LIBDW_DWARF_UNWIND=1		\
+#		NO_LIBBPF=1			\
+#		NO_PERF_READ_VDSO32=1 		\
+#		NO_PERF_READ_VDSOX32=1 		\
+#		HAVE_CPLUS_DEMANGLE=1 		\
+#		NO_STRLCPY=1 			\
+#		NO_BIONIC=1 			\
+#		LIBTRACEEVENT_DYNAMIC=1		\
+#		EXTRA_CFLAGS=' -Wno-error=bad-function-cast -Wno-error=declaration-after-statement -Wno-error=switch-enum' \
+#		PERF_VERSION="$pkgver-$pkgrel" 	\
+#		|| Fdie
+#	Fexec make install DESTDIR="$Fdestdir/usr" || Fdie
+#	Fmv /usr/etc /etc/
+#	Frm /usr/etc
+#	Fsplit perf etc/
+#	Fsplit perf usr/bin/
+#	Fsplit perf usr/share/
+#	Fsplit perf usr/lib
 
 }
 

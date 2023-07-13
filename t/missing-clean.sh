@@ -49,7 +49,7 @@ do
 			[[ "$j" != "$1" ]] && continue
 			export CARCH=$j
 			unset pkgname subpkgs pkgver pkgrel pkgextraver source install
-			for k in `set|egrep '^(_F_|USE_)'|sed 's/\(=.*\| ()\)//'`; do unset $k; done
+			for k in `set|grep -E '^(_F_|USE_)'|sed 's/\(=.*\| ()\)//'`; do unset $k; done
 			export startdir=`pwd`
 			. ./FrugalBuild || echo "errors parsing `pwd`/FrugalBuild for $j"
 			for k in $pkgname ${subpkgs[@]}

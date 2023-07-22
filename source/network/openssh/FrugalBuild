@@ -5,7 +5,7 @@
 pkgname=openssh
 pkgver=9.3
 pkgextraver=p2
-pkgrel=2
+pkgrel=3
 pkgdesc='Secure Shell daemon and clients'
 url="http://www.openssh.com/"
 backup=('etc/ssh/ssh_config' 'etc/ssh/sshd_config')
@@ -36,6 +36,14 @@ options=('scriptlet')
 _F_systemd_units=(sshd-keygen=e sshd=e)
 Finclude systemd
 
+subpkgs=('openssh-askpass')
+subdescs=('X11 passphrase dialog for OpenSSH')
+subdepends=('gtk+2 gdk-pixbuf2')
+makedepends+=('x11-protos' 'kernel-headers')
+subgroups=('xapps-extra')
+subarchs=('x86_64')
+
+
 build()
 {
 	Fbuild --sysconfdir=/etc/ssh \
@@ -60,9 +68,14 @@ build()
 	Ffile /lib/systemd/system/sshd.service
 	Ffile /lib/systemd/system/ssh-agent.service
 
-	Fexerel contrib/findssl.sh usr/bin/findssl.sh
-	Fexerel contrib/ssh-copy-id usr/bin/ssh-copy-id
-	Fmanrel contrib/ssh-copy-id.1
+	Fexec cd contrib || Fdie
+        Fexec make gnome-ssh-askpass2 || Fdie
+        Fmkdir usr/lib/openssh-askpass
+        Fcprel gnome-ssh-askpass2 usr/lib/$pkgname/ssh-askpass || Fdie
+
+	Fexerel findssl.sh usr/bin/findssl.sh
+	Fexerel ssh-copy-id usr/bin/ssh-copy-id
+	Fmanrel ssh-copy-id.1
 
 	Fsed '^#UsePAM no$' 'UsePAM yes' $Fdestdir/etc/ssh/sshd_config
 	echo "session    optional     pam_systemd.so" >>$Fdestdir/etc/pam.d/sshd
@@ -71,7 +84,7 @@ build()
 	Fsed '#   ForwardAgent no' '    ForwardAgent yes' $Fdestdir/etc/ssh/ssh_config
 	Fdoc README.Frugalware
 
-
+	Fsplit openssh-askpass usr/lib/openssh-askpass
 	Fgenscriptlet
 }
 

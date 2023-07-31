@@ -1,0 +1,117 @@
+diff -Naur grub2/util/grub.d/10_linux.in grub2.new/util/grub.d/10_linux.in
+--- grub2/util/grub.d/10_linux.in	2023-07-13 16:15:47.600869656 +0200
++++ grub2.new/util/grub.d/10_linux.in	2023-07-13 16:17:28.066624902 +0200
+@@ -31,7 +31,7 @@
+ if [ "x${GRUB_DISTRIBUTOR}" = "x" ] ; then
+   OS=GNU/Linux
+ else
+-  OS="${GRUB_DISTRIBUTOR} GNU/Linux"
++  OS="${GRUB_DISTRIBUTOR}"
+   CLASS="--class $(echo ${GRUB_DISTRIBUTOR} | tr 'A-Z' 'a-z' | cut -d' ' -f1|LC_ALL=C sed 's,[^[:alnum:]_],_,g') ${CLASS}"
+ fi
+ 
+@@ -67,6 +67,7 @@
+ 
+ case x"$GRUB_FS" in
+     xbtrfs)
++	GRUB_SAVEDEFAULT=false
+ 	rootsubvol="`make_system_path_relative_to_its_root /`"
+ 	rootsubvol="${rootsubvol#/}"
+ 	if [ "x${rootsubvol}" != x ]; then
+@@ -81,6 +82,20 @@
+ 
+ title_correction_code=
+ 
++_resume=""
++
++while read line; do
++   _device=$(echo $line | cut -f 1 -d ' ')
++   _type=$(echo $line | cut -f 2 -d ' ')
++   [ "$_type" != "partition" ] && continue
++   _uuid=$(/sbin/blkid -s UUID -o value $_device)
++   _resume="resume=UUID=$_uuid"
++   break
++done << EOF
++$(tail -n +2 /proc/swaps)
++EOF
++
++
+ linux_entry ()
+ {
+   os="$1"
+@@ -88,26 +103,42 @@
+   type="$3"
+   args="$4"
+ 
++
++  if /bin/echo ${args} | grep -E -qom1 'resume=/|resume=UUID='; then
++      _resume=""
++  fi
++
+   if [ -z "$boot_device_id" ]; then
+       boot_device_id="$(grub_get_device_id "${GRUB_DEVICE}")"
+   fi
+-  if [ x$type != xsimple ] ; then
+-      case $type in
+-	  recovery)
+-	      title="$(gettext_printf "%s, with Linux %s (recovery mode)" "${os}" "${version}")" ;;
+-	  *)
+-	      title="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")" ;;
++
++	case $type in
++		simple)
++			title="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")" ;;
++		console)
++			title_c="(console mode)"
++			title_="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")"
++			title="${title_} ${title_c}" ;;
++		recovery)
++			title_r="(recovery mode)"
++			title_="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")"
++			title="${title_} ${title_r}" ;;
++	  	*)
++			title="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")" ;;
+       esac
+-      if [ x"$title" = x"$GRUB_ACTUAL_DEFAULT" ] || [ x"Previous Linux versions>$title" = x"$GRUB_ACTUAL_DEFAULT" ]; then
++
++	  if [ x"$title" = x"$GRUB_ACTUAL_DEFAULT" ] || [ x"Previous Linux versions>$title" = x"$GRUB_ACTUAL_DEFAULT" ]; then
+ 	  replacement_title="$(echo "Advanced options for ${OS}" | sed 's,>,>>,g')>$(echo "$title" | sed 's,>,>>,g')"
+ 	  quoted="$(echo "$GRUB_ACTUAL_DEFAULT" | grub_quote)"
+ 	  title_correction_code="${title_correction_code}if [ \"x\$default\" = '$quoted' ]; then default='$(echo "$replacement_title" | grub_quote)'; fi;"
+ 	  grub_warn "$(gettext_printf "Please don't use old title \`%s' for GRUB_DEFAULT, use \`%s' (for versions before 2.00) or \`%s' (for 2.00 or later)" "$GRUB_ACTUAL_DEFAULT" "$replacement_title" "gnulinux-advanced-$boot_device_id>gnulinux-$version-$type-$boot_device_id")"
+       fi
+-      echo "menuentry '$(echo "$title" | grub_quote)' ${CLASS} \$menuentry_id_option 'gnulinux-$version-$type-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
+-  else
+-      echo "menuentry '$(echo "$os" | grub_quote)' ${CLASS} \$menuentry_id_option 'gnulinux-simple-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
+-  fi      
++	if [ x$type != xsimple ] ; then
++		echo "menuentry '$(echo "$title" | grub_quote)' ${CLASS} \$menuentry_id_option 'gnulinux-$version-$type-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
++  	else
++		echo "menuentry '$(echo "$title" | grub_quote)' ${CLASS} \$menuentry_id_option 'gnulinux-simple-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
++	fi
++
+   if [ x$type != xrecovery ] ; then
+       save_default_entry | grub_add_tab
+   fi
+@@ -140,20 +171,15 @@
+     fi
+     printf '%s\n' "${prepare_boot_cache}" | sed "s/^/$submenu_indentation/"
+   fi
+-  message="$(gettext_printf "Loading Linux %s ..." ${version})"
+   sed "s/^/$submenu_indentation/" << EOF
+-	echo	'$(echo "$message" | grub_quote)'
+-	linux	${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args}
++	linux	${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args} ${_resume}
+ EOF
+   if test -n "${initrd}" ; then
+-    # TRANSLATORS: ramdisk isn't identifier. Should be translated.
+-    message="$(gettext_printf "Loading initial ramdisk ...")"
+     initrd_path=
+     for i in ${initrd}; do
+       initrd_path="${initrd_path} ${rel_dirname}/${i}"
+     done
+     sed "s/^/$submenu_indentation/" << EOF
+-	echo	'$(echo "$message" | grub_quote)'
+ 	initrd	$(echo $initrd_path)
+ EOF
+   fi

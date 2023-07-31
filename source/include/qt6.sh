@@ -29,8 +29,8 @@ if [ -z "$_F_qt_nocore" ]; then
 		groups=('xlib-extra')
 	fi
 	options+=('nodocs')
-	source=(https://download.qt.io/archive/qt/${pkgver%.*}/${pkgver}/submodules/${qtpkgfilename}.tar.xz)
-	up2date="Flastverdir https://download.qt.io/official_releases/qt/\$(Flastverdir https://download.qt.io/official_releases/qt/)"
+	source=(https://mirror.netcologne.de/qtproject/archive/qt/${pkgver%.*}/${pkgver}/submodules/${qtpkgfilename}.tar.xz)
+	up2date="Flastverdir https://mirror.netcologne.de/qtproject/official_releases/qt/\$(Flastverdir https://mirror.netcologne.de/qtproject/official_releases/qt/)"
 	_F_cd_path=${qtpkgname}-everywhere-src-${pkgver}
 fi
 

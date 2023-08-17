@@ -12,6 +12,13 @@
 
 #define FTW_USED_FD 512
 
+struct bfd_link_needed_list
+{
+  struct bfd_link_needed_list *next;
+  bfd *by;
+  const char *name;
+};
+
 typedef struct bfd_link_needed_list bfd_list;
 
 static inline int is_elf(const char *path)

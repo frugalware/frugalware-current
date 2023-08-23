@@ -6,7 +6,7 @@
 ## do NOT set n for production systems
 
 pkgname=dbus
-pkgver=1.15.6
+pkgver=1.15.8
 pkgrel=1
 pkgdesc="A message bus system"
 url="http://freedesktop.org/wiki/Software/dbus"
@@ -19,11 +19,12 @@ archs=('x86_64')
 _F_archive_grepv="1.13" # 1.11 is devel .13 is devel etc
 up2date="Flasttar http://dbus.freedesktop.org/releases/dbus/"
 backup=(etc/dbus-1/session.conf etc/tmpfiles.d/dbus.conf)
+_F_cd_path="$pkgname-$pkgver"
 
 source=(http://dbus.freedesktop.org/releases/dbus/$pkgname-$pkgver.tar.xz \
 	dbus-1-launch.desktop
 	dbus.conf )
-sha1sums=('7256744ea329b8640df9ce2fc4792256f4f5c6c9' \
+sha1sums=('73538c86a0b3da9a1c054383543da652eeea122e' \
           '1c7bd0b397f281ab26a70d48269496cc5a742509' \
           'd006b4e680e6fbc4bcaac8337fc3a8b2af151b98')
 
@@ -43,70 +44,34 @@ subrodepends+=("")
 subgroups+=('lib32-extra')
 subarchs+=('x86_64')
 
+_F_cross32_use_meson=yes
+_F_cross32_delete=('run/' 'usr/i686-frugalware-linux/bin/' 'usr/share' 'var/' 'usr/lib32/dbus/')
 Finclude cross32
 
-makedepends+=('lib32-libxml2' 'lib32-expat')
+makedepends+=('lib32-libxml2' 'lib32-expat' 'lib32-util-linux' 'lib32-glib2')
 
-_64bit_options+="  --enable-systemd \
-		--enable-user-session \
-		--with-systemdsystemunitdir=/lib/systemd/system \
-		--enable-xml-docs \
-		--libdir=/usr/lib \
-		--bindir=/usr/bin \
-		--libexecdir=/usr/lib/$pkgname-1"
+_F_cross32_meson_confopts_64="	-Dsystemd=enabled \
+				-Duser_session=true \
+				-Dsystemd_system_unitdir=/lib/systemd/system \
+				-Dxml_docs=enabled \
+				--libexecdir=/usr/lib/$pkgname-1"
 
-## right now I can't add systemd support .. circualr depends..
-F32confopts+=" --disable-systemd \
-		--disable-user-session \
-		--disable-xml-docs \
-		--without-x \
-		--disable-x11-autolaunch"
-
-Fconfopts+="	--prefix=/usr \
-                --exec-prefix=/ \
-                --with-system-pid-file=/run/dbus/dbus.pid \
-                --with-system-socket=/run/dbus/system_bus_socket \
-		--runstatedir=/run \
-                --with-session-socket-dir=/tmp \
-                --with-dbus-user=messagebus \
-                --disable-doxygen-docs \
-                --enable-inotify \
-                --enable-userdb-cache \
-                --with-gnu-ld \
-                --disable-asserts \
-                --disable-checks \
-                --disable-tests \
-                --disable-selinux \
-		--enable-x11-autolaunch \
-		--disable-Werror"
+_F_cross32_meson_confopts_32="  -Dsystemd=disabled \
+                                -Duser_session=false \
+				-Dxml_docs=disabled \
+				-Dx11_autolaunch=disabled"
 
 build()
 {
-
-	Fcd
-
-	## --- 32bit ----------
 	Fcross32_common_build
-	Fcross32_delete_empty
-
-	## keep just the lib
-	Frm var
-	Frm usr/share/dbus-1
-	Frm usr/i686-frugalware-linux/{bin,dbus}
-        Frm usr/share/xml/dbus-1
+        Fcross32_delete_empty
 
 	## same bug here ..
 	Fln /usr/lib32/dbus-1.0/include/dbus/dbus-arch-deps.h /usr/i686-frugalware-linux/include/dbus-1.0/dbus/dbus-arch-deps.h
-
-	Fcross32_delete_empty
-
 	Fsplit lib32-libdbus /\*
 
-	Fbuild $_64bit_options
-
-	# bug dbus-arch-deps.h is being included as <dbus/dbus-arch-deps.h> from dbus.h
-	## but installed as .. /usr/lib/dbus-1.0/include/dbus/dbus-arch-deps.h  so nothing can find it
-	## workaround for now
+        ## 64bit
+	Fcross32_64bit_build
 	Fln /usr/lib/dbus-1.0/include/dbus/dbus-arch-deps.h /usr/include/dbus-1.0/dbus/dbus-arch-deps.h
 
 	## just to keep this dirs

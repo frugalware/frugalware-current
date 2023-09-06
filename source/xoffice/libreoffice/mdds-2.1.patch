@@ -1,0 +1,3684 @@
+diff -Naur libreoffice-7.5.5.2/configure.ac libreoffice-7.5.5.2.new/configure.ac
+--- libreoffice-7.5.5.2/configure.ac	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/configure.ac	2023-09-06 17:58:44.584026421 +0200
+@@ -10523,7 +10523,7 @@
+ dnl Check for system mdds
+ dnl ===================================================================
+ MDDS_CFLAGS_internal="-I${WORKDIR}/UnpackedTarball/mdds/include"
+-libo_CHECK_SYSTEM_MODULE([mdds],[MDDS],[mdds-2.0 >= 2.0.0])
++libo_CHECK_SYSTEM_MODULE([mdds],[MDDS],[mdds-2.1 >= 2.1.0])
+ 
+ dnl ===================================================================
+ dnl Check for system dragonbox
+@@ -10830,7 +10830,7 @@
+ dnl ===================================================================
+ dnl Orcus
+ dnl ===================================================================
+-libo_CHECK_SYSTEM_MODULE([orcus],[ORCUS],[liborcus-0.17 >= 0.17.2])
++libo_CHECK_SYSTEM_MODULE([orcus],[ORCUS],[liborcus-0.18 >= 0.18.0])
+ if test "$with_system_orcus" != "yes"; then
+     if test "$SYSTEM_BOOST" = "TRUE"; then
+         dnl Link with Boost.System
+diff -Naur libreoffice-7.5.5.2/cui/source/dialogs/AdditionsDialog.cxx libreoffice-7.5.5.2.new/cui/source/dialogs/AdditionsDialog.cxx
+--- libreoffice-7.5.5.2/cui/source/dialogs/AdditionsDialog.cxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/cui/source/dialogs/AdditionsDialog.cxx	2023-09-06 17:58:44.584026421 +0200
+@@ -134,7 +134,7 @@
+     {
+         aJsonDoc.load(rResponse, aConfig);
+     }
+-    catch (const orcus::json::parse_error&)
++    catch (const orcus::parse_error&)
+     {
+         TOOLS_WARN_EXCEPTION("cui.dialogs", "Invalid JSON file from the extensions API");
+         return;
+diff -Naur libreoffice-7.5.5.2/download.lst libreoffice-7.5.5.2.new/download.lst
+--- libreoffice-7.5.5.2/download.lst	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/download.lst	2023-09-06 17:58:44.584026421 +0200
+@@ -367,8 +367,8 @@
+ # three static lines
+ # so that git cherry-pick
+ # will not run into conflicts
+-MDDS_SHA256SUM := 9771fe42e133443c13ca187253763e17c8bc96a1a02aec9e1e8893367ffa9ce5
+-MDDS_TARBALL := mdds-2.0.3.tar.bz2
++MDDS_SHA256SUM := 9bd8ba6c81a560723e869486850c374bae4e897d6024698452de0738c3adb354
++MDDS_TARBALL := mdds-2.1.0.tar.xz
+ # three static lines
+ # so that git cherry-pick
+ # will not run into conflicts
+@@ -424,8 +424,8 @@
+ # three static lines
+ # so that git cherry-pick
+ # will not run into conflicts
+-ORCUS_SHA256SUM := 2a86c405a5929f749b27637509596421d46805753364ab258b035fd01fbde143
+-ORCUS_TARBALL := liborcus-0.17.2.tar.bz2
++ORCUS_SHA256SUM := 0a8c55a227f13dbda08da8a1f6e18f27ba873da55a2cdd23bd0825989d1abff8
++ORCUS_TARBALL := liborcus-0.18.0.tar.xz
+ # three static lines
+ # so that git cherry-pick
+ # will not run into conflicts
+diff -Naur libreoffice-7.5.5.2/external/liborcus/bugfix-0.18.0-unset-border-colors.patch.1 libreoffice-7.5.5.2.new/external/liborcus/bugfix-0.18.0-unset-border-colors.patch.1
+--- libreoffice-7.5.5.2/external/liborcus/bugfix-0.18.0-unset-border-colors.patch.1	1970-01-01 01:00:00.000000000 +0100
++++ libreoffice-7.5.5.2.new/external/liborcus/bugfix-0.18.0-unset-border-colors.patch.1	2023-09-06 17:58:44.586026436 +0200
+@@ -0,0 +1,236 @@
++diff --git a/src/liborcus/xls_xml_context.cpp b/src/liborcus/xls_xml_context.cpp
++index 85916fc7..739678ee 100644
++--- a/src/liborcus/xls_xml_context.cpp
+++++ b/src/liborcus/xls_xml_context.cpp
++@@ -1292,7 +1292,7 @@ void xls_xml_context::start_element_border(const xml_token_attrs_t& attrs)
++ {
++     ss::border_direction_t dir = ss::border_direction_t::unknown;
++     ss::border_style_t style = ss::border_style_t::unknown;
++-    ss::color_rgb_t color;
+++    std::optional<ss::color_rgb_t> color;
++     long weight = 0;
++ 
++     for (const xml_token_attr_t& attr : attrs)
++@@ -1950,8 +1950,14 @@ void xls_xml_context::commit_default_style()
++     {
++         for (const border_style_type& b : m_default_style->borders)
++         {
++-            border_style->set_style(b.dir, b.style);
++-            border_style->set_color(b.dir, 255, b.color.red, b.color.green, b.color.blue);
+++            if (b.dir == ss::border_direction_t::unknown)
+++                continue;
+++
+++            if (b.style != ss::border_style_t::unknown)
+++                border_style->set_style(b.dir, b.style);
+++
+++            if (b.color)
+++                border_style->set_color(b.dir, 255, b.color->red, b.color->green, b.color->blue);
++         }
++     }
++ 
++@@ -2109,8 +2115,14 @@ void xls_xml_context::commit_styles()
++ 
++             for (const border_style_type& b : style->borders)
++             {
++-                border_style->set_style(b.dir, b.style);
++-                border_style->set_color(b.dir, 255, b.color.red, b.color.green, b.color.blue);
+++                if (b.dir == ss::border_direction_t::unknown)
+++                    continue;
+++
+++                if (b.style != ss::border_style_t::unknown)
+++                    border_style->set_style(b.dir, b.style);
+++
+++                if (b.color)
+++                    border_style->set_color(b.dir, 255, b.color->red, b.color->green, b.color->blue);
++             }
++ 
++             size_t border_id = border_style->commit();
++diff --git a/src/liborcus/xls_xml_context.hpp b/src/liborcus/xls_xml_context.hpp
++index 9f00bb07..d7377e42 100644
++--- a/src/liborcus/xls_xml_context.hpp
+++++ b/src/liborcus/xls_xml_context.hpp
++@@ -127,7 +127,7 @@ class xls_xml_context : public xml_context_base
++     {
++         spreadsheet::border_direction_t dir = spreadsheet::border_direction_t::unknown;
++         spreadsheet::border_style_t style = spreadsheet::border_style_t::unknown;
++-        spreadsheet::color_rgb_t color;
+++        std::optional<spreadsheet::color_rgb_t> color;
++     };
++ 
++     struct font_style_type
++diff --git a/src/orcus_test_xls_xml.cpp b/src/orcus_test_xls_xml.cpp
++index 627c957d..f20603c6 100644
++--- a/src/orcus_test_xls_xml.cpp
+++++ b/src/orcus_test_xls_xml.cpp
++@@ -756,73 +756,171 @@ void test_xls_xml_cell_borders_directions()
++             case ss::border_direction_t::top:
++                 assert(border->top.style);
++                 assert(*border->top.style == ss::border_style_t::thin);
+++                assert(!border->top.border_color);
+++                assert(!border->top.border_width);
++                 assert(!border->bottom.style);
+++                assert(!border->bottom.border_color);
+++                assert(!border->bottom.border_width);
++                 assert(!border->left.style);
+++                assert(!border->left.border_color);
+++                assert(!border->left.border_width);
++                 assert(!border->right.style);
+++                assert(!border->right.border_color);
+++                assert(!border->right.border_width);
++                 assert(!border->diagonal.style);
+++                assert(!border->diagonal.border_color);
+++                assert(!border->diagonal.border_width);
++                 assert(!border->diagonal_bl_tr.style);
+++                assert(!border->diagonal_bl_tr.border_color);
+++                assert(!border->diagonal_bl_tr.border_width);
++                 assert(!border->diagonal_tl_br.style);
+++                assert(!border->diagonal_tl_br.border_color);
+++                assert(!border->diagonal_tl_br.border_width);
++                 break;
++             case ss::border_direction_t::left:
++                 assert(!border->top.style);
+++                assert(!border->top.border_color);
+++                assert(!border->top.border_width);
++                 assert(!border->bottom.style);
+++                assert(!border->bottom.border_color);
+++                assert(!border->bottom.border_width);
++                 assert(border->left.style);
++                 assert(*border->left.style == ss::border_style_t::thin);
+++                assert(!border->left.border_color);
+++                assert(!border->left.border_width);
++                 assert(!border->right.style);
+++                assert(!border->right.border_color);
+++                assert(!border->right.border_width);
++                 assert(!border->diagonal.style);
+++                assert(!border->diagonal.border_color);
+++                assert(!border->diagonal.border_width);
++                 assert(!border->diagonal_bl_tr.style);
+++                assert(!border->diagonal_bl_tr.border_color);
+++                assert(!border->diagonal_bl_tr.border_width);
++                 assert(!border->diagonal_tl_br.style);
+++                assert(!border->diagonal_tl_br.border_color);
+++                assert(!border->diagonal_tl_br.border_width);
++                 break;
++             case ss::border_direction_t::right:
++                 assert(!border->top.style);
+++                assert(!border->top.border_color);
+++                assert(!border->top.border_width);
++                 assert(!border->bottom.style);
+++                assert(!border->bottom.border_color);
+++                assert(!border->bottom.border_width);
++                 assert(!border->left.style);
+++                assert(!border->left.border_color);
+++                assert(!border->left.border_width);
++                 assert(border->right.style);
++                 assert(*border->right.style == ss::border_style_t::thin);
+++                assert(!border->right.border_color);
+++                assert(!border->right.border_width);
++                 assert(!border->diagonal.style);
+++                assert(!border->diagonal.border_color);
+++                assert(!border->diagonal.border_width);
++                 assert(!border->diagonal_bl_tr.style);
+++                assert(!border->diagonal_bl_tr.border_color);
+++                assert(!border->diagonal_bl_tr.border_width);
++                 assert(!border->diagonal_tl_br.style);
+++                assert(!border->diagonal_tl_br.border_color);
+++                assert(!border->diagonal_tl_br.border_width);
++                 break;
++             case ss::border_direction_t::bottom:
++                 assert(!border->top.style);
+++                assert(!border->top.border_color);
+++                assert(!border->top.border_width);
++                 assert(border->bottom.style);
++                 assert(*border->bottom.style == ss::border_style_t::thin);
+++                assert(!border->bottom.border_color);
+++                assert(!border->bottom.border_width);
++                 assert(!border->left.style);
+++                assert(!border->left.border_color);
+++                assert(!border->left.border_width);
++                 assert(!border->right.style);
+++                assert(!border->right.border_color);
+++                assert(!border->right.border_width);
++                 assert(!border->diagonal.style);
+++                assert(!border->diagonal.border_color);
+++                assert(!border->diagonal.border_width);
++                 assert(!border->diagonal_bl_tr.style);
+++                assert(!border->diagonal_bl_tr.border_color);
+++                assert(!border->diagonal_bl_tr.border_width);
++                 assert(!border->diagonal_tl_br.style);
+++                assert(!border->diagonal_tl_br.border_color);
+++                assert(!border->diagonal_tl_br.border_width);
++                 break;
++             case spreadsheet::border_direction_t::diagonal:
++                 assert(!border->top.style);
+++                assert(!border->top.border_color);
+++                assert(!border->top.border_width);
++                 assert(!border->bottom.style);
+++                assert(!border->bottom.border_color);
+++                assert(!border->bottom.border_width);
++                 assert(!border->left.style);
+++                assert(!border->left.border_color);
+++                assert(!border->left.border_width);
++                 assert(!border->right.style);
+++                assert(!border->right.border_color);
+++                assert(!border->right.border_width);
++                 assert(!border->diagonal.style);
+++                assert(!border->diagonal.border_color);
+++                assert(!border->diagonal.border_width);
++                 assert(border->diagonal_bl_tr.style);
++                 assert(*border->diagonal_bl_tr.style == ss::border_style_t::thin);
+++                assert(!border->diagonal_bl_tr.border_color);
+++                assert(!border->diagonal_bl_tr.border_width);
++                 assert(border->diagonal_tl_br.style);
++                 assert(*border->diagonal_tl_br.style == ss::border_style_t::thin);
+++                assert(!border->diagonal_tl_br.border_color);
+++                assert(!border->diagonal_tl_br.border_width);
++                 break;
++             case spreadsheet::border_direction_t::diagonal_tl_br:
++                 assert(!border->top.style);
+++                assert(!border->top.border_color);
+++                assert(!border->top.border_width);
++                 assert(!border->bottom.style);
+++                assert(!border->bottom.border_color);
+++                assert(!border->bottom.border_width);
++                 assert(!border->left.style);
+++                assert(!border->left.border_color);
+++                assert(!border->left.border_width);
++                 assert(!border->right.style);
+++                assert(!border->right.border_color);
+++                assert(!border->right.border_width);
++                 assert(!border->diagonal.style);
+++                assert(!border->diagonal.border_color);
+++                assert(!border->diagonal.border_width);
++                 assert(!border->diagonal_bl_tr.style);
+++                assert(!border->diagonal_bl_tr.border_color);
+++                assert(!border->diagonal_bl_tr.border_width);
++                 assert(border->diagonal_tl_br.style);
++                 assert(*border->diagonal_tl_br.style == ss::border_style_t::thin);
+++                assert(!border->diagonal_tl_br.border_color);
+++                assert(!border->diagonal_tl_br.border_width);
++                 break;
++             case spreadsheet::border_direction_t::diagonal_bl_tr:
++                 assert(!border->top.style);
+++                assert(!border->top.border_color);
+++                assert(!border->top.border_width);
++                 assert(!border->bottom.style);
+++                assert(!border->bottom.border_color);
+++                assert(!border->bottom.border_width);
++                 assert(!border->left.style);
+++                assert(!border->left.border_color);
+++                assert(!border->left.border_width);
++                 assert(!border->right.style);
+++                assert(!border->right.border_color);
+++                assert(!border->right.border_width);
++                 assert(!border->diagonal.style);
+++                assert(!border->diagonal.border_color);
+++                assert(!border->diagonal.border_width);
++                 assert(border->diagonal_bl_tr.style);
++                 assert(*border->diagonal_bl_tr.style == ss::border_style_t::thin);
+++                assert(!border->diagonal_bl_tr.border_color);
+++                assert(!border->diagonal_bl_tr.border_width);
++                 assert(!border->diagonal_tl_br.style);
+++                assert(!border->diagonal_tl_br.border_color);
+++                assert(!border->diagonal_tl_br.border_width);
++                 break;
++             default:
++                 assert(!"unhandled direction!");
+diff -Naur libreoffice-7.5.5.2/external/liborcus/ExternalPackage_liborcus.mk libreoffice-7.5.5.2.new/external/liborcus/ExternalPackage_liborcus.mk
+--- libreoffice-7.5.5.2/external/liborcus/ExternalPackage_liborcus.mk	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/ExternalPackage_liborcus.mk	2023-09-06 17:58:44.585026429 +0200
+@@ -12,11 +12,11 @@
+ $(eval $(call gb_ExternalPackage_use_external_project,liborcus,liborcus))
+ 
+ ifeq ($(OS),MACOSX)
+-$(eval $(call gb_ExternalPackage_add_file,liborcus,$(LIBO_LIB_FOLDER)/liborcus-0.17.0.dylib,src/liborcus/.libs/liborcus-0.17.0.dylib))
+-$(eval $(call gb_ExternalPackage_add_file,liborcus,$(LIBO_LIB_FOLDER)/liborcus-parser-0.17.0.dylib,src/parser/.libs/liborcus-parser-0.17.0.dylib))
++$(eval $(call gb_ExternalPackage_add_file,liborcus,$(LIBO_LIB_FOLDER)/liborcus-0.18.0.dylib,src/liborcus/.libs/liborcus-0.18.0.dylib))
++$(eval $(call gb_ExternalPackage_add_file,liborcus,$(LIBO_LIB_FOLDER)/liborcus-parser-0.18.0.dylib,src/parser/.libs/liborcus-parser-0.18.0.dylib))
+ else ifeq ($(DISABLE_DYNLOADING),)
+-$(eval $(call gb_ExternalPackage_add_file,liborcus,$(LIBO_LIB_FOLDER)/liborcus-0.17.so.0,src/liborcus/.libs/liborcus-0.17.so.0.0.0))
+-$(eval $(call gb_ExternalPackage_add_file,liborcus,$(LIBO_LIB_FOLDER)/liborcus-parser-0.17.so.0,src/parser/.libs/liborcus-parser-0.17.so.0.0.0))
++$(eval $(call gb_ExternalPackage_add_file,liborcus,$(LIBO_LIB_FOLDER)/liborcus-0.18.so.0,src/liborcus/.libs/liborcus-0.18.so.0.0.0))
++$(eval $(call gb_ExternalPackage_add_file,liborcus,$(LIBO_LIB_FOLDER)/liborcus-parser-0.18.so.0,src/parser/.libs/liborcus-parser-0.18.so.0.0.0))
+ endif
+ 
+ # vim: set noet sw=4 ts=4:
+diff -Naur libreoffice-7.5.5.2/external/liborcus/ExternalProject_liborcus.mk libreoffice-7.5.5.2.new/external/liborcus/ExternalProject_liborcus.mk
+--- libreoffice-7.5.5.2/external/liborcus/ExternalProject_liborcus.mk	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/ExternalProject_liborcus.mk	2023-09-06 17:58:44.585026429 +0200
+@@ -113,8 +113,8 @@
+ 		   $(MAKE) \
+ 		$(if $(filter MACOSX,$(OS)),\
+ 			&& $(PERL) $(SRCDIR)/solenv/bin/macosx-change-install-names.pl shl OOO \
+-				$(EXTERNAL_WORKDIR)/src/liborcus/.libs/liborcus-0.17.0.dylib \
+-				$(EXTERNAL_WORKDIR)/src/parser/.libs/liborcus-parser-0.17.0.dylib \
++				$(EXTERNAL_WORKDIR)/src/liborcus/.libs/liborcus-0.18.0.dylib \
++				$(EXTERNAL_WORKDIR)/src/parser/.libs/liborcus-parser-0.18.0.dylib \
+ 		) \
+ 	)
+ 	$(call gb_Trace_EndRange,liborcus,EXTERNAL)
+diff -Naur libreoffice-7.5.5.2/external/liborcus/forcepoint-83.patch.1 libreoffice-7.5.5.2.new/external/liborcus/forcepoint-83.patch.1
+--- libreoffice-7.5.5.2/external/liborcus/forcepoint-83.patch.1	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/forcepoint-83.patch.1	1970-01-01 01:00:00.000000000 +0100
+@@ -1,38 +0,0 @@
+-From 4d58816e995a562f26f3cc5006ae9ddd46b1bbed Mon Sep 17 00:00:00 2001
+-From: =?UTF-8?q?Caol=C3=A1n=20McNamara?= <caolanm@redhat.com>
+-Date: Wed, 23 Mar 2022 16:44:00 +0000
+-Subject: [PATCH] forcepoint#83 Invalid read of size 1
+-
+-==343916== Invalid read of size 1
+-==343916==    at 0x11A7B2F0: orcus::parser_base::cur_char() const (parser_base.hpp:79)
+-==343916==    by 0x11B7B112: orcus::sax_parser<orcus::sax_ns_parser<orcus::sax_token_parser<orcus::xml_stream_handler>::handler_wrapper>::handler_wrapper, orcus::sax_parser_default_config>::element_open(long) (sax_parser.hpp:258)
+-==343916==    by 0x11B7A2C7: orcus::sax_parser<orcus::sax_ns_parser<orcus::sax_token_parser<orcus::xml_stream_handler>::handler_wrapper>::handler_wrapper, orcus::sax_parser_default_config>::element() (sax_parser.hpp:246)
+-==343916==    by 0x11B7A197: orcus::sax_parser<orcus::sax_ns_parser<orcus::sax_token_parser<orcus::xml_stream_handler>::handler_wrapper>::handler_wrapper, orcus::sax_parser_default_config>::body() (sax_parser.hpp:214)
+-==343916==    by 0x11B79FD9: orcus::sax_parser<orcus::sax_ns_parser<orcus::sax_token_parser<orcus::xml_stream_handler>::handler_wrapper>::handler_wrapper, orcus::sax_parser_default_config>::parse() (sax_parser.hpp:182)
+-==343916==    by 0x11B79F8B: orcus::sax_ns_parser<orcus::sax_token_parser<orcus::xml_stream_handler>::handler_wrapper>::parse() (sax_ns_parser.hpp:277)
+-==343916==    by 0x11B79768: orcus::sax_token_parser<orcus::xml_stream_handler>::parse() (sax_token_parser.hpp:215)
+-==343916==    by 0x11B79406: orcus::xml_stream_parser::parse() (xml_stream_parser.cpp:68)
+-==343916==    by 0x11BE3805: orcus::orcus_xlsx::detect(unsigned char const*, unsigned long) (orcus_xlsx.cpp:188)
+-==343916==    by 0x11AB2482: orcus::detect(unsigned char const*, unsigned long) (format_detection.cpp:60)
+-==343916==    by 0x30E60945: (anonymous namespace)::OrcusFormatDetect::detect(com::sun::star::uno::Sequence<com::sun::star::beans::PropertyValue>&) (filterdetect.cxx:83)
+-==343916==    by 0x30E60ABE: non-virtual thunk to (anonymous namespace)::OrcusFormatDetect::detect(com::sun::star::uno::Sequence<com::sun::star::beans::PropertyValue>&) (filterdetect.cxx:0)
+----
+- include/orcus/sax_parser.hpp | 2 +-
+- 1 file changed, 1 insertion(+), 1 deletion(-)
+-
+-diff --git a/include/orcus/sax_parser.hpp b/include/orcus/sax_parser.hpp
+-index 15e8d917..2e707568 100644
+---- a/include/orcus/sax_parser.hpp
+-+++ b/include/orcus/sax_parser.hpp
+-@@ -255,7 +255,7 @@ void sax_parser<_Handler,_Config>::element_open(std::ptrdiff_t begin_pos)
+-     while (true)
+-     {
+-         skip_space_and_control();
+--        char c = cur_char();
+-+        char c = cur_char_checked();
+-         if (c == '/')
+-         {
+-             // Self-closing element: <element/>
+--- 
+-2.35.1
+-
+diff -Naur libreoffice-7.5.5.2/external/liborcus/forcepoint-84.patch.1 libreoffice-7.5.5.2.new/external/liborcus/forcepoint-84.patch.1
+--- libreoffice-7.5.5.2/external/liborcus/forcepoint-84.patch.1	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/forcepoint-84.patch.1	1970-01-01 01:00:00.000000000 +0100
+@@ -1,38 +0,0 @@
+-From ec469f774bb91302c4df21eff1314dfd508d37c8 Mon Sep 17 00:00:00 2001
+-From: =?UTF-8?q?Caol=C3=A1n=20McNamara?= <caolanm@redhat.com>
+-Date: Wed, 23 Mar 2022 20:04:31 +0000
+-Subject: [PATCH] forcepoint#84 Invalid read of size 1
+-
+-==356879== Invalid read of size 1
+-==356879==    at 0x11EC50B0: orcus::parser_base::cur_char() const (parser_base.hpp:79)
+-==356879==    by 0x11EDD736: orcus::sax::parser_base::value(std::basic_string_view<char, std::char_traits<char> >&, bool) (sax_parser_base.cpp:303)
+-==356879==    by 0x11B7C3D5: orcus::sax_parser<orcus::sax_ns_parser<orcus::sax_token_parser<orcus::xml_stream_handler>::handler_wrapper>::handler_wrapper, orcus::sax_parser_default_config>::attribute() (sax_parser.hpp:563)
+-==356879==    by 0x11B7B35E: orcus::sax_parser<orcus::sax_ns_parser<orcus::sax_token_parser<orcus::xml_stream_handler>::handler_wrapper>::handler_wrapper, orcus::sax_parser_default_config>::element_open(long) (sax_parser.hpp:292)
+-==356879==    by 0x11B7A2F7: orcus::sax_parser<orcus::sax_ns_parser<orcus::sax_token_parser<orcus::xml_stream_handler>::handler_wrapper>::handler_wrapper, orcus::sax_parser_default_config>::element() (sax_parser.hpp:246)
+-==356879==    by 0x11B7A1C7: orcus::sax_parser<orcus::sax_ns_parser<orcus::sax_token_parser<orcus::xml_stream_handler>::handler_wrapper>::handler_wrapper, orcus::sax_parser_default_config>::body() (sax_parser.hpp:214)
+-==356879==    by 0x11B7A009: orcus::sax_parser<orcus::sax_ns_parser<orcus::sax_token_parser<orcus::xml_stream_handler>::handler_wrapper>::handler_wrapper, orcus::sax_parser_default_config>::parse() (sax_parser.hpp:182)
+-==356879==    by 0x11B79FBB: orcus::sax_ns_parser<orcus::sax_token_parser<orcus::xml_stream_handler>::handler_wrapper>::parse() (sax_ns_parser.hpp:277)
+-==356879==    by 0x11B79798: orcus::sax_token_parser<orcus::xml_stream_handler>::parse() (sax_token_parser.hpp:215)
+-==356879==    by 0x11B79436: orcus::xml_stream_parser::parse() (xml_stream_parser.cpp:68)
+-==356879==    by 0x11BE3855: orcus::orcus_xlsx::detect(unsigned char const*, unsigned long) (orcus_xlsx.cpp:188)
+-==356879==    by 0x11AB2492: orcus::detect(unsigned char const*, unsigned long) (format_detection.cpp:60)
+----
+- src/parser/sax_parser_base.cpp | 2 +-
+- 1 file changed, 1 insertion(+), 1 deletion(-)
+-
+-diff --git a/src/parser/sax_parser_base.cpp b/src/parser/sax_parser_base.cpp
+-index 46acb81d..1cee821e 100644
+---- a/src/parser/sax_parser_base.cpp
+-+++ b/src/parser/sax_parser_base.cpp
+-@@ -300,7 +300,7 @@ void parser_base::value_with_encoded_char(cell_buffer& buf, std::string_view& st
+- 
+- bool parser_base::value(std::string_view& str, bool decode)
+- {
+--    char c = cur_char();
+-+    char c = cur_char_checked();
+-     if (c != '"' && c != '\'')
+-         throw malformed_xml_error("value must be quoted", offset());
+- 
+--- 
+-2.35.1
+-
+diff -Naur libreoffice-7.5.5.2/external/liborcus/forcepoint-87.patch.1 libreoffice-7.5.5.2.new/external/liborcus/forcepoint-87.patch.1
+--- libreoffice-7.5.5.2/external/liborcus/forcepoint-87.patch.1	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/forcepoint-87.patch.1	1970-01-01 01:00:00.000000000 +0100
+@@ -1,27 +0,0 @@
+-From e4f3741197a3af6d434850d388483b523138a214 Mon Sep 17 00:00:00 2001
+-From: =?UTF-8?q?Caol=C3=A1n=20McNamara?= <caolanm@redhat.com>
+-Date: Thu, 24 Mar 2022 21:31:14 +0000
+-Subject: [PATCH] forcepoint#87 Assertion `mp_char <= mp_end' failed
+-
+-soffice.bin: ../../include/orcus/parser_base.hpp:65: bool orcus::parser_base::has_char() const: Assertion `mp_char <= mp_end' failed.
+----
+- src/parser/sax_parser_base.cpp | 3 ++-
+- 1 file changed, 2 insertions(+), 1 deletion(-)
+-
+-diff --git a/src/parser/sax_parser_base.cpp b/src/parser/sax_parser_base.cpp
+-index 46acb81d..cb7a9c04 100644
+---- a/src/parser/sax_parser_base.cpp
+-+++ b/src/parser/sax_parser_base.cpp
+-@@ -295,7 +295,8 @@ void parser_base::value_with_encoded_char(cell_buffer& buf, std::string_view& st
+- 
+-     // Skip the closing quote.
+-     assert(!has_char() || cur_char() == quote_char);
+--    next();
+-+    if (has_char())
+-+       next();
+- }
+- 
+- bool parser_base::value(std::string_view& str, bool decode)
+--- 
+-2.35.1
+-
+diff -Naur libreoffice-7.5.5.2/external/liborcus/forcepoint-88.patch.1 libreoffice-7.5.5.2.new/external/liborcus/forcepoint-88.patch.1
+--- libreoffice-7.5.5.2/external/liborcus/forcepoint-88.patch.1	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/forcepoint-88.patch.1	1970-01-01 01:00:00.000000000 +0100
+@@ -1,42 +0,0 @@
+-From 8c9537fe46b85acde0a7a183cee9066919c6b619 Mon Sep 17 00:00:00 2001
+-From: =?UTF-8?q?Caol=C3=A1n=20McNamara?= <caolanm@redhat.com>
+-Date: Fri, 25 Mar 2022 10:10:17 +0000
+-Subject: [PATCH] forcepoint#88 assigned temp std::string return to string_view
+-
+-it's out of scope when used
+-
+-=ERROR: AddressSanitizer: stack-use-after-scope on address 0x7ffcaf91b111 at pc 0x000000486ec4 bp 0x7ffcaf91aed0 sp 0x7ffcaf91a680
+-READ of size 2 at 0x7ffcaf91b111 thread T0
+-    #0 0x486ec3 in __interceptor_memcpy.part.0 (instdir/program/soffice.bin+0x486ec3)
+-    #1 0x7fa6c4471b77 in std::basic_streambuf<char, std::char_traits<char> >::xsputn(char const*, long) (/lib64/libstdc++.so.6+0x143b77)
+-    #2 0x7fa6c4463ae3 in std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*, long) (/lib64/libstdc++.so.6+0x135ae3)
+-    #3 0x7fa6b4027a26 in std::basic_ostream<char, std::char_traits<char> >& std::operator<<<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, std::basic_string_view<char, std::char_traits<char> >) /usr/bin/../lib/gcc/x86_64-redhat-linux/11/../../../../include/c++/11/string_view:669:14
+-    #4 0x7fa6b426792b in orcus::xml_element_printer::print_namespace(std::ostream&, char const*) const workdir/UnpackedTarball/liborcus/src/liborcus/xml_util.cpp:35:12
+-    #5 0x7fa6b4267c68 in orcus::xml_element_printer::print_element(std::ostream&, char const*, unsigned long) const workdir/UnpackedTarball/liborcus/src/liborcus/xml_util.cpp:46:5
+-    #6 0x7fa6b41c1956 in orcus::xml_context_base::print_element(std::ostream&, std::pair<char const*, unsigned long> const&) const workdir/UnpackedTarball/liborcus/src/liborcus/xml_context_base.cpp:280:20
+----
+- src/liborcus/xml_util.cpp | 8 ++++----
+- 1 file changed, 4 insertions(+), 4 deletions(-)
+-
+-diff --git a/src/liborcus/xml_util.cpp b/src/liborcus/xml_util.cpp
+-index 906d321d..ff270d4a 100644
+---- a/src/liborcus/xml_util.cpp
+-+++ b/src/liborcus/xml_util.cpp
+-@@ -29,10 +29,10 @@ void xml_element_printer::print_namespace(std::ostream& os, xmlns_id_t ns) const
+-     if (mp_ns_cxt)
+-     {
+-         std::string_view alias = mp_ns_cxt->get_alias(ns);
+--        if (alias.empty())
+--            alias = mp_ns_cxt->get_short_name(ns);
+--
+--        os << alias;
+-+        if (!alias.empty())
+-+            os << alias;
+-+        else
+-+            os << mp_ns_cxt->get_short_name(ns);
+-     }
+-     else
+-         os << ns;
+--- 
+-2.35.1
+-
+diff -Naur libreoffice-7.5.5.2/external/liborcus/forcepoint-95.patch.1 libreoffice-7.5.5.2.new/external/liborcus/forcepoint-95.patch.1
+--- libreoffice-7.5.5.2/external/liborcus/forcepoint-95.patch.1	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/forcepoint-95.patch.1	1970-01-01 01:00:00.000000000 +0100
+@@ -1,11 +0,0 @@
+---- a/include/orcus/sax_parser.hpp	2022-03-30 10:54:44.043568760 +0100
+-+++ b/include/orcus/sax_parser.hpp	2022-03-30 10:54:55.645037322 +0100
+-@@ -547,7 +547,7 @@
+- 
+-     skip_space_and_control();
+- 
+--    char c = cur_char();
+-+    char c = cur_char_checked();
+-     if (c != '=')
+-     {
+-         std::ostringstream os;
+diff -Naur libreoffice-7.5.5.2/external/liborcus/gcc9.patch.0 libreoffice-7.5.5.2.new/external/liborcus/gcc9.patch.0
+--- libreoffice-7.5.5.2/external/liborcus/gcc9.patch.0	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/gcc9.patch.0	2023-09-06 17:58:44.587026443 +0200
+@@ -1,10 +1,9 @@
+ --- include/orcus/types.hpp
+ +++ include/orcus/types.hpp
+-@@ -7,6 +7,14 @@
+- 
++@@ -8,6 +8,14 @@
+  #ifndef INCLUDED_ORCUS_TYPES_HPP
+  #define INCLUDED_ORCUS_TYPES_HPP
+-+
++
+ +#ifdef __GNUC__
+ +#pragma GCC diagnostic push
+ +#pragma GCC diagnostic ignored "-Wpragmas" // for old GCC
+@@ -12,17 +11,17 @@
+ +#pragma GCC diagnostic ignored "-Wdeprecated-copy"
+ +#pragma GCC diagnostic ignored "-Wshadow"
+ +#endif
+- 
+++
++ #include <cstdint>
+  #include <cstdlib>
+  #include <vector>
+-@@ -145,6 +152,10 @@
+- typedef ::std::vector<xml_token_attr_t> xml_attrs_t;
+- 
++@@ -629,5 +637,9 @@ ORCUS_PSR_DLLPUBLIC extern const xml_token_t XML_UNKNOWN_TOKEN;
++
+  }
+-+
++
+ +#ifdef __GNUC__
+ +#pragma GCC diagnostic pop
+ +#endif
+- 
+++
+  #endif
+  /* vim:set shiftwidth=4 softtabstop=4 expandtab: */
+diff -Naur libreoffice-7.5.5.2/external/liborcus/inc/pch/precompiled_orcus.hxx libreoffice-7.5.5.2.new/external/liborcus/inc/pch/precompiled_orcus.hxx
+--- libreoffice-7.5.5.2/external/liborcus/inc/pch/precompiled_orcus.hxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/inc/pch/precompiled_orcus.hxx	2023-09-06 17:58:44.587026443 +0200
+@@ -13,13 +13,14 @@
+  manual changes will be rewritten by the next run of update_pch.sh (which presumably
+  also fixes all possible problems, so it's usually better to use it).
+ 
+- Generated on 2020-09-21 15:21:19 using:
++ Generated on 2023-01-24 17:20:59 using:
+  ./bin/update_pch external/liborcus orcus --cutoff=1 --exclude:system --include:module --include:local
+ 
+  If after updating build fails, use the following command to locate conflicting headers:
+  ./bin/update_pch_bisect ./external/liborcus/inc/pch/precompiled_orcus.hxx "make external/liborcus.build" --find-conflicts
+ */
+ 
++#include <sal/config.h>
+ #if PCH_LEVEL >= 1
+ #include <algorithm>
+ #include <cassert>
+@@ -36,9 +37,12 @@
+ #include <locale>
+ #include <map>
+ #include <memory>
++#include <optional>
+ #include <ostream>
+ #include <sstream>
++#include <stdexcept>
+ #include <string>
++#include <string_view>
+ #include <unordered_map>
+ #include <unordered_set>
+ #include <vector>
+@@ -46,7 +50,6 @@
+ #include <boost/filesystem.hpp>
+ #include <boost/iostreams/filter/gzip.hpp>
+ #include <boost/iostreams/filtering_stream.hpp>
+-#include <boost/optional.hpp>
+ #include <boost/pool/object_pool.hpp>
+ #endif // PCH_LEVEL >= 1
+ #if PCH_LEVEL >= 2
+@@ -62,7 +65,6 @@
+ #include <orcus/dom_tree.hpp>
+ #include <orcus/exception.hpp>
+ #include <orcus/format_detection.hpp>
+-#include <orcus/global.hpp>
+ #include <orcus/info.hpp>
+ #include <orcus/interface.hpp>
+ #include <orcus/json_document_tree.hpp>
+@@ -88,6 +90,7 @@
+ #include <orcus/spreadsheet/export_interface.hpp>
+ #include <orcus/spreadsheet/import_interface.hpp>
+ #include <orcus/spreadsheet/import_interface_pivot.hpp>
++#include <orcus/spreadsheet/import_interface_styles.hpp>
+ #include <orcus/spreadsheet/import_interface_view.hpp>
+ #include <orcus/spreadsheet/styles.hpp>
+ #include <orcus/spreadsheet/types.hpp>
+diff -Naur libreoffice-7.5.5.2/external/liborcus/inc/pch/precompiled_orcus-parser.hxx libreoffice-7.5.5.2.new/external/liborcus/inc/pch/precompiled_orcus-parser.hxx
+--- libreoffice-7.5.5.2/external/liborcus/inc/pch/precompiled_orcus-parser.hxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/inc/pch/precompiled_orcus-parser.hxx	2023-09-06 17:58:44.587026443 +0200
+@@ -13,13 +13,14 @@
+  manual changes will be rewritten by the next run of update_pch.sh (which presumably
+  also fixes all possible problems, so it's usually better to use it).
+ 
+- Generated on 2020-09-21 15:21:18 using:
++ Generated on 2023-01-24 17:21:40 using:
+  ./bin/update_pch external/liborcus orcus-parser --cutoff=1 --exclude:system --include:module --include:local
+ 
+  If after updating build fails, use the following command to locate conflicting headers:
+  ./bin/update_pch_bisect ./external/liborcus/inc/pch/precompiled_orcus-parser.hxx "make external/liborcus.build" --find-conflicts
+ */
+ 
++#include <sal/config.h>
+ #if PCH_LEVEL >= 1
+ #include <algorithm>
+ #include <cassert>
+@@ -31,11 +32,15 @@
+ #include <cstring>
+ #include <deque>
+ #include <fstream>
++#include <iomanip>
+ #include <iostream>
++#include <iterator>
+ #include <limits>
+ #include <locale>
+ #include <memory>
+ #include <sstream>
++#include <stdexcept>
++#include <string_view>
+ #include <tuple>
+ #include <unordered_map>
+ #include <unordered_set>
+@@ -62,7 +67,6 @@
+ #include <orcus/csv_parser_base.hpp>
+ #include <orcus/detail/parser_token_buffer.hpp>
+ #include <orcus/exception.hpp>
+-#include <orcus/global.hpp>
+ #include <orcus/json_global.hpp>
+ #include <orcus/json_parser.hpp>
+ #include <orcus/json_parser_base.hpp>
+diff -Naur libreoffice-7.5.5.2/external/liborcus/include.patch.0 libreoffice-7.5.5.2.new/external/liborcus/include.patch.0
+--- libreoffice-7.5.5.2/external/liborcus/include.patch.0	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/include.patch.0	1970-01-01 01:00:00.000000000 +0100
+@@ -1,20 +0,0 @@
+---- include/orcus/base64.hpp
+-+++ include/orcus/base64.hpp
+-@@ -9,6 +9,7 @@
+- #define __ORCUS_BASE64_HPP__
+- 
+- #include "env.hpp"
+-+#include <stdint.h>
+- #include <vector>
+- #include <string>
+- 
+---- include/orcus/types.hpp
+-+++ include/orcus/types.hpp
+-@@ -16,6 +16,7 @@
+- #pragma GCC diagnostic ignored "-Wshadow"
+- #endif
+- 
+-+#include <stdint.h>
+- #include <cstdlib>
+- #include <vector>
+- #include <string>
+diff -Naur libreoffice-7.5.5.2/external/liborcus/Library_orcus.mk libreoffice-7.5.5.2.new/external/liborcus/Library_orcus.mk
+--- libreoffice-7.5.5.2/external/liborcus/Library_orcus.mk	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/Library_orcus.mk	2023-09-06 17:58:44.585026429 +0200
+@@ -59,7 +59,6 @@
+ 	UnpackedTarball/liborcus/src/liborcus/dom_tree \
+ 	UnpackedTarball/liborcus/src/liborcus/format_detection \
+ 	UnpackedTarball/liborcus/src/liborcus/formula_result \
+-	UnpackedTarball/liborcus/src/liborcus/global \
+ 	UnpackedTarball/liborcus/src/liborcus/gnumeric_cell_context \
+ 	UnpackedTarball/liborcus/src/liborcus/gnumeric_context \
+ 	UnpackedTarball/liborcus/src/liborcus/gnumeric_detection_handler \
+@@ -76,15 +75,16 @@
+ 	UnpackedTarball/liborcus/src/liborcus/json_structure_tree \
+ 	UnpackedTarball/liborcus/src/liborcus/json_util \
+ 	UnpackedTarball/liborcus/src/liborcus/measurement \
++	UnpackedTarball/liborcus/src/liborcus/odf_document_styles_context \
+ 	UnpackedTarball/liborcus/src/liborcus/odf_helper \
+ 	UnpackedTarball/liborcus/src/liborcus/odf_namespace_types \
+-	UnpackedTarball/liborcus/src/liborcus/odf_number_formatting_context \
++	UnpackedTarball/liborcus/src/liborcus/odf_number_format_context \
+ 	UnpackedTarball/liborcus/src/liborcus/odf_para_context \
+-	UnpackedTarball/liborcus/src/liborcus/odf_styles \
++	UnpackedTarball/liborcus/src/liborcus/odf_style_context \
+ 	UnpackedTarball/liborcus/src/liborcus/odf_styles_context \
++	UnpackedTarball/liborcus/src/liborcus/odf_styles \
+ 	UnpackedTarball/liborcus/src/liborcus/odf_tokens \
+ 	UnpackedTarball/liborcus/src/liborcus/ods_content_xml_context \
+-	UnpackedTarball/liborcus/src/liborcus/ods_content_xml_handler \
+ 	UnpackedTarball/liborcus/src/liborcus/ods_dde_links_context \
+ 	UnpackedTarball/liborcus/src/liborcus/ods_session_data \
+ 	UnpackedTarball/liborcus/src/liborcus/ooxml_content_types \
+@@ -101,8 +101,8 @@
+ 	UnpackedTarball/liborcus/src/liborcus/orcus_import_xlsx \
+ 	UnpackedTarball/liborcus/src/liborcus/orcus_json \
+ 	UnpackedTarball/liborcus/src/liborcus/orcus_ods \
+-	UnpackedTarball/liborcus/src/liborcus/orcus_xls_xml \
+ 	UnpackedTarball/liborcus/src/liborcus/orcus_xlsx \
++	UnpackedTarball/liborcus/src/liborcus/orcus_xls_xml \
+ 	UnpackedTarball/liborcus/src/liborcus/orcus_xml \
+ 	UnpackedTarball/liborcus/src/liborcus/orcus_xml_impl \
+ 	UnpackedTarball/liborcus/src/liborcus/orcus_xml_map_def \
+@@ -112,17 +112,17 @@
+ 	UnpackedTarball/liborcus/src/liborcus/spreadsheet_interface \
+ 	UnpackedTarball/liborcus/src/liborcus/spreadsheet_types \
+ 	UnpackedTarball/liborcus/src/liborcus/string_helper \
+-	UnpackedTarball/liborcus/src/liborcus/xls_xml_context \
+-	UnpackedTarball/liborcus/src/liborcus/xls_xml_detection_handler \
+-	UnpackedTarball/liborcus/src/liborcus/xls_xml_handler \
+-	UnpackedTarball/liborcus/src/liborcus/xls_xml_namespace_types \
+-	UnpackedTarball/liborcus/src/liborcus/xls_xml_tokens \
+ 	UnpackedTarball/liborcus/src/liborcus/xlsx_autofilter_context \
+ 	UnpackedTarball/liborcus/src/liborcus/xlsx_conditional_format_context \
+ 	UnpackedTarball/liborcus/src/liborcus/xlsx_context \
+ 	UnpackedTarball/liborcus/src/liborcus/xlsx_drawing_context \
+ 	UnpackedTarball/liborcus/src/liborcus/xlsx_handler \
+ 	UnpackedTarball/liborcus/src/liborcus/xlsx_helper \
++	UnpackedTarball/liborcus/src/liborcus/xls_xml_context \
++	UnpackedTarball/liborcus/src/liborcus/xls_xml_detection_handler \
++	UnpackedTarball/liborcus/src/liborcus/xls_xml_handler \
++	UnpackedTarball/liborcus/src/liborcus/xls_xml_namespace_types \
++	UnpackedTarball/liborcus/src/liborcus/xls_xml_tokens \
+ 	UnpackedTarball/liborcus/src/liborcus/xlsx_pivot_context \
+ 	UnpackedTarball/liborcus/src/liborcus/xlsx_revision_context \
+ 	UnpackedTarball/liborcus/src/liborcus/xlsx_session_data \
+@@ -132,6 +132,7 @@
+ 	UnpackedTarball/liborcus/src/liborcus/xlsx_workbook_context \
+ 	UnpackedTarball/liborcus/src/liborcus/xml_context_base \
+ 	UnpackedTarball/liborcus/src/liborcus/xml_context_global \
++	UnpackedTarball/liborcus/src/liborcus/xml_element_types \
+ 	UnpackedTarball/liborcus/src/liborcus/xml_element_validator \
+ 	UnpackedTarball/liborcus/src/liborcus/xml_empty_context \
+ 	UnpackedTarball/liborcus/src/liborcus/xml_map_tree \
+diff -Naur libreoffice-7.5.5.2/external/liborcus/overrun.patch.0 libreoffice-7.5.5.2.new/external/liborcus/overrun.patch.0
+--- libreoffice-7.5.5.2/external/liborcus/overrun.patch.0	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/overrun.patch.0	1970-01-01 01:00:00.000000000 +0100
+@@ -1,63 +0,0 @@
+---- src/parser/sax_token_parser.cpp
+-+++ src/parser/sax_token_parser.cpp
+-@@ -10,6 +10,7 @@
+- 
+- #include <mdds/sorted_string_map.hpp>
+- #include <cctype>
+-+#include <limits>
+- 
+- namespace orcus {
+- 
+-@@ -329,6 +330,28 @@
+-     m_elem.raw_name = elem.name;
+- }
+- 
+-+static uint8_t readUint8(char const * begin, char const * end, char const ** endptr) {
+-+    unsigned n = 0;
+-+    char const * p = begin;
+-+    for (; p != end; ++p) {
+-+        char const c = *p;
+-+        if (c < '0' || c > '9') {
+-+            break;
+-+        }
+-+        n = 10 * n + (c - '0');
+-+        if (n > std::numeric_limits<uint8_t>::max()) {
+-+            *endptr = nullptr;
+-+            return 0;
+-+        }
+-+    }
+-+    if (p == begin) {
+-+        *endptr = nullptr;
+-+        return 0;
+-+    }
+-+    *endptr = p;
+-+    return n;
+-+}
+-+
+- void sax_token_handler_wrapper_base::attribute(std::string_view name, std::string_view val)
+- {
+-     decl_attr_type dat = decl_attr::get().find(name.data(), name.size());
+-@@ -340,18 +362,18 @@
+-             const char* p = val.data();
+-             const char* p_end = p + val.size();
+- 
+--            char* endptr = nullptr;
+--            long v = std::strtol(p, &endptr, 10);
+-+            const char* endptr = nullptr;
+-+            uint8_t v = readUint8(p, p_end, &endptr);
+- 
+--            if (!endptr || endptr >= p_end || *endptr != '.')
+-+            if (!endptr || endptr == p_end || *endptr != '.')
+-                 break;
+- 
+-             m_declaration.version_major = v;
+-             p = endptr + 1;
+- 
+--            v = std::strtol(p, &endptr, 10);
+-+            v = readUint8(p, p_end, &endptr);
+- 
+--            if (!endptr || endptr > p_end)
+-+            if (!endptr)
+-                 break;
+- 
+-             m_declaration.version_minor = v;
+diff -Naur libreoffice-7.5.5.2/external/liborcus/std-get-busted.patch.1 libreoffice-7.5.5.2.new/external/liborcus/std-get-busted.patch.1
+--- libreoffice-7.5.5.2/external/liborcus/std-get-busted.patch.1	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/std-get-busted.patch.1	2023-09-06 17:58:50.651070348 +0200
+@@ -30,20 +30,20 @@
+ +++ b/include/orcus/config.hpp
+ @@ -12,7 +12,7 @@
+  #include "orcus/types.hpp"
+- 
++
+  #include <string>
+ -#include <variant>
+ +#include <boost/variant.hpp>
+- 
++
+  namespace orcus {
+- 
++
+ @@ -37,7 +37,7 @@ struct ORCUS_DLLPUBLIC config
+      };
+- 
++
+      // TODO: add config for other formats as needed.
+ -    using data_type = std::variant<csv_config>;
+ +    using data_type = boost::variant<csv_config>;
+- 
++
+      /**
+       * Enable or disable runtime debug output to stdout or stderr.
+ diff --git a/include/orcus/css_selector.hpp b/include/orcus/css_selector.hpp
+@@ -52,17 +52,17 @@
+ +++ b/include/orcus/css_selector.hpp
+ @@ -12,11 +12,12 @@
+  #include "css_types.hpp"
+- 
++
+  #include <ostream>
+ -#include <variant>
+  #include <vector>
+  #include <unordered_set>
+  #include <unordered_map>
+- 
++
+ +#include <boost/variant.hpp>
+ +
+  namespace orcus {
+- 
++
+  struct ORCUS_DLLPUBLIC css_simple_selector_t
+ @@ -73,7 +74,7 @@ struct ORCUS_DLLPUBLIC css_selector_t
+   */
+@@ -70,7 +70,7 @@
+  {
+ -    using value_type = std::variant<std::string_view, css::rgba_color_t, css::hsla_color_t>;
+ +    using value_type = boost::variant<std::string_view, css::rgba_color_t, css::hsla_color_t>;
+- 
++
+      css::property_value_t type;
+      value_type value;
+ diff --git a/include/orcus/json_parser_thread.hpp b/include/orcus/json_parser_thread.hpp
+@@ -83,16 +83,16 @@
+  #include <ostream>
+ -#include <variant>
+ +#include <boost/variant.hpp>
+- 
++
+  namespace orcus {
+- 
++
+ @@ -47,7 +47,7 @@ enum class parse_token_t
+- 
++
+  struct ORCUS_PSR_DLLPUBLIC parse_token
+  {
+ -    using value_type = std::variant<std::string_view, parse_error_value_t, double>;
+ +    using value_type = boost::variant<std::string_view, parse_error_value_t, double>;
+- 
++
+      parse_token_t type;
+      value_type value;
+ diff --git a/include/orcus/sax_token_parser_thread.hpp b/include/orcus/sax_token_parser_thread.hpp
+@@ -101,24 +101,24 @@
+ +++ b/include/orcus/sax_token_parser_thread.hpp
+ @@ -12,10 +12,11 @@
+  #include "types.hpp"
+- 
++
+  #include <memory>
+ -#include <variant>
+  #include <vector>
+  #include <ostream>
+- 
++
+ +#include <boost/variant.hpp>
+ +
+  namespace orcus {
+- 
++
+  class tokens;
+ @@ -36,7 +37,7 @@ enum class parse_token_t
+- 
++
+  struct ORCUS_PSR_DLLPUBLIC parse_token
+  {
+ -    using value_type = std::variant<std::string_view, parse_error_value_t, const xml_token_element_t*>;
+ +    using value_type = boost::variant<std::string_view, parse_error_value_t, const xml_token_element_t*>;
+- 
++
+      parse_token_t type;
+      value_type value;
+ diff --git a/include/orcus/spreadsheet/pivot.hpp b/include/orcus/spreadsheet/pivot.hpp
+@@ -131,28 +131,28 @@
+  #include <limits>
+ -#include <variant>
+  #include <optional>
+- 
++
+ +#include <boost/variant.hpp>
+ +
+  namespace ixion {
+- 
++
+  struct abs_range_t;
+ @@ -36,7 +37,7 @@ using pivot_cache_indices_t = std::vector<size_t>;
+- 
++
+  struct ORCUS_SPM_DLLPUBLIC pivot_cache_record_value_t
+  {
+ -    using value_type = std::variant<bool, double, std::size_t, std::string_view, date_time_t>;
+ +    using value_type = boost::variant<bool, double, std::size_t, std::string_view, date_time_t>;
+- 
++
+      enum class record_type
+      {
+ @@ -66,7 +67,7 @@ using pivot_cache_record_t = std::vector<pivot_cache_record_value_t>;
+- 
++
+  struct ORCUS_SPM_DLLPUBLIC pivot_cache_item_t
+  {
+ -    using value_type = std::variant<bool, double, std::string_view, date_time_t, error_value_t>;
+ +    using value_type = boost::variant<bool, double, std::string_view, date_time_t, error_value_t>;
+- 
++
+      enum class item_type
+      {
+ diff --git a/include/orcus/threaded_json_parser.hpp b/include/orcus/threaded_json_parser.hpp
+@@ -184,7 +184,7 @@
+                  {
+ -                    auto v = std::get<parse_error_value_t>(t.value);
+ +                    auto v = boost::get<parse_error_value_t>(t.value);
+-                     throw json::parse_error(std::string{v.str}, v.offset);
++                     throw parse_error(std::string{v.str}, v.offset);
+                  }
+                  case json::parse_token_t::unknown:
+ diff --git a/include/orcus/threaded_sax_token_parser.hpp b/include/orcus/threaded_sax_token_parser.hpp
+@@ -218,7 +218,7 @@
+              {
+ -                auto v = std::get<parse_error_value_t>(t.value);
+ +                auto v = boost::get<parse_error_value_t>(t.value);
+-                 throw sax::malformed_xml_error(std::string{v.str}, v.offset);
++                 throw malformed_xml_error(std::string{v.str}, v.offset);
+              }
+              default:
+ diff --git a/src/liborcus/css_document_tree.cpp b/src/liborcus/css_document_tree.cpp
+@@ -291,22 +291,22 @@
+ index 5c71bcf5..637308ab 100644
+ --- a/src/liborcus/orcus_csv.cpp
+ +++ b/src/liborcus/orcus_csv.cpp
+-@@ -63,7 +63,7 @@ public:
++@@ -61,7 +61,7 @@ public:
+          // 0.
+          if (m_row >= mp_sheet->get_sheet_size().rows)
+          {
+ -            auto csv = std::get<config::csv_config>(m_app_config.data);
+ +            auto csv = boost::get<config::csv_config>(m_app_config.data);
+- 
++
+              if (!csv.split_to_multiple_sheets)
+                  throw max_row_size_reached();
+-@@ -93,7 +93,7 @@ public:
+- 
+-     void cell(const char* p, size_t n, bool transient)
++@@ -91,7 +91,7 @@ public:
++
++     void cell(std::string_view v, bool transient)
+      {
+ -        auto csv = std::get<config::csv_config>(m_app_config.data);
+ +        auto csv = boost::get<config::csv_config>(m_app_config.data);
+- 
++
+          if (m_sheet == 0 && size_t(m_row) < csv.header_row_size)
+          {
+ diff --git a/src/orcus_csv_main.cpp b/src/orcus_csv_main.cpp
+@@ -314,12 +314,12 @@
+ --- a/src/orcus_csv_main.cpp
+ +++ b/src/orcus_csv_main.cpp
+ @@ -45,7 +45,7 @@ public:
+- 
++
+      virtual void map_to_config(config& opt, const po::variables_map& vm) override
+      {
+ -        auto csv = std::get<config::csv_config>(opt.data);
+ +        auto csv = boost::get<config::csv_config>(opt.data);
+- 
++
+          if (vm.count("row-header"))
+              csv.header_row_size = vm["row-header"].as<size_t>();
+ diff --git a/src/orcus_test_csv.cpp b/src/orcus_test_csv.cpp
+@@ -328,13 +328,13 @@
+ +++ b/src/orcus_test_csv.cpp
+ @@ -95,8 +95,8 @@ void test_csv_import_split_sheet()
+      std::cout << "checking " << path << "..." << std::endl;
+- 
++
+      config conf(format_t::csv);
+ -    std::get<config::csv_config>(conf.data).header_row_size = 0;
+ -    std::get<config::csv_config>(conf.data).split_to_multiple_sheets = true;
+ +    boost::get<config::csv_config>(conf.data).header_row_size = 0;
+ +    boost::get<config::csv_config>(conf.data).split_to_multiple_sheets = true;
+- 
++
+      // Set the row size to 11 to make sure the split occurs.
+      spreadsheet::range_size_t ss{11, 4};
+ @@ -126,7 +126,7 @@ void test_csv_import_split_sheet()
+@@ -347,28 +347,28 @@
+          spreadsheet::import_factory factory(doc);
+          orcus_csv app(&factory);
+ @@ -149,7 +149,7 @@ void test_csv_import_split_sheet()
+- 
++
+      // Re-import it again, but this time disable the splitting.  The data should
+      // get trucated on the first sheet.
+ -    std::get<config::csv_config>(conf.data).split_to_multiple_sheets = false;
+ +    boost::get<config::csv_config>(conf.data).split_to_multiple_sheets = false;
+- 
++
+      path = dir;
+      path.append("input.csv");
+ diff --git a/src/orcus_test_xlsx.cpp b/src/orcus_test_xlsx.cpp
+ index 807c61e4..632fb1e7 100644
+ --- a/src/orcus_test_xlsx.cpp
+ +++ b/src/orcus_test_xlsx.cpp
+-@@ -1154,8 +1154,8 @@ void test_xlsx_pivot_group_by_numbers()
+-     for (const pivot_cache_item_t& item : fld->items)
++@@ -1481,8 +1481,8 @@ void test_xlsx_pivot_group_by_numbers()
++     for (const auto& item : fld->items)
+      {
+-         assert(item.type == pivot_cache_item_t::item_type::numeric);
++         assert(item.type == ss::pivot_cache_item_t::item_type::numeric);
+ -        assert(*fld->min_value <= std::get<double>(item.value));
+ -        assert(std::get<double>(item.value) <= *fld->max_value);
+ +        assert(*fld->min_value <= boost::get<double>(item.value));
+ +        assert(boost::get<double>(item.value) <= *fld->max_value);
+      }
+- 
++
+      // This field is also gruop field with 7 numeric intervals of width 2.
+ diff --git a/src/parser/json_parser_thread.cpp b/src/parser/json_parser_thread.cpp
+ index 36bbe6e6..65fb6255 100644
+@@ -411,8 +411,8 @@
+                  break;
+ +            }
+          }
+- 
++
+          if (!obj)
+--- 
++--
+ 2.25.1
+ 
+diff -Naur libreoffice-7.5.5.2/external/liborcus/UnpackedTarball_liborcus.mk libreoffice-7.5.5.2.new/external/liborcus/UnpackedTarball_liborcus.mk
+--- libreoffice-7.5.5.2/external/liborcus/UnpackedTarball_liborcus.mk	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/liborcus/UnpackedTarball_liborcus.mk	2023-09-06 17:58:44.585026429 +0200
+@@ -15,19 +15,6 @@
+ 
+ $(eval $(call gb_UnpackedTarball_update_autoconf_configs,liborcus))
+ 
+-# forcepoint-83.patch.1 merged as
+-# https://gitlab.com/orcus/orcus/-/commit/9f6400b8192e39fefd475a96222713e9e9c60038
+-# forcepoint-84.patch.1 merged as
+-# https://gitlab.com/orcus/orcus/-/commit/223defe95d6f20f1bc5fd22fecc80a79a9519028
+-# forcepoint-87.patch.1 merged as
+-# https://gitlab.com/orcus/orcus/-/commit/a718524ca424fb8a7e7931345a118342d1d4a507
+-# forcepoint-88.patch.1 merged as
+-# https://gitlab.com/orcus/orcus/-/commit/0a99ca6d50af51f1b0a151fdcac5e12ec9b01bf8
+-# forcepoint-95.patch.1 submitted as
+-# https://gitlab.com/orcus/orcus/-/merge_requests/124
+-# overrun.patch.0 submitted as
+-# https://gitlab.com/orcus/orcus/-/merge_requests/131
+-
+ $(eval $(call gb_UnpackedTarball_add_patches,liborcus,\
+ 	external/liborcus/rpath.patch.0 \
+ 	external/liborcus/gcc9.patch.0 \
+diff -Naur libreoffice-7.5.5.2/external/mdds/speedup-erase-2.patch libreoffice-7.5.5.2.new/external/mdds/speedup-erase-2.patch
+--- libreoffice-7.5.5.2/external/mdds/speedup-erase-2.patch	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/mdds/speedup-erase-2.patch	1970-01-01 01:00:00.000000000 +0100
+@@ -1,18 +0,0 @@
+-diff -ur include/mdds/multi_type_vector/types.hpp include/mdds/multi_type_vector/types.hpp
+---- include/mdds/multi_type_vector/types.hpp	2022-09-02 15:16:14.811400565 +0200
+-+++ include/mdds/multi_type_vector/types.hpp	2022-09-02 15:18:26.951249322 +0200
+-@@ -253,7 +253,13 @@
+-     
+-     iterator erase( iterator first, iterator last )
+-     {
+--        return m_vec.erase( first, last );
+-+        if (first == m_vec.begin() + m_removedFront)
+-+        {
+-+            m_removedFront = last - m_vec.begin();
+-+            return m_vec.begin() + m_removedFront;
+-+        }
+-+        else
+-+            return m_vec.erase( first, last );
+-     }
+-     
+-     size_type capacity() const
+diff -Naur libreoffice-7.5.5.2/external/mdds/speedup-erase-begin.patch libreoffice-7.5.5.2.new/external/mdds/speedup-erase-begin.patch
+--- libreoffice-7.5.5.2/external/mdds/speedup-erase-begin.patch	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/mdds/speedup-erase-begin.patch	1970-01-01 01:00:00.000000000 +0100
+@@ -1,140 +0,0 @@
+-diff -ur include/mdds/multi_type_vector/types.hpp include/mdds/multi_type_vector/types.hpp
+---- include/mdds/multi_type_vector/types.hpp	2022-06-20 12:13:12.199156464 +0200
+-+++ include/mdds/multi_type_vector/types.hpp	2022-06-20 12:25:13.675660259 +0200
+-@@ -180,6 +180,127 @@
+-     {}
+- };
+- 
+-+/**
+-+ * Vector that delays deleting from the front of the vector, which avoids O(n^2) memory move
+-+ * operations when code needs to deletes items from one mdds block and add to another mdds block.
+-+ */
+-+template<typename T>
+-+class enhanced_vector
+-+{
+-+    typedef std::vector<T> store_type;
+-+    mutable store_type m_vec;
+-+    mutable size_t m_removedFront = 0; // number of elements removed from front of array
+-+public:
+-+    typedef typename store_type::value_type value_type;
+-+    typedef typename store_type::size_type size_type;
+-+    typedef typename store_type::difference_type difference_type;
+-+    typedef typename store_type::reference reference;
+-+    typedef typename store_type::const_reference const_reference;
+-+    typedef typename store_type::pointer pointer;
+-+    typedef typename store_type::const_pointer const_pointer;
+-+    typedef typename store_type::iterator iterator;
+-+    typedef typename store_type::reverse_iterator reverse_iterator;
+-+    typedef typename store_type::const_iterator const_iterator;
+-+    typedef typename store_type::const_reverse_iterator const_reverse_iterator;
+-+    
+-+    enhanced_vector(size_t n, const T& val) : m_vec(n, val) {}
+-+    enhanced_vector(size_t n) : m_vec(n) {}
+-+    template< class InputIt >
+-+    enhanced_vector( InputIt first, InputIt last ) : m_vec(first, last) {}
+-+
+-+    iterator begin() noexcept { return m_vec.begin() + m_removedFront; }
+-+    iterator end() noexcept { return m_vec.end(); }
+-+    const_iterator begin() const noexcept { return m_vec.begin() + m_removedFront; }
+-+    const_iterator end() const noexcept { return m_vec.end(); }
+-+    
+-+    reverse_iterator rbegin() { return m_vec.rbegin(); }
+-+    const_reverse_iterator rbegin() const { return m_vec.rbegin(); }
+-+    reverse_iterator rend() { return m_vec.rend() - m_removedFront; }
+-+    const_reverse_iterator rend() const { return m_vec.rend() - m_removedFront; }
+-+    
+-+    reference operator[]( size_type pos ) { return m_vec[pos + m_removedFront]; }
+-+    const_reference operator[]( size_type pos ) const { return m_vec[pos + m_removedFront]; }
+-+    
+-+    reference at( size_type pos ) { return m_vec.at(pos + m_removedFront); }
+-+    const_reference at( size_type pos ) const { return m_vec.at(pos + m_removedFront); }
+-+
+-+    void push_back( const T& value ) { m_vec.push_back(value); }
+-+    
+-+    iterator insert( iterator pos, const T& value ) { return m_vec.insert(pos, value); }
+-+    iterator insert( const_iterator pos, T&& value ) { return m_vec.insert(pos, std::move(value)); }
+-+    template< class InputIt >
+-+    void insert( iterator pos, InputIt first, InputIt last )
+-+    {
+-+        m_vec.insert(pos, first, last);
+-+    }
+-+    
+-+    void resize( size_type count )
+-+    {
+-+        clear_removed();
+-+        m_vec.resize(count);
+-+    }
+-+    
+-+    iterator erase( iterator pos )
+-+    {
+-+        if (pos == m_vec.begin() + m_removedFront)
+-+        {
+-+            ++m_removedFront;
+-+            return m_vec.begin() + m_removedFront;
+-+        }
+-+        else
+-+            return m_vec.erase(pos);
+-+    }
+-+    
+-+    iterator erase( iterator first, iterator last )
+-+    {
+-+        return m_vec.erase( first, last );
+-+    }
+-+    
+-+    size_type capacity() const
+-+    {
+-+        clear_removed();
+-+        return m_vec.capacity();
+-+    }
+-+    
+-+    void shrink_to_fit() const
+-+    {
+-+        clear_removed();
+-+        m_vec.shrink_to_fit();
+-+    }
+-+    
+-+    void reserve( size_type new_cap )
+-+    {
+-+        clear_removed();
+-+        m_vec.reserve(new_cap);
+-+    }
+-+    
+-+    size_type size() const
+-+    {
+-+        return m_vec.size() - m_removedFront;
+-+    }
+-+    
+-+    template< class InputIt >
+-+    void assign( InputIt first, InputIt last )
+-+    {
+-+        clear_removed();
+-+        m_vec.assign(first, last);
+-+    }
+-+
+-+private:
+-+    void clear_removed() const
+-+    {
+-+        m_vec.erase(m_vec.begin(), m_vec.begin() + m_removedFront);
+-+        m_removedFront = 0;
+-+    }
+-+};
+-+
+-+template< class T >
+-+bool operator==( const enhanced_vector<T>& lhs,
+-+                 const enhanced_vector<T>& rhs )
+-+{
+-+    return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+-+}
+-+
+- template<typename _Self, element_t _TypeId, typename _Data>
+- class element_block : public base_element_block
+- {
+-@@ -197,7 +318,7 @@
+- #ifdef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
+-     typedef std::deque<_Data> store_type;
+- #else
+--    typedef std::vector<_Data> store_type;
+-+    typedef enhanced_vector<_Data> store_type;
+- #endif
+-     store_type m_array;
+- 
+diff -Naur libreoffice-7.5.5.2/external/mdds/UnpackedTarball_mdds.mk libreoffice-7.5.5.2.new/external/mdds/UnpackedTarball_mdds.mk
+--- libreoffice-7.5.5.2/external/mdds/UnpackedTarball_mdds.mk	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/external/mdds/UnpackedTarball_mdds.mk	2023-09-06 17:58:50.651070348 +0200
+@@ -15,8 +15,6 @@
+ 
+ $(eval $(call gb_UnpackedTarball_add_patches,mdds,\
+     external/mdds/use-after-free.patch \
+-	external/mdds/speedup-erase-begin.patch \
+-	external/mdds/speedup-erase-2.patch \
+ ))
+ 
+ # vim: set noet sw=4 ts=4:
+diff -Naur libreoffice-7.5.5.2/RepositoryExternal.mk libreoffice-7.5.5.2.new/RepositoryExternal.mk
+--- libreoffice-7.5.5.2/RepositoryExternal.mk	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/RepositoryExternal.mk	2023-09-06 17:58:44.580026392 +0200
+@@ -3306,7 +3306,7 @@
+ )
+ 
+ $(call gb_LinkTarget_add_libs,$(1),\
+-       -L$(call gb_UnpackedTarball_get_dir,liborcus)/src/liborcus/.libs -lorcus-0.17 \
++       -L$(call gb_UnpackedTarball_get_dir,liborcus)/src/liborcus/.libs -lorcus-0.18 \
+ )
+ 
+ $(if $(SYSTEM_BOOST), \
+@@ -3325,7 +3325,7 @@
+ )
+ 
+ $(call gb_LinkTarget_add_libs,$(1),\
+-	-L$(call gb_UnpackedTarball_get_dir,liborcus)/src/parser/.libs -lorcus-parser-0.17 \
++	-L$(call gb_UnpackedTarball_get_dir,liborcus)/src/parser/.libs -lorcus-parser-0.18 \
+ )
+ 
+ endef
+diff -Naur libreoffice-7.5.5.2/sc/inc/mtvelements.hxx libreoffice-7.5.5.2.new/sc/inc/mtvelements.hxx
+--- libreoffice-7.5.5.2/sc/inc/mtvelements.hxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/sc/inc/mtvelements.hxx	2023-09-06 17:58:50.793071374 +0200
+@@ -27,8 +27,7 @@
+ 
+ #include <mdds/multi_type_vector/macro.hpp>
+ #include <mdds/multi_type_vector/soa/main.hpp>
+-#include <mdds/multi_type_vector/custom_func1.hpp>
+-#include <mdds/multi_type_vector/custom_func3.hpp>
++#include <mdds/multi_type_vector/block_funcs.hpp>
+ 
+ #include <unordered_map>
+ #include <memory>
+@@ -110,31 +109,47 @@
+     const ScColumn* getColumn() const;
+ };
+ 
+-struct CellStoreTrait
++struct SparklineTraits : public mdds::mtv::default_traits
++{
++    using block_funcs = mdds::mtv::element_block_funcs<sc::sparkline_block>;
++};
++
++struct CellNodeTraits : public mdds::mtv::default_traits
++{
++    using block_funcs = mdds::mtv::element_block_funcs<sc::cellnote_block>;
++};
++
++struct BroadcasterTraits : public mdds::mtv::default_traits
++{
++    using block_funcs = mdds::mtv::element_block_funcs<sc::broadcaster_block>;
++};
++
++struct CellTextAttrTraits : public mdds::mtv::default_traits
++{
++    using block_funcs = mdds::mtv::element_block_funcs<sc::celltextattr_block>;
++};
++
++struct CellStoreTraits : public mdds::mtv::default_traits
+ {
+     using event_func = CellStoreEvent;
+-    static constexpr mdds::mtv::lu_factor_t loop_unrolling = mdds::mtv::lu_factor_t::lu16;
++    using block_funcs = mdds::mtv::element_block_funcs<
++        numeric_block, sc::string_block, sc::edittext_block, sc::formula_block>;
+ };
+ 
+ /// Sparkline container
+-typedef mdds::mtv::custom_block_func1<sc::sparkline_block> CSparklineFunction;
+-typedef mdds::mtv::soa::multi_type_vector<CSparklineFunction> SparklineStoreType;
++typedef mdds::mtv::soa::multi_type_vector<SparklineTraits> SparklineStoreType;
+ 
+ /// Cell note container
+-typedef mdds::mtv::custom_block_func1<sc::cellnote_block> CNoteFunc;
+-typedef mdds::mtv::soa::multi_type_vector<CNoteFunc> CellNoteStoreType;
++typedef mdds::mtv::soa::multi_type_vector<CellNodeTraits> CellNoteStoreType;
+ 
+ /// Broadcaster storage container
+-typedef mdds::mtv::custom_block_func1<sc::broadcaster_block> BCBlkFunc;
+-typedef mdds::mtv::soa::multi_type_vector<BCBlkFunc> BroadcasterStoreType;
++typedef mdds::mtv::soa::multi_type_vector<BroadcasterTraits> BroadcasterStoreType;
+ 
+ /// Cell text attribute container.
+-typedef mdds::mtv::custom_block_func1<sc::celltextattr_block> CTAttrFunc;
+-typedef mdds::mtv::soa::multi_type_vector<CTAttrFunc> CellTextAttrStoreType;
++typedef mdds::mtv::soa::multi_type_vector<CellTextAttrTraits> CellTextAttrStoreType;
+ 
+ /// Cell container
+-typedef mdds::mtv::custom_block_func3<sc::string_block, sc::edittext_block, sc::formula_block> CellFunc;
+-typedef mdds::mtv::soa::multi_type_vector<CellFunc, CellStoreTrait> CellStoreType;
++typedef mdds::mtv::soa::multi_type_vector<CellStoreTraits> CellStoreType;
+ 
+ /**
+  * Store position data for column array storage.
+diff -Naur libreoffice-7.5.5.2/sc/qa/unit/helper/csv_handler.hxx libreoffice-7.5.5.2.new/sc/qa/unit/helper/csv_handler.hxx
+--- libreoffice-7.5.5.2/sc/qa/unit/helper/csv_handler.hxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/sc/qa/unit/helper/csv_handler.hxx	2023-09-06 17:58:50.794071381 +0200
+@@ -20,6 +20,8 @@
+ #include <cellform.hxx>
+ #include <cellvalue.hxx>
+ 
++#include <orcus/csv_parser.hpp>
++
+ #define DEBUG_CSV_HANDLER 0
+ 
+ inline OUString getConditionalFormatString(ScDocument* pDoc, SCCOL nCol, SCROW nRow, SCTAB nTab)
+@@ -62,7 +64,7 @@
+ 
+ }
+ 
+-class csv_handler
++class csv_handler : public orcus::csv_handler
+ {
+ public:
+     csv_handler(ScDocument* pDoc, SCTAB nTab, StringType eType):
+@@ -72,20 +74,17 @@
+             mnTab(nTab),
+             meStringType(eType)  {}
+ 
+-    static void begin_parse() {}
+-
+-    static void end_parse() {}
+-
+-    static void begin_row() {}
+-
+     void end_row()
+     {
+         ++mnRow;
+         mnCol = 0;
+     }
+ 
+-    void cell(const char* p, size_t n, bool /*transient*/)
++    void cell(std::string_view value, bool /*transient*/)
+     {
++        const char* p = value.data();
++        std::size_t n = value.size();
++
+ #if DEBUG_CSV_HANDLER
+         std::cout << "Col: " << mnCol << " Row: " << mnRow << std::endl;
+ #endif //DEBUG_CSV_HANDLER
+@@ -158,7 +157,7 @@
+     StringType meStringType;
+ };
+ 
+-class conditional_format_handler
++class conditional_format_handler : public orcus::csv_handler
+ {
+ public:
+     conditional_format_handler(ScDocument* pDoc, SCTAB nTab):
+@@ -167,25 +166,19 @@
+         mnRow(0),
+         mnTab(nTab) {}
+ 
+-    static void begin_parse() {}
+-
+-    static void end_parse() {}
+-
+-    static void begin_row() {}
+-
+     void end_row()
+     {
+         ++mnRow;
+         mnCol = 0;
+     }
+ 
+-    void cell(const char* p, size_t n, bool /*transient*/)
++    void cell(std::string_view value, bool /*transient*/)
+     {
+ #if DEBUG_CSV_HANDLER
+         std::cout << "Col: " << mnCol << " Row: " << mnRow << std::endl;
+ #endif //DEBUG_CSV_HANDLER
+         OUString aString = getConditionalFormatString(mpDoc, mnCol, mnRow, mnTab);
+-        OUString aCSVString(p, n, RTL_TEXTENCODING_UTF8);
++        OUString aCSVString(value.data(), value.size(), RTL_TEXTENCODING_UTF8);
+ #if DEBUG_CSV_HANDLER
+         std::cout << "String: " << OUStringToOString(aString, RTL_TEXTENCODING_UTF8).getStr() << std::endl;
+         std::cout << "CSVString: " << OUStringToOString(aCSVString, RTL_TEXTENCODING_UTF8).getStr() << std::endl;
+diff -Naur libreoffice-7.5.5.2/sc/qa/unit/helper/qahelper.cxx libreoffice-7.5.5.2.new/sc/qa/unit/helper/qahelper.cxx
+--- libreoffice-7.5.5.2/sc/qa/unit/helper/qahelper.cxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/sc/qa/unit/helper/qahelper.cxx	2023-09-06 17:58:50.794071381 +0200
+@@ -118,12 +118,12 @@
+ 
+     std::string aContent;
+     loadFile(aFileName, aContent);
+-    orcus::csv_parser<csv_handler> parser ( &aContent[0], aContent.size() , aHandler, aConfig);
++    orcus::csv_parser<csv_handler> parser(aContent, aHandler, aConfig);
+     try
+     {
+         parser.parse();
+     }
+-    catch (const orcus::csv::parse_error& e)
++    catch (const orcus::parse_error& e)
+     {
+         std::cout << "reading csv content file failed: " << e.what() << std::endl;
+         OStringBuffer aErrorMsg("csv parser error: ");
+@@ -141,12 +141,12 @@
+     aConfig.text_qualifier = '"';
+     std::string aContent;
+     loadFile(aFileName, aContent);
+-    orcus::csv_parser<conditional_format_handler> parser ( &aContent[0], aContent.size() , aHandler, aConfig);
++    orcus::csv_parser<conditional_format_handler> parser(aContent, aHandler, aConfig);
+     try
+     {
+         parser.parse();
+     }
+-    catch (const orcus::csv::parse_error& e)
++    catch (const orcus::parse_error& e)
+     {
+         std::cout << "reading csv content file failed: " << e.what() << std::endl;
+         OStringBuffer aErrorMsg("csv parser error: ");
+diff -Naur libreoffice-7.5.5.2/sc/source/core/tool/scmatrix.cxx libreoffice-7.5.5.2.new/sc/source/core/tool/scmatrix.cxx
+--- libreoffice-7.5.5.2/sc/source/core/tool/scmatrix.cxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/sc/source/core/tool/scmatrix.cxx	2023-09-06 18:34:42.231190586 +0200
+@@ -63,7 +63,6 @@
+     typedef sc::string_block string_element_block;
+     typedef sc::uint16_block integer_element_block;
+ 
+-    typedef mdds::mtv::custom_block_func1<sc::string_block> element_block_func;
+ };
+ 
+ }
+diff -Naur libreoffice-7.5.5.2/sc/source/filter/html/htmlpars.cxx libreoffice-7.5.5.2.new/sc/source/filter/html/htmlpars.cxx
+--- libreoffice-7.5.5.2/sc/source/filter/html/htmlpars.cxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/sc/source/filter/html/htmlpars.cxx	2023-09-06 17:58:50.796071396 +0200
+@@ -75,11 +75,11 @@
+ void ScHTMLStyles::add(const char* pElemName, size_t nElemName, const char* pClassName, size_t nClassName,
+                        const OUString& aProp, const OUString& aValue)
+ {
+-    if (pElemName)
++    if (nElemName)
+     {
+         OUString aElem(pElemName, nElemName, RTL_TEXTENCODING_UTF8);
+         aElem = aElem.toAsciiLowerCase();
+-        if (pClassName)
++        if (nClassName)
+         {
+             // Both element and class names given.
+             ElemsType::iterator itrElem = m_ElemProps.find(aElem);
+@@ -107,7 +107,7 @@
+     }
+     else
+     {
+-        if (pClassName)
++        if (nClassName)
+         {
+             // Class name only. Add it to the global.
+             OUString aClass(pClassName, nClassName, RTL_TEXTENCODING_UTF8);
+@@ -3030,53 +3030,32 @@
+  */
+ class CSSHandler: public orcus::css_handler
+ {
+-    struct MemStr
+-    {
+-        const char* mp;
+-        size_t      mn;
+-
+-        MemStr() : mp(nullptr), mn(0) {}
+-        MemStr(const char* p, size_t n) : mp(p), mn(n) {}
+-        MemStr(const MemStr& r) : mp(r.mp), mn(r.mn) {}
+-        MemStr& operator=(const MemStr& r) = default;
+-    };
+-
+-    typedef std::pair<MemStr, MemStr> SelectorName;     // element : class
++    typedef std::pair<std::string_view, std::string_view> SelectorName; // element : class
+     typedef std::vector<SelectorName> SelectorNames;
+ 
+     SelectorNames maSelectorNames;      // current selector names
+-    MemStr maPropName;                  // current property name.
+-    MemStr maPropValue;                 // current property value.
++    std::string_view maPropName;        // current property name.
++    std::string_view maPropValue;                 // current property value.
+     ScHTMLStyles& mrStyles;
+ 
+ public:
+     explicit CSSHandler(ScHTMLStyles& rStyles):
+-        maPropName(),
+-        maPropValue(),
+         mrStyles(rStyles)
+      {}
+ 
+-    // selector name starting with "@"
+-    static void at_rule_name(const char* /*p*/, size_t /*n*/)
+-    {
+-        // TODO: For now, we ignore at-rule properties
+-    }
+-
+     // selector name not starting with "." or "#" (i.e. element selectors)
+-    void simple_selector_type(const char* pElem, size_t nElem)
++    void simple_selector_type(std::string_view aElem)
+     {
+-        MemStr aElem(pElem, nElem); // element given
+-        MemStr aClass(nullptr, 0);  // class name not given - to be added in the "element global" storage
++        std::string_view aClass{};  // class name not given - to be added in the "element global" storage
+         SelectorName aName(aElem, aClass);
+ 
+         maSelectorNames.push_back(aName);
+     }
+ 
+     // selector names starting with a "." (i.e. class selector)
+-    void simple_selector_class(const char* pClassName, size_t nClassName)
++    void simple_selector_class(std::string_view aClass)
+     {
+-        MemStr aElem(nullptr, 0);   // no element given - should be added in the "global" storage
+-        MemStr aClass(pClassName, nClassName);
++        std::string_view aElem{};   // no element given - should be added in the "global" storage
+         SelectorName aName(aElem, aClass);
+ 
+         maSelectorNames.push_back(aName);
+@@ -3084,35 +3063,34 @@
+ 
+     // TODO: Add other selectors
+ 
+-    void property_name(const char* p, size_t n)
++    void property_name(std::string_view aPropName)
+     {
+-        maPropName = MemStr(p, n);
++        maPropName = aPropName;
+     }
+ 
+-    void value(const char* p, size_t n)
++    void value(std::string_view aValue)
+     {
+-        maPropValue = MemStr(p, n);
++        maPropValue = aValue;
+     }
+ 
+-    void end_block() {
++    void end_block()
++    {
+         maSelectorNames.clear();
+     }
+ 
+     void end_property()
+     {
+-        SelectorNames::const_iterator itr = maSelectorNames.begin(), itrEnd = maSelectorNames.end();
+-        for (; itr != itrEnd; ++itr)
++        for (const auto& rSelName : maSelectorNames)
+         {
+             // Add this property to the collection for each selector.
+-            const SelectorName& rSelName = *itr;
+-            const MemStr& rElem = rSelName.first;
+-            const MemStr& rClass = rSelName.second;
+-            OUString aName(maPropName.mp, maPropName.mn, RTL_TEXTENCODING_UTF8);
+-            OUString aValue(maPropValue.mp, maPropValue.mn, RTL_TEXTENCODING_UTF8);
+-            mrStyles.add(rElem.mp, rElem.mn, rClass.mp, rClass.mn, aName, aValue);
++            std::string_view aElem = rSelName.first;
++            std::string_view aClass = rSelName.second;
++            OUString aName(maPropName.data(), maPropName.size(), RTL_TEXTENCODING_UTF8);
++            OUString aValue(maPropValue.data(), maPropValue.size(), RTL_TEXTENCODING_UTF8);
++            mrStyles.add(aElem.data(), aElem.size(), aClass.data(), aClass.size(), aName, aValue);
+         }
+-        maPropName = MemStr();
+-        maPropValue = MemStr();
++        maPropName = std::string_view{};
++        maPropValue = std::string_view{};
+     }
+ 
+ };
+@@ -3123,12 +3101,12 @@
+ {
+     OString aStr = OUStringToOString(rStrm, RTL_TEXTENCODING_UTF8);
+     CSSHandler aHdl(GetStyles());
+-    orcus::css_parser<CSSHandler> aParser(aStr.getStr(), aStr.getLength(), aHdl);
++    orcus::css_parser<CSSHandler> aParser(aStr, aHdl);
+     try
+     {
+         aParser.parse();
+     }
+-    catch (const orcus::css::parse_error& rOrcusParseError)
++    catch (const orcus::parse_error& rOrcusParseError)
+     {
+         SAL_WARN("sc", "ScHTMLQueryParser::ParseStyle: " << rOrcusParseError.what());
+         // TODO: Parsing of CSS failed.  Do nothing for now.
+diff -Naur libreoffice-7.5.5.2/sc/source/filter/inc/orcusinterface.hxx libreoffice-7.5.5.2.new/sc/source/filter/inc/orcusinterface.hxx
+--- libreoffice-7.5.5.2/sc/source/filter/inc/orcusinterface.hxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/sc/source/filter/inc/orcusinterface.hxx	2023-09-06 17:58:50.797071403 +0200
+@@ -24,6 +24,7 @@
+ #include <editeng/borderline.hxx>
+ 
+ #include <orcus/spreadsheet/import_interface.hpp>
++#include <orcus/spreadsheet/import_interface_styles.hpp>
+ 
+ #include <memory>
+ #include <map>
+@@ -216,9 +217,13 @@
+     ScOrcusSheetProperties(SCTAB nTab, ScDocumentImport& rDoc);
+     virtual ~ScOrcusSheetProperties() override;
+ 
+-    virtual void set_column_width(orcus::spreadsheet::col_t col, double width, orcus::length_unit_t unit) override;
+-
+-    virtual void set_column_hidden(orcus::spreadsheet::col_t col, bool hidden) override;
++    virtual void set_column_width(
++        orcus::spreadsheet::col_t col, orcus::spreadsheet::col_t col_span,
++        double width, orcus::length_unit_t unit) override;
++
++    virtual void set_column_hidden(
++        orcus::spreadsheet::col_t col, orcus::spreadsheet::col_t col_span,
++        bool hidden) override;
+ 
+     virtual void set_row_height(orcus::spreadsheet::row_t row, double height, orcus::length_unit_t unit) override;
+ 
+@@ -336,6 +341,9 @@
+     virtual void set_format(orcus::spreadsheet::row_t row, orcus::spreadsheet::col_t col, size_t xf_index) override;
+     virtual void set_format(orcus::spreadsheet::row_t row_start, orcus::spreadsheet::col_t col_start,
+             orcus::spreadsheet::row_t row_end, orcus::spreadsheet::col_t col_end, size_t xf_index) override;
++    virtual void set_column_format(
++        orcus::spreadsheet::col_t col, orcus::spreadsheet::col_t col_span, std::size_t xf_index) override;
++    virtual void set_row_format(orcus::spreadsheet::row_t row, std::size_t xf_index) override;
+ 
+     virtual orcus::spreadsheet::range_size_t get_sheet_size() const override;
+ 
+@@ -348,214 +356,309 @@
+     ScOrcusFactory& getFactory();
+ };
+ 
+-class ScOrcusStyles : public orcus::spreadsheet::iface::import_styles
++struct ScOrcusFont
+ {
+-private:
+-    ScOrcusFactory& mrFactory;
++    std::optional<OUString> maName;
++    std::optional<OUString> maNameAsian;
++    std::optional<OUString> maNameComplex;
++    std::optional<double> mnSize;
++    std::optional<double> mnSizeAsian;
++    std::optional<double> mnSizeComplex;
++    std::optional<Color> maColor;
++    std::optional<bool> mbBold;
++    std::optional<bool> mbBoldAsian;
++    std::optional<bool> mbBoldComplex;
++    std::optional<bool> mbItalic;
++    std::optional<bool> mbItalicAsian;
++    std::optional<bool> mbItalicComplex;
++    std::optional<FontLineStyle> meUnderline;
++    std::optional<Color> maUnderlineColor;
++    std::optional<FontStrikeout> meStrikeout;
++
++    void applyToItemSet( SfxItemSet& rSet ) const;
++};
+ 
+-    struct font
++struct ScOrcusFill
++{
++    std::optional<orcus::spreadsheet::fill_pattern_t> mePattern;
++    std::optional<Color> maFgColor;
++    std::optional<Color> maBgColor; // currently not used.
++
++    void applyToItemSet( SfxItemSet& rSet ) const;
++};
++
++struct ScOrcusBorder
++{
++    struct BorderLine
+     {
+-        std::optional<OUString> maName;
+-        std::optional<double> mnSize;
++        std::optional<SvxBorderLineStyle> meStyle;
+         std::optional<Color> maColor;
+-        std::optional<bool> mbBold;
+-        std::optional<bool> mbItalic;
+-        std::optional<FontLineStyle> meUnderline;
+-        std::optional<Color> maUnderlineColor;
+-        std::optional<FontStrikeout> meStrikeout;
+-
+-        void applyToItemSet(SfxItemSet& rSet) const;
++        std::optional<double> mnWidth;
+     };
+ 
+-    font maCurrentFont;
+-    std::vector<font> maFonts;
++    std::map<orcus::spreadsheet::border_direction_t, BorderLine> maBorders;
+ 
+-    struct fill
+-    {
+-        std::optional<orcus::spreadsheet::fill_pattern_t> mePattern;
+-        std::optional<Color> maFgColor;
+-        std::optional<Color> maBgColor; // currently not used.
++    void applyToItemSet( SfxItemSet& rSet ) const;
++};
+ 
+-        void applyToItemSet(SfxItemSet& rSet) const;
+-    };
++struct ScOrcusProtection
++{
++    std::optional<bool> mbLocked;
++    std::optional<bool> mbHidden;
++    std::optional<bool> mbPrintContent;
++    std::optional<bool> mbFormulaHidden;
+ 
+-    fill maCurrentFill;
+-    std::vector<fill> maFills;
++    void applyToItemSet( SfxItemSet& rSet ) const;
++};
+ 
+-    struct border
+-    {
+-        struct border_line
+-        {
+-            std::optional<SvxBorderLineStyle> meStyle;
+-            std::optional<Color> maColor;
+-            std::optional<double> mnWidth;
+-        };
++struct ScOrcusNumberFormat
++{
++    std::optional<OUString> maCode;
+ 
+-        std::map<orcus::spreadsheet::border_direction_t, border_line> maBorders;
++    void applyToItemSet( SfxItemSet& rSet, const ScDocument& rDoc ) const;
++};
+ 
+-        void applyToItemSet(SfxItemSet& rSet) const;
+-    };
++struct ScOrcusXf
++{
++    std::size_t mnFontId;
++    std::size_t mnFillId;
++    std::size_t mnBorderId;
++    std::size_t mnProtectionId;
++    std::size_t mnNumberFormatId;
++    std::size_t mnStyleXf;
+ 
+-    border maCurrentBorder;
+-    std::vector<border> maBorders;
++    bool mbApplyAlignment;
++    std::optional<bool> mbWrapText;
++    std::optional<bool> mbShrinkToFit;
+ 
+-    struct protection
+-    {
+-        std::optional<bool> mbLocked;
+-        std::optional<bool> mbHidden;
+-        std::optional<bool> mbPrintContent;
+-        std::optional<bool> mbFormulaHidden;
++    SvxCellHorJustify meHorAlignment;
++    SvxCellVerJustify meVerAlignment;
++    SvxCellJustifyMethod meHorAlignMethod;
++    SvxCellJustifyMethod meVerAlignMethod;
+ 
+-        void applyToItemSet(SfxItemSet& rSet) const;
+-    };
++    ScOrcusXf();
++};
+ 
+-    protection maCurrentProtection;
+-    std::vector<protection> maProtections;
++struct ScOrcusCellStyle
++{
++    OUString maName;
++    OUString maDisplayName;
++    OUString maParentName;
++    std::size_t mnXFId;
++    std::size_t mnBuiltInId;
+ 
+-    struct number_format
+-    {
+-        std::optional<OUString> maCode;
++    ScOrcusCellStyle();
++};
+ 
+-        void applyToItemSet(SfxItemSet& rSet, const ScDocument& rDoc) const;
+-    };
++class ScOrcusImportFontStyle : public orcus::spreadsheet::iface::import_font_style
++{
++    ScOrcusFont maCurrentFont;
++    ScOrcusFactory& mrFactory;
++    std::vector<ScOrcusFont>& mrFonts;
+ 
+-    number_format maCurrentNumberFormat;
+-    std::vector<number_format> maNumberFormats;
++public:
++    ScOrcusImportFontStyle( ScOrcusFactory& rFactory, std::vector<ScOrcusFont>& rFonts );
+ 
+-    struct xf
+-    {
+-        size_t mnFontId;
+-        size_t mnFillId;
+-        size_t mnBorderId;
+-        size_t mnProtectionId;
+-        size_t mnNumberFormatId;
+-        size_t mnStyleXf;
+-        bool mbAlignment;
+-
+-        SvxCellHorJustify meHorAlignment;
+-        SvxCellVerJustify meVerAlignment;
+-        SvxCellJustifyMethod meHorAlignMethod;
+-        SvxCellJustifyMethod meVerAlignMethod;
++    void reset();
+ 
+-        xf();
+-    };
++    void set_bold(bool b) override;
++    void set_bold_asian(bool b) override;
++    void set_bold_complex(bool b) override;
++    void set_italic(bool b) override;
++    void set_italic_asian(bool b) override;
++    void set_italic_complex(bool b) override;
++    void set_name(std::string_view s) override;
++    void set_name_asian(std::string_view s) override;
++    void set_name_complex(std::string_view s) override;
++    void set_size(double point) override;
++    void set_size_asian(double point) override;
++    void set_size_complex(double point) override;
++    void set_underline(orcus::spreadsheet::underline_t e) override;
++    void set_underline_width(orcus::spreadsheet::underline_width_t e) override;
++    void set_underline_mode(orcus::spreadsheet::underline_mode_t e) override;
++    void set_underline_type(orcus::spreadsheet::underline_type_t e) override;
++    void set_underline_color(
++        orcus::spreadsheet::color_elem_t alpha,
++        orcus::spreadsheet::color_elem_t red,
++        orcus::spreadsheet::color_elem_t green,
++        orcus::spreadsheet::color_elem_t blue) override;
++    void set_color(
++        orcus::spreadsheet::color_elem_t alpha,
++        orcus::spreadsheet::color_elem_t red,
++        orcus::spreadsheet::color_elem_t green,
++        orcus::spreadsheet::color_elem_t blue) override;
++    void set_strikethrough_style(orcus::spreadsheet::strikethrough_style_t s) override;
++    void set_strikethrough_type(orcus::spreadsheet::strikethrough_type_t s) override;
++    void set_strikethrough_width(orcus::spreadsheet::strikethrough_width_t s) override;
++    void set_strikethrough_text(orcus::spreadsheet::strikethrough_text_t s) override;
++    std::size_t commit() override;
++};
+ 
+-    xf maCurrentXF;
+-    std::vector<xf> maCellStyleXfs;
+-    std::vector<xf> maCellXfs;
++class ScOrcusImportFillStyle : public orcus::spreadsheet::iface::import_fill_style
++{
++    ScOrcusFill maCurrentFill;
++    std::vector<ScOrcusFill>& mrFills;
+ 
+-    struct cell_style
+-    {
+-        OUString maName;
+-        OUString maParentName;
+-        size_t mnXFId;
+-        size_t mnBuiltInId;
++public:
++    ScOrcusImportFillStyle( std::vector<ScOrcusFill>& rFills );
+ 
+-        cell_style();
+-    };
++    void reset();
+ 
+-    cell_style maCurrentCellStyle;
++    void set_pattern_type(orcus::spreadsheet::fill_pattern_t fp) override;
++    void set_fg_color(
++        orcus::spreadsheet::color_elem_t alpha,
++        orcus::spreadsheet::color_elem_t red,
++        orcus::spreadsheet::color_elem_t green,
++        orcus::spreadsheet::color_elem_t blue) override;
++    void set_bg_color(
++        orcus::spreadsheet::color_elem_t alpha,
++        orcus::spreadsheet::color_elem_t red,
++        orcus::spreadsheet::color_elem_t green,
++        orcus::spreadsheet::color_elem_t blue) override;
++    std::size_t commit() override;
++};
+ 
+-    void applyXfToItemSet(SfxItemSet& rSet, const xf& rXf);
++class ScOrcusImportBorderStyle : public orcus::spreadsheet::iface::import_border_style
++{
++    ScOrcusBorder maCurrentBorder;
++    std::vector<ScOrcusBorder>& mrBorders;
+ 
+ public:
+-    ScOrcusStyles( ScOrcusFactory& rFactory, bool bSkipDefaultStyles=false );
++    ScOrcusImportBorderStyle( std::vector<ScOrcusBorder>& rBorders );
+ 
+-    void applyXfToItemSet(SfxItemSet& rSet, size_t xfId);
++    void reset();
+ 
+-    // font
++    void set_width(
++        orcus::spreadsheet::border_direction_t dir, double width, orcus::length_unit_t unit) override;
++    void set_style(
++        orcus::spreadsheet::border_direction_t dir, orcus::spreadsheet::border_style_t style) override;
++    void set_color(
++        orcus::spreadsheet::border_direction_t dir,
++        orcus::spreadsheet::color_elem_t alpha,
++        orcus::spreadsheet::color_elem_t red,
++        orcus::spreadsheet::color_elem_t green,
++        orcus::spreadsheet::color_elem_t blue) override;
++    std::size_t commit() override;
++};
+ 
+-    virtual void set_font_count(size_t n) override;
+-    virtual void set_font_bold(bool b) override;
+-    virtual void set_font_italic(bool b) override;
+-    virtual void set_font_name(std::string_view name) override;
+-    virtual void set_font_size(double point) override;
+-    virtual void set_font_underline(orcus::spreadsheet::underline_t e) override;
+-    virtual void set_font_underline_width(orcus::spreadsheet::underline_width_t e) override;
+-    virtual void set_font_underline_mode(orcus::spreadsheet::underline_mode_t e) override;
+-    virtual void set_font_underline_type(orcus::spreadsheet::underline_type_t e) override;
+-    virtual void set_font_underline_color(orcus::spreadsheet::color_elem_t alpha,
+-            orcus::spreadsheet::color_elem_t red,
+-            orcus::spreadsheet::color_elem_t green,
+-            orcus::spreadsheet::color_elem_t blue) override;
+-    virtual void set_font_color( orcus::spreadsheet::color_elem_t alpha,
+-            orcus::spreadsheet::color_elem_t red,
+-            orcus::spreadsheet::color_elem_t green,
+-            orcus::spreadsheet::color_elem_t blue) override;
+-    virtual void set_strikethrough_style(orcus::spreadsheet::strikethrough_style_t s) override;
+-    virtual void set_strikethrough_type(orcus::spreadsheet::strikethrough_type_t s) override;
+-    virtual void set_strikethrough_width(orcus::spreadsheet::strikethrough_width_t s) override;
+-    virtual void set_strikethrough_text(orcus::spreadsheet::strikethrough_text_t s) override;
+-    virtual size_t commit_font() override;
++class ScOrcusImportCellProtection : public orcus::spreadsheet::iface::import_cell_protection
++{
++    ScOrcusProtection maCurrentProtection;
++    std::vector<ScOrcusProtection>& mrProtections;
+ 
+-    // fill
++public:
++    ScOrcusImportCellProtection( std::vector<ScOrcusProtection>& rProtections );
+ 
+-    virtual void set_fill_count(size_t n) override;
+-    virtual void set_fill_pattern_type(orcus::spreadsheet::fill_pattern_t fp) override;
+-    virtual void set_fill_fg_color(orcus::spreadsheet::color_elem_t alpha, orcus::spreadsheet::color_elem_t red, orcus::spreadsheet::color_elem_t green, orcus::spreadsheet::color_elem_t blue) override;
+-    virtual void set_fill_bg_color(orcus::spreadsheet::color_elem_t alpha, orcus::spreadsheet::color_elem_t red, orcus::spreadsheet::color_elem_t green, orcus::spreadsheet::color_elem_t blue) override;
+-    virtual size_t commit_fill() override;
++    void reset();
+ 
+-    // border
++    void set_hidden(bool b) override;
++    void set_locked(bool b) override;
++    void set_print_content(bool b) override;
++    void set_formula_hidden(bool b) override;
++    std::size_t commit() override;
++};
+ 
+-    virtual void set_border_count(size_t n) override;
++class ScOrcusImportNumberFormat : public orcus::spreadsheet::iface::import_number_format
++{
++    ScOrcusNumberFormat maCurrentFormat;
++    ScOrcusFactory& mrFactory;
++    std::vector<ScOrcusNumberFormat>& mrNumberFormats;
+ 
+-    virtual void set_border_style(orcus::spreadsheet::border_direction_t dir, orcus::spreadsheet::border_style_t style) override;
+-    virtual void set_border_color(orcus::spreadsheet::border_direction_t dir,
+-            orcus::spreadsheet::color_elem_t alpha,
+-            orcus::spreadsheet::color_elem_t red,
+-            orcus::spreadsheet::color_elem_t green,
+-            orcus::spreadsheet::color_elem_t blue) override;
+-    virtual void set_border_width(orcus::spreadsheet::border_direction_t dir, double val, orcus::length_unit_t unit) override;
+-    virtual size_t commit_border() override;
++public:
++    ScOrcusImportNumberFormat( ScOrcusFactory& rFactory, std::vector<ScOrcusNumberFormat>& rFormats );
+ 
+-    // cell protection
+-    virtual void set_cell_hidden(bool b) override;
+-    virtual void set_cell_locked(bool b) override;
+-    virtual void set_cell_print_content(bool b) override;
+-    virtual void set_cell_formula_hidden(bool b) override;
+-    virtual size_t commit_cell_protection() override;
++    void reset();
+ 
+-    // number format
+-    virtual void set_number_format_count(size_t n) override;
+-    virtual void set_number_format_identifier(size_t n) override;
+-    virtual void set_number_format_code(std::string_view s) override;
+-    virtual size_t commit_number_format() override;
++    void set_identifier(std::size_t id) override;
++    void set_code(std::string_view s) override;
++    std::size_t commit() override;
++};
+ 
+-    // cell style xf
++class ScOrucsImportCellStyle : public orcus::spreadsheet::iface::import_cell_style
++{
++    ScOrcusCellStyle maCurrentStyle;
++    ScOrcusFactory& mrFactory;
++    ScOrcusStyles& mrStyles;
++    const std::vector<ScOrcusXf>& mrXfs;
+ 
+-    virtual void set_cell_style_xf_count(size_t n) override;
+-    virtual size_t commit_cell_style_xf() override;
++public:
++    ScOrucsImportCellStyle(
++        ScOrcusFactory& rFactory, ScOrcusStyles& rStyles, const std::vector<ScOrcusXf>& rXfs );
+ 
+-    // cell xf
++    void reset();
+ 
+-    virtual void set_cell_xf_count(size_t n) override;
+-    virtual size_t commit_cell_xf() override;
++    void set_name(std::string_view s) override;
++    void set_display_name(std::string_view s) override;
++    void set_xf(std::size_t index) override;
++    void set_builtin(std::size_t index) override;
++    void set_parent_name(std::string_view s) override;
++    void commit() override;
++};
++
++class ScOrcusImportXf : public orcus::spreadsheet::iface::import_xf
++{
++    ScOrcusXf maCurrentXf;
++    std::vector<ScOrcusXf>* mpXfs = nullptr;
++
++public:
++    void reset( std::vector<ScOrcusXf>& rXfs );
++
++    void set_font(std::size_t index) override;
++    void set_fill(std::size_t index) override;
++    void set_border(std::size_t index) override;
++    void set_protection(std::size_t index) override;
++    void set_number_format(std::size_t index) override;
++    void set_style_xf(std::size_t index) override;
++    void set_apply_alignment(bool b) override;
++    void set_horizontal_alignment(orcus::spreadsheet::hor_alignment_t align) override;
++    void set_vertical_alignment(orcus::spreadsheet::ver_alignment_t align) override;
++    void set_wrap_text(bool b) override;
++    void set_shrink_to_fit(bool b) override;
++    std::size_t commit() override;
++};
+ 
+-    // dxf
+-    virtual void set_dxf_count(size_t count) override;
+-    virtual size_t commit_dxf() override;
++class ScOrcusStyles : public orcus::spreadsheet::iface::import_styles
++{
++private:
++    ScOrcusFactory& mrFactory;
+ 
+-    // xf (cell format) - used both by cell xf and cell style xf.
++    std::vector<ScOrcusFont> maFonts;
++    std::vector<ScOrcusFill> maFills;
++    std::vector<ScOrcusBorder> maBorders;
++    std::vector<ScOrcusProtection> maProtections;
++    std::vector<ScOrcusNumberFormat> maNumberFormats;
++    std::vector<ScOrcusXf> maCellXfs;
++    std::vector<ScOrcusXf> maCellStyleXfs;
++    std::vector<ScOrcusXf> maCellDiffXfs;
++
++    ScOrcusImportFontStyle maFontStyle;
++    ScOrcusImportFillStyle maFillStyle;
++    ScOrcusImportBorderStyle maBorderStyle;
++    ScOrcusImportCellProtection maCellProtection;
++    ScOrcusImportNumberFormat maNumberFormat;
++    ScOrucsImportCellStyle maCellStyle;
++    ScOrcusImportXf maXf;
++
++public:
++    ScOrcusStyles( ScOrcusFactory& rFactory, bool bSkipDefaultStyles=false );
+ 
+-    virtual void set_xf_number_format(size_t index) override;
+-    virtual void set_xf_font(size_t index) override;
+-    virtual void set_xf_fill(size_t index) override;
+-    virtual void set_xf_border(size_t index) override;
+-    virtual void set_xf_protection(size_t index) override;
+-    virtual void set_xf_style_xf(size_t index) override;
+-    virtual void set_xf_apply_alignment(bool b) override;
+-    virtual void set_xf_horizontal_alignment(orcus::spreadsheet::hor_alignment_t align) override;
+-    virtual void set_xf_vertical_alignment(orcus::spreadsheet::ver_alignment_t align) override;
++    void applyXfToItemSet( SfxItemSet& rSet, const ScOrcusXf& rXf );
++    void applyXfToItemSet( SfxItemSet& rSet, std::size_t xfId );
+ 
+-    // cell style entry
++    virtual orcus::spreadsheet::iface::import_font_style* start_font_style() override;
++    virtual orcus::spreadsheet::iface::import_fill_style* start_fill_style() override;
++    virtual orcus::spreadsheet::iface::import_border_style* start_border_style() override;
++    virtual orcus::spreadsheet::iface::import_cell_protection* start_cell_protection() override;
++    virtual orcus::spreadsheet::iface::import_number_format* start_number_format() override;
++    virtual orcus::spreadsheet::iface::import_xf* start_xf(orcus::spreadsheet::xf_category_t cat) override;
++    virtual orcus::spreadsheet::iface::import_cell_style* start_cell_style() override;
+ 
++    virtual void set_font_count(size_t n) override;
++    virtual void set_fill_count(size_t n) override;
++    virtual void set_border_count(size_t n) override;
++    virtual void set_number_format_count(size_t n) override;
++    virtual void set_xf_count(orcus::spreadsheet::xf_category_t cat, size_t n) override;
+     virtual void set_cell_style_count(size_t n) override;
+-    virtual void set_cell_style_name(std::string_view name) override;
+-    virtual void set_cell_style_xf(size_t index) override;
+-    virtual void set_cell_style_builtin(size_t index) override;
+-    virtual void set_cell_style_parent_name(std::string_view name) override;
+-    virtual size_t commit_cell_style() override;
+ };
+ 
+ class ScOrcusFactory : public orcus::spreadsheet::iface::import_factory
+diff -Naur libreoffice-7.5.5.2/sc/source/filter/orcus/filterdetect.cxx libreoffice-7.5.5.2.new/sc/source/filter/orcus/filterdetect.cxx
+--- libreoffice-7.5.5.2/sc/source/filter/orcus/filterdetect.cxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/sc/source/filter/orcus/filterdetect.cxx	2023-09-06 17:58:50.797071403 +0200
+@@ -80,7 +80,8 @@
+         aContent.WriteBytes(aSeq.getConstArray(), nReadBytes);
+     }
+ 
+-    orcus::format_t eFormat = orcus::detect(static_cast<const unsigned char*>(aContent.GetData()), aContent.GetSize());
++    std::string_view aStream(static_cast<const char*>(aContent.GetData()), aContent.GetSize());
++    orcus::format_t eFormat = orcus::detect(aStream);
+ 
+     switch (eFormat)
+     {
+diff -Naur libreoffice-7.5.5.2/sc/source/filter/orcus/interface.cxx libreoffice-7.5.5.2.new/sc/source/filter/orcus/interface.cxx
+--- libreoffice-7.5.5.2/sc/source/filter/orcus/interface.cxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/sc/source/filter/orcus/interface.cxx	2023-09-06 17:58:50.798071410 +0200
+@@ -726,16 +726,18 @@
+ 
+ }
+ 
+-void ScOrcusSheetProperties::set_column_width(os::col_t col, double width, orcus::length_unit_t unit)
++void ScOrcusSheetProperties::set_column_width(os::col_t col, os::col_t col_span, double width, orcus::length_unit_t unit)
+ {
+     double nNewWidth = translateToInternal(width, unit);
+-    mrDoc.getDoc().SetColWidthOnly(col, mnTab, nNewWidth);
++
++    for (os::col_t offset = 0; offset < col_span; ++offset)
++        mrDoc.getDoc().SetColWidthOnly(col + offset, mnTab, nNewWidth);
+ }
+ 
+-void ScOrcusSheetProperties::set_column_hidden(os::col_t col, bool hidden)
++void ScOrcusSheetProperties::set_column_hidden(os::col_t col, os::col_t col_span, bool hidden)
+ {
+     if (hidden)
+-        mrDoc.getDoc().SetColHidden(col, col, mnTab, hidden);
++        mrDoc.getDoc().SetColHidden(col, col + col_span - 1, mnTab, hidden);
+ }
+ 
+ void ScOrcusSheetProperties::set_row_height(os::row_t row, double height, orcus::length_unit_t unit)
+@@ -1223,6 +1225,25 @@
+     mrDoc.getDoc().ApplyPatternAreaTab(col_start, row_start, col_end, row_end, mnTab, aPattern);
+ }
+ 
++void ScOrcusSheet::set_column_format(
++    os::col_t col, os::col_t col_span, std::size_t xf_index)
++{
++    ScPatternAttr aPattern(mrDoc.getDoc().GetPool());
++    mrStyles.applyXfToItemSet(aPattern.GetItemSet(), xf_index);
++
++    mrDoc.getDoc().ApplyPatternAreaTab(
++        col, 0, col + col_span - 1, mrDoc.getDoc().MaxRow(), mnTab, aPattern);
++}
++
++void ScOrcusSheet::set_row_format(os::row_t row, std::size_t xf_index)
++{
++    ScPatternAttr aPattern(mrDoc.getDoc().GetPool());
++    mrStyles.applyXfToItemSet(aPattern.GetItemSet(), xf_index);
++
++    mrDoc.getDoc().ApplyPatternAreaTab(
++        0, row, mrDoc.getDoc().MaxCol(), row, mnTab, aPattern);
++}
++
+ orcus::spreadsheet::range_size_t ScOrcusSheet::get_sheet_size() const
+ {
+     orcus::spreadsheet::range_size_t ret;
+@@ -1307,42 +1328,42 @@
+         OStringToOUString(aStr, mrFactory.getGlobalSettings().getTextEncoding()));
+ }
+ 
+-ScOrcusStyles::ScOrcusStyles( ScOrcusFactory& rFactory, bool bSkipDefaultStyles ) :
+-    mrFactory(rFactory)
++void ScOrcusFont::applyToItemSet( SfxItemSet& rSet ) const
+ {
+-    ScDocument& rDoc = rFactory.getDoc().getDoc();
+-    if (!bSkipDefaultStyles && !rDoc.GetStyleSheetPool()->HasStandardStyles())
+-        rDoc.GetStyleSheetPool()->CreateStandardStyles();
+-}
+-
+-/*
+-namespace {
++    if (mbBold)
++    {
++        FontWeight eWeight = *mbBold ? WEIGHT_BOLD : WEIGHT_NORMAL;
++        rSet.Put(SvxWeightItem(eWeight, ATTR_FONT_WEIGHT));
++    }
+ 
+-std::ostream& operator<<(std::ostream& rStrm, const Color& rColor)
+-{
+-    rStrm << "Red: " << (int)rColor.GetRed() << ", Green: " << (int)rColor.GetGreen() << ", Blue: " << (int)rColor.GetBlue();
+-    return rStrm;
+-}
++    if (mbBoldAsian)
++    {
++        FontWeight eWeight = *mbBoldAsian ? WEIGHT_BOLD : WEIGHT_NORMAL;
++        rSet.Put(SvxWeightItem(eWeight, ATTR_CJK_FONT_WEIGHT));
++    }
+ 
+-}
+-*/
++    if (mbBoldComplex)
++    {
++        FontWeight eWeight = *mbBoldComplex ? WEIGHT_BOLD : WEIGHT_NORMAL;
++        rSet.Put(SvxWeightItem(eWeight, ATTR_CTL_FONT_WEIGHT));
++    }
+ 
+-void ScOrcusStyles::font::applyToItemSet(SfxItemSet& rSet) const
+-{
+     if (mbItalic)
+     {
+         FontItalic eItalic = *mbItalic ? ITALIC_NORMAL : ITALIC_NONE;
+         rSet.Put(SvxPostureItem(eItalic, ATTR_FONT_POSTURE));
++    }
++
++    if (mbItalicAsian)
++    {
++        FontItalic eItalic = *mbItalicAsian ? ITALIC_NORMAL : ITALIC_NONE;
+         rSet.Put(SvxPostureItem(eItalic, ATTR_CJK_FONT_POSTURE));
+-        rSet.Put(SvxPostureItem(eItalic, ATTR_CTL_FONT_POSTURE));
+     }
+ 
+-    if (mbBold)
++    if (mbItalicComplex)
+     {
+-        FontWeight eWeight = *mbBold ? WEIGHT_BOLD : WEIGHT_NORMAL;
+-        rSet.Put(SvxWeightItem(eWeight, ATTR_FONT_WEIGHT));
+-        rSet.Put(SvxWeightItem(eWeight, ATTR_CJK_FONT_WEIGHT));
+-        rSet.Put(SvxWeightItem(eWeight, ATTR_CTL_FONT_WEIGHT));
++        FontItalic eItalic = *mbItalicComplex ? ITALIC_NORMAL : ITALIC_NONE;
++        rSet.Put(SvxPostureItem(eItalic, ATTR_CTL_FONT_POSTURE));
+     }
+ 
+     if (maColor)
+@@ -1351,11 +1372,27 @@
+     if (maName && !maName->isEmpty())
+         rSet.Put( SvxFontItem( FAMILY_DONTKNOW, *maName, *maName, PITCH_DONTKNOW, RTL_TEXTENCODING_DONTKNOW, ATTR_FONT ));
+ 
++    if (maNameAsian && !maNameAsian->isEmpty())
++        rSet.Put( SvxFontItem( FAMILY_DONTKNOW, *maNameAsian, *maNameAsian, PITCH_DONTKNOW, RTL_TEXTENCODING_DONTKNOW, ATTR_CJK_FONT ));
++
++    if (maNameComplex && !maNameComplex->isEmpty())
++        rSet.Put( SvxFontItem( FAMILY_DONTKNOW, *maNameComplex, *maNameComplex, PITCH_DONTKNOW, RTL_TEXTENCODING_DONTKNOW, ATTR_CTL_FONT ));
++
+     if (mnSize)
+     {
+         double fSize = translateToInternal(*mnSize, orcus::length_unit_t::point);
+         rSet.Put(SvxFontHeightItem(fSize, 100, ATTR_FONT_HEIGHT));
++    }
++
++    if (mnSizeAsian)
++    {
++        double fSize = translateToInternal(*mnSizeAsian, orcus::length_unit_t::point);
+         rSet.Put(SvxFontHeightItem(fSize, 100, ATTR_CJK_FONT_HEIGHT));
++    }
++
++    if (mnSizeComplex)
++    {
++        double fSize = translateToInternal(*mnSizeComplex, orcus::length_unit_t::point);
+         rSet.Put(SvxFontHeightItem(fSize, 100, ATTR_CTL_FONT_HEIGHT));
+     }
+ 
+@@ -1363,7 +1400,11 @@
+     {
+         SvxUnderlineItem aUnderline(*meUnderline, ATTR_FONT_UNDERLINE);
+         if (maUnderlineColor)
++            // Separate color specified for the underline
+             aUnderline.SetColor(*maUnderlineColor);
++        else if (maColor)
++            // Use font color
++            aUnderline.SetColor(*maColor);
+         rSet.Put(aUnderline);
+     }
+ 
+@@ -1371,7 +1412,7 @@
+         rSet.Put(SvxCrossedOutItem(*meStrikeout, ATTR_FONT_CROSSEDOUT));
+ }
+ 
+-void ScOrcusStyles::fill::applyToItemSet(SfxItemSet& rSet) const
++void ScOrcusFill::applyToItemSet( SfxItemSet& rSet ) const
+ {
+     if (!mePattern || !maFgColor)
+         return;
+@@ -1380,42 +1421,26 @@
+         rSet.Put(SvxBrushItem(*maFgColor, ATTR_BACKGROUND));
+ }
+ 
+-void ScOrcusStyles::protection::applyToItemSet(SfxItemSet& rSet) const
++void ScOrcusBorder::applyToItemSet( SfxItemSet& rSet ) const
+ {
+-    if (!mbLocked && !mbHidden && !mbPrintContent && !mbFormulaHidden)
+-        return;
+-
+-    bool bLocked = mbLocked.value_or(true); // defaults to true.
+-    bool bHidden = mbHidden.value_or(false);
+-    bool bFormulaHidden = mbFormulaHidden.value_or(false);
+-    bool bPrintContent = mbPrintContent.value_or(false);
+-    rSet.Put(ScProtectionAttr(bLocked, bFormulaHidden, bHidden, bPrintContent));
+-}
+-
+-namespace {
+-
+-SvxBoxItemLine getDirection(os::border_direction_t dir)
+-{
+-    switch (dir)
++    auto getDirection = [](os::border_direction_t dir) -> SvxBoxItemLine
+     {
+-        case os::border_direction_t::right:
+-            return SvxBoxItemLine::RIGHT;
+-        case os::border_direction_t::left:
+-            return SvxBoxItemLine::LEFT;
+-        case os::border_direction_t::top:
+-            return SvxBoxItemLine::TOP;
+-        case os::border_direction_t::bottom:
+-            return SvxBoxItemLine::BOTTOM;
+-        default:
+-        break;
+-    }
+-    return SvxBoxItemLine::RIGHT;
+-}
+-
+-}
++        switch (dir)
++        {
++            case os::border_direction_t::right:
++                return SvxBoxItemLine::RIGHT;
++            case os::border_direction_t::left:
++                return SvxBoxItemLine::LEFT;
++            case os::border_direction_t::top:
++                return SvxBoxItemLine::TOP;
++            case os::border_direction_t::bottom:
++                return SvxBoxItemLine::BOTTOM;
++            default:
++                ;
++        }
++        return SvxBoxItemLine::RIGHT;
++    };
+ 
+-void ScOrcusStyles::border::applyToItemSet(SfxItemSet& rSet) const
+-{
+     if (maBorders.empty())
+         return;
+ 
+@@ -1458,7 +1483,19 @@
+     rSet.Put(aBoxItem);
+ }
+ 
+-void ScOrcusStyles::number_format::applyToItemSet(SfxItemSet& rSet, const ScDocument& rDoc) const
++void ScOrcusProtection::applyToItemSet( SfxItemSet& rSet ) const
++{
++    if (!mbLocked && !mbHidden && !mbPrintContent && !mbFormulaHidden)
++        return;
++
++    bool bLocked = mbLocked.value_or(true); // defaults to true.
++    bool bHidden = mbHidden.value_or(false);
++    bool bFormulaHidden = mbFormulaHidden.value_or(false);
++    bool bPrintContent = mbPrintContent.value_or(false);
++    rSet.Put(ScProtectionAttr(bLocked, bFormulaHidden, bHidden, bPrintContent));
++}
++
++void ScOrcusNumberFormat::applyToItemSet( SfxItemSet& rSet, const ScDocument& rDoc ) const
+ {
+     if (!maCode)
+         return;
+@@ -1474,14 +1511,16 @@
+         rSet.Put(SfxUInt32Item(ATTR_VALUE_FORMAT, nKey));
+ }
+ 
+-ScOrcusStyles::xf::xf():
++ScOrcusXf::ScOrcusXf() :
+     mnFontId(0),
+     mnFillId(0),
+     mnBorderId(0),
+     mnProtectionId(0),
+     mnNumberFormatId(0),
+     mnStyleXf(0),
+-    mbAlignment(false),
++    mbApplyAlignment(false),
++    mbWrapText(false),
++    mbShrinkToFit(false),
+     meHorAlignment(SvxCellHorJustify::Standard),
+     meVerAlignment(SvxCellVerJustify::Standard),
+     meHorAlignMethod(SvxCellJustifyMethod::Auto),
+@@ -1489,139 +1528,118 @@
+ {
+ }
+ 
+-ScOrcusStyles::cell_style::cell_style():
+-    maParentName(OUString(SC_STYLE_PROG_STANDARD)),
++ScOrcusCellStyle::ScOrcusCellStyle() :
++    maParentName(SC_STYLE_PROG_STANDARD),
+     mnXFId(0),
+     mnBuiltInId(0)
+ {
+ }
+ 
+-void ScOrcusStyles::applyXfToItemSet(SfxItemSet& rSet, const xf& rXf)
++ScOrcusImportFontStyle::ScOrcusImportFontStyle( ScOrcusFactory& rFactory, std::vector<ScOrcusFont>& rFonts ) :
++    mrFactory(rFactory),
++    mrFonts(rFonts)
+ {
+-    size_t nFontId = rXf.mnFontId;
+-    if (nFontId >= maFonts.size())
+-    {
+-        SAL_WARN("sc.orcus.style", "invalid font id");
+-        return;
+-    }
+-
+-    maFonts[nFontId].applyToItemSet(rSet);
+-
+-    size_t nFillId = rXf.mnFillId;
+-    if (nFillId >= maFills.size())
+-    {
+-        SAL_WARN("sc.orcus.style", "invalid fill id");
+-        return;
+-    }
+-
+-    const fill& rFill = maFills[nFillId];
+-    rFill.applyToItemSet(rSet);
+-
+-    size_t nBorderId = rXf.mnBorderId;
+-    if (nBorderId >= maBorders.size())
+-    {
+-        SAL_WARN("sc.orcus.style", "invalid border id");
+-        return;
+-    }
+-    maBorders[nBorderId].applyToItemSet(rSet);
++}
+ 
+-    size_t nProtectionId = rXf.mnProtectionId;
+-    if (nProtectionId >= maProtections.size())
+-    {
+-        SAL_WARN("sc.orcus.style", "invalid protection id");
+-        return;
+-    }
++void ScOrcusImportFontStyle::reset()
++{
++    maCurrentFont = ScOrcusFont();
++}
+ 
+-    maProtections[nProtectionId].applyToItemSet(rSet);
++void ScOrcusImportFontStyle::set_bold(bool b)
++{
++    maCurrentFont.mbBold = b;
++}
+ 
+-    size_t nNumberFormatId = rXf.mnNumberFormatId;
+-    if (nNumberFormatId >= maNumberFormats.size())
+-    {
+-        SAL_WARN("sc.orcus.style", "invalid number format id");
+-        return;
+-    }
+-    const number_format& rFormat = maNumberFormats[nNumberFormatId];
+-    rFormat.applyToItemSet(rSet, mrFactory.getDoc().getDoc());
++void ScOrcusImportFontStyle::set_bold_asian(bool b)
++{
++    maCurrentFont.mbBoldAsian = b;
++}
+ 
+-    if(rXf.mbAlignment)
+-    {
+-        rSet.Put(SvxHorJustifyItem(rXf.meHorAlignment, ATTR_HOR_JUSTIFY));
+-        rSet.Put(SvxVerJustifyItem(rXf.meVerAlignment, ATTR_VER_JUSTIFY));
+-        rSet.Put(SvxJustifyMethodItem(rXf.meHorAlignMethod, ATTR_HOR_JUSTIFY_METHOD));
+-        rSet.Put(SvxJustifyMethodItem(rXf.meVerAlignMethod, ATTR_VER_JUSTIFY_METHOD));
+-    }
++void ScOrcusImportFontStyle::set_bold_complex(bool b)
++{
++    maCurrentFont.mbBoldComplex = b;
+ }
+ 
+-void ScOrcusStyles::applyXfToItemSet(SfxItemSet& rSet, size_t xfId)
++void ScOrcusImportFontStyle::set_italic(bool b)
+ {
+-    SAL_INFO("sc.orcus.style", "applyXfToitemSet: " << xfId);
+-    if (maCellXfs.size() <= xfId)
+-    {
+-        SAL_WARN("sc.orcus.style", "invalid xf id");
+-        return;
+-    }
++    maCurrentFont.mbItalic = b;
++}
+ 
+-    const xf& rXf = maCellXfs[xfId];
+-    applyXfToItemSet(rSet, rXf);
++void ScOrcusImportFontStyle::set_italic_asian(bool b)
++{
++    maCurrentFont.mbItalicAsian = b;
+ }
+ 
+-void ScOrcusStyles::set_font_count(size_t /*n*/)
++void ScOrcusImportFontStyle::set_italic_complex(bool b)
+ {
+-    // needed at all?
++    maCurrentFont.mbItalicComplex = b;
+ }
+ 
+-void ScOrcusStyles::set_font_bold(bool b)
++void ScOrcusImportFontStyle::set_name(std::string_view name)
+ {
+-    maCurrentFont.mbBold = b;
++    OUString aName(name.data(), name.size(), mrFactory.getGlobalSettings().getTextEncoding());
++    maCurrentFont.maName = aName;
+ }
+ 
+-void ScOrcusStyles::set_font_italic(bool b)
++void ScOrcusImportFontStyle::set_name_asian(std::string_view name)
+ {
+-    maCurrentFont.mbItalic = b;
++    OUString aName(name.data(), name.size(), mrFactory.getGlobalSettings().getTextEncoding());
++    maCurrentFont.maNameAsian = aName;
+ }
+ 
+-void ScOrcusStyles::set_font_name(std::string_view name)
++void ScOrcusImportFontStyle::set_name_complex(std::string_view name)
+ {
+     OUString aName(name.data(), name.size(), mrFactory.getGlobalSettings().getTextEncoding());
+-    maCurrentFont.maName = aName;
++    maCurrentFont.maNameComplex = aName;
+ }
+ 
+-void ScOrcusStyles::set_font_size(double point)
++void ScOrcusImportFontStyle::set_size(double point)
+ {
+     maCurrentFont.mnSize = point;
+ }
+ 
+-void ScOrcusStyles::set_font_underline(orcus::spreadsheet::underline_t e)
++void ScOrcusImportFontStyle::set_size_asian(double point)
++{
++    maCurrentFont.mnSizeAsian = point;
++}
++
++void ScOrcusImportFontStyle::set_size_complex(double point)
++{
++    maCurrentFont.mnSizeComplex = point;
++}
++
++void ScOrcusImportFontStyle::set_underline(os::underline_t e)
+ {
+     switch(e)
+     {
+-        case orcus::spreadsheet::underline_t::single_line:
+-        case orcus::spreadsheet::underline_t::single_accounting:
++        case os::underline_t::single_line:
++        case os::underline_t::single_accounting:
+             maCurrentFont.meUnderline = LINESTYLE_SINGLE;
+             break;
+-        case orcus::spreadsheet::underline_t::double_line:
+-        case orcus::spreadsheet::underline_t::double_accounting:
++        case os::underline_t::double_line:
++        case os::underline_t::double_accounting:
+             maCurrentFont.meUnderline = LINESTYLE_DOUBLE;
+             break;
+-        case orcus::spreadsheet::underline_t::none:
++        case os::underline_t::none:
+             maCurrentFont.meUnderline = LINESTYLE_NONE;
+             break;
+-        case orcus::spreadsheet::underline_t::dotted:
++        case os::underline_t::dotted:
+             maCurrentFont.meUnderline = LINESTYLE_DOTTED;
+             break;
+-        case orcus::spreadsheet::underline_t::dash:
++        case os::underline_t::dash:
+             maCurrentFont.meUnderline = LINESTYLE_DASH;
+             break;
+-        case orcus::spreadsheet::underline_t::long_dash:
++        case os::underline_t::long_dash:
+             maCurrentFont.meUnderline = LINESTYLE_LONGDASH;
+             break;
+-        case orcus::spreadsheet::underline_t::dot_dash:
++        case os::underline_t::dot_dash:
+             maCurrentFont.meUnderline = LINESTYLE_DASHDOT;
+             break;
+-        case orcus::spreadsheet::underline_t::dot_dot_dot_dash:
+-            maCurrentFont.meUnderline = LINESTYLE_DASHDOTDOT; // dot-dot-dot-dash is absent from underline types in libo
++        case os::underline_t::dot_dot_dash:
++            maCurrentFont.meUnderline = LINESTYLE_DASHDOTDOT;
+             break;
+-        case orcus::spreadsheet::underline_t::wave:
++        case os::underline_t::wave:
+             maCurrentFont.meUnderline = LINESTYLE_WAVE;
+             break;
+         default:
+@@ -1629,9 +1647,9 @@
+     }
+ }
+ 
+-void ScOrcusStyles::set_font_underline_width(orcus::spreadsheet::underline_width_t e )
++void ScOrcusImportFontStyle::set_underline_width(os::underline_width_t e)
+ {
+-    if (e == orcus::spreadsheet::underline_width_t::bold || e == orcus::spreadsheet::underline_width_t::thick)
++    if (e == os::underline_width_t::bold || e == os::underline_width_t::thick)
+     {
+         if (maCurrentFont.meUnderline)
+         {
+@@ -1668,13 +1686,13 @@
+     }
+ }
+ 
+-void ScOrcusStyles::set_font_underline_mode(orcus::spreadsheet::underline_mode_t /*e*/)
++void ScOrcusImportFontStyle::set_underline_mode(os::underline_mode_t /*e*/)
+ {
+ }
+ 
+-void ScOrcusStyles::set_font_underline_type(orcus::spreadsheet::underline_type_t  e )
++void ScOrcusImportFontStyle::set_underline_type(os::underline_type_t  e )
+ {
+-    if (e == orcus::spreadsheet::underline_type_t::double_type)
++    if (e == os::underline_type_t::double_type)
+     {
+         if (maCurrentFont.meUnderline)
+         {
+@@ -1696,27 +1714,23 @@
+     }
+ }
+ 
+-void ScOrcusStyles::set_font_underline_color(orcus::spreadsheet::color_elem_t alpha,
+-            orcus::spreadsheet::color_elem_t red,
+-            orcus::spreadsheet::color_elem_t green,
+-            orcus::spreadsheet::color_elem_t blue)
++void ScOrcusImportFontStyle::set_underline_color(
++    os::color_elem_t alpha, os::color_elem_t red, os::color_elem_t green, os::color_elem_t blue)
+ {
+     maCurrentFont.maUnderlineColor = Color(ColorAlpha, alpha, red, green, blue);
+ }
+ 
+-void ScOrcusStyles::set_font_color(orcus::spreadsheet::color_elem_t alpha,
+-            orcus::spreadsheet::color_elem_t red,
+-            orcus::spreadsheet::color_elem_t green,
+-            orcus::spreadsheet::color_elem_t blue)
++void ScOrcusImportFontStyle::set_color(
++    os::color_elem_t alpha, os::color_elem_t red, os::color_elem_t green, os::color_elem_t blue)
+ {
+     maCurrentFont.maColor = Color(ColorAlpha, alpha, red, green, blue);
+ }
+ 
+-void ScOrcusStyles::set_strikethrough_style(orcus::spreadsheet::strikethrough_style_t /*s*/)
++void ScOrcusImportFontStyle::set_strikethrough_style(os::strikethrough_style_t /*s*/)
+ {
+ }
+ 
+-void ScOrcusStyles::set_strikethrough_type(orcus::spreadsheet::strikethrough_type_t s)
++void ScOrcusImportFontStyle::set_strikethrough_type(os::strikethrough_type_t s)
+ {
+     if (maCurrentFont.meStrikeout)
+     {
+@@ -1734,7 +1748,7 @@
+         case os::strikethrough_type_t::none:
+             maCurrentFont.meStrikeout = STRIKEOUT_NONE;
+             break;
+-        case os::strikethrough_type_t::single:
++        case os::strikethrough_type_t::single_type:
+             maCurrentFont.meStrikeout = STRIKEOUT_SINGLE;
+             break;
+         case os::strikethrough_type_t::double_type:
+@@ -1745,7 +1759,7 @@
+     }
+ }
+ 
+-void ScOrcusStyles::set_strikethrough_width(orcus::spreadsheet::strikethrough_width_t s)
++void ScOrcusImportFontStyle::set_strikethrough_width(os::strikethrough_width_t s)
+ {
+     switch (s)
+     {
+@@ -1757,7 +1771,7 @@
+     }
+ }
+ 
+-void ScOrcusStyles::set_strikethrough_text(orcus::spreadsheet::strikethrough_text_t s)
++void ScOrcusImportFontStyle::set_strikethrough_text(os::strikethrough_text_t s)
+ {
+     switch (s)
+     {
+@@ -1772,388 +1786,571 @@
+     }
+ }
+ 
+-size_t ScOrcusStyles::commit_font()
++std::size_t ScOrcusImportFontStyle::commit()
+ {
+     SAL_INFO("sc.orcus.style", "commit font");
+-    maFonts.push_back(maCurrentFont);
+-    maCurrentFont = ScOrcusStyles::font();
+-    return maFonts.size() - 1;
++    mrFonts.push_back(maCurrentFont);
++    maCurrentFont = ScOrcusFont();
++    return mrFonts.size() - 1;
+ }
+ 
+-// fill
++ScOrcusImportFillStyle::ScOrcusImportFillStyle( std::vector<ScOrcusFill>& rFills ) :
++    mrFills(rFills)
++{
++}
+ 
+-void ScOrcusStyles::set_fill_count(size_t /*n*/)
++void ScOrcusImportFillStyle::reset()
+ {
+-    // needed at all?
++    maCurrentFill = ScOrcusFill();
+ }
+ 
+-void ScOrcusStyles::set_fill_pattern_type(orcus::spreadsheet::fill_pattern_t fp)
++void ScOrcusImportFillStyle::set_pattern_type(os::fill_pattern_t fp)
+ {
+     maCurrentFill.mePattern = fp;
+ }
+ 
+-void ScOrcusStyles::set_fill_fg_color(
+-    orcus::spreadsheet::color_elem_t alpha, orcus::spreadsheet::color_elem_t red, orcus::spreadsheet::color_elem_t green, orcus::spreadsheet::color_elem_t blue)
++void ScOrcusImportFillStyle::set_fg_color(
++    os::color_elem_t alpha, os::color_elem_t red, os::color_elem_t green, os::color_elem_t blue)
+ {
+     maCurrentFill.maFgColor = Color(ColorAlpha, alpha, red, green, blue);
+ }
+ 
+-void ScOrcusStyles::set_fill_bg_color(
+-    orcus::spreadsheet::color_elem_t alpha, orcus::spreadsheet::color_elem_t red, orcus::spreadsheet::color_elem_t green, orcus::spreadsheet::color_elem_t blue)
++void ScOrcusImportFillStyle::set_bg_color(
++    os::color_elem_t alpha, os::color_elem_t red, os::color_elem_t green, os::color_elem_t blue)
+ {
+     maCurrentFill.maBgColor = Color(ColorAlpha, alpha, red, green, blue);
+ }
+ 
+-size_t ScOrcusStyles::commit_fill()
++std::size_t ScOrcusImportFillStyle::commit()
+ {
+     SAL_INFO("sc.orcus.style", "commit fill");
+-    maFills.push_back(maCurrentFill);
+-    maCurrentFill = ScOrcusStyles::fill();
+-    return maFills.size() - 1;
++    mrFills.push_back(maCurrentFill);
++    maCurrentFill = ScOrcusFill();
++    return mrFills.size() - 1;
+ }
+ 
+-// border
+-
+-void ScOrcusStyles::set_border_count(size_t /*n*/)
++ScOrcusImportBorderStyle::ScOrcusImportBorderStyle( std::vector<ScOrcusBorder>& rBorders ) :
++    mrBorders(rBorders)
+ {
+-    // needed at all?
+ }
+ 
+-void ScOrcusStyles::set_border_style(
+-    orcus::spreadsheet::border_direction_t dir, orcus::spreadsheet::border_style_t style)
++void ScOrcusImportBorderStyle::set_style(
++    os::border_direction_t dir, os::border_style_t style)
+ {
+-    border::border_line& rBorder = maCurrentBorder.maBorders[dir];
++    ScOrcusBorder::BorderLine& rBorderLine = maCurrentBorder.maBorders[dir];
+ 
+     switch (style)
+     {
+-        case orcus::spreadsheet::border_style_t::solid:
+-            rBorder.meStyle = SvxBorderLineStyle::SOLID;
+-            rBorder.mnWidth = oox::xls::API_LINE_THIN;
+-            break;
+-        case orcus::spreadsheet::border_style_t::hair:
+-            rBorder.meStyle = SvxBorderLineStyle::SOLID;
+-            rBorder.mnWidth = oox::xls::API_LINE_HAIR;
+-            break;
+-        case orcus::spreadsheet::border_style_t::medium:
+-            rBorder.meStyle = SvxBorderLineStyle::SOLID;
+-            rBorder.mnWidth = oox::xls::API_LINE_MEDIUM;
+-            break;
+-        case orcus::spreadsheet::border_style_t::thick:
+-            rBorder.meStyle = SvxBorderLineStyle::SOLID;
+-            rBorder.mnWidth = oox::xls::API_LINE_THICK;
+-            break;
+-        case orcus::spreadsheet::border_style_t::thin:
+-            rBorder.meStyle = SvxBorderLineStyle::SOLID;
+-            rBorder.mnWidth = oox::xls::API_LINE_THIN;
+-            break;
+-        case orcus::spreadsheet::border_style_t::dash_dot:
+-            rBorder.meStyle = SvxBorderLineStyle::DASH_DOT;
+-            rBorder.mnWidth = oox::xls::API_LINE_THIN;
+-            break;
+-        case orcus::spreadsheet::border_style_t::dash_dot_dot:
+-            rBorder.meStyle = SvxBorderLineStyle::DASH_DOT_DOT;
+-            rBorder.mnWidth = oox::xls::API_LINE_THIN;
+-            break;
+-        case orcus::spreadsheet::border_style_t::dashed:
+-            rBorder.meStyle = SvxBorderLineStyle::DASHED;
+-            rBorder.mnWidth = oox::xls::API_LINE_THIN;
+-            break;
+-        case orcus::spreadsheet::border_style_t::dotted:
+-            rBorder.meStyle = SvxBorderLineStyle::DOTTED;
+-            rBorder.mnWidth = oox::xls::API_LINE_THIN;
+-            break;
+-        case orcus::spreadsheet::border_style_t::double_border:
+-            rBorder.meStyle = SvxBorderLineStyle::DOUBLE;
+-            rBorder.mnWidth = oox::xls::API_LINE_THICK;
+-            break;
+-        case orcus::spreadsheet::border_style_t::medium_dash_dot:
+-        case orcus::spreadsheet::border_style_t::slant_dash_dot:
+-            rBorder.meStyle = SvxBorderLineStyle::DASH_DOT;
+-            rBorder.mnWidth = oox::xls::API_LINE_MEDIUM;
+-            break;
+-        case orcus::spreadsheet::border_style_t::medium_dash_dot_dot:
+-            rBorder.meStyle = SvxBorderLineStyle::DASH_DOT_DOT;
+-            rBorder.mnWidth = oox::xls::API_LINE_MEDIUM;
+-            break;
+-        case orcus::spreadsheet::border_style_t::medium_dashed:
+-            rBorder.meStyle = SvxBorderLineStyle::DASHED;
+-            rBorder.mnWidth = oox::xls::API_LINE_MEDIUM;
+-            break;
+-        case orcus::spreadsheet::border_style_t::unknown:
+-        case orcus::spreadsheet::border_style_t::none:
+-            rBorder.mnWidth = oox::xls::API_LINE_NONE;
++        case os::border_style_t::solid:
++            rBorderLine.meStyle = SvxBorderLineStyle::SOLID;
++            rBorderLine.mnWidth = oox::xls::API_LINE_THIN;
++            break;
++        case os::border_style_t::hair:
++            rBorderLine.meStyle = SvxBorderLineStyle::SOLID;
++            rBorderLine.mnWidth = oox::xls::API_LINE_HAIR;
++            break;
++        case os::border_style_t::medium:
++            rBorderLine.meStyle = SvxBorderLineStyle::SOLID;
++            rBorderLine.mnWidth = oox::xls::API_LINE_MEDIUM;
++            break;
++        case os::border_style_t::thick:
++            rBorderLine.meStyle = SvxBorderLineStyle::SOLID;
++            rBorderLine.mnWidth = oox::xls::API_LINE_THICK;
++            break;
++        case os::border_style_t::thin:
++            rBorderLine.meStyle = SvxBorderLineStyle::SOLID;
++            rBorderLine.mnWidth = oox::xls::API_LINE_THIN;
++            break;
++        case os::border_style_t::dash_dot:
++            rBorderLine.meStyle = SvxBorderLineStyle::DASH_DOT;
++            rBorderLine.mnWidth = oox::xls::API_LINE_THIN;
++            break;
++        case os::border_style_t::dash_dot_dot:
++            rBorderLine.meStyle = SvxBorderLineStyle::DASH_DOT_DOT;
++            rBorderLine.mnWidth = oox::xls::API_LINE_THIN;
++            break;
++        case os::border_style_t::dashed:
++            rBorderLine.meStyle = SvxBorderLineStyle::DASHED;
++            rBorderLine.mnWidth = oox::xls::API_LINE_THIN;
++            break;
++        case os::border_style_t::dotted:
++            rBorderLine.meStyle = SvxBorderLineStyle::DOTTED;
++            rBorderLine.mnWidth = oox::xls::API_LINE_THIN;
++            break;
++        case os::border_style_t::double_border:
++            rBorderLine.meStyle = SvxBorderLineStyle::DOUBLE;
++            rBorderLine.mnWidth = oox::xls::API_LINE_THICK;
++            break;
++        case os::border_style_t::medium_dash_dot:
++        case os::border_style_t::slant_dash_dot:
++            rBorderLine.meStyle = SvxBorderLineStyle::DASH_DOT;
++            rBorderLine.mnWidth = oox::xls::API_LINE_MEDIUM;
++            break;
++        case os::border_style_t::medium_dash_dot_dot:
++            rBorderLine.meStyle = SvxBorderLineStyle::DASH_DOT_DOT;
++            rBorderLine.mnWidth = oox::xls::API_LINE_MEDIUM;
++            break;
++        case os::border_style_t::medium_dashed:
++            rBorderLine.meStyle = SvxBorderLineStyle::DASHED;
++            rBorderLine.mnWidth = oox::xls::API_LINE_MEDIUM;
++            break;
++        case os::border_style_t::unknown:
++        case os::border_style_t::none:
++            rBorderLine.mnWidth = oox::xls::API_LINE_NONE;
+             break;
+         default:
+             ;
+     }
+ }
+ 
+-void ScOrcusStyles::set_border_color(orcus::spreadsheet::border_direction_t dir,
+-            orcus::spreadsheet::color_elem_t alpha,
+-            orcus::spreadsheet::color_elem_t red,
+-            orcus::spreadsheet::color_elem_t green,
+-            orcus::spreadsheet::color_elem_t blue)
++void ScOrcusImportBorderStyle::set_color(
++    os::border_direction_t dir, os::color_elem_t alpha, os::color_elem_t red,
++    os::color_elem_t green, os::color_elem_t blue)
+ {
+-    border::border_line& current_line = maCurrentBorder.maBorders[dir];
+-    current_line.maColor = Color(ColorAlpha, alpha, red, green, blue);
++    ScOrcusBorder::BorderLine& rBorderLine = maCurrentBorder.maBorders[dir];
++    rBorderLine.maColor = Color(ColorAlpha, alpha, red, green, blue);
+ }
+ 
+-void ScOrcusStyles::set_border_width(orcus::spreadsheet::border_direction_t  dir, double val, orcus::length_unit_t  unit )
++void ScOrcusImportBorderStyle::reset()
+ {
+-    border::border_line& current_line = maCurrentBorder.maBorders[dir];
+-    current_line.mnWidth = translateToInternal(val, unit);
++    maCurrentBorder = ScOrcusBorder();
+ }
+ 
+-size_t ScOrcusStyles::commit_border()
++void ScOrcusImportBorderStyle::set_width(os::border_direction_t  dir, double val, orcus::length_unit_t unit)
++{
++    ScOrcusBorder::BorderLine& rBorderLine = maCurrentBorder.maBorders[dir];
++    rBorderLine.mnWidth = translateToInternal(val, unit);
++}
++
++std::size_t ScOrcusImportBorderStyle::commit()
+ {
+     SAL_INFO("sc.orcus.style", "commit border");
+-    maBorders.push_back(maCurrentBorder);
+-    maCurrentBorder = ScOrcusStyles::border();
+-    return maBorders.size() - 1;
++    mrBorders.push_back(maCurrentBorder);
++    maCurrentBorder = ScOrcusBorder();
++    return mrBorders.size() - 1;
++}
++
++ScOrcusImportCellProtection::ScOrcusImportCellProtection( std::vector<ScOrcusProtection>& rProtections ) :
++    mrProtections(rProtections)
++{
++}
++
++void ScOrcusImportCellProtection::reset()
++{
++    maCurrentProtection = ScOrcusProtection();
+ }
+ 
+-// cell protection
+-void ScOrcusStyles::set_cell_hidden(bool b)
++void ScOrcusImportCellProtection::set_hidden(bool b)
+ {
+     maCurrentProtection.mbHidden = b;
+ }
+ 
+-void ScOrcusStyles::set_cell_locked(bool b)
++void ScOrcusImportCellProtection::set_locked(bool b)
+ {
+     maCurrentProtection.mbLocked = b;
+ }
+ 
+-void ScOrcusStyles::set_cell_print_content(bool b )
++void ScOrcusImportCellProtection::set_print_content(bool b )
+ {
+     maCurrentProtection.mbPrintContent = b;
+ }
+ 
+-void ScOrcusStyles::set_cell_formula_hidden(bool b )
++void ScOrcusImportCellProtection::set_formula_hidden(bool b )
+ {
+     maCurrentProtection.mbFormulaHidden = b;
+ }
+ 
+-size_t ScOrcusStyles::commit_cell_protection()
++std::size_t ScOrcusImportCellProtection::commit()
+ {
+     SAL_INFO("sc.orcus.style", "commit cell protection");
+-    maProtections.push_back(maCurrentProtection);
+-    maCurrentProtection = ScOrcusStyles::protection();
+-    return maProtections.size() - 1;
++    mrProtections.push_back(maCurrentProtection);
++    maCurrentProtection = ScOrcusProtection();
++    return mrProtections.size() - 1;
++}
++
++ScOrcusImportNumberFormat::ScOrcusImportNumberFormat( ScOrcusFactory& rFactory, std::vector<ScOrcusNumberFormat>& rFormats ) :
++    mrFactory(rFactory), mrNumberFormats(rFormats)
++{
+ }
+ 
+-void ScOrcusStyles::set_number_format_count(size_t)
++void ScOrcusImportNumberFormat::reset()
+ {
++    maCurrentFormat = ScOrcusNumberFormat();
+ }
+ 
+-void ScOrcusStyles::set_number_format_identifier(size_t)
++void ScOrcusImportNumberFormat::set_identifier(std::size_t /*id*/)
+ {
+ }
+ 
+-void ScOrcusStyles::set_number_format_code(std::string_view s)
++void ScOrcusImportNumberFormat::set_code(std::string_view s)
+ {
+     OUString aCode(s.data(), s.size(), mrFactory.getGlobalSettings().getTextEncoding());
+-    maCurrentNumberFormat.maCode = aCode;
++    maCurrentFormat.maCode = aCode;
+ }
+ 
+-size_t ScOrcusStyles::commit_number_format()
++std::size_t ScOrcusImportNumberFormat::commit()
+ {
+     SAL_INFO("sc.orcus.style", "commit number format");
+-    maNumberFormats.push_back(maCurrentNumberFormat);
+-    maCurrentNumberFormat = ScOrcusStyles::number_format();
+-    return maNumberFormats.size() - 1;
++    mrNumberFormats.push_back(maCurrentFormat);
++    maCurrentFormat = ScOrcusNumberFormat();
++    return mrNumberFormats.size() - 1;
+ }
+ 
+-// cell style xf
+-
+-void ScOrcusStyles::set_cell_style_xf_count(size_t /*n*/)
++ScOrucsImportCellStyle::ScOrucsImportCellStyle(
++    ScOrcusFactory& rFactory, ScOrcusStyles& rStyles, const std::vector<ScOrcusXf>& rXfs ) :
++    mrFactory(rFactory),
++    mrStyles(rStyles),
++    mrXfs(rXfs)
+ {
+-    // needed at all?
+ }
+ 
+-size_t ScOrcusStyles::commit_cell_style_xf()
++void ScOrucsImportCellStyle::reset()
+ {
+-    SAL_INFO("sc.orcus.style", "commit cell style xf");
+-    maCellStyleXfs.push_back(maCurrentXF);
+-    return maCellStyleXfs.size() - 1;
++    maCurrentStyle = ScOrcusCellStyle();
+ }
+ 
+-// cell xf
++void ScOrucsImportCellStyle::set_name(std::string_view name)
++{
++    OUString aName(name.data(), name.size(), mrFactory.getGlobalSettings().getTextEncoding());
++    maCurrentStyle.maName = aName;
++}
+ 
+-void ScOrcusStyles::set_cell_xf_count(size_t /*n*/)
++void ScOrucsImportCellStyle::set_display_name(std::string_view name)
+ {
+-    // needed at all?
++    OUString aName(name.data(), name.size(), mrFactory.getGlobalSettings().getTextEncoding());
++    maCurrentStyle.maDisplayName = aName;
+ }
+ 
+-size_t ScOrcusStyles::commit_cell_xf()
++void ScOrucsImportCellStyle::set_xf(size_t index)
+ {
+-    SAL_INFO("sc.orcus.style", "commit cell xf");
+-    maCellXfs.push_back(maCurrentXF);
+-    return maCellXfs.size() - 1;
++    maCurrentStyle.mnXFId = index;
+ }
+ 
+-// dxf
++void ScOrucsImportCellStyle::set_builtin(size_t index)
++{
++    maCurrentStyle.mnBuiltInId = index;
++}
+ 
+-void ScOrcusStyles::set_dxf_count(size_t /*n*/)
++void ScOrucsImportCellStyle::set_parent_name(std::string_view name)
+ {
++    const OUString aParentName(name.data(), name.size(), mrFactory.getGlobalSettings().getTextEncoding());
++    maCurrentStyle.maParentName = aParentName;
+ }
+ 
+-size_t ScOrcusStyles::commit_dxf()
++void ScOrucsImportCellStyle::commit()
+ {
+-    return 0;
++    SAL_INFO("sc.orcus.style", "commit cell style: " << maCurrentStyle.maName);
++    if (maCurrentStyle.mnXFId >= mrXfs.size())
++    {
++        SAL_WARN("sc.orcus.style", "invalid xf id for commit cell style");
++        return;
++    }
++
++    if (maCurrentStyle.mnXFId == 0)
++        return;
++
++    ScStyleSheetPool* pPool = mrFactory.getDoc().getDoc().GetStyleSheetPool();
++    SfxStyleSheetBase& rBase = pPool->Make(maCurrentStyle.maName, SfxStyleFamily::Para);
++    // Need to convert the parent name to localized UI name, see tdf#139205.
++    rBase.SetParent(
++        ScStyleNameConversion::ProgrammaticToDisplayName(
++            maCurrentStyle.maParentName, SfxStyleFamily::Para));
++
++    SfxItemSet& rSet = rBase.GetItemSet();
++    const ScOrcusXf& rXf = mrXfs[maCurrentStyle.mnXFId];
++    mrStyles.applyXfToItemSet(rSet, rXf);
++
++    maCurrentStyle = ScOrcusCellStyle();
+ }
+ 
+-// xf (cell format) - used both by cell xf and cell style xf.
++void ScOrcusImportXf::reset( std::vector<ScOrcusXf>& rXfs )
++{
++    mpXfs = &rXfs;
++    maCurrentXf = ScOrcusXf();
++}
+ 
+-void ScOrcusStyles::set_xf_number_format(size_t index)
++void ScOrcusImportXf::set_font(std::size_t index)
+ {
+-    maCurrentXF.mnNumberFormatId = index;
++    maCurrentXf.mnFontId = index;
+ }
+ 
+-void ScOrcusStyles::set_xf_font(size_t index)
++void ScOrcusImportXf::set_fill(std::size_t index)
+ {
+-    maCurrentXF.mnFontId = index;
++    maCurrentXf.mnFillId = index;
+ }
+ 
+-void ScOrcusStyles::set_xf_fill(size_t index)
++void ScOrcusImportXf::set_border(std::size_t index)
+ {
+-    maCurrentXF.mnFillId = index;
++    maCurrentXf.mnBorderId = index;
+ }
+ 
+-void ScOrcusStyles::set_xf_border(size_t index)
++void ScOrcusImportXf::set_protection(std::size_t index)
+ {
+-    maCurrentXF.mnBorderId = index;
++    maCurrentXf.mnProtectionId = index;
+ }
+ 
+-void ScOrcusStyles::set_xf_protection(size_t index)
++void ScOrcusImportXf::set_number_format(std::size_t index)
+ {
+-    maCurrentXF.mnProtectionId = index;
++    maCurrentXf.mnNumberFormatId = index;
+ }
+ 
+-void ScOrcusStyles::set_xf_style_xf(size_t index)
++void ScOrcusImportXf::set_style_xf(std::size_t index)
+ {
+-    maCurrentXF.mnStyleXf = index;
++    maCurrentXf.mnStyleXf = index;
+ }
+ 
+-void ScOrcusStyles::set_xf_apply_alignment(bool /*b*/)
++void ScOrcusImportXf::set_apply_alignment(bool b)
+ {
++    maCurrentXf.mbApplyAlignment = b;
+ }
+ 
+-void ScOrcusStyles::set_xf_horizontal_alignment(orcus::spreadsheet::hor_alignment_t align)
++void ScOrcusImportXf::set_horizontal_alignment(os::hor_alignment_t align)
+ {
+     switch (align)
+     {
+         case os::hor_alignment_t::left:
+-            maCurrentXF.meHorAlignment = SvxCellHorJustify::Left;
++            maCurrentXf.meHorAlignment = SvxCellHorJustify::Left;
+             break;
+         case os::hor_alignment_t::right:
+-            maCurrentXF.meHorAlignment = SvxCellHorJustify::Right;
++            maCurrentXf.meHorAlignment = SvxCellHorJustify::Right;
+             break;
+         case os::hor_alignment_t::center:
+-            maCurrentXF.meHorAlignment = SvxCellHorJustify::Center;
++            maCurrentXf.meHorAlignment = SvxCellHorJustify::Center;
+             break;
+         case os::hor_alignment_t::justified:
+-            maCurrentXF.meHorAlignment = SvxCellHorJustify::Block;
++            maCurrentXf.meHorAlignment = SvxCellHorJustify::Block;
+             break;
+         case os::hor_alignment_t::distributed:
+-            maCurrentXF.meHorAlignment = SvxCellHorJustify::Block;
+-            maCurrentXF.meHorAlignMethod = SvxCellJustifyMethod::Distribute;
++            maCurrentXf.meHorAlignment = SvxCellHorJustify::Block;
++            maCurrentXf.meHorAlignMethod = SvxCellJustifyMethod::Distribute;
+             break;
+         case os::hor_alignment_t::unknown:
+-            maCurrentXF.meHorAlignment = SvxCellHorJustify::Standard;
++            maCurrentXf.meHorAlignment = SvxCellHorJustify::Standard;
+             break;
+         default:
+             ;
+     }
+-    maCurrentXF.mbAlignment = true;
++    maCurrentXf.mbApplyAlignment = true;
+ }
+ 
+-void ScOrcusStyles::set_xf_vertical_alignment(orcus::spreadsheet::ver_alignment_t align)
++void ScOrcusImportXf::set_vertical_alignment(os::ver_alignment_t align)
+ {
+     switch (align)
+     {
+         case os::ver_alignment_t::top:
+-            maCurrentXF.meVerAlignment = SvxCellVerJustify::Top;
++            maCurrentXf.meVerAlignment = SvxCellVerJustify::Top;
+             break;
+         case os::ver_alignment_t::bottom:
+-            maCurrentXF.meVerAlignment = SvxCellVerJustify::Bottom;
++            maCurrentXf.meVerAlignment = SvxCellVerJustify::Bottom;
+             break;
+         case os::ver_alignment_t::middle:
+-            maCurrentXF.meVerAlignment = SvxCellVerJustify::Center;
++            maCurrentXf.meVerAlignment = SvxCellVerJustify::Center;
+             break;
+         case os::ver_alignment_t::justified:
+-            maCurrentXF.meVerAlignment = SvxCellVerJustify::Block;
++            maCurrentXf.meVerAlignment = SvxCellVerJustify::Block;
+             break;
+         case os::ver_alignment_t::distributed:
+-            maCurrentXF.meVerAlignment = SvxCellVerJustify::Block;
+-            maCurrentXF.meVerAlignMethod = SvxCellJustifyMethod::Distribute;
++            maCurrentXf.meVerAlignment = SvxCellVerJustify::Block;
++            maCurrentXf.meVerAlignMethod = SvxCellJustifyMethod::Distribute;
+             break;
+         case os::ver_alignment_t::unknown:
+-            maCurrentXF.meVerAlignment = SvxCellVerJustify::Standard;
++            maCurrentXf.meVerAlignment = SvxCellVerJustify::Standard;
+             break;
+         default:
+             ;
+     }
+-    maCurrentXF.mbAlignment = true;
++    maCurrentXf.mbApplyAlignment = true;
+ }
+ 
+-// cell style entry
+-// not needed for now for gnumeric
++void ScOrcusImportXf::set_wrap_text(bool b)
++{
++    maCurrentXf.mbWrapText = b;
++}
+ 
+-void ScOrcusStyles::set_cell_style_count(size_t /*n*/)
++void ScOrcusImportXf::set_shrink_to_fit(bool b)
+ {
+-    // needed at all?
++    maCurrentXf.mbShrinkToFit = b;
+ }
+ 
+-void ScOrcusStyles::set_cell_style_name(std::string_view name)
++std::size_t ScOrcusImportXf::commit()
+ {
+-    OUString aName(name.data(), name.size(), mrFactory.getGlobalSettings().getTextEncoding());
+-    maCurrentCellStyle.maName = aName;
++    mpXfs->push_back(maCurrentXf);
++    return mpXfs->size() - 1;
+ }
+ 
+-void ScOrcusStyles::set_cell_style_xf(size_t index)
++
++ScOrcusStyles::ScOrcusStyles( ScOrcusFactory& rFactory, bool bSkipDefaultStyles ) :
++    mrFactory(rFactory),
++    maFontStyle(rFactory, maFonts),
++    maFillStyle(maFills),
++    maBorderStyle(maBorders),
++    maCellProtection(maProtections),
++    maNumberFormat(rFactory, maNumberFormats),
++    maCellStyle(rFactory, *this, maCellStyleXfs)
+ {
+-    maCurrentCellStyle.mnXFId = index;
++    ScDocument& rDoc = rFactory.getDoc().getDoc();
++    if (!bSkipDefaultStyles && !rDoc.GetStyleSheetPool()->HasStandardStyles())
++        rDoc.GetStyleSheetPool()->CreateStandardStyles();
+ }
+ 
+-void ScOrcusStyles::set_cell_style_builtin(size_t index)
++/*
++namespace {
++
++std::ostream& operator<<(std::ostream& rStrm, const Color& rColor)
+ {
+-    // not needed for gnumeric
+-    maCurrentCellStyle.mnBuiltInId = index;
++    rStrm << "Red: " << (int)rColor.GetRed() << ", Green: " << (int)rColor.GetGreen() << ", Blue: " << (int)rColor.GetBlue();
++    return rStrm;
+ }
+ 
+-void ScOrcusStyles::set_cell_style_parent_name(std::string_view name)
++}
++*/
++
++void ScOrcusStyles::applyXfToItemSet( SfxItemSet& rSet, const ScOrcusXf& rXf )
+ {
+-    const OUString aParentName(name.data(), name.size(), mrFactory.getGlobalSettings().getTextEncoding());
+-    maCurrentCellStyle.maParentName = aParentName;
++    size_t nFontId = rXf.mnFontId;
++    if (nFontId >= maFonts.size())
++    {
++        SAL_WARN("sc.orcus.style", "invalid font id");
++        return;
++    }
++
++    maFonts[nFontId].applyToItemSet(rSet);
++
++    size_t nFillId = rXf.mnFillId;
++    if (nFillId >= maFills.size())
++    {
++        SAL_WARN("sc.orcus.style", "invalid fill id");
++        return;
++    }
++
++    maFills[nFillId].applyToItemSet(rSet);
++
++    size_t nBorderId = rXf.mnBorderId;
++    if (nBorderId >= maBorders.size())
++    {
++        SAL_WARN("sc.orcus.style", "invalid border id");
++        return;
++    }
++    maBorders[nBorderId].applyToItemSet(rSet);
++
++    size_t nProtectionId = rXf.mnProtectionId;
++    if (nProtectionId >= maProtections.size())
++    {
++        SAL_WARN("sc.orcus.style", "invalid protection id");
++        return;
++    }
++
++    maProtections[nProtectionId].applyToItemSet(rSet);
++
++    size_t nNumberFormatId = rXf.mnNumberFormatId;
++    if (nNumberFormatId >= maNumberFormats.size())
++    {
++        SAL_WARN("sc.orcus.style", "invalid number format id");
++        return;
++    }
++    const ScOrcusNumberFormat& rFormat = maNumberFormats[nNumberFormatId];
++    rFormat.applyToItemSet(rSet, mrFactory.getDoc().getDoc());
++
++    if (rXf.mbApplyAlignment)
++    {
++        rSet.Put(SvxHorJustifyItem(rXf.meHorAlignment, ATTR_HOR_JUSTIFY));
++        rSet.Put(SvxVerJustifyItem(rXf.meVerAlignment, ATTR_VER_JUSTIFY));
++        rSet.Put(SvxJustifyMethodItem(rXf.meHorAlignMethod, ATTR_HOR_JUSTIFY_METHOD));
++        rSet.Put(SvxJustifyMethodItem(rXf.meVerAlignMethod, ATTR_VER_JUSTIFY_METHOD));
++    }
+ }
+ 
+-size_t ScOrcusStyles::commit_cell_style()
++void ScOrcusStyles::applyXfToItemSet( SfxItemSet& rSet, std::size_t xfId )
+ {
+-    SAL_INFO("sc.orcus.style", "commit cell style: " << maCurrentCellStyle.maName);
+-    if (maCurrentCellStyle.mnXFId >= maCellStyleXfs.size())
++    SAL_INFO("sc.orcus.style", "applyXfToitemSet: " << xfId);
++    if (maCellXfs.size() <= xfId)
+     {
+-        SAL_WARN("sc.orcus.style", "invalid xf id for commit cell style");
+-        return 0;
++        SAL_WARN("sc.orcus.style", "invalid xf id");
++        return;
+     }
+-    if (maCurrentCellStyle.mnXFId == 0)
++
++    applyXfToItemSet(rSet, maCellXfs[xfId]);
++}
++
++os::iface::import_font_style* ScOrcusStyles::start_font_style()
++{
++    maFontStyle.reset();
++    return &maFontStyle;
++}
++
++os::iface::import_fill_style* ScOrcusStyles::start_fill_style()
++{
++    maFillStyle.reset();
++    return &maFillStyle;
++}
++
++os::iface::import_border_style* ScOrcusStyles::start_border_style()
++{
++    maBorderStyle.reset();
++    return &maBorderStyle;
++}
++
++os::iface::import_cell_protection* ScOrcusStyles::start_cell_protection()
++{
++    maCellProtection.reset();
++    return &maCellProtection;
++}
++
++os::iface::import_number_format* ScOrcusStyles::start_number_format()
++{
++    maNumberFormat.reset();
++    return &maNumberFormat;
++}
++
++os::iface::import_xf* ScOrcusStyles::start_xf(os::xf_category_t cat)
++{
++    switch (cat)
+     {
+-        return 0;
++        case os::xf_category_t::cell:
++            maXf.reset(maCellXfs);
++            break;
++        case os::xf_category_t::cell_style:
++            maXf.reset(maCellStyleXfs);
++            break;
++        case os::xf_category_t::differential:
++            maXf.reset(maCellDiffXfs);
++            break;
++        case os::xf_category_t::unknown:
++            SAL_WARN("sc.orcus.style", "unknown xf category");
++            return nullptr;
+     }
+ 
+-    ScStyleSheetPool* pPool = mrFactory.getDoc().getDoc().GetStyleSheetPool();
+-    SfxStyleSheetBase& rBase = pPool->Make(maCurrentCellStyle.maName, SfxStyleFamily::Para);
+-    // Need to convert the parent name to localized UI name, see tdf#139205.
+-    rBase.SetParent(ScStyleNameConversion::ProgrammaticToDisplayName(maCurrentCellStyle.maParentName,
+-                                                                     SfxStyleFamily::Para));
+-    SfxItemSet& rSet = rBase.GetItemSet();
++    return &maXf;
++}
+ 
+-    xf& rXf = maCellStyleXfs[maCurrentCellStyle.mnXFId];
+-    applyXfToItemSet(rSet, rXf);
++os::iface::import_cell_style* ScOrcusStyles::start_cell_style()
++{
++    maCellStyle.reset();
++    return &maCellStyle;
++}
++
++void ScOrcusStyles::set_font_count(size_t /*n*/)
++{
++}
++
++void ScOrcusStyles::set_fill_count(size_t /*n*/)
++{
++}
++
++void ScOrcusStyles::set_border_count(size_t /*n*/)
++{
++}
++
++void ScOrcusStyles::set_number_format_count(size_t /*n*/)
++{
++}
+ 
+-    maCurrentXF = ScOrcusStyles::xf();
+-    maCurrentCellStyle = ScOrcusStyles::cell_style();
++void ScOrcusStyles::set_xf_count(os::xf_category_t /*cat*/, size_t /*n*/)
++{
++}
+ 
+-    return 0;
++void ScOrcusStyles::set_cell_style_count(size_t /*n*/)
++{
+ }
+ 
+ // auto filter import
+@@ -2167,7 +2364,7 @@
+ {
+ }
+ 
+-void ScOrcusAutoFilter::set_range(const orcus::spreadsheet::range_t& range)
++void ScOrcusAutoFilter::set_range(const os::range_t& range)
+ {
+     maRange.aStart.SetRow(range.first.row);
+     maRange.aStart.SetCol(range.first.column);
+@@ -2175,7 +2372,7 @@
+     maRange.aEnd.SetCol(range.last.column);
+ }
+ 
+-void ScOrcusAutoFilter::set_column(orcus::spreadsheet::col_t col)
++void ScOrcusAutoFilter::set_column(os::col_t col)
+ {
+     SAL_INFO("sc.orcus.autofilter", "set_column: " << col);
+ }
+diff -Naur libreoffice-7.5.5.2/sc/source/filter/orcus/xmlcontext.cxx libreoffice-7.5.5.2.new/sc/source/filter/orcus/xmlcontext.cxx
+--- libreoffice-7.5.5.2/sc/source/filter/orcus/xmlcontext.cxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/sc/source/filter/orcus/xmlcontext.cxx	2023-09-06 17:58:50.799071417 +0200
+@@ -187,7 +187,7 @@
+         orcus::xml_structure_tree::element aElem = aWalker.root();
+         populateTree(rTreeCtrl, aWalker, aElem.name, aElem.repeat, nullptr, rParam);
+     }
+-    catch (const orcus::sax::malformed_xml_error& e)
++    catch (const orcus::malformed_xml_error& e)
+     {
+         SAL_WARN("sc.orcus", "Malformed XML error: " << e.what());
+     }
+@@ -202,29 +202,6 @@
+     });
+ }
+ 
+-namespace {
+-
+-class SetNamespaceAlias
+-{
+-    orcus::orcus_xml& mrFilter;
+-    orcus::xmlns_repository& mrNsRepo;
+-public:
+-    SetNamespaceAlias(orcus::orcus_xml& filter, orcus::xmlns_repository& repo) :
+-        mrFilter(filter), mrNsRepo(repo) {}
+-
+-    void operator() (size_t index)
+-    {
+-        orcus::xmlns_id_t nsid = mrNsRepo.get_identifier(index);
+-        if (nsid == orcus::XMLNS_UNKNOWN_ID)
+-            return;
+-
+-        std::string alias = mrNsRepo.get_short_name(index);
+-        mrFilter.set_namespace_alias(alias.c_str(), nsid);
+-    }
+-};
+-
+-}
+-
+ void ScOrcusXMLContextImpl::importXML(const ScOrcusImportXMLParam& rParam)
+ {
+     ScOrcusFactory aFactory(mrDoc, true);
+@@ -241,7 +218,17 @@
+         orcus::orcus_xml filter(maNsRepo, &aFactory, nullptr);
+ 
+         // Define all used namespaces.
+-        std::for_each(rParam.maNamespaces.begin(), rParam.maNamespaces.end(), SetNamespaceAlias(filter, maNsRepo));
++        for (std::size_t index : rParam.maNamespaces)
++        {
++            orcus::xmlns_id_t nsid = maNsRepo.get_identifier(index);
++            if (nsid == orcus::XMLNS_UNKNOWN_ID)
++                continue;
++
++            std::ostringstream os;
++            os << "ns" << index;
++            std::string alias = os.str();
++            filter.set_namespace_alias(alias.c_str(), nsid);
++        }
+ 
+         // Set cell links.
+         for (const ScOrcusImportXMLParam::CellLink& rLink : rParam.maCellLinks)
+diff -Naur libreoffice-7.5.5.2/sc/source/ui/dataprovider/csvdataprovider.cxx libreoffice-7.5.5.2.new/sc/source/ui/dataprovider/csvdataprovider.cxx
+--- libreoffice-7.5.5.2/sc/source/ui/dataprovider/csvdataprovider.cxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/sc/source/ui/dataprovider/csvdataprovider.cxx	2023-09-06 17:58:50.799071417 +0200
+@@ -41,19 +41,19 @@
+         mnCol = 0;
+     }
+ 
+-    void cell(const char* p, size_t n, bool /*transient*/)
++    void cell(std::string_view s, bool /*transient*/)
+     {
+         if (mnCol > mpDoc->MaxCol())
+             return;
+ 
+         double mfValue = 0.0;
+-        if (ScStringUtil::parseSimpleNumber(p, n, '.', ',', mfValue))
++        if (ScStringUtil::parseSimpleNumber(s.data(), s.size(), '.', ',', mfValue))
+         {
+             mpDoc->SetValue(mnCol, mnRow, 0, mfValue);
+         }
+         else
+         {
+-            OString aStr(p, n);
++            OString aStr(s.data(), s.size());
+             mpDoc->SetString(mnCol, mnRow, 0, OStringToOUString(aStr, RTL_TEXTENCODING_UTF8));
+         }
+ 
+@@ -107,7 +107,7 @@
+         return;
+ 
+     CSVHandler aHdl(&mrDocument);
+-    orcus::csv_parser<CSVHandler> parser(aBuffer.getStr(), aBuffer.getLength(), aHdl, maConfig);
++    orcus::csv_parser<CSVHandler> parser(aBuffer, aHdl, maConfig);
+     parser.parse();
+ 
+     for (const auto& itr : maDataTransformations)
+diff -Naur libreoffice-7.5.5.2/sc/source/ui/docshell/datastream.cxx libreoffice-7.5.5.2.new/sc/source/ui/docshell/datastream.cxx
+--- libreoffice-7.5.5.2/sc/source/ui/docshell/datastream.cxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/sc/source/ui/docshell/datastream.cxx	2023-09-06 17:58:50.799071417 +0200
+@@ -66,21 +66,21 @@
+     static void begin_row() {}
+     static void end_row() {}
+ 
+-    void cell(const char* p, size_t n, bool /*transient*/)
++    void cell(std::string_view s, bool /*transient*/)
+     {
+         if (mnCols >= mnColCount)
+             return;
+ 
+         DataStream::Cell aCell;
+-        if (ScStringUtil::parseSimpleNumber(p, n, '.', ',', aCell.mfValue))
++        if (ScStringUtil::parseSimpleNumber(s.data(), s.size(), '.', ',', aCell.mfValue))
+         {
+             aCell.mbValue = true;
+         }
+         else
+         {
+             aCell.mbValue = false;
+-            aCell.maStr.Pos = std::distance(mpLineHead, p);
+-            aCell.maStr.Size = n;
++            aCell.maStr.Pos = std::distance(mpLineHead, s.data());
++            aCell.maStr.Size = s.size();
+         }
+         mrLine.maCells.push_back(aCell);
+ 
+@@ -199,7 +199,7 @@
+                 rLine.maCells.clear();
+                 mpStream->ReadLine(rLine.maLine);
+                 CSVHandler aHdl(rLine, mnColCount);
+-                orcus::csv_parser<CSVHandler> parser(rLine.maLine.getStr(), rLine.maLine.getLength(), aHdl, maConfig);
++                orcus::csv_parser<CSVHandler> parser(rLine.maLine.getStr(), aHdl, maConfig);
+                 parser.parse();
+             }
+ 
+diff -Naur libreoffice-7.5.5.2/svl/source/misc/gridprinter.cxx libreoffice-7.5.5.2.new/svl/source/misc/gridprinter.cxx
+--- libreoffice-7.5.5.2/svl/source/misc/gridprinter.cxx	2023-07-12 19:23:19.000000000 +0200
++++ libreoffice-7.5.5.2.new/svl/source/misc/gridprinter.cxx	2023-09-06 17:58:50.799071417 +0200
+@@ -11,7 +11,6 @@
+ #include <rtl/ustrbuf.hxx>
+ 
+ #include <mdds/multi_type_vector/types.hpp>
+-#include <mdds/multi_type_vector/custom_func1.hpp>
+ #include <mdds/multi_type_vector/macro.hpp>
+ #include <mdds/multi_type_matrix.hpp>
+ 
+@@ -26,12 +25,10 @@
+ 
+ namespace {
+ 
+-struct matrix_trait
++struct matrix_traits
+ {
+     typedef string_block string_element_block;
+     typedef mdds::mtv::uint16_element_block integer_element_block;
+-
+-    typedef mdds::mtv::custom_block_func1<string_block> element_block_func;
+ };
+ 
+ }
+@@ -48,7 +45,7 @@
+ 
+ namespace svl {
+ 
+-typedef mdds::multi_type_matrix<matrix_trait> MatrixImplType;
++typedef mdds::multi_type_matrix<matrix_traits> MatrixImplType;
+ 
+ struct GridPrinter::Impl
+ {

@@ -2,23 +2,26 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=criu
-pkgver=3.17.1
+pkgver=3.18
 pkgrel=1
 pkgdesc="Checkpoint/Restore in Userspace tool"
 url="http://criu.org"
 license=("GPL2")
 groups=('apps-extra')
 archs=("x86_64")
-depends=("libpthread-stubs" "protobuf-c" "libnl" "libnet" 'python3>=3.11')
-makedepends=("xmlto" "asciidoc" 'docbook-xml' 'docbook-xsl' 'groff')
-sha1sums=('373afa0afee46172a9a3002c8dc3c56a9e964aad' \
-          '3a65b5b138dae5ead3505c07f50ebf7a3f9bcbde')
+depends=("libpthread-stubs" "protobuf-c" "libnl" "libnet" 'python3>=3.11' 'nftables')
+makedepends=("xmlto" "asciidoc" 'docbook-xml' 'docbook-xsl' 'groff' 'python3-build' \
+	'python3-installer' 'python3-setuptools' 'python3-wheel')
+source+=(no-python-pip.patch \
+	no-recompile-on-install.patch)
+sha1sums=('b32800af0aeebdbdbb9a6ea84d453dc29e0edc7c' \
+          'bd4ac713373c87b4c6802d0340795596dc850c92' \
+          'f359d9a3af080f5d3293c847af5ab10f58639d85')
 _F_make_opts="PREFIX=/usr LIBEXECDIR=/usr/lib/$pkgname"
 _F_systemd_units=criu.service=
 _F_github_author="checkpoint-restore"
 _F_github_tag_v=y
 Finclude systemd github
-source+=(fix-build.patch)
 options=('scriptlet' 'genscriptlet')
 
 build() {
@@ -27,7 +30,20 @@ build() {
 	unset CXXFLAGS
 	unset CFLAGS
 	Fsed 'lib64' 'lib' Makefile.install
-	Fbuild
+	Fpatchall
+	Fmake
+
+	# build python wheel
+	Fexec cd crit || Fdie
+
+	export CRIU_VERSION_MAJOR="${pkgver%%.*}"
+	export CRIU_VERSION_MINOR="${pkgver##*.}"
+
+	Fexec python -m build --wheel --no-isolation || Fdie
+
+	Fexec cd .. || Fdie
+	Fexec python -m installer --destdir="$Fdestdir" crit/dist/*.whl || Fdie
+	Fmakeinstall
 }
 
 

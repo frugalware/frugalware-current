@@ -1,0 +1,72 @@
+From 7a1c09ed1b7aa9a7a093f8d715b42a4aedd0f7b6 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Tom=C3=A1=C5=A1=20Trnka?= <tomastrnka@gmx.com>
+Date: Thu, 7 Sep 2023 15:52:47 +0000
+Subject: [PATCH] Use the FSID as the device identifier where possible
+
+The device number returned by stat() in st_dev is not persistent in many
+cases. Btrfs subvolumes or partitions on NVMe devices are assigned
+device numbers dynamically, so the resulting device ID is typically
+different after every reboot, forcing Baloo to repeatedly reindex all
+files.
+
+Fortunately, filesystems like Btrfs or ext4 return a persistent
+unique filesystem ID as f_fsid from statvfs(), so we can use that when
+available. Other filesystems like XFS derive the FSID from the device
+number of the underlying block device, so switching to the FSID does not
+change anything.
+
+BUG: 402154
+CCBUG: 471289
+
+
+(cherry picked from commit c735faf5a6a3ef3d29882552ad0a9264a294e038)
+---
+ src/engine/idutils.h | 22 +++++++++++++++++++++-
+ 1 file changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/src/engine/idutils.h b/src/engine/idutils.h
+index 78d881a96..606ac9dca 100644
+--- a/src/engine/idutils.h
++++ b/src/engine/idutils.h
+@@ -13,6 +13,8 @@
+ 
+ #ifdef Q_OS_WIN
+ # include <QFileInfo>
++#else
++# include <sys/statvfs.h>
+ #endif
+ 
+ namespace Baloo {
+@@ -40,10 +42,28 @@ inline quint64 statBufToId(const QT_STATBUF& stBuf)
+                              static_cast<quint32>(stBuf.st_ino));
+ }
+ 
++#ifndef Q_OS_WIN
++inline int statWithFsid(const char* path, QT_STATBUF* statBuf)
++{
++    int ret = QT_LSTAT(path, statBuf);
++    if (ret != 0) {
++        return ret;
++    }
++
++    struct statvfs fsBuf;
++    ret = statvfs(path, &fsBuf);
++    if (ret == 0 && fsBuf.f_fsid != 0) {
++        // Fold FSID into 32 bits, statBufToId would discard anything else
++        statBuf->st_dev = static_cast<quint32>(fsBuf.f_fsid ^ (fsBuf.f_fsid >> 32));
++    }
++    return ret;
++}
++#endif
++
+ inline int filePathToStat(const QByteArray& filePath, QT_STATBUF& statBuf)
+ {
+ #ifndef Q_OS_WIN
+-    return QT_LSTAT(filePath.constData(), &statBuf);
++    return statWithFsid(filePath.constData(), &statBuf);
+ #else
+     const int ret = QT_STAT(filePath.constData(), &statBuf);
+     const QString filePathStr = QString::fromUtf8(filePath);
+-- 
+GitLab
+

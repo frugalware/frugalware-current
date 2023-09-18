@@ -2,18 +2,19 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=bluez
-pkgver=5.68
-pkgrel=1
+pkgver=5.69
+pkgrel=2
 pkgdesc="Library to use the BlueZ Linux Bluetooth stack"
 url="http://bluez.sourceforge.net/"
 depends=('libsystemd>=242-3' 'libudev>=242-3' 'dbus>=1.10.16-3' 'glib2>=2.50.0' \
-	'libical>=3.0.3' 'readline>=8.0')
+	'libical>=3.0.3' 'readline>=8.0' 'alsa-lib')
 makedepends=('check>=0.10.0-3' 'systemd-devel' 'docutils')
 groups=('apps')
 archs=("x86_64")
 up2date="Flasttar http://www.kernel.org/pub/linux/bluetooth/"
-source=(http://www.kernel.org/pub/linux/bluetooth/$pkgname-$pkgver.tar.xz)
-signatures=(${source[0]/.xz/.sign} )
+source=(http://www.kernel.org/pub/linux/bluetooth/$pkgname-$pkgver.tar.xz \
+	bluetooth-usb.conf)
+signatures=(${source[0]/.xz/.sign} '')
 conflicts=('bluez-utils' 'bluez-libs' 'bluez-hcidump')
 provides=('bluez-utils' 'bluez-libs' 'bluez-hcidump')
 replaces=('bluez-utils' 'bluez-libs' 'bluez-hcidump')
@@ -22,18 +23,22 @@ backup=(etc/bluetooth/main.conf etc/dbus-1/system.d/bluetooth.conf)
 _F_systemd_units=(bluetooth=e)
 Finclude systemd
 
-Fconfopts+=" --with-pic \
-	--enable-pie \
-	--enable-library \
-	--enable-tools \
-	--enable-cups \
-	--enable-test \
-	--enable-datafiles \
-	--enable-experimental \
-	--enable-sixaxis \
-	--enable-deprecated \
-	--with-systemdunitdir=/lib/systemd/system \
-	--localstatedir=/var"
+Fconfopts+="	--with-pic \
+		--enable-pie \
+		--enable-library \
+		--enable-tools \
+		--enable-cups \
+		--enable-test \
+		--enable-datafiles \
+		--enable-experimental \
+		--enable-btpclient \
+		--enable-midi \
+		--enable-sixaxis \
+		--enable-mesh \
+		--enable-hid2hci \
+		--enable-deprecated \
+		--with-systemdunitdir=/lib/systemd/system \
+		--localstatedir=/var"
 
 build() {
 
@@ -46,8 +51,17 @@ build() {
 	done
 
 	Finstall 755 $_F_cd_path/src/main.conf etc/bluetooth/main.conf
-	Fsed 'libexec/bluetooth/bluetoothd' 'libexec/bluetooth/bluetoothd -P sap' \
-		$Fdestdir/lib/systemd/system/bluetooth.service
+
+	Finstall 644 usr/lib/modprobe.d/bluetooth-usb.conf
+
+	# load module at system start required by some functions
+	# https://bugzilla.kernel.org/show_bug.cgi?id=196621
+	
+	Fmkdir usr/lib/modules-load.d
+	echo "crypto_user" > "$Fdestdir"/usr/lib/modules-load.d/bluez.conf
+
+	# bluez systemd service fails without localstatedir present
+	Fmkdir var/lib/bluetooth
 
 	Fgenscriptlet
 }

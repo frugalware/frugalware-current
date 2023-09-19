@@ -1,0 +1,198 @@
+From 9f50367661bb6345bf7b18102f1e415378afda06 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Franti=C5=A1ek=20Zatloukal?= <Zatloukal.Frantisek@gmail.com>
+Date: Fri, 21 Apr 2023 04:08:11 +0200
+Subject: [PATCH] Support llvm headers in
+ ${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}/ (#419)
+
+Fedora places llvm include files into that directory instead of assumed
+${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}/include/
+
+Try both, fail horribly when none of them exist
+---
+ cl_headers/CMakeLists.txt | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/cl_headers/CMakeLists.txt b/cl_headers/CMakeLists.txt
+index 86df76f..0223d52 100644
+--- a/cl_headers/CMakeLists.txt
++++ b/cl_headers/CMakeLists.txt
+@@ -19,8 +19,15 @@ add_custom_command(
+ endfunction(copy_file)
+ 
+ if(USE_PREBUILT_LLVM)
+-    set(OPENCL_HEADERS_DIR
+-      "${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}/include/")
++    if(EXISTS "${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}/")
++        set(OPENCL_HEADERS_DIR
++        "${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}/include/")
++    elseif(EXISTS "${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}/")
++        set(OPENCL_HEADERS_DIR
++            "${LLVM_LIBRARY_DIRS}/clang/${LLVM_VERSION_MAJOR}/include/")
++    else()
++        message(FATAL_ERROR "[OPENCL-CLANG] Couldn't find prebuilt LLVM include directory.")
++    endif()
+ else(USE_PREBUILT_LLVM)
+     set(OPENCL_HEADERS_DIR "${CLANG_SOURCE_DIR}/lib/Headers")
+ endif(USE_PREBUILT_LLVM)
+From 529a9188114bcbd8ed753d2276942384fa50d7a1 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Franti=C5=A1ek=20Zatloukal?= <Zatloukal.Frantisek@gmail.com>
+Date: Fri, 21 Apr 2023 04:07:21 +0200
+Subject: [PATCH] Fix standalone build (#415)
+
+Fixes https://github.com/intel/opencl-clang/issues/406
+Fixes https://github.com/intel/opencl-clang/issues/374
+---
+ cl_headers/CMakeLists.txt | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/cl_headers/CMakeLists.txt b/cl_headers/CMakeLists.txt
+index 788adff..86df76f 100644
+--- a/cl_headers/CMakeLists.txt
++++ b/cl_headers/CMakeLists.txt
+@@ -1,5 +1,9 @@
+ set(CL_HEADERS_LIB cl_headers)
+-set(CLANG_COMMAND $<TARGET_FILE:clang> )
++if(USE_PREBUILT_LLVM)
++    find_program(CLANG_COMMAND clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
++else()
++    set(CLANG_COMMAND $<TARGET_FILE:clang>)
++endif()
+ if(LLVM_USE_HOST_TOOLS AND NOT OPENCL_CLANG_BUILD_EXTERNAL)
+   build_native_tool(clang CLANG_COMMAND)
+ endif()
+From 7eed60a0ccefe9354da1ab0e54a045df8b6b06e9 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Franti=C5=A1ek=20Zatloukal?= <fzatlouk@redhat.com>
+Date: Fri, 14 Apr 2023 12:02:13 +0200
+Subject: [PATCH] Bump CMAKE_CXX_STANDARD to 17
+
+Fixes build issues
+---
+ CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3d7eff1..efb2adf 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -58,7 +58,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+       ${CMAKE_MODULE_PATH}
+       ${LLVM_CMAKE_DIR})
+ 
+-    set(CMAKE_CXX_STANDARD 14)
++    set(CMAKE_CXX_STANDARD 17)
+     set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+     option(LLVMSPIRV_INCLUDED_IN_LLVM
+---
+ CMakeLists.txt   | 2 +-
+ opencl_clang.cpp | 8 ++++----
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+From d439aa0a1bf52657bb3200fb4d03b77ee1f10d66 Mon Sep 17 00:00:00 2001
+From: Wenju He <wenju.he@intel.com>
+Date: Thu, 18 May 2023 16:01:58 +0800
+Subject: [PATCH] Revert to use add_llvm_library and revert linking LLVM
+ libraries (#439)
+
+Add cmake option EXCLUDE_LIBS_FROM_ALL to remove a specific llvm library
+from llvm 'all'.
+
+This PR partially reverts 743bd15.
+This PR addresses #401, #417, #418, #422, and brings back SONAME.
+---
+ CMakeLists.txt | 73 +++++++++++---------------------------------------
+ 1 file changed, 15 insertions(+), 58 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b1bde90..5b3c4b7 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -292,21 +292,23 @@ else()
+   )
+ endif()
+ 
+-add_library(${TARGET_NAME} SHARED
+-    ${TARGET_INCLUDE_FILES}
+-    ${TARGET_SOURCE_FILES}
+-    $<TARGET_OBJECTS:cl_headers>
+-)
+-
+-# Same CRT compile option are reqiured to avoid link errors on Windows.
+-# MD and MDd are choosed by default for release and debug build in LLVM.
+-# If users set MT or MTd flags, they also need to add the flags for
+-# opencl-clang sources using a custom macro set_msvc_crt_flags.
+-if(COMMAND set_msvc_crt_flags)
+-    set_msvc_crt_flags(${TARGET_NAME})
++set(EXCLUDE_LIBS_FROM_ALL "" CACHE STRING "Space-separated list of LLVM libraries to exclude from all")
++llvm_map_components_to_libnames(ALL_LLVM_LIBS all)
++if (NOT "${EXCLUDE_LIBS_FROM_ALL}" STREQUAL "")
++  list(REMOVE_ITEM ALL_LLVM_LIBS ${EXCLUDE_LIBS_FROM_ALL})
+ endif()
++list(APPEND OPENCL_CLANG_LINK_LIBS ${ALL_LLVM_LIBS})
++
++add_llvm_library(${TARGET_NAME} SHARED
++  ${TARGET_INCLUDE_FILES}
++  ${TARGET_SOURCE_FILES}
++  $<TARGET_OBJECTS:cl_headers>
+ 
+-add_dependencies(${TARGET_NAME} CClangCompileOptions)
++  DEPENDS CClangCompileOptions
++
++  LINK_LIBS
++    ${OPENCL_CLANG_LINK_LIBS}
++  )
+ 
+ if (WIN32)
+     # Enable compiler generation of Control Flow Guard security checks.
+@@ -322,51 +324,6 @@ elseif(UNIX)
+         LINK_FLAGS " -Wl,--no-undefined")
+ endif(WIN32)
+ 
+-# Enable new IN_LIST operator.
+-cmake_policy(SET CMP0057 NEW)
+-set(OTHER_LIBRARIES)
+-if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+-    list(APPEND OTHER_LIBRARIES LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo)
+-endif()
+-if ("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+-    list(APPEND OTHER_LIBRARIES LLVMAMDGPUCodeGen LLVMAMDGPUAsmParser LLVMAMDGPUDesc LLVMAMDGPUInfo)
+-endif()
+-
+-target_link_libraries( ${TARGET_NAME}
+-                       LINK_PRIVATE
+-                       ${OPENCL_CLANG_LINK_LIBS}
+-                       LLVMX86CodeGen
+-                       LLVMX86AsmParser
+-                       LLVMX86Desc
+-                       LLVMX86Info
+-                       LLVMX86Disassembler
+-                       LLVMAnalysis
+-                       LLVMCodeGen
+-                       LLVMCore
+-                       LLVMipo
+-                       LLVMInstCombine
+-                       LLVMInstrumentation
+-                       LLVMMC
+-                       LLVMMCParser
+-                       LLVMObjCARCOpts
+-                       LLVMOption
+-                       LLVMScalarOpts
+-                       LLVMSupport
+-                       LLVMTransformUtils
+-                       LLVMVectorize
+-                       LLVMAsmPrinter
+-                       LLVMSelectionDAG
+-                       LLVMMCDisassembler
+-                       LLVMProfileData
+-                       LLVMObject
+-                       LLVMBitWriter
+-                       LLVMIRReader
+-                       LLVMAsmParser
+-                       LLVMTarget
+-                       LLVMBitReader
+-                       ${OTHER_LIBRARIES}
+-                      )
+-
+ install(FILES opencl_clang.h
+         DESTINATION include/cclang
+         COMPONENT ${TARGET_NAME})

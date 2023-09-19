@@ -1,0 +1,158 @@
+# Compiling Time: 4.74 SBU
+# Maintainer: Marius Cirsta <mcirsta@frugalware.org>
+
+pkgname=llvm15
+pkgver=15.0.7
+pkgrel=3
+gcc_ver=13.2.0
+url="http://www.llvm.org"
+pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs) Version 15"
+depends=("libstdc++>=${gcc_ver}" 'python3')
+makedepends=('groff' 'libffi'  'ncurses>=6.0-16' "libstdc++>=${gcc_ver}" 'binutils>=2.32' 'mpfr' \
+	'glibc>=2.35' "gcc>=${gcc_ver}" "python3-sphinx-markdown-tables" 'mold')
+rodepends=("$pkgname-libs")
+groups=('devel-extra')
+archs=("x86_64")
+
+_F_github_author=llvm
+_F_github_name=llvm-project
+_F_github_tag=yes
+Finclude github
+up2date="$pkgver"
+source=(https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/llvm-project-$pkgver.src.tar.xz \
+	structured-bindings.patch \
+	gcc13.patch )
+_F_archive_ver="${pkgver}.src"
+_F_cd_path="llvm-project-${_F_archive_ver}"
+sha1sums=('bfda06ab090154d289013912266209595a2e3914' \
+          'd50d52edbab14575fa2f21db17e58273b5da19af' \
+          '557bbc3a63a6cf4fbdb753317de84904f0593813')
+
+subpkgs=("clang15")
+subdescs=("C/C++ language family frontend for LLVM15")
+subdepends=("libxml2 libffi>=3.4")
+subrodepends=("clang-libs>=$pkgver")
+subgroups=('devel-extra')
+subarchs=("x86_64")
+
+subpkgs+=("clang15-libs")
+subdescs+=("C/C++ language family frontend for LLVM15 Libs")
+subdepends+=("libxml2 libffi>=3.4")
+subrodepends+=("$pkgname-libs>=$pkgver")
+subgroups+=('lib')
+subarchs+=("x86_64")
+
+subpkgs+=("compiler-rt15")
+subdescs+=("Compiler runtime libraries for clang15")
+subdepends+=("")
+subrodepends+=("")
+subgroups+=('devel-extra')
+subarchs+=("x86_64")
+
+subpkgs+=("$pkgname-libs")
+subdescs+=("LLVM15 shared libs")
+subdepends+=("ncurses>=6.0-16 libedit>=20190324_3.1 libffi>=3.4 zstd")
+subrodepends+=("")
+subgroups+=('lib')
+subarchs+=("x86_64")
+
+subpkgs+=("clang15-static")
+subdescs+=("C/C++ language family frontend for LLVM15 (static)")
+subdepends+=("")
+subrodepends+=("")
+subgroups+=('devel-extra-extra')
+subarchs+=("x86_64")
+
+subpkgs+=("${pkgname}-static")
+subdescs+=("Low Level Virtual Machine (Compiler, Tools and Libs) Version 15(static)")
+subdepends+=("")
+subrodepends+=("")
+subgroups+=('devel-extra-extra')
+subarchs+=("x86_64")
+
+subpkgs+=("compiler-rt15-static")
+subdescs+=("Compiler runtime libraries for clang (static)")
+subdepends+=("")
+subrodepends+=("")
+subgroups+=('devel-extra-extra')
+subarchs+=("x86_64")
+
+
+# Common CMake options
+_F_cmake_type="Release"
+_F_cmake_use_ninja=true
+_F_cmake_src_dir="llvm"
+_F_cmake_confopts="	-DCMAKE_INSTALL_PREFIX=/usr/lib/llvm15 \
+			-DLLVM_BUILD_LLVM_DYLIB=ON \
+			-DLLVM_LINK_LLVM_DYLIB=ON \
+			-DLLVM_USE_LINKER=mold \
+			-DLLVM_ENABLE_RTTI=ON \
+			-DLLVM_INSTALL_UTILS=ON \
+			-DLLVM_ENABLE_FFI=ON \
+			-DLIBOMP_INSTALL_ALIASES=OFF \
+			-DCMAKE_SKIP_RPATH=ON \
+			-DLLVM_USE_PERF=ON \
+			-DLIBOMP_USE_VERSION_SYMBOLS=OFF \
+			-DLIBOMPTARGET_BUILD_CUDA_PLUGIN=OFF \
+			-DLIBOMPTARGET_BUILD_AMDGPU_PLUGIN=OFF \
+			-DLLVM_BINUTILS_INCDIR=/usr/include \
+			-DLLVM_ENABLE_PROJECTS=clang;clang-tools-extra;compiler-rt \
+			-DFFI_INCLUDE_DIR=$(pkg-config --cflags-only-I libffi | cut -c3-) \
+			-DLLVM_HOST_TRIPLE=${CARCH}-frugalware-linux \
+			-DLLVM_BUILD_DOCS=OFF \
+                        -DLLVM_ENABLE_SPHINX=OFF \
+			-DLLVM_ENABLE_DOXYGEN=OFF \
+			-DLLVM_DEFAULT_TARGET_TRIPLE=${CARCH}-frugalware-linux"
+Finclude cmake
+options+=('static' 'nolto')
+
+build() {
+
+	export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$Fsrcdir/$_F_cd_path/${_F_cmake_build_dir}/lib"
+
+	CMake_build
+
+	Fln /usr/lib/llvm15/lib/libLLVM-$pkgver.so usr/lib/libLLVM-$pkgver.so
+	Fln /usr/lib/llvm15/lib/libLLVM-$pkgver.so usr/lib/libLLVM-15.so
+	Fln /usr/lib/llvm15/lib/libclang-cpp.so.15 usr/lib/libclang-cpp.so.15
+	Fln /usr/lib/llvm15/lib/libclang.so.15 usr/lib//libclang.so.15
+
+	Fsplit compiler-rt15-static usr/lib/llvm15/lib/clang/$pkgver/lib/x86_64-frugalware-linux/libclang_rt*.a
+
+	Fsplit compiler-rt15 usr/lib/llvm15/lib/clang/${pkgver}/include/sanitizer
+	Fsplit compiler-rt15 usr/lib/llvm15/lib/clang/${pkgver}/include/xray
+	Fsplit compiler-rt15 usr/lib/llvm15/lib/clang/${pkgver}/lib/
+	Fsplit compiler-rt15 usr/lib/llvm15/lib/clang/${pkgver}/share/
+
+
+       Fsplit clang15-static usr/lib/llvm15/lib/libclang*.a
+       Fsplit clang15-static usr/lib/llvm15/lib/libfindAllSymbols.a
+
+       Fsplit clang15 usr/lib/llvm15/bin/clang*
+       Fsplit clang15 usr/lib/llvm15/bin/c-index-test
+       Fsplit clang15 usr/lib/llvm15/bin/scan-build
+       Fsplit clang15 usr/lib/llvm15/bin/scan-view
+       Fsplit clang15 usr/lib/llvm15/include/clang*
+       Fsplit clang15 usr/lib/llvm15/lib/clang/
+
+       Fsplit clang15-libs usr/lib/llvm15/lib/libclang*
+       Fsplit clang15-libs usr/lib/libclang*
+
+
+       Fsplit clang15 usr/lib/llvm15/lib/cmake/clang/
+
+       Fsplit clang15 usr/lib/llvm15/bin/{find-all-symbols,modularize,scan-build-py,analyze-build,diagtool,hmaptool,intercept-build,pp-trace}
+       Fsplit clang15 usr/lib/llvm15/share/clang/
+       Fsplit clang15 usr/lib/llvm15/share/opt-viewer/
+       Fsplit clang15 usr/lib/llvm15/share/scan-view/
+	Fsplit clang15 usr/lib/llvm15/share/scan-build/
+	Fsplit clang15 usr/lib/llvm15/bin/git-clang-format
+	Fsplit clang15 usr/lib/llvm15/bin/run-clang-tidy
+	Fsplit clang15 usr/lib/llvm15/share/man/man1
+
+	Fsplit $pkgname-static usr/lib/llvm15/lib/*.a
+	Fsplit $pkgname-libs usr/lib/llvm15/lib/*.so*
+	Fsplit $pkgname-libs usr/lib/*.so*
+}
+
+# optimization OK

@@ -6,13 +6,13 @@ USE_DISTRO_LTO=${USE_DISTRO_LTO:-"n"}
 USE_DISTRO_FLAGS=${USE_DISTRO_FLAGS:-"y"}
 
 pkgname=chromium-browser
-pkgver=116.0.5845.187
+pkgver=117.0.5938.88
 pkgrel=1
 pkgdesc='Chromium browser'
 url='http://www.chromium.org/'
 depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6' 'libcups' \
 	'speech-dispatcher>=0.7.1-4' 'libxtst>=1.2.2-2' 'pango' 'libxkbcommon' 'libxml2' 'libffi' \
-	'libatomic' 'pciutils>=3.5' 'gtk+3' 'libxslt' 'libdrm' 'icu4c>=73.1' 'json-glib' 'ffmpeg>=6.0' \
+	'libatomic' 'pciutils>=3.5' 'gtk+4' 'libxslt' 'libdrm' 'icu4c>=73.1' 'json-glib' 'ffmpeg>=6.0' \
 	'harfbuzz>=3.0.0' 'libjpeg-turbo' 'fontconfig' 'libva' 'libwebp' 'opus' 'curl' 'woff2' \
 	'freetype2' 'jsoncpp' 'libavif>=1.0-1' 'flac>=1.4.0' 'qt5-base>=5.15.10' )
 makedepends=('ninja' 'python3-six' 'gn>=0.1731' 'cups' 'x11-protos' 'mesa-dri-drivers' 'nodejs' \
@@ -29,25 +29,25 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
 	chromium-114-maldoca-include.patch \
 	chromium-114-ruy-include.patch \
 	chromium-114-vk_mem_alloc-include.patch \
-	chromium-116-abseil-arm64.patch \
 	chromium-116-compiler.patch \
-	chromium-116-object_paint_properties_sparse-include.patch \
-	chromium-116-profile_view_utils-include.patch \
-	chromium-116-url_load_stats-include.patch \
+	chromium-117-ipcz-include.patch \
+	chromium-117-later-gtk4-version.patch \
+	chromium-117-material-color-include.patch \
+	chromium-117-system-zstd.patch \
 	random-build-fixes.patch \
 	webauthn-variant.patch \
         chromium.desktop \
 	use-oauth2-client-switches-as-default.patch )
-sha1sums=('50ba2845ad223e01cd30846132da26fcf14b2cbe' \
+sha1sums=('0fd76c55af67029bcf78087de9e05aedb4ba2877' \
           '0f969f454a5efdf1bb5b6a2ecf0f9bddd0c94cab' \
           '588c869bf8bbc97f01734f35ade16c6fe1a63ec7' \
           'c5fbf94e9837512bd007c900b65bf01aa71777c8' \
           '20cc73b10775a331390d47ea1f38001664ac43f4' \
-          '745eaaece1f30f055c55dfd912abfe45e39cb346' \
           '285715ee2259ff471695148353a82a2d736a8f98' \
-          '2897b9d473594e4d399678df05cb4101565d9c0d' \
-          '7857df35e61ea1b863be7077e356e9f91106cdbe' \
-          '4cda3e18b4d642ce24c39dfdb79b20b2bc016c51' \
+          '68828181079e45ce032a0510f3f3fec9e8e25435' \
+          '460089670f5c76f54f42d8940982dfc5093c2626' \
+          '2df38b7b132221e7943ed000828aa1602ba70e12' \
+          'a33808da2f357e506a15fb9f9f02cc7fa4ecdd53' \
           'a6714201c17632c4dc3ee4686ad2d6df7b540ca6' \
           'f6fe48f2cc0a53895653a7895e053098edf8e090' \
           '710c24b12f105ddbd91d5f1fbabb2cacf97128df' \
@@ -104,7 +104,6 @@ build() {
 		third_party/abseil-cpp
 		third_party/angle
 		third_party/angle/src/common/third_party/xxhash
-		third_party/angle/src/third_party/systeminfo
 		third_party/angle/src/third_party/ceval
 		third_party/angle/src/third_party/volk
 		third_party/apple_apsl
@@ -153,6 +152,7 @@ build() {
 		third_party/devtools-frontend/src/front_end/third_party/axe-core
 		third_party/devtools-frontend/src/front_end/third_party/puppeteer
 		third_party/devtools-frontend/src/front_end/third_party/puppeteer/package/lib/esm/third_party/mitt
+		third_party/devtools-frontend/src/front_end/third_party/puppeteer/package/lib/esm/third_party/rxjs
 		third_party/devtools-frontend/src/front_end/third_party/diff
 		third_party/devtools-frontend/src/front_end/third_party/lit
 		third_party/devtools-frontend/src/front_end/third_party/additional_readme_paths.json
@@ -210,7 +210,6 @@ build() {
 		third_party/pdfium/third_party/lcms
 		third_party/pdfium/third_party/libopenjpeg
 		third_party/pdfium/third_party/libtiff
-		third_party/pdfium/third_party/skia_shared
 		third_party/perfetto
 		third_party/pffft
 		third_party/ply
@@ -321,6 +320,7 @@ build() {
 		third_party/brotli
 		third_party/d3
 		third_party/libaom/source/libaom/third_party/SVT-AV1
+		third_party/blink/renderer/core/lcp_critical_path_predictor
 		v8/third_party/glibc )
 	# Remove most bundled libraries. Some are still needed.
 
@@ -346,6 +346,7 @@ build() {
 		libxslt
 		opus
 		snappy
+		zstd
 		woff2"
 
 	Fexec build/linux/unbundle/replace_gn_files.py --system-libraries ${gn_system_libraries} || Fdie
@@ -405,12 +406,18 @@ build() {
 	myconf_gn+=" use_vaapi=true "
 
 	myconf_gn+=" is_official_build=true"
+	myconf_gn+=" use_thin_lto=true"
+	myconf_gn+=" thin_lto_enable_optimizations=true"
 	myconf_gn+=" chrome_pgo_phase=0"
 	myconf_gn+=" blink_enable_generated_code_formatting=false"
 
 	# disable DCHECK
 	myconf_gn+=" dcheck_always_on=false"
 	myconf_gn+=" dcheck_is_configurable=false"
+
+
+	# use GTK+4
+	myconf_gn+=" gtk_version=4"
 
 	# use ccache
 	myconf_gn+=" cc_wrapper=\"ccache\""

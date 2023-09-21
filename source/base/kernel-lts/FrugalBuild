@@ -1,0 +1,215 @@
+# Compiling Time: 46.76 SBU
+# Maintainer: James Buren <ryuo@frugalware.org>
+# Contributor: Miklos Vajna <vmiklos@frugalware.org>
+
+### NOTE: check btrfs-progs to match the kernel
+
+## set to y to generate configs
+## the build will die after patching
+USE_MAKE_CONFIG=${USE_MAKE_CONFIG:-"n"}
+
+_F_kernel_name="-lts"
+_F_kernel_ver=6.1.54
+Finclude kernel
+
+## DO NOT enable any CONFIG_GOLDFISH , CONFIG_*_GOLDFISH the driver is broken
+## once a decision is made upstream we may re-enbale but for now just don't
+
+## check in >=4.15.x - some fixes in tip/*
+## DO NOT enable any X86_5LEVEL CONFIG .. this is a feature Intel CPUs
+## will have sometime BUT if you enable such a kernel won't boot on any other BOX!
+
+
+url="https://www.kernel.org"
+depends=('kmod' 'sed')
+makedepends+=('bison' 'rsync')
+[[ -z "$_F_kernel_name" ]] && makedepends+=('unifdef')
+groups=('base')
+archs=('x86_64')
+options+=('nodocs' 'genscriptlet' 'ldgold')
+_F_archive_grepv="rc"
+_F_archive_grep="6.1"
+up2date="Flasttar $url"
+
+_F_kernel_patches=(
+			## disable verbose output in normal mode
+			ath10k-be-quiet.patch
+			## this one is just for NCQ stuff for now
+			ata-fix-NCQ-LOG-strings-and-move-to-debug.patch
+			## WELL! while technically is an BUG the KERN_ERR is nonsense here while
+			##  all it does is to break silent boot. If is an bug will break the kernel
+			##  it will break anyway , no matter the error level.
+			acpi-use-kern_warning_even_when_error.patch
+			## -> dmesg | grep -E 'Applying debug destination|FW already configured'
+			iwlwifi-use-debug-for-debug-infos.patch
+			## While meant to me informative for admins that code floods
+			## with lots false positive even. IOW, is more confusing than informative.
+			## Not so funny on large boxes. Turn the pr_warn() into pr_debug()
+			apic_vector-spam-in-debug-mode-only.patch )
+
+
+for ppatch in "${_F_kernel_patches[@]}"
+do
+	source+=("$ppatch")
+	signatures+=('')
+done
+
+source+=("https://www.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/$_F_archive_name-$pkgver.tar.xz" 'config.x86_64')
+signatures+=("https://www.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/$_F_archive_name-$pkgver.tar.sign" '')
+
+
+
+subpkgs+=("kernel$_F_kernel_name-docs")
+subdescs+=("Linux kernel documentation")
+subrodepends+=('')
+subdepends+=('')
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
+subbackup+=('')
+suboptions+=('')
+subinstall+=('')
+
+subpkgs+=("kernel$_F_kernel_name-source")
+subrodepends+=("make gcc>=6.2.1")
+subdescs+=('Linux kernel source')
+subgroups+=('devel-extra')
+subdepends+=('')
+subarchs+=('x86_64')
+subbackup+=('')
+subinstall+=('')
+suboptions+=('nodocs')
+
+if [ -z "$_F_kernel_name" ]; then
+	subpkgs+=('kernel-headers')
+	subrodepends+=('')
+	subgroups+=('devel devel-core')
+	subdescs+=('Linux kernel include files')
+	subarchs+=('x86_64')
+	subbackup+=('')
+	subinstall+=('')
+	suboptions+=('')
+	subdepends+=('')
+fi
+
+kmake() {
+
+	make -j $(getconf _NPROCESSORS_ONLN) "$@"
+}
+
+build()
+{
+
+	Fcd
+
+	if [ -e "$Fsrcdir/config.$CARCH" ]; then
+		Fexec cp $Fsrcdir/config.$CARCH .config || Fdie
+	else
+		Fmessage "Cannot find a valid config.."
+		exit 1
+	fi
+
+	# not using Fpatchall here since not applying the patches from
+	# _F_kernel_patches() having the wrong extension would be stange :)
+	local i
+
+	for i in "${_F_kernel_patches[@]}"
+	do
+		Fpatch `strip_url $i`
+	done
+
+	if Fuse $USE_MAKE_CONFIG; then
+		Fdie
+	fi
+
+	if [ -z "$_F_kernel_name" -a $_F_kernel_dontfakeversion -eq 0 ]; then
+		# stock kernel, nobody interested in the buildsystem's detail
+		export KBUILD_BUILD_USER="fst"
+		export KBUILD_BUILD_HOST="`uname -m`.frugalware.org"
+	fi
+
+	# remove unneded localversions
+	rm -fv localversion-*
+	rm -fv ../*.{gz,bz2,sign}
+
+	yes "" | kmake config
+
+
+	if [ $_F_kernel_dontfakeversion -eq 0 ]; then
+		if [ "${_F_kernel_ver#*.*.}" = "$_F_kernel_ver" ]; then
+			# If patten match fails, sublevel version is missing
+			Fsed "SUBLEVEL =.*" "SUBLEVEL =" Makefile
+		else
+			 Fsed "SUBLEVEL =.*" "SUBLEVEL = ${_F_kernel_ver#*.*.}" Makefile
+		fi
+		Fsed "EXTRAVERSION =.*" "EXTRAVERSION = $_F_kernel_uname" Makefile
+	else
+		Fexec kmake include/config/kernel.release
+		unset _F_kernel_ver
+		_F_kernel_uname=$(cat include/config/kernel.release)
+	fi
+
+	## let we do kernel$_F_kernel_name-source before make
+	Fmkdir /usr/src
+	Fexec cp -Ra $Fsrcdir/linux-$_F_kernel_ver $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
+	Fexec kmake -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname scripts || Fdie
+	Fexec kmake -C $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname prepare || Fdie
+
+	Fexec rm -rfv $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/{.git,.gitignore,.config.old,Documentation,COPYING,CREDITS,MAINTAINERS,README} || Fdie
+	Fexec rm -rff $Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname/usr/ || Fdie
+
+	# Workaround for permissions bug
+	Ffileschmod usr/src/linux-$_F_kernel_ver$_F_kernel_uname/include/generated 644
+
+	Fsplit kernel$_F_kernel_name-source usr/src
+
+	## now the kernel$_F_kernel_name-docs
+	Fmkdir /usr/src/linux-$_F_kernel_ver$_F_kernel_uname
+	Fexec cp -Ra $Fsrcdir/linux-$_F_kernel_ver/{Documentation,COPYING,CREDITS,MAINTAINERS,README} \
+				$Fdestdir/usr/src/linux-$_F_kernel_ver$_F_kernel_uname || Fdie
+	## do we need to ln /usr/share/doc ?!
+	Fsplit kernel$_F_kernel_name-docs usr/src
+
+
+	if [ -z "$_F_kernel_name" ]; then
+		Fexec kmake INSTALL_HDR_PATH=$Fdestdir/usr headers_install || Fdie
+		[ -e $Fdestdir/usr/include/scsi ] && Frm /usr/include/scsi
+		[ -e $Fdestdir/usr/include/drm ] && Frm /usr/include/drm
+		Fsplit kernel-headers /usr
+	fi
+
+	## now time to eat some cookies and wait the kernel got compiled :)
+	## use verbose by default, we want to know what is going on...
+	Fexec kmake V=1 || Fdie
+
+	Fmkdir /boot
+	Fmkdir /lib/modules
+	Ffilerel .config /boot/config-$_F_kernel_ver$_F_kernel_uname
+	if [ ! -z "$_F_kernel_vmlinuz" ]; then
+		Ffilerel $_F_kernel_vmlinuz /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
+	else
+		Ffilerel arch/x86/boot/bzImage /boot/$_F_kernel_path-$_F_kernel_ver$_F_kernel_uname
+	fi
+
+	Fexec kmake INSTALL_MOD_PATH=$Fdestdir $MAKEFLAGS modules_install || Fdie
+	# dump symol versions so that later builds will have dependencies and
+	# modversions
+	Ffilerel System.map /boot/System.map-$_F_kernel_ver$_F_kernel_uname
+	Ffilerel /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/Module.symvers
+
+	# Since kernel 5.10 this is needed to build external modules
+	Ffilerel scripts/module.lds /usr/src/linux-$_F_kernel_ver$_F_kernel_uname/scripts/module.lds
+	Frm /lib/modules/$_F_kernel_ver$_F_kernel_uname/build
+	Frm /lib/modules/$_F_kernel_ver$_F_kernel_uname/source
+
+	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname /lib/modules/$_F_kernel_ver$_F_kernel_uname/build
+	Fln /usr/src/linux-$_F_kernel_ver$_F_kernel_uname /lib/modules/$_F_kernel_ver$_F_kernel_uname/source
+
+	Fsplit kernel$_F_kernel_name-source usr/src/linux-$_F_kernel_ver$_F_kernel_uname/Module.symvers
+	Fsplit kernel$_F_kernel_name-source usr/src/linux-$_F_kernel_ver$_F_kernel_uname/scripts/module.lds
+
+	Fexec /sbin/depmod -a -b $Fdestdir $_F_kernel_ver$_F_kernel_uname || Fdie
+
+
+}
+
+# optimization OK

@@ -1,0 +1,127 @@
+diff -Naur dracut-059/modules.d/98dracut-systemd/module-setup.sh dracut-059.new/modules.d/98dracut-systemd/module-setup.sh
+--- dracut-059/modules.d/98dracut-systemd/module-setup.sh	2022-12-24 17:49:27.000000000 +0100
++++ dracut-059.new/modules.d/98dracut-systemd/module-setup.sh	2023-09-22 13:29:49.791423262 +0200
+@@ -37,6 +37,8 @@
+ 
+     inst_script "$moddir/rootfs-generator.sh" "$systemdutildir"/system-generators/dracut-rootfs-generator
+ 
++    inst_hook cmdline 10 "$moddir/parse-root.sh"
++
+     for i in \
+         dracut-cmdline.service \
+         dracut-cmdline-ask.service \
+diff -Naur dracut-059/modules.d/98dracut-systemd/parse-root.sh dracut-059.new/modules.d/98dracut-systemd/parse-root.sh
+--- dracut-059/modules.d/98dracut-systemd/parse-root.sh	1970-01-01 01:00:00.000000000 +0100
++++ dracut-059.new/modules.d/98dracut-systemd/parse-root.sh	2023-09-22 13:29:49.791423262 +0200
+@@ -0,0 +1,38 @@
++#!/bin/sh
++
++type getarg > /dev/null 2>&1 || . /lib/dracut-lib.sh
++
++root=$(getarg root=)
++case "${root#block:}" in
++    LABEL=* | UUID=* | PARTUUID=* | PARTLABEL=*)
++        root="block:$(label_uuid_to_dev "$root")"
++        rootok=1
++        ;;
++    /dev/nfs) # ignore legacy /dev/nfs
++        ;;
++    /dev/*)
++        root="block:${root}"
++        rootok=1
++        ;;
++esac
++
++if [ "$rootok" = "1" ]; then
++    root_dev="${root#block:}"
++    root_name="$(str_replace "$root_dev" '/' '\x2f')"
++    if ! [ -e "$hookdir/initqueue/finished/devexists-${root_name}.sh" ]; then
++
++        # If a LUKS device needs unlocking via systemd in the initrd, assume
++        # it's for the root device. In that case, don't block on it if it's
++        # after remote-fs-pre.target since the initqueue is ordered before it so
++        # it will never actually show up (think Tang-pinned rootfs).
++        cat > "$hookdir/initqueue/finished/devexists-${root_name}.sh" << EOF
++if ! grep -q After=remote-fs-pre.target /run/systemd/generator/systemd-cryptsetup@*.service 2>/dev/null; then
++    [ -e "$root_dev" ]
++fi
++EOF
++        {
++            printf '[ -e "%s" ] || ' "$root_dev"
++            printf 'warn "\"%s\" does not exist"\n' "$root_dev"
++        } >> "$hookdir/emergency/80-${root_name}.sh"
++    fi
++fi
+diff -Naur dracut-059/modules.d/98dracut-systemd/rootfs-generator.sh dracut-059.new/modules.d/98dracut-systemd/rootfs-generator.sh
+--- dracut-059/modules.d/98dracut-systemd/rootfs-generator.sh	2022-12-24 17:49:27.000000000 +0100
++++ dracut-059.new/modules.d/98dracut-systemd/rootfs-generator.sh	2023-09-22 13:29:49.791423262 +0200
+@@ -6,28 +6,10 @@
+     local _name
+     local _timeout
+ 
+-    _name="$(str_replace "$1" '/' '\x2f')"
++    _name=$(dev_unit_name "$1")
+     _timeout=$(getarg rd.timeout)
+     _timeout=${_timeout:-0}
+ 
+-    if ! [ -e "$hookdir/initqueue/finished/devexists-${_name}.sh" ]; then
+-
+-        # If a LUKS device needs unlocking via systemd in the initrd, assume
+-        # it's for the root device. In that case, don't block on it if it's
+-        # after remote-fs-pre.target since the initqueue is ordered before it so
+-        # it will never actually show up (think Tang-pinned rootfs).
+-        cat > "$hookdir/initqueue/finished/devexists-${_name}.sh" << EOF
+-if ! grep -q After=remote-fs-pre.target /run/systemd/generator/systemd-cryptsetup@*.service 2>/dev/null; then
+-    [ -e "$1" ]
+-fi
+-EOF
+-        {
+-            printf '[ -e "%s" ] || ' "$1"
+-            printf 'warn "\"%s\" does not exist"\n' "$1"
+-        } >> "$hookdir/emergency/80-${_name}.sh"
+-    fi
+-
+-    _name=$(dev_unit_name "$1")
+     if ! [ -L "$GENERATOR_DIR"/initrd.target.wants/"${_name}".device ]; then
+         [ -d "$GENERATOR_DIR"/initrd.target.wants ] || mkdir -p "$GENERATOR_DIR"/initrd.target.wants
+         ln -s ../"${_name}".device "$GENERATOR_DIR"/initrd.target.wants/"${_name}".device
+@@ -51,7 +33,6 @@
+     [ -z "$1" ] && return 0
+ 
+     _name=$(dev_unit_name "$1")
+-    [ -d "$GENERATOR_DIR" ] || mkdir -p "$GENERATOR_DIR"
+     if ! [ -f "$GENERATOR_DIR"/sysroot.mount ]; then
+         {
+             echo "[Unit]"
+@@ -77,12 +58,12 @@
+     [ -z "$1" ] && return 0
+ 
+     _name=$(dev_unit_name "$1")
+-    [ -d /run/systemd/generator/systemd-fsck@"${_name}".service.d ] || mkdir -p /run/systemd/generator/systemd-fsck@"${_name}".service.d
+-    if ! [ -f /run/systemd/generator/systemd-fsck@"${_name}".service.d/after-pre-mount.conf ]; then
++    [ -d "$GENERATOR_DIR"/systemd-fsck@"${_name}".service.d ] || mkdir -p "$GENERATOR_DIR"/systemd-fsck@"${_name}".service.d
++    if ! [ -f "$GENERATOR_DIR"/systemd-fsck@"${_name}".service.d/after-pre-mount.conf ]; then
+         {
+             echo "[Unit]"
+             echo "After=dracut-pre-mount.service"
+-        } > /run/systemd/generator/systemd-fsck@"${_name}".service.d/after-pre-mount.conf
++        } > "$GENERATOR_DIR"/systemd-fsck@"${_name}".service.d/after-pre-mount.conf
+     fi
+ 
+ }
+@@ -101,10 +82,12 @@
+         ;;
+ esac
+ 
+-GENERATOR_DIR="$1"
+-
+ if [ "$rootok" = "1" ]; then
+-    generator_wait_for_dev "${root#block:}" "$RDRETRY"
++    GENERATOR_DIR="$1"
++    [ -z "$GENERATOR_DIR" ] && exit 1
++    [ -d "$GENERATOR_DIR" ] || mkdir -p "$GENERATOR_DIR"
++
++    generator_wait_for_dev "${root#block:}"
+     generator_fsck_after_pre_mount "${root#block:}"
+     strstr "$(cat /proc/cmdline)" 'root=' || generator_mount_rootfs "${root#block:}" "$(getarg rootfstype=)" "$(getarg rootflags=)"
+ fi

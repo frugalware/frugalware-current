@@ -69,8 +69,7 @@ while i:
 						break
 					if line[:14] != "# Maintainer: ":
 						continue
-					# FIXME: we here hardcore the encoding of the FBs
-					maintainer = line[14:].strip().decode('latin1')
+					maintainer = line[14:].strip()
 					break
 				socket.close()
 			except IOError:

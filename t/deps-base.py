@@ -8,7 +8,7 @@ except ImportError:
 import os, tempfile, shutil, sys
 
 if len(sys.argv) > 1 and sys.argv[1] == "--help":
-	print "base packages which depend on packages outsite base (->base is needed)"
+	print("base packages which depend on packages outsite base (->base is needed)")
 	sys.exit(0)
 
 basecats = ['base']
@@ -67,7 +67,7 @@ while i:
 				socket.close()
 			except IOError:
 				maintainer = "Unknown"
-			print "%s should be moved out from base (%s is not in base; %s)" % (pkgname, pacman.void_to_char(pacman.list_getdata(j)), maintainer)
+			print("%s should be moved out from base (%s is not in base; %s)" % (pkgname, pacman.void_to_char(pacman.list_getdata(j)), maintainer))
 		j = pacman.list_next(j)
 	i = pacman.list_next(i)
 shutil.rmtree(root)

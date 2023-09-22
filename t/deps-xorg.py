@@ -8,7 +8,7 @@ except ImportError:
 import os, tempfile, shutil, sys
 
 if len(sys.argv) > 1 and sys.argv[1] == "--help":
-	print "base packages which depend on xorg (lib->xlib is needed or so)"
+	print("base packages which depend on xorg (lib->xlib is needed or so)")
 	sys.exit(0)
 
 basecats = ['base', 'apps', 'lib', 'multimedia', 'network', 'devel']
@@ -67,7 +67,7 @@ while i:
 				socket.close()
 			except IOError:
 				maintainer = "Unknown"
-			print "%s should be moved to some xfoo category (%s is already there; %s)" % (pkgname, pacman.void_to_char(pacman.list_getdata(j)), maintainer)
+			print("%s should be moved to some xfoo category (%s is already there; %s)" % (pkgname, pacman.void_to_char(pacman.list_getdata(j)), maintainer))
 		j = pacman.list_next(j)
 	i = pacman.list_next(i)
 shutil.rmtree(root)

@@ -10,7 +10,7 @@ import os, tempfile, shutil, sys, re
 remove = False
 if len(sys.argv) > 1:
 	if sys.argv[1] == "--help":
-		print "no longer necessary %s fpms" % sys.argv[2]
+		print("no longer necessary %s fpms" % sys.argv[2])
 		sys.exit(0)
 	elif sys.argv[1] == "--remove":
 		remove = True
@@ -43,6 +43,6 @@ for i in ['frugalware-%s' % arch]:
 	shutil.rmtree(root)
 	for j in os.listdir(os.getcwd() + "/../frugalware-" + arch):
 		if j not in fdb and j != treename + ".fdb" and j != ".gitignore":
-			print "frugalware-" + arch + "/" + j
+			print("frugalware-" + arch + "/" + j)
 			if remove:
 				os.rename("../frugalware-" + arch + "/" + j, "/srv/ftp/pub/archive/fpmjunk/" + archive + "/frugalware-" + arch + "/" + j)

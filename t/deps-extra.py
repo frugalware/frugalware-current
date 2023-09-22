@@ -8,7 +8,7 @@ except ImportError:
 import os, tempfile, shutil, sys
 
 if len(sys.argv) > 1 and sys.argv[1] == "--help":
-	print "installed-by-default packages which depend on extra packages"
+	print("installed-by-default packages which depend on extra packages")
 	sys.exit(0)
 
 root = tempfile.mkdtemp()
@@ -31,7 +31,7 @@ while i:
 			i = pacman.list_next(i)
 			continue
 	except TypeError:
-		print "%s has no groups()" % pkgname
+		print("%s has no groups()" % pkgname)
 		i = pacman.list_next(i)
 		continue
 	j = pacman.void_to_PM_LIST(pacman.pkg_getinfo(pkg, pacman.PKG_DEPENDS))
@@ -75,7 +75,7 @@ while i:
 				socket.close()
 			except IOError:
 				maintainer = "Unknown"
-			print "%s should be moved to extra (%s is in extra; %s)" % (pkgname, pacman.void_to_char(pacman.list_getdata(j)), maintainer)
+			print("%s should be moved to extra (%s is in extra; %s)" % (pkgname, pacman.void_to_char(pacman.list_getdata(j)), maintainer))
 		j = pacman.list_next(j)
 	i = pacman.list_next(i)
 pacman.release()

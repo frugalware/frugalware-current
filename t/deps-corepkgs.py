@@ -23,7 +23,7 @@ def any_in(needle, haystack):
 	return False
 
 if len(sys.argv) > 1 and sys.argv[1] == "--help":
-	print "COREPKGS (core, chroot-core, devel-core) packages which depend on packages outsite COREPKGS (->COREPKGS is needed)"
+	print("COREPKGS (core, chroot-core, devel-core) packages which depend on packages outsite COREPKGS (->COREPKGS is needed)")
 	sys.exit(0)
 
 basecats = ['core', 'chroot-core', 'devel-core']
@@ -80,7 +80,7 @@ while i:
 				socket.close()
 			except IOError:
 				maintainer = "Unknown"
-			print "%s should be moved out from COREPKGS (%s is not in COREPKGS; %s)" % (pkgname, pacman.void_to_char(pacman.list_getdata(j)), maintainer)
+			print("%s should be moved out from COREPKGS (%s is not in COREPKGS; %s)" % (pkgname, pacman.void_to_char(pacman.list_getdata(j)), maintainer))
 		j = pacman.list_next(j)
 	i = pacman.list_next(i)
 shutil.rmtree(root)

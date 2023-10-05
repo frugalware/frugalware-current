@@ -1051,7 +1051,7 @@ Fbuildsystem_python_setup() {
 
 	if [ -z "$_F_python_version" ]; then
 		_python="python3"
-		_F_python_libdir=`python3 -c 'import sysconfig; print(sysconfig.get_path("platlib"))[1:])'`
+		_F_python_libdir=`python3 -c 'import sysconfig; print(sysconfig.get_path("platlib")[1:])'`
 		_F_python_ver=`python3 -c 'import sysconfig; print(sysconfig.get_python_version())'`
 	else
 		_python="$_F_python_version"
@@ -1060,7 +1060,7 @@ Fbuildsystem_python_setup() {
 		case "$_pyver" in
 		3)
 			## only python3 possible fo now
-			_F_python3_libdir=`python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_lib()[1:])'`
+			_F_python3_libdir=`python3 -c 'import sysconfig; print(sysconfig.get_path("platlib")[1:])'`
 			_F_python3_ver=`python3 -c 'from distutils import sysconfig; print(sysconfig.get_python_version())'`
 			;;
 		*)

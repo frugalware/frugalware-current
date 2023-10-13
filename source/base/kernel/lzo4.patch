@@ -1,0 +1,96 @@
+Currently the default compression algorithm is selected based on
+Kconfig. Introduce a kernel command line parameter "hib_compression" to
+override this behaviour.
+
+Different compression algorithms have different characteristics and
+hibernation may benefit when it uses any of these algorithms, especially
+when a secondary algorithm offers better decompression speeds over a
+default algorithm, which in turn reduces hibernation image restore time.
+
+Users can set "hib_compression" command line parameter to override the
+default algorithm. Currently LZO and LZ4 are the supported algorithms.
+Usage:
+    LZO: hib_compression=lzo
+    LZ4: hib_compression=lz4
+
+LZO is the default compression algorithm used with hibernation.
+
+Signed-off-by: Nikhil V <quic_nprakash@quicinc.com>
+---
+ .../admin-guide/kernel-parameters.txt         |  6 ++++
+ kernel/power/hibernate.c                      | 31 ++++++++++++++++++-
+ 2 files changed, 36 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/admin-guide/kernel-parameters.txt b/Documentation/admin-guide/kernel-parameters.txt
+index 0a1731a0f0ef..3f5f3e453db1 100644
+--- a/Documentation/admin-guide/kernel-parameters.txt
++++ b/Documentation/admin-guide/kernel-parameters.txt
+@@ -1734,6 +1734,12 @@
+ 				(that will set all pages holding image data
+ 				during restoration read-only).
+ 
++	hib_compression= [COMPRESSION ALGORITHM]
++		lzo		Select LZO compression algorithm to compress/decompress
++				hibernation images.
++		lz4		Select LZ4 compression algorithm to compress/decompress
++				hibernation images.
++
+ 	highmem=nn[KMG]	[KNL,BOOT] forces the highmem zone to have an exact
+ 			size of <nn>. This works even on boxes that have no
+ 			highmem otherwise. This also works to reduce highmem
+diff --git a/kernel/power/hibernate.c b/kernel/power/hibernate.c
+index 87be8cda9b9b..ccc7a1aaed8d 100644
+--- a/kernel/power/hibernate.c
++++ b/kernel/power/hibernate.c
+@@ -742,7 +742,8 @@ int hibernate(void)
+ 	 * Query for the compression algorithm support if compression is enabled.
+ 	 */
+ 	if (!nocompress) {
+-		strscpy(hib_comp_algo, default_compressor, sizeof(hib_comp_algo));
++		if (!hib_comp_algo[0])
++			strscpy(hib_comp_algo, default_compressor, sizeof(hib_comp_algo));
+ 		if (crypto_has_comp(hib_comp_algo, 0, 0) != 1) {
+ 			pr_err("%s compression is not available\n", hib_comp_algo);
+ 			return -EOPNOTSUPP;
+@@ -1416,6 +1417,33 @@ static int __init nohibernate_setup(char *str)
+ 	return 1;
+ }
+ 
++static const char * const comp_alg_enabled[] = {
++#if IS_ENABLED(CONFIG_CRYPTO_LZO)
++	COMPRESSION_ALGO_LZO,
++#endif
++#if IS_ENABLED(CONFIG_CRYPTO_LZ4)
++	COMPRESSION_ALGO_LZ4,
++#endif
++};
++
++static int __init compression_setup(char *str)
++{
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(comp_alg_enabled); i++) {
++		if (!strcmp(str, comp_alg_enabled[i])) {
++			strscpy(hib_comp_algo, str, sizeof(hib_comp_algo));
++			goto setup_done;
++		}
++	}
++	pr_info("Cannot set specified compressor. Falling back to %s\n",
++		default_compressor);
++	strscpy(hib_comp_algo, default_compressor, sizeof(hib_comp_algo));
++
++setup_done:
++	return 1;
++}
++
+ __setup("noresume", noresume_setup);
+ __setup("resume_offset=", resume_offset_setup);
+ __setup("resume=", resume_setup);
+@@ -1423,3 +1451,4 @@ __setup("hibernate=", hibernate_setup);
+ __setup("resumewait", resumewait_setup);
+ __setup("resumedelay=", resumedelay_setup);
+ __setup("nohibernate", nohibernate_setup);
++__setup("hib_compression=", compression_setup);
+-- 
+2.17.1
+

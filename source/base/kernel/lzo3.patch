@@ -1,0 +1,134 @@
+Extend the support for LZ4 compression to be used with hibernation.
+The main idea is that different compression algorithms
+have different characteristics and hibernation may benefit when it uses
+any of these algorithms: a default algorithm, having higher
+compression rate but is slower(compression/decompression) and a
+secondary algorithm, that is faster(compression/decompression) but has
+lower compression rate.
+
+LZ4 algorithm has better decompression speeds over LZO. This reduces
+the hibernation image restore time.
+As per test results:
+                                    LZO             LZ4
+Size before Compression(bytes)   682696704       682393600
+Size after Compression(bytes)    146502402       155993547
+Decompression Rate               335.02 MB/s     501.05 MB/s
+Restore time                       4.4s             3.8s
+
+LZO is the default compression algorithm used for hibernation. Enable
+CONFIG_HIBERNATION_COMP_LZ4 to set the default compressor as LZ4.
+
+Signed-off-by: Nikhil V <quic_nprakash@quicinc.com>
+---
+ kernel/power/Kconfig     |  5 +++++
+ kernel/power/hibernate.c | 25 ++++++++++++++++++++++---
+ kernel/power/power.h     | 14 ++++++++++++++
+ 3 files changed, 41 insertions(+), 3 deletions(-)
+
+diff --git a/kernel/power/Kconfig b/kernel/power/Kconfig
+index bc449d05c23d..03e2cd652f20 100644
+--- a/kernel/power/Kconfig
++++ b/kernel/power/Kconfig
+@@ -100,11 +100,16 @@ config HIBERNATION_COMP_LZO
+ 	bool "lzo"
+ 	depends on CRYPTO_LZO
+ 
++config HIBERNATION_COMP_LZ4
++	bool "lz4"
++	depends on CRYPTO_LZ4
++
+ endchoice
+ 
+ config HIBERNATION_DEF_COMP
+ 	string
+ 	default "lzo" if HIBERNATION_COMP_LZO
++	default "lz4" if HIBERNATION_COMP_LZ4
+ 	help
+ 	  Default compressor to be used for hibernation.
+ 
+diff --git a/kernel/power/hibernate.c b/kernel/power/hibernate.c
+index ed9901b75333..87be8cda9b9b 100644
+--- a/kernel/power/hibernate.c
++++ b/kernel/power/hibernate.c
+@@ -721,6 +721,9 @@ static int load_image_and_restore(bool snapshot_test)
+ 	return error;
+ }
+ 
++#define COMPRESSION_ALGO_LZO "lzo"
++#define COMPRESSION_ALGO_LZ4 "lz4"
++
+ /**
+  * hibernate - Carry out system hibernation, including saving the image.
+  */
+@@ -780,11 +783,24 @@ int hibernate(void)
+ 
+ 		if (hibernation_mode == HIBERNATION_PLATFORM)
+ 			flags |= SF_PLATFORM_MODE;
+-		if (nocompress)
++		if (nocompress) {
+ 			flags |= SF_NOCOMPRESS_MODE;
+-		else
++		} else {
+ 		        flags |= SF_CRC32_MODE;
+ 
++			/*
++			 * By default, LZO compression is enabled. Use SF_COMPRESSION_ALG_LZ4
++			 * to override this behaviour and use LZ4.
++			 *
++			 * Refer kernel/power/power.h for more details
++			 */
++
++			if (!strcmp(hib_comp_algo, COMPRESSION_ALGO_LZ4))
++				flags |= SF_COMPRESSION_ALG_LZ4;
++			else
++				flags |= SF_COMPRESSION_ALG_LZO;
++		}
++
+ 		pm_pr_dbg("Writing hibernation image.\n");
+ 		error = swsusp_write(flags);
+ 		swsusp_free();
+@@ -974,7 +990,10 @@ static int software_resume(void)
+ 	 * the algorithm support.
+ 	 */
+ 	if (!(swsusp_header_flags & SF_NOCOMPRESS_MODE)) {
+-		strscpy(hib_comp_algo, default_compressor, sizeof(hib_comp_algo));
++		if (swsusp_header_flags & SF_COMPRESSION_ALG_LZ4)
++			strscpy(hib_comp_algo, COMPRESSION_ALGO_LZ4, sizeof(hib_comp_algo));
++		else
++			strscpy(hib_comp_algo, default_compressor, sizeof(hib_comp_algo));
+ 		if (crypto_has_comp(hib_comp_algo, 0, 0) != 1) {
+ 			pr_err("%s compression is not available\n", hib_comp_algo);
+ 			error = -EOPNOTSUPP;
+diff --git a/kernel/power/power.h b/kernel/power/power.h
+index d9bf10d92546..026d40e0972a 100644
+--- a/kernel/power/power.h
++++ b/kernel/power/power.h
+@@ -167,11 +167,25 @@ extern int swsusp_swap_in_use(void);
+  * Flags that can be passed from the hibernatig hernel to the "boot" kernel in
+  * the image header.
+  */
++#define SF_COMPRESSION_ALG_LZO	0 /* dummy, details given  below */
+ #define SF_PLATFORM_MODE	1
+ #define SF_NOCOMPRESS_MODE	2
+ #define SF_CRC32_MODE	        4
+ #define SF_HW_SIG		8
+ 
++/*
++ * Bit to indicate the compression algorithm to be used(for LZ4). The same
++ * could be checked while saving/loading image to/from disk to use the
++ * corresponding algorithms.
++ *
++ * By default, LZO compression is enabled if SF_CRC32_MODE is set. Use
++ * SF_COMPRESSION_ALG_LZ4 to override this behaviour and use LZ4.
++ *
++ * SF_CRC32_MODE, SF_COMPRESSION_ALG_LZO(dummy) -> Compression, LZO
++ * SF_CRC32_MODE, SF_COMPRESSION_ALG_LZ4 -> Compression, LZ4
++ */
++#define SF_COMPRESSION_ALG_LZ4	16
++
+ /* kernel/power/hibernate.c */
+ int swsusp_check(bool exclusive);
+ extern void swsusp_free(void);
+-- 
+2.17.1
+

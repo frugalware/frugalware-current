@@ -1,0 +1,105 @@
+From f8cbd7140095279e40b36415d5b6fc5c36e96a40 Mon Sep 17 00:00:00 2001
+From: "Richard W.M. Jones" <rjones@redhat.com>
+Date: Fri, 6 Oct 2023 11:15:55 +0100
+Subject: [PATCH] daemon: Find -lcamlstr{nat,byt} and -lunix{nat,byt}, and
+ require -lzstd
+
+OCaml 5.1 changes the names of these libraries for some reason.
+
+Also in OCaml 5.1, if using those libraries you must link with -lzstd.
+Since zstd was already described as "required" (although we only used
+it in the appliance), there is no official change to the requirements,
+but I have added a configure time check for the library.
+
+Thanks: Jerry James <loganjerry@gmail.com>
+---
+ daemon/Makefile.am      |  8 +++++---
+ m4/guestfs-libraries.m4 |  3 +++
+ m4/guestfs-ocaml.m4     | 41 +++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 49 insertions(+), 3 deletions(-)
+
+diff --git a/daemon/Makefile.am b/daemon/Makefile.am
+index 01c0f6416..b44d7712f 100644
+--- a/daemon/Makefile.am
++++ b/daemon/Makefile.am
+@@ -376,9 +376,11 @@ OCAML_LIBS = \
+ 	-lmlstdutils \
+ 	-lmlaugeas \
+ 	-lmlhivex \
+-	-lcamlstr \
+-	-lunix \
+-	-l$(CAMLRUN) -ldl -lm
++	-l$(CAMLSTR) \
++	-l$(CAMLUNIX) \
++	-l$(CAMLRUN) \
++	$(LIBZSTD_LIBS) \
++	-ldl -lm
+ 
+ CLEANFILES += camldaemon.o
+ 
+diff --git a/m4/guestfs-libraries.m4 b/m4/guestfs-libraries.m4
+index 29d012a37..18c4cd307 100644
+--- a/m4/guestfs-libraries.m4
++++ b/m4/guestfs-libraries.m4
+@@ -248,6 +248,9 @@ PKG_CHECK_MODULES([PCRE2], [libpcre2-8], [], [
+     PCRE_LIBS=`$PCRE2_CONFIG --libs8`
+ ])
+ 
++dnl Check for zstd (required since OCaml 5.1)
++PKG_CHECK_MODULES([LIBZSTD], [libzstd])
++
+ dnl Check for Augeas >= 1.2.0 (required).
+ PKG_CHECK_MODULES([AUGEAS],[augeas >= 1.2.0])
+ 
+diff --git a/m4/guestfs-ocaml.m4 b/m4/guestfs-ocaml.m4
+index 39a8346f3..25b06408c 100644
+--- a/m4/guestfs-ocaml.m4
++++ b/m4/guestfs-ocaml.m4
+@@ -122,6 +122,47 @@ if test "x$enable_daemon" = "xyes"; then
+         AC_MSG_ERROR([could not find or link to libasmrun or libcamlrun])
+     fi
+     AC_SUBST([CAMLRUN])
++
++    dnl OCaml 5.1 changed -lcamlstr to -lcamlstrnat / -lcamlstrbyt
++    dnl and -lunix to -lunixnat / -lunixbyt so we need to detect
++    dnl the new or old libraries.  As above we cannot use AC_CHECK_LIB.
++    AC_MSG_CHECKING([how to link the daemon with -lcamlstr*])
++    if test "x$OCAMLOPT" != "xno"; then
++        choices="camlstrnat camlstr"
++    else
++        choices="camlstrbyt camlstr"
++    fi
++    for f in $choices; do
++        if test -f "$OCAMLLIB/lib$f.a"; then
++            CAMLSTR=$f
++            break
++        fi
++    done
++    if test "x$CAMLSTR" != "x"; then
++        AC_MSG_RESULT([$CAMLSTR])
++    else
++        AC_MSG_ERROR([could not find or link to -lcamlstr*])
++    fi
++    AC_SUBST([CAMLSTR])
++
++    AC_MSG_CHECKING([how to link the daemon with -lunix*])
++    if test "x$OCAMLOPT" != "xno"; then
++        choices="unixnat unix"
++    else
++        choices="unixbyt unix"
++    fi
++    for f in $choices; do
++        if test -f "$OCAMLLIB/lib$f.a"; then
++            CAMLUNIX=$f
++            break
++        fi
++    done
++    if test "x$CAMLUNIX" != "x"; then
++        AC_MSG_RESULT([$CAMLUNIX])
++    else
++        AC_MSG_ERROR([could not find or link to -lunix*])
++    fi
++    AC_SUBST([CAMLUNIX])
+ fi
+ 
+ dnl Define HIVEX_OPEN_UNSAFE_FLAG based on test above.

@@ -1,0 +1,88 @@
+unchanged:
+--- a/daemon/chroot.ml
++++ b/daemon/chroot.ml
+@@ -51,7 +51,7 @@ let f t func arg =
+     try
+       let chan = out_channel_of_descr wfd in
+       output_value chan ret;
+-      Pervasives.flush chan;
++      Stdlib.flush chan;
+       Exit._exit 0
+     with
+       exn ->
+unchanged:
+--- a/generator/pr.ml
++++ b/generator/pr.ml
+@@ -25,7 +25,7 @@ open Std_utils
+ open Utils
+ 
+ (* Output channel, 'pr' prints to this. *)
+-let chan = ref Pervasives.stdout
++let chan = ref Stdlib.stdout
+ 
+ (* Number of lines generated. *)
+ let lines = ref 0
+@@ -53,7 +53,7 @@ let output_to ?(perm = 0o444) filename k =
+   chan := open_out filename_new;
+   k ();
+   close_out !chan;
+-  chan := Pervasives.stdout;
++  chan := Stdlib.stdout;
+ 
+   (* Is the new file different from the current file? *)
+   if Sys.file_exists filename && files_equal filename filename_new then
+unchanged:
+--- a/common/mlstdutils/std_utils.ml
++++ b/common/mlstdutils/std_utils.ml
+@@ -341,12 +341,12 @@ module List = struct
+       | x::xs, y::ys, z::zs -> (x, y, z) :: combine3 xs ys zs
+       | _ -> invalid_arg "combine3"
+ 
+-    let rec assoc_lbl ?(cmp = Pervasives.compare) ~default x = function
++    let rec assoc_lbl ?(cmp = Stdlib.compare) ~default x = function
+       | [] -> default
+       | (y, y') :: _ when cmp x y = 0 -> y'
+       | _ :: ys -> assoc_lbl ~cmp ~default x ys
+ 
+-    let uniq ?(cmp = Pervasives.compare) xs =
++    let uniq ?(cmp = Stdlib.compare) xs =
+       let rec loop acc = function
+         | [] -> acc
+         | [x] -> x :: acc
+unchanged:
+--- a/ocaml/t/guestfs_065_implicit_close.ml
++++ b/ocaml/t/guestfs_065_implicit_close.ml
+@@ -30,8 +30,8 @@ let () =
+  *)
+ 
+ (* This should cause the GC to close the handle. *)
+-let () = Gc.compact ()
++let () = Gc.full_major ()
+ 
+ let () = assert  (!close_invoked = 1)
+ 
+-let () = Gc.compact ()
++let () = Gc.full_major ()
+only in patch2:
+unchanged:
+--- a/ocaml/guestfs-c.c
++++ b/ocaml/guestfs-c.c
+@@ -395,12 +395,16 @@ event_callback_wrapper (guestfs_h *g,
+   /* Ensure we are holding the GC lock before any GC operations are
+    * possible. (RHBZ#725824)
+    */
+-  caml_leave_blocking_section ();
++  bool in_blocking_section = (caml_state == NULL);
++
++  if (in_blocking_section)
++    caml_leave_blocking_section ();
+ 
+   event_callback_wrapper_locked (g, data, event, event_handle, flags,
+                                  buf, buf_len, array, array_len);
+ 
+-  caml_enter_blocking_section ();
++  if (in_blocking_section)
++    caml_enter_blocking_section ();
+ }
+ 
+ value

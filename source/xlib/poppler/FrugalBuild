@@ -3,21 +3,23 @@
 
 USE_GLIB=${USE_GLIB:-"y"}
 USE_QT5=${USE_QT5:-"y"}
+USE_QT6=${USE_QT6:-"y"}
 
 pkgname=poppler
-pkgver=23.09.0
-pkgrel=2
+pkgver=23.11.0
+pkgrel=1
 pkgdesc="A PDF rendering library"
 url="https://poppler.freedesktop.org/"
-depends=('fontconfig>=2.12-2' 'cairo>=1.14.6-4' 'libjpeg-turbo' 'libpng>=1.6.25' \
+depends=('fontconfig>=2.12-2' 'cairo>=1.14.6-4' 'libjpeg-turbo' 'libpng>=1.6.25' 'nss' \
 	'openjpeg>=2.2.0' 'libstdc++>=9.1.0-3' 'poppler-data' 'curl' 'libgpgmepp')
-makedepends=('x11-protos' 'gobject-introspection>=1.50.0' 'extra-cmake-modules' 'lcms2' 'git' 'boost')
+makedepends=('x11-protos' 'gobject-introspection>=1.50.0' 'extra-cmake-modules' \
+	'lcms2' 'boost' 'python3-setuptools')
 rodepends=('poppler-data')
 groups=('xlib')
 archs=("x86_64")
 up2date="Flasttar $url"
 source=(http://poppler.freedesktop.org/$pkgname-$pkgver.tar.xz 01-poppler.conf)
-sha1sums=('7023e01c77a16a2a768aaf9cc7b39d0f1903cfde' \
+sha1sums=('45091fd66b450417161d5ce6d125ec1775a9b373' \
           'a048348d9a8c6d545714350d3ab66dc7028e4b7f')
 options+=('scriptlet')
 
@@ -30,8 +32,7 @@ subrodepends=('poppler')
 subarchs=("x86_64")
 
 _F_cmake_confopts+="	-DENABLE_XPDF_HEADERS=ON \
-			-DENABLE_UNSTABLE_API_ABI_HEADERS=ON \
-			-DBUILD_QT4_TESTS=OFF"
+			-DENABLE_UNSTABLE_API_ABI_HEADERS=ON"
 Finclude cmake
 
 if Fuse $USE_GLIB; then
@@ -55,9 +56,16 @@ if Fuse $USE_QT5; then
 	subarchs+=("x86_64")
 fi
 
-build() {
-	Fexec git clone git://git.freedesktop.org/git/poppler/test || Fdie
+if Fuse $USE_QT6; then
+        subpkgs+=('poppler-qt6')
+        subdescs+=('Poppler QT6 bindings')
+        subgroups+=('xlib')
+        subdepends+=('qt6-base>=6.6.0')
+        subrodepends+=('poppler')
+        subarchs+=("x86_64")
+fi
 
+build() {
 	CMake_build
 
 	Ffile 01-poppler.conf /etc/fonts/conf.avail/01-poppler.conf
@@ -78,6 +86,12 @@ build() {
 		Fsplit poppler-qt5 usr/lib/libpoppler-qt5.*
 		Fsplit poppler-qt5 usr/lib/pkgconfig/poppler-qt5.*
 	fi
+
+        if Fuse $USE_QT6; then
+                Fsplit poppler-qt6 usr/include/poppler/qt6/
+                Fsplit poppler-qt6 usr/lib/libpoppler-qt6.*
+                Fsplit poppler-qt6 usr/lib/pkgconfig/poppler-qt6.*
+        fi
 
 	Frm usr/bin
 	Frm usr/share/man

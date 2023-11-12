@@ -3,13 +3,14 @@
 # Contributor: Miklos Vajna <vmiklos@frugalware.org>
 
 pkgname=bash
-pkgver=5.2.15
-pkgrel=4
+pkgver=5.2.21
+pkgrel=1
 pkgdesc="The GNU Bourne Again shell"
 url="http://tiswww.case.edu/php/chet/bash/bashtop.html"
 dlurl="http://ftp.gnu.org/gnu/$pkgname"
 backup=(etc/{profile,shells,skel/.bashrc})
 depends=('glibc>=2.37' 'readline>=8.2')
+makedepends=('gperf')
 groups=('base' 'core')
 archs=('x86_64')
 _F_archive_grepv="alpha\|beta\|rc"
@@ -27,8 +28,13 @@ build()
 	_bashconfig=(-DSYS_BASHRC=\'\"/etc/bashrc\"\' -DRECYCLES_PIDS)
 	export CFLAGS="${CFLAGS} ${_bashconfig[@]}"
 	Fcd
-
-	Fbuild
+	Fpatchall
+	Fconf
+	Fexec make CFLAGS="${CFLAGS} -fprofile-update=atomic -fprofile-dir=${Fsrcdir}/pgo -fprofile-generate=${Fsrcdir}/pgo -fprofile-partial-training" || Fdie
+	Fexec make CFLAGS="${CFLAGS} -fprofile-update=atomic -fprofile-dir=${Fsrcdir}/pgo -fprofile-generate=${Fsrcdir}/pgo -fprofile-partial-training" -k check || Fdie
+	Fexec make clean || Fdie
+	Fexec make CFLAGS="${CFLAGS} -fprofile-use=${Fsrcdir}/pgo -fprofile-dir=${Fsrcdir}/pgo -fprofile-partial-training" || Fdie
+	Fmakeinstall
 
 	Fmv /usr/bin /
 	Ffile profile shells /etc/

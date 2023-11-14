@@ -4,7 +4,7 @@
 
 pkgname=xz
 pkgver=5.4.5
-pkgrel=1
+pkgrel=2
 pkgdesc="XZ Utils is free general-purpose data compression software with high compression ratio."
 url="http://tukaani.org/xz/"
 depends=('glibc>=2.37')
@@ -21,6 +21,7 @@ provides=('xz-lzma' 'lzma')
 options+=('static') ## pacman.static-need-it
 _F_cross32_simple_auto="yes"
 Finclude cross32
+_F_cd_path="$pkgname-$pkgver"
 
 subpkgs+=("${pkgname}-static")
 subdescs+=("Static files for $pkgname")
@@ -30,8 +31,19 @@ subarchs+=('x86_64')
 suboptions+=('')
 
 build() {
+	Fcross32_common_build ## 32bit
+	Fcross32_delete_empty
+        Fcross32_delete_static
+        Fsplit "${subpkgs[0]}" /\*
 
-	Fbuild_cross32
+	Fpatchall
+	Fconf
+	Fexec make CFLAGS="${CFLAGS} -fprofile-update=atomic -fprofile-dir=${Fsrcdir}/pgo -fprofile-generate=${Fsrcdir}/pgo -fprofile-partial-training" || Fdie
+	Fexec make CFLAGS="${CFLAGS} -fprofile-update=atomic -fprofile-dir=${Fsrcdir}/pgo -fprofile-generate=${Fsrcdir}/pgo -fprofile-partial-training" -k check || Fdie
+	Fexec make clean || Fdie
+	Fexec make CFLAGS="${CFLAGS} -fprofile-use=${Fsrcdir}/pgo -fprofile-dir=${Fsrcdir}/pgo -fprofile-partial-training" || Fdie
+	Fmakeinstall
+
 	Fsplit $pkgname-static usr/lib/*.a
 }
 # optimization OK

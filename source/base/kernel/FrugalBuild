@@ -20,11 +20,11 @@ Finclude kernel
 
 url="https://www.kernel.org"
 depends=('kmod' 'sed')
-makedepends+=('bison' 'rsync')
+makedepends+=('bison' 'rsync' 'mold')
 [[ -z "$_F_kernel_name" ]] && makedepends+=('unifdef')
 groups=('base')
 archs=('x86_64')
-options+=('nodocs' 'genscriptlet' 'ldgold')
+options+=('nodocs' 'genscriptlet' 'noccache' 'scriptlet')
 _F_archive_grepv="rc"
 up2date="Flasttar $url"
 
@@ -104,6 +104,19 @@ subreplaces+=('')
 suboptions+=('')
 subinstall+=('')
 
+subpkgs+=('perf')
+subdescs+=('Kernel performance profiling tool')
+subdepends+=('elfutils slang binutils>=2.40 xz python3>=3.11 libtraceevent')
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
+subbackup+=('')
+subconflicts+=('')
+subprovides+=('')
+subreplaces+=('')
+suboptions+=('')
+subinstall+=('')
+makedepends+=('python3-setuptools' 'xmlto' 'asciidoc docbook-xsl')
+
 subpkgs+=("kernel$_F_kernel_name-docs")
 subdescs+=("Linux kernel documentation")
 subdepends+=('')
@@ -177,6 +190,9 @@ build()
 		export KBUILD_BUILD_USER="fst"
 		export KBUILD_BUILD_HOST="`uname -m`.frugalware.org"
 	fi
+
+	# use mold
+	export LDFLAGS="-fuse-ld=mold $LDFLAGS"
 
 	# remove unneded localversions
 	rm -fv localversion-*
@@ -303,6 +319,26 @@ build()
 	Fsplit x86_energy_perf_policy usr/share/
 
 
+        # build perf
+        Fexec cd ../../../perf
+	unset LDFLAGS
+	unset CXXFLAGS
+	unste CFLAGS
+	Fsed "libexec/perf-core" "lib/perf/perf-core" Makefile.config
+        Fexec make				\
+		WERROR=0			\
+		V=1				\
+		VF=1				\
+		DESTDIR="$Fdestdir/usr"         \
+		install || Fdie
+
+
+	Fmv /usr/etc /etc/
+        Frm /usr/etc
+        Fsplit perf etc/
+        Fsplit perf usr/bin/
+        Fsplit perf usr/share/
+        Fsplit perf usr/lib
 }
 
 # optimization OK

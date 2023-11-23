@@ -27,7 +27,7 @@ fi
 reset_env () {
 	local p
         unset archs install nobuild options pkgname pkgver pkgextraver source sha1sums
-        for p in `set|egrep '^(_F_|USE_)'|sed 's/\(=.*\| ()\)//'`; do unset $p; done
+        for p in `set| grep -E '^(_F_|USE_)'|sed 's/\(=.*\| ()\)//'`; do unset $p; done
 
         export Fpkgversep='-' startdir=`pwd`
 }

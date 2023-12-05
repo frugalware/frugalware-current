@@ -101,6 +101,8 @@ Fbuild_haskell_regscripts() {
   Fexerel unregister.sh usr/share/haskell/$_F_haskell_register_dir/unregister.sh
 }
 Fbuild_haskell() {
+  export PATH="/usr/lib/llvm15/bin/:$PATH"
+
   Fcd
   Fpatchall
   Fexec runhaskell $_F_haskell_setup configure $_F_haskell_confopts || Fdie

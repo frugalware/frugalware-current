@@ -57,7 +57,7 @@ if [ -z "$_F_haskell_register_dir" ]; then
 	_F_haskell_register_dir="$pkgname"
 fi
 if [ -z "$_F_haskell_confopts" ]; then
-	_F_haskell_confopts=" --ghc --prefix=/usr --libsubdir=\$compiler/site-local/\$pkgid"
+	_F_haskell_confopts=" --ghc  --ghc-option=-fllvm --prefix=/usr --libsubdir=\$compiler/site-local/\$pkgid"
 fi
 if [ -z "$_F_haskell_setup" ]; then
 	_F_haskell_setup="Setup.lhs"
@@ -82,7 +82,7 @@ install=$_F_haskell_install
 # * makedepends: ghc to makedepends=()
 ###
 options+=('scriptlet' 'genscriptlet')
-makedepends+=('ghc>=9.6.2' 'ghc-docs>=9.6.2' 'mold')
+makedepends+=('ghc>=9.8.1' 'ghc-docs>=9.8.1' 'mold')
 
 ###
 # == PROVIDED FUNCTIONS

@@ -2,13 +2,13 @@
 # Maintainer: dex77 <dex77@frugalware.org>
 
 pkgname=ghc
-pkgver=9.6.2
-_bootstrapver=9.2.3
-_dist=fedora27
+pkgver=9.8.1
+_bootstrapver=9.6.2
+_dist=fedora33
 pkgrel=1
 pkgdesc="The Glasgow Haskell Compiler"
 url="https://www.haskell.org/ghc/"
-depends=('gmp>=5.0.1' 'readline>=7.0-2' 'ncurses>=6.1-7' 'libedit>=20150325_3.1-3' 'libffi>=3.4')
+depends=('gmp>=5.0.1' 'readline>=7.0-2' 'ncurses>=6.1-7' 'libedit>=20150325_3.1-3' 'libffi>=3.4' 'llvm15')
 makedepends=('python3-sphinx' 'mold' 'python3-sphinx-rtd-theme')
 groups=('devel-extra')
 archs=('x86_64')
@@ -16,9 +16,8 @@ _F_archive_grepv=windows
 up2date="Flastarchive http://downloads.haskell.org/~ghc/latest/ -src.tar.xz"
 options=('scriptlet')
 source=($url/dist/$pkgver/$pkgname-$pkgver-src.tar.xz \
-	https://downloads.haskell.org/~ghc/${_bootstrapver}/ghc-${_bootstrapver}-x86_64-${_dist}-linux.tar.xz \
-	https://files.pythonhosted.org/packages/66/86/7b2c3d15f44cb3ea2e1c54481494121d755081aa57a8076de3fa2be4d587/sphinx_rtd_theme-1.2.2.tar.gz )
-signatures=("${source[0]}.sig" "${source[1]}.sig" '')
+	https://downloads.haskell.org/~ghc/${_bootstrapver}/ghc-${_bootstrapver}-x86_64-${_dist}-linux.tar.xz)
+signatures=("${source[0]}.sig" "${source[1]}.sig")
 
 subpkgs=("$pkgname-docs")
 subdescs=("GHC HTML documentation..")
@@ -49,6 +48,8 @@ build()
         # use mold
         export LDFLAGS="-fuse-ld=mold $LDFLAGS"
 
+	export PATH="/usr/lib/llvm15/bin/:$PATH"
+
 	Fexec cd $Fsrcdir || Fdie
 	Fexec rm -rf $pkgname-$pkgver || Fdie
 	Fextract $pkgname-$pkgver-src.tar.xz || Fdie
@@ -56,17 +57,13 @@ build()
 	Fexec tar -C temp-ghc-bootstrap -xvf ghc-${_bootstrapver}-x86_64-${_dist}-linux.tar.xz || Fdie
 
 	# install binary dist
-	Fexec cd "$Fsrcdir/temp-ghc-bootstrap/ghc-${_bootstrapver}/" || Fdie
+	Fexec cd "$Fsrcdir/temp-ghc-bootstrap/ghc-${_bootstrapver}-x86_64-unknown-linux/" || Fdie
 
 	Fexec ./configure --prefix="$Fsrcdir/bootstrap" || Fdie
 	Fexec make install || Fdie
 
 	Fexec cd "$Fsrcdir/$pkgname-$pkgver" || Fdie
 	Fpatchall
-
-	# use newer
-	Fexec rm -rf docs/users_guide/rtd-theme || Fdie
-	Fexec ln -s "$Fsrcdir/sphinx_rtd_theme-1.2.2/sphinx_rtd_theme" docs/users_guide/rtd-theme || Fdie
 
         # Bootstrap
         #
@@ -91,7 +88,7 @@ build()
 		--docs=no-sphinx-pdfs \
 		-V \
 		-j \
-		--flavour=release || Fdie
+		--flavour=release+llvm || Fdie
 
 	Fmkdir etc/ld.so.conf.d/
 

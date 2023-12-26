@@ -3,7 +3,7 @@
 
 pkgname=llvm
 pkgver=16.0.6
-pkgrel=6
+pkgrel=7
 gcc_ver=13.2.0
 url="http://www.llvm.org"
 pkgdesc="Low Level Virtual Machine (Compiler , Tools and Libs)"
@@ -195,28 +195,6 @@ _common_cmake_confopts="	-DCMAKE_INSTALL_PREFIX=/usr \
 Finclude cmake
 options+=('static' 'nolto')
 
-_get_distribution_components() {
-  local target
-  ninja -C $_F_cmake_build_dir -t targets | grep -Po 'install-\K.*(?=-stripped:)' | while read -r target; do
-    case $target in
-      llvm-libraries|distribution)
-        continue
-        ;;
-      # shared libraries
-      LLVM|LLVMgold)
-        ;;
-      # libraries needed for clang-tblgen
-      LLVMDemangle|LLVMSupport|LLVMTableGen)
-        ;;
-      # exclude static libraries
-      LLVM*)
-        continue
-        ;;
-    esac
-    echo $target
-  done
-}
-
 build() {
 	Fcd
 
@@ -241,17 +219,7 @@ build() {
 	export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$Fsrcdir/$_F_cd_path/${_F_cmake_build_dir}/lib32"
 
 
-        CMake_prepare_build
-        CMake_conf	
-	local distribution_components=$(_get_distribution_components | paste -sd\;)
-	test -n "$distribution_components" || Fdie
-	_F_cmake_confopts+=" -DLLVM_DISTRIBUTION_COMPONENTS=$distribution_components"
-	CMake_conf
-
-        cd $_F_cmake_build_dir || Fdie
-        ${cmake_builder} || Fdie
-
-	DESTDIR=$Fdestdir ninja install-distribution || Fdie
+        CMake_build
 
 	Fcross32_copy_back_source
 	Fcross32_reset_and_fix
@@ -296,17 +264,7 @@ build() {
 	Fcd
 	export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$Fsrcdir/$_F_cd_path/${_F_cmake_build_dir}/lib"
 
-        CMake_prepare_build
-        CMake_conf
-        distribution_components=$(_get_distribution_components | paste -sd\;)
-        test -n "$distribution_components" || Fdie
-        _F_cmake_confopts+=" -DLLVM_DISTRIBUTION_COMPONENTS=$distribution_components"
-	CMake_conf
-
-        cd $_F_cmake_build_dir || Fdie
-        ${cmake_builder} || Fdie
-
-	DESTDIR=$Fdestdir ninja install-distribution || Fdie
+        CMake_build
 
 	## Lit
 	Fexec cd ../llvm/utils/lit || Fdie

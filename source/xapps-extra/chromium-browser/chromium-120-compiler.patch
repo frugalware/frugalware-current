@@ -1,11 +1,17 @@
-From 307a0f63dd9b118f4b8470ed3d7567e81fdb7a6d Mon Sep 17 00:00:00 2001
-From: Mike Gilbert <floppym@gentoo.org>
-Date: Fri, 15 Sep 2023 17:44:39 +0000
+From 0ab7e7a6a0d61818f032bf1839120aefa1643eec Mon Sep 17 00:00:00 2001
+From: Matt Jolly <Matt.Jolly@footclan.ninja>
+Date: Mon, 13 Nov 2023 19:49:50 +1000
 Subject: [PATCH] Disable various compiler configs
 
+---
+ build/config/compiler/BUILD.gn | 191 +++------------------------------
+ 1 file changed, 17 insertions(+), 174 deletions(-)
+
+diff --git a/build/config/compiler/BUILD.gn b/build/config/compiler/BUILD.gn
+index 80bc79e5fb..66324acf06 100644
 --- a/build/config/compiler/BUILD.gn
 +++ b/build/config/compiler/BUILD.gn
-@@ -310,9 +310,6 @@ config("compiler") {
+@@ -320,9 +320,6 @@ config("compiler") {
  
    configs += [
      # See the definitions below.
@@ -15,7 +21,7 @@ Subject: [PATCH] Disable various compiler configs
      ":compiler_codegen",
      ":compiler_deterministic",
    ]
-@@ -578,37 +575,6 @@ config("compiler") {
+@@ -593,55 +590,6 @@ config("compiler") {
      ldflags += [ "-Wl,-z,keep-text-section-prefix" ]
    }
  
@@ -42,6 +48,24 @@ Subject: [PATCH] Disable various compiler configs
 -      }
 -    }
 -
+-    # TODO(crbug.com/1488374): This causes binary size growth and potentially
+-    # other problems.
+-    # TODO(crbug.com/1491036): This isn't supported by Cronet's mainline llvm version.
+-    if (default_toolchain != "//build/toolchain/cros:target" &&
+-        !llvm_android_mainline) {
+-      cflags += [
+-        "-mllvm",
+-        "-split-threshold-for-reg-with-hint=0",
+-      ]
+-      if (use_thin_lto && is_a_target_toolchain) {
+-        if (is_win) {
+-          ldflags += [ "-mllvm:-split-threshold-for-reg-with-hint=0" ]
+-        } else {
+-          ldflags += [ "-Wl,-mllvm,-split-threshold-for-reg-with-hint=0" ]
+-        }
+-      }
+-    }
+-
 -    # TODO(crbug.com/1235145): Investigate why/if this should be needed.
 -    if (is_win) {
 -      cflags += [ "/clang:-ffp-contract=off" ]
@@ -53,11 +77,10 @@ Subject: [PATCH] Disable various compiler configs
    # C11/C++11 compiler flags setup.
    # ---------------------------
    if (is_linux || is_chromeos || is_android || (is_nacl && is_clang) ||
-@@ -763,14 +729,6 @@ config("compiler") {
+@@ -800,13 +748,6 @@ config("compiler") {
+       if (is_apple) {
+         ldflags += [ "-Wcrl,object_path_lto" ]
        }
- 
-       ldflags += [ "-Wl,-mllvm,-import-instr-limit=$import_instr_limit" ]
--
 -      if (!is_chromeos) {
 -        # TODO(https://crbug.com/972449): turn on for ChromeOS when that
 -        # toolchain has this flag.
@@ -68,7 +91,7 @@ Subject: [PATCH] Disable various compiler configs
      }
  
      # TODO(https://crbug.com/1211155): investigate why this isn't effective on
-@@ -972,17 +930,6 @@ config("compiler") {
+@@ -1011,17 +952,6 @@ config("compiler") {
      # `-nodefaultlibs` from the linker invocation from Rust, which would be used
      # to compile dylibs on Android, such as for constructing unit test APKs.
      "-Cdefault-linker-libraries",
@@ -86,7 +109,7 @@ Subject: [PATCH] Disable various compiler configs
    ]
  
    if (!is_win || force_rustc_color_output) {
-@@ -1472,46 +1419,6 @@ config("compiler_deterministic") {
+@@ -1516,46 +1446,6 @@ config("compiler_deterministic") {
      }
    }
  
@@ -133,7 +156,7 @@ Subject: [PATCH] Disable various compiler configs
    # Tells the compiler not to use absolute paths when passing the default
    # paths to the tools it invokes. We don't want this because we don't
    # really need it and it can mess up the goma cache entries.
-@@ -1530,39 +1437,6 @@ config("compiler_deterministic") {
+@@ -1574,39 +1464,6 @@ config("compiler_deterministic") {
    }
  }
  
@@ -173,7 +196,7 @@ Subject: [PATCH] Disable various compiler configs
  config("compiler_arm_fpu") {
    if (current_cpu == "arm" && !is_ios && !is_nacl) {
      cflags = [ "-mfpu=$arm_fpu" ]
-@@ -1908,11 +1782,7 @@ config("chromium_code") {
+@@ -1960,11 +1817,7 @@ config("chromium_code") {
        defines = [ "_HAS_NODISCARD" ]
      }
    } else {
@@ -186,7 +209,7 @@ Subject: [PATCH] Disable various compiler configs
  
      # In Chromium code, we define __STDC_foo_MACROS in order to get the
      # C99 macros on Mac and Linux.
-@@ -1921,23 +1791,6 @@ config("chromium_code") {
+@@ -1973,24 +1826,6 @@ config("chromium_code") {
        "__STDC_FORMAT_MACROS",
      ]
  
@@ -199,9 +222,10 @@ Subject: [PATCH] Disable various compiler configs
 -      # disabled, so only do that for Release build.
 -      fortify_level = "2"
 -
--      # ChromeOS supports a high-quality _FORTIFY_SOURCE=3 implementation
--      # with a few custom glibc patches. Use that if it's available.
--      if (is_chromeos_ash) {
+-      # ChromeOS's toolchain supports a high-quality _FORTIFY_SOURCE=3
+-      # implementation with a few custom glibc patches. Use that if it's
+-      # available.
+-      if (is_chromeos_device && !lacros_use_chromium_toolchain) {
 -        fortify_level = "3"
 -      }
 -      defines += [ "_FORTIFY_SOURCE=" + fortify_level ]
@@ -210,7 +234,7 @@ Subject: [PATCH] Disable various compiler configs
      if (is_apple) {
        cflags_objc = [ "-Wimplicit-retain-self" ]
        cflags_objcc = [ "-Wimplicit-retain-self" ]
-@@ -2300,7 +2153,8 @@ config("default_stack_frames") {
+@@ -2369,7 +2204,8 @@ config("default_stack_frames") {
  }
  
  # Default "optimization on" config.
@@ -220,7 +244,7 @@ Subject: [PATCH] Disable various compiler configs
    if (is_win) {
      if (chrome_pgo_phase != 2) {
        # Favor size over speed, /O1 must be before the common flags.
-@@ -2359,7 +2213,8 @@ config("optimize") {
+@@ -2428,7 +2264,8 @@ config("optimize") {
  }
  
  # Turn off optimizations.
@@ -230,7 +254,7 @@ Subject: [PATCH] Disable various compiler configs
    if (is_win) {
      cflags = [
        "/Od",  # Disable optimization.
-@@ -2399,7 +2254,8 @@ config("no_optimize") {
+@@ -2468,7 +2305,8 @@ config("no_optimize") {
  # Turns up the optimization level. On Windows, this implies whole program
  # optimization and link-time code generation which is very expensive and should
  # be used sparingly.
@@ -240,7 +264,7 @@ Subject: [PATCH] Disable various compiler configs
    if (is_nacl && is_nacl_irt) {
      # The NaCl IRT is a special case and always wants its own config.
      # Various components do:
-@@ -2432,7 +2288,8 @@ config("optimize_max") {
+@@ -2501,7 +2339,8 @@ config("optimize_max") {
  #
  # TODO(crbug.com/621335) - rework how all of these configs are related
  # so that we don't need this disclaimer.
@@ -250,7 +274,7 @@ Subject: [PATCH] Disable various compiler configs
    if (is_nacl && is_nacl_irt) {
      # The NaCl IRT is a special case and always wants its own config.
      # Various components do:
-@@ -2458,7 +2315,8 @@ config("optimize_speed") {
+@@ -2527,7 +2366,8 @@ config("optimize_speed") {
    }
  }
  
@@ -260,7 +284,7 @@ Subject: [PATCH] Disable various compiler configs
    cflags = [ "-O1" ] + common_optimize_on_cflags
    rustflags = [ "-Copt-level=1" ]
    ldflags = common_optimize_on_ldflags
-@@ -2591,7 +2449,8 @@ config("win_pdbaltpath") {
+@@ -2660,7 +2500,8 @@ config("win_pdbaltpath") {
  }
  
  # Full symbols.
@@ -270,7 +294,7 @@ Subject: [PATCH] Disable various compiler configs
    rustflags = []
    if (is_win) {
      if (is_clang) {
-@@ -2740,7 +2599,8 @@ config("symbols") {
+@@ -2809,7 +2650,8 @@ config("symbols") {
  # Minimal symbols.
  # This config guarantees to hold symbol for stack trace which are shown to user
  # when crash happens in unittests running on buildbot.
@@ -280,7 +304,7 @@ Subject: [PATCH] Disable various compiler configs
    rustflags = []
    if (is_win) {
      # Functions, files, and line tables only.
-@@ -2825,7 +2685,8 @@ config("minimal_symbols") {
+@@ -2894,7 +2736,8 @@ config("minimal_symbols") {
  # This configuration contains function names only. That is, the compiler is
  # told to not generate debug information and the linker then just puts function
  # names in the final debug information.
@@ -291,5 +315,5 @@ Subject: [PATCH] Disable various compiler configs
      ldflags = [ "/DEBUG" ]
  
 -- 
-2.41.0
+2.42.0
 

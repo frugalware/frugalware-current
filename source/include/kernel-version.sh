@@ -50,14 +50,14 @@ Fkernelver_compress_modules()
 _Fkernelver_compress_modules_zstd()
 {
     local _directory
-    _directory="$Fdestdir/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel"
+    _directory="$Fdestdir/usr/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel"
     Fexec find $_directory -name "*.ko" -exec zstd -T0 -19 -q --rm -f '{}' \; || Fdie
 }
 
 _Fkernelver_compress_modules_xz()
 {
     local _directory
-    _directory="$Fdestdir/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel"
+    _directory="$Fdestdir/usr/lib/modules/${_F_kernelver_ver}${_F_kernel_name}-fw$_F_kernelver_rel"
     Fexec find $_directory -name "*.ko" -exec xz -T0 '{}' \; || Fdie
 }
 

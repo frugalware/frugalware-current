@@ -60,7 +60,7 @@ Finclude kernel-version
 # == OVERWRITTEN VARIABLES
 # * _F_kernelmod_uname: the output of the uname -r command of the official kernel
 # * _F_kernelmod_pkgver: the package version (pkgname-pkgrel) of the kernel
-# * _F_kernelmod_dir: the directory where the modules are (ie: /lib/modules/`uname -r`)
+# * _F_kernelmod_dir: the directory where the modules are (ie: /usr/lib/modules/`uname -r`)
 # * _F_genscriptlet_install: the _F_kernelmod_scriptlet value.
 ###
 if [ -z "$_F_kernelmod_scriptlet" ]; then
@@ -72,7 +72,7 @@ if [ -z "$_F_kernelmod_name" ]; then
 fi
 _F_kernelmod_uname=$_F_kernelmod_ver$_F_kernelmod_name-fw$_F_kernelmod_rel
 _F_kernelmod_pkgver=$_F_kernelmod_ver-$_F_kernelmod_rel
-_F_kernelmod_dir=/lib/modules/$_F_kernelmod_uname
+_F_kernelmod_dir=/usr/lib/modules/$_F_kernelmod_uname
 _F_genscriptlet_install="$_F_kernelmod_scriptlet"
 
 ###

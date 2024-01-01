@@ -30,7 +30,7 @@ pkgname=virtualbox
 realname=VirtualBox
 pkgver=7.0.12
 pkgextraver="a"
-pkgrel=9
+pkgrel=10
 pkgdesc="Oracle VirtualBox is a family of powerful x86 virtualization products for enterprise as well as home use."
 url="http://www.virtualbox.org"
 depends=('xerces-c>=2.8.0' 'xalan-c>=1.10.0-2' 'iasl' 'dev86' 'libxslt' 'libxcursor' 'libidl' 'sdl' 'openssl>=3.1.0' \
@@ -61,9 +61,6 @@ source=(http://download.virtualbox.org/virtualbox/${pkgver}/${realname}-${pkgver
 
 _F_kernelmod_scriptlet="$startdir/$pkgname.install"
 Finclude kernel-module
-## WARNING:
-## It seems something gets misscompiled *again* with gcc6 ..
-## DO NOT REMOVE 'nostrip' , we strip mauanlly
 
 ## PDMLdr: pdmR3LoadR0U: pszName="VMMR0.r0" rc=VERR_INVALID_PARAMETER szErr="SUP_IOCTL_LDR_OPEN failed"
 ## SUP_IOCTL_LDR_OPEN: pReq->u.In.cbImageBits < pReq->u.In.cbImageWithTabs
@@ -240,7 +237,7 @@ build() {
 
 	#udev and licence
 	Finstall 0644 "VirtualBox-${pkgver}/COPYING" "usr/share/licenses/virtualbox/LICENSE"
-	Finstall 0644 "10-vboxdrv.rules" "lib/udev/rules.d/10-vboxdrv.rules"
+	Finstall 0644 usr/lib/udev/rules.d/10-vboxdrv.rules
 
 	Fmkdir etc/ld.so.conf.d
 	echo /usr/lib/virtualbox  >> "$Fdestdir/etc/ld.so.conf.d/virtualbox.conf" || Fdie
@@ -257,7 +254,7 @@ build() {
 	Fmkdir ${_F_kernelmod_dir}/kernel/misc
 
 	Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} || Fdie
-	Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install || Fdie
+	Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir}/usr ZSTD_CLEVEL=19 INSTALL_MOD_STRIP=1 install || Fdie
 
 
 	Fsed "@_F_kernelmod_uname@" "$_F_kernelmod_uname" $startdir/virtualbox-modules.install
@@ -267,7 +264,6 @@ build() {
 
 	# guest additions
 	Fexec cd $Fsrcdir/${_F_cd_path}/out/linux.amd64/release/bin/additions || Fdie
-	Fexec ls -1
 	Fexerel usr/bin/VBoxClient
 	Fexerel usr/bin/VBoxControl
 	Fexerel usr/bin/VBoxService
@@ -284,13 +280,12 @@ build() {
 	Fexe ${_F_cd_path}/src/VBox/Additions/x11/Installer/vboxclient.desktop etc/xdg/autostart/vboxclient.desktop
 	Fsplit virtualbox-guest-additions  etc/xdg
 
-	Finstallrel 755 lib/security/pam_vbox.so
+	Finstallrel 755 usr/lib/security/pam_vbox.so
 
-	# TODO remove after systemd is gone
-	Finstall 644 lib/udev/rules.d/60-vboxguest.rules
-	Finstall 644 lib/systemd/system/vboxservice.service
-	Finstall 644 lib/systemd/system/vboxdrmclient.service
-	Finstall 644 lib/systemd/system/vboxdrmclient.path
+	Finstall 644 usr/lib/udev/rules.d/60-vboxguest.rules
+	Finstall 644 usr/lib/systemd/system/vboxservice.service
+	Finstall 644 usr/lib/systemd/system/vboxdrmclient.service
+	Finstall 644 usr/lib/systemd/system/vboxdrmclient.path
 	Finstall 644 usr/lib/sysusers.d/virtualbox-guest-utils.conf
 	Fsplit virtualbox-guest-additions usr/lib/sysusers.d/
 
@@ -314,22 +309,22 @@ build() {
 		for mod in ${KMOD_NAMES[@]}
 		do
 			Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname}  $mod || Fdie
-			Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir} install-$mod || Fdie
+			Fexec make V=1 KERN_DIR=${_F_kernelmod_dir}/build MODULE_DIR_TST=${Fdestdir}${_F_kernelmod_dir} INSTALL_MOD_DIR=kernel/misc KERN_VER=${_F_kernelmod_uname} INSTALL_MOD_PATH=${Fdestdir}/usr ZSTD_CLEVEL=19 INSTALL_MOD_STRIP=1 install-$mod || Fdie
 		done
 
 		Fsed "@_F_kernelmod_uname@" "$_F_kernelmod_uname" $startdir/virtualbox-guest-additions.install
 
 		Fkernelver_compress_modules
-		Fsplit virtualbox-guest-additions lib/modules/
+		Fsplit virtualbox-guest-additions usr/lib/modules/
 	fi
 
-	Fln /lib/systemd/system/vboxservice.service /lib/systemd/system/multi-user.target.wants/vboxservice.service
-	Fln /lib/systemd/system/vboxdrmclient.service /lib/systemd/system/multi-user.target.wants/vboxdrmclient.service
-	Fln /lib/systemd/system/vboxdrmclient.path /lib/systemd/system/multi-user.target.wants/vboxdrmclient.path
+	Fln /usr/lib/systemd/system/vboxservice.service /usr/lib/systemd/system/multi-user.target.wants/vboxservice.service
+	Fln /usr/lib/systemd/system/vboxdrmclient.service /usr/lib/systemd/system/multi-user.target.wants/vboxdrmclient.service
+	Fln /usr/lib/systemd/system/vboxdrmclient.path /usr/lib/systemd/system/multi-user.target.wants/vboxdrmclient.path
 
-	Fsplit virtualbox-guest-additions lib/security/
-	Fsplit virtualbox-guest-additions lib/systemd/
-	Fsplit virtualbox-guest-additions lib/udev/rules.d/60-vboxguest.rules
+	Fsplit virtualbox-guest-additions usr/lib/security/
+	Fsplit virtualbox-guest-additions usr/lib/systemd/
+	Fsplit virtualbox-guest-additions usr/lib/udev/rules.d/60-vboxguest.rules
 
 	## REALLY ? this is the only package does NOT need it..
 	##  but no way to do that different atm

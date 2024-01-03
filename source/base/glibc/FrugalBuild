@@ -8,7 +8,7 @@
 
 pkgname=glibc
 pkgver=2.38
-pkgrel=4
+pkgrel=5
 _githash=
 pkgdesc="GNU C Library"
 url="http://www.gnu.org/software/libc/libc.html"
@@ -38,7 +38,7 @@ sha1sums=('c36610ba0bec4d76006d7f0d0ff127b6b8c1897d' \
           'ac2da281e2fcd92faff0ce84e0a5760d1114d719' \
           'f39430174766fae3782e4e11ab879d4f3fe6eace' \
           'b5d4e9a2e369f6fd24069a975c717d49f825db68')
-options+=('scriptlet' 'noccache' 'static' 'nolto')
+options+=('scriptlet' 'static' 'nolto')
 
 
 subpkgs=("$pkgname-memusagestat")
@@ -61,7 +61,6 @@ _buildd() {
 
 	Fexec make   || Fdie
 	Fexec make  install_root=$Fdestdir install || Fdie
-	#Fexec make  install_root=$Fdestdir localedata/install-locales || Fdie
 }
 
 build() {
@@ -97,6 +96,7 @@ build() {
 	GLIBOPTS=" \
 		--with-bugurl=https://bugs.frugalware.org/ \
 		--prefix=/usr \
+		--sbindir=/usr/bin \
 		--with-tls \
 		--with-__thread \
 		--with-headers=/usr/include \
@@ -136,14 +136,14 @@ build() {
 
 	_buildd
 
-	## be sure to symlink the right one
-	Fln ../lib32/ld-linux.so.2 /lib/ld-linux.so.2
-	Fln /usr/lib32 /lib32
 	Fmkdir etc/ld.so.conf.d
 	echo /usr/lib32  >> "$Fdestdir/etc/ld.so.conf.d/glibc32.conf" || Fdie
-	echo /lib32  >> "$Fdestdir/etc/ld.so.conf.d/glibc32.conf" || Fdie
+
 	## 109MB .. remove and symlink later
 	Frm usr/lib32/locale/locale-archive
+
+	Frm sbin/
+	Frm usr/sbin/
 
 	## 64bit
 	Fexec cd ../glibc-build || Fdie
@@ -152,9 +152,10 @@ build() {
 	export CXXFLAGS="$HOSTCXX"
 	export CXX="g++"
 	export CC="gcc"
-	## put all in /lib we symlink to /lib64 , no need to move stuff around
-	echo "slibdir=/lib" >> configparms
-	echo "rtlddir=/lib" >> configparms
+	echo "slibdir=/usr/lib" >> configparms
+	echo "rtlddir=/usr/lib" >> configparms
+	echo "sbindir=/usr/bin" >> configparms
+	echo "rootsbindir=/usr/bin" >> configparms
 	Fexec ../$_pkgstring/configure $GLIBOPTS $_GLIBOPTS || Fdie
 
 	_buildd
@@ -162,8 +163,8 @@ build() {
 	Fexec make  --trace install_root=$Fdestdir localedata/install-locales || Fdie
 
 	# nscd
-	Finstall 644 "${_F_cd_path}/nscd/nscd.service" lib/systemd/system/nscd.service
-	Finstall 644 "${_F_cd_path}/nscd/nscd.tmpfiles" /usr/lib/tmpfiles.d/nscd.conf
+	Finstall 644 "${_F_cd_path}/nscd/nscd.service" usr/lib/systemd/system/nscd.service
+	Finstall 644 "${_F_cd_path}/nscd/nscd.tmpfiles" usr/lib/tmpfiles.d/nscd.conf
 	# log dir
 	Fmkdir var/log/nscd # need be chowned nscd:nscd from install scriptlet after adding the user/group
 	Fmkdir run/nscd # same like the log dir

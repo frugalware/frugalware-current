@@ -84,7 +84,7 @@ Meson_setup()
 ## FIXME
 CROSS_LIB="lib"
 CROSS_BIN="bin"
-CROSS_SBIN="sbin"
+CROSS_SBIN="bin"
 CROSS_PREFIX="/usr"
 CROSS_INC="${CROSS_PREFIX}/include"
 

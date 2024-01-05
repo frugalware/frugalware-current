@@ -178,7 +178,7 @@ __cross32_set_vars() {
 	export CROSS_INC="${CROSS_PREFIX}/${CHOST}/include"
 	export CROSS_LIB="lib32"
 	export CROSS_BIN="${CROSS_PREFIX}/${CHOST}/bin"
-	export CROSS_SBIN="${CROSS_PREFIX}/${CHOST}/sbin"
+	export CROSS_SBIN="${CROSS_PREFIX}/${CHOST}/bin"
 
 	## common
 	export CFLAGS=" -m32 ${CFLAGS_ORIG/x86-64/i686}"
@@ -199,7 +199,7 @@ __cross32_set_vars() {
 	## shell scripts and such .. for that matter we need
 	## orig system PATH + 32bit PATH but put 32bit first
 
-	export PATH=/usr/${CHOST}/bin:usr/${CHOST}/sbin:$PATH_ORIG
+	export PATH=/usr/${CHOST}/bin:usr/${CHOST}/bin:$PATH_ORIG
 
 	## auto tools - default
 	if [ -n "$_F_cross32_use_default" ]; then
@@ -208,7 +208,7 @@ __cross32_set_vars() {
 		fi
 
 		F32bindir="/usr/${CHOST}/bin"
-		F32sbindir="/usr/${CHOST}/sbin"
+		F32sbindir="/usr/${CHOST}/bin"
 		F32includedir="/usr/${CHOST}/include"
 		F32libdir="/usr/lib32"
 		F32libexecdir="/usr/${CHOST}/${pkgname}"

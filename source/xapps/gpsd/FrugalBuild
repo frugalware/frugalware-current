@@ -4,33 +4,46 @@
 
 pkgname=gpsd
 pkgver=3.25
-pkgrel=3
+pkgrel=4
 pkgdesc="GPS daemon and library to support USB/serial GPS devices"
 archs=('x86_64')
 groups=('xapps')
 url="http://www.catb.org/gpsd"
-source=(http://download-mirror.savannah.gnu.org/releases/gpsd/${pkgname}-${pkgver}.tar.gz $pkgname $pkgname.service)
+source=(http://download-mirror.savannah.gnu.org/releases/gpsd/${pkgname}-${pkgver}.tar.gz $pkgname)
 up2date="Flasttar http://download-mirror.savannah.gnu.org/releases/gpsd/"
 _F_archive_grepv=dev
 depends=('libusb1>=1.0.20-4' 'bluez>=5.41-2')
-makedepends=('scons')
+makedepends=('scons' 'python3-setuptools' 'ruby-asciidoctor' 'x11-protos')
 backup=('etc/sysconfig/gpsd')
 sha1sums=('81965943f81484da80d8adb0547572fe9f0e8ebc' \
-          '51300b76fcfea5eb63aa6c31d4a408b419c40692' \
-          'c30e09857f421bc523ad67d6a0bb93a1808e7ed5')
+          '51300b76fcfea5eb63aa6c31d4a408b419c40692')
 _F_sysvinit_units=($pkgname)
 _F_systemd_units=($pkgname=)
-Finclude systemd
+Finclude systemd python
+
+subpkgs=("$pkgname-qt")
+subdescs+=("GPSD Qt5 bindings")
+subarchs=('x86_64')
+subgroups=('xlib-extra')
+subdepends+=("$pkgname qt5-base")
 
 build() {
 	Fcd
 	export DESTDIR="$Fdestdir"
-	scons || Fdie
-	scons prefix=/usr install || Fdie
+	export LINKFLAGS="${LDFLAGS}"
+
+	Fexec scons systemd=yes python_libdir=$_F_python3_libdir qt_versioned=5 || Fdie
+	Fexec scons prefix=/usr sbindir=/usr/bin install || Fdie
 
 	Fsed gpsd.hotplug gpsd  gpsd.hotplug gpsd.usermap
-	install -D gpsd.usermap "$Fdestdir/etc/hotplug/usb/gpsd.usermap" || Fdie
+
+	Finstallrel 755 etc/hotplug/usb/gpsd.usermap
 	Finstallrel 755 gpsd.hotplug etc/hotplug/usb/gpsd
+
+	for service in {gpsd.service,gpsd.socket,gpsdctl@.service}
+	do
+		Finstallrel 644 $pkgname-$pkgver/systemd/$service usr/lib/systemd/system/$service
+	done
 
 	Ffile /etc/sysconfig/gpsd
 	# systemd tmpfiles
@@ -38,8 +51,10 @@ build() {
         cat > $Fdestdir/etc/tmpfiles.d/gpsd.conf << EOF
 d /run/gpsd/ 0755 root root -
 EOF
-	Ffile /lib/systemd/system/$pkgname.service
 	Fgenscriptlet
+
+	Fsplit $pkgname-qt usr/lib/libQgpsmm*
+	Fsplit $pkgname-qt usr/lib/pkgconfig/Qgpsmm.pc
 }
 
 # optimization OK

@@ -9,11 +9,11 @@ my ($conffile, @flg) = @ARGV;
 
 my $PUREFTPD;
 -x && ($PUREFTPD=$_, last) for qw(
-	${exec_prefix}/sbin/pure-ftpd
-	/usr/local/pure-ftpd/sbin/pure-ftpd
-	/usr/local/pureftpd/sbin/pure-ftpd
-	/usr/local/sbin/pure-ftpd
-	/usr/sbin/pure-ftpd
+	${exec_prefix}/bin/pure-ftpd
+	/usr/local/pure-ftpd/bin/pure-ftpd
+	/usr/local/pureftpd/bin/pure-ftpd
+	/usr/local/bin/pure-ftpd
+	/usr/bin/pure-ftpd
 );
 
 my %simple_switch_for = (

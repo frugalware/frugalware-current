@@ -3,21 +3,23 @@
 
 pkgname=sysdig
 pkgver=0.34.1
-pkgrel=9
-_falcover=0.13.1
+pkgrel=10
+_falcover=0.13.4
 pkgdesc="Open source system-level exploration and troubleshooting tool"
 archs=('x86_64')
 groups=('apps-extra')
 url="https://www.sysdig.com/"
 depends=('jsoncpp>=1.9.2' 'luajit2' 'jq' 'libb64' 'intel-tbb' 'curl' \
 	'grpc>=1.59.1' 'yaml-cpp' 'nlohmann-json')
-makedepends=('re2-static' 'curl-static' 'libssh2-static' 'nghttp2-static' 'elfutils-static' 'protobuf-static' 'zstd-static')
+makedepends=('re2-static' 'curl-static' 'libssh2-static' 'nghttp2-static' \
+	'elfutils-static' 'protobuf-static' 'zstd-static' 'clang' 'compiler-rt' 'lld' 'llvm' )
 _F_github_author="draios"
 _F_github_grepv="agent\|falco\|rc1"
 _F_github_tag=y
 _Fbuild_no_patch=y
 Finclude github cmake kernel-module
 source+=(https://github.com/falcosecurity/libs/archive/$_falcover.tar.gz \
+	kernel-6.7.patch \
 	bashcomp-location.patch \
 	falcosecurity-libs-nodownload.patch )
 _F_cmake_confopts+=" \
@@ -32,6 +34,7 @@ _F_cmake_confopts+=" \
         -DUSE_BUNDLED_RE2=OFF \
         -DUSE_BUNDLED_VALIJSON=ON \
 	-DUSE_BUNDLED_TINYDIR=ON \
+	-DUSE_BUNDLED_UTHASH=ON \
 	-DBUILD_DRIVER=ON \
 	-DCREATE_TEST_TARGETS=OFF \
 	-DENABLE_DKMS=OFF \
@@ -40,14 +43,24 @@ _F_cmake_confopts+=" \
 	-DDRIVER_SOURCE_DIR=$Fsrcdir/libs-$_falcover/driver \
 	-DFALCOSECURITY_LIBS_VERSION=$_falcover"
 sha1sums=('737e6046b60352a08aa8d27cd51786706a1bc674' \
-          '0577a35696fd3c99f97b745f1f682c37b0f4eb6b' \
+          '005f6a69315083eb312361f49cca9daf2cba55a9' \
+          '81fb6abd29fc5e6ad6b9ce8b2720be3c0431b734' \
           'a5a4ece6dfa83561baa214851b4f19f76aa7a1b2' \
           'bdea81a6c942e36f335fa7b9eebe649e72313a6a')
 options+=('nolto')
 
 build(){
+	Fexec cd $Fsrcdir/libs-$_falcover
+	Fpatch kernel-6.7.patch
+	Fexec cd ..
+
+	export LLVM=1
+	export LLVM_IAS=1
+
 	Fcd
-	Fpatchall
+	pwd
+	Fpatch bashcomp-location.patch
+	Fpatch falcosecurity-libs-nodownload.patch
 
 	CMake_prepare_build
 	CMake_conf

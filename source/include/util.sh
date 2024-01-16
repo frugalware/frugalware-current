@@ -1910,7 +1910,7 @@ Fextract() {
 		*.7z)
 		cmd="7z x $file" ;;
 		*.zst)
-		cmd="zstd -d $file" ;;
+		cmd="zstd -f -d $file" ;;
 		*)
 		cmd="" ;;
 	esac

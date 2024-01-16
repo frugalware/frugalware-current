@@ -1901,6 +1901,8 @@ Fextract() {
 		cmd="unxz -f $file" ;;
 		*.7z)
 		cmd="7z x $file" ;;
+		*.zst)
+		cmd="zstd -d $file" ;;
 		*)
 		cmd="" ;;
 	esac

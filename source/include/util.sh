@@ -788,6 +788,14 @@ Fpatch() {
 		i=`basename "$1" .gz`
 	elif [ -n "`echo "$1" | grep '\.bz2$'`" ]; then
 		i=`basename "$1" .bz2`
+        elif [ -n "`echo "$1" | grep '\.lzma$'`" ]; then
+		i=`basename "$1" .lzma`
+        elif [ -n "`echo "$1" | grep '\.xz$'`" ]; then
+                i=`basename "$1" .xz`
+        elif [ -n "`echo "$1" | grep '\.7z$'`" ]; then
+                i=`basename "$1" .7z`
+        elif [ -n "`echo "$1" | grep '\.zst$'`" ]; then
+                i=`basename "$1" .zst`
 	else
 		i=$1
 	fi

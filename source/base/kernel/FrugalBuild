@@ -20,16 +20,18 @@ Finclude kernel
 
 url="https://www.kernel.org"
 depends=('kmod' 'sed')
-makedepends+=('bison' 'rsync' 'mold')
+makedepends+=('bison' 'rsync' 'clang' 'compiler-rt' 'lld' 'llvm')
 [[ -z "$_F_kernel_name" ]] && makedepends+=('unifdef')
 groups=('base')
 archs=('x86_64')
-options+=('nodocs' 'genscriptlet' 'noccache' 'scriptlet')
+options+=('nodocs' 'genscriptlet' 'noccache' 'scriptlet' 'clang')
 _F_archive_grepv="rc"
 up2date="Flasttar $url"
-zen_ver=6.6.8
+zen_ver=6.7-zen3
 
 _F_kernel_patches=(
+			##zen
+			https://github.com/zen-kernel/zen-kernel/releases/download/v${zen_ver}/linux-v${zen_ver}.patch.zst
 			## disable verbose output in normal mode
 			ath10k-be-quiet.patch
 			## this one is just for NCQ stuff for now
@@ -46,6 +48,8 @@ _F_kernel_patches=(
 			## with lots false positive even. IOW, is more confusing than informative.
 			## Not so funny on large boxes. Turn the pr_warn() into pr_debug()
 			apic_vector-spam-in-debug-mode-only.patch
+			## fixes black screen after reboot for 7800xt
+			7800xt-reboot-fix.patch
 			lzo1.patch
 			lzo2.patch
 			lzo3.patch
@@ -59,9 +63,8 @@ do
 done
 
 source+=("https://www.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/$_F_archive_name-$pkgver.tar.xz" \
-	"https://github.com/zen-kernel/zen-kernel/releases/download/v${zen_ver}-lqx1/v${zen_ver}-lqx1.patch.xz" \
 	'config.x86_64')
-signatures+=("https://www.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/$_F_archive_name-$pkgver.tar.sign" "https://github.com/zen-kernel/zen-kernel/releases/download/v${zen_ver}-lqx1/v${zen_ver}-lqx1.patch.xz.sig" '')
+signatures+=("https://www.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/$_F_archive_name-$pkgver.tar.sign" '')
 
 conflicts=('wireguard-linux-compat')
 replaces=('wireguard-linux-compat')
@@ -160,7 +163,7 @@ fi
 
 kmake() {
 
-	make -j $(getconf _NPROCESSORS_ONLN) "$@"
+	make LLVM=1 LLVM_IAS=1 -j $(getconf _NPROCESSORS_ONLN) "$@"
 }
 
 build()
@@ -193,9 +196,6 @@ build()
 		export KBUILD_BUILD_USER="fst"
 		export KBUILD_BUILD_HOST="`uname -m`.frugalware.org"
 	fi
-
-	# use mold
-	export LDFLAGS="-fuse-ld=mold $LDFLAGS"
 
 	# remove unneded localversions
 	rm -fv localversion-*
@@ -280,7 +280,7 @@ build()
 	Fsplit kernel$_F_kernel_name-source usr/src/linux-$_F_kernel_ver$_F_kernel_uname/Module.symvers
 	Fsplit kernel$_F_kernel_name-source usr/src/linux-$_F_kernel_ver$_F_kernel_uname/scripts/module.lds
 
-	Fexec /sbin/depmod -a -b $Fdestdir/usr $_F_kernel_ver$_F_kernel_uname || Fdie
+	Fexec /usr/bin/depmod -a -b $Fdestdir/usr $_F_kernel_ver$_F_kernel_uname || Fdie
 
 	# build bootconfig
 	Fexec cd tools/bootconfig
@@ -300,7 +300,7 @@ build()
 	Fexec kmake DESTDIR="$Fdestdir" CPUFREQ_BENCH=false install || Fdie
 	Fmv /usr/man /usr/share
 	Ffile /etc/sysconfig/cpupower
-	Fexe /usr/sbin/cpupower.sh
+	Fexe /usr/bin/cpupower.sh
 	Ffile /usr/lib/systemd/system/cpupower.service
 
 	Fsplit cpupower etc/
@@ -308,7 +308,6 @@ build()
 	Fsplit cpupower usr/bin/
 	Fsplit cpupower usr/include/
 	Fsplit cpupower usr/lib/libcpupower\*
-	Fsplit cpupower usr/sbin/
 	Fsplit cpupower usr/share/
 
 	# build x86_energy_perf_policy

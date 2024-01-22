@@ -21,19 +21,19 @@ url="http://www.winehq.org"
 groups=('xapps-extra')
 depends=('lcms2' 'openal' 'libglu' 'libldap>=2.5.4' 'libpcap' 'libpulse' 'libmpg123' 'libgphoto2' 'gettext' 'libxml2' 'ocl-icd' \
 	'libxcursor' 'libxi' 'libxrandr' 'libxinerama' 'libxcomposite' 'sane-backends' 'v4l-utils' 'libxrender' \
-	'libxslt' 'vkd3d' 'vulkan-icd-loader' 'faudio')
+	'libxslt' 'vkd3d' 'vulkan-icd-loader' 'faudio' 'libosmesa' 'pcsc-lite' 'gst1-plugins-base' 'libxkbcommon')
 #32 bit
 depends+=('lib32-lcms2' 'lib32-libxcursor' 'lib32-libxi' 'lib32-libxrandr' 'lib32-libxinerama' 'lib32-libxcomposite' \
 	'lib32-libxrender' 'lib32-freetype2' 'lib32-libxml2' 'lib32-ncurses' 'lib32-vkd3d' 'lib32-ocl-icd' \
-	'lib32-libldap>=2.5.4' 'lib32-vulkan-icd-loader' 'lib32-faudio')
-makedepends=('x11-protos' 'cups' 'bison' 'opencl-headers' 'kernel-headers')
+	'lib32-libldap>=2.5.4' 'lib32-vulkan-icd-loader' 'lib32-faudio' 'lib32-libosmesa')
+makedepends=('x11-protos' 'cups' 'bison' 'opencl-headers' 'kernel-headers' 'wayland' 'wayland-protocols')
 _F_cd_path="wine-$pkgver"
-options=('genscriptlet' 'nostrip' 'static' 'nolto')
+options=('genscriptlet' 'nostrip' 'static' 'nofortify' 'plt' 'nolto')
 archs=('x86_64')
 _F_conf_configure="../configure"
 _F_archive_grepv="\-rc"
-F32confopts+="	--libdir=/usr/lib32"
-options+=('plt')
+Fconfopts="	--without-oss"
+F32confopts+="	--libdir=/usr/lib32 --without-oss"
 
 Finclude cross32
 
@@ -42,18 +42,18 @@ case "$pkgname" in
 wine)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Stable)"
 	_F_archive_grep="\.0"
-	up2date="Flasttar $url/news"
+	up2date="Flasttar https://dl.winehq.org/wine/source/$(Flastverdir https://dl.winehq.org/wine/source/)/"
 	conflicts=('wine-devel' 'lib32-wine-devel')
 	provides=('lib32-wine')
 	replaces=('lib32-wine')
-	source=(https://dl.winehq.org/wine/source/${pkgver%.*}/wine-$pkgver.tar.xz \
+	source=(https://dl.winehq.org/wine/source/${pkgver}/wine-$pkgver.tar.xz \
 		0001-programs-winhlp32-Use-noyywrap-for-macro.lex.l-and-p.patch )
 	;;
 
 wine-devel)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Development)"
 	_F_archive_name="wine"
-	up2date="Flasttar $url/news"
+	up2date="Flasttar https://dl.winehq.org/wine/source/$(Flastverdir https://dl.winehq.org/wine/source/)/"
 	conflicts=('wine' 'lib32-wine-devel')
 	provides=('wine' 'lib32-wine-devel')
 	replaces=('lib32-wine-devel')

@@ -34,8 +34,9 @@
 # * _F_github_tag: default is empty, use if source has in $url/tags.
 # * _F_github_sep: defaults to Fpkgversep
 # * _F_github_full_archive_name: no default. used for mad tarball names eg:
-#   _F_github_full_archive_name="THis_Is-some-MAD1_1_3-nam_e"
+# * _F_github_full_archive_name="THis_Is-some-MAD1_1_3-nam_e"
 # * _F_github_grepv: no default , use like _F_archive_grepv
+# * _F_github_prerelease: defaults to false. Don't filter out prereleases
 #
 # == APPENDED VARIABLES
 # * source()
@@ -134,7 +135,11 @@ else
 		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/refs/tags/${__F_github_full_archive_name}"
 
 	else
-		up2date="lynx -dump https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[].tag_name' $off $on $prefix | head -n1 "
+		if [[ "$_F_github_prerelease" ]]; then
+			up2date="lynx -dump https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[].tag_name' $off $on $prefix | head -n1 "
+		else
+			up2date="lynx -dump https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[] | select(.prerelease == false) | .tag_name' $off $on $prefix | head -n1 "
+		fi
 	fi
 
 	# On one line for Mr Portability, Hermier Portability.

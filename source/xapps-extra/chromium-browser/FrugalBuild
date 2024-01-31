@@ -6,7 +6,7 @@ USE_DISTRO_LTO=${USE_DISTRO_LTO:-"n"}
 USE_DISTRO_FLAGS=${USE_DISTRO_FLAGS:-"y"}
 
 pkgname=chromium-browser
-pkgver=120.0.6099.224
+pkgver=121.0.6167.139
 pkgrel=1
 pkgdesc='Chromium browser'
 url='http://www.chromium.org/'
@@ -17,7 +17,7 @@ depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6
 	'freetype2' 'flac>=1.4.0' 'qt5-base>=5.15.10' 'icu4c>=74.1' 'libusb1')
 makedepends=('ninja' 'gn>=0.1731' 'cups' 'x11-protos' 'mesa-dri-drivers' 'nodejs' 'compiler-rt-static' \
 	'xhost' 'xorg-server' 'xauth' 'openjdk' 'gperf' 'libxrandr' 'vulkan-headers' \
-	'pipewire' 'lld' 'clang' 'llvm' 'compiler-rt')
+	'pipewire' 'lld' 'clang' 'llvm' 'compiler-rt' 'rust')
 license=('BSD')
 groups=('xapps-extra')
 archs=('x86_64')
@@ -33,19 +33,15 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
 	chromium-117-material-color-include.patch
 	chromium-117-system-zstd.patch
 	chromium-119.0.6045.159-icu-74.patch
-	chromium-119-at-spi-variable-consumption.patch
 	chromium-119-clang16.patch
-	chromium-120-chromedriver-string.patch
 	chromium-120-compiler.patch
-	chromium-120-incomplete-type.patch
-	chromium-120-iwyu.patch
-	chromium-120-std-nullptr_t.patch
 	chromium-120-system-libusb.patch
-	chromium-120-no_matching_constructor.patch
+	chromium-121-constexpr.patch
+	chromium-121-v8-c++20.patch
 	remove-html5lib.patch
 	use-oauth2-client-switches-as-default.patch
 	webauthn-variant.patch )
-sha1sums=('c93520cc51f38bcecddeead445c78e6992d474c3' \
+sha1sums=('698b0c0966f2d94ee24672bece1d4251892ad3f3' \
           '0f969f454a5efdf1bb5b6a2ecf0f9bddd0c94cab' \
           '710c24b12f105ddbd91d5f1fbabb2cacf97128df' \
           '9e3cd93c652aef06348773cc8c3e8f8b1d2dee18' \
@@ -53,15 +49,11 @@ sha1sums=('c93520cc51f38bcecddeead445c78e6992d474c3' \
           '2df38b7b132221e7943ed000828aa1602ba70e12' \
           'a33808da2f357e506a15fb9f9f02cc7fa4ecdd53' \
           '37110fc54c0bac7be813651a777062809231299a' \
-          '3b9eb8cd8f25308e0aa438d33775f354e263299a' \
           '0d015f54b7f0fd3719d1cce8a61e34c9580cef5a' \
-          '2f3d980861ec6ecedc2c96b3ac947ed9ef5a9f72' \
           '57ec0a1d1b920a9e0b306c6990cbb89a70eb6106' \
-          '1df4cd54a76fac8018742d5d929c2e25cf19bc18' \
-          '0a54cf9e54e1329f729e1af6dff79728cdebbfec' \
-          '20eea39fa9263611cc96c3ff5b79408a55168ac5' \
           'b6f785e61e2b724ee17ca637ce9538aa92d590ce' \
-          '4b1b9ee662ce5ed183c734241543f101a62f657e' \
+          'c637b595ddbf84fd053c2982e526e213a304e61f' \
+          '57fcf42814a12242105f4867da88ae6cae3a02f2' \
           'a1e08b837760e8100a80fd3ef1004198ea66b0e3' \
           '2a8832b2e780a37fba149188f01310df33cf7531' \
           'f6fe48f2cc0a53895653a7895e053098edf8e090')
@@ -103,7 +95,6 @@ build() {
 		base/third_party/superfasthash
 		base/third_party/symbolize
 		base/third_party/valgrind
-		base/third_party/xdg_mime
 		base/third_party/xdg_user_dirs
 		buildtools/third_party/libc++
 		buildtools/third_party/libc++abi
@@ -340,6 +331,7 @@ build() {
 		third_party/jsoncpp
 		third_party/ffmpeg
 		third_party/snappy
+		third_party/rust
 		third_party/tflite/src/third_party/xla
 		third_party/tflite/src/third_party/xla/third_party/tsl
 		v8/third_party/glibc )
@@ -412,8 +404,7 @@ build() {
 	myconf_gn+=" enable_av1_decoder=true"
 	myconf_gn+=" use_system_libffi=true"
 
-	## disable rust for now
-	myconf_gn+=" enable_rust=false"
+	myconf_gn+=" enable_rust=true"
 
 	# Enable WebRTC screen sharing for Wayland
 	myconf_gn+=" rtc_use_pipewire=true"
@@ -440,6 +431,10 @@ build() {
 	export CCACHE_CPP2=yes
 	export CCACHE_SLOPPINESS=time_macros
 
+	# rust
+	myconf_gn+=" rust_sysroot_absolute=\"/usr\""
+	myconf_gn+=" rustc_version=\"1.75.0\""
+
 	## that kills chromium shitty flags, but we may run into some issues
 	if Fuse $USE_DISTRO_FLAGS; then
 		myconf_gn+=" custom_toolchain=\"//build/toolchain/linux/unbundle:default\""
@@ -451,11 +446,17 @@ build() {
 	export CXX=clang++
 	export AR=ar
 	export NM=nm
+	export RUSTC_BOOTSTRAP=1
 
 	CXXFLAGS+=" -Wno-unknown-warning-option"
 
 	# Allow system libs in official build
 	Fsed 'OFFICIAL_BUILD' 'GOOGLE_CHROME_BUILD' tools/generate_shim_headers/generate_shim_headers.py || Fdie
+
+	# try fixing rust
+	Fexec sed -i -e \
+		"/if (is_clang && toolchain_has_rust) {/,+2d" \
+		build/config/compiler/BUILD.gn || Fdie
 
 	# build
 	Fexec gn gen --args="${myconf_gn}" out/Release --script-executable=/usr/bin/python3 || Fdie

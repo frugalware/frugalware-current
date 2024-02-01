@@ -3,7 +3,7 @@
 
 pkgname=libxcrypt
 pkgver=4.4.36
-pkgrel=2
+pkgrel=3
 pkgdesc='Modern library for one-way hashing of passwords'
 archs=('x86_64')
 groups=('base' 'chroot-core')
@@ -11,31 +11,57 @@ depends=('glibc')
 makedepends=('python3-passlib')
 _F_github_author=besser82
 _F_github_tag_prefix=v
-Finclude github
+_Fconfopts_common="     --enable-hashes=strong,glibc \
+			--disable-failure-tokens"
+Finclude github cross32
 source=("$url/releases/download/v${pkgver}/libxcrypt-$pkgver.tar.xz")
 signatures=("${source[0]}.asc")
-Fconfopts="	--enable-hashes=strong,glibc \
-		--disable-failure-tokens"
+_F_cd_path="$pkgname-$pkgver"
 
-subpkgs=('libxcrypt-compat')
-subdescs=("$pkgdesc - glibc compat")
-subgroups=('lib-extra')
+subpkgs=('lib32-libxcrypt')
+subdescs=("$pkgdesc - lib32")
+subgroups=('lib32-extra')
 subdepends=('glibc')
 subrodepends=("$pkgname")
-
 subarchs=('x86_64')
+
+subpkgs+=('libxcrypt-compat')
+subdescs+=("$pkgdesc - glibc compat")
+subgroups+=('lib-extra')
+subdepends+=('glibc')
+subrodepends+=("$pkgname")
+subarchs+=('x86_64')
+
+subpkgs+=('lib32-libxcrypt-compat')
+subdescs+=("$pkgdesc - lib32 glibc compat")
+subgroups+=('lib32-extra')
+subdepends+=('glibc')
+subrodepends+=("lib32-$pkgname")
+subarchs+=('x86_64')
+
 build() {
-	Fcd
-	Fpatchall
-	Fmake --enable-obsolete-api=glibc
-	Fmakeinstall
+	F32confopts="$_Fconfopts_common --enable-obsolete-api=glibc --libdir=/usr/lib32"
+        Fcross32_common_build
+	Frm usr/lib32/libxcrypt*
+	Frm usr/lib32/libcrypt.so
+        Frm usr/lib32/pkgconfig/
+	Fsplit lib32-$pkgname-compat usr/lib32/
+
+	F32confopts="$_Fconfopts_common --enable-obsolete-api=no --libdir=/usr/lib32"
+        Fcross32_common_build
+        Fsplit lib32-$pkgname usr/lib32/
+
+        Fcross32_delete_empty
+	Fcross32_delete_static
+
+	Fconfopts="$_Fconfopts_common --enable-obsolete-api=glibc"
+	Fcross32_64bit_build
 	Frm usr/lib/libxcrypt*
 	Frm usr/lib/pkgconfig/
 	Fsplit $pkgname-compat usr/lib
 
-	Fexec make clean || Fdie
-	Fmake --enable-obsolete-api=no
-	Fmakeinstall
+	Fconfopts="$_Fconfopts_common --enable-obsolete-api=no"
+	Fcross32_64bit_build
 }
 
 

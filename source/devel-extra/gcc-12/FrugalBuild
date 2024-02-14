@@ -1,0 +1,121 @@
+# Compiling Time: 26.48 SBU
+# Maintainer: crazy <crazy@frugalware.org>
+
+pkgname=gcc-12
+pkgver=12.3.0
+gccver=$pkgver
+pkgrel=1
+pkgdesc="The GNU Compiler Collection"
+url="http://gcc.gnu.org"
+depends=('binutils>=2.41' 'glibc>=2.38' 'libmpc>=1.1.0-11' 'zlib>=1.2.11-11' 'libisl' 'zstd')
+makedepends=('kernel-headers' 'glibc-devel' 'binutils-devel')
+provides=('c-compiler')
+groups=('devel-extra')
+archs=('x86_64')
+# this is an LTO build just gcc's way
+options+=('scriptlet' 'noccache' 'static' 'nowfsecurity' 'nolto')
+up2date="lynx -dump http://ftp.gnu.org/pub/gnu/gcc/|grep gcc-12.*/$|sed -n 's|.*gcc-\(.*\)/|\1|;$ p'"
+source=(http://ftp.gnu.org/pub/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.xz \
+	c89-12 \
+	c99-12)
+sha1sums=('85d66f058688db1e18545b6c4cf67ecc83d3b7eb' \
+          'b0c0c1cf023f3bc73b2ef1f9a23e9f7538269412' \
+          'bb3aee29015c4163587d940652ef6669c11fa21a')
+_F_archive_name=gcc
+
+build()
+{
+	Fcd
+	Fsed 'lib64' 'lib' gcc/config/i386/t-linux64
+
+	# no fixincludes, thanks
+	Fsed '\./fixinc\.sh' '-c true' gcc/Makefile.in
+
+	Fpatchall
+
+	mkdir -p ../$pkgname-build || Fdie
+	cd ../$pkgname-build || Fdie
+
+	langlist="c,c++"
+	Fconfopts+=" 	--enable-__cxa_atexit \
+			--enable-libstdcxx-allocator=new \
+			--enable-libstdcxx-dual-abi \
+			--disable-libstdcxx-pch \
+			--enable-linux-futex \
+			--with-default-libstdcxx-abi=new"
+
+	langlist="$langlist,objc,obj-c++"
+	langlist="$langlist,fortran"
+	Fconfopts+=" --enable-libquadmath --enable-libquadmath-support"
+
+	_F_conf_configure=../$_F_cd_path/configure
+	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" XCFLAGS="$CFLAGS" TCFLAGS="$CFLAGS"
+	Fconf \
+		--enable-bootstrap --with-build-config=bootstrap-lto-lean \
+		--enable-languages=$langlist \
+		--enable-multilib \
+		--enable-lto \
+		--enable-clocale=gnu \
+		--disable-libgo \
+		--enable-shared \
+		--disable-libunwind-exceptions \
+		--verbose \
+		--with-diagnostics-color=auto-if-env \
+		--enable-gold=yes \
+		--enable-ld=default \
+		--enable-threads=posix \
+		--with-system-zlib \
+		--libdir=/usr/lib \
+		--libexecdir=/usr/lib \
+		--disable-werror \
+		--with-bugurl="http://bugs.frugalware.org/" \
+		--with-pkgversion="Frugalware Linux" \
+		--enable-plugin \
+		--enable-checking=release \
+		--enable-default-pie \
+		--enable-default-ssp \
+		--enable-linker-build-id \
+		--with-linker-hash-style=gnu \
+		--enable-gnu-indirect-function \
+		--enable-gnu-unique-object \
+		--enable-libstdcxx-backtrace \
+		--program-suffix=-12 \
+		--enable-version-specific-runtime-libs \
+		--host=$CHOST \
+		--build=$CHOST \
+		--target=$CHOST
+
+	Fexec make  STAGE_CC_WRAPPER="$FCC" BOOT_CFLAGS="$CFLAGS" || Fdie
+	Fmakeinstall
+
+	if [ -d $Fdestdir/usr/lib64 ]; then
+               mv -f $Fdestdir/usr/lib64/* $Fdestdir/usr/lib/ || Fdie
+               rm -rf $Fdestdir/usr/lib64 || Fdie
+        fi
+
+
+	# fix some junk in la files
+	for lafile in `find $Fdestdir -name "*.la"`
+        do
+                sed -i 's|-L.*/gcc-build/.*/./gcc||g' $lafile
+        done
+
+	gcchost="$CHOST"
+
+	# libffi is internal don't expose it
+	Frm usr/lib/libffi*
+	Frm usr/lib/gcc/$gcchost/$gccver/include/ffi*
+	Frm $Fmandir/man3/ffi\*
+
+	# POSIX conformance launcher scripts for c89 and c99
+	Fexe usr/bin/c89-12
+	Fexe usr/bin/c99-12
+
+	# conflcits with gcc
+	Frm usr/share/
+	Frm usr/lib/libcc1.so*
+	Frm usr/lib/gcc/x86_64-frugalware-linux/lib32
+	Frm usr/lib/gcc/x86_64-frugalware-linux/lib
+}
+
+# optimization OK

@@ -1,11 +1,11 @@
 #!/bin/bash
 
 ###
-# = kf5-version.sh(3)
+# = kf6-version.sh(3)
 # Michel Hermier <hermier@frugalware.org>
 #
 # == NAME
-# kf5-version.sh - for Frugalware
+# kf6-version.sh - for Frugalware
 #
 # == SYNOPSIS
 # Common schema for packages built against a given KDE version.
@@ -17,12 +17,12 @@
 ###
 
 
-_F_kdever_frameworks=5.115
+_F_kdever_frameworks=6.0.0
 _F_kdever_frameworks_revision=0
-_F_kf5_full="${_F_kdever_frameworks}.${_F_kdever_frameworks_revision}"
-_F_kdever_plasma=5.27.10
-_F_kdever_qt5=5.15.12
-_F_kdever_apps=23.08.5
+_F_kf6_full="${_F_kdever_frameworks}.${_F_kdever_frameworks_revision}"
+_F_kdever_plasma=6.0.0
+_F_kdever_qt6=6.6.2
+_F_kdever_apps=24.02.0
 
 
 

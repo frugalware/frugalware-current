@@ -1,6 +1,6 @@
 #!/bin/sh
 
-Finclude cmake kf5-version
+Finclude cmake kf6-version
 
 ###
 # = kde.sh(3)
@@ -51,12 +51,12 @@ if [ -z "$_F_kde_ver" ]; then
 fi
 
 if [ -z "$_F_kde_qtver" ]; then
-	_F_kde_qtver="$_F_kdever_qt5"
+	_F_kde_qtver="$_F_kdever_qt6"
 fi
 
 if [ -z "$_F_kde_name" ]; then
         _F_kde_name=$pkgname
-	if [ -n "$_F_kde_project" -a "${pkgname: -1}" = "5" ]; then
+	if [ -n "$_F_kde_project" -a "${pkgname: -1}" = "6" ]; then
 		_F_kde_name="${pkgname%?}"
 	fi
 fi
@@ -135,9 +135,9 @@ if [ -z "$groups" ]; then
 	if [ "$_F_kde_project" = "plasma" ]; then
 		groups+=('plasma')
 	elif [ "$_F_kde_project" = "frameworks" ]; then
-		groups+=('kf5')
+		groups+=('kf6')
 	elif [ "$_F_kde_project" = "release-service" ]; then
-		groups+=('kde5')
+		groups+=('kde6')
 	fi
 fi
 
@@ -166,7 +166,7 @@ makedepends+=('kernel-headers')
 
 ###
 # == APPENDED VARIABLES
-# makedepends: if kde4 append automoc4 unless building it, if kf5 append some other deps.
+# makedepends: if kde4 append automoc4 unless building it, if kf6 append some other deps.
 # _F_cmake_confopts: append some kde specific options.
 ###
 if [ -z "$_F_kde_old_defines" ]; then
@@ -176,7 +176,7 @@ else
 fi
 
 if [ "$_F_kde_name" != 'extra-cmake-modules' ]; then
-	makedepends+=("extra-cmake-modules>=$_F_kf5_full" "qt5-tools>=$_F_kdever_qt5" 'gperf')
+	makedepends+=("extra-cmake-modules>=$_F_kf6_full" "qt6-tools>=$_F_kdever_qt6" 'gperf')
 fi
 
 case "$_F_cmake_type" in
@@ -190,9 +190,9 @@ _F_KDE_LD_FLAGS="-Wl,--no-undefined"
 	-DCMAKE_INSTALL_PREFIX=/usr \
 	-DKDE_INSTALL_AUTOSTARTDIR=/etc/xdg/autostart \
 	-DLIB_INSTALL_DIR=lib \
-	-DLIBEXEC_INSTALL_DIR=lib/kf5 \
+	-DLIBEXEC_INSTALL_DIR=lib/kf6 \
 	-DKDE_INSTALL_USE_QT_SYS_PATHS=ON \
-	-DQML_INSTALL_DIR=share/qt5/qml \
+	-DQML_INSTALL_DIR=share/qt6/qml \
 	-DBUILD_TESTING=OFF -Wno-dev"
 
 # stolen from makepkg ;))

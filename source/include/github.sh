@@ -83,6 +83,8 @@ if [[ -n "$_F_github_tag_v" ]] && [[ -n "$_F_github_tag" ]]; then
 	#exit 1
 fi
 
+makedepends+=('jq' 'curl')
+
 ## set source to archive .. seems to be fine.
 ## releases , tags and tags_v are all under archive
 
@@ -136,9 +138,9 @@ else
 
 	else
 		if [[ "$_F_github_prerelease" ]]; then
-			up2date="lynx -dump https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[].tag_name' $off $on $prefix | head -n1 "
+			up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[].tag_name' $off $on $prefix | head -n1 "
 		else
-			up2date="lynx -dump https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[] | select(.prerelease == false) | .tag_name' $off $on $prefix | head -n1 "
+			up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[] | select(.prerelease == false) | .tag_name' $off $on $prefix | head -n1 "
 		fi
 	fi
 

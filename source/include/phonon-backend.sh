@@ -61,7 +61,7 @@ if [ -z "$url" ]; then
 fi
 
 groups+=('phonon-backend')
-depends+=("phonon-qt5>=$_F_phonon_ver")
+depends+=("phonon-qt6>=$_F_phonon_ver")
 
 if [ -z "$url" ]; then
 	url="http://phonon.kde.org"

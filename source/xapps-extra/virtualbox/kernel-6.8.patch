@@ -1,0 +1,240 @@
+diff -Naur VirtualBox-7.0.14/include/VBox/VBoxGuestLibSharedFoldersInline.h VirtualBox-7.0.14.new/include/VBox/VBoxGuestLibSharedFoldersInline.h
+--- VirtualBox-7.0.14/include/VBox/VBoxGuestLibSharedFoldersInline.h	2024-01-15 14:56:57.000000000 +0100
++++ VirtualBox-7.0.14.new/include/VBox/VBoxGuestLibSharedFoldersInline.h	2024-03-12 09:59:21.156410344 +0100
+@@ -1505,7 +1505,7 @@
+             pReq->StrPath.u16Length = (uint16_t)cchPath;
+             pReq->StrPath.u16Size   = (uint16_t)cchPath + 1;
+             RT_BCOPY_UNFORTIFIED(pReq->StrPath.String.ach, pszPath, cchPath);
+-            pReq->StrPath.String.ach[cchPath] = '\0';
++            *(pReq->StrPath.String.ach + cchPath) = '\0';
+ 
+             {
+                 int vrc = VbglR0SfHostReqReadLinkContig(idRoot, pvBuf, PhysBuffer, cbBuffer, pReq);
+diff -Naur VirtualBox-7.0.14/src/VBox/Additions/common/VBoxGuest/VBoxGuest-linux.c VirtualBox-7.0.14.new/src/VBox/Additions/common/VBoxGuest/VBoxGuest-linux.c
+--- VirtualBox-7.0.14/src/VBox/Additions/common/VBoxGuest/VBoxGuest-linux.c	2024-01-15 15:01:32.000000000 +0100
++++ VirtualBox-7.0.14.new/src/VBox/Additions/common/VBoxGuest/VBoxGuest-linux.c	2024-03-12 09:59:21.151410308 +0100
+@@ -1361,8 +1361,7 @@
+             RTLogGroupSettings(pLogger, pszValue);
+     }
+     else if (pParam->name[0] != 'd')
+-        strlcpy(&g_szLogGrp[0], pszValue, sizeof(g_szLogGrp));
+-
++        RTStrCopy(&g_szLogGrp[0], sizeof(g_szLogGrp), pszValue);
+     return 0;
+ }
+ 
+@@ -1387,7 +1386,7 @@
+             RTLogFlags(pLogger, pszValue);
+     }
+     else if (pParam->name[0] != 'd')
+-        strlcpy(&g_szLogFlags[0], pszValue, sizeof(g_szLogFlags));
++        RTStrCopy(&g_szLogFlags[0], sizeof(g_szLogFlags), pszValue);
+     return 0;
+ }
+ 
+@@ -1412,7 +1411,7 @@
+             RTLogDestinations(pLogger, pszValue);
+     }
+     else if (pParam->name[0] != 'd')
+-        strlcpy(&g_szLogDst[0], pszValue, sizeof(g_szLogDst));
++        RTStrCopy(&g_szLogDst[0], sizeof(g_szLogDst), pszValue);
+     return 0;
+ }
+ 
+diff -Naur VirtualBox-7.0.14/src/VBox/Additions/linux/drm/vbox_drv.h VirtualBox-7.0.14.new/src/VBox/Additions/linux/drm/vbox_drv.h
+--- VirtualBox-7.0.14/src/VBox/Additions/linux/drm/vbox_drv.h	2024-01-15 15:01:46.000000000 +0100
++++ VirtualBox-7.0.14.new/src/VBox/Additions/linux/drm/vbox_drv.h	2024-03-12 09:59:21.144410257 +0100
+@@ -538,9 +538,7 @@
+ int vbox_irq_init(struct vbox_private *vbox);
+ void vbox_irq_fini(struct vbox_private *vbox);
+ void vbox_report_hotplug(struct vbox_private *vbox);
+-#if RTLNX_VER_MAX(5,15,0) && !RTLNX_RHEL_MAJ_PREREQ(9,1) && !RTLNX_SUSE_MAJ_PREREQ(15,5)
+ irqreturn_t vbox_irq_handler(int irq, void *arg);
+-#endif
+ 
+ /* vbox_hgsmi.c */
+ void *hgsmi_buffer_alloc(struct gen_pool *guest_pool, size_t size,
+diff -Naur VirtualBox-7.0.14/src/VBox/Additions/linux/sharedfolders/dirops.c VirtualBox-7.0.14.new/src/VBox/Additions/linux/sharedfolders/dirops.c
+--- VirtualBox-7.0.14/src/VBox/Additions/linux/sharedfolders/dirops.c	2024-01-15 15:01:47.000000000 +0100
++++ VirtualBox-7.0.14.new/src/VBox/Additions/linux/sharedfolders/dirops.c	2024-03-12 09:59:21.155410337 +0100
+@@ -492,7 +492,7 @@
+             cchSrcName = pEntry->name.u16Length;
+             AssertLogRelBreak(offEntryInBuf + RT_UOFFSETOF(SHFLDIRINFO, name.String) + cbSrcName <= cbValid);
+             AssertLogRelBreak(cchSrcName < cbSrcName);
+-            AssertLogRelBreak(pEntry->name.String.ach[cchSrcName] == '\0');
++            AssertLogRelBreak(*(pEntry->name.String.ach + cchSrcName) == '\0');
+ 
+             /*
+              * Filter out '.' and '..' entires.
+@@ -500,7 +500,7 @@
+             if (   cchSrcName > 2
+                 || pEntry->name.String.ach[0] != '.'
+                 || (   cchSrcName == 2
+-                    && pEntry->name.String.ach[1] != '.')) {
++                    && *(pEntry->name.String.ach + 1) != '.')) {
+                 int const   d_type = vbsf_get_d_type(pEntry->Info.Attr.fMode);
+                 ino_t const d_ino  = (ino_t)offPos + 0xbeef; /* very fake */
+                 bool        fContinue;
+diff -Naur VirtualBox-7.0.14/src/VBox/Additions/linux/sharedfolders/regops.c VirtualBox-7.0.14.new/src/VBox/Additions/linux/sharedfolders/regops.c
+--- VirtualBox-7.0.14/src/VBox/Additions/linux/sharedfolders/regops.c	2024-01-15 15:01:48.000000000 +0100
++++ VirtualBox-7.0.14.new/src/VBox/Additions/linux/sharedfolders/regops.c	2024-03-12 09:59:21.146410272 +0100
+@@ -3505,7 +3505,7 @@
+ };
+ 
+ /** file_operations::mmap wrapper for logging purposes. */
+-extern int vbsf_reg_mmap(struct file *file, struct vm_area_struct *vma)
++static int vbsf_reg_mmap(struct file *file, struct vm_area_struct *vma)
+ {
+     int rc;
+     SFLOGFLOW(("vbsf_reg_mmap: file=%p vma=%p\n", file, vma));
+@@ -3786,14 +3786,14 @@
+ }
+ 
+ # if RTLNX_VER_MIN(5,19,0) || RTLNX_RHEL_RANGE(9,3, 9,99)
+-int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t pos,
++static int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t pos,
+                      unsigned len, struct page **pagep, void **fsdata)
+ {
+     vbsf_write_begin_warn(pos, len, 0);
+     return simple_write_begin(file, mapping, pos, len, pagep, fsdata);
+ }
+ # else
+-int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t pos,
++static int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t pos,
+                      unsigned len, unsigned flags, struct page **pagep, void **fsdata)
+ {
+     vbsf_write_begin_warn(pos, len, flags);
+diff -Naur VirtualBox-7.0.14/src/VBox/Additions/linux/sharedfolders/utils.c VirtualBox-7.0.14.new/src/VBox/Additions/linux/sharedfolders/utils.c
+--- VirtualBox-7.0.14/src/VBox/Additions/linux/sharedfolders/utils.c	2024-01-15 15:01:48.000000000 +0100
++++ VirtualBox-7.0.14.new/src/VBox/Additions/linux/sharedfolders/utils.c	2024-03-12 09:59:21.155410337 +0100
+@@ -1047,9 +1047,9 @@
+         RT_BCOPY_UNFORTIFIED(&tmp->String.utf8[0], d_name, d_len + 1);
+     else {
+         RT_BCOPY_UNFORTIFIED(&tmp->String.utf8[0], p_name, p_len);
+-        tmp->String.utf8[p_len] = '/';
+-        RT_BCOPY_UNFORTIFIED(&tmp->String.utf8[p_len + 1], d_name, d_len);
+-        tmp->String.utf8[p_len + 1 + d_len] = '\0';
++        *(tmp->String.utf8 + p_len) = '/';
++        RT_BCOPY_UNFORTIFIED(tmp->String.utf8 + p_len + 1, d_name, d_len);
++        *(tmp->String.utf8 + p_len + 1 + d_len) = '\0';
+     }
+ 
+     *result = tmp;
+diff -Naur VirtualBox-7.0.14/src/VBox/Additions/linux/sharedfolders/vfsmod.c VirtualBox-7.0.14.new/src/VBox/Additions/linux/sharedfolders/vfsmod.c
+--- VirtualBox-7.0.14/src/VBox/Additions/linux/sharedfolders/vfsmod.c	2024-01-15 15:01:48.000000000 +0100
++++ VirtualBox-7.0.14.new/src/VBox/Additions/linux/sharedfolders/vfsmod.c	2024-03-12 09:59:21.154410330 +0100
+@@ -473,8 +473,7 @@
+ 
+         path->u16Length = 1;
+         path->u16Size = 2;
+-        path->String.utf8[0] = '/';
+-        path->String.utf8[1] = 0;
++        RTStrCopy(path->String.utf8, path->u16Size, "/");
+ 
+         /*
+          * Stat the root directory (for inode info).
+@@ -1408,7 +1407,7 @@
+     switch (opt) {
+     case Opt_iocharset:
+     case Opt_nls:
+-        strlcpy(info->nls_name, param->string, sizeof(info->nls_name));
++        RTStrCopy(info->nls_name, sizeof(info->nls_name), param->string);
+         break;
+     case Opt_uid:
+         info->uid = result.uint_32;
+@@ -1469,7 +1468,7 @@
+             printk(KERN_WARNING "vboxsf: cache mode (%u) is out of range, using default instead.\n", result.uint_32);
+         break;
+     case Opt_tag:
+-        strlcpy(info->szTag, param->string, sizeof(info->szTag));
++        RTStrCopy(info->szTag, sizeof(info->szTag), param->string);
+         break;
+     default:
+         return invalf(fc, "Invalid mount option: '%s'", param->key);
+@@ -1528,7 +1527,7 @@
+     }
+ 
+     /* fc->source (the shared folder name) is set after vbsf_init_fs_ctx() */
+-    strlcpy(info->name, fc->source, sizeof(info->name));
++    RTStrCopy(info->name, sizeof(info->name), fc->source);
+ 
+ # if RTLNX_VER_MAX(5,3,0)
+     return vfs_get_super(fc, vfs_get_independent_super, vbsf_read_super_aux);
+diff -Naur VirtualBox-7.0.14/src/VBox/Runtime/common/log/log.cpp VirtualBox-7.0.14.new/src/VBox/Runtime/common/log/log.cpp
+--- VirtualBox-7.0.14/src/VBox/Runtime/common/log/log.cpp	2024-01-15 15:12:40.000000000 +0100
++++ VirtualBox-7.0.14.new/src/VBox/Runtime/common/log/log.cpp	2024-03-12 09:59:21.153410322 +0100
+@@ -548,7 +548,7 @@
+         uint32_t const fFlags = RT_LO_U16(fFlagsAndGroup);
+         uint16_t const iGroup = RT_HI_U16(fFlagsAndGroup);
+         if (   iGroup != UINT16_MAX
+-            && (   (pLoggerInt->afGroups[iGroup < pLoggerInt->cGroups ? iGroup : 0] & (fFlags | RTLOGGRPFLAGS_ENABLED))
++            && (   (*(pLoggerInt->afGroups + (iGroup < pLoggerInt->cGroups ? iGroup : 0)) & (fFlags | RTLOGGRPFLAGS_ENABLED))
+                 != (fFlags | RTLOGGRPFLAGS_ENABLED)))
+             pLoggerInt = NULL;
+     }
+@@ -1555,7 +1555,7 @@
+     pLoggerInt->fFlags |= RTLOGFLAGS_DISABLED;
+     iGroup = pLoggerInt->cGroups;
+     while (iGroup-- > 0)
+-        pLoggerInt->afGroups[iGroup] = 0;
++        *(pLoggerInt->afGroups + iGroup) = 0;
+ 
+     /*
+      * Flush it.
+@@ -1788,9 +1788,9 @@
+             for (i = 0; i < pLoggerInt->cGroups; i++)
+             {
+                 if (fEnabled)
+-                    pLoggerInt->afGroups[i] |= fFlags;
++                    *(pLoggerInt->afGroups + i) |= fFlags;
+                 else
+-                    pLoggerInt->afGroups[i] &= ~fFlags;
++                    *(pLoggerInt->afGroups + i) &= ~fFlags;
+             }
+         }
+         else
+@@ -4158,7 +4158,7 @@
+         || !pszFormat || !*pszFormat)
+         return VINF_LOG_DISABLED;
+     if (    iGroup != ~0U
+-        &&  (pLoggerInt->afGroups[iGroup] & (fFlags | RTLOGGRPFLAGS_ENABLED)) != (fFlags | RTLOGGRPFLAGS_ENABLED))
++        &&  (*(pLoggerInt->afGroups + iGroup) & (fFlags | RTLOGGRPFLAGS_ENABLED)) != (fFlags | RTLOGGRPFLAGS_ENABLED))
+         return VINF_LOG_DISABLED;
+ 
+     /*
+diff -Naur VirtualBox-7.0.14/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c VirtualBox-7.0.14.new/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c
+--- VirtualBox-7.0.14/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c	2024-01-15 15:12:57.000000000 +0100
++++ VirtualBox-7.0.14.new/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c	2024-03-12 09:59:21.153410322 +0100
+@@ -396,7 +396,7 @@
+         {
+             fContiguous = true;
+             for (iPage = 0; iPage < cPages; iPage++)
+-                pMemLnx->apPages[iPage] = &paPages[iPage];
++                *(pMemLnx->apPages + iPage) = &paPages[iPage];
+         }
+         else if (fContiguous)
+         {
+@@ -412,11 +412,11 @@
+          *        IPRT_USE_APPLY_TO_PAGE_RANGE_FOR_EXEC. */
+         for (iPage = 0; iPage < cPages; iPage++)
+         {
+-            pMemLnx->apPages[iPage] = alloc_page(fFlagsLnx | __GFP_NOWARN);
+-            if (RT_UNLIKELY(!pMemLnx->apPages[iPage]))
++            *(pMemLnx->apPages + iPage) = alloc_page(fFlagsLnx | __GFP_NOWARN);
++            if (RT_UNLIKELY(!*(pMemLnx->apPages + iPage)))
+             {
+                 while (iPage-- > 0)
+-                    __free_page(pMemLnx->apPages[iPage]);
++                    __free_page(*(pMemLnx->apPages + iPage));
+                 rtR0MemObjDelete(&pMemLnx->Core);
+                 return rcNoMem;
+             }
+@@ -593,7 +593,7 @@
+     {
+         size_t iPage = pMemLnx->cPages;
+         while (iPage-- > 0)
+-            if (PageHighMem(pMemLnx->apPages[iPage]))
++            if (PageHighMem(*(pMemLnx->apPages + iPage)))
+             {
+                 fMustMap = true;
+                 break;

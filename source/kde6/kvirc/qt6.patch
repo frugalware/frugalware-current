@@ -1,0 +1,1221 @@
+diff -Naur KVIrc-5.2.2/src/kvilib/ext/KviStringConversion.cpp KVIrc-5.2.2.new/src/kvilib/ext/KviStringConversion.cpp
+--- KVIrc-5.2.2/src/kvilib/ext/KviStringConversion.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvilib/ext/KviStringConversion.cpp	2024-03-25 16:32:02.419295940 +0100
+@@ -35,6 +35,7 @@
+ #include <QString>
+ #include <QStringList>
+ #include <cstdio>
++#include <array>
+ 
+ QString g_szGlobalDir;
+ QString g_szLocalDir;
+@@ -219,7 +220,11 @@
+ 
+ 	bool fromString(const QString & szValue, QColor & buffer)
+ 	{
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 		buffer.setNamedColor(szValue);
++#else
++		buffer = QColor::fromString(szValue);
++#endif
+ 		return true;
+ 	}
+ 
+@@ -238,15 +243,37 @@
+ 		if(font.fixedPitch())
+ 			szOptions.append('f');
+ 
+-		szBuffer = QString::asprintf("%s,%d,%d,%d,%s,%s", szFamily.toUtf8().data(), font.pointSize(), font.styleHint(),
+-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+-			font.weight(),
+-#else
+-			font.legacyWeight(),
+-#endif
+-			szOptions.toUtf8().data(),
+-			font.styleName().toUtf8().data()
+-		);
++		szBuffer = QString::asprintf("%s,%d,%d,%d,%s,%s", szFamily.toUtf8().data(), font.pointSize(), font.styleHint(), font.weight(), szOptions.toUtf8().data(), font.styleName().toUtf8().data());
++	}
++
++	/* Helper function to convert Qt < 6.0 font weight to OpenType font weight */
++	static int fromLegacyWeight(int weight)
++	{
++		static constexpr std::array<int, 2> weightMap[] = {
++			{ 0, QFont::Thin },
++			{ 12, QFont::ExtraLight },
++			{ 25, QFont::Light },
++			{ 50, QFont::Normal },
++			{ 57, QFont::Medium },
++			{ 63, QFont::DemiBold },
++			{ 75, QFont::Bold },
++			{ 81, QFont::ExtraBold },
++			{ 87, QFont::Black },
++		};
++
++		int closestDist = INT_MAX;
++		int result = -1;
++		for (auto item: weightMap) {
++			const int dist = qAbs(item[0] - weight);
++			if (dist < closestDist) {
++				result = item[1];
++				closestDist = dist;
++			} else {
++				break;
++			}
++		}
++
++		return result;
+ 	}
+ 
+ 	bool fromString(const QString & szValue, QFont & buffer)
+@@ -269,12 +296,21 @@
+ 		if(bOk && (i >= 0))
+ 			buffer.setStyleHint((QFont::StyleHint)i);
+ 		i = weight.toInt(&bOk);
+-		if(bOk && (i >= 0))
++		if(bOk && (i >= 0)) {
+ #if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+ 			buffer.setWeight(i);
+ #else
+-			buffer.setLegacyWeight(i);
++			/*
++			 * KVIrc <= 5.2.2 used Qt5 font weights (0 = thinner, 99 = bolder)
++			 * Qt6 introduced opentype (css) font weight (100 = thinner, 900 = bolder)
++			 * if the config is using an old weight, convert it
++			 */
++			if(i < 100) {
++				i = KviStringConversion::fromLegacyWeight(i);
++			}
++			buffer.setWeight(QFont::Weight(i));
+ #endif
++		}
+ 		buffer.setBold(options.contains("b"));
+ 		buffer.setItalic(options.contains("i"));
+ 		buffer.setUnderline(options.contains("u"));
+diff -Naur KVIrc-5.2.2/src/kvirc/kernel/KviApplication.cpp KVIrc-5.2.2.new/src/kvirc/kernel/KviApplication.cpp
+--- KVIrc-5.2.2/src/kvirc/kernel/KviApplication.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/kernel/KviApplication.cpp	2024-03-25 16:32:02.413295892 +0100
+@@ -866,7 +866,7 @@
+ 			// org.freedesktop.Notifications.Notify
+ 			QVariantList args;
+ 			args << QString("KVIrc");                          // application name
+-			args << QVariant(QVariant::UInt);                  // notification id
++			args << QVariant(0);                               // notification id
+ 			args << szIcon;                                    // application icon
+ 			args << szTitle;                                   // summary text
+ 			args << szText;                                    // detailed text
+@@ -980,26 +980,35 @@
+ 	// first: check if the user configuration has ever been updated to the current version
+ 	if(!KviDefaultScriptManager::instance()->isDefscriptUpToDate())
+ 	{
+-		switch(
+-		    QMessageBox::question(nullptr, __tr2qs("Update Default Scripts - KVIrc"),
+-		        __tr2qs("<b>Your KVirc installation has been updated successfully.</b><br><br>"
+-		                "KVIrc's default scripts should also be updated. "
+-		                "<b>Do you want to restore the default scripts?</b><br><br>"
+-		                "Hint: If you choose \"No\" you can always restore the "
+-		                "default scripts by selecting the appropriate entry from the \"Scripting\" menu later."),
+-		        __tr2qs("No and Don't Ask Me Again"), __tr2qs("No"), __tr2qs("Yes"), 1, 1))
++		QMessageBox msg(nullptr);
++		msg.setIcon(QMessageBox::Question);
++		msg.setWindowTitle(__tr2qs("Update Default Scripts - KVIrc"));
++		msg.setText(__tr2qs("<b>Your KVirc installation has been updated successfully.</b><br><br>"
++		                    "KVIrc's default scripts should also be updated. "
++		                    "<b>Do you want to restore the default scripts?</b><br><br>"
++		                    "Hint: If you choose \"No\" you can always restore the "
++		                    "default scripts by selecting the appropriate entry from the \"Scripting\" menu later."));
++		QPushButton * neverButton = msg.addButton(__tr2qs("No and Don't Ask Me Again"), QMessageBox::NoRole);
++		QPushButton * noButton    = msg.addButton(__tr2qs("No"), QMessageBox::NoRole);
++		QPushButton * yesButton   = msg.addButton(__tr2qs("Yes"), QMessageBox::YesRole);
++		msg.setDefaultButton(noButton);
++		msg.setEscapeButton(noButton);
++		msg.exec();
++
++		if(msg.clickedButton() == neverButton)
+ 		{
+-			case 0:
+-				KVI_OPTION_BOOL(KviOption_boolDoNotSuggestRestoreDefaultScript) = true;
+-				return;
+-				break;
+-			case 1:
+-				// we want to execute the next checks, don't return now
+-				break;
+-			default:
+-				restoreDefaultScript();
+-				// we want to execute the next checks after the attempted restore, don't return now
+-				break;
++			KVI_OPTION_BOOL(KviOption_boolDoNotSuggestRestoreDefaultScript) = true;
++			return;
++		}
++		else if(msg.clickedButton() == yesButton)
++		{
++			restoreDefaultScript();
++			// we want to execute the next checks after the attempted restore, don't return now
++		}
++		else
++		{
++			// "no button" or no button cliecked
++			// we want to execute the next checks, don't return now
+ 		}
+ 	}
+ 
+@@ -1044,25 +1053,33 @@
+ 
+ 	bSuggestedOnce = true;
+ 
+-	switch(
+-	    QMessageBox::question(nullptr, __tr2qs("Detected Installation Issues - KVIrc"),
+-	        __tr2qs("<b>Your KVIrc installation is incomplete.</b><br><br>"
+-	                "You seem to be missing some of the features that the KVIrc default scripts provide. "
+-	                "<b>Do you want to restore the default scripts?</b><br><br>"
+-	                "Hint: If you choose \"No\" you can always restore the "
+-	                "default scripts by selecting the appropriate entry from the \"Scripting\" menu later."),
+-	        __tr2qs("No and Don't Ask Me Again"), __tr2qs("No"), __tr2qs("Yes"), 1, 1))
++	QMessageBox msg(nullptr);
++	msg.setIcon(QMessageBox::Question);
++	msg.setWindowTitle(__tr2qs("Detected Installation Issues - KVIrc"));
++	msg.setText(__tr2qs("<b>Your KVIrc installation is incomplete.</b><br><br>"
++	                    "You seem to be missing some of the features that the KVIrc default scripts provide. "
++	                    "<b>Do you want to restore the default scripts?</b><br><br>"
++	                    "Hint: If you choose \"No\" you can always restore the "
++	                    "default scripts by selecting the appropriate entry from the \"Scripting\" menu later."));
++	QPushButton * neverButton = msg.addButton(__tr2qs("No and Don't Ask Me Again"), QMessageBox::NoRole);
++	QPushButton * noButton    = msg.addButton(__tr2qs("No"), QMessageBox::NoRole);
++	QPushButton * yesButton   = msg.addButton(__tr2qs("Yes"), QMessageBox::YesRole);
++	msg.setDefaultButton(noButton);
++	msg.setEscapeButton(noButton);
++	msg.exec();
++
++	if(msg.clickedButton() == neverButton)
+ 	{
+-		case 0:
+-			KVI_OPTION_BOOL(KviOption_boolDoNotSuggestRestoreDefaultScript) = true;
+-			return;
+-			break;
+-		case 1:
+-			return;
+-			break;
+-		default:
+-			restoreDefaultScript();
+-			break;
++		KVI_OPTION_BOOL(KviOption_boolDoNotSuggestRestoreDefaultScript) = true;
++		return;
++	}
++	else if(msg.clickedButton() == yesButton)
++	{
++		restoreDefaultScript();
++	}
++	else
++	{
++		// "no button" or no button cliecked
+ 	}
+ }
+ 
+diff -Naur KVIrc-5.2.2/src/kvirc/kernel/KviCoreActions.cpp KVIrc-5.2.2.new/src/kvirc/kernel/KviCoreActions.cpp
+--- KVIrc-5.2.2/src/kvirc/kernel/KviCoreActions.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/kernel/KviCoreActions.cpp	2024-03-25 16:32:02.408295852 +0100
+@@ -464,7 +464,7 @@
+ {
+ 	for(auto & pAction : m_pActionList)
+ 	{
+-		QToolBar * t = (QToolBar *)pAction->parentWidget();
++		QToolBar * t = qobject_cast<QToolBar *>(pAction->parent());
+ 		if(t)
+ 		{
+ 			KviIrcContextDisplay * w = (KviIrcContextDisplay *)t->widgetForAction(pAction);
+@@ -478,7 +478,7 @@
+ {
+ 	for(auto & pAction : m_pActionList)
+ 	{
+-		QToolBar * t = (QToolBar *)pAction->parentWidget();
++		QToolBar * t = qobject_cast<QToolBar *>(pAction->parent());
+ 		if(t)
+ 		{
+ 			KviIrcContextDisplay * w = (KviIrcContextDisplay *)t->widgetForAction(pAction);
+diff -Naur KVIrc-5.2.2/src/kvirc/kernel/KviIrcConnection.cpp KVIrc-5.2.2.new/src/kvirc/kernel/KviIrcConnection.cpp
+--- KVIrc-5.2.2/src/kvirc/kernel/KviIrcConnection.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/kernel/KviIrcConnection.cpp	2024-03-25 16:32:02.413295892 +0100
+@@ -1699,7 +1699,7 @@
+ 		[](const std::pair<QString, QString> & left,
+ 		   const std::pair<QString, QString> & right)
+ 	{
+-		return left.second.count() > right.second.count();
++		return left.second.size() > right.second.size();
+ 	});
+ 
+ 	// We send the channel list in chunks to avoid overflowing the 510 character limit on the message.
+diff -Naur KVIrc-5.2.2/src/kvirc/kvs/object/KviKvsObject.cpp KVIrc-5.2.2.new/src/kvirc/kvs/object/KviKvsObject.cpp
+--- KVIrc-5.2.2/src/kvirc/kvs/object/KviKvsObject.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/kvs/object/KviKvsObject.cpp	2024-03-25 16:32:02.407295844 +0100
+@@ -1212,15 +1212,28 @@
+ 		return true;
+ 	}
+ 
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+ #define WRONG_TYPE(__therighttype)                                                                                                                                          \
+ 	{                                                                                                                                                                       \
+ 		c->warning(__tr2qs_ctx("The property is of type %s but the supplied argument can't be converted to that type (expecting '%s')", "kvs"), p->type(), __therighttype); \
+ 		return true;                                                                                                                                                        \
+ 	}
++#else
++#define WRONG_TYPE(__therighttype)                                                                                                                                            \
++	{                                                                                                                                                                         \
++		c->warning(__tr2qs_ctx("The property is of type %s but the supplied argument can't be converted to that type (expecting '%s')", "kvs"), p->typeId(), __therighttype); \
++		return true;                                                                                                                                                          \
++	}
++#endif
+ 
+-	switch(vv.type())
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
++	uint vvType = vv.type();
++#else
++	uint vvType = vv.typeId();
++#endif
++	switch(vvType)
+ 	{
+-		case QVariant::Int:
++		case QMetaType::Int:
+ 		{
+ 			kvs_int_t i;
+ 			if(!v->asInteger(i))
+@@ -1228,7 +1241,7 @@
+ 			m_pObject->setProperty(szName.toUtf8().data(), QVariant((int)i));
+ 		}
+ 		break;
+-		case QVariant::UInt:
++		case QMetaType::UInt:
+ 		{
+ 			kvs_int_t i;
+ 			if(!v->asInteger(i))
+@@ -1238,7 +1251,7 @@
+ 			m_pObject->setProperty(szName.toUtf8().data(), QVariant((unsigned int)i));
+ 		}
+ 		break;
+-		case QVariant::Double:
++		case QMetaType::Double:
+ 		{
+ 			kvs_real_t i;
+ 			if(!v->asReal(i))
+@@ -1246,24 +1259,24 @@
+ 			m_pObject->setProperty(szName.toUtf8().data(), QVariant((double)i));
+ 		}
+ 		break;
+-		case QVariant::Bool:
++		case QMetaType::Bool:
+ 			m_pObject->setProperty(szName.toUtf8().data(), QVariant(v->asBoolean()));
+ 			break;
+-		case QVariant::String:
++		case QMetaType::QString:
+ 		{
+ 			QString s;
+ 			v->asString(s);
+ 			m_pObject->setProperty(szName.toUtf8().data(), QVariant(s));
+ 		}
+ 		break;
+-		case QVariant::ByteArray:
++		case QMetaType::QByteArray:
+ 		{
+ 			QString s;
+ 			v->asString(s);
+ 			m_pObject->setProperty(szName.toUtf8().data(), QVariant(s.toUtf8()));
+ 		}
+ 		break;
+-		case QVariant::Point:
++		case QMetaType::QPoint:
+ 		{
+ 			if(!v->isArray())
+ 				WRONG_TYPE("array(integer,integer)")
+@@ -1278,7 +1291,7 @@
+ 			m_pObject->setProperty(szName.toUtf8().data(), QVariant(QPoint(iX, iY)));
+ 		}
+ 		break;
+-		case QVariant::Size:
++		case QMetaType::QSize:
+ 		{
+ 			if(!v->isArray())
+ 				WRONG_TYPE("array(integer,integer)")
+@@ -1293,7 +1306,7 @@
+ 			m_pObject->setProperty(szName.toUtf8().data(), QVariant(QSize(iW, iH)));
+ 		}
+ 		break;
+-		case QVariant::Rect:
++		case QMetaType::QRect:
+ 		{
+ 			if(!v->isArray())
+ 				WRONG_TYPE("array(integer,integer,integer,integer)")
+@@ -1311,7 +1324,7 @@
+ 		}
+ 		break;
+ 
+-		case QVariant::Color:
++		case QMetaType::QColor:
+ 		{
+ 			if(!v->isArray())
+ 				WRONG_TYPE("array(integer,integer,integer)")
+@@ -1327,7 +1340,7 @@
+ 			m_pObject->setProperty(szName.toUtf8().data(), QVariant(QColor(iR, iG, iB)));
+ 		}
+ 		break;
+-		case QVariant::Font:
++		case QMetaType::QFont:
+ 		{
+ 			if(!v->isArray())
+ 				WRONG_TYPE("array(string,integer,string)")
+@@ -1362,14 +1375,14 @@
+ 			m_pObject->setProperty(szName.toUtf8().data(), QVariant(fnt));
+ 		}
+ 		break;
+-		case QVariant::Pixmap | QVariant::Icon:
++		case QMetaType::QPixmap | QMetaType::QIcon:
+ 		{
+ 			if(v->isHObject())
+ 			{
+ 				if(v->hobject() == (kvs_hobject_t) nullptr)
+ 				{
+ 					// null pixmap
+-					if(vv.type() == QVariant::Pixmap)
++					if(vvType == QMetaType::QPixmap)
+ 						m_pObject->setProperty(szName.toUtf8().data(), QVariant(QPixmap()));
+ 					else
+ 						m_pObject->setProperty(szName.toUtf8().data(), QVariant(QIcon()));
+@@ -1382,7 +1395,7 @@
+ 					else
+ 					{
+ 						QVariant pixv = pix->property("pixmap");
+-						if(vv.type() == QVariant::Pixmap)
++						if(vvType == QMetaType::QPixmap)
+ 							m_pObject->setProperty(szName.toUtf8().data(), QVariant(pixv.value<QPixmap>()));
+ 						else
+ 							m_pObject->setProperty(szName.toUtf8().data(), QVariant(QIcon(pixv.value<QPixmap>())));
+@@ -1396,7 +1409,7 @@
+ 				QPixmap * pPix = g_pIconManager->getImage(szStr);
+ 				if(pPix)
+ 				{
+-					if(vv.type() == QVariant::Pixmap)
++					if(vvType == QVariant::Pixmap)
+ 						m_pObject->setProperty(szName.toUtf8().data(), QVariant(*pPix));
+ 					else
+ 						m_pObject->setProperty(szName.toUtf8().data(), QVariant(QIcon(*pPix)));
+@@ -1466,27 +1479,31 @@
+ 		return true;
+ 	}
+ 
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+ 	switch(v.type())
++#else
++	switch(v.typeId())
++#endif
+ 	{
+-		case QVariant::Int:
++		case QMetaType::Int:
+ 			c->returnValue()->setInteger((kvs_int_t)v.toInt());
+ 			break;
+-		case QVariant::Double:
++		case QMetaType::Double:
+ 			c->returnValue()->setReal((kvs_int_t)v.toDouble());
+ 			break;
+-		case QVariant::UInt:
++		case QMetaType::UInt:
+ 			c->returnValue()->setInteger((kvs_int_t)v.toUInt());
+ 			break;
+-		case QVariant::Bool:
++		case QMetaType::Bool:
+ 			c->returnValue()->setBoolean(v.toBool());
+ 			break;
+-		case QVariant::String:
++		case QMetaType::QString:
+ 			c->returnValue()->setString(v.toString());
+ 			break;
+-		case QVariant::ByteArray:
++		case QMetaType::QByteArray:
+ 			c->returnValue()->setString(QString::fromUtf8(v.toByteArray().data()));
+ 			break;
+-		case QVariant::Point:
++		case QMetaType::QPoint:
+ 		{
+ 			QPoint p = v.toPoint();
+ 			KviKvsArray * a = new KviKvsArray();
+@@ -1495,7 +1512,7 @@
+ 			c->returnValue()->setArray(a);
+ 		}
+ 		break;
+-		case QVariant::Size:
++		case QMetaType::QSize:
+ 		{
+ 			QSize p = v.toSize();
+ 			KviKvsArray * a = new KviKvsArray();
+@@ -1504,7 +1521,7 @@
+ 			c->returnValue()->setArray(a);
+ 		}
+ 		break;
+-		case QVariant::Rect:
++		case QMetaType::QRect:
+ 		{
+ 			QRect p = v.toRect();
+ 			KviKvsArray * a = new KviKvsArray();
+@@ -1515,17 +1532,17 @@
+ 			c->returnValue()->setArray(a);
+ 		}
+ 		break;
+-		case QVariant::Color:
++		case QMetaType::QColor:
+ 		{
+-			QColor clr = v.value<QColor>();
+-			KviKvsArray * a = new KviKvsArray();
++			QColor        clr = v.value<QColor>();
++			KviKvsArray * a   = new KviKvsArray();
+ 			a->set(0, new KviKvsVariant((kvs_int_t)clr.red()));
+ 			a->set(1, new KviKvsVariant((kvs_int_t)clr.green()));
+ 			a->set(2, new KviKvsVariant((kvs_int_t)clr.blue()));
+ 			c->returnValue()->setArray(a);
+ 		}
+ 		break;
+-		case QVariant::Font:
++		case QMetaType::QFont:
+ 		{
+ 			QFont f = v.value<QFont>();
+ 			KviKvsArray * a = new KviKvsArray();
+diff -Naur KVIrc-5.2.2/src/kvirc/ui/KviColorSelectionWindow.cpp KVIrc-5.2.2.new/src/kvirc/ui/KviColorSelectionWindow.cpp
+--- KVIrc-5.2.2/src/kvirc/ui/KviColorSelectionWindow.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/ui/KviColorSelectionWindow.cpp	2024-03-25 16:32:02.409295860 +0100
+@@ -88,19 +88,24 @@
+ void KviColorWindow::mousePressEvent(QMouseEvent * e)
+ {
+ 	QString szStr;
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
++	QPoint pos = e->pos();
++#else
++	QPointF pos = e->position();
++#endif
+ 	if(!(
+-	       (e->pos().x() < 0) || (e->pos().x() > width()) || (e->pos().y() < 0) || (e->pos().y() > height())))
++	       (pos.x() < 0) || (pos.x() > width()) || (pos.y() < 0) || (pos.y() > height())))
+ 	{
+-		int iKey = e->x() / 18;
+-		if(e->x() < 36 && e->y() > 18)
++		int iKey = pos.x() / 18;
++		if(pos.x() < 36 && pos.y() > 18)
+ 			iKey += 8;
+-		if(e->x() > 36 && e->y() > 18)
++		if(pos.x() > 36 && pos.y() > 18)
+ 			iKey -= 2;
+ 
+ 		// FIXME: is this right? maybe it should be szStr.setNum(iAscii);
+ 		szStr.setNum(iKey);
+ 
+-		if(e->x() > 36 && e->y() > 18)
++		if(pos.x() > 36 && pos.y() > 18)
+ 		{
+ 			if(m_pOwner)
+ 				g_pApp->sendEvent(m_pOwner, new QKeyEvent(QEvent::KeyPress, Qt::Key_1, Qt::NoModifier, "1"));
+diff -Naur KVIrc-5.2.2/src/kvirc/ui/KviConsoleWindow.cpp KVIrc-5.2.2.new/src/kvirc/ui/KviConsoleWindow.cpp
+--- KVIrc-5.2.2/src/kvirc/ui/KviConsoleWindow.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/ui/KviConsoleWindow.cpp	2024-03-25 16:32:02.411295876 +0100
+@@ -81,6 +81,7 @@
+ #include <QStringList>
+ #include <QCloseEvent>
+ #include <QMenu>
++#include <QPushButton>
+ 
+ #include "kvi_debug.h"
+ 
+@@ -524,25 +525,31 @@
+ 		{
+ 			if(!KVI_OPTION_BOOL(KviOption_boolAlwaysDisconnectClosingConnectedConsole))
+ 			{
+-				switch(QMessageBox::warning(this,
+-				    __tr2qs("Confirm Close - KVIrc"),
+-				    __tr2qs("You have just attempted to close a console window with an active connection inside.\n"
+-				            "Are you sure you wish to terminate the connection?"),
+-				    __tr2qs("&Yes"),
+-				    __tr2qs("&Always"),
+-				    __tr2qs("&No"),
+-				    2, 2))
++				QMessageBox msg(this);
++				msg.setIcon(QMessageBox::Warning);
++				msg.setWindowTitle(__tr2qs("Confirm Close - KVIrc"));
++				msg.setText(__tr2qs("You have just attempted to close a console window with an active connection inside.\n"
++				                    "Are you sure you wish to terminate the connection?"));
++				QPushButton * yesButton    = msg.addButton(__tr2qs("&Yes"), QMessageBox::YesRole);
++				QPushButton * alwaysButton = msg.addButton(__tr2qs("&Always"), QMessageBox::YesRole);
++				QPushButton * noButton     = msg.addButton(__tr2qs("&No"), QMessageBox::NoRole);
++				msg.setDefaultButton(noButton);
++				msg.setEscapeButton(noButton);
++				msg.exec();
++
++				if(msg.clickedButton() == yesButton)
++				{
++					// nothing here
++				}
++				else if(msg.clickedButton() == alwaysButton)
+ 				{
+-					case 0:
+-						// nothing here
+-						break;
+-					case 1:
+-						KVI_OPTION_BOOL(KviOption_boolAlwaysDisconnectClosingConnectedConsole) = true;
+-						break;
+-					default: // 2 = no
+-						e->ignore();
+-						return;
+-						break;
++					KVI_OPTION_BOOL(KviOption_boolAlwaysDisconnectClosingConnectedConsole) = true;
++				}
++				else
++				{
++					// "no" button or no button clicked
++					e->ignore();
++					return;
+ 				}
+ 			}
+ 			// ask the context to terminate the connection gracefully
+@@ -559,24 +566,30 @@
+ 	// this is the only console... ask if the user really wants to quit KVirc
+ 	if(!KVI_OPTION_BOOL(KviOption_boolAlwaysQuitKVIrcClosingLastConsole))
+ 	{
+-		switch(QMessageBox::warning(this,
+-		    __tr2qs("Confirm Close - KVIrc"),
+-		    __tr2qs("You have just attempted to close the last console window.\nAre you sure you wish to quit KVIrc?"),
+-		    __tr2qs("&Always"),
+-		    __tr2qs("&Yes"),
+-		    __tr2qs("&No"),
+-		    2, 2))
++		QMessageBox msg(this);
++		msg.setIcon(QMessageBox::Warning);
++		msg.setWindowTitle(__tr2qs("Confirm Close - KVIrc"));
++		msg.setText(__tr2qs("You have just attempted to close the last console window.\nAre you sure you wish to quit KVIrc?"));
++		QPushButton * yesButton    = msg.addButton(__tr2qs("&Yes"), QMessageBox::YesRole);
++		QPushButton * alwaysButton = msg.addButton(__tr2qs("&Always"), QMessageBox::YesRole);
++		QPushButton * noButton     = msg.addButton(__tr2qs("&No"), QMessageBox::NoRole);
++		msg.setDefaultButton(noButton);
++		msg.setEscapeButton(noButton);
++		msg.exec();
++
++		if(msg.clickedButton() == yesButton)
++		{
++			// nothing here
++		}
++		else if(msg.clickedButton() == alwaysButton)
++		{
++			KVI_OPTION_BOOL(KviOption_boolAlwaysQuitKVIrcClosingLastConsole) = true;
++		}
++		else
+ 		{
+-			case 0:
+-				KVI_OPTION_BOOL(KviOption_boolAlwaysQuitKVIrcClosingLastConsole) = true;
+-				break;
+-			case 1:
+-				// nothing here
+-				break;
+-			default: // 2 = no
+-				e->ignore();
+-				return;
+-				break;
++			// "no" button or no button clicked
++			e->ignore();
++			return;
+ 		}
+ 	}
+ 
+diff -Naur KVIrc-5.2.2/src/kvirc/ui/KviCustomToolBar.cpp KVIrc-5.2.2.new/src/kvirc/ui/KviCustomToolBar.cpp
+--- KVIrc-5.2.2/src/kvirc/ui/KviCustomToolBar.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/ui/KviCustomToolBar.cpp	2024-03-25 16:32:02.409295860 +0100
+@@ -225,7 +225,11 @@
+ 	if(!g_pDraggedAction)
+ 		return;
+ 
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+ 	QAction * pActionToMove = actionAt(e->pos());
++#else
++	QAction * pActionToMove = actionAt(e->position().toPoint());
++#endif
+ 	if(pActionToMove == g_pDraggedAction)
+ 		return; // hmmm
+ 
+diff -Naur KVIrc-5.2.2/src/kvirc/ui/KviInputEditor.cpp KVIrc-5.2.2.new/src/kvirc/ui/KviInputEditor.cpp
+--- KVIrc-5.2.2/src/kvirc/ui/KviInputEditor.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/ui/KviInputEditor.cpp	2024-03-25 16:32:02.418295932 +0100
+@@ -95,6 +95,10 @@
+ 
+ #define KVI_INPUT_MAX_UNDO_SIZE 256
+ 
++#ifndef ACCEL_KEY
++#define ACCEL_KEY(k) "\t" + QKeySequence(Qt::ControlModifier | Qt::Key_##k).toString()
++#endif
++
+ class KviInputEditorTextBlock
+ {
+ public:
+diff -Naur KVIrc-5.2.2/src/kvirc/ui/KviInputEditor.h KVIrc-5.2.2.new/src/kvirc/ui/KviInputEditor.h
+--- KVIrc-5.2.2/src/kvirc/ui/KviInputEditor.h	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/ui/KviInputEditor.h	2024-03-25 16:32:02.419295940 +0100
+@@ -39,7 +39,6 @@
+ * \def KVI_INPUT_DRAG_TIMEOUT Drag scroll speed...(smaller values = faster)
+ * \def KVI_INPUT_DEF_BACK Default background color
+ * \def KVI_INPUT_DEF_FORE Default foreground color
+-* \def ACCEL_KEY Accelerator key
+ */
+ 
+ #include "kvi_settings.h"
+@@ -65,10 +64,6 @@
+ #define KVI_INPUT_DEF_BACK 100
+ #define KVI_INPUT_DEF_FORE 101
+ 
+-#ifndef ACCEL_KEY
+-#define ACCEL_KEY(k) "\t" + QKeySequence(Qt::ControlModifier + Qt::Key_##k).toString()
+-#endif
+-
+ class KviInputEditorSpellCheckerBlock
+ {
+ public:
+diff -Naur KVIrc-5.2.2/src/kvirc/ui/KviIrcView_getTextLine.cpp KVIrc-5.2.2.new/src/kvirc/ui/KviIrcView_getTextLine.cpp
+--- KVIrc-5.2.2/src/kvirc/ui/KviIrcView_getTextLine.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/ui/KviIrcView_getTextLine.cpp	2024-03-25 16:32:02.409295860 +0100
+@@ -1298,12 +1298,12 @@
+ 		// Looks like the user wants to keep the control codes in the log file: we just dump everything inside (including newlines...)
+ 		if(m_pLogFile && KVI_OPTION_MSGTYPE(iMsgType).logEnabled())
+ 		{
+-			add2Log(QString::fromUtf16(data_ptr), datetime, iMsgType, true);
++			add2Log(QString::fromUtf16((char16_t *)data_ptr), datetime, iMsgType, true);
+ 		}
+ 		else if(m_pMasterView)
+ 		{
+ 			if(m_pMasterView->m_pLogFile && KVI_OPTION_MSGTYPE(iMsgType).logEnabled())
+-				m_pMasterView->add2Log(QString::fromUtf16(data_ptr), datetime, iMsgType, true);
++				m_pMasterView->add2Log(QString::fromUtf16((char16_t *)data_ptr), datetime, iMsgType, true);
+ 		}
+ 	}
+ 
+diff -Naur KVIrc-5.2.2/src/kvirc/ui/KviMainWindow.cpp KVIrc-5.2.2.new/src/kvirc/ui/KviMainWindow.cpp
+--- KVIrc-5.2.2/src/kvirc/ui/KviMainWindow.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/ui/KviMainWindow.cpp	2024-03-25 16:32:02.417295924 +0100
+@@ -274,7 +274,11 @@
+ 	m_pAccellerators.push_back(KviShortcut::create(KVI_SHORTCUTS_WIN_PREV_TAB, this, SLOT(switchToPrevWindow()), nullptr, Qt::ApplicationShortcut));
+ 	m_pAccellerators.push_back(KviShortcut::create(KVI_SHORTCUTS_WIN_NEXT_TAB, this, SLOT(switchToNextWindow()), nullptr, Qt::ApplicationShortcut));
+ 
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+ 	static int accel_table[] = {
++#else
++	static QKeyCombination accel_table[] = {
++#endif
+ 		Qt::Key_1 | Qt::ControlModifier, // script accels...
+ 		Qt::Key_2 | Qt::ControlModifier,
+ 		Qt::Key_3 | Qt::ControlModifier,
+diff -Naur KVIrc-5.2.2/src/kvirc/ui/KviStatusBar.cpp KVIrc-5.2.2.new/src/kvirc/ui/KviStatusBar.cpp
+--- KVIrc-5.2.2/src/kvirc/ui/KviStatusBar.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/ui/KviStatusBar.cpp	2024-03-25 16:32:02.410295868 +0100
+@@ -129,7 +129,13 @@
+ 		// move!
+ 		while(pApplet)
+ 		{
+-			if(de->pos().x() < (pApplet->x() + pApplet->width() - m_pClickedApplet->width()))
++			if(
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
++				de->pos().x()
++#else
++				de->position().x()
++#endif
++				 < (pApplet->x() + pApplet->width() - m_pClickedApplet->width()))
+ 			{
+ 				pApplet = m_pAppletList->prev();
+ 			}
+diff -Naur KVIrc-5.2.2/src/kvirc/ui/KviTopicWidget.cpp KVIrc-5.2.2.new/src/kvirc/ui/KviTopicWidget.cpp
+--- KVIrc-5.2.2/src/kvirc/ui/KviTopicWidget.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/kvirc/ui/KviTopicWidget.cpp	2024-03-25 16:32:02.409295860 +0100
+@@ -602,8 +602,13 @@
+ 			case QEvent::MouseButtonRelease:
+ 				if(m_pCompletionBox->rect().contains(((QMouseEvent *)e)->pos()))
+ 				{
++#if(QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 					QMouseEvent tmp(QEvent::MouseButtonDblClick,
+ 					    ((QMouseEvent *)e)->pos(), ((QMouseEvent *)e)->button(), ((QMouseEvent *)e)->buttons(), ((QMouseEvent *)e)->modifiers());
++#else
++					QMouseEvent tmp(QEvent::MouseButtonDblClick,
++					    ((QMouseEvent *)e)->position(), ((QMouseEvent *)e)->globalPosition(), ((QMouseEvent *)e)->button(), ((QMouseEvent *)e)->buttons(), ((QMouseEvent *)e)->modifiers());
++#endif
+ 					// will hide popup
+ 					QApplication::sendEvent(object, &tmp);
+ 					return true;
+diff -Naur KVIrc-5.2.2/src/modules/dialog/libkvidialog.cpp KVIrc-5.2.2.new/src/modules/dialog/libkvidialog.cpp
+--- KVIrc-5.2.2/src/modules/dialog/libkvidialog.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/dialog/libkvidialog.cpp	2024-03-25 16:32:02.419295940 +0100
+@@ -67,32 +67,29 @@
+ 	setText(szText);
+ 	setIcon(QMessageBox::NoIcon);
+ 	setModal(modal);
+-	QMessageBox::StandardButtons buttons;
+-	bool btn = false;
++
++	m_pYesButton    = nullptr;
++	m_pNoButton     = nullptr;
++	m_pCancelButton = nullptr;
+ 	if(!szButton0.isEmpty())
+ 	{
+-		btn = true;
+-		buttons = QMessageBox::Yes;
++		m_pYesButton = addButton(szButton0, QMessageBox::YesRole);
+ 	}
+ 	if(!szButton1.isEmpty())
+ 	{
+-		btn = true;
+-		buttons |= QMessageBox::No;
++		m_pNoButton = addButton(szButton1, QMessageBox::NoRole);
++		setEscapeButton(m_pNoButton);
+ 	}
+ 	if(!szButton2.isEmpty())
+ 	{
+-		btn = true;
+-		buttons |= QMessageBox::Cancel;
++		m_pCancelButton = addButton(szButton2, QMessageBox::RejectRole);
++		setEscapeButton(m_pCancelButton);
+ 	}
+ 
+-	if(!btn)
+-		buttons = QMessageBox::Ok;
+-	setStandardButtons(buttons);
+-	setDefaultButton(QMessageBox::Yes);
+-	if(szButton2.isEmpty())
+-		setEscapeButton(QMessageBox::No);
+-	else
+-		setEscapeButton(QMessageBox::Cancel);
++	if(m_pYesButton == nullptr && m_pNoButton == nullptr && m_pCancelButton == nullptr)
++	{
++		m_pYesButton = addButton("Ok", QMessageBox::YesRole);
++	}
+ 
+ 	g_pDialogModuleDialogList->append(this);
+ 
+@@ -109,12 +106,6 @@
+ 		else if(KviQString::equalCI(szIcon, "critical"))
+ 			setIcon(QMessageBox::Critical);
+ 	}
+-	if(!szButton0.isEmpty())
+-		setButtonText(QMessageBox::Yes, szButton0);
+-	if(!szButton1.isEmpty())
+-		setButtonText(QMessageBox::No, szButton1);
+-	if(!szButton2.isEmpty())
+-		setButtonText(QMessageBox::Cancel, szButton2);
+ }
+ 
+ KviKvsCallbackMessageBox::~KviKvsCallbackMessageBox()
+@@ -128,21 +119,25 @@
+ 
+ 	kvs_int_t iVal = 0;
+ 
+-	switch(code)
++	if(clickedButton() == m_pYesButton)
+ 	{
+-		case QMessageBox::No:
+-			iVal = 1;
+-			break;
+-		case QMessageBox::Cancel:
++		iVal = 0;
++	}
++	else if(clickedButton() == m_pNoButton)
++	{
++		iVal = 1;
++	}
++	else if(clickedButton() == m_pCancelButton)
++	{
++		iVal = 2;
++	}
++	else
++	{
++		// user closed the dialog, fake an "escape button" press
++		if(m_pCancelButton != nullptr)
+ 			iVal = 2;
+-			break;
+-		case 0:
+-			// user closed the dialog, fake an "escape button" press
+-			if(standardButtons() & QMessageBox::Cancel)
+-				iVal = 2;
+-			else
+-				iVal = 1;
+-			break;
++		else
++			iVal = 1;
+ 	}
+ 
+ 	KviKvsVariantList params;
+diff -Naur KVIrc-5.2.2/src/modules/dialog/libkvidialog.h KVIrc-5.2.2.new/src/modules/dialog/libkvidialog.h
+--- KVIrc-5.2.2/src/modules/dialog/libkvidialog.h	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/dialog/libkvidialog.h	2024-03-25 16:32:02.419295940 +0100
+@@ -31,6 +31,7 @@
+ 
+ #include <QDialog>
+ #include <QMessageBox>
++#include <QPushButton>
+ #include <QString>
+ 
+ class KviKvsCallbackMessageBox : public QMessageBox, public KviKvsCallbackObject
+@@ -48,6 +49,11 @@
+ 	    KviKvsVariantList * pMagicParams,
+ 	    KviWindow * pWindow, bool modal = false);
+ 	~KviKvsCallbackMessageBox();
++
++protected:
++	QPushButton * m_pYesButton;
++	QPushButton * m_pNoButton;
++	QPushButton * m_pCancelButton;
+ protected slots:
+ 	void done(int code) override;
+ };
+diff -Naur KVIrc-5.2.2/src/modules/editor/ScriptEditorImplementation.cpp KVIrc-5.2.2.new/src/modules/editor/ScriptEditorImplementation.cpp
+--- KVIrc-5.2.2/src/modules/editor/ScriptEditorImplementation.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/editor/ScriptEditorImplementation.cpp	2024-03-25 16:32:02.418295932 +0100
+@@ -273,8 +273,13 @@
+ void ScriptEditorWidget::contextMenuEvent(QContextMenuEvent * e)
+ {
+ 	QMenu * pMenu = createStandardContextMenu();
++#if (QT_VERSION < QT_VERSION_CHECK(6, 3, 0))
+ 	pMenu->addAction(__tr2qs_ctx("Context Sensitive Help", "editor"), this, SLOT(slotHelp()), Qt::CTRL | Qt::Key_H);
+ 	pMenu->addAction(__tr2qs_ctx("&Replace", "editor"), this, SLOT(slotReplace()), Qt::CTRL | Qt::Key_R);
++#else
++	pMenu->addAction(__tr2qs_ctx("Context Sensitive Help", "editor"), Qt::CTRL | Qt::Key_H, this, SLOT(slotHelp()));
++	pMenu->addAction(__tr2qs_ctx("&Replace", "editor"), Qt::CTRL | Qt::Key_R, this, SLOT(slotReplace()));
++#endif
+ 	pMenu->exec(e->globalPos());
+ 	delete pMenu;
+ }
+diff -Naur KVIrc-5.2.2/src/modules/objects/KvsObject_colorDialog.cpp KVIrc-5.2.2.new/src/modules/objects/KvsObject_colorDialog.cpp
+--- KVIrc-5.2.2/src/modules/objects/KvsObject_colorDialog.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/objects/KvsObject_colorDialog.cpp	2024-03-25 16:32:02.413295892 +0100
+@@ -125,7 +125,11 @@
+ 				return true;
+ 			}
+ 		}
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 		col.setNamedColor(szColor);
++#else
++		col = QColor::fromString(szColor);
++#endif
+ 		col.setAlpha(iOpacity);
+ 	}
+ 	else
+diff -Naur KVIrc-5.2.2/src/modules/objects/KvsObject_listWidget.cpp KVIrc-5.2.2.new/src/modules/objects/KvsObject_listWidget.cpp
+--- KVIrc-5.2.2/src/modules/objects/KvsObject_listWidget.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/objects/KvsObject_listWidget.cpp	2024-03-25 16:32:02.414295900 +0100
+@@ -418,7 +418,11 @@
+ 				return true;
+ 			}
+ 		}
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 		col.setNamedColor(szColor);
++#else
++		col = QColor::fromString(szColor);
++#endif
+ 		col.setAlpha(iOpacity);
+ 	}
+ 	else
+diff -Naur KVIrc-5.2.2/src/modules/objects/KvsObject_painter.cpp KVIrc-5.2.2.new/src/modules/objects/KvsObject_painter.cpp
+--- KVIrc-5.2.2/src/modules/objects/KvsObject_painter.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/objects/KvsObject_painter.cpp	2024-03-25 16:32:02.415295908 +0100
+@@ -2007,7 +2007,11 @@
+ 				return true;
+ 			}
+ 		}
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 		col.setNamedColor(szColor);
++#else
++		col = QColor::fromString(szColor);
++#endif
+ 		col.setAlpha(iOpacity);
+ 	}
+ 	else
+diff -Naur KVIrc-5.2.2/src/modules/objects/KvsObject_pixmap.cpp KVIrc-5.2.2.new/src/modules/objects/KvsObject_pixmap.cpp
+--- KVIrc-5.2.2/src/modules/objects/KvsObject_pixmap.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/objects/KvsObject_pixmap.cpp	2024-03-25 16:32:02.415295908 +0100
+@@ -150,7 +150,11 @@
+ 				return true;
+ 			}
+ 		}
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 		col.setNamedColor(szColor);
++#else
++		col = QColor::fromString(szColor);
++#endif
+ 		col.setAlpha(iOpacity);
+ 	}
+ 	else
+@@ -265,7 +269,11 @@
+ 				return true;
+ 			}
+ 		}
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 		col.setNamedColor(szColor);
++#else
++		col = QColor::fromString(szColor);
++#endif
+ 		col.setAlpha(iOpacity);
+ 	}
+ 	else
+diff -Naur KVIrc-5.2.2/src/modules/objects/KvsObject_sql.cpp KVIrc-5.2.2.new/src/modules/objects/KvsObject_sql.cpp
+--- KVIrc-5.2.2/src/modules/objects/KvsObject_sql.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/objects/KvsObject_sql.cpp	2024-03-25 16:32:02.408295852 +0100
+@@ -212,9 +212,13 @@
+ {
+ 	CHECK_QUERY_IS_INIT
+ 	QVariant value = m_pCurrentSQlQuery->lastInsertId();
+-	if(value.type() == QVariant::LongLong)
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
++	uint vType = value.type();
++#else
++	uint vType = value.typeId();
++#endif
++	if(vType == QMetaType::LongLong)
+ 		c->returnValue()->setInteger((kvs_int_t)value.toLongLong());
+-	qDebug("type %i", value.type());
+ 	return true;
+ }
+ KVSO_CLASS_FUNCTION(sql, features)
+@@ -467,11 +471,16 @@
+ 	{
+ 		KviKvsVariant * pValue = nullptr;
+ 		QVariant value = record.value(i);
+-		if(value.type() == QVariant::LongLong)
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
++		uint vType = value.type();
++#else
++		uint vType = value.typeId();
++#endif
++		if(vType == QMetaType::LongLong)
+ 			pValue = new KviKvsVariant((kvs_int_t)value.toLongLong());
+-		else if(value.type() == QVariant::String)
++		else if(vType == QMetaType::QString)
+ 			pValue = new KviKvsVariant(value.toString());
+-		else if(value.type() == QVariant::ByteArray)
++		else if(vType == QMetaType::QByteArray)
+ 		{
+ 			KviKvsObjectClass * pClass = KviKvsKernel::instance()->objectController()->lookupClass("memoryBuffer");
+ 			KviKvsVariantList params(new KviKvsVariant(QString()));
+diff -Naur KVIrc-5.2.2/src/modules/objects/KvsObject_tableWidget.cpp KVIrc-5.2.2.new/src/modules/objects/KvsObject_tableWidget.cpp
+--- KVIrc-5.2.2/src/modules/objects/KvsObject_tableWidget.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/objects/KvsObject_tableWidget.cpp	2024-03-25 16:32:02.415295908 +0100
+@@ -336,11 +336,19 @@
+ 				QString szColor;
+ 				pColArray->asString(szColor);
+ 				// maybe a color name?
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 				color.setNamedColor(szColor);
++#else
++				color = QColor::fromString(szColor);
++#endif
+ 				if(!color.isValid())
+ 				{
+ 					// isn't a color name: lets try with an hex triplet
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 					color.setNamedColor("#" + szColor);
++#else
++					color = QColor::fromString("#" + szColor);
++#endif
+ 					if(!color.isValid())
+ 					{
+ 						c->warning(__tr2qs_ctx("Not a valid color!", "objects"));
+diff -Naur KVIrc-5.2.2/src/modules/objects/KvsObject_treeWidget.cpp KVIrc-5.2.2.new/src/modules/objects/KvsObject_treeWidget.cpp
+--- KVIrc-5.2.2/src/modules/objects/KvsObject_treeWidget.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/objects/KvsObject_treeWidget.cpp	2024-03-25 16:32:02.410295868 +0100
+@@ -621,7 +621,11 @@
+ 				QUrl url = *it;
+ 				QString path = url.toLocalFile();
+ 				qDebug("path %s", path.toUtf8().data());
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+ 				QTreeWidgetItem * i = itemAt(e->pos());
++#else
++				QTreeWidgetItem * i = itemAt(e->position().toPoint());
++#endif
+ 				m_pParentScript->fileDropped(path, i);
+ 			}
+ 		}
+diff -Naur KVIrc-5.2.2/src/modules/objects/KvsObject_webView.cpp KVIrc-5.2.2.new/src/modules/objects/KvsObject_webView.cpp
+--- KVIrc-5.2.2/src/modules/objects/KvsObject_webView.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/objects/KvsObject_webView.cpp	2024-03-25 16:32:02.410295868 +0100
+@@ -746,8 +746,13 @@
+ {
+ 	KviKvsVariant vRetValue;
+ 	KviKvsVariantList lParams;
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+ 	lParams.append(new KviKvsVariant((kvs_int_t)ev->x()));
+ 	lParams.append(new KviKvsVariant((kvs_int_t)ev->y()));
++#else
++	lParams.append(new KviKvsVariant((kvs_int_t)ev->position().x()));
++	lParams.append(new KviKvsVariant((kvs_int_t)ev->position().y()));
++#endif
+ 	if(!m_pParentScript->callFunction(m_pParentScript, "mouseMoveEvent", &vRetValue, &lParams))
+ 		QWebEngineView::mouseMoveEvent(ev); // ignore results of a broken event handler
+ 	else
+diff -Naur KVIrc-5.2.2/src/modules/objects/KvsObject_widget.cpp KVIrc-5.2.2.new/src/modules/objects/KvsObject_widget.cpp
+--- KVIrc-5.2.2/src/modules/objects/KvsObject_widget.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/objects/KvsObject_widget.cpp	2024-03-25 16:32:02.416295916 +0100
+@@ -1285,11 +1285,19 @@
+ 				QString szColor;
+ 				pColArray->asString(szColor);
+ 				// maybe a color name?
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 				color.setNamedColor(szColor);
++#else
++				color = QColor::fromString(szColor);
++#endif
+ 				if(!color.isValid())
+ 				{
+-					// itsn't a color name: let try with an hex triplette
++					// isn't a color name: lets try with an hex triplet
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 					color.setNamedColor("#" + szColor);
++#else
++					color = QColor::fromString("#" + szColor);
++#endif
+ 					if(!color.isValid())
+ 					{
+ 						c->warning(__tr2qs_ctx("Not a valid color!", "objects"));
+@@ -1368,11 +1376,19 @@
+ 				QString szColor;
+ 				pColArray->asString(szColor);
+ 				// maybe a color name?
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 				color.setNamedColor(szColor);
++#else
++				color = QColor::fromString(szColor);
++#endif
+ 				if(!color.isValid())
+ 				{
+-					// itsn't a color name: let try with an hex triplette
++					// isn't a color name: lets try with an hex triplet
++#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+ 					color.setNamedColor("#" + szColor);
++#else
++					color = QColor::fromString("#" + szColor);
++#endif
+ 					if(!color.isValid())
+ 					{
+ 						c->warning(__tr2qs_ctx("Not a valid color!", "objects"));
+@@ -1474,7 +1490,7 @@
+ KVSO_CLASS_FUNCTION(widget, isTopLevel)
+ {
+ 	CHECK_INTERNAL_POINTER(widget())
+-	c->returnValue()->setBoolean(widget()->isTopLevel());
++	c->returnValue()->setBoolean(widget()->isWindow());
+ 	return true;
+ }
+ 
+diff -Naur KVIrc-5.2.2/src/modules/objects/qthttp/qhttpauthenticator.cpp KVIrc-5.2.2.new/src/modules/objects/qthttp/qhttpauthenticator.cpp
+--- KVIrc-5.2.2/src/modules/objects/qthttp/qhttpauthenticator.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/objects/qthttp/qhttpauthenticator.cpp	2024-03-25 16:32:02.417295924 +0100
+@@ -599,10 +599,11 @@
+     )
+ {
+ 	QCryptographicHash hash(QCryptographicHash::Md5);
++	QByteArray colon(":");
+ 	hash.addData(userName);
+-	hash.addData(":", 1);
++	hash.addData(colon);
+ 	hash.addData(realm);
+-	hash.addData(":", 1);
++	hash.addData(colon);
+ 	hash.addData(password);
+ 	QByteArray ha1 = hash.result();
+ 	if(alg.toLower() == "md5-sess")
+@@ -613,9 +614,9 @@
+ 		// but according to the errata page at http://www.rfc-editor.org/errata_list.php, ID 1649, it
+ 		// must be the following line:
+ 		hash.addData(ha1.toHex());
+-		hash.addData(":", 1);
++		hash.addData(colon);
+ 		hash.addData(nonce);
+-		hash.addData(":", 1);
++		hash.addData(colon);
+ 		hash.addData(cNonce);
+ 		ha1 = hash.result();
+ 	};
+@@ -624,11 +625,11 @@
+ 	// calculate H(A2)
+ 	hash.reset();
+ 	hash.addData(method);
+-	hash.addData(":", 1);
++	hash.addData(colon);
+ 	hash.addData(digestUri);
+ 	if(qop.toLower() == "auth-int")
+ 	{
+-		hash.addData(":", 1);
++		hash.addData(colon);
+ 		hash.addData(hEntity);
+ 	}
+ 	QByteArray ha2hex = hash.result().toHex();
+@@ -636,17 +637,17 @@
+ 	// calculate response
+ 	hash.reset();
+ 	hash.addData(ha1);
+-	hash.addData(":", 1);
++	hash.addData(colon);
+ 	hash.addData(nonce);
+-	hash.addData(":", 1);
++	hash.addData(colon);
+ 	if(!qop.isNull())
+ 	{
+ 		hash.addData(nonceCount);
+-		hash.addData(":", 1);
++		hash.addData(colon);
+ 		hash.addData(cNonce);
+-		hash.addData(":", 1);
++		hash.addData(colon);
+ 		hash.addData(qop);
+-		hash.addData(":", 1);
++		hash.addData(colon);
+ 	}
+ 	hash.addData(ha2hex);
+ 	return hash.result().toHex();
+@@ -1226,7 +1227,7 @@
+ 	{
+ 		QCryptographicHash md4(QCryptographicHash::Md4);
+ 		QByteArray passUnicode = qStringAsUcs2Le(ctx->password);
+-		md4.addData(passUnicode.data(), passUnicode.size());
++		md4.addData(passUnicode);
+ 
+ 		QByteArray hashKey = md4.result();
+ 		Q_ASSERT(hashKey.size() == 16);
+diff -Naur KVIrc-5.2.2/src/modules/system/libkvisystem.cpp KVIrc-5.2.2.new/src/modules/system/libkvisystem.cpp
+--- KVIrc-5.2.2/src/modules/system/libkvisystem.cpp	2024-03-09 12:08:40.000000000 +0100
++++ KVIrc-5.2.2.new/src/modules/system/libkvisystem.cpp	2024-03-25 16:32:02.408295852 +0100
+@@ -573,24 +573,28 @@
+ 	QString szRetType;
+ 	foreach(QVariant v, reply.arguments())
+ 	{
++#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+ 		switch(v.type())
++#else
++		switch(v.typeId())
++#endif
+ 		{
+-			case QVariant::Bool:
++			case QMetaType::Bool:
+ 				c->returnValue()->setInteger(v.toBool() ? 1 : 0);
+ 				break;
+-			case QVariant::String:
++			case QMetaType::QString:
+ 				c->returnValue()->setString(v.toString());
+ 				break;
+-			case QVariant::ByteArray:
++			case QMetaType::QByteArray:
+ 				c->returnValue()->setString(v.toByteArray().data());
+ 				break;
+-			case QVariant::UInt:
++			case QMetaType::UInt:
+ 				c->returnValue()->setInteger(v.toUInt());
+ 				break;
+-			case QVariant::Int:
++			case QMetaType::Int:
+ 				c->returnValue()->setInteger(v.toInt());
+ 				break;
+-			case QVariant::StringList:
++			case QMetaType::QStringList:
+ 			{
+ 				QStringList csl(v.toStringList());
+ 				KviKvsArray * arry = new KviKvsArray();
+@@ -603,7 +607,7 @@
+ 				c->returnValue()->setArray(arry);
+ 				break;
+ 			}
+-			case QVariant::Invalid:
++			case QMetaType::UnknownType:
+ 				//method returns void
+ 				c->returnValue()->setString("");
+ 				break;

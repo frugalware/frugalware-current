@@ -61,7 +61,7 @@ if [ -z "$url" ]; then
 fi
 
 groups+=('phonon-backend')
-depends+=("phonon-qt5>=$_F_phonon_ver")
+depends+=("phonon-qt6>=$_F_phonon_ver")
 
 if [ -z "$url" ]; then
 	url="http://phonon.kde.org"
@@ -72,5 +72,5 @@ _F_kde_name="$_F_phonon_backend_name"
 _F_kde_pkgver="$_F_phonon_backend_pkgver"
 _F_kde_ext=".tar.xz"
 _F_kde_dirname="stable/phonon/$_F_phonon_backend_name/$_F_phonon_backend_pkgver"
-Finclude kf5
+Finclude kf6
 

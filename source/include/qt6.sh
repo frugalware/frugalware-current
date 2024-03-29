@@ -26,7 +26,7 @@ if [ -z "$_F_qt_nocore" ]; then
 	pkgdesc="The Qt6 toolkit, ${qtpkgname}"
 	url="http://www.qt.io"
 	if [ -z "$groups" ]; then
-		groups=('xlib-extra')
+		groups=('xlib')
 	fi
 	options+=('nodocs')
 	source=(https://mirror.netcologne.de/qtproject/archive/qt/${pkgver%.*}/${pkgver}/submodules/${qtpkgfilename}.tar.xz)

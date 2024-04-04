@@ -161,6 +161,9 @@ fi
 ## X11/mesa changes
 makedepends+=('x11-protos')
 
+# Vulkan
+makedepends+=('vulkan-headers')
+
 # kernel stuff
 makedepends+=('kernel-headers')
 

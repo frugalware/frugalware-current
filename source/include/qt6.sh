@@ -35,9 +35,9 @@ if [ -z "$_F_qt_nocore" ]; then
 fi
 
 if [[ "$pkgname" =~ "qt6-base" ]]; then
-	makedepends+=('x11-protos' 'gperf')
+	makedepends+=('x11-protos' 'gperf' 'vulkan-headers')
 else
-	makedepends+=('x11-protos' 'gperf' "qt6-base-static")
+	makedepends+=('x11-protos' 'gperf' 'qt6-base-static' 'vulkan-headers')
 fi
 
 if [ -z "$archs" ]; then

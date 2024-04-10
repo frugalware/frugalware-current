@@ -17,7 +17,7 @@
 # pkgrel=2
 # pkgdesc="Galago Desktop Presence Framework - C# Bindings"
 # url="http://www.galago-project.org"
-# depends=('libgalago' 'gtk2-sharp>=2.10.0' 'perl-xml-libxml' 'dbus-mono')
+# depends=('libgalago' 'gtk3-sharp>=2.10.0' 'perl-xml-libxml' 'dbus-mono')
 # groups=('gnome')
 # archs=('x86_64')
 # source=($url/files/releases/source/$pkgname/$pkgname-$pkgver.tar.bz2 \

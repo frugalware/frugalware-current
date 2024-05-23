@@ -1,14 +1,11 @@
-From 5041999fe964346a040bb5ae71f5c6c1814f4553 Mon Sep 17 00:00:00 2001
+From 9fadab45d68cbdd40d65b620b8bc14ad742c98b5 Mon Sep 17 00:00:00 2001
 From: Matt Jolly <Matt.Jolly@footclan.ninja>
-Date: Thu, 1 Feb 2024 01:48:50 +1000
-Subject: [PATCH] Update compiler patch for 122.
+Date: Thu, 18 Apr 2024 21:36:47 +1000
+Subject: [PATCH] Update compiler patch for 125
 
-- We now set ldflags += [ "-Wl,-mllvm,-disable-auto-upgrade-debug-info"]
-
-We're building with clang anyway, why not?
 --- a/build/config/compiler/BUILD.gn
 +++ b/build/config/compiler/BUILD.gn
-@@ -322,9 +322,6 @@ config("compiler") {
+@@ -319,9 +319,6 @@ config("compiler") {
  
    configs += [
      # See the definitions below.
@@ -18,7 +15,7 @@ We're building with clang anyway, why not?
      ":compiler_codegen",
      ":compiler_deterministic",
    ]
-@@ -595,55 +592,6 @@ config("compiler") {
+@@ -587,55 +584,6 @@ config("compiler") {
      ldflags += [ "-Wl,-z,keep-text-section-prefix" ]
    }
  
@@ -74,7 +71,7 @@ We're building with clang anyway, why not?
    # C11/C++11 compiler flags setup.
    # ---------------------------
    if (is_linux || is_chromeos || is_android || (is_nacl && is_clang) ||
-@@ -736,7 +684,7 @@ config("compiler") {
+@@ -741,7 +689,7 @@ config("compiler") {
  
      cflags += [
        "-flto=thin",
@@ -83,7 +80,7 @@ We're building with clang anyway, why not?
      ]
  
      if (thin_lto_enable_cache) {
-@@ -818,7 +766,6 @@ config("compiler") {
+@@ -833,7 +781,6 @@ config("compiler") {
          # behaviour. Rust needs to know the linker will be doing LTO in this case
          # or it rejects the Zsplit-lto-unit flag.
          rustflags += [
@@ -91,7 +88,7 @@ We're building with clang anyway, why not?
            "-Clinker-plugin-lto=yes",
          ]
        } else {
-@@ -1010,17 +957,6 @@ config("compiler") {
+@@ -1023,17 +970,6 @@ config("compiler") {
      # `-nodefaultlibs` from the linker invocation from Rust, which would be used
      # to compile dylibs on Android, such as for constructing unit test APKs.
      "-Cdefault-linker-libraries",
@@ -109,7 +106,7 @@ We're building with clang anyway, why not?
    ]
  
    if (!is_win || force_rustc_color_output) {
-@@ -1517,46 +1453,6 @@ config("compiler_deterministic") {
+@@ -1541,46 +1477,6 @@ config("compiler_deterministic") {
      }
    }
  
@@ -155,8 +152,8 @@ We're building with clang anyway, why not?
 -
    # Tells the compiler not to use absolute paths when passing the default
    # paths to the tools it invokes. We don't want this because we don't
-   # really need it and it can mess up the goma cache entries.
-@@ -1575,39 +1471,6 @@ config("compiler_deterministic") {
+   # really need it and it can mess up the RBE cache entries.
+@@ -1599,39 +1495,6 @@ config("compiler_deterministic") {
    }
  }
  
@@ -196,7 +193,7 @@ We're building with clang anyway, why not?
  config("compiler_arm_fpu") {
    if (current_cpu == "arm" && !is_ios && !is_nacl) {
      cflags = [ "-mfpu=$arm_fpu" ]
-@@ -1961,11 +1824,7 @@ config("chromium_code") {
+@@ -2007,11 +1870,7 @@ config("chromium_code") {
        defines = [ "_HAS_NODISCARD" ]
      }
    } else {
@@ -209,7 +206,7 @@ We're building with clang anyway, why not?
  
      # In Chromium code, we define __STDC_foo_MACROS in order to get the
      # C99 macros on Mac and Linux.
-@@ -1974,24 +1833,6 @@ config("chromium_code") {
+@@ -2020,24 +1879,6 @@ config("chromium_code") {
        "__STDC_FORMAT_MACROS",
      ]
  
@@ -234,17 +231,17 @@ We're building with clang anyway, why not?
      if (is_apple) {
        cflags_objc = [ "-Wimplicit-retain-self" ]
        cflags_objcc = [ "-Wimplicit-retain-self" ]
-@@ -2370,7 +2211,8 @@ config("default_stack_frames") {
- }
- 
- # Default "optimization on" config.
+@@ -2427,7 +2268,8 @@ config("default_stack_frames") {
+ # [0]: https://pinpoint-dot-chromeperf.appspot.com/job/147634a8be0000
+ # [1]: https://pinpoint-dot-chromeperf.appspot.com/job/132bc772be0000
+ # [2]: https://crrev.com/c/5447532
 -config("optimize") {
 +config("optimize") { }
 +config("xoptimize") {
    if (is_win) {
-     if (chrome_pgo_phase != 2) {
-       # Favor size over speed, /O1 must be before the common flags.
-@@ -2429,7 +2271,8 @@ config("optimize") {
+     cflags = [ "/O2" ] + common_optimize_on_cflags
+ 
+@@ -2468,7 +2310,8 @@ config("optimize") {
  }
  
  # Turn off optimizations.
@@ -254,17 +251,17 @@ We're building with clang anyway, why not?
    if (is_win) {
      cflags = [
        "/Od",  # Disable optimization.
-@@ -2469,7 +2312,8 @@ config("no_optimize") {
- # Turns up the optimization level. On Windows, this implies whole program
- # optimization and link-time code generation which is very expensive and should
- # be used sparingly.
+@@ -2508,7 +2351,8 @@ config("no_optimize") {
+ # Turns up the optimization level. Used to explicitly enable -O2 instead of
+ # -Os for select targets on platforms that use optimize_for_size. No-op
+ # elsewhere.
 -config("optimize_max") {
 +config("optimize_max") { }
 +config("xoptimize_max") {
    if (is_nacl && is_nacl_irt) {
      # The NaCl IRT is a special case and always wants its own config.
      # Various components do:
-@@ -2502,7 +2346,8 @@ config("optimize_max") {
+@@ -2541,7 +2385,8 @@ config("optimize_max") {
  #
  # TODO(crbug.com/621335) - rework how all of these configs are related
  # so that we don't need this disclaimer.
@@ -274,7 +271,7 @@ We're building with clang anyway, why not?
    if (is_nacl && is_nacl_irt) {
      # The NaCl IRT is a special case and always wants its own config.
      # Various components do:
-@@ -2528,7 +2373,8 @@ config("optimize_speed") {
+@@ -2570,7 +2415,8 @@ config("optimize_speed") {
    }
  }
  
@@ -284,7 +281,7 @@ We're building with clang anyway, why not?
    cflags = [ "-O1" ] + common_optimize_on_cflags
    rustflags = [ "-Copt-level=1" ]
    ldflags = common_optimize_on_ldflags
-@@ -2661,7 +2507,8 @@ config("win_pdbaltpath") {
+@@ -2703,7 +2549,8 @@ config("win_pdbaltpath") {
  }
  
  # Full symbols.
@@ -294,7 +291,7 @@ We're building with clang anyway, why not?
    rustflags = []
    if (is_win) {
      if (is_clang) {
-@@ -2810,7 +2657,8 @@ config("symbols") {
+@@ -2852,7 +2699,8 @@ config("symbols") {
  # Minimal symbols.
  # This config guarantees to hold symbol for stack trace which are shown to user
  # when crash happens in unittests running on buildbot.
@@ -304,7 +301,7 @@ We're building with clang anyway, why not?
    rustflags = []
    if (is_win) {
      # Functions, files, and line tables only.
-@@ -2895,7 +2743,8 @@ config("minimal_symbols") {
+@@ -2937,7 +2785,8 @@ config("minimal_symbols") {
  # This configuration contains function names only. That is, the compiler is
  # told to not generate debug information and the linker then just puts function
  # names in the final debug information.
@@ -315,4 +312,5 @@ We're building with clang anyway, why not?
      ldflags = [ "/DEBUG" ]
  
 -- 
-2.43.0
+2.44.0
+

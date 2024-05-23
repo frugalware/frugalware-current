@@ -1,0 +1,44 @@
+# Compiling Time: 0.01 SBU
+# Maintainer: DeX77 <dex77@frugalware.org>
+
+pkgname=waf
+pkgver=2.1.0
+pkgrel=1
+pkgdesc='General-purpose build system modelled after Scons'
+archs=('x86_64')
+groups=('devel-extra')
+url="http://waf.io/"
+depends=('python3')
+source=(https://waf.io/$pkgname-$pkgver.tar.bz2)
+up2date="Flasttar $url"
+signatures=("${source[0]}.asc")
+
+build() {
+  local py_ver=$(python3 -c "import sys; print(str(sys.version_info.major)+'.'+str(sys.version_info.minor))")
+
+  Fcd
+  Fexec sed  -e "/test(i/ s|dirname|'python${py_ver}/site-packages/waf'|" -i waf-light || Fdie
+
+  Fexec ./waf-light \
+    configure --prefix=/usr \
+    build --make-waf || Fdie
+
+  # removing compiled in vendored library from executable
+  Fexec sed -i '/^#==>$/,/^#<==$/d' waf || Fdie
+
+  Fexerel usr/bin/waf
+
+  Finstallrel 644 usr/share/$pkgname/wscript
+
+  # installing, byte-compiling waflib and stripping pkgdir from it
+  Finstallrel 644 waflib/*.py usr/lib/python$py_ver/site-packages/waf/waflib/
+  Finstallrel 644 waflib/Tools/*.py usr/lib/python$py_ver/site-packages/waf/waflib/Tools/
+  Finstallrel 644 waflib/extras/*.py usr/lib/python$py_ver/site-packages/waf/waflib/extras/
+
+  Fexec python -m compileall -d "/usr/lib/python$py_ver" "$Fdestdir/usr/lib/python$py_ver/"
+  Fexec python -O -m compileall -d "/usr/lib/python$py_ver" "$Fdestdir/usr/lib/python$py_ver/"
+}
+
+
+
+# optimization OK

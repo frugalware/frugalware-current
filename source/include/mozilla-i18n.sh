@@ -85,7 +85,7 @@ mozilla_i18n_lang_add() {
 	subgroups=("${subgroups[@]}" "${groups[*]}")
 	subarchs=("${subarchs[@]}" "${archs[*]}")
 	sha1sums=("${sha1sums[@]}" "$2")
-	suboptions=("${suboptions[@]}" 'nostrip' 'force')
+	suboptions=("${suboptions[@]}" 'nostrip force')
 }
 
 ###

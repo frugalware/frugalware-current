@@ -181,8 +181,8 @@ __cross32_set_vars() {
 	export CROSS_SBIN="${CROSS_PREFIX}/${CHOST}/bin"
 
 	## common
-	export CFLAGS=" -m32 ${CFLAGS_ORIG/x86-64/i686}"
-	export CXXFLAGS=" -m32 ${CXXFLAGS_ORIG/x86-64/i686}"
+	export CFLAGS=" -m32 ${CFLAGS_ORIG/x86-64-v2/i686}"
+	export CXXFLAGS=" -m32 ${CXXFLAGS_ORIG/x86-64-v2/i686}"
 	## clang is broken for 32bit , force gcc
 	export CC="gcc"
 	export CXX="g++"

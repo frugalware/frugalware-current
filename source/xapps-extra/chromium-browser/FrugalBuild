@@ -6,14 +6,14 @@ USE_DISTRO_LTO=${USE_DISTRO_LTO:-"n"}
 USE_DISTRO_FLAGS=${USE_DISTRO_FLAGS:-"y"}
 
 pkgname=chromium-browser
-pkgver=125.0.6422.141
+pkgver=126.0.6478.61
 pkgrel=1
 pkgdesc='Chromium browser'
 url='http://www.chromium.org/'
 depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6' 'libcups' \
 	'speech-dispatcher>=0.7.1-4' 'libxtst>=1.2.2-2' 'pango' 'libxkbcommon' 'libffi' \
 	'libatomic' 'pciutils>=3.5' 'gtk+4' 'libxslt' 'libdrm' 'json-glib' 'dav1d' \
-	'harfbuzz>=3.0.0' 'libjpeg-turbo' 'fontconfig' 'libva' 'opus' 'curl' \
+	'harfbuzz>=3.0.0' 'libjpeg-turbo' 'fontconfig' 'libva' 'opus' 'curl' 'libwebp' \
 	'freetype2' 'flac>=1.4.0' 'icu4c>=75.1' 'libusb1' 'openh264')
 makedepends=('ninja' 'gn>=0.1731' 'cups' 'x11-protos' 'mesa-dri-drivers' 'nodejs' 'compiler-rt-static' \
 	'xhost' 'xorg-server' 'xauth' 'openjdk' 'gperf' 'libxrandr' 'vulkan-headers' 'qt5-tools' 'qt6-tools' \
@@ -27,23 +27,21 @@ _F_archive_name="chromium"
 up2date="Flasttar 'http://chromium.woolyss.com/#stable-chromium-version'"
 source=(https://commondatastorage.googleapis.com/chromium-browser-official/chromium-${pkgver}.tar.xz \
 	https://github.com/foutrelis/chromium-launcher/archive/v8/chromium-launcher-8.tar.gz \
-	chromium.desktop
-	chromium-117-material-color-include.patch
-	chromium-125-compiler.patch
-	remove-html5lib.patch
-	fix-a-missing-build-dependency.patch
-	use-oauth2-client-switches-as-default.patch )
-sha1sums=('b4d7e98b3c1ced92626341f92503b37b941ddbc1' \
+	chromium.desktop \
+	chromium-117-material-color-include.patch \
+	chromium-126-compiler.patch \
+	use-oauth2-client-switches-as-default.patch \
+	remove-html5lib.patch )
+sha1sums=('63c2b3584cf18d6c8cc17429a17b9179e884a445' \
           '0f969f454a5efdf1bb5b6a2ecf0f9bddd0c94cab' \
           '710c24b12f105ddbd91d5f1fbabb2cacf97128df' \
           '2df38b7b132221e7943ed000828aa1602ba70e12' \
-          'ed8c956472f89d15ee84112e34ce79298bfc412c' \
-          'a1e08b837760e8100a80fd3ef1004198ea66b0e3' \
-          '97c1be27208a00206b4704eaca73ec8b6c8ce735' \
-          '220552694324a4131473034f5f7038acad12dd49')
+          '182ed12d33a58c1deca5d4168708614128d91b38' \
+          '6311c0e38d6c3dc0b3869167e4a35f8160101b17' \
+          'a1e08b837760e8100a80fd3ef1004198ea66b0e3')
 
 
-options+=('clang')
+options+=('clang' 'ldlld')
 
 chromium_path="chromium"
 
@@ -68,12 +66,13 @@ build() {
 	ulimit -n 4096
 
 	export LANG=en_US.UTF-8
+	export CFLAGS="${CFLAGS//-fuse-ld=lld/}"
+	export CXXFLAGS="${CFLAGS//-fuse-ld=lld/}"
 
 	local keeplibs=(
-
+		third_party/sentencepiece
 		base/third_party/cityhash
 		base/third_party/double_conversion
-		base/third_party/dynamic_annotations
 		base/third_party/icu
 		base/third_party/nspr
 		base/third_party/superfasthash
@@ -91,6 +90,8 @@ build() {
 		net/third_party/uri_template
 		third_party/abseil-cpp
 		third_party/angle
+		third_party/neon_2_sse
+		third_party/sentencepiece/src/third_party/darts_clone
 		third_party/angle/src/common/third_party/xxhash
 		third_party/angle/src/third_party/ceval
 		third_party/angle/src/third_party/volk
@@ -234,7 +235,6 @@ build() {
 		third_party/zlib/google
 		third_party/re2
 		third_party/libavif
-		third_party/libwebp
 		url/third_party/mozilla
 		v8/src/third_party/siphash
 		v8/src/third_party/valgrind
@@ -338,6 +338,7 @@ build() {
 		icu
 		libxslt
 		opus
+		libwebp
 		openh264
 		libusb"
 
@@ -422,7 +423,7 @@ build() {
 
 	# rust
 	myconf_gn+=" rust_sysroot_absolute=\"/usr\""
-	myconf_gn+=" rustc_version=\"1.77.2\""
+	myconf_gn+=" rustc_version=\"1.78.0\""
 
 	## that kills chromium shitty flags, but we may run into some issues
 	if Fuse $USE_DISTRO_FLAGS; then

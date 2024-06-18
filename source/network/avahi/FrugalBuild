@@ -6,13 +6,13 @@ USE_GTK3=${USE_GTK3:-"n"}
 
 pkgname=avahi
 pkgver=0.8
-pkgrel=12
+pkgrel=13
 pkgdesc="A multicast/unicast DNS-SD framework"
 archs=("x86_64")
 url="http://www.avahi.org"
 groups=('network')
 depends=('libssp>=9.1.0-3' 'gdbm>=1.15' 'libdaemon>=0.14-4' 'dbus>=1.10.10-3' 'libsystemd>=231-6' 'expat>=2.1.0-6' 'libevent')
-makedepends=('systemd-devel' 'python3' 'x11-protos' 'intltool')
+makedepends=('systemd-devel' 'python3' 'x11-protos' 'intltool' 'gettext' 'xmltoman')
 rodepends=('shadow>=4.2.1-5')
 backup=(etc/avahi/avahi-daemon.conf)
 conflicts=('mdnsresponder')
@@ -21,24 +21,18 @@ provides=('mdnsresponder')
 options=('scriptlet')
 _F_github_tag_v=y
 _F_github_grepv="rc1"
+_F_github_devel=y
 Finclude github
-source=(https://github.com/avahi/avahi/releases/download/v${pkgver}/avahi-$pkgver.tar.gz \
-	avahi.sysusers \
+source=(avahi.sysusers \
 	README.Frugalware \
 	ad.conf )
 _F_systemd_units=(avahi-daemon=e avahi-dnsconfd=e)
-Finclude systemd python cross32
-sha1sums=('969a50ae18c8d8e2288435a75666dd076e69852a' \
-          '97ea87e347ff19f9d869ac602cb8cefecf2755a2' \
+_F_cd_path=$pkgname
+Finclude systemd
+sha1sums=('97ea87e347ff19f9d869ac602cb8cefecf2755a2' \
           '3cb0c4904bc323cba78234e4c5430478636fbf44' \
           'aaec0fbcd77facfefd3da4beca584a25ae0e6397')
 
-subpkgs=("lib32-$pkgname")
-subdescs=("$pkgdesc (32-Bit)")
-subdepends=("lib32-libssp lib32-gdbm>=1.15 lib32-libdaemon lib32-libdbus lib32-libsystemd lib32-expat lib32-libevent")
-subrodepends=("")
-subgroups=('lib32-extra')
-subarchs=("x86_64")
 
 subpkgs+=("$pkgname-glib")
 subdescs+=('Glib bindings for Avahi')
@@ -47,25 +41,11 @@ subrodepends+=("")
 subgroups+=('lib')
 subarchs+=("x86_64")
 
-subpkgs+=("lib32-$pkgname-glib")
-subdescs+=('Glib bindings for Avahi (32-Bit)')
-subdepends+=("lib32-glib2>=2.60.0 lib32-libffi>=3.2.1")
-subrodepends+=("")
-subgroups+=('lib32-extra')
-subarchs+=("x86_64")
-
 subpkgs+=("avahi-compat")
 subdescs+=('mDNSresponder and Howl compatibility libraries/headers for Avahi')
 subdepends+=("libssp>=7.3.0-5")
 subrodepends+=("")
 subgroups+=('lib')
-subarchs+=("x86_64")
-
-subpkgs+=("lib32-avahi-compat")
-subdescs+=('mDNSresponder and Howl compatibility libraries/headers for Avahi (32-Bit)')
-subdepends+=("lib32-libssp>=7.3.0-5")
-subrodepends+=("")
-subgroups+=('lib32-extra')
 subarchs+=("x86_64")
 
 subpkgs+=("avahi-dnsconfd")
@@ -129,7 +109,6 @@ Fconfopts+="	--sbindir=/usr/bin \
                 --disable-mono \
                 --disable-monodoc \
                 --disable-doxygen-doc \
-                --disable-xmltoman \
                 --enable-compat-libdns_sd \
                 --enable-compat-howl \
                 --with-distro=none \
@@ -146,15 +125,14 @@ else
 fi
 
 
-F32confopts="	--disable-gtk3"
-
-
 build() {
-
+	Funpack_scm
+	unset CFLAGS
+	unset CXXFLAGS
 
 	## no GTK/QT/MONO stuff .. maybe on next release , broken for now
 	## GTK3 optional and OFF by default
-	Fbuild_cross32
+	Fbuild
 
 	Finstall 644 avahi.sysusers usr/lib/sysusers.d/avahi.conf
 	Fgenscriptlet
@@ -171,18 +149,10 @@ build() {
 	Fln avahi-compat-howl usr/include/howl
 	Fln avahi-compat-howl.pc usr/lib/pkgconfig/howl.pc
 
-        Fln avahi-compat-libdns_sd/dns_sd.h usr/i686-frugalware-linux/include
-        Fln avahi-compat-howl usr/i686-frugalware-linux/include/howl
-        Fln avahi-compat-howl.pc usr/lib32/pkgconfig/howl.pc
-
 	# Lets start with avahi-glib
 	Fsplit avahi-glib usr/include/avahi-{glib,gobject}
 	Fsplit avahi-glib usr/lib/libavahi-{glib,gobject}*
 	Fsplit avahi-glib usr/lib/pkgconfig/avahi-{glib,gobject}.pc
-
-        Fsplit lib32-avahi-glib usr/i686-frugalware-linux/include/avahi-{glib,gobject}
-        Fsplit lib32-avahi-glib usr/lib32/libavahi-{glib,gobject}*
-        Fsplit lib32-avahi-glib usr/lib32/pkgconfig/avahi-{glib,gobject}.pc
 
 	# avahi-compat
 	Fsplit avahi-compat usr/lib/libhowl*
@@ -193,22 +163,11 @@ build() {
 	Fsplit avahi-compat usr/lib/pkgconfig/avahi-compat*
 	Fsplit avahi-compat usr/lib/pkgconfig/howl.pc
 
-        Fsplit lib32-avahi-compat usr/lib32/libhowl*
-        Fsplit lib32-avahi-compat usr/lib32/libdns_sd*
-        Fsplit lib32-avahi-compat usr/i686-frugalware-linux/include/avahi-compat*
-        Fsplit lib32-avahi-compat usr/i686-frugalware-linux/include/dns_sd.h
-        Fsplit lib32-avahi-compat usr/i686-frugalware-linux/include/howl
-        Fsplit lib32-avahi-compat usr/lib32/pkgconfig/avahi-compat*
-        Fsplit lib32-avahi-compat usr/lib32/pkgconfig/howl.pc
-
 	# avahi-dnsconfd
 	Fsplit avahi-dnsconfd usr/bin/avahi-dnsconfd
 	Fsplit avahi-dnsconfd usr/lib/systemd/system/avahi-dnsconfd.service
 	Fsplit avahi-dnsconfd etc/avahi/avahi-dnsconfd.action
 	Fsplit avahi-dnsconfd usr/share/man/man8/avahi-dnsconfd*
-
-	Fsplit lib32-$pkgname usr/lib32/
-	Fsplit lib32-$pkgname usr/i686-frugalware-linux/
 
 	# fix for chroot.c: open() failed: No such file or directory
 	Ffile etc/systemd/system/avahi-daemon.service.d/ad.conf

@@ -57,7 +57,7 @@ fi
 if [ -z "$_F_pypi_nopypi" ]; then
 	[ -z "$url" ] && url="http://pypi.python.org/pypi/$_F_pypi_name"
 	up2date="Flastarchive https://pypi.org/simple/${_F_pypi_name} $_F_pypi_ext"
-	source=(https://files.pythonhosted.org/packages/source/${_F_pypi_name:0:1}/$_F_pypi_name/$_F_archive_name-$pkgver$_F_pypi_ext)
+	source=(https://files.pythonhosted.org/packages/source/${_F_pypi_name:0:1}/$_F_pypi_name/$_F_archive_name-$pkgver$pkgextraver$_F_pypi_ext)
 fi
 
 if [ -z "$archs" ]; then

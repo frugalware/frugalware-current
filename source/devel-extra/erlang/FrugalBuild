@@ -5,7 +5,7 @@ USE_JAVA=${USE_JAVA:-"y"}
 USE_ODBC=${USE_ODBC:-"y"}
 
 pkgname=erlang
-pkgver=27.0
+pkgver=27.0.1
 pkgrel=1
 pkgdesc="A programming language designed at the Ericsson Computer Science Laboratory."
 url="http://www.erlang.org/"
@@ -19,12 +19,8 @@ _F_archive_name="otp_src"
 Fpkgversep="_"
 _F_archive_prefix="R"
 up2date="Flasttar http://www.erlang.org/downloads"
-source=(https://github.com/erlang/otp/releases/download/OTP-${pkgver}/otp_src_${pkgver}.tar.gz \
-	https://github.com/erlang/otp/releases/download/OTP-${pkgver}/otp_doc_html_${pkgver}.tar.gz \
-	https://github.com/erlang/otp/releases/download/OTP-${pkgver}/otp_doc_man_${pkgver}.tar.gz)
-sha1sums=('ca950271a8b8bb03d9ca0d464c87bc938711d85b' \
-          'd551f4ada94d5ec4545807ba667ca5d424a62ef4' \
-          '0d10941e1bf4d1962e466f43db2309439452ec3c')
+source=(https://github.com/erlang/otp/releases/download/OTP-${pkgver}/otp_src_${pkgver}.tar.gz)
+sha1sums=('778024526368cd7d4ad8395fb7b5dfd9dccdb9db')
 
 replaces=('wxerlang')
 Fconfopts="	--prefix=/usr"
@@ -41,7 +37,11 @@ fi
 build()
 {
 	Fcd otp_src_${pkgver}
-	Fbuild
+	Fexec ./otp_build download_ex_doc || Fdie
+	Fmake
+	Fexec make release_docs || Fdie
+	Fmakeinstall
+
 	ertsver=`sed -n '/^VSN/s/.*= //p' erts/vsn.mk`
 	interfacever=`sed -n '/^EI_VSN/s/.*= //p' lib/erl_interface/vsn.mk`
 
@@ -58,27 +58,6 @@ build()
 	Fln /usr/lib/erlang/lib/erl_interface-$interfacever/bin/erl_call /usr/bin/erl_call
 	Fln /usr/lib/erlang/erts-$ertsver/bin/beam /usr/bin/beam
 
-	# man pages
-	Fexec cd $Fsrcdir
-	local i j
-
-	for i in man/man* ; do
-		Fmkdir /usr/share/${i}erl
-	done
-
-	for j in man/man*/*.[1-9]; do
-		# avoid namespace collisions
-		Fexec mv $j ${j}erl
-		Ffilerel ${j}erl /usr/share/man/man${j##*.}erl/
-	done
-
-	# html doc
-	Fexec mkdir html
-	Fexec cd html
-	Fextract $Fsrcdir/otp_doc_html_${pkgver/_/-}.tar.gz
-	Fexec cd ..
-	Fmkdir /usr/share/doc/$pkgname-$pkgver
-	Fcp html /usr/share/doc/$pkgname-$pkgver/html
 
 	if Fuse $USE_ODBC; then
 		Fsplit erlang-odbc usr/lib/erlang/lib/odbc-*

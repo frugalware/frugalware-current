@@ -20,7 +20,7 @@ Finclude kernel
 
 url="https://www.kernel.org"
 depends=('kmod' 'sed')
-makedepends+=('bison' 'rsync' 'clang' 'compiler-rt' 'lld' 'llvm')
+makedepends+=('bison' 'rsync' 'clang' 'compiler-rt' 'lld' 'llvm' 'docutils' 'pahole')
 [[ -z "$_F_kernel_name" ]] && makedepends+=('unifdef')
 groups=('base')
 archs=('x86_64')
@@ -114,6 +114,19 @@ subreplaces+=('')
 suboptions+=('')
 subinstall+=('')
 makedepends+=('python3-setuptools' 'xmlto' 'asciidoc docbook-xsl')
+
+subpkgs+=('bpf')
+subdescs+=('BPF Tools')
+subdepends+=('libcap')
+subgroups+=('network-extra')
+subarchs+=('x86_64')
+subbackup+=('')
+subconflicts+=('')
+subprovides+=('')
+subreplaces+=('')
+suboptions+=('')
+subinstall+=('')
+
 
 subpkgs+=("kernel$_F_kernel_name-docs")
 subdescs+=("Linux kernel documentation")
@@ -242,7 +255,7 @@ build()
 
 	## now time to eat some cookies and wait the kernel got compiled :)
 	## use verbose by default, we want to know what is going on...
-	Fexec kmake V=1 || Fdie
+	Fexec kmake || Fdie
 
 	Fmkdir /boot
 	Fmkdir /usr/lib/modules
@@ -314,22 +327,33 @@ build()
 	Fsplit x86_energy_perf_policy usr/bin/
 	Fsplit x86_energy_perf_policy usr/share/
 
+	# build bpf
+	Fexec cd  ../../../bpf
+	Fexec make -C bpftool all doc || Fdie
+	Fexec make -W runqslower || Fdie
+	Fexec make -W runqslower_install prefix=/usr DESTDIR="$Fdestdir" install || Fdie
+	Fmv usr/sbin/bpftool usr/bin/bpftool
+	Fexec make -C bpftool doc-install prefix=/usr/share DESTDIR="$Fdestdir" || Fdie
+	Fsplit bpf usr/bin/bpf*
+	Fsplit bpf usr/share/bash-completion/completions/bpftool
+	Fsplit bpf usr/share/man/man8/bpf*
 
         # build perf
-        Fexec cd ../../../perf
+        Fexec cd ../perf
 	unset LDFLAGS
 	unset CXXFLAGS
 	unste CFLAGS
-	Fsed "libexec/perf-core" "lib/perf/perf-core" Makefile.config
-        Fexec make				\
-		WERROR=0			\
-		V=1				\
-		VF=1				\
-		DESTDIR="$Fdestdir/usr"         \
-		install || Fdie
+        Fsed "libexec/perf-core" "lib/perf/perf-core" Makefile.config
+        Fexec make                              \
+                WERROR=0                        \
+                V=1                             \
+                VF=1                            \
+                DESTDIR="$Fdestdir/usr"         \
+		BUILD_BPF_SKEL=1		\
+                install || Fdie
 
 
-	Fmv /usr/etc /etc/
+        Fmv /usr/etc /etc/
         Frm /usr/etc
         Fsplit perf etc/
         Fsplit perf usr/bin/

@@ -1,0 +1,2965 @@
+diff '--color=auto' -Naur zfs-2.2.4/cmd/zdb/zdb.c zfs-2.2.4.new/cmd/zdb/zdb.c
+--- zfs-2.2.4/cmd/zdb/zdb.c	2024-05-02 23:12:22.914481025 +0200
++++ zfs-2.2.4.new/cmd/zdb/zdb.c	2024-07-20 12:29:50.327863898 +0200
+@@ -48,6 +48,7 @@
+ #include <sys/spa_impl.h>
+ #include <sys/dmu.h>
+ #include <sys/zap.h>
++#include <sys/zap_impl.h>
+ #include <sys/fs/zfs.h>
+ #include <sys/zfs_znode.h>
+ #include <sys/zfs_sa.h>
+@@ -84,6 +85,9 @@
+ #include <sys/brt_impl.h>
+ #include <zfs_comutil.h>
+ #include <sys/zstd/zstd.h>
++#if (__GLIBC__ && !__UCLIBC__)
++#include <execinfo.h> /* for backtrace() */
++#endif
+ 
+ #include <libnvpair.h>
+ #include <libzutil.h>
+@@ -926,11 +930,41 @@
+ static void
+ dump_debug_buffer(void)
+ {
+-	if (dump_opt['G']) {
+-		(void) printf("\n");
+-		(void) fflush(stdout);
+-		zfs_dbgmsg_print("zdb");
+-	}
++	ssize_t ret __attribute__((unused));
++
++	if (!dump_opt['G'])
++		return;
++	/*
++	 * We use write() instead of printf() so that this function
++	 * is safe to call from a signal handler.
++	 */
++	ret = write(STDOUT_FILENO, "\n", 1);
++	zfs_dbgmsg_print("zdb");
++}
++
++#define	BACKTRACE_SZ	100
++
++static void sig_handler(int signo)
++{
++	struct sigaction action;
++#if (__GLIBC__ && !__UCLIBC__) /* backtrace() is a GNU extension */
++	int nptrs;
++	void *buffer[BACKTRACE_SZ];
++
++	nptrs = backtrace(buffer, BACKTRACE_SZ);
++	backtrace_symbols_fd(buffer, nptrs, STDERR_FILENO);
++#endif
++	dump_debug_buffer();
++
++	/*
++	 * Restore default action and re-raise signal so SIGSEGV and
++	 * SIGABRT can trigger a core dump.
++	 */
++	action.sa_handler = SIG_DFL;
++	sigemptyset(&action.sa_mask);
++	action.sa_flags = 0;
++	(void) sigaction(signo, &action, NULL);
++	raise(signo);
+ }
+ 
+ /*
+@@ -1199,16 +1233,33 @@
+ 	for (zap_cursor_init(&zc, os, object);
+ 	    zap_cursor_retrieve(&zc, &attr) == 0;
+ 	    zap_cursor_advance(&zc)) {
+-		(void) printf("\t\t%s = ", attr.za_name);
++		boolean_t key64 =
++		    !!(zap_getflags(zc.zc_zap) & ZAP_FLAG_UINT64_KEY);
++
++		if (key64)
++			(void) printf("\t\t0x%010lx = ",
++			    *(uint64_t *)attr.za_name);
++		else
++			(void) printf("\t\t%s = ", attr.za_name);
++
+ 		if (attr.za_num_integers == 0) {
+ 			(void) printf("\n");
+ 			continue;
+ 		}
+ 		prop = umem_zalloc(attr.za_num_integers *
+ 		    attr.za_integer_length, UMEM_NOFAIL);
+-		(void) zap_lookup(os, object, attr.za_name,
+-		    attr.za_integer_length, attr.za_num_integers, prop);
+-		if (attr.za_integer_length == 1) {
++
++		if (key64)
++			(void) zap_lookup_uint64(os, object,
++			    (const uint64_t *)attr.za_name, 1,
++			    attr.za_integer_length, attr.za_num_integers,
++			    prop);
++		else
++			(void) zap_lookup(os, object, attr.za_name,
++			    attr.za_integer_length, attr.za_num_integers,
++			    prop);
++
++		if (attr.za_integer_length == 1 && !key64) {
+ 			if (strcmp(attr.za_name,
+ 			    DSL_CRYPTO_KEY_MASTER_KEY) == 0 ||
+ 			    strcmp(attr.za_name,
+@@ -1227,6 +1278,10 @@
+ 		} else {
+ 			for (i = 0; i < attr.za_num_integers; i++) {
+ 				switch (attr.za_integer_length) {
++				case 1:
++					(void) printf("%u ",
++					    ((uint8_t *)prop)[i]);
++					break;
+ 				case 2:
+ 					(void) printf("%u ",
+ 					    ((uint16_t *)prop)[i]);
+@@ -5217,7 +5272,7 @@
+ 	    sizeof (cksum_record_t), offsetof(cksum_record_t, link));
+ 
+ 	psize = statbuf.st_size;
+-	psize = P2ALIGN(psize, (uint64_t)sizeof (vdev_label_t));
++	psize = P2ALIGN_TYPED(psize, sizeof (vdev_label_t), uint64_t);
+ 	ashift = SPA_MINBLOCKSHIFT;
+ 
+ 	/*
+@@ -8934,10 +8989,28 @@
+ 	char *spa_config_path_env, *objset_str;
+ 	boolean_t target_is_spa = B_TRUE, dataset_lookup = B_FALSE;
+ 	nvlist_t *cfg = NULL;
++	struct sigaction action;
+ 
+ 	dprintf_setup(&argc, argv);
+ 
+ 	/*
++	 * Set up signal handlers, so if we crash due to bad on-disk data we
++	 * can get more info. Unlike ztest, we don't bail out if we can't set
++	 * up signal handlers, because zdb is very useful without them.
++	 */
++	action.sa_handler = sig_handler;
++	sigemptyset(&action.sa_mask);
++	action.sa_flags = 0;
++	if (sigaction(SIGSEGV, &action, NULL) < 0) {
++		(void) fprintf(stderr, "zdb: cannot catch SIGSEGV: %s\n",
++		    strerror(errno));
++	}
++	if (sigaction(SIGABRT, &action, NULL) < 0) {
++		(void) fprintf(stderr, "zdb: cannot catch SIGABRT: %s\n",
++		    strerror(errno));
++	}
++
++	/*
+ 	 * If there is an environment variable SPA_CONFIG_PATH it overrides
+ 	 * default spa_config_path setting. If -U flag is specified it will
+ 	 * override this environment variable settings once again.
+diff '--color=auto' -Naur zfs-2.2.4/cmd/zstream/zstream_redup.c zfs-2.2.4.new/cmd/zstream/zstream_redup.c
+--- zfs-2.2.4/cmd/zstream/zstream_redup.c	2024-05-02 23:12:22.165478752 +0200
++++ zfs-2.2.4.new/cmd/zstream/zstream_redup.c	2024-07-20 12:29:50.322863863 +0200
+@@ -186,7 +186,7 @@
+ zfs_redup_stream(int infd, int outfd, boolean_t verbose)
+ {
+ 	int bufsz = SPA_MAXBLOCKSIZE;
+-	dmu_replay_record_t thedrr = { 0 };
++	dmu_replay_record_t thedrr;
+ 	dmu_replay_record_t *drr = &thedrr;
+ 	redup_table_t rdt;
+ 	zio_cksum_t stream_cksum;
+@@ -194,6 +194,8 @@
+ 	uint64_t num_records = 0;
+ 	uint64_t num_write_byref_records = 0;
+ 
++	memset(&thedrr, 0, sizeof (dmu_replay_record_t));
++
+ #ifdef _ILP32
+ 	uint64_t max_rde_size = SMALLEST_POSSIBLE_MAX_RDT_MB << 20;
+ #else
+diff '--color=auto' -Naur zfs-2.2.4/cmd/ztest.c zfs-2.2.4.new/cmd/ztest.c
+--- zfs-2.2.4/cmd/ztest.c	2024-05-02 23:12:22.919481041 +0200
++++ zfs-2.2.4.new/cmd/ztest.c	2024-07-20 12:29:49.730859718 +0200
+@@ -2448,7 +2448,7 @@
+ 		ASSERT3P(zio, !=, NULL);
+ 		size = doi.doi_data_block_size;
+ 		if (ISP2(size)) {
+-			offset = P2ALIGN(offset, size);
++			offset = P2ALIGN_TYPED(offset, size, uint64_t);
+ 		} else {
+ 			ASSERT3U(offset, <, size);
+ 			offset = 0;
+@@ -4668,7 +4668,8 @@
+ 	 */
+ 	mutex_enter(&os->os_obj_lock);
+ 	object = ztest_random(os->os_obj_next_chunk);
+-	os->os_obj_next_chunk = P2ALIGN(object, dnodes_per_chunk);
++	os->os_obj_next_chunk = P2ALIGN_TYPED(object, dnodes_per_chunk,
++	    uint64_t);
+ 	mutex_exit(&os->os_obj_lock);
+ }
+ 
+@@ -6284,7 +6285,8 @@
+ 		 * the end of the disk (vdev_psize) is aligned to
+ 		 * sizeof (vdev_label_t).
+ 		 */
+-		uint64_t psize = P2ALIGN(fsize, sizeof (vdev_label_t));
++		uint64_t psize = P2ALIGN_TYPED(fsize, sizeof (vdev_label_t),
++		    uint64_t);
+ 		if ((leaf & 1) == 1 &&
+ 		    offset + sizeof (bad) > psize - VDEV_LABEL_END_SIZE)
+ 			continue;
+@@ -6600,8 +6602,8 @@
+ 				size_t inc = 64 * ztest_random(size / 67);
+ 				/* sometimes add few bytes to test non-simd */
+ 				if (ztest_random(100) < 10)
+-					inc += P2ALIGN(ztest_random(64),
+-					    sizeof (uint32_t));
++					inc += P2ALIGN_TYPED(ztest_random(64),
++					    sizeof (uint32_t), uint64_t);
+ 
+ 				if (inc > (size - pos))
+ 					inc = size - pos;
+diff '--color=auto' -Naur zfs-2.2.4/config/find_system_library.m4 zfs-2.2.4.new/config/find_system_library.m4
+--- zfs-2.2.4/config/find_system_library.m4	2024-05-02 23:12:22.919481041 +0200
++++ zfs-2.2.4.new/config/find_system_library.m4	2024-07-20 12:29:50.106862351 +0200
+@@ -90,8 +90,8 @@
+ 	AC_DEFINE([HAVE_][$1], [1], [Define if you have [$5]])
+ 	$7
+     ],[dnl ELSE
+-	AC_SUBST([$1]_CFLAGS, [])
+-	AC_SUBST([$1]_LIBS, [])
++	AC_SUBST([$1]_CFLAGS, [""])
++	AC_SUBST([$1]_LIBS, [""])
+ 	AC_MSG_WARN([cannot find [$5] via pkg-config or in the standard locations])
+ 	$8
+     ])
+diff '--color=auto' -Naur zfs-2.2.4/config/kernel-blkdev.m4 zfs-2.2.4.new/config/kernel-blkdev.m4
+--- zfs-2.2.4/config/kernel-blkdev.m4	2024-05-02 23:12:22.169478764 +0200
++++ zfs-2.2.4.new/config/kernel-blkdev.m4	2024-07-20 12:29:50.084862196 +0200
+@@ -535,6 +535,30 @@
+ ])
+ 
+ dnl #
++dnl # 5.16 API change
++dnl # Added bdev_nr_bytes() helper.
++dnl #
++AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_NR_BYTES], [
++	ZFS_LINUX_TEST_SRC([bdev_nr_bytes], [
++		#include <linux/blkdev.h>
++	],[
++		struct block_device *bdev = NULL;
++		loff_t nr_bytes __attribute__ ((unused)) = 0;
++		nr_bytes = bdev_nr_bytes(bdev);
++	])
++])
++
++AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BDEV_NR_BYTES], [
++	AC_MSG_CHECKING([whether bdev_nr_bytes() is available])
++	ZFS_LINUX_TEST_RESULT([bdev_nr_bytes], [
++		AC_MSG_RESULT(yes)
++		AC_DEFINE(HAVE_BDEV_NR_BYTES, 1, [bdev_nr_bytes() is available])
++	],[
++		AC_MSG_RESULT(no)
++	])
++])
++
++dnl #
+ dnl # 5.20 API change,
+ dnl # Removed bdevname(), snprintf(.., %pg) should be used.
+ dnl #
+@@ -747,6 +771,7 @@
+ 	ZFS_AC_KERNEL_SRC_BLKDEV_CHECK_DISK_CHANGE
+ 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_CHECK_MEDIA_CHANGE
+ 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_WHOLE
++	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_NR_BYTES
+ 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEVNAME
+ 	ZFS_AC_KERNEL_SRC_BLKDEV_ISSUE_DISCARD
+ 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_KOBJ
+@@ -767,6 +792,7 @@
+ 	ZFS_AC_KERNEL_BLKDEV_CHECK_DISK_CHANGE
+ 	ZFS_AC_KERNEL_BLKDEV_BDEV_CHECK_MEDIA_CHANGE
+ 	ZFS_AC_KERNEL_BLKDEV_BDEV_WHOLE
++	ZFS_AC_KERNEL_BLKDEV_BDEV_NR_BYTES
+ 	ZFS_AC_KERNEL_BLKDEV_BDEVNAME
+ 	ZFS_AC_KERNEL_BLKDEV_GET_ERESTARTSYS
+ 	ZFS_AC_KERNEL_BLKDEV_ISSUE_DISCARD
+diff '--color=auto' -Naur zfs-2.2.4/config/kernel-blk-queue.m4 zfs-2.2.4.new/config/kernel-blk-queue.m4
+--- zfs-2.2.4/config/kernel-blk-queue.m4	2024-05-02 23:12:22.169478764 +0200
++++ zfs-2.2.4.new/config/kernel-blk-queue.m4	2024-07-20 12:29:49.739859781 +0200
+@@ -332,7 +332,7 @@
+ 	ZFS_LINUX_TEST_RESULT([blk_queue_max_hw_sectors], [
+ 		AC_MSG_RESULT(yes)
+ 	],[
+-		ZFS_LINUX_TEST_ERROR([blk_queue_max_hw_sectors])
++		AC_MSG_RESULT(no)
+ 	])
+ ])
+ 
+@@ -355,7 +355,7 @@
+ 	ZFS_LINUX_TEST_RESULT([blk_queue_max_segments], [
+ 		AC_MSG_RESULT(yes)
+ 	], [
+-		ZFS_LINUX_TEST_ERROR([blk_queue_max_segments])
++		AC_MSG_RESULT(no)
+ 	])
+ ])
+ 
+diff '--color=auto' -Naur zfs-2.2.4/config/kernel.m4 zfs-2.2.4.new/config/kernel.m4
+--- zfs-2.2.4/config/kernel.m4	2024-05-02 23:12:22.174478779 +0200
++++ zfs-2.2.4.new/config/kernel.m4	2024-07-20 12:29:49.738859773 +0200
+@@ -37,6 +37,7 @@
+ dnl # speeding up the process.
+ dnl #
+ AC_DEFUN([ZFS_AC_KERNEL_TEST_SRC], [
++	ZFS_AC_KERNEL_SRC_TYPES
+ 	ZFS_AC_KERNEL_SRC_OBJTOOL
+ 	ZFS_AC_KERNEL_SRC_GLOBAL_PAGE_STATE
+ 	ZFS_AC_KERNEL_SRC_ACCESS_OK_TYPE
+@@ -187,6 +188,7 @@
+ dnl # Check results of kernel interface tests.
+ dnl #
+ AC_DEFUN([ZFS_AC_KERNEL_TEST_RESULT], [
++	ZFS_AC_KERNEL_TYPES
+ 	ZFS_AC_KERNEL_ACCESS_OK_TYPE
+ 	ZFS_AC_KERNEL_GLOBAL_PAGE_STATE
+ 	ZFS_AC_KERNEL_OBJTOOL
+diff '--color=auto' -Naur zfs-2.2.4/config/kernel-types.m4 zfs-2.2.4.new/config/kernel-types.m4
+--- zfs-2.2.4/config/kernel-types.m4	1970-01-01 01:00:00.000000000 +0100
++++ zfs-2.2.4.new/config/kernel-types.m4	2024-07-20 12:29:49.738859773 +0200
+@@ -0,0 +1,40 @@
++dnl #
++dnl # check if kernel provides definitions for given types
++dnl #
++
++dnl _ZFS_AC_KERNEL_SRC_TYPE(type)
++AC_DEFUN([_ZFS_AC_KERNEL_SRC_TYPE], [
++	ZFS_LINUX_TEST_SRC([type_$1], [
++		#include <linux/types.h>
++	],[
++		const $1 __attribute__((unused)) x = ($1) 0;
++	])
++])
++
++dnl _ZFS_AC_KERNEL_TYPE(type)
++AC_DEFUN([_ZFS_AC_KERNEL_TYPE], [
++	AC_MSG_CHECKING([whether kernel defines $1])
++	ZFS_LINUX_TEST_RESULT([type_$1], [
++		AC_MSG_RESULT([yes])
++		AC_DEFINE([HAVE_KERNEL_]m4_quote(m4_translit([$1], [a-z], [A-Z])),
++		    1, [kernel defines $1])
++	], [
++		AC_MSG_RESULT([no])
++	])
++])
++
++dnl ZFS_AC_KERNEL_TYPES([types...])
++AC_DEFUN([ZFS_AC_KERNEL_TYPES], [
++	AC_DEFUN([ZFS_AC_KERNEL_SRC_TYPES], [
++		m4_foreach_w([type], [$1], [
++			_ZFS_AC_KERNEL_SRC_TYPE(type)
++		])
++	])
++	AC_DEFUN([ZFS_AC_KERNEL_TYPES], [
++		m4_foreach_w([type], [$1], [
++			_ZFS_AC_KERNEL_TYPE(type)
++		])
++	])
++])
++
++ZFS_AC_KERNEL_TYPES([intptr_t])
+diff '--color=auto' -Naur zfs-2.2.4/config/user-backtrace.m4 zfs-2.2.4.new/config/user-backtrace.m4
+--- zfs-2.2.4/config/user-backtrace.m4	1970-01-01 01:00:00.000000000 +0100
++++ zfs-2.2.4.new/config/user-backtrace.m4	2024-07-20 12:29:50.118862435 +0200
+@@ -0,0 +1,14 @@
++dnl
++dnl backtrace(), for userspace assertions. glibc has this directly in libc.
++dnl FreeBSD and (sometimes) musl have it in a separate -lexecinfo. It's assumed
++dnl that this will also get the companion function backtrace_symbols().
++dnl
++AC_DEFUN([ZFS_AC_CONFIG_USER_BACKTRACE], [
++	AX_SAVE_FLAGS
++	LIBS=""
++	AC_SEARCH_LIBS([backtrace], [execinfo], [
++		AC_DEFINE(HAVE_BACKTRACE, 1, [backtrace() is available])
++		AC_SUBST([BACKTRACE_LIBS], ["$LIBS"])
++	])
++	AX_RESTORE_FLAGS
++])
+diff '--color=auto' -Naur zfs-2.2.4/config/user-libunwind.m4 zfs-2.2.4.new/config/user-libunwind.m4
+--- zfs-2.2.4/config/user-libunwind.m4	1970-01-01 01:00:00.000000000 +0100
++++ zfs-2.2.4.new/config/user-libunwind.m4	2024-07-20 12:29:50.118862435 +0200
+@@ -0,0 +1,44 @@
++dnl
++dnl Checks for libunwind, which usually does a better job than backtrace() when
++dnl resolving symbols in the stack backtrace. Newer versions have support for
++dnl getting info about the object file the function came from, so we look for
++dnl that too and use it if found.
++dnl
++AC_DEFUN([ZFS_AC_CONFIG_USER_LIBUNWIND], [
++	AC_ARG_WITH([libunwind],
++	    AS_HELP_STRING([--with-libunwind],
++		[use libunwind for backtraces in userspace assertions]),
++	    [],
++	    [with_libunwind=auto])
++
++	AS_IF([test "x$with_libunwind" != "xno"], [
++		ZFS_AC_FIND_SYSTEM_LIBRARY(LIBUNWIND, [libunwind], [libunwind.h], [], [unwind], [], [
++			dnl unw_get_elf_filename() is sometimes a macro, other
++			dnl times a proper symbol, so we can't just do a link
++			dnl check; we need to include the header properly.
++			AX_SAVE_FLAGS
++			CFLAGS="$CFLAGS $LIBUNWIND_CFLAGS"
++			LIBS="$LIBS $LIBUNWIND_LIBS"
++			AC_MSG_CHECKING([for unw_get_elf_filename in libunwind])
++			AC_LINK_IFELSE([
++				AC_LANG_PROGRAM([
++					#define UNW_LOCAL_ONLY
++					#include <libunwind.h>
++				], [
++					unw_get_elf_filename(0, 0, 0, 0);
++				])
++			], [
++				AC_MSG_RESULT([yes])
++				AC_DEFINE(HAVE_LIBUNWIND_ELF, 1,
++				    [libunwind has unw_get_elf_filename])
++			], [
++				AC_MSG_RESULT([no])
++			])
++			AX_RESTORE_FLAGS
++		], [
++			AS_IF([test "x$with_libunwind" = "xyes"], [
++				AC_MSG_FAILURE([--with-libunwind was given, but libunwind is not available, try installing libunwind-devel])
++			])
++		])
++	])
++])
+diff '--color=auto' -Naur zfs-2.2.4/config/user.m4 zfs-2.2.4.new/config/user.m4
+--- zfs-2.2.4/config/user.m4	2024-05-02 23:12:22.919481041 +0200
++++ zfs-2.2.4.new/config/user.m4	2024-07-20 12:29:50.310863779 +0200
+@@ -26,12 +26,14 @@
+ 	ZFS_AC_CONFIG_USER_AIO_H
+ 	ZFS_AC_CONFIG_USER_CLOCK_GETTIME
+ 	ZFS_AC_CONFIG_USER_PAM
++	ZFS_AC_CONFIG_USER_BACKTRACE
++	ZFS_AC_CONFIG_USER_LIBUNWIND
+ 	ZFS_AC_CONFIG_USER_RUNSTATEDIR
+ 	ZFS_AC_CONFIG_USER_MAKEDEV_IN_SYSMACROS
+ 	ZFS_AC_CONFIG_USER_MAKEDEV_IN_MKDEV
+ 	ZFS_AC_CONFIG_USER_ZFSEXEC
+ 
+-	AC_CHECK_FUNCS([issetugid mlockall strlcat strlcpy])
++	AC_CHECK_FUNCS([execvpe issetugid mlockall strlcat strlcpy gettid])
+ 
+ 	AC_SUBST(RM)
+ ])
+diff '--color=auto' -Naur zfs-2.2.4/include/os/freebsd/spl/sys/ccompile.h zfs-2.2.4.new/include/os/freebsd/spl/sys/ccompile.h
+--- zfs-2.2.4/include/os/freebsd/spl/sys/ccompile.h	2024-05-02 23:12:22.187478819 +0200
++++ zfs-2.2.4.new/include/os/freebsd/spl/sys/ccompile.h	2024-07-20 12:29:49.730859718 +0200
+@@ -138,7 +138,8 @@
+ #define	readdir64 readdir
+ #define	dirent64 dirent
+ #endif
+-#define	P2ALIGN(x, align)		((x) & -(align))
++// Deprecated. Use P2ALIGN_TYPED instead.
++// #define	P2ALIGN(x, align)		((x) & -(align))
+ #define	P2CROSS(x, y, align)	(((x) ^ (y)) > (align) - 1)
+ #define	P2ROUNDUP(x, align)		((((x) - 1) | ((align) - 1)) + 1)
+ #define	P2PHASE(x, align)		((x) & ((align) - 1))
+diff '--color=auto' -Naur zfs-2.2.4/include/os/freebsd/spl/sys/sysmacros.h zfs-2.2.4.new/include/os/freebsd/spl/sys/sysmacros.h
+--- zfs-2.2.4/include/os/freebsd/spl/sys/sysmacros.h	2024-05-02 23:12:22.189478825 +0200
++++ zfs-2.2.4.new/include/os/freebsd/spl/sys/sysmacros.h	2024-07-20 12:29:49.730859718 +0200
+@@ -191,7 +191,8 @@
+  * eg, P2ALIGN(0x1234, 0x100) == 0x1200 (0x12*align)
+  * eg, P2ALIGN(0x5600, 0x100) == 0x5600 (0x56*align)
+  */
+-#define	P2ALIGN(x, align)		((x) & -(align))
++// Deprecated. Use P2ALIGN_TYPED instead.
++// #define	P2ALIGN(x, align)		((x) & -(align))
+ 
+ /*
+  * return x % (mod) align
+diff '--color=auto' -Naur zfs-2.2.4/include/os/linux/spl/sys/kmem_cache.h zfs-2.2.4.new/include/os/linux/spl/sys/kmem_cache.h
+--- zfs-2.2.4/include/os/linux/spl/sys/kmem_cache.h	2024-05-02 23:12:22.194478840 +0200
++++ zfs-2.2.4.new/include/os/linux/spl/sys/kmem_cache.h	2024-07-20 12:29:50.084862196 +0200
+@@ -192,22 +192,25 @@
+ extern uint64_t spl_kmem_cache_inuse(kmem_cache_t *cache);
+ extern uint64_t spl_kmem_cache_entry_size(kmem_cache_t *cache);
+ 
++#ifndef	SPL_KMEM_CACHE_IMPLEMENTING
++/*
++ * Macros for the kmem_cache_* API expected by ZFS and SPL clients. We don't
++ * define them inside spl-kmem-cache.c, as that uses the kernel's incompatible
++ * kmem_cache_* facilities to implement ours.
++ */
++
++/* Avoid conflicts with kernel names that might be implemented as macros. */
++#undef	kmem_cache_alloc
++
+ #define	kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl) \
+     spl_kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl)
+ #define	kmem_cache_set_move(skc, move)	spl_kmem_cache_set_move(skc, move)
+ #define	kmem_cache_destroy(skc)		spl_kmem_cache_destroy(skc)
+-/*
+- * This is necessary to be compatible with other kernel modules
+- * or in-tree filesystem that may define kmem_cache_alloc,
+- * like bcachefs does it now.
+- */
+-#ifdef kmem_cache_alloc
+-#undef kmem_cache_alloc
+-#endif
+ #define	kmem_cache_alloc(skc, flags)	spl_kmem_cache_alloc(skc, flags)
+ #define	kmem_cache_free(skc, obj)	spl_kmem_cache_free(skc, obj)
+ #define	kmem_cache_reap_now(skc)	spl_kmem_cache_reap_now(skc)
+ #define	kmem_reap()			spl_kmem_reap()
++#endif
+ 
+ /*
+  * The following functions are only available for internal use.
+diff '--color=auto' -Naur zfs-2.2.4/include/os/linux/spl/sys/sysmacros.h zfs-2.2.4.new/include/os/linux/spl/sys/sysmacros.h
+--- zfs-2.2.4/include/os/linux/spl/sys/sysmacros.h	2024-05-02 23:12:22.195478843 +0200
++++ zfs-2.2.4.new/include/os/linux/spl/sys/sysmacros.h	2024-07-20 12:29:49.730859718 +0200
+@@ -159,7 +159,8 @@
+ /*
+  * Compatibility macros/typedefs needed for Solaris -> Linux port
+  */
+-#define	P2ALIGN(x, align)	((x) & -(align))
++// Deprecated. Use P2ALIGN_TYPED instead.
++// #define	P2ALIGN(x, align)	((x) & -(align))
+ #define	P2CROSS(x, y, align)	(((x) ^ (y)) > (align) - 1)
+ #define	P2ROUNDUP(x, align)	((((x) - 1) | ((align) - 1)) + 1)
+ #define	P2PHASE(x, align)	((x) & ((align) - 1))
+diff '--color=auto' -Naur zfs-2.2.4/include/os/linux/spl/sys/types.h zfs-2.2.4.new/include/os/linux/spl/sys/types.h
+--- zfs-2.2.4/include/os/linux/spl/sys/types.h	2024-05-02 23:12:22.196478846 +0200
++++ zfs-2.2.4.new/include/os/linux/spl/sys/types.h	2024-07-20 12:29:49.738859773 +0200
+@@ -38,7 +38,9 @@
+ typedef unsigned long long	u_longlong_t;
+ typedef long long		longlong_t;
+ 
++#ifndef HAVE_KERNEL_INTPTR_T
+ typedef long			intptr_t;
++#endif
+ typedef unsigned long long	rlim64_t;
+ 
+ typedef struct task_struct	kthread_t;
+diff '--color=auto' -Naur zfs-2.2.4/include/os/linux/zfs/sys/trace_dbuf.h zfs-2.2.4.new/include/os/linux/zfs/sys/trace_dbuf.h
+--- zfs-2.2.4/include/os/linux/zfs/sys/trace_dbuf.h	2024-05-02 23:12:22.197478849 +0200
++++ zfs-2.2.4.new/include/os/linux/zfs/sys/trace_dbuf.h	2024-07-20 12:29:50.085862204 +0200
+@@ -80,7 +80,7 @@
+ 		snprintf(__get_str(msg), TRACE_DBUF_MSG_MAX,		\
+ 		    DBUF_TP_PRINTK_FMT, DBUF_TP_PRINTK_ARGS);		\
+ 	} else {							\
+-		__assign_str(os_spa, "NULL")				\
++		__assign_str(os_spa, "NULL");				\
+ 		__entry->ds_object = 0;					\
+ 		__entry->db_object = 0;					\
+ 		__entry->db_level  = 0;					\
+diff '--color=auto' -Naur zfs-2.2.4/include/sys/dsl_scan.h zfs-2.2.4.new/include/sys/dsl_scan.h
+--- zfs-2.2.4/include/sys/dsl_scan.h	2024-05-02 23:12:22.201478861 +0200
++++ zfs-2.2.4.new/include/sys/dsl_scan.h	2024-07-20 12:29:49.734859746 +0200
+@@ -173,6 +173,7 @@
+ 	dsl_scan_phys_t scn_phys;	/* on disk representation of scan */
+ 	dsl_scan_phys_t scn_phys_cached;
+ 	avl_tree_t scn_queue;		/* queue of datasets to scan */
++	kmutex_t scn_queue_lock;	/* serializes scn_queue inserts */
+ 	uint64_t scn_queues_pending;	/* outstanding data to issue */
+ 	/* members needed for syncing error scrub status to disk */
+ 	dsl_errorscrub_phys_t errorscrub_phys;
+diff '--color=auto' -Naur zfs-2.2.4/lib/libefi/rdwr_efi.c zfs-2.2.4.new/lib/libefi/rdwr_efi.c
+--- zfs-2.2.4/lib/libefi/rdwr_efi.c	2024-05-02 23:12:22.213478898 +0200
++++ zfs-2.2.4.new/lib/libefi/rdwr_efi.c	2024-07-20 12:29:49.730859718 +0200
+@@ -1175,8 +1175,8 @@
+ 	 * (for performance reasons). The alignment should match the
+ 	 * alignment used by the "zpool_label_disk" function.
+ 	 */
+-	limit = P2ALIGN(efi_label->efi_last_lba - nblocks - EFI_MIN_RESV_SIZE,
+-	    PARTITION_END_ALIGNMENT);
++	limit = P2ALIGN_TYPED(efi_label->efi_last_lba - nblocks -
++	    EFI_MIN_RESV_SIZE, PARTITION_END_ALIGNMENT, diskaddr_t);
+ 	if (data_start + data_size != limit || resv_start != limit)
+ 		sync_needed = B_TRUE;
+ 
+diff '--color=auto' -Naur zfs-2.2.4/lib/libspl/assert.c zfs-2.2.4.new/lib/libspl/assert.c
+--- zfs-2.2.4/lib/libspl/assert.c	2024-05-02 23:12:22.926481062 +0200
++++ zfs-2.2.4.new/lib/libspl/assert.c	2024-07-20 12:29:50.321863856 +0200
+@@ -22,8 +22,96 @@
+  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+  * Use is subject to license terms.
+  */
++/*
++ * Copyright (c) 2024, Rob Norris <robn@despairlabs.com>
++ */
+ 
+ #include <assert.h>
++#include <pthread.h>
++
++#if defined(__linux__)
++#include <errno.h>
++#include <sys/prctl.h>
++#ifdef HAVE_GETTID
++#define	libspl_gettid()		gettid()
++#else
++#include <sys/syscall.h>
++#define	libspl_gettid()		((pid_t)syscall(__NR_gettid))
++#endif
++#define	libspl_getprogname()	(program_invocation_short_name)
++#define	libspl_getthreadname(buf, len)	\
++	prctl(PR_GET_NAME, (unsigned long)(buf), 0, 0, 0)
++#elif defined(__FreeBSD__) || defined(__APPLE__)
++#if !defined(__APPLE__)
++#include <pthread_np.h>
++#define	libspl_gettid()		pthread_getthreadid_np()
++#endif
++#define	libspl_getprogname()	getprogname()
++#define	libspl_getthreadname(buf, len)	\
++	pthread_getname_np(pthread_self(), buf, len);
++#endif
++
++#if defined(HAVE_LIBUNWIND)
++#define	UNW_LOCAL_ONLY
++#include <libunwind.h>
++
++static inline void
++libspl_dump_backtrace(void)
++{
++	unw_context_t uc;
++	unw_cursor_t cp;
++	unw_word_t ip, off;
++	char funcname[128];
++#ifdef HAVE_LIBUNWIND_ELF
++	char objname[128];
++	unw_word_t objoff;
++#endif
++
++	fprintf(stderr, "Call trace:\n");
++	unw_getcontext(&uc);
++	unw_init_local(&cp, &uc);
++	while (unw_step(&cp) > 0) {
++		unw_get_reg(&cp, UNW_REG_IP, &ip);
++		unw_get_proc_name(&cp, funcname, sizeof (funcname), &off);
++#ifdef HAVE_LIBUNWIND_ELF
++		unw_get_elf_filename(&cp, objname, sizeof (objname), &objoff);
++		fprintf(stderr, "  [0x%08lx] %s+0x%2lx (in %s +0x%2lx)\n",
++		    ip, funcname, off, objname, objoff);
++#else
++		fprintf(stderr, "  [0x%08lx] %s+0x%2lx\n", ip, funcname, off);
++#endif
++	}
++}
++#elif defined(HAVE_BACKTRACE)
++#include <execinfo.h>
++
++static inline void
++libspl_dump_backtrace(void)
++{
++	void *btptrs[100];
++	size_t nptrs = backtrace(btptrs, 100);
++	char **bt = backtrace_symbols(btptrs, nptrs);
++	fprintf(stderr, "Call trace:\n");
++	for (size_t i = 0; i < nptrs; i++)
++		fprintf(stderr, "  %s\n", bt[i]);
++	free(bt);
++}
++#else
++#define	libspl_dump_backtrace()
++#endif
++
++#if defined(__APPLE__)
++static inline uint64_t
++libspl_gettid(void)
++{
++	uint64_t tid;
++
++	if (pthread_threadid_np(NULL, &tid) != 0)
++		tid = 0;
++
++	return (tid);
++}
++#endif
+ 
+ static boolean_t libspl_assert_ok = B_FALSE;
+ 
+@@ -33,21 +121,41 @@
+ 	libspl_assert_ok = val;
+ }
+ 
++static pthread_mutex_t assert_lock = PTHREAD_MUTEX_INITIALIZER;
++
+ /* printf version of libspl_assert */
+ void
+ libspl_assertf(const char *file, const char *func, int line,
+     const char *format, ...)
+ {
++	pthread_mutex_lock(&assert_lock);
++
+ 	va_list args;
++	char tname[64];
++
++	libspl_getthreadname(tname, sizeof (tname));
++
++	fprintf(stderr, "ASSERT at %s:%d:%s()\n", file, line, func);
+ 
+ 	va_start(args, format);
+ 	vfprintf(stderr, format, args);
+-	fprintf(stderr, "\n");
+-	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);
+ 	va_end(args);
+ 
++	fprintf(stderr, "\n"
++	    "  PID: %-8u  COMM: %s\n"
++#if defined(__APPLE__)
++	    "  TID: %-8" PRIu64 "  NAME: %s\n",
++#else
++	    "  TID: %-8u  NAME: %s\n",
++#endif
++	    getpid(), libspl_getprogname(),
++	    libspl_gettid(), tname);
++
++	libspl_dump_backtrace();
++
+ #if !__has_feature(attribute_analyzer_noreturn) && !defined(__COVERITY__)
+ 	if (libspl_assert_ok) {
++		pthread_mutex_unlock(&assert_lock);
+ 		return;
+ 	}
+ #endif
+diff '--color=auto' -Naur zfs-2.2.4/lib/libspl/include/os/freebsd/sys/param.h zfs-2.2.4.new/lib/libspl/include/os/freebsd/sys/param.h
+--- zfs-2.2.4/lib/libspl/include/os/freebsd/sys/param.h	2024-05-02 23:12:22.927481065 +0200
++++ zfs-2.2.4.new/lib/libspl/include/os/freebsd/sys/param.h	2024-07-20 12:29:50.106862351 +0200
+@@ -57,6 +57,8 @@
+ extern size_t spl_pagesize(void);
+ #define	PAGESIZE	(spl_pagesize())
+ 
++#ifndef HAVE_EXECVPE
+ extern int execvpe(const char *name, char * const argv[], char * const envp[]);
++#endif
+ 
+ #endif
+diff '--color=auto' -Naur zfs-2.2.4/lib/libspl/include/os/linux/sys/sysmacros.h zfs-2.2.4.new/lib/libspl/include/os/linux/sys/sysmacros.h
+--- zfs-2.2.4/lib/libspl/include/os/linux/sys/sysmacros.h	2024-05-02 23:12:22.217478910 +0200
++++ zfs-2.2.4.new/lib/libspl/include/os/linux/sys/sysmacros.h	2024-07-20 12:29:49.730859718 +0200
+@@ -52,7 +52,8 @@
+ /*
+  * Compatibility macros/typedefs needed for Solaris -> Linux port
+  */
+-#define	P2ALIGN(x, align)	((x) & -(align))
++// Deprecated. Use P2ALIGN_TYPED instead.
++// #define	P2ALIGN(x, align)	((x) & -(align))
+ #define	P2CROSS(x, y, align)	(((x) ^ (y)) > (align) - 1)
+ #define	P2ROUNDUP(x, align)	((((x) - 1) | ((align) - 1)) + 1)
+ #define	P2BOUNDARY(off, len, align) \
+diff '--color=auto' -Naur zfs-2.2.4/lib/libspl/Makefile.am zfs-2.2.4.new/lib/libspl/Makefile.am
+--- zfs-2.2.4/lib/libspl/Makefile.am	2024-05-02 23:12:22.926481062 +0200
++++ zfs-2.2.4.new/lib/libspl/Makefile.am	2024-07-20 12:29:50.321863856 +0200
+@@ -1,6 +1,6 @@
+ include $(srcdir)/%D%/include/Makefile.am
+ 
+-libspl_assert_la_CFLAGS = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
++libspl_assert_la_CFLAGS = $(AM_CFLAGS) $(LIBRARY_CFLAGS) $(LIBUNWIND_CFLAGS)
+ libspl_la_CFLAGS        = $(libspl_assert_la_CFLAGS)
+ 
+ noinst_LTLIBRARIES += libspl_assert.la libspl.la
+@@ -43,3 +43,9 @@
+ 	libspl_assert.la
+ 
+ libspl_la_LIBADD += $(LIBATOMIC_LIBS) $(LIBCLOCK_GETTIME)
++
++libspl_assert_la_LIBADD = $(BACKTRACE_LIBS) $(LIBUNWIND_LIBS)
++
++if BUILD_FREEBSD
++libspl_assert_la_LIBADD += -lpthread
++endif
+diff '--color=auto' -Naur zfs-2.2.4/lib/libzfs/libzfs_sendrecv.c zfs-2.2.4.new/lib/libzfs/libzfs_sendrecv.c
+--- zfs-2.2.4/lib/libzfs/libzfs_sendrecv.c	2024-05-02 23:12:22.932481080 +0200
++++ zfs-2.2.4.new/lib/libzfs/libzfs_sendrecv.c	2024-07-20 12:29:50.322863863 +0200
+@@ -2170,7 +2170,8 @@
+ static int
+ send_conclusion_record(int fd, zio_cksum_t *zc)
+ {
+-	dmu_replay_record_t drr = { 0 };
++	dmu_replay_record_t drr;
++	memset(&drr, 0, sizeof (dmu_replay_record_t));
+ 	drr.drr_type = DRR_END;
+ 	if (zc != NULL)
+ 		drr.drr_u.drr_end.drr_checksum = *zc;
+@@ -2272,7 +2273,8 @@
+ 	}
+ 
+ 	if (!dryrun) {
+-		dmu_replay_record_t drr = { 0 };
++		dmu_replay_record_t drr;
++		memset(&drr, 0, sizeof (dmu_replay_record_t));
+ 		/* write first begin record */
+ 		drr.drr_type = DRR_BEGIN;
+ 		drr.drr_u.drr_begin.drr_magic = DMU_BACKUP_MAGIC;
+diff '--color=auto' -Naur zfs-2.2.4/lib/libzfs/os/freebsd/libzfs_compat.c zfs-2.2.4.new/lib/libzfs/os/freebsd/libzfs_compat.c
+--- zfs-2.2.4/lib/libzfs/os/freebsd/libzfs_compat.c	2024-05-02 23:12:22.933481083 +0200
++++ zfs-2.2.4.new/lib/libzfs/os/freebsd/libzfs_compat.c	2024-07-20 12:29:50.106862351 +0200
+@@ -38,7 +38,8 @@
+ #define	ZFS_KMOD	"openzfs"
+ #endif
+ 
+-
++#ifndef HAVE_EXECVPE
++/* FreeBSD prior to 15 lacks execvpe */
+ static int
+ execvPe(const char *name, const char *path, char * const *argv,
+     char * const *envp)
+@@ -192,6 +193,7 @@
+ 
+ 	return (execvPe(name, path, argv, envp));
+ }
++#endif /* !HAVE_EXECVPE */
+ 
+ static __thread char errbuf[ERRBUFLEN];
+ 
+diff '--color=auto' -Naur zfs-2.2.4/lib/libzfs/os/linux/libzfs_pool_os.c zfs-2.2.4.new/lib/libzfs/os/linux/libzfs_pool_os.c
+--- zfs-2.2.4/lib/libzfs/os/linux/libzfs_pool_os.c	2024-05-02 23:12:22.232478955 +0200
++++ zfs-2.2.4.new/lib/libzfs/os/linux/libzfs_pool_os.c	2024-07-20 12:29:49.730859718 +0200
+@@ -268,7 +268,8 @@
+ 	if (start_block == MAXOFFSET_T)
+ 		start_block = NEW_START_BLOCK;
+ 	slice_size -= start_block;
+-	slice_size = P2ALIGN(slice_size, PARTITION_END_ALIGNMENT);
++	slice_size = P2ALIGN_TYPED(slice_size, PARTITION_END_ALIGNMENT,
++	    uint64_t);
+ 
+ 	vtoc->efi_parts[0].p_start = start_block;
+ 	vtoc->efi_parts[0].p_size = slice_size;
+diff '--color=auto' -Naur zfs-2.2.4/man/man4/zfs.4 zfs-2.2.4.new/man/man4/zfs.4
+--- zfs-2.2.4/man/man4/zfs.4	2024-05-02 23:12:22.937481095 +0200
++++ zfs-2.2.4.new/man/man4/zfs.4	2024-07-20 12:29:49.733859739 +0200
+@@ -2324,8 +2324,8 @@
+ .
+ .It Sy zio_taskq_batch_pct Ns = Ns Sy 80 Ns % Pq uint
+ Percentage of online CPUs which will run a worker thread for I/O.
+-These workers are responsible for I/O work such as compression and
+-checksum calculations.
++These workers are responsible for I/O work such as compression, encryption,
++checksum and parity calculations.
+ Fractional number of CPUs will be rounded down.
+ .Pp
+ The default value of
+@@ -2333,6 +2333,7 @@
+ was chosen to avoid using all CPUs which can result in
+ latency issues and inconsistent application performance,
+ especially when slower compression and/or checksumming is enabled.
++Set value only applies to pools imported/created after that.
+ .
+ .It Sy zio_taskq_batch_tpq Ns = Ns Sy 0 Pq uint
+ Number of worker threads per taskq.
+@@ -2342,16 +2343,19 @@
+ If
+ .Sy 0 ,
+ generate a system-dependent value close to 6 threads per taskq.
++Set value only applies to pools imported/created after that.
+ .
+ .It Sy zio_taskq_read Ns = Ns Sy fixed,1,8 null scale null Pq charp
+ Set the queue and thread configuration for the IO read queues.
+ This is an advanced debugging parameter.
+ Don't change this unless you understand what it does.
++Set values only apply to pools imported/created after that.
+ .
+ .It Sy zio_taskq_write Ns = Ns Sy batch fixed,1,5 scale fixed,1,5 Pq charp
+ Set the queue and thread configuration for the IO write queues.
+ This is an advanced debugging parameter.
+ Don't change this unless you understand what it does.
++Set values only apply to pools imported/created after that.
+ .
+ .It Sy zvol_inhibit_dev Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+ Do not create zvol device nodes.
+diff '--color=auto' -Naur zfs-2.2.4/man/man7/dracut.zfs.7 zfs-2.2.4.new/man/man7/dracut.zfs.7
+--- zfs-2.2.4/man/man7/dracut.zfs.7	2024-05-02 23:12:22.242478986 +0200
++++ zfs-2.2.4.new/man/man7/dracut.zfs.7	2024-07-20 12:29:50.085862204 +0200
+@@ -154,7 +154,7 @@
+ .
+ .It Sy bootfs.rollback Ns Op Sy = Ns Ar snapshot-name
+ Execute
+-.Nm zfs Cm snapshot Fl Rf Ar boot-dataset Ns Sy @ Ns Ar snapshot-name
++.Nm zfs Cm rollback Fl Rf Ar boot-dataset Ns Sy @ Ns Ar snapshot-name
+ before pivoting to the real root.
+ .Ar snapshot-name
+ defaults to the current kernel release.
+diff '--color=auto' -Naur zfs-2.2.4/META zfs-2.2.4.new/META
+--- zfs-2.2.4/META	2024-05-02 23:24:20.305787884 +0200
++++ zfs-2.2.4.new/META	2024-07-20 12:29:50.417864529 +0200
+@@ -1,10 +1,10 @@
+ Meta:          1
+ Name:          zfs
+ Branch:        1.0
+-Version:       2.2.4
++Version:       2.2.5
+ Release:       1
+ Release-Tags:  relext
+ License:       CDDL
+ Author:        OpenZFS
+-Linux-Maximum: 6.8
++Linux-Maximum: 6.9
+ Linux-Minimum: 3.10
+diff '--color=auto' -Naur zfs-2.2.4/module/icp/io/aes.c zfs-2.2.4.new/module/icp/io/aes.c
+--- zfs-2.2.4/module/icp/io/aes.c	2024-05-02 23:24:19.344784821 +0200
++++ zfs-2.2.4.new/module/icp/io/aes.c	2024-07-20 12:29:50.322863863 +0200
+@@ -832,12 +832,14 @@
+     crypto_key_t *key, crypto_data_t *plaintext, crypto_data_t *ciphertext,
+     crypto_spi_ctx_template_t template)
+ {
+-	aes_ctx_t aes_ctx = {{{{0}}}};
++	aes_ctx_t aes_ctx;
+ 	off_t saved_offset;
+ 	size_t saved_length;
+ 	size_t length_needed;
+ 	int ret;
+ 
++	memset(&aes_ctx, 0, sizeof (aes_ctx_t));
++
+ 	ASSERT(ciphertext != NULL);
+ 
+ 	/*
+@@ -956,12 +958,14 @@
+     crypto_key_t *key, crypto_data_t *ciphertext, crypto_data_t *plaintext,
+     crypto_spi_ctx_template_t template)
+ {
+-	aes_ctx_t aes_ctx = {{{{0}}}};
++	aes_ctx_t aes_ctx;
+ 	off_t saved_offset;
+ 	size_t saved_length;
+ 	size_t length_needed;
+ 	int ret;
+ 
++	memset(&aes_ctx, 0, sizeof (aes_ctx_t));
++
+ 	ASSERT(plaintext != NULL);
+ 
+ 	/*
+diff '--color=auto' -Naur zfs-2.2.4/module/Kbuild.in zfs-2.2.4.new/module/Kbuild.in
+--- zfs-2.2.4/module/Kbuild.in	2024-05-02 23:12:22.939481101 +0200
++++ zfs-2.2.4.new/module/Kbuild.in	2024-07-20 12:29:49.739859781 +0200
+@@ -492,6 +492,7 @@
+ UBSAN_SANITIZE_zap_leaf.o := n
+ UBSAN_SANITIZE_zap_micro.o := n
+ UBSAN_SANITIZE_sa.o := n
++UBSAN_SANITIZE_zfs/zap_micro.o := n
+ 
+ # Suppress incorrect warnings from versions of objtool which are not
+ # aware of x86 EVEX prefix instructions used for AVX512.
+diff '--color=auto' -Naur zfs-2.2.4/module/os/freebsd/zfs/vdev_geom.c zfs-2.2.4.new/module/os/freebsd/zfs/vdev_geom.c
+--- zfs-2.2.4/module/os/freebsd/zfs/vdev_geom.c	2024-05-02 23:24:19.594785618 +0200
++++ zfs-2.2.4.new/module/os/freebsd/zfs/vdev_geom.c	2024-07-20 12:29:49.730859718 +0200
+@@ -457,7 +457,7 @@
+ 	ZFS_LOG(1, "Reading config from %s...", pp->name);
+ 
+ 	psize = pp->mediasize;
+-	psize = P2ALIGN(psize, (uint64_t)sizeof (vdev_label_t));
++	psize = P2ALIGN_TYPED(psize, sizeof (vdev_label_t), uint64_t);
+ 
+ 	size = sizeof (*vdev_lists[0]) + pp->sectorsize -
+ 	    ((sizeof (*vdev_lists[0]) - 1) % pp->sectorsize) - 1;
+diff '--color=auto' -Naur zfs-2.2.4/module/os/freebsd/zfs/zfs_dir.c zfs-2.2.4.new/module/os/freebsd/zfs/zfs_dir.c
+--- zfs-2.2.4/module/os/freebsd/zfs/zfs_dir.c	2024-05-02 23:24:19.571785545 +0200
++++ zfs-2.2.4.new/module/os/freebsd/zfs/zfs_dir.c	2024-07-20 12:29:49.734859746 +0200
+@@ -543,6 +543,7 @@
+ 	dataset_kstats_update_nunlinked_kstat(&zfsvfs->z_kstat, 1);
+ 
+ 	zfs_znode_delete(zp, tx);
++	zfs_znode_free(zp);
+ 
+ 	dmu_tx_commit(tx);
+ 
+diff '--color=auto' -Naur zfs-2.2.4/module/os/freebsd/zfs/zfs_vnops_os.c zfs-2.2.4.new/module/os/freebsd/zfs/zfs_vnops_os.c
+--- zfs-2.2.4/module/os/freebsd/zfs/zfs_vnops_os.c	2024-05-02 23:24:19.607785659 +0200
++++ zfs-2.2.4.new/module/os/freebsd/zfs/zfs_vnops_os.c	2024-07-20 12:29:49.735859752 +0200
+@@ -1169,10 +1169,25 @@
+ 		return (error);
+ 	}
+ 	zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
++
++	error = zfs_link_create(dzp, name, zp, tx, ZNEW);
++	if (error != 0) {
++		/*
++		 * Since, we failed to add the directory entry for it,
++		 * delete the newly created dnode.
++		 */
++		zfs_znode_delete(zp, tx);
++		VOP_UNLOCK1(ZTOV(zp));
++		zrele(zp);
++		zfs_acl_ids_free(&acl_ids);
++		dmu_tx_commit(tx);
++		getnewvnode_drop_reserve();
++		goto out;
++	}
++
+ 	if (fuid_dirtied)
+ 		zfs_fuid_sync(zfsvfs, tx);
+ 
+-	(void) zfs_link_create(dzp, name, zp, tx, ZNEW);
+ 	txtype = zfs_log_create_txtype(Z_FILE, vsecp, vap);
+ 	zfs_log_create(zilog, tx, txtype, dzp, zp, name,
+ 	    vsecp, acl_ids.z_fuidp, vap);
+@@ -1520,13 +1535,19 @@
+ 	 */
+ 	zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
+ 
+-	if (fuid_dirtied)
+-		zfs_fuid_sync(zfsvfs, tx);
+-
+ 	/*
+ 	 * Now put new name in parent dir.
+ 	 */
+-	(void) zfs_link_create(dzp, dirname, zp, tx, ZNEW);
++	error = zfs_link_create(dzp, dirname, zp, tx, ZNEW);
++	if (error != 0) {
++		zfs_znode_delete(zp, tx);
++		VOP_UNLOCK1(ZTOV(zp));
++		zrele(zp);
++		goto out;
++	}
++
++	if (fuid_dirtied)
++		zfs_fuid_sync(zfsvfs, tx);
+ 
+ 	*zpp = zp;
+ 
+@@ -1534,6 +1555,7 @@
+ 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, NULL,
+ 	    acl_ids.z_fuidp, vap);
+ 
++out:
+ 	zfs_acl_ids_free(&acl_ids);
+ 
+ 	dmu_tx_commit(tx);
+@@ -1544,7 +1566,7 @@
+ 		zil_commit(zilog, 0);
+ 
+ 	zfs_exit(zfsvfs, FTAG);
+-	return (0);
++	return (error);
+ }
+ 
+ #if	__FreeBSD_version < 1300124
+@@ -3578,10 +3600,14 @@
+ 	/*
+ 	 * Insert the new object into the directory.
+ 	 */
+-	(void) zfs_link_create(dzp, name, zp, tx, ZNEW);
+-
+-	zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
+-	*zpp = zp;
++	error = zfs_link_create(dzp, name, zp, tx, ZNEW);
++	if (error != 0) {
++		zfs_znode_delete(zp, tx);
++		VOP_UNLOCK1(ZTOV(zp));
++		zrele(zp);
++	} else {
++		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
++	}
+ 
+ 	zfs_acl_ids_free(&acl_ids);
+ 
+@@ -3589,8 +3615,12 @@
+ 
+ 	getnewvnode_drop_reserve();
+ 
+-	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+-		zil_commit(zilog, 0);
++	if (error == 0) {
++		*zpp = zp;
++
++		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
++			zil_commit(zilog, 0);
++	}
+ 
+ 	zfs_exit(zfsvfs, FTAG);
+ 	return (error);
+diff '--color=auto' -Naur zfs-2.2.4/module/os/freebsd/zfs/zfs_znode.c zfs-2.2.4.new/module/os/freebsd/zfs/zfs_znode.c
+--- zfs-2.2.4/module/os/freebsd/zfs/zfs_znode.c	2024-05-02 23:24:19.578785567 +0200
++++ zfs-2.2.4.new/module/os/freebsd/zfs/zfs_znode.c	2024-07-20 12:29:49.735859752 +0200
+@@ -1234,7 +1234,6 @@
+ 	VERIFY0(dmu_object_free(os, obj, tx));
+ 	zfs_znode_dmu_fini(zp);
+ 	ZFS_OBJ_HOLD_EXIT(zfsvfs, obj);
+-	zfs_znode_free(zp);
+ }
+ 
+ void
+diff '--color=auto' -Naur zfs-2.2.4/module/os/linux/spl/spl-kmem-cache.c zfs-2.2.4.new/module/os/linux/spl/spl-kmem-cache.c
+--- zfs-2.2.4/module/os/linux/spl/spl-kmem-cache.c	2024-05-02 23:24:19.627785723 +0200
++++ zfs-2.2.4.new/module/os/linux/spl/spl-kmem-cache.c	2024-07-20 12:29:50.084862196 +0200
+@@ -21,6 +21,8 @@
+  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
+  */
+ 
++#define	SPL_KMEM_CACHE_IMPLEMENTING
++
+ #include <linux/percpu_compat.h>
+ #include <sys/kmem.h>
+ #include <sys/kmem_cache.h>
+@@ -34,16 +36,6 @@
+ #include <linux/prefetch.h>
+ 
+ /*
+- * Within the scope of spl-kmem.c file the kmem_cache_* definitions
+- * are removed to allow access to the real Linux slab allocator.
+- */
+-#undef kmem_cache_destroy
+-#undef kmem_cache_create
+-#undef kmem_cache_alloc
+-#undef kmem_cache_free
+-
+-
+-/*
+  * Linux 3.16 replaced smp_mb__{before,after}_{atomic,clear}_{dec,inc,bit}()
+  * with smp_mb__{before,after}_atomic() because they were redundant. This is
+  * only used inside our SLAB allocator, so we implement an internal wrapper
+diff '--color=auto' -Naur zfs-2.2.4/module/os/linux/zfs/abd_os.c zfs-2.2.4.new/module/os/linux/zfs/abd_os.c
+--- zfs-2.2.4/module/os/linux/zfs/abd_os.c	2024-05-02 23:24:19.717786010 +0200
++++ zfs-2.2.4.new/module/os/linux/zfs/abd_os.c	2024-07-20 12:29:50.106862351 +0200
+@@ -1015,10 +1015,50 @@
+ }
+ 
+ #if defined(_KERNEL)
++
+ /*
+- * Yield the next page struct and data offset and size within it, without
++ * This is abd_iter_page(), the function underneath abd_iterate_page_func().
++ * It yields the next page struct and data offset and size within it, without
+  * mapping it into the address space.
+  */
++
++/*
++ * "Compound pages" are a group of pages that can be referenced from a single
++ * struct page *. Its organised as a "head" page, followed by a series of
++ * "tail" pages.
++ *
++ * In OpenZFS, compound pages are allocated using the __GFP_COMP flag, which we
++ * get from scatter ABDs and SPL vmalloc slabs (ie >16K allocations). So a
++ * great many of the IO buffers we get are going to be of this type.
++ *
++ * The tail pages are just regular PAGESIZE pages, and can be safely used
++ * as-is. However, the head page has length covering itself and all the tail
++ * pages. If the ABD chunk spans multiple pages, then we can use the head page
++ * and a >PAGESIZE length, which is far more efficient.
++ *
++ * Before kernel 4.5 however, compound page heads were refcounted separately
++ * from tail pages, such that moving back to the head page would require us to
++ * take a reference to it and releasing it once we're completely finished with
++ * it. In practice, that means when our caller is done with the ABD, which we
++ * have no insight into from here. Rather than contort this API to track head
++ * page references on such ancient kernels, we disable this special compound
++ * page handling on 4.5, instead just using treating each page within it as a
++ * regular PAGESIZE page (which it is). This is slightly less efficient, but
++ * makes everything far simpler.
++ *
++ * The below test sets/clears ABD_ITER_COMPOUND_PAGES to enable/disable the
++ * special handling, and also defines the ABD_ITER_PAGE_SIZE(page) macro to
++ * understand compound pages, or not, as required.
++ */
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
++#define	ABD_ITER_COMPOUND_PAGES		1
++#define	ABD_ITER_PAGE_SIZE(page)	\
++	(PageCompound(page) ? page_size(page) : PAGESIZE)
++#else
++#undef ABD_ITER_COMPOUND_PAGES
++#define	ABD_ITER_PAGE_SIZE(page)	(PAGESIZE)
++#endif
++
+ void
+ abd_iter_page(struct abd_iter *aiter)
+ {
+@@ -1032,6 +1072,12 @@
+ 	struct page *page;
+ 	size_t doff, dsize;
+ 
++	/*
++	 * Find the page, and the start of the data within it. This is computed
++	 * differently for linear and scatter ABDs; linear is referenced by
++	 * virtual memory location, while scatter is referenced by page
++	 * pointer.
++	 */
+ 	if (abd_is_linear(aiter->iter_abd)) {
+ 		ASSERT3U(aiter->iter_pos, ==, aiter->iter_offset);
+ 
+@@ -1044,57 +1090,24 @@
+ 
+ 		/* offset of address within the page */
+ 		doff = offset_in_page(paddr);
+-
+-		/* total data remaining in abd from this position */
+-		dsize = aiter->iter_abd->abd_size - aiter->iter_offset;
+ 	} else {
+ 		ASSERT(!abd_is_gang(aiter->iter_abd));
+ 
+ 		/* current scatter page */
+-		page = sg_page(aiter->iter_sg);
++		page = nth_page(sg_page(aiter->iter_sg),
++		    aiter->iter_offset >> PAGE_SHIFT);
+ 
+ 		/* position within page */
+-		doff = aiter->iter_offset;
+-
+-		/* remaining data in scatterlist */
+-		dsize = MIN(aiter->iter_sg->length - aiter->iter_offset,
+-		    aiter->iter_abd->abd_size - aiter->iter_pos);
++		doff = aiter->iter_offset & (PAGESIZE - 1);
+ 	}
+-	ASSERT(page);
+ 
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
++#ifdef ABD_ITER_COMPOUND_PAGES
+ 	if (PageTail(page)) {
+ 		/*
+-		 * This page is part of a "compound page", which is a group of
+-		 * pages that can be referenced from a single struct page *.
+-		 * Its organised as a "head" page, followed by a series of
+-		 * "tail" pages.
+-		 *
+-		 * In OpenZFS, compound pages are allocated using the
+-		 * __GFP_COMP flag, which we get from scatter ABDs and SPL
+-		 * vmalloc slabs (ie >16K allocations). So a great many of the
+-		 * IO buffers we get are going to be of this type.
+-		 *
+-		 * The tail pages are just regular PAGE_SIZE pages, and can be
+-		 * safely used as-is. However, the head page has length
+-		 * covering itself and all the tail pages. If this ABD chunk
+-		 * spans multiple pages, then we can use the head page and a
+-		 * >PAGE_SIZE length, which is far more efficient.
+-		 *
+-		 * To do this, we need to adjust the offset to be counted from
+-		 * the head page. struct page for compound pages are stored
+-		 * contiguously, so we can just adjust by a simple offset.
+-		 *
+-		 * Before kernel 4.5, compound page heads were refcounted
+-		 * separately, such that moving back to the head page would
+-		 * require us to take a reference to it and releasing it once
+-		 * we're completely finished with it. In practice, that means
+-		 * when our caller is done with the ABD, which we have no
+-		 * insight into from here. Rather than contort this API to
+-		 * track head page references on such ancient kernels, we just
+-		 * compile this block out and use the tail pages directly. This
+-		 * is slightly less efficient, but makes everything far
+-		 * simpler.
++		 * If this is a compound tail page, move back to the head, and
++		 * adjust the offset to match. This may let us yield a much
++		 * larger amount of data from a single logical page, and so
++		 * leave our caller with fewer pages to process.
+ 		 */
+ 		struct page *head = compound_head(page);
+ 		doff += ((page - head) * PAGESIZE);
+@@ -1102,12 +1115,27 @@
+ 	}
+ #endif
+ 
+-	/* final page and position within it */
++	ASSERT(page);
++
++	/*
++	 * Compute the maximum amount of data we can take from this page. This
++	 * is the smaller of:
++	 * - the remaining space in the page
++	 * - the remaining space in this scatterlist entry (which may not cover
++	 *   the entire page)
++	 * - the remaining space in the abd (which may not cover the entire
++	 *   scatterlist entry)
++	 */
++	dsize = MIN(ABD_ITER_PAGE_SIZE(page) - doff,
++	    aiter->iter_abd->abd_size - aiter->iter_pos);
++	if (!abd_is_linear(aiter->iter_abd))
++		dsize = MIN(dsize, aiter->iter_sg->length - aiter->iter_offset);
++	ASSERT3U(dsize, >, 0);
++
++	/* final iterator outputs */
+ 	aiter->iter_page = page;
+ 	aiter->iter_page_doff = doff;
+-
+-	/* amount of data in the chunk, up to the end of the page */
+-	aiter->iter_page_dsize = MIN(dsize, page_size(page) - doff);
++	aiter->iter_page_dsize = dsize;
+ }
+ 
+ /*
+diff '--color=auto' -Naur zfs-2.2.4/module/os/linux/zfs/vdev_disk.c zfs-2.2.4.new/module/os/linux/zfs/vdev_disk.c
+--- zfs-2.2.4/module/os/linux/zfs/vdev_disk.c	2024-05-02 23:24:19.725786035 +0200
++++ zfs-2.2.4.new/module/os/linux/zfs/vdev_disk.c	2024-07-20 12:29:50.084862196 +0200
+@@ -150,7 +150,11 @@
+ static uint64_t
+ bdev_capacity(struct block_device *bdev)
+ {
++#ifdef HAVE_BDEV_NR_BYTES
++	return (bdev_nr_bytes(bdev));
++#else
+ 	return (i_size_read(bdev->bd_inode));
++#endif
+ }
+ 
+ #if !defined(HAVE_BDEV_WHOLE)
+@@ -209,7 +213,7 @@
+ 		 * "reserved" EFI partition: in such cases return the device
+ 		 * usable capacity.
+ 		 */
+-		available = i_size_read(bdev_whole(bdev)->bd_inode) -
++		available = bdev_capacity(bdev_whole(bdev)) -
+ 		    ((EFI_MIN_RESV_SIZE + NEW_START_BLOCK +
+ 		    PARTITION_END_ALIGNMENT) << SECTOR_BITS);
+ 		psize = MAX(available, bdev_capacity(bdev));
+@@ -916,12 +920,12 @@
+ 	/*
+ 	 * Accessing outside the block device is never allowed.
+ 	 */
+-	if (zio->io_offset + zio->io_size > bdev->bd_inode->i_size) {
++	if (zio->io_offset + zio->io_size > bdev_capacity(bdev)) {
+ 		vdev_dbgmsg(zio->io_vd,
+ 		    "Illegal access %llu size %llu, device size %llu",
+ 		    (u_longlong_t)zio->io_offset,
+ 		    (u_longlong_t)zio->io_size,
+-		    (u_longlong_t)i_size_read(bdev->bd_inode));
++		    (u_longlong_t)bdev_capacity(bdev));
+ 		return (SET_ERROR(EIO));
+ 	}
+ 
+@@ -1116,12 +1120,12 @@
+ 	/*
+ 	 * Accessing outside the block device is never allowed.
+ 	 */
+-	if (io_offset + io_size > bdev->bd_inode->i_size) {
++	if (io_offset + io_size > bdev_capacity(bdev)) {
+ 		vdev_dbgmsg(zio->io_vd,
+ 		    "Illegal access %llu size %llu, device size %llu",
+ 		    (u_longlong_t)io_offset,
+ 		    (u_longlong_t)io_size,
+-		    (u_longlong_t)i_size_read(bdev->bd_inode));
++		    (u_longlong_t)bdev_capacity(bdev));
+ 		return (SET_ERROR(EIO));
+ 	}
+ 
+diff '--color=auto' -Naur zfs-2.2.4/module/os/linux/zfs/zvol_os.c zfs-2.2.4.new/module/os/linux/zfs/zvol_os.c
+--- zfs-2.2.4/module/os/linux/zfs/zvol_os.c	2024-05-02 23:24:19.740786083 +0200
++++ zfs-2.2.4.new/module/os/linux/zfs/zvol_os.c	2024-07-20 12:29:50.084862196 +0200
+@@ -41,6 +41,7 @@
+ 
+ #include <linux/blkdev_compat.h>
+ #include <linux/task_io_accounting_ops.h>
++#include <linux/workqueue.h>
+ 
+ #ifdef HAVE_BLK_MQ
+ #include <linux/blk-mq.h>
+@@ -384,7 +385,7 @@
+ 	 */
+ 	if (!io_is_secure_erase(bio, rq)) {
+ 		start = P2ROUNDUP(start, zv->zv_volblocksize);
+-		end = P2ALIGN(end, zv->zv_volblocksize);
++		end = P2ALIGN_TYPED(end, zv->zv_volblocksize, uint64_t);
+ 		size = end - start;
+ 	}
+ 
+@@ -1073,8 +1074,106 @@
+ #endif
+ };
+ 
++typedef struct zvol_queue_limits {
++	unsigned int	zql_max_hw_sectors;
++	unsigned short	zql_max_segments;
++	unsigned int	zql_max_segment_size;
++	unsigned int	zql_io_opt;
++} zvol_queue_limits_t;
++
++static void
++zvol_queue_limits_init(zvol_queue_limits_t *limits, zvol_state_t *zv,
++    boolean_t use_blk_mq)
++{
++	limits->zql_max_hw_sectors = (DMU_MAX_ACCESS / 4) >> 9;
++
++	if (use_blk_mq) {
++		/*
++		 * IO requests can be really big (1MB).  When an IO request
++		 * comes in, it is passed off to zvol_read() or zvol_write()
++		 * in a new thread, where it is chunked up into 'volblocksize'
++		 * sized pieces and processed.  So for example, if the request
++		 * is a 1MB write and your volblocksize is 128k, one zvol_write
++		 * thread will take that request and sequentially do ten 128k
++		 * IOs.  This is due to the fact that the thread needs to lock
++		 * each volblocksize sized block.  So you might be wondering:
++		 * "instead of passing the whole 1MB request to one thread,
++		 * why not pass ten individual 128k chunks to ten threads and
++		 * process the whole write in parallel?"  The short answer is
++		 * that there's a sweet spot number of chunks that balances
++		 * the greater parallelism with the added overhead of more
++		 * threads. The sweet spot can be different depending on if you
++		 * have a read or write  heavy workload.  Writes typically want
++		 * high chunk counts while reads typically want lower ones.  On
++		 * a test pool with 6 NVMe drives in a 3x 2-disk mirror
++		 * configuration, with volblocksize=8k, the sweet spot for good
++		 * sequential reads and writes was at 8 chunks.
++		 */
++
++		/*
++		 * Below we tell the kernel how big we want our requests
++		 * to be.  You would think that blk_queue_io_opt() would be
++		 * used to do this since it is used to "set optimal request
++		 * size for the queue", but that doesn't seem to do
++		 * anything - the kernel still gives you huge requests
++		 * with tons of little PAGE_SIZE segments contained within it.
++		 *
++		 * Knowing that the kernel will just give you PAGE_SIZE segments
++		 * no matter what, you can say "ok, I want PAGE_SIZE byte
++		 * segments, and I want 'N' of them per request", where N is
++		 * the correct number of segments for the volblocksize and
++		 * number of chunks you want.
++		 */
++#ifdef HAVE_BLK_MQ
++		if (zvol_blk_mq_blocks_per_thread != 0) {
++			unsigned int chunks;
++			chunks = MIN(zvol_blk_mq_blocks_per_thread, UINT16_MAX);
++
++			limits->zql_max_segment_size = PAGE_SIZE;
++			limits->zql_max_segments =
++			    (zv->zv_volblocksize * chunks) / PAGE_SIZE;
++		} else {
++			/*
++			 * Special case: zvol_blk_mq_blocks_per_thread = 0
++			 * Max everything out.
++			 */
++			limits->zql_max_segments = UINT16_MAX;
++			limits->zql_max_segment_size = UINT_MAX;
++		}
++	} else {
++#endif
++		limits->zql_max_segments = UINT16_MAX;
++		limits->zql_max_segment_size = UINT_MAX;
++	}
++
++	limits->zql_io_opt = zv->zv_volblocksize;
++}
++
++#ifdef HAVE_BLK_ALLOC_DISK_2ARG
++static void
++zvol_queue_limits_convert(zvol_queue_limits_t *limits,
++    struct queue_limits *qlimits)
++{
++	memset(qlimits, 0, sizeof (struct queue_limits));
++	qlimits->max_hw_sectors = limits->zql_max_hw_sectors;
++	qlimits->max_segments = limits->zql_max_segments;
++	qlimits->max_segment_size = limits->zql_max_segment_size;
++	qlimits->io_opt = limits->zql_io_opt;
++}
++#else
++static void
++zvol_queue_limits_apply(zvol_queue_limits_t *limits,
++    struct request_queue *queue)
++{
++	blk_queue_max_hw_sectors(queue, limits->zql_max_hw_sectors);
++	blk_queue_max_segments(queue, limits->zql_max_segments);
++	blk_queue_max_segment_size(queue, limits->zql_max_segment_size);
++	blk_queue_io_opt(queue, limits->zql_io_opt);
++}
++#endif
++
+ static int
+-zvol_alloc_non_blk_mq(struct zvol_state_os *zso)
++zvol_alloc_non_blk_mq(struct zvol_state_os *zso, zvol_queue_limits_t *limits)
+ {
+ #if defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS)
+ #if defined(HAVE_BLK_ALLOC_DISK)
+@@ -1084,8 +1183,11 @@
+ 
+ 	zso->zvo_disk->minors = ZVOL_MINORS;
+ 	zso->zvo_queue = zso->zvo_disk->queue;
++	zvol_queue_limits_apply(limits, zso->zvo_queue);
+ #elif defined(HAVE_BLK_ALLOC_DISK_2ARG)
+-	struct gendisk *disk = blk_alloc_disk(NULL, NUMA_NO_NODE);
++	struct queue_limits qlimits;
++	zvol_queue_limits_convert(limits, &qlimits);
++	struct gendisk *disk = blk_alloc_disk(&qlimits, NUMA_NO_NODE);
+ 	if (IS_ERR(disk)) {
+ 		zso->zvo_disk = NULL;
+ 		return (1);
+@@ -1106,6 +1208,7 @@
+ 	}
+ 
+ 	zso->zvo_disk->queue = zso->zvo_queue;
++	zvol_queue_limits_apply(limits, zso->zvo_queue);
+ #endif /* HAVE_BLK_ALLOC_DISK */
+ #else
+ 	zso->zvo_queue = blk_generic_alloc_queue(zvol_request, NUMA_NO_NODE);
+@@ -1119,13 +1222,14 @@
+ 	}
+ 
+ 	zso->zvo_disk->queue = zso->zvo_queue;
++	zvol_queue_limits_apply(limits, zso->zvo_queue);
+ #endif /* HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS */
+ 	return (0);
+ 
+ }
+ 
+ static int
+-zvol_alloc_blk_mq(zvol_state_t *zv)
++zvol_alloc_blk_mq(zvol_state_t *zv, zvol_queue_limits_t *limits)
+ {
+ #ifdef HAVE_BLK_MQ
+ 	struct zvol_state_os *zso = zv->zv_zso;
+@@ -1141,9 +1245,12 @@
+ 		return (1);
+ 	}
+ 	zso->zvo_queue = zso->zvo_disk->queue;
++	zvol_queue_limits_apply(limits, zso->zvo_queue);
+ 	zso->zvo_disk->minors = ZVOL_MINORS;
+ #elif defined(HAVE_BLK_ALLOC_DISK_2ARG)
+-	struct gendisk *disk = blk_mq_alloc_disk(&zso->tag_set, NULL, zv);
++	struct queue_limits qlimits;
++	zvol_queue_limits_convert(limits, &qlimits);
++	struct gendisk *disk = blk_mq_alloc_disk(&zso->tag_set, &qlimits, zv);
+ 	if (IS_ERR(disk)) {
+ 		zso->zvo_disk = NULL;
+ 		blk_mq_free_tag_set(&zso->tag_set);
+@@ -1169,6 +1276,7 @@
+ 
+ 	/* Our queue is now created, assign it to our disk */
+ 	zso->zvo_disk->queue = zso->zvo_queue;
++	zvol_queue_limits_apply(limits, zso->zvo_queue);
+ 
+ #endif
+ #endif
+@@ -1208,6 +1316,9 @@
+ 	zv->zv_zso->use_blk_mq = zvol_use_blk_mq;
+ #endif
+ 
++	zvol_queue_limits_t limits;
++	zvol_queue_limits_init(&limits, zv, zv->zv_zso->use_blk_mq);
++
+ 	/*
+ 	 * The block layer has 3 interfaces for getting BIOs:
+ 	 *
+@@ -1224,10 +1335,10 @@
+ 	 *    disk and the queue separately. (5.13 kernel or older)
+ 	 */
+ 	if (zv->zv_zso->use_blk_mq) {
+-		ret = zvol_alloc_blk_mq(zv);
++		ret = zvol_alloc_blk_mq(zv, &limits);
+ 		zso->zvo_disk->fops = &zvol_ops_blk_mq;
+ 	} else {
+-		ret = zvol_alloc_non_blk_mq(zso);
++		ret = zvol_alloc_non_blk_mq(zso, &limits);
+ 		zso->zvo_disk->fops = &zvol_ops;
+ 	}
+ 	if (ret != 0)
+@@ -1337,6 +1448,101 @@
+ {
+ }
+ 
++struct add_disk_work {
++	struct delayed_work work;
++	struct gendisk *disk;
++	int error;
++};
++
++static int
++__zvol_os_add_disk(struct gendisk *disk)
++{
++	int error = 0;
++#ifdef HAVE_ADD_DISK_RET
++	error = add_disk(disk);
++#else
++	add_disk(disk);
++#endif
++	return (error);
++}
++
++#if defined(HAVE_BDEV_FILE_OPEN_BY_PATH)
++static void
++zvol_os_add_disk_work(struct work_struct *work)
++{
++	struct add_disk_work *add_disk_work;
++	add_disk_work = container_of(work, struct add_disk_work, work.work);
++	add_disk_work->error = __zvol_os_add_disk(add_disk_work->disk);
++}
++#endif
++
++/*
++ * SPECIAL CASE:
++ *
++ * This function basically calls add_disk() from a workqueue.   You may be
++ * thinking: why not just call add_disk() directly?
++ *
++ * When you call add_disk(), the zvol appears to the world.  When this happens,
++ * the kernel calls disk_scan_partitions() on the zvol, which behaves
++ * differently on the 6.9+ kernels:
++ *
++ * - 6.8 and older kernels -
++ * disk_scan_partitions()
++ *	handle = bdev_open_by_dev(
++ *		zvol_open()
++ *	bdev_release(handle);
++ *		zvol_release()
++ *
++ *
++ * - 6.9+ kernels -
++ * disk_scan_partitions()
++ * 	file = bdev_file_open_by_dev()
++ *		zvol_open()
++ *	fput(file)
++ *	< wait for return to userspace >
++ *		zvol_release()
++ *
++ * The difference is that the bdev_release() from the 6.8 kernel is synchronous
++ * while the fput() from the 6.9 kernel is async.  Or more specifically it's
++ * async that has to wait until we return to userspace (since it adds the fput
++ * into the caller's work queue with the TWA_RESUME flag set).  This is not the
++ * behavior we want, since we want do things like create+destroy a zvol within
++ * a single ZFS_IOC_CREATE ioctl, and the "create" part needs to release the
++ * reference to the zvol while we're in the IOCTL, which can't wait until we
++ * return to userspace.
++ *
++ * We can get around this since fput() has a special codepath for when it's
++ * running in a kernel thread or interrupt.  In those cases, it just puts the
++ * fput into the system workqueue, which we can force to run with
++ * __flush_workqueue().  That is why we call add_disk() from a workqueue - so it
++ * run from a kernel thread and "tricks" the fput() codepaths.
++ *
++ * Note that __flush_workqueue() is slowly getting deprecated.  This may be ok
++ * though, since our IOCTL will spin on EBUSY waiting for the zvol release (via
++ * fput) to happen, which it eventually, naturally, will from the system_wq
++ * without us explicitly calling __flush_workqueue().
++ */
++static int
++zvol_os_add_disk(struct gendisk *disk)
++{
++#if defined(HAVE_BDEV_FILE_OPEN_BY_PATH)	/* 6.9+ kernel */
++	struct add_disk_work add_disk_work;
++
++	INIT_DELAYED_WORK(&add_disk_work.work, zvol_os_add_disk_work);
++	add_disk_work.disk = disk;
++	add_disk_work.error = 0;
++
++	/* Use *_delayed_work functions since they're not GPL'd */
++	schedule_delayed_work(&add_disk_work.work, 0);
++	flush_delayed_work(&add_disk_work.work);
++
++	__flush_workqueue(system_wq);
++	return (add_disk_work.error);
++#else	/* <= 6.8 kernel */
++	return (__zvol_os_add_disk(disk));
++#endif
++}
++
+ /*
+  * Create a block device minor node and setup the linkage between it
+  * and the specified volume.  Once this function returns the block
+@@ -1409,74 +1615,10 @@
+ 
+ 	set_capacity(zv->zv_zso->zvo_disk, zv->zv_volsize >> 9);
+ 
+-	blk_queue_max_hw_sectors(zv->zv_zso->zvo_queue,
+-	    (DMU_MAX_ACCESS / 4) >> 9);
+ 
+-	if (zv->zv_zso->use_blk_mq) {
+-		/*
+-		 * IO requests can be really big (1MB).  When an IO request
+-		 * comes in, it is passed off to zvol_read() or zvol_write()
+-		 * in a new thread, where it is chunked up into 'volblocksize'
+-		 * sized pieces and processed.  So for example, if the request
+-		 * is a 1MB write and your volblocksize is 128k, one zvol_write
+-		 * thread will take that request and sequentially do ten 128k
+-		 * IOs.  This is due to the fact that the thread needs to lock
+-		 * each volblocksize sized block.  So you might be wondering:
+-		 * "instead of passing the whole 1MB request to one thread,
+-		 * why not pass ten individual 128k chunks to ten threads and
+-		 * process the whole write in parallel?"  The short answer is
+-		 * that there's a sweet spot number of chunks that balances
+-		 * the greater parallelism with the added overhead of more
+-		 * threads. The sweet spot can be different depending on if you
+-		 * have a read or write  heavy workload.  Writes typically want
+-		 * high chunk counts while reads typically want lower ones.  On
+-		 * a test pool with 6 NVMe drives in a 3x 2-disk mirror
+-		 * configuration, with volblocksize=8k, the sweet spot for good
+-		 * sequential reads and writes was at 8 chunks.
+-		 */
+-
+-		/*
+-		 * Below we tell the kernel how big we want our requests
+-		 * to be.  You would think that blk_queue_io_opt() would be
+-		 * used to do this since it is used to "set optimal request
+-		 * size for the queue", but that doesn't seem to do
+-		 * anything - the kernel still gives you huge requests
+-		 * with tons of little PAGE_SIZE segments contained within it.
+-		 *
+-		 * Knowing that the kernel will just give you PAGE_SIZE segments
+-		 * no matter what, you can say "ok, I want PAGE_SIZE byte
+-		 * segments, and I want 'N' of them per request", where N is
+-		 * the correct number of segments for the volblocksize and
+-		 * number of chunks you want.
+-		 */
+-#ifdef HAVE_BLK_MQ
+-		if (zvol_blk_mq_blocks_per_thread != 0) {
+-			unsigned int chunks;
+-			chunks = MIN(zvol_blk_mq_blocks_per_thread, UINT16_MAX);
+-
+-			blk_queue_max_segment_size(zv->zv_zso->zvo_queue,
+-			    PAGE_SIZE);
+-			blk_queue_max_segments(zv->zv_zso->zvo_queue,
+-			    (zv->zv_volblocksize * chunks) / PAGE_SIZE);
+-		} else {
+-			/*
+-			 * Special case: zvol_blk_mq_blocks_per_thread = 0
+-			 * Max everything out.
+-			 */
+-			blk_queue_max_segments(zv->zv_zso->zvo_queue,
+-			    UINT16_MAX);
+-			blk_queue_max_segment_size(zv->zv_zso->zvo_queue,
+-			    UINT_MAX);
+-		}
+-#endif
+-	} else {
+-		blk_queue_max_segments(zv->zv_zso->zvo_queue, UINT16_MAX);
+-		blk_queue_max_segment_size(zv->zv_zso->zvo_queue, UINT_MAX);
+-	}
+ 
+ 	blk_queue_physical_block_size(zv->zv_zso->zvo_queue,
+ 	    zv->zv_volblocksize);
+-	blk_queue_io_opt(zv->zv_zso->zvo_queue, zv->zv_volblocksize);
+ 	blk_queue_max_discard_sectors(zv->zv_zso->zvo_queue,
+ 	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9);
+ 	blk_queue_discard_granularity(zv->zv_zso->zvo_queue,
+@@ -1541,11 +1683,7 @@
+ 		rw_enter(&zvol_state_lock, RW_WRITER);
+ 		zvol_insert(zv);
+ 		rw_exit(&zvol_state_lock);
+-#ifdef HAVE_ADD_DISK_RET
+-		error = add_disk(zv->zv_zso->zvo_disk);
+-#else
+-		add_disk(zv->zv_zso->zvo_disk);
+-#endif
++		error = zvol_os_add_disk(zv->zv_zso->zvo_disk);
+ 	} else {
+ 		ida_simple_remove(&zvol_ida, idx);
+ 	}
+diff '--color=auto' -Naur zfs-2.2.4/module/zcommon/zfs_fletcher.c zfs-2.2.4.new/module/zcommon/zfs_fletcher.c
+--- zfs-2.2.4/module/zcommon/zfs_fletcher.c	2024-05-02 23:24:19.755786131 +0200
++++ zfs-2.2.4.new/module/zcommon/zfs_fletcher.c	2024-07-20 12:29:49.731859725 +0200
+@@ -471,7 +471,8 @@
+     const void *ctx_template, zio_cksum_t *zcp)
+ {
+ 	(void) ctx_template;
+-	const uint64_t p2size = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
++	const uint64_t p2size = P2ALIGN_TYPED(size, FLETCHER_MIN_SIMD_SIZE,
++	    uint64_t);
+ 
+ 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
+ 
+@@ -519,7 +520,8 @@
+     const void *ctx_template, zio_cksum_t *zcp)
+ {
+ 	(void) ctx_template;
+-	const uint64_t p2size = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
++	const uint64_t p2size = P2ALIGN_TYPED(size, FLETCHER_MIN_SIMD_SIZE,
++	    uint64_t);
+ 
+ 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
+ 
+@@ -878,7 +880,7 @@
+ 	fletcher_4_ctx_t *ctx = cdp->acd_ctx;
+ 	fletcher_4_ops_t *ops = (fletcher_4_ops_t *)cdp->acd_private;
+ 	boolean_t native = cdp->acd_byteorder == ZIO_CHECKSUM_NATIVE;
+-	uint64_t asize = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
++	uint64_t asize = P2ALIGN_TYPED(size, FLETCHER_MIN_SIMD_SIZE, uint64_t);
+ 
+ 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
+ 
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/arc.c zfs-2.2.4.new/module/zfs/arc.c
+--- zfs-2.2.4/module/zfs/arc.c	2024-05-02 23:24:19.993786890 +0200
++++ zfs-2.2.4.new/module/zfs/arc.c	2024-07-20 12:29:49.738859773 +0200
+@@ -8879,7 +8879,7 @@
+ 		 * assertions may be violated without functional consequences
+ 		 * as the device is about to be removed.
+ 		 */
+-		ASSERT3U(dev->l2ad_hand + distance, <, dev->l2ad_end);
++		ASSERT3U(dev->l2ad_hand + distance, <=, dev->l2ad_end);
+ 		if (!dev->l2ad_first)
+ 			ASSERT3U(dev->l2ad_hand, <=, dev->l2ad_evict);
+ 	}
+@@ -8895,7 +8895,6 @@
+     abd_t **abd_out)
+ {
+ 	int ret;
+-	void *tmp = NULL;
+ 	abd_t *cabd = NULL, *eabd = NULL, *to_write = hdr->b_l1hdr.b_pabd;
+ 	enum zio_compress compress = HDR_GET_COMPRESS(hdr);
+ 	uint64_t psize = HDR_GET_PSIZE(hdr);
+@@ -8916,12 +8915,11 @@
+ 	 * and copy the data. This may be done to eliminate a dependency on a
+ 	 * shared buffer or to reallocate the buffer to match asize.
+ 	 */
+-	if (HDR_HAS_RABD(hdr) && asize != psize) {
+-		ASSERT3U(asize, >=, psize);
++	if (HDR_HAS_RABD(hdr)) {
++		ASSERT3U(asize, >, psize);
+ 		to_write = abd_alloc_for_io(asize, ismd);
+ 		abd_copy(to_write, hdr->b_crypt_hdr.b_rabd, psize);
+-		if (psize != asize)
+-			abd_zero_off(to_write, psize, asize - psize);
++		abd_zero_off(to_write, psize, asize - psize);
+ 		goto out;
+ 	}
+ 
+@@ -8930,48 +8928,31 @@
+ 		ASSERT3U(size, ==, psize);
+ 		to_write = abd_alloc_for_io(asize, ismd);
+ 		abd_copy(to_write, hdr->b_l1hdr.b_pabd, size);
+-		if (size != asize)
++		if (asize > size)
+ 			abd_zero_off(to_write, size, asize - size);
+ 		goto out;
+ 	}
+ 
+ 	if (compress != ZIO_COMPRESS_OFF && !HDR_COMPRESSION_ENABLED(hdr)) {
+-		/*
+-		 * In some cases, we can wind up with size > asize, so
+-		 * we need to opt for the larger allocation option here.
+-		 *
+-		 * (We also need abd_return_buf_copy in all cases because
+-		 * it's an ASSERT() to modify the buffer before returning it
+-		 * with arc_return_buf(), and all the compressors
+-		 * write things before deciding to fail compression in nearly
+-		 * every case.)
+-		 */
+-		uint64_t bufsize = MAX(size, asize);
+-		cabd = abd_alloc_for_io(bufsize, ismd);
+-		tmp = abd_borrow_buf(cabd, bufsize);
+-
+-		psize = zio_compress_data(compress, to_write, &tmp, size,
+-		    hdr->b_complevel);
+-
+-		if (psize >= asize) {
+-			psize = HDR_GET_PSIZE(hdr);
+-			abd_return_buf_copy(cabd, tmp, bufsize);
+-			HDR_SET_COMPRESS(hdr, ZIO_COMPRESS_OFF);
+-			to_write = cabd;
+-			abd_copy(to_write, hdr->b_l1hdr.b_pabd, psize);
+-			if (psize != asize)
+-				abd_zero_off(to_write, psize, asize - psize);
+-			goto encrypt;
++		size_t bufsize = MAX(size, asize);
++		void *buf = zio_buf_alloc(bufsize);
++		uint64_t csize = zio_compress_data(compress, to_write, &buf,
++		    size, hdr->b_complevel);
++		if (csize > psize) {
++			/*
++			 * We can't re-compress the block into the original
++			 * psize.  Even if it fits into asize, it does not
++			 * matter, since checksum will never match on read.
++			 */
++			zio_buf_free(buf, bufsize);
++			return (SET_ERROR(EIO));
+ 		}
+-		ASSERT3U(psize, <=, HDR_GET_PSIZE(hdr));
+-		if (psize < asize)
+-			memset((char *)tmp + psize, 0, bufsize - psize);
+-		psize = HDR_GET_PSIZE(hdr);
+-		abd_return_buf_copy(cabd, tmp, bufsize);
+-		to_write = cabd;
++		if (asize > csize)
++			memset((char *)buf + csize, 0, asize - csize);
++		to_write = cabd = abd_get_from_buf(buf, bufsize);
++		abd_take_ownership_of_buf(cabd, B_TRUE);
+ 	}
+ 
+-encrypt:
+ 	if (HDR_ENCRYPTED(hdr)) {
+ 		eabd = abd_alloc_for_io(asize, ismd);
+ 
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/btree.c zfs-2.2.4.new/module/zfs/btree.c
+--- zfs-2.2.4/module/zfs/btree.c	2024-05-02 23:24:19.800786275 +0200
++++ zfs-2.2.4.new/module/zfs/btree.c	2024-07-20 12:29:49.731859725 +0200
+@@ -218,7 +218,7 @@
+ 	    zfs_btree_find_in_buf : bt_find_in_buf;
+ 	tree->bt_elem_size = size;
+ 	tree->bt_leaf_size = lsize;
+-	tree->bt_leaf_cap = P2ALIGN(esize / size, 2);
++	tree->bt_leaf_cap = P2ALIGN_TYPED(esize / size, 2, size_t);
+ 	tree->bt_height = -1;
+ 	tree->bt_bulk = NULL;
+ }
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/dbuf.c zfs-2.2.4.new/module/zfs/dbuf.c
+--- zfs-2.2.4/module/zfs/dbuf.c	2024-05-02 23:24:20.000786912 +0200
++++ zfs-2.2.4.new/module/zfs/dbuf.c	2024-07-20 12:29:50.323863870 +0200
+@@ -161,13 +161,13 @@
+ } dbuf_sums;
+ 
+ #define	DBUF_STAT_INCR(stat, val)	\
+-	wmsum_add(&dbuf_sums.stat, val);
++	wmsum_add(&dbuf_sums.stat, val)
+ #define	DBUF_STAT_DECR(stat, val)	\
+-	DBUF_STAT_INCR(stat, -(val));
++	DBUF_STAT_INCR(stat, -(val))
+ #define	DBUF_STAT_BUMP(stat)		\
+-	DBUF_STAT_INCR(stat, 1);
++	DBUF_STAT_INCR(stat, 1)
+ #define	DBUF_STAT_BUMPDOWN(stat)	\
+-	DBUF_STAT_INCR(stat, -1);
++	DBUF_STAT_INCR(stat, -1)
+ #define	DBUF_STAT_MAX(stat, v) {					\
+ 	uint64_t _m;							\
+ 	while ((v) > (_m = dbuf_stats.stat.value.ui64) &&		\
+@@ -177,7 +177,6 @@
+ 
+ static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
+ static void dbuf_sync_leaf_verify_bonus_dnode(dbuf_dirty_record_t *dr);
+-static int dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, uint32_t flags);
+ 
+ /*
+  * Global data structures and functions for the dbuf cache.
+@@ -1403,13 +1402,9 @@
+  * a decrypted block. Otherwise success.
+  */
+ static int
+-dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn, uint32_t flags)
++dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn)
+ {
+-	int bonuslen, max_bonuslen, err;
+-
+-	err = dbuf_read_verify_dnode_crypt(db, flags);
+-	if (err)
+-		return (err);
++	int bonuslen, max_bonuslen;
+ 
+ 	bonuslen = MIN(dn->dn_bonuslen, dn->dn_phys->dn_bonuslen);
+ 	max_bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
+@@ -1494,32 +1489,46 @@
+  * decrypt / authenticate them when we need to read an encrypted bonus buffer.
+  */
+ static int
+-dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, uint32_t flags)
++dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, dnode_t *dn, uint32_t flags)
+ {
+-	int err = 0;
+ 	objset_t *os = db->db_objset;
+-	arc_buf_t *dnode_abuf;
+-	dnode_t *dn;
++	dmu_buf_impl_t *dndb;
++	arc_buf_t *dnbuf;
+ 	zbookmark_phys_t zb;
+-
+-	ASSERT(MUTEX_HELD(&db->db_mtx));
++	int err;
+ 
+ 	if ((flags & DB_RF_NO_DECRYPT) != 0 ||
+-	    !os->os_encrypted || os->os_raw_receive)
++	    !os->os_encrypted || os->os_raw_receive ||
++	    (dndb = dn->dn_dbuf) == NULL)
+ 		return (0);
+ 
+-	DB_DNODE_ENTER(db);
+-	dn = DB_DNODE(db);
+-	dnode_abuf = (dn->dn_dbuf != NULL) ? dn->dn_dbuf->db_buf : NULL;
+-
+-	if (dnode_abuf == NULL || !arc_is_encrypted(dnode_abuf)) {
+-		DB_DNODE_EXIT(db);
++	dnbuf = dndb->db_buf;
++	if (!arc_is_encrypted(dnbuf))
+ 		return (0);
+-	}
++
++	mutex_enter(&dndb->db_mtx);
++
++	/*
++	 * Since dnode buffer is modified by sync process, there can be only
++	 * one copy of it.  It means we can not modify (decrypt) it while it
++	 * is being written.  I don't see how this may happen now, since
++	 * encrypted dnode writes by receive should be completed before any
++	 * plain-text reads due to txg wait, but better be safe than sorry.
++	 */
++	while (1) {
++		if (!arc_is_encrypted(dnbuf)) {
++			mutex_exit(&dndb->db_mtx);
++			return (0);
++		}
++		dbuf_dirty_record_t *dr = dndb->db_data_pending;
++		if (dr == NULL || dr->dt.dl.dr_data != dnbuf)
++			break;
++		cv_wait(&dndb->db_changed, &dndb->db_mtx);
++	};
+ 
+ 	SET_BOOKMARK(&zb, dmu_objset_id(os),
+-	    DMU_META_DNODE_OBJECT, 0, dn->dn_dbuf->db_blkid);
+-	err = arc_untransform(dnode_abuf, os->os_spa, &zb, B_TRUE);
++	    DMU_META_DNODE_OBJECT, 0, dndb->db_blkid);
++	err = arc_untransform(dnbuf, os->os_spa, &zb, B_TRUE);
+ 
+ 	/*
+ 	 * An error code of EACCES tells us that the key is still not
+@@ -1532,7 +1541,7 @@
+ 	    !DMU_OT_IS_ENCRYPTED(dn->dn_bonustype))))
+ 		err = 0;
+ 
+-	DB_DNODE_EXIT(db);
++	mutex_exit(&dndb->db_mtx);
+ 
+ 	return (err);
+ }
+@@ -1558,7 +1567,7 @@
+ 	    RW_LOCK_HELD(&db->db_parent->db_rwlock));
+ 
+ 	if (db->db_blkid == DMU_BONUS_BLKID) {
+-		err = dbuf_read_bonus(db, dn, flags);
++		err = dbuf_read_bonus(db, dn);
+ 		goto early_unlock;
+ 	}
+ 
+@@ -1619,10 +1628,6 @@
+ 		goto early_unlock;
+ 	}
+ 
+-	err = dbuf_read_verify_dnode_crypt(db, flags);
+-	if (err != 0)
+-		goto early_unlock;
+-
+ 	db->db_state = DB_READ;
+ 	DTRACE_SET_STATE(db, "read issued");
+ 	mutex_exit(&db->db_mtx);
+@@ -1738,19 +1743,23 @@
+ int
+ dbuf_read(dmu_buf_impl_t *db, zio_t *pio, uint32_t flags)
+ {
+-	int err = 0;
+-	boolean_t prefetch;
+ 	dnode_t *dn;
++	boolean_t miss = B_TRUE, need_wait = B_FALSE, prefetch;
++	int err;
+ 
+-	/*
+-	 * We don't have to hold the mutex to check db_state because it
+-	 * can't be freed while we have a hold on the buffer.
+-	 */
+ 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+ 
+ 	DB_DNODE_ENTER(db);
+ 	dn = DB_DNODE(db);
+ 
++	/*
++	 * Ensure that this block's dnode has been decrypted if the caller
++	 * has requested decrypted data.
++	 */
++	err = dbuf_read_verify_dnode_crypt(db, dn, flags);
++	if (err != 0)
++		goto done;
++
+ 	prefetch = db->db_level == 0 && db->db_blkid != DMU_BONUS_BLKID &&
+ 	    (flags & DB_RF_NOPREFETCH) == 0;
+ 
+@@ -1759,13 +1768,38 @@
+ 		db->db_partial_read = B_TRUE;
+ 	else if (!(flags & DB_RF_PARTIAL_MORE))
+ 		db->db_partial_read = B_FALSE;
+-	if (db->db_state == DB_CACHED) {
++	miss = (db->db_state != DB_CACHED);
++
++	if (db->db_state == DB_READ || db->db_state == DB_FILL) {
+ 		/*
+-		 * Ensure that this block's dnode has been decrypted if
+-		 * the caller has requested decrypted data.
++		 * Another reader came in while the dbuf was in flight between
++		 * UNCACHED and CACHED.  Either a writer will finish filling
++		 * the buffer, sending the dbuf to CACHED, or the first reader's
++		 * request will reach the read_done callback and send the dbuf
++		 * to CACHED.  Otherwise, a failure occurred and the dbuf will
++		 * be sent to UNCACHED.
+ 		 */
+-		err = dbuf_read_verify_dnode_crypt(db, flags);
++		if (flags & DB_RF_NEVERWAIT) {
++			mutex_exit(&db->db_mtx);
++			DB_DNODE_EXIT(db);
++			goto done;
++		}
++		do {
++			ASSERT(db->db_state == DB_READ ||
++			    (flags & DB_RF_HAVESTRUCT) == 0);
++			DTRACE_PROBE2(blocked__read, dmu_buf_impl_t *, db,
++			    zio_t *, pio);
++			cv_wait(&db->db_changed, &db->db_mtx);
++		} while (db->db_state == DB_READ || db->db_state == DB_FILL);
++		if (db->db_state == DB_UNCACHED) {
++			err = SET_ERROR(EIO);
++			mutex_exit(&db->db_mtx);
++			DB_DNODE_EXIT(db);
++			goto done;
++		}
++	}
+ 
++	if (db->db_state == DB_CACHED) {
+ 		/*
+ 		 * If the arc buf is compressed or encrypted and the caller
+ 		 * requested uncompressed data, we need to untransform it
+@@ -1773,8 +1807,7 @@
+ 		 * unauthenticated blocks, which will verify their MAC if
+ 		 * the key is now available.
+ 		 */
+-		if (err == 0 && db->db_buf != NULL &&
+-		    (flags & DB_RF_NO_DECRYPT) == 0 &&
++		if ((flags & DB_RF_NO_DECRYPT) == 0 && db->db_buf != NULL &&
+ 		    (arc_is_encrypted(db->db_buf) ||
+ 		    arc_is_unauthenticated(db->db_buf) ||
+ 		    arc_get_compression(db->db_buf) != ZIO_COMPRESS_OFF)) {
+@@ -1788,17 +1821,10 @@
+ 			dbuf_set_data(db, db->db_buf);
+ 		}
+ 		mutex_exit(&db->db_mtx);
+-		if (err == 0 && prefetch) {
+-			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1, B_TRUE,
+-			    B_FALSE, flags & DB_RF_HAVESTRUCT);
+-		}
+-		DB_DNODE_EXIT(db);
+-		DBUF_STAT_BUMP(hash_hits);
+-	} else if (db->db_state == DB_UNCACHED || db->db_state == DB_NOFILL) {
+-		boolean_t need_wait = B_FALSE;
+-
++	} else {
++		ASSERT(db->db_state == DB_UNCACHED ||
++		    db->db_state == DB_NOFILL);
+ 		db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+-
+ 		if (pio == NULL && (db->db_state == DB_NOFILL ||
+ 		    (db->db_blkptr != NULL && !BP_IS_HOLE(db->db_blkptr)))) {
+ 			spa_t *spa = dn->dn_objset->os_spa;
+@@ -1806,65 +1832,33 @@
+ 			need_wait = B_TRUE;
+ 		}
+ 		err = dbuf_read_impl(db, dn, pio, flags, dblt, FTAG);
+-		/*
+-		 * dbuf_read_impl has dropped db_mtx and our parent's rwlock
+-		 * for us
+-		 */
+-		if (!err && prefetch) {
+-			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1, B_TRUE,
+-			    db->db_state != DB_CACHED,
+-			    flags & DB_RF_HAVESTRUCT);
+-		}
+-
+-		DB_DNODE_EXIT(db);
+-		DBUF_STAT_BUMP(hash_misses);
++		/* dbuf_read_impl drops db_mtx and parent's rwlock. */
++		miss = (db->db_state != DB_CACHED);
++	}
+ 
+-		/*
+-		 * If we created a zio_root we must execute it to avoid
+-		 * leaking it, even if it isn't attached to any work due
+-		 * to an error in dbuf_read_impl().
+-		 */
+-		if (need_wait) {
+-			if (err == 0)
+-				err = zio_wait(pio);
+-			else
+-				(void) zio_wait(pio);
+-			pio = NULL;
+-		}
+-	} else {
+-		/*
+-		 * Another reader came in while the dbuf was in flight
+-		 * between UNCACHED and CACHED.  Either a writer will finish
+-		 * writing the buffer (sending the dbuf to CACHED) or the
+-		 * first reader's request will reach the read_done callback
+-		 * and send the dbuf to CACHED.  Otherwise, a failure
+-		 * occurred and the dbuf went to UNCACHED.
+-		 */
+-		mutex_exit(&db->db_mtx);
+-		if (prefetch) {
+-			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1, B_TRUE,
+-			    B_TRUE, flags & DB_RF_HAVESTRUCT);
+-		}
+-		DB_DNODE_EXIT(db);
+-		DBUF_STAT_BUMP(hash_misses);
++	if (err == 0 && prefetch) {
++		dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1, B_TRUE, miss,
++		    flags & DB_RF_HAVESTRUCT);
++	}
++	DB_DNODE_EXIT(db);
+ 
+-		/* Skip the wait per the caller's request. */
+-		if ((flags & DB_RF_NEVERWAIT) == 0) {
+-			mutex_enter(&db->db_mtx);
+-			while (db->db_state == DB_READ ||
+-			    db->db_state == DB_FILL) {
+-				ASSERT(db->db_state == DB_READ ||
+-				    (flags & DB_RF_HAVESTRUCT) == 0);
+-				DTRACE_PROBE2(blocked__read, dmu_buf_impl_t *,
+-				    db, zio_t *, pio);
+-				cv_wait(&db->db_changed, &db->db_mtx);
+-			}
+-			if (db->db_state == DB_UNCACHED)
+-				err = SET_ERROR(EIO);
+-			mutex_exit(&db->db_mtx);
+-		}
++	/*
++	 * If we created a zio we must execute it to avoid leaking it, even if
++	 * it isn't attached to any work due to an error in dbuf_read_impl().
++	 */
++	if (need_wait) {
++		if (err == 0)
++			err = zio_wait(pio);
++		else
++			(void) zio_wait(pio);
++		pio = NULL;
+ 	}
+ 
++done:
++	if (miss)
++		DBUF_STAT_BUMP(hash_misses);
++	else
++		DBUF_STAT_BUMP(hash_hits);
+ 	if (pio && err != 0) {
+ 		zio_t *zio = zio_null(pio, pio->io_spa, NULL, NULL, NULL,
+ 		    ZIO_FLAG_CANFAIL);
+@@ -2840,6 +2834,7 @@
+ 			failed = B_FALSE;
+ 		} else if (failed) {
+ 			VERIFY(!dbuf_undirty(db, tx));
++			arc_buf_destroy(db->db_buf, db);
+ 			db->db_buf = NULL;
+ 			dbuf_clear_data(db);
+ 			DTRACE_SET_STATE(db, "fill failed");
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/dmu.c zfs-2.2.4.new/module/zfs/dmu.c
+--- zfs-2.2.4/module/zfs/dmu.c	2024-05-02 23:24:20.010786944 +0200
++++ zfs-2.2.4.new/module/zfs/dmu.c	2024-07-20 12:29:49.731859725 +0200
+@@ -537,7 +537,8 @@
+ 	if (dn->dn_datablkshift) {
+ 		int blkshift = dn->dn_datablkshift;
+ 		nblks = (P2ROUNDUP(offset + length, 1ULL << blkshift) -
+-		    P2ALIGN(offset, 1ULL << blkshift)) >> blkshift;
++		    P2ALIGN_TYPED(offset, 1ULL << blkshift, uint64_t))
++		    >> blkshift;
+ 	} else {
+ 		if (offset + length > dn->dn_datablksz) {
+ 			zfs_panic_recover("zfs: accessing past end of object "
+@@ -854,7 +855,7 @@
+ 		}
+ 
+ 		/* set start to the beginning of this L1 indirect */
+-		*start = P2ALIGN(*start, iblkrange);
++		*start = P2ALIGN_TYPED(*start, iblkrange, uint64_t);
+ 	}
+ 	if (*start < minimum)
+ 		*start = minimum;
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/dmu_object.c zfs-2.2.4.new/module/zfs/dmu_object.c
+--- zfs-2.2.4/module/zfs/dmu_object.c	2024-05-02 23:24:19.807786297 +0200
++++ zfs-2.2.4.new/module/zfs/dmu_object.c	2024-07-20 12:29:49.731859725 +0200
+@@ -160,7 +160,7 @@
+ 			 * is not suitably aligned.
+ 			 */
+ 			os->os_obj_next_chunk =
+-			    P2ALIGN(object, dnodes_per_chunk) +
++			    P2ALIGN_TYPED(object, dnodes_per_chunk, uint64_t) +
+ 			    dnodes_per_chunk;
+ 			(void) atomic_swap_64(cpuobj, object);
+ 			mutex_exit(&os->os_obj_lock);
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/dmu_objset.c zfs-2.2.4.new/module/zfs/dmu_objset.c
+--- zfs-2.2.4/module/zfs/dmu_objset.c	2024-05-02 23:24:20.013786954 +0200
++++ zfs-2.2.4.new/module/zfs/dmu_objset.c	2024-07-20 12:29:49.734859746 +0200
+@@ -400,10 +400,10 @@
+ 
+ 	ASSERT(zfs_crc64_table[128] == ZFS_CRC64_POLY);
+ 	/*
+-	 * The low 6 bits of the pointer don't have much entropy, because
+-	 * the objset_t is larger than 2^6 bytes long.
++	 * The lower 11 bits of the pointer don't have much entropy, because
++	 * the objset_t is more than 1KB long and so likely aligned to 2KB.
+ 	 */
+-	crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (osv >> 6)) & 0xFF];
++	crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (osv >> 11)) & 0xFF];
+ 	crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (obj >> 0)) & 0xFF];
+ 	crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (obj >> 8)) & 0xFF];
+ 	crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (obj >> 16)) & 0xFF];
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/dsl_dataset.c zfs-2.2.4.new/module/zfs/dsl_dataset.c
+--- zfs-2.2.4/module/zfs/dsl_dataset.c	2024-05-02 23:24:20.033787017 +0200
++++ zfs-2.2.4.new/module/zfs/dsl_dataset.c	2024-07-20 12:29:49.738859773 +0200
+@@ -3710,16 +3710,19 @@
+ 	spa_history_log_internal_ds(hds, "promote", tx, " ");
+ 
+ 	dsl_dir_rele(odd, FTAG);
+-	promote_rele(ddpa, FTAG);
+ 
+ 	/*
+-	 * Transfer common error blocks from old head to new head.
++	 * Transfer common error blocks from old head to new head, before
++	 * calling promote_rele() on ddpa since we need to dereference
++	 * origin_head and hds.
+ 	 */
+ 	if (spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_HEAD_ERRLOG)) {
+ 		uint64_t old_head = origin_head->ds_object;
+ 		uint64_t new_head = hds->ds_object;
+ 		spa_swap_errlog(dp->dp_spa, new_head, old_head, tx);
+ 	}
++
++	promote_rele(ddpa, FTAG);
+ }
+ 
+ /*
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/dsl_scan.c zfs-2.2.4.new/module/zfs/dsl_scan.c
+--- zfs-2.2.4/module/zfs/dsl_scan.c	2024-05-02 23:24:20.043787049 +0200
++++ zfs-2.2.4.new/module/zfs/dsl_scan.c	2024-07-20 12:29:49.734859746 +0200
+@@ -491,6 +491,7 @@
+ 
+ 	avl_create(&scn->scn_queue, scan_ds_queue_compare, sizeof (scan_ds_t),
+ 	    offsetof(scan_ds_t, sds_node));
++	mutex_init(&scn->scn_queue_lock, NULL, MUTEX_DEFAULT, NULL);
+ 	avl_create(&scn->scn_prefetch_queue, scan_prefetch_queue_compare,
+ 	    sizeof (scan_prefetch_issue_ctx_t),
+ 	    offsetof(scan_prefetch_issue_ctx_t, spic_avl_node));
+@@ -646,6 +647,7 @@
+ 
+ 		scan_ds_queue_clear(scn);
+ 		avl_destroy(&scn->scn_queue);
++		mutex_destroy(&scn->scn_queue_lock);
+ 		scan_ds_prefetch_queue_clear(scn);
+ 		avl_destroy(&scn->scn_prefetch_queue);
+ 
+@@ -2727,8 +2729,10 @@
+ 			return (err);
+ 		ds = prev;
+ 	}
++	mutex_enter(&scn->scn_queue_lock);
+ 	scan_ds_queue_insert(scn, ds->ds_object,
+ 	    dsl_dataset_phys(ds)->ds_prev_snap_txg);
++	mutex_exit(&scn->scn_queue_lock);
+ 	dsl_dataset_rele(ds, FTAG);
+ 	return (0);
+ }
+@@ -2919,8 +2923,10 @@
+ 		ds = prev;
+ 	}
+ 
++	mutex_enter(&scn->scn_queue_lock);
+ 	scan_ds_queue_insert(scn, ds->ds_object,
+ 	    dsl_dataset_phys(ds)->ds_prev_snap_txg);
++	mutex_exit(&scn->scn_queue_lock);
+ 	dsl_dataset_rele(ds, FTAG);
+ 	return (0);
+ }
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/metaslab.c zfs-2.2.4.new/module/zfs/metaslab.c
+--- zfs-2.2.4/module/zfs/metaslab.c	2024-05-02 23:24:20.045787056 +0200
++++ zfs-2.2.4.new/module/zfs/metaslab.c	2024-07-20 12:29:50.323863870 +0200
+@@ -629,8 +629,8 @@
+ 		 * metaslabs. We report the expandable space in terms
+ 		 * of the metaslab size since that's the unit of expansion.
+ 		 */
+-		space += P2ALIGN(tvd->vdev_max_asize - tvd->vdev_asize,
+-		    1ULL << tvd->vdev_ms_shift);
++		space += P2ALIGN_TYPED(tvd->vdev_max_asize - tvd->vdev_asize,
++		    1ULL << tvd->vdev_ms_shift, uint64_t);
+ 	}
+ 	spa_config_exit(mc->mc_spa, SCL_VDEV, FTAG);
+ 	return (space);
+@@ -640,6 +640,7 @@
+ metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
+ {
+ 	multilist_t *ml = &mc->mc_metaslab_txg_list;
++	hrtime_t now = gethrtime();
+ 	for (int i = 0; i < multilist_get_num_sublists(ml); i++) {
+ 		multilist_sublist_t *mls = multilist_sublist_lock_idx(ml, i);
+ 		metaslab_t *msp = multilist_sublist_head(mls);
+@@ -663,8 +664,10 @@
+ 			multilist_sublist_unlock(mls);
+ 			if (txg >
+ 			    msp->ms_selected_txg + metaslab_unload_delay &&
+-			    gethrtime() > msp->ms_selected_time +
+-			    (uint64_t)MSEC2NSEC(metaslab_unload_delay_ms)) {
++			    now > msp->ms_selected_time +
++			    MSEC2NSEC(metaslab_unload_delay_ms) &&
++			    (msp->ms_allocator == -1 ||
++			    !metaslab_preload_enabled)) {
+ 				metaslab_evict(msp, txg);
+ 			} else {
+ 				/*
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/spa.c zfs-2.2.4.new/module/zfs/spa.c
+--- zfs-2.2.4/module/zfs/spa.c	2024-05-02 23:24:20.052787078 +0200
++++ zfs-2.2.4.new/module/zfs/spa.c	2024-07-20 12:29:50.324863877 +0200
+@@ -9939,6 +9939,9 @@
+ 
+ 	metaslab_class_evict_old(spa->spa_normal_class, txg);
+ 	metaslab_class_evict_old(spa->spa_log_class, txg);
++	/* spa_embedded_log_class has only one metaslab per vdev. */
++	metaslab_class_evict_old(spa->spa_special_class, txg);
++	metaslab_class_evict_old(spa->spa_dedup_class, txg);
+ 
+ 	spa_sync_close_syncing_log_sm(spa);
+ 
+@@ -10561,10 +10564,10 @@
+ ZFS_MODULE_PARAM(zfs_spa, spa_, load_print_vdev_tree, INT, ZMOD_RW,
+ 	"Print vdev tree to zfs_dbgmsg during pool import");
+ 
+-ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_pct, UINT, ZMOD_RD,
++ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_pct, UINT, ZMOD_RW,
+ 	"Percentage of CPUs to run an IO worker thread");
+ 
+-ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_tpq, UINT, ZMOD_RD,
++ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_tpq, UINT, ZMOD_RW,
+ 	"Number of threads per IO worker taskqueue");
+ 
+ /* BEGIN CSTYLED */
+@@ -10595,10 +10598,10 @@
+ 
+ #ifdef _KERNEL
+ ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_read,
+-	spa_taskq_read_param_set, spa_taskq_read_param_get, ZMOD_RD,
++	spa_taskq_read_param_set, spa_taskq_read_param_get, ZMOD_RW,
+ 	"Configure IO queues for read IO");
+ ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_write,
+-	spa_taskq_write_param_set, spa_taskq_write_param_get, ZMOD_RD,
++	spa_taskq_write_param_set, spa_taskq_write_param_get, ZMOD_RW,
+ 	"Configure IO queues for write IO");
+ #endif
+ /* END CSTYLED */
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/vdev.c zfs-2.2.4.new/module/zfs/vdev.c
+--- zfs-2.2.4/module/zfs/vdev.c	2024-05-02 23:24:20.067787126 +0200
++++ zfs-2.2.4.new/module/zfs/vdev.c	2024-07-20 12:29:50.324863877 +0200
+@@ -347,7 +347,8 @@
+ 	 * to the nearest metaslab.
+ 	 */
+ 	if (vd == vd->vdev_top)
+-		return (P2ALIGN(vd->vdev_asize, 1ULL << vd->vdev_ms_shift));
++		return (P2ALIGN_TYPED(vd->vdev_asize, 1ULL << vd->vdev_ms_shift,
++		    uint64_t));
+ 
+ 	return (pvd->vdev_ops->vdev_op_min_asize(pvd));
+ }
+@@ -2007,6 +2008,7 @@
+ 	vd->vdev_stat.vs_aux = VDEV_AUX_NONE;
+ 	vd->vdev_cant_read = B_FALSE;
+ 	vd->vdev_cant_write = B_FALSE;
++	vd->vdev_fault_wanted = B_FALSE;
+ 	vd->vdev_min_asize = vdev_get_min_asize(vd);
+ 
+ 	/*
+@@ -2107,8 +2109,8 @@
+ 		}
+ 	}
+ 
+-	osize = P2ALIGN(osize, (uint64_t)sizeof (vdev_label_t));
+-	max_osize = P2ALIGN(max_osize, (uint64_t)sizeof (vdev_label_t));
++	osize = P2ALIGN_TYPED(osize, sizeof (vdev_label_t), uint64_t);
++	max_osize = P2ALIGN_TYPED(max_osize, sizeof (vdev_label_t), uint64_t);
+ 
+ 	if (vd->vdev_children == 0) {
+ 		if (osize < SPA_MINDEVSIZE) {
+@@ -4730,9 +4732,9 @@
+ 		 * can expand.
+ 		 */
+ 		if (vd->vdev_aux == NULL && tvd != NULL) {
+-			vs->vs_esize = P2ALIGN(
++			vs->vs_esize = P2ALIGN_TYPED(
+ 			    vd->vdev_max_asize - vd->vdev_asize,
+-			    1ULL << tvd->vdev_ms_shift);
++			    1ULL << tvd->vdev_ms_shift, uint64_t);
+ 		}
+ 
+ 		vs->vs_configured_ashift = vd->vdev_top != NULL
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/zap.c zfs-2.2.4.new/module/zfs/zap.c
+--- zfs-2.2.4/module/zfs/zap.c	2024-05-02 23:24:20.089787196 +0200
++++ zfs-2.2.4.new/module/zfs/zap.c	2024-07-20 12:29:49.734859746 +0200
+@@ -635,6 +635,7 @@
+ 		uint64_t object = zap->zap_object;
+ 
+ 		zap_put_leaf(l);
++		*lp = l = NULL;
+ 		zap_unlockdir(zap, tag);
+ 		err = zap_lockdir(os, object, tx, RW_WRITER,
+ 		    FALSE, FALSE, tag, &zn->zn_zap);
+@@ -844,21 +845,17 @@
+ 	} else if (err == EAGAIN) {
+ 		err = zap_expand_leaf(zn, l, tag, tx, &l);
+ 		zap = zn->zn_zap;	/* zap_expand_leaf() may change zap */
+-		if (err == 0) {
++		if (err == 0)
+ 			goto retry;
+-		} else if (err == ENOSPC) {
+-			/*
+-			 * If we failed to expand the leaf, then bailout
+-			 * as there is no point trying
+-			 * zap_put_leaf_maybe_grow_ptrtbl().
+-			 */
+-			return (err);
+-		}
+ 	}
+ 
+ out:
+-	if (zap != NULL)
+-		zap_put_leaf_maybe_grow_ptrtbl(zn, l, tag, tx);
++	if (l != NULL) {
++		if (err == ENOSPC)
++			zap_put_leaf(l);
++		else
++			zap_put_leaf_maybe_grow_ptrtbl(zn, l, tag, tx);
++	}
+ 	return (err);
+ }
+ 
+@@ -915,8 +912,12 @@
+ 			goto retry;
+ 	}
+ 
+-	if (zap != NULL)
+-		zap_put_leaf_maybe_grow_ptrtbl(zn, l, tag, tx);
++	if (l != NULL) {
++		if (err == ENOSPC)
++			zap_put_leaf(l);
++		else
++			zap_put_leaf_maybe_grow_ptrtbl(zn, l, tag, tx);
++	}
+ 	return (err);
+ }
+ 
+diff '--color=auto' -Naur zfs-2.2.4/module/zfs/zfs_log.c zfs-2.2.4.new/module/zfs/zfs_log.c
+--- zfs-2.2.4/module/zfs/zfs_log.c	2024-05-02 23:24:20.096787218 +0200
++++ zfs-2.2.4.new/module/zfs/zfs_log.c	2024-07-20 12:29:49.734859746 +0200
+@@ -903,7 +903,7 @@
+ 	itx_t *itx;
+ 	lr_clone_range_t *lr;
+ 	uint64_t partlen, max_log_data;
+-	size_t i, partnbps;
++	size_t partnbps;
+ 
+ 	if (zil_replaying(zilog, tx) || zp->z_unlinked)
+ 		return;
+@@ -912,10 +912,8 @@
+ 
+ 	while (nbps > 0) {
+ 		partnbps = MIN(nbps, max_log_data / sizeof (bps[0]));
+-		partlen = 0;
+-		for (i = 0; i < partnbps; i++) {
+-			partlen += BP_GET_LSIZE(&bps[i]);
+-		}
++		partlen = partnbps * blksz;
++		ASSERT3U(partlen, <, len + blksz);
+ 		partlen = MIN(partlen, len);
+ 
+ 		itx = zil_itx_create(txtype,
+diff '--color=auto' -Naur zfs-2.2.4/scripts/dkms.mkconf zfs-2.2.4.new/scripts/dkms.mkconf
+--- zfs-2.2.4/scripts/dkms.mkconf	2024-05-02 23:12:22.347479304 +0200
++++ zfs-2.2.4.new/scripts/dkms.mkconf	2024-07-20 12:29:50.324863877 +0200
+@@ -26,6 +26,7 @@
+ PACKAGE_CONFIG="${pkgcfg}"
+ NO_WEAK_MODULES="yes"
+ PRE_BUILD="configure
++  --disable-dependency-tracking
+   --prefix=/usr
+   --with-config=kernel
+   --with-linux=\$(
+diff '--color=auto' -Naur zfs-2.2.4/scripts/zfs-tests.sh zfs-2.2.4.new/scripts/zfs-tests.sh
+--- zfs-2.2.4/scripts/zfs-tests.sh	2024-05-02 23:12:22.969481192 +0200
++++ zfs-2.2.4.new/scripts/zfs-tests.sh	2024-07-20 12:29:50.106862351 +0200
+@@ -32,6 +32,7 @@
+ PROG=zfs-tests.sh
+ VERBOSE="no"
+ QUIET=""
++DEBUG=""
+ CLEANUP="yes"
+ CLEANUPALL="no"
+ KMSG=""
+@@ -313,6 +314,7 @@
+ 	-h          Show this message
+ 	-v          Verbose zfs-tests.sh output
+ 	-q          Quiet test-runner output
++	-D          Debug; show all test output immediately (noisy)
+ 	-x          Remove all testpools, dm, lo, and files (unsafe)
+ 	-k          Disable cleanup after test failure
+ 	-K          Log test names to /dev/kmsg
+@@ -326,7 +328,8 @@
+ 	-d DIR      Use world-writable DIR for files and loopback devices
+ 	-s SIZE     Use vdevs of SIZE (default: 4G)
+ 	-r RUNFILES Run tests in RUNFILES (default: ${DEFAULT_RUNFILES})
+-	-t PATH     Run single test at PATH relative to test suite
++	-t PATH|NAME  Run single test at PATH relative to test suite,
++	                or search for test by NAME
+ 	-T TAGS     Comma separated list of tags (default: 'functional')
+ 	-u USER     Run single test as USER (default: root)
+ 
+@@ -340,6 +343,9 @@
+ # Run a single test
+ $0 -t tests/functional/cli_root/zfs_bookmark/zfs_bookmark_cliargs.ksh
+ 
++# Run a single test by name
++$0 -t zfs_bookmark_cliargs
++
+ # Cleanup a previous run of the test suite prior to testing, run the
+ # default ($(echo "${DEFAULT_RUNFILES}" | sed 's/\.run//')) suite of tests and perform no cleanup on exit.
+ $0 -x
+@@ -347,7 +353,7 @@
+ EOF
+ }
+ 
+-while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:' OPTION; do
++while getopts 'hvqxkKfScRmn:d:Ds:r:?t:T:u:I:' OPTION; do
+ 	case $OPTION in
+ 	h)
+ 		usage
+@@ -393,6 +399,9 @@
+ 	d)
+ 		FILEDIR="$OPTARG"
+ 		;;
++	D)
++		DEBUG="yes"
++		;;
+ 	I)
+ 		ITERATIONS="$OPTARG"
+ 		if [ "$ITERATIONS" -le 0 ]; then
+@@ -450,8 +459,15 @@
+ post =
+ outputdir = /var/tmp/test_results
+ EOF
+-	SINGLETESTDIR="${SINGLETEST%/*}"
++	if [ "$SINGLETEST" = "${SINGLETEST%/*}" ] ; then
++		NEWSINGLETEST=$(find "$STF_SUITE" -name "$SINGLETEST*" -print -quit)
++		if [ -z "$NEWSINGLETEST" ] ; then
++			fail "couldn't find test matching '$SINGLETEST'"
++		fi
++		SINGLETEST=$NEWSINGLETEST
++	fi
+ 
++	SINGLETESTDIR="${SINGLETEST%/*}"
+ 	SETUPDIR="$SINGLETESTDIR"
+ 	[ "${SETUPDIR#/}" = "$SETUPDIR" ] && SETUPDIR="$STF_SUITE/$SINGLETESTDIR"
+ 	[ -x "$SETUPDIR/setup.ksh"   ] && SETUPSCRIPT="setup"     || SETUPSCRIPT=
+@@ -680,6 +696,7 @@
+ #
+ msg "${TEST_RUNNER}" \
+     "${QUIET:+-q}" \
++    "${DEBUG:+-D}" \
+     "${KMEMLEAK:+-m}" \
+     "${KMSG:+-K}" \
+     "-c \"${RUNFILES}\"" \
+@@ -689,6 +706,7 @@
+ { PATH=$STF_PATH \
+     ${TEST_RUNNER} \
+     ${QUIET:+-q} \
++    ${DEBUG:+-D} \
+     ${KMEMLEAK:+-m} \
+     ${KMSG:+-K} \
+     -c "${RUNFILES}" \
+@@ -715,6 +733,7 @@
+ 	{ PATH=$STF_PATH \
+ 	    ${TEST_RUNNER} \
+ 	        ${QUIET:+-q} \
++	        ${DEBUG:+-D} \
+ 	        ${KMEMLEAK:+-m} \
+ 	    -c "${RUNFILES}" \
+ 	    -T "${TAGS}" \
+diff '--color=auto' -Naur zfs-2.2.4/tests/runfiles/linux.run zfs-2.2.4.new/tests/runfiles/linux.run
+--- zfs-2.2.4/tests/runfiles/linux.run	2024-05-02 23:12:22.350479314 +0200
++++ zfs-2.2.4.new/tests/runfiles/linux.run	2024-07-20 12:29:50.324863877 +0200
+@@ -121,7 +121,7 @@
+     'auto_replace_001_pos', 'auto_replace_002_pos', 'auto_spare_001_pos',
+     'auto_spare_002_pos', 'auto_spare_multiple', 'auto_spare_ashift',
+     'auto_spare_shared', 'decrypt_fault', 'decompress_fault',
+-    'scrub_after_resilver', 'zpool_status_-s']
++    'scrub_after_resilver', 'suspend_resume_single', 'zpool_status_-s']
+ tags = ['functional', 'fault']
+ 
+ [tests/functional/features/large_dnode:Linux]
+diff '--color=auto' -Naur zfs-2.2.4/tests/test-runner/bin/test-runner.py.in zfs-2.2.4.new/tests/test-runner/bin/test-runner.py.in
+--- zfs-2.2.4/tests/test-runner/bin/test-runner.py.in	2024-05-02 23:12:22.970481195 +0200
++++ zfs-2.2.4.new/tests/test-runner/bin/test-runner.py.in	2024-07-20 12:29:50.106862351 +0200
+@@ -113,8 +113,9 @@
+     This class is a slightly modified version of the 'Stream' class found
+     here: http://goo.gl/aSGfv
+     """
+-    def __init__(self, stream):
++    def __init__(self, stream, debug=False):
+         self.stream = stream
++        self.debug = debug
+         self._buf = b''
+         self.lines = []
+ 
+@@ -140,6 +141,8 @@
+         buf = os.read(fd, 4096)
+         if not buf:
+             return None
++        if self.debug:
++            os.write(sys.stderr.fileno(), buf)
+         if b'\n' not in buf:
+             self._buf += buf
+             return []
+@@ -238,14 +241,14 @@
+         ret = '%s -E -u %s %s' % (SUDO, user, cmd)
+         return ret.split(' ')
+ 
+-    def collect_output(self, proc):
++    def collect_output(self, proc, debug=False):
+         """
+         Read from stdout/stderr as data becomes available, until the
+         process is no longer running. Return the lines from the stdout and
+         stderr Output objects.
+         """
+-        out = Output(proc.stdout)
+-        err = Output(proc.stderr)
++        out = Output(proc.stdout, debug)
++        err = Output(proc.stderr, debug)
+         res = []
+         while proc.returncode is None:
+             proc.poll()
+@@ -308,7 +311,10 @@
+ 
+         try:
+             t.start()
+-            self.result.stdout, self.result.stderr = self.collect_output(proc)
++
++            out, err = self.collect_output(proc, options.debug)
++            self.result.stdout = out
++            self.result.stderr = err
+ 
+             if kmemleak:
+                 cmd = f'{SUDO} sh -c "echo scan > {KMEMLEAK_FILE}"'
+@@ -624,7 +630,7 @@
+ 
+ 
+ class TestRun(object):
+-    props = ['quiet', 'outputdir']
++    props = ['quiet', 'outputdir', 'debug']
+ 
+     def __init__(self, options):
+         self.tests = {}
+@@ -644,7 +650,8 @@
+             ('post_user', ''),
+             ('failsafe', ''),
+             ('failsafe_user', ''),
+-            ('tags', [])
++            ('tags', []),
++            ('debug', False)
+         ]
+ 
+     def __str__(self):
+@@ -1067,6 +1074,8 @@
+                       help='Specify tests to run via config files.')
+     parser.add_option('-d', action='store_true', default=False, dest='dryrun',
+                       help='Dry run. Print tests, but take no other action.')
++    parser.add_option('-D', action='store_true', default=False, dest='debug',
++                      help='Write all test output to stdout as it arrives.')
+     parser.add_option('-l', action='callback', callback=options_cb,
+                       default=None, dest='logfile', metavar='logfile',
+                       type='string',
+diff '--color=auto' -Naur zfs-2.2.4/tests/test-runner/bin/zts-report.py.in zfs-2.2.4.new/tests/test-runner/bin/zts-report.py.in
+--- zfs-2.2.4/tests/test-runner/bin/zts-report.py.in	2024-05-02 23:12:22.351479317 +0200
++++ zfs-2.2.4.new/tests/test-runner/bin/zts-report.py.in	2024-07-20 12:29:50.324863877 +0200
+@@ -182,7 +182,6 @@
+         'cli_root/zfs_unshare/zfs_unshare_008_pos': ['SKIP', na_reason],
+         'cp_files/cp_files_002_pos': ['SKIP', na_reason],
+         'link_count/link_count_001': ['SKIP', na_reason],
+-        'casenorm/mixed_create_failure': ['FAIL', 13215],
+         'mmap/mmap_sync_001_pos': ['SKIP', na_reason],
+         'rsend/send_raw_ashift': ['SKIP', 14961],
+     })
+@@ -380,6 +379,7 @@
+         'fault/auto_replace_002_pos': ['SKIP', ci_reason],
+         'fault/auto_spare_ashift': ['SKIP', ci_reason],
+         'fault/auto_spare_shared': ['SKIP', ci_reason],
++        'fault/suspend_resume_single': ['SKIP', ci_reason],
+         'procfs/pool_state': ['SKIP', ci_reason],
+     })
+ 
+diff '--color=auto' -Naur zfs-2.2.4/tests/zfs-tests/cmd/libzfs_input_check.c zfs-2.2.4.new/tests/zfs-tests/cmd/libzfs_input_check.c
+--- zfs-2.2.4/tests/zfs-tests/cmd/libzfs_input_check.c	2024-05-02 23:12:22.356479332 +0200
++++ zfs-2.2.4.new/tests/zfs-tests/cmd/libzfs_input_check.c	2024-07-20 12:29:50.322863863 +0200
+@@ -521,13 +521,15 @@
+ static void
+ test_recv_new(const char *dataset, int fd)
+ {
+-	dmu_replay_record_t drr = { 0 };
++	dmu_replay_record_t drr;
+ 	nvlist_t *required = fnvlist_alloc();
+ 	nvlist_t *optional = fnvlist_alloc();
+ 	nvlist_t *props = fnvlist_alloc();
+ 	char snapshot[MAXNAMELEN + 32];
+ 	ssize_t count;
+ 
++	memset(&drr, 0, sizeof (dmu_replay_record_t));
++
+ 	int cleanup_fd = open(ZFS_DEV, O_RDWR);
+ 	if (cleanup_fd == -1) {
+ 		(void) fprintf(stderr, "open(%s) failed: %s\n", ZFS_DEV,
+diff '--color=auto' -Naur zfs-2.2.4/tests/zfs-tests/include/libtest.shlib zfs-2.2.4.new/tests/zfs-tests/include/libtest.shlib
+--- zfs-2.2.4/tests/zfs-tests/include/libtest.shlib	2024-05-02 23:12:22.359479341 +0200
++++ zfs-2.2.4.new/tests/zfs-tests/include/libtest.shlib	2024-07-20 12:29:50.085862204 +0200
+@@ -62,11 +62,39 @@
+ }
+ 
+ # Helper function used by linux_version() and freebsd_version()
++# $1, if provided, should be a MAJOR, MAJOR.MINOR or MAJOR.MINOR.PATCH
++# version number
+ function kernel_version
+ {
+ 	typeset ver="$1"
+ 
+-	[ -z "$ver" ] && ver=$(uname -r | grep -Eo "^[0-9]+\.[0-9]+\.[0-9]+")
++	[ -z "$ver" ] && case "$UNAME" in
++	Linux)
++		# Linux version numbers are X.Y.Z followed by optional
++		# vendor/distro specific stuff
++		#   RHEL7:       3.10.0-1160.108.1.el7.x86_64
++		#   Fedora 37:   6.5.12-100.fc37.x86_64
++		#   Debian 12.6: 6.1.0-22-amd64
++		ver=$(uname -r | grep -Eo "^[0-9]+\.[0-9]+\.[0-9]+")
++		;;
++	FreeBSD)
++		# FreeBSD version numbers are X.Y-BRANCH-pZ. Depending on
++		# branch, -pZ may not be present, but this is typically only
++		# on pre-release or true .0 releases, so can be assumed 0
++		# if not present.
++		# eg:
++		#   13.2-RELEASE-p4
++		#   14.1-RELEASE
++		#   15.0-CURRENT
++		ver=$(uname -r | \
++		    grep -Eo "[0-9]+\.[0-9]+(-[A-Z0-9]+-p[0-9]+)?" | \
++		    sed -E "s/-[^-]+-p/./")
++		;;
++	*)
++		# Unknown system
++		log_fail "Don't know how to get kernel version for '$UNAME'"
++		;;
++	esac
+ 
+ 	typeset version major minor _
+ 	IFS='.' read -r version major minor _ <<<"$ver"
+diff '--color=auto' -Naur zfs-2.2.4/tests/zfs-tests/tests/functional/fault/suspend_resume_single.ksh zfs-2.2.4.new/tests/zfs-tests/tests/functional/fault/suspend_resume_single.ksh
+--- zfs-2.2.4/tests/zfs-tests/tests/functional/fault/suspend_resume_single.ksh	1970-01-01 01:00:00.000000000 +0100
++++ zfs-2.2.4.new/tests/zfs-tests/tests/functional/fault/suspend_resume_single.ksh	2024-07-20 12:29:50.324863877 +0200
+@@ -0,0 +1,102 @@
++#!/bin/ksh -p
++#
++# CDDL HEADER START
++#
++# The contents of this file are subject to the terms of the
++# Common Development and Distribution License (the "License").
++# You may not use this file except in compliance with the License.
++#
++# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
++# or https://opensource.org/licenses/CDDL-1.0.
++# See the License for the specific language governing permissions
++# and limitations under the License.
++#
++# When distributing Covered Code, include this CDDL HEADER in each
++# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
++# If applicable, add the following below this CDDL HEADER, with the
++# fields enclosed by brackets "[]" replaced with your own identifying
++# information: Portions Copyright [yyyy] [name of copyright owner]
++#
++# CDDL HEADER END
++#
++
++#
++# Copyright (c) 2024, Klara Inc.
++#
++
++. $STF_SUITE/include/libtest.shlib
++
++set -x
++
++DATAFILE="$TMPDIR/datafile"
++
++function cleanup
++{
++	destroy_pool $TESTPOOL
++	unload_scsi_debug
++	rm -f $DATA_FILE
++}
++
++log_onexit cleanup
++
++log_assert "ensure single-disk pool resumes properly after suspend and clear"
++
++# create a file, and take a checksum, so we can compare later
++log_must dd if=/dev/random of=$DATAFILE bs=128K count=1
++typeset sum1=$(cat $DATAFILE | md5sum)
++
++# make a debug device that we can "unplug"
++load_scsi_debug 100 1 1 1 '512b'
++sd=$(get_debug_device)
++
++# create a single-device pool
++log_must zpool create $TESTPOOL $sd
++log_must zpool sync
++
++# "pull" the disk
++log_must eval "echo offline > /sys/block/$sd/device/state"
++
++# copy data onto the pool. it'll appear to succeed, but only be in memory
++log_must cp $DATAFILE /$TESTPOOL/file
++
++# wait until sync starts, and the pool suspends
++log_note "waiting for pool to suspend"
++typeset -i tries=10
++until [[ $(cat /proc/spl/kstat/zfs/$TESTPOOL/state) == "SUSPENDED" ]] ; do
++	if ((tries-- == 0)); then
++		log_fail "pool didn't suspend"
++	fi
++	sleep 1
++done
++
++# return the disk
++log_must eval "echo running > /sys/block/$sd/device/state"
++
++# clear the error states, which should reopen the vdev, get the pool back
++# online, and replay the failed IO
++log_must zpool clear $TESTPOOL
++
++# wait a while for everything to sync out. if something is going to go wrong,
++# this is where it will happen
++log_note "giving pool time to settle and complete txg"
++sleep 7
++
++# if the pool suspended, then everything is bad
++if [[ $(cat /proc/spl/kstat/zfs/$TESTPOOL/state) == "SUSPENDED" ]] ; then
++	log_fail "pool suspended"
++fi
++
++# export the pool, to make sure it exports clean, and also to clear the file
++# out of the cache
++log_must zpool export $TESTPOOL
++
++# import the pool
++log_must zpool import $TESTPOOL
++
++# sum the file we wrote earlier
++typeset sum2=$(cat /$TESTPOOL/file | md5sum)
++
++# make sure the checksums match
++log_must test "$sum1" = "$sum2"
++
++log_pass "single-disk pool resumes properly after disk suspend and clear"
+diff '--color=auto' -Naur zfs-2.2.4/tests/zfs-tests/tests/functional/redacted_send/redacted_deleted.ksh zfs-2.2.4.new/tests/zfs-tests/tests/functional/redacted_send/redacted_deleted.ksh
+--- zfs-2.2.4/tests/zfs-tests/tests/functional/redacted_send/redacted_deleted.ksh	2024-05-02 23:12:22.618480127 +0200
++++ zfs-2.2.4.new/tests/zfs-tests/tests/functional/redacted_send/redacted_deleted.ksh	2024-07-20 12:29:50.084862196 +0200
+@@ -96,7 +96,7 @@
+ log_must eval "zfs send -i $sendfs#book2 --redact book3 $sendfs@snap2 >$stream"
+ log_must eval "zfs recv $recvfs <$stream"
+ log_must mount_redacted -f $recvfs
+-log_must diff <(ls $send_mnt) <(ls $recv_mnt)
++log_must [ "$(ls $send_mnt)" == "$(ls $recv_mnt)" ]
+ log_must zfs destroy -R $recvfs
+ log_must zfs rollback -R $sendfs@snap
+ 
+diff '--color=auto' -Naur zfs-2.2.4/tests/zfs-tests/tests/functional/redacted_send/redacted_mounts.ksh zfs-2.2.4.new/tests/zfs-tests/tests/functional/redacted_send/redacted_mounts.ksh
+--- zfs-2.2.4/tests/zfs-tests/tests/functional/redacted_send/redacted_mounts.ksh	2024-05-02 23:12:22.618480127 +0200
++++ zfs-2.2.4.new/tests/zfs-tests/tests/functional/redacted_send/redacted_mounts.ksh	2024-07-20 12:29:50.084862196 +0200
+@@ -71,8 +71,7 @@
+ # deleted.
+ contents=$(log_must find $recv_mnt)
+ contents_orig=$(log_must find $send_mnt)
+-log_must diff <(echo ${contents//$recv_mnt/}) \
+-    <(echo ${contents_orig//$send_mnt/})
++log_must [ "${contents//$recv_mnt/}" == "${contents_orig//$send_mnt/}" ]
+ log_must zfs redact $sendvol@snap book2 $clonevol@snap
+ log_must eval "zfs send --redact book2 $sendvol@snap >$stream"
+ log_must eval "zfs receive $recvvol <$stream"
+@@ -103,7 +102,6 @@
+ log_must ismounted $recvfs
+ contents=$(log_must find $recv_mnt)
+ contents_orig=$(log_must find $send_mnt)
+-log_must diff <(echo ${contents//$recv_mnt/}) \
+-    <(echo ${contents_orig//$send_mnt/})
++log_must [ "${contents//$recv_mnt/}" == "${contents_orig//$send_mnt/}" ]
+ 
+ log_pass "Received redacted streams can be mounted."
+diff '--color=auto' -Naur zfs-2.2.4/tests/zfs-tests/tests/Makefile.am zfs-2.2.4.new/tests/zfs-tests/tests/Makefile.am
+--- zfs-2.2.4/tests/zfs-tests/tests/Makefile.am	2024-05-02 23:12:22.971481198 +0200
++++ zfs-2.2.4.new/tests/zfs-tests/tests/Makefile.am	2024-07-20 12:29:50.324863877 +0200
+@@ -1476,6 +1476,7 @@
+ 	functional/fault/decompress_fault.ksh \
+ 	functional/fault/decrypt_fault.ksh \
+ 	functional/fault/scrub_after_resilver.ksh \
++	functional/fault/suspend_resume_single.ksh \
+ 	functional/fault/setup.ksh \
+ 	functional/fault/zpool_status_-s.ksh \
+ 	functional/features/async_destroy/async_destroy_001_pos.ksh \

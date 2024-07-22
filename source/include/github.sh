@@ -113,11 +113,11 @@ if [ -n "$_F_archive_grepv" ]; then
 fi
 
 if [ -n "$_F_github_grepv" ]; then
-	off="| grep -v -- $_F_github_grepv"
+	off='| grep -v -- $_F_github_grepv'
 fi
 
 if [ -n "$_F_github_grep" ]; then
-	on="| grep -- $_F_github_grep"
+	on='| grep -- $_F_github_grep'
 fi
 
 if [ -n "$_F_github_tag_prefix" ]; then

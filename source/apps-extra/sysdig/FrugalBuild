@@ -2,78 +2,51 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=sysdig
-pkgver=0.38.0
-pkgrel=4
-_falcover="7.0.0+driver"
+pkgver=0.38.1
+pkgrel=1
+_falcover="7.2.0+driver"
 pkgdesc="Open source system-level exploration and troubleshooting tool"
 archs=('x86_64')
 groups=('apps-extra')
 url="https://www.sysdig.com/"
 depends=('jsoncpp>=1.9.2' 'luajit2' 'jq' 'libb64' 'intel-tbb' 'curl' \
-	'grpc>=1.62' 'yaml-cpp' 'nlohmann-json')
-makedepends=('re2-static' 'curl-static' 'libssh2-static' 'nghttp2-static' \
+	'grpc>=1.62' 'yaml-cpp' 'nlohmann-json' 'libbpf')
+makedepends=('re2-static' 'curl-static' 'libssh2-static' 'nghttp2-static' 'bpf' \
 	'elfutils-static' 'protobuf-static' 'zstd-static' 'clang' 'compiler-rt' 'lld' 'llvm' )
 _F_github_author="draios"
 _F_github_grepv="agent\|falco\|rc1"
 _F_github_tag=y
-_Fbuild_no_patch=y
 Finclude github cmake kernel-module
 source+=(https://github.com/falcosecurity/libs/archive/$_falcover.tar.gz \
-	strlcopy.patch )
+	bashcomp-location.patch)
 _F_cmake_confopts+=" \
 	-DCMAKE_BUILD_TYPE=Release \
 	-DCMAKE_INSTALL_PREFIX=/usr \
-	-DCMAKE_CXX_STANDARD_LIBRARIES='-lzstd' \
 	-DSYSDIG_VERSION=$pkgver \
 	-DUSE_BUNDLED_DEPS=OFF \
 	-DUSE_BUNDLED_TBB=OFF \
-        -DUSE_BUNDLED_B64=OFF \
         -DUSE_BUNDLED_JSONCPP=OFF \
         -DUSE_BUNDLED_RE2=OFF \
         -DUSE_BUNDLED_VALIJSON=ON \
-	-DUSE_BUNDLED_TINYDIR=ON \
 	-DUSE_BUNDLED_UTHASH=ON \
-	-DBUILD_DRIVER=ON \
 	-DCREATE_TEST_TARGETS=OFF \
 	-DENABLE_DKMS=OFF \
+	-DBUILD_DRIVER=OFF \
+	-DBUILD_BPF=ON \
+	-DDRIVER_VERSION=$_falvover \
 	-DBUILD_LIBSCAP_EXAMPLES=OFF \
 	-DBUILD_LIBSINSP_EXAMPLES=OFF \
-	-DDRIVER_SOURCE_DIR=$Fsrcdir/libs-${_falcover/\+/-}/driver \
-	-DFALCOSECURITY_LIBS_VERSION=$_falcover"
-sha1sums=('981a322763fafb21861371ecb409f687b4f777ae' \
-          '329a28b3ad228c22de7a09e7ea9d1e6ca7d30ae5' \
-          '3c8aa3d4f481b181be8196325a53800e05ef3803')
-options+=('nolto')
+	-DFALCOSECURITY_LIBS_SOURCE_DIR=$Fsrcdir/libs-${_falcover/\+/-} \
+	-DDRIVER_SOURCE_DIR=$Fsrcdir/libs-${_falcover/\+/-}/driver"
+sha1sums=('6fbb3e95563bed1ac77d800aced4e211c7cfc01d' \
+          '200ad722cc0e90cb8d3e10bf83a809c02173a0c6' \
+          'a5a4ece6dfa83561baa214851b4f19f76aa7a1b2')
+options+=('noccache' 'nolto')
 
 build(){
-
 	export LLVM=1
 	export LLVM_IAS=1
-
-	Fexec cd $Fsrcdir/libs-${_falcover/\+/-} || Fdie
-	Fpatch strlcopy.patch
-
-	Fcd $Fsrcdir/$_F_cd_path || Fdie
-
-	CMake_prepare_build
-	CMake_conf
-	Fexec cd $_F_cmake_build_dir || Fdie
-	Fcd
-
-	Fexec make KERNELDIR=${_F_kernelmod_dir}/build || Fdie
-	CMake_install
-
-	Ffilerel driver/scap.ko $_F_kernelmod_dir/kernel/extra/scap.ko
-	## now we have some weird stuff
-	# drop , not working on FW , nor it is needed
-	Frm usr/bin/sysdig-probe-loader
-	## broken, we do not use anyway but bpf depends on driver/* files which are not
-	## installed when you set DKMS=OFF -.-
-	Frm usr/src
-
-	Fkernelver_compress_modules
-	Fbuild_kernelmod_scriptlet
-
+	CMake_build
 }
 
 # optimization OK

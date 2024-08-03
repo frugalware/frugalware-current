@@ -107,7 +107,7 @@ Fbuild_haskell() {
   Fpatchall
   Fexec runhaskell $_F_haskell_setup configure $_F_haskell_confopts || Fdie
   Fexec runhaskell $_F_haskell_setup haddock || Fdie
-  Fexec runhaskell $_F_haskell_setup build || Fdie
+  Fexec runhaskell $_F_haskell_setup build $MAKEFLAGS || Fdie
   Fbuild_haskell_regscripts
   Fexec runhaskell $_F_haskell_setup copy --destdir=$Fdestdir
 }

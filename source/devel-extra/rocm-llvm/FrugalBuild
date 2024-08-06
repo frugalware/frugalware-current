@@ -4,7 +4,7 @@
 pkgname=rocm-llvm
 pkgdesc='Radeon Open Compute - LLVM toolchain (llvm, clang, lld)'
 pkgver=6.2.0
-pkgrel=1
+pkgrel=2
 archs=('x86_64')
 groups=('devel-extra')
 url='https://rocm.docs.amd.com/en/latest/reference/rocmcc.html'
@@ -41,12 +41,63 @@ options=('static' 'nolto')
 sha1sums=('6c3a63bee01764086270d24cdda9d5f393f9eefe')
 _F_cd_path="llvm-project-rocm-$pkgver"
 
+subpkgs=('rocm-device-libs')
+subdescs=('ROCm Device Libraries')
+subarchs=('x86_64')
+subgroups=('devel-extra')
+subdepends=('glibc')
+subrodepends=('')
+
+subpkgs+=('comgr')
+subdescs+=('Compiler support library for ROCm LLVM')
+subarchs+=('x86_64')
+subgroups+=('devel-extra')
+subdepends+=('rocm-core')
+subrodepends+=('rocm-device-libs')
+
+subpkgs+=('hipcc')
+subdescs+=('HIP compiler driver')
+subarchs+=('x86_64')
+subgroups+=('devel-extra')
+subdepends+=('glibc')
+subrodepends+=('')
+
 build() {
 	CMake_build
     	# Provide symlink to old LLVM location, pre ROCm 6.0.0
 	Fln /opt/rocm/lib/llvm opt/rocm/llvm
 
     	Fln /opt/rocm/lib/llvm/lib/LLVMgold.so opt/rocm/lib/llvm/lib/bfd-plugins/LLVMgold.so
+
+
+	# device-libs
+	Fexec cd $Fsrcdir/$_F_cd_path || Fdie
+	_F_cmake_build_dir="frugalware_build_device_libs"
+	_F_cmake_src_dir=amd/device-libs
+	CMake_build 	-DCMAKE_BUILD_TYPE=None \
+			-DCMAKE_INSTALL_PREFIX=/opt/rocm \
+			-DCMAKE_PREFIX_PATH="$Fsrcdir/$_F_cd_path/frugalware_cmake_build"
+
+	Fsplit rocm-device-libs opt/rocm/amdgcn
+	Fsplit rocm-device-libs opt/rocm/lib/cmake/AMDDeviceLibs/AMDDeviceLibsConfig.cmake
+
+	# comgr
+	Fexec cd $Fsrcdir/$_F_cd_path || Fdie
+        _F_cmake_build_dir="frugalware_build_comgr"
+        _F_cmake_src_dir=amd/comgr
+	CMake_build	-DCMAKE_INSTALL_PREFIX=/opt/rocm \
+			-DBUILD_TESTING=OFF \
+			-DCMAKE_PREFIX_PATH="$Fsrcdir/$_F_cd_path/frugalware_cmake_build;$Fsrcdir/$_F_cd_path/frugalware_build_device_libs"
+
+	Fsplit comgr opt/rocm/include/amd_comgr/
+	Fsplit comgr opt/rocm/lib/cmake/amd_comgr/
+	Fsplit comgr opt/rocm/lib/libamd_comgr*
+
+	# hipcc
+	Fexec cd $Fsrcdir/$_F_cd_path || Fdie
+        _F_cmake_build_dir="frugalware_build_hipcc"
+        _F_cmake_src_dir=amd/hipcc
+	CMake_build
 
 }
 

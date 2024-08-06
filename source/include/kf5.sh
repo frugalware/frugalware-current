@@ -145,7 +145,11 @@ fi
 if [ "$_F_kde_defaults" -eq 1 ]; then
 	if [ -z "$up2date" ]; then
 		makedepends+=('rsync')
-		up2date='rsync -r ${_F_kde_up2date_mirror}/${_F_kde_folder} | Flastarchive ${_F_kde_ext}'
+	        if [ "$_F_kde_project" = "frameworks" ]; then
+			up2date='rsync -r ${_F_kde_up2date_mirror}/${_F_kde_folder} | grep "\-5\." | Flastarchive ${_F_kde_ext}'
+		else
+			up2date='rsync -r ${_F_kde_up2date_mirror}/${_F_kde_folder} | Flastarchive ${_F_kde_ext}'
+		fi
 	fi
 
 	if [ ${#source[@]} -eq 0 ]; then

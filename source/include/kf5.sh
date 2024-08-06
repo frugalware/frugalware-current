@@ -136,7 +136,6 @@ if [ -z "$groups" ]; then
 		groups+=('plasma')
 	elif [ "$_F_kde_project" = "frameworks" ]; then
 		groups+=('kf5')
-		up2date='rsync -r ${_F_kde_up2date_mirror}/${_F_kde_folder} | grep "\-5\." | Flastarchive ${_F_kde_ext}'
 	elif [ "$_F_kde_project" = "release-service" ]; then
 		groups+=('kde5')
 	fi

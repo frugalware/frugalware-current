@@ -18,6 +18,8 @@ struct bfd_link_needed_list
   bfd *by;
   const char *name;
 };
+extern bfd_boolean bfd_elf_get_bfd_needed_list
+  (bfd *, struct bfd_link_needed_list **);
 
 typedef struct bfd_link_needed_list bfd_list;
 

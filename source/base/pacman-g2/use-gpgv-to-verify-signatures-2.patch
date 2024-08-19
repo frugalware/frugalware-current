@@ -1,0 +1,43 @@
+From 943d5c06a3a05ddd1cfecc55fb5a5ee7e0d4ed1b Mon Sep 17 00:00:00 2001
+From: DeX77 <dex77@frugalware.org>
+Date: Mon, 19 Aug 2024 11:42:54 +0200
+Subject: [PATCH] * use gpgv to verify signatures #2
+
+---
+ scripts/makepkg | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/scripts/makepkg b/scripts/makepkg
+index cd51f2d7..a07d1dcd 100755
+--- a/scripts/makepkg
++++ b/scripts/makepkg
+@@ -1855,7 +1855,16 @@ if [ "$GENSHA1" = "0" ]; then
+ 		# gpg validation
+ 		if [ ${#signatures[@]} -eq ${#source[@]} ]; then
+ 			if [ `type -p gpg` ]; then
+-				msg "Validating source files with gpg"
++				if [ ! -d ~/.gnupg ]; then
++					msg "Configuring gpg..."
++					gpg --list-keys
++					$ECHO "keyserver hkp://pool.sks-keyservers.net" >>~/.gnupg/gpg.conf
++					$ECHO "keyserver-options auto-key-retrieve" >>~/.gnupg/gpg.conf
++				fi
++				if [ -e $startdir/$pkgname.key ]; then
++					msg "Importing $pkgname.key"
++					gpg --no-autostart --import $startdir/$pkgname.key
++				fi
+ 				errors=0
+ 				idx=0
+ 				for netfile in "${source[@]}"; do
+@@ -1873,7 +1882,7 @@ if [ "$GENSHA1" = "0" ]; then
+ 						else
+ 							cmd='cat'
+ 						fi
+-						$cmd $file |  gpgv --keyring <(gpg -o - --dearmor $startdir/$pkgname.key ) $sig - >/dev/null 2>&1
++						$cmd $file | gpgv $sig - >/dev/null 2>&1
+ 						if [ $? -ne 0 ]; then
+ 							$ECHO "FAILED" >&2
+ 							errors=1
+-- 
+2.46.0
+

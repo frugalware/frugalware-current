@@ -1,3 +1,14 @@
+From 2bb38c544778ddf3625eea2b13283df707a7abaf Mon Sep 17 00:00:00 2001
+From: Matt Jolly <Matt.Jolly@footclan.ninja>
+Date: Thu, 22 Aug 2024 13:05:45 +1000
+Subject: [PATCH] Update compiler patch for 128
+
+---
+ build/config/compiler/BUILD.gn | 198 +++------------------------------
+ 1 file changed, 18 insertions(+), 180 deletions(-)
+
+diff --git a/build/config/compiler/BUILD.gn b/build/config/compiler/BUILD.gn
+index 5898b8c54b..948ec9717c 100644
 --- a/build/config/compiler/BUILD.gn
 +++ b/build/config/compiler/BUILD.gn
 @@ -305,9 +305,6 @@ config("compiler") {
@@ -10,11 +21,11 @@
      ":compiler_codegen",
      ":compiler_deterministic",
    ]
-@@ -545,55 +542,6 @@ config("compiler") {
+@@ -556,55 +553,6 @@ config("compiler") {
      ldflags += [ "-Wl,-z,keep-text-section-prefix" ]
    }
  
--  if (is_clang && !is_nacl && current_os != "zos") {
+-  if (is_clang && !is_nacl) {
 -    cflags += [ "-fcrash-diagnostics-dir=" + clang_diagnostic_dir ]
 -    if (save_reproducers_on_lld_crash && use_lld) {
 -      ldflags += [
@@ -66,7 +77,7 @@
    # C11/C++11 compiler flags setup.
    # ---------------------------
    if (is_linux || is_chromeos || is_android || (is_nacl && is_clang) ||
-@@ -699,7 +647,7 @@ config("compiler") {
+@@ -716,7 +664,7 @@ config("compiler") {
  
      cflags += [
        "-flto=thin",
@@ -75,7 +86,14 @@
      ]
  
      if (thin_lto_enable_cache) {
-@@ -808,7 +756,6 @@ config("compiler") {
+@@ -815,14 +763,12 @@ config("compiler") {
+     # TODO(crbug.com/40182783): investigate why this isn't effective on
+     # arm32.
+     if (!is_android || current_cpu == "arm64") {
+-      cflags += [ "-fwhole-program-vtables" ]
+ 
+       if (toolchain_supports_rust_thin_lto) {
+         # whole-program-vtables implies -fsplit-lto-unit, and Rust needs to match
          # behaviour. Rust needs to know the linker will be doing LTO in this case
          # or it rejects the Zsplit-lto-unit flag.
          rustflags += [
@@ -83,7 +101,17 @@
            "-Clinker-plugin-lto=yes",
          ]
        } else {
-@@ -998,17 +945,6 @@ config("compiler") {
+@@ -830,9 +776,6 @@ config("compiler") {
+         rustflags += [ "-Cembed-bitcode=no" ]
+       }
+ 
+-      if (!is_win) {
+-        ldflags += [ "-fwhole-program-vtables" ]
+-      }
+     }
+ 
+     # This flag causes LTO to create an .ARM.attributes section with the correct
+@@ -1012,17 +955,6 @@ config("compiler") {
      # `-nodefaultlibs` from the linker invocation from Rust, which would be used
      # to compile dylibs on Android, such as for constructing unit test APKs.
      "-Cdefault-linker-libraries",
@@ -101,7 +129,7 @@
    ]
  
    if (!is_win || force_rustc_color_output) {
-@@ -1516,46 +1452,6 @@ config("compiler_deterministic") {
+@@ -1540,52 +1472,6 @@ config("compiler_deterministic") {
      }
    }
  
@@ -124,7 +152,13 @@
 -      # -ffile-compilation-dir is an alias for both -fdebug-compilation-dir=
 -      # and -fcoverage-compilation-dir=.
 -      cflags += [ "-ffile-compilation-dir=." ]
--      swiftflags += [ "-file-compilation-dir=." ]
+-
+-      # Convert absolute paths to relative paths. Expands to, for example:
+-      #   -file-prefix-map /path/to/chromium/src=../..
+-      swiftflags += [
+-        "-file-prefix-map",
+-        rebase_path("//.", "") + "=" + rebase_path("//.", root_build_dir),
+-      ]
 -    }
 -    if (!is_win) {
 -      # We don't use clang -cc1as on Windows (yet? https://crbug.com/762167)
@@ -148,12 +182,13 @@
    # Tells the compiler not to use absolute paths when passing the default
    # paths to the tools it invokes. We don't want this because we don't
    # really need it and it can mess up the RBE cache entries.
-@@ -1574,39 +1470,6 @@ config("compiler_deterministic") {
+@@ -1604,40 +1490,6 @@ config("compiler_deterministic") {
    }
  }
  
 -config("clang_revision") {
--  if (is_clang && clang_base_path == default_clang_base_path) {
+-  if (is_clang && clang_base_path == default_clang_base_path &&
+-      current_os != "zos") {
 -    update_args = [
 -      "--print-revision",
 -      "--verify-version=$clang_version",
@@ -188,7 +223,7 @@
  config("compiler_arm_fpu") {
    if (current_cpu == "arm" && !is_ios && !is_nacl) {
      cflags = [ "-mfpu=$arm_fpu" ]
-@@ -1982,11 +1845,7 @@ config("chromium_code") {
+@@ -2039,11 +1891,7 @@ config("chromium_code") {
        defines = [ "_HAS_NODISCARD" ]
      }
    } else {
@@ -201,7 +236,7 @@
  
      # In Chromium code, we define __STDC_foo_MACROS in order to get the
      # C99 macros on Mac and Linux.
-@@ -1995,24 +1854,6 @@ config("chromium_code") {
+@@ -2052,24 +1900,6 @@ config("chromium_code") {
        "__STDC_FORMAT_MACROS",
      ]
  
@@ -226,7 +261,7 @@
      if (is_apple) {
        cflags_objc = [ "-Wimplicit-retain-self" ]
        cflags_objcc = [ "-Wimplicit-retain-self" ]
-@@ -2405,7 +2246,8 @@ config("default_stack_frames") {
+@@ -2462,7 +2292,8 @@ config("default_stack_frames") {
  # [0]: https://pinpoint-dot-chromeperf.appspot.com/job/147634a8be0000
  # [1]: https://pinpoint-dot-chromeperf.appspot.com/job/132bc772be0000
  # [2]: https://crrev.com/c/5447532
@@ -234,9 +269,9 @@
 +config("optimize") { }
 +config("xoptimize") {
    if (is_win) {
-     cflags = [ "/O2" ] + common_optimize_on_cflags
- 
-@@ -2446,7 +2288,8 @@ config("optimize") {
+     # clang-cl's /O2 corresponds to clang's -O3, and really want -O2 for
+     # consistency with the other platforms.
+@@ -2508,7 +2339,8 @@ config("optimize") {
  }
  
  # Turn off optimizations.
@@ -246,7 +281,7 @@
    if (is_win) {
      cflags = [
        "/Od",  # Disable optimization.
-@@ -2486,7 +2329,8 @@ config("no_optimize") {
+@@ -2548,7 +2380,8 @@ config("no_optimize") {
  # Turns up the optimization level. Used to explicitly enable -O2 instead of
  # -Os for select targets on platforms that use optimize_for_size. No-op
  # elsewhere.
@@ -256,7 +291,7 @@
    if (is_nacl && is_nacl_irt) {
      # The NaCl IRT is a special case and always wants its own config.
      # Various components do:
-@@ -2519,7 +2363,8 @@ config("optimize_max") {
+@@ -2581,7 +2414,8 @@ config("optimize_max") {
  #
  # TODO(crbug.com/41259697) - rework how all of these configs are related
  # so that we don't need this disclaimer.
@@ -266,7 +301,7 @@
    if (is_nacl && is_nacl_irt) {
      # The NaCl IRT is a special case and always wants its own config.
      # Various components do:
-@@ -2548,7 +2393,8 @@ config("optimize_speed") {
+@@ -2610,7 +2444,8 @@ config("optimize_speed") {
    }
  }
  
@@ -276,7 +311,7 @@
    cflags = [ "-O1" ] + common_optimize_on_cflags
    rustflags = [ "-Copt-level=1" ]
    ldflags = common_optimize_on_ldflags
-@@ -2681,7 +2527,8 @@ config("win_pdbaltpath") {
+@@ -2741,7 +2576,8 @@ config("win_pdbaltpath") {
  }
  
  # Full symbols.
@@ -286,7 +321,7 @@
    rustflags = []
    if (is_win) {
      if (is_clang) {
-@@ -2831,7 +2678,8 @@ config("symbols") {
+@@ -2891,7 +2727,8 @@ config("symbols") {
  # Minimal symbols.
  # This config guarantees to hold symbol for stack trace which are shown to user
  # when crash happens in unittests running on buildbot.
@@ -296,7 +331,7 @@
    rustflags = []
    if (is_win) {
      # Functions, files, and line tables only.
-@@ -2916,7 +2764,8 @@ config("minimal_symbols") {
+@@ -2976,7 +2813,8 @@ config("minimal_symbols") {
  # This configuration contains function names only. That is, the compiler is
  # told to not generate debug information and the linker then just puts function
  # names in the final debug information.
@@ -306,3 +341,6 @@
    if (is_win) {
      ldflags = [ "/DEBUG" ]
  
+-- 
+2.45.2
+

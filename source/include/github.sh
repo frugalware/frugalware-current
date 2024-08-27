@@ -133,14 +133,14 @@ if [ -n "$_F_github_devel" ]; then
 	unset _F_github_source _F_github_tag _F_github_tag_v source
 else
 	if [[ -n "$_F_github_tag_v" ]] || [[ -n "$_F_github_tag" ]]; then
-		up2date="lynx -dump https://github.com/${_F_github_author}/${_F_github_dirname}/tags | grep  'https\(.*\)$_F_github_ext'  $off $on | sed 's/.*\/\(.*\)$_F_github_ext/\1/' $prefix | head -n1"
+		up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/git/matching-refs/tags | jq -r '.[].ref' | sed 's:refs/tags/::g' | tac $off $on $prefix | head -n1"
 		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/refs/tags/${__F_github_full_archive_name}"
 
 	else
-		if [[ "$_F_github_prerelease" ]]; then
-			up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[].tag_name' $off $on $prefix | head -n1 "
+		if [[ -n "$_F_github_prerelease" ]]; then
+			up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases?per_page=100 |  jq -r '.[].tag_name' $off $on $prefix | head -n1 "
 		else
-			up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases |  jq -r '.[] | select(.prerelease == false) | .tag_name' $off $on $prefix | head -n1 "
+			up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/releases?per_page=100 |  jq -r '.[] | select(.prerelease == false) | .tag_name' $off $on $prefix | head -n1 "
 		fi
 	fi
 

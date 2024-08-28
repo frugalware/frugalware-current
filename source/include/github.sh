@@ -122,6 +122,7 @@ fi
 
 if [ -n "$_F_github_tag_prefix" ]; then
 	prefix="| sed 's/${_F_github_tag_prefix}//'"
+	only_prefix="| grep -E '^${_F_github_tag_prefix}'"
 fi
 
 ## fixme ?
@@ -133,7 +134,7 @@ if [ -n "$_F_github_devel" ]; then
 	unset _F_github_source _F_github_tag _F_github_tag_v source
 else
 	if [[ -n "$_F_github_tag_v" ]] || [[ -n "$_F_github_tag" ]]; then
-		up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/git/matching-refs/tags | jq -r '.[].ref' | sed 's:refs/tags/::g' | grep -E "^v" | tac $off $on $prefix | head -n1"
+		up2date="curl -s https://api.github.com/repos/${_F_github_author}/${_F_github_dirname}/git/matching-refs/tags | jq -r '.[].ref' | sed 's:refs/tags/::g' $only_prefix | tac $off $on $prefix | head -n1"
 		_F_github_source="https://github.com/$_F_github_author/$_F_github_dirname/archive/refs/tags/${__F_github_full_archive_name}"
 
 	else

@@ -3,94 +3,94 @@
 Usage: python fpm2db [options]
 
 Options:
-	-D, --delete            The specified pkg can be deleted with this command.
-	-F, --force             Update database entry regardless of status.
-	-f ..., --fpm=...       The .fpm package. (optional when using -D)
-	-m ..., --mainpkg=...   The name of the parent .fpm package. (required when using -D)
-	-g ..., --maingrp=...   The group of the .fpm package. (optional)
-	-h ..., --host=...      The host where the database is located. (optional)
-	-u ..., --user=...      The user of the database. (optional)
-	-p ..., --password=...  The password for the database. (optional)
-	-d ..., --dbname=...    The name of the database. (optional)
+    -D, --delete            The specified pkg can be deleted with this command.
+    -F, --force             Update database entry regardless of status.
+    -f ..., --fpm=...       The .fpm package. (optional when using -D)
+    -m ..., --mainpkg=...   The name of the parent .fpm package. (required when using -D)
+    -g ..., --maingrp=...   The group of the .fpm package. (optional)
+    -h ..., --host=...      The host where the database is located. (optional)
+    -u ..., --user=...      The user of the database. (optional)
+    -p ..., --password=...  The password for the database. (optional)
+    -d ..., --dbname=...    The name of the database. (optional)
 """
 
 import getopt, re, os, hashlib, string, sys, time
 import MySQLdb
 
 class package:
-	def __init__(self, fpm, parent=None, parentgrp=None):
-		self.cursor=None
-		self.id=None
-		self.uploader_id=0
-		self.parent=parent
-		self.parentgrp=parentgrp
-		self.parent_id=0
-		self.updateable=True
-		self.nobuild = False
+    def __init__(self, fpm, parent=None, parentgrp=None):
+        self.cursor=None
+        self.id=None
+        self.uploader_id=0
+        self.parent=parent
+        self.parentgrp=parentgrp
+        self.parent_id=0
+        self.updateable=True
+        self.nobuild = False
 
-		self.pkgname = re.sub("-[^-]+-[^-]+-[^-]+.fpm", "", fpm)
-		if not self.parent:
-			self.parent = self.pkgname
-		self.pkgver = re.sub('.*-([^-]+-[^-]+)-[^-]+.fpm', r'\1', fpm)
-		self.arch = os.getcwd().split('-')[-1]
-		try:
-			self.fwver = os.getcwd().split('/')[-2].split('-')[1]
-		except IndexError:
-			# this is some not frugalware-foo repo, just skip it
-			sys.exit(0)
-		if 'uploader' in list(os.environ.keys()):
-			self.uploader = os.environ['uploader']
-		else:
-			try:
-				self.uploader = os.environ['SUDO_USER']
-			except KeyError:
-				self.uploader = os.environ['HOME'].split('/')[-1]
+        self.pkgname = re.sub("-[^-]+-[^-]+-[^-]+.fpm", "", fpm)
+        if not self.parent:
+            self.parent = self.pkgname
+        self.pkgver = re.sub('.*-([^-]+-[^-]+)-[^-]+.fpm', r'\1', fpm)
+        self.arch = os.getcwd().split('-')[-1]
+        try:
+            self.fwver = os.getcwd().split('/')[-2].split('-')[1]
+        except IndexError:
+            # this is some not frugalware-foo repo, just skip it
+            sys.exit(0)
+        if 'uploader' in list(os.environ.keys()):
+            self.uploader = os.environ['uploader']
+        else:
+            try:
+                self.uploader = os.environ['SUDO_USER']
+            except KeyError:
+                self.uploader = os.environ['HOME'].split('/')[-1]
 
-		try:
-			os.stat(fpm)
-		except OSError:
-			# check if this is a nobuild fpm
-			if self.getnobuild():
-				self.nobuild = True
-			else:
-				self.updateable=False
-				return
+        try:
+            os.stat(fpm)
+        except OSError:
+            # check if this is a nobuild fpm
+            if self.getnobuild():
+                self.nobuild = True
+            else:
+                self.updateable=False
+                return
 
-		self.files=[]
-		if not self.nobuild:
-			socket = os.popen("pacman-g2 -Ql -p %s" % fpm)
-			while True:
-				file = socket.readline().strip().replace("%s " % self.pkgname, "")
-				if not file:
-					break
-				else:
-					self.files.append(file)
-			socket.close()
+        self.files=[]
+        if not self.nobuild:
+            socket = os.popen("pacman-g2 -Ql -p %s" % fpm)
+            while True:
+                file = socket.readline().strip().replace("%s " % self.pkgname, "")
+                if not file:
+                    break
+                else:
+                    self.files.append(file)
+            socket.close()
 
-		self.abis=[]
-		if not self.nobuild:
-			socket = os.popen("../tools/dumpabi '%s'" % fpm)
-			while True:
-				abi = socket.readline().strip()
-				if not abi:
-					break
-				else:
-					self.abis.append(abi)
-			socket.close()
+        self.abis=[]
+        if not self.nobuild:
+            socket = os.popen("../tools/dumpabi '%s'" % fpm)
+            while True:
+                abi = socket.readline().strip()
+                if not abi:
+                    break
+                else:
+                    self.abis.append(abi)
+            socket.close()
 
-		self.conflicts=[]
-		self.depends=[]
-		self.groups=[]
-		self.licenses=[]
-		self.provides=[]
-		self.desc=None
-		self.url=None
-		self.builddate=None
-		self.usize=None
-		if not self.nobuild:
-			socket = os.popen("pacman-g2 -Qi -p %s" % fpm)
-		else:
-			command = """
+        self.conflicts=[]
+        self.depends=[]
+        self.groups=[]
+        self.licenses=[]
+        self.provides=[]
+        self.desc=None
+        self.url=None
+        self.builddate=None
+        self.usize=None
+        if not self.nobuild:
+            socket = os.popen("pacman-g2 -Qi -p %s" % fpm)
+        else:
+            command = """
 source /usr/lib/frugalware/fwmakepkg
 source %s
 
@@ -111,323 +111,323 @@ URL            : $url
 Build Date     : $(date -u "+%%a %%b %%e %%H:%%M:%%S %%Y" --date="`stat -c "%%y" %s`") UTC
 Size           : 0
 EOF
-			"""
+            """
 
-			fb = "../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent)
-			socket = os.popen(command % (fb, fb))
-		buf = ''.join(socket.readlines()).replace('\n ', ' ')
-		socket.close()
-		for line in re.sub(' {2,}', ' ', buf).split('\n'):
-			key = line.split(':')[0].strip()
-			# a common list for depends/provides/etc, though it
-			# will fail for build date and others which is normal
-			try:
-				values = line.strip().split(' : ')[1].split(' ')
-			except IndexError:
-				pass
-			if key == "Conflicts With":
-				self.conflicts = values
-			elif key == "Depends On":
-				self.depends = values
-			elif key == "Groups":
-				self.groups = values
-			elif key == "License":
-				try:
-					self.licenses = values
-				except IndexError:
-					pass
-			elif key == "Provides":
-				self.provides = values
-			elif key == "Description":
-				if not self.desc:
-					self.desc = "".join(line.split(' : ')[1:])
-			elif key == "URL":
-				self.url = "".join(line.split(' : ')[1:])
-			elif key == "Build Date":
-				self.builddate = "".join(line.split(' : ')[1:])[:-4]
-			elif key == "Size":
-				self.usize = int(line.split(' : ')[1])
-		if not self.parentgrp:
-			self.parentgrp = self.groups[0]
+            fb = "../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent)
+            socket = os.popen(command % (fb, fb))
+        buf = ''.join(socket.readlines()).replace('\n ', ' ')
+        socket.close()
+        for line in re.sub(' {2,}', ' ', buf).split('\n'):
+            key = line.split(':')[0].strip()
+            # a common list for depends/provides/etc, though it
+            # will fail for build date and others which is normal
+            try:
+                values = line.strip().split(' : ')[1].split(' ')
+            except IndexError:
+                pass
+            if key == "Conflicts With":
+                self.conflicts = values
+            elif key == "Depends On":
+                self.depends = values
+            elif key == "Groups":
+                self.groups = values
+            elif key == "License":
+                try:
+                    self.licenses = values
+                except IndexError:
+                    pass
+            elif key == "Provides":
+                self.provides = values
+            elif key == "Description":
+                if not self.desc:
+                    self.desc = "".join(line.split(' : ')[1:])
+            elif key == "URL":
+                self.url = "".join(line.split(' : ')[1:])
+            elif key == "Build Date":
+                self.builddate = "".join(line.split(' : ')[1:])[:-4]
+            elif key == "Size":
+                self.usize = int(line.split(' : ')[1])
+        if not self.parentgrp:
+            self.parentgrp = self.groups[0]
 
-		self.maintainer=None
-		try:
-			self.maintainer = self.getmaintainer()
-		except IOError:
-			# this happens when the group is changed but there was
-			# no rebuild. we don't want to update the db in this
-			# case
-			self.uploader=None
+        self.maintainer=None
+        try:
+            self.maintainer = self.getmaintainer()
+        except IOError:
+            # this happens when the group is changed but there was
+            # no rebuild. we don't want to update the db in this
+            # case
+            self.uploader=None
 
-		if not self.nobuild:
-			ctx = hashlib.new("sha1")
-			socket = open(fpm, "rb")
-			while True:
-				buf = socket.read(16384)
-				if not buf:
-					break
-				ctx.update(buf)
-			self.sha1sum = ctx.hexdigest()
-			self.size=os.stat(fpm).st_size
-		else:
-			self.sha1sum = ""
-			self.size = 0
+        if not self.nobuild:
+            ctx = hashlib.new("sha1")
+            socket = open(fpm, "rb")
+            while True:
+                buf = socket.read(16384)
+                if not buf:
+                    break
+                ctx.update(buf)
+            self.sha1sum = ctx.hexdigest()
+            self.size=os.stat(fpm).st_size
+        else:
+            self.sha1sum = ""
+            self.size = 0
 
-	def getmaintainer(self):
-		ret = ""
-		socket = open("../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent))
-		while True:
-			line = socket.readline()
-			if not line:
-				break
-			if line[:14] != "# Maintainer: ":
-				continue
-			ret = line[14:].strip()
-			break
-		socket.close()
-		return ret
+    def getmaintainer(self):
+        ret = ""
+        socket = open("../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent))
+        while True:
+            line = socket.readline()
+            if not line:
+                break
+            if line[:14] != "# Maintainer: ":
+                continue
+            ret = line[14:].strip()
+            break
+        socket.close()
+        return ret
 
-	def getnobuild(self):
-		command = '    source /usr/lib/frugalware/fwmakepkg'
-		command += ' ; source %s'
-		command += ' ; [ -n "${nobuild}" ] && exit 1'
-		command += ' ; echo ${options[@]} | grep -q nobuild && exit 1'
-		command += ' ; exit 0'
+    def getnobuild(self):
+        command = '    source /usr/lib/frugalware/fwmakepkg'
+        command += ' ; source %s'
+        command += ' ; [ -n "${nobuild}" ] && exit 1'
+        command += ' ; echo ${options[@]} | grep -q nobuild && exit 1'
+        command += ' ; exit 0'
 
-		fb = "../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent)
-		try:
-			os.stat(fb)
-		except OSError:
-			return False
-		return os.system(command % fb)
+        fb = "../source/%s/%s/FrugalBuild" % (self.parentgrp, self.parent)
+        try:
+            os.stat(fb)
+        except OSError:
+            return False
+        return os.system(command % fb)
 
-	def splitver(self, pkg):
-		for i in ['>=', '<=', '=']:
-			try:
-				pos = pkg.index(i)
-			except ValueError:
-				continue
-			return pkg[:pos], pkg[pos:]
-		return pkg, None
+    def splitver(self, pkg):
+        for i in ['>=', '<=', '=']:
+            try:
+                pos = pkg.index(i)
+            except ValueError:
+                continue
+            return pkg[:pos], pkg[pos:]
+        return pkg, None
 
-	def insertlist(self, member):
-		li = getattr(self, member)
-		for i in li:
-			if i == "None":
-				return
-			self.cursor.execute("""insert into %s (pkg_id, %s) values (%%s, %%s);""" % (member,
-				member[:-1]), (self.id, i))
+    def insertlist(self, member):
+        li = getattr(self, member)
+        for i in li:
+            if i == "None":
+                return
+            self.cursor.execute("""insert into %s (pkg_id, %s) values (%%s, %%s);""" % (member,
+                member[:-1]), (self.id, i))
 
-	def insertgroups(self):
-		for i in self.groups:
-			# get the group id or insert it if necessary
-			self.cursor.execute("select id from groups where name = %s limit 1", [(i)])
-			row = self.cursor.fetchone()
-			if row:
-				gid = row['id']
-			else:
-				self.cursor.execute("insert into groups (name) values (%s);", [(i)])
-				self.cursor.execute("SELECT LAST_INSERT_ID()")
-				row = self.cursor.fetchone()
-				gid = row['LAST_INSERT_ID()']
-			# now link the pkg with this group
-			self.cursor.execute("""insert into ct_groups (pkg_id,
-					group_id) values (%s, %s);""",
-					(self.id, gid))
+    def insertgroups(self):
+        for i in self.groups:
+            # get the group id or insert it if necessary
+            self.cursor.execute("select id from groups where name = %s limit 1", [(i)])
+            row = self.cursor.fetchone()
+            if row:
+                gid = row['id']
+            else:
+                self.cursor.execute("insert into groups (name) values (%s);", [(i)])
+                self.cursor.execute("SELECT LAST_INSERT_ID()")
+                row = self.cursor.fetchone()
+                gid = row['LAST_INSERT_ID()']
+            # now link the pkg with this group
+            self.cursor.execute("""insert into ct_groups (pkg_id,
+                    group_id) values (%s, %s);""",
+                    (self.id, gid))
 
-	def dellist(self, member):
-		self.cursor.execute("delete from %s where pkg_id = %d" % (member, int(self.id)))
+    def dellist(self, member):
+        self.cursor.execute("delete from %s where pkg_id = %d" % (member, int(self.id)))
 
-	def insertlistid(self, member):
-		li = getattr(self, member)
-		for i in li:
-			if i == "None":
-				return
-			# slice the version if found
-			if member == "depends":
-				i, ver = self.splitver(i)
-			else:
-				ver=None
-			# get the id of i
-			self.cursor.execute("""select id from packages where pkgname = %s
-				and arch = %s and fwver = %s limit 1""",
-				(i, self.arch, self.fwver))
-			row = self.cursor.fetchone()
-			if row:
-				id = row['id']
-			else:
-				# print "WARNING: can't find %s '%s'!" % (member, i)
-				continue
-			if not ver:
-				self.cursor.execute("""insert into %s (pkg_id,
-						%s_id) values (%%s, %%s);""" % (member, member[:-1]),
-						(self.id, id))
-			else:
-				self.cursor.execute("""insert into %s (pkg_id,
-				%s_id, version) values (%%s, %%s, %%s);""" % (member, member[:-1]),
-				(self.id, id, ver))
+    def insertlistid(self, member):
+        li = getattr(self, member)
+        for i in li:
+            if i == "None":
+                return
+            # slice the version if found
+            if member == "depends":
+                i, ver = self.splitver(i)
+            else:
+                ver=None
+            # get the id of i
+            self.cursor.execute("""select id from packages where pkgname = %s
+                and arch = %s and fwver = %s limit 1""",
+                (i, self.arch, self.fwver))
+            row = self.cursor.fetchone()
+            if row:
+                id = row['id']
+            else:
+                # print "WARNING: can't find %s '%s'!" % (member, i)
+                continue
+            if not ver:
+                self.cursor.execute("""insert into %s (pkg_id,
+                        %s_id) values (%%s, %%s);""" % (member, member[:-1]),
+                        (self.id, id))
+            else:
+                self.cursor.execute("""insert into %s (pkg_id,
+                %s_id, version) values (%%s, %%s, %%s);""" % (member, member[:-1]),
+                (self.id, id, ver))
 
-	def insertlists(self):
-		for i in ["depends", "conflicts", "provides"]:
-			self.insertlistid(i)
-		for i in ["files", "licenses", "abis"]:
-			self.insertlist(i)
-		self.insertgroups()
+    def insertlists(self):
+        for i in ["depends", "conflicts", "provides"]:
+            self.insertlistid(i)
+        for i in ["files", "licenses", "abis"]:
+            self.insertlist(i)
+        self.insertgroups()
 
-	def dellists(self):
-		for i in ["depends", "conflicts", "provides", "files", "licenses", "ct_groups", "abis"]:
-			self.dellist(i)
+    def dellists(self):
+        for i in ["depends", "conflicts", "provides", "files", "licenses", "ct_groups", "abis"]:
+            self.dellist(i)
 
-	def delete(self):
-		# check if there is such a package & get the id
-		self.cursor.execute("""select id from packages where pkgname =
-				%s and arch = %s and fwver = %s""",
-				(self.parent, self.arch, self.fwver))
-		row = self.cursor.fetchone()
-		if row:
-			self.id = row['id']
-		else:
-			print('WARNING: package %s not found, probably already deleted!' % (self.parent))
-			return
+    def delete(self):
+        # check if there is such a package & get the id
+        self.cursor.execute("""select id from packages where pkgname =
+                %s and arch = %s and fwver = %s""",
+                (self.parent, self.arch, self.fwver))
+        row = self.cursor.fetchone()
+        if row:
+            self.id = row['id']
+        else:
+            print('WARNING: package %s not found, probably already deleted!' % (self.parent))
+            return
 
-		self.cursor.execute("delete from packages where id = %d" % self.id)
-		self.dellists()
+        self.cursor.execute("delete from packages where id = %d" % self.id)
+        self.dellists()
 
-	def update(self, force):
-		# do we really need this update?
-		if not self.uploader:
-			return
-		if not self.updateable:
-			print("Can't find the package!")
-			return
-		self.cursor.execute("""select id, pkgver from packages where pkgname = %s
-			and arch = %s and fwver = %s limit 1""",
-			(self.pkgname, self.arch, self.fwver))
-		row = self.cursor.fetchone()
-		if row and row['pkgver'] == self.pkgver and not force:
-			return
-		elif row:
-			self.id = row['id']
-		# uploader_id and parent_id
-		self.cursor.execute("select id from uploaders where login = %s limit 1", [(self.uploader)])
-		row = self.cursor.fetchone()
-		if row:
-			self.uploader_id = row['id']
-		else:
-			self.cursor.execute("insert into uploaders (login) values (%s);", (self.uploader,))
-			self.cursor.execute("SELECT LAST_INSERT_ID()")
-			row = self.cursor.fetchone()
-			self.uploader_id = row['LAST_INSERT_ID()']
+    def update(self, force):
+        # do we really need this update?
+        if not self.uploader:
+            return
+        if not self.updateable:
+            print("Can't find the package!")
+            return
+        self.cursor.execute("""select id, pkgver from packages where pkgname = %s
+            and arch = %s and fwver = %s limit 1""",
+            (self.pkgname, self.arch, self.fwver))
+        row = self.cursor.fetchone()
+        if row and row['pkgver'] == self.pkgver and not force:
+            return
+        elif row:
+            self.id = row['id']
+        # uploader_id and parent_id
+        self.cursor.execute("select id from uploaders where login = %s limit 1", [(self.uploader)])
+        row = self.cursor.fetchone()
+        if row:
+            self.uploader_id = row['id']
+        else:
+            self.cursor.execute("insert into uploaders (login) values (%s);", (self.uploader,))
+            self.cursor.execute("SELECT LAST_INSERT_ID()")
+            row = self.cursor.fetchone()
+            self.uploader_id = row['LAST_INSERT_ID()']
 
-		if self.parent:
-			self.cursor.execute("""select id from packages where pkgname = %s
-				and arch = %s and fwver = %s limit 1""",
-				(self.parent, self.arch, self.fwver))
-			row = self.cursor.fetchone()
-			if row:
-				self.parent_id = row['id']
+        if self.parent:
+            self.cursor.execute("""select id from packages where pkgname = %s
+                and arch = %s and fwver = %s limit 1""",
+                (self.parent, self.arch, self.fwver))
+            row = self.cursor.fetchone()
+            if row:
+                self.parent_id = row['id']
 
-		# time to insert to the packages table
-		if not self.id:
-			self.cursor.execute('''
-			insert into packages
-			(pkgname, pkgver, `desc`, url, sha1sum, arch,
-			size, usize, parent_id, maintainer, uploader_id, fwver, builddate)
-			VALUES (%s, %s, %s, %s, %s, %s,
-			%s, %s, %s, %s, %s,
-			%s, %s);
-			''', (self.pkgname, self.pkgver, self.desc, self.url, self.sha1sum, self.arch,
-				self.size, self.usize, self.parent_id, self.maintainer, self.uploader_id,
-				self.fwver, time.strftime("%Y-%m-%d %H:%M:%S", time.strptime(self.builddate))))
-			self.cursor.execute("SELECT LAST_INSERT_ID()")
-			row = self.cursor.fetchone()
-			self.id = row['LAST_INSERT_ID()']
-			self.insertlists()
-		else:
-			self.cursor.execute(''' update packages set pkgname = %s,
-			pkgver = %s, `desc` = %s, url = %s, sha1sum =
-			%s, arch = %s, size = %s, usize = %s, parent_id
-			= %s, maintainer = %s, uploader_id = %s, fwver =
-			%s, builddate = %s where id = %s ''',
-			(self.pkgname, self.pkgver, self.desc, self.url,
-			self.sha1sum, self.arch, self.size, self.usize,
-			self.parent_id, self.maintainer, self.uploader_id,
-			self.fwver, time.strftime("%Y-%m-%d %H:%M:%S",
-				time.strptime(self.builddate)), self.id))
-			self.dellists()
-			self.insertlists()
+        # time to insert to the packages table
+        if not self.id:
+            self.cursor.execute('''
+            insert into packages
+            (pkgname, pkgver, `desc`, url, sha1sum, arch,
+            size, usize, parent_id, maintainer, uploader_id, fwver, builddate)
+            VALUES (%s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s,
+            %s, %s);
+            ''', (self.pkgname, self.pkgver, self.desc, self.url, self.sha1sum, self.arch,
+                self.size, self.usize, self.parent_id, self.maintainer, self.uploader_id,
+                self.fwver, time.strftime("%Y-%m-%d %H:%M:%S", time.strptime(self.builddate))))
+            self.cursor.execute("SELECT LAST_INSERT_ID()")
+            row = self.cursor.fetchone()
+            self.id = row['LAST_INSERT_ID()']
+            self.insertlists()
+        else:
+            self.cursor.execute(''' update packages set pkgname = %s,
+            pkgver = %s, `desc` = %s, url = %s, sha1sum =
+            %s, arch = %s, size = %s, usize = %s, parent_id
+            = %s, maintainer = %s, uploader_id = %s, fwver =
+            %s, builddate = %s where id = %s ''',
+            (self.pkgname, self.pkgver, self.desc, self.url,
+            self.sha1sum, self.arch, self.size, self.usize,
+            self.parent_id, self.maintainer, self.uploader_id,
+            self.fwver, time.strftime("%Y-%m-%d %H:%M:%S",
+                time.strptime(self.builddate)), self.id))
+            self.dellists()
+            self.insertlists()
 
 def usage():
-	print(__doc__)
+    print(__doc__)
 
 def main(argv):
-	# defaults
-	update = True
-	force = False
-	fpm = ""
-	mainpkg = None
-	maingrp = None
-	host = ""
-	user = ""
-	password = ""
-	dbname = ""
+    # defaults
+    update = True
+    force = False
+    fpm = ""
+    mainpkg = None
+    maingrp = None
+    host = ""
+    user = ""
+    password = ""
+    dbname = ""
 
-	# option parsing
-	try:
-		opts, args = getopt.getopt(argv, "DFf:h:u:p:d:m:g:", ["delete",
-			"force", "fpm=", "host=", "user=", "password=", "dbname=",
-			"mainpkg=", "maingrp="])
-	except getopt.GetoptError:
-		usage()
-		sys.exit(1)
-	for opt, arg in opts:
-		if opt in ("-D", "--delete"):
-			update = False
-		elif opt in ("-F", "--force"):
-			force = True
-		elif opt in ("-f", "--file"):
-			fpm = arg
-		elif opt in ("-m", "--mainpkg"):
-			mainpkg = arg
-		elif opt in ("-g", "--maingrp"):
-			maingrp = arg
-		elif opt in ("-h", "--host"):
-			host = arg
-		elif opt in ("-u", "--user"):
-			user = arg
-		elif opt in ("-p", "--password"):
-			password = arg
-		elif opt in ("-d", "--dbname"):
-			dbname = arg
+    # option parsing
+    try:
+        opts, args = getopt.getopt(argv, "DFf:h:u:p:d:m:g:", ["delete",
+            "force", "fpm=", "host=", "user=", "password=", "dbname=",
+            "mainpkg=", "maingrp="])
+    except getopt.GetoptError:
+        usage()
+        sys.exit(1)
+    for opt, arg in opts:
+        if opt in ("-D", "--delete"):
+            update = False
+        elif opt in ("-F", "--force"):
+            force = True
+        elif opt in ("-f", "--file"):
+            fpm = arg
+        elif opt in ("-m", "--mainpkg"):
+            mainpkg = arg
+        elif opt in ("-g", "--maingrp"):
+            maingrp = arg
+        elif opt in ("-h", "--host"):
+            host = arg
+        elif opt in ("-u", "--user"):
+            user = arg
+        elif opt in ("-p", "--password"):
+            password = arg
+        elif opt in ("-d", "--dbname"):
+            dbname = arg
 
-	# check for missing options
-	if fpm != "" or (mainpkg != "" and not update):
-		pass
-	else:
-		raise ValueError("missing -f package!")
-	if host == "":
-		host = "localhost"
-	if user == "":
-		user = "fpm2db"
-	if password == "":
-		password = "C6fO?o3qy"
-	if dbname == "":
-		dbname = "frugalware2"
+    # check for missing options
+    if fpm != "" or (mainpkg != "" and not update):
+        pass
+    else:
+        raise ValueError("missing -f package!")
+    if host == "":
+        host = "localhost"
+    if user == "":
+        user = "fpm2db"
+    if password == "":
+        password = "C6fO?o3qy"
+    if dbname == "":
+        dbname = "frugalware2"
 
-	# autodetection
-	os.unsetenv("LANG")
-	os.unsetenv("LC_ALL")
-	pkg = package(fpm, mainpkg, maingrp)
+    # autodetection
+    os.unsetenv("LANG")
+    os.unsetenv("LC_ALL")
+    pkg = package(fpm, mainpkg, maingrp)
 
-	conn = MySQLdb.connect(host=host, user=user, passwd=password,
-			db=dbname)
-	pkg.cursor = conn.cursor(MySQLdb.cursors.DictCursor)
-	if update:
-		pkg.update(force)
-	else:
-		pkg.delete()
-	conn.close()
+    conn = MySQLdb.connect(host=host, user=user, passwd=password,
+            db=dbname)
+    pkg.cursor = conn.cursor(MySQLdb.cursors.DictCursor)
+    if update:
+        pkg.update(force)
+    else:
+        pkg.delete()
+    conn.close()
     conn.commit()
 
 if __name__ == "__main__":
-	main(sys.argv[1:])
+    main(sys.argv[1:])

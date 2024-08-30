@@ -1,0 +1,53 @@
+From 18f6567f455179b201f64d292d77125b0c525141 Mon Sep 17 00:00:00 2001
+From: DeX77 <dex77@frugalware.org>
+Date: Fri, 30 Aug 2024 11:51:14 +0200
+Subject: [PATCH] * use sqopv since it supports reading from stdin
+
+---
+ scripts/makepkg | 16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/scripts/makepkg b/scripts/makepkg
+index 2f965f86..ff7b996d 100755
+--- a/scripts/makepkg
++++ b/scripts/makepkg
+@@ -1854,7 +1854,7 @@ if [ "$GENSHA1" = "0" ]; then
+ 		fi
+ 		# gpg validation
+ 		if [ ${#signatures[@]} -eq ${#source[@]} ]; then
+-			if [ `type -p sqv` ]; then
++			if [ `type -p sqopv` ]; then
+ 				errors=0
+ 				idx=0
+ 				for netfile in "${source[@]}"; do
+@@ -1862,7 +1862,17 @@ if [ "$GENSHA1" = "0" ]; then
+ 					sig=`strip_url "${signatures[$idx]}"`
+ 					$ECHO -n "    $file ... " >&2
+ 					if [ ! -z "$sig" ]; then
+-						sqv -v --keyring $startdir/$pkgname.key $sig $file
++                                                echo "$sig" | grep -q "^$file" >/dev/null 2>&1
++                                                if [ $? -ne 0 ]; then
++                                                        case $file in
++                                                                *.gz)  cmd='zcat'  ;;
++                                                                *.bz2) cmd='bzcat' ;;
++                                                                *.xz)  cmd='xzcat' ;;
++                                                        esac
++                                                else
++                                                       cmd='cat'
++                                                fi
++                                                $cmd $file | sqopv verify $sig $startdir/$pkgname.key >/dev/null 2>&1
+ 						if [ $? -ne 0 ]; then
+ 							$ECHO "FAILED" >&2
+ 							errors=1
+@@ -1879,7 +1889,7 @@ if [ "$GENSHA1" = "0" ]; then
+ 					exit 1
+ 				fi
+ 			else
+-				warning "The sqv program is missing.  Cannot verify source files!"
++				warning "The sqopv program is missing.  Cannot verify source files!"
+ 				sleep 1
+ 			fi
+ 		fi
+-- 
+2.46.0
+

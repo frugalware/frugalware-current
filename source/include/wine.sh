@@ -28,7 +28,7 @@ depends+=('lib32-lcms2' 'lib32-libxcursor' 'lib32-libxi' 'lib32-libxrandr' 'lib3
 	'lib32-libldap>=2.5.4' 'lib32-vulkan-icd-loader' 'lib32-faudio' 'lib32-libosmesa')
 makedepends=('x11-protos' 'cups' 'bison' 'opencl-headers' 'kernel-headers' 'wayland' 'wayland-protocols')
 _F_cd_path="wine-$pkgver"
-options=('genscriptlet' 'nostrip' 'static' 'nolto' 'plt' 'ldgold')
+options=('genscriptlet' 'static' 'plt' 'nolto' 'ldgold')
 archs=('x86_64')
 _F_conf_configure="../configure"
 _F_archive_grepv="\-rc"
@@ -68,8 +68,6 @@ default)
 	;;
 
 esac
-
-signatures=("${source[0]}.sign" '')
 
 build()
 {

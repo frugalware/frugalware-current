@@ -1,0 +1,983 @@
+From 2a01dbb45059b595a4a05ef6ebb0cafcc263b456 Mon Sep 17 00:00:00 2001
+From: Damiano Galassi <damiog@gmail.com>
+Date: Thu, 22 Aug 2024 13:49:13 +0200
+Subject: [PATCH] contrib: update x265 to version 4.0
+
+---
+ ...-not-set-thread-priority-on-Windows.patch} |  13 +-
+ contrib/x265/A02-Apple-Silicon-tuning.patch   |  34 ++++
+ .../x265/A02-threads-pool-adjustments.patch   |  23 ---
+ ...x-crash-when-SEI-length-is-variable.patch} |  16 +-
+ ...ent-ambient-viewing-environment-sei.patch} |  43 +++--
+ ...eaks-and-improve-rpu-memory-managem.patch} |  88 +++++-----
+ ...A06-Simplify-macOS-cross-compilation.patch |  29 ++++
+ contrib/x265/A06-crosscompile-fix.patch       |  42 -----
+ ...features-detection-code-from-SVT-AV1.patch | 158 ++++++++++++++++++
+ contrib/x265/module.defs                      |   6 +-
+ contrib/x265_10bit/module.defs                |  13 +-
+ contrib/x265_12bit/module.defs                |  13 +-
+ contrib/x265_8bit/module.defs                 |  13 +-
+ libhb/encx265.c                               |  27 ++-
+ 14 files changed, 368 insertions(+), 150 deletions(-)
+ rename contrib/x265/{A01-threads-priority.patch => A01-Do-not-set-thread-priority-on-Windows.patch} (57%)
+ create mode 100644 contrib/x265/A02-Apple-Silicon-tuning.patch
+ delete mode 100644 contrib/x265/A02-threads-pool-adjustments.patch
+ rename contrib/x265/{A03-sei-length-crash-fix.patch => A03-fix-crash-when-SEI-length-is-variable.patch} (71%)
+ rename contrib/x265/{A04-ambient-viewing-enviroment-sei.patch => A04-implement-ambient-viewing-environment-sei.patch} (75%)
+ rename contrib/x265/{A05-memory-leaks.patch => A05-Fix-some-memory-leaks-and-improve-rpu-memory-managem.patch} (80%)
+ create mode 100644 contrib/x265/A06-Simplify-macOS-cross-compilation.patch
+ delete mode 100644 contrib/x265/A06-crosscompile-fix.patch
+ create mode 100644 contrib/x265/A07-Port-ARM64-features-detection-code-from-SVT-AV1.patch
+
+diff --git a/contrib/x265/A01-threads-priority.patch b/contrib/x265/A01-Do-not-set-thread-priority-on-Windows.patch
+similarity index 57%
+rename from contrib/x265/A01-threads-priority.patch
+rename to contrib/x265/A01-Do-not-set-thread-priority-on-Windows.patch
+index 1dedf86bb213..46c88c7d2dc2 100644
+--- a/contrib/x265/A01-threads-priority.patch
++++ b/contrib/x265/A01-Do-not-set-thread-priority-on-Windows.patch
+@@ -1,5 +1,14 @@
++From c5ba94be92cc687ee36b321b7143d58393aca055 Mon Sep 17 00:00:00 2001
++From: Max Dmitrichenko <max.dmitrichenko@intel.com>
++Date: Thu, 22 Aug 2024 07:40:48 +0200
++Subject: [PATCH 1/6] Do not set thread priority on Windows
++
++---
++ source/common/threadpool.cpp | 6 ------
++ 1 file changed, 6 deletions(-)
++
+ diff --git a/source/common/threadpool.cpp b/source/common/threadpool.cpp
+-index 2db7a146b..4ed534d6b 100644
++index 9c27be783..4d7918033 100644
+ --- a/source/common/threadpool.cpp
+ +++ b/source/common/threadpool.cpp
+ @@ -115,12 +115,6 @@ void WorkerThread::threadMain()
+@@ -15,4 +24,6 @@ index 2db7a146b..4ed534d6b 100644
+      m_pool.setCurrentThreadAffinity();
+  
+      sleepbitmap_t idBit = (sleepbitmap_t)1 << m_id;
++-- 
++2.39.3 (Apple Git-146)
+ 
+diff --git a/contrib/x265/A02-Apple-Silicon-tuning.patch b/contrib/x265/A02-Apple-Silicon-tuning.patch
+new file mode 100644
+index 000000000000..1fe7207e78a6
+--- /dev/null
++++ b/contrib/x265/A02-Apple-Silicon-tuning.patch
+@@ -0,0 +1,34 @@
++From b6f8695658dc8f5e0d3759a65ae37a8efefef4e4 Mon Sep 17 00:00:00 2001
++From: Damiano Galassi <damiog@gmail.com>
++Date: Fri, 13 Sep 2024 16:08:25 +0200
++Subject: [PATCH 2/6] Apple Silicon tuning
++
++---
++ source/common/threadpool.cpp | 8 +++++++-
++ 1 file changed, 7 insertions(+), 1 deletion(-)
++
++diff --git a/source/common/threadpool.cpp b/source/common/threadpool.cpp
++index 4d7918033..7b53cb84e 100644
++--- a/source/common/threadpool.cpp
+++++ b/source/common/threadpool.cpp
++@@ -661,10 +661,16 @@ void ThreadPool::getFrameThreadsCount(x265_param* p, int cpuCount)
++     else if (cpuCount >= 32)
++         p->frameNumThreads = (p->sourceHeight > 2000) ? 6 : 5; 
++     else if (cpuCount >= 16)
++-        p->frameNumThreads = 4; 
+++#if MACOS && X265_ARCH_ARM64
+++        p->frameNumThreads = 16;
+++#else
+++        p->frameNumThreads = 4;
+++#endif
++     else if (cpuCount >= 8)
++ #if _WIN32 && X265_ARCH_ARM64
++         p->frameNumThreads = cpuCount;
+++#elif MACOS && X265_ARCH_ARM64
+++        p->frameNumThreads = 8;
++ #else
++         p->frameNumThreads = 3;
++ #endif
++-- 
++2.39.3 (Apple Git-146)
++
+diff --git a/contrib/x265/A02-threads-pool-adjustments.patch b/contrib/x265/A02-threads-pool-adjustments.patch
+deleted file mode 100644
+index e429e8b53e2c..000000000000
+--- a/contrib/x265/A02-threads-pool-adjustments.patch
++++ /dev/null
+@@ -1,23 +0,0 @@
+-diff --git a/source/common/threadpool.cpp b/source/common/threadpool.cpp
+-index 4ed534d..f67f752 100644
+---- a/source/common/threadpool.cpp
+-+++ b/source/common/threadpool.cpp
+-@@ -661,9 +661,17 @@ void ThreadPool::getFrameThreadsCount(x265_param* p, int cpuCount)
+-     else if (cpuCount >= 32)
+-         p->frameNumThreads = (p->sourceHeight > 2000) ? 6 : 5; 
+-     else if (cpuCount >= 16)
+--        p->frameNumThreads = 4; 
+-+#if MACOS && X265_ARCH_ARM64
+-+        p->frameNumThreads = 16;
+-+#else
+-+        p->frameNumThreads = 4;
+-+#endif
+-     else if (cpuCount >= 8)
+-+#if MACOS && X265_ARCH_ARM64
+-+        p->frameNumThreads = 8;
+-+#else
+-         p->frameNumThreads = 3;
+-+#endif
+-     else if (cpuCount >= 4)
+-         p->frameNumThreads = 2;
+-     else
+diff --git a/contrib/x265/A03-sei-length-crash-fix.patch b/contrib/x265/A03-fix-crash-when-SEI-length-is-variable.patch
+similarity index 71%
+rename from contrib/x265/A03-sei-length-crash-fix.patch
+rename to contrib/x265/A03-fix-crash-when-SEI-length-is-variable.patch
+index 7f15bb142d09..e58b2f088037 100644
+--- a/contrib/x265/A03-sei-length-crash-fix.patch
++++ b/contrib/x265/A03-fix-crash-when-SEI-length-is-variable.patch
+@@ -1,29 +1,29 @@
+-From 8454caf458c5f5d20cce711ff8ea8de55ec1ae50 Mon Sep 17 00:00:00 2001
++From 9711f557a2e9ab6e0511e18f03835f733a0bfcbc Mon Sep 17 00:00:00 2001
+ From: harlanc <hailiang8@staff.weibo.com>
+ Date: Thu, 1 Dec 2022 07:46:13 +0000
+-Subject: [PATCH] fix crash when SEI length is variable
++Subject: [PATCH 3/6] fix crash when SEI length is variable
+ 
+ ---
+  source/encoder/encoder.cpp | 6 ++++++
+  1 file changed, 6 insertions(+)
+ 
+ diff --git a/source/encoder/encoder.cpp b/source/encoder/encoder.cpp
+-index 0fea6553c..5a3fcafc7 100644
++index 65c247aba..13d65655f 100644
+ --- a/source/encoder/encoder.cpp
+ +++ b/source/encoder/encoder.cpp
+-@@ -1103,6 +1103,12 @@ void Encoder::copyUserSEIMessages(Frame *frame, const x265_picture* pic_in)
+-                 input = seiMsg;
++@@ -1113,6 +1113,12 @@ void Encoder::copyUserSEIMessages(Frame *frame, const x265_picture* pic_in)
+              else
+                  input = pic_in->userSEI.payloads[i];
+-+            
++ 
+ +            if (frame->m_userSEI.payloads[i].payload && (frame->m_userSEI.payloads[i].payloadSize < input.payloadSize))
+ +            {
+ +                delete[] frame->m_userSEI.payloads[i].payload;
+ +                frame->m_userSEI.payloads[i].payload = NULL;
+ +            }
+- 
+++
+              if (!frame->m_userSEI.payloads[i].payload)
+                  frame->m_userSEI.payloads[i].payload = new uint8_t[input.payloadSize];
++             memcpy(frame->m_userSEI.payloads[i].payload, input.payload, input.payloadSize);
+ -- 
+-2.37.1 (Apple Git-137.1)
++2.39.3 (Apple Git-146)
+ 
+diff --git a/contrib/x265/A04-ambient-viewing-enviroment-sei.patch b/contrib/x265/A04-implement-ambient-viewing-environment-sei.patch
+similarity index 75%
+rename from contrib/x265/A04-ambient-viewing-enviroment-sei.patch
+rename to contrib/x265/A04-implement-ambient-viewing-environment-sei.patch
+index ab36a9c35c9d..f3184879a2c2 100644
+--- a/contrib/x265/A04-ambient-viewing-enviroment-sei.patch
++++ b/contrib/x265/A04-implement-ambient-viewing-environment-sei.patch
+@@ -1,8 +1,20 @@
++From 2d918078c803c774f828f7f070f0d345cd1a3e82 Mon Sep 17 00:00:00 2001
++From: Damiano Galassi <damiog@gmail.com>
++Date: Thu, 22 Aug 2024 07:46:30 +0200
++Subject: [PATCH 4/6] implement ambient viewing environment sei
++
++---
++ source/common/param.cpp    |  6 ++++++
++ source/encoder/encoder.cpp |  9 +++++++++
++ source/encoder/sei.h       | 19 +++++++++++++++++++
++ source/x265.h              |  9 +++++++++
++ 4 files changed, 43 insertions(+)
++
+ diff --git a/source/common/param.cpp b/source/common/param.cpp
+-index 8c32fafa2..0b56235c9 100755
++index d08bb604e..68f7f84fe 100755
+ --- a/source/common/param.cpp
+ +++ b/source/common/param.cpp
+-@@ -378,6 +378,7 @@ void x265_param_default(x265_param* param)
++@@ -380,6 +380,7 @@ void x265_param_default(x265_param* param)
+      param->preferredTransferCharacteristics = -1;
+      param->pictureStructure = -1;
+      param->bEmitCLL = 1;
+@@ -10,7 +22,7 @@ index 8c32fafa2..0b56235c9 100755
+  
+      param->bEnableFrameDuplication = 0;
+      param->dupThreshold = 70;
+-@@ -1880,6 +1881,7 @@ int x265_check_params(x265_param* param)
++@@ -1929,6 +1930,7 @@ int x265_check_params(x265_param* param)
+                       || param->bEmitIDRRecoverySEI
+                     || !!param->interlaceMode
+                       || param->preferredTransferCharacteristics > 1
+@@ -18,7 +30,7 @@ index 8c32fafa2..0b56235c9 100755
+                       || param->toneMapFile
+                       || param->naluFile);
+  
+-@@ -2766,6 +2768,10 @@ void x265_copy_params(x265_param* dst, x265_param* src)
++@@ -2850,6 +2852,10 @@ void x265_copy_params(x265_param* dst, x265_param* src)
+      dst->bEmitCLL = src->bEmitCLL;
+      dst->maxCLL = src->maxCLL;
+      dst->maxFALL = src->maxFALL;
+@@ -30,10 +42,10 @@ index 8c32fafa2..0b56235c9 100755
+      dst->bEmitVUIHRDInfo = src->bEmitVUIHRDInfo;
+      dst->bEmitVUITimingInfo = src->bEmitVUITimingInfo;
+ diff --git a/source/encoder/encoder.cpp b/source/encoder/encoder.cpp
+-index 5950f87e9..545283474 100644
++index 13d65655f..e7dd30fa7 100644
+ --- a/source/encoder/encoder.cpp
+ +++ b/source/encoder/encoder.cpp
+-@@ -3276,6 +3276,15 @@ void Encoder::getStreamHeaders(NALList& list, Entropy& sbacCoder, Bitstream& bs)
++@@ -3429,6 +3429,15 @@ void Encoder::getStreamHeaders(NALList& list, Entropy& sbacCoder, Bitstream& bs)
+          }
+      }
+  
+@@ -50,10 +62,10 @@ index 5950f87e9..545283474 100644
+      {
+          char *opts = x265_param2string(m_param, m_sps.conformanceWindow.rightOffset, m_sps.conformanceWindow.bottomOffset);
+ diff --git a/source/encoder/sei.h b/source/encoder/sei.h
+-index 03e210639..712e4efb4 100644
++index e357a1bf5..ab6086a2c 100644
+ --- a/source/encoder/sei.h
+ +++ b/source/encoder/sei.h
+-@@ -242,6 +242,25 @@ public:
++@@ -464,6 +464,25 @@ public:
+      }
+  };
+  
+@@ -80,7 +92,7 @@ index 03e210639..712e4efb4 100644
+  {
+  public:
+ diff --git a/source/x265.h b/source/x265.h
+-index 9f3abd9d9..b6a4d3fe1 100644
++index 08ccb4b74..f2981cea2 100644
+ --- a/source/x265.h
+ +++ b/source/x265.h
+ @@ -371,6 +371,7 @@ typedef enum
+@@ -88,10 +100,10 @@ index 9f3abd9d9..b6a4d3fe1 100644
+      CONTENT_LIGHT_LEVEL_INFO             = 144,
+      ALTERNATIVE_TRANSFER_CHARACTERISTICS = 147,
+ +    AMBIENT_VIEWING_ENVIRONMENT          = 148,
+- } SEIPayloadType;
+- 
+- typedef struct x265_sei_payload
+-@@ -1903,6 +1904,11 @@ typedef struct x265_param
++     ALPHA_CHANNEL_INFO                   = 165,
++     THREE_DIMENSIONAL_REFERENCE_DISPLAYS_INFO = 176,
++     MULTIVIEW_SCENE_INFO                 = 178,
++@@ -1956,6 +1957,11 @@ typedef struct x265_param
+       * value to that value. */
+      uint16_t maxLuma;
+  
+@@ -103,7 +115,7 @@ index 9f3abd9d9..b6a4d3fe1 100644
+      /* Maximum of the picture order count */
+      int log2MaxPocLsb;
+  
+-@@ -2114,6 +2120,9 @@ typedef struct x265_param
++@@ -2167,6 +2173,9 @@ typedef struct x265_param
+      /*Emit content light level info SEI*/
+      int         bEmitCLL;
+  
+@@ -113,3 +125,6 @@ index 9f3abd9d9..b6a4d3fe1 100644
+      /*
+      * Signals picture structure SEI timing message for every frame
+      * picture structure 7 is signalled for frame doubling
++-- 
++2.39.3 (Apple Git-146)
++
+diff --git a/contrib/x265/A05-memory-leaks.patch b/contrib/x265/A05-Fix-some-memory-leaks-and-improve-rpu-memory-managem.patch
+similarity index 80%
+rename from contrib/x265/A05-memory-leaks.patch
+rename to contrib/x265/A05-Fix-some-memory-leaks-and-improve-rpu-memory-managem.patch
+index ea113040d874..b51e0248037f 100644
+--- a/contrib/x265/A05-memory-leaks.patch
++++ b/contrib/x265/A05-Fix-some-memory-leaks-and-improve-rpu-memory-managem.patch
+@@ -1,22 +1,22 @@
+-From 2e2b36a033becc5c7eef64a81be3245fc0f9a42b Mon Sep 17 00:00:00 2001
+-From: Damiano galassi <damiog@gmail.com>
+-Date: Wed, 11 Oct 2023 14:26:03 +0200
+-Subject: [PATCH] Fix a good number of memory leaks.
++From 762c8f336328463f55ef23ff1c14420fae4bcc96 Mon Sep 17 00:00:00 2001
++From: Damiano Galassi <damiog@gmail.com>
++Date: Thu, 22 Aug 2024 07:58:48 +0200
++Subject: [PATCH 5/6] Fix some memory leaks and improve rpu memory management
+ 
+ ---
+  source/common/frame.cpp        |  5 +++
+  source/common/param.cpp        | 65 ++++++++++++++++++++--------------
+  source/encoder/api.cpp         |  3 +-
+  source/encoder/encoder.cpp     | 27 +++++++-------
+- source/encoder/framefilter.cpp |  8 ++---
++ source/encoder/framefilter.cpp |  7 ++--
+  source/encoder/slicetype.cpp   |  6 ++++
+- 6 files changed, 67 insertions(+), 47 deletions(-)
++ 6 files changed, 66 insertions(+), 47 deletions(-)
+ 
+ diff --git a/source/common/frame.cpp b/source/common/frame.cpp
+-index ae3773e83..74580cc54 100644
++index 4c800e94e..2b9c6aab1 100644
+ --- a/source/common/frame.cpp
+ +++ b/source/common/frame.cpp
+-@@ -302,6 +302,11 @@ void Frame::destroy()
++@@ -348,6 +348,11 @@ void Frame::destroy()
+          delete[] m_userSEI.payloads;
+      }
+  
+@@ -29,7 +29,7 @@ index ae3773e83..74580cc54 100644
+      {
+          uint32_t widthInCU = (m_param->sourceWidth + m_param->maxCUSize - 1) >> m_param->maxLog2CUSize;
+ diff --git a/source/common/param.cpp b/source/common/param.cpp
+-index 1a4df4cdc..e189b390b 100755
++index 68f7f84fe..6a2b793a0 100755
+ --- a/source/common/param.cpp
+ +++ b/source/common/param.cpp
+ @@ -102,6 +102,19 @@ x265_param *x265_param_alloc()
+@@ -52,7 +52,7 @@ index 1a4df4cdc..e189b390b 100755
+      x265_zone_free(p);
+  #ifdef SVT_HEVC
+       x265_free(p->svtHevcParam);
+-@@ -2554,12 +2567,24 @@ bool parseMaskingStrength(x265_param* p, const char* value)
++@@ -2636,13 +2649,25 @@ bool parseMaskingStrength(x265_param* p, const char* value)
+      return bError;
+  }
+  
+@@ -71,6 +71,7 @@ index 1a4df4cdc..e189b390b 100755
+ +
+  void x265_copy_params(x265_param* dst, x265_param* src)
+  {
++     dst->mcstfFrameRange = src->mcstfFrameRange;
+      dst->cpuid = src->cpuid;
+      dst->frameNumThreads = src->frameNumThreads;
+ -    if (src->numaPools) dst->numaPools = strdup(src->numaPools);
+@@ -79,7 +80,7 @@ index 1a4df4cdc..e189b390b 100755
+  
+      dst->bEnableWavefront = src->bEnableWavefront;
+      dst->bDistributeModeAnalysis = src->bDistributeModeAnalysis;
+-@@ -2569,8 +2594,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
++@@ -2652,8 +2677,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
+      dst->bEnableSsim = src->bEnableSsim;
+      dst->logLevel = src->logLevel;
+      dst->csvLogLevel = src->csvLogLevel;
+@@ -89,7 +90,7 @@ index 1a4df4cdc..e189b390b 100755
+      dst->internalBitDepth = src->internalBitDepth;
+      dst->sourceBitDepth = src->sourceBitDepth;
+      dst->internalCsp = src->internalCsp;
+-@@ -2619,8 +2643,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
++@@ -2703,8 +2727,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
+      dst->bEnableTransformSkip = src->bEnableTransformSkip;
+      dst->noiseReductionInter = src->noiseReductionInter;
+      dst->noiseReductionIntra = src->noiseReductionIntra;
+@@ -99,7 +100,7 @@ index 1a4df4cdc..e189b390b 100755
+      dst->bEnableStrongIntraSmoothing = src->bEnableStrongIntraSmoothing;
+      dst->bEnableConstrainedIntra = src->bEnableConstrainedIntra;
+      dst->maxNumMergeCand = src->maxNumMergeCand;
+-@@ -2662,8 +2685,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
++@@ -2746,8 +2769,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
+      dst->psyRdoq = src->psyRdoq;
+      dst->bEnableRdRefine = src->bEnableRdRefine;
+      dst->analysisReuseMode = src->analysisReuseMode;
+@@ -109,7 +110,7 @@ index 1a4df4cdc..e189b390b 100755
+      dst->bLossless = src->bLossless;
+      dst->cbQpOffset = src->cbQpOffset;
+      dst->crQpOffset = src->crQpOffset;
+-@@ -2692,10 +2714,8 @@ void x265_copy_params(x265_param* dst, x265_param* src)
++@@ -2776,10 +2798,8 @@ void x265_copy_params(x265_param* dst, x265_param* src)
+      dst->rc.bStatWrite = src->rc.bStatWrite;
+      dst->rc.bStatRead = src->rc.bStatRead;
+      dst->rc.dataShareMode = src->rc.dataShareMode;
+@@ -122,7 +123,7 @@ index 1a4df4cdc..e189b390b 100755
+      dst->rc.qblur = src->rc.qblur;
+      dst->rc.complexityBlur = src->rc.complexityBlur;
+      dst->rc.bEnableSlowFirstPass = src->rc.bEnableSlowFirstPass;
+-@@ -2729,8 +2749,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
++@@ -2813,8 +2833,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
+      else
+          dst->rc.zones = NULL;
+  
+@@ -132,7 +133,7 @@ index 1a4df4cdc..e189b390b 100755
+      dst->rc.bStrictCbr = src->rc.bStrictCbr;
+      dst->rc.qgSize = src->rc.qgSize;
+      dst->rc.bEnableGrain = src->rc.bEnableGrain;
+-@@ -2761,8 +2780,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
++@@ -2845,8 +2864,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
+      dst->vui.defDispWinRightOffset = src->vui.defDispWinRightOffset;
+      dst->vui.defDispWinTopOffset = src->vui.defDispWinTopOffset;
+  
+@@ -142,7 +143,7 @@ index 1a4df4cdc..e189b390b 100755
+      dst->maxLuma = src->maxLuma;
+      dst->minLuma = src->minLuma;
+      dst->bEmitCLL = src->bEmitCLL;
+-@@ -2791,8 +2809,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
++@@ -2879,8 +2897,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
+      dst->analysisSaveReuseLevel = src->analysisSaveReuseLevel;
+      dst->analysisLoadReuseLevel = src->analysisLoadReuseLevel;
+      dst->bLimitSAO = src->bLimitSAO;
+@@ -152,7 +153,7 @@ index 1a4df4cdc..e189b390b 100755
+      dst->bDhdr10opt = src->bDhdr10opt;
+      dst->bCTUInfo = src->bCTUInfo;
+      dst->bUseRcStats = src->bUseRcStats;
+-@@ -2814,10 +2831,8 @@ void x265_copy_params(x265_param* dst, x265_param* src)
++@@ -2902,10 +2919,8 @@ void x265_copy_params(x265_param* dst, x265_param* src)
+      dst->vbvEndFrameAdjust = src->vbvEndFrameAdjust;
+      dst->bAnalysisType = src->bAnalysisType;
+      dst->bCopyPicToFrame = src->bCopyPicToFrame;
+@@ -165,7 +166,7 @@ index 1a4df4cdc..e189b390b 100755
+      dst->gopLookahead = src->gopLookahead;
+      dst->radl = src->radl;
+      dst->selectiveSAO = src->selectiveSAO;
+-@@ -2827,8 +2842,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
++@@ -2915,8 +2930,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
+      dst->bSingleSeiNal = src->bSingleSeiNal;
+      dst->chunkStart = src->chunkStart;
+      dst->chunkEnd = src->chunkEnd;
+@@ -175,9 +176,9 @@ index 1a4df4cdc..e189b390b 100755
+      dst->scaleFactor = src->scaleFactor;
+      dst->ctuDistortionRefine = src->ctuDistortionRefine;
+      dst->bEnableHRDConcatFlag = src->bEnableHRDConcatFlag;
+-@@ -2854,8 +2868,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
+-     dst->confWinBottomOffset = src->confWinBottomOffset;
+-     dst->bliveVBV2pass = src->bliveVBV2pass;
++@@ -2954,8 +2968,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
++     dst->bEnableSCC = src->bEnableSCC;
++ #endif
+  
+ -    if (src->videoSignalTypePreset) dst->videoSignalTypePreset = strdup(src->videoSignalTypePreset);
+ -    else dst->videoSignalTypePreset = NULL;
+@@ -186,10 +187,10 @@ index 1a4df4cdc..e189b390b 100755
+      memcpy(dst->svtHevcParam, src->svtHevcParam, sizeof(EB_H265_ENC_CONFIGURATION));
+  #endif
+ diff --git a/source/encoder/api.cpp b/source/encoder/api.cpp
+-index 15b898a3c..6ad4ea590 100644
++index 2a96c2044..bb2dc6686 100644
+ --- a/source/encoder/api.cpp
+ +++ b/source/encoder/api.cpp
+-@@ -205,11 +205,12 @@ x265_encoder *x265_encoder_open(x265_param *p)
++@@ -204,11 +204,12 @@ x265_encoder *x265_encoder_open(x265_param *p)
+          }
+      }
+  
+@@ -204,10 +205,10 @@ index 15b898a3c..6ad4ea590 100644
+      /* Try to open CSV file handle */
+      if (encoder->m_param->csvfn)
+ diff --git a/source/encoder/encoder.cpp b/source/encoder/encoder.cpp
+-index 8ec01bebe..6e497c5aa 100644
++index e7dd30fa7..cab472614 100644
+ --- a/source/encoder/encoder.cpp
+ +++ b/source/encoder/encoder.cpp
+-@@ -973,18 +973,6 @@ void Encoder::destroy()
++@@ -982,18 +982,6 @@ void Encoder::destroy()
+          if (m_param->csvfpt)
+              fclose(m_param->csvfpt);
+          /* release string arguments that were strdup'd */
+@@ -226,30 +227,30 @@ index 8ec01bebe..6e497c5aa 100644
+          PARAM_NS::x265_param_free(m_param);
+      }
+  }
+-@@ -1673,11 +1661,20 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
+- 
+-         copyUserSEIMessages(inFrame, inputPic);
++@@ -1748,11 +1736,20 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture** pic_out)
++         }
++         copyUserSEIMessages(inFrame[0], inputPic[0]);
+  
+ -        /*Copy Dolby Vision RPU from inputPic to frame*/
+ +        /* Copy Dolby Vision RPU from inputPic to frame. */
+-+        if (inFrame->m_rpu.payload && inFrame->m_rpu.payloadSize  < inputPic->rpu.payloadSize)
+++        if (inFrame[0]->m_rpu.payload && inFrame[0]->m_rpu.payloadSize < inputPic[0]->rpu.payloadSize)
+ +        {
+-+            delete[] inFrame->m_rpu.payload;
+-+            inFrame->m_rpu.payload = NULL;
+++            delete[] inFrame[0]->m_rpu.payload;
+++            inFrame[0]->m_rpu.payload = NULL;
+ +        }
+ +
+-         if (inputPic->rpu.payloadSize)
++         if (inputPic[0]->rpu.payloadSize)
+          {
+-+            if (inFrame->m_rpu.payload == NULL)
+++            if (inFrame[0]->m_rpu.payload == NULL)
+ +            {
+-+                inFrame->m_rpu.payload = new uint8_t[inputPic->rpu.payloadSize];
+++                inFrame[0]->m_rpu.payload = new uint8_t[inputPic[0]->rpu.payloadSize];
+ +            }
+-             inFrame->m_rpu.payloadSize = inputPic->rpu.payloadSize;
+--            inFrame->m_rpu.payload = new uint8_t[inputPic->rpu.payloadSize];
+-             memcpy(inFrame->m_rpu.payload, inputPic->rpu.payload, inputPic->rpu.payloadSize);
++             inFrame[0]->m_rpu.payloadSize = inputPic[0]->rpu.payloadSize;
++-            inFrame[0]->m_rpu.payload = new uint8_t[inputPic[0]->rpu.payloadSize];
++             memcpy(inFrame[0]->m_rpu.payload, inputPic[0]->rpu.payload, inputPic[0]->rpu.payloadSize);
+          }
+  
+-@@ -3513,7 +3510,7 @@ void Encoder::configureZone(x265_param *p, x265_param *zone)
++@@ -3806,7 +3803,7 @@ void Encoder::configureZone(x265_param *p, x265_param *zone)
+          }
+          p->radl = zone->radl;
+      }
+@@ -259,10 +260,10 @@ index 8ec01bebe..6e497c5aa 100644
+  
+  void Encoder::configureDolbyVisionParams(x265_param* p)
+ diff --git a/source/encoder/framefilter.cpp b/source/encoder/framefilter.cpp
+-index 8a09f5b51..cf83930b7 100644
++index 344ac738d..ce6e59ab6 100644
+ --- a/source/encoder/framefilter.cpp
+ +++ b/source/encoder/framefilter.cpp
+-@@ -162,11 +162,9 @@ void FrameFilter::destroy()
++@@ -162,11 +162,8 @@ void FrameFilter::destroy()
+  
+      if (m_parallelFilter)
+      {
+@@ -271,14 +272,13 @@ index 8a09f5b51..cf83930b7 100644
+ -            for(int row = 0; row < m_numRows; row++)
+ -                m_parallelFilter[row].m_sao.destroy((row == 0 ? 1 : 0));
+ -        }
+-+
+ +        for(int row = 0; row < m_numRows; row++)
+ +            m_parallelFilter[row].m_sao.destroy((row == 0 ? 1 : 0));
+  
+          delete[] m_parallelFilter;
+          m_parallelFilter = NULL;
+ diff --git a/source/encoder/slicetype.cpp b/source/encoder/slicetype.cpp
+-index caf4cbf29..77e6cb96e 100644
++index 8bbac8244..046cf1596 100644
+ --- a/source/encoder/slicetype.cpp
+ +++ b/source/encoder/slicetype.cpp
+ @@ -1165,6 +1165,12 @@ void Lookahead::destroy()
+@@ -295,5 +295,5 @@ index caf4cbf29..77e6cb96e 100644
+      delete [] m_tld;
+      if (m_param->lookaheadThreads > 0)
+ -- 
+-2.39.3 (Apple Git-145)
++2.39.3 (Apple Git-146)
+ 
+diff --git a/contrib/x265/A06-Simplify-macOS-cross-compilation.patch b/contrib/x265/A06-Simplify-macOS-cross-compilation.patch
+new file mode 100644
+index 000000000000..0f3ecb42a57b
+--- /dev/null
++++ b/contrib/x265/A06-Simplify-macOS-cross-compilation.patch
+@@ -0,0 +1,29 @@
++From 0d8bab0c3c5ec3b5676821f95b0e279a9713d4bf Mon Sep 17 00:00:00 2001
++From: Damiano Galassi <damiog@gmail.com>
++Date: Fri, 13 Sep 2024 16:10:16 +0200
++Subject: [PATCH 6/6] Simplify macOS cross-compilation
++
++---
++ source/CMakeLists.txt | 6 +++++-
++ 1 file changed, 5 insertions(+), 1 deletion(-)
++
++diff --git a/source/CMakeLists.txt b/source/CMakeLists.txt
++index 37b83f959..f14fc0bd1 100755
++--- a/source/CMakeLists.txt
+++++ b/source/CMakeLists.txt
++@@ -334,7 +334,11 @@ if(GCC)
++             set(ARM_ARGS -O3 -march=armv9-a+i8mm+sve2)
++             add_definitions(-DHAVE_SVE2=1)
++         endif()
++-        set(ARM_ARGS ${ARM_ARGS} -fPIC)
+++        if(APPLE)
+++            set(ARM_ARGS ${ARM_ARGS} -fPIC -arch ${CMAKE_OSX_ARCHITECTURES})
+++        else()
+++            set(ARM_ARGS ${ARM_ARGS} -fPIC)
+++        endif()
++         # Do not allow implicit vector type conversions in Clang builds (this
++         # is already the default in GCC builds).
++         check_cxx_compiler_flag(-flax-vector-conversions=none CC_HAS_FLAX_VEC_CONV_NONE)
++-- 
++2.39.3 (Apple Git-146)
++
+diff --git a/contrib/x265/A06-crosscompile-fix.patch b/contrib/x265/A06-crosscompile-fix.patch
+deleted file mode 100644
+index 9cb678fef556..000000000000
+--- a/contrib/x265/A06-crosscompile-fix.patch
++++ /dev/null
+@@ -1,42 +0,0 @@
+-diff --git a/source/CMakeLists.txt b/source/CMakeLists.txt
+-index ab5ddfeb7..88693a3da 100755
+---- a/source/CMakeLists.txt
+-+++ b/source/CMakeLists.txt
+-@@ -80,12 +80,13 @@ elseif(ARMMATCH GREATER "-1")
+-     set(ARM 1)
+-     add_definitions(-DX265_ARCH_ARM=1 -DHAVE_ARMV6=1)
+- elseif(ARM64MATCH GREATER "-1")
+--    #if(CROSS_COMPILE_ARM64)
+--        #message(STATUS "Cross compiling for ARM64 arch")
+--    #else()
+--        #set(CROSS_COMPILE_ARM64 0)
+--    #endif()
+--    message(STATUS "Detected ARM64 target processor")
+-+    list(FIND ARM64_ALIASES "${CMAKE_HOST_SYSTEM_PROCESSOR}" NATIVE_ARCH)
+-+    if(NATIVE_ARCH EQUAL "-1")
+-+        message(STATUS "Cross compiling for ARM64 arch")
+-+        set(CROSS_COMPILE_ARM64 1)
+-+    else()
+-+        set(CROSS_COMPILE_ARM64 0)
+-+    endif()
+-     set(ARM64 1)
+-     add_definitions(-DX265_ARCH_ARM64=1 -DHAVE_NEON)
+- else()
+-@@ -274,9 +275,15 @@ if(GCC)
+-             set(ARM_ARGS -O3 -march=armv8-a+sve -fPIC -flax-vector-conversions)
+-             add_definitions(-DHAVE_SVE)
+-             add_definitions(-DHAVE_NEON) # for NEON c/c++ primitives, as currently there is no implementation that use SVE
+--        elseif(CPU_HAS_NEON)
+-+        elseif(CPU_HAS_NEON OR CROSS_COMPILE_ARM64)
+-             message(STATUS "Found NEON")
+--            set(ARM_ARGS -fPIC -flax-vector-conversions)
+-+            if (MINGW)
+-+                set(ARM_ARGS -flax-vector-conversions)
+-+            elseif(APPLE)
+-+                set(ARM_ARGS -fPIC -flax-vector-conversions -arch ${CMAKE_OSX_ARCHITECTURES})
+-+            else()
+-+                set(ARM_ARGS -fPIC -flax-vector-conversions)
+-+            endif()
+-             add_definitions(-DHAVE_NEON)
+-         else()
+-             set(ARM_ARGS -fPIC -flax-vector-conversions)
+diff --git a/contrib/x265/A07-Port-ARM64-features-detection-code-from-SVT-AV1.patch b/contrib/x265/A07-Port-ARM64-features-detection-code-from-SVT-AV1.patch
+new file mode 100644
+index 000000000000..b4bcae91c5f0
+--- /dev/null
++++ b/contrib/x265/A07-Port-ARM64-features-detection-code-from-SVT-AV1.patch
+@@ -0,0 +1,158 @@
++From d51dd0f00f12d589093284a3689f1d2556f5be39 Mon Sep 17 00:00:00 2001
++From: Damiano Galassi <damiog@gmail.com>
++Date: Sat, 14 Sep 2024 09:40:42 +0200
++Subject: [PATCH] Port ARM64 features detection code from SVT-AV1
++
++---
++ source/common/cpu.cpp | 118 +++++++++++++++++++++++++++++++++++++++---
++ 1 file changed, 112 insertions(+), 6 deletions(-)
++
++diff --git a/source/common/cpu.cpp b/source/common/cpu.cpp
++index 61cdaadfb..1b334eef9 100644
++--- a/source/common/cpu.cpp
+++++ b/source/common/cpu.cpp
++@@ -391,29 +391,135 @@ uint32_t cpu_detect(bool benableavx512)
++ 
++ #elif X265_ARCH_ARM64
++ 
++-uint32_t cpu_detect(bool benableavx512)
+++#if defined(__linux__)
+++// For reading the HWCAP flags
+++#include <sys/auxv.h>
+++#elif defined(__APPLE__)
+++#include <stdbool.h>
+++#include <sys/sysctl.h>
+++#elif defined(_MSC_VER)
+++#include <windows.h>
+++#endif
+++
+++#if defined(__linux__)
+++
+++// Define hwcap values ourselves: building with an old auxv header where these
+++// hwcap values are not defined should not prevent features from being enabled.
+++#define X265_ARM64_HWCAP_CRC32 (1 << 7)
+++#define X265_ARM64_HWCAP_ASIMDDP (1 << 20)
+++#define X265_ARM64_HWCAP_SVE (1 << 22)
+++#define X265_ARM64_HWCAP2_SVE2 (1 << 1)
+++#define X265_ARM64_HWCAP2_I8MM (1 << 13)
+++
+++uint32_t cpu_detect(bool unused)
++ {
+++#if HAVE_ARM_CRC32 || HAVE_NEON_DOTPROD || HAVE_SVE
+++    unsigned long hwcap = getauxval(AT_HWCAP);
+++#endif
+++#if HAVE_NEON_I8MM || HAVE_SVE2
+++    unsigned long hwcap2 = getauxval(AT_HWCAP2);
+++#endif
+++
++     int flags = 0;
++ 
++     #if HAVE_NEON
++-         flags |= X265_CPU_NEON;
+++         flags |= X265_CPU_NEON;  // Neon is mandatory in Armv8.0-A.
++     #endif
++     #if HAVE_NEON_DOTPROD
++-         flags |= X265_CPU_NEON_DOTPROD;
+++         if (hwcap & X265_ARM64_HWCAP_ASIMDDP)
+++         {
+++             flags |= X265_CPU_NEON_DOTPROD;
+++         }
++     #endif
++     #if HAVE_NEON_I8MM
++-         flags |= X265_CPU_NEON_I8MM;
+++         if (hwcap2 & X265_ARM64_HWCAP2_I8MM)
+++         {
+++             flags |= X265_CPU_NEON_I8MM;
+++         }
++     #endif
++     #if HAVE_SVE
++-         flags |= X265_CPU_SVE;
+++         if (hwcap & X265_ARM64_HWCAP_SVE)
+++         {
+++             flags |= X265_CPU_SVE;
+++         }
++     #endif
++     #if HAVE_SVE2
++-         flags |= X265_CPU_SVE2;
+++         if (hwcap2 & X265_ARM64_HWCAP2_SVE2)
+++         {
+++             flags |= X265_CPU_SVE2;
+++         }
++     #endif
++ 
++     return flags;
++ }
++ 
+++#elif defined(__APPLE__) // end __linux__
+++
+++// sysctlbyname() parameter documentation for instruction set characteristics:
+++// https://developer.apple.com/documentation/kernel/1387446-sysctlbyname/determining_instruction_set_characteristics
+++#if HAVE_ARM_CRC32 || HAVE_NEON_DOTPROD || HAVE_NEON_I8MM
+++static bool have_feature(const char *feature)
+++{
+++    int64_t feature_present = 0;
+++    size_t size = sizeof(feature_present);
+++    if (sysctlbyname(feature, &feature_present, &size, NULL, 0) != 0)
+++    {
+++        return false;
+++    }
+++    return feature_present;
+++}
+++#endif
+++
+++uint32_t cpu_detect(bool unused)
+++{
+++    int flags = 0;
+++
+++    #if HAVE_NEON
+++        flags |= X265_CPU_NEON;  // Neon is mandatory in Armv8.0-A.
+++    #endif
+++    #if HAVE_NEON_DOTPROD
+++        if (have_feature("hw.optional.arm.FEAT_DotProd"))
+++        {
+++            flags |= X265_CPU_NEON_DOTPROD;
+++        }
+++    #endif
+++    #if HAVE_NEON_I8MM
+++        if (have_feature("hw.optional.arm.FEAT_I8MM"))
+++        {
+++            flags |= X265_CPU_NEON_I8MM;
+++        }
+++    #endif
+++
+++    return flags;
+++}
+++
+++#elif defined(_MSC_VER) || defined(__MINGW32__) // end __APPLE__
+++
+++uint32_t cpu_detect(bool unused)
+++{
+++    int flags = 0;
+++
+++    #if HAVE_NEON
+++        flags |= X265_CPU_NEON;  // Neon is mandatory in Armv8.0-A.
+++    #endif
+++
+++    #if HAVE_NEON_DOTPROD
+++    // Support for PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE was added in Windows SDK
+++    // 20348, supported by Windows 11 and Windows Server 2022.
+++        #if defined(PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE)
+++            if (IsProcessorFeaturePresent(PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE))
+++            {
+++                flags |= X265_CPU_NEON_DOTPROD;
+++            }
+++        #endif  // defined(PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE)
+++    #endif  // HAVE_NEON_DOTPROD
+++    // No I8MM or SVE feature detection available on Windows at time of writing.
+++
+++    return flags;
+++}
+++
+++#endif
+++
++ #elif X265_ARCH_POWER8
++ 
++ uint32_t cpu_detect(bool benableavx512)
++-- 
++2.39.3 (Apple Git-146)
++
+diff --git a/contrib/x265/module.defs b/contrib/x265/module.defs
+index 637d2310fa3c..a28ce72571bb 100644
+--- a/contrib/x265/module.defs
++++ b/contrib/x265/module.defs
+@@ -2,9 +2,9 @@ __deps__ := X265_8 X265_10 X265_12
+ $(eval $(call import.MODULE.defs,X265,x265,$(__deps__)))
+ $(eval $(call import.CONTRIB.defs,X265))
+ 
+-X265.FETCH.url     = https://github.com/HandBrake/HandBrake-contribs/releases/download/contribs/x265_3.6.tar.gz
+-X265.FETCH.url    += https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.6.tar.gz
+-X265.FETCH.sha256  = 663531f341c5389f460d730e62e10a4fcca3428ca2ca109693867bc5fe2e2807
++X265.FETCH.url     = https://github.com/HandBrake/HandBrake-contribs/releases/download/contribs2/x265_4.0.tar.gz
++X265.FETCH.url    += https://bitbucket.org/multicoreware/x265_git/downloads/x265_4.0.tar.gz
++X265.FETCH.sha256  = 75b4d05629e365913de3100b38a459b04e2a217a8f30efaa91b572d8e6d71282
+ 
+ # Silence "warning: overriding recipe for target" messages
+ X265.FETCH.target =
+diff --git a/contrib/x265_10bit/module.defs b/contrib/x265_10bit/module.defs
+index 03698e5df2e3..310b4553b31a 100644
+--- a/contrib/x265_10bit/module.defs
++++ b/contrib/x265_10bit/module.defs
+@@ -2,9 +2,9 @@ __deps__ := X265_8
+ $(eval $(call import.MODULE.defs,X265_10,x265_10,$(__deps__),x265))
+ $(eval $(call import.CONTRIB.defs,X265_10))
+ 
+-X265_10.FETCH.url     = https://github.com/HandBrake/HandBrake-contribs/releases/download/contribs/x265_3.6.tar.gz
+-X265_10.FETCH.url    += https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.6.tar.gz
+-X265_10.FETCH.sha256  = 663531f341c5389f460d730e62e10a4fcca3428ca2ca109693867bc5fe2e2807
++X265_10.FETCH.url     = https://github.com/HandBrake/HandBrake-contribs/releases/download/contribs2/x265_4.0.tar.gz
++X265_10.FETCH.url    += https://bitbucket.org/multicoreware/x265_git/downloads/x265_4.0.tar.gz
++X265_10.FETCH.sha256  = 75b4d05629e365913de3100b38a459b04e2a217a8f30efaa91b572d8e6d71282
+ 
+ # Silence "warning: overriding recipe for target" messages
+ X265_10.FETCH.target =
+@@ -57,7 +57,14 @@ ifeq (1,$(HOST.cross))
+         X265_10.CONFIGURE.extra += -DCMAKE_RC_COMPILER=$(HOST.cross.prefix)windres
+         X265_10.CONFIGURE.args.host  = -DCMAKE_HOST_SYSTEM="$(X265_10.CONFIGURE.host)"
+     endif
++    ifeq (aarch64,$(HOST.machine:arm64=aarch64))
++        X265_10.CONFIGURE.extra += -DCROSS_COMPILE_ARM64=ON -DCROSS_COMPILE_NEON_DOTPROD=ON -DCROSS_COMPILE_NEON_I8MM=ON
++    endif
+     X265_10.CONFIGURE.args.build = -DCMAKE_SYSTEM_PROCESSOR=$(HOST.machine)
++else
++    ifeq (arm64-darwin,$(HOST.machine)-$(HOST.system))
++        X265_10.CONFIGURE.extra += -DCPU_HAS_NEON_I8MM=ON
++    endif
+ endif
+ 
+ ## find CMakeLists.txt
+diff --git a/contrib/x265_12bit/module.defs b/contrib/x265_12bit/module.defs
+index 56ca88d69b04..c026b98e0a4c 100644
+--- a/contrib/x265_12bit/module.defs
++++ b/contrib/x265_12bit/module.defs
+@@ -2,9 +2,9 @@ __deps__ := X265_8
+ $(eval $(call import.MODULE.defs,X265_12,x265_12,$(__deps__),x265))
+ $(eval $(call import.CONTRIB.defs,X265_12))
+ 
+-X265_12.FETCH.url     = https://github.com/HandBrake/HandBrake-contribs/releases/download/contribs/x265_3.6.tar.gz
+-X265_12.FETCH.url    += https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.6.tar.gz
+-X265_12.FETCH.sha256  = 663531f341c5389f460d730e62e10a4fcca3428ca2ca109693867bc5fe2e2807
++X265_12.FETCH.url     = https://github.com/HandBrake/HandBrake-contribs/releases/download/contribs2/x265_4.0.tar.gz
++X265_12.FETCH.url    += https://bitbucket.org/multicoreware/x265_git/downloads/x265_4.0.tar.gz
++X265_12.FETCH.sha256  = 75b4d05629e365913de3100b38a459b04e2a217a8f30efaa91b572d8e6d71282
+ 
+ # Silence "warning: overriding recipe for target" messages
+ X265_12.FETCH.target =
+@@ -57,7 +57,14 @@ ifeq (1,$(HOST.cross))
+         X265_12.CONFIGURE.extra += -DCMAKE_RC_COMPILER=$(HOST.cross.prefix)windres
+         X265_12.CONFIGURE.args.host  = -DCMAKE_HOST_SYSTEM="$(X265_12.CONFIGURE.host)"
+     endif
++    ifeq (aarch64,$(HOST.machine:arm64=aarch64))
++        X265_12.CONFIGURE.extra += -DCROSS_COMPILE_ARM64=ON -DCROSS_COMPILE_NEON_DOTPROD=ON -DCROSS_COMPILE_NEON_I8MM=ON
++    endif
+     X265_12.CONFIGURE.args.build = -DCMAKE_SYSTEM_PROCESSOR=$(HOST.machine)
++else
++    ifeq (arm64-darwin,$(HOST.machine)-$(HOST.system))
++        X265_12.CONFIGURE.extra += -DCPU_HAS_NEON_I8MM=ON
++    endif
+ endif
+ 
+ ## find CMakeLists.txt
+diff --git a/contrib/x265_8bit/module.defs b/contrib/x265_8bit/module.defs
+index 572a3066dadf..d1280eaa34e9 100644
+--- a/contrib/x265_8bit/module.defs
++++ b/contrib/x265_8bit/module.defs
+@@ -2,9 +2,9 @@ __deps__ :=
+ $(eval $(call import.MODULE.defs,X265_8,x265_8,$(__deps__),x265))
+ $(eval $(call import.CONTRIB.defs,X265_8))
+ 
+-X265_8.FETCH.url     = https://github.com/HandBrake/HandBrake-contribs/releases/download/contribs/x265_3.6.tar.gz
+-X265_8.FETCH.url    += https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.6.tar.gz
+-X265_8.FETCH.sha256  = 663531f341c5389f460d730e62e10a4fcca3428ca2ca109693867bc5fe2e2807
++X265_8.FETCH.url     = https://github.com/HandBrake/HandBrake-contribs/releases/download/contribs2/x265_4.0.tar.gz
++X265_8.FETCH.url    += https://bitbucket.org/multicoreware/x265_git/downloads/x265_4.0.tar.gz
++X265_8.FETCH.sha256  = 75b4d05629e365913de3100b38a459b04e2a217a8f30efaa91b572d8e6d71282
+ 
+ X265_8.build_dir             = 8bit
+ X265_8.CONFIGURE.exe         = cmake
+@@ -55,7 +55,14 @@ ifeq (1,$(HOST.cross))
+         X265_8.CONFIGURE.extra += -DCMAKE_RC_COMPILER=$(HOST.cross.prefix)windres
+         X265_8.CONFIGURE.args.host  = -DCMAKE_HOST_SYSTEM="$(X265_8.CONFIGURE.host)"
+     endif
++    ifeq (aarch64,$(HOST.machine:arm64=aarch64))
++        X265_8.CONFIGURE.extra += -DCROSS_COMPILE_ARM64=ON -DCROSS_COMPILE_NEON_DOTPROD=ON -DCROSS_COMPILE_NEON_I8MM=ON
++    endif
+     X265_8.CONFIGURE.args.build = -DCMAKE_SYSTEM_PROCESSOR=$(HOST.machine)
++else
++    ifeq (arm64-darwin,$(HOST.machine)-$(HOST.system))
++        X265_8.CONFIGURE.extra += -DCPU_HAS_NEON_I8MM=ON
++    endif
+ endif
+ 
+ ## find CMakeLists.txt
+diff --git a/libhb/encx265.c b/libhb/encx265.c
+index fae6f22b4269..11c3976d5ff2 100644
+--- a/libhb/encx265.c
++++ b/libhb/encx265.c
+@@ -687,11 +687,20 @@ static hb_buffer_t* x265_encode(hb_work_object_t *w, hb_buffer_t *in)
+ {
+     hb_work_private_t *pv = w->private_data;
+     hb_job_t *job         = pv->job;
+-    x265_picture pic_in, pic_out;
++
++    x265_picture pic_in;
++    x265_picture  pic_layers_out[MAX_SCALABLE_LAYERS];
++    x265_picture *pic_lyrptr_out[MAX_SCALABLE_LAYERS];
++
+     x265_nal *nal;
+     uint32_t nnal;
+     int ret;
+ 
++    for (int i = 0; i < MAX_SCALABLE_LAYERS; i++)
++    {
++        pic_lyrptr_out[i] = &pic_layers_out[i];
++    }
++
+     pv->api->picture_init(pv->param, &pic_in);
+ 
+     pic_in.stride[0] = in->plane[0].stride;
+@@ -777,7 +786,7 @@ static hb_buffer_t* x265_encode(hb_work_object_t *w, hb_buffer_t *in)
+     pv->last_stop = in->s.stop;
+     save_frame_info(pv, in);
+ 
+-    ret = pv->api->encoder_encode(pv->x265, &nal, &nnal, &pic_in, &pic_out);
++    ret = pv->api->encoder_encode(pv->x265, &nal, &nnal, &pic_in, pic_lyrptr_out);
+ 
+     for (int i = 0; i < sei->numPayloads; i++)
+     {
+@@ -787,7 +796,7 @@ static hb_buffer_t* x265_encode(hb_work_object_t *w, hb_buffer_t *in)
+ 
+     if (ret > 0)
+     {
+-        return nal_encode(w, &pic_out, nal, nnal);
++        return nal_encode(w, pic_lyrptr_out[0], nal, nnal);
+     }
+     return NULL;
+ }
+@@ -801,16 +810,22 @@ int encx265Work(hb_work_object_t *w, hb_buffer_t **buf_in, hb_buffer_t **buf_out
+     {
+         uint32_t nnal;
+         x265_nal *nal;
+-        x265_picture pic_out;
++        x265_picture  pic_layers_out[MAX_SCALABLE_LAYERS];
++        x265_picture *pic_lyrptr_out[MAX_SCALABLE_LAYERS];
+         hb_buffer_list_t list;
+ 
+         hb_buffer_list_clear(&list);
+ 
++        for (int i = 0; i < MAX_SCALABLE_LAYERS; i++)
++        {
++            pic_lyrptr_out[i] = &pic_layers_out[i];
++        }
++
+         // flush delayed frames
+         while (pv->api->encoder_encode(pv->x265, &nal,
+-                                       &nnal, NULL, &pic_out) > 0)
++                                       &nnal, NULL, pic_lyrptr_out) > 0)
+         {
+-            hb_buffer_t *buf = nal_encode(w, &pic_out, nal, nnal);
++            hb_buffer_t *buf = nal_encode(w, pic_lyrptr_out[0], nal, nnal);
+             hb_buffer_list_append(&list, buf);
+         }
+         // add the EOF to the end of the chain

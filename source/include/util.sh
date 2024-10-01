@@ -1658,7 +1658,7 @@ Flasttarbz2() {
 ##
 Fup2gnugz()
 {
-	up2date="Flasttar 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'"
+	up2date="Flasttar 'https://ftp.gwdg.de/pub/gnu/ftp/gnu/$pkgname/?C=M;O=A'"
 }
 
 ###
@@ -1666,7 +1666,7 @@ Fup2gnugz()
 ##
 Fup2gnubz2()
 {
-        up2date="Flasttar 'http://ftp.gnu.org/gnu/$pkgname/?C=M;O=A'"
+        up2date="Flasttarbz2 'https://ftp.gwdg.de/pub/gnu/ftp/gnu/$pkgname/?C=M;O=A'"
 }
 
 ###

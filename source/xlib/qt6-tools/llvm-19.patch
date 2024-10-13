@@ -1,0 +1,123 @@
+From 4a368a06afa5929d8674d2e94c2d7cbd6ad85d4e Mon Sep 17 00:00:00 2001
+From: Paul Wicking <paul.wicking@qt.io>
+Date: Fri, 13 Sep 2024 14:37:38 +0200
+Subject: [PATCH] QDoc: Adapt to breaking changes in LLVM 19
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Due to upstream changes in LLVM 19, QDoc fails to compile when linked
+against Clang libraries from this version of LLVM. Three issues arise;
+
+- Two cases of passing an argument of wrong type to a function.
+- One case of accessing a non-existing member of an enumeration.
+
+One upstream change (see [0]) is responsible for two of the issues:
+
+- `get_expression_as_string()` is modified such that it correctly
+  obtains the parameter type when calling
+  `get_fully_qualified_type_name()`, by appending
+  `.getArgument().getAsType()` to the call to `getDefaultArgument()`.
+- `get_default_value_initializer_as_string()` is modified such that it
+  correctly passes the source expression to
+  `get_expression_as_string()`, by appending `.getSourceExpression()`
+  to the call to `getDefaultArgument()`.
+
+Both of these changes are is incompatible with QDoc built against
+Clang libraries from earlier versions of LLVM, and are therefore
+wrapped in #if-ery.
+
+Finally, LLVM 19 drops a value used in QDoc from the enumeration
+`clang::TemplateName::Qualified`, see [1]. The enum value `Fully` is
+removed without replacement. The enum is left with two values,
+`AsWritten` and `None`. QDoc is modified such that it relies on the
+former of the two. This change doesn't cause any change in output from
+QDoc when built against Clang libraries from LLVM 17 and 18, and the
+change is therefore not wrapped in #if-ery.
+
+[0] - https://github.com/llvm/llvm-project/commit/e42b799bb28815431f2c5a95f7e13fde3f1b36a1
+[1] - https://github.com/llvm/llvm-project/commit/9c4a716c12920
+
+Done-with: Khem Raj <raj.khem@gmail.com>
+Fixes: QTBUG-128644
+Pick-to: 6.8
+Change-Id: I34fbb46cf28b5676b4adda5e563d6d59fc40f602
+Reviewed-by: Luca Di Sera <luca.disera@qt.io>
+Reviewed-by: Topi Reiniö <topi.reinio@qt.io>
+---
+ src/qdoc/qdoc/src/qdoc/clangcodeparser.cpp | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/src/qdoc/qdoc/src/qdoc/clangcodeparser.cpp b/src/qdoc/qdoc/src/qdoc/clangcodeparser.cpp
+index eb3a781bc..385d651ec 100644
+--- a/src/qdoc/qdoc/src/qdoc/clangcodeparser.cpp
++++ b/src/qdoc/qdoc/src/qdoc/clangcodeparser.cpp
+@@ -207,9 +207,15 @@ static std::string get_expression_as_string(const clang::Expr* expression, const
+  * If the parameter has no default value the empty string will be returned.
+  */
+ static std::string get_default_value_initializer_as_string(const clang::TemplateTypeParmDecl* parameter) {
++#if LIBCLANG_VERSION_MAJOR >= 19
++    return (parameter && parameter->hasDefaultArgument()) ?
++                get_fully_qualified_type_name(parameter->getDefaultArgument().getArgument().getAsType(), parameter->getASTContext()) :
++                "";
++#else
+     return (parameter && parameter->hasDefaultArgument()) ?
+                 get_fully_qualified_type_name(parameter->getDefaultArgument(), parameter->getASTContext()) :
+                 "";
++#endif
+ 
+ }
+ 
+@@ -223,8 +229,13 @@ static std::string get_default_value_initializer_as_string(const clang::Template
+  * If the parameter as no default value the empty string will be returned.
+  */
+ static std::string get_default_value_initializer_as_string(const clang::NonTypeTemplateParmDecl* parameter) {
++#if LIBCLANG_VERSION_MAJOR >= 19
++    return (parameter && parameter->hasDefaultArgument()) ?
++        get_expression_as_string(parameter->getDefaultArgument().getSourceExpression(), parameter->getASTContext()) : "";
++#else
+     return (parameter && parameter->hasDefaultArgument()) ?
+         get_expression_as_string(parameter->getDefaultArgument(), parameter->getASTContext()) : "";
++#endif
+ 
+ }
+ 
+@@ -244,7 +255,7 @@ static std::string get_default_value_initializer_as_string(const clang::Template
+         const clang::TemplateName template_name = parameter->getDefaultArgument().getArgument().getAsTemplate();
+ 
+         llvm::raw_string_ostream ss{default_value};
+-        template_name.print(ss, parameter->getASTContext().getPrintingPolicy(), clang::TemplateName::Qualified::Fully);
++        template_name.print(ss, parameter->getASTContext().getPrintingPolicy(), clang::TemplateName::Qualified::AsWritten);
+     }
+ 
+     return default_value;
+From 687fc1601863ae7a67897bc3590b33bd3bdcc3bc Mon Sep 17 00:00:00 2001
+From: Joerg Bornemann <joerg.bornemann@qt.io>
+Date: Mon, 15 Jul 2024 15:17:04 +0200
+Subject: [PATCH] lupdate/clang: Fix deprecation warning with llvm 18
+
+Change-Id: Ib22dda34bfdf7a1cd0e9932eec0f6f13a912a688
+Reviewed-by: Lucie Gerard <lucie.gerard@qt.io>
+---
+ src/linguist/lupdate/clangtoolastreader.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/linguist/lupdate/clangtoolastreader.cpp b/src/linguist/lupdate/clangtoolastreader.cpp
+index 6b85c6ccb3..3db9e0d64a 100644
+--- a/src/linguist/lupdate/clangtoolastreader.cpp
++++ b/src/linguist/lupdate/clangtoolastreader.cpp
+@@ -782,8 +782,14 @@ bool LupdateVisitor::VisitNamedDecl(clang::NamedDecl *namedDeclaration)
+     if (!fullLocation.isValid() || !fullLocation.getFileEntry())
+         return true;
+ 
++#if (LUPDATE_CLANG_VERSION >= LUPDATE_CLANG_VERSION_CHECK(18,0,0))
++    auto fileEntry = fullLocation.getFileEntryRef();
++    if (fileEntry && !LupdatePrivate::isFileSignificant(fileEntry->getName().str()))
++        return true;
++#else
+     if (!LupdatePrivate::isFileSignificant(fullLocation.getFileEntry()->getName().str()))
+         return true;
++#endif
+ 
+     qCDebug(lcClang) << "NamedDecl Name:   " << QString::fromStdString(namedDeclaration->getQualifiedNameAsString());
+     qCDebug(lcClang) << "NamedDecl source: " << QString::fromStdString(namedDeclaration->getSourceRange().printToString(

@@ -1,0 +1,140 @@
+diff '--color=auto' -Naur HandBrake-1.8.2/libhb/encavcodec.c HandBrake-1.8.2.new/libhb/encavcodec.c
+--- HandBrake-1.8.2/libhb/encavcodec.c	2024-08-07 19:31:52.000000000 +0200
++++ HandBrake-1.8.2.new/libhb/encavcodec.c	2024-10-15 11:36:24.958478272 +0200
+@@ -191,6 +191,7 @@
+     AVCodecContext * context;
+     AVRational fps;
+     AVDictionary *av_opts = NULL;
++    const AVRational *frame_rates = NULL;
+ 
+     hb_work_private_t * pv = calloc( 1, sizeof( hb_work_private_t ) );
+     w->private_data   = pv;
+@@ -342,10 +343,11 @@
+ 
+     // Check that the framerate is supported.  If not, pick the closest.
+     // The mpeg2 codec only supports a specific list of frame rates.
+-    if (codec->supported_framerates)
++    if (avcodec_get_supported_config(context, NULL, AV_CODEC_CONFIG_FRAME_RATE,
++                                     0, (const void **)&frame_rates, NULL) == 0 && frame_rates)
+     {
+         AVRational supported_fps;
+-        supported_fps = codec->supported_framerates[av_find_nearest_q_idx(fps, codec->supported_framerates)];
++        supported_fps = frame_rates[av_find_nearest_q_idx(fps, frame_rates)];
+         if (supported_fps.num != fps.num || supported_fps.den != fps.den)
+         {
+             hb_log( "encavcodec: framerate %d / %d is not supported. Using %d / %d.",
+@@ -655,6 +657,7 @@
+             else if (!strcasecmp(job->encoder_profile, "high"))
+                 context->profile = FF_PROFILE_H264_HIGH;
+         }
++        av_dict_set(&av_opts, "forced_idr", "1", 0);
+     }
+     else if (job->vcodec == HB_VCODEC_FFMPEG_VCE_H265 || job->vcodec == HB_VCODEC_FFMPEG_VCE_H265_10BIT)
+     {
+@@ -670,6 +673,7 @@
+             }
+         }
+ 
++        av_dict_set(&av_opts, "forced_idr", "1", 0);
+         // Make VCE h.265 encoder emit an IDR for every GOP
+         av_dict_set(&av_opts, "gops_per_idr", "1", 0);
+     }
+@@ -681,6 +685,7 @@
+             if (!strcasecmp(job->encoder_profile, "main"))
+                  context->profile = FF_PROFILE_AV1_MAIN;
+         }
++        av_dict_set(&av_opts, "forced_idr", "1", 0);
+     }
+     else if (job->vcodec == HB_VCODEC_FFMPEG_NVENC_H264 ||
+              job->vcodec == HB_VCODEC_FFMPEG_NVENC_H265 ||
+diff '--color=auto' -Naur HandBrake-1.8.2/libhb/hbavfilter.c HandBrake-1.8.2.new/libhb/hbavfilter.c
+--- HandBrake-1.8.2/libhb/hbavfilter.c	2024-08-07 19:31:52.000000000 +0200
++++ HandBrake-1.8.2.new/libhb/hbavfilter.c	2024-10-15 11:36:24.958478272 +0200
+@@ -278,13 +278,6 @@
+     init->geometry.par.num = link->sample_aspect_ratio.num;
+     init->geometry.par.den = link->sample_aspect_ratio.den;
+     init->pix_fmt          = link->format;
+-    // avfilter can generate "unknown" framerates.  If this happens
+-    // just pass along the source framerate.
+-    if (link->frame_rate.num > 0 && link->frame_rate.den > 0)
+-    {
+-        init->vrate.num        = link->frame_rate.num;
+-        init->vrate.den        = link->frame_rate.den;
+-    }
+ }
+ 
+ int hb_avfilter_add_frame(hb_avfilter_graph_t * graph, AVFrame * frame)
+diff '--color=auto' -Naur HandBrake-1.8.2/libhb/hbffmpeg.c HandBrake-1.8.2.new/libhb/hbffmpeg.c
+--- HandBrake-1.8.2/libhb/hbffmpeg.c	2024-08-07 19:31:52.000000000 +0200
++++ HandBrake-1.8.2.new/libhb/hbffmpeg.c	2024-10-15 11:36:24.958478272 +0200
+@@ -747,40 +747,45 @@
+ void hb_ff_set_sample_fmt(AVCodecContext *context, const AVCodec *codec,
+                           enum AVSampleFormat request_sample_fmt)
+ {
+-    if (context != NULL && codec != NULL &&
+-        codec->type == AVMEDIA_TYPE_AUDIO && codec->sample_fmts != NULL)
++    if (context != NULL && codec != NULL && codec->type == AVMEDIA_TYPE_AUDIO)
+     {
+-        const enum AVSampleFormat *fmt;
+-        enum AVSampleFormat next_best_fmt;
++        const enum AVSampleFormat *sample_fmts = NULL;
++        if (avcodec_get_supported_config(context, NULL,
++                                         AV_CODEC_CONFIG_SAMPLE_FORMAT,
++                                         0, (const void **)&sample_fmts, NULL) == 0 && sample_fmts != NULL)
++        {
++            const enum AVSampleFormat *fmt;
++            enum AVSampleFormat next_best_fmt;
+ 
+-        next_best_fmt = (av_sample_fmt_is_planar(request_sample_fmt)  ?
+-                         av_get_packed_sample_fmt(request_sample_fmt) :
+-                         av_get_planar_sample_fmt(request_sample_fmt));
++            next_best_fmt = (av_sample_fmt_is_planar(request_sample_fmt)  ?
++                             av_get_packed_sample_fmt(request_sample_fmt) :
++                             av_get_planar_sample_fmt(request_sample_fmt));
+ 
+-        context->request_sample_fmt = AV_SAMPLE_FMT_NONE;
++            context->request_sample_fmt = AV_SAMPLE_FMT_NONE;
+ 
+-        for (fmt = codec->sample_fmts; *fmt != AV_SAMPLE_FMT_NONE; fmt++)
+-        {
+-            if (*fmt == request_sample_fmt)
++            for (fmt = sample_fmts; *fmt != AV_SAMPLE_FMT_NONE; fmt++)
+             {
+-                context->request_sample_fmt = request_sample_fmt;
+-                break;
++                if (*fmt == request_sample_fmt)
++                {
++                    context->request_sample_fmt = request_sample_fmt;
++                    break;
++                }
++                else if (*fmt == next_best_fmt)
++                {
++                    context->request_sample_fmt = next_best_fmt;
++                }
+             }
+-            else if (*fmt == next_best_fmt)
++
++            /*
++             * When encoding and AVCodec.sample_fmts exists, avcodec_open2()
++             * will error out if AVCodecContext.sample_fmt isn't set.
++             */
++            if (context->request_sample_fmt == AV_SAMPLE_FMT_NONE)
+             {
+-                context->request_sample_fmt = next_best_fmt;
++                context->request_sample_fmt = sample_fmts[0];
+             }
++            context->sample_fmt = context->request_sample_fmt;
+         }
+-
+-        /*
+-         * When encoding and AVCodec.sample_fmts exists, avcodec_open2()
+-         * will error out if AVCodecContext.sample_fmt isn't set.
+-         */
+-        if (context->request_sample_fmt == AV_SAMPLE_FMT_NONE)
+-        {
+-            context->request_sample_fmt = codec->sample_fmts[0];
+-        }
+-        context->sample_fmt = context->request_sample_fmt;
+     }
+ }
+ 

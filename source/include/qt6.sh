@@ -44,5 +44,7 @@ if [ -z "$archs" ]; then
 	archs=('x86_64')
 fi
 
+options+=('nofortify')
+
 _F_cmake_use_ninja=yes
 Finclude cmake

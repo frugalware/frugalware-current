@@ -4,7 +4,7 @@
 
 pkgname=binutils
 pkgver=2.43.1
-pkgrel=1
+pkgrel=2
 pkgdesc="A set of programs to assemble and manipulate binary and object files"
 url="http://www.gnu.org/software/binutils/"
 depends=('glibc>=2.40' 'libstdc++>=14.2' 'zstd')
@@ -27,8 +27,7 @@ sha1sums=('e03fc19462023726509b3e3db1e9314061e8bcd9' \
           'c9fc0f97fe57531f4098d9266bb6b72d8e83c157' \
           'ebbe98e93f5aab71492cc23b99fb218b1c4d3138')
 
-Fconfopts+="	\
-		--enable-64-bit-bfd \
+_mainopts="	--enable-64-bit-bfd \
 		--enable-shared \
 		--disable-werror \
 		--disable-gdb \
@@ -45,6 +44,12 @@ Fconfopts+="	\
 		--enable-install-libiberty \
 		--with-pic \
 		--enable-default-hash-style=gnu"
+_mingopts="	--enable-lto \
+		--enable-plugins \
+		--enable-deterministic-archives \
+		--disable-multilib \
+		--disable-nls \
+		--disable-werror"
 
 _F_cross32_simple_auto="yes"
 Finclude cross32
@@ -56,8 +61,33 @@ subgroups+=('devel devel-core')
 subarchs+=('x86_64')
 suboptions+=('')
 
+_mingw_targets="i686-w64-mingw32 x86_64-w64-mingw32"
+
+subpkgs+=("mingw-w64-${pkgname}")
+subdescs+=("Cross binutils for the MinGW-w64 cross-compiler")
+subdepends+=('')
+subgroups+=('devel-extra')
+subarchs+=('x86_64')
+suboptions+=('')
+
+
 build()
 {
+        Fconfopts="${_mingopts}"
+        _F_conf_configure="$Fsrcdir"/binutils-${pkgver}/configure
+        for _target in $_mingw_targets; do
+		echo $_target
+                mkdir -p "$Fsrcdir"/binutils-${_target} && cd "${Fsrcdir}/binutils-${_target}"
+                Fconf   --target=${_target} \
+                        --infodir=/usr/share/info/${_target}
+                Fexec make || Fdie
+                Fmakeinstall
+        done
+	Frm usr/lib/bfd-plugins/libdep.so
+	Fsplit "mingw-w64-$pkgname" \*
+
+	Fconfopts="${_mainopts}"
+
 	Fbuild_cross32
 
 	# LTO
@@ -76,6 +106,8 @@ build()
 
 	Fsplit $pkgname-devel usr/include
 	Fsplit $pkgname-devel usr/lib/{libbfd.a,libbfd.so,libopcodes.a,libopcodes.so}
+
+
 }
 
 # optimization OK

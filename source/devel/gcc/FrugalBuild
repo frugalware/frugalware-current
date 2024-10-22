@@ -21,11 +21,11 @@ Fuse $USE_OBJC && USE_CXX="y"
 pkgname=gcc
 pkgver=14.2.0
 gccver=$pkgver
-pkgrel=1
+pkgrel=2
 pkgdesc="The GNU Compiler Collection"
 url="http://gcc.gnu.org"
 depends=('binutils>=2.41' 'glibc>=2.38' 'libmpc>=1.1.0-11' 'zlib>=1.2.11-11' 'libisl' 'zstd')
-makedepends=('kernel-headers' 'lib32-zlib' 'glibc-devel' 'binutils-devel' 'gettext')
+makedepends=('kernel-headers' 'lib32-zlib' 'glibc-devel' 'binutils-devel' 'gettext' 'mingw-w64' 'mingw-w64-binutils')
 provides=('c-compiler')
 groups=('devel' 'devel-core')
 archs=('x86_64')
@@ -43,6 +43,8 @@ removes=('/usr/lib/cpp')
 ## nothing should use that however ..
 replaces=('lib32-gcc')
 provides=('lib32-gcc')
+
+_mingw_architectures="i686-w64-mingw32 x86_64-w64-mingw32"
 
 if Fuse $USE_SHARED; then
 	subpkgs=('libgcc' 'libssp' 'libgomp' 'libatomic')
@@ -88,6 +90,13 @@ if Fuse $USE_GDC; then
     subreplaces=("${subreplaces[@]}" '')
 fi
 
+subpkgs+=('mingw-w64-gcc')
+subdescs+=('Cross GCC for the MinGW-w64 cross-compiler')
+subrodepends+=('mingw-w64 mingw-w64-binutils')
+subgroups+=('devel-extra')
+subprovides+=('')
+subreplaces+=('')
+
 i=0
 while [ $i -lt ${#subpkgs[@]} ]
 do
@@ -100,42 +109,77 @@ done
 build()
 {
 	Fcd
+	Fpatchall
+
 	Fsed 'lib64' 'lib' gcc/config/i386/t-linux64
 
 	# no fixincludes, thanks
 	Fsed '\./fixinc\.sh' '-c true' gcc/Makefile.in
 
-	Fpatchall
-
-	mkdir -p ../$pkgname-build || Fdie
-	cd ../$pkgname-build || Fdie
-
-	langlist="c"
-	if Fuse $USE_CXX; then
-		langlist="$langlist,c++"
-
-		Fconfopts+=" --enable-__cxa_atexit \
-			--enable-libstdcxx-allocator=new \
-			--enable-libstdcxx-dual-abi \
-			--disable-libstdcxx-pch \
-			--enable-linux-futex \
-			--with-default-libstdcxx-abi=new"
-	fi
-
-	Fuse $USE_OBJC && langlist="$langlist,objc,obj-c++"
-	Fuse $USE_GDC && langlist="$langlist,d"
-
-	if Fuse $USE_FORTRAN; then
-		langlist="$langlist,fortran"
-		Fconfopts+=" --enable-libquadmath --enable-libquadmath-support"
-	else
-		Fconfopts+=" --disable-libquadmath --disable-libquadmath-support"
-	fi
-
 	_F_conf_configure=../$_F_cd_path/configure
+
 	CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" XCFLAGS="$CFLAGS" TCFLAGS="$CFLAGS"
+        for _arch in ${_mingw_architectures}; do
+                Fexec mkdir -p "$Fsrcdir"/build-${_arch} || Fdie
+                Fexec cd "$Fsrcdir"/build-${_arch} || Fdie
+                Fexec $_F_conf_configure	--prefix=/usr \
+						--libexecdir=/usr/lib \
+						--target=${_arch} \
+						--with-bugurl="http://bugs.frugalware.org/" \
+						--enable-languages=c \
+						--disable-libatomic \
+						--disable-bootstrap \
+						--disable-cet \
+						--disable-gcov \
+						--disable-gomp \
+						--disable-libquadmath \
+						--disable-libsanitizer \
+						--disable-libssp \
+						--disable-libvtv \
+						--disable-shared \
+						--disable-werror \
+						--with-gcc-major-version-only \
+						--with-system-zlib \
+						--without-isl \
+						--disable-multilib \
+						--without-zstd || Fdie
+                Fexec make || Fdie
+                Fmakeinstall
+        done
+
+	Frm usr/share
+	Frm usr/lib/libcc1.\*
+
+        Fsplit mingw-w64-gcc \*
+
+        langlist="c"
+        if Fuse $USE_CXX; then
+                langlist="$langlist,c++"
+
+                Fconfopts+=" --enable-__cxa_atexit \
+                        --enable-libstdcxx-allocator=new \
+                        --enable-libstdcxx-dual-abi \
+                        --disable-libstdcxx-pch \
+                        --enable-linux-futex \
+                        --with-default-libstdcxx-abi=new"
+        fi
+
+        Fuse $USE_OBJC && langlist="$langlist,objc,obj-c++"
+        Fuse $USE_GDC && langlist="$langlist,d"
+
+        if Fuse $USE_FORTRAN; then
+                langlist="$langlist,fortran"
+                Fconfopts+=" --enable-libquadmath --enable-libquadmath-support"
+        else
+                Fconfopts+=" --disable-libquadmath --disable-libquadmath-support"
+        fi
+
+        mkdir -p ../$pkgname-build || Fdie
+        cd ../$pkgname-build || Fdie
+
 	Fconf \
-		--enable-bootstrap --with-build-config=bootstrap-lto-lean \
+		--enable-bootstrap \
+		--with-build-config=bootstrap-lto-lean \
 		--enable-languages=$langlist \
 		--enable-multilib \
 		--enable-lto \

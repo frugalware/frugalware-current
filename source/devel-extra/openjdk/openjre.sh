@@ -1,4 +1,4 @@
-export OPENJREDIR=/usr/lib/jvm/java-22-openjdk/
+export OPENJREDIR=/usr/lib/jvm/java-23-openjdk/
 export MANPATH=$MANPATH:$OPENJREDIR/man
 export CLASSPATH=$CLASSPATH:$OPENJREDIR/lib
 

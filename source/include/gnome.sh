@@ -60,8 +60,7 @@ fi
 # * url
 ###
 _F_gnome_pygtkdefsdir="usr/share/pygtk/2.0/defs"
-#_F_gnome_pkgurl="https://download.gnome.org/sources"
-_F_gnome_pkgurl="https://ftp.gnome.org/pub/GNOME/sources"
+_F_gnome_pkgurl="https://download.gnome.org/sources"
 _F_archive_name="$_F_gnome_name"
 
 up2date="Flasttar $_F_gnome_pkgurl/$_F_gnome_name/\$(Flastverdir $_F_gnome_pkgurl/$_F_gnome_name )"

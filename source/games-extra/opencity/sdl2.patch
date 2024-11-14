@@ -1,0 +1,1199 @@
+diff '--color=auto' -Naur opencity-0.0.6.5stable/config.h.in opencity-0.0.6.5stable.new/config.h.in
+--- opencity-0.0.6.5stable/config.h.in	2015-03-15 22:38:20.000000000 +0100
++++ opencity-0.0.6.5stable.new/config.h.in	2024-11-14 15:54:41.143444779 +0100
+@@ -21,11 +21,11 @@
+ /* Define to 1 if you have the `pthread' library (-lpthread). */
+ #undef HAVE_LIBPTHREAD
+ 
+-/* Define to 1 if you have the `SDL_image' library (-lSDL_image). */
+-#undef HAVE_LIBSDL_IMAGE
++/* Define to 1 if you have the `SDL2_image' library (-lSDL2_image). */
++#undef HAVE_LIBSDL2_IMAGE
+ 
+-/* Define to 1 if you have the `SDL_net' library (-lSDL_net). */
+-#undef HAVE_LIBSDL_NET
++/* Define to 1 if you have the `SDL2_net' library (-lSDL2_net). */
++#undef HAVE_LIBSDL2_NET
+ 
+ /* Define to 1 if you have the <memory.h> header file. */
+ #undef HAVE_MEMORY_H
+diff '--color=auto' -Naur opencity-0.0.6.5stable/configure.ac opencity-0.0.6.5stable.new/configure.ac
+--- opencity-0.0.6.5stable/configure.ac	2015-03-15 22:38:13.000000000 +0100
++++ opencity-0.0.6.5stable.new/configure.ac	2024-11-14 15:54:41.143444779 +0100
+@@ -48,10 +48,10 @@
+ dnl ===========================================================================
+ dnl Detect the SDL path, with C language
+ dnl ===========================================================================
+-SDL_VERSION=1.2.12
++SDL_VERSION=2.0
+ 
+ AC_LANG_C
+-AM_PATH_SDL($SDL_VERSION, , AC_MSG_ERROR([SDL version $SDL_VERSION not found]))
++AM_PATH_SDL2($SDL_VERSION, , AC_MSG_ERROR([SDL version $SDL_VERSION not found]))
+ 
+ 
+ dnl ===========================================================================
+@@ -74,17 +74,17 @@
+ dnl ===========================================================================
+ dnl Checks for --disable-sdl-mixer argument
+ dnl ===========================================================================
+-AC_ARG_ENABLE(sdl-mixer,
+-        [  --disable-sdl-mixer     disable SDL_mixer linking])
++AC_ARG_ENABLE(sdl2-mixer,
++        [  --disable-sdl2-mixer     disable SDL2_mixer linking])
+ 
+ if test "x$enable_sdl_mixer" = "x"; then
+         AC_CHECK_HEADER(SDL_mixer.h, SDL_mixer_h="yes", SDL_mixer_h="no")
+-        AC_CHECK_LIB(SDL_mixer, Mix_OpenAudio, SDL_mixer_lib="yes", SDL_mixer_lib="no")
+-        AC_MSG_CHECKING(SDL_mixer support)
++        AC_CHECK_LIB(SDL2_mixer, Mix_OpenAudio, SDL_mixer_lib="yes", SDL_mixer_lib="no")
++        AC_MSG_CHECKING(SDL2_mixer support)
+ 
+         if test "x$SDL_mixer_h" = "xyes"; then
+                 if test "x$SDL_mixer_lib" = "xyes"; then
+-						LIBS="$SDL_LIBS -lSDL_mixer"
++						LIBS="$SDL_LIBS -lSDL2_mixer"
+                         AC_DEFINE(OPENCITY_SDL_MIXER, 1, [SDL_Mixer support])
+                         AC_MSG_RESULT(yes)
+                 else
+@@ -96,6 +96,9 @@
+ fi
+ AM_CONDITIONAL(OPENCITY_SDL_MIXER, test "x$SDL_mixer_h" = "xyes")
+ 
++AC_CHECK_LIB(SDL2_net, SDLNet_Init, ,
++        AC_MSG_ERROR([SDL_net library required. See FAQ for more information]))
++
+ 
+ dnl ===========================================================================
+ dnl Checks for --with-gl-prefix argument
+@@ -173,12 +176,8 @@
+ #        AC_MSG_ERROR([SDL_ttf library required. See FAQ for more information]))
+ 
+ 
+-AC_CHECK_LIB(SDL_image, IMG_Load, ,
+-        AC_MSG_ERROR([SDL_image library required. See FAQ for more information]))
+-
+-
+-AC_CHECK_LIB(SDL_net, SDLNet_Init, ,
+-        AC_MSG_ERROR([SDL_net library required. See FAQ for more information]))
++AC_CHECK_LIB(SDL2_image, IMG_Load, ,
++        AC_MSG_ERROR([SDL2_image library required. See FAQ for more information]))
+ 
+ # Need for viewer, also dependency of SDL_image
+ AC_MSG_CHECKING(for libpng)
+@@ -219,10 +218,10 @@
+ CPPFLAGS="-I$with_gl_prefix/include $enable_gprof $enable_debug $CPPFLAGS"
+ 
+ dnl Set specific C compiler flags
+-CFLAGS="-std=c99 $CFLAGS"
++CFLAGS="$CFLAGS"
+ 
+ dnl Set specific C++ compiler flags
+-CXXFLAGS="-std=c++98 $CXXFLAGS"
++CXXFLAGS="$CXXFLAGS"
+ 
+ dnl Set linker options 
+ LDFLAGS="-L$with_gl_prefix/lib $enable_gprof $enable_as_needed $LDFLAGS"
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/audiomanagersdl.cpp opencity-0.0.6.5stable.new/src/audiomanagersdl.cpp
+--- opencity-0.0.6.5stable/src/audiomanagersdl.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/audiomanagersdl.cpp	2024-11-14 15:54:41.143444779 +0100
+@@ -485,7 +485,7 @@
+ 
+ // Open the ifstream for reading
+ 	std::ifstream listFile( csrFilename.c_str() );
+-	if (listFile == NULL) {
++	if (!listFile) {
+ 		OPENCITY_DEBUG( "Audio file list open error" );
+ 		return OC_ERR_SOMETHING;
+ 	}
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/buildinglayer.cpp opencity-0.0.6.5stable.new/src/buildinglayer.cpp
+--- opencity-0.0.6.5stable/src/buildinglayer.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/buildinglayer.cpp	2024-11-14 15:54:41.144444785 +0100
+@@ -861,11 +861,11 @@
+ {}
+ 
+ void
+-BuildingLayer::Expose( const SDL_ExposeEvent& rcEvent )
++BuildingLayer::Expose( const SDL_WindowEvent& rcEvent )
+ {}
+ 
+ void
+-BuildingLayer::Resize( const SDL_ResizeEvent& rcEvent )
++BuildingLayer::Resize( const SDL_WindowEvent& rcEvent )
+ {}
+ 
+ 
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/buildinglayer.h opencity-0.0.6.5stable.new/src/buildinglayer.h
+--- opencity-0.0.6.5stable/src/buildinglayer.h	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/buildinglayer.h	2024-11-14 15:54:41.144444785 +0100
+@@ -224,8 +224,8 @@
+ 	void Keyboard( const SDL_KeyboardEvent& rcEvent );
+ 	void MouseMotion( const SDL_MouseMotionEvent& rcEvent );
+ 	void MouseButton( const SDL_MouseButtonEvent& rcEvent );
+-	void Expose( const SDL_ExposeEvent& rcEvent );
+-	void Resize( const SDL_ResizeEvent& rcEvent );
++	void Expose( const SDL_WindowEvent& rcEvent );
++	void Resize( const SDL_WindowEvent& rcEvent );
+ 
+ 
+ private:
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/city.cpp opencity-0.0.6.5stable.new/src/city.cpp
+--- opencity-0.0.6.5stable/src/city.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/city.cpp	2024-11-14 15:54:41.144444785 +0100
+@@ -52,10 +52,12 @@
+    /*=====================================================================*/
+ City::City
+ (
++   SDL_Window* pWindow,
+ 	const uint width,
+ 	const uint length,
+ 	const bool bGUIEnabled
+ ):
++_pWindow( pWindow),
+ _bGUIEnabled( bGUIEnabled ),
+ _bStatusVisible( true ),
+ _uiIncome( 0 ),
+@@ -397,7 +399,7 @@
+ 		_pctrMenu->Display();
+ 
+ // Swap the buffers and update the screen
+-	SDL_GL_SwapBuffers();
++   SDL_GL_SwapWindow(_pWindow);
+ }
+ 
+ 
+@@ -826,7 +828,7 @@
+ 
+    /*=====================================================================*/
+ void
+-City::Expose( const SDL_ExposeEvent& rcEvent )
++City::Expose( const SDL_WindowEvent& rcEvent )
+ {
+ 	OPENCITY_DEBUG( "Expose event received" );
+ 
+@@ -837,18 +839,18 @@
+ 		_pctrMenu->Expose( rcEvent );
+ 	}
+ 
+-	SDL_GL_SwapBuffers();
++	SDL_GL_SwapWindow(_pWindow);
+ }
+ 
+ 
+    /*=====================================================================*/
+-void City::Resize( const SDL_ResizeEvent& rcEvent )
++void City::Resize( const SDL_WindowEvent& rcEvent )
+ {
+ 	OPENCITY_DEBUG( "Resize event received" );
+ 
+ // Set the new window's size
+-	_iWinWidth = rcEvent.w;
+-	_iWinHeight = rcEvent.h;
++	_iWinWidth = rcEvent.data1;
++	_iWinHeight = rcEvent.data2;
+ 	gVars.gpRenderer->SetWinSize( _iWinWidth, _iWinHeight );
+ 
+ // Resize the main status bar and reposition it
+@@ -925,7 +927,7 @@
+ 	_pMSim = new MainSim( gVars.gpmutexSim, (BuildingLayer*)_apLayer[ OC_LAYER_BUILDING ], gVars.gpMapMgr );
+ 
+ // Now initialize simulators threads
+-	_pthreadMSim = SDL_CreateThread( Simulator::ThreadWrapper, _pMSim );
++	_pthreadMSim = SDL_CreateThread( Simulator::ThreadWrapper, "SimThread", _pMSim );
+ 
+ // Kept for future reference
+ // How can I put funcTSim into the TrafficSim class ?
+@@ -2052,7 +2054,7 @@
+ 	static int mouseX, mouseY;
+ 
+ // return immediately if the app doesn't have mouse focus
+-	if (!(SDL_GetAppState() & SDL_APPMOUSEFOCUS ))
++	if (!(SDL_GetWindowFlags(_pWindow) & SDL_WINDOW_MOUSE_FOCUS ))
+ 		return;
+ 
+ 	SDL_GetMouseState( &mouseX, &mouseY );
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/city.h opencity-0.0.6.5stable.new/src/city.h
+--- opencity-0.0.6.5stable/src/city.h	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/city.h	2024-11-14 15:54:41.144444785 +0100
+@@ -63,6 +63,7 @@
+ {
+ public:
+ 	City(
++      SDL_Window* pWindow,
+ 		const uint width = OC_CITY_W,
+ 		const uint length = OC_CITY_L,
+ 		const bool bGUIEnabled = true );
+@@ -112,11 +113,14 @@
+ 	void Keyboard( const SDL_KeyboardEvent& rcEvent );
+ 	void MouseMotion( const SDL_MouseMotionEvent& rcEvent );
+ 	void MouseButton( const SDL_MouseButtonEvent& rcEvent );
+-	void Expose( const SDL_ExposeEvent& rcEvent );
+-	void Resize( const SDL_ResizeEvent& rcEvent );
++	void Expose( const SDL_WindowEvent& rcEvent );
++	void Resize( const SDL_WindowEvent& rcEvent );
+ 
+ 
+ private:
++// Window used to display city
++   SDL_Window* _pWindow;
++
+ // City's informations
+ 	bool		_bGUIEnabled;		///< GUI mode ?
+ 	bool		_bStatusVisible;	///< Is the status bar visible ?
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/conf.cpp opencity-0.0.6.5stable.new/src/conf.cpp
+--- opencity-0.0.6.5stable/src/conf.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/conf.cpp	2024-11-14 15:54:41.144444785 +0100
+@@ -32,7 +32,7 @@
+ 	std::ifstream inFile( fileName.c_str() );
+ 
+ // Is the file opened ?
+-	if ( inFile == NULL ) {
++	if ( !inFile ) {
+ 		OPENCITY_DEBUG( "WARNING: File open error, see below: " );
+ 		OPENCITY_DEBUG( fileName.c_str() );
+ 		return OC_ERR_FILE;
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/framework/System/Information/Software/CSdl.cpp opencity-0.0.6.5stable.new/src/framework/System/Information/Software/CSdl.cpp
+--- opencity-0.0.6.5stable/src/framework/System/Information/Software/CSdl.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/framework/System/Information/Software/CSdl.cpp	2024-11-14 15:54:41.144444785 +0100
+@@ -56,11 +56,12 @@
+ 
+ const String Sdl::GetRuntimeVersion()
+ {
+-	const SDL_version* lpVersion = SDL_Linked_Version();
++	SDL_version lpVersion;
++   SDL_GetVersion(&lpVersion);
+ 	//assert(lpVersion != NULL);
+ 
+ 	String lsStringVersion;
+-	lsStringVersion << (short)lpVersion->major << "." << (short)lpVersion->minor << "." << (short)lpVersion->patch;
++	lsStringVersion << (short)lpVersion.major << "." << (short)lpVersion.minor << "." << (short)lpVersion.patch;
+ 
+ 	return lsStringVersion;
+ }
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/globalvar.h opencity-0.0.6.5stable.new/src/globalvar.h
+--- opencity-0.0.6.5stable/src/globalvar.h	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/globalvar.h	2024-11-14 15:54:41.144444785 +0100
+@@ -61,7 +61,6 @@
+ 	uint guiMsPerFrame;				///< The number of milliseconds to wait between each frame.
+ 	uint guiScreenWidth;			///< The current screen's width
+ 	uint guiScreenHeight;			///< The current screen's height
+-	uint guiVideoBpp;				///< The current video bits-per-plane
+ 	string gsOpenGLDriver;			///< The name of the OpenGL driver
+ 
+ 	uint guiGeneratorSeed;
+@@ -98,8 +97,8 @@
+ 	Kernel* gpKernel;
+ 	Environment* gpEnvironment;
+ 
+-// The SDL video surface
+-	SDL_Surface* gpVideoSrf;
++// The SDL2 window
++	SDL_Window* gpWindow;
+ };
+ 
+ 
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/guibar.cpp opencity-0.0.6.5stable.new/src/guibar.cpp
+--- opencity-0.0.6.5stable/src/guibar.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/guibar.cpp	2024-11-14 15:54:41.144444785 +0100
+@@ -179,7 +179,7 @@
+ 
+    /*=====================================================================*/
+ void
+-GUIBar::Expose( const SDL_ExposeEvent& rcEvent )
++GUIBar::Expose( const SDL_WindowEvent& rcEvent )
+ {
+ 	this->Display();
+ }
+@@ -187,7 +187,7 @@
+ 
+    /*=====================================================================*/
+ void
+-GUIBar::Resize( const SDL_ResizeEvent& rcEvent )
++GUIBar::Resize( const SDL_WindowEvent& rcEvent )
+ {}
+ 
+ 
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/guibar.h opencity-0.0.6.5stable.new/src/guibar.h
+--- opencity-0.0.6.5stable/src/guibar.h	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/guibar.h	2024-11-14 15:54:41.144444785 +0100
+@@ -74,8 +74,8 @@
+ 	void Keyboard( const SDL_KeyboardEvent& rcEvent );
+ 	void MouseMotion( const SDL_MouseMotionEvent& rcEvent );
+ 	void MouseButton( const SDL_MouseButtonEvent& rcEvent );
+-	void Expose( const SDL_ExposeEvent& rcEvent );
+-	void Resize( const SDL_ResizeEvent& rcEvent );
++	void Expose( const SDL_WindowEvent& rcEvent );
++	void Resize( const SDL_WindowEvent& rcEvent );
+ 
+ 
+ private:
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/guibutton.cpp opencity-0.0.6.5stable.new/src/guibutton.cpp
+--- opencity-0.0.6.5stable/src/guibutton.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/guibutton.cpp	2024-11-14 15:54:41.144444785 +0100
+@@ -220,7 +220,7 @@
+ 
+    /*=====================================================================*/
+ void
+-GUIButton::Expose( const SDL_ExposeEvent& rcEvent )
++GUIButton::Expose( const SDL_WindowEvent& rcEvent )
+ {
+ 	this->Display();
+ }
+@@ -228,7 +228,7 @@
+ 
+    /*=====================================================================*/
+ void
+-GUIButton::Resize( const SDL_ResizeEvent& rcEvent )
++GUIButton::Resize( const SDL_WindowEvent& rcEvent )
+ {
+ }
+ 
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/guibutton.h opencity-0.0.6.5stable.new/src/guibutton.h
+--- opencity-0.0.6.5stable/src/guibutton.h	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/guibutton.h	2024-11-14 15:54:41.144444785 +0100
+@@ -70,8 +70,8 @@
+ 	void Keyboard( const SDL_KeyboardEvent& rcEvent );
+ 	void MouseMotion( const SDL_MouseMotionEvent& rcEvent );
+ 	void MouseButton( const SDL_MouseButtonEvent& rcEvent );
+-	void Expose( const SDL_ExposeEvent& rcEvent );
+-	void Resize( const SDL_ResizeEvent& rcEvent );
++	void Expose( const SDL_WindowEvent& rcEvent );
++	void Resize( const SDL_WindowEvent& rcEvent );
+ 
+ 
+ private:
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/guicontainer.cpp opencity-0.0.6.5stable.new/src/guicontainer.cpp
+--- opencity-0.0.6.5stable/src/guicontainer.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/guicontainer.cpp	2024-11-14 15:54:41.144444785 +0100
+@@ -201,7 +201,7 @@
+ 	glPushMatrix();
+ 	glLoadIdentity();
+ // Use the orthonormal projection
+-	gluOrtho2D( 0, _uiWinWidth-1, 0, _uiWinHeight-1 );
++   glOrtho(0.0f, _uiWinWidth-1, 0.0f, _uiWinHeight-1, -1, 1);
+ 
+ // Store the old matrix and move the container to the correct position
+ 	glMatrixMode( GL_MODELVIEW );
+@@ -288,7 +288,7 @@
+ 
+    /*=====================================================================*/
+ void
+-GUIContainer::Expose( const SDL_ExposeEvent& rcEvent )
++GUIContainer::Expose( const SDL_WindowEvent& rcEvent )
+ {
+ 	this->Display();
+ }
+@@ -296,10 +296,10 @@
+ 
+    /*=====================================================================*/
+ void
+-GUIContainer::Resize( const SDL_ResizeEvent& rcEvent )
++GUIContainer::Resize( const SDL_WindowEvent& rcEvent )
+ {
+-	_uiWinWidth = rcEvent.w;
+-	_uiWinHeight = rcEvent.h;
++	_uiWinWidth = rcEvent.data1;
++	_uiWinHeight = rcEvent.data2;
+ }
+ 
+ 
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/guicontainer.h opencity-0.0.6.5stable.new/src/guicontainer.h
+--- opencity-0.0.6.5stable/src/guicontainer.h	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/guicontainer.h	2024-11-14 15:54:41.144444785 +0100
+@@ -143,8 +143,8 @@
+ 	void Keyboard( const SDL_KeyboardEvent& rcEvent );
+ 	void MouseMotion( const SDL_MouseMotionEvent& rcEvent );
+ 	void MouseButton( const SDL_MouseButtonEvent& rcEvent );
+-	void Expose( const SDL_ExposeEvent& rcEvent );
+-	void Resize( const SDL_ResizeEvent& rcEvent );
++	void Expose( const SDL_WindowEvent& rcEvent );
++	void Resize( const SDL_WindowEvent& rcEvent );
+ 
+ 
+ private:
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/guilabel.cpp opencity-0.0.6.5stable.new/src/guilabel.cpp
+--- opencity-0.0.6.5stable/src/guilabel.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/guilabel.cpp	2024-11-14 15:54:41.144444785 +0100
+@@ -210,7 +210,7 @@
+ 
+    /*=====================================================================*/
+ void
+-GUILabel::Expose( const SDL_ExposeEvent& rcEvent )
++GUILabel::Expose( const SDL_WindowEvent& rcEvent )
+ {
+ 	this->Display();
+ }
+@@ -218,7 +218,7 @@
+ 
+    /*=====================================================================*/
+ void
+-GUILabel::Resize( const SDL_ResizeEvent& rcEvent )
++GUILabel::Resize( const SDL_WindowEvent& rcEvent )
+ {}
+ 
+ 
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/guilabel.h opencity-0.0.6.5stable.new/src/guilabel.h
+--- opencity-0.0.6.5stable/src/guilabel.h	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/guilabel.h	2024-11-14 15:54:41.144444785 +0100
+@@ -89,8 +89,8 @@
+ 	void Keyboard( const SDL_KeyboardEvent& rcEvent );
+ 	void MouseMotion( const SDL_MouseMotionEvent& rcEvent );
+ 	void MouseButton( const SDL_MouseButtonEvent& rcEvent );
+-	void Expose( const SDL_ExposeEvent& rcEvent );
+-	void Resize( const SDL_ResizeEvent& rcEvent );
++	void Expose( const SDL_WindowEvent& rcEvent );
++	void Resize( const SDL_WindowEvent& rcEvent );
+ 
+ 
+ private:
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/main.cpp opencity-0.0.6.5stable.new/src/main.cpp
+--- opencity-0.0.6.5stable/src/main.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/main.cpp	2024-11-14 15:54:41.144444785 +0100
+@@ -137,7 +137,7 @@
+ 	static bool bRestart		= false;
+ 
+ /// Flags we will pass into SDL_SetVideoMode.
+-	static int iVideoFlag		= SDL_OPENGL;
++	static int iVideoFlag		= SDL_WINDOW_OPENGL;
+ 
+ /// The paths are static so that the others can not access this
+ 	static string sDataDir		= "";
+@@ -203,23 +203,24 @@
+ 
+ 
+    /*=====================================================================*/
+-void ocResize( const SDL_ResizeEvent& rcsResizeEvent)
++void ocResize( const SDL_WindowEvent& rcsResizeEvent)
+ {
+ #ifndef __WIN32__
+ // Linux needs this whereas Win32 does not
+ // Set the new window's size
+-	if( SDL_SetVideoMode(
+-		rcsResizeEvent.w, rcsResizeEvent.h,
+-		gVars.guiVideoBpp, iVideoFlag ) == 0 ) {
+-		OPENCITY_FATAL( "Video mode reset failed: " << SDL_GetError( ) );
+-		exit( OC_ERROR_SDL_VIDEORESIZE );
+-	}
+-	gVars.gpVideoSrf = SDL_GetVideoSurface();
++//FIXME SDL2 migration: must check if really needed. 
++//	if( SDL_SetVideoMode(
++//		rcsResizeEvent.w, rcsResizeEvent.h,
++//		gVars.guiVideoBpp, iVideoFlag ) == 0 ) {
++//		OPENCITY_FATAL( "Video mode reset failed: " << SDL_GetError( ) );
++//		exit( OC_ERROR_SDL_VIDEORESIZE );
++//	}
++//	gVars.gpVideoSrf = SDL_GetWindowSurface();
+ #endif
+ 
+ // Save the new screen size
+-	gVars.guiScreenWidth = rcsResizeEvent.w;
+-	gVars.guiScreenHeight = rcsResizeEvent.h;
++	gVars.guiScreenWidth = rcsResizeEvent.data1;
++	gVars.guiScreenHeight = rcsResizeEvent.data2;
+ 
+ 	if (uipCurrentUI != NULL) {
+ 		uipCurrentUI->Resize( rcsResizeEvent );
+@@ -228,18 +229,20 @@
+ 
+ 
+    /*=====================================================================*/
+-void ocActive( const SDL_ActiveEvent & e)
++void ocActive( const SDL_WindowEvent & e)
+ {
+ //	OPENCITY_DEBUG( "Active event received" );
+ 
+-	if (e.state & SDL_APPACTIVE) {
+-		gVars.gboolActive = (e.gain == 1);
+-	}
++	if (e.event == SDL_WINDOWEVENT_SHOWN) {
++		gVars.gboolActive = true;
++	} else if(e.event == SDL_WINDOWEVENT_HIDDEN) {
++		gVars.gboolActive = false;
++   }
+ }
+ 
+ 
+    /*=====================================================================*/
+-void ocExpose( const SDL_ExposeEvent& rcsExposeEvent )
++void ocExpose( const SDL_WindowEvent& rcsExposeEvent )
+ {
+ 	if (uipCurrentUI != NULL) {
+ 		uipCurrentUI->Expose( rcsExposeEvent );
+@@ -270,17 +273,20 @@
+ 			ocMouseButton( event.button );
+ 			break;
+ 
+-		case SDL_VIDEORESIZE:
+-			ocResize( event.resize );
+-			break;
+-
+-		case SDL_ACTIVEEVENT:
+-			ocActive( event.active );
+-			break;
+-
+-		case SDL_VIDEOEXPOSE:
+-			ocExpose( event.expose );
+-			break;
++		case SDL_WINDOWEVENT:
++         switch( event.window.event ) {
++            case SDL_WINDOWEVENT_RESIZED:
++  			      ocResize( event.window );
++			      break;
++            case SDL_WINDOWEVENT_SHOWN:
++            case SDL_WINDOWEVENT_HIDDEN:
++			      ocActive( event.window );
++   			   break;
++            case SDL_WINDOWEVENT_EXPOSED:
++			      ocExpose( event.window );
++   			   break;
++         }
++         break;
+ 
+ 		case SDL_QUIT:
+ 		// Handle quit requests (like Ctrl-c).
+@@ -309,10 +315,6 @@
+ 		return OC_ERROR_SDL_INIT;
+ 	}
+ 
+-// Set the window's caption
+-	SDL_WM_SetCaption( PACKAGE " " VERSION, NULL );
+-	SDL_WM_SetIcon( IMG_Load(ocDataDirPrefix("graphism/icon/OpenCity32.png").c_str()), NULL );
+-
+ // Set the SDL_GL_DOUBLEBUFFER attribute for smoother rendering
+ 	SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
+ 
+@@ -341,47 +343,54 @@
+ 	}
+ 
+ // Will we go for fullscreen ?
++// FIXME: readd
+ 	if (gVars.gboolFullScreen == true) {
+-		iVideoFlag |= SDL_FULLSCREEN;
++		iVideoFlag |= SDL_WINDOW_FULLSCREEN;
+ 
+ 	// Use the current desktop video resolution
+ 		gVars.guiScreenWidth	= 0;
+ 		gVars.guiScreenHeight	= 0;
+ 	}
+ 	else {
+-		iVideoFlag |= SDL_RESIZABLE;
++		iVideoFlag |= SDL_WINDOW_RESIZABLE;
+ 	}
+ 
+-// OK, go for the video settings now
+-	gVars.gpVideoSrf = SDL_SetVideoMode( gVars.guiScreenWidth, gVars.guiScreenHeight, gVars.guiVideoBpp, iVideoFlag );
+-	if ( gVars.gpVideoSrf == NULL ) {
++// OK, go for the video (main window) settings now
++   gVars.gpWindow = SDL_CreateWindow( PACKAGE " " VERSION, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, gVars.guiScreenWidth, gVars.guiScreenHeight, iVideoFlag );
++	if ( gVars.gpWindow == NULL ) {
+ 	// This could happen for a variety of reasons, including DISPLAY
+ 	// not being set, the specified resolution not being available, etc.
+ 		OPENCITY_ERROR(
+-			"Initialization of " << gVars.guiVideoBpp <<
+-			" bpp video mode failed: " << SDL_GetError()
++			"Initialization of video mode failed: " << SDL_GetError()
+ 		);
+ 		return OC_ERROR_SDL_INIT;
+ 	}
+ 	else {
++      // set GL context to the window
++      SDL_GL_CreateContext(gVars.gpWindow);
++
++      int windowWidth=0;
++      int windowHeight=0;
++      SDL_GetWindowSize(gVars.gpWindow, &windowWidth, &windowHeight);
+ 		OPENCITY_INFO(
+-			"Using " << (uint)gVars.gpVideoSrf->w <<
+-			"x" << (uint)gVars.gpVideoSrf->h <<
+-			" at " << (uint)gVars.gpVideoSrf->format->BitsPerPixel << " bpp"
++			"Using " << windowWidth << "x" << windowHeight
+ 		);
+ 
+ 	// Store the fullscreen resolution for later use
+ 		if (gVars.gboolFullScreen == true) {
+-			gVars.guiScreenWidth	= (uint)gVars.gpVideoSrf->w;
+-			gVars.guiScreenHeight	= (uint)gVars.gpVideoSrf->h;
++			gVars.guiScreenWidth	= (uint)windowWidth;
++			gVars.guiScreenHeight	= (uint)windowHeight;
+ 		}
+ 	}
+ 
++   // Set the window's icons
++	SDL_SetWindowIcon( gVars.gpWindow, IMG_Load(ocDataDirPrefix("graphism/icon/OpenCity32.png").c_str()) );
++
++
+ // Retrieve the video driver name
+-	#define BUFFER_SIZE 256
+-	char myBuffer[BUFFER_SIZE];
+-	if (SDL_VideoDriverName(myBuffer, BUFFER_SIZE) != NULL) {
+-		OPENCITY_INFO( "Current video driver: " << myBuffer );
++   const char* videoDriverName = SDL_GetCurrentVideoDriver();
++	if ( videoDriverName != NULL) {
++		OPENCITY_INFO( "Current video driver: " << videoDriverName );
+ 	}
+ 	else {
+ 		OPENCITY_ERROR( "Failed to retrieve the video driver name" );
+@@ -660,10 +669,10 @@
+ 	displaySplash();
+ 
+ // Center the text on the screen
+-	x = (gVars.gpVideoSrf->w - str.size()*10)/2;
+-	y = (gVars.gpVideoSrf->h - 140) / 2;
++	x = (gVars.guiScreenWidth - str.size()*10)/2;
++	y = (gVars.guiScreenHeight - 140) / 2;
+ 	gVars.gpRenderer->DisplayText( x, y, OC_BLUE_COLOR, str );
+-	SDL_GL_SwapBuffers();
++	SDL_GL_SwapWindow(gVars.gpWindow);
+ }
+ 
+ 
+@@ -671,7 +680,7 @@
+ static int clientMode()
+ {
+ // Initialize SDL
+-	if (gVars.gpVideoSrf == NULL) {
++	if (gVars.gpWindow == NULL) {
+ 		int errorCode = initSDL();
+ 		if (errorCode != 0) {
+ 			return errorCode;
+@@ -762,7 +771,7 @@
+ 
+ 
+ // The pointer of our new city
+-	City* pNewCity = new City( gVars.guiCityWidth, gVars.guiCityLength );
++	City* pNewCity = new City( gVars.gpWindow, gVars.guiCityWidth, gVars.guiCityLength );
+ 	if (pNewCity == NULL) {
+ 		OPENCITY_FATAL( "Error while creating new city" );
+ 		return OC_ERROR_MEMORY;
+@@ -810,7 +819,7 @@
+ 				gVars.guiGeneratorSeed
+ 			);
+ 			gVars.gpMapMgr = new Map( gVars.guiCityWidth, gVars.guiCityLength );
+-			pNewCity = new City( gVars.guiCityWidth, gVars.guiCityLength );
++			pNewCity = new City( gVars.gpWindow, gVars.guiCityWidth, gVars.guiCityLength );
+ 			if (pNewCity == NULL) {
+ 				OPENCITY_FATAL( "Error while creating new city" );
+ 				return OC_ERROR_MEMORY;
+@@ -834,6 +843,7 @@
+ 
+ #undef OC_PRINT_FPS
+ #ifndef OC_PRINT_FPS
++      SDL_GL_SwapWindow( gVars.gpWindow );
+ 		SDL_Delay( gVars.guiMsPerFrame );
+ #else
+ 		static Uint32 uiNumberTick = SDL_GetTicks();
+@@ -877,8 +887,7 @@
+ // delete the simulators' mutex now
+ 	SDL_DestroyMutex( gVars.gpmutexSim );
+ 
+-//	SDL_FreeSurface( gVars.gpVideoSrf ); // This is not recommended by SDL documentation
+-	gVars.gpVideoSrf = NULL;
++	gVars.gpWindow = NULL;
+ 
+ 	SDL_Quit();					// WARNING: Calls free() on an invalid pointer. Detected by glibc
+ 
+@@ -1157,7 +1166,6 @@
+ 	gVars.guiMsPerFrame				= OC_MS_PER_FRAME;
+ 	gVars.guiScreenWidth			= OC_WINDOW_WIDTH;
+ 	gVars.guiScreenHeight			= OC_WINDOW_HEIGHT;
+-	gVars.guiVideoBpp				= OC_WINDOW_BPP_DEFAULT;
+ 	gVars.gsOpenGLDriver			= "";
+ 
+ 	gVars.gsGeneratorHeightMap			= "";
+@@ -1193,8 +1201,8 @@
+ 	gVars.gpKernel					= NULL;		// global MAS Kernel
+ 	gVars.gpEnvironment				= NULL;		// global Environement class
+ 
+-// The SDL video surface
+-	gVars.gpVideoSrf				= NULL;		// global video screen surface
++// The SDL window
++	gVars.gpWindow				= NULL;		// global video screen surface
+ }
+ 
+ 
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/model/model.cpp opencity-0.0.6.5stable.new/src/model/model.cpp
+--- opencity-0.0.6.5stable/src/model/model.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/model/model.cpp	2024-11-14 15:54:41.145444790 +0100
+@@ -126,9 +126,9 @@
+ 
+ 	// Correct for a 1x1 model
+ 	GLdouble matrix[16] = {
+-		1,tabY[3]-tabY[0],0,0,
++		1,(GLdouble)tabY[3]-tabY[0],0,0,
+ 		0,1,0,0,
+-		0,tabY[1]-tabY[0],1,0,
++		0,(GLdouble)tabY[1]-tabY[0],1,0,
+ 		0,0,0,1
+ 	};
+ 	glMultMatrixd(matrix);
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/networking/networking.cpp opencity-0.0.6.5stable.new/src/networking/networking.cpp
+--- opencity-0.0.6.5stable/src/networking/networking.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/networking/networking.cpp	2024-11-14 15:54:41.145444790 +0100
+@@ -32,7 +32,7 @@
+ 	_boolNetworkInitialized = (SDLNet_Init() != -1);
+ 	if (_boolNetworkInitialized == false) {
+ 		cerr << "WARNING: I couldn't initialize networking. "
+-			 << "The error was: " << SDLNet_GetError() << endl;
++			 << "The error was: " << SDL_GetError() << endl;
+ 	}
+ }
+ 
+@@ -205,7 +205,7 @@
+ 	IPaddress ip;
+ 	if (SDLNet_ResolveHost(&ip, NULL, port) == -1) {
+ 		cerr << "ERROR: I couldn't start the server: "
+-			 << SDLNet_GetError() << endl;
++			 << SDL_GetError() << endl;
+ 		return OC_NET_ERROR;
+ 	}
+ 
+@@ -213,7 +213,7 @@
+ 	this->_pServerSocket = SDLNet_TCP_Open(&ip);
+ 	if (_pServerSocket == NULL) {
+ 		cerr << "ERROR: I couldn't open the server's socket: "
+-			 << SDLNet_GetError() << endl;
++			 << SDL_GetError() << endl;
+ 		return OC_NET_ERROR;
+ 	}
+ 
+@@ -221,7 +221,7 @@
+ 	this->_pSocketSet = SDLNet_AllocSocketSet(OC_NET_CLIENT_MAX);
+ 	if (this->_pSocketSet == NULL) {
+ 		cerr << "ERROR: I couldn't allocate a socket set: "
+-			 << SDLNet_GetError() << endl;
++			 << SDL_GetError() << endl;
+ 		return OC_NET_ERROR;
+ 	}
+ 
+@@ -318,7 +318,7 @@
+ 	IPaddress ip;
+ 	if (SDLNet_ResolveHost(&ip, serverHost.c_str(), port) == -1) {
+ 		cerr << "ERROR: I couldn't resolve the server name: "
+-			 << SDLNet_GetError() << endl;
++			 << SDL_GetError() << endl;
+ 		return OC_NET_ERROR;
+ 	}
+ 
+@@ -326,7 +326,7 @@
+ 	this->_pServerSocket = SDLNet_TCP_Open(&ip);
+ 	if (_pServerSocket == NULL) {
+ 		cerr << "ERROR: I couldn't connect to the server: "
+-			 << SDLNet_GetError() << endl;
++			 << SDL_GetError() << endl;
+ 		return OC_NET_ERROR;
+ 	}
+ 
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/renderer.cpp opencity-0.0.6.5stable.new/src/renderer.cpp
+--- opencity-0.0.6.5stable/src/renderer.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/renderer.cpp	2024-11-14 15:54:41.145444790 +0100
+@@ -74,6 +74,8 @@
+ #include "globalvar.h"
+ extern GlobalVar gVars;
+ 
++#include <GL/glu.h>
++
+ 
+ // OpenGL viewport default parameters
+ #define OC_VIEW_ANGLE		50.0
+@@ -141,7 +143,7 @@
+ // Initialize the window's size, the viewport
+ // and set the perspective's ratio
+ 	assert( gVars.gpVideoSrf != NULL );
+-	Renderer::SetWinSize( gVars.gpVideoSrf->w, gVars.gpVideoSrf->h );
++	Renderer::SetWinSize( gVars.guiScreenWidth, gVars.guiScreenHeight );
+ 
+ // Settle "home" down ;)
+ 	this->Home();
+@@ -545,7 +547,7 @@
+ 	glMatrixMode( GL_PROJECTION );
+ 	glPushMatrix();
+ 	glLoadIdentity();
+-	gluOrtho2D( 0, _iWinWidth-1, 0, _iWinHeight-1 );
++	glOrtho( 0, _iWinWidth-1, 0, _iWinHeight-1, -1, 1 );
+ 
+ // Display the textured quad
+ 	glBegin( GL_QUADS );
+@@ -837,7 +839,7 @@
+ 	glMatrixMode( GL_PROJECTION );
+ 	glPushMatrix();
+ 	glLoadIdentity();
+-	gluOrtho2D( 0, _iWinWidth-1, 0, _iWinHeight-1 );
++	glOrtho( 0, _iWinWidth-1, 0, _iWinHeight-1, -1, 1 );
+ 
+ // Save the list base
+ 	glTranslatef( .0, .0, .1 );
+@@ -1000,6 +1002,45 @@
+ }
+ */
+ 
++#if 0
++/*=====================================================================*/
++void Renderer::GluPerspective
++( 
++   GLdouble fovY, 
++   GLdouble aspect, 
++   GLdouble zNear, 
++   GLdouble zFar 
++)
++{
++   GLdouble fW, fH;
++
++   fH = tan( (fovY / 2) / 180 * M_PI ) * zNear;
++   fH = tan( fovY / 360 * M_PI ) * zNear;
++   fW = fH * aspect;
++   
++   glFrustum( -fW, fW, -fH, fH, zNear, zFar );
++}
++
++
++/*=====================================================================*/
++void Renderer::GluPickMatrix
++(
++   GLdouble x, 
++   GLdouble y, 
++   GLdouble deltax, 
++   GLdouble deltay, 
++   GLint viewport[4]
++)
++{
++   if (deltax <= 0 || deltay <= 0) { 
++      return;
++   }
++
++   /* Translate and scale the picked region to the entire window */
++   glTranslatef((viewport[2] - 2 * (x - viewport[0])) / deltax, (viewport[3] - 2 * (y - viewport[1])) / deltay, 0);
++   glScalef(viewport[2] / deltax, viewport[3] / deltay, 1.0);
++}
++#endif
+ 
+    /*=====================================================================*/
+ const bool
+@@ -1640,7 +1681,7 @@
+ 	glMatrixMode( GL_PROJECTION );
+ 	glPushMatrix();
+ 	glLoadIdentity();
+-	gluOrtho2D( 0, _iWinWidth-1, 0, _iWinHeight-1 );
++	glOrtho( 0, _iWinWidth-1, 0, _iWinHeight-1, -1, 1 );
+ 
+ // We save the modelview matrix
+ 	glMatrixMode( GL_MODELVIEW );
+@@ -1748,6 +1789,110 @@
+ 	glMultMatrixd( _dmatrixRotate );
+ }
+ 
++#if 0
++static void __gluMultMatrixVecd(const GLdouble matrix[16], const GLdouble in[4],
++      GLdouble out[4])
++{
++   int i;
++
++   for (i=0; i<4; i++) {
++      out[i] = 
++         in[0] * matrix[0*4+i] +
++         in[1] * matrix[1*4+i] +
++         in[2] * matrix[2*4+i] +
++         in[3] * matrix[3*4+i];
++   }
++}
++
++/*
++ * ** Invert 4x4 matrix.
++ * ** Contributed by David Moore (See Mesa bug #6748)
++ * */
++static int __gluInvertMatrixd(const GLdouble m[16], GLdouble invOut[16])
++{
++   double inv[16], det;
++   int i;
++
++   inv[0] =   m[5]*m[10]*m[15] - m[5]*m[11]*m[14] - m[9]*m[6]*m[15]
++      + m[9]*m[7]*m[14] + m[13]*m[6]*m[11] - m[13]*m[7]*m[10];
++   inv[4] =  -m[4]*m[10]*m[15] + m[4]*m[11]*m[14] + m[8]*m[6]*m[15]
++      - m[8]*m[7]*m[14] - m[12]*m[6]*m[11] + m[12]*m[7]*m[10];
++   inv[8] =   m[4]*m[9]*m[15] - m[4]*m[11]*m[13] - m[8]*m[5]*m[15]
++      + m[8]*m[7]*m[13] + m[12]*m[5]*m[11] - m[12]*m[7]*m[9];
++   inv[12] = -m[4]*m[9]*m[14] + m[4]*m[10]*m[13] + m[8]*m[5]*m[14]
++      - m[8]*m[6]*m[13] - m[12]*m[5]*m[10] + m[12]*m[6]*m[9];
++   inv[1] =  -m[1]*m[10]*m[15] + m[1]*m[11]*m[14] + m[9]*m[2]*m[15]
++      - m[9]*m[3]*m[14] - m[13]*m[2]*m[11] + m[13]*m[3]*m[10];
++   inv[5] =   m[0]*m[10]*m[15] - m[0]*m[11]*m[14] - m[8]*m[2]*m[15]
++      + m[8]*m[3]*m[14] + m[12]*m[2]*m[11] - m[12]*m[3]*m[10];
++   inv[9] =  -m[0]*m[9]*m[15] + m[0]*m[11]*m[13] + m[8]*m[1]*m[15]
++      - m[8]*m[3]*m[13] - m[12]*m[1]*m[11] + m[12]*m[3]*m[9];
++   inv[13] =  m[0]*m[9]*m[14] - m[0]*m[10]*m[13] - m[8]*m[1]*m[14]
++      + m[8]*m[2]*m[13] + m[12]*m[1]*m[10] - m[12]*m[2]*m[9];
++   inv[2] =   m[1]*m[6]*m[15] - m[1]*m[7]*m[14] - m[5]*m[2]*m[15]
++      + m[5]*m[3]*m[14] + m[13]*m[2]*m[7] - m[13]*m[3]*m[6];
++   inv[6] =  -m[0]*m[6]*m[15] + m[0]*m[7]*m[14] + m[4]*m[2]*m[15]
++      - m[4]*m[3]*m[14] - m[12]*m[2]*m[7] + m[12]*m[3]*m[6];
++   inv[10] =  m[0]*m[5]*m[15] - m[0]*m[7]*m[13] - m[4]*m[1]*m[15]
++      + m[4]*m[3]*m[13] + m[12]*m[1]*m[7] - m[12]*m[3]*m[5];
++   inv[14] = -m[0]*m[5]*m[14] + m[0]*m[6]*m[13] + m[4]*m[1]*m[14]
++      - m[4]*m[2]*m[13] - m[12]*m[1]*m[6] + m[12]*m[2]*m[5];
++   inv[3] =  -m[1]*m[6]*m[11] + m[1]*m[7]*m[10] + m[5]*m[2]*m[11]
++      - m[5]*m[3]*m[10] - m[9]*m[2]*m[7] + m[9]*m[3]*m[6];
++   inv[7] =   m[0]*m[6]*m[11] - m[0]*m[7]*m[10] - m[4]*m[2]*m[11]
++      + m[4]*m[3]*m[10] + m[8]*m[2]*m[7] - m[8]*m[3]*m[6];
++   inv[11] = -m[0]*m[5]*m[11] + m[0]*m[7]*m[9] + m[4]*m[1]*m[11]
++      - m[4]*m[3]*m[9] - m[8]*m[1]*m[7] + m[8]*m[3]*m[5];
++   inv[15] =  m[0]*m[5]*m[10] - m[0]*m[6]*m[9] - m[4]*m[1]*m[10]
++      + m[4]*m[2]*m[9] + m[8]*m[1]*m[6] - m[8]*m[2]*m[5];
++
++   det = m[0]*inv[0] + m[1]*inv[4] + m[2]*inv[8] + m[3]*inv[12];
++   if (det == 0)
++      return GL_FALSE;
++
++   det = 1.0 / det;
++
++   for (i = 0; i < 16; i++)
++      invOut[i] = inv[i] * det;
++
++   return GL_TRUE;
++}
++
++GLint
++gluProject(GLdouble objx, GLdouble objy, GLdouble objz, 
++      const GLdouble modelMatrix[16], 
++      const GLdouble projMatrix[16],
++      const GLint viewport[4],
++      GLdouble *winx, GLdouble *winy, GLdouble *winz)
++{
++   double in[4];
++   double out[4];
++
++   in[0]=objx;
++   in[1]=objy;
++   in[2]=objz;
++   in[3]=1.0;
++   __gluMultMatrixVecd(modelMatrix, in, out);
++   __gluMultMatrixVecd(projMatrix, out, in);
++   if (in[3] == 0.0) return(GL_FALSE);
++   in[0] /= in[3];
++   in[1] /= in[3];
++   in[2] /= in[3];
++   /* Map x, y and z to range 0-1 */
++   in[0] = in[0] * 0.5 + 0.5;
++   in[1] = in[1] * 0.5 + 0.5;
++   in[2] = in[2] * 0.5 + 0.5;
++
++   /* Map x,y to viewport */
++   in[0] = in[0] * viewport[2] + viewport[0];
++   in[1] = in[1] * viewport[3] + viewport[1];
++
++   *winx=in[0];
++   *winy=in[1];
++   *winz=in[2];
++   return(GL_TRUE);
++}
++#endif
+ 
+    /*=====================================================================*/
+ void
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/renderer.h opencity-0.0.6.5stable.new/src/renderer.h
+--- opencity-0.0.6.5stable/src/renderer.h	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/renderer.h	2024-11-14 15:54:41.145444790 +0100
+@@ -151,8 +151,7 @@
+ 		uint & ruiL,
+ 		const Map* pcMap,
+ 		const Layer* pcLayer );
+-
+-
++   
+ 	const bool
+ 	GetSelectedWLFrom(
+ 		const uint & rcuiMouseX,
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/texture.cpp opencity-0.0.6.5stable.new/src/texture.cpp
+--- opencity-0.0.6.5stable/src/texture.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/texture.cpp	2024-11-14 15:54:41.145444790 +0100
+@@ -32,6 +32,7 @@
+ 
+ // Libraries headers
+ #include "SDL_image.h"
++#include <GL/glu.h>
+ 
+ // Class static variable implementation
+ map<string, pair<GLuint, uint> >	Texture::mmapTextureCache;
+@@ -479,12 +480,14 @@
+ 
+ // If the image doesn't have the correct size then scale it before converting
+ 	uint glW, glH;
++#if 0
+ 	if (Texture::_GetCorrectSize( gVars.guiCityWidth, gVars.guiCityLength, glW, glH )) {
+ 		OPENCITY_DEBUG("Texture's size has been fixed");
+ 		void* pPixels = malloc( glW * glH * BYTE_PER_PIXEL );
+ 		assert( pPixels != NULL );
+ 
+ 	// Scale the input image
++   printf("gluScaleImage: %d %d %d %d\n", gVars.guiCityWidth, gVars.guiCityLength, glW, glH);
+ 		(void)gluScaleImage(
+ 			GL_RGBA,			// Image format
+ 			gVars.guiCityWidth,	// The minimap size
+@@ -513,7 +516,9 @@
+ 		free( pPixels );
+ 		pPixels = NULL;			// Safe
+ 	}
+-	else {
++	else
++#endif
++   {
+ 	// Convert directly the minimap data to the OpenGL texture
+ 		glTexImage2D(
+ 			GL_TEXTURE_2D,		// Texture 2D
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/ui.h opencity-0.0.6.5stable.new/src/ui.h
+--- opencity-0.0.6.5stable/src/ui.h	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/ui.h	2024-11-14 15:54:41.145444790 +0100
+@@ -64,7 +64,7 @@
+ 	\param rcsEvent The SDL expose event
+ */
+ 	virtual void
+-	Expose( const SDL_ExposeEvent& rcEvent ) = 0;
++	Expose( const SDL_WindowEvent& rcEvent ) = 0;
+ 
+ 
+ //========================================================================
+@@ -72,7 +72,7 @@
+ 	\param rcsEvent The SDL resize
+ */
+ 	virtual void
+-	Resize( const SDL_ResizeEvent& rcEvent )= 0;
++	Resize( const SDL_WindowEvent& rcEvent )= 0;
+ 
+ };
+ #endif
+diff '--color=auto' -Naur opencity-0.0.6.5stable/src/zen.cpp opencity-0.0.6.5stable.new/src/zen.cpp
+--- opencity-0.0.6.5stable/src/zen.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/src/zen.cpp	2024-11-14 15:54:41.145444790 +0100
+@@ -98,13 +98,16 @@
+ 
+ 
+    /*=====================================================================*/
+-void ocActive( const SDL_ActiveEvent & e)
++void ocActive( const SDL_WindowEvent & e)
+ {
+ 	OPENCITY_DEBUG( "Active event received" );
+ 
+-	if (e.state & SDL_APPACTIVE) {
+-		gVars.gboolActive = (e.gain == 1);
+-	}
++   if (e.event == SDL_WINDOWEVENT_SHOWN) {
++      gVars.gboolActive = true;
++   } else if(e.event == SDL_WINDOWEVENT_HIDDEN) {
++      gVars.gboolActive = false;
++   }
++
+ }
+ 
+ 
+@@ -136,8 +139,11 @@
+ 	while( SDL_PollEvent( &event ) ) {
+ 
+ 		switch( event.type ) {
+-		case SDL_ACTIVEEVENT:
+-			ocActive( event.active );
++		case SDL_WINDOWEVENT:
++         if( (event.window.event == SDL_WINDOWEVENT_SHOWN) ||
++             (event.window.event == SDL_WINDOWEVENT_HIDDEN) ) {
++   			ocActive( event.window );
++         }
+ 			break;
+ 
+ 		case SDL_QUIT:
+@@ -307,7 +313,7 @@
+ 
+ 
+ // Create a new city map
+-	City* pNewCity = new City( gVars.guiCityWidth, gVars.guiCityLength, false );
++	City* pNewCity = new City( gVars.gpWindow, gVars.guiCityWidth, gVars.guiCityLength, false );
+ 	if (pNewCity == NULL) {
+ 		OPENCITY_FATAL( "Error while creating new city" );
+ 		return (-15);
+@@ -354,7 +360,7 @@
+ // Delete the simulators' mutex now
+ 	SDL_DestroyMutex( gVars.gpmutexSim );
+ 
+-	gVars.gpVideoSrf = NULL;
++	gVars.gpWindow = NULL;
+ 	SDL_Quit();					// WARNING: Calls free() on an invalid pointer. Detected by glibc
+ 	return 0;
+ }
+@@ -585,7 +591,6 @@
+ 	gVars.guiMsPerFrame				= OC_MS_PER_FRAME;
+ 	gVars.guiScreenWidth			= OC_WINDOW_WIDTH;
+ 	gVars.guiScreenHeight			= OC_WINDOW_HEIGHT;
+-	gVars.guiVideoBpp				= OC_WINDOW_BPP_DEFAULT;
+ 
+ 	gVars.gsGeneratorHeightMap			= "";
+ 	gVars.guiGeneratorSeed				= time(NULL);
+@@ -620,8 +625,8 @@
+ 	gVars.gpKernel					= NULL;		// global MAS Kernel
+ 	gVars.gpEnvironment				= NULL;		// global Environement class
+ 
+-// The SDL video surface
+-	gVars.gpVideoSrf				= NULL;		// global video screen surface
++// The SDL window
++	gVars.gpWindow				= NULL;		// global video screen surface
+ }
+ 
+ 
+diff '--color=auto' -Naur opencity-0.0.6.5stable/viewer/viewer.cpp opencity-0.0.6.5stable.new/viewer/viewer.cpp
+--- opencity-0.0.6.5stable/viewer/viewer.cpp	2015-03-15 22:37:48.000000000 +0100
++++ opencity-0.0.6.5stable.new/viewer/viewer.cpp	2024-11-14 15:54:42.803454214 +0100
+@@ -35,10 +35,13 @@
+ #include "pngfuncs.h"
+ #include "SimpleOpt.h"			// Simple command line argument parser
+ 
++#include <GL/glu.h>
+ 
+ int W = 640;
+ int H = 480;
+ 
++SDL_Window* window;
++
+ /* floats for x rotation, y rotation, z rotation */
+ float xrot=30, yrot=30, zrot=0, zoom=3;
+ 
+@@ -90,7 +93,7 @@
+ 	model->DisplayList( -width/2, -length/2, tabY );
+ 
+ 	// swap buffers to display, since we're double buffered.
+-	SDL_GL_SwapBuffers();
++	SDL_GL_SwapWindow(window);
+ }
+ 
+ 
+@@ -259,7 +262,10 @@
+ int initDisplay( const uint w, const uint h )
+ {
+ 	/* Create a OpenGL screen */
+-	if ( SDL_SetVideoMode( w, h, 24, SDL_OPENGLBLIT | SDL_HWSURFACE | SDL_DOUBLEBUF | SDL_RESIZABLE ) == NULL )
++   window = SDL_CreateWindow("Viewe", SDL_WINDOWPOS_UNDEFINED,
++         SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_OPENGL);
++
++	if ( window == NULL) 
+ 	{
+ 		fprintf( stderr, "Unable to create OpenGL screen: %s\n", SDL_GetError() );
+ 		SDL_Quit();
+@@ -425,13 +431,17 @@
+ 								redraw=false;
+ 	    					};
+ 						break;
+-		    			case SDL_VIDEOEXPOSE:
+-						redraw = true;
+-						break;
+-					case SDL_VIDEORESIZE:
+-						W = event.resize.w;
+-						H = event.resize.h;
+-					    	initDisplay( W, H );
++                  case SDL_WINDOWEVENT:
++                     switch(event.window.event) {
++                        case SDL_WINDOWEVENT_SHOWN:
++                           redraw = true;
++                        break;
++                        case SDL_WINDOWEVENT_RESIZED:
++                           W = event.window.data1;
++                           H = event.window.data2;
++                        break;
++                     }
++                  break;
+ 					default: ;
+ 				}
+ 			}

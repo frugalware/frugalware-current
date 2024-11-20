@@ -6,7 +6,7 @@ USE_DISTRO_LTO=${USE_DISTRO_LTO:-"n"}
 USE_DISTRO_FLAGS=${USE_DISTRO_FLAGS:-"y"}
 
 pkgname=chromium-browser
-pkgver=130.0.6723.116
+pkgver=131.0.6778.85
 pkgrel=1
 pkgdesc='Chromium browser'
 url='http://www.chromium.org/'
@@ -15,7 +15,7 @@ depends=('nss>=3.21-3' 'libxscrnsaver>=1.2.2-2' 'libpulse>=7.1-4' 'snappy>=1.1.6
 	'libatomic' 'pciutils>=3.5' 'gtk+4' 'libxslt' 'libdrm' 'json-glib' \
 	'harfbuzz>=3.0.0' 'libjpeg-turbo' 'fontconfig' 'libva' 'opus' 'curl' 'libwebp' \
 	'freetype2' 'flac>=1.4.0' 'libusb1' 'openh264')
-makedepends=('ninja' 'gn>=0.1731' 'cups' 'x11-protos' 'mesa-dri-drivers' 'nodejs' 'compiler-rt-static' \
+makedepends=('ninja' 'gn>=0.1731' 'cups' 'x11-protos' 'mesa-dri-drivers' 'nodejs' 'compiler-rt-static' 'git' \
 	'xhost' 'xorg-server' 'xauth' 'openjdk' 'gperf' 'libxrandr' 'vulkan-headers' 'qt5-tools' 'qt6-tools' \
 	'pipewire' 'lld' 'clang' 'llvm' 'compiler-rt' 'rust' 'qt5-base>=5.15.15' 'qt6-base>=6.8.0' 'rust-bindgen')
 license=('BSD')
@@ -29,17 +29,21 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
 	https://github.com/foutrelis/chromium-launcher/archive/v8/chromium-launcher-8.tar.gz \
 	chromium.desktop \
 	chromium-117-material-color-include.patch \
-	chromium-129-compiler.patch \
+	chromium-131-compiler.patch \
 	use-oauth2-client-switches-as-default.patch \
+	unbundle-add-enable_freetype.patch \
 	compiler-rt-path.patch \
+	const-atomicstring-conversion.patch \
 	remove-html5lib.patch )
-sha1sums=('9946798d9178374002690cd754a13cbb54696794' \
+sha1sums=('cfa99e4c95c210addd554bf8242fb9e22b633f61' \
           '0f969f454a5efdf1bb5b6a2ecf0f9bddd0c94cab' \
           '710c24b12f105ddbd91d5f1fbabb2cacf97128df' \
           '2df38b7b132221e7943ed000828aa1602ba70e12' \
-          '3d631e9ced78238bdde42980d9025e81c6f99b78' \
-          '6311c0e38d6c3dc0b3869167e4a35f8160101b17' \
+          '54eeceecc8e008deeaf0c8103a375b9221dea156' \
+          '36b8b81b974cfd11ec7166f6b9ff43df2d6ebddb' \
+          'a33c00095519c5bafa28046d2ec43f68781e2881' \
           '7ed00cb60fe0fa56175c4b06b4a1ba1a2c70ceb7' \
+          '7dd8b3e9254a958163b14ae6bd20400a686c73f9' \
           'a1e08b837760e8100a80fd3ef1004198ea66b0e3')
 
 
@@ -68,18 +72,16 @@ build() {
 	ulimit -n 4096
 
 	export LANG=en_US.UTF-8
-	export CFLAGS="${CFLAGS//-fuse-ld=lld/}"
-	export CXXFLAGS="${CFLAGS//-fuse-ld=lld/}"
 
 	local keeplibs=(
 		third_party/sentencepiece
 		base/third_party/cityhash
 		base/third_party/double_conversion
-		base/third_party/icu
 		base/third_party/nspr
 		base/third_party/superfasthash
 		base/third_party/symbolize
 		base/third_party/xdg_user_dirs
+		base/third_party/icu
 		buildtools/third_party/libc++
 		buildtools/third_party/libc++abi
 		buildtools/third_party/eu-strip
@@ -141,7 +143,6 @@ build() {
 		third_party/devtools-frontend/src/front_end/third_party/intl-messageformat
 		third_party/devtools-frontend/src/front_end/third_party/lighthouse
 		third_party/devtools-frontend/src/front_end/third_party/lit
-		third_party/devtools-frontend/src/front_end/third_party/lodash-isequal
 		third_party/devtools-frontend/src/front_end/third_party/marked
 		third_party/devtools-frontend/src/front_end/third_party/puppeteer
 		third_party/devtools-frontend/src/front_end/third_party/puppeteer/package/lib/esm/third_party/mitt
@@ -151,6 +152,7 @@ build() {
 		third_party/devtools-frontend/src/front_end/third_party/wasmparser
 		third_party/devtools-frontend/src/front_end/third_party/web-vitals
 		third_party/devtools-frontend/src/front_end/third_party/third-party-web
+		third_party/devtools-frontend/src/front_end/third_party/json5
 		third_party/devtools-frontend/src/third_party
 		third_party/dom_distiller_js
 		third_party/emoji-segmenter
@@ -162,6 +164,7 @@ build() {
 		third_party/googletest
 		third_party/hunspell
 		third_party/iccjpeg
+		third_party/icu
 		third_party/inspector_protocol
 		third_party/jinja2
 		third_party/jstemplate
@@ -193,14 +196,13 @@ build() {
 		third_party/openscreen
 		third_party/openscreen/src/third_party/tinycbor/src/src
 		third_party/ots
-		third_party/icu
 		third_party/pdfium
 		third_party/pdfium/third_party/agg23
 		third_party/pdfium/third_party/bigint
-		third_party/pdfium/third_party/freetype
 		third_party/pdfium/third_party/lcms
 		third_party/pdfium/third_party/libopenjpeg
 		third_party/pdfium/third_party/libtiff
+		third_party/pdfium/third_party/freetype
 		third_party/perfetto
 		third_party/pffft
 		third_party/ply
@@ -325,6 +327,7 @@ build() {
 		third_party/tflite/src/third_party/xla/third_party/tsl
 		third_party/lens_server_proto
 		third_party/rapidhash
+		third_party/ink
 		v8/third_party/glibc )
 	# Remove most bundled libraries. Some are still needed.
 
@@ -356,6 +359,8 @@ build() {
 	myconf_gn+=" clang_base_path=\"/usr\""
 	myconf_gn+=" clang_version=19"
 	myconf_gn+=" use_lld=true"
+	myconf_gn+=" pgo_data_path=\"${Fsrcdir}/${_F_cd_path}/chromium.profdata\""
+	myconf_gn+=" v8_enable_builtins_optimization=false"
 	myconf_gn+=" is_debug=false"
 	myconf_gn+=" enable_iterator_debugging=false"
 	myconf_gn+=" enable_nacl=false"
@@ -387,7 +392,7 @@ build() {
 
 	myconf_gn+=" fatal_linker_warnings=false"
 	myconf_gn+=" target_cpu=\"x64\""
-	myconf_gn+=" icu_use_data_file=true"
+	myconf_gn+=" icu_use_data_file=false"
 
 	myconf_gn+=" enable_vulkan=true is_component_ffmpeg=true "
 	myconf_gn+=" enable_av1_decoder=true"
@@ -405,7 +410,6 @@ build() {
 	myconf_gn+=" use_thin_lto=true"
 	myconf_gn+=" thin_lto_enable_optimizations=true"
 	myconf_gn+=" is_cfi=false"
-	myconf_gn+=" chrome_pgo_phase=0"
 	myconf_gn+=" blink_enable_generated_code_formatting=false"
 
 	# disable DCHECK

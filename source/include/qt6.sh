@@ -47,4 +47,5 @@ fi
 options+=('nofortify')
 
 _F_cmake_use_ninja=yes
+_F_cmake_confopts+="	-DCMAKE_MESSAGE_LOG_LEVEL=STATUS"
 Finclude cmake

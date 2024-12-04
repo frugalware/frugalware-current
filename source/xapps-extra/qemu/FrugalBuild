@@ -8,18 +8,19 @@
 ##       add virtgl stuff
 pkgname=qemu
 pkgver=9.1.2
-pkgrel=2
+pkgrel=3
 pkgdesc="QEMU is a FAST! processor emulator"
 url="http://www.nongnu.org/qemu/"
 depends=('libx11' 'sdl2' 'alsa-lib' 'cyrus-sasl' 'nss' 'libgl' 'pixman' \
 	'libpng>=1.6.20' 'libjpeg-turbo' 'spice-server' 'spice-protocol' 'xkeyboard-config' \
-	'usbredir>=0.8.0' 'pulseaudio' 'ncurses>=6.0-3' 'libglu' 'libepoxy' \
+	'usbredir>=0.8.0' 'pulseaudio' 'ncurses>=6.0-3' 'libglu' 'libepoxy' 'fuse3' \
 	'libaio' 'lzo' 'snappy' 'libseccomp' 'numactl' 'bluez' 'jemalloc' 'libbpf' \
-	'curl' 'nettle>=3.6' 'libssh2' 'libgbm' 'liburing' 'dtc' 'vte3' 'pipewire')
+	'libsysprof-capture' 'curl' 'nettle>=3.6' 'libssh2' 'libgbm' 'liburing' \
+	'dtc' 'vte3' 'pipewire')
 makedepends=('texi2html' 'xfsprogs' 'mesa-libgl-headers' 'x11-protos' 'iasl' \
 	'mesa-libegl' 'pcre2-static' 'ncurses-static' 'glib2-static' 'cdrtools' \
 	'zlib-static' 'ninja' 'python3-setuptools' 'python3-sphinx' \
-	'python3-sphinx-rtd-theme' 'sphinx-jquery')
+	'python3-sphinx-rtd-theme' 'sphinx-jquery' 'gmp-static')
 replaces=('kqemu' 'qemu-kvm')
 conflicts=('kqemu' 'qemu-kvm')
 provides=('kqemu' 'qemu-kvm')
@@ -29,11 +30,13 @@ _F_archive_grepv="rc[0-9]"
 up2date="Flasttar http://wiki.qemu.org/download"
 source=(http://wiki.qemu.org/download/${pkgname}-${pkgver//_/-}.tar.bz2 \
 	qemu-8.1.1-static_regression.patch \
+	qemu-8.1.0-find-sphinx.patch \
 	qemu-guest-agent.service \
 	99-qemu-guest-agent.rules \
 	README.Frugalware)
 sha1sums=('3fa73cd1f869e511c859e5693e498711771f03c0' \
           'f726814a3840a2a536c2e41cea82c1a889f2ca2a' \
+          'adf3ba06d1579f21f8dee566c3ae5b4f784bc472' \
           '435373031bc0a1fed8abadab912460ddf98bc1c2' \
           'c997e6afd997aeb87791664c2583a009704a6792' \
           '11fea2f36b44297e241d8cbbdbc4cd14f1150b72')
@@ -50,7 +53,6 @@ subgroups+=('apps-extra')
 subarchs+=('x86_64')
 subdepends+=('glibc')
 
-
 options=('nolto')
 
 build()
@@ -63,40 +65,47 @@ build()
 	--sysconfdir=/etc \
         --localstatedir=/ \
         --libexecdir=/usr/lib/qemu \
+	--x86-version=2 \
         --enable-linux-user \
-        --disable-debug-info \
-        --disable-bsd-user \
-        --disable-werror \
-        --disable-system \
-        --disable-tools \
-        --disable-docs \
-        --disable-gtk \
-        --disable-gnutls \
-        --disable-nettle \
-        --disable-gcrypt \
-        --disable-glusterfs \
-        --disable-libnfs \
-        --disable-libiscsi \
+	--enable-attr \
+	--enable-tcg \
+	--target-list-exclude=x86_64-linux-user,i386-linux-user \
 	--disable-bpf \
-        --disable-vnc \
-        --disable-kvm \
-        --disable-libssh \
-        --disable-vde \
-        --disable-sdl \
-        --disable-opengl \
-        --disable-xen \
-        --disable-fdt \
-        --disable-vhost-net \
-        --disable-vhost-crypto \
-        --disable-vhost-user \
-        --disable-tpm \
-        --disable-qom-cast-debug \
-        --disable-capstone \
-        --disable-zstd \
-        --disable-linux-io-uring \
+	--disable-bsd-user \
+	--disable-capstone \
+	--disable-docs \
+	--disable-fdt \
+	--disable-gcrypt \
+	--disable-glusterfs \
+	--disable-gnutls \
+	--disable-gtk \
+	--disable-install-blobs \
+	--disable-kvm \
+	--disable-libiscsi \
+	--disable-libnfs \
+	--disable-libssh \
+	--disable-linux-io-uring \
+	--disable-nettle \
+	--disable-opengl \
+	--disable-qom-cast-debug \
+	--disable-sdl \
+	--disable-system \
+	--disable-tools \
+	--disable-tpm \
+	--disable-vde \
+	--disable-vhost-crypto \
+	--disable-vhost-kernel \
+	--disable-vhost-net \
+	--disable-vhost-user \
+	--disable-vnc \
+	--disable-fuse \
+	--disable-werror \
+	--disable-xen \
+	--disable-zstd \
         --static || Fdie
 
         Fexec make || Fdie
+	Fexec make check-unit V=1 || Fdie
         Fmakeinstall
 
 	# remove conflicting files
@@ -104,11 +113,13 @@ build()
 	Frm usr/share/
 	Frm usr/include/
 
-	# never go full circle
-	Frm usr/bin/qemu-x86_64
-
-	# this will lead to problems
-	Frm usr/bin/qemu-i386
+        # install binfmt files
+        Fmkdir usr/lib/binfmt.d/
+	Fexec ./scripts/qemu-binfmt-conf.sh     --systemd ALL \
+						--exportdir "$Fdestdir/usr/lib/binfmt.d/" \
+						--qemu-path "/usr/bin" \
+						--persistent yes \
+						--preserve-argv0 yes || Fdie
 
 	# split everything
 	Fsplit $pkgname-user-static /\*
@@ -126,18 +137,13 @@ build()
 	--enable-spice \
 	--enable-usb-redir \
 	--enable-lto \
+	--enable-malloc=jemalloc \
+	--x86-version=2 \
 	--enable-modules || Fdie
 
 	Fexec make || Fdie
+	Fexec make check-unit V=1 || Fdie
 	Fmakeinstall
-
-	# install binfmt files
-	Fmkdir usr/lib/binfmt.d/
-	Fexec ./scripts/qemu-binfmt-conf.sh	--systemd ALL \
-						--exportdir "$Fdestdir/usr/lib/binfmt.d/" \
-						--qemu-path "/usr/bin" \
-						--persistent yes \
-						--preserve-argv0 yes || Fdie
 
 	Fdoc README.Frugalware
 

@@ -1,0 +1,46 @@
+From 9ddc97314ba4313493f0979455a13838de1317ac Mon Sep 17 00:00:00 2001
+From: Richard Hughes <richard@hughsie.com>
+Date: Wed, 20 Nov 2024 13:28:25 +0000
+Subject: [PATCH] glib/gbytes: Be more careful when saving a GBytes of NULL
+
+In 1e3b010 the behaviour of `g_bytes_new (NULL, 0)` was changed; before the
+`g_bytes_get_data()` would return NULL as expected, but now it returns a pointer
+outside the single GBytes allocation.
+
+This breaks the fwupd self tests as we use a GBytes of NULL to signify that
+the emulation data exists, but it has no content.
+
+Catch this case and restore the old behaviour.
+---
+ glib/gbytes.c      | 2 +-
+ glib/tests/bytes.c | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/glib/gbytes.c b/glib/gbytes.c
+index 9b358c4a0..a3647caee 100644
+--- a/glib/gbytes.c
++++ b/glib/gbytes.c
+@@ -128,7 +128,7 @@ g_bytes_new (gconstpointer data,
+       GBytesInline *bytes;
+ 
+       bytes = g_malloc (sizeof *bytes + size);
+-      bytes->bytes.data = bytes->inline_data;
++      bytes->bytes.data = data != NULL ? bytes->inline_data : NULL;
+       bytes->bytes.size = size;
+       bytes->bytes.free_func = NULL;
+       bytes->bytes.user_data = NULL;
+diff --git a/glib/tests/bytes.c b/glib/tests/bytes.c
+index 16a08e222..7d432fdee 100644
+--- a/glib/tests/bytes.c
++++ b/glib/tests/bytes.c
+@@ -451,6 +451,7 @@ test_null (void)
+   gsize size;
+ 
+   bytes = g_bytes_new (NULL, 0);
++  g_assert_null (g_bytes_get_data (bytes, NULL));
+ 
+   data = g_bytes_unref_to_data (bytes, &size);
+ 
+-- 
+2.47.0
+

@@ -165,6 +165,9 @@ makedepends+=('vulkan-headers')
 # kernel stuff
 makedepends+=('kernel-headers')
 
+# weird
+makedepends+=('qt6-base-static')
+
 ###
 # == APPENDED VARIABLES
 # makedepends: if kde4 append automoc4 unless building it, if kf6 append some other deps.

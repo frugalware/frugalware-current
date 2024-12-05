@@ -117,6 +117,7 @@ CMake_conf()
 		-DCMAKE_SKIP_INSTALL_RPATH="$_F_cmake_install_rpath" \
 		-DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG" \
 		-DCMAKE_C_FLAGS_RELEASE="-DNDEBUG" \
+		-Wno-dev \
 		$_F_cmake_confopts "$@" -S $_F_cmake_src_dir -B $_F_cmake_build_dir|| Fdie
 }
 

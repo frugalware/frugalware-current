@@ -1,0 +1,43 @@
+# Compiling Time: 0.01 SBU
+# Maintainer: DeX77 <dex+fw@dragonslave.de>
+
+pkgname=cni-plugins
+pkgver=1.6.1
+pkgrel=1
+pkgdesc='Some standard networking plugins, maintained by the CNI team'
+archs=('x86_64')
+groups=('network-extra')
+depends=('glibc')
+makedepends=('go')
+_F_github_author="containernetworking"
+_F_github_name="plugins"
+_F_github_tag_v=y
+Finclude github
+sha1sums=('564db616dfb64f2d4ea87cbaa6855d0e480dcce1')
+_F_cd_path="plugins-$pkgver"
+
+build() {
+	Fcd
+
+	export CGO_CPPFLAGS="${CPPFLAGS}"
+	export CGO_CFLAGS="${CFLAGS}"
+	export CGO_CXXFLAGS="${CXXFLAGS}"
+	export CGO_LDFLAGS="${LDFLAGS}"
+	export GOPATH="${srcdir}"
+	export GOFLAGS="-buildmode=pie -mod=readonly -modcacherw"
+
+	# custom go build calls, since build_linux.sh is not flexible enough
+	for plugin in plugins/meta/* plugins/main/* plugins/ipam/*; do
+	if [[ -d "$plugin"  && "$plugin" != *windows ]]; then
+		printf "Building plugin: %s\n" "$(basename $plugin)"
+		Fexec go build -o bin/ -ldflags "-compressdwarf=false -linkmode external" "./$plugin" || Fdie
+	fi
+	done
+
+	Finstallrel 755 bin/* usr/lib/cni/
+	Finstallrel 755 bin/* opt/cni/bin/
+
+	Finstallrel 644 plugins/ipam/dhcp/systemd/* usr/lib/systemd/system/
+}
+
+# optimization OK

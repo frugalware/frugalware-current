@@ -1,0 +1,65 @@
+# Compiling Time: 0.01 SBU
+# Maintainer: DeX77 <dex+fw@dragonslave.de>
+
+pkgname=cri-tools
+pkgver=1.32.0
+pkgrel=1
+pkgdesc="CLI and validation tools for Kubelet Container Runtime Interface (CRI)"
+archs=('x86_64')
+depends=('glibc')
+groups=('apps-extra')
+makedepends=('go')
+_F_github_tag_v=y
+_F_github_author="kubernetes-sigs"
+Finclude github
+sha1sums=('ae14edac9bf75c136d975ec2e5204f9ac427f3e2')
+
+subpkgs+=('crictl')
+subdescs+=("A CLI for CRI-compatible container runtimes")
+subarchs+=('x86_64')
+subgroups+=('apps-extra')
+
+subpkgs+=('critest')
+subdescs+=("A benchmarking CLI for CRI-compatible container runtimes")
+subarchs+=('x86_64')
+subgroups+=('apps-extra')
+
+build() {
+	local common_ldflags=(
+	-compressdwarf=false
+	-linkmode external
+	)
+
+	export CGO_CPPFLAGS="$CPPFLAGS"
+	export CGO_CFLAGS="$CFLAGS"
+	export CGO_CXXFLAGS="$CXXFLAGS"
+	export CGO_LDFLAGS="$LDFLAGS"
+	export CGO_ENABLED=1
+	export GOPATH="${srcdir}"
+	export GOFLAGS="-buildmode=pie -mod=readonly -modcacherw"
+
+	Fcd
+
+	Fexec make VERSION=$pkgver GO_LDFLAGS="${common_ldflags[*]}" || Fdie
+
+	mkdir -vp completions
+	Fexec build/bin/linux/amd64/crictl completion bash > completions/crictl || Fdie
+	Fexec build/bin/linux/amd64/crictl completion zsh > completions/_crictl || Fdie
+	Fexec build/bin/linux/amd64/crictl completion fish > completions/crictl.fish || Fdie
+
+	Fexerel build/bin/linux/amd64/crictl usr/bin/crictl
+
+	# shell completion
+	Finstallrel 644 completions/crictl usr/share/bash-completion/completions/crictl
+	Finstallrel 644 completions/_crictl usr/share/zsh/site-functions/_crictl
+	Finstallrel 644 completions/crictl.fish usr/share/fish/completions/crictl.fish
+
+	Fsplit crictl usr/bin/crictl
+	Fsplit crictl usr/share/
+
+	Fexerel build/bin/linux/amd64/critest usr/bin/critest
+	Fsplit critest usr/bin/critest
+
+}
+
+# optimization OK

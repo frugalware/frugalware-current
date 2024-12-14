@@ -2,34 +2,33 @@
 # Maintainer: DeX77 <dex+fw@dragonslave.de>
 
 pkgname=ollama
-pkgver=0.4.7
+pkgver=0.5.2
 pkgrel=1
 pkgdesc='Create, run and share large language models (LLMs)'
 archs=('x86_64')
 groups=('apps-extra')
 depends=('glibc')
 _F_github_tag_v=yes
-makedepends=('cmake' 'go')
+makedepends=('cmake' 'go' 'cuda' 'cuda-static')
 Finclude github
 source+=(ollama.service \
 	sysusers.conf \
 	tmpfiles.d)
-sha1sums=('a1075f12a5efbd5a80a8b0418aef641a9e1e5761' \
+sha1sums=('5f6e3de0edea1c63b82ae4280e28c31642ca78fd' \
           '9b45f8a4549a6d6d6d9ad1f2485cf0c9a9522eda' \
           '581aa0d97b79a9ba0c5d8015216f020249fe024a' \
           '6ac2791c9ce3e546dfe5269d44b7194dd7fb0add')
+options=('nolto')
 
 build() {
-	export CFLAGS+=' -w' CXXFLAGS+=' -w'
-	export LDFLAGS+=' -L/opt/cuda/targets/x86_64-linux/lib/stubs/'
 	export CGO_CFLAGS="$CFLAGS" CGO_CPPFLAGS="$CPPFLAGS" CGO_CXXFLAGS="$CXXFLAGS" CGO_LDFLAGS="$LDFLAGS"
-
 	local goflags='-buildmode=pie -trimpath -mod=readonly -modcacherw'
-	local ldflags="-linkmode=external -buildid= -X github.com/ollama/ollama/version.Version=$pkgver -X github.com/ollama/ollama/server.mode=release"
+	unset CFLAGS CXXFLAGS
 
 	Fcd
-	Fexec go generate ./... || Fdie
-	Fexec go build $goflags -ldflags="$ldflags" || Fdie
+	Fexec make dist CUDA_12_PATH=/opt/cuda || Fdie
+	Fexec go build . || Fdie
+
 	Fexerel usr/bin/$pkgname
 	Fmkdir var/lib/ollama
 	Finstall 644 usr/lib/systemd/system/ollama.service

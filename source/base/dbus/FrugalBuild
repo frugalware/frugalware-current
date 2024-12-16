@@ -1,19 +1,15 @@
 # Compiling time: 0.48 SBU
 # Maintainer: whoever <none@frugalware.org>
 
-## this is just for tool chain bumps
-## and/or rebuilds of say libffi
-## do NOT set n for production systems
-
 pkgname=dbus
-pkgver=1.14.10
-pkgrel=5
+pkgver=1.16.0
+pkgrel=1
 pkgdesc="A message bus system"
 url="http://freedesktop.org/wiki/Software/dbus"
 rodepends=('scriptlet-core')
 depends=('expat>=2.1.0-5' 'libsystemd>=242')
 makedepends=('xmlto>=0.0.28' 'docbook-xsl' 'systemd' 'docbook-xml' 'systemd-devel>=242')
-options=('scriptlet' 'force')
+options=('scriptlet')
 groups=('base' 'core')
 archs=('x86_64')
 _F_archive_grepv="1.13\|1.15" # 1.11 is devel .13 is devel etc
@@ -23,9 +19,10 @@ backup=(etc/dbus-1/session.conf usr/lib/tmpfiles.d/dbus.conf)
 source=(http://dbus.freedesktop.org/releases/dbus/$pkgname-$pkgver.tar.xz \
 	dbus-1-launch.desktop
 	dbus.conf )
-sha1sums=('47f03306a491509cdebacded837e51b086835252' \
+sha1sums=('29a3de47fef882e620b7b2ff275250fa3fd442be' \
           '1c7bd0b397f281ab26a70d48269496cc5a742509' \
           'd006b4e680e6fbc4bcaac8337fc3a8b2af151b98')
+_F_cd_path="$pkgname-$pkgver"
 
 subpkgs=('dbus-x11')
 subdescs=('X based tools for D-BUS.')
@@ -34,7 +31,6 @@ makedepends+=('x11-protos')
 subrodepends=("dbus>=$pkgver")
 subgroups=('xapps')
 subarchs=('x86_64')
-suboptions=('force')
 
 subpkgs+=('lib32-libdbus')
 subdescs+=("$pkgdesc ( 32bit )")
@@ -42,91 +38,33 @@ subdepends+=("glibc>=2.34")
 subrodepends+=("")
 subgroups+=('lib32-extra')
 subarchs+=('x86_64')
-suboptions+=('force')
 
+_F_cross32_meson_confopts_32="	-Duser_session=false \
+				-Dsystemd=disabled \
+				-Dxml_docs=disabled \
+				-Dx11_autolaunch=disabled \
+				-Dmessage_bus=false \
+				-Dtools=false \
+				-Dmodular_tests=disabled"
+_F_cross32_use_meson=yes
 Finclude cross32
 
-makedepends+=('lib32-expat')
+build() {
+                Fcross32_common_build ## 32bit
+                Fcross32_delete_empty
+                Fcross32_delete_static
+		Frm usr/share/xml/
+		Fln /usr/lib32/dbus-1.0/include/dbus/dbus-arch-deps.h /usr/i686-frugalware-linux/include/dbus-1.0/dbus/dbus-arch-deps.h
+                Fsplit lib32-libdbus /\*
 
-_64bit_options+="	--enable-systemd \
-			--enable-user-session \
-			--with-systemdsystemunitdir=/usr/lib/systemd/system \
-			--enable-xml-docs \
-			--libdir=/usr/lib \
-			--bindir=/usr/bin \
-			--libexecdir=/usr/lib/$pkgname-1"
+                ## 64bit
+                Fcross32_64bit_build
+		Fln /usr/lib/dbus-1.0/include/dbus/dbus-arch-deps.h /usr/include/dbus-1.0/dbus/dbus-arch-deps.h
 
-## right now I can't add systemd support .. circualr depends..
-F32confopts+="	--disable-systemd \
-		--disable-user-session \
-		--disable-xml-docs \
-		--without-x \
-		--disable-x11-autolaunch"
+		Fmkdir /etc/dbus-1/system.d/.holdme
+		Fmkdir /usr/share/dbus-1/services/.holdme
 
-Fconfopts+="	--prefix=/usr \
-                --exec-prefix=/ \
-                --with-system-pid-file=/run/dbus/dbus.pid \
-                --with-system-socket=/run/dbus/system_bus_socket \
-		--runstatedir=/run \
-                --with-session-socket-dir=/tmp \
-                --with-dbus-user=messagebus \
-                --disable-doxygen-docs \
-                --enable-inotify \
-                --enable-userdb-cache \
-                --with-gnu-ld \
-                --disable-asserts \
-                --disable-checks \
-                --disable-tests \
-                --disable-selinux \
-		--enable-x11-autolaunch \
-		--disable-Werror"
-
-build()
-{
-
-	Fcd
-
-	## --- 32bit ----------
-	Fcross32_common_build
-	Fcross32_delete_empty
-
-	## keep just the lib
-	Frm var
-	Frm usr/share/dbus-1
-	Frm usr/i686-frugalware-linux/{bin,dbus}
-        Frm usr/share/xml/dbus-1
-
-	## same bug here ..
-	Fln /usr/lib32/dbus-1.0/include/dbus/dbus-arch-deps.h /usr/i686-frugalware-linux/include/dbus-1.0/dbus/dbus-arch-deps.h
-
-	Fcross32_delete_empty
-
-	Fsplit lib32-libdbus /\*
-
-	Fbuild $_64bit_options
-
-	# bug dbus-arch-deps.h is being included as <dbus/dbus-arch-deps.h> from dbus.h
-	## but installed as .. /usr/lib/dbus-1.0/include/dbus/dbus-arch-deps.h  so nothing can find it
-	## workaround for now
-	Fln /usr/lib/dbus-1.0/include/dbus/dbus-arch-deps.h /usr/include/dbus-1.0/dbus/dbus-arch-deps.h
-
-	## just to keep this dirs
-	Fmkdir /etc/dbus-1/system.d/.holdme
-	Fmkdir /usr/share/dbus-1/services/.holdme
-	Frm /var/run
-	Fmkdir /usr/lib/tmpfiles.d
-	cat > $Fdestdir/usr/lib/tmpfiles.d/dbus.conf << EOF
-d /run/dbus 0755 root root -
-EOF
-	Fsplit dbus-x11 usr/bin/dbus-launch
-
-	Ffileschown /usr/lib/dbus-1/dbus-daemon-launch-helper 0 38
-	Ffileschmod /usr/lib/dbus-1/dbus-daemon-launch-helper 4750
-
-	# Create users using sysuser.d
-	Fmkdir usr/lib/sysusers.d/
-	Ffile /usr/lib/sysusers.d/$pkgname.conf
-
+		Fsplit dbus-x11 usr/bin/dbus-launch
 }
 
 # optimization OK

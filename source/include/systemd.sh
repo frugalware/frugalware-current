@@ -48,6 +48,15 @@ if [ -n "$_F_systemd_sockets" ]; then
 	done
 fi
 
+if [ -n "$_F_systemd_path" ]; then
+	for j in ${_F_systemd_path}; do
+		if ! echo "$j" | grep -qo '='; then
+			error "Each systemd path must have a '=' appended."
+			Fdie
+		fi
+	done
+fi
+
 if [ -z "$_F_systemd_scriptlet" ]; then
 	_F_systemd_scriptlet="$Fincdir/systemd.install"
 fi
@@ -73,4 +82,6 @@ Finclude genscriptlet
 Fsystemd_genscriptlet_hook()
 {
 	Freplace '_F_systemd_units' "$1"
+	Freplace '_F_systemd_sockets' "$1"
+	Freplace '_F_systemd_path' "$1"
 }

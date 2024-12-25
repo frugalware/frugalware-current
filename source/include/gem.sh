@@ -37,7 +37,7 @@ fi
 # == APPENDED VARIABLES
 # * ruby to depends()
 ###
-depends=(${depends[@]} 'ruby>=3.3.0')
+depends=(${depends[@]} 'ruby>=3.4.1')
 
 ###
 # == OVERWRITTEN VARIABLES

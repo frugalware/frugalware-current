@@ -34,7 +34,6 @@ startdir=..
 
 fb_sources=`mktemp`
 fdb_sources=`mktemp`
-fdb_tmp=`mktemp -d`
 
 cd $startdir
 for i in `git ls-files source |grep FrugalBuild`
@@ -64,13 +63,10 @@ done |sort -u > $fb_sources 2>/dev/null
 for i in frugalware-$1
 do
 	cd $i
-	bsdtar xf frugalware-current.fdb -C $fdb_tmp
-	ls $fdb_tmp |sed 's/-[^-]\+-[^-]\+$//'
-	rm -rf $fdb_tmp
-	mkdir -p $fdb_tmp
+	bsdtar tf frugalware-current.fdb "*/$" | sed 's/-[^-]\+-[^-]\+$//'
 	cd ..
 done |sort -u > $fdb_sources 2>/dev/null
 
 diff -u $fdb_sources $fb_sources |grep ^-[^-] |sed 's/^-//'
 
-rm -rf $fb_sources $fdb_sources $fdb_tmp
+rm -rf $fb_sources $fdb_sources

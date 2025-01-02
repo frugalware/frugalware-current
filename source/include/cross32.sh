@@ -442,18 +442,12 @@ fi
 ## simple build foo with foo32 subpackage
 ## don't use this with things have more subs..
 if [ -n "$_F_cross32_simple" ]; then
-	if [ -z "$_F_cross32_subdepends" ]; then
-		Fmessage "You need _F_cross32_subdepends=('depends_here') to be set"
-		Fmessage "Fix your package!.."
-		#exit 1
-	else
-		subpkgs=("lib32-${pkgname}")
-		subdescs=("$pkgdesc ( 32bit )")
-		subdepends=("${_F_cross32_subdepends[*]}")
-		subgroups=('lib32-extra')
-		subarchs=('x86_64')
-		suboptions=('force')
-	fi
+	subpkgs=("lib32-${pkgname}")
+	subdescs=("$pkgdesc ( 32bit )")
+	subdepends=("${_F_cross32_subdepends[*]}")
+	subgroups=('lib32-extra')
+	subarchs=('x86_64')
+	suboptions=('force')
 fi
 
 Fbuild_cross32() {

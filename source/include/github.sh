@@ -78,8 +78,8 @@ if [[ -n "$_F_github_tag_v" ]]; then
 fi
 
 if [[ -n "$_F_github_tag_v" ]] && [[ -n "$_F_github_tag" ]]; then
-	echo "ERROR: Using TAG_V && TAG is not allowed!"
-	echo "ERROR: Bailing out, please fix your package.."
+	error "ERROR: Using TAG_V && TAG is not allowed!"
+	error "ERROR: Bailing out, please fix your package.."
 	exit 1
 fi
 

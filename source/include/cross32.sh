@@ -64,12 +64,6 @@ if [ -n "$_F_cross32_use_cmake" ]; then
 	Finclude cmake
 fi
 
-## FIXME
-if [ -n "$_F_cross32_use_meson" ] && [ -n "$_F_cross32_use_cmake" ]; then
-	Fmessage "ERROR: you cannot set cmake and meson.."
-	Fdie
-fi
-
 if [ -z "$_F_cross32_use_meson" ] && [ -z "$_F_cross32_use_cmake" ]; then
 	_F_cross32_use_default="yes"
 fi

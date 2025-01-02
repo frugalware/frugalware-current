@@ -67,6 +67,6 @@ do
 	cd ..
 done |sort -u > $fdb_sources 2>/dev/null
 
-diff -u $fdb_sources $fb_sources |grep ^-[^-] |sed 's/^-//'
+diff -u $fd_sources $fdb_sources |grep ^-[^-] |sed 's/^-//'
 
 rm -rf $fb_sources $fdb_sources

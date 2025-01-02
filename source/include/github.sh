@@ -77,12 +77,6 @@ if [[ -n "$_F_github_tag_v" ]]; then
 	_F_github_tag_prefix="v"
 fi
 
-if [[ -n "$_F_github_tag_v" ]] && [[ -n "$_F_github_tag" ]]; then
-	error "ERROR: Using TAG_V && TAG is not allowed!"
-	error "ERROR: Bailing out, please fix your package.."
-	exit 1
-fi
-
 makedepends+=('jq' 'curl')
 
 ## set source to archive .. seems to be fine.

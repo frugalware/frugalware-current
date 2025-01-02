@@ -39,18 +39,15 @@ cd $startdir
 for i in `git ls-files source |grep FrugalBuild`
 do
 	cd `dirname $i` || continue
-	unset pkgname subpkgs pkgver pkgextraver pkgrel nobuild options archs install
 	export startdir=`pwd`
-	. ./FrugalBuild || echo "errors while parsing the `pwd`/FrugalBuild"
+	eval $(. ./FrugalBuild || echo "errors while parsing the `pwd`/FrugalBuild"; echo pkgname="$pkgname"; echo subpkgs="$subpkgs")
 	if [ ! "$nobuild" -a ! "`check_option NOBUILD`" ]; then
 		for j in ${archs[@]}
 		do
 			[[ "$j" != "$1" ]] && continue
 			export CARCH=$j
-			unset pkgname subpkgs pkgver pkgrel pkgextraver source install
 			for k in `set|grep -E '^(_F_|USE_)'|sed 's/\(=.*\| ()\)//'`; do unset $k; done
 			export startdir=`pwd`
-			. ./FrugalBuild || echo "errors parsing `pwd`/FrugalBuild for $j"
 			for k in $pkgname ${subpkgs[@]}
 			do
 				echo $k

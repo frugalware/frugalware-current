@@ -1,11 +1,11 @@
-From 0aca1dd4ca92805d1e1c2a9ceb7e17f7abb5656c Mon Sep 17 00:00:00 2001
-From: Matt Jolly <Matt.Jolly@footclan.ninja>
-Date: Thu, 12 Sep 2024 10:36:40 +1000
-Subject: [PATCH] Update compiler patch for 129
+From 88b9f0dc65ead7ce4cc5c06bb84f0c14dbf6b521 Mon Sep 17 00:00:00 2001
+From: Matt Jolly <kangie@gentoo.org>
+Date: Mon, 11 Nov 2024 21:15:57 +1000
+Subject: [PATCH] Update compiler patch for 132
 
 --- a/build/config/compiler/BUILD.gn
 +++ b/build/config/compiler/BUILD.gn
-@@ -311,9 +311,6 @@ config("compiler") {
+@@ -309,9 +309,6 @@ config("compiler") {
  
    configs += [
      # See the definitions below.
@@ -15,7 +15,7 @@ Subject: [PATCH] Update compiler patch for 129
      ":compiler_codegen",
      ":compiler_deterministic",
    ]
-@@ -562,55 +559,6 @@ config("compiler") {
+@@ -568,63 +565,6 @@ config("compiler") {
      ldflags += [ "-Wl,-z,keep-text-section-prefix" ]
    }
  
@@ -66,12 +66,20 @@ Subject: [PATCH] Update compiler patch for 129
 -    } else {
 -      cflags += [ "-ffp-contract=off" ]
 -    }
+-
+-    # Enable ELF CREL (see crbug.com/357878242) for all platforms that use ELF
+-    # (excluding toolchains that use an older version of LLVM).
+-    # TODO(crbug.com/376278218): This causes segfault on Linux ARM builds.
+-    if (is_linux && !llvm_android_mainline && current_cpu != "arm" &&
+-        default_toolchain != "//build/toolchain/cros:target") {
+-      cflags += [ "-Wa,--crel,--allow-experimental-crel" ]
+-    }
 -  }
 -
    # C11/C++11 compiler flags setup.
    # ---------------------------
    if (is_linux || is_chromeos || is_android || (is_nacl && is_clang) ||
-@@ -1559,52 +1507,6 @@ config("compiler_deterministic") {
+@@ -1583,52 +1523,6 @@ config("compiler_deterministic") {
      }
    }
  
@@ -124,7 +132,7 @@ Subject: [PATCH] Update compiler patch for 129
    # Tells the compiler not to use absolute paths when passing the default
    # paths to the tools it invokes. We don't want this because we don't
    # really need it and it can mess up the RBE cache entries.
-@@ -1623,40 +1525,6 @@ config("compiler_deterministic") {
+@@ -1647,40 +1541,6 @@ config("compiler_deterministic") {
    }
  }
  
@@ -165,7 +173,7 @@ Subject: [PATCH] Update compiler patch for 129
  config("compiler_arm_fpu") {
    if (current_cpu == "arm" && !is_ios && !is_nacl) {
      cflags = [ "-mfpu=$arm_fpu" ]
-@@ -2063,11 +1931,7 @@ config("chromium_code") {
+@@ -2086,11 +1946,7 @@ config("chromium_code") {
        defines = [ "_HAS_NODISCARD" ]
      }
    } else {
@@ -178,7 +186,7 @@ Subject: [PATCH] Update compiler patch for 129
  
      # In Chromium code, we define __STDC_foo_MACROS in order to get the
      # C99 macros on Mac and Linux.
-@@ -2076,24 +1940,6 @@ config("chromium_code") {
+@@ -2099,24 +1955,6 @@ config("chromium_code") {
        "__STDC_FORMAT_MACROS",
      ]
  
@@ -203,7 +211,7 @@ Subject: [PATCH] Update compiler patch for 129
      if (is_apple) {
        cflags_objc = [ "-Wimplicit-retain-self" ]
        cflags_objcc = [ "-Wimplicit-retain-self" ]
-@@ -2486,7 +2332,8 @@ config("default_stack_frames") {
+@@ -2544,7 +2382,8 @@ config("default_stack_frames") {
  # [0]: https://pinpoint-dot-chromeperf.appspot.com/job/147634a8be0000
  # [1]: https://pinpoint-dot-chromeperf.appspot.com/job/132bc772be0000
  # [2]: https://crrev.com/c/5447532
@@ -213,7 +221,7 @@ Subject: [PATCH] Update compiler patch for 129
    if (is_win) {
      # clang-cl's /O2 corresponds to clang's -O3, and really want -O2 for
      # consistency with the other platforms.
-@@ -2535,7 +2382,8 @@ config("optimize") {
+@@ -2593,7 +2432,8 @@ config("optimize") {
  }
  
  # Turn off optimizations.
@@ -223,7 +231,7 @@ Subject: [PATCH] Update compiler patch for 129
    if (is_win) {
      cflags = [
        "/Od",  # Disable optimization.
-@@ -2575,7 +2423,8 @@ config("no_optimize") {
+@@ -2633,7 +2473,8 @@ config("no_optimize") {
  # Turns up the optimization level. Used to explicitly enable -O2 instead of
  # -Os for select targets on platforms that use optimize_for_size. No-op
  # elsewhere.
@@ -233,7 +241,7 @@ Subject: [PATCH] Update compiler patch for 129
    if (is_nacl && is_nacl_irt) {
      # The NaCl IRT is a special case and always wants its own config.
      # Various components do:
-@@ -2608,7 +2457,8 @@ config("optimize_max") {
+@@ -2666,7 +2507,8 @@ config("optimize_max") {
  #
  # TODO(crbug.com/41259697) - rework how all of these configs are related
  # so that we don't need this disclaimer.
@@ -243,7 +251,7 @@ Subject: [PATCH] Update compiler patch for 129
    if (is_nacl && is_nacl_irt) {
      # The NaCl IRT is a special case and always wants its own config.
      # Various components do:
-@@ -2637,7 +2487,8 @@ config("optimize_speed") {
+@@ -2695,7 +2537,8 @@ config("optimize_speed") {
    }
  }
  
@@ -253,7 +261,7 @@ Subject: [PATCH] Update compiler patch for 129
    cflags = [ "-O1" ] + common_optimize_on_cflags
    rustflags = [ "-Copt-level=1" ]
    ldflags = common_optimize_on_ldflags
-@@ -2768,7 +2619,8 @@ config("win_pdbaltpath") {
+@@ -2826,7 +2669,8 @@ config("win_pdbaltpath") {
  }
  
  # Full symbols.
@@ -261,9 +269,9 @@ Subject: [PATCH] Update compiler patch for 129
 +config("symbols") { }
 +config("xsymbols") {
    rustflags = []
+   configs = []
    if (is_win) {
-     if (is_clang) {
-@@ -2918,7 +2770,8 @@ config("symbols") {
+@@ -2988,7 +2832,8 @@ config("symbols") {
  # Minimal symbols.
  # This config guarantees to hold symbol for stack trace which are shown to user
  # when crash happens in unittests running on buildbot.
@@ -273,7 +281,7 @@ Subject: [PATCH] Update compiler patch for 129
    rustflags = []
    if (is_win) {
      # Functions, files, and line tables only.
-@@ -3003,7 +2856,8 @@ config("minimal_symbols") {
+@@ -3073,7 +2918,8 @@ config("minimal_symbols") {
  # This configuration contains function names only. That is, the compiler is
  # told to not generate debug information and the linker then just puts function
  # names in the final debug information.
@@ -284,6 +292,5 @@ Subject: [PATCH] Update compiler patch for 129
      ldflags = [ "/DEBUG" ]
  
 -- 
-2.45.2
-
+2.47.0
 

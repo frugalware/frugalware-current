@@ -1,43 +1,54 @@
-diff -up inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-parser.cpp.omv~ inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-parser.cpp
---- inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-parser.cpp.omv~	2024-10-16 22:02:45.286278494 +0200
-+++ inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-parser.cpp	2024-10-16 23:49:12.890891669 +0200
-@@ -810,7 +810,7 @@ void PdfParser::opSetExtGState(Object ar
+From f873812afa84835ce40bef78862f189290a1f77c Mon Sep 17 00:00:00 2001
+From: PBS <pbs3141@gmail.com>
+Date: Tue, 22 Oct 2024 14:48:31 +0100
+Subject: [PATCH] Future-proof against poppler 24.10 changes
+
+---
+ .../internal/pdfinput/pdf-parser.cpp          | 120 ++++++++----------
+ src/extension/internal/pdfinput/pdf-parser.h  |   4 +-
+ .../pdfinput/poppler-transition-api.h         |   6 +
+ 3 files changed, 61 insertions(+), 69 deletions(-)
+
+diff --git a/src/extension/internal/pdfinput/pdf-parser.cpp b/src/extension/internal/pdfinput/pdf-parser.cpp
+index 152c8548c70..01d7bf6ef0e 100644
+--- a/src/extension/internal/pdfinput/pdf-parser.cpp
++++ b/src/extension/internal/pdfinput/pdf-parser.cpp
+@@ -810,11 +810,11 @@ void PdfParser::opSetExtGState(Object args[], int /*numArgs*/)
              _POPPLER_FREE(obj3);
              if (_POPPLER_CALL_ARGS_DEREF(obj3, obj2.dictLookup, "G").isStream()) {
                  if (_POPPLER_CALL_ARGS_DEREF(obj4, obj3.streamGetDict()->lookup, "Group").isDict()) {
 -                    GfxColorSpace *blendingColorSpace = nullptr;
-+                    std::unique_ptr<GfxColorSpace> blendingColorSpace = nullptr;
++                    std::unique_ptr<GfxColorSpace> blendingColorSpace;
                      GBool isolated = gFalse;
                      GBool knockout = gFalse;
                      if (!_POPPLER_CALL_ARGS_DEREF(obj5, obj4.dictLookup, "CS").isNull()) {
-@@ -857,7 +857,7 @@ void PdfParser::opSetExtGState(Object ar
- }
- 
- void PdfParser::doSoftMask(Object *str, GBool alpha,
--		     GfxColorSpace *blendingColorSpace,
-+		     std::unique_ptr<GfxColorSpace> const &blendingColorSpace,
- 		     GBool isolated, GBool knockout,
- 		     Function *transferFunc, GfxColor *backdropColor) {
-   Dict *dict, *resDict;
-@@ -920,9 +920,9 @@ void PdfParser::doSoftMask(Object *str,
+-                        blendingColorSpace = GfxColorSpace::parse(nullptr, &obj5, nullptr, state);
++                        blendingColorSpace = std::unique_ptr<GfxColorSpace>(GfxColorSpace::parse(nullptr, &obj5, nullptr, state));
+                     }
+                     _POPPLER_FREE(obj5);
+                     if (_POPPLER_CALL_ARGS_DEREF(obj5, obj4.dictLookup, "I").isBool()) {
+@@ -835,7 +835,7 @@ void PdfParser::opSetExtGState(Object args[], int /*numArgs*/)
+                             }
+                         }
+                     }
+-                    doSoftMask(&obj3, alpha, blendingColorSpace, isolated, knockout, funcs[0], &backdropColor);
++                    doSoftMask(&obj3, alpha, blendingColorSpace.get(), isolated, knockout, funcs[0], &backdropColor);
+                     if (funcs[0]) {
+                         delete funcs[0];
+                     }
+@@ -920,9 +920,6 @@ void PdfParser::doSoftMask(Object *str, GBool alpha,
  	  alpha, transferFunc, backdropColor);
    --formDepth;
  
 -  if (blendingColorSpace) {
 -    delete blendingColorSpace;
 -  }
-+//  if (blendingColorSpace) {
-+//    delete blendingColorSpace;
-+//  }
    _POPPLER_FREE(obj1);
  }
  
-@@ -936,41 +936,28 @@ void PdfParser::opSetRenderingIntent(Obj
- 
- /**
-  * Get a newly allocated color space instance by CS operation argument.
-- *
-- * Maintains a cache for named color spaces to avoid expensive re-parsing.
+@@ -939,42 +936,43 @@ void PdfParser::opSetRenderingIntent(Object /*args*/[], int /*numArgs*/)
+  *
+  * Maintains a cache for named color spaces to avoid expensive re-parsing.
   */
 -GfxColorSpace *PdfParser::lookupColorSpaceCopy(Object &arg)
 +std::unique_ptr<GfxColorSpace> PdfParser::lookupColorSpaceCopy(Object &arg)
@@ -46,27 +57,34 @@ diff -up inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-
 -    GfxColorSpace *colorSpace = nullptr;
  
      if (char const *name = arg.isName() ? arg.getName() : nullptr) {
--        auto const cache_name = std::to_string(formDepth) + "-" + name;
+         auto const cache_name = std::to_string(formDepth) + "-" + name;
 -        if ((colorSpace = colorSpacesCache[cache_name].get())) {
 -            return colorSpace->copy();
--        }
--
-         Object obj = res->lookupColorSpace(name);
-         if (obj.isNull()) {
++        if (auto cached = colorSpacesCache[cache_name].get()) {
++            return std::unique_ptr<GfxColorSpace>(cached->copy());
+         }
+ 
+-        Object obj = res->lookupColorSpace(name);
+-        if (obj.isNull()) {
 -            colorSpace = GfxColorSpace::parse(res, &arg, nullptr, state);
-+            return GfxColorSpace::parse(res, &arg, nullptr, state);
++        std::unique_ptr<GfxColorSpace> colorSpace;
++        if (auto obj = res->lookupColorSpace(name); !obj.isNull()) {
++            colorSpace = std::unique_ptr<GfxColorSpace>(GfxColorSpace::parse(res, &obj, nullptr, state));
          } else {
 -            colorSpace = GfxColorSpace::parse(res, &obj, nullptr, state);
--        }
--
--        if (colorSpace && colorSpace->getMode() != csPattern) {
--            colorSpacesCache[cache_name].reset(colorSpace->copy());
-+            return GfxColorSpace::parse(res, &obj, nullptr, state);
++            colorSpace = std::unique_ptr<GfxColorSpace>(GfxColorSpace::parse(res, &arg, nullptr, state));
          }
+ 
+         if (colorSpace && colorSpace->getMode() != csPattern) {
+-            colorSpacesCache[cache_name].reset(colorSpace->copy());
++            colorSpacesCache[cache_name] = std::unique_ptr<GfxColorSpace>(colorSpace->copy());
+         }
++
++        return colorSpace;
      } else {
          // We were passed in an object directly.
 -        colorSpace = GfxColorSpace::parse(res, &arg, nullptr, state);
-+        return GfxColorSpace::parse(res, &arg, nullptr, state);
++        return std::unique_ptr<GfxColorSpace>(GfxColorSpace::parse(res, &arg, nullptr, state));
      }
 -    return colorSpace;
  }
@@ -77,122 +95,137 @@ diff -up inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-
 -GfxPattern *PdfParser::lookupPattern(Object *obj, GfxState *state)
 +std::unique_ptr<GfxPattern> PdfParser::lookupPattern(Object *obj, GfxState *state)
  {
-     if (!obj->isName())
-         return nullptr;
-@@ -983,7 +970,7 @@ void PdfParser::opSetFillGray(Object arg
+-    if (!obj->isName())
+-        return nullptr;
+-    return res->lookupPattern(obj->getName(), nullptr, state);
++    if (!obj->isName()) {
++        return {};
++    }
++    return std::unique_ptr<GfxPattern>(res->lookupPattern(obj->getName(), nullptr, state));
+ }
+ 
+ // TODO not good that numArgs is ignored but args[] is used:
+@@ -983,7 +981,7 @@ void PdfParser::opSetFillGray(Object args[], int /*numArgs*/)
    GfxColor color;
    builder->beforeStateChange(state);
    state->setFillPattern(nullptr);
 -  state->setFillColorSpace(new GfxDeviceGrayColorSpace());
-+  state->setFillColorSpace(std::unique_ptr<GfxColorSpace>(new GfxDeviceGrayColorSpace()));
++  state->setFillColorSpace(_POPPLER_CONSUME_UNIQPTR_ARG(std::make_unique<GfxDeviceGrayColorSpace>()));
    color.c[0] = dblToCol(args[0].getNum());
    state->setFillColor(&color);
    builder->updateStyle(state);
-@@ -995,7 +982,7 @@ void PdfParser::opSetStrokeGray(Object a
+@@ -995,7 +993,7 @@ void PdfParser::opSetStrokeGray(Object args[], int /*numArgs*/)
    GfxColor color;
    builder->beforeStateChange(state);
    state->setStrokePattern(nullptr);
 -  state->setStrokeColorSpace(new GfxDeviceGrayColorSpace());
-+  state->setStrokeColorSpace(std::unique_ptr<GfxColorSpace>(new GfxDeviceGrayColorSpace()));
++  state->setStrokeColorSpace(_POPPLER_CONSUME_UNIQPTR_ARG(std::make_unique<GfxDeviceGrayColorSpace>()));
    color.c[0] = dblToCol(args[0].getNum());
    state->setStrokeColor(&color);
    builder->updateStyle(state);
-@@ -1008,7 +995,7 @@ void PdfParser::opSetFillCMYKColor(Objec
+@@ -1008,7 +1006,7 @@ void PdfParser::opSetFillCMYKColor(Object args[], int /*numArgs*/)
    int i;
    builder->beforeStateChange(state);
    state->setFillPattern(nullptr);
 -  state->setFillColorSpace(new GfxDeviceCMYKColorSpace());
-+  state->setFillColorSpace(std::unique_ptr<GfxColorSpace>(new GfxDeviceCMYKColorSpace()));
++  state->setFillColorSpace(_POPPLER_CONSUME_UNIQPTR_ARG(std::make_unique<GfxDeviceCMYKColorSpace>()));
    for (i = 0; i < 4; ++i) {
      color.c[i] = dblToCol(args[i].getNum());
    }
-@@ -1022,7 +1009,7 @@ void PdfParser::opSetStrokeCMYKColor(Obj
+@@ -1022,7 +1020,7 @@ void PdfParser::opSetStrokeCMYKColor(Object args[], int /*numArgs*/)
    GfxColor color;
    builder->beforeStateChange(state);
    state->setStrokePattern(nullptr);
 -  state->setStrokeColorSpace(new GfxDeviceCMYKColorSpace());
-+  state->setStrokeColorSpace(std::unique_ptr<GfxColorSpace>(new GfxDeviceCMYKColorSpace()));
++  state->setStrokeColorSpace(_POPPLER_CONSUME_UNIQPTR_ARG(std::make_unique<GfxDeviceCMYKColorSpace>()));
    for (int i = 0; i < 4; ++i) {
      color.c[i] = dblToCol(args[i].getNum());
    }
-@@ -1036,7 +1023,7 @@ void PdfParser::opSetFillRGBColor(Object
+@@ -1036,7 +1034,7 @@ void PdfParser::opSetFillRGBColor(Object args[], int /*numArgs*/)
    GfxColor color;
    builder->beforeStateChange(state);
    state->setFillPattern(nullptr);
 -  state->setFillColorSpace(new GfxDeviceRGBColorSpace());
-+  state->setFillColorSpace(std::unique_ptr<GfxColorSpace>(new GfxDeviceRGBColorSpace()));
++  state->setFillColorSpace(_POPPLER_CONSUME_UNIQPTR_ARG(std::make_unique<GfxDeviceRGBColorSpace>()));
    for (int i = 0; i < 3; ++i) {
      color.c[i] = dblToCol(args[i].getNum());
    }
-@@ -1049,7 +1036,7 @@ void PdfParser::opSetStrokeRGBColor(Obje
+@@ -1049,7 +1047,7 @@ void PdfParser::opSetStrokeRGBColor(Object args[], int /*numArgs*/) {
    GfxColor color;
    builder->beforeStateChange(state);
    state->setStrokePattern(nullptr);
 -  state->setStrokeColorSpace(new GfxDeviceRGBColorSpace());
-+  state->setStrokeColorSpace(std::unique_ptr<GfxColorSpace>(new GfxDeviceRGBColorSpace()));
++  state->setStrokeColorSpace(_POPPLER_CONSUME_UNIQPTR_ARG(std::make_unique<GfxDeviceRGBColorSpace>()));
    for (int i = 0; i < 3; ++i) {
      color.c[i] = dblToCol(args[i].getNum());
    }
-@@ -1061,13 +1048,13 @@ void PdfParser::opSetStrokeRGBColor(Obje
+@@ -1061,14 +1059,14 @@ void PdfParser::opSetStrokeRGBColor(Object args[], int /*numArgs*/) {
  void PdfParser::opSetFillColorSpace(Object args[], int numArgs)
  {
    assert(numArgs >= 1);
 -  GfxColorSpace *colorSpace = lookupColorSpaceCopy(args[0]);
-+  std::unique_ptr<GfxColorSpace> colorSpace = lookupColorSpaceCopy(args[0]);
++  auto colorSpace = lookupColorSpaceCopy(args[0]);
    builder->beforeStateChange(state);
    state->setFillPattern(nullptr);
  
    if (colorSpace) {
      GfxColor color;
 -    state->setFillColorSpace(colorSpace);
-+    state->setFillColorSpace(colorSpace->copy());
      colorSpace->getDefaultColor(&color);
++    state->setFillColorSpace(_POPPLER_CONSUME_UNIQPTR_ARG(colorSpace));
      state->setFillColor(&color);
      builder->updateStyle(state);
-@@ -1082,13 +1069,13 @@ void PdfParser::opSetStrokeColorSpace(Ob
+   } else {
+@@ -1082,14 +1080,14 @@ void PdfParser::opSetStrokeColorSpace(Object args[], int numArgs)
    assert(numArgs >= 1);
    builder->beforeStateChange(state);
  
 -  GfxColorSpace *colorSpace = lookupColorSpaceCopy(args[0]);
-+  std::unique_ptr<GfxColorSpace> colorSpace = lookupColorSpaceCopy(args[0]);
++  auto colorSpace = lookupColorSpaceCopy(args[0]);
  
    state->setStrokePattern(nullptr);
  
    if (colorSpace) {
      GfxColor color;
 -    state->setStrokeColorSpace(colorSpace);
-+    state->setStrokeColorSpace(colorSpace->copy());
      colorSpace->getDefaultColor(&color);
++    state->setStrokeColorSpace(_POPPLER_CONSUME_UNIQPTR_ARG(colorSpace));
      state->setStrokeColor(&color);
      builder->updateStyle(state);
-@@ -1152,7 +1139,7 @@ void PdfParser::opSetFillColorN(Object a
+   } else {
+@@ -1152,7 +1150,7 @@ void PdfParser::opSetFillColorN(Object args[], int numArgs) {
        builder->updateStyle(state);
      }
      if (auto pattern = lookupPattern(&(args[numArgs - 1]), state)) {
 -        state->setFillPattern(pattern);
-+        state->setFillPattern(pattern->copy());
++        state->setFillPattern(_POPPLER_CONSUME_UNIQPTR_ARG(pattern));
          builder->updateStyle(state);
      }
  
-@@ -1195,7 +1182,7 @@ void PdfParser::opSetStrokeColorN(Object
+@@ -1195,7 +1193,7 @@ void PdfParser::opSetStrokeColorN(Object args[], int numArgs) {
        builder->updateStyle(state);
      }
      if (auto pattern = lookupPattern(&(args[numArgs - 1]), state)) {
 -        state->setStrokePattern(pattern);
-+        state->setStrokePattern(pattern->copy());
++        state->setStrokePattern(_POPPLER_CONSUME_UNIQPTR_ARG(pattern));
          builder->updateStyle(state);
      }
  
-@@ -1572,7 +1559,7 @@ void PdfParser::doShadingPatternFillFall
+@@ -1572,11 +1570,11 @@ void PdfParser::doShadingPatternFillFallback(GfxShadingPattern *sPat,
  // TODO not good that numArgs is ignored but args[] is used:
  void PdfParser::opShFill(Object args[], int /*numArgs*/)
  {
 -  GfxShading *shading = nullptr;
-+  std::unique_ptr<GfxShading> shading = nullptr;
    GfxPath *savedPath = nullptr;
    bool savedState = false;
  
-@@ -1608,19 +1595,19 @@ void PdfParser::opShFill(Object args[],
+-  if (!(shading = res->lookupShading(args[0].getName(), nullptr, state))) {
++  auto shading = std::unique_ptr<GfxShading>(res->lookupShading(args[0].getName(), nullptr, state));
++  if (!shading) {
+     return;
+   }
+ 
+@@ -1608,19 +1606,19 @@ void PdfParser::opShFill(Object args[], int /*numArgs*/)
    // do shading type-specific operations
    switch (shading->getType()) {
    case 1: // Function-based shading
@@ -216,15 +249,16 @@ diff -up inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-
      break;
    }
  
-@@ -1630,7 +1617,6 @@ void PdfParser::opShFill(Object args[],
+@@ -1629,8 +1627,6 @@ void PdfParser::opShFill(Object args[], int /*numArgs*/)
+     restoreState();
      state->setPath(savedPath);
    }
- 
+-
 -  delete shading;
  }
  
  void PdfParser::doFunctionShFill(GfxFunctionShading *shading) {
-@@ -2521,7 +2507,7 @@ void PdfParser::doImage(Object * /*ref*/
+@@ -2528,7 +2524,7 @@ void PdfParser::doImage(Object * /*ref*/, Stream *str, GBool inlineImg)
          
      } else {
          // get color space and color map
@@ -233,59 +267,117 @@ diff -up inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-
          _POPPLER_CALL_ARGS(obj1, dict->lookup, "ColorSpace");
          if (obj1.isNull()) {
              _POPPLER_FREE(obj1);
-@@ -2530,11 +2516,11 @@ void PdfParser::doImage(Object * /*ref*/
+@@ -2537,13 +2533,11 @@ void PdfParser::doImage(Object * /*ref*/, Stream *str, GBool inlineImg)
          if (!obj1.isNull()) {
              colorSpace = lookupColorSpaceCopy(obj1);
          } else if (csMode == streamCSDeviceGray) {
 -            colorSpace = new GfxDeviceGrayColorSpace();
-+            colorSpace = std::unique_ptr<GfxColorSpace>(new GfxDeviceGrayColorSpace());
++            colorSpace = std::make_unique<GfxDeviceGrayColorSpace>();
          } else if (csMode == streamCSDeviceRGB) {
 -            colorSpace = new GfxDeviceRGBColorSpace();
-+            colorSpace = std::unique_ptr<GfxColorSpace>(new GfxDeviceRGBColorSpace());
++            colorSpace = std::make_unique<GfxDeviceRGBColorSpace>();
          } else if (csMode == streamCSDeviceCMYK) {
 -            colorSpace = new GfxDeviceCMYKColorSpace();
-+            colorSpace = std::unique_ptr<GfxColorSpace>(new GfxDeviceCMYKColorSpace());
-         } else {
-             colorSpace = nullptr;
+-        } else {
+-            colorSpace = nullptr;
++            colorSpace = std::make_unique<GfxDeviceCMYKColorSpace>();
          }
-@@ -2547,7 +2533,7 @@ void PdfParser::doImage(Object * /*ref*/
+         _POPPLER_FREE(obj1);
+         if (!colorSpace) {
+@@ -2554,10 +2548,9 @@ void PdfParser::doImage(Object * /*ref*/, Stream *str, GBool inlineImg)
              _POPPLER_FREE(obj1);
              _POPPLER_CALL_ARGS(obj1, dict->lookup, "D");
          }
 -        GfxImageColorMap *colorMap = new GfxImageColorMap(bits, &obj1, colorSpace);
-+        GfxImageColorMap *colorMap = new GfxImageColorMap(bits, &obj1, colorSpace->copy());
++        auto colorMap = std::make_unique<GfxImageColorMap>(bits, &obj1, _POPPLER_CONSUME_UNIQPTR_ARG(colorSpace));
          _POPPLER_FREE(obj1);
          if (!colorMap->isOk()) {
-             delete colorMap;
-@@ -2617,7 +2603,7 @@ void PdfParser::doImage(Object * /*ref*/
+-            delete colorMap;
+             goto err1;
+         }
+         
+@@ -2568,7 +2561,7 @@ void PdfParser::doImage(Object * /*ref*/, Stream *str, GBool inlineImg)
+         int maskWidth = 0;
+         int maskHeight = 0;
+         maskInvert = gFalse;
+-        GfxImageColorMap *maskColorMap = nullptr;
++        std::unique_ptr<GfxImageColorMap> maskColorMap;
+         _POPPLER_CALL_ARGS(maskObj, dict->lookup, "Mask");
+         _POPPLER_CALL_ARGS(smaskObj, dict->lookup, "SMask");
+         Dict* maskDict;
+@@ -2624,7 +2617,7 @@ void PdfParser::doImage(Object * /*ref*/, Stream *str, GBool inlineImg)
  	            _POPPLER_FREE(obj1);
                      _POPPLER_CALL_ARGS(obj1, maskDict->lookup, "CS");
              }
 -            GfxColorSpace *maskColorSpace = lookupColorSpaceCopy(obj1);
-+            std::unique_ptr<GfxColorSpace> maskColorSpace = lookupColorSpaceCopy(obj1);
++            auto maskColorSpace = lookupColorSpaceCopy(obj1);
              _POPPLER_FREE(obj1);
              if (!maskColorSpace || maskColorSpace->getMode() != csDeviceGray) {
                  goto err1;
-@@ -2627,7 +2613,7 @@ void PdfParser::doImage(Object * /*ref*/
+@@ -2634,10 +2627,9 @@ void PdfParser::doImage(Object * /*ref*/, Stream *str, GBool inlineImg)
                  _POPPLER_FREE(obj1);
                  _POPPLER_CALL_ARGS(obj1, maskDict->lookup, "D");
              }
 -            maskColorMap = new GfxImageColorMap(maskBits, &obj1, maskColorSpace);
-+            maskColorMap = new GfxImageColorMap(maskBits, &obj1, maskColorSpace->copy());
++            maskColorMap = std::make_unique<GfxImageColorMap>(maskBits, &obj1, _POPPLER_CONSUME_UNIQPTR_ARG(maskColorSpace));
              _POPPLER_FREE(obj1);
              if (!maskColorMap->isOk()) {
-                 delete maskColorMap;
-@@ -2739,7 +2725,7 @@ void PdfParser::doForm(Object *str, doub
+-                delete maskColorMap;
+                 goto err1;
+             }
+             //~ handle the Matte entry
+@@ -2718,17 +2710,15 @@ void PdfParser::doImage(Object * /*ref*/, Stream *str, GBool inlineImg)
+         
+         // draw it
+         if (haveSoftMask) {
+-	    builder->addSoftMaskedImage(state, str, width, height, colorMap, interpolate,
+-				maskStr, maskWidth, maskHeight, maskColorMap, maskInterpolate);
+-            delete maskColorMap;
++	    builder->addSoftMaskedImage(state, str, width, height, colorMap.get(), interpolate,
++				maskStr, maskWidth, maskHeight, maskColorMap.get(), maskInterpolate);
+         } else if (haveExplicitMask) {
+- 	    builder->addMaskedImage(state, str, width, height, colorMap, interpolate,
++ 	    builder->addMaskedImage(state, str, width, height, colorMap.get(), interpolate,
+ 				maskStr, maskWidth, maskHeight, maskInvert, maskInterpolate);
+         } else {
+-	    builder->addImage(state, str, width, height, colorMap, interpolate,
+-		        haveColorKeyMask ? maskColors : static_cast<int *>(nullptr));
++	    builder->addImage(state, str, width, height, colorMap.get(), interpolate,
++		        haveColorKeyMask ? maskColors : nullptr);
+         }
+-        delete colorMap;
+         
+         _POPPLER_FREE(maskObj);
+         _POPPLER_FREE(smaskObj);
+@@ -2746,7 +2736,6 @@ void PdfParser::doForm(Object *str, double *offset)
  {
      Dict *dict;
      GBool transpGroup, isolated, knockout;
 -    GfxColorSpace *blendingColorSpace;
-+    std::unique_ptr<GfxColorSpace> blendingColorSpace;
      Object matrixObj, bboxObj;
      double m[6], bbox[4];
      Object resObj;
-@@ -2831,14 +2817,11 @@ void PdfParser::doForm(Object *str, doub
-     doForm1(str, resDict, m, bbox, transpGroup, gFalse, blendingColorSpace, isolated, knockout);
+@@ -2812,12 +2801,12 @@ void PdfParser::doForm(Object *str, double *offset)
+ 
+     // check for a transparency group
+     transpGroup = isolated = knockout = gFalse;
+-    blendingColorSpace = nullptr;
++    std::unique_ptr<GfxColorSpace> blendingColorSpace;
+     if (_POPPLER_CALL_ARGS_DEREF(obj1, dict->lookup, "Group").isDict()) {
+         if (_POPPLER_CALL_ARGS_DEREF(obj2, obj1.dictLookup, "S").isName("Transparency")) {
+         transpGroup = gTrue;
+         if (!_POPPLER_CALL_ARGS_DEREF(obj3, obj1.dictLookup, "CS").isNull()) {
+-                blendingColorSpace = GfxColorSpace::parse(nullptr, &obj3, nullptr, state);
++            blendingColorSpace = std::unique_ptr<GfxColorSpace>(GfxColorSpace::parse(nullptr, &obj3, nullptr, state));
+         }
+         _POPPLER_FREE(obj3);
+         if (_POPPLER_CALL_ARGS_DEREF(obj3, obj1.dictLookup, "I").isBool()) {
+@@ -2835,12 +2824,9 @@ void PdfParser::doForm(Object *str, double *offset)
+ 
+     // draw it
+     ++formDepth;
+-    doForm1(str, resDict, m, bbox, transpGroup, gFalse, blendingColorSpace, isolated, knockout);
++    doForm1(str, resDict, m, bbox, transpGroup, gFalse, blendingColorSpace.get(), isolated, knockout);
      --formDepth;
  
 -    if (blendingColorSpace) {
@@ -294,24 +386,10 @@ diff -up inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-
      _POPPLER_FREE(resObj);
  }
  
- void PdfParser::doForm1(Object *str, Dict *resDict, double *matrix, double *bbox, GBool transpGroup, GBool softMask,
--                        GfxColorSpace *blendingColorSpace, GBool isolated, GBool knockout, GBool alpha,
-+                        std::unique_ptr<GfxColorSpace> const &blendingColorSpace, GBool isolated, GBool knockout, GBool alpha,
-                         Function *transferFunc, GfxColor *backdropColor)
- {
-     Parser *oldParser;
-@@ -2847,7 +2830,7 @@ void PdfParser::doForm1(Object *str, Dic
-     pushResources(resDict);
- 
-     // Add a new container group before saving the state
--    builder->startGroup(state, bbox, blendingColorSpace, isolated, knockout, softMask);
-+    builder->startGroup(state, bbox, blendingColorSpace.get(), isolated, knockout, softMask);
- 
-     // save current graphics state
-     saveState();
-diff -up inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-parser.h.omv~ inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-parser.h
---- inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-parser.h.omv~	2024-10-16 22:03:47.306988617 +0200
-+++ inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-parser.h	2024-10-16 23:19:36.970279193 +0200
+diff --git a/src/extension/internal/pdfinput/pdf-parser.h b/src/extension/internal/pdfinput/pdf-parser.h
+index 4ecd6877cd8..99a205d186d 100644
+--- a/src/extension/internal/pdfinput/pdf-parser.h
++++ b/src/extension/internal/pdfinput/pdf-parser.h
 @@ -138,7 +138,7 @@ public:
      void loadPatternColorProfiles(Dict *resources);
      void loadColorProfile();
@@ -321,33 +399,32 @@ diff -up inkscape-1.4_2024-10-09_e7c3feb100/src/extension/internal/pdfinput/pdf-
  
      std::shared_ptr<CairoFontEngine> getFontEngine();
  
-@@ -174,10 +174,7 @@ private:
+@@ -177,7 +177,7 @@ private:
+     //! Caches color spaces by name
+     std::map<std::string, std::unique_ptr<GfxColorSpace>> colorSpacesCache;
  
-     OpHistoryEntry *operatorHistory; // list containing the last N operators
- 
--    //! Caches color spaces by name
--    std::map<std::string, std::unique_ptr<GfxColorSpace>> colorSpacesCache;
--
 -    GfxColorSpace *lookupColorSpaceCopy(Object &);
 +    std::unique_ptr<GfxColorSpace> lookupColorSpaceCopy(Object &);
  
      void setDefaultApproximationPrecision(); // init color deltas
      void pushOperator(const char *name);
-@@ -203,7 +200,7 @@ private:
-     void opSetMiterLimit(Object args[], int numArgs);
-     void opSetLineWidth(Object args[], int numArgs);
-     void opSetExtGState(Object args[], int numArgs);
--    void doSoftMask(Object *str, GBool alpha, GfxColorSpace *blendingColorSpace, GBool isolated, GBool knockout,
-+    void doSoftMask(Object *str, GBool alpha, std::unique_ptr<GfxColorSpace> const &blendingColorSpace, GBool isolated, GBool knockout,
-                     Function *transferFunc, GfxColor *backdropColor);
-     void opSetRenderingIntent(Object args[], int numArgs);
+diff --git a/src/extension/internal/pdfinput/poppler-transition-api.h b/src/extension/internal/pdfinput/poppler-transition-api.h
+index cbe69f6553f..b7a54828e74 100644
+--- a/src/extension/internal/pdfinput/poppler-transition-api.h
++++ b/src/extension/internal/pdfinput/poppler-transition-api.h
+@@ -15,6 +15,12 @@
+ #include <glib/poppler-features.h>
+ #include <poppler/UTF.h>
  
-@@ -297,7 +294,7 @@ private:
-   void doForm(Object *str, double *offset = nullptr);
-   void doForm1(Object *str, Dict *resDict, double *matrix, double *bbox,
- 	       GBool transpGroup = gFalse, GBool softMask = gFalse,
--	       GfxColorSpace *blendingColorSpace = nullptr,
-+	       std::unique_ptr<GfxColorSpace> const &blendingColorSpace = nullptr,
- 	       GBool isolated = gFalse, GBool knockout = gFalse,
- 	       GBool alpha = gFalse, Function *transferFunc = nullptr,
- 	       GfxColor *backdropColor = nullptr);
++#if POPPLER_CHECK_VERSION(24, 10, 0)
++#define _POPPLER_CONSUME_UNIQPTR_ARG(value) std::move(value)
++#else
++#define _POPPLER_CONSUME_UNIQPTR_ARG(value) value.release()
++#endif
++
+ #if POPPLER_CHECK_VERSION(24, 5, 0)
+ #define _POPPLER_HAS_UNICODE_BOM(value) (hasUnicodeByteOrderMark(value->toStr()))
+ #define _POPPLER_HAS_UNICODE_BOMLE(value) (hasUnicodeByteOrderMarkLE(value->toStr()))
+-- 
+GitLab
+

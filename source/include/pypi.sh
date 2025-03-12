@@ -45,7 +45,7 @@ if [ -z "$_F_pypi_ext" ]; then
 fi
 
 if [ -z "$_F_archive_name" ]; then
-	_F_archive_name="$_F_pypi_name"
+	_F_archive_name="${_F_pypi_name/-/_}"
 fi
 
 ###

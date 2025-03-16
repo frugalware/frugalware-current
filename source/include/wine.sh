@@ -32,16 +32,16 @@ options=('genscriptlet' 'static' 'nofortify' 'nolto' 'plt' 'ldbfd')
 archs=('x86_64')
 _F_conf_configure="../configure"
 _F_archive_grepv="\-rc"
-Fconfopts="	--without-oss \
-		--with-x \
-		--with-wayland \
-		--with-gstreamer"
-F32confopts+="	--libdir=/usr/lib32 \
+Fconfopts="	--libdir=/usr/lib \
 		--without-oss \
 		--with-x \
 		--with-wayland \
 		--with-gstreamer"
-
+F32confopts+="	--libdir=/usr/lib \
+		--without-oss \
+		--with-x \
+		--with-wayland \
+		--with-gstreamer"
 
 Finclude cross32
 
@@ -73,6 +73,7 @@ default)
 	;;
 
 esac
+_F_cross32_use_default=false
 
 build()
 {
@@ -89,10 +90,64 @@ build()
 	Fexec rm -rf 32Bit_build || Fdie
 	Fexec mkdir 32Bit_build || Fdie
         Fexec cd 32Bit_build || Fdie
-        Fcross32_prepare
+        __cross32_conf_make_opts_pre_save
+        __cross32_save_orig_vars
+        __cross32_unset_vars
+        ## util.sh
+        export CHOST="i686-frugalware-linux"
+        export Fbuildchost="${CHOST}"
 
-        Fmake --libdir=/usr/lib32 --with-wine64="$Fsrcdir/${_F_cd_path}/64Bit_build" 
-        Fmakeinstall  libdir="$Fpkgdir/usr/lib32" dlldir="$Fpkgdir/usr/lib32/wine"
+	## cmake.sh , meson.sh
+        export CROSS_PREFIX="/usr"
+        export CROSS_INC="${CROSS_PREFIX}/${CHOST}/include"
+        export CROSS_LIB="lib"
+        export CROSS_BIN="${CROSS_PREFIX}/${CHOST}/bin"
+        export CROSS_SBIN="${CROSS_PREFIX}/${CHOST}/bin"
+
+        ## common
+        export CFLAGS=" -m32 ${CFLAGS_ORIG/x86-64-v2/i686}"
+        export CXXFLAGS=" -m32 ${CXXFLAGS_ORIG/x86-64-v2/i686}"
+        ## clang is broken for 32bit , force gcc
+        export CC="gcc"
+        export CXX="g++"
+        LDFLAGS+=" -L${CROSS_PREFIX}/${CROSS_LIB} -m32"
+        export CPPFLAGS=" -I${CROSS_INC}"
+        if [ -n "$_F_cross32_combined" ]; then
+                export PKG_CONFIG_PATH="${CROSS_PREFIX}/${CROSS_LIB}/pkgconfig"
+        else
+                export PKG_CONFIG_LIBDIR="${CROSS_PREFIX}/${CROSS_LIB}/pkgconfig"
+        fi
+        export ASFLAGS="--32"
+
+        ## we share some tools like tools for building docs
+        ## shell scripts and such .. for that matter we need
+        ## orig system PATH + 32bit PATH but put 32bit first
+
+        export PATH=/usr/${CHOST}/bin:usr/${CHOST}/bin:$PATH_ORIG
+
+        ## auto tools - default
+        if [ -n "$_F_cross32_use_default" ]; then
+                if [ -z "$_F_conf_configure" ]; then
+                        _F_conf_configure="./configure"
+                fi
+
+                F32bindir="/usr/${CHOST}/bin"
+                F32sbindir="/usr/${CHOST}/bin"
+                F32includedir="/usr/${CHOST}/include"
+                F32libdir="/usr/lib"
+                F32libexecdir="/usr/${CHOST}/${pkgname}"
+
+                Fconfoptstryset "bindir" "$F32bindir"
+                Fconfoptstryset "sbindir" "$F32sbindir"
+                Fconfoptstryset "libdir" "$F32libdir"
+                Fconfoptstryset "includedir" "$F32includedir"
+                Fconfoptstryset "libexecdir" "$F32libexecdir"
+        fi
+
+        __cross32_bug_me_set
+
+        Fmake --with-wine64="$Fsrcdir/${_F_cd_path}/64Bit_build" 
+        Fmakeinstall  libdir="$Fpkgdir/usr/lib" dlldir="$Fpkgdir/usr/lib/wine"
 
         Fexec cd ../64Bit_build || Fdie
         Fmakeinstall  libdir="$Fpkgdir/usr/lib" dlldir="$Fpkgdir/usr/lib/wine"

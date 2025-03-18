@@ -2,43 +2,45 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=intel-graphics-compiler
-pkgver=1.0.17193.4
+pkgver=2.7.11
 pkgrel=1
 _llvmver=14.0.5
+_spirv_tools_ver=2023.6.rc1
+_spirv_headers_ver=sdk-1.3.261.1
 pkgdesc="Intel Graphics Compiler for OpenCL"
 archs=("x86_64")
-depends=('spirv-tools' 'libxml2')
-makedepends=('git' 'python3-mako' 'spirv-headers')
+depends=('libxml2')
+makedepends=('git' 'python3-mako' 'pyyaml3')
 groups=('devel')
 _F_github_author="intel"
-_F_github_tag_prefix="igc-"
+_F_github_tag_prefix=v
 _F_cmake_confopts="	-DCMAKE_BUILD_TYPE=Release \
-		        -DCMAKE_INSTALL_PREFIX=/usr \
-		        -DCMAKE_INSTALL_LIBDIR=lib \
-		        -DIGC_OPTION__ARCHITECTURE_TARGET='Linux64' \
-			-DIGC_OPTION__LLVM_PREFERRED_VERSION=$_llvmver \
-		        -DINSTALL_GENX_IR=ON \
-			-DCCLANG_FROM_SYSTEM=OFF \
-			-DIGC_OPTION__CLANG_MODE=Source \
-			-DIGC_OPTION__LLD_MODE=Source \
-			-DIGC_OPTION__LLVM_MODE=Source \
-			-DIGC_OPTION__VC_INTRINSICS_MODE=Source \
-			-DIGC_OPTION__LINK_KHRONOS_SPIRV_TRANSLATOR=OFF \
-			-DIGC_OPTION__SPIRV_TOOLS_MODE=Prebuilds \
-			-DIGC_OPTION__SPIRV_TRANSLATOR_MODE=Source \
-			-DIGC_OPTION__USE_KHRONOS_SPIRV_TRANSLATOR_IN_SC=OFF \
-			-DIGC_OPTION__SPIRV_TRANSLATOR_SOURCE_DIR=$Fsrcdir/SPIRV-LLVM-Translator-14.0.0"
+			-DCMAKE_INSTALL_PREFIX=/usr \
+			-DCMAKE_INSTALL_LIBDIR=lib \
+			-DIGC_OPTION__ARCHITECTURE_TARGET=Linux64 \
+			-DIGC_OPTION__SPIRV_TOOLS_MODE=Source \
+			-DIGC_OPTION__USE_PREINSTALLED_SPIRV_HEADERS=OFF \
+        		-DIGC_OPTION__CLANG_MODE=Source \
+        		-DIGC_OPTION__LLD_MODE=Source \
+        		-DIGC_OPTION__LLVM_PREFERRED_VERSION="${_llvmver}" \
+        		-DIGC_OPTION__LLVM_MODE=Source \
+        		-DIGC_OPTION__LINK_KHRONOS_SPIRV_TRANSLATOR=ON \
+        		-DIGC_OPTION__USE_KHRONOS_SPIRV_TRANSLATOR_IN_SC=ON \
+        		-DIGC_OPTION__VC_INTRINSICS_MODE=Source \
+        		-DCCLANG_FROM_SYSTEM=OFF"
+
 Finclude cmake github
-source=("https://github.com/intel/intel-graphics-compiler/archive/refs/tags/igc-${pkgver}.tar.gz" \
-	"https://github.com/intel/vc-intrinsics/archive/refs/tags/v0.18.0.tar.gz" \
-	"https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/tags/v14.0.0.tar.gz" \
-	gcc-14.patch)
-sha1sums=('798750a6b2ecbc00383a4bdb9b0e296b49c5e56f' \
-          'd7c7e5ca79b0e0dd1ea5af2c273a448f38ca41e4' \
-          '16b160e6713cdf560398d6b83339cf2179915f8c' \
-          'c44192633e5f5673cd01c3d7268476071af27ad5')
-_F_cd_path="intel-graphics-compiler-igc-$pkgver"
-options=('nolto' 'force')
+source=("https://github.com/intel/intel-graphics-compiler/archive/refs/tags/v$pkgver.tar.gz" \
+	"https://github.com/intel/vc-intrinsics/archive/refs/tags/v0.21.0.tar.gz" \
+	"https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/tags/v14.0.8.tar.gz" \
+	"https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v${_spirv_tools_ver}.tar.gz" \
+	"https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/${_spirv_headers_ver}.tar.gz")
+sha1sums=('7a39d9ab4e5c6154df26f01b6c26f6b334b60096' \
+          '38ab75d97175fbd9870ffcd7454dcc733e447444' \
+          '3e7073dd1a4e5c03a4bdad6ff5f6f329c2a05a19' \
+          '9bac4e7503b204248957d4db1a095b4070c4c87d' \
+          '6d3a1c7865c888b2b01d3d5ba3e1f9ef63fdb2ca')
+options=('nolto')
 
 build() {
 	# Prevent IGC to load LLVM 15 symbols
@@ -46,17 +48,26 @@ build() {
 	CXXFLAGS+=" -fno-semantic-interposition"
 	LDFLAGS+=" -Wl,-Bsymbolic"
 
-	CXXFLAGS+=" -I $Fsrcdir/SPIRV-LLVM-Translator-14.0.0/include"
 	Fexec  git config --global user.name "fst" || Fdie
 	Fexec  git config --global user.email 'fst@frugalware.org' || Fdie
 
 	Fexec rm -rf $Fsrcdir/llvm-project || Fdie
 	Fexec git clone --depth 1 --branch llvmorg-${_llvmver} https://github.com/llvm/llvm-project.git "$Fsrcdir/llvm-project" || Fdie
-	Fexec ln -s "${Fsrcdir}/SPIRV-LLVM-Translator-14.0.0"  "${Fsrcdir}/llvm-project/llvm/projects/llvm-spirv" || Fdie
+
+	Fexec rm -rf $Fsrcdir/SPIRV-LLVM-Translator || Fdie
+        Fexec mv $Fsrcdir/SPIRV-LLVM-Translator-14.0.8 $Fsrcdir/SPIRV-LLVM-Translator-IGC || Fdie
+	Fexec ln -s "${Fsrcdir}/SPIRV-LLVM-Translator-IGC"  "${Fsrcdir}/llvm-project/llvm/projects/llvm-spirv" || Fdie
+
 	Fexec git clone --depth 1 --branch ocl-open-140 https://github.com/intel/opencl-clang.git "${Fsrcdir}/llvm-project/llvm/projects/opencl-clang" || Fdie
 
 	Fexec rm -rf $Fsrcdir/vc-intrinsics || Fdie
-	Fexec mv $Fsrcdir//vc-intrinsics-0.18.0 $Fsrcdir/vc-intrinsics || Fdie
+	Fexec mv $Fsrcdir/vc-intrinsics-0.21.0 $Fsrcdir/vc-intrinsics || Fdie
+
+        Fexec rm -rf $Fsrcdir/SPIRV-Tools || Fdie
+        Fexec mv $Fsrcdir/SPIRV-Tools-$_spirv_tools_ver $Fsrcdir/SPIRV-Tools || Fdie
+
+        Fexec rm -rf $Fsrcdir/SPIRV-Headers || Fdie
+        Fexec mv $Fsrcdir/SPIRV-Headers-$_spirv_headers_ver $Fsrcdir/SPIRV-Headers || Fdie
 	CMake_build
 }
 

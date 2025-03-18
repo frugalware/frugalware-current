@@ -3,12 +3,12 @@
 
 
 pkgname=julia
-pkgver=1.9.4
-pkgrel=4
+pkgver=1.11.3
+pkgrel=2
 pkgdesc="High-level, high-performance dynamic programming language for technical computing."
-depends=('libgfortran' 'gmp' 'fftw' 'libgit2>=0.25.0' 'zlib>=1.2.12' 'mbedtls' 'libunwind' 'lld' \
-	'pcre2' 'openblas' 'lapack' 'utf8proc' '7zip' 'libatomic' 'suitesparse' 'curl' 'llvm15-libs')
-makedepends=('gcc-gfortran' 'cmake' 'patchelf' 'llvm15' 'llvm15-static')
+depends=('libgfortran' 'gmp' 'fftw' 'zlib>=1.2.12' 'mbedtls' 'libunwind' 'libgit2' '7zip' \
+	'pcre2' 'openblas' 'utf8proc' '7zip' 'libatomic' 'suitesparse' 'curl' 'openlibm' 'utf8proc')
+makedepends=('gcc-gfortran' 'cmake' 'patchelf')
 groups=('devel-extra')
 archs=('x86_64')
 _F_github_tag_v="y"
@@ -16,36 +16,25 @@ _F_github_author="JuliaLang"
 _F_gnome_iconcache="y"
 _F_github_grepv="rc6\|rc5\|rc4\|rc3\|rc2\|rc1\|1.0\|beta\|1.6\|alpha"
 Finclude github
-source=(https://github.com/JuliaLang/julia/releases/download/v$pkgver/$pkgname-$pkgver-full.tar.gz \
-	llvm15.patch \
-	julia-hardcoded-libs.patch \
-	julia-suitesparse-7.patch)
-sha1sums=('4618641d76ead94523fba45eb115e972718e2d19' \
-          '09b5a452eb3b6a77a1ca398ce9af70be3cc27a4a' \
-          'f4a5685f4e9d71dce47bce62c3d7e06fac11eac8' \
-          'd816171c5d1f4a0d74c9ef370ea98187ef112369')
+source=(https://github.com/JuliaLang/julia/releases/download/v$pkgver/$pkgname-$pkgver-full.tar.gz
+	julia-libgit2-1.9.patch \
+	julia-hardcoded-libs.patch)
+sha1sums=('b908d17d8e766eb2448c58a12a7820ac33c6fba5' \
+          '4a395d8ee4ca0444606ee3adf3b821fa402aad3a' \
+          '98dc432502c2b2832eed64709963a006b9776d4a')
 options=('nolto')
 
 build() {
 	Fcd
-
-	Fpatch llvm15.patch
-
-	Fexec cd stdlib/srccache || Fdie
-	Fexec tar -xzf SparseArrays-37e6e58706a54c5a1b96a17cda7d3e8be8bcb190.tar.gz || Fdie
-	Fexec patch -d JuliaSparse-SparseArrays.jl-37e6e58 -p1 < "$Fsrcdir"/julia-suitesparse-7.patch || Fdie
-	Fexec rm SparseArrays-37e6e58706a54c5a1b96a17cda7d3e8be8bcb190.tar.gz || Fdie
-	Fexec tar -czf SparseArrays-37e6e58706a54c5a1b96a17cda7d3e8be8bcb190.tar.gz JuliaSparse-SparseArrays.jl-37e6e58 || Fdie
-	Fexec md5sum SparseArrays-37e6e58706a54c5a1b96a17cda7d3e8be8bcb190.tar.gz | cut -d ' ' -f 1 > ../../deps/checksums/SparseArrays-37e6e58706a54c5a1b96a17cda7d3e8be8bcb190.tar.gz/md5 || Fdie
-	Fexec sha512sum SparseArrays-37e6e58706a54c5a1b96a17cda7d3e8be8bcb190.tar.gz | cut -d ' ' -f 1 > ../../deps/checksums/SparseArrays-37e6e58706a54c5a1b96a17cda7d3e8be8bcb190.tar.gz/sha512 || Fdie
-
-	Fexec cd ../../ || Fdie
-
+	Fpatchall
 
 	_opts=(prefix=$Fprefix sysconfdir=/etc \
 		MARCH=x86-64 \
-		JULIA_BUILD_MODE=release \
+		JULIA_CPU_TARGET="generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)" \
+		VERBOSE=1 \
+		USE_BINARYBUILDER=0 \
 		JULIA_PRECOMPILE=0 \
+		JULIA_BUILD_MODE=release \
 		USE_SYSTEM_BLAS=1 \
 		USE_SYSTEM_CSL=1 \
 		USE_SYSTEM_CURL=1 \
@@ -59,22 +48,23 @@ build() {
 		USE_SYSTEM_LIBSUITESPARSE=1 \
 		USE_SYSTEM_LIBUNWIND=1 \
 		USE_SYSTEM_LIBUV=0 \
-		USE_SYSTEM_LLVM=1 \
-		USE_SYSTEM_LLD=1 \
+		USE_SYSTEM_LLVM=0 \
+		USE_SYSTEM_LLD=0 \
 		USE_SYSTEM_MBEDTLS=1 \
 		USE_SYSTEM_MPFR=1 \
 		USE_SYSTEM_NGHTTP2=1 \
-		USE_SYSTEM_OPENLIBM=0 \
+		USE_SYSTEM_OPENLIBM=1 \
 		USE_SYSTEM_PCRE=1 \
+		USE_SYSTEM_PATCHELF=1 \
 		USE_SYSTEM_ZLIB=1 \
-		LLVM_CONFIG=/usr/lib/llvm15/bin/llvm-config)
+		USE_SYSTEM_OPENSSL=1 \
+		USE_SYSTEM_NGHTTP2=1 \
+		USE_SYSTEM_P7ZIP=1 \
+		USE_SYSTEM_UTF8PROC=1 \
+		USECCACHE=1 )
 
 	Fexec make ${_opts[@]} || Fdie
 	Fexec make  DESTDIR=$Fdestdir ${_opts[@]} install || Fdie
-
-	Fmkdir etc/ld.so.conf.d
-
-	echo /usr/lib/julia/ >> "$Fdestdir/etc/ld.so.conf.d/julia.conf" || Fdie
 
 	# empty
 	Frm usr/libexec/

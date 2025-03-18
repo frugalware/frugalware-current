@@ -36,10 +36,14 @@ fi
 
 if [ -z "$_F_cmake_rpath" ]; then
         _F_cmake_rpath="ON"
+else
+	_F_cmake_rpath="OFF"
 fi
 
 if [ -z "$_F_cmake_install_rpath" ]; then
 	_F_cmake_install_rpath="ON"
+else
+	_F_cmake_install_rpath="OFF"
 fi
 
 if [ -z "$_F_cmake_build_dir" ]; then

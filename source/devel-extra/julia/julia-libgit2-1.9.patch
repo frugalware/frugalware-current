@@ -1,0 +1,234 @@
+diff '--color=auto' -Naur julia-1.11.3/stdlib/LibGit2/src/callbacks.jl julia-1.11.3.new/stdlib/LibGit2/src/callbacks.jl
+--- julia-1.11.3/stdlib/LibGit2/src/callbacks.jl	2024-12-02 17:58:46.000000000 +0100
++++ julia-1.11.3.new/stdlib/LibGit2/src/callbacks.jl	2025-02-27 11:26:12.181919968 +0100
+@@ -43,7 +43,7 @@
+ function user_abort()
+     ensure_initialized()
+     # Note: Potentially it could be better to just throw a Julia error.
+-    ccall((:giterr_set_str, libgit2), Cvoid,
++    ccall((:git_error_set_str, libgit2), Cvoid,
+           (Cint, Cstring), Cint(Error.Callback),
+           "Aborting, user cancelled credential request.")
+     return Cint(Error.EUSER)
+@@ -51,7 +51,7 @@
+ 
+ function prompt_limit()
+     ensure_initialized()
+-    ccall((:giterr_set_str, libgit2), Cvoid,
++    ccall((:git_error_set_str, libgit2), Cvoid,
+           (Cint, Cstring), Cint(Error.Callback),
+           "Aborting, maximum number of prompts reached.")
+     return Cint(Error.EAUTH)
+@@ -59,7 +59,7 @@
+ 
+ function exhausted_abort()
+     ensure_initialized()
+-    ccall((:giterr_set_str, libgit2), Cvoid,
++    ccall((:git_error_set_str, libgit2), Cvoid,
+           (Cint, Cstring), Cint(Error.Callback),
+           "All authentication methods have failed.")
+     return Cint(Error.EAUTH)
+@@ -339,7 +339,7 @@
+     if err == 0
+         if p.explicit !== nothing
+             ensure_initialized()
+-            ccall((:giterr_set_str, libgit2), Cvoid, (Cint, Cstring), Cint(Error.Callback),
++            ccall((:git_error_set_str, libgit2), Cvoid, (Cint, Cstring), Cint(Error.Callback),
+                   "The explicitly provided credential is incompatible with the requested " *
+                   "authentication methods.")
+         end
+diff '--color=auto' -Naur julia-1.11.3/stdlib/LibGit2/src/consts.jl julia-1.11.3.new/stdlib/LibGit2/src/consts.jl
+--- julia-1.11.3/stdlib/LibGit2/src/consts.jl	2024-12-02 17:58:46.000000000 +0100
++++ julia-1.11.3.new/stdlib/LibGit2/src/consts.jl	2025-02-27 11:26:12.181249907 +0100
+@@ -417,7 +417,32 @@
+                    FEATURE_SSH     = Cuint(1 << 2),
+                    FEATURE_NSEC    = Cuint(1 << 3))
+ 
+-if version() >= v"0.24.0"
++if version() >= v"1.8.0"
++    @doc """
++    Priority level of a config file.
++
++    These priority levels correspond to the natural escalation logic (from higher to lower) when searching for config entries in git.
++
++    * `CONFIG_LEVEL_DEFAULT` - Open the global, XDG and system configuration files if any available.
++    * `CONFIG_LEVEL_PROGRAMDATA` - System-wide on Windows, for compatibility with portable git
++    * `CONFIG_LEVEL_SYSTEM` - System-wide configuration file; `/etc/gitconfig` on Linux systems
++    * `CONFIG_LEVEL_XDG` - XDG compatible configuration file; typically `~/.config/git/config`
++    * `CONFIG_LEVEL_GLOBAL` - User-specific configuration file (also called Global configuration file); typically `~/.gitconfig`
++    * `CONFIG_LEVEL_LOCAL` - Repository specific configuration file; `\$WORK_DIR/.git/config` on non-bare repos
++    * `CONFIG_LEVEL_WORKTREE` - Worktree specific configuration file; `\$GIT_DIR/config.worktree`
++    * `CONFIG_LEVEL_APP` - Application specific configuration file; freely defined by applications
++    * `CONFIG_HIGHEST_LEVEL` - Represents the highest level available config file (i.e. the most specific config file available that actually is loaded)
++    """
++    @enum(GIT_CONFIG, CONFIG_LEVEL_DEFAULT     = 0,
++                      CONFIG_LEVEL_PROGRAMDATA = 1,
++                      CONFIG_LEVEL_SYSTEM      = 2,
++                      CONFIG_LEVEL_XDG         = 3,
++                      CONFIG_LEVEL_GLOBAL      = 4,
++                      CONFIG_LEVEL_LOCAL       = 5,
++                      CONFIG_LEVEL_WORKTREE    = 6,
++                      CONFIG_LEVEL_APP         = 7,
++                      CONFIG_HIGHEST_LEVEL     =-1)
++elseif version() >= v"0.24.0"
+     @doc """
+     Priority level of a config file.
+ 
+diff '--color=auto' -Naur julia-1.11.3/stdlib/LibGit2/src/error.jl julia-1.11.3.new/stdlib/LibGit2/src/error.jl
+--- julia-1.11.3/stdlib/LibGit2/src/error.jl	2024-12-02 17:58:46.000000000 +0100
++++ julia-1.11.3.new/stdlib/LibGit2/src/error.jl	2025-02-27 11:26:12.190278577 +0100
+@@ -19,7 +19,7 @@
+             EUNMERGED       = Cint(-10), # merge in progress prevented op
+             ENONFASTFORWARD = Cint(-11), # ref not fast-forwardable
+             EINVALIDSPEC    = Cint(-12), # name / ref not in valid format
+-            EMERGECONFLICT  = Cint(-13), # merge conflict prevented op
++            ECONFLICT       = Cint(-13), # Checkout conflicts prevented operation
+             ELOCKED         = Cint(-14), # lock file prevented op
+             EMODIFIED       = Cint(-15), # ref value does not match expected
+             EAUTH           = Cint(-16), # authentication error
+@@ -27,6 +27,11 @@
+             EAPPLIED        = Cint(-18), # patch/merge has already been applied
+             EPEEL           = Cint(-19), # the requested peel operation is not possible
+             EEOF            = Cint(-20), # unexpected EOF
++            EINVALID        = Cint(-21), # Invalid operation or input
++            EUNCOMMITTED    = Cint(-22), # Uncommitted changes in index prevented operation
++            EDIRECTORY      = Cint(-23), # The operation is not valid for a directory
++            EMERGECONFLICT  = Cint(-24), # A merge conflict exists and cannot continue
++
+             PASSTHROUGH     = Cint(-30), # internal only
+             ITEROVER        = Cint(-31), # signals end of iteration
+             RETRY           = Cint(-32), # internal only
+@@ -34,7 +39,11 @@
+             EINDEXDIRTY     = Cint(-34), # unsaved changes in the index would be overwritten
+             EAPPLYFAIL      = Cint(-35), # patch application failed
+             EOWNER          = Cint(-36), # the object is not owned by the current user
+-            TIMEOUT         = Cint(-37)) # The operation timed out
++            TIMEOUT         = Cint(-37), # The operation timed out
++            EUNCHANGED      = Cint(-38), # There were no changes
++            ENOTSUPPORTED   = Cint(-39), # An option is not supported
++            EREADONLY       = Cint(-40), # The subject is read-only
++)
+ 
+ @enum(Class, None,
+              NoMemory,
+@@ -88,7 +97,7 @@
+ 
+ function last_error()
+     ensure_initialized()
+-    err = ccall((:giterr_last, libgit2), Ptr{ErrorStruct}, ())
++    err = ccall((:git_error_last, libgit2), Ptr{ErrorStruct}, ())
+     if err != C_NULL
+         err_obj   = unsafe_load(err)
+         err_class = Class(err_obj.class)
+diff '--color=auto' -Naur julia-1.11.3/stdlib/LibGit2/src/types.jl julia-1.11.3.new/stdlib/LibGit2/src/types.jl
+--- julia-1.11.3/stdlib/LibGit2/src/types.jl	2024-12-02 17:58:46.000000000 +0100
++++ julia-1.11.3.new/stdlib/LibGit2/src/types.jl	2025-02-27 11:26:14.634577010 +0100
+@@ -237,6 +237,9 @@
+     @static if LibGit2.VERSION >= v"0.99.0"
+         resolve_url::Ptr{Cvoid}        = C_NULL
+     end
++    @static if LibGit2.VERSION >= v"1.9.0"
++        update_refs::Ptr{Cvoid}        = C_NULL
++    end
+ end
+ @assert Base.allocatedinline(RemoteCallbacks)
+ 
+@@ -678,6 +681,8 @@
+      for more information.
+   * `custom_headers`: only relevant if the LibGit2 version is greater than or equal to `0.24.0`.
+      Extra headers needed for the push operation.
++  * `remote_push_options`: only relevant if the LibGit2 version is greater than or equal to `1.8.0`.
++     "Push options" to deliver to the remote.
+ """
+ @kwdef struct PushOptions
+     version::Cuint                     = Cuint(1)
+@@ -692,6 +697,9 @@
+     @static if LibGit2.VERSION >= v"0.24.0"
+         custom_headers::StrArrayStruct = StrArrayStruct()
+     end
++    @static if LibGit2.VERSION >= v"1.8.0"
++        remote_push_options::StrArrayStruct = StrArrayStruct()
++    end
+ end
+ @assert Base.allocatedinline(PushOptions)
+ 
+@@ -913,10 +921,19 @@
+ struct ConfigEntry
+     name::Cstring
+     value::Cstring
++    @static if LibGit2.VERSION >= v"1.8.0"
++        backend_type::Cstring
++        origin_path::Cstring
++    end
+     include_depth::Cuint
+     level::GIT_CONFIG
+-    free::Ptr{Cvoid}
+-    payload::Ptr{Cvoid} # User is not permitted to read or write this field
++    @static if LibGit2.VERSION < v"1.9.0"
++        free::Ptr{Cvoid}
++    end
++    @static if LibGit2.VERSION < v"1.8.0"
++        # In 1.8.0, the unused payload value has been removed
++        payload::Ptr{Cvoid}
++    end
+ end
+ @assert Base.allocatedinline(ConfigEntry)
+ 
+@@ -1139,18 +1156,27 @@
+        equal to an oldest commit set in `options`).
+ """
+ @kwdef struct BlameHunk
+-    lines_in_hunk::Csize_t                = Csize_t(0)
++    lines_in_hunk::Csize_t                    = Csize_t(0)
+ 
+-    final_commit_id::GitHash              = GitHash()
+-    final_start_line_number::Csize_t      = Csize_t(0)
+-    final_signature::Ptr{SignatureStruct} = Ptr{SignatureStruct}(C_NULL)
+-
+-    orig_commit_id::GitHash               = GitHash()
+-    orig_path::Cstring                    = Cstring(C_NULL)
+-    orig_start_line_number::Csize_t       = Csize_t(0)
+-    orig_signature::Ptr{SignatureStruct}  = Ptr{SignatureStruct}(C_NULL)
++    final_commit_id::GitHash                  = GitHash()
++    final_start_line_number::Csize_t          = Csize_t(0)
++    final_signature::Ptr{SignatureStruct}     = Ptr{SignatureStruct}(C_NULL)
++    @static if LibGit2.VERSION >= v"1.9.0"
++        final_committer::Ptr{SignatureStruct} = Ptr{SignatureStruct}(C_NULL)
++    end
++
++    orig_commit_id::GitHash                   = GitHash()
++    orig_path::Cstring                        = Cstring(C_NULL)
++    orig_start_line_number::Csize_t           = Csize_t(0)
++    orig_signature::Ptr{SignatureStruct}      = Ptr{SignatureStruct}(C_NULL)
++    @static if LibGit2.VERSION >= v"1.9.0"
++        orig_committer::Ptr{SignatureStruct}  = Ptr{SignatureStruct}(C_NULL)
++    end
+ 
+-    boundary::Char                        = '\0'
++    @static if LibGit2.VERSION >= v"1.9.0"
++        summary::Ptr{Char}                    = Ptr{Char}(C_NULL)
++    end
++    boundary::Char                            = '\0'
+ end
+ @assert Base.allocatedinline(BlameHunk)
+ 
+diff '--color=auto' -Naur julia-1.11.3/stdlib/LibGit2/test/libgit2-tests.jl julia-1.11.3.new/stdlib/LibGit2/test/libgit2-tests.jl
+--- julia-1.11.3/stdlib/LibGit2/test/libgit2-tests.jl	2024-12-02 17:58:46.000000000 +0100
++++ julia-1.11.3.new/stdlib/LibGit2/test/libgit2-tests.jl	2025-02-27 11:26:14.634877775 +0100
+@@ -1172,7 +1172,7 @@
+ 
+                 # test workaround for git_tree_walk issue
+                 # https://github.com/libgit2/libgit2/issues/4693
+-                ccall((:giterr_set_str, libgit2), Cvoid, (Cint, Cstring),
++                ccall((:git_error_set_str, libgit2), Cvoid, (Cint, Cstring),
+                       Cint(LibGit2.Error.Invalid), "previous error")
+                 try
+                     # file needs to exist in tree in order to trigger the stop walk condition
+@@ -1254,6 +1254,7 @@
+ 
+     function setup_clone_repo(cache_repo::AbstractString, path::AbstractString; name="AAAA", email="BBBB@BBBB.COM")
+         repo = LibGit2.clone(cache_repo, path)
++        LibGit2.fetch(repo)
+         # need to set this for merges to succeed
+         cfg = LibGit2.GitConfig(repo)
+         LibGit2.set!(cfg, "user.name", name)

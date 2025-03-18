@@ -72,7 +72,7 @@ fi
 if [ -z "$_F_kde_mirror" ]; then
 	# set our preferred mirror
 	_F_kde_mirror="https://download.kde.org"
-	_F_kde_up2date_mirror="rsync://ftp.gwdg.de/pub/linux/kde"
+	_F_kde_up2date_mirror="rsync://mirror.math.princeton.edu/pub/kde/ftp/"
 fi
 
 if [ -z "$_F_kde_folder" ]; then

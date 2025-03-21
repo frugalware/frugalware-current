@@ -82,7 +82,7 @@ install=$_F_haskell_install
 # * makedepends: ghc to makedepends=()
 ###
 options+=('scriptlet' 'genscriptlet')
-makedepends+=('ghc' 'ghc-docs' 'mold' 'clang15')
+makedepends+=('ghc' 'ghc-docs' 'mold' 'clang')
 
 ###
 # == PROVIDED FUNCTIONS
@@ -101,7 +101,6 @@ Fbuild_haskell_regscripts() {
   Fexerel unregister.sh usr/share/haskell/$_F_haskell_register_dir/unregister.sh
 }
 Fbuild_haskell() {
-  export PATH="/usr/lib/llvm15/bin/:$PATH"
 
   Fcd
   Fpatchall

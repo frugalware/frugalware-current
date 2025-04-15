@@ -1,0 +1,159 @@
+From ce9b765522f014daa0392099dd9ba1f7ddcc511d Mon Sep 17 00:00:00 2001
+From: Adhemerval Zanella <adhemerval.zanella@linaro.org>
+Date: Wed, 12 Mar 2025 10:59:17 -0300
+Subject: [PATCH 35/47] nptl: Check if thread is already terminated in
+ sigcancel_handler (BZ 32782)
+
+The SIGCANCEL signal handler should not issue __syscall_do_cancel,
+which calls __do_cancel and __pthread_unwind, if the cancellation
+is already in proces (and libgcc unwind is not reentrant).  Any
+cancellation signal received after is ignored.
+
+Checked on x86_64-linux-gnu and aarch64-linux-gnu.
+
+Tested-by: Aurelien Jarno <aurelien@aurel32.net>
+Reviewed-by: Florian Weimer <fweimer@redhat.com>
+
+(cherry picked from commit 360cce0b066f34e85e473c04cdc16e6fa426021b)
+---
+ NEWS                           |  1 +
+ nptl/pthread_cancel.c          | 14 ++++---
+ sysdeps/pthread/Makefile       |  1 +
+ sysdeps/pthread/tst-cancel32.c | 73 ++++++++++++++++++++++++++++++++++
+ 4 files changed, 83 insertions(+), 6 deletions(-)
+ create mode 100644 sysdeps/pthread/tst-cancel32.c
+
+diff --git a/NEWS b/NEWS
+index 6b34aa31f8..6912162e01 100644
+--- a/NEWS
++++ b/NEWS
+@@ -15,6 +15,7 @@ The following bugs were resolved with this release:
+   [32630] math: math: tanf is not correctly rounded for all rounding
+     modes
+   [32781] Linux: Remove attribute access from sched_getattr
++  [32782] nptl: Race conditions in pthread cancellation causing crash
+   [32786] nptl: PTHREAD_COND_INITIALIZER compatibility with pre-2.41 versions
+ 
+ Version 2.41
+diff --git a/nptl/pthread_cancel.c b/nptl/pthread_cancel.c
+index f7ce3ec51b..b838273881 100644
+--- a/nptl/pthread_cancel.c
++++ b/nptl/pthread_cancel.c
+@@ -41,15 +41,17 @@ sigcancel_handler (int sig, siginfo_t *si, void *ctx)
+       || si->si_code != SI_TKILL)
+     return;
+ 
+-  /* Check if asynchronous cancellation mode is set or if interrupted
+-     instruction pointer falls within the cancellable syscall bridge.  For
+-     interruptable syscalls with external side-effects (i.e. partial reads),
+-     the kernel  will set the IP to after __syscall_cancel_arch_end, thus
+-     disabling the cancellation and allowing the process to handle such
++  /* Check if asynchronous cancellation mode is set and cancellation is not
++     already in progress, or if interrupted instruction pointer falls within
++     the cancellable syscall bridge.
++     For interruptable syscalls with external side-effects (i.e. partial
++     reads), the kernel will set the IP to after __syscall_cancel_arch_end,
++     thus disabling the cancellation and allowing the process to handle such
+      conditions.  */
+   struct pthread *self = THREAD_SELF;
+   int oldval = atomic_load_relaxed (&self->cancelhandling);
+-  if (cancel_async_enabled (oldval) || cancellation_pc_check (ctx))
++  if (cancel_enabled_and_canceled_and_async (oldval)
++      || cancellation_pc_check (ctx))
+     __syscall_do_cancel ();
+ }
+ 
+diff --git a/sysdeps/pthread/Makefile b/sysdeps/pthread/Makefile
+index a123e28a57..2e0ce773a0 100644
+--- a/sysdeps/pthread/Makefile
++++ b/sysdeps/pthread/Makefile
+@@ -106,6 +106,7 @@ tests += \
+   tst-cancel28 \
+   tst-cancel29 \
+   tst-cancel30 \
++  tst-cancel32 \
+   tst-cleanup0 \
+   tst-cleanup1 \
+   tst-cleanup2 \
+diff --git a/sysdeps/pthread/tst-cancel32.c b/sysdeps/pthread/tst-cancel32.c
+new file mode 100644
+index 0000000000..ab550c16bf
+--- /dev/null
++++ b/sysdeps/pthread/tst-cancel32.c
+@@ -0,0 +1,73 @@
++/* Check if pthread_setcanceltype disables asynchronous cancellation
++   once cancellation happens (BZ 32782)
++
++   Copyright (C) 2025 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++/* The pthread_setcanceltype is a cancellation entrypoint, and if
++   asynchronous is enabled and the cancellation starts (on the second
++   pthread_setcanceltype call), the asynchronous should not restart
++   the process.  */
++
++#include <support/xthread.h>
++
++#define NITER     1000
++#define NTHREADS     8
++
++static void
++tf_cleanup (void *arg)
++{
++}
++
++static void *
++tf (void *closure)
++{
++  pthread_cleanup_push (tf_cleanup, NULL);
++  for (;;)
++    {
++      /* The only possible failure for pthread_setcanceltype is an
++	 invalid state type.  */
++      pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
++      pthread_setcanceltype (PTHREAD_CANCEL_DEFERRED, NULL);
++    }
++  pthread_cleanup_pop (1);
++
++  return NULL;
++}
++
++static void
++poll_threads (int nthreads)
++{
++  pthread_t thr[nthreads];
++  for (int i = 0; i < nthreads; i++)
++    thr[i] = xpthread_create (NULL, tf, NULL);
++  for (int i = 0; i < nthreads; i++)
++    xpthread_cancel (thr[i]);
++  for (int i = 0; i < nthreads; i++)
++    xpthread_join (thr[i]);
++}
++
++static int
++do_test (void)
++{
++  for (int k = 0; k < NITER; k++)
++    poll_threads (NTHREADS);
++
++  return 0;
++}
++
++#include <support/test-driver.c>
+-- 
+2.49.0
+

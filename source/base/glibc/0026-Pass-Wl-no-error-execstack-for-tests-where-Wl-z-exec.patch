@@ -1,0 +1,142 @@
+From 56609f8df1fa05c3af13dbe8c84bf5ce62192cd2 Mon Sep 17 00:00:00 2001
+From: Sam James <sam@gentoo.org>
+Date: Tue, 18 Feb 2025 18:49:09 +0000
+Subject: [PATCH 26/47] Pass -Wl,--no-error-execstack for tests where
+ -Wl,-z,execstack is used [PR32717]
+
+When GNU Binutils is configured with --enable-error-execstack=yes, a handful
+of our tests which rely on -Wl,-z,execstack fail. Pass --Wl,--no-error-execstack
+to override the behaviour and get a warning instead.
+
+Bug: https://sourceware.org/PR32717
+Reviewed-by: Adhemerval Zanella  <adhemerval.zanella@linaro.org>
+(cherry picked from commit a2bd5008a99032830add3e4005c25b61e3207112)
+---
+ config.make.in |  1 +
+ configure      | 35 +++++++++++++++++++++++++++++++++++
+ configure.ac   |  4 ++++
+ elf/Makefile   |  6 ++++++
+ nptl/Makefile  |  3 +++
+ 5 files changed, 49 insertions(+)
+
+diff --git a/config.make.in b/config.make.in
+index 36096881b7..59897eaec2 100644
+--- a/config.make.in
++++ b/config.make.in
+@@ -53,6 +53,7 @@ c++-bits-std_abs-h = @CXX_BITS_STD_ABS_H@
+ enable-werror = @enable_werror@
+ 
+ have-z-execstack = @libc_cv_z_execstack@
++have-no-error-execstack = @libc_cv_no_error_execstack@
+ have-protected-data = @libc_cv_protected_data@
+ have-insert = @libc_cv_insert@
+ have-glob-dat-reloc = @libc_cv_has_glob_dat@
+diff --git a/configure b/configure
+index 8fd09c6d88..80b4a63f1b 100755
+--- a/configure
++++ b/configure
+@@ -659,6 +659,7 @@ libc_cv_has_glob_dat
+ libc_cv_fpie
+ libc_cv_test_static_pie
+ libc_cv_z_execstack
++libc_cv_no_error_execstack
+ ASFLAGS_config
+ libc_cv_cc_with_libunwind
+ libc_cv_insert
+@@ -7114,6 +7115,40 @@ if test $libc_cv_as_noexecstack = yes; then
+ fi
+ 
+ 
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for linker that supports --no-error-execstack" >&5
++printf %s "checking for linker that supports --no-error-execstack... " >&6; }
++libc_linker_feature=no
++cat > conftest.c <<EOF
++int _start (void) { return 42; }
++EOF
++if { ac_try='${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS $no_ssp
++		  -Wl,-no-error-execstack -nostdlib -nostartfiles
++		  -fPIC -shared -o conftest.so conftest.c
++		  1>&5'
++  { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  printf "%s\n" "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
++  test $ac_status = 0; }; }
++then
++  if ${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS $no_ssp -Wl,-no-error-execstack -nostdlib \
++      -nostartfiles -fPIC -shared -o conftest.so conftest.c 2>&1 \
++      | grep "warning: --no-error-execstack ignored" > /dev/null 2>&1; then
++    true
++  else
++    libc_linker_feature=yes
++  fi
++fi
++rm -f conftest*
++if test $libc_linker_feature = yes; then
++  libc_cv_no_error_execstack=yes
++else
++  libc_cv_no_error_execstack=no
++fi
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $libc_linker_feature" >&5
++printf "%s\n" "$libc_linker_feature" >&6; }
++
++
+ { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for linker that supports -z execstack" >&5
+ printf %s "checking for linker that supports -z execstack... " >&6; }
+ libc_linker_feature=no
+diff --git a/configure.ac b/configure.ac
+index d4ef0c4243..7d04b54c98 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1318,6 +1318,10 @@ if test $libc_cv_as_noexecstack = yes; then
+ fi
+ AC_SUBST(ASFLAGS_config)
+ 
++LIBC_LINKER_FEATURE([--no-error-execstack], [-Wl,-no-error-execstack],
++		    [libc_cv_no_error_execstack=yes], [libc_cv_no_error_execstack=no])
++AC_SUBST(libc_cv_no_error_execstack)
++
+ LIBC_LINKER_FEATURE([-z execstack], [-Wl,-z,execstack],
+ 		    [libc_cv_z_execstack=yes], [libc_cv_z_execstack=no])
+ AC_SUBST(libc_cv_z_execstack)
+diff --git a/elf/Makefile b/elf/Makefile
+index 4b1d0d8741..75fc517248 100644
+--- a/elf/Makefile
++++ b/elf/Makefile
+@@ -1988,6 +1988,9 @@ $(objpfx)tst-execstack.out: $(objpfx)tst-execstack-mod.so
+ CPPFLAGS-tst-execstack.c += -DUSE_PTHREADS=0
+ LDFLAGS-tst-execstack = -Wl,-z,noexecstack
+ LDFLAGS-tst-execstack-mod.so = -Wl,-z,execstack
++ifeq ($(have-no-error-execstack),yes)
++LDFLAGS-tst-execstack-mod.so += -Wl,--no-error-execstack
++endif
+ 
+ $(objpfx)tst-execstack-needed: $(objpfx)tst-execstack-mod.so
+ LDFLAGS-tst-execstack-needed = -Wl,-z,noexecstack
+@@ -1997,6 +2000,9 @@ CFLAGS-tst-execstack-prog.c += -Wno-trampolines
+ CFLAGS-tst-execstack-mod.c += -Wno-trampolines
+ 
+ LDFLAGS-tst-execstack-prog-static = -Wl,-z,execstack
++ifeq ($(have-no-error-execstack),yes)
++LDFLAGS-tst-execstack-prog-static += -Wl,--no-error-execstack
++endif
+ CFLAGS-tst-execstack-prog-static.c += -Wno-trampolines
+ 
+ ifeq (yes,$(build-hardcoded-path-in-tests))
+diff --git a/nptl/Makefile b/nptl/Makefile
+index 82621c7954..4be778ad65 100644
+--- a/nptl/Makefile
++++ b/nptl/Makefile
+@@ -701,6 +701,9 @@ $(objpfx)tst-execstack-threads.out: $(objpfx)tst-execstack-threads-mod.so
+ LDFLAGS-tst-execstack-threads = -Wl,-z,noexecstack
+ LDFLAGS-tst-execstack-threads-mod.so = -Wl,-z,execstack
+ CFLAGS-tst-execstack-threads-mod.c += -Wno-trampolines
++ifeq ($(have-no-error-execstack),yes)
++LDFLAGS-tst-execstack-threads-mod.so += -Wl,--no-error-execstack
++endif
+ 
+ tst-stackguard1-ARGS = --command "$(host-test-program-cmd) --child"
+ tst-stackguard1-static-ARGS = --command "$(objpfx)tst-stackguard1-static --child"
+-- 
+2.49.0
+

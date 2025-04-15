@@ -1,0 +1,333 @@
+From fda5730898bc36d637bf32588c16ea06dde81d81 Mon Sep 17 00:00:00 2001
+From: Yury Khrustalev <yury.khrustalev@arm.com>
+Date: Tue, 21 Jan 2025 13:33:20 +0000
+Subject: [PATCH 19/47] aarch64: Add tests for Guarded Control Stack
+
+These tests validate that GCS tunable works as expected depending
+on the GCS markings in the test binaries.
+
+Tests validate both static and dynamically linked binaries.
+
+These new tests are AArch64 specific. Moreover, they are included only
+if linker supports the "-z gcs=<value>" option. If built, these tests
+will run on systems with and without HWCAP_GCS. In the latter case the
+tests will be reported as UNSUPPORTED.
+
+Reviewed-by: Adhemerval Zanella  <adhemerval.zanella@linaro.org>
+---
+ sysdeps/unix/sysv/linux/aarch64/Makefile      | 72 ++++++++++++++++++-
+ .../unix/sysv/linux/aarch64/tst-gcs-abort.sh  | 39 ++++++++++
+ .../linux/aarch64/tst-gcs-disabled-static.c   |  1 +
+ .../sysv/linux/aarch64/tst-gcs-disabled.c     |  2 +
+ .../linux/aarch64/tst-gcs-enforced-abort.c    |  2 +
+ .../aarch64/tst-gcs-enforced-static-abort.c   |  1 +
+ .../linux/aarch64/tst-gcs-enforced-static.c   |  1 +
+ .../sysv/linux/aarch64/tst-gcs-enforced.c     |  2 +
+ .../sysv/linux/aarch64/tst-gcs-optional-off.c |  2 +
+ .../sysv/linux/aarch64/tst-gcs-optional-on.c  |  2 +
+ .../aarch64/tst-gcs-optional-static-off.c     |  1 +
+ .../aarch64/tst-gcs-optional-static-on.c      |  1 +
+ .../linux/aarch64/tst-gcs-override-static.c   |  1 +
+ .../sysv/linux/aarch64/tst-gcs-override.c     |  2 +
+ .../sysv/linux/aarch64/tst-gcs-skeleton.c     | 58 +++++++++++++++
+ 15 files changed, 186 insertions(+), 1 deletion(-)
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-abort.sh
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-disabled-static.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-disabled.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-abort.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-static-abort.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-static.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-off.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-on.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-static-off.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-static-on.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-override-static.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-override.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-skeleton.c
+
+diff --git a/sysdeps/unix/sysv/linux/aarch64/Makefile b/sysdeps/unix/sysv/linux/aarch64/Makefile
+index 1fdad67fae..e16799fedd 100644
+--- a/sysdeps/unix/sysv/linux/aarch64/Makefile
++++ b/sysdeps/unix/sysv/linux/aarch64/Makefile
+@@ -3,7 +3,77 @@ sysdep_headers += sys/elf.h
+ tests += \
+   tst-aarch64-pkey \
+   # tests
+-endif
++
++ifneq (no,$(findstring no,$(have-cc-gcs) $(have-test-cc-gcs) $(have-ld-gcs)))
++
++gcs-tests-dynamic = \
++  tst-gcs-disabled \
++  tst-gcs-enforced \
++  tst-gcs-enforced-abort \
++  tst-gcs-optional-off \
++  tst-gcs-optional-on \
++  tst-gcs-override \
++  # gcs-tests-dynamic
++
++gcs-tests-static = \
++  tst-gcs-disabled-static \
++  tst-gcs-enforced-static \
++  tst-gcs-enforced-static-abort \
++  tst-gcs-optional-static-off \
++  tst-gcs-optional-static-on \
++  tst-gcs-override-static \
++  # gcs-tests-static
++
++tests += \
++  $(gcs-tests-dynamic) \
++  $(gcs-tests-static) \
++  # tests
++
++tests-static += \
++  $(gcs-tests-static) \
++  # tests-static
++
++define run-gcs-abort-test
++  $(test-wrapper-env) $(run-program-env) \
++  $(tst-gcs-$*-abort-ENV) $(host-test-program-cmd)
++endef
++
++$(objpfx)tst-gcs-%-abort.out: $(..)sysdeps/unix/sysv/linux/aarch64/tst-gcs-abort.sh \
++	$(objpfx)tst-gcs-%-abort
++	$(SHELL) $< $(common-objpfx) $(test-name) '$(run-gcs-abort-test)'; \
++	$(evaluate-test)
++
++LDFLAGS-tst-gcs-disabled += -Wl,-z gcs=always
++LDFLAGS-tst-gcs-enforced += -Wl,-z gcs=always
++LDFLAGS-tst-gcs-enforced-abort += -Wl,-z gcs=never
++LDFLAGS-tst-gcs-optional-on += -Wl,-z gcs=always
++LDFLAGS-tst-gcs-optional-off += -Wl,-z gcs=never
++LDFLAGS-tst-gcs-override += -Wl,-z gcs=never
++
++LDFLAGS-tst-gcs-disabled-static += -Wl,-z gcs=always
++LDFLAGS-tst-gcs-enforced-static += -Wl,-z gcs=always
++LDFLAGS-tst-gcs-enforced-static-abort += -Wl,-z gcs=never
++LDFLAGS-tst-gcs-optional-static-on += -Wl,-z gcs=always
++LDFLAGS-tst-gcs-optional-static-off += -Wl,-z gcs=never
++LDFLAGS-tst-gcs-override-static += -Wl,-z gcs=never
++
++tst-gcs-disabled-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=0
++tst-gcs-enforced-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=1
++tst-gcs-enforced-abort-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=1
++tst-gcs-optional-on-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=2
++tst-gcs-optional-off-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=2
++tst-gcs-override-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=3
++
++tst-gcs-disabled-static-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=0
++tst-gcs-enforced-static-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=1
++tst-gcs-enforced-static-abort-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=1
++tst-gcs-optional-static-on-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=2
++tst-gcs-optional-static-off-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=2
++tst-gcs-override-static-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=3
++
++endif # ifeq ($(have-test-cc-gcs),yes)
++
++endif # ifeq ($(subdir),misc)
+ 
+ ifeq ($(subdir),stdlib)
+ gen-as-const-headers += ucontext_i.sym
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-abort.sh b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-abort.sh
+new file mode 100644
+index 0000000000..9e2be2d5c5
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-abort.sh
+@@ -0,0 +1,39 @@
++#!/bin/sh
++# Test wrapper for AArch64 tests for GCS that are expected to abort.
++# Copyright (C) 2025 Free Software Foundation, Inc.
++# This file is part of the GNU C Library.
++
++# The GNU C Library is free software; you can redistribute it and/or
++# modify it under the terms of the GNU Lesser General Public
++# License as published by the Free Software Foundation; either
++# version 2.1 of the License, or (at your option) any later version.
++
++# The GNU C Library is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++# Lesser General Public License for more details.
++
++# You should have received a copy of the GNU Lesser General Public
++# License along with the GNU C Library; if not, see
++# <https://www.gnu.org/licenses/>.
++
++objpfx=$1; shift
++tstname=$1; shift
++tstrun=$1; shift
++
++logfile=$objpfx/$tstname.out
++
++rm -vf $logfile
++touch $logfile
++
++${tstrun} 2>> $logfile >> $logfile; status=$?
++
++if test $status -eq 127 \
++  && grep -q -w "not GCS compatible" "$logfile" ; then
++  exit 0
++elif test $status -eq 77; then
++  exit 77
++else
++  echo "unexpected test output or exit status $status"
++  exit 1
++fi
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-disabled-static.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-disabled-static.c
+new file mode 100644
+index 0000000000..c71d68cb86
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-disabled-static.c
+@@ -0,0 +1 @@
++#include "tst-gcs-disabled.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-disabled.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-disabled.c
+new file mode 100644
+index 0000000000..bd688785bb
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-disabled.c
+@@ -0,0 +1,2 @@
++#define TEST_GCS_EXPECT_ENABLED 0
++#include "tst-gcs-skeleton.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-abort.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-abort.c
+new file mode 100644
+index 0000000000..608318f26d
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-abort.c
+@@ -0,0 +1,2 @@
++#define TEST_GCS_EXPECT_ENABLED 1
++#include "tst-gcs-skeleton.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-static-abort.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-static-abort.c
+new file mode 100644
+index 0000000000..c20a999f6b
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-static-abort.c
+@@ -0,0 +1 @@
++#include "tst-gcs-enforced-abort.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-static.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-static.c
+new file mode 100644
+index 0000000000..bb39dada55
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced-static.c
+@@ -0,0 +1 @@
++#include "tst-gcs-enforced.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced.c
+new file mode 100644
+index 0000000000..608318f26d
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-enforced.c
+@@ -0,0 +1,2 @@
++#define TEST_GCS_EXPECT_ENABLED 1
++#include "tst-gcs-skeleton.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-off.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-off.c
+new file mode 100644
+index 0000000000..bd688785bb
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-off.c
+@@ -0,0 +1,2 @@
++#define TEST_GCS_EXPECT_ENABLED 0
++#include "tst-gcs-skeleton.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-on.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-on.c
+new file mode 100644
+index 0000000000..608318f26d
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-on.c
+@@ -0,0 +1,2 @@
++#define TEST_GCS_EXPECT_ENABLED 1
++#include "tst-gcs-skeleton.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-static-off.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-static-off.c
+new file mode 100644
+index 0000000000..54e3b9a0d5
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-static-off.c
+@@ -0,0 +1 @@
++#include "tst-gcs-optional-off.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-static-on.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-static-on.c
+new file mode 100644
+index 0000000000..11b884b429
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-optional-static-on.c
+@@ -0,0 +1 @@
++#include "tst-gcs-optional-on.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-override-static.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-override-static.c
+new file mode 100644
+index 0000000000..09055dcdc4
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-override-static.c
+@@ -0,0 +1 @@
++#include "tst-gcs-override.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-override.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-override.c
+new file mode 100644
+index 0000000000..608318f26d
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-override.c
+@@ -0,0 +1,2 @@
++#define TEST_GCS_EXPECT_ENABLED 1
++#include "tst-gcs-skeleton.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-skeleton.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-skeleton.c
+new file mode 100644
+index 0000000000..37692c96d0
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-skeleton.c
+@@ -0,0 +1,58 @@
++/* AArch64 tests for GCS.
++   Copyright (C) 2025 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include <support/check.h>
++#include <support/support.h>
++#include <support/test-driver.h>
++
++#include <stdio.h>
++#include <sys/auxv.h>
++
++static bool __check_gcs_status (void)
++{
++  register unsigned long x16 asm ("x16");
++  asm volatile (
++    "mov	x16, #1 /* _CHKFEAT_GCS */\n"
++    "hint	40 /* CHKFEAT_X16 */\n"
++    : "=r" (x16));
++  return x16 ^ 1;
++}
++
++static int
++do_test (void)
++{
++  /* Check if GCS could possible by enabled.  */
++  if (!(getauxval (AT_HWCAP) & HWCAP_GCS))
++    {
++      puts ("kernel or CPU does not support GCS");
++      return EXIT_UNSUPPORTED;
++    }
++  bool gcs_enabled = __check_gcs_status ();
++  if (gcs_enabled)
++    puts ("GCS enabled");
++  else
++    puts ("GCS not enabled");
++#if TEST_GCS_EXPECT_ENABLED
++  TEST_VERIFY (gcs_enabled);
++#else
++  TEST_VERIFY (!gcs_enabled);
++#endif
++  return 0;
++}
++
++#include <support/test-driver.c>
+-- 
+2.49.0
+

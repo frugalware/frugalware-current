@@ -1,0 +1,193 @@
+From 8d98ee8d70cd4bbbb2e7d3292600c8719e24a255 Mon Sep 17 00:00:00 2001
+From: Yury Khrustalev <yury.khrustalev@arm.com>
+Date: Wed, 22 Jan 2025 17:21:26 +0000
+Subject: [PATCH 21/47] aarch64: Add GCS tests for dlopen
+
+Reviewed-by: Adhemerval Zanella  <adhemerval.zanella@linaro.org>
+---
+ Makeconfig                                    |  2 +-
+ sysdeps/unix/sysv/linux/aarch64/Makefile      | 23 +++++++
+ .../linux/aarch64/tst-gcs-dlopen-disabled.c   |  3 +
+ .../linux/aarch64/tst-gcs-dlopen-enforced.c   |  3 +
+ .../aarch64/tst-gcs-dlopen-optional-off.c     |  3 +
+ .../aarch64/tst-gcs-dlopen-optional-on.c      |  3 +
+ .../linux/aarch64/tst-gcs-dlopen-override.c   |  3 +
+ .../unix/sysv/linux/aarch64/tst-gcs-dlopen.c  | 62 +++++++++++++++++++
+ 8 files changed, 101 insertions(+), 1 deletion(-)
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-disabled.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-enforced.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-optional-off.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-optional-on.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-override.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen.c
+
+diff --git a/Makeconfig b/Makeconfig
+index d0108d2caa..aa547a443f 100644
+--- a/Makeconfig
++++ b/Makeconfig
+@@ -633,7 +633,7 @@ link-libc-printers-tests = $(link-libc-rpath) \
+ 			   $(link-libc-tests-after-rpath-link)
+ 
+ # This is how to find at build-time things that will be installed there.
+-rpath-dirs = math elf dlfcn nss nis rt resolv mathvec support
++rpath-dirs = math elf dlfcn nss nis rt resolv mathvec support misc
+ rpath-link = \
+ $(common-objdir):$(subst $(empty) ,:,$(patsubst ../$(subdir),.,$(rpath-dirs:%=$(common-objpfx)%)))
+ else  # build-static
+diff --git a/sysdeps/unix/sysv/linux/aarch64/Makefile b/sysdeps/unix/sysv/linux/aarch64/Makefile
+index 19f2988dac..ce24f386a0 100644
+--- a/sysdeps/unix/sysv/linux/aarch64/Makefile
++++ b/sysdeps/unix/sysv/linux/aarch64/Makefile
+@@ -8,6 +8,11 @@ ifneq (no,$(findstring no,$(have-cc-gcs) $(have-test-cc-gcs) $(have-ld-gcs)))
+ 
+ gcs-tests-dynamic = \
+   tst-gcs-disabled \
++  tst-gcs-dlopen-disabled \
++  tst-gcs-dlopen-enforced \
++  tst-gcs-dlopen-optional-off \
++  tst-gcs-dlopen-optional-on \
++  tst-gcs-dlopen-override \
+   tst-gcs-enforced \
+   tst-gcs-enforced-abort \
+   tst-gcs-optional-off \
+@@ -100,6 +105,24 @@ tst-gcs-shared-enforced-abort-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=1
+ tst-gcs-shared-optional-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=2
+ tst-gcs-shared-override-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=3
+ 
++LDFLAGS-tst-gcs-dlopen-disabled = -Wl,-z gcs=always
++LDFLAGS-tst-gcs-dlopen-enforced = -Wl,-z gcs=always
++LDFLAGS-tst-gcs-dlopen-optional-on = -Wl,-z gcs=always
++LDFLAGS-tst-gcs-dlopen-optional-off = -Wl,-z gcs=never
++LDFLAGS-tst-gcs-dlopen-override = -Wl,-z gcs=always
++
++tst-gcs-dlopen-disabled-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=0
++tst-gcs-dlopen-enforced-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=1
++tst-gcs-dlopen-optional-on-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=2
++tst-gcs-dlopen-optional-off-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=2
++tst-gcs-dlopen-override-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=3
++
++$(objpfx)tst-gcs-dlopen-disabled.out: $(objpfx)tst-gcs-mod2.so
++$(objpfx)tst-gcs-dlopen-enforced.out: $(objpfx)tst-gcs-mod2.so
++$(objpfx)tst-gcs-dlopen-optional-on.out: $(objpfx)tst-gcs-mod2.so
++$(objpfx)tst-gcs-dlopen-optional-off.out: $(objpfx)tst-gcs-mod2.so
++$(objpfx)tst-gcs-dlopen-override.out: $(objpfx)tst-gcs-mod2.so
++
+ endif # ifeq ($(have-test-cc-gcs),yes)
+ 
+ endif # ifeq ($(subdir),misc)
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-disabled.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-disabled.c
+new file mode 100644
+index 0000000000..34395280a3
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-disabled.c
+@@ -0,0 +1,3 @@
++#define TEST_GCS_EXPECT_ENABLED 0
++#define TEST_GCS_EXPECT_DLOPEN 1
++#include "tst-gcs-dlopen.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-enforced.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-enforced.c
+new file mode 100644
+index 0000000000..d8489ecd24
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-enforced.c
+@@ -0,0 +1,3 @@
++#define TEST_GCS_EXPECT_ENABLED 1
++#define TEST_GCS_EXPECT_DLOPEN 0
++#include "tst-gcs-dlopen.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-optional-off.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-optional-off.c
+new file mode 100644
+index 0000000000..34395280a3
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-optional-off.c
+@@ -0,0 +1,3 @@
++#define TEST_GCS_EXPECT_ENABLED 0
++#define TEST_GCS_EXPECT_DLOPEN 1
++#include "tst-gcs-dlopen.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-optional-on.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-optional-on.c
+new file mode 100644
+index 0000000000..d8489ecd24
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-optional-on.c
+@@ -0,0 +1,3 @@
++#define TEST_GCS_EXPECT_ENABLED 1
++#define TEST_GCS_EXPECT_DLOPEN 0
++#include "tst-gcs-dlopen.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-override.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-override.c
+new file mode 100644
+index 0000000000..152ffcf207
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen-override.c
+@@ -0,0 +1,3 @@
++#define TEST_GCS_EXPECT_ENABLED 1
++#define TEST_GCS_EXPECT_DLOPEN 1
++#include "tst-gcs-dlopen.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen.c
+new file mode 100644
+index 0000000000..6e0801c63a
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-dlopen.c
+@@ -0,0 +1,62 @@
++/* AArch64 tests for GCS for dlopen use case.
++   Copyright (C) 2025 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include "tst-gcs-helper.h"
++
++#include <dlfcn.h>
++#include <string.h>
++
++static int
++do_test (void)
++{
++  /* Check if GCS could possible by enabled.  */
++  if (!(getauxval (AT_HWCAP) & HWCAP_GCS))
++    {
++      puts ("kernel or CPU does not support GCS");
++      return EXIT_UNSUPPORTED;
++    }
++  /* The tst-gcs-mod2.so test library does not have GCS marking.  */
++  void *h = dlopen ("tst-gcs-mod2.so", RTLD_NOW);
++  const char *err = dlerror ();
++
++#if TEST_GCS_EXPECT_DLOPEN
++  TEST_VERIFY (h != NULL);
++#else
++  TEST_VERIFY (h == NULL);
++  /* Only accept expected GCS-related errors.  */
++  TEST_VERIFY (strstr (err, "not GCS compatible") != NULL);
++#endif
++
++#if TEST_GCS_EXPECT_ENABLED
++  TEST_VERIFY (__check_gcs_status ());
++#else
++  TEST_VERIFY (!__check_gcs_status ());
++#endif
++
++  if (h == NULL)
++    printf ("dlopen error: %s\n", err);
++  else
++    {
++      puts ("library loaded normally");
++      dlclose (h);
++    }
++
++  return 0;
++}
++
++#include <support/test-driver.c>
+-- 
+2.49.0
+

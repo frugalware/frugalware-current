@@ -1,0 +1,326 @@
+From 61ba3cdfa9e946fc91b0113a7a569cbe57fb46c1 Mon Sep 17 00:00:00 2001
+From: Yury Khrustalev <yury.khrustalev@arm.com>
+Date: Wed, 22 Jan 2025 15:06:18 +0000
+Subject: [PATCH 20/47] aarch64: Add GCS tests for transitive dependencies
+
+Reviewed-by: Adhemerval Zanella  <adhemerval.zanella@linaro.org>
+---
+ sysdeps/unix/sysv/linux/aarch64/Makefile      | 29 +++++++++++++
+ .../unix/sysv/linux/aarch64/tst-gcs-helper.h  | 39 ++++++++++++++++++
+ .../unix/sysv/linux/aarch64/tst-gcs-mod1.c    | 27 ++++++++++++
+ .../unix/sysv/linux/aarch64/tst-gcs-mod2.c    | 25 +++++++++++
+ .../unix/sysv/linux/aarch64/tst-gcs-mod3.c    | 25 +++++++++++
+ .../linux/aarch64/tst-gcs-shared-disabled.c   |  2 +
+ .../aarch64/tst-gcs-shared-enforced-abort.c   |  2 +
+ .../linux/aarch64/tst-gcs-shared-optional.c   |  2 +
+ .../linux/aarch64/tst-gcs-shared-override.c   |  2 +
+ .../unix/sysv/linux/aarch64/tst-gcs-shared.c  | 41 +++++++++++++++++++
+ .../sysv/linux/aarch64/tst-gcs-skeleton.c     | 17 +-------
+ 11 files changed, 195 insertions(+), 16 deletions(-)
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-helper.h
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod1.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod2.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod3.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-disabled.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-enforced-abort.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-optional.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-override.c
+ create mode 100644 sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared.c
+
+diff --git a/sysdeps/unix/sysv/linux/aarch64/Makefile b/sysdeps/unix/sysv/linux/aarch64/Makefile
+index e16799fedd..19f2988dac 100644
+--- a/sysdeps/unix/sysv/linux/aarch64/Makefile
++++ b/sysdeps/unix/sysv/linux/aarch64/Makefile
+@@ -13,6 +13,10 @@ gcs-tests-dynamic = \
+   tst-gcs-optional-off \
+   tst-gcs-optional-on \
+   tst-gcs-override \
++  tst-gcs-shared-disabled \
++  tst-gcs-shared-enforced-abort \
++  tst-gcs-shared-optional \
++  tst-gcs-shared-override \
+   # gcs-tests-dynamic
+ 
+ gcs-tests-static = \
+@@ -71,6 +75,31 @@ tst-gcs-optional-static-on-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=2
+ tst-gcs-optional-static-off-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=2
+ tst-gcs-override-static-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=3
+ 
++# force one of the dependencies to be unmarked
++LDFLAGS-tst-gcs-mod2.so += -Wl,-z gcs=never
++
++LDFLAGS-tst-gcs-shared-disabled = -Wl,-z gcs=always
++LDFLAGS-tst-gcs-shared-enforced-abort = -Wl,-z gcs=always
++LDFLAGS-tst-gcs-shared-optional = -Wl,-z gcs=always
++LDFLAGS-tst-gcs-shared-override = -Wl,-z gcs=always
++
++modules-names += \
++  tst-gcs-mod1 \
++  tst-gcs-mod2 \
++  tst-gcs-mod3 \
++  # modules-names
++
++$(objpfx)tst-gcs-shared-disabled: $(objpfx)tst-gcs-mod1.so $(objpfx)tst-gcs-mod3.so
++$(objpfx)tst-gcs-shared-enforced-abort: $(objpfx)tst-gcs-mod1.so $(objpfx)tst-gcs-mod3.so
++$(objpfx)tst-gcs-shared-optional: $(objpfx)tst-gcs-mod1.so $(objpfx)tst-gcs-mod3.so
++$(objpfx)tst-gcs-shared-override: $(objpfx)tst-gcs-mod1.so $(objpfx)tst-gcs-mod3.so
++$(objpfx)tst-gcs-mod1.so: $(objpfx)tst-gcs-mod2.so
++
++tst-gcs-shared-disabled-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=0
++tst-gcs-shared-enforced-abort-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=1
++tst-gcs-shared-optional-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=2
++tst-gcs-shared-override-ENV = GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=3
++
+ endif # ifeq ($(have-test-cc-gcs),yes)
+ 
+ endif # ifeq ($(subdir),misc)
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-helper.h b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-helper.h
+new file mode 100644
+index 0000000000..d8a586d2d8
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-helper.h
+@@ -0,0 +1,39 @@
++/* AArch64 tests for GCS.
++   Copyright (C) 2025 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#ifndef TST_GCS_HELPER_H
++#define TST_GCS_HELPER_H
++
++#include <support/check.h>
++#include <support/support.h>
++#include <support/test-driver.h>
++
++#include <stdio.h>
++#include <sys/auxv.h>
++
++static bool __check_gcs_status (void)
++{
++  register unsigned long x16 asm ("x16");
++  asm volatile (
++    "mov	x16, #1 /* _CHKFEAT_GCS */\n"
++    "hint	40 /* CHKFEAT_X16 */\n"
++    : "=r" (x16));
++  return x16 ^ 1;
++}
++
++#endif // POINTER_GUARD_H
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod1.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod1.c
+new file mode 100644
+index 0000000000..931ff81797
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod1.c
+@@ -0,0 +1,27 @@
++/* DSO for testing GCS.
++   Copyright (C) 2025 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include <stdio.h>
++
++int fun2 (void); // tst-gcs-mod2.c
++
++int fun1 (void)
++{
++  puts ("called function fun1");
++  return fun2 ();
++}
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod2.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod2.c
+new file mode 100644
+index 0000000000..f9370eb8ff
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod2.c
+@@ -0,0 +1,25 @@
++/* DSO for testing GCS.
++   Copyright (C) 2025 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include <stdio.h>
++
++int fun2 (void)
++{
++  puts ("called function fun2");
++  return 0;
++}
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod3.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod3.c
+new file mode 100644
+index 0000000000..38bb357547
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-mod3.c
+@@ -0,0 +1,25 @@
++/* DSO for testing GCS.
++   Copyright (C) 2025 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include <stdio.h>
++
++int fun3 (void)
++{
++  puts ("called function fun3");
++  return 0;
++}
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-disabled.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-disabled.c
+new file mode 100644
+index 0000000000..8598dc44b5
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-disabled.c
+@@ -0,0 +1,2 @@
++#define TEST_GCS_EXPECT_ENABLED 0
++#include "tst-gcs-shared.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-enforced-abort.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-enforced-abort.c
+new file mode 100644
+index 0000000000..f1333cee9d
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-enforced-abort.c
+@@ -0,0 +1,2 @@
++#define TEST_GCS_EXPECT_ENABLED 1
++#include "tst-gcs-shared.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-optional.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-optional.c
+new file mode 100644
+index 0000000000..8598dc44b5
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-optional.c
+@@ -0,0 +1,2 @@
++#define TEST_GCS_EXPECT_ENABLED 0
++#include "tst-gcs-shared.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-override.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-override.c
+new file mode 100644
+index 0000000000..f1333cee9d
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared-override.c
+@@ -0,0 +1,2 @@
++#define TEST_GCS_EXPECT_ENABLED 1
++#include "tst-gcs-shared.c"
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared.c
+new file mode 100644
+index 0000000000..1192de69fc
+--- /dev/null
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-shared.c
+@@ -0,0 +1,41 @@
++/* AArch64 tests for GCS.
++   Copyright (C) 2025 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include "tst-gcs-helper.h"
++
++int fun1 (void); // tst-gcs-mod1.c
++int fun3 (void); // tst-gcs-mod3.c
++
++static int
++do_test (void)
++{
++  /* Check if GCS could possible by enabled.  */
++  if (!(getauxval (AT_HWCAP) & HWCAP_GCS))
++    {
++      puts ("kernel or CPU does not support GCS");
++      return EXIT_UNSUPPORTED;
++    }
++#if TEST_GCS_EXPECT_ENABLED
++  TEST_VERIFY (__check_gcs_status ());
++#else
++  TEST_VERIFY (!__check_gcs_status ());
++#endif
++  return fun1 () + fun3 ();
++}
++
++#include <support/test-driver.c>
+diff --git a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-skeleton.c b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-skeleton.c
+index 37692c96d0..feb5e33ebf 100644
+--- a/sysdeps/unix/sysv/linux/aarch64/tst-gcs-skeleton.c
++++ b/sysdeps/unix/sysv/linux/aarch64/tst-gcs-skeleton.c
+@@ -16,22 +16,7 @@
+    License along with the GNU C Library; if not, see
+    <https://www.gnu.org/licenses/>.  */
+ 
+-#include <support/check.h>
+-#include <support/support.h>
+-#include <support/test-driver.h>
+-
+-#include <stdio.h>
+-#include <sys/auxv.h>
+-
+-static bool __check_gcs_status (void)
+-{
+-  register unsigned long x16 asm ("x16");
+-  asm volatile (
+-    "mov	x16, #1 /* _CHKFEAT_GCS */\n"
+-    "hint	40 /* CHKFEAT_X16 */\n"
+-    : "=r" (x16));
+-  return x16 ^ 1;
+-}
++#include "tst-gcs-helper.h"
+ 
+ static int
+ do_test (void)
+-- 
+2.49.0
+

@@ -1,0 +1,136 @@
+From fd202462c5f8ffa4dfb6b7c0c4cec2bce4bec408 Mon Sep 17 00:00:00 2001
+From: "H.J. Lu" <hjl.tools@gmail.com>
+Date: Fri, 7 Mar 2025 08:58:47 +0800
+Subject: [PATCH 28/47] elf: Check if __attribute__ ((aligned (65536))) is
+ supported
+
+The BZ #32763 tests fail to build for MicroBlaze (which defines
+MAX_OFILE_ALIGNMENT to (32768*8) in GCC, so __attribute__ ((aligned
+(65536))) is unsupported).  Add a configure-time check to enable BZ #32763
+tests only if __attribute__ ((aligned (65536))) is supported.
+
+Signed-off-by: H.J. Lu <hjl.tools@gmail.com>
+Reviewed-by: Sam James <sam@gentoo.org>
+(cherry picked from commit 9b91484bee8f6f1bf1e2d26a8df461b553784528)
+---
+ configure    | 30 +++++++++++++++++++++++++++++-
+ configure.ac | 11 +++++++++++
+ elf/Makefile | 12 ++++++++----
+ 3 files changed, 48 insertions(+), 5 deletions(-)
+
+diff --git a/configure b/configure
+index 80b4a63f1b..2a996cb0d9 100755
+--- a/configure
++++ b/configure
+@@ -8678,6 +8678,35 @@ if test $libc_cv_builtin_trap = yes; then
+ 
+ fi
+ 
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports __attribute__ ((aligned (65536)))" >&5
++printf %s "checking whether the compiler supports __attribute__ ((aligned (65536)))... " >&6; }
++if test ${libc_cv_aligned_65536+y}
++then :
++  printf %s "(cached) " >&6
++else case e in #(
++  e)
++cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++char bss0xb5dce8 __attribute__ ((aligned (65536)));
++
++_ACEOF
++if ac_fn_c_try_compile "$LINENO"
++then :
++  libc_cv_aligned_65536=yes
++else case e in #(
++  e) libc_cv_aligned_65536=no ;;
++esac
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
++ ;;
++esac
++fi
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $libc_cv_aligned_65536" >&5
++printf "%s\n" "$libc_cv_aligned_65536" >&6; }
++config_vars="$config_vars
++aligned-65536 = $libc_cv_aligned_65536"
++
+ ac_ext=cpp
+ ac_cpp='$CXXCPP $CPPFLAGS'
+ ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+@@ -8945,7 +8974,6 @@ load-address-ldflag = $libc_cv_load_address_ldflag"
+ 
+ # Check if compilers support GCS in branch protection:
+ 
+-
+ { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking if compiler supports -mbranch-protection=gcs" >&5
+ printf %s "checking if compiler supports -mbranch-protection=gcs... " >&6; }
+ if test ${libc_cv_cc_gcs+y}
+diff --git a/configure.ac b/configure.ac
+index 7d04b54c98..5f6f0b72bc 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1824,6 +1824,17 @@ if test $libc_cv_builtin_trap = yes; then
+   AC_DEFINE([HAVE_BUILTIN_TRAP])
+ fi
+ 
++dnl Check if
++AC_CACHE_CHECK([whether the compiler supports __attribute__ ((aligned (65536)))],
++	       libc_cv_aligned_65536, [
++AC_COMPILE_IFELSE([AC_LANG_SOURCE([
++char bss[0xb5dce8] __attribute__ ((aligned (65536)));
++])],
++	       [libc_cv_aligned_65536=yes],
++	       [libc_cv_aligned_65536=no])
++])
++LIBC_CONFIG_VAR([aligned-65536], [$libc_cv_aligned_65536])
++
+ dnl C++ feature tests.
+ AC_LANG_PUSH([C++])
+ 
+diff --git a/elf/Makefile b/elf/Makefile
+index 848a8c3077..d6bba4b0ec 100644
+--- a/elf/Makefile
++++ b/elf/Makefile
+@@ -1135,17 +1135,19 @@ tests += \
+   tst-dlopen-pie \
+   tst-dlopen-self-pie \
+   tst-dlopen-tlsmodid-pie \
+-  tst-pie-bss \
+   tst-pie1 \
+   tst-pie2 \
+   # tests
+ tests-pie += \
+   tst-dlopen-self-pie \
+   tst-dlopen-tlsmodid-pie \
+-  tst-pie-bss \
+   tst-pie1 \
+   tst-pie2 \
+   # tests-pie
++ifeq (yes,$(aligned-65536))
++tests += tst-pie-bss
++tests-pie += tst-pie-bss
++endif
+ ifneq (,$(load-address-ldflag))
+ tests += \
+   tst-pie-address \
+@@ -1157,12 +1159,14 @@ LDFLAGS-tst-pie-address += $(load-address-ldflag)=$(pde-load-address)
+ ifeq (yes,$(enable-static-pie))
+ tests += \
+   tst-pie-address-static \
+-  tst-pie-bss-static \
+   # tests
+ tests-static += \
+   tst-pie-address-static \
+-  tst-pie-bss-static \
+   # tests-static
++ifeq (yes,$(aligned-65536))
++tests += tst-pie-bss-static
++tests-static += tst-pie-bss-static
++endif
+ LDFLAGS-tst-pie-address-static += \
+   $(load-address-ldflag)=$(pde-load-address)
+ endif
+-- 
+2.49.0
+

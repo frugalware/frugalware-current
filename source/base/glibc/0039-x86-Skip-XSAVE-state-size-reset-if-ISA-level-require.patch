@@ -1,0 +1,53 @@
+From a282e2c0aee895ae47fa5b3b238e5abca3799cc6 Mon Sep 17 00:00:00 2001
+From: Florian Weimer <fweimer@redhat.com>
+Date: Fri, 28 Mar 2025 09:26:06 +0100
+Subject: [PATCH 39/47] x86: Skip XSAVE state size reset if ISA level requires
+ XSAVE
+
+If we have to use XSAVE or XSAVEC trampolines, do not adjust the size
+information they need.  Technically, it is an operator error to try to
+run with -XSAVE,-XSAVEC on such builds, but this change here disables
+some unnecessary code with higher ISA levels and simplifies testing.
+
+Related to commit befe2d3c4dec8be2cdd01a47132e47bdb7020922
+("x86-64: Don't use SSE resolvers for ISA level 3 or above").
+
+Reviewed-by: H.J. Lu <hjl.tools@gmail.com>
+(cherry picked from commit 59585ddaa2d44f22af04bb4b8bd4ad1e302c4c02)
+---
+ sysdeps/x86/cpu-features.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/sysdeps/x86/cpu-features.c b/sysdeps/x86/cpu-features.c
+index 27abaca8b7..6dfb112038 100644
+--- a/sysdeps/x86/cpu-features.c
++++ b/sysdeps/x86/cpu-features.c
+@@ -24,6 +24,7 @@
+ #include <dl-cacheinfo.h>
+ #include <dl-minsigstacksize.h>
+ #include <dl-hwcap2.h>
++#include <gcc-macros.h>
+ 
+ extern void TUNABLE_CALLBACK (set_hwcaps) (tunable_val_t *)
+   attribute_hidden;
+@@ -1159,6 +1160,9 @@ no_cpuid:
+ 	       TUNABLE_CALLBACK (set_prefer_map_32bit_exec));
+ #endif
+ 
++  /* Do not add the logic to disable XSAVE/XSAVEC if this glibc build
++     requires AVX and therefore XSAVE or XSAVEC support.  */
++#ifndef GCCMACRO__AVX__
+   bool disable_xsave_features = false;
+ 
+   if (!CPU_FEATURE_USABLE_P (cpu_features, OSXSAVE))
+@@ -1212,6 +1216,7 @@ no_cpuid:
+ 
+       CPU_FEATURE_UNSET (cpu_features, FMA4);
+     }
++#endif
+ 
+ #ifdef __x86_64__
+   GLRO(dl_hwcap) = HWCAP_X86_64;
+-- 
+2.49.0
+

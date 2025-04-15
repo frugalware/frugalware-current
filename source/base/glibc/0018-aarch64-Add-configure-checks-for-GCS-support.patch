@@ -1,0 +1,156 @@
+From 6d1f97bb0667e35cbb4e656516b0b5f48afcabde Mon Sep 17 00:00:00 2001
+From: Yury Khrustalev <yury.khrustalev@arm.com>
+Date: Tue, 28 Jan 2025 16:13:51 +0000
+Subject: [PATCH 18/47] aarch64: Add configure checks for GCS support
+
+ - Add check that linker supports -z gcs=...
+ - Add checks that main and test compiler support
+   -mbranch-protection=gcs
+
+Reviewed-by: Adhemerval Zanella  <adhemerval.zanella@linaro.org>
+---
+ configure    | 99 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ configure.ac | 17 +++++++++
+ 2 files changed, 116 insertions(+)
+
+diff --git a/configure b/configure
+index eb8abd0054..8fd09c6d88 100755
+--- a/configure
++++ b/configure
+@@ -8908,6 +8908,105 @@ printf "%s\n" "$libc_linker_feature" >&6; }
+ config_vars="$config_vars
+ load-address-ldflag = $libc_cv_load_address_ldflag"
+ 
++# Check if compilers support GCS in branch protection:
++
++
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking if compiler supports -mbranch-protection=gcs" >&5
++printf %s "checking if compiler supports -mbranch-protection=gcs... " >&6; }
++if test ${libc_cv_cc_gcs+y}
++then :
++  printf %s "(cached) " >&6
++else case e in #(
++  e) if { ac_try='${CC-cc} -Werror -mbranch-protection=gcs -xc /dev/null -S -o /dev/null'
++  { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  printf "%s\n" "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
++  test $ac_status = 0; }; }
++then :
++  libc_cv_cc_gcs=yes
++else case e in #(
++  e) libc_cv_cc_gcs=no ;;
++esac
++fi ;;
++esac
++fi
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $libc_cv_cc_gcs" >&5
++printf "%s\n" "$libc_cv_cc_gcs" >&6; }
++if test "$TEST_CC" = "$CC"; then
++  libc_cv_test_cc_gcs=$libc_cv_cc_gcs
++else
++
++saved_CC="$CC"
++CC="$TEST_CC"
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking if compiler supports -mbranch-protection=gcs in testing" >&5
++printf %s "checking if compiler supports -mbranch-protection=gcs in testing... " >&6; }
++if test ${libc_cv_test_cc_gcs+y}
++then :
++  printf %s "(cached) " >&6
++else case e in #(
++  e) if { ac_try='${CC-cc} -Werror -mbranch-protection=gcs -xc /dev/null -S -o /dev/null'
++  { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  printf "%s\n" "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
++  test $ac_status = 0; }; }
++then :
++  libc_cv_test_cc_gcs=yes
++else case e in #(
++  e) libc_cv_test_cc_gcs=no ;;
++esac
++fi ;;
++esac
++fi
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $libc_cv_test_cc_gcs" >&5
++printf "%s\n" "$libc_cv_test_cc_gcs" >&6; }
++
++CC="$saved_CC"
++
++fi
++
++config_vars="$config_vars
++have-cc-gcs = $libc_cv_cc_gcs"
++config_vars="$config_vars
++have-test-cc-gcs = $libc_cv_test_cc_gcs"
++
++# Check if linker supports GCS marking
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for linker that supports -z gcs=always" >&5
++printf %s "checking for linker that supports -z gcs=always... " >&6; }
++libc_linker_feature=no
++cat > conftest.c <<EOF
++int _start (void) { return 42; }
++EOF
++if { ac_try='${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS $no_ssp
++		  -Wl,-z,gcs=always -nostdlib -nostartfiles
++		  -fPIC -shared -o conftest.so conftest.c
++		  1>&5'
++  { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  printf "%s\n" "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
++  test $ac_status = 0; }; }
++then
++  if ${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS $no_ssp -Wl,-z,gcs=always -nostdlib \
++      -nostartfiles -fPIC -shared -o conftest.so conftest.c 2>&1 \
++      | grep "warning: -z gcs=always ignored" > /dev/null 2>&1; then
++    true
++  else
++    libc_linker_feature=yes
++  fi
++fi
++rm -f conftest*
++if test $libc_linker_feature = yes; then
++  libc_cv_ld_gcs=yes
++else
++  libc_cv_ld_gcs=no
++fi
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $libc_linker_feature" >&5
++printf "%s\n" "$libc_linker_feature" >&6; }
++config_vars="$config_vars
++have-ld-gcs = $libc_cv_ld_gcs"
++
+ { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking if we can build programs as PIE" >&5
+ printf %s "checking if we can build programs as PIE... " >&6; }
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+diff --git a/configure.ac b/configure.ac
+index 050bfa65e3..d4ef0c4243 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1992,6 +1992,23 @@ LIBC_LINKER_FEATURE([-Ttext-segment=$libc_cv_pde_load_address],
+ 		    [libc_cv_load_address_ldflag=])
+ LIBC_CONFIG_VAR([load-address-ldflag], [$libc_cv_load_address_ldflag])
+ 
++# Check if compilers support GCS in branch protection:
++LIBC_TRY_CC_AND_TEST_CC_OPTION([if compiler supports -mbranch-protection=gcs],
++  [-Werror -mbranch-protection=gcs],
++  libc_cv_cc_gcs,
++  [libc_cv_cc_gcs=yes],
++  [libc_cv_cc_gcs=no],
++  libc_cv_test_cc_gcs,
++  [libc_cv_test_cc_gcs=yes],
++  [libc_cv_test_cc_gcs=no])
++LIBC_CONFIG_VAR([have-cc-gcs], [$libc_cv_cc_gcs])
++LIBC_CONFIG_VAR([have-test-cc-gcs], [$libc_cv_test_cc_gcs])
++
++# Check if linker supports GCS marking
++LIBC_LINKER_FEATURE([-z gcs=always], [-Wl,-z,gcs=always],
++		    [libc_cv_ld_gcs=yes], [libc_cv_ld_gcs=no])
++LIBC_CONFIG_VAR([have-ld-gcs], [$libc_cv_ld_gcs])
++
+ AC_MSG_CHECKING(if we can build programs as PIE)
+ AC_COMPILE_IFELSE([AC_LANG_SOURCE([[#ifdef PIE_UNSUPPORTED
+ # error PIE is not supported
+-- 
+2.49.0
+

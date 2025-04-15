@@ -1,0 +1,213 @@
+From 80cd6566496e513297bf1031cb164192fd8f81f6 Mon Sep 17 00:00:00 2001
+From: Florian Weimer <fweimer@redhat.com>
+Date: Fri, 28 Mar 2025 09:26:59 +0100
+Subject: [PATCH 40/47] x86: Use separate variable for TLSDESC XSAVE/XSAVEC
+ state size (bug 32810)
+
+Previously, the initialization code reused the xsave_state_full_size
+member of struct cpu_features for the TLSDESC state size.  However,
+the tunable processing code assumes that this member has the
+original XSAVE (non-compact) state size, so that it can use its
+value if XSAVEC is disabled via tunable.
+
+This change uses a separate variable and not a struct member because
+the value is only needed in ld.so and the static libc, but not in
+libc.so.  As a result, struct cpu_features layout does not change,
+helping a future backport of this change.
+
+Fixes commit 9b7091415af47082664717210ac49d51551456ab ("x86-64:
+Update _dl_tlsdesc_dynamic to preserve AMX registers").
+
+Reviewed-by: H.J. Lu <hjl.tools@gmail.com>
+(cherry picked from commit 145097dff170507fe73190e8e41194f5b5f7e6bf)
+---
+ NEWS                                          |  1 +
+ sysdeps/x86/Makefile                          | 19 +++++++++++++++++++
+ sysdeps/x86/cpu-features.c                    | 11 ++++++-----
+ sysdeps/x86/cpu-tunables.c                    |  2 ++
+ sysdeps/x86/dl-diagnostics-cpu.c              |  2 ++
+ sysdeps/x86/include/cpu-features.h            |  9 +++++++--
+ sysdeps/x86/tst-gnu2-tls2-x86-noxsave.c       |  1 +
+ sysdeps/x86/tst-gnu2-tls2-x86-noxsavec.c      |  1 +
+ sysdeps/x86/tst-gnu2-tls2-x86-noxsavexsavec.c |  1 +
+ sysdeps/x86_64/dl-tlsdesc-dynamic.h           |  2 +-
+ 10 files changed, 41 insertions(+), 8 deletions(-)
+ create mode 100644 sysdeps/x86/tst-gnu2-tls2-x86-noxsave.c
+ create mode 100644 sysdeps/x86/tst-gnu2-tls2-x86-noxsavec.c
+ create mode 100644 sysdeps/x86/tst-gnu2-tls2-x86-noxsavexsavec.c
+
+diff --git a/NEWS b/NEWS
+index 6912162e01..daa0bb8c64 100644
+--- a/NEWS
++++ b/NEWS
+@@ -17,6 +17,7 @@ The following bugs were resolved with this release:
+   [32781] Linux: Remove attribute access from sched_getattr
+   [32782] nptl: Race conditions in pthread cancellation causing crash
+   [32786] nptl: PTHREAD_COND_INITIALIZER compatibility with pre-2.41 versions
++  [32810] Crash on x86-64 if XSAVEC disable via tunable
+ 
+ Version 2.41
+ 
+diff --git a/sysdeps/x86/Makefile b/sysdeps/x86/Makefile
+index 5311b594af..8819fba1b7 100644
+--- a/sysdeps/x86/Makefile
++++ b/sysdeps/x86/Makefile
+@@ -21,6 +21,9 @@ tests += \
+   tst-cpu-features-supports-static \
+   tst-get-cpu-features \
+   tst-get-cpu-features-static \
++  tst-gnu2-tls2-x86-noxsave \
++  tst-gnu2-tls2-x86-noxsavec \
++  tst-gnu2-tls2-x86-noxsavexsavec \
+   tst-hwcap-tunables \
+ # tests
+ tests-static += \
+@@ -91,6 +94,22 @@ CFLAGS-tst-gnu2-tls2.c += -msse
+ CFLAGS-tst-gnu2-tls2mod0.c += -msse2 -mtune=haswell
+ CFLAGS-tst-gnu2-tls2mod1.c += -msse2 -mtune=haswell
+ CFLAGS-tst-gnu2-tls2mod2.c += -msse2 -mtune=haswell
++
++LDFLAGS-tst-gnu2-tls2-x86-noxsave += -Wl,-z,lazy
++LDFLAGS-tst-gnu2-tls2-x86-noxsavec += -Wl,-z,lazy
++LDFLAGS-tst-gnu2-tls2-x86-noxsavexsavec += -Wl,-z,lazy
++
++# Test for bug 32810: incorrect XSAVE state size if XSAVEC is disabled
++# via tunable.
++tst-gnu2-tls2-x86-noxsave-ENV = GLIBC_TUNABLES=glibc.cpu.hwcaps=-XSAVE
++tst-gnu2-tls2-x86-noxsavec-ENV = GLIBC_TUNABLES=glibc.cpu.hwcaps=-XSAVEC
++tst-gnu2-tls2-x86-noxsavexsavec-ENV = GLIBC_TUNABLES=glibc.cpu.hwcaps=-XSAVE,-XSAVEC
++$(objpfx)tst-gnu2-tls2-x86-noxsave.out \
++$(objpfx)tst-gnu2-tls2-x86-noxsavec.out \
++$(objpfx)tst-gnu2-tls2-x86-noxsavexsavec.out: \
++  $(objpfx)tst-gnu2-tls2mod0.so \
++  $(objpfx)tst-gnu2-tls2mod1.so \
++  $(objpfx)tst-gnu2-tls2mod2.so
+ endif
+ 
+ ifeq ($(subdir),math)
+diff --git a/sysdeps/x86/cpu-features.c b/sysdeps/x86/cpu-features.c
+index 6dfb112038..6cf7e4caf1 100644
+--- a/sysdeps/x86/cpu-features.c
++++ b/sysdeps/x86/cpu-features.c
+@@ -84,6 +84,8 @@ extern void TUNABLE_CALLBACK (set_x86_shstk) (tunable_val_t *)
+ # include <dl-cet.h>
+ #endif
+ 
++unsigned long int _dl_x86_features_tlsdesc_state_size;
++
+ static void
+ update_active (struct cpu_features *cpu_features)
+ {
+@@ -318,6 +320,7 @@ update_active (struct cpu_features *cpu_features)
+ 		= xsave_state_full_size;
+ 	      cpu_features->xsave_state_full_size
+ 		= xsave_state_full_size;
++	      _dl_x86_features_tlsdesc_state_size = xsave_state_full_size;
+ 
+ 	      /* Check if XSAVEC is available.  */
+ 	      if (CPU_FEATURES_CPU_P (cpu_features, XSAVEC))
+@@ -406,11 +409,9 @@ update_active (struct cpu_features *cpu_features)
+ 			= ALIGN_UP ((amx_size
+ 				     + TLSDESC_CALL_REGISTER_SAVE_AREA),
+ 				    64);
+-		      /* Set xsave_state_full_size to the compact AMX
+-			 state size for XSAVEC.  NB: xsave_state_full_size
+-			 is only used in _dl_tlsdesc_dynamic_xsave and
+-			 _dl_tlsdesc_dynamic_xsavec.  */
+-		      cpu_features->xsave_state_full_size = amx_size;
++		      /* Set TLSDESC state size to the compact AMX
++			 state size for XSAVEC.  */
++		      _dl_x86_features_tlsdesc_state_size = amx_size;
+ #endif
+ 		      cpu_features->xsave_state_size
+ 			= ALIGN_UP (size + TLSDESC_CALL_REGISTER_SAVE_AREA,
+diff --git a/sysdeps/x86/cpu-tunables.c b/sysdeps/x86/cpu-tunables.c
+index 3423176802..d692e0e0de 100644
+--- a/sysdeps/x86/cpu-tunables.c
++++ b/sysdeps/x86/cpu-tunables.c
+@@ -164,6 +164,8 @@ TUNABLE_CALLBACK (set_hwcaps) (tunable_val_t *valp)
+ 		  /* Update xsave_state_size to XSAVE state size.  */
+ 		  cpu_features->xsave_state_size
+ 		    = cpu_features->xsave_state_full_size;
++		  _dl_x86_features_tlsdesc_state_size
++		    = cpu_features->xsave_state_full_size;
+ 		  CPU_FEATURE_UNSET (cpu_features, XSAVEC);
+ 		}
+ 	    }
+diff --git a/sysdeps/x86/dl-diagnostics-cpu.c b/sysdeps/x86/dl-diagnostics-cpu.c
+index 7d0373602d..870b1268db 100644
+--- a/sysdeps/x86/dl-diagnostics-cpu.c
++++ b/sysdeps/x86/dl-diagnostics-cpu.c
+@@ -89,6 +89,8 @@ _dl_diagnostics_cpu (void)
+                             cpu_features->xsave_state_size);
+   print_cpu_features_value ("xsave_state_full_size",
+                             cpu_features->xsave_state_full_size);
++  print_cpu_features_value ("tlsdesc_state_full_size",
++                            _dl_x86_features_tlsdesc_state_size);
+   print_cpu_features_value ("data_cache_size", cpu_features->data_cache_size);
+   print_cpu_features_value ("shared_cache_size",
+                             cpu_features->shared_cache_size);
+diff --git a/sysdeps/x86/include/cpu-features.h b/sysdeps/x86/include/cpu-features.h
+index 9c485d38ef..fbf1b89110 100644
+--- a/sysdeps/x86/include/cpu-features.h
++++ b/sysdeps/x86/include/cpu-features.h
+@@ -935,8 +935,6 @@ struct cpu_features
+   /* The full state size for XSAVE when XSAVEC is disabled by
+ 
+      GLIBC_TUNABLES=glibc.cpu.hwcaps=-XSAVEC
+-
+-     and the AMX state size when XSAVEC is available.
+    */
+   unsigned int xsave_state_full_size;
+   /* Data cache size for use in memory and string routines, typically
+@@ -990,6 +988,13 @@ extern const struct cpu_features *_dl_x86_get_cpu_features (void)
+ 
+ #define __get_cpu_features() _dl_x86_get_cpu_features()
+ 
++#if IS_IN (rtld) || IS_IN (libc)
++/* XSAVE/XSAVEC state size used by TLS descriptors.  Compared to
++   xsave_state_size from struct cpu_features, this includes additional
++   registers.  */
++extern unsigned long int _dl_x86_features_tlsdesc_state_size attribute_hidden;
++#endif
++
+ #if defined (_LIBC) && !IS_IN (nonlib)
+ /* Unused for x86.  */
+ # define INIT_ARCH()
+diff --git a/sysdeps/x86/tst-gnu2-tls2-x86-noxsave.c b/sysdeps/x86/tst-gnu2-tls2-x86-noxsave.c
+new file mode 100644
+index 0000000000..f0024c143d
+--- /dev/null
++++ b/sysdeps/x86/tst-gnu2-tls2-x86-noxsave.c
+@@ -0,0 +1 @@
++#include <elf/tst-gnu2-tls2.c>
+diff --git a/sysdeps/x86/tst-gnu2-tls2-x86-noxsavec.c b/sysdeps/x86/tst-gnu2-tls2-x86-noxsavec.c
+new file mode 100644
+index 0000000000..f0024c143d
+--- /dev/null
++++ b/sysdeps/x86/tst-gnu2-tls2-x86-noxsavec.c
+@@ -0,0 +1 @@
++#include <elf/tst-gnu2-tls2.c>
+diff --git a/sysdeps/x86/tst-gnu2-tls2-x86-noxsavexsavec.c b/sysdeps/x86/tst-gnu2-tls2-x86-noxsavexsavec.c
+new file mode 100644
+index 0000000000..f0024c143d
+--- /dev/null
++++ b/sysdeps/x86/tst-gnu2-tls2-x86-noxsavexsavec.c
+@@ -0,0 +1 @@
++#include <elf/tst-gnu2-tls2.c>
+diff --git a/sysdeps/x86_64/dl-tlsdesc-dynamic.h b/sysdeps/x86_64/dl-tlsdesc-dynamic.h
+index 9965ddd2c0..4f496de8c8 100644
+--- a/sysdeps/x86_64/dl-tlsdesc-dynamic.h
++++ b/sysdeps/x86_64/dl-tlsdesc-dynamic.h
+@@ -99,7 +99,7 @@ _dl_tlsdesc_dynamic:
+ # endif
+ #else
+ 	/* Allocate stack space of the required size to save the state.  */
+-	sub	_rtld_local_ro+RTLD_GLOBAL_RO_DL_X86_CPU_FEATURES_OFFSET+XSAVE_STATE_FULL_SIZE_OFFSET(%rip), %RSP_LP
++	sub	_dl_x86_features_tlsdesc_state_size(%rip), %RSP_LP
+ #endif
+ 	/* Besides rdi and rsi, saved above, save rcx, rdx, r8, r9,
+ 	   r10 and r11.  */
+-- 
+2.49.0
+

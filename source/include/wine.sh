@@ -49,8 +49,7 @@ case "$pkgname" in
 
 wine)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Stable)"
-	_F_archive_grep="\.0"
-	up2date="Flasttar https://dl.winehq.org/wine/source/\$(Flastverdir https://dl.winehq.org/wine/source/)/"
+	up2date="lynx -dump https://gitlab.winehq.org/api/v4/projects/wine%2Fwine/repository/tags  | jq -r '.[].name' | grep '\.0' | grep -v 9| head -n 1 | sed 's/wine-//g'"
 	conflicts=('wine-devel' 'lib32-wine-devel')
 	provides=('lib32-wine')
 	replaces=('lib32-wine')
@@ -60,7 +59,7 @@ wine)
 wine-devel)
 	pkgdesc="An Open Source implementation of the Windows API on top of X and Unix. (Development)"
 	_F_archive_name="wine"
-	up2date="Flasttar https://dl.winehq.org/wine/source/10.x"
+        up2date="lynx -dump https://gitlab.winehq.org/api/v4/projects/wine%2Fwine/repository/tags  | jq -r '.[].name' | head -n 1 | sed 's/wine-//g'"
 	conflicts=('wine' 'lib32-wine-devel')
 	provides=('wine' 'lib32-wine-devel')
 	replaces=('lib32-wine-devel')

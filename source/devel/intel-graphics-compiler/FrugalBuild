@@ -2,14 +2,14 @@
 # Maintainer: DeX77 <dex77@frugalware.org>
 
 pkgname=intel-graphics-compiler
-pkgver=2.10.8
+pkgver=2.11.7
 pkgrel=1
-_llvmver=14.0.5
-_spirv_tools_ver=2023.6.rc1
-_spirv_headers_ver=sdk-1.3.261.1
+_llvmver=15.0.7
+_spirv_tools_ver=vulkan-sdk-1.4.313.0
+_spirv_headers_ver=vulkan-sdk-1.4.313.0
 pkgdesc="Intel Graphics Compiler for OpenCL"
 archs=("x86_64")
-depends=('libxml2')
+depends=('libxml2>=2.14.3')
 makedepends=('git' 'python3-mako' 'pyyaml3')
 groups=('devel')
 _F_github_author="intel"
@@ -29,18 +29,22 @@ _F_cmake_confopts="	-DCMAKE_BUILD_TYPE=Release \
         		-DIGC_OPTION__USE_KHRONOS_SPIRV_TRANSLATOR_IN_SC=ON \
         		-DIGC_OPTION__VC_INTRINSICS_MODE=Source \
         		-DCCLANG_FROM_SYSTEM=OFF"
-
+_Fbuild_no_patch=y
 Finclude cmake github
 source=("https://github.com/intel/intel-graphics-compiler/archive/refs/tags/v$pkgver.tar.gz" \
 	"https://github.com/intel/vc-intrinsics/archive/refs/tags/v0.22.1.tar.gz" \
-	"https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/tags/v14.0.8.tar.gz" \
-	"https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v${_spirv_tools_ver}.tar.gz" \
-	"https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/${_spirv_headers_ver}.tar.gz")
-sha1sums=('48292a160375cf2df09dadf9b64a13baf77422a3' \
+	"https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/tags/v15.0.7.tar.gz" \
+	"https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/${_spirv_tools_ver}.zip" \
+	"https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/${_spirv_headers_ver}.tar.gz" \
+	0022-ADT-Add-cstdint-to-SmallVector-101761.patch \
+	0024-Another-gcc-15-fix-from-Sam-James.patch )
+sha1sums=('bd38bdc8b22f91d95903e89b921e80764ef49384' \
           '5ba78dc6578a2c659dce0177e374bbb68a08ff7a' \
-          '3e7073dd1a4e5c03a4bdad6ff5f6f329c2a05a19' \
-          '9bac4e7503b204248957d4db1a095b4070c4c87d' \
-          '6d3a1c7865c888b2b01d3d5ba3e1f9ef63fdb2ca')
+          '259dbb04826748d4470583e5dd327148c0ad5ef4' \
+          '1fd07664f8ff85a647b9a55a5866a11a84863675' \
+          'ea52d7dd15f0204d465f9e4f930c37345602d7e8' \
+          'fb47adc235595204f3cd0b79153689d3325238d3' \
+          '5e7f15bcc464e9110161e5b2e32bf7e531b72452')
 options=('nolto')
 
 build() {
@@ -55,11 +59,17 @@ build() {
 	Fexec rm -rf $Fsrcdir/llvm-project || Fdie
 	Fexec git clone --depth 1 --branch llvmorg-${_llvmver} https://github.com/llvm/llvm-project.git "$Fsrcdir/llvm-project" || Fdie
 
+	# Patch LLVM
+	Fexec cd "$Fsrcdir/llvm-project" || Fdie
+	Fpatch 0022-ADT-Add-cstdint-to-SmallVector-101761.patch
+	Fpatch 0024-Another-gcc-15-fix-from-Sam-James.patch
+	Fexec cd "$Fsrcdir/$_F_cd_path"
+
 	Fexec rm -rf $Fsrcdir/SPIRV-LLVM-Translator || Fdie
-        Fexec mv $Fsrcdir/SPIRV-LLVM-Translator-14.0.8 $Fsrcdir/SPIRV-LLVM-Translator-IGC || Fdie
+        Fexec mv $Fsrcdir/SPIRV-LLVM-Translator-15.0.7 $Fsrcdir/SPIRV-LLVM-Translator-IGC || Fdie
 	Fexec ln -s "${Fsrcdir}/SPIRV-LLVM-Translator-IGC"  "${Fsrcdir}/llvm-project/llvm/projects/llvm-spirv" || Fdie
 
-	Fexec git clone --depth 1 --branch ocl-open-140 https://github.com/intel/opencl-clang.git "${Fsrcdir}/llvm-project/llvm/projects/opencl-clang" || Fdie
+	Fexec git clone --depth 1 --branch ocl-open-150 https://github.com/intel/opencl-clang.git "${Fsrcdir}/llvm-project/llvm/projects/opencl-clang" || Fdie
 
 	Fexec rm -rf $Fsrcdir/vc-intrinsics || Fdie
 	Fexec mv $Fsrcdir/vc-intrinsics-0.22.1 $Fsrcdir/vc-intrinsics || Fdie
@@ -70,6 +80,7 @@ build() {
         Fexec rm -rf $Fsrcdir/SPIRV-Headers || Fdie
         Fexec mv $Fsrcdir/SPIRV-Headers-$_spirv_headers_ver $Fsrcdir/SPIRV-Headers || Fdie
 	CMake_build
+	Frm usr/bin/lld
 }
 
 # optimization OK

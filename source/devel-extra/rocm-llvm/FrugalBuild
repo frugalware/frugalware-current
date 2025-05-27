@@ -4,7 +4,7 @@
 pkgname=rocm-llvm
 pkgdesc='Radeon Open Compute - LLVM toolchain (llvm, clang, lld)'
 pkgver=6.4.1
-pkgrel=1
+pkgrel=2
 archs=('x86_64')
 groups=('devel-extra')
 url='https://rocm.docs.amd.com/en/latest/reference/rocmcc.html'
@@ -17,42 +17,55 @@ _F_github_grepv="6.1"
 _F_cmake_rpath=yes
 _rocm_exe_rpath='\$ORIGIN/../lib:\$ORIGIN/../../../lib'
 _rocm_lib_rpath='\$ORIGIN'
-_F_cmake_confopts="	-DCMAKE_INSTALL_PREFIX='/opt/rocm/lib/llvm' \
-			-DCMAKE_INSTALL_LIBEXECDIR='/opt/rocm/lib/llvm/libexec' \
+_F_cmake_confopts="	-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_INSTALL_PREFIX=/opt/rocm/lib/llvm \
+			-DCMAKE_INSTALL_LIBEXECDIR='/opt/rocm/lib/llvm/libexec'
 			-DLLVM_HOST_TRIPLE=$CHOST \
-		        -DLLVM_ENABLE_PROJECTS='llvm;clang;lld;compiler-rt;clang-tools-extra' \
-		        -DCLANG_ENABLE_AMDCLANG=ON \
-		        -DLLVM_ENABLE_RUNTIMES='libcxx;libcxxabi;libunwind' \
-		        -DLIBCXX_ENABLE_STATIC=ON \
-		        -DLIBCXXABI_ENABLE_STATIC=ON \
-		        -DLLVM_TARGETS_TO_BUILD='AMDGPU;NVPTX;X86' \
-		        -DCLANG_DEFAULT_LINKER=lld \
-		        -DLLVM_INSTALL_UTILS=ON \
-		        -DLLVM_ENABLE_BINDINGS=OFF \
-		        -DLLVM_LINK_LLVM_DYLIB=OFF \
-		        -DLLVM_BUILD_LLVM_DYLIB=OFF \
-		        -DLLVM_ENABLE_ASSERTIONS=ON \
-		        -DOCAMLFIND=NO \
-		        -DLLVM_ENABLE_OCAMLDOC=OFF \
-		        -DLLVM_INCLUDE_BENCHMARKS=OFF \
-		        -DLLVM_BUILD_TESTS=OFF \
-		        -DLLVM_INCLUDE_TESTS=OFF \
-		        -DCLANG_INCLUDE_TESTS=OFF  \
-			-DCMAKE_EXE_LINKER_FLAGS=-Wl,--enable-new-dtags,--build-id=sha1,--rpath,$_rocm_exe_rpath \
-		        -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--enable-new-dtags,--build-id=sha1,--rpath,$_rocm_lib_rpath \
-		        -DLLVM_BINUTILS_INCDIR=/usr/include"
+			-DLLVM_ENABLE_PROJECTS='clang;lld;clang-tools-extra' \
+			-DCLANG_ENABLE_AMDCLANG=ON \
+			-DLLVM_ENABLE_RUNTIMES='compiler-rt;libunwind;libcxx;libcxxabi' \
+			-DLIBCXX_ENABLE_SHARED=OFF \
+			-DLIBCXX_ENABLE_STATIC=ON \
+			-DLIBCXX_INSTALL_LIBRARY=OFF \
+			-DLIBCXX_INSTALL_HEADERS=OFF \
+			-DLIBCXXABI_ENABLE_SHARED=OFF \
+			-DLIBCXXABI_ENABLE_STATIC=ON \
+			-DLIBCXXABI_INSTALL_STATIC_LIBRARY=OFF \
+			-DLLVM_TARGETS_TO_BUILD='AMDGPU;NVPTX;X86' \
+			-DCLANG_DEFAULT_LINKER=lld \
+			-DCLANG_DEFAULT_RTLIB=compiler-rt \
+			-DCLANG_DEFAULT_UNWINDLIB=libgcc \
+			-DLLVM_INSTALL_UTILS=ON \
+			-DLLVM_ENABLE_BINDINGS=OFF \
+			-DLLVM_LINK_LLVM_DYLIB=OFF \
+			-DLLVM_BUILD_LLVM_DYLIB=OFF \
+			-DLLVM_ENABLE_ASSERTIONS=ON \
+			-DOCAMLFIND=NO \
+			-DLLVM_ENABLE_OCAMLDOC=OFF \
+			-DLLVM_INCLUDE_BENCHMARKS=OFF \
+			-DLLVM_BUILD_TESTS=OFF \
+			-DLLVM_INCLUDE_TESTS=OFF \
+			-DCLANG_INCLUDE_TESTS=OFF \
+			-DLLVM_BINUTILS_INCDIR=/usr/include \
+			-DCLANG_LINK_FLANG_LEGACY=ON \
+			-DCMAKE_CXX_STANDARD=17"
+
 _F_cmake_src_dir="llvm"
 _Fbuild_no_patch=yes
 Finclude cmake github
 source=("https://github.com/ROCm/llvm-project/archive/refs/tags/rocm-$pkgver.tar.gz" \
+	rocm-llvm-6.4-fix-array-assert.patch \
 	gcc15.patch \
 	build-fix.patch \
-	cmake4.patch)
+	cmake4.patch \
+	openat.patch)
 options=('static' 'nolto')
 sha1sums=('a74c32918b91c4c02725669d12cdfa92736d3b08' \
+          'f1e9c72caf53aa65d8b33c56f3e5bd0f08788d49' \
           '8837c14cd036620ca9464ebf2c141fee45f609b0' \
           'a74b58d9f8a10c1bac2b949c97e2a4ce6ae9ebed' \
-          'fc8526037ae036efe23f9eba350073bd841164b2')
+          'fc8526037ae036efe23f9eba350073bd841164b2' \
+          '473f4fde0d73416d5c928a7aa101daa8ffd7e517')
 _F_cd_path="llvm-project-rocm-$pkgver"
 
 subpkgs=('rocm-device-libs')
@@ -77,12 +90,22 @@ subdepends+=('glibc')
 subrodepends+=('')
 
 build() {
+	local _rocm_exe_rpath='\$ORIGIN/../lib:\$ORIGIN/../../../lib'
+	local _rocm_lib_rpath='\$ORIGIN'
+
 	Fcd
 	Fpatchall
 
-	CMake_build
+	CMake_build	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--enable-new-dtags,--build-id=sha1,--rpath,$_rocm_exe_rpath" \
+			-DCMAKE_SHARED_LINKER_FLAGS="-Wl,--enable-new-dtags,--build-id=sha1,--rpath,$_rocm_lib_rpath"
+
     	# Provide symlink to old LLVM location, pre ROCm 6.0.0
 	Fln /opt/rocm/lib/llvm opt/rocm/llvm
+
+	for _compiler in amdclang amdclang++ amdclang-cl amdclang-cpp amdlld; do
+		Fln /opt/rocm/lib/llvm/bin/$_compiler opt/rocm/bin/$_compiler
+	done
+
 
     	Fln /opt/rocm/lib/llvm/lib/LLVMgold.so opt/rocm/lib/llvm/lib/bfd-plugins/LLVMgold.so
 

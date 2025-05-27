@@ -1,0 +1,58 @@
+From 155b7a12820ec45095988b6aa6e057afaf2bc892 Mon Sep 17 00:00:00 2001
+From: Nikita Popov <npopov@redhat.com>
+Date: Tue, 30 Jul 2024 09:25:03 +0200
+Subject: [PATCH] [Sanitizers] Avoid overload ambiguity for interceptors
+ (#100986)
+
+Since glibc 2.40 some functions like openat make use of overloads when
+built with `-D_FORTIFY_SOURCE=2`, see:
+https://github.com/bminor/glibc/blob/master/io/bits/fcntl2.h
+
+This means that doing something like `(uintptr_t) openat` or `(void *)
+openat` is now ambiguous, breaking the compiler-rt build on new glibc
+versions.
+
+Fix this by explicitly casting the symbol to the expected function type
+before casting it to an intptr. The expected type is obtained as
+`decltype(REAL(func))` so we don't have to repeat the signature from
+INTERCEPTOR in the INTERCEPT_FUNTION macro.
+
+Fixes https://github.com/llvm/llvm-project/issues/100754.
+---
+ .../lib/interception/interception_linux.h        | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/compiler-rt/lib/interception/interception_linux.h b/compiler-rt/lib/interception/interception_linux.h
+index 433a3d9bd7fa7..2e01ff44578c3 100644
+--- a/compiler-rt/lib/interception/interception_linux.h
++++ b/compiler-rt/lib/interception/interception_linux.h
+@@ -28,12 +28,14 @@ bool InterceptFunction(const char *name, const char *ver, uptr *ptr_to_real,
+                        uptr func, uptr trampoline);
+ }  // namespace __interception
+ 
+-#define INTERCEPT_FUNCTION_LINUX_OR_FREEBSD(func) \
+-  ::__interception::InterceptFunction(            \
+-      #func,                                      \
+-      (::__interception::uptr *)&REAL(func),      \
+-      (::__interception::uptr)&(func),            \
+-      (::__interception::uptr)&TRAMPOLINE(func))
++// Cast func to type of REAL(func) before casting to uptr in case it is an
++// overloaded function, which is the case for some glibc functions when
++// _FORTIFY_SOURCE is used. This disambiguates which overload to use.
++#define INTERCEPT_FUNCTION_LINUX_OR_FREEBSD(func)            \
++  ::__interception::InterceptFunction(                       \
++      #func, (::__interception::uptr *)&REAL(func),          \
++      (::__interception::uptr)(decltype(REAL(func)))&(func), \
++      (::__interception::uptr) &TRAMPOLINE(func))
+ 
+ // dlvsym is a GNU extension supported by some other platforms.
+ #if SANITIZER_GLIBC || SANITIZER_FREEBSD || SANITIZER_NETBSD
+@@ -41,7 +43,7 @@ bool InterceptFunction(const char *name, const char *ver, uptr *ptr_to_real,
+   ::__interception::InterceptFunction(                        \
+       #func, symver,                                          \
+       (::__interception::uptr *)&REAL(func),                  \
+-      (::__interception::uptr)&(func),                        \
++      (::__interception::uptr)(decltype(REAL(func)))&(func),  \
+       (::__interception::uptr)&TRAMPOLINE(func))
+ #else
+ #define INTERCEPT_FUNCTION_VER_LINUX_OR_FREEBSD(func, symver) \

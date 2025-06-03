@@ -3,7 +3,7 @@
 
 pkgname=zstd
 pkgver=1.5.7
-pkgrel=2
+pkgrel=3
 pkgdesc='Zstandard - Fast real-time compression algorithm'
 archs=('x86_64')
 groups=('base' 'chroot-core')
@@ -14,24 +14,31 @@ _F_github_grepv=xyz
 _F_cross32_simple_auto=y
 _F_cross32_delete=('usr/bin' 'usr/include')
 _F_github_ver="$pkgver$pkgextraver"
-_F_cross32_meson_confopts_32="	-Ddefault_library=both \
-				-Dzlib=enabled \
-				-Dlzma=enabled \
-				-Dlz4=enabled \
-				-Dbin_contrib=true \
-				build/meson"
-_F_cross32_meson_confopts_64="  -Ddefault_library=both \
-                                -Dzlib=enabled \
-                                -Dlzma=enabled \
-                                -Dlz4=enabled \
-                                -Dbin_contrib=true \
-                                build/meson"
-_F_cross32_use_meson=yes
+_F_cross32_cmake_confopts_32="	-DZSTD_ZLIB_SUPPORT=ON \
+				-DZSTD_LZMA_SUPPORT=ON \
+				-DZSTD_LZ4_SUPPORT=ON \
+				-DZSTD_BUILD_CONTRIB=ON \
+				-DZSTD_BUILD_TESTS=OFF \
+				-DZSTD_PROGRAMS_LINK_SHARED=ON \
+				-DZSTD_BUILD_STATIC=OFF"
+_F_cross32_cmake_confopts_64="	-DZSTD_ZLIB_SUPPORT=ON \
+                                -DZSTD_LZMA_SUPPORT=ON \
+                                -DZSTD_LZ4_SUPPORT=ON \
+                                -DZSTD_BUILD_CONTRIB=ON \
+                                -DZSTD_BUILD_TESTS=OFF \
+                                -DZSTD_PROGRAMS_LINK_SHARED=ON \
+                                -DZSTD_BUILD_STATIC=ON"
+_F_cross32_use_cmake=yes
+_F_cmake_src_dir="build/cmake"
 Finclude github cross32
 url='http://www.zstd.net/'
 options+=('static')
 _F_cd_path="$pkgname-$pkgver$pkgextraver"
-sha1sums=('06b861746bfd5f4351c26bbe59e7a35841fe8471')
+source+=(fix-manpages.patch \
+	fix-static.patch)
+sha1sums=('06b861746bfd5f4351c26bbe59e7a35841fe8471' \
+          'f401079a7d6d08ea240c1b89a8c1042dfbeb6bcb' \
+          '7b4b941285aeae781db4df633de9329ca0c45631')
 
 subpkgs+=("${pkgname}-static")
 subdescs+=("Static files for $pkgname")
@@ -41,8 +48,16 @@ subarchs+=('x86_64')
 suboptions+=('')
 
 build() {
-	Fbuild_cross32
+	export ASMFLAGS="-m32"
+	Fcross32_common_build ## 32bit
+        Fcross32_delete_empty
+        Fcross32_delete_static
+        Fsplit "${subpkgs[0]}" /\* ## everything else ignored only first one
 
+
+         ## 64bit
+        unset ASMFLAGS
+        Fcross32_64bit_build
 	Fsplit ${pkgname}-static usr/lib/*.a
 }
 

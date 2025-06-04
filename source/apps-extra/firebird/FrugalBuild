@@ -1,0 +1,103 @@
+# Compiling Time: 19.80 SBU
+# Maintainer: dex77 <dex77@frugalware.org>
+
+pkgname=firebird
+pkgver=5.0.0.1306_0
+pkgrel=1
+majorver="${pkgver%.*}"
+pkgdesc="SQL relational database management system"
+depends=('glibc' 'libstdc++' 'libgcc' 'libedit' 'ncurses' 'libtomcrypt' 'icu4c>=75.1')
+url="https://firebirdsql.org"
+rodepends=("libfbclient>=$pkgver-$pkgrel")
+makedepends=('cmake')
+groups=('apps-extra')
+archs=('x86_64')
+_F_archive_name="Firebird"
+up2date="Flastarchive $url/en/firebird-5-0/ -source.tar.xz"
+source=(https://github.com/FirebirdSQL/firebird/releases/download/v${majorver}/Firebird-${pkgver/_/-}-source.tar.xz
+        firebird-logrotate \
+        firebird.conf)
+sha1sums=('d881770fdef1adf91828057156387edb3c6c8d48' \
+          'ca23a67741ebb8cb6c222c4422ab3eb1b4c7f52a' \
+          '5ca4921375cdca2bbe3c553905a3e9c14a151af3')
+options=('nolto')
+
+subpkgs=('libfbclient')
+subdescs=('Multi-process, local client libraries for Firebird SQL RDBMS')
+subdepends=('libtommath libgcc')
+subgroups=('lib')
+subarchs=('x86_64')
+## that's half right ..
+## they merged libfbembed in the other libs..
+## LO does not work with this
+subreplaces=('libfbembed')
+subprovides=('libfbembed')
+
+
+_F_archive_ver="${pkgver/_/-}-source"
+Fconfopts="	        --prefix=/usr/lib/firebird \
+                        --with-system-editline \
+                        --with-fbbin=/usr/bin \
+                        --with-fbinclude=/usr/include/firebird \
+                        --with-fbsbin=/usr/bin \
+                        --with-fbconf=/etc/firebird \
+                        --with-fblib=/usr/lib \
+                        --with-fbdoc=/usr/share/doc/firebird-$pkgver \
+                        --with-fbsample=/usr/share/doc/firebird-$pkgver/examples \
+                        --with-fbsample-db=/var/lib/firebird/data/ \
+                        --with-fbhelp=/var/lib/firebird/system/ \
+                        --with-fbintl=/usr/lib/firebird/intl \
+                        --with-fbmisc=/usr/lib/firebird/misc \
+                        --with-fbsecure-db=/var/lib/firebird/system \
+                        --with-fbmsg=/var/lib/firebird/system \
+                        --with-fblog=/var/log/firebird \
+                        --with-fbglock=/run/firebird \
+                        --with-fbplugins=/usr/lib/firebird/plugins \
+			--disable-binreloc \
+			--with-service-name=gds-db"
+build()
+{
+	Fcd
+	Fpatchall
+
+	Fexec rm -r extern/{editline,libtommath,libtomcrypt,zlib} || Fdie
+	NOCONFIGURE=1 ./autogen.sh
+	Fconf
+
+	Fmake
+
+	Fexec cd gen || Fdie
+
+	Fmessage "Installing.."
+	Fexec make -f Makefile.install buildRoot || Fdie
+	Fexec cp -r buildroot/* $Fdestdir/ || Fdie
+	Fexec cd .. || Fdie
+
+	Fmkdir etc/{logrotate.d,tmpfiles.d}
+
+	Ffile /etc/tmpfiles.d/firebird.conf
+
+	## cleanup .. weird crappy package
+	Frm etc/firebird/{WhatsNew,README,*.txt}
+	Frm usr/sbin/*.sh
+
+	## conflicts
+	Fmv usr/bin/isql usr/bin/isql-fb
+	Fln  /usr/lib/firebird/intl/fbintl.conf  /etc/firebird/fbintl.conf
+
+	## no idea why this is needed.. -- crazy --
+	Fln libfbclient.so /usr/lib/libgds.so
+	Fln libfbclient.so.$majorver /usr/lib/libgds.so.0 ## ?!
+
+	## no idea about this also ..
+	echo 1 > $Fdestdir/var/log/firebird/firebird.log ## ?!
+	sed "s@firebird.log@/var/log/firebird/firebird.log@g" $Fsrcdir/firebird-logrotate > $Fdestdir/etc/logrotate.d/firebird
+
+	Fmkdir usr/lib/systemd/system/
+	Fmv  usr/lib/firebird/misc/*.service usr/lib/systemd/system/
+
+	Fsplit libfbclient usr/lib/libfbclient.so*
+	Fsplit libfbclient usr/lib/libgds.so*
+}
+
+# optimization OK

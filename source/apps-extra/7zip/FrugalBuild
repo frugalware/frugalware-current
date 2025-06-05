@@ -3,41 +3,40 @@
 # Contributor: Tuxbubling <tuxbubling@tiscali.fr>
 
 pkgname=7zip
-pkgver=17.06
+pkgver=24.09
 pkgrel=1
 pkgdesc="7-Zip is a file archiver with high compression ratio."
-url="http://www.7-zip.org/"
-depends=('libstdc++>=11.2')
+url="https://www.7-zip.org"
+depends=('libstdc++>=11.2' 'zstd' 'lz4')
+makedepends=('uasm')
 groups=('apps-extra' 'chroot-core')
 archs=('x86_64')
-_F_github_author=p7zip-project
-_F_github_name=p7zip
-_F_github_tag_v=y
-_F_github_grepv=pre
+_F_github_author=ip7z
+_F_github_name=7zip
 Finclude github
 options=('nodocs' 'nostrip')
-sha1sums=('db9f081a4a09380ea0b658868c156ee554be62e6')
-_F_cd_path="p${pkgname}-${pkgver}"
+source=("$url/a/7z${pkgver//./}-src.tar.xz")
+sha1sums=('fb0ef0558895ad5f33f6ba7e096c90db3f60f146')
 
 build()
 {
-	Fcd
-	Fmkdir usr/lib/p${pkgname} usr/bin
-	Fsed "/usr/man" "/usr/share/man" install.sh
-	Fsed "DEST_HOME=/usr/local" "DEST_HOME=/usr" install.sh
-	Fsed "DEST_DIR=" "DEST_DIR=$Fdestdir" install.sh
-	Fexec mv -f makefile.linux_amd64 makefile.machine
-	Fsed "OPTFLAGS=-O" "OPTFLAGS=$CFLAGS" makefile.machine
-	Fexec make all3 || return 1
-	Fexec chmod +x install.sh || Fdie
-	Fexec sh ./install.sh || Fdie
-	Fmv  usr/man usr/share/man
-	Fln /usr/lib/p7zip/7zCon.sfx /usr/bin/7zCon.sfx
-	Fmv usr/share/doc/p7zip /usr/share/doc/$pkgname-$pkgver
-	Ffileschmod /usr 0644
-	Fdirschmod /usr 0755
-	Ffileschmod /usr/bin 0755
-	Ffileschmod /usr/lib 0755
+	for component in Bundles/{Alone,Alone7z,Format7zF,SFXCon} UI/Console; do
+		Fexec make -C CPP/7zip/$component -f ../../cmpl_gcc.mak PLATFORM=x64 IS_X64=1 MY_ASM=uasm USE_ASM=1 \
+			LFLAGS_STRIP= \
+			CC="cc $CPPFLAGS $CFLAGS $LDFLAGS" \
+			CXX="g++ $CPPFLAGS $CXXFLAGS $LDFLAGS"
+	done
+	Finstallrel 755 CPP/7zip/Bundles/Alone/b/g/7za usr/lib/7zip/7za
+	Finstallrel 755 CPP/7zip/Bundles/Alone7z/b/g/7zr usr/lib/7zip/7zr
+	Finstallrel 755 CPP/7zip/Bundles/Format7zF/b/g/7z.so usr/lib/7zip/7z.so
+	Finstallrel 755 CPP/7zip/UI/Console/b/g/7z usr/lib/7zip/7z
+	Finstallrel 755 CPP/7zip/Bundles/SFXCon/b/g/7zCon usr/lib/7zip/7zCon.sfx
+
+	for _prog in 7za 7zr 7z; do
+		printf '#!/bin/sh\nexec /usr/lib/7zip/%s "$@"\n' "$_prog" \
+		| install -D /dev/stdin "$Fdestdir/usr/bin/$_prog"
+	done
+
 }
 
 # optimization OK

@@ -1,0 +1,201 @@
+# Compiling Time: 0.01 SBU
+# Maintainer: DeX77 <dex+fw@dragonslave.de>
+
+pkgname=edk2
+pkgver=202505
+pkgrel=1
+pkgdesc="Firmware for Virtual Machines (x86_64, i686)"
+archs=('x86_64')
+depends=('glibc')
+groups=('apps-extra')
+_F_github_author="tianocore"
+_F_github_tag_prefix="edk2-stable"
+_F_github_tag=y
+_F_github_grep=stable
+_F_scm_type=git
+_F_scm_url="https://github.com/tianocore/edk2.git"
+_F_scm_git_cloneopts=" --recurse-submodules"
+_F_scm_tag="edk2-stable$pkgver"
+Finclude scm github
+source=(50-edk2-ovmf-i386-secure-4m.json \
+	50-edk2-ovmf-x86_64-secure-4m.json \
+	60-edk2-ovmf-i386-4m.json \
+	60-edk2-ovmf-microvm-4m.json \
+	60-edk2-ovmf-x86_64-4m.json \
+	80-edk2-ovmf-ia32-on-x86_64-secure-4m.json \
+	81-edk2-ovmf-ia32-on-x86_64-4m.json)
+makedepends+=('nasm' 'iasl')
+sha1sums=('198307d3de763105956e4b13e66e5544528fba4e' \
+          'e415b68a7271b278dfcb2e55ab7d7c3edef4ec96' \
+          'f05be7e5b0c691f0f9ed740093c7d04ed2aa7d05' \
+          '37207b3aa688f6804b6681a6b3f38dca5f41c4da' \
+          '64947e6f3d5f3375a5648aae17972a82141f7fee' \
+          '1aa666e91282970c4b9bf02cc499c6d792f68c4e' \
+          'b1b3105150d608414215ec62faf758da36d391ed')
+
+
+subpkgs+=('edk2-shell')
+subdescs+=('EDK2 UEFI Shell')
+subarchs+=('x86_64')
+subgroups=('apps-extra')
+subdepends+=('glibc')
+
+build() {
+	# minimal UEFI shell, as defined in ShellPkg/Application/Shell/ShellPkg.inf
+	local _min='7C04A583-9E3E-4f1c-AD65-E05268D0B4D1'
+
+	# full UEFI shell, as defined in ShellPkg/ShellPkg.dsc
+	local _full='EA4BB293-2D7F-4456-A681-1F22F42CD0BC'
+
+	unset MAKEFLAGS
+	Funpack_scm
+	Fcd
+	Fexec make -C BaseTools || Fdie
+	# expose build tooling in PATH
+	. edksetup.sh
+
+	# shell
+	Fexec BaseTools/BinWrappers/PosixLike/build \
+		-p ShellPkg/ShellPkg.dsc \
+		-a X64 \
+		-b RELEASE \
+		-n "$(nproc)" \
+		-t GCC || Fdie
+
+        Fexec BaseTools/BinWrappers/PosixLike/build \
+                -p ShellPkg/ShellPkg.dsc \
+                -a IA32 \
+                -b RELEASE \
+                -n "$(nproc)" \
+                -t GCC || Fdie
+
+    	# ovmf
+	Fexec BaseTools/BinWrappers/PosixLike/build \
+                -p OvmfPkg/OvmfPkgIa32.dsc \
+                -a IA32 \
+                -b RELEASE \
+                -n "$(nproc)" \
+                -t GCC \
+                -D FD_SIZE_4MB \
+                -D NETWORK_HTTP_BOOT_ENABLE \
+                -D NETWORK_IP6_ENABLE \
+                -D TPM_CONFIG_ENABLE \
+                -D TPM_ENABLE \
+                -D TPM1_ENABLE \
+                -D TPM2_ENABLE \
+                -D NETWORK_TLS_ENABLE \
+		-D LOAD_X64_ON_IA32_ENABLE \
+		-D SECURE_BOOT_ENABLE \
+		-D SMM_REQUIRE || Fdie
+	Fexec  mv -v Build/Ovmf{Ia32,IA32-secure-4mb} || Fdie
+
+        Fexec BaseTools/BinWrappers/PosixLike/build \
+                -p OvmfPkg/OvmfPkgIa32.dsc \
+                -a IA32 \
+                -b RELEASE \
+                -n "$(nproc)" \
+                -t GCC \
+                -D FD_SIZE_4MB \
+                -D NETWORK_HTTP_BOOT_ENABLE \
+                -D NETWORK_IP6_ENABLE \
+                -D TPM_CONFIG_ENABLE \
+                -D TPM_ENABLE \
+                -D TPM1_ENABLE \
+                -D TPM2_ENABLE \
+                -D NETWORK_TLS_ENABLE \
+                -D LOAD_X64_ON_IA32_ENABLE || Fdie
+
+
+	Fexec BaseTools/BinWrappers/PosixLike/build \
+		-p OvmfPkg/Microvm/MicrovmX64.dsc \
+		-a X64 \
+		-b RELEASE \
+		-n "$(nproc)" \
+		-t GCC \
+		-D FD_SIZE_4MB \
+		-D NETWORK_HTTP_BOOT_ENABLE \
+		-D NETWORK_IP6_ENABLE \
+		-D TPM_CONFIG_ENABLE \
+		-D TPM_ENABLE \
+		-D TPM1_ENABLE \
+		-D TPM2_ENABLE \
+		-D NETWORK_TLS_ENABLE || Fdie
+
+        Fexec BaseTools/BinWrappers/PosixLike/build \
+                -p OvmfPkg/OvmfPkgIa32X64.dsc \
+		-a IA32 \
+                -a X64 \
+                -b RELEASE \
+                -n "$(nproc)" \
+                -t GCC \
+                -D FD_SIZE_4MB \
+                -D NETWORK_HTTP_BOOT_ENABLE \
+                -D NETWORK_IP6_ENABLE \
+                -D TPM_CONFIG_ENABLE \
+                -D TPM_ENABLE \
+                -D TPM1_ENABLE \
+                -D TPM2_ENABLE \
+                -D NETWORK_TLS_ENABLE \
+		-D SECURE_BOOT_ENABLE \
+		-D SMM_REQUIRE || Fdie
+
+        Fexec BaseTools/BinWrappers/PosixLike/build \
+                -p OvmfPkg/OvmfPkgX64.dsc \
+                -a X64 \
+                -b RELEASE \
+                -n "$(nproc)" \
+                -t GCC \
+                -D FD_SIZE_4MB \
+                -D NETWORK_HTTP_BOOT_ENABLE \
+                -D NETWORK_IP6_ENABLE \
+                -D TPM_CONFIG_ENABLE \
+                -D TPM_ENABLE \
+                -D TPM1_ENABLE \
+                -D TPM2_ENABLE \
+                -D NETWORK_TLS_ENABLE || Fdie
+
+
+	# EFI shells
+	Finstallrel 644 Build/Shell/RELEASE_GCC/X64/Shell_$_min.efi usr/share/$pkgname/x64/Shell.efi
+	Finstallrel 644 Build/Shell/RELEASE_GCC/X64/Shell_$_full.efi usr/share/$pkgname/x64/Shell_Full.efi
+        Finstallrel 644 Build/Shell/RELEASE_GCC/IA32/Shell_$_min.efi usr/share/$pkgname/ia32/Shell.efi
+        Finstallrel 644 Build/Shell/RELEASE_GCC/IA32/Shell_$_full.efi usr/share/$pkgname/ia32/Shell_Full.efi
+
+	# OVMF Firmware
+ 	Finstallrel 644 Build/OvmfX64/RELEASE_GCC/FV/OVMF.fd usr/share/$pkgname/x64/OVMF.4m.fd
+	Finstallrel 644 Build/OvmfX64/RELEASE_GCC/FV/OVMF_CODE.fd usr/share/$pkgname/x64/OVMF_CODE.4m.fd
+	Finstallrel 644 Build/OvmfX64/RELEASE_GCC/FV/OVMF_VARS.fd usr/share/$pkgname/x64/OVMF_VARS.4m.fd
+ 	Finstallrel 644 Build/Ovmf3264/RELEASE_GCC/FV/OVMF_CODE.fd usr/share/$pkgname/x64/OVMF_CODE.secboot.4m.fd
+	Finstallrel 644 Build/MicrovmX64/RELEASE_GCC/FV/MICROVM.fd usr/share/$pkgname/x64/MICROVM.4m.fd
+
+    	Finstallrel 644 Build/OvmfIa32/RELEASE_GCC/FV/OVMF.fd usr/share/$pkgname/ia32/OVMF.4m.fd
+        Finstallrel 644 Build/OvmfIa32/RELEASE_GCC/FV/OVMF_CODE.fd usr/share/$pkgname/ia32/OVMF_CODE.4m.fd
+        Finstallrel 644 Build/OvmfIa32/RELEASE_GCC/FV/OVMF_VARS.fd usr/share/$pkgname/ia32/OVMF_VARS.4m.fd
+	Finstallrel 644 Build/OvmfIA32-secure-4mb/RELEASE_GCC/FV/OVMF_CODE.fd usr/share/$pkgname/ia32/OVMF_CODE.secboot.4m.fd
+
+	#qemu descriptors
+	Fmkdir usr/share/qemu/firmware
+
+	Finstall 644 50-edk2-ovmf-i386-secure-4m.json usr/share/qemu/firmware/
+	Finstall 644 50-edk2-ovmf-x86_64-secure-4m.json usr/share/qemu/firmware/
+	Finstall 644 60-edk2-ovmf-i386-4m.json usr/share/qemu/firmware/
+	Finstall 644 60-edk2-ovmf-microvm-4m.json usr/share/qemu/firmware/
+	Finstall 644 60-edk2-ovmf-x86_64-4m.json usr/share/qemu/firmware/
+	Finstall 644 80-edk2-ovmf-ia32-on-x86_64-secure-4m.json usr/share/qemu/firmware/
+	Finstall 644 81-edk2-ovmf-ia32-on-x86_64-4m.json usr/share/qemu/firmware/
+
+	# add symlink for previous ovmf locations
+  	Fln /usr/share/$pkgname usr/share/ovmf
+	Fln /usr/share/$pkgname usr/share/$pkgbase-ovmf
+
+	# adding a symlink for applications with questionable heuristics (such as lxd)
+	Fln /usr/share/$pkgname usr/share/OVMF
+
+	# split shell
+	Fsplit edk2-shell usr/share/$pkgname/x64/Shell.efi
+	Fsplit edk2-shell usr/share/$pkgname/x64/Shell_Full.efi
+	Fsplit edk2-shell usr/share/$pkgname/ia32/Shell.efi
+	Fsplit edk2-shell usr/share/$pkgname/ia32/Shell_Full.efi
+}
+
+# optimization OK

@@ -2,28 +2,30 @@
 # Maintainer: crazy <crazy@frugalware.org>
 
 pkgname=redis
-pkgver=7.4.2
+pkgver=8.0.2
 pkgrel=1
 pkgdesc="Redis is an open source in-memory data structure store"
 url="https://redis.io/"
-depends=('glibc' 'jemalloc')
+depends=('gperftools' 'libsystemd')
 rodepends=('shadow' 'grep' 'hyperscan')
-makedepends=('systemd-devel')
+makedepends=('systemd-devel' 'cmake')
 _F_archive_grepv="rc"
 up2date="Flasttar http://download.redis.io/releases"
 backup=('etc/redis/redis.conf' 'etc/redis/sentinel.conf')
 source=(http://download.redis.io/releases/$pkgname-$pkgver.tar.gz \
+	fix-gperftools-header-location.patch \
+	redis-7.2.0-system-jemalloc.patch \
 	redis.conf-sane-defaults.patch \
-	redis-5.0-use-system-jemalloc.patch \
 	redis.logrotate \
 	redis.service \
 	redis.sysusers \
 	redis.tmpfiles)
 archs=('x86_64')
 groups=('apps-extra')
-sha1sums=('26f322e0171a7a33f71dcb4fc430ba9c342c7f90' \
+sha1sums=('03e7618abd0f54850008304530a4baa94ac11edc' \
+          '500be266a653458b7e6721eec86794c62e54ba66' \
+          '07b0da7c4f3b14da59125e1bd7125efd61a7a28d' \
           'deec864f020e96334647e0cb2f5332b00903d043' \
-          'c9e4eb1d5faf22f8121b25839f77118ce323c986' \
           'be64a1aaddbbe2a4c5f5c035194c908330227ba1' \
           '7fdaa0a1d7bf624986488271b4f34f3bba444984' \
           '9ce5aa6b972b6be0482aab16b6dbbaf72ac0a490' \
@@ -32,11 +34,17 @@ _F_systemd_units=(redis=e)
 Finclude systemd
 
 build() {
-
 	Fcd
 	Fpatchall
-	Fexec make || Fdie
+
+	Fexec make BUILD_TLS=yes \
+                USE_SYSTEMD=yes \
+                MALLOC=tcmalloc \
+		OPTIMIZATION='' \
+                DEBUG_FLAGS='' \
+		V=1 || Fdie
 	Fexec make PREFIX=$Fdestdir/usr install || Fdie
+
 
 	## conf files
 	Ffilerel  ./redis.conf /etc/redis/redis.conf

@@ -26,7 +26,7 @@ depends=('lcms2' 'openal' 'libglu' 'libldap>=2.5.4' 'libpcap' 'libpulse' 'libmpg
 depends+=('lib32-lcms2' 'lib32-libxcursor' 'lib32-libxi' 'lib32-libxrandr' 'lib32-libxinerama' 'lib32-libxcomposite' \
 	'lib32-libxrender' 'lib32-freetype2' 'lib32-libxml2' 'lib32-ncurses' 'lib32-vkd3d' 'lib32-ocl-icd' 'lib32-libxkbcommon' \
 	'lib32-libldap>=2.5.4' 'lib32-vulkan-icd-loader' 'lib32-faudio' 'lib32-libosmesa' 'lib32-wayland')
-makedepends=('x11-protos' 'cups' 'bison' 'opencl-headers' 'kernel-headers' 'wayland-protocols')
+makedepends=('x11-protos' 'cups' 'bison' 'opencl-headers' 'kernel-headers' 'wayland-protocols' 'mingw-w64-gcc')
 _F_cd_path="wine-$pkgver"
 options=('genscriptlet' 'static' 'nofortify' 'nolto' 'plt' 'ldbfd')
 archs=('x86_64')

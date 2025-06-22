@@ -21,11 +21,11 @@ url="http://www.winehq.org"
 groups=('xapps-extra')
 depends=('lcms2' 'openal' 'libglu' 'libldap>=2.5.4' 'libpcap' 'libpulse' 'libmpg123' 'libgphoto2' 'gettext' 'libxml2' 'ocl-icd' \
 	'libxcursor' 'libxi' 'libxrandr' 'libxinerama' 'libxcomposite' 'sane-backends' 'v4l-utils' 'libxrender' 'wayland' \
-	'libxslt' 'vkd3d' 'vulkan-icd-loader' 'faudio' 'libosmesa' 'pcsc-lite' 'gst1-plugins-base' 'libxkbcommon')
+	'libxslt' 'vkd3d' 'vulkan-icd-loader' 'faudio' 'pcsc-lite' 'gst1-plugins-base' 'libxkbcommon')
 #32 bit
 depends+=('lib32-lcms2' 'lib32-libxcursor' 'lib32-libxi' 'lib32-libxrandr' 'lib32-libxinerama' 'lib32-libxcomposite' \
 	'lib32-libxrender' 'lib32-freetype2' 'lib32-libxml2' 'lib32-ncurses' 'lib32-vkd3d' 'lib32-ocl-icd' 'lib32-libxkbcommon' \
-	'lib32-libldap>=2.5.4' 'lib32-vulkan-icd-loader' 'lib32-faudio' 'lib32-libosmesa' 'lib32-wayland')
+	'lib32-libldap>=2.5.4' 'lib32-vulkan-icd-loader' 'lib32-faudio' 'lib32-wayland')
 makedepends=('x11-protos' 'cups' 'bison' 'opencl-headers' 'kernel-headers' 'wayland-protocols' 'mingw-w64-gcc')
 _F_cd_path="wine-$pkgver"
 options=('genscriptlet' 'static' 'nofortify' 'nolto' 'plt' 'ldbfd')

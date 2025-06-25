@@ -1,2 +1,1 @@
-append_path '/opt/rocm/bin'
-export PATH
+export PATH=/opt/rocm/bin:$PATH

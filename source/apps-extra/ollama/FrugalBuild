@@ -2,27 +2,51 @@
 # Maintainer: DeX77 <dex+fw@dragonslave.de>
 
 pkgname=ollama
-pkgver=0.6.2
-pkgrel=2
+pkgver=0.9.5
+pkgrel=1
 pkgdesc='Create, run and share large language models (LLMs)'
 archs=('x86_64')
 groups=('apps-extra')
 depends=('glibc')
 _F_github_tag_v=yes
 _F_github_grepv=rc
-makedepends=('go' 'cuda' 'cuda-static')
+makedepends=('go' 'cuda-static' 'clblast')
 _F_cmake_rpath=yes
 _F_cmake_install_rpath=yes
+_F_cmake_confopts="	-DCMAKE_CUDA_ARCHITECTURES=50;52;53;60;61;62;70;72;75;80;86;87;89;90;90a \
+			-DAMDGPU_TARGETS=gfx900;gfx940;gfx941;gfx942;gfx1010;gfx1012;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201;gfx906:xnack-;gfx908:xnack-;gfx90a:xnack+;gfx90a:xnack-"
+
 Finclude github cmake
-source+=(ollama.service \
+source+=(remove_runtime.patch \
+	ollama.service \
 	sysusers.conf \
 	tmpfiles.d)
-sha1sums=('26a3f179f25e16b9c20b4630745d13c43178e434' \
+sha1sums=('f635cf2cc8bcb1f002a4cfb3b4d1285fcbaf51c6' \
+          '3c3b66d38df96f8209dbec0ee3b54d276d74af8f' \
           '9b45f8a4549a6d6d6d9ad1f2485cf0c9a9522eda' \
           '581aa0d97b79a9ba0c5d8015216f020249fe024a' \
           '6ac2791c9ce3e546dfe5269d44b7194dd7fb0add')
+options=('clang')
+
+
+subpkgs+=("$pkgname-rocm")
+subdescs+=("$pkgdesc (AMD ROCM)")
+subarchs+=('x86_64')
+subgroups+=('apps-extra')
+subrodepends+=("$pkgname")
+subdepends+=('hipblas')
+
+subpkgs+=("$pkgname-cuda")
+subdescs+=("$pkgdesc (CUDA)")
+subarchs+=('x86_64')
+subgroups+=('apps-extra')
+subrodepends+=("$pkgname")
+subdepends+=('cuda')
 
 build() {
+	# rocm
+	source /etc/profile.d/rocm.sh
+
 	export CGO_CFLAGS="$CFLAGS" CGO_CPPFLAGS="$CPPFLAGS" CGO_CXXFLAGS="$CXXFLAGS" CGO_LDFLAGS="$LDFLAGS"
 	local goflags='-buildmode=pie -trimpath -mod=readonly -modcacherw'
 	CMake_build
@@ -35,6 +59,11 @@ build() {
 	Finstall 644 sysusers.conf usr/lib/sysusers.d/ollama.conf
 	Finstall 644 tmpfiles.d usr/lib/tmpfiles.d/ollama.conf
 	Fln /var/lib/ollama usr/share/ollama
+
+	Frm usr/lib/ollama/rocm
+
+	Fsplit $pkgname-rocm usr/lib/ollama/libggml-hip.so
+	Fsplit $pkgname-cuda usr/lib/ollama/libggml-cuda.so
 }
 
 # optimization OK

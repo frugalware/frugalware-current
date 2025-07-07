@@ -1,0 +1,282 @@
+From 7335b4f457eab4081ef5027012baf3043d3d8e91 Mon Sep 17 00:00:00 2001
+From: Rafael Siejakowski <rs@rs-math.net>
+Date: Mon, 9 Jun 2025 13:51:59 +0200
+Subject: [PATCH] Fix includes in PDF input extensions
+
+This commit fixes a build error against a non-system libpoppler.
+
+The include directives referencing Poppler's private headers are "system"
+includes, so they should use angular brackets. The path prefix "poppler/"
+is necessary to ensure they work correctly against a custom Poppler
+installation.
+
+In addition, several includes of lib2geom are also converted to angular
+brackets. A handful of unused includes are removed.
+---
+ .../internal/pdfinput/pdf-parser.cpp          | 42 +++++++++----------
+ src/extension/internal/pdfinput/pdf-parser.h  |  9 ++--
+ src/extension/internal/pdfinput/pdf-utils.h   |  9 ++--
+ .../pdfinput/poppler-cairo-font-engine.cpp    | 13 +++---
+ .../pdfinput/poppler-cairo-font-engine.h      |  4 +-
+ .../internal/pdfinput/poppler-utils.cpp       |  8 ++--
+ .../internal/pdfinput/svg-builder.cpp         | 28 ++++++-------
+ src/extension/internal/pdfinput/svg-builder.h |  4 +-
+ 8 files changed, 56 insertions(+), 61 deletions(-)
+
+diff --git a/src/extension/internal/pdfinput/pdf-parser.cpp b/src/extension/internal/pdfinput/pdf-parser.cpp
+index 0d31eda16f4..0773e389085 100644
+--- a/src/extension/internal/pdfinput/pdf-parser.cpp
++++ b/src/extension/internal/pdfinput/pdf-parser.cpp
+@@ -22,42 +22,40 @@
+ #pragma implementation
+ #endif
+ 
++#include <2geom/transforms.h>
+ #include <cmath>
+-#include <cstddef>
+ #include <cstdio>
+ #include <cstdlib>
+ #include <cstring>
++#include <glib/poppler-features.h>
++#include <goo/GooString.h>
++#include <goo/gmem.h>
+ #include <memory>
+ #include <mutex> // std::call_once()
++#include <poppler/Annot.h>
++#include <poppler/Array.h>
++#include <poppler/CharTypes.h>
++#include <poppler/Dict.h>
++#include <poppler/Error.h>
++#include <poppler/Gfx.h>
++#include <poppler/GfxFont.h>
++#include <poppler/GfxState.h>
++#include <poppler/GlobalParams.h>
++#include <poppler/Lexer.h>
++#include <poppler/Object.h>
++#include <poppler/OutputDev.h>
++#include <poppler/PDFDoc.h>
++#include <poppler/Page.h>
++#include <poppler/Parser.h>
++#include <poppler/Stream.h>
+ #include <utility>
+ #include <vector>
+-#include <2geom/transforms.h>
+ 
+-#include "Annot.h"
+-#include "Array.h"
+-#include "CharTypes.h"
+-#include "Dict.h"
+-#include "Error.h"
+-#include "Gfx.h"
+-#include "GfxFont.h"
+-#include "GfxState.h"
+-#include "GlobalParams.h"
+-#include "Lexer.h"
+-#include "Object.h"
+-#include "OutputDev.h"
+-#include "PDFDoc.h"
+-#include "Page.h"
+-#include "Parser.h"
+-#include "Stream.h"
+-#include "glib/poppler-features.h"
+-#include "goo/GooString.h"
+-#include "goo/gmem.h"
+ #include "pdf-utils.h"
+ #include "poppler-cairo-font-engine.h"
+ #include "poppler-transition-api.h"
+ #include "poppler-utils.h"
+ #include "svg-builder.h"
+-#include "util/units.h"
+ 
+ // the MSVC math.h doesn't define this
+ #ifndef M_PI
+diff --git a/src/extension/internal/pdfinput/pdf-parser.h b/src/extension/internal/pdfinput/pdf-parser.h
+index 99a205d186d..2c3a57bf50c 100644
+--- a/src/extension/internal/pdfinput/pdf-parser.h
++++ b/src/extension/internal/pdfinput/pdf-parser.h
+@@ -25,16 +25,15 @@
+ #pragma interface
+ #endif
+ 
+-#include "glib/poppler-features.h"
+-#include "Object.h"
+-
++#include <2geom/affine.h>
++#include <glib/poppler-features.h>
+ #include <map>
+ #include <memory>
++#include <poppler/Object.h>
+ #include <string>
+-#include <2geom/affine.h>
+ 
+ #define Operator Operator_Gfx
+-#include <Gfx.h>
++#include <poppler/Gfx.h>
+ #undef Operator
+ 
+ namespace Inkscape::Extension::Internal {
+diff --git a/src/extension/internal/pdfinput/pdf-utils.h b/src/extension/internal/pdfinput/pdf-utils.h
+index e1a449a4e38..c1d602bec00 100644
+--- a/src/extension/internal/pdfinput/pdf-utils.h
++++ b/src/extension/internal/pdfinput/pdf-utils.h
+@@ -11,12 +11,13 @@
+ #ifndef PDF_UTILS_H
+ #define PDF_UTILS_H
+ 
++#include <2geom/affine.h>
+ #include <2geom/rect.h>
++#include <poppler/Gfx.h>
++#include <poppler/GfxState.h>
++#include <poppler/Page.h>
++
+ #include "poppler-transition-api.h"
+-#include "2geom/affine.h"
+-#include "Gfx.h"
+-#include "GfxState.h"
+-#include "Page.h"
+ 
+ class ClipHistoryEntry
+ {
+diff --git a/src/extension/internal/pdfinput/poppler-cairo-font-engine.cpp b/src/extension/internal/pdfinput/poppler-cairo-font-engine.cpp
+index 5e1a6426250..dff615cb616 100644
+--- a/src/extension/internal/pdfinput/poppler-cairo-font-engine.cpp
++++ b/src/extension/internal/pdfinput/poppler-cairo-font-engine.cpp
+@@ -47,14 +47,11 @@
+ #include <cstring>
+ #include <fofi/FoFiTrueType.h>
+ #include <fofi/FoFiType1C.h>
+-#include <fstream>
+-
+-#include "Error.h"
+-#include "Gfx.h"
+-#include "GlobalParams.h"
+-#include "Page.h"
+-#include "XRef.h"
+-#include "goo/gfile.h"
++#include <poppler/Error.h>
++#include <poppler/Gfx.h>
++#include <poppler/GlobalParams.h>
++#include <poppler/Page.h>
++#include <poppler/XRef.h>
+ 
+ //========================================================================
+ //
+diff --git a/src/extension/internal/pdfinput/poppler-cairo-font-engine.h b/src/extension/internal/pdfinput/poppler-cairo-font-engine.h
+index d3e1a94e845..114a23181a7 100644
+--- a/src/extension/internal/pdfinput/poppler-cairo-font-engine.h
++++ b/src/extension/internal/pdfinput/poppler-cairo-font-engine.h
+@@ -36,11 +36,11 @@
+ #include <memory>
+ #include <mutex>
+ #include <optional>
++#include <poppler/GfxFont.h>
++#include <poppler/PDFDoc.h>
+ #include <unordered_map>
+ #include <vector>
+ 
+-#include "GfxFont.h"
+-#include "PDFDoc.h"
+ #include "poppler-config.h"
+ #include "poppler-transition-api.h"
+ 
+diff --git a/src/extension/internal/pdfinput/poppler-utils.cpp b/src/extension/internal/pdfinput/poppler-utils.cpp
+index ad0dd236a2a..a579ffcacf3 100644
+--- a/src/extension/internal/pdfinput/poppler-utils.cpp
++++ b/src/extension/internal/pdfinput/poppler-utils.cpp
+@@ -12,12 +12,12 @@
+ 
+ #include "poppler-utils.h"
+ 
++#include <2geom/affine.h>
++#include <poppler/GfxFont.h>
++#include <poppler/GfxState.h>
++#include <poppler/PDFDoc.h>
+ #include <poppler/UTF.h>
+ 
+-#include "2geom/affine.h"
+-#include "GfxFont.h"
+-#include "GfxState.h"
+-#include "PDFDoc.h"
+ #include "libnrtype/font-factory.h"
+ 
+ /**
+diff --git a/src/extension/internal/pdfinput/svg-builder.cpp b/src/extension/internal/pdfinput/svg-builder.cpp
+index cdd8d755e82..f14be1ec62e 100644
+--- a/src/extension/internal/pdfinput/svg-builder.cpp
++++ b/src/extension/internal/pdfinput/svg-builder.cpp
+@@ -27,27 +27,28 @@
+ 
+ #ifdef HAVE_POPPLER
+ 
+-#include "Function.h"
+-#include "GfxFont.h"
+-#include "GfxState.h"
+-#include "Page.h"
+-#include "Stream.h"
+-#include "color.h"
+-#include "document.h"
+-#include "extract-uri.h"
+-#include "pdf-parser.h"
+-#include "pdf-utils.h"
+-#include "png.h"
+-#include "poppler-cairo-font-engine.h"
+-#include "profile-manager.h"
++#include <poppler/Function.h>
++#include <poppler/GfxFont.h>
++#include <poppler/GfxState.h>
++#include <poppler/Page.h>
++#include <poppler/Stream.h>
+ 
++#include "color.h"
+ #include "color/cms-util.h"
+ #include "display/cairo-utils.h"
+ #include "display/nr-filter-utils.h"
++#include "document.h"
++#include "extract-uri.h"
++#include "helper/geom.h"
+ #include "object/sp-defs.h"
+ #include "object/sp-item-group.h"
+ #include "object/sp-namedview.h"
+ #include "object/sp-text.h"
++#include "pdf-parser.h"
++#include "pdf-utils.h"
++#include "png.h"
++#include "poppler-cairo-font-engine.h"
++#include "profile-manager.h"
+ #include "svg/css-ostringstream.h"
+ #include "svg/path-string.h"
+ #include "svg/svg.h"
+@@ -56,7 +57,6 @@
+ #include "xml/node.h"
+ #include "xml/repr.h"
+ #include "xml/sp-css-attr.h"
+-#include "helper/geom.h"
+ 
+ namespace Inkscape {
+ namespace Extension {
+diff --git a/src/extension/internal/pdfinput/svg-builder.h b/src/extension/internal/pdfinput/svg-builder.h
+index ae6b916bcb0..db42f81b87d 100644
+--- a/src/extension/internal/pdfinput/svg-builder.h
++++ b/src/extension/internal/pdfinput/svg-builder.h
+@@ -27,7 +27,7 @@ namespace Inkscape {
+ }
+ 
+ #define Operator Operator_Gfx
+-#include <Gfx.h>
++#include <poppler/Gfx.h>
+ #undef Operator
+ 
+ #include <2geom/affine.h>
+@@ -35,8 +35,8 @@ namespace Inkscape {
+ #include <cairo-ft.h>
+ #include <glibmm/ustring.h>
+ #include <lcms2.h>
++#include <poppler/CharTypes.h>
+ 
+-#include "CharTypes.h"
+ #include "enums.h"
+ #include "poppler-utils.h"
+ class Function;
+-- 
+GitLab
+

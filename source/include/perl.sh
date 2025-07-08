@@ -25,7 +25,6 @@
 #
 # == OPTIONS
 # * _F_perl_name: name of the CPAN module
-# * _F_perl_author: name of the module author
 # * _F_perl_ext (defaults to .tar.gz): extension of the source tarball
 # * _F_perl_sourcename (defaults to _F_perl_name): name of the source tarball
 # without pkgver and _F_perl_ext
@@ -39,17 +38,14 @@
 	error "No \$_F_perl_name set!"
 	Fdie
 }
-[ -z "$_F_perl_author" ] && \
-{
-	error "No \$_F_perl_author set!"
-	Fdie
-}
+
 [ -z "$_F_perl_ext" ] && _F_perl_ext=".tar.gz"
 [ -z "$_F_perl_sourcename" ] && _F_perl_sourcename="$_F_perl_name"
 [ -z "$_F_perl_url" ] && _F_perl_url="https://cpan.metacpan.org/authors/id/"
 [ -z "$_F_perl_no_url" ] && url="http://cpan.org/"
-[ -z "$_F_perl_no_up2date" ] && up2date="lynx -dump https://metacpan.org/pod/$(echo $_F_perl_name | sed 's/-/::/g') | grep https | grep -om1 '$_F_perl_sourcename-\(.*\)$_F_perl_ext' | sed 's/.*-\(.*\)$_F_perl_ext/\1/'"
-[ -z "$_F_perl_no_source" ] && source=($_F_perl_url$_F_perl_author/$_F_perl_sourcename-$pkgver$_F_perl_ext)
+[ -z "$_F_archive_name" ] && _F_archive_name="$_F_perl_sourcename"
+[ -z "$_F_perl_no_up2date" ] && up2date="Flastarchive https://fastapi.metacpan.org/v1/download_url/${_F_perl_name//-/::} $_F_perl_ext"
+[ -z "$_F_perl_no_source" ] && source=($(lynx -dump https://fastapi.metacpan.org/v1/download_url/${_F_perl_name//-/::} | jq -r '.download_url'))
 
 ###
 # == OVERWRITTEN VARIABLES
@@ -67,6 +63,7 @@ pkgname="perl-`echo $_F_perl_name|tr [A-Z] [a-z]`"
 depends+=('perl>=5.42.0')
 [ -z "$groups" ] && groups=('devel-extra')
 [ -z "$archs" ] && archs=('x86_64')
+makedepends+=('jq')
 
 ###
 # == PROVIDED FUNCTIONS

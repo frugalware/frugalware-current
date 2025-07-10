@@ -45,7 +45,7 @@
 [ -z "$_F_perl_no_url" ] && url="http://cpan.org/"
 [ -z "$_F_archive_name" ] && _F_archive_name="$_F_perl_sourcename"
 [ -z "$_F_perl_no_up2date" ] && up2date="Flastarchive https://fastapi.metacpan.org/v1/download_url/${_F_perl_name//-/::} $_F_perl_ext"
-[ -z "$_F_perl_no_source" ] && source=($(lynx -dump https://fastapi.metacpan.org/v1/download_url/${_F_perl_name//-/::} | jq -r '.download_url'))
+[ -z "$_F_perl_no_source" ] && source=($(curl -s https://fastapi.metacpan.org/v1/download_url/${_F_perl_name//-/::} | jq -r '.download_url'))
 
 ###
 # == OVERWRITTEN VARIABLES
